@@ -110,16 +110,32 @@ def _righe_costo(request):
     ids = [r.legacy_anagrafica_id for r in righe if r.legacy_anagrafica_id]
     anag = {int(d["id"]): d for d in fetch_anagrafica_rows(ids=ids)} if ids else {}
     stati = coeff_svc.stati(ids) if ids else {}
+    # Gli ultimi 12 mesi di ciascuno, fino al mese scelto: sottoriga e mini-grafico.
+    finestra = [m for m in mesi if m <= mese][:MESI_SERIE] if mese else []
+    serie: dict = {}
+    if finestra:
+        for c in CostoOrarioMensile.objects.filter(mese__in=finestra, tax_code__in=[r.tax_code for r in righe]):
+            serie.setdefault(c.tax_code, []).append(c)
     out = []
     for r in righe:
         d = anag.get(r.legacy_anagrafica_id or -1) or {}
+        storia = sorted(serie.get(r.tax_code, [r]), key=lambda c: c.mese)
+        prima = [c for c in storia if c.mese < r.mese]
+        prec = prima[-1] if prima else None
+        delta = r.costo_orario - prec.costo_orario if prec else None
         out.append({
             "c": r, "legacy_id": r.legacy_anagrafica_id,
             "nome": naming.nome_completo(d.get("nome"), d.get("cognome")) if d else r.tax_code,
             "ordine": naming.chiave_ordinamento(d.get("nome"), d.get("cognome")) if d else r.tax_code,
             "reparto": (d.get("reparto") or "").strip(),
             "classe": stati.get(r.legacy_anagrafica_id, {}).get("classe_principale_label", ""),
+            "prec": prec, "delta": delta, "delta_pct": _pct(delta, prec.costo_orario) if prec else None,
+            "serie": _serie(storia),
         })
+    # Media di reparto sul mese intero (non sui filtrati): «rispetto al reparto».
+    per_reparto: dict = {}
+    for x in out:
+        per_reparto.setdefault(x["reparto"], []).append(x["c"].costo_orario)
     q = (request.GET.get("q") or "").strip().casefold()
     reparto = (request.GET.get("reparto") or "").strip()
     reparti = sorted({x["reparto"] for x in out if x["reparto"]}, key=str.casefold)
@@ -127,9 +143,58 @@ def _righe_costo(request):
         out = [x for x in out if q in x["nome"].casefold() or q in x["c"].tax_code.casefold()]
     if reparto:
         out = [x for x in out if x["reparto"] == reparto]
+    # Scostamento dalla media di chi resta con i filtri: cambia con i filtri.
+    media = sum(x["c"].costo_orario for x in out) / len(out) if out else None
+    for x in out:
+        valori = per_reparto.get(x["reparto"]) or []
+        media_rep = sum(valori) / len(valori) if valori else None
+        x["scost"] = _pct(x["c"].costo_orario - media, media) if media else None
+        x["scost_rep"] = _pct(x["c"].costo_orario - media_rep, media_rep) if media_rep and len(valori) > 1 else None
+        x["barra"] = min(50, abs(float(x["scost"] or 0)) * 2)
+    mostra = request.GET.get("mostra") or ""
+    if mostra in FILTRI_MOSTRA:
+        out = [x for x in out if FILTRI_MOSTRA[mostra][1](x)]
     out.sort(key=lambda x: x["ordine"])
     return {"mesi": mesi, "mese": mese, "righe": out, "reparti": reparti, "q": request.GET.get("q", ""),
-            "reparto": reparto}
+            "reparto": reparto, "media": media, "mostra": mostra if mostra in FILTRI_MOSTRA else "",
+            "filtri_mostra": [(k, v[0]) for k, v in FILTRI_MOSTRA.items()]}
+
+
+MESI_SERIE = 12
+SOGLIA_SCOSTAMENTO = 10
+
+FILTRI_MOSTRA = {
+    "sopra": ("Sopra la media", lambda x: x["scost"] is not None and x["scost"] > 0),
+    "sotto": ("Sotto la media", lambda x: x["scost"] is not None and x["scost"] < 0),
+    "lontani": (f"Lontani dalla media (oltre ±{SOGLIA_SCOSTAMENTO}%)",
+                lambda x: x["scost"] is not None and abs(x["scost"]) > SOGLIA_SCOSTAMENTO),
+    "aumentati": ("Aumentati sul mese prima", lambda x: x["delta"] is not None and x["delta"] > 0),
+    "diminuiti": ("Diminuiti sul mese prima", lambda x: x["delta"] is not None and x["delta"] < 0),
+}
+
+
+def _pct(parte, base):
+    from decimal import ROUND_HALF_UP, Decimal
+
+    return (Decimal(parte) / Decimal(base) * 100).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP) if base else None
+
+
+def _serie(storia: list) -> dict:
+    """Mesi della persona per la sottoriga, con i punti del mini-grafico (SVG 96×26) e le barre."""
+    valori = [float(c.costo_orario) for c in storia]
+    lo, hi = (min(valori), max(valori)) if valori else (0, 0)
+    ampiezza = (hi - lo) or 1
+    n = len(valori)
+    punti = " ".join(f"{(i * 92 / (n - 1) + 2) if n > 1 else 48:.1f},{22 - (v - lo) / ampiezza * 18:.1f}"
+                     for i, v in enumerate(valori))
+    mesi, prec = [], None
+    for c in storia:
+        delta = c.costo_orario - prec.costo_orario if prec else None
+        mesi.append({"c": c, "delta": delta, "pct": _pct(delta, prec.costo_orario) if prec else None,
+                     "h": round(12 + (float(c.costo_orario) - lo) / ampiezza * 48)})
+        prec = c
+    ux, uy = punti.rsplit(" ", 1)[-1].split(",") if punti else ("48", "13")
+    return {"punti": punti, "mesi": mesi, "n": n, "ux": ux, "uy": uy}
 
 
 @login_required
@@ -161,9 +226,13 @@ def costo_orario(request):
         "minimo": _euro(min(costi)) if costi else "—",
         "massimo": _euro(max(costi)) if costi else "—",
         "manuali": sum(1 for x in ctx["righe"] if x["c"].rml_manuale),
+        "aumentati": sum(1 for x in ctx["righe"] if x["delta"] is not None and x["delta"] > 0),
+        "diminuiti": sum(1 for x in ctx["righe"] if x["delta"] is not None and x["delta"] < 0),
+        "lontani": sum(1 for x in ctx["righe"] if x["scost"] is not None and abs(x["scost"]) > SOGLIA_SCOSTAMENTO),
     }
     return render(request, "anagrafica/pages/costo_orario.html", {
         **ctx, "page_title": "Costo orario", "report_costi": _report_costi(request), "giorni": giorni, "ore": ore, "ore_mese": giorni * ore, "kpi": kpi,
+        "soglia": SOGLIA_SCOSTAMENTO, "media_euro": _euro(ctx["media"]) if ctx["media"] is not None else "—",
     })
 
 

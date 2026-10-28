@@ -7,7 +7,43 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
 <style>
-.co-filtri{ grid-template-columns:180px 200px minmax(0,1fr) auto auto; }
+.co-filtri{ grid-template-columns:170px 180px 230px minmax(0,1fr) auto auto; }
+/* Riga apribile: nome = pulsante, sotto l'andamento della persona */
+.co-apri{ all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:6px; font-weight:600; color:var(--fmd-navy, #0f2a4a); }
+.co-apri:focus-visible{ outline:2px solid #1f87cd; outline-offset:2px; border-radius:4px; }
+.co-apri .co-chev{ display:inline-block; width:14px; color:#94a3b8; transition:transform .15s; }
+.co-apri[aria-expanded="true"] .co-chev{ transform:rotate(90deg); color:#1f87cd; }
+.co-su{ color:#c2410c; font-weight:600; }
+.co-giu{ color:#1f87cd; font-weight:600; }
+.co-pct{ display:block; font-size:11px; font-weight:400; }
+/* Scostamento dalla media: barra divergente, a destra sopra la media */
+.co-scost{ display:flex; align-items:center; gap:8px; justify-content:flex-end; }
+.co-bar{ position:relative; width:100px; height:8px; border-radius:4px; background:var(--fmd-line-soft, #eef2f7); flex:none; }
+.co-bar::after{ content:""; position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:#94a3b8; }
+.co-bar i{ position:absolute; top:0; bottom:0; border-radius:4px; }
+.co-bar i.co-su{ left:50%; background:#f59e0b; }
+.co-bar i.co-giu{ right:50%; background:#5aa9e0; }
+.co-spark{ display:block; }
+.co-spark polyline{ fill:none; stroke:#1f87cd; stroke-width:1.6; }
+.co-spark circle{ fill:#1f87cd; }
+tr.co-det[hidden]{ display:none !important; } /* le tabelle a schede su smartphone mostrano ogni riga */
+tr.co-det > td{ background:var(--fmd-bg-soft, #f8fafc); padding:14px 16px 16px; }
+.co-mesi{ display:flex; align-items:flex-end; gap:6px; overflow-x:auto; padding-bottom:4px; }
+.co-mese{ flex:1 0 54px; max-width:84px; text-align:center; font-size:11px; color:#64748b; }
+.co-mese b{ display:block; color:var(--fmd-ink, #0f172a); font-size:12px; }
+.co-col{ margin:4px auto; width:70%; border-radius:4px 4px 0 0; background:#b9dbf3; }
+.co-mese.co-ora .co-col{ background:#1f87cd; }
+.co-det-azioni{ display:flex; flex-wrap:wrap; gap:14px; margin-top:10px; font-size:12.5px; }
+.co-det-titolo{ font-size:12px; color:#64748b; margin:0 0 8px; }
+body.theme-dark .co-apri{ color:#e2e8f0; }
+body.theme-dark .co-su{ color:#fdba74; }
+body.theme-dark .co-giu{ color:#7cc4f5; }
+body.theme-dark .co-bar{ background:#22324a; }
+body.theme-dark tr.co-det > td{ background:#0c1726; }
+body.theme-dark .co-mese b{ color:#e2e8f0; }
+body.theme-dark .co-col{ background:#1e4a6e; }
+body.theme-dark .co-mese.co-ora .co-col{ background:#5aa9e0; }
+@media (max-width:900px){ .co-bar{ width:60px; } }
 .co-divisori{ grid-template-columns:160px 160px auto minmax(0,1fr) auto; padding:0; }
 @media (max-width:640px){
   .co-filtri, .co-divisori{ grid-template-columns:minmax(0,1fr); }
@@ -56,7 +92,10 @@
       {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-coins" valore=kpi.media label="Costo orario medio" sub="€/h, con i filtri attivi" %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-coins" valore=kpi.minimo label="Minimo" sub="€/h" %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-coins" valore=kpi.massimo label="Massimo" sub="€/h" %}
-      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=kpi.manuali label="RML corretta a mano" sub="vale la correzione di HR" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=kpi.aumentati label="Aumentati sul mese prima" sub="▲ costo orario cresciuto" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-coins" valore=kpi.diminuiti label="Diminuiti sul mese prima" sub="▼ costo orario sceso" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-alert-cir" valore=kpi.lontani label="Lontani dalla media" sub="oltre ±10% dai filtrati" %}
+      {% if kpi.manuali %}{% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=kpi.manuali label="RML corretta a mano" sub="vale la correzione di HR" %}{% endif %}
     </section>
     {% endif %}
 
@@ -72,6 +111,11 @@
             {% for r in reparti %}<option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}
           </select>
         </div>
+        <div class="fmd-filtf"><label for="co-mostra">Mostra</label>
+          <select id="co-mostra" name="mostra"><option value="">Tutti</option>
+            {% for k, etichetta in filtri_mostra %}<option value="{{ k }}"{% if k == mostra %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
+          </select>
+        </div>
         <div class="fmd-filtf"><label for="co-q">Cerca</label><input id="co-q" type="text" name="q" value="{{ q }}" placeholder="Nome o codice fiscale"></div>
         <div class="fmd-filtf fmd-go"><button type="submit" class="fmd-btn fmd-btn-navy">Filtra</button></div>
         <div class="fmd-filtf fmd-go"><a href="{% url 'anagrafica:costo_orario' %}" class="fmd-btn fmd-btn-ghost">Reset</a></div>
@@ -83,31 +127,69 @@
         <div class="fmd-block-title" style="font-size:14px;"><svg class="fmd-ico"><use href="#i-coins"/></svg>{% if mese %}{{ mese|date:"F Y" }}{% else %}Costo orario{% endif %}</div>
         <span class="fmd-spacer"></span>
         {% if righe %}{% include "anagrafica/components/_export_menu.html" with export_key="costo_orario" %}{% endif %}
-        <span class="fmd-block-aside">{{ righe|length }} dipendent{{ righe|length|pluralize:"e,i" }}</span>
+        <span class="fmd-block-aside">{{ righe|length }} dipendent{{ righe|length|pluralize:"e,i" }} · media € {{ media_euro }}/h</span>
       </div>
       {% if righe %}
+      <p class="fmd-muted" style="font-size:12px; margin:10px 16px 0;">Clic sul nome per l'andamento mese per mese. «Scostamento» è rispetto alla media dei dipendenti mostrati (€ {{ media_euro }}/h): cambia con i filtri; passando sopra c'è anche quello dalla media del reparto.</p>
       <div class="fmd-tablewrap">
-        <table class="fmd-table">
-          <thead><tr><th>Dipendente</th><th>Reparto</th><th>Classificazione</th><th class="fmd-num">RML</th><th class="fmd-num">Costo orario</th><th></th></tr></thead>
+        <table class="fmd-table" id="co-tabella">
+          <thead><tr><th>Dipendente</th><th>Reparto</th><th>Classificazione</th><th class="fmd-num">RML</th><th class="fmd-num">Costo orario</th><th class="fmd-num">Sul mese prima</th><th class="fmd-num">Scostamento</th><th>Andamento</th></tr></thead>
           <tbody>
             {% for x in righe %}
             <tr>
-              <td>{% if x.legacy_id %}<a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' x.legacy_id %}">{{ x.nome }}</a>{% else %}{{ x.nome }} <span class="fmd-pill fmd-pill-grey">non abbinato</span>{% endif %}</td>
+              <td><button type="button" class="co-apri" aria-expanded="false" aria-controls="co-det-{{ forloop.counter }}" title="Mostra l'andamento"><span class="co-chev" aria-hidden="true">▸</span>{{ x.nome }}</button>{% if not x.legacy_id %} <span class="fmd-pill fmd-pill-grey">non abbinato</span>{% endif %}</td>
               <td class="fmd-muted">{{ x.reparto|default:"—" }}</td>
               <td>{% if x.legacy_id %}<a class="fmd-data-link" href="{% url 'anagrafica:mansioni_coefficienti' x.legacy_id %}" title="Classificazione e coefficienti delle sue mansioni">{{ x.classe|default:"da indicare" }}</a>{% else %}—{% endif %}</td>
               <td class="fmd-num" data-sort-value="{{ x.c.rml|stringformat:'s' }}">€ {{ x.c.rml|floatformat:"2g" }}{% if x.c.rml_manuale %} <span class="fmd-pill fmd-pill-amber" title="Voce RML corretta a mano da HR">a mano</span>{% endif %}</td>
               <td class="fmd-num" data-sort-value="{{ x.c.costo_orario|stringformat:'s' }}"><strong>€ {{ x.c.costo_orario|floatformat:"2g" }}</strong>{% if x.c.divisore_giorni != giorni or x.c.divisore_ore != ore %}<div class="fmd-muted" style="font-size:11.5px;">con {{ x.c.divisore_giorni.normalize }} × {{ x.c.divisore_ore.normalize }}</div>{% endif %}</td>
-              <td>{% if x.legacy_id %}<a class="fmd-data-link" href="{% url 'anagrafica:costo_orario_storico' %}?persona={{ x.legacy_id }}" title="Costo orario mese per mese">Storico →</a>{% endif %}</td>
+              <td class="fmd-num" data-sort-value="{% if x.delta_pct is not None %}{{ x.delta_pct|stringformat:'s' }}{% endif %}">{% if x.delta is not None %}<span class="{% if x.delta > 0 %}co-su{% elif x.delta < 0 %}co-giu{% else %}fmd-muted{% endif %}" title="{{ x.prec.mese|date:'m/Y' }}: € {{ x.prec.costo_orario|floatformat:'2g' }}">{% if x.delta > 0 %}▲ +{% elif x.delta < 0 %}▼ {% endif %}{{ x.delta|floatformat:"2g" }}<span class="co-pct">{% if x.delta_pct > 0 %}+{% endif %}{{ x.delta_pct|floatformat:"1" }}%</span></span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              <td class="fmd-num" data-sort-value="{% if x.scost is not None %}{{ x.scost|stringformat:'s' }}{% endif %}">{% if x.scost is not None %}<div class="co-scost" title="Dalla media dei mostrati: {{ x.scost|floatformat:'1' }}%{% if x.scost_rep is not None %} · dalla media del reparto {{ x.reparto }}: {{ x.scost_rep|floatformat:'1' }}%{% endif %}"><span class="{% if x.scost > 0 %}co-su{% elif x.scost < 0 %}co-giu{% endif %}">{% if x.scost > 0 %}+{% endif %}{{ x.scost|floatformat:"1" }}%</span><span class="co-bar" aria-hidden="true"><i class="{% if x.scost >= 0 %}co-su{% else %}co-giu{% endif %}" style="width:{{ x.barra|stringformat:'.0f' }}%;"></i></span></div>{% endif %}</td>
+              <td>{% if x.serie.n > 1 %}<svg class="co-spark" width="96" height="26" viewBox="0 0 96 26" role="img" aria-label="Andamento degli ultimi {{ x.serie.n }} mesi"><polyline points="{{ x.serie.punti }}"/><circle cx="{{ x.serie.ux }}" cy="{{ x.serie.uy }}" r="2.4"/></svg>{% else %}<span class="fmd-muted" style="font-size:12px;">un mese</span>{% endif %}</td>
+            </tr>
+            <tr class="fm-detail-row co-det" id="co-det-{{ forloop.counter }}" hidden>
+              <td colspan="8">
+                <p class="co-det-titolo">Costo orario di {{ x.nome }}, ultimi {{ x.serie.n }} mes{{ x.serie.n|pluralize:"e,i" }} (€/h; passando sopra RML e variazione)</p>
+                <div class="co-mesi">
+                  {% for m in x.serie.mesi %}
+                  <div class="co-mese{% if m.c.mese == mese %} co-ora{% endif %}" title="{{ m.c.mese|date:'F Y' }} · RML € {{ m.c.rml|floatformat:'2g' }}{% if m.c.rml_manuale %} (a mano){% endif %}{% if m.delta is not None %} · {% if m.delta > 0 %}+{% endif %}{{ m.delta|floatformat:'2g' }} € ({% if m.pct > 0 %}+{% endif %}{{ m.pct|floatformat:'1' }}%) sul mese prima{% endif %}">
+                    <b>{{ m.c.costo_orario|floatformat:"2g" }}</b>
+                    <div class="co-col" style="height:{{ m.h }}px;"></div>
+                    {{ m.c.mese|date:"m/y" }}
+                    {% if m.delta %}<span class="{% if m.delta > 0 %}co-su{% else %}co-giu{% endif %}" style="display:block;">{% if m.delta > 0 %}▲{% else %}▼{% endif %}</span>{% endif %}
+                  </div>
+                  {% endfor %}
+                </div>
+                {% if x.legacy_id %}
+                <div class="co-det-azioni">
+                  <a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' x.legacy_id %}#costo-orario">Scheda del dipendente →</a>
+                  <a class="fmd-data-link" href="{% url 'anagrafica:mansioni_coefficienti' x.legacy_id %}">Classificazione e coefficienti →</a>
+                  <a class="fmd-data-link" href="{% url 'anagrafica:costo_orario_storico' %}?persona={{ x.legacy_id }}">Storico completo →</a>
+                </div>
+                {% endif %}
+              </td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+      <script>
+      (function () {
+        document.addEventListener("click", function (ev) {
+          var b = ev.target.closest && ev.target.closest("#co-tabella .co-apri");
+          if (!b) return;
+          var det = document.getElementById(b.getAttribute("aria-controls"));
+          if (!det) return;
+          var aperta = b.getAttribute("aria-expanded") === "true";
+          b.setAttribute("aria-expanded", aperta ? "false" : "true");
+          det.hidden = aperta;
+        });
+      })();
+      </script>
       {% else %}
       <div class="fmd-empty">
         <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-coins"/></svg></span>
         <span class="fmd-et">Nessun costo orario</span>
-        <span class="fmd-em">{% if q or reparto %}Nessun risultato con i filtri selezionati.{% else %}Serve la voce RML nei cedolini importati.{% endif %}</span>
+        <span class="fmd-em">{% if q or reparto or mostra %}Nessun risultato con i filtri selezionati.{% else %}Serve la voce RML nei cedolini importati.{% endif %}</span>
       </div>
       {% endif %}
     </section>
