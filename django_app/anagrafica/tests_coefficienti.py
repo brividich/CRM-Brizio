@@ -458,3 +458,67 @@ class ReportCostoOrarioTests(_ScenarioMansioni):
         modello = ReportModello.objects.get(codice_sistema="costo_personale")
         self.assertEqual(modello.riservatezza, "DATI_PERSONALI")
         self.assertEqual(modello.blocchi.count(), 5)
+
+class CostoOrarioDinamicoTests(_Base):
+    """Pagina Costo orario: sottoriga con l'andamento, mese prima, scostamento dalla media dei filtrati, menu."""
+
+    def setUp(self):
+        super().setUp()
+        self.mese = timezone.localdate().replace(day=1)
+        prima = (self.mese - timezone.timedelta(days=1)).replace(day=1)
+        # p1: 20 → 21 €/h; p2: 19 €/h solo nel mese. Media del mese 20, p1 +5%, p2 -5%.
+        for cf, pid, mesi in (("SNTTST80A01H501Z", self.p1.pk, ((prima, "3463.20"), (self.mese, "3636.36"))),
+                              ("SNTTST80A02H501Z", self.p2.pk, ((self.mese, "3290.04"),))):
+            for m, importo in mesi:
+                imp = ImportazioneRetributiva.objects.get_or_create(data_competenza=m)[0]
+                VoceRetributiva.objects.create(importazione=imp, tax_code=cf, legacy_anagrafica_id=pid,
+                                               data_competenza=m, pay_item="RML", pay_item_key="rml",
+                                               categoria="totale", importo=D(importo))
+
+    def _ctx(self, **get):
+        from types import SimpleNamespace
+
+        from django.http import QueryDict
+
+        from .views_coefficienti import _righe_costo
+
+        q = QueryDict(mutable=True)
+        q.update(get)
+        return _righe_costo(SimpleNamespace(GET=q))
+
+    def test_mese_prima_e_scostamento(self):
+        ctx = self._ctx()
+        per_id = {x["legacy_id"]: x for x in ctx["righe"]}
+        p1, p2 = per_id[self.p1.pk], per_id[self.p2.pk]
+        self.assertEqual((p1["delta"], p1["delta_pct"]), (D("1.0000"), D("5.0")))
+        self.assertIsNone(p2["delta"])
+        self.assertEqual((p1["scost"], p2["scost"]), (D("5.0"), D("-5.0")))
+        self.assertEqual(p1["serie"]["n"], 2)
+        # Con un filtro la media cambia: da solo p1 è la media.
+        (solo,) = self._ctx(q="SNTTST80A01")["righe"]
+        self.assertEqual(solo["scost"], D("0.0"))
+
+    def test_filtro_mostra(self):
+        self.assertEqual([x["legacy_id"] for x in self._ctx(mostra="aumentati")["righe"]], [self.p1.pk])
+        self.assertEqual([x["legacy_id"] for x in self._ctx(mostra="sotto")["righe"]], [self.p2.pk])
+        self.assertEqual(len(self._ctx(mostra="inventato")["righe"]), 2)
+
+    def test_pagina_con_sottoriga(self):
+        r = self.client.get(reverse("anagrafica:costo_orario"))
+        self.assertContains(r, 'class="co-apri"', count=2)
+        self.assertContains(r, 'class="fm-detail-row co-det"', count=2)
+        self.assertContains(r, "Scostamento")
+        self.assertContains(r, "Aumentati sul mese prima")
+        self.assertNotContains(r, "{#")
+
+    def test_voce_di_menu(self):
+        from .models import SubnavLinkAnagrafica
+
+        voce = SubnavLinkAnagrafica.objects.get(url_value="anagrafica:costo_orario")
+        self.assertIn("anagrafica:costo_orario_storico", voce.active_view_names)
+        cedolini = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:retribuzioni_globale").first()
+        if cedolini:
+            self.assertNotIn("anagrafica:costo_orario", cedolini.active_view_names.split(","))
+            self.assertEqual(voce.categoria_id, cedolini.categoria_id)
+        r = self.client.get(reverse("anagrafica:costo_orario"))
+        self.assertContains(r, reverse("anagrafica:costo_orario") + '"')

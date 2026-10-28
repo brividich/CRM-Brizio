@@ -20,15 +20,19 @@ from security.services import cve_sla
 
 logger = logging.getLogger(__name__)
 
+# Campi della CVE che servono a classe, termine e pagine. Le configurazioni NVD (JSON grande) e la
+# descrizione non si caricano dove non si mostrano: in produzione erano la parte lenta delle pagine.
+CAMPI_CVE = ("cve__cve_id", "cve__kev", "cve__kev_due", "cve__cvss", "cve__severity")
+
 PERIODI = {"30": 30, "90": 90, "365": 365, "tutto": None}
 PERIODO_DEFAULT = "90"
 
 COME_FILTRI = {
-    "correzioni": ("Corrette (aggiornate o disinstallate)", SecurityCveRisoluzione.CORREZIONI),
-    SecurityCveRisoluzione.AGGIORNATO: ("Programma aggiornato", (SecurityCveRisoluzione.AGGIORNATO,)),
-    SecurityCveRisoluzione.RIMOSSO: ("Programma disinstallato", (SecurityCveRisoluzione.RIMOSSO,)),
-    "altro": ("PC uscito per altro motivo", (SecurityCveRisoluzione.PC_ASSENTE, SecurityCveRisoluzione.RIVALUTATA)),
-    "tutte": ("Tutte le uscite", None),
+    "correzioni": "Corrette (aggiornate o disinstallate)",
+    SecurityCveRisoluzione.AGGIORNATO: "Programma aggiornato",
+    SecurityCveRisoluzione.RIMOSSO: "Programma disinstallato",
+    "altro": "Uscite senza correzione verificata",
+    "tutte": "Tutte le uscite",
 }
 COME_DEFAULT = "correzioni"
 
@@ -41,6 +45,7 @@ STATI_TERMINE = {
 GIORNI_IN_SCADENZA = 7
 ESITI = {"": "Impatta o da verificare", "impatta": "Impatta", "da_verificare": "Solo da verificare"}
 MAX_RIGHE = 500
+MAX_RIGHE_CORREZIONI = 2000
 
 
 def _accettazioni():
@@ -60,8 +65,48 @@ def _programma(inst):
     return f"{nome} {inst.version_raw}".strip() if inst.version_raw else nome
 
 
+# ── Regola unica delle correzioni ─────────────────────────────────────────────
+# Usata da questa pagina, dall'elenco CVE, dal riquadro «Dalla segnalazione alla correzione»
+# (cve_chiusura.metriche), dai tempi di correzione (cve_sla.riepilogo) e quindi dalla conformità
+# ISO 27001: lo stesso numero non può uscire diverso in due posti.
+
+def ultime_uscite(qs) -> list:
+    """L'ultima ``SecurityCveRisoluzione`` per CVE + PC del queryset (il PC può uscire, rientrare e riuscire)."""
+    visti, out = set(), []
+    for r in qs.order_by("-risolta_il", "cve_id", "host"):
+        chiave = (r.cve_id, r.host.lower())
+        if chiave not in visti:
+            visti.add(chiave)
+            out.append(r)
+    return out
+
+
+def esposti_oggi(cve_ids) -> set:
+    """(cve_id, host in minuscolo) oggi impattati o da verificare."""
+    if not cve_ids:
+        return set()
+    return {
+        (cve_id, host.lower())
+        for cve_id, host in SecurityCveImpact.objects.filter(cve_id__in=set(cve_ids))
+        .exclude(outcome=SecurityCveImpact.NOT_IMPACTED).values_list("cve_id", "host")
+    }
+
+
+def correzioni_valide(dal, al=None) -> list:
+    """PC corretti fra ``dal`` e ``al`` (datetime aware): ultima uscita del periodo per CVE + PC, programma
+    aggiornato o disinstallato, PC oggi non di nuovo esposto alla stessa CVE."""
+    qs = (SecurityCveRisoluzione.objects.filter(risolta_il__gte=dal).select_related("cve")
+          .only("cve_id", "host", "come", "aperta_dal", "risolta_il", *CAMPI_CVE))
+    if al is not None:
+        qs = qs.filter(risolta_il__lte=al)
+    ultime = ultime_uscite(qs)
+    esposti = esposti_oggi({r.cve_id for r in ultime})
+    return [r for r in ultime if r.come in SecurityCveRisoluzione.CORREZIONI and (r.cve_id, r.host.lower()) not in esposti]
+
+
 # ── Elenco delle CVE aperte ────────────────────────────────────────────────────
 
+@cve_sla.termini_fissati()
 def elenco_cve(q="", classe="", solo_kev=False, termine="", esito="", oggi=None) -> dict:
     """CVE che impattano o da verificare, una riga per CVE con programmi, termine e correzioni."""
     oggi = oggi or timezone.localdate()
@@ -71,6 +116,7 @@ def elenco_cve(q="", classe="", solo_kev=False, termine="", esito="", oggi=None)
             to_verify=Count("impacts", filter=Q(impacts__outcome=SecurityCveImpact.TO_VERIFY)),
         )
         .filter(Q(impacted__gt=0) | Q(to_verify__gt=0))
+        .defer("configurations")
         .order_by("-kev", "-cvss", "-epss", "-impacted", "cve_id")
     )
     if solo_kev:
@@ -84,15 +130,15 @@ def elenco_cve(q="", classe="", solo_kev=False, termine="", esito="", oggi=None)
 
     impatti = defaultdict(list)
     for imp in (SecurityCveImpact.objects.filter(cve_id__in=list(per_id))
-                .exclude(outcome=SecurityCveImpact.NOT_IMPACTED).select_related("installation")):
+                .exclude(outcome=SecurityCveImpact.NOT_IMPACTED).select_related("installation")
+                .only("cve_id", "host", "outcome", "aperta_dal", "computed_at",
+                      "installation__product_raw", "installation__product", "installation__version_raw")):
         impatti[imp.cve_id].append(imp)
 
-    dal = timezone.now() - timedelta(days=90)
-    corrette = dict(
-        SecurityCveRisoluzione.objects.filter(cve_id__in=list(per_id), come__in=SecurityCveRisoluzione.CORREZIONI,
-                                              risolta_il__gte=dal)
-        .values("cve_id").order_by().annotate(n=Count("host", distinct=True)).values_list("cve_id", "n")
-    )
+    corrette = defaultdict(int)
+    for r in correzioni_valide(timezone.now() - timedelta(days=90)):
+        if r.cve_id in per_id:
+            corrette[r.cve_id] += 1
     modulo_acc, coperture = _accettazioni()
 
     testo = (q or "").strip().lower()
@@ -143,12 +189,12 @@ def elenco_cve(q="", classe="", solo_kev=False, termine="", esito="", oggi=None)
             "pc_accettati": accettati,
             "corretti_90": corrette.get(rec.pk, 0),
         })
-        if len(righe) >= MAX_RIGHE:
-            break
 
+    # I totali contano tutte le righe che passano i filtri; la tabella ne mostra al massimo MAX_RIGHE.
     return {
-        "righe": righe,
-        "troncato": len(righe) >= MAX_RIGHE,
+        "righe": righe[:MAX_RIGHE],
+        "troncato": len(righe) > MAX_RIGHE,
+        "max_righe": MAX_RIGHE,
         "totali": {
             "cve": len(righe),
             "kev": sum(1 for r in righe if r["record"].kev),
@@ -165,87 +211,104 @@ def elenco_cve(q="", classe="", solo_kev=False, termine="", esito="", oggi=None)
 
 # ── Registro delle correzioni ──────────────────────────────────────────────────
 
+def _nel_filtro(come, come_riga, correzione) -> bool:
+    """Filtro «Come» sull'ultima uscita: le correzioni valgono solo se il PC non è di nuovo esposto."""
+    if come == "tutte":
+        return True
+    if come == "correzioni":
+        return correzione
+    if come == "altro":
+        return not correzione
+    return correzione and come_riga == come
+
+
+@cve_sla.termini_fissati()
 def correzioni(periodo=PERIODO_DEFAULT, come=COME_DEFAULT, q="", oggi=None) -> dict:
-    """PC usciti da una CVE nel periodo, con versione prima/dopo, giorni e termine, e riepilogo per CVE."""
+    """PC usciti da una CVE nel periodo, con versione prima/dopo, giorni e termine, e riepilogo per CVE.
+
+    Regole, perché i numeri reggano a un audit:
+    - per ogni CVE + PC conta solo l'**ultima** uscita del periodo (un PC può uscire, rientrare e
+      riuscire); il filtro «Come» si applica dopo, sull'ultima uscita;
+    - un PC che oggi è di nuovo impattato o da verificare per quella CVE è «di nuovo esposto» e
+      non conta come corretto;
+    - una CVE è «chiusa con gli aggiornamenti» solo se oggi non ha PC impattati né da verificare e
+      ogni uscita del periodo è una correzione vista nell'inventario; se qualche PC è uscito per
+      altro motivo (sparito dall'inventario, rivalutata) è «nessun PC esposto», non «corretta».
+    """
     oggi = oggi or timezone.localdate()
     periodo = periodo if periodo in PERIODI else PERIODO_DEFAULT
     come = come if come in COME_FILTRI else COME_DEFAULT
-    qs = SecurityCveRisoluzione.objects.select_related("cve", "hub_asset")
+    qs = SecurityCveRisoluzione.objects.select_related("cve").defer("cve__configurations", "cve__description")
     giorni = PERIODI[periodo]
     if giorni:
         qs = qs.filter(risolta_il__gte=timezone.now() - timedelta(days=giorni))
-    valori = COME_FILTRI[come][1]
-    if valori:
-        qs = qs.filter(come__in=valori)
     testo = (q or "").strip()
     if testo:
         qs = qs.filter(Q(cve__cve_id__icontains=testo) | Q(host__icontains=testo) | Q(host_display__icontains=testo)
                        | Q(software__icontains=testo))
 
-    # Una riga per CVE + PC: l'ultima uscita (un PC può uscire, rientrare e riuscire).
-    visti = set()
+    ultime = ultime_uscite(qs)
+    cve_ids = {r.cve_id for r in ultime}
+    riesposti = esposti_oggi(cve_ids)
+    esposti_per_cve = defaultdict(lambda: {SecurityCveImpact.IMPACTS: 0, SecurityCveImpact.TO_VERIFY: 0})
+    for cve_id, esito in (SecurityCveImpact.objects.filter(cve_id__in=cve_ids)
+                          .exclude(outcome=SecurityCveImpact.NOT_IMPACTED).values_list("cve_id", "outcome")):
+        esposti_per_cve[cve_id][esito] += 1
+
     righe = []
-    for r in qs.order_by("-risolta_il", "cve__cve_id", "host"):
-        chiave = (r.cve_id, r.host.lower())
-        if chiave in visti:
-            continue
-        visti.add(chiave)
-        giorni_aperta = None
-        nel_termine = None
+    per_cve = {}
+    for r in ultime:
+        di_nuovo = (r.cve_id, r.host.lower()) in riesposti
+        correzione = r.come in SecurityCveRisoluzione.CORREZIONI and not di_nuovo
+        giorni_aperta = nel_termine = None
         if r.aperta_dal:
             giorni_aperta = max((r.risolta_il - r.aperta_dal).days, 0)
-            if r.come in SecurityCveRisoluzione.CORREZIONI:
+            if correzione:
                 nel_termine = timezone.localtime(r.risolta_il).date() <= cve_sla.scadenza(r.cve, r.aperta_dal)
-        righe.append({
-            "r": r,
-            "cve_id": r.cve.cve_id,
-            "classe_label": cve_sla.ETICHETTE[cve_sla.classe(r.cve)],
-            "correzione": r.come in SecurityCveRisoluzione.CORREZIONI,
-            "giorni": giorni_aperta,
-            "nel_termine": nel_termine,
-        })
-        if len(righe) >= 2000:
-            break
-
-    # Stato attuale delle CVE toccate: chiusa del tutto o ancora aperta su altri PC.
-    cve_ids = {x["r"].cve_id for x in righe}
-    ancora = dict(
-        SecurityCveImpact.objects.filter(cve_id__in=cve_ids, outcome=SecurityCveImpact.IMPACTS)
-        .values("cve_id").order_by().annotate(n=Count("id")).values_list("cve_id", "n")
-    )
-    da_verif = dict(
-        SecurityCveImpact.objects.filter(cve_id__in=cve_ids, outcome=SecurityCveImpact.TO_VERIFY)
-        .values("cve_id").order_by().annotate(n=Count("id")).values_list("cve_id", "n")
-    )
-    per_cve = {}
-    for x in righe:
-        r = x["r"]
+        x = {
+            "r": r, "cve_id": r.cve.cve_id, "classe_label": cve_sla.ETICHETTE[cve_sla.classe(r.cve)],
+            "correzione": correzione, "di_nuovo": di_nuovo, "giorni": giorni_aperta, "nel_termine": nel_termine,
+        }
+        # Il riepilogo per CVE guarda tutte le ultime uscite, a prescindere dal filtro «Come»:
+        # serve a dire se la CVE si è chiusa davvero con gli aggiornamenti.
         g = per_cve.setdefault(r.cve_id, {
-            "record": r.cve, "cve_id": x["cve_id"], "classe_label": x["classe_label"], "corretti": 0, "aggiornati": 0,
-            "rimossi": 0, "altro": 0, "programmi": set(), "ultima": r.risolta_il,
-            "ancora": ancora.get(r.cve_id, 0), "da_verificare": da_verif.get(r.cve_id, 0), "giorni": [],
+            "record": r.cve, "cve_id": x["cve_id"], "classe_label": x["classe_label"], "corretti": 0,
+            "aggiornati": 0, "rimossi": 0, "altro": 0, "di_nuovo": 0, "programmi": set(), "ultima": r.risolta_il,
+            "ancora": esposti_per_cve[r.cve_id][SecurityCveImpact.IMPACTS],
+            "da_verificare": esposti_per_cve[r.cve_id][SecurityCveImpact.TO_VERIFY], "giorni": [], "nel_filtro": False,
         })
-        if r.come == SecurityCveRisoluzione.AGGIORNATO:
+        if di_nuovo:
+            g["di_nuovo"] += 1
+        elif r.come == SecurityCveRisoluzione.AGGIORNATO:
             g["aggiornati"] += 1
         elif r.come == SecurityCveRisoluzione.RIMOSSO:
             g["rimossi"] += 1
         else:
             g["altro"] += 1
-        if x["correzione"]:
+        if correzione:
             g["corretti"] += 1
-            if x["giorni"] is not None:
-                g["giorni"].append(x["giorni"])
-        if r.software:
-            g["programmi"].add(f"{r.software} {r.versione_prima} → {r.versione_dopo}".strip(" →")
-                               if r.versione_dopo else f"{r.software} {r.versione_prima}".strip())
+            if giorni_aperta is not None:
+                g["giorni"].append(giorni_aperta)
+            if r.software:
+                g["programmi"].add(f"{r.software} {r.versione_prima} → {r.versione_dopo}" if r.versione_dopo
+                                   else f"{r.software} {r.versione_prima} (disinstallato)")
         g["ultima"] = max(g["ultima"], r.risolta_il)
+        if _nel_filtro(come, r.come, correzione):
+            righe.append(x)
+            g["nel_filtro"] = True
+
     gruppi = []
     for g in per_cve.values():
-        g["programmi"] = sorted(g["programmi"])[:4]
+        if not g["nel_filtro"]:
+            continue
+        g["programmi"] = sorted(g["programmi"])
         g["giorni_medi"] = round(sum(g["giorni"]) / len(g["giorni"])) if g["giorni"] else None
-        g["chiusa"] = not g["ancora"] and not g["da_verificare"]
+        nessuno_esposto = not g["ancora"] and not g["da_verificare"]
+        g["stato"] = ("corretta" if nessuno_esposto and g["corretti"] and not g["altro"] and not g["di_nuovo"]
+                      else "nessuno_esposto" if nessuno_esposto else "aperta")
         gruppi.append(g)
-    gruppi.sort(key=lambda g: (g["chiusa"], -g["record"].kev, -(g["record"].cvss or 0), g["cve_id"]))
+    ordine = {"aperta": 0, "nessuno_esposto": 1, "corretta": 2}
+    gruppi.sort(key=lambda g: (ordine[g["stato"]], -int(g["record"].kev), -(g["record"].cvss or 0), g["cve_id"]))
 
     corr = [x for x in righe if x["correzione"]]
     con_giorni = [x["giorni"] for x in corr if x["giorni"] is not None]
@@ -253,19 +316,23 @@ def correzioni(periodo=PERIODO_DEFAULT, come=COME_DEFAULT, q="", oggi=None) -> d
     nel = sum(1 for x in valutate if x["nel_termine"])
     return {
         "righe": righe,
+        "righe_mostrate": righe[:MAX_RIGHE_CORREZIONI],
+        "troncato": len(righe) > MAX_RIGHE_CORREZIONI,
+        "max_righe": MAX_RIGHE_CORREZIONI,
         "gruppi": gruppi,
         "periodo": periodo,
         "come": come,
         "q": testo,
         "periodi": [("30", "30 giorni"), ("90", "90 giorni"), ("365", "12 mesi"), ("tutto", "Tutto")],
-        "come_scelte": [(k, v[0]) for k, v in COME_FILTRI.items()],
+        "come_scelte": list(COME_FILTRI.items()),
         "kpi": {
             "corretti": len(corr),
             "aggiornati": sum(1 for x in corr if x["r"].come == SecurityCveRisoluzione.AGGIORNATO),
             "rimossi": sum(1 for x in corr if x["r"].come == SecurityCveRisoluzione.RIMOSSO),
-            "altro": sum(1 for x in righe if not x["correzione"]),
-            "cve_chiuse": sum(1 for g in gruppi if g["chiusa"] and g["corretti"]),
-            "cve_parziali": sum(1 for g in gruppi if not g["chiusa"]),
+            "di_nuovo": sum(g["di_nuovo"] for g in per_cve.values()),
+            "cve_corrette": sum(1 for g in gruppi if g["stato"] == "corretta"),
+            "cve_nessuno_esposto": sum(1 for g in gruppi if g["stato"] == "nessuno_esposto"),
+            "cve_aperte": sum(1 for g in gruppi if g["stato"] == "aperta"),
             "giorni_medi": round(sum(con_giorni) / len(con_giorni)) if con_giorni else None,
             "pct_termine": round(nel * 100 / len(valutate)) if valutate else None,
             "nel_termine": nel,

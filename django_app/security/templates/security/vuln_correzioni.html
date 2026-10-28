@@ -9,18 +9,20 @@
 <section class="sec-panel">
   <p class="sec-small">
     Ogni volta che l'inventario software cambia, il SOC ricalcola le CVE: un PC che non è più esposto finisce qui, con la versione del programma
-    <strong>prima</strong> e <strong>dopo</strong>. «Aggiornato» e «Disinstallato» sono correzioni viste nell'inventario; «PC non più nell'inventario»
-    e «Rivalutata» dicono solo che il PC non risulta più esposto.
+    <strong>prima</strong> e <strong>dopo</strong>. Per ogni CVE e PC conta l'<strong>ultima</strong> uscita del periodo. «Aggiornato» e «Disinstallato» sono correzioni viste nell'inventario;
+    «PC non più nell'inventario» e «Rivalutata» dicono solo che il PC non risulta più esposto. Un PC che oggi è <strong>di nuovo esposto</strong>
+    alla stessa CVE non conta come corretto.
     <a href="{% url 'security:vulnerabilities' %}">Torna alle vulnerabilità</a> ·
     <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#correzioni-cve">Guida</a>
   </p>
   <div class="sec-fact-grid">
     <div class="sec-fact"><span>PC corretti</span><strong>{{ d.kpi.corretti }}</strong> <small class="sec-muted">{{ d.kpi.aggiornati }} aggiornat{{ d.kpi.aggiornati|pluralize:"o,i" }} · {{ d.kpi.rimossi }} disinstallat{{ d.kpi.rimossi|pluralize:"o,i" }}</small></div>
-    <div class="sec-fact"><span>CVE chiuse su tutti i PC</span><strong>{{ d.kpi.cve_chiuse }}</strong></div>
-    <div class="sec-fact"><span>CVE ancora aperte su altri PC</span><strong>{{ d.kpi.cve_parziali }}</strong></div>
+    <div class="sec-fact" title="Nessun PC impattato né da verificare e ogni uscita del periodo è una correzione vista nell'inventario"><span>CVE chiuse con gli aggiornamenti</span><strong>{{ d.kpi.cve_corrette }}</strong></div>
+    <div class="sec-fact" title="Nessun PC esposto oggi, ma almeno un PC è uscito senza correzione verificata (sparito dall'inventario, rivalutata o di nuovo esposto nel frattempo)"><span>CVE senza PC esposti, non tutte verificate</span><strong>{{ d.kpi.cve_nessuno_esposto }}</strong></div>
+    <div class="sec-fact"><span>CVE ancora aperte su altri PC</span><strong>{{ d.kpi.cve_aperte }}</strong></div>
     <div class="sec-fact"><span>Giorni medi da «esposta dal» alla correzione</span><strong>{% if d.kpi.giorni_medi is not None %}{{ d.kpi.giorni_medi }}{% else %}—{% endif %}</strong></div>
     <div class="sec-fact"><span>Corrette nel termine (ISO 27001 8.8)</span><strong>{% if d.kpi.pct_termine is not None %}{{ d.kpi.pct_termine }}%{% else %}—{% endif %}</strong> <small class="sec-muted">{{ d.kpi.nel_termine }} su {{ d.kpi.valutate }}</small></div>
-    <div class="sec-fact"><span>PC usciti per altro motivo</span><strong>{{ d.kpi.altro }}</strong></div>
+    <div class="sec-fact"><span>PC corretti e poi di nuovo esposti</span><strong>{{ d.kpi.di_nuovo }}</strong></div>
   </div>
   <form class="sec-filter-bar" method="get" style="margin-top: 10px;">
     <input type="hidden" name="vista" value="{{ vista }}">
@@ -51,14 +53,14 @@
     <table class="sec-table" data-preview-scope>
       <thead><tr><th>Risolta il</th><th>CVE</th><th>PC</th><th>Programma</th><th>Versione</th><th>Come</th><th>Esposta dal</th><th class="sec-num">Giorni</th><th>Termine</th></tr></thead>
       <tbody>
-      {% for x in d.righe %}
+      {% for x in d.righe_mostrate %}
         <tr data-preview="{% url 'security:cve_pannello_cve' x.cve_id %}">
           <td class="sec-nowrap" data-sort-value="{{ x.r.risolta_il|date:'Y-m-d H:i' }}">{{ x.r.risolta_il|date:"d/m/Y H:i" }}</td>
           <td><a href="{% url 'security:cve_detail' x.cve_id %}">{{ x.cve_id }}</a>{% if x.r.cve.kev %} <span class="sec-badge sec-badge-critical">KEV</span>{% endif %}<br><small class="sec-muted">{{ x.classe_label }}{% if x.r.cve.cvss is not None %} · CVSS {{ x.r.cve.cvss }}{% endif %}</small></td>
           <td><a href="{% url 'security:pc_detail' %}?nome={{ x.r.host|urlencode }}">{{ x.r.host_display|default:x.r.host }}</a></td>
           <td>{{ x.r.software|default:"—" }}</td>
           <td class="sec-nowrap">{{ x.r.versione_prima|default:"—" }}{% if x.r.versione_dopo %} → <strong>{{ x.r.versione_dopo }}</strong>{% endif %}</td>
-          <td>{% if x.r.come == "aggiornato" %}<span class="sec-badge sec-badge-success">Aggiornato</span>{% elif x.r.come == "rimosso" %}<span class="sec-badge sec-badge-success">Disinstallato</span>{% else %}<span class="sec-badge sec-badge-muted">{{ x.r.get_come_display }}</span>{% endif %}</td>
+          <td>{% if x.di_nuovo %}<span class="sec-badge sec-badge-critical" title="Oggi il PC risulta di nuovo impattato o da verificare per questa CVE">Di nuovo esposto</span><br><small class="sec-muted">{{ x.r.get_come_display }}</small>{% elif x.r.come == "aggiornato" %}<span class="sec-badge sec-badge-success">Aggiornato</span>{% elif x.r.come == "rimosso" %}<span class="sec-badge sec-badge-success">Disinstallato</span>{% else %}<span class="sec-badge sec-badge-muted">{{ x.r.get_come_display }}</span>{% endif %}</td>
           <td class="sec-nowrap" data-sort-value="{{ x.r.aperta_dal|date:'Y-m-d' }}">{{ x.r.aperta_dal|date:"d/m/Y"|default:"—" }}</td>
           <td class="sec-num">{{ x.giorni|default_if_none:"—" }}</td>
           <td>{% if x.nel_termine is None %}<span class="sec-muted">—</span>{% elif x.nel_termine %}<span class="sec-badge sec-badge-success">nel termine</span>{% else %}<span class="sec-badge sec-badge-warning">in ritardo</span>{% endif %}</td>
@@ -75,9 +77,9 @@
       {% for g in d.gruppi %}
         <tr data-preview="{% url 'security:cve_pannello_cve' g.cve_id %}">
           <td><a href="{% url 'security:cve_detail' g.cve_id %}"><strong>{{ g.cve_id }}</strong></a>{% if g.record.kev %} <span class="sec-badge sec-badge-critical">KEV</span>{% endif %}<br><small class="sec-muted">{{ g.classe_label }}{% if g.record.cvss is not None %} · CVSS {{ g.record.cvss }}{% endif %}</small></td>
-          <td>{% if g.chiusa %}<span class="sec-badge sec-badge-success">Chiusa su tutti i PC</span>{% else %}<span class="sec-badge sec-badge-warning">Ancora aperta</span><br><small class="sec-muted">{% if g.ancora %}{{ g.ancora }} PC impattati{% endif %}{% if g.ancora and g.da_verificare %} · {% endif %}{% if g.da_verificare %}{{ g.da_verificare }} da verificare{% endif %}</small>{% endif %}</td>
+          <td>{% if g.stato == "corretta" %}<span class="sec-badge sec-badge-success">Chiusa con gli aggiornamenti</span>{% elif g.stato == "nessuno_esposto" %}<span class="sec-badge sec-badge-muted">Nessun PC esposto</span><br><small class="sec-muted">non tutte le uscite sono correzioni verificate</small>{% else %}<span class="sec-badge sec-badge-warning">Ancora aperta</span><br><small class="sec-muted">{% if g.ancora %}{{ g.ancora }} PC impattati{% endif %}{% if g.ancora and g.da_verificare %} · {% endif %}{% if g.da_verificare %}{{ g.da_verificare }} da verificare{% endif %}</small>{% endif %}</td>
           <td class="sec-num"><a href="?periodo={{ d.periodo }}&amp;come={{ d.come }}&amp;q={{ g.cve_id }}&amp;vista=pc">{{ g.corretti }}</a></td>
-          <td class="sec-small">{% if g.aggiornati %}{{ g.aggiornati }} aggiornat{{ g.aggiornati|pluralize:"o,i" }}{% endif %}{% if g.aggiornati and g.rimossi %} · {% endif %}{% if g.rimossi %}{{ g.rimossi }} disinstallat{{ g.rimossi|pluralize:"o,i" }}{% endif %}{% if g.altro %}{% if g.aggiornati or g.rimossi %} · {% endif %}{{ g.altro }} per altro motivo{% endif %}</td>
+          <td class="sec-small">{% if g.aggiornati %}{{ g.aggiornati }} aggiornat{{ g.aggiornati|pluralize:"o,i" }}{% endif %}{% if g.aggiornati and g.rimossi %} · {% endif %}{% if g.rimossi %}{{ g.rimossi }} disinstallat{{ g.rimossi|pluralize:"o,i" }}{% endif %}{% if g.altro %}{% if g.aggiornati or g.rimossi %} · {% endif %}{{ g.altro }} senza correzione verificata{% endif %}{% if g.di_nuovo %}{% if g.aggiornati or g.rimossi or g.altro %} · {% endif %}<strong>{{ g.di_nuovo }} di nuovo espost{{ g.di_nuovo|pluralize:"o,i" }}</strong>{% endif %}</td>
           <td class="sec-small">{% for p in g.programmi %}{{ p }}{% if not forloop.last %}<br>{% endif %}{% empty %}—{% endfor %}</td>
           <td class="sec-num">{{ g.giorni_medi|default_if_none:"—" }}</td>
           <td class="sec-nowrap" data-sort-value="{{ g.ultima|date:'Y-m-d H:i' }}">{{ g.ultima|date:"d/m/Y" }}</td>
@@ -89,5 +91,6 @@
     </table>
   {% endif %}
   </div>
+  {% if vista == "pc" and d.troncato %}<p class="sec-small"><span class="sec-badge sec-badge-warning">Mostrate le prime {{ d.max_righe }} righe su {{ d.righe|length }}</span> I numeri in cima e il CSV le contano tutte: restringi con periodo o ricerca per vederle a video.</p>{% endif %}
 </section>
 {% endblock %}

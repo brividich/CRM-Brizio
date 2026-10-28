@@ -488,6 +488,10 @@ GUIDA = {
                 ("p", "Per dipendente e mese: RML ÷ 26 ÷ 6,66 (= RML ÷ 173,16). L'RML è la voce «RML» dei cedolini "
                       "dello studio paghe: per ogni mese vale l'import più recente, la correzione manuale di HR vince."),
                 ("passi", [
+                    "Amministrazione → «Costo orario» (voce di menu): clic sul nome = andamento di 12 mesi sotto la "
+                    "riga; colonne «Sul mese prima» (€ e %), «Scostamento» (% dalla media dei mostrati: cambia con i "
+                    "filtri), «Andamento» (mini-grafico); filtro «Mostra»: sopra/sotto la media, oltre ±10%, "
+                    "aumentati, diminuiti.",
                     "Cedolini → «Costo orario»: costo medio, minimo e massimo; filtri mese, reparto, ricerca; «Esporta ▾» "
                     "(Excel o PDF; «tutto» = tutti i mesi).",
                     "«Storico»: una riga per dipendente e una colonna per mese (di serie gli ultimi 12), filtri Dal, "

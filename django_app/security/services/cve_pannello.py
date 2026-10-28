@@ -32,15 +32,27 @@ _RANGO = {"subito": 0, "presto": 1, "normale": 2}
 
 
 def _risolte(qs, giorni=GIORNI_RISOLTE):
-    """L'ultima risoluzione per (CVE, PC) negli ultimi ``giorni``: un PC che va e viene conta una volta."""
+    """L'ultima risoluzione per (CVE, PC) negli ultimi ``giorni``: un PC che va e viene conta una volta.
+
+    Un PC che oggi è di nuovo impattato o da verificare per quella CVE non è risolto: resta fuori
+    (compare fra i PC colpiti). Stessa regola della pagina Correzioni CVE.
+    """
     dal = timezone.now() - timedelta(days=giorni)
     visti, out = set(), []
     for r in qs.filter(risolta_il__gte=dal).select_related("cve", "hub_asset").order_by("-risolta_il"):
-        if (r.cve_id, r.host) in visti:
+        chiave = (r.cve_id, r.host.lower())
+        if chiave in visti:
             continue
-        visti.add((r.cve_id, r.host))
+        visti.add(chiave)
         out.append(r)
-    return out
+    if not out:
+        return out
+    esposti = {
+        (cve_id, host.lower())
+        for cve_id, host in SecurityCveImpact.objects.filter(cve_id__in={r.cve_id for r in out})
+        .exclude(outcome=SecurityCveImpact.NOT_IMPACTED).values_list("cve_id", "host")
+    }
+    return [r for r in out if (r.cve_id, r.host.lower()) not in esposti]
 
 
 def _conta_risolte(righe):
@@ -302,9 +314,10 @@ def _termini(record, impatti):
 
         oggi = timezone.localdate()
         coperture = accettazione_rischio.attive(oggi)
-        return {
-            i.host: cve_sla.stato(record, i.aperta_dal or i.computed_at, oggi, accettazione_rischio.copre(coperture, record.cve_id, i.host))
-            for i in impatti if i.outcome == SecurityCveImpact.IMPACTS
-        }
+        with cve_sla.termini_fissati():
+            return {
+                i.host: cve_sla.stato(record, i.aperta_dal or i.computed_at, oggi, accettazione_rischio.copre(coperture, record.cve_id, i.host))
+                for i in impatti if i.outcome == SecurityCveImpact.IMPACTS
+            }
     except Exception:  # noqa: BLE001
         return {}

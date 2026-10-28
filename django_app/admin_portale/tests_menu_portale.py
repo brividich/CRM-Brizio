@@ -49,6 +49,8 @@ class MenuPortaleTests(TestCase):
         for code in (PAGINA, VECCHIO):
             PermissionDefinition.objects.get_or_create(code=code, defaults={"label": code, "module": "dashboard", "is_active": True})
         RoutePermissionBinding.objects.create(permission_id=PAGINA, route_name="dashboard_home", path_pattern="/dashboard", is_active=True)
+        # Solo le voci del test: quelle seminate dalle migrazioni portano anche loro alla dashboard.
+        NavigationItem.objects.all().delete()
         self.area = ModuleCategory.objects.create(key="area-test", label="Area di prova", order=1)
         self.altra_area = ModuleCategory.objects.create(key="area-due", label="Seconda area", order=2)
         self.base = AccessGroup.objects.filter(preset=PRESET_BASE).first()
@@ -58,7 +60,8 @@ class MenuPortaleTests(TestCase):
             required_permission_code=VECCHIO, category=self.area, order=10, is_visible=True, is_enabled=True,
         )
         self.sotto = NavigationItem.objects.create(
-            code="sotto-prova", label="Sottovoce", section="subnav", parent_code="voce-prova",
+            # Le sottovoci stanno nelle pagine dell'app (``dashboard_home`` = "dashboard").
+            code="sotto-prova", label="Sottovoce", section="subnav", parent_code="dashboard",
             route_name="dashboard_home", order=10, is_visible=True, is_enabled=True,
         )
 
@@ -76,40 +79,69 @@ class MenuPortaleTests(TestCase):
             return self.client.post(reverse(nome), json.dumps(dati or {}), content_type="application/json", **kwargs)
 
     def _voce(self, dati, item_id):
-        for area in dati["aree"]:
-            for v in area["voci"]:
-                if v["id"] == item_id:
-                    return area, v
-                for f in v.get("figli", []):
-                    if f["id"] == item_id:
-                        return area, f
-        raise AssertionError(f"voce {item_id} non trovata")
+        return dati["voci"][str(item_id)]
 
-    def test_albero_per_area_con_sottovoci_e_chi_la_vede(self):
+    def _nodo(self, dati, tipo, nodo_id):
+        for n in dati["barra"]:
+            if n["tipo"] == tipo and n["id"] == nodo_id:
+                return n
+        raise AssertionError(f"{tipo} {nodo_id} non nella barra")
+
+    def test_barra_con_tendine_sottovoci_e_chi_la_vede(self):
         self._accendi()
         GroupPermissionGrant.objects.create(group=self.capo, permission_id=PAGINA, enabled=True)
         dati = dati_menu()
 
-        area, voce = self._voce(dati, self.voce.id)
-        self.assertEqual(area["nome"], "Area di prova")
-        self.assertEqual([f["id"] for f in voce["figli"]], [self.sotto.id])
+        tendina = self._nodo(dati, "categoria", self.area.id)
+        self.assertEqual(tendina["nome"], "Area di prova")
+        self.assertIn(self.voce.id, tendina["voci"])
+        voce = self._voce(dati, self.voce.id)
+        self.assertEqual(voce["app"], "dashboard")
+        self.assertIn(self.sotto.id, voce["figli"])
         self.assertIn(self.capo.id, voce["ruoli"])
         self.assertEqual(voce["problema"]["tipo"], "vecchio")
+        # Anche la categoria vuota c'e': si vede che esiste e si puo' eliminare.
+        self.assertEqual(self._nodo(dati, "categoria", self.altra_area.id)["voci"], [])
+
+    def test_ordine_della_barra_mescola_tendine_e_voci_da_sole(self):
+        sola = NavigationItem.objects.create(code="sola", label="Sola", section="topbar", url_path="https://example.local/", order=1)
+        self.area.order = 5
+        self.area.save()
+        ordine = [(n["tipo"], n["id"]) for n in dati_menu()["barra"]]
+        self.assertLess(ordine.index(("voce", sola.id)), ordine.index(("categoria", self.area.id)))
+
+    def test_sottogruppi_della_tendina_come_nella_barra(self):
+        self.voce.group = "Da fare"
+        self.voce.save()
+        NavigationItem.objects.create(
+            code="v2", label="V2", section="topbar", route_name="dashboard_home", category=self.area, group="Richieste", order=20,
+        )
+        tendina = self._nodo(dati_menu(), "categoria", self.area.id)
+        self.assertEqual([s["nome"] for s in tendina["sezioni"]], ["Da fare", "Richieste"])
+        self.assertEqual(tendina["gruppi"], ["Da fare", "Richieste"])
+
+    def test_sottovoce_di_app_senza_voce_resta_orfana(self):
+        orfana = NavigationItem.objects.create(
+            code="orfana", label="Orfana", section="subnav", parent_code="app_inesistente", route_name="dashboard_home",
+        )
+        self.assertIn({"app": "app_inesistente", "voci": [orfana.id]}, dati_menu()["orfani"])
 
     def test_ruolo_base_vuol_dire_tutti(self):
         if self.base is None:
             self.skipTest("ruolo base non presente nel DB di test")
         GroupPermissionGrant.objects.create(group=self.base, permission_id=PAGINA, enabled=True)
         self._accendi()
-        _area, voce = self._voce(dati_menu(), self.sotto.id)
+        voce = self._voce(dati_menu(), self.sotto.id)
         self.assertTrue(voce["tutti"])
         self.assertIn(self.capo.id, voce["ruoli"])
 
-    def test_pagina_mostra_albero_e_strumenti_avanzati(self):
+    def test_pagina_mostra_barra_e_strumenti_avanzati(self):
         response = self._come_admin("get", "admin_portale:navigation_builder")
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "admin_portale/pages/menu_portale.html")
         self.assertContains(response, "Guarda il menu come")
+        self.assertContains(response, "La barra in alto del portale")
+        self.assertContains(response, "+ Nuova categoria")
         self.assertContains(response, reverse("admin_portale:navigation_builder_avanzato"))
         self.assertContains(response, 'id="mp-dati"')
         self.assertContains(response, "Voce di prova")
@@ -119,7 +151,7 @@ class MenuPortaleTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Strumenti avanzati")
 
-    def test_salva_nome_area_icona_e_visibilita(self):
+    def test_salva_nome_categoria_icona_e_visibilita(self):
         response = self._come_admin("post", "admin_portale:api_menu_voce_salva", {
             "id": self.voce.id, "nome": "Nuovo nome", "categoria": self.altra_area.id, "icona": "ticket", "visibile": False,
         })
@@ -133,11 +165,60 @@ class MenuPortaleTests(TestCase):
         self.assertEqual(self.voce.required_permission_code, VECCHIO)
         self.assertEqual(self.voce.route_name, "dashboard_home")
 
-    def test_sposta_sottovoce_sotto_altro_modulo(self):
-        NavigationItem.objects.create(code="altro-modulo", label="Altro", section="topbar", route_name="dashboard_home", order=20)
-        self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": self.sotto.id, "padre": "altro-modulo"})
+    def test_voce_da_sola_e_sottogruppo(self):
+        response = self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": self.voce.id, "categoria": None, "gruppo": ""})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.voce.refresh_from_db()
+        self.assertIsNone(self.voce.category_id)
+        self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": self.voce.id, "categoria": self.area.id, "gruppo": "Richieste"})
+        self.voce.refresh_from_db()
+        self.assertEqual((self.voce.category_id, self.voce.group), (self.area.id, "Richieste"))
+
+    def test_sposta_sottovoce_sotto_altra_voce(self):
+        NavigationItem.objects.create(code="altro-modulo", label="Altro", section="topbar", route_name="admin_portale:index", order=20)
+        response = self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": self.sotto.id, "padre": "admin_portale"})
+        self.assertEqual(response.status_code, 200, response.content)
         self.sotto.refresh_from_db()
-        self.assertEqual(self.sotto.parent_code, "altro-modulo")
+        self.assertEqual(self.sotto.parent_code, "admin_portale")
+        # Un'app senza voce nel menu non e' una destinazione valida.
+        response = self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": self.sotto.id, "padre": "nessuna_app"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_categorie_crea_rinomina_elimina(self):
+        response = self._come_admin("post", "admin_portale:api_menu_categoria_salva", {"nome": "Commerciale"})
+        self.assertEqual(response.status_code, 200, response.content)
+        nuova = ModuleCategory.objects.get(id=response.json()["id"])
+        self.assertEqual(nuova.key, "commerciale")
+        self.assertGreater(nuova.order, self.altra_area.order)
+        self._come_admin("post", "admin_portale:api_menu_categoria_salva", {"id": nuova.id, "nome": "Vendite", "icona": "briefcase"})
+        nuova.refresh_from_db()
+        self.assertEqual((nuova.label, nuova.icon), ("Vendite", "briefcase"))
+        # Con voci dentro non si elimina; vuota si'.
+        response = self._come_admin("post", "admin_portale:api_menu_categoria_elimina", {"id": self.area.id})
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(ModuleCategory.objects.filter(id=self.area.id).exists())
+        response = self._come_admin("post", "admin_portale:api_menu_categoria_elimina", {"id": nuova.id})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(ModuleCategory.objects.filter(id=nuova.id).exists())
+
+    def test_riordina_la_barra(self):
+        sola = NavigationItem.objects.create(code="sola", label="Sola", section="topbar", url_path="https://example.local/", order=1)
+        response = self._come_admin("post", "admin_portale:api_menu_barra_riordina", {"elementi": [
+            {"tipo": "categoria", "id": self.altra_area.id},
+            {"tipo": "voce", "id": sola.id},
+            {"tipo": "categoria", "id": self.area.id},
+        ]})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.altra_area.refresh_from_db()
+        self.area.refresh_from_db()
+        sola.refresh_from_db()
+        self.assertEqual((self.altra_area.order, sola.order, self.area.order), (10, 20, 30))
+        # Una voce dentro una tendina non si riordina da qui.
+        self._come_admin("post", "admin_portale:api_menu_barra_riordina", {"elementi": [{"tipo": "voce", "id": self.voce.id}]})
+        self.voce.refresh_from_db()
+        self.assertEqual(self.voce.order, 10)
+        response = self._come_admin("post", "admin_portale:api_menu_barra_riordina", {"elementi": [{"tipo": "boh", "id": 1}]})
+        self.assertEqual(response.status_code, 400)
 
     def test_nome_vuoto_rifiutato(self):
         response = self._come_admin("post", "admin_portale:api_menu_voce_salva", {"id": self.voce.id, "nome": "  "})
