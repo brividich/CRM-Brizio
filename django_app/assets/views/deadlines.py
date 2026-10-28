@@ -25,7 +25,7 @@ from django.utils import timezone
 from core.audit import log_action
 
 from core.legacy_models import AnagraficaDipendente
-from ..registro_permessi import MODULO_MANUTENZIONE, MODULO_VERIFICHE
+from ..registro_permessi import MODULO_FORNITORI, MODULO_VERIFICHE
 from ..services.visibilita import filtra_per_asset
 from ..forms import (
     AssistanceContractForm,
@@ -1068,7 +1068,7 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
     edit_contract = None
     if edit_id:
         edit_contract = (
-            filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_MANUTENZIONE).select_related("supplier", "asset", "asset_category", "document")
+            filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_FORNITORI).select_related("supplier", "asset", "asset_category", "document")
             .filter(pk=edit_id)
             .first()
         )
@@ -1095,7 +1095,7 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
             contract_id = _as_int(request.POST.get("contract_id"), default=0)
             target_legacy_user_id = _as_int(request.POST.get("target_legacy_user_id"), default=0)
             contract = (
-                filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_MANUTENZIONE).select_related("supplier", "asset", "asset_category", "document")
+                filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_FORNITORI).select_related("supplier", "asset", "asset_category", "document")
                 .filter(pk=contract_id)
                 .first()
             )
@@ -1223,7 +1223,7 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
             )
 
     contract_rows: list[dict[str, object]] = []
-    contract_qs = filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_MANUTENZIONE).select_related("supplier", "asset", "asset_category", "document").order_by(
+    contract_qs = filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_FORNITORI).select_related("supplier", "asset", "asset_category", "document").order_by(
         "-is_active",
         "end_date",
         "supplier__ragione_sociale",

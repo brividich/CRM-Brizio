@@ -37,26 +37,54 @@ def _norm(testo) -> str:
     return " ".join(str(testo or "").split()).casefold()
 
 
-def capi_per_reparto() -> dict[str, tuple[int, str]]:
-    """Nome di area o reparto (normalizzato) → (id anagrafica, nome) del capo."""
-    try:
-        from anagrafica.models import AreaAziendale, Reparto
+def _unita() -> dict[str, tuple[int | None, set[int]]]:
+    """Nome di area o reparto, o testo collegato (normalizzato) → (capo, co-capi) come id anagrafica.
 
-        ids: dict[str, int] = {}
-        capi_rep: dict[int, int] = {}
-        for rid, nome, capo in Reparto.objects.filter(is_active=True).values_list(
-            "pk", "nome", "caporeparto_legacy_id"
-        ):
-            if capo:
-                capi_rep[rid] = int(capo)
-                ids[_norm(nome)] = int(capo)
-        # L'area vince sul reparto omonimo; senza responsabile proprio segue il reparto.
-        for nome, resp, rid in AreaAziendale.objects.filter(is_active=True).values_list(
-            "nome", "responsabile_legacy_id", "reparto_id"
-        ):
-            capo = int(resp) if resp else capi_rep.get(rid)
-            if capo:
-                ids[_norm(nome)] = capo
+    L'area con un responsabile proprio vince sul reparto omonimo; senza segue il
+    capo del reparto (e ne eredita i co-capi). Un testo collegato a mano
+    (``RepartoAssetCollegato``, Impostazioni › Reparti e capi) vince su tutto.
+    """
+    from anagrafica.models import AreaAziendale, Reparto
+
+    from ..models import RepartoAssetCollegato
+
+    co_rep: dict[int, set[int]] = {}
+    for rid, pid in Reparto.objects.filter(is_active=True, responsabili__isnull=False).values_list(
+        "pk", "responsabili"
+    ):
+        co_rep.setdefault(rid, set()).add(int(pid))
+    co_area: dict[int, set[int]] = {}
+    for aid, pid in AreaAziendale.objects.filter(is_active=True, responsabili__isnull=False).values_list(
+        "pk", "responsabili"
+    ):
+        co_area.setdefault(aid, set()).add(int(pid))
+
+    per_reparto: dict[int, tuple[int | None, set[int]]] = {}
+    risultato: dict[str, tuple[int | None, set[int]]] = {}
+    for rid, nome, capo in Reparto.objects.filter(is_active=True).values_list("pk", "nome", "caporeparto_legacy_id"):
+        per_reparto[rid] = (int(capo) if capo else None, co_rep.get(rid, set()))
+        risultato[_norm(nome)] = per_reparto[rid]
+    per_area: dict[int, tuple[int | None, set[int]]] = {}
+    for aid, nome, resp, rid in AreaAziendale.objects.filter(is_active=True).values_list(
+        "pk", "nome", "responsabile_legacy_id", "reparto_id"
+    ):
+        if resp:
+            per_area[aid] = (int(resp), co_area.get(aid, set()))
+        else:
+            capo, co = per_reparto.get(rid, (None, set()))
+            per_area[aid] = (capo, co | co_area.get(aid, set()))
+        risultato[_norm(nome)] = per_area[aid]
+    for chiave, rid, aid in RepartoAssetCollegato.objects.values_list("chiave", "reparto_id", "area_id"):
+        unita = per_area.get(aid) if aid else per_reparto.get(rid)
+        if unita is not None:
+            risultato[chiave] = unita
+    return risultato
+
+
+def capi_per_reparto() -> dict[str, tuple[int, str]]:
+    """Nome di area o reparto, o testo collegato (normalizzato) → (id anagrafica, nome) del capo."""
+    try:
+        ids = {chiave: capo for chiave, (capo, _co) in _unita().items() if capo}
         if not ids:
             return {}
         from core import naming
@@ -70,6 +98,24 @@ def capi_per_reparto() -> dict[str, tuple[int, str]]:
     except Exception:  # tabelle legacy: senza capo si mostra «Non assegnato», mai un 500
         logger.debug("Capi per reparto non risolti", exc_info=True)
         return {}
+
+
+def persone_per_reparto() -> dict[str, set[int]]:
+    """Come :func:`capi_per_reparto`, ma con capo e co-capi (id anagrafica): chi vede le macchine del reparto."""
+    try:
+        return {
+            chiave: ({capo} if capo else set()) | co
+            for chiave, (capo, co) in _unita().items()
+            if capo or co
+        }
+    except Exception:
+        logger.debug("Capi e co-capi per reparto non risolti", exc_info=True)
+        return {}
+
+
+def chiave_reparto(testo) -> str:
+    """Il testo di un reparto come lo confrontano capi e collegamenti."""
+    return _norm(testo)
 
 
 def _assegnato_a_persona(asset: Asset) -> bool:
@@ -92,22 +138,26 @@ def responsabile(asset: Asset, capi: dict[str, tuple[int, str]] | None = None) -
     return None
 
 
-def utente_responsabile(asset: Asset) -> int | None:
-    """``utenti.id`` del caporeparto che risponde dell'asset (per i permessi «propri/team»)."""
-    resp = responsabile(asset)
-    if resp is None or not resp.da_caporeparto:
-        return None
+def utenti_responsabili(asset: Asset) -> set[int]:
+    """``utenti.id`` di capo e co-capi del reparto di un asset non IT senza persona.
+
+    Per i permessi «propri»: i co-capi (Persone › Reparti, aree e capi) vedono le
+    macchine del reparto come il capo. Vuoto se l'asset è di una persona o è IT.
+    """
+    if _assegnato_a_persona(asset) or asset.asset_type not in TIPI_REPARTO:
+        return set()
+    reparto = (asset.reparto or asset.assignment_reparto or "").strip()
+    persone = persone_per_reparto().get(_norm(reparto), set()) if reparto else set()
+    if not persone:
+        return set()
     try:
         from core.legacy_models import AnagraficaDipendente
 
-        utente = (
-            AnagraficaDipendente.objects.filter(id=resp.anagrafica_id)
-            .values_list("utente_id", flat=True).first()
-        )
+        utenti = AnagraficaDipendente.objects.filter(id__in=persone).values_list("utente_id", flat=True)
+        return {int(u) for u in utenti if u}
     except Exception:
-        logger.debug("Utente del caporeparto non risolto", exc_info=True)
-        return None
-    return int(utente) if utente else None
+        logger.debug("Utenti dei capi del reparto non risolti", exc_info=True)
+        return set()
 
 
 def applica(assets) -> None:
