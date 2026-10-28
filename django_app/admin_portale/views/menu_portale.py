@@ -11,11 +11,13 @@ restano nella vecchia pagina, ora «Strumenti avanzati»
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlsplit
 
 from django.db import DatabaseError, transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
-from django.urls import NoReverseMatch, reverse
+from django.utils.text import slugify
+from django.urls import NoReverseMatch, Resolver404, resolve, reverse
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 
@@ -38,7 +40,6 @@ from . import _helpers
 logger = logging.getLogger(__name__)
 
 SEZIONI = ("topbar", "subnav")
-AREA_ALTRE = "__altre__"
 
 # Icone proposte nella galleria della pagina (alias SVG di core.icon_utils).
 ICONE_GALLERIA = (
@@ -169,8 +170,49 @@ def _problema(stato: str, ruoli_che_vedono: list[dict], href: str) -> dict | Non
     return None
 
 
+def _app_di(item: NavigationItem, href: str) -> str:
+    """App della pagina a cui porta la voce: e' la chiave delle sottovoci.
+
+    La barra sotto la barra (sezione ``subnav``) compare nelle pagine dell'app
+    ``parent_code`` (``core.context_processors._detect_subnav_parent_code``),
+    non sotto un codice voce.
+    """
+    route = str(item.route_name or "").strip()
+    if ":" in route:
+        return route.split(":", 1)[0]
+    if not href or href.startswith(("http://", "https://")):
+        return ""
+    try:
+        return resolve(urlsplit(href).path).app_name or "dashboard"
+    except Resolver404:
+        return ""
+
+
+def _sezioni_tendina(ids: list[int], voci: dict[int, dict]) -> list[dict]:
+    """Sottogruppi della tendina come li disegna la barra (``_nav_sections``).
+
+    Voci consecutive con lo stesso gruppo stanno insieme; con meno di due
+    gruppi distinti la tendina non mostra intestazioni.
+    """
+    sezioni: list[dict] = []
+    for vid in ids:
+        nome = voci[vid]["gruppo"]
+        if sezioni and sezioni[-1]["nome"] == nome:
+            sezioni[-1]["voci"].append(vid)
+        else:
+            sezioni.append({"nome": nome, "voci": [vid]})
+    if len({s["nome"] for s in sezioni if s["nome"]}) < 2:
+        return [{"nome": "", "voci": list(ids)}]
+    return sezioni
+
+
 def dati_menu() -> dict:
-    """Albero del menu con, per ogni voce, chi la vede e cosa non va."""
+    """Il menu com'e' nella barra in alto, con chi vede ogni voce e cosa non va.
+
+    ``barra``: categorie (tendine) e voci da sole, nello stesso ordine della
+    barra (``core.context_processors._group_nav_items``); ogni voce porta le sue
+    sottovoci (la barra dentro le sue pagine).
+    """
     items = list(
         NavigationItem.objects.filter(section__in=SEZIONI).select_related("category").order_by("order", "id")
     )
@@ -191,54 +233,86 @@ def dati_menu() -> dict:
             vedono = [r for r in ruoli if _ruolo_vede(r, codes, grants, base_id)]
         href = _href(item)
         code_norm = str(item.code or "").strip().lower()
+        nome = nomi_menu.get(code_norm, item.label)
         voci[int(item.id)] = {
             "id": int(item.id),
             "code": item.code,
-            "nome": nomi_menu.get(code_norm, item.label),
+            "nome": nome,
             "nome_da_branding": code_norm in da_branding,
             "sezione": item.section,
             "categoria": int(item.category_id) if item.category_id else None,
-            "padre": item.parent_code or "",
+            "gruppo": str(item.group or "").strip(),
+            "padre": str(item.parent_code or "").strip(),
+            "app": _app_di(item, href) if item.section == "topbar" else "",
+            "ordine": int(item.order or 0),
             "icona": item.icon or "",
-            "icona_html": str(render_icon(item.icon or "", nomi_menu.get(code_norm, item.label))),
+            "icona_html": str(render_icon(item.icon or "", nome)),
             "visibile": bool(item.is_visible and item.is_enabled),
             "href": href,
             "ruoli": [r["id"] for r in vedono],
             "tutti": any(r["base"] for r in vedono),
             "problema": _problema(str(info.get("stato") or ""), vedono, href) if item.is_visible else None,
+            "figli": [],
         }
 
-    # Aree = categorie della barra; le voci di secondo livello sotto il loro modulo.
-    per_codice = {v["code"]: v for v in voci.values() if v["sezione"] == "topbar"}
-    figli: dict[str, list[dict]] = {}
-    orfani: list[dict] = []
+    barra_voci = [v for v in voci.values() if v["sezione"] == "topbar"]
+
+    # Sottovoci: sotto la voce della barra che porta alla stessa app. Se piu'
+    # voci portano alla stessa app vince una nel menu, poi quella col codice
+    # uguale, poi quella che porta piu' in alto nell'app (percorso piu' corto).
+    voce_di_app: dict[str, dict] = {}
+    for v in sorted(
+        barra_voci,
+        key=lambda v: (
+            not v["visibile"],
+            str(v["code"] or "").replace("-", "_").lower() != v["app"],
+            len(urlsplit(v["href"]).path or "/"),
+            v["ordine"],
+        ),
+    ):
+        if v["app"]:
+            voce_di_app.setdefault(v["app"], v)
+    orfani: dict[str, list[int]] = {}
     for v in voci.values():
         if v["sezione"] != "subnav":
             continue
-        if v["padre"] in per_codice:
-            figli.setdefault(v["padre"], []).append(v)
+        padre = voce_di_app.get(v["padre"])
+        if padre is not None:
+            padre["figli"].append(v["id"])
+            v["sotto"] = padre["id"]
         else:
-            orfani.append(v)
+            orfani.setdefault(v["padre"] or "?", []).append(v["id"])
 
-    aree: list[dict] = []
+    barra: list[dict] = []
     for cat in categorie:
-        moduli = [v for v in voci.values() if v["sezione"] == "topbar" and v["categoria"] == int(cat.id)]
-        aree.append({"chiave": str(cat.id), "nome": cat.label, "voci": moduli})
-    senza = [v for v in voci.values() if v["sezione"] == "topbar" and v["categoria"] is None]
-    if senza:
-        aree.append({"chiave": AREA_ALTRE, "nome": "Altre voci", "voci": senza})
-    for area in aree:
-        for modulo in area["voci"]:
-            modulo["figli"] = figli.get(modulo["code"], [])
-    if orfani:
-        aree.append({"chiave": "__orfani__", "nome": "Sottovoci senza modulo", "voci": [dict(v, figli=[]) for v in orfani]})
-    aree = [a for a in aree if a["voci"]]
+        ids = [v["id"] for v in barra_voci if v["categoria"] == int(cat.id)]
+        barra.append({
+            "tipo": "categoria",
+            "id": int(cat.id),
+            "nome": cat.label,
+            "icona": cat.icon or "",
+            "icona_html": str(render_icon(cat.icon or "", cat.label)) if cat.icon else "",
+            "ordine": int(cat.order or 0),
+            "voci": ids,
+            "sezioni": _sezioni_tendina(ids, voci),
+            "gruppi": sorted({voci[i]["gruppo"] for i in ids if voci[i]["gruppo"]}),
+        })
+    for v in barra_voci:
+        if v["categoria"] is None:
+            barra.append({"tipo": "voce", "id": v["id"], "ordine": v["ordine"]})
+    barra.sort(key=lambda n: n["ordine"])
 
+    nomi_cat = {int(c.id): c.label for c in categorie}
     return {
-        "aree": aree,
+        "barra": barra,
+        "voci": {str(k): v for k, v in voci.items()},
+        "orfani": [{"app": app, "voci": ids} for app, ids in sorted(orfani.items())],
         "ruoli": [r for r in ruoli if not r["amministratore"]],
         "categorie": [{"id": int(c.id), "nome": c.label} for c in categorie],
-        "moduli": [{"code": v["code"], "nome": v["nome"]} for v in per_codice.values()],
+        "moduli": [
+            {"app": app, "nome": v["nome"], "categoria": nomi_cat.get(v["categoria"], "")}
+            for app, v in sorted(voce_di_app.items(), key=lambda kv: kv[1]["ordine"])
+        ],
         "problemi": sum(1 for v in voci.values() if v["problema"]),
     }
 
@@ -310,7 +384,7 @@ def _perche_a_parole(riga: dict) -> str:
 @csrf_protect
 @require_POST
 def api_menu_voce_salva(request):
-    """Nome, area (o modulo), icona e «Nel menu» di una voce. Il resto non si tocca."""
+    """Nome, categoria e sottogruppo (o voce madre), icona e «Nel menu» di una voce. Il resto non si tocca."""
     payload = _helpers._post_or_json_payload(request)
     item = get_object_or_404(NavigationItem, id=_helpers._int_or_none(payload.get("id")) or 0)
     campi: list[str] = []
@@ -329,13 +403,16 @@ def api_menu_voce_salva(request):
     if "categoria" in payload and item.section == "topbar":
         cat_id = _helpers._int_or_none(payload.get("categoria"))
         if cat_id and not ModuleCategory.objects.filter(id=cat_id).exists():
-            return _helpers._json_error("Area non trovata.")
+            return _helpers._json_error("Categoria non trovata.")
         item.category_id = cat_id
         campi.append("category")
+    if "gruppo" in payload and item.section == "topbar":
+        item.group = str(payload.get("gruppo") or "").strip()[:80]
+        campi.append("group")
     if "padre" in payload and item.section == "subnav":
-        padre = str(payload.get("padre") or "").strip().lower()
-        if padre and not NavigationItem.objects.filter(section="topbar", code=padre).exists():
-            return _helpers._json_error("Modulo non trovato.")
+        padre = str(payload.get("padre") or "").strip()
+        if padre not in {m["app"] for m in dati_menu()["moduli"]}:
+            return _helpers._json_error("Voce del menu non trovata.")
         item.parent_code = padre
         campi.append("parent_code")
     if not campi:
@@ -363,3 +440,95 @@ def api_menu_voce_sistema(request):
         transaction.on_commit(bump_navigation_registry_version)
     return JsonResponse({"ok": True})
 
+
+
+def _chiave_categoria(nome: str) -> str:
+    base = (slugify(nome) or "categoria")[:34]
+    chiave, n = base, 2
+    while ModuleCategory.objects.filter(key=chiave).exists():
+        chiave = f"{base}-{n}"
+        n += 1
+    return chiave
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_menu_categoria_salva(request):
+    """Crea o rinomina una categoria (tendina della barra) e ne cambia l'icona."""
+    payload = _helpers._post_or_json_payload(request)
+    nome = str(payload.get("nome") or "").strip()[:80]
+    if not nome:
+        return _helpers._json_error("Il nome della categoria non può essere vuoto.")
+    cat_id = _helpers._int_or_none(payload.get("id"))
+    with transaction.atomic():
+        if cat_id:
+            cat = get_object_or_404(ModuleCategory, id=cat_id)
+            cat.label = nome
+            campi = ["label"]
+            if "icona" in payload:
+                cat.icon = str(payload.get("icona") or "").strip()[:500]
+                campi.append("icon")
+            cat.save(update_fields=campi)
+        else:
+            # In fondo alla barra: dopo l'ultima categoria e l'ultima voce da sola.
+            ultimo = max(
+                [int(c.order or 0) for c in ModuleCategory.objects.all()]
+                + [int(o or 0) for o in NavigationItem.objects.filter(section="topbar", category__isnull=True).values_list("order", flat=True)]
+                + [0]
+            )
+            cat = ModuleCategory.objects.create(
+                key=_chiave_categoria(nome),
+                label=nome,
+                icon=str(payload.get("icona") or "").strip()[:500],
+                order=ultimo + 10,
+            )
+        transaction.on_commit(bump_navigation_registry_version)
+    return JsonResponse({"ok": True, "id": int(cat.id)})
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_menu_categoria_elimina(request):
+    """Elimina una categoria solo se non ha voci: niente sparisce dal menu per sbaglio."""
+    payload = _helpers._post_or_json_payload(request)
+    cat = get_object_or_404(ModuleCategory, id=_helpers._int_or_none(payload.get("id")) or 0)
+    if NavigationItem.objects.filter(category=cat).exists():
+        return _helpers._json_error("La categoria ha ancora delle voci: spostale prima in un'altra categoria.")
+    with transaction.atomic():
+        cat.delete()
+        transaction.on_commit(bump_navigation_registry_version)
+    return JsonResponse({"ok": True})
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_menu_barra_riordina(request):
+    """Ordine della barra in alto: categorie e voci da sole nella stessa sequenza.
+
+    ``elementi``: lista di ``{"tipo": "categoria"|"voce", "id": int}``. La barra
+    ordina categorie (``ModuleCategory.order``) e voci senza categoria
+    (``NavigationItem.order``) sulla stessa scala, quindi si numerano insieme.
+    """
+    payload = _helpers._post_or_json_payload(request)
+    elementi = payload.get("elementi")
+    if not isinstance(elementi, list) or not elementi:
+        return _helpers._json_error("Ordine mancante.")
+    righe: list[tuple[str, int]] = []
+    for el in elementi:
+        tipo = str((el or {}).get("tipo") or "") if isinstance(el, dict) else ""
+        el_id = _helpers._int_or_none((el or {}).get("id")) if isinstance(el, dict) else None
+        if tipo not in {"categoria", "voce"} or not el_id:
+            return _helpers._json_error("Ordine non valido.")
+        righe.append((tipo, el_id))
+    with transaction.atomic():
+        for idx, (tipo, el_id) in enumerate(righe):
+            ordine = (idx + 1) * 10
+            if tipo == "categoria":
+                ModuleCategory.objects.filter(id=el_id).update(order=ordine)
+            else:
+                NavigationItem.objects.filter(id=el_id, section="topbar", category__isnull=True).update(order=ordine)
+        transaction.on_commit(bump_navigation_registry_version)
+    return JsonResponse({"ok": True})
