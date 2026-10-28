@@ -23,7 +23,7 @@ from datetime import date, datetime, time, timedelta
 
 from django.utils import timezone
 
-from security.models import SecurityAlert, SecurityCveImpact, SecurityCveRisoluzione, SecurityEventRecord, Severity
+from security.models import SecurityAlert, SecurityCveImpact, SecurityEventRecord, Severity
 from security.services import soc_settings, traccia
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 from security.services.dedup import make_hash
@@ -131,17 +131,17 @@ def _aware(valore, fine=False):
 def riepilogo(dal, al) -> dict:
     """Per classe: corrette nel periodo (in tempo / in ritardo rispetto al termine), aperte, aperte scadute.
 
-    ``dal``/``al`` sono date o datetime. Le correzioni sono le ``SecurityCveRisoluzione`` del periodo
-    (programma aggiornato o rimosso, con «esposto dal»); le aperte sono le esposizioni di adesso.
+    ``dal``/``al`` sono date o datetime. Le correzioni sono quelle di ``cve_gestione.correzioni_valide``
+    (ultima uscita per CVE + PC, programma aggiornato o rimosso, PC non di nuovo esposto, con «esposto dal»);
+    le aperte sono le esposizioni di adesso.
     """
     oggi = timezone.localdate()
     righe = {cls: {"classe": cls, "etichetta": ETICHETTE[cls], "giorni": giorni(cls), "corrette": 0, "in_tempo": 0,
                    "in_ritardo": 0, "aperte": 0, "aperte_scadute": 0} for cls in CLASSI}
-    corrette = (
-        SecurityCveRisoluzione.objects.filter(risolta_il__gte=_aware(dal), risolta_il__lte=_aware(al, fine=True),
-                                              come__in=SecurityCveRisoluzione.CORREZIONI, aperta_dal__isnull=False)
-        .select_related("cve")
-    )
+    from security.services.cve_gestione import correzioni_valide
+
+    # Stessa regola della pagina Correzioni CVE: ultima uscita per CVE + PC, PC non di nuovo esposto.
+    corrette = [r for r in correzioni_valide(_aware(dal), _aware(al, fine=True)) if r.aperta_dal is not None]
     for r in corrette:
         riga = righe[classe(r.cve)]
         riga["corrette"] += 1
