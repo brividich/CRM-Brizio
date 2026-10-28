@@ -19,6 +19,8 @@ conformità: ``classe``, ``scadenza``, ``riepilogo``, ``scadute``.
 from __future__ import annotations
 
 import logging
+import threading
+from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
 
 from django.utils import timezone
@@ -57,7 +59,31 @@ def classe(record) -> str:
     return BASSA
 
 
+_LOCALE = threading.local()
+
+
+@contextmanager
+def termini_fissati():
+    """Legge una volta sola i giorni dei cinque termini per tutto il blocco (anche come decoratore).
+
+    Senza, ogni ``scadenza``/``stato`` rileggeva l'impostazione dal database: una query per
+    esposizione (in produzione 1.400-1.800 query per pagina). Il valore vive solo nel thread e
+    solo per la durata del blocco: fuori, ogni lettura è fresca come prima. Annidabile.
+    """
+    if getattr(_LOCALE, "giorni", None) is not None:
+        yield
+        return
+    _LOCALE.giorni = {cls: soc_settings.value(_CHIAVI[cls]) for cls in CLASSI}
+    try:
+        yield
+    finally:
+        _LOCALE.giorni = None
+
+
 def giorni(cls) -> int:
+    fissati = getattr(_LOCALE, "giorni", None)
+    if fissati is not None:
+        return fissati[cls]
     return soc_settings.value(_CHIAVI[cls])
 
 
@@ -108,6 +134,7 @@ def _voce(impatto, oggi, coperture):
     }
 
 
+@termini_fissati()
 def esposizioni_aperte(oggi=None):
     """Tutte le esposizioni «Impatta» con il loro termine (voci come ``scadute``), nell'ordine del ritardo."""
     oggi = oggi or timezone.localdate()
@@ -128,6 +155,7 @@ def _aware(valore, fine=False):
     return timezone.make_aware(datetime.combine(valore, time.max if fine else time.min))
 
 
+@termini_fissati()
 def riepilogo(dal, al) -> dict:
     """Per classe: corrette nel periodo (in tempo / in ritardo rispetto al termine), aperte, aperte scadute.
 
@@ -172,6 +200,7 @@ def _dedup(source, voce):
     return make_hash(source.pk, EVENT_SLA, voce["cve"], voce["host"], voce["scadenza"].isoformat())
 
 
+@termini_fissati()
 def segnala_scadute(oggi=None):
     """Un evento ``cve_sla_scaduta`` per ogni esposizione oltre il termine non accettata (una volta per termine).
 

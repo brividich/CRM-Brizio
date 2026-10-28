@@ -314,9 +314,10 @@ def _termini(record, impatti):
 
         oggi = timezone.localdate()
         coperture = accettazione_rischio.attive(oggi)
-        return {
-            i.host: cve_sla.stato(record, i.aperta_dal or i.computed_at, oggi, accettazione_rischio.copre(coperture, record.cve_id, i.host))
-            for i in impatti if i.outcome == SecurityCveImpact.IMPACTS
-        }
+        with cve_sla.termini_fissati():
+            return {
+                i.host: cve_sla.stato(record, i.aperta_dal or i.computed_at, oggi, accettazione_rischio.copre(coperture, record.cve_id, i.host))
+                for i in impatti if i.outcome == SecurityCveImpact.IMPACTS
+            }
     except Exception:  # noqa: BLE001
         return {}

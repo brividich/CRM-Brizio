@@ -174,3 +174,32 @@ class CveGestioneTests(TestCase):
         riquadro = cve_chiusura.metriche()["correzioni"]
         termini = cve_sla.riepilogo(oggi - timezone.timedelta(days=90), oggi)["corrette"]
         self.assertEqual((pagina, elenco, riquadro, termini), (1, 1, 1, 1))
+
+    def test_query_costanti_al_crescere_dei_pc(self):
+        """Le pagine non devono fare una query per PC (in produzione erano 1.400-1.800 per pagina)."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        self._aggiorna_pc1()
+        self.client.force_login(self.admin)
+
+        def conta():
+            out = {}
+            for nome, url, params in (("lista", "security:vulnerabilities", {}),
+                                      ("cve", "security:cve_correzioni", {}),
+                                      ("pc", "security:cve_correzioni", {"vista": "pc"})):
+                with CaptureQueriesContext(connection) as c:
+                    self.assertEqual(self.client.get(reverse(url), params).status_code, 200)
+                out[nome] = len(c)
+            return out
+
+        conta()  # giro a vuoto: la prima richiesta riempie le cache del portale (menu, permessi)
+        prima = conta()
+        for i in range(3, 9):
+            self._inst(f"pc-ges-{i:02d}", "1.0")
+        cve_impact.recompute(self.record)
+        for i in range(3, 9):
+            SoftwareInstallation.objects.filter(host=f"pc-ges-{i:02d}").update(still_detected=False)
+            self._inst(f"pc-ges-{i:02d}", "2.3")
+        cve_impact.recompute(self.record)
+        self.assertEqual(conta(), prima)
