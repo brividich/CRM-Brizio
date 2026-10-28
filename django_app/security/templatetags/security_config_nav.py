@@ -78,6 +78,7 @@ MENU = [
         ("Patch e protezione", "watchguard_pc", ("watchguard_pc",), False),
         ("Rete (IP)", "rete_indirizzi", ("rete_indirizzi",), False),
         ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),
+        ("Correzioni CVE", "cve_correzioni", ("cve_correzioni",), False),
         ("Rischi accettati", "accettazioni_rischio", ("accettazioni_rischio",), False),
         ("Accessi VPN", "vpn_history", ("vpn_history",), False),
     ]),

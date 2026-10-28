@@ -57,27 +57,67 @@
 </section>
 {% endif %}
 
-<section class="sec-panel" style="margin-top: 12px;">
-  <div class="sec-section-head"><h2>CVE che impattano o da verificare</h2><span class="sec-muted sec-small">ordine: KEV, CVSS, EPSS, host impattati</span></div>
+<section class="sec-panel" style="margin-top: 12px;" id="elenco-cve">
+  <div class="sec-section-head">
+    <h2>CVE che impattano o da verificare</h2>
+    <span class="sec-small"><a class="sec-button" href="{% url 'security:cve_correzioni' %}">Correzioni CVE: cosa si è chiuso con gli aggiornamenti</a></span>
+  </div>
+  <div class="sec-fact-grid">
+    <div class="sec-fact"><span>CVE in elenco</span><strong>{{ elenco.totali.cve }}</strong> <small class="sec-muted">{{ elenco.totali.kev }} sfruttate (KEV)</small></div>
+    <div class="sec-fact"><span>PC esposti</span><strong>{{ elenco.totali.pc_esposti }}</strong></div>
+    <div class="sec-fact"><span>CVE con PC oltre il termine</span><strong>{{ elenco.totali.oltre }}</strong></div>
+    <div class="sec-fact"><span>PC corretti negli ultimi 90 giorni</span><strong><a href="{% url 'security:cve_correzioni' %}">{{ elenco.totali.corretti_90 }}</a></strong></div>
+  </div>
+  <form class="sec-filter-bar" method="get" action="#elenco-cve" style="margin-top: 10px;">
+    <label>Cerca <input type="search" name="q" value="{{ filtri.q }}" placeholder="CVE, descrizione, programma o PC"></label>
+    <label>Gravità
+      <select name="classe"><option value="">Tutte</option>{% for k, v in elenco.classi %}<option value="{{ k }}" {% if filtri.classe == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    </label>
+    <label>Esito
+      <select name="esito">{% for k, v in elenco.esiti.items %}<option value="{{ k }}" {% if filtri.esito == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    </label>
+    <label>Termine
+      <select name="termine">{% for k, v in elenco.termini.items %}<option value="{{ k }}" {% if filtri.termine == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    </label>
+    <label class="sec-check"><input type="checkbox" name="kev" value="1" {% if filtri.solo_kev %}checked{% endif %}> Solo sfruttate (KEV)</label>
+    <button class="sec-button-primary" type="submit">Filtra</button>
+    {% if filtri_attivi %}<a class="sec-button" href="{% url 'security:vulnerabilities' %}#elenco-cve">Reimposta</a>{% endif %}
+  </form>
+  <p class="sec-muted sec-small">Ordine: sfruttate, CVSS, EPSS, PC impattati. Clic sulla riga: pannello con PC, programmi e correzioni senza lasciare la pagina; clic sul codice della CVE: scheda completa.</p>
   <div class="sec-table-wrap">
-    <table class="sec-table" data-fm-table-skip="1">
-      <thead><tr><th>CVE</th><th>KEV</th><th class="sec-num">CVSS</th><th class="sec-num">EPSS</th><th class="sec-num">Impatta</th><th class="sec-num">Da verificare</th></tr></thead>
+    <table class="sec-table" data-preview-scope>
+      <thead><tr><th>CVE</th><th>Gravità</th><th>Programmi coinvolti</th><th class="sec-num">PC impattati</th><th class="sec-num">Da verificare</th><th>Esposta dal</th><th>Termine</th><th class="sec-num">Corretti (90 gg)</th></tr></thead>
       <tbody>
-      {% for c in cves %}
-        <tr>
-          <td class="sec-title-cell"><a href="{% url 'security:cve_detail' c.cve_id %}">{{ c.cve_id }}</a><br><small class="sec-muted">{{ c.description|truncatechars:90 }}</small></td>
-          <td>{% if c.kev %}<span class="sec-badge sec-badge-critical">Sfruttata</span>{% else %}—{% endif %}</td>
-          <td class="sec-num">{{ c.cvss|default_if_none:"—" }}</td>
-          <td class="sec-num">{% if c.epss is not None %}{{ c.epss|floatformat:3 }}{% else %}—{% endif %}</td>
-          <td class="sec-num">{{ c.impacted }}</td>
-          <td class="sec-num">{{ c.to_verify }}</td>
+      {% for c in elenco.righe %}
+        <tr data-preview="{% url 'security:cve_pannello_cve' c.cve_id %}">
+          <td class="sec-title-cell"><a href="{% url 'security:cve_detail' c.cve_id %}"><strong>{{ c.cve_id }}</strong></a><br><small class="sec-muted">{{ c.record.description|truncatechars:110 }}</small></td>
+          <td data-sort-value="{{ c.record.cvss|default_if_none:0 }}">
+            {% if c.record.kev %}<span class="sec-badge sec-badge-critical" title="In CISA KEV dal {{ c.record.kev_added|date:'d/m/Y' }}">Sfruttata</span><br>{% endif %}
+            {% if c.classe != 'kev' %}<span class="sec-badge{% if c.classe == 'critica' %} sec-badge-critical{% elif c.classe == 'alta' %} sec-badge-warning{% else %} sec-badge-muted{% endif %}">{{ c.classe_label }}</span>{% endif %}
+            <br><small class="sec-muted">CVSS {{ c.record.cvss|default_if_none:"—" }}{% if c.record.epss is not None %} · EPSS {{ c.record.epss|floatformat:3 }}{% endif %}</small>
+          </td>
+          <td>{% for p in c.programmi|slice:":3" %}{{ p }}{% if not forloop.last %}<br>{% endif %}{% empty %}<span class="sec-muted">—</span>{% endfor %}{% if c.programmi|length > 3 %}<br><small class="sec-muted">+{{ c.programmi|length|add:"-3" }} altri</small>{% endif %}</td>
+          <td class="sec-num">{% if c.impatta %}<strong>{{ c.impatta }}</strong>{% else %}0{% endif %}</td>
+          <td class="sec-num">{{ c.da_verificare }}</td>
+          <td class="sec-nowrap" data-sort-value="{{ c.esposta_dal|date:'Y-m-d' }}">{% if c.esposta_dal %}{{ c.esposta_dal|date:"d/m/Y" }}<br><small class="sec-muted">{{ c.esposta_dal|timesince }}</small>{% else %}—{% endif %}</td>
+          <td class="sec-nowrap" data-sort-value="{% if c.termine %}{{ c.termine.scadenza|date:'Y-m-d' }}{% endif %}">
+            {% if c.termine %}
+              {{ c.termine.scadenza|date:"d/m/Y" }}<br>
+              {% if c.pc_oltre %}<span class="sec-badge sec-badge-critical">{{ c.pc_oltre }} PC oltre</span>
+              {% elif c.pc_in_scadenza %}<span class="sec-badge sec-badge-warning">{{ c.pc_in_scadenza }} PC in scadenza</span>
+              {% elif c.impatta %}<small class="sec-muted">nel termine</small>{% endif %}
+              {% if c.pc_accettati %}<span class="sec-badge sec-badge-muted" title="Rischio accettato">{{ c.pc_accettati }} accettati</span>{% endif %}
+            {% else %}<span class="sec-muted">—</span>{% endif %}
+          </td>
+          <td class="sec-num">{% if c.corretti_90 %}<a href="{% url 'security:cve_correzioni' %}?q={{ c.cve_id }}&amp;periodo=90">{{ c.corretti_90 }}</a>{% else %}0{% endif %}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="6" class="sec-empty">Nessuna CVE impatta gli asset secondo l'inventario attuale.</td></tr>
+        <tr><td colspan="8" class="sec-empty">{% if filtri_attivi %}Nessuna CVE con questi filtri.{% else %}Nessuna CVE impatta gli asset secondo l'inventario attuale.{% endif %}</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+  {% if elenco.troncato %}<p class="sec-muted sec-small">Mostrate le prime 500: restringi con i filtri.</p>{% endif %}
 </section>
 
 <section class="sec-grid sec-two-col" style="margin-top: 12px;">
