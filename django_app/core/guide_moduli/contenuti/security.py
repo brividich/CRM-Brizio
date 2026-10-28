@@ -108,6 +108,20 @@ GUIDA = {
             ],
         },
         {
+            "id": "windows-per-build",
+            "titolo": "Windows: release riconosciuta dalla build",
+            "blocchi": [
+                ("p", "Le CVE di Windows sono descritte per release (Windows 10 21H2, Windows 11 24H2, Server 2022…). Con «Riconosci "
+                      "la release di Windows dalla build» acceso (Impostazioni › Avvisi e automatismi › Impatto CVE sugli asset) ogni PC "
+                      "Windows è confrontato solo con i criteri della sua release, letta dalla build (10.0.26200 = Windows 11 25H2; client "
+                      "e server separati dal nome): impatta o non impatta come gli altri programmi; se la CVE non elenca la sua release, "
+                      "non impatta; nel dubbio resta da verificare, con il motivo."),
+                ("p", "Senza, ogni CVE di Windows lascia tutti i PC Windows «da verificare» e i PC con il nome lungo di WatchGuard non "
+                      "vengono confrontati. Prima di accenderla: manage.py cve_windows_anteprima (non scrive niente) dice quanti esiti "
+                      "cambiano e quante CVE apriranno un alert al primo ricalcolo."),
+            ],
+        },
+        {
             "id": "correzioni-cve",
             "titolo": "Correzioni CVE: cosa si è chiuso con gli aggiornamenti",
             "blocchi": [

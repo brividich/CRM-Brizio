@@ -176,6 +176,23 @@ Per ogni CVE e ogni PC il sistema dà uno di tre esiti, sempre con la spiegazion
 
 Il sistema non tira mai a indovinare: quando non può dimostrare l'esito, scrive «da verificare».
 
+### Windows: release riconosciuta dalla build
+
+L'NVD descrive Windows **per release** (Windows 10 21H2, Windows 11 24H2, Server 2022…), mentre l'inventario dice il nome del sistema e la **build** (`10.0.26200.6899`). Senza abbinamento ogni CVE di Windows lascia tutti i PC Windows «da verificare», e i PC che WatchGuard chiama per esteso («Windows 11 Pro 64 bits Version 25H2») non vengono proprio confrontati.
+
+Con **Riconosci la release di Windows dalla build** acceso (Impostazioni › Avvisi e automatismi › Impatto CVE sugli asset) il SOC fa così, CVE per CVE:
+
+1. legge i criteri Windows della CVE e, per ognuno, la release dalla build della versione limite (`10.0.22631.5472` → Windows 11 23H2);
+2. riconosce i PC Windows (il sistema operativo, non Defender, Web Experience Pack o simili): **client o server dal nome** (la build 17763 è sia Windows 10 1809 sia Server 2019), **release dalla build**;
+3. confronta ogni PC **solo** con i criteri della sua famiglia e release:
+   - criterio trovato → confronto della versione completa: **impatta** o **non impatta** come per gli altri programmi;
+   - la CVE non elenca la sua release → **non impatta** («la CVE non riguarda questa release», con le release colpite);
+   - versione non leggibile, inventario vecchio o un criterio di cui non si riconosce la release → **da verificare**, con il motivo.
+
+Nella spiegazione compare «Release riconosciuta dalla build: Windows 11 24H2». I PC che passano da «da verificare» a «non impatta» compaiono fra le uscite come «Rivalutata»: non sono correzioni.
+
+**Prima di accenderla** si lancia sul server `manage.py cve_windows_anteprima`: dice, senza scrivere niente, quanti esiti cambiano e quali CVE aprirebbero un alert (PC che diventano «impatta» su CVE critiche o sfruttate). Al primo ricalcolo dopo l'accensione quegli alert si aprono tutti insieme: è previsto, sono esposizioni vere.
+
 ### Proposte dell'AI locale sui casi da verificare
 
 I casi «da verificare» bloccano la chiusura automatica delle CVE. L'AI locale del portale (lo stesso server interno dell'Assistente AI: nessun dato esce dall'azienda) può esaminarli e **proporre** una risposta; decide sempre una persona.
