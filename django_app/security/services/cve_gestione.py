@@ -231,9 +231,10 @@ def correzioni(periodo=PERIODO_DEFAULT, come=COME_DEFAULT, q="", oggi=None) -> d
       riuscire); il filtro «Come» si applica dopo, sull'ultima uscita;
     - un PC che oggi è di nuovo impattato o da verificare per quella CVE è «di nuovo esposto» e
       non conta come corretto;
-    - una CVE è «chiusa con gli aggiornamenti» solo se oggi non ha PC impattati né da verificare e
-      ogni uscita del periodo è una correzione vista nell'inventario; se qualche PC è uscito per
-      altro motivo (sparito dall'inventario, rivalutata) è «nessun PC esposto», non «corretta».
+    - una CVE è «chiusa con gli aggiornamenti» solo se oggi non ha PC impattati né da verificare,
+      almeno un PC è stato corretto e nessun PC è uscito perché sparito dall'inventario o è di nuovo
+      esposto; le uscite «rivalutata» (il PC non era vulnerabile) non la impediscono. Altrimenti, senza
+      PC esposti, è «nessun PC esposto».
     """
     oggi = oggi or timezone.localdate()
     periodo = periodo if periodo in PERIODI else PERIODO_DEFAULT
@@ -273,7 +274,7 @@ def correzioni(periodo=PERIODO_DEFAULT, come=COME_DEFAULT, q="", oggi=None) -> d
         # serve a dire se la CVE si è chiusa davvero con gli aggiornamenti.
         g = per_cve.setdefault(r.cve_id, {
             "record": r.cve, "cve_id": x["cve_id"], "classe_label": x["classe_label"], "corretti": 0,
-            "aggiornati": 0, "rimossi": 0, "altro": 0, "di_nuovo": 0, "programmi": set(), "ultima": r.risolta_il,
+            "aggiornati": 0, "rimossi": 0, "rivalutate": 0, "assenti": 0, "di_nuovo": 0, "programmi": set(), "ultima": r.risolta_il,
             "ancora": esposti_per_cve[r.cve_id][SecurityCveImpact.IMPACTS],
             "da_verificare": esposti_per_cve[r.cve_id][SecurityCveImpact.TO_VERIFY], "giorni": [], "nel_filtro": False,
         })
@@ -283,8 +284,10 @@ def correzioni(periodo=PERIODO_DEFAULT, come=COME_DEFAULT, q="", oggi=None) -> d
             g["aggiornati"] += 1
         elif r.come == SecurityCveRisoluzione.RIMOSSO:
             g["rimossi"] += 1
+        elif r.come == SecurityCveRisoluzione.RIVALUTATA:
+            g["rivalutate"] += 1
         else:
-            g["altro"] += 1
+            g["assenti"] += 1
         if correzione:
             g["corretti"] += 1
             if giorni_aperta is not None:
@@ -304,7 +307,9 @@ def correzioni(periodo=PERIODO_DEFAULT, come=COME_DEFAULT, q="", oggi=None) -> d
         g["programmi"] = sorted(g["programmi"])
         g["giorni_medi"] = round(sum(g["giorni"]) / len(g["giorni"])) if g["giorni"] else None
         nessuno_esposto = not g["ancora"] and not g["da_verificare"]
-        g["stato"] = ("corretta" if nessuno_esposto and g["corretti"] and not g["altro"] and not g["di_nuovo"]
+        # «Rivalutata» è un dato (il PC non era vulnerabile, es. release di Windows non colpita): non toglie
+        # la chiusura. Un PC sparito dall'inventario invece non dice niente: la CVE non è «corretta».
+        g["stato"] = ("corretta" if nessuno_esposto and g["corretti"] and not g["assenti"] and not g["di_nuovo"]
                       else "nessuno_esposto" if nessuno_esposto else "aperta")
         gruppi.append(g)
     ordine = {"aperta": 0, "nessuno_esposto": 1, "corretta": 2}

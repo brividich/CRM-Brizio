@@ -353,7 +353,7 @@ def _v_8_8(dal, al):
 
     ev = [_evidenza("Vulnerabilità", "security:vulnerabilities")]
     try:
-        m = cve_chiusura.metriche(giorni=max(1, (al - dal).days + 1))
+        m = cve_chiusura.metriche(dal=dal, al=al)
     except Exception:  # noqa: BLE001
         logger.exception("cve_chiusura.metriche non riuscito")
         m = {}

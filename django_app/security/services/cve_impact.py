@@ -29,7 +29,7 @@ from security.models import (
     SoftwareCpeMapping,
     SoftwareInstallation,
 )
-from security.services import soc_settings
+from security.services import soc_settings, windows_build
 from security.services.versioning import in_range
 
 logger = logging.getLogger(__name__)
@@ -151,7 +151,7 @@ class Contesto:
     decine di migliaia di scansioni per un ricalcolo completo.
     """
 
-    def __init__(self):
+    def __init__(self, windows_per_build=None):
         self.mappings = _confirmed_mappings()
         self.auto_pairs = frozenset(
             SoftwareCpeMapping.objects.filter(confirmed=True, origin=SoftwareCpeMapping.ORIGIN_AUTO).values_list("vendor", "product")
@@ -166,6 +166,16 @@ class Contesto:
         for install in self.installs:
             self.per_prodotto[(_ci(install.vendor), _ci(install.product))].append(install)
             self.per_host[install.host].append(install)
+        # Release di Windows dalla build (services.windows_build): sistemi operativi Windows con famiglia e build.
+        # None = come da impostazione; True/False forzato (anteprima di windows_build).
+        self.windows_per_build = (bool(soc_settings.value("cve.windows.per_build")) if windows_per_build is None
+                                  else bool(windows_per_build))
+        self.windows = []
+        if self.windows_per_build:
+            for install in self.installs:
+                famiglia = windows_build.famiglia_installazione(install)
+                if famiglia and (install.vendor, install.product) not in self.not_applicable:
+                    self.windows.append((install, famiglia, windows_build.build_da_versione(install.version_raw)))
 
     def installazioni_di(self, products):
         visti = {}
@@ -183,8 +193,11 @@ def evaluate(record, today=None, ctx=None):
     stale_before = fresh_since(today)
     ctx = ctx or Contesto()
     per_host, unmapped = {}, []
+    criteri_windows = windows_build.criteri_windows(record.configurations) if ctx.windows_per_build else []
     for criterion in record.configurations or []:
         pair = (criterion.get("vendor", "").lower(), criterion.get("product", "").lower())
+        if criteri_windows and pair[0] == "microsoft" and windows_build.famiglia_cpe(pair[1]):
+            continue  # i criteri di Windows li abbina _valuta_windows, PC per PC sulla sua release
         products = ctx.mappings.get(pair, [])
         if products:
             for install in ctx.installazioni_di(products):
@@ -205,7 +218,39 @@ def evaluate(record, today=None, ctx=None):
             text = (f"{install.product_raw} {install.version_raw} installato su {install.host_display or install.host}; "
                     f"possibile corrispondenza con {pair[0]}:{pair[1]} ma la mappatura CPE non è confermata; {_source_text(install)}.")
             _merge(per_host, install, SecurityCveImpact.TO_VERIFY, text)
+    if criteri_windows:
+        _valuta_windows(record, criteri_windows, ctx, stale_before, per_host, today)
     return per_host, unmapped
+
+
+def _valuta_windows(record, criteri, ctx, stale_before, per_host, today=None):
+    """Passo 3 di ``windows_build``: ogni PC Windows contro i soli criteri della sua famiglia e build."""
+    famiglie = {c.famiglia for c in criteri}
+    for install, famiglia, build in ctx.windows:
+        if famiglia not in famiglie:
+            continue
+        release = windows_build.nome_release(famiglia, build)
+        stessi, motivo = windows_build.abbina(criteri, famiglia, build, today)
+        if stessi:
+            for c in stessi:
+                outcome, text = _evaluate_install(record, c.criterio, install, stale_before)
+                text = f"{text} Release riconosciuta dalla build: {release}."
+                outcome, text = _applica_verifica(ctx, record, install, outcome, text)
+                _merge(per_host, install, outcome, text)
+            continue
+        base = (f"{install.product_raw} {install.version_raw} installato su {install.host_display or install.host}; "
+                f"release {release}")
+        if motivo:
+            outcome, text = SecurityCveImpact.TO_VERIFY, f"{base}: {motivo}; {_source_text(install)}."
+        elif install.last_inventory_date < stale_before:
+            outcome, text = (SecurityCveImpact.TO_VERIFY,
+                             f"{base}; {_source_text(install)}. Inventario vecchio (oltre {freshness_days()} giorni): la release può essere cambiata.")
+        else:
+            colpite = sorted({windows_build.nome_release(famiglia, c.build) for c in criteri if c.famiglia == famiglia})
+            outcome, text = (SecurityCveImpact.NOT_IMPACTED,
+                             f"{base}: la CVE non riguarda questa release (release colpite: {', '.join(colpite)}); {_source_text(install)}.")
+        outcome, text = _applica_verifica(ctx, record, install, outcome, text)
+        _merge(per_host, install, outcome, text)
 
 
 def _merge(per_host, install, outcome, text):
