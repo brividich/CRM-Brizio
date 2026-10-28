@@ -20,6 +20,13 @@ def proprietario_rilevazione(rilevazione):
 
 registra_modulo(ModuloPermessi(
     chiave="rilevazione_incidenti",
+    # Permesso della pagina principale legato a un prefisso: «ereditava» le rotte di
+    # scrittura/gestione sotto e la matrice lo dava solo a «modificare»/«gestire», cosi'
+    # chi ha «vedere» non apriva il modulo ne' lo trovava nel menu. Le scritture hanno
+    # controlli propri nelle view (verificati il 28/10/2026).
+    capacita_forzate=(
+        ("legacy.rilevazione_incidenti.rilev_inc_lista", "lettura"),
+    ),
     nome="Segnalazione incidenti",
     descrizione="Unsafe condition, near miss, incidenti, KPI e heatmap.",
     area="Sicurezza",

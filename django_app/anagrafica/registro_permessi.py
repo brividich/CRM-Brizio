@@ -29,6 +29,15 @@ def proprietario_scheda(scheda):
 
 registra_modulo(ModuloPermessi(
     chiave="anagrafica",
+    # Permesso della pagina principale legato a un prefisso: «ereditava» le rotte di
+    # scrittura/gestione sotto e la matrice lo dava solo a «modificare»/«gestire», cosi'
+    # chi ha «vedere» non apriva il modulo ne' lo trovava nel menu. Le scritture hanno
+    # controlli propri nelle view (verificati il 28/10/2026).
+    capacita_forzate=(
+        ("legacy.anagrafica.anagrafica_index", "lettura"),
+        ("legacy.anagrafica.anagrafica_dipendenti", "lettura"),
+        ("legacy.anagrafica.anagrafica_ruoli_operativi", "lettura"),
+    ),
     nome="Anagrafica dipendenti",
     descrizione="Schede dipendenti, mansioni, ruoli, organigramma, recruiting, skill matrix.",
     area="Persone",

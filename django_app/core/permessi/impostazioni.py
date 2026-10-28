@@ -53,19 +53,27 @@ IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
     ),
     "ticket_manutenzione": PagineImpostazioni(
         codici=("tickets.impostazioni.view", "tickets.impostazioni.manage"),
+        rotte=("tickets:impostazioni", "tickets:api_impostazioni"),
+        modulo_acl="tickets",
         etichetta="Impostazioni dei ticket (IT e manutenzione)",
     ),
     "diario_preposto": PagineImpostazioni(
         codici=("diario_preposto.impostazioni.view", "diario_preposto.impostazioni.manage"),
+        rotte=("diario_preposto:impostazioni",),
+        modulo_acl="diario_preposto",
     ),
     "rilevazione_incidenti": PagineImpostazioni(
         codici=("rilevazione_incidenti.impostazioni.view", "rilevazione_incidenti.impostazioni.manage"),
+        rotte=("rilevazione_incidenti:impostazioni",),
+        modulo_acl="rilevazione_incidenti",
     ),
     "automazioni": PagineImpostazioni(
         codici=("automazioni.automazioni_settings.view",),
     ),
     "timbri": PagineImpostazioni(
         codici=("timbri.configurazione.view",),
+        rotte=("timbri:configurazione",),
+        modulo_acl="timbri",
     ),
     "dpi": PagineImpostazioni(
         codici=(
@@ -73,7 +81,7 @@ IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
             "dpi.categoria_modifica.view", "dpi.categoria_elimina.view",
         ),
         rotte=(
-            "dpi:tipo_nuovo", "dpi:tipo_modifica", "dpi:modello_nuovo",
+            "dpi:impostazioni", "dpi:tipo_nuovo", "dpi:tipo_modifica", "dpi:modello_nuovo",
             "dpi:modello_modifica", "dpi:taglia_nuova", "dpi:taglia_modifica",
         ),
         modulo_acl="dpi",

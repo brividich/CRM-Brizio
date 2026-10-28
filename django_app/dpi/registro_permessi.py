@@ -19,6 +19,13 @@ def proprietario_richiesta(richiesta):
 
 registra_modulo(ModuloPermessi(
     chiave="dpi",
+    # Permesso della pagina principale legato a un prefisso: «ereditava» le rotte di
+    # scrittura/gestione sotto e la matrice lo dava solo a «modificare»/«gestire», cosi'
+    # chi ha «vedere» non apriva il modulo ne' lo trovava nel menu. Le scritture hanno
+    # controlli propri nelle view (verificati il 28/10/2026).
+    capacita_forzate=(
+        ("legacy.dpi.dpi_view", "lettura"),
+    ),
     nome="DPI",
     descrizione="Richieste, approvazioni, consegne e magazzino dei dispositivi di protezione.",
     area="Sicurezza",

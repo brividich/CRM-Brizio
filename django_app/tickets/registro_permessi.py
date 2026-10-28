@@ -31,6 +31,13 @@ registra_modulo(ModuloPermessi(
 
 registra_modulo(ModuloPermessi(
     chiave="ticket_manutenzione",
+    # Permesso della pagina principale legato a un prefisso: «ereditava» le rotte di
+    # scrittura/gestione sotto e la matrice lo dava solo a «modificare»/«gestire», cosi'
+    # chi ha «vedere» non apriva il modulo ne' lo trovava nel menu. Le scritture hanno
+    # controlli propri nelle view (verificati il 28/10/2026).
+    capacita_forzate=(
+        ("legacy.tickets.tickets_dashboard", "lettura"),
+    ),
     nome="Ticket manutenzione",
     descrizione="Richieste di manutenzione e fermi macchina: apertura, assegnazione, chiusura.",
     area="Produzione",
