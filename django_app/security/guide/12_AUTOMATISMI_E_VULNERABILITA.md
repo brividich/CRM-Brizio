@@ -246,7 +246,7 @@ Nel pannello (programma, PC, scheda breve della CVE) la sezione **Risolte negli 
 - **PC non più nell'inventario**: il PC non compare più nell'export. Non è una correzione verificata: può essere spento, dismesso o fuori dall'ultimo export.
 - **Rivalutata**: la versione è la stessa ma non risulta più vulnerabile (l'NVD ha corretto i range, o una regola N/A).
 
-Solo le prime due contano come **corrette**. Ogni PC esposto ha anche «esposto dal»: la data passa da un ricalcolo all'altro (per le righe che c'erano prima di questa funzione è la data dell'ultimo ricalcolo).
+Solo le prime due contano come **corrette**, e solo se oggi il PC non è di nuovo esposto alla stessa CVE (un PC tornato vulnerabile esce dalle risolte e torna fra i PC colpiti). La regola è la stessa in tutte le pagine: pannello, elenco delle Vulnerabilità, «Dalla segnalazione alla correzione», «Tempi di correzione», Correzioni CVE e Conformità ISO 27001. Ogni PC esposto ha anche «esposto dal»: la data passa da un ricalcolo all'altro (per le righe che c'erano prima di questa funzione è la data dell'ultimo ricalcolo).
 
 Nella scheda asset, la riga **Visto da** in cima alla Panoramica dice quali fonti vedono il PC (Intune, WatchGuard, Defender, Security Center, SNMP) e quando: un PC senza WatchGuard né Defender non ha inventario software, quindi il SOC non può controllarne le CVE.
 
@@ -254,13 +254,25 @@ Nella scheda asset, la riga **Visto da** in cima alla Panoramica dice quali font
 
 Dispositivi › **Correzioni CVE** (anche dal pulsante in cima all'elenco delle Vulnerabilità) è il registro di quello che si è chiuso: ogni PC uscito da una CVE, con il motivo e le versioni.
 
-- **In cima**: PC corretti (aggiornati e disinstallati), CVE **chiuse su tutti i PC**, CVE **ancora aperte** su altri PC, giorni medi da «esposta dal» alla correzione, percentuale **corretta nel termine** (vedi «Tempi di correzione») e PC usciti per altro motivo.
-- **Filtri**: periodo (30 giorni, 90 giorni, 12 mesi, tutto), **Come** (corrette, solo aggiornate, solo disinstallate, uscite per altro motivo, tutte) e ricerca per CVE, PC o programma.
-- **Vista per CVE** (predefinita): una riga per CVE con lo **stato di oggi** («Chiusa su tutti i PC» oppure «Ancora aperta» con i PC che restano), quanti PC sono stati corretti e come, i programmi «versione prima → dopo», i giorni medi e l'ultima correzione. Clic sul numero di PC corretti: la vista PC per PC di quella CVE.
-- **Vista PC per PC**: data, CVE, PC, programma, versione prima → dopo, come, esposta dal, giorni e **nel termine / in ritardo**.
-- Clic sulla riga: il pannello della CVE. **Scarica CSV** scarica l'elenco con i filtri scelti (resta nell'audit del portale).
+Come si contano, perché i numeri reggano a un audit:
 
-Contano come correzioni solo «Programma aggiornato» e «Programma disinstallato»; «PC non più nell'inventario» e «Rivalutata» si vedono scegliendo «PC uscito per altro motivo» o «Tutte le uscite». Una correzione compare dopo il primo import dell'inventario che vede la versione nuova.
+- per ogni CVE e PC conta solo l'**ultima** uscita del periodo (un PC può uscire, rientrare e uscire di nuovo);
+- un PC che oggi è **di nuovo esposto** alla stessa CVE (versione vulnerabile reinstallata, o tornato «da verificare») non conta come corretto: compare con l'etichetta rossa «Di nuovo esposto»;
+- contano come correzioni solo «Programma aggiornato» e «Programma disinstallato». «PC non più nell'inventario» e «Rivalutata» dicono solo che il PC non risulta più esposto.
+
+**In cima**: PC corretti (aggiornati e disinstallati), CVE **chiuse con gli aggiornamenti**, CVE **senza PC esposti ma non tutte verificate**, CVE **ancora aperte** su altri PC, giorni medi da «esposta dal» alla correzione, percentuale **corretta nel termine** (vedi «Tempi di correzione») e PC corretti e poi di nuovo esposti.
+
+**Stato di oggi di una CVE** (vista per CVE):
+
+- **Chiusa con gli aggiornamenti**: nessun PC impattato né da verificare, e ogni PC uscito nel periodo è stato aggiornato o ha disinstallato il programma.
+- **Nessun PC esposto**: nessun PC impattato né da verificare, ma almeno un PC è uscito senza correzione verificata (sparito dall'inventario, rivalutata, oppure di nuovo esposto e poi uscito). Va guardato prima di considerarla chiusa.
+- **Ancora aperta**: ci sono ancora PC impattati o da verificare (indicati sotto).
+
+**Filtri**: periodo (30 giorni, 90 giorni, 12 mesi, tutto), **Come** (corrette, solo aggiornate, solo disinstallate, uscite senza correzione verificata, tutte) e ricerca per CVE, PC o programma. Il filtro «Come» si applica all'ultima uscita di ogni PC.
+
+**Vista per CVE** (predefinita): stato di oggi, PC corretti e come, programmi «versione prima → dopo», giorni medi, ultima correzione. Clic sul numero di PC corretti: la vista PC per PC di quella CVE. **Vista PC per PC**: data, CVE, PC, programma, versione prima → dopo, come, esposta dal, giorni e **nel termine / in ritardo**; a video al massimo 2.000 righe (un avviso lo dice), i numeri in cima e il CSV le contano tutte.
+
+Clic sulla riga: il pannello della CVE. **Scarica CSV** scarica tutte le righe del filtro, con le celle protette dalle formule di Excel, e resta nell'audit del portale. Una correzione compare dopo il primo import dell'inventario che vede la versione nuova.
 
 ### Patch e protezione (WatchGuard)
 

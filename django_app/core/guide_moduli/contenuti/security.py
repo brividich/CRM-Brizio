@@ -115,9 +115,10 @@ GUIDA = {
                       "CVE: programma, versione prima → dopo, «Programma aggiornato» o «Programma disinstallato», da quando era esposto, "
                       "in quanti giorni e se nel termine. In cima: PC corretti, CVE chiuse su tutti i PC, CVE ancora aperte su altri PC, "
                       "giorni medi e percentuale nel termine."),
-                ("p", "Vista «per CVE» con lo stato di oggi (chiusa su tutti i PC o ancora aperta) e vista «PC per PC»; filtri per periodo, "
-                      "motivo e testo; «Scarica CSV» per l'audit. Una correzione compare dopo il primo import dell'inventario che vede la "
-                      "versione nuova; «PC non più nell'inventario» e «Rivalutata» non contano come correzioni."),
+                ("p", "Conta l'ultima uscita di ogni PC; un PC di nuovo esposto alla stessa CVE non è corretto. Stato di oggi per CVE: "
+                      "«Chiusa con gli aggiornamenti» (nessun PC esposto e ogni uscita è un aggiornamento o una disinstallazione), "
+                      "«Nessun PC esposto» (qualche PC è uscito senza correzione verificata: da guardare), «Ancora aperta». Vista «PC per "
+                      "PC», filtri per periodo, motivo e testo; «Scarica CSV» esporta tutte le righe e resta nell'audit."),
                 ("p", "L'elenco delle Vulnerabilità ora mostra anche gravità, programmi coinvolti, «esposta dal», termine (PC oltre o in "
                       "scadenza, rischi accettati) e PC corretti negli ultimi 90 giorni, con filtri; clic sulla riga apre il pannello della CVE."),
             ],

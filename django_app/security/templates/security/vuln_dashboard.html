@@ -66,7 +66,7 @@
     <div class="sec-fact"><span>CVE in elenco</span><strong>{{ elenco.totali.cve }}</strong> <small class="sec-muted">{{ elenco.totali.kev }} sfruttate (KEV)</small></div>
     <div class="sec-fact"><span>PC esposti</span><strong>{{ elenco.totali.pc_esposti }}</strong></div>
     <div class="sec-fact"><span>CVE con PC oltre il termine</span><strong>{{ elenco.totali.oltre }}</strong></div>
-    <div class="sec-fact"><span>PC corretti negli ultimi 90 giorni</span><strong><a href="{% url 'security:cve_correzioni' %}">{{ elenco.totali.corretti_90 }}</a></strong></div>
+    <div class="sec-fact" title="Solo le CVE di questo elenco: tutte le correzioni sono nella pagina Correzioni CVE"><span>PC corretti in 90 giorni, su queste CVE</span><strong><a href="{% url 'security:cve_correzioni' %}">{{ elenco.totali.corretti_90 }}</a></strong></div>
   </div>
   <form class="sec-filter-bar" method="get" action="#elenco-cve" style="margin-top: 10px;">
     <label>Cerca <input type="search" name="q" value="{{ filtri.q }}" placeholder="CVE, descrizione, programma o PC"></label>
@@ -117,7 +117,7 @@
       </tbody>
     </table>
   </div>
-  {% if elenco.troncato %}<p class="sec-muted sec-small">Mostrate le prime 500: restringi con i filtri.</p>{% endif %}
+  {% if elenco.troncato %}<p class="sec-small"><span class="sec-badge sec-badge-warning">Mostrate le prime {{ elenco.max_righe }} CVE su {{ elenco.totali.cve }}</span> I numeri in cima le contano tutte: restringi con i filtri.</p>{% endif %}
 </section>
 
 <section class="sec-grid sec-two-col" style="margin-top: 12px;">
