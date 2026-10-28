@@ -1,7 +1,7 @@
 {
-  "package_version": "2026.05",
+  "package_version": "2026.10",
   "input": {
-    "flow_name": "AU3 - Incidente: approvazione RLS poi RSPP/ASPP"
+    "flow_name": "AU3 - Segnalazione di sicurezza: avviso a RSPP, preposti e RLS + approvazione RLS poi RSPP"
   },
   "source_candidate": {
     "source_code": "rilevazione_incidenti",
@@ -18,9 +18,9 @@
   },
   "proposed_rules": [
     {
-      "code": "au3-incidente-approvazione-rls-rspp",
-      "name": "AU3 - Incidente: approvazione RLS poi RSPP/ASPP",
-      "description": "Alla creazione di una rilevazione incidente (indipendentemente dalla tipologia), avvia approvazione a cascata: prima RLS, poi (se approva) RSPP/ASPP. Solo a doppia approvazione completata, notifica la direzione. Usa send_approval annidate (ora supportate). Sostituire RLS_DA_CONFIGURARE, RSPP_DA_CONFIGURARE e DIREZIONE_DA_CONFIGURARE prima di attivare.",
+      "code": "au3-segnalazione-sicurezza-avviso-approvazione",
+      "name": "AU3 - Segnalazione di sicurezza: avviso + approvazione RLS poi RSPP",
+      "description": "All'inserimento di una segnalazione di sicurezza: (1) mail di avviso a RSPP, preposti e RLS (senza nominativo ne' descrizione, che restano nelle mail di approvazione); (2) approvazione del RLS; se approva, il portale segna «Approvato» con la data e chiede l'approvazione finale al RSPP; se il RSPP approva la segnalazione risulta chiusa con la data. Se il RLS non approva il portale segna «Non approvato». Sostituisce le due copie della vecchia AU3 (au3-incidente-approvazione-rls-rspp e -2), da eliminare.",
       "source_code": "rilevazione_incidenti",
       "operation_type": "insert",
       "trigger_scope": "all_inserts",
@@ -30,49 +30,79 @@
       "conditions": [],
       "actions": [
         {
+          "action_type": "send_email",
+          "description": "Avviso nuova segnalazione a RSPP, preposti e RLS",
+          "to": "rspp@costruzioninovicrom.it, preposti@costruzioninovicrom.it, rls@costruzioninovicrom.it",
+          "subject_template": "[Sicurezza] Nuova segnalazione di sicurezza #{id} ({tipologia_scheda}) - {reparto}",
+          "body_text_template": "Buongiorno,\n\ne' stata registrata una nuova segnalazione di sicurezza.\n\nDettaglio\nRiferimento: #{id}\nTipologia: {tipologia_scheda}\nReparto: {reparto}\nData evento: {data_segnalazione}\n\nApri nel portale: {object_url}\n\nIl RLS ricevera' la richiesta di approvazione, poi il RSPP.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+          "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Buongiorno,</p>\n<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">e' stata registrata una nuova segnalazione di sicurezza.</p>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Riferimento</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">#{id}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipologia</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipologia_scheda}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Reparto</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{reparto}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Data evento</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_segnalazione}</td></tr></table></td></tr></table>\n<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Apri nel portale: <a href=\"{object_url}\" style=\"color:#ff6b00;\">{object_url}</a></p>\n<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Il RLS ricevera' la richiesta di approvazione, poi il RSPP.</p>",
+          "email_type": "Automazioni",
+          "section_label": "Sicurezza",
+          "title_template": "Nuova segnalazione di sicurezza #{id}"
+        },
+        {
           "action_type": "send_approval",
           "description": "Approvazione livello 1: RLS",
           "delivery_mode": "email",
-          "to_template": "RLS_DA_CONFIGURARE@costruzioninovicrom.it",
-          "subject_template": "[Sicurezza] Approvazione RLS richiesta - Incidente #{id} ({tipologia_scheda})",
-          "message_template": "Gentile RLS,\n\ne' stata registrata una nuova rilevazione che richiede la Sua approvazione come primo livello del processo.\n\nDettaglio rilevazione\nRiferimento: #{id}\nTipologia: {tipologia_scheda}\nNominativo: {nominativo}\nReparto: {reparto}\nData evento: {data_segnalazione}\n\nDescrizione dell'avvenimento:\n{descrizione_avvenimento}\n\nLa preghiamo di approvare o rifiutare la rilevazione. In caso di approvazione, la pratica sara' inoltrata automaticamente al RSPP/ASPP per la verifica finale.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+          "to_template": "rls@costruzioninovicrom.it",
+          "subject_template": "[Sicurezza] Approvazione RLS - Segnalazione #{id} ({tipologia_scheda})",
+          "message_template": "Gentile RLS,\n\ne' stata registrata una nuova segnalazione di sicurezza che richiede la Sua approvazione (primo livello).\n\nDettaglio\nRiferimento: #{id}\nTipologia: {tipologia_scheda}\nNominativo: {nominativo}\nReparto: {reparto}\nData evento: {data_segnalazione}\n\nDescrizione dell'avvenimento:\n{descrizione_avvenimento}\n\nApri nel portale: {object_url}\n\nApprovando, la pratica passa al RSPP per l'approvazione finale.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
           "expiry_days": 7,
+          "approve_label": "Approva",
+          "reject_label": "Non approvo",
           "approved_actions": [
             {
+              "action_type": "update_trigger_record",
+              "description": "Approvazione RLS nel portale",
+              "update_fields": {
+                "approvazione_rls": "Approvato"
+              }
+            },
+            {
               "action_type": "send_approval",
-              "description": "Approvazione livello 2: RSPP/ASPP",
+              "description": "Approvazione livello 2: RSPP",
               "delivery_mode": "email",
-              "to_template": "RSPP_DA_CONFIGURARE@costruzioninovicrom.it",
-              "subject_template": "[Sicurezza] Approvazione finale RSPP/ASPP - Incidente #{id} ({tipologia_scheda})",
-              "message_template": "Gentile RSPP/ASPP,\n\nil RLS ha approvato la rilevazione incidente sotto riportata. Si richiede la Sua approvazione finale.\n\nDettaglio rilevazione\nRiferimento: #{id}\nTipologia: {tipologia_scheda}\nNominativo: {nominativo}\nReparto: {reparto}\nData evento: {data_segnalazione}\n\nDescrizione dell'avvenimento:\n{descrizione_avvenimento}\n\nCon l'approvazione, la pratica sara' considerata chiusa e ne verra' data comunicazione alla Direzione.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
+              "to_template": "rspp@costruzioninovicrom.it",
+              "subject_template": "[Sicurezza] Approvazione RSPP - Segnalazione #{id} ({tipologia_scheda})",
+              "message_template": "Gentile RSPP,\n\nil RLS ha approvato la segnalazione di sicurezza sotto riportata. Si richiede la Sua approvazione finale.\n\nDettaglio\nRiferimento: #{id}\nTipologia: {tipologia_scheda}\nNominativo: {nominativo}\nReparto: {reparto}\nData evento: {data_segnalazione}\n\nDescrizione dell'avvenimento:\n{descrizione_avvenimento}\n\nApri nel portale: {object_url}\n\nCon l'approvazione la segnalazione risultera' chiusa nel portale.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
               "expiry_days": 7,
+              "approve_label": "Approva",
+              "reject_label": "Non approvo",
               "approved_actions": [
                 {
-                  "action_type": "send_email",
-                  "description": "Notifica direzione incidente approvato",
-                  "to": "DIREZIONE_DA_CONFIGURARE@costruzioninovicrom.it",
-                  "subject_template": "[Sicurezza] Incidente #{id} approvato da RLS e RSPP/ASPP",
-                  "body_text_template": "Gentile Direzione,\n\nsi comunica che la rilevazione incidente sotto riportata ha completato l'intero iter di approvazione (RLS + RSPP/ASPP) ed e' ora chiusa.\n\nDettaglio rilevazione\nRiferimento: #{id}\nTipologia: {tipologia_scheda}\nNominativo: {nominativo}\nReparto: {reparto}\nData evento: {data_segnalazione}\n\nDescrizione dell'avvenimento:\n{descrizione_avvenimento}\n\nNon e' richiesta alcuna azione: la presente ha valore di sola informativa.\n\nQuesto messaggio e' generato automaticamente da NOVICROM HUB.",
-                  "body_html_template": "<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">Gentile Direzione,</p>\n<p style=\"margin:0 0 14px;color:#475569;font-size:15px;line-height:1.65;\">si comunica che la rilevazione incidente sotto riportata ha completato l'intero iter di approvazione (RLS + RSPP/ASPP) ed e' ora chiusa.</p>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;background:#f6f9fc;border:1px solid #d8e1ec;border-left:4px solid #ff6b00;border-radius:10px;margin:0 0 16px;\"><tr><td style=\"padding:6px 16px;\"><table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:collapse;\"><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Riferimento</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">#{id}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Tipologia</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{tipologia_scheda}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Nominativo</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{nominativo}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Reparto</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{reparto}</td></tr><tr><td style=\"padding:7px 14px 7px 0;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;vertical-align:top;\">Data evento</td><td style=\"padding:7px 0;color:#182232;font-size:14px;line-height:1.5;vertical-align:top;\">{data_segnalazione}</td></tr></table></td></tr></table>\n<p style=\"margin:0 0 6px;color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;\">Descrizione dell'avvenimento</p>\n<p style=\"margin:0 0 16px;color:#182232;font-size:14px;line-height:1.6;background:#f6f9fc;border:1px solid #d8e1ec;border-radius:10px;padding:12px 16px;\">{descrizione_avvenimento}</p>\n<p style=\"margin:0 0 12px;color:#475569;font-size:15px;line-height:1.65;\">Non e' richiesta alcuna azione: la presente ha valore di sola informativa.</p>",
-                  "email_type": "Automazioni",
-                  "section_label": "Sicurezza",
-                  "title_template": "Incidente #{id} approvato da RLS e RSPP/ASPP"
+                  "action_type": "update_trigger_record",
+                  "description": "Chiusura RSPP nel portale",
+                  "update_fields": {
+                    "chiusura_rspp": true
+                  }
+                },
+                {
+                  "action_type": "write_log",
+                  "description": "Log chiusura",
+                  "message_template": "Segnalazione #{id} approvata da RLS e RSPP: chiusa."
                 }
               ],
               "rejected_actions": [
                 {
                   "action_type": "write_log",
-                  "description": "Log rifiuto RSPP",
-                  "message_template": "Incidente #{id} ({nominativo}, reparto {reparto}, tipologia {tipologia_scheda}) APPROVATO dal RLS ma NON approvato dal RSPP/ASPP. Iter interrotto al secondo livello."
+                  "description": "Log RSPP non approva",
+                  "message_template": "Segnalazione #{id}: approvata dal RLS, NON approvata dal RSPP. Resta aperta nel portale."
                 }
               ]
             }
           ],
           "rejected_actions": [
             {
+              "action_type": "update_trigger_record",
+              "description": "RLS non approva, nel portale",
+              "update_fields": {
+                "approvazione_rls": "Non approvato"
+              }
+            },
+            {
               "action_type": "write_log",
-              "description": "Log rifiuto RLS",
-              "message_template": "Incidente #{id} ({nominativo}, reparto {reparto}, tipologia {tipologia_scheda}) NON approvato dal RLS. Iter interrotto al primo livello, RSPP/ASPP non coinvolto."
+              "description": "Log RLS non approva",
+              "message_template": "Segnalazione #{id} NON approvata dal RLS: iter interrotto, RSPP non coinvolto."
             }
           ]
         }

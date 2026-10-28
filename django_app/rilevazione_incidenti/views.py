@@ -399,7 +399,8 @@ def _deriva_stato(fields: dict) -> str:
     """Restituisce CHIUSO / APPROVATO / APERTO in base ai campi SharePoint."""
     if fields.get("Chiusura_RSPP"):
         return "CHIUSO"
-    if fields.get("Approvazione_RLS"):
+    # Solo «Approvato»: anche «Non approvato» e «In attesa» sono valori pieni.
+    if str(fields.get("Approvazione_RLS") or "").strip().lower() == "approvato":
         return "APPROVATO"
     return "APERTO"
 

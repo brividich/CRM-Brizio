@@ -268,7 +268,8 @@ Finché AU-GAP1 non è fatto, AU42 si implementa nella versione "notifica al cam
 | au13_ferie_lunghe_doppia_approvazione | AU13 (doppia firma) | validato, da importare |
 | au14_dpi_approvazione_caporeparto_magazzino | AU14 | SUPERATO: flusso nativo in `dpi/flusso.py` (27/10/2026), NON importare |
 | au6_offboarding_checklist_notifiche | AU6 (solo notifiche) | validato, da importare |
-| au3_incidente_approvazione_rls_rspp | AU3 (doppia firma) | validato, da importare |
+| au3_incidente_approvazione_rls_rspp | AU3 (avviso + doppia firma RLS/RSPP, scrive l'esito nella rilevazione; 28/10/2026 destinatari reali) | validato, da importare; eliminare le vecchie au3-incidente-approvazione-rls-rspp e -2 |
+| au57_diario_preposto_nuova_segnalazione | AU57 (nuova segnalazione diario → RSPP, preposti, RLS) | validato, da importare |
 | au8_guasto_ricorrente_arricchimento | AU8 | validato, da importare |
 | au10_notizia_obbligatoria_broadcast | AU10 | validato, da importare |
 | au11_procedura_overdue_escalation | AU11 | validato, da importare |

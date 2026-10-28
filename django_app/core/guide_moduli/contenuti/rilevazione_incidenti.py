@@ -31,6 +31,9 @@ GUIDA = {
                     "Se puoi, in «Dove è successo» scegli la pianta e clicca il punto (oppure scegli l'«Area planimetria»).",
                     "Clicca «Salva rilevazione».",
                 ]),
+                ("p", "Al salvataggio parte una mail di avviso a RSPP, preposti e RLS (senza nome della persona né descrizione). "
+                      "Poi il RLS riceve la richiesta di approvazione; se approva, la riceve il RSPP. "
+                      "Le decisioni si vedono nella rilevazione: «Approvazione RLS» con la data, poi la chiusura RSPP."),
             ],
         },
         {
@@ -67,6 +70,21 @@ GUIDA = {
             ],
         },
         {
+            "id": "mail",
+            "titolo": "Mail e approvazioni automatiche",
+            "blocchi": [
+                ("p", "Partono dalla regola AU3 delle Automazioni (Amministrazione → Automazioni → Regole), "
+                      "solo con i dati nel database del portale: con la lista SharePoint la regola non scatta."),
+                ("passi", [
+                    "Nuova rilevazione: mail di avviso a rspp@, preposti@ e rls@costruzioninovicrom.it.",
+                    "Richiesta di approvazione a rls@ (scade dopo 7 giorni). «Non approvo»: la rilevazione segna «Non approvato» e l'iter si ferma.",
+                    "Se il RLS approva: «Approvazione RLS» = Approvato con la data, e richiesta di approvazione a rspp@.",
+                    "Se il RSPP approva: la rilevazione risulta chiusa con la data di chiusura.",
+                ]),
+                ("nota", "Nome della persona e descrizione dell'avvenimento compaiono solo nelle mail di approvazione a RLS e RSPP."),
+            ],
+        },
+        {
             "id": "permessi",
             "titolo": "Permessi",
             "blocchi": [
@@ -86,6 +104,13 @@ GUIDA = {
                 "Attendi un minuto e ricarica: la copia locale dura 60 secondi.",
                 "Impostazioni → «SharePoint»: controlla l'ID della lista.",
                 "Se l'errore parla di autorizzazione (401/403) il segreto dell'app Graph è scaduto: rinnovalo su Entra ID e aggiornalo dal Setup Wizard, poi riavvia il portale.",
+            ],
+        },
+        {
+            "sintomo": "Il RLS o il RSPP non ricevono la richiesta di approvazione",
+            "fare": [
+                "Automazioni → Regole: la regola AU3 deve essere attiva e non in bozza (e una sola: le vecchie copie vanno eliminate).",
+                "Nello storico esecuzioni della regola AU3 controlla l'esito: in attesa di approvazione, scaduta (7 giorni) o già decisa.",
             ],
         },
         {

@@ -20,6 +20,7 @@ GUIDA = {
                     "Clicca «Salva segnalazione».",
                 ]),
                 ("p", "Ogni segnalazione riceve un codice. Dal dettaglio puoi «Modifica», «Elimina» o «Apri PDF» per stamparla."),
+                ("nota", "Al salvataggio parte una mail a RSPP, preposti e RLS con titolo, descrizione e il link alla segnalazione."),
             ],
         },
         {
@@ -68,6 +69,18 @@ GUIDA = {
             ],
         },
         {
+            "id": "mail",
+            "titolo": "Mail automatiche",
+            "blocchi": [
+                ("p", "Le mail partono dalle Automazioni (Amministrazione → Automazioni → Regole), non dal modulo."),
+                ("ul", [
+                    "AU57: a ogni nuova segnalazione, mail a rspp@, preposti@ e rls@costruzioninovicrom.it.",
+                    "AU34: 14 giorni dopo la segnalazione, promemoria al RSPP per verificare il seguito.",
+                    "Una regola importata nasce in bozza e spenta: va aperta, controllata e attivata.",
+                ]),
+            ],
+        },
+        {
             "id": "allegati",
             "titolo": "Dove stanno gli allegati",
             "blocchi": [
@@ -82,6 +95,13 @@ GUIDA = {
             "fare": [
                 "Impostazioni → «Autorizzazioni scrittura»: se l'elenco non è vuoto, aggiungi la persona.",
                 "Controlla che abbia l'accesso al modulo (Amministrazione → Accessi).",
+            ],
+        },
+        {
+            "sintomo": "Dopo una nuova segnalazione non arriva nessuna mail",
+            "fare": [
+                "Automazioni → Regole: la regola AU57 deve essere attiva e non in bozza.",
+                "Nello storico esecuzioni della regola leggi l'esito dell'invio.",
             ],
         },
         {
