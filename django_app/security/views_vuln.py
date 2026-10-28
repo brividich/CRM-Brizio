@@ -11,7 +11,7 @@ from pathlib import Path
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -32,7 +32,7 @@ from .models import (
     SoftwareSourceKind,
 )
 from .permissions import can_view_security_center
-from .services import cpe_ai, cve_impact, software_inventory
+from .services import cpe_ai, cve_gestione, cve_impact, software_inventory
 from .services.configuration import audit_config_change, can_manage_security_config
 from .services.cve_feeds import nvd_api_key, set_nvd_api_key
 
@@ -75,12 +75,25 @@ def _con_apparati_snmp(hosts):
     return hosts
 
 
+def _filtri_elenco(request):
+    return {
+        "q": (request.GET.get("q") or "").strip()[:100],
+        "classe": request.GET.get("classe") or "",
+        "solo_kev": request.GET.get("kev") == "1",
+        "termine": request.GET.get("termine") or "",
+        "esito": request.GET.get("esito") or "",
+    }
+
+
 def vulnerabilities_dashboard(request):
     if not can_view_security_center(request.user):
         return _denied(request)
     latest = cve_impact.latest_inventory_date()
+    filtri = _filtri_elenco(request)
     return render(request, "security/vuln_dashboard.html", {
-        "cves": cve_impact.impacting_cves(),
+        "elenco": cve_gestione.elenco_cve(**filtri),
+        "filtri": filtri,
+        "filtri_attivi": any(filtri.values()),
         "hosts": _con_apparati_snmp(cve_impact.most_exposed_hosts()),
         "unmapped": cve_impact.unmapped_software(limit=30),
         "inventory_date": latest,
@@ -97,6 +110,49 @@ def vulnerabilities_dashboard(request):
         "ciclo": _ciclo_cve(),
         "termini": _termini_cve(),
     })
+
+
+def cve_correzioni(request):
+    """Gestione delle CVE: quali PC sono usciti da una CVE, come (aggiornato, disinstallato) e in quanto."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    dati = cve_gestione.correzioni(
+        periodo=request.GET.get("periodo") or cve_gestione.PERIODO_DEFAULT,
+        come=request.GET.get("come") or cve_gestione.COME_DEFAULT,
+        q=(request.GET.get("q") or "")[:100],
+    )
+    if request.GET.get("formato") == "csv":
+        return _correzioni_csv(request, dati)
+    return render(request, "security/vuln_correzioni.html", {"d": dati, "vista": request.GET.get("vista") or "cve"})
+
+
+def _correzioni_csv(request, dati):
+    import csv
+
+    from core.audit import log_action
+
+    risposta = HttpResponse(content_type="text/csv; charset=utf-8")
+    risposta["Content-Disposition"] = f'attachment; filename="correzioni-cve-{timezone.localdate():%Y%m%d}.csv"'
+    risposta.write("﻿")
+    w = csv.writer(risposta, delimiter=";")
+    w.writerow(["Risolta il", "CVE", "Classe", "CVSS", "KEV", "PC", "Programma", "Versione prima", "Versione dopo",
+                "Come", "Esposta dal", "Giorni", "Nel termine"])
+    for x in dati["righe"]:
+        r = x["r"]
+        w.writerow([
+            timezone.localtime(r.risolta_il).strftime("%d/%m/%Y %H:%M"), x["cve_id"], x["classe_label"],
+            r.cve.cvss if r.cve.cvss is not None else "", "sì" if r.cve.kev else "", r.host_display or r.host,
+            r.software, r.versione_prima, r.versione_dopo, r.get_come_display(),
+            timezone.localtime(r.aperta_dal).strftime("%d/%m/%Y") if r.aperta_dal else "",
+            x["giorni"] if x["giorni"] is not None else "",
+            "" if x["nel_termine"] is None else ("sì" if x["nel_termine"] else "no"),
+        ])
+    try:
+        log_action(request, "soc_correzioni_cve_export", "security",
+                   {"righe": len(dati["righe"]), "periodo": dati["periodo"], "come": dati["come"], "q": dati["q"]})
+    except Exception:  # noqa: BLE001 - l'audit non blocca l'export
+        logger.exception("Audit export correzioni CVE non registrato")
+    return risposta
 
 
 def _termini_cve(giorni=90):

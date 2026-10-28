@@ -200,7 +200,8 @@ Ogni proposta ha una **motivazione** di una frase e una **confidenza** (0-100). 
 
 ### Dove si vede
 
-- **Vulnerabilità**: CVE che impattano o da verificare, ordinate per KEV, CVSS, EPSS e numero di PC impattati; i PC più esposti; i software ancora da collegare.
+- **Vulnerabilità**: CVE che impattano o da verificare, ordinate per KEV, CVSS, EPSS e numero di PC impattati, con gravità, programmi coinvolti, «esposta dal», termine di correzione e PC corretti negli ultimi 90 giorni. Filtri: testo (CVE, descrizione, programma o PC), gravità, esito (impatta / solo da verificare), termine (oltre il termine, in scadenza entro 7 giorni, con rischio accettato) e «Solo sfruttate (KEV)». Clic sulla riga: il pannello della CVE. In più i PC più esposti e i software ancora da collegare.
+- **Correzioni CVE** (Dispositivi › Correzioni CVE): le CVE chiuse dagli aggiornamenti, vedi «Correzioni CVE» qui sotto.
 - **Scheda CVE**: l'esito PC per PC con la spiegazione.
 - **Scheda alert e ticket** di una CVE: il riquadro «Impatto sugli asset» e, se non ci sono PC impattati, la proposta di chiusura. La proposta **non compare mai** per CVE sfruttate (KEV) o critiche.
 - **Scheda asset** del modulo Asset: la sezione «Vulnerabilità» con le CVE che riguardano quel PC e la scheda **Software** con tutti i programmi installati, le versioni precedenti, la licenza collegata e le CVE per programma.
@@ -248,6 +249,18 @@ Nel pannello (programma, PC, scheda breve della CVE) la sezione **Risolte negli 
 Solo le prime due contano come **corrette**. Ogni PC esposto ha anche «esposto dal»: la data passa da un ricalcolo all'altro (per le righe che c'erano prima di questa funzione è la data dell'ultimo ricalcolo).
 
 Nella scheda asset, la riga **Visto da** in cima alla Panoramica dice quali fonti vedono il PC (Intune, WatchGuard, Defender, Security Center, SNMP) e quando: un PC senza WatchGuard né Defender non ha inventario software, quindi il SOC non può controllarne le CVE.
+
+### Correzioni CVE
+
+Dispositivi › **Correzioni CVE** (anche dal pulsante in cima all'elenco delle Vulnerabilità) è il registro di quello che si è chiuso: ogni PC uscito da una CVE, con il motivo e le versioni.
+
+- **In cima**: PC corretti (aggiornati e disinstallati), CVE **chiuse su tutti i PC**, CVE **ancora aperte** su altri PC, giorni medi da «esposta dal» alla correzione, percentuale **corretta nel termine** (vedi «Tempi di correzione») e PC usciti per altro motivo.
+- **Filtri**: periodo (30 giorni, 90 giorni, 12 mesi, tutto), **Come** (corrette, solo aggiornate, solo disinstallate, uscite per altro motivo, tutte) e ricerca per CVE, PC o programma.
+- **Vista per CVE** (predefinita): una riga per CVE con lo **stato di oggi** («Chiusa su tutti i PC» oppure «Ancora aperta» con i PC che restano), quanti PC sono stati corretti e come, i programmi «versione prima → dopo», i giorni medi e l'ultima correzione. Clic sul numero di PC corretti: la vista PC per PC di quella CVE.
+- **Vista PC per PC**: data, CVE, PC, programma, versione prima → dopo, come, esposta dal, giorni e **nel termine / in ritardo**.
+- Clic sulla riga: il pannello della CVE. **Scarica CSV** scarica l'elenco con i filtri scelti (resta nell'audit del portale).
+
+Contano come correzioni solo «Programma aggiornato» e «Programma disinstallato»; «PC non più nell'inventario» e «Rivalutata» si vedono scegliendo «PC uscito per altro motivo» o «Tutte le uscite». Una correzione compare dopo il primo import dell'inventario che vede la versione nuova.
 
 ### Patch e protezione (WatchGuard)
 

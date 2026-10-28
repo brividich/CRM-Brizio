@@ -126,6 +126,7 @@ urlpatterns = [
     path("kpis/", _guard(views.kpis_page), name="kpis"),
     path("kpis/<slug:name>/", _guard(views.kpi_detail_page), name="kpi_detail"),
     path("vulnerabilita/", views_vuln.vulnerabilities_dashboard, name="vulnerabilities"),
+    path("vulnerabilita/correzioni/", views_vuln.cve_correzioni, name="cve_correzioni"),
     path("vulnerabilita/pannello/programma/", views_vuln.cve_pannello_programma, name="cve_pannello_programma"),
     path("vulnerabilita/pannello/asset/<int:asset_id>/", views_vuln.cve_pannello_asset, name="cve_pannello_asset"),
     path("vulnerabilita/pannello/cve/<str:cve_id>/", views_vuln.cve_pannello_cve, name="cve_pannello_cve"),
