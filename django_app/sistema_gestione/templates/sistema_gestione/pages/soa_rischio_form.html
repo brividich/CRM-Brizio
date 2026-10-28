@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}
+{% block title %}{{ page_title }} | Analisi del rischio{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{{ indietro }}">← Analisi del rischio Rev.{{ revisione.numero }}</a>
+  <div class="page-header"><div class="page-header-main"><div class="page-h">{{ page_title }}</div><div class="page-sub">MOD.165 Rev.{{ revisione.numero }} · le modifiche ricalcolano subito il rischio residuo</div></div></div>
+  <section class="rc-card sg-section">
+    <form method="post" class="sg-form-grid">{% csrf_token %}
+      {% for field in form %}<div class="{% if field.name == 'controlli' or field.name == 'scenario' or field.name == 'misure' or field.name == 'azioni' or field.name == 'note' or field.name == 'minaccia' %}full{% endif %}">{% include "core/forms/_field.html" with field=field %}</div>{% endfor %}
+      <div class="full sg-actions"><button class="btn" type="submit">Salva</button><a class="btn btn-secondary" href="{{ indietro }}">Annulla</a></div>
+    </form>
+    {% if puo_rimuovere %}<form method="post" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="azione" value="rimuovi"><button class="btn btn-secondary" type="submit" data-hub-confirm="Rimuovere questa riga dall'analisi del rischio?">Rimuovi</button></form>{% endif %}
+  </section>
+</div>
+{% endblock %}

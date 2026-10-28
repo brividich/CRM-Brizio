@@ -116,6 +116,13 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:soa_revisione": PERM_SOA_VIEW,
     "sistema_gestione:soa_copia_firmata": PERM_SOA_VIEW,
     "sistema_gestione:soa_voce": PERM_SOA_EDIT,
+    # Analisi del rischio del MOD.165: consultazione con la SoA, modifiche solo in bozza.
+    "sistema_gestione:soa_rischi": PERM_SOA_VIEW,
+    "sistema_gestione:soa_rischio_soglia": PERM_SOA_EDIT,
+    "sistema_gestione:soa_rischio_minaccia_nuova": PERM_SOA_EDIT,
+    "sistema_gestione:soa_rischio_minaccia": PERM_SOA_EDIT,
+    "sistema_gestione:soa_rischio_ot_nuovo": PERM_SOA_EDIT,
+    "sistema_gestione:soa_rischio_ot": PERM_SOA_EDIT,
     "sistema_gestione:soa_nuova_revisione": PERM_SOA_EDIT,
     "sistema_gestione:soa_proponi": PERM_SOA_EDIT,
     "sistema_gestione:soa_riporta_in_bozza": PERM_SOA_EDIT,

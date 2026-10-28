@@ -1,0 +1,59 @@
+{% extends "core/base.html" %}
+{% block title %}Analisi del rischio Rev.{{ revisione.numero }} | Sistema di gestione{% endblock %}
+{% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}
+<style>.content{width:100%;max-width:100%}.rc-wrap{max-width:1800px;margin:0 auto}</style>{% endblock %}
+{% block content %}{% load sg_guida %}{% sg_guida_link %}
+<div class="rc-wrap">
+  <a class="rc-back" href="{% url 'sistema_gestione:soa_revisione' revisione.numero %}">← SoA Rev.{{ revisione.numero }}</a>
+  <div class="page-header">
+    <div class="page-header-main">
+      <div class="page-h">Analisi del rischio — MOD.165 Rev.{{ revisione.numero }} <span class="sg-state is-{{ revisione.stato }}">{{ revisione.get_stato_display }}</span></div>
+      <div class="page-sub">Rischio residuo = rischio inerente × vulnerabilità del controllo / 4 · accettabile fino a {{ analisi.soglia }} · le vulnerabilità vengono dalla SoA di questa revisione</div>
+    </div>
+    <div class="page-header-actions"><a class="btn btn-secondary" href="?formato=xlsx">Excel</a></div>
+  </div>
+  <div class="rc-card sg-meta"><span>Revisioni: {% for r in revisioni %}<a class="rc-chip{% if r.numero == revisione.numero %} is-active{% endif %}" href="{% url 'sistema_gestione:soa_rischi' r.numero %}">Rev.{{ r.numero }}</a> {% endfor %}</span></div>
+
+  {% if not analisi.minacce and not analisi.scenari %}
+  <section class="rc-card sg-section"><h2>Nessuna analisi del rischio in questa revisione</h2>
+    <p>L'analisi si importa dal PDF del MOD.165 con il comando <code>importa_rischi_mod165</code> (amministratori), dopo la Control Matrix della stessa revisione. In bozza le minacce e gli scenari OT si possono anche inserire a mano.</p>
+    {% if puo_modificare %}<p class="sg-actions"><a class="btn" href="{% url 'sistema_gestione:soa_rischio_minaccia_nuova' revisione.numero %}">Aggiungi una minaccia</a><a class="btn btn-secondary" href="{% url 'sistema_gestione:soa_rischio_ot_nuovo' revisione.numero %}">Aggiungi uno scenario OT</a></p>{% endif %}
+  </section>
+  {% else %}
+  <div class="sg-kpis">
+    <div class="sg-kpi"><span>Minacce</span><strong>{{ analisi.minacce|length }}</strong></div>
+    <div class="sg-kpi"><span>Oltre la soglia</span><strong>{{ analisi.non_accettabili|length }}</strong></div>
+    <div class="sg-kpi"><span>Residuo massimo</span><strong>{{ analisi.residuo_massimo|default_if_none:"—" }}</strong></div>
+    <div class="sg-kpi"><span>Controlli oltre la soglia</span><strong>{{ analisi.controlli_oltre_soglia|length }}</strong></div>
+    <div class="sg-kpi"><span>Scenari OT</span><strong>{{ analisi.scenari|length }}</strong>{% if analisi.ot_oltre_soglia %}<small>{{ analisi.ot_oltre_soglia|length }} oltre la soglia</small>{% endif %}</div>
+  </div>
+  {% if analisi.differenze_registrate %}<div class="sg-alert warn" role="status"><strong>{{ analisi.differenze_registrate|length }} minacce</strong> hanno un residuo diverso da quello del MOD.165 importato: sono cambiate le vulnerabilità nella SoA o i controlli collegati. Il valore del modulo resta visibile come «MOD.165».</div>{% endif %}
+  {% if puo_modificare %}<form method="post" action="{% url 'sistema_gestione:soa_rischio_soglia' revisione.numero %}" class="sg-inline-form">{% csrf_token %}{% for field in form_soglia %}<div>{% include "core/forms/_field.html" with field=field %}</div>{% endfor %}<button class="btn btn-secondary" type="submit">Aggiorna soglia</button></form>{% endif %}
+
+  <section class="rc-card sg-section" id="minacce"><h2>Rischio per minaccia</h2>
+    <div class="sg-actions"><a class="rc-chip{% if not filtro %} is-active{% endif %}" href="?#minacce">Tutte</a><a class="rc-chip{% if filtro == 'oltre' %} is-active{% endif %}" href="?filtro=oltre#minacce">Solo oltre la soglia</a>{% if puo_modificare %}<a class="btn btn-secondary" href="{% url 'sistema_gestione:soa_rischio_minaccia_nuova' revisione.numero %}">Aggiungi una minaccia</a>{% endif %}</div>
+    <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Gruppo</th><th>Agente</th><th>Minaccia</th><th>Inerente</th><th>Vulnerabilità</th><th>Residuo</th><th>Accettabile</th><th>Controlli che la determinano</th></tr></thead><tbody>
+      {% for r in minacce %}<tr id="m-{{ r.minaccia.pk }}"><td>{{ r.minaccia.gruppo }}</td><td>{{ r.minaccia.agente }}</td><td>{% if puo_modificare %}<a href="{% url 'sistema_gestione:soa_rischio_minaccia' revisione.numero r.minaccia.pk %}">{{ r.minaccia.minaccia }}</a>{% else %}{{ r.minaccia.minaccia }}{% endif %}<br><span class="sg-muted">{{ r.controlli|length }} controlli collegati</span></td><td>{{ r.minaccia.rischio_inerente|default_if_none:"—" }}</td><td>{{ r.vulnerabilita|default_if_none:"—" }}</td><td><span class="sg-risk {{ r.fascia }}">{{ r.residuo|default_if_none:"—" }}</span>{% if r.minaccia.residuo_registrato is not None and r.residuo != r.minaccia.residuo_registrato %}<br><span class="sg-muted">MOD.165: {{ r.minaccia.residuo_registrato }}</span>{% endif %}</td><td>{% if r.accettabile %}<span class="sg-badge ok">Sì</span>{% else %}<span class="sg-badge danger">No</span>{% endif %}</td><td>{% for c in r.critici %}<a href="{% url 'sistema_gestione:soa_revisione' revisione.numero %}#c-{{ c.codice }}">{{ c.codice }}</a>{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td></tr>
+      {% empty %}<tr><td colspan="8">Nessuna minaccia oltre la soglia.</td></tr>{% endfor %}
+    </tbody></table></div>
+    <p class="sg-muted">«Controlli che la determinano»: i controlli collegati con la vulnerabilità più alta. Abbassare la loro vulnerabilità nella SoA (aumentando l'applicazione) riduce il residuo.</p>
+  </section>
+
+  <section class="rc-card sg-section" id="controlli"><h2>Monitoraggio dei controlli</h2>
+    <p class="sg-muted">Per ogni controllo: il rischio inerente più alto fra le minacce che mitiga, il residuo con la vulnerabilità attuale e quello futuro con la «vulnerabilità attesa dopo l'azione» della SoA.</p>
+    <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Controllo</th><th>Applicazione</th><th>Minacce</th><th>Inerente max</th><th>Vulnerabilità</th><th>Residuo</th><th>Azione</th><th>Vulnerabilità attesa</th><th>Residuo futuro</th></tr></thead><tbody>
+      {% for r in controlli_collegati %}<tr><td><a href="{% url 'sistema_gestione:soa_revisione' revisione.numero %}#c-{{ r.voce.controllo.codice }}">{{ r.voce.controllo.codice }}</a> {{ r.voce.controllo.titolo }}</td><td><span class="sg-level l{{ r.voce.livello }}">{{ r.voce.livello }}</span></td><td>{{ r.minacce }}</td><td>{{ r.inerente_max|default_if_none:"—" }}</td><td>{{ r.voce.vulnerabilita }}</td><td><span class="sg-risk {{ r.fascia }}">{{ r.residuo|default_if_none:"—" }}</span>{% if not r.accettabile %} <span class="sg-badge danger">Oltre</span>{% endif %}</td><td>{{ r.voce.azione|truncatechars:80|default:"—" }}{% if r.voce.scadenza %}<br><span class="sg-muted">{{ r.voce.responsabile }} · {{ r.voce.scadenza|date:"d/m/Y" }}</span>{% endif %}</td><td>{{ r.voce.vulnerabilita_attesa|default_if_none:"—" }}</td><td>{% if r.futuro is not None %}<span class="sg-risk {{ r.fascia_futuro }}">{{ r.futuro }}</span>{% else %}—{% endif %}</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  <section class="rc-card sg-section" id="ot"><h2>Piano di trattamento OT</h2>
+    <p class="sg-muted">Scenari di rischio sugli asset di produzione (CNC e macchine). Residuo attuale dalle vulnerabilità della SoA, residuo atteso con la vulnerabilità residua attesa dopo le azioni.</p>
+    {% if puo_modificare %}<p class="sg-actions"><a class="btn btn-secondary" href="{% url 'sistema_gestione:soa_rischio_ot_nuovo' revisione.numero %}">Aggiungi uno scenario OT</a></p>{% endif %}
+    <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>ID</th><th>Scenario</th><th>Controlli</th><th>Inerente</th><th>Residuo attuale</th><th>Residuo atteso</th><th>Azioni</th><th>Opzione</th><th>Responsabile</th><th>Scadenza</th><th>Stato</th></tr></thead><tbody>
+      {% for r in analisi.scenari %}<tr id="ot-{{ r.scenario.pk }}"><td>{% if puo_modificare %}<a href="{% url 'sistema_gestione:soa_rischio_ot' revisione.numero r.scenario.pk %}">{{ r.scenario.codice }}</a>{% else %}{{ r.scenario.codice }}{% endif %}</td><td>{{ r.scenario.scenario|linebreaksbr }}<details><summary>Minacce e misure esistenti</summary><p><strong>Minacce:</strong> {{ r.scenario.minacce|default:"—" }}</p><p><strong>Misure:</strong> {{ r.scenario.misure|default:"—"|linebreaksbr }}</p>{% if r.scenario.riferimenti %}<p><strong>Riferimenti:</strong> {{ r.scenario.riferimenti }}</p>{% endif %}</details></td><td>{% for c in r.controlli %}{{ c.codice }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td><td>{{ r.scenario.rischio_inerente|default_if_none:"—" }}</td><td><span class="sg-risk {{ r.fascia }}">{{ r.residuo|default_if_none:"—" }}</span></td><td>{% if r.atteso is not None %}<span class="sg-risk {{ r.fascia_atteso }}">{{ r.atteso }}</span>{% else %}—{% endif %}</td><td>{{ r.scenario.azioni|linebreaksbr }}</td><td>{{ r.scenario.opzione|default:"—" }}</td><td>{{ r.scenario.responsabile|default:"—" }}</td><td>{{ r.scenario.scadenza|date:"d/m/Y"|default:"—" }}</td><td>{{ r.scenario.stato|default:"—" }}</td></tr>
+      {% empty %}<tr><td colspan="11">Nessuno scenario OT.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

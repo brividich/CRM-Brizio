@@ -32,7 +32,9 @@ GUIDA = {
                      "dell'audit, «Preparazione all'audit» controlla copertura delle clausole, programma interno, NC e "
                      "voci MOD.174 aperte e rilievi dell'audit precedente; dopo, il piano azioni per l'ente si scarica "
                      "dalle voci del registro e si registra la data di invio."),
-                    ("SoA", "dichiarazione di applicabilità dei controlli ISO 27001."),
+                    ("SoA", "dichiarazione di applicabilità dei controlli ISO 27001. Da ogni revisione «Analisi del "
+                     "rischio» apre il registro del MOD.165: rischio residuo per minaccia ricalcolato dalle vulnerabilità "
+                     "della SoA, monitoraggio dei controlli e piano di trattamento OT."),
                 ]),
                 ("p", "Ogni parte ha la sua guida passo passo: i collegamenti sono in cima."),
             ],
