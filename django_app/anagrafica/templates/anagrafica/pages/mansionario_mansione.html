@@ -57,11 +57,17 @@
 
       {# ── Persone ──────────────────────────────────────────────────────── #}
       <div class="mns-pane mns-pane-on" id="persone" role="tabpanel" aria-labelledby="tab-persone">
-        {% if puo_valutare %}
+        {% if puo_valutare and not sel_ruoli %}
+        <div class="mns-add mns-add-vuoto"><div class="mns-add-title"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg>Collega prima un ruolo</div>
+          <p class="fmd-muted">La mansione si assegna solo a chi ricopre uno dei suoi ruoli, e questa non ne ha.{% if is_admin %} Scegli il ruolo in <a class="fmd-data-link" href="#impostazioni">Impostazioni</a>.{% endif %}</p></div>
+        {% elif puo_valutare and not candidati %}
+        <div class="mns-add mns-add-vuoto"><div class="mns-add-title"><svg class="fmd-ico"><use href="#i-users"/></svg>Nessuno da aggiungere</div>
+          <p class="fmd-muted">Chi ricopre {% for r in mansione.ruoli.all %}{% if not forloop.first %} o {% endif %}«{{ r.nome }}»{% endfor %} è già in lista. Per aggiungere altre persone, prima dai loro il ruolo{% if is_admin %} da <a class="fmd-data-link" href="{% url 'anagrafica:ruoli_in_blocco' %}">Ruoli e mansioni in blocco</a>{% endif %}.</p></div>
+        {% elif puo_valutare %}
         <form method="post" action="{% url 'anagrafica:mansionario_assegna' mansione.pk %}" class="mns-add">
           {% csrf_token %}
           <div class="mns-add-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi persone alla mansione</div>
-          <div class="fm-form-field mns-add-pick"><label for="mm-persona">Persone <span class="fmd-muted">({{ candidati|length }} disponibili)</span></label>
+          <div class="fm-form-field mns-add-pick"><label for="mm-persona">Persone con {% for r in mansione.ruoli.all %}{% if not forloop.first %} o {% endif %}«{{ r.nome }}»{% endfor %} <span class="fmd-muted">({{ candidati|length }} disponibili)</span></label>
             <select id="mm-persona" name="persona" class="fm-input" multiple size="8" data-picker data-picker-placeholder="Cognome, nome, reparto o area…">
               {% for c in candidati %}<option value="{{ c.id }}">{{ c.nome }}{% if c.reparto %} — {{ c.reparto }}{% if c.area and c.area != c.reparto %} · {{ c.area }}{% endif %}{% endif %}</option>{% endfor %}
             </select></div>

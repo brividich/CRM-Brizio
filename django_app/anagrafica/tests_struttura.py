@@ -65,6 +65,13 @@ class _Base(TestCase):
         self.p2 = AnagraficaDipendente.objects.create(nome="DUE", cognome="STRUTTURA", aliasusername="str.due.t")
         self.client.force_login(self.admin)
 
+    def _col_ruolo(self, *mansioni, persone=()):
+        """Mansioni sotto ``self.ruolo`` e persone che lo ricoprono: la mansione va solo a chi ha il ruolo."""
+        for m in mansioni:
+            m.ruoli.add(self.ruolo)
+        for p in persone:
+            DipendenteRuoloOperativo.objects.get_or_create(legacy_anagrafica_id=p.pk, ruolo=self.ruolo)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Fase A: robustezza
@@ -350,6 +357,7 @@ class MansioniInBloccoTests(_Base):
     def test_assegna_cambia_livello_e_togli(self):
         from .services import mansioni_in_blocco as mb
 
+        self._col_ruolo(self.processo, persone=[self.p1, self.p2])
         esiti = mb.esegui([self.p1.pk, self.p2.pk], mansione=self.processo, modo=mb.ASSEGNA, livello="L")
         self.assertEqual([e.azione for e in esiti], ["cambia", "cambia"])
         self.assertFalse(AbilitazioneMacchina.objects.exists())  # anteprima
@@ -364,6 +372,7 @@ class MansioniInBloccoTests(_Base):
 
     def test_view_mansione_in_blocco(self):
         url = reverse("anagrafica:ruoli_in_blocco")
+        self._col_ruolo(self.processo, persone=[self.p1, self.p2])
         self.client.post(url, {"cosa": "mansione", "mansione": self.processo.pk, "modo_mansione": "assegna",
                                "livello": "O", "persone": [self.p1.pk, self.p2.pk], "azione": "applica"})
         self.assertEqual(AbilitazioneMacchina.objects.filter(competenza=self.processo, in_lista=True, livello="O").count(), 2)
@@ -375,6 +384,7 @@ class AssegnazioneMultiplaTests(_Base):
     """Più persone su una mansione (scheda mansione) e più mansioni a una persona (scheda persona)."""
 
     def test_scheda_mansione_assegna_piu_persone(self):
+        self._col_ruolo(self.processo, persone=[self.p1, self.p2])
         r = self.client.post(reverse("anagrafica:mansionario_assegna", args=[self.processo.pk]),
                              {"persona": [self.p1.pk, self.p2.pk], "livello": "L"})
         self.assertEqual(r.status_code, 302)
@@ -386,6 +396,7 @@ class AssegnazioneMultiplaTests(_Base):
     def test_scheda_persona_assegna_piu_mansioni_e_salta_le_gia_presenti(self):
         from .services import mansioni_in_blocco as mb
 
+        self._col_ruolo(self.fresa, self.processo, persone=[self.p1])
         svc.assegna(self.fresa, legacy_anagrafica_id=self.p1.pk, livello="U")
         self.assertEqual([m.pk for m in mb.mansioni_assegnabili(self.p1.pk)], [self.processo.pk])
         r = self.client.post(reverse("anagrafica:mansionario_persona_assegna", args=[self.p1.pk]),
@@ -397,13 +408,14 @@ class AssegnazioneMultiplaTests(_Base):
         self.assertEqual(AbilitazioneMacchina.objects.get(legacy_anagrafica_id=self.p1.pk,
                                                           competenza=self.processo).livello, "I")
         pagina = self.client.get(reverse("anagrafica:mansionario_persona", args=[self.p1.pk]))
-        self.assertContains(pagina, "Nessuna altra mansione attiva da assegnare.")
+        self.assertContains(pagina, "Nessuna altra mansione attiva da assegnare per «Operatore fresa sintetico».")
         self.assertContains(pagina, reverse("anagrafica:mansionario_togli",
                                             args=[self.fresa.pk, pagina.context["scheda"]["righe"][0]["abilitazione"].pk]))
 
     def test_scheda_persona_rifiuta_spente_responsabilita_e_livello_assente(self):
         from .services import mansioni_in_blocco as mb
 
+        self._col_ruolo(self.fresa, self.processo, persone=[self.p1])
         self.processo.attiva = False
         self.processo.save()
         resp = CompetenzaSkm.objects.create(competenza_key="R-SBA", display="Capo sbavatura",
@@ -440,6 +452,26 @@ class AssegnazioneMultiplaTests(_Base):
         self.assertEqual(ab.livello, "I")
         self.assertNotContains(self.client.get(reverse("anagrafica:mansionario_persona", args=[self.p1.pk])),
                                reverse("anagrafica:mansionario_livello", args=[self.processo.pk, ab.pk]))
+
+    def test_solo_chi_ha_il_ruolo_della_mansione(self):
+        from .services import mansioni_in_blocco as mb
+
+        pagina = reverse("anagrafica:mansionario_mansione", args=[self.processo.pk])
+        self.assertContains(self.client.get(pagina), "Collega prima un ruolo")  # mansione senza ruolo
+        self.assertEqual(mb.mansioni_assegnabili(self.p1.pk), [])  # persona senza ruolo
+        self._col_ruolo(self.processo, persone=[self.p1])
+        self.assertEqual([c["id"] for c in self.client.get(pagina).context["candidati"]], [self.p1.pk])
+        # Il server rifiuta anche chi arriva con un POST costruito a mano.
+        self.client.post(reverse("anagrafica:mansionario_assegna", args=[self.processo.pk]),
+                         {"persona": [self.p1.pk, self.p2.pk], "livello": "L"})
+        self.assertEqual(list(AbilitazioneMacchina.objects.filter(competenza=self.processo, in_lista=True)
+                              .values_list("legacy_anagrafica_id", flat=True)), [self.p1.pk])
+        esiti = mb.assegna_mansioni(self.p2.pk, [self.processo.pk], livello="L")
+        self.assertEqual(esiti[0][1:], ("errore", f"non ha il ruolo «{self.ruolo.nome}»"))
+        # Ruolo concluso: non vale più.
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=self.p2.pk, ruolo=self.ruolo,
+                                                data_fine=timezone.localdate() - timedelta(days=1))
+        self.assertEqual(mb.senza_ruolo(self.processo, [self.p2.pk]), {self.p2.pk})
 
     def test_senza_permesso_non_assegna(self):
         utente = User.objects.create_user("str_nessuno", "n@example.invalid", "x")

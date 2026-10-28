@@ -29,6 +29,7 @@
             <a class="fmd-btn-template" href="{% url 'anagrafica:struttura_org' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Struttura organizzativa</a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:skill_matrix_macchina' %}"><svg class="fmd-ico"><use href="#i-grid"/></svg>Skill matrix</a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:mansionario_catalogo' %}"><svg class="fmd-ico"><use href="#i-cap"/></svg>Catalogo competenze</a>
+            <a class="fmd-btn-template" href="#mns-elenco" data-mns-scegli-persona title="Scegli la persona nel filtro, poi «Apri la persona»"><svg class="fmd-ico"><use href="#i-users"/></svg>Mansioni di una persona</a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:skm_scadenzario' %}"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Refresh caporeparto</a>
             {% if is_admin %}<a class="fmd-btn-template" href="{% url 'anagrafica:mansionario_struttura_nuova' %}"><svg class="fmd-ico"><use href="#i-plus"/></svg>Nuova mansione</a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:mansionario_struttura' %}"><svg class="fmd-ico"><use href="#i-users"/></svg>Struttura e import</a>
@@ -115,6 +116,7 @@
         <select class="mns-sel" data-mns-f="persona" aria-label="Filtra per persona">
           <option value="">Tutte le persone</option>{% for p in filtri.persone %}<option value="{{ p.id }}">{{ p.nome }}{% if p.reparto %} · {{ p.reparto }}{% endif %}</option>{% endfor %}
         </select>
+        <a class="fmd-chip fmd-on" data-mns-apri data-url="{% url 'anagrafica:mansionario_persona' 0 %}" href="#" hidden>Apri la persona: mansioni e livelli →</a>
         <select class="mns-sel" data-mns-f="classe" aria-label="Filtra per classificazione">
           <option value="">Tutte le classificazioni</option>{% for v, t in filtri.classi %}<option value="{{ v }}">{{ t }}</option>{% endfor %}
         </select>
@@ -236,12 +238,17 @@
     att.hidden=!parti.length;
     if(parti.length)box.querySelector('[data-mns-attivo-testo]').textContent='Filtri: '+parti.join(' · ');
     document.querySelectorAll('[data-mns-flag]').forEach(function(b){var on=b.dataset.mnsFlag===flag;b.classList.toggle('mns-on',on);b.setAttribute('aria-pressed',String(on));});
+    // Scelta una persona: dalla sua scheda si assegnano più mansioni insieme.
+    var apri=box.querySelector('[data-mns-apri]');
+    if(apri){apri.hidden=!pid;if(pid)apri.href=apri.dataset.url.replace(/\/0\/$/,'/'+pid+'/');}
     salva();
   }
   function tipoChip(v){tipo=v;box.querySelectorAll('[data-mns-tipo]').forEach(function(x){var on=x.dataset.mnsTipo===v;x.classList.toggle('fmd-on',on);x.setAttribute('aria-pressed',String(on));});}
   if(q)q.addEventListener('input',applica);
   Object.keys(sel).forEach(function(k){sel[k].addEventListener('change',applica);});
   document.addEventListener('click',function(e){
+    var scegli=e.target.closest('[data-mns-scegli-persona]');
+    if(scegli&&sel.persona){e.preventDefault();box.scrollIntoView({behavior:'smooth',block:'start'});sel.persona.focus();return;}
     var b=e.target.closest('[data-mns-tipo],[data-mns-flag],[data-mns-reset],[data-mns-espandi]');if(!b)return;
     if(b.hasAttribute('data-mns-tipo')){tipoChip(b.dataset.mnsTipo);}
     else if(b.hasAttribute('data-mns-flag')){flag=flag===b.dataset.mnsFlag?'':b.dataset.mnsFlag;if(flag)box.scrollIntoView({behavior:'smooth',block:'start'});}

@@ -147,6 +147,7 @@ class InBloccoEExcelTests(_Mansioni):
     def test_in_blocco_con_classificazione(self):
         from .services import mansioni_in_blocco as mb
 
+        self._col_ruolo(self.processo, persone=[self.p1, self.p2])
         mb.esegui([self.p1.pk, self.p2.pk], mansione=self.processo, modo=mb.ASSEGNA, livello="U",
                   classificazione="I1T", applica=True)
         self.assertEqual(self._ab(self.processo, self.p2).classificazione, "I1T")
