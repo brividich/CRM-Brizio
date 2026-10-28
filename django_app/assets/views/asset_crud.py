@@ -1033,6 +1033,13 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     )
     senza_reparto_count = senza_reparto_qs.count()
     senza_reparto = _clean_string(request.GET.get("senza_reparto")) == "1"
+    # Reparti scritti sugli asset che non arrivano a nessun caporeparto: si collegano in
+    # Impostazioni › Reparti e capi (chip solo a chi apre le impostazioni).
+    reparti_da_collegare = 0
+    if user_can_modulo_action(request, "assets", "admin_assets"):
+        from ..services.reparti_collegati import testi_da_collegare
+
+        reparti_da_collegare = testi_da_collegare()
     if senza_reparto:
         assets = senza_reparto_qs
 
@@ -1299,6 +1306,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             "visible_count": visible_count,
             "senza_reparto_count": senza_reparto_count,
             "senza_reparto": senza_reparto,
+            "reparti_da_collegare": reparti_da_collegare,
             "rows": rows,
             "rows_options": rows_options,
             "page_obj": page_obj,

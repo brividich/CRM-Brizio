@@ -22,11 +22,15 @@ GUIDA = {
                 ("p", "Dal telefono basta inquadrare il QR sulla macchina: si apre la scheda con manutenzioni e documenti."),
                 ("p", "Responsabile: un asset non IT (macchina, impianto, carroponte, compressore...) senza una persona assegnata ha come "
                       "responsabile il caporeparto del reparto in cui è installato (Persone → «Reparti, aree e capi»), mostrato con "
-                      "«Caporeparto <reparto>». Una persona assegnata a mano vince; gli asset IT si assegnano al dipendente. Per gli asset "
-                      "non IT il campo «Reparto» è obbligatorio: il chip «Senza reparto» della lista asset elenca quelli da completare."),
-                ("p", "Chi vede cosa (ruoli attivi): in Ruoli e permessi gli asset sono quattro moduli, ognuno con il suo ambito "
-                      "sull'azione «vedere»: «Assets · Inventario», «Assets · Manutenzione» (piani, da fare, scadenze, panoramica, "
-                      "calendario), «Assets · Ordini di lavoro», «Assets · Verifiche e scadenze». «Tutti» vede tutto; «Propri» i beni "
+                      "«Caporeparto <reparto>»; i co-capi del reparto (gli «Altri responsabili») le vedono come il capo. Una persona "
+                      "assegnata a mano vince; gli asset IT si assegnano al dipendente. Per gli asset non IT il campo «Reparto» è "
+                      "obbligatorio: il chip «Senza reparto» della lista asset elenca quelli da completare, «Reparti da collegare» "
+                      "quelli scritti con un codice o un nome che non è un reparto o un'area (si collegano in Impostazioni → «Reparti e capi»)."),
+                ("p", "Chi vede cosa (ruoli attivi): in Ruoli e permessi gli asset sono sei moduli: «Assets · Inventario», "
+                      "«Assets · Manutenzione» (piani, da fare, scadenze, panoramica, calendario), «Assets · Ordini di lavoro», "
+                      "«Assets · Verifiche e scadenze», «Assets · Fornitori e contratti», ognuno con il suo ambito sull'azione «vedere», "
+                      "e «Assets · IT e rete» (indirizzi IP, rack, catalogo software, licenze, riconciliazione), che si concede o no: "
+                      "sono pagine di tutta l'azienda e l'ambito non le restringe. «Tutti» vede tutto; «Propri» i beni "
                       "assegnati a te e gli asset dei reparti che guidi; «Propri e del team» anche quelli delle persone che ti riportano. "
                       "Un piano su più reparti (es. tutti i compressori) si vede se tocca almeno un tuo asset, con le sole scadenze tue. "
                       "Gli ordini di lavoro assegnati a te si vedono sempre. Sulla mappa officina le altre macchine sono punti grigi."),
@@ -212,21 +216,33 @@ GUIDA = {
     "admin": [
         {
             "id": "permessi",
-            "titolo": "Chi vede cosa: i quattro moduli Assets nei ruoli",
+            "titolo": "Chi vede cosa: i moduli Assets nei ruoli",
             "blocchi": [
                 ("ul", [
-                    "In Ruoli e permessi → «Matrice dei ruoli» gli asset sono quattro righe, ognuna con le sue azioni e il suo "
-                    "ambito: «Assets · Inventario», «Assets · Manutenzione», «Assets · Ordini di lavoro», «Assets · Verifiche e scadenze».",
+                    "In Ruoli e permessi → «Matrice dei ruoli» gli asset sono sei righe, ognuna con le sue azioni e il suo "
+                    "ambito: «Assets · Inventario», «Assets · Manutenzione», «Assets · Ordini di lavoro», «Assets · Verifiche e scadenze», "
+                    "«Assets · Fornitori e contratti» (fornitori della manutenzione e contratti di assistenza, con i costi), "
+                    "«Assets · IT e rete» (indirizzi IP, rack e switch, catalogo software, licenze, riconciliazione dei dispositivi).",
+                    "«IT e rete» sono pagine di tutta l'azienda: l'ambito non le restringe, chi ha la riga le vede intere. A un "
+                    "caporeparto si lascia vuota. Al primo aggiornamento la ricevono solo i ruoli con l'Inventario su «Tutti»; "
+                    "«Fornitori e contratti» parte uguale alla Manutenzione di ogni ruolo.",
                     "L'ambito si sceglie sull'azione «vedere»: «Propri» = beni assegnati alla persona e asset dei reparti che guida; "
                     "«Propri e del team» = in più quelli delle persone che le riportano nell'organigramma; «Tutti» = tutto.",
-                    "Esempio caporeparto: Inventario «Tutti» (vede tutto il parco) e Manutenzione, Ordini di lavoro e Verifiche «Propri» "
-                    "(piani, scadenze e interventi solo delle sue macchine). Si salva con «Salva matrice».",
+                    "Esempio caporeparto: Inventario, Manutenzione, Ordini di lavoro e Verifiche «Propri» (beni, piani, scadenze e "
+                    "interventi solo delle sue macchine), Fornitori e contratti e IT e rete vuoti. Si salva con «Salva matrice».",
                     "Un piano su più reparti (es. tutti i compressori) lo vede chi ha almeno una delle sue macchine, con le sole scadenze sue. "
                     "Gli ordini di lavoro assegnati a una persona li vede sempre, anche fuori ambito.",
                     "Al primo aggiornamento ogni ruolo ha sui tre moduli nuovi le stesse impostazioni che aveva su «Assets e manutenzione»: "
                     "niente cambia finché non modifichi la matrice. Le Impostazioni del modulo restano sulla riga Inventario.",
                     "Il perimetro di un caporeparto viene dal campo «Reparto» degli asset non IT: per questo è obbligatorio. "
                     "In lista asset il chip «Senza reparto» elenca quelli da completare.",
+                    "Il reparto scritto sull'asset deve essere il nome di un reparto o di un'area (Persone → «Reparti, aree e capi»). "
+                    "Codici e nomi storici («LOG», «TNC», «rettifiche», «mag 2») si collegano una volta in Impostazioni asset → "
+                    "«Reparti e capi»: il testo dell'asset resta com'è (è anche il luogo), il collegamento dice a quale unità appartiene. "
+                    "La scheda mostra per ogni testo quanti asset ha, lo stato («Da collegare», «Unità senza capo», «Collegato a…», "
+                    "«Nome del portale») e il capo che ne risponde; per alcuni propone l'unità, da confermare con «Salva».",
+                    "Capo e co-capi: le macchine di un reparto le vedono con «Propri» il capo e gli «Altri responsabili» del reparto "
+                    "(o dell'area). Un'area senza responsabile proprio segue capo e co-capi del suo reparto.",
                 ]),
             ],
         },
@@ -453,8 +469,10 @@ GUIDA = {
             "fare": [
                 "Controlla in Ruoli e permessi l'ambito del suo ruolo sulla riga giusta: Inventario, Manutenzione, Ordini di lavoro "
                 "o Verifiche e scadenze sono separati.",
-                "Controlla il campo «Reparto» dell'asset: deve essere scritto come il reparto (o l'area) di cui è capo in Persone → "
-                "«Reparti, aree e capi». Senza reparto l'asset lo vede solo chi ha «Tutti».",
+                "Controlla il campo «Reparto» dell'asset: deve essere il reparto (o l'area) di cui è capo in Persone → "
+                "«Reparti, aree e capi», oppure un testo collegato in Impostazioni asset → «Reparti e capi» (chip «Reparti da "
+                "collegare» in lista asset). Senza reparto l'asset lo vede solo chi ha «Tutti».",
+                "Se è un co-capo, controlla che sia fra gli «Altri responsabili» del reparto o dell'area.",
                 "Se l'asset è assegnato a una persona vince la persona: il caporeparto lo vede solo con «Propri e del team» se quella persona gli riporta.",
                 "«Cosa vede questa persona» in Ruoli e permessi mostra l'ambito che decide per ogni modulo.",
             ],

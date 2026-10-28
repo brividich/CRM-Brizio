@@ -392,10 +392,16 @@ _PAGINE_ASSET_PER_ID = {
 
 
 def _modulo_del_percorso(percorso: str) -> str:
-    from .registro_permessi import MODULO_INVENTARIO, MODULO_MANUTENZIONE, MODULO_ODL, MODULO_VERIFICHE
+    from .registro_permessi import (
+        MODULO_FORNITORI, MODULO_INVENTARIO, MODULO_IT, MODULO_MANUTENZIONE, MODULO_ODL, MODULO_VERIFICHE,
+    )
 
     if percorso.startswith(("assets/manutenzione/verifiche", "assets/scadenze/")):
         return MODULO_VERIFICHE
+    if percorso.startswith(("assets/manutenzione/fornitori/", "assets/manutenzione/contratti/")):
+        return MODULO_FORNITORI
+    if percorso.startswith(("assets/rete/", "assets/software/", "assets/licenze/", "assets/dispositivi/riconciliazione/")):
+        return MODULO_IT
     if percorso.startswith("assets/manutenzione/"):
         return MODULO_MANUTENZIONE
     if percorso.startswith("assets/workorders/"):

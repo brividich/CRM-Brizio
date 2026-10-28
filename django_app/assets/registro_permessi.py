@@ -1,8 +1,12 @@
-"""Assets e manutenzione nel sistema dei permessi (core.permessi): quattro moduli distinti.
+"""Assets e manutenzione nel sistema dei permessi (core.permessi): sei moduli distinti.
 
 Inventario, Manutenzione, Ordini di lavoro e Verifiche e scadenze si assegnano
 separatamente in matrice: un caporeparto può vedere l'inventario del suo reparto
 e i piani di manutenzione solo delle sue macchine, l'ufficio manutenzione tutto.
+IT e rete (rete, rack, catalogo software, licenze, riconciliazione) sono pagine
+d'insieme, non di un asset: l'ambito non le restringe, si concedono o no. Fornitori
+e contratti esce dalla Manutenzione perché porta costi e condizioni: i contratti
+seguono il loro asset come il resto (28/10/2026).
 
 Proprietario di un record = il proprietario del suo asset: l'utente a cui è
 assegnato (``assigned_legacy_user_id``, id ``utenti``) o, per un asset non IT senza
@@ -16,6 +20,8 @@ MODULO_INVENTARIO = "assets"
 MODULO_MANUTENZIONE = "assets_manutenzione"
 MODULO_ODL = "assets_odl"
 MODULO_VERIFICHE = "assets_verifiche"
+MODULO_IT = "assets_it"
+MODULO_FORNITORI = "assets_fornitori"
 SOTTOMODULI = (MODULO_MANUTENZIONE, MODULO_ODL, MODULO_VERIFICHE)
 
 
@@ -32,10 +38,16 @@ CODICI_MANUTENZIONE = _legacy(
     "assets_maintenance_rules", "assets_maintenance_rules_new", "assets_maintenance_rules_edit",
     "assets_asset_maintenance_rules", "assets_asset_maintenance_overrides_new",
     "assets_asset_maintenance_overrides_edit", "assets_asset_maintenance_overrides_reset",
-    "assets_maintenance_suppliers", "assets_assistance_contracts", "assets_spare_parts",
+    "assets_spare_parts",
     "maintenance_planning", "maintenance_execute",
 )
 CODICI_ODL = _legacy("assets_workorders", "assets_wo_new", "assets_wo_view", "assets_wo_close")
+# /assets/rete/, /assets/software/, /assets/licenze/ e /assets/dispositivi/riconciliazione/
+# sono legati a questo permesso (assets 0130, 0147, core 0100).
+CODICI_IT = _legacy("assets_software_licenses")
+CODICI_FORNITORI = _legacy("assets_maintenance_suppliers", "assets_assistance_contracts") + (
+    "assets.assistance_contract_list.view",
+)
 CODICI_VERIFICHE = _legacy(
     "assets_periodic_checks", "assets_periodic_check_categories", "assets_verifiche",
     "assets_deadlines", "assets_deadlines_new", "assets_deadlines_edit",
@@ -51,10 +63,10 @@ def proprietario_asset(asset):
     valore = getattr(asset, "assigned_legacy_user_id", None)
     if valore:
         return int(valore)
-    # Asset non IT senza persona assegnata: è del caporeparto del reparto di installazione.
-    from assets.services.responsabile_asset import utente_responsabile
+    # Asset non IT senza persona assegnata: è del caporeparto (e dei co-capi) del reparto di installazione.
+    from assets.services.responsabile_asset import utenti_responsabili
 
-    return utente_responsabile(asset)
+    return utenti_responsabili(asset) or None
 
 
 registra_modulo(ModuloPermessi(
@@ -95,5 +107,26 @@ registra_modulo(ModuloPermessi(
     area="Produzione",
     app="assets",
     codici_acl=CODICI_VERIFICHE,
+    proprietario=proprietario_asset,
+))
+
+registra_modulo(ModuloPermessi(
+    chiave=MODULO_IT,
+    nome="Assets · IT e rete",
+    descrizione="Indirizzi IP, rack e switch, catalogo software, licenze, riconciliazione dei dispositivi.",
+    area="Produzione",
+    app="assets",
+    codici_acl=CODICI_IT,
+    note="Pagine d'insieme dell'IT: l'ambito non le restringe, si concedono o no.",
+))
+
+registra_modulo(ModuloPermessi(
+    chiave=MODULO_FORNITORI,
+    nome="Assets · Fornitori e contratti",
+    descrizione="Fornitori della manutenzione e contratti di assistenza, con costi e scadenze. "
+    "I contratti seguono il loro asset; l'elenco fornitori è d'insieme.",
+    area="Produzione",
+    app="assets",
+    codici_acl=CODICI_FORNITORI,
     proprietario=proprietario_asset,
 ))

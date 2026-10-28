@@ -277,6 +277,11 @@ body.theme-dark .ga-tabs { border-color:var(--border); }
 body.theme-dark .ga-tab { color:var(--text-light); }
 body.theme-dark .ga-tab:hover { background:rgba(255,255,255,.07); color:#60a5fa; }
 body.theme-dark .ga-tab.active { background:var(--surface); color:#60a5fa; border-color:var(--border); }
+.ga-stato { display:inline-block; padding:2px 8px; border-radius:999px; font-size:var(--fs-sm); font-weight:600; }
+.ga-stato--da { background:#fde8e8; color:#b42318; }
+.ga-stato--senza { background:#fff4e5; color:#b54708; }
+body.theme-dark .ga-stato--da { background:rgba(220,38,38,.18); color:#fca5a5; }
+body.theme-dark .ga-stato--senza { background:rgba(217,119,6,.18); color:#fcd34d; }
 body.theme-dark .kpi { background:var(--surface); border-color:var(--border); }
 body.theme-dark .kpi-label { color:var(--text-light); }
 body.theme-dark .kpi-val { color:var(--text); }
@@ -453,6 +458,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
     <a href="?tab=sidebar" class="ga-tab {% if tab == 'sidebar' %}active{% endif %}">Sidebar</a>
     <a href="?tab=categorie" class="ga-tab {% if tab == 'categorie' %}active{% endif %}">Categorie asset</a>
     <a href="?tab=studio" class="ga-tab {% if tab == 'studio' %}active{% endif %}">Studio inventario</a>
+    <a href="?tab=reparti" class="ga-tab {% if tab == 'reparti' %}active{% endif %}">Reparti e capi</a>
     <a href="?tab=guasti" class="ga-tab {% if tab == 'guasti' %}active{% endif %}">Codici guasto</a>
     <a href="?tab=cartelle" class="ga-tab {% if tab == 'cartelle' %}active{% endif %}">Cartelle documento</a>
     <a href="?tab=record" class="ga-tab {% if tab == 'record' %}active{% endif %}">Record</a>
@@ -1470,6 +1476,45 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
     <div class="card"><div class="card-head"><h3 class="card-title">Studio inventario</h3></div>
       <p class="muted-note" style="padding:0 16px 16px">Le modifiche a campi, liste, pulsanti e dettaglio asset sono riservate agli amministratori del modulo Asset.</p></div>
   {% endif %}
+  {% endif %}
+
+  {% if tab == 'reparti' %}
+  {% comment %}Testi del campo «Reparto» degli asset non IT senza persona e il caporeparto a cui arrivano.
+    Un testo che non è il nome di un reparto o di un'area si collega qui (services/reparti_collegati.py).{% endcomment %}
+  <div class="card" id="reparti-capi" style="margin-bottom:14px;">
+    <div class="card-head"><h3 class="card-title">Reparti e capi</h3>
+      <span class="muted-note">Una macchina senza persona assegnata risponde al capo (e ai co-capi) del suo reparto. Se il reparto scritto sull'asset non è il nome di un reparto o di un'area, collegalo qui: gli asset non vengono modificati.</span></div>
+    <div style="padding:0 16px 14px">
+      {% if reparti_senza %}<p><a class="chip" href="{% url 'assets:asset_list' %}?senza_reparto=1" style="text-decoration:none;">Asset senza reparto ({{ reparti_senza }})</a> <span class="muted-note">non hanno nessun reparto: vanno aperti e completati.</span></p>{% endif %}
+      {% if reparti_righe %}
+      <table class="table" data-fm-hide-search="1"><thead><tr><th>Reparto scritto sugli asset</th><th>Asset</th><th>Stato</th><th>Capo</th><th>Collega a</th><th></th></tr></thead><tbody>
+      {% for r in reparti_righe %}
+        <tr>
+          <td><strong>{{ r.testo }}</strong></td>
+          <td>{{ r.asset }}</td>
+          <td>{% if r.stato == 'da_collegare' %}<span class="ga-stato ga-stato--da">Da collegare</span>{% elif r.stato == 'senza_capo' %}<span class="ga-stato ga-stato--senza">{% if r.unita_nome %}{{ r.unita_nome }}: {% endif %}unità senza capo</span>{% elif r.stato == 'collegato' %}<span class="chip">Collegato a {{ r.unita_nome }}</span>{% else %}<span class="chip">Nome del portale</span>{% endif %}</td>
+          <td>{{ r.capo|default:"—" }}</td>
+          <td>{% if r.stato != 'riconosciuto' %}
+            <form method="post" id="rep-{{ forloop.counter }}" style="display:flex;gap:6px;align-items:center;">{% csrf_token %}
+              <input type="hidden" name="action" value="collega_reparto_asset"><input type="hidden" name="testo" value="{{ r.testo }}">
+              <select name="unita" class="input" aria-label="Unità per {{ r.testo }}">
+                <option value="">— nessuna —</option>
+                <optgroup label="Reparti">{% for u in reparti_unita %}{% if u.gruppo == 'Reparti' %}<option value="{{ u.valore }}"{% if u.valore == r.unita or not r.unita and u.valore == r.suggerita %} selected{% endif %}>{{ u.nome }}</option>{% endif %}{% endfor %}</optgroup>
+                <optgroup label="Aree">{% for u in reparti_unita %}{% if u.gruppo == 'Aree' %}<option value="{{ u.valore }}"{% if u.valore == r.unita or not r.unita and u.valore == r.suggerita %} selected{% endif %}>{{ u.nome }}</option>{% endif %}{% endfor %}</optgroup>
+              </select>
+            </form>
+            {% if r.suggerita and not r.unita %}<span class="muted-note">proposta, da confermare</span>{% endif %}
+          {% endif %}</td>
+          <td>{% if r.stato != 'riconosciuto' %}<button class="btn btn-sm btn-primary" type="submit" form="rep-{{ forloop.counter }}">Salva</button>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody></table>
+      {% else %}
+        <p class="muted-note">Nessun asset non IT con un reparto da collegare.</p>
+      {% endif %}
+      <p class="muted-note">«Unità senza capo»: il reparto o l'area esiste ma non ha un capo. Si imposta in Persone › Reparti, aree e capi (o dal Mansionario, con la «Responsabilità» del reparto).</p>
+    </div>
+  </div>
   {% endif %}
 
   {% if tab == 'guasti' %}

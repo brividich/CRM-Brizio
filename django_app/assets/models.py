@@ -5625,3 +5625,32 @@ class PeriodoStatoMacchina(models.Model):
 
     def __str__(self) -> str:
         return f"{self.collegamento_id} {self.stato} dal {self.dal:%d/%m %H:%M}"
+
+
+class RepartoAssetCollegato(models.Model):
+    """Il testo libero del campo «Reparto» di un asset collegato a un reparto o un'area dell'anagrafica.
+
+    Gli asset storici hanno reparti scritti a codice o a mano («LOG», «TNC»,
+    «rettifiche», «mag 2»): senza collegamento non rispondono a nessun
+    caporeparto. Il collegamento non riscrive gli asset (il testo resta, è
+    anche il luogo fisico): dice solo a quale unità appartiene quel testo.
+    """
+
+    testo = models.CharField(max_length=120)
+    chiave = models.CharField(max_length=120, unique=True, help_text="Testo normalizzato (minuscolo, spazi singoli).")
+    reparto = models.ForeignKey(
+        "anagrafica.Reparto", null=True, blank=True, on_delete=models.CASCADE, related_name="+",
+    )
+    area = models.ForeignKey(
+        "anagrafica.AreaAziendale", null=True, blank=True, on_delete=models.CASCADE, related_name="+",
+    )
+    aggiornato_da = models.CharField(max_length=150, blank=True, default="")
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["testo"]
+        verbose_name = "Reparto asset collegato"
+        verbose_name_plural = "Reparti asset collegati"
+
+    def __str__(self) -> str:
+        return f"{self.testo} → {self.area or self.reparto}"

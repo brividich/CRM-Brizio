@@ -40,9 +40,10 @@ class ResponsabileAssetTests(TestCase):
         self.assertIsNone(responsabile_asset.responsabile(self._asset(reparto="CN9"), CAPI))
 
     def test_proprietario_e_il_caporeparto(self):
-        with mock.patch.object(responsabile_asset, "capi_per_reparto", return_value=CAPI), \
-                mock.patch.object(responsabile_asset, "utente_responsabile", wraps=responsabile_asset.utente_responsabile):
+        # Capo e co-capi del reparto: un insieme di utenti.
+        with mock.patch.object(responsabile_asset, "persone_per_reparto", return_value={"cn5": {7, 8}}):
             from core.legacy_models import AnagraficaDipendente
             with mock.patch.object(AnagraficaDipendente.objects, "filter") as filtro:
-                filtro.return_value.values_list.return_value.first.return_value = 42
-                self.assertEqual(proprietario_asset(self._asset()), 42)
+                filtro.return_value.values_list.return_value = [42, 43, None]
+                self.assertEqual(proprietario_asset(self._asset()), {42, 43})
+                filtro.assert_called_once_with(id__in={7, 8})
