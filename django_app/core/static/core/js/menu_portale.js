@@ -1,6 +1,8 @@
 /* Menu del portale (admin_portale/pages/menu_portale.html).
-   Albero delle voci per area + scheda della voce scelta + «Guarda il menu come».
-   I dati arrivano dal server (json_script #mp-dati); chi vede cosa lo calcola il server. */
+   In alto la barra del portale com'è (categorie = tendine, voci da sole), sotto il
+   contenuto di ogni tendina con i sottogruppi e le sottovoci, a destra la scheda
+   della voce o della categoria scelta. I dati arrivano dal server (json_script
+   #mp-dati); chi vede cosa lo calcola il server. */
 (function () {
   "use strict";
 
@@ -11,16 +13,16 @@
   var url = root.dataset;
   var csrf = (root.querySelector("input[name=csrfmiddlewaretoken]") || {}).value || "";
 
+  /* scelta = {tipo: "voce"|"categoria", id} */
   var S = { ruolo: "tutti", persona: null, scelta: null };
   var voci = {};
-  (D.aree || []).forEach(function (a) {
-    a.voci.forEach(function (v) {
-      v.area = a.nome; v.areaChiave = a.chiave; voci[v.id] = v;
-      (v.figli || []).forEach(function (f) { f.area = a.nome + " › " + v.nome; f.areaChiave = a.chiave; f.padreNome = v.nome; voci[f.id] = f; });
-    });
-  });
+  Object.keys(D.voci || {}).forEach(function (k) { voci[k] = D.voci[k]; });
+  var categorie = {};
+  (D.barra || []).forEach(function (n) { if (n.tipo === "categoria") categorie[n.id] = n; });
   var ruoliById = {};
   (D.ruoli || []).forEach(function (r) { ruoliById[r.id] = r; });
+  var nomeApp = {};
+  (D.moduli || []).forEach(function (m) { nomeApp[m.app] = m.nome; });
 
   /* ── utilità ─────────────────────────────────────────── */
   function el(tag, attrs, figli) {
@@ -41,9 +43,13 @@
     maniglia: '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="8" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="8" cy="18" r="2"/><circle cx="16" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></svg>',
     occhioNo: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3l18 18M6.1 6.1A17 17 0 0 0 2 12s3.6 7 10 7a9.6 9.6 0 0 0 4-.9M9.9 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4"/></svg>',
     si: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>',
+    freccia: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
+    sotto: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 4v8a4 4 0 0 0 4 4h8m-3-3 3 3-3 3"/></svg>',
+    cartella: svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
     immagine: svg('<rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>'),
     persona: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/><path d="M3 3l18 18"/>'),
     apri: svg('<path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>'),
+    cestino: svg('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>'),
   };
   function avviso(testo, livello) {
     if (window.hubFlash) window.hubFlash.show([{ text: testo, level: livello || "success" }]);
@@ -61,6 +67,23 @@
       });
     });
   }
+  function ricarica(testo, scelta) {
+    try { sessionStorage.setItem("mp-dopo", JSON.stringify({ testo: testo, scelta: scelta || S.scelta })); } catch (e) { /* niente */ }
+    window.location.reload();
+  }
+
+  /* Sottogruppi della tendina come li disegna la barra (core.context_processors._nav_sections). */
+  function sezioni(ids) {
+    var out = [];
+    ids.forEach(function (id) {
+      var g = (voci[id] || {}).gruppo || "";
+      if (out.length && out[out.length - 1].nome === g) out[out.length - 1].voci.push(id);
+      else out.push({ nome: g, voci: [id] });
+    });
+    var distinti = {};
+    out.forEach(function (s) { if (s.nome) distinti[s.nome] = 1; });
+    return Object.keys(distinti).length < 2 ? [{ nome: "", voci: ids.slice() }] : out;
+  }
 
   /* ── chi vede cosa nella vista scelta ───────────────── */
   function vede(v) {
@@ -68,10 +91,20 @@
     if (S.ruolo === "tutti") return true;
     return v.ruoli.indexOf(S.ruolo) >= 0;
   }
+  function inBarra(v) { return v.visibile && vede(v); }
   function nomeVista() {
     if (S.persona) return S.persona.nome;
     if (S.ruolo === "tutti") return "";
     return (ruoliById[S.ruolo] || {}).nome || "";
+  }
+  function dove(v) {
+    if (v.sezione === "subnav") {
+      var madre = voci[v.sotto];
+      return madre ? "Nella barra delle pagine di «" + madre.nome + "»" : "Nelle pagine di «" + (v.padre || "?") + "», che non hanno una voce nel menu";
+    }
+    var c = categorie[v.categoria];
+    if (!c) return "Da sola nella barra in alto";
+    return "Nella tendina «" + c.nome + "»" + (v.gruppo ? " › " + v.gruppo : "");
   }
 
   /* ── «Guarda il menu come» ───────────────────────────── */
@@ -149,79 +182,161 @@
     if (!lista.length) return;
     box.appendChild(el("strong", { testo: "Da sistemare (" + lista.length + "):" }));
     lista.forEach(function (v) {
-      box.appendChild(el("button", { type: "button", testo: v.nome, onclick: function () { scegli(v.id); } }));
+      box.appendChild(el("button", { type: "button", testo: v.nome, onclick: function () { scegli("voce", v.id); } }));
     });
   }
 
-  /* ── albero ──────────────────────────────────────────── */
-  function rigaVoce(v, fratelli) {
+  function scelto(tipo, id) { return !!S.scelta && S.scelta.tipo === tipo && S.scelta.id === id; }
+
+  /* ── trascina e rilascia ─────────────────────────────── */
+  /* Si sposta solo fra elementi della stessa lista (stessa barra, stessa tendina, stesse sottovoci). */
+  var trascinata = null;
+  function trascinabile(nodo, elemento, lista, salva) {
+    nodo.setAttribute("draggable", "true");
+    nodo.addEventListener("dragstart", function (e) { trascinata = { elemento: elemento, lista: lista }; nodo.classList.add("trascina"); e.dataTransfer.effectAllowed = "move"; e.stopPropagation(); });
+    nodo.addEventListener("dragend", function () { nodo.classList.remove("trascina"); trascinata = null; });
+    nodo.addEventListener("dragover", function (e) {
+      if (!trascinata || trascinata.lista !== lista || trascinata.elemento === elemento) return;
+      e.preventDefault(); nodo.classList.add("sopra");
+    });
+    nodo.addEventListener("dragleave", function () { nodo.classList.remove("sopra"); });
+    nodo.addEventListener("drop", function (e) {
+      nodo.classList.remove("sopra");
+      if (!trascinata || trascinata.lista !== lista || trascinata.elemento === elemento) return;
+      e.preventDefault(); e.stopPropagation();
+      lista.splice(lista.indexOf(trascinata.elemento), 1);
+      lista.splice(lista.indexOf(elemento), 0, trascinata.elemento);
+      aggiornaTutto();
+      salva().then(function () { avviso("Ordine salvato."); }).catch(function (err) { avviso(err.message, "error"); });
+    });
+  }
+  function salvaBarra() {
+    return post(url.urlBarra, { elementi: D.barra.map(function (n) { return { tipo: n.tipo, id: n.id }; }) });
+  }
+  function salvaLista(ids) { return function () { return post(url.urlRiordina, { ordered_ids: ids.slice() }); }; }
+
+  /* ── la barra in alto, come la vede chi hai scelto ──── */
+  function disegnaBarra() {
+    var box = document.getElementById("mp-barra");
+    box.innerHTML = "";
+    var vista = nomeVista();
+    document.getElementById("mp-barra-titolo").textContent = vista ? "La barra in alto di «" + vista + "»" : "La barra in alto del portale";
+    D.barra.forEach(function (n) {
+      var b;
+      if (n.tipo === "categoria") {
+        var dentro = n.voci.filter(function (id) { return inBarra(voci[id]); }).length;
+        if (!dentro && (S.persona || S.ruolo !== "tutti")) return; // tendina vuota: nella barra non c'è
+        b = el("button", { type: "button", "class": "mp-barra-el" + (scelto("categoria", n.id) ? " scelta" : "") + (dentro ? "" : " vuota"),
+          title: dentro ? dentro + " voci nella tendina" : "Tendina vuota: oggi non compare",
+          onclick: function () { scegli("categoria", n.id, true); } },
+          [el("span", { testo: n.nome }), el("span", { "class": "mp-barra-freccia", html: ICO.freccia })]);
+      } else {
+        var v = voci[n.id];
+        if (!inBarra(v) && (S.persona || S.ruolo !== "tutti" || !v.visibile)) return;
+        b = el("button", { type: "button", "class": "mp-barra-el" + (scelto("voce", v.id) ? " scelta" : ""),
+          onclick: function () { scegli("voce", v.id, true); } }, [el("span", { testo: v.nome })]);
+      }
+      trascinabile(b, n, D.barra, salvaBarra);
+      box.appendChild(b);
+    });
+    if (!box.children.length) box.appendChild(el("span", { "class": "mp-barra-vuota", testo: "Non vede nessuna voce." }));
+  }
+
+  /* ── il contenuto di ogni tendina ────────────────────── */
+  function rigaVoce(v, lista, livello) {
     var mostra = vede(v);
-    var classi = "mp-voce" + (S.scelta === v.id ? " scelta" : "") + (!mostra || !v.visibile ? " sbiadita" : "");
+    var classi = "mp-voce" + (livello ? " mp-voce-sotto" : "") + (scelto("voce", v.id) ? " scelta" : "") + (!mostra || !v.visibile ? " sbiadita" : "");
     var stato = null;
     if (!v.visibile) stato = el("span", { "class": "mp-voce-stato", html: ICO.occhioNo + " tolta dal menu" });
     else if (!mostra) stato = el("span", { "class": "mp-voce-stato", html: ICO.occhioNo + " non la vede" });
-    var btn = el("button", {
-      type: "button", "class": classi, draggable: "true", "data-id": v.id,
-      onclick: function () { scegli(v.id); },
-    }, [
-      el("span", { "class": "mp-maniglia", html: ICO.maniglia, title: "Trascina per riordinare" }),
+    var btn = el("button", { type: "button", "class": classi, "data-id": v.id, onclick: function () { scegli("voce", v.id); } }, [
+      lista ? el("span", { "class": "mp-maniglia", html: ICO.maniglia, title: "Trascina per riordinare" }) : null,
       el("span", { "class": "mp-voce-icona", html: v.icona_html || "" }),
       el("span", { "class": "mp-voce-nome", testo: v.nome }),
       stato,
       v.problema ? el("span", { "class": "mp-pallino", "aria-label": "Da sistemare", title: "Da sistemare" }) : null,
     ]);
-    trascinabile(btn, v, fratelli);
+    if (lista) trascinabile(btn, v.id, lista, salvaLista(lista));
     var li = el("li", {}, [btn]);
     if (v.figli && v.figli.length) {
-      var sotto = el("ul", { "class": "mp-lista" });
-      v.figli.forEach(function (f) { sotto.appendChild(rigaVoce(f, v.figli)); });
+      var sotto = el("ul", { "class": "mp-lista mp-sottovoci" }, [
+        el("li", { "class": "mp-sottovoci-nota", html: ICO.sotto + "<span>nella barra delle sue pagine</span>" }),
+      ]);
+      v.figli.forEach(function (id) { sotto.appendChild(rigaVoce(voci[id], v.figli, 1)); });
       li.appendChild(sotto);
     }
     return li;
   }
 
+  function bloccoCategoria(n) {
+    var dentro = n.voci.filter(function (id) { return inBarra(voci[id]); }).length;
+    var testa = el("button", { type: "button", "class": "mp-cat-testa" + (scelto("categoria", n.id) ? " scelta" : ""),
+      onclick: function () { scegli("categoria", n.id); } }, [
+      el("span", { "class": "mp-cat-icona", html: n.icona_html || ICO.cartella }),
+      el("span", { "class": "mp-cat-nome", testo: n.nome }),
+      el("span", { "class": "mp-cat-conta", testo: n.voci.length ? dentro + " di " + n.voci.length : "vuota" }),
+    ]);
+    var corpo = el("div", { "class": "mp-cat-corpo" });
+    if (!n.voci.length) {
+      corpo.appendChild(el("p", { "class": "mp-nota mp-cat-vuota", testo: "Nessuna voce: nella barra non compare." }));
+    }
+    sezioni(n.voci).forEach(function (s) {
+      if (s.nome) corpo.appendChild(el("div", { "class": "mp-gruppo", testo: s.nome }));
+      var ul = el("ul", { "class": "mp-lista" });
+      s.voci.forEach(function (id) { ul.appendChild(rigaVoce(voci[id], n.voci, 0)); });
+      corpo.appendChild(ul);
+    });
+    return el("section", { "class": "mp-cat", id: "mp-cat-" + n.id }, [testa, corpo]);
+  }
+
   function disegnaAlbero() {
     var box = document.getElementById("mp-aree");
     box.innerHTML = "";
-    var vista = nomeVista();
-    document.getElementById("mp-albero-titolo").textContent = vista ? "Il menu di «" + vista + "»" : "Tutte le voci del menu";
-    (D.aree || []).forEach(function (a) {
-      var visibili = a.voci.filter(function (v) { return v.visibile && vede(v); }).length;
-      var lista = el("ul", { "class": "mp-lista" });
-      a.voci.forEach(function (v) { lista.appendChild(rigaVoce(v, a.voci)); });
-      box.appendChild(el("div", { "class": "mp-area" }, [
-        el("div", { "class": "mp-area-nome" }, [a.nome, el("span", { testo: visibili + " di " + a.voci.length })]),
-        lista,
+    var sole = [];
+    D.barra.forEach(function (n) {
+      if (n.tipo === "categoria") box.appendChild(bloccoCategoria(n));
+      else sole.push(n.id);
+    });
+    if (sole.length) {
+      var ul = el("ul", { "class": "mp-lista" });
+      // L'ordine delle voci da sole si cambia nella barra qui sopra, insieme alle tendine.
+      sole.forEach(function (id) { ul.appendChild(rigaVoce(voci[id], null, 0)); });
+      box.appendChild(el("section", { "class": "mp-cat mp-cat-sole" }, [
+        el("div", { "class": "mp-cat-testa mp-cat-testa-fissa" }, [
+          el("span", { "class": "mp-cat-nome", testo: "Da sole nella barra" }),
+          el("span", { "class": "mp-cat-conta", testo: "senza tendina" }),
+        ]),
+        el("div", { "class": "mp-cat-corpo" }, [ul]),
+      ]));
+    }
+    (D.orfani || []).forEach(function (o) {
+      var ul = el("ul", { "class": "mp-lista" });
+      o.voci.forEach(function (id) { ul.appendChild(rigaVoce(voci[id], o.voci, 1)); });
+      box.appendChild(el("section", { "class": "mp-cat mp-cat-sole" }, [
+        el("div", { "class": "mp-cat-testa mp-cat-testa-fissa" }, [
+          el("span", { "class": "mp-cat-nome", testo: "Sottovoci senza voce nel menu" }),
+          el("span", { "class": "mp-cat-conta", testo: "pagine «" + o.app + "»" }),
+        ]),
+        el("div", { "class": "mp-cat-corpo" }, [el("p", { "class": "mp-nota mp-cat-vuota", testo: "Compaiono solo dentro queste pagine: nella barra in alto nessuna voce ci porta." }), ul]),
       ]));
     });
   }
 
-  /* trascina e rilascia fra voci sorelle (stessa area o stesso modulo) */
-  var trascinata = null;
-  function trascinabile(btn, v, fratelli) {
-    btn.addEventListener("dragstart", function (e) { trascinata = { v: v, fratelli: fratelli }; btn.classList.add("trascina"); e.dataTransfer.effectAllowed = "move"; });
-    btn.addEventListener("dragend", function () { btn.classList.remove("trascina"); trascinata = null; });
-    btn.addEventListener("dragover", function (e) {
-      if (!trascinata || trascinata.fratelli !== fratelli || trascinata.v === v) return;
-      e.preventDefault(); btn.classList.add("sopra");
-    });
-    btn.addEventListener("dragleave", function () { btn.classList.remove("sopra"); });
-    btn.addEventListener("drop", function (e) {
-      btn.classList.remove("sopra");
-      if (!trascinata || trascinata.fratelli !== fratelli || trascinata.v === v) return;
-      e.preventDefault();
-      var da = fratelli.indexOf(trascinata.v);
-      fratelli.splice(da, 1);
-      fratelli.splice(fratelli.indexOf(v), 0, trascinata.v);
-      disegnaAlbero();
-      post(url.urlRiordina, { ordered_ids: fratelli.map(function (x) { return x.id; }) })
-        .then(function () { avviso("Ordine salvato."); })
-        .catch(function (err) { avviso(err.message, "error"); });
-    });
+  /* ── scheda ──────────────────────────────────────────── */
+  function scegli(tipo, id, scorri) {
+    S.scelta = { tipo: tipo, id: id };
+    aggiornaTutto();
+    if (scorri) {
+      var bersaglio = tipo === "categoria" ? document.getElementById("mp-cat-" + id) : document.querySelector('.mp-voce[data-id="' + id + '"]');
+      if (bersaglio) bersaglio.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
   }
 
-  /* ── scheda della voce ──────────────────────────────── */
-  function scegli(id) { S.scelta = id; disegnaAlbero(); disegnaScheda(); }
+  function chipsRuoli(ids) {
+    return el("div", { "class": "mp-chips" }, ids.map(function (id) { return (ruoliById[id] || {}).nome; }).filter(Boolean).map(function (n) {
+      return el("span", { "class": "mp-chip", testo: n });
+    }));
+  }
 
   function risposta(v) {
     var box = el("div", { "class": "mp-risposta" });
@@ -232,11 +347,12 @@
       titolo = S.persona.nome + (si ? " la vede" : " non la vede");
       testo = p.perche;
     } else if (S.ruolo === "tutti") {
-      var nomi = v.ruoli.map(function (id) { return (ruoliById[id] || {}).nome; }).filter(Boolean);
-      si = nomi.length > 0;
+      // v.ruoli comprende anche i ruoli amministratore: contano solo gli altri.
+      var nonAdmin = v.ruoli.filter(function (id) { return ruoliById[id]; });
+      si = nonAdmin.length > 0;
       titolo = v.tutti ? "La vedono tutti" : (si ? "La vedono questi ruoli" : "La vedono solo gli amministratori");
       testo = v.tutti ? "Ogni persona del portale può aprire la pagina, quindi trova la voce nel menu." : (si ? "Chi può aprire la pagina a cui porta:" : "Nessun ruolo del portale può aprire la pagina a cui porta.");
-      if (si && !v.tutti) chips = el("div", { "class": "mp-chips" }, nomi.map(function (n) { return el("span", { "class": "mp-chip", testo: n }); }));
+      if (si && !v.tutti) chips = chipsRuoli(nonAdmin);
     } else {
       var nome = nomeVista();
       si = v.ruoli.indexOf(S.ruolo) >= 0;
@@ -261,10 +377,8 @@
     var azione;
     if (v.problema.tipo === "vecchio") {
       azione = el("button", { type: "button", "class": "mp-btn mp-btn-warn", testo: v.problema.rimedio, onclick: function () {
-        post(url.urlSistema, { id: v.id }).then(function () {
-          avviso("Sistemata: ora la voce segue la pagina.");
-          window.location.reload();
-        }).catch(function (err) { avviso(err.message, "error"); });
+        post(url.urlSistema, { id: v.id }).then(function () { ricarica("Sistemata: ora la voce segue la pagina."); })
+          .catch(function (err) { avviso(err.message, "error"); });
       } });
     } else if (v.problema.tipo === "nessuno") {
       azione = el("a", { "class": "mp-btn mp-btn-light", href: url.urlRuoli, testo: "Apri Ruoli e permessi" });
@@ -275,16 +389,50 @@
     ]);
   }
 
-  function disegnaScheda() {
-    var box = document.getElementById("mp-scheda");
-    box.innerHTML = "";
-    var v = voci[S.scelta];
-    if (!v) {
-      box.appendChild(el("p", { "class": "mp-sub", testo: "Scegli una voce a sinistra per vedere chi la vede e cambiarla." }));
-      return;
-    }
-    var bozza = { nome: v.nome, icona: v.icona, icona_html: v.icona_html, categoria: v.categoria, padre: v.padre };
+  function testa(iconaBox, sopra, nome, destra) {
+    return el("div", { "class": "mp-scheda-testa" }, [
+      iconaBox,
+      el("div", { "class": "mp-scheda-nomi" }, [
+        el("div", { "class": "mp-scheda-area", testo: sopra }),
+        el("h2", { "class": "mp-scheda-nome", testo: nome }),
+      ]),
+      destra,
+    ]);
+  }
 
+  function campoDove(v, bozza) {
+    if (v.sezione === "subnav") {
+      var perCat = {};
+      (D.moduli || []).forEach(function (m) { (perCat[m.categoria || "Da sole nella barra"] = perCat[m.categoria || "Da sole nella barra"] || []).push(m); });
+      var sel = el("select", { onchange: function (e) { bozza.padre = e.target.value; } },
+        Object.keys(perCat).map(function (c) {
+          return el("optgroup", { label: c }, perCat[c].map(function (m) { return el("option", { value: m.app, selected: m.app === v.padre, testo: m.nome }); }));
+        }));
+      if (!nomeApp[v.padre]) sel.insertBefore(el("option", { value: v.padre, selected: true, testo: "(pagine «" + v.padre + "»)" }), sel.firstChild);
+      return el("label", { "class": "mp-campo" }, ["Sotto quale voce", sel,
+        el("span", { "class": "mp-nota", testo: "Compare nella barra dentro le pagine di quella voce." })]);
+    }
+    var lista = el("datalist", { id: "mp-gruppi-" + v.id });
+    var gruppo = el("input", { type: "text", value: v.gruppo, maxlength: "80", list: "mp-gruppi-" + v.id, placeholder: "nessuno",
+      oninput: function (e) { bozza.gruppo = e.target.value; } });
+    var rigaGruppo = el("div", { "class": "mp-sottocampo" }, ["Sottogruppo nella tendina", gruppo, lista]);
+    function riempiGruppi() {
+      var c = categorie[bozza.categoria];
+      lista.innerHTML = "";
+      ((c && c.gruppi) || []).forEach(function (g) { lista.appendChild(el("option", { value: g })); });
+      rigaGruppo.hidden = !c;
+    }
+    var sel2 = el("select", { onchange: function (e) { bozza.categoria = e.target.value ? parseInt(e.target.value, 10) : null; riempiGruppi(); } },
+      [el("option", { value: "", selected: !v.categoria, testo: "Nessuna: da sola nella barra" })].concat(
+        D.barra.filter(function (n) { return n.tipo === "categoria"; }).map(function (c) {
+          return el("option", { value: c.id, selected: c.id === v.categoria, testo: "Tendina «" + c.nome + "»" });
+        })));
+    riempiGruppi();
+    return el("label", { "class": "mp-campo" }, ["In quale categoria", sel2, rigaGruppo]);
+  }
+
+  function schedaVoce(box, v) {
+    var bozza = { nome: v.nome, icona: v.icona, categoria: v.categoria, gruppo: v.gruppo, padre: v.padre };
     var interruttore = el("button", {
       type: "button", "class": "mp-interruttore", "aria-pressed": v.visibile ? "true" : "false",
       testo: v.visibile ? "Nel menu" : "Tolta dal menu",
@@ -296,30 +444,12 @@
       },
     });
     var iconaBox = el("div", { "class": "mp-scheda-icona", html: v.icona_html || "" });
-    box.appendChild(el("div", { "class": "mp-scheda-testa" }, [
-      iconaBox,
-      el("div", { "class": "mp-scheda-nomi" }, [
-        el("div", { "class": "mp-scheda-area", testo: v.sezione === "subnav" ? "dentro " + v.padreNome : "nell'area " + v.area }),
-        el("h2", { "class": "mp-scheda-nome", testo: v.nome }),
-      ]),
-      interruttore,
-    ]));
-
+    box.appendChild(testa(iconaBox, dove(v), v.nome, interruttore));
     box.appendChild(risposta(v));
     var pr = problema(v); if (pr) box.appendChild(pr);
 
-    /* Cosa vuoi fare */
     var campoNome = el("input", { type: "text", value: v.nome, maxlength: "120", disabled: v.nome_da_branding, oninput: function (e) { bozza.nome = e.target.value; } });
     var notaNome = v.nome_da_branding ? el("span", { "class": "mp-nota" }, ["Il nome di questo modulo si cambia in ", el("a", { href: url.urlBranding, testo: "Branding" }), "."]) : null;
-    var selArea;
-    if (v.sezione === "subnav") {
-      selArea = el("select", { onchange: function (e) { bozza.padre = e.target.value; } },
-        (D.moduli || []).map(function (m) { return el("option", { value: m.code, selected: m.code === v.padre, testo: m.nome }); }));
-    } else {
-      selArea = el("select", { onchange: function (e) { bozza.categoria = e.target.value ? parseInt(e.target.value, 10) : null; } },
-        [el("option", { value: "", selected: !v.categoria, testo: "Altre voci" })].concat(
-          (D.categorie || []).map(function (c) { return el("option", { value: c.id, selected: c.id === v.categoria, testo: c.nome }); })));
-    }
     var azioneIcona = el("button", { type: "button", "class": "mp-azione", html: ICO.immagine + "<span>Cambia l'icona<small>scegli dalla galleria</small></span>",
       onclick: function () { apriIcone(function (nome, html) { bozza.icona = nome; iconaBox.innerHTML = html; }); } });
     var azionePersona;
@@ -345,7 +475,7 @@
       el("div", { "class": "mp-fare-titolo", testo: "Cosa vuoi fare" }),
       el("div", { "class": "mp-fare" }, [
         el("label", { "class": "mp-campo" }, ["Cambia il nome", campoNome, notaNome]),
-        el("label", { "class": "mp-campo" }, [v.sezione === "subnav" ? "Spostala sotto un altro modulo" : "Spostala in un'altra area", selArea]),
+        campoDove(v, bozza),
         azioneIcona, azionePersona, apri,
       ]),
     ]));
@@ -353,15 +483,92 @@
     var salva = el("button", { type: "button", "class": "mp-btn mp-btn-primary", testo: "Salva", onclick: function () {
       var dati = { id: v.id, icona: bozza.icona };
       if (!v.nome_da_branding) dati.nome = bozza.nome;
-      if (v.sezione === "subnav") dati.padre = bozza.padre; else dati.categoria = bozza.categoria;
+      if (v.sezione === "subnav") dati.padre = bozza.padre;
+      else { dati.categoria = bozza.categoria; dati.gruppo = bozza.categoria ? bozza.gruppo : ""; }
       salva.disabled = true;
-      post(url.urlSalva, dati).then(function () {
-        avviso("Salvato.");
-        window.location.reload();
-      }).catch(function (err) { salva.disabled = false; avviso(err.message, "error"); });
+      post(url.urlSalva, dati).then(function () { ricarica("Salvato."); })
+        .catch(function (err) { salva.disabled = false; avviso(err.message, "error"); });
     } });
     var piedeTesto = el("span", { "class": "mp-piede-testo" }, ["Chi la vede dipende da chi può aprire la pagina. Per cambiarlo: ", el("a", { href: url.urlRuoli, testo: "Ruoli e permessi" }), "."]);
     box.appendChild(el("div", { "class": "mp-piede" }, [piedeTesto, salva]));
+  }
+
+  function schedaCategoria(box, c) {
+    var bozza = { nome: c.nome, icona: c.icona };
+    var dentro = c.voci.map(function (id) { return voci[id]; });
+    var visibili = dentro.filter(inBarra);
+    var iconaBox = el("div", { "class": "mp-scheda-icona", html: c.icona_html || ICO.cartella });
+    box.appendChild(testa(iconaBox, "Categoria: una tendina nella barra in alto", c.nome, null));
+
+    var r = el("div", { "class": "mp-risposta" + (visibili.length ? " si" : "") });
+    var titolo; var testo; var chips = null;
+    var vista = nomeVista();
+    if (!c.voci.length) { titolo = "È vuota"; testo = "Una categoria senza voci non compare nella barra. Spostaci una voce o eliminala."; }
+    else if (vista) {
+      titolo = visibili.length ? vista + " la vede, con " + visibili.length + (visibili.length === 1 ? " voce" : " voci") : vista + " non la vede";
+      testo = visibili.length ? "Nella tendina trova solo le voci che può aprire." : "Non può aprire nessuna delle pagine dentro, quindi la tendina non compare.";
+    } else {
+      var ruoli = {}; var tutti = false;
+      dentro.forEach(function (v) { if (v.visibile) { v.ruoli.forEach(function (id) { ruoli[id] = 1; }); if (v.tutti) tutti = true; } });
+      var ids = Object.keys(ruoli).map(Number).filter(function (id) { return ruoliById[id]; });
+      titolo = tutti ? "La vedono tutti" : (ids.length ? "La vedono questi ruoli" : "La vedono solo gli amministratori");
+      testo = "La tendina compare a chi può aprire almeno una delle sue voci; dentro, ognuno trova solo le sue.";
+      if (!tutti && ids.length) chips = chipsRuoli(ids);
+    }
+    r.appendChild(el("div", { "class": "mp-risposta-titolo", html: visibili.length ? ICO.si : ICO.occhioNo.replace(/14/g, "22") }));
+    r.firstChild.appendChild(document.createTextNode(" " + titolo));
+    r.appendChild(el("div", { "class": "mp-risposta-testo", testo: testo }));
+    if (chips) r.appendChild(chips);
+    box.appendChild(r);
+
+    if (c.voci.length) {
+      var anteprima = el("div", { "class": "mp-tendina", "aria-label": "Anteprima della tendina" });
+      sezioni(c.voci).forEach(function (s) {
+        if (s.nome) anteprima.appendChild(el("div", { "class": "mp-tendina-gruppo", testo: s.nome }));
+        s.voci.forEach(function (id) {
+          var v = voci[id];
+          anteprima.appendChild(el("button", { type: "button", "class": "mp-tendina-voce" + (inBarra(v) ? "" : " sbiadita"),
+            onclick: function () { scegli("voce", v.id, true); } }, [
+            el("span", { "class": "mp-voce-icona", html: v.icona_html || "" }), el("span", { testo: v.nome }),
+          ]));
+        });
+      });
+      box.appendChild(el("div", {}, [el("div", { "class": "mp-fare-titolo", testo: "Così si apre la tendina" }), anteprima,
+        el("p", { "class": "mp-nota", testo: "I sottogruppi si scelgono nella scheda di ogni voce; l'ordine si cambia trascinando le voci a sinistra." })]));
+    }
+
+    var campoNome = el("input", { type: "text", value: c.nome, maxlength: "80", oninput: function (e) { bozza.nome = e.target.value; } });
+    var azioneIcona = el("button", { type: "button", "class": "mp-azione", html: ICO.immagine + "<span>Cambia l'icona<small>si vede nel menu laterale e qui</small></span>",
+      onclick: function () { apriIcone(function (nome, html) { bozza.icona = nome; iconaBox.innerHTML = html; }); } });
+    var elimina = el("button", { type: "button", "class": "mp-azione", disabled: c.voci.length > 0,
+      html: ICO.cestino + "<span>Elimina la categoria<small>" + (c.voci.length ? "prima sposta le sue voci in un'altra categoria" : "è vuota, si può togliere") + "</small></span>",
+      onclick: function () {
+        post(url.urlCatElimina, { id: c.id }).then(function () { ricarica("Categoria eliminata.", null); })
+          .catch(function (err) { avviso(err.message, "error"); });
+      } });
+    box.appendChild(el("div", {}, [
+      el("div", { "class": "mp-fare-titolo", testo: "Cosa vuoi fare" }),
+      el("div", { "class": "mp-fare" }, [el("label", { "class": "mp-campo" }, ["Cambia il nome", campoNome]), azioneIcona, elimina]),
+    ]));
+    var salva = el("button", { type: "button", "class": "mp-btn mp-btn-primary", testo: "Salva", onclick: function () {
+      salva.disabled = true;
+      post(url.urlCatSalva, { id: c.id, nome: bozza.nome, icona: bozza.icona }).then(function () { ricarica("Salvato."); })
+        .catch(function (err) { salva.disabled = false; avviso(err.message, "error"); });
+    } });
+    box.appendChild(el("div", { "class": "mp-piede" }, [
+      el("span", { "class": "mp-piede-testo", testo: "Per cambiare la posizione nella barra trascina la tendina nella barra qui sopra." }), salva]));
+  }
+
+  function disegnaScheda() {
+    var box = document.getElementById("mp-scheda");
+    box.innerHTML = "";
+    if (S.scelta && S.scelta.tipo === "categoria" && categorie[S.scelta.id]) return schedaCategoria(box, categorie[S.scelta.id]);
+    var v = S.scelta && voci[S.scelta.id];
+    if (!v) {
+      box.appendChild(el("p", { "class": "mp-sub", testo: "Scegli una voce o una categoria per vedere chi la vede e cambiarla." }));
+      return;
+    }
+    schedaVoce(box, v);
   }
 
   /* ── galleria icone ─────────────────────────────────── */
@@ -372,12 +579,18 @@
     b.addEventListener("click", function () { if (sceltaIcona) sceltaIcona(b.dataset.icona, b.innerHTML); dlgIcone.close(); });
   });
 
-  /* ── aggiungi una voce ──────────────────────────────── */
+  /* ── aggiungi una voce / una categoria ──────────────── */
   var dlgNuova = document.getElementById("mp-nuova");
-  var selNuovaArea = document.getElementById("mp-nuova-area");
-  (D.categorie || []).forEach(function (c) { selNuovaArea.appendChild(el("option", { value: c.id, testo: c.nome })); });
-  selNuovaArea.appendChild(el("option", { value: "", testo: "Altre voci" }));
-  document.getElementById("mp-aggiungi").addEventListener("click", function () { dlgNuova.showModal(); });
+  var selNuovaCat = document.getElementById("mp-nuova-area");
+  D.barra.filter(function (n) { return n.tipo === "categoria"; }).forEach(function (c) {
+    selNuovaCat.appendChild(el("option", { value: c.id, testo: "Tendina «" + c.nome + "»" }));
+  });
+  selNuovaCat.appendChild(el("option", { value: "", testo: "Nessuna: da sola nella barra" }));
+  document.getElementById("mp-aggiungi").addEventListener("click", function () {
+    if (S.scelta && S.scelta.tipo === "categoria") selNuovaCat.value = String(S.scelta.id);
+    else if (S.scelta && voci[S.scelta.id] && voci[S.scelta.id].categoria) selNuovaCat.value = String(voci[S.scelta.id].categoria);
+    dlgNuova.showModal();
+  });
   dlgNuova.querySelectorAll("[data-chiudi]").forEach(function (b) { b.addEventListener("click", function () { dlgNuova.close(); }); });
   document.getElementById("mp-nuova-form").addEventListener("submit", function (e) {
     e.preventDefault();
@@ -387,16 +600,32 @@
     var dati = { label: f.nome.value.trim(), section: "topbar" };
     if (opt) dati.route_name = opt.dataset.route; else dati.url_path = pagina;
     post(url.urlCrea, dati).then(function (j) {
-      return post(url.urlSalva, { id: j.id, categoria: f.categoria.value ? parseInt(f.categoria.value, 10) : null });
-    }).then(function () {
-      avviso("Voce aggiunta.");
-      window.location.reload();
-    }).catch(function (err) { avviso(err.message, "error"); });
+      return post(url.urlSalva, { id: j.id, categoria: f.categoria.value ? parseInt(f.categoria.value, 10) : null }).then(function () { return j; });
+    }).then(function (j) { ricarica("Voce aggiunta.", { tipo: "voce", id: j.id }); })
+      .catch(function (err) { avviso(err.message, "error"); });
   });
 
-  function aggiornaTutto() { disegnaRuoli(); disegnaProblemi(); disegnaAlbero(); disegnaScheda(); }
+  var dlgCat = document.getElementById("mp-nuova-cat");
+  document.getElementById("mp-aggiungi-cat").addEventListener("click", function () { dlgCat.showModal(); });
+  dlgCat.querySelectorAll("[data-chiudi]").forEach(function (b) { b.addEventListener("click", function () { dlgCat.close(); }); });
+  document.getElementById("mp-nuova-cat-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    post(url.urlCatSalva, { nome: e.target.nome.value.trim() })
+      .then(function (j) { ricarica("Categoria creata: in fondo alla barra. Spostaci le voci dalla loro scheda.", { tipo: "categoria", id: j.id }); })
+      .catch(function (err) { avviso(err.message, "error"); });
+  });
 
-  var prima = Object.keys(voci).map(function (k) { return voci[k]; }).filter(function (v) { return v.problema; })[0];
-  S.scelta = prima ? prima.id : ((D.aree && D.aree[0] && D.aree[0].voci[0]) || {}).id || null;
+  function aggiornaTutto() { disegnaRuoli(); disegnaProblemi(); disegnaBarra(); disegnaAlbero(); disegnaScheda(); }
+
+  /* Dopo un salvataggio la pagina si ricarica: torna sulla stessa scelta. */
+  var dopo = null;
+  try { dopo = JSON.parse(sessionStorage.getItem("mp-dopo") || "null"); sessionStorage.removeItem("mp-dopo"); } catch (e) { dopo = null; }
+  if (dopo && dopo.scelta && (dopo.scelta.tipo === "categoria" ? categorie[dopo.scelta.id] : voci[dopo.scelta.id])) S.scelta = dopo.scelta;
+  if (!S.scelta) {
+    var prima = Object.keys(voci).map(function (k) { return voci[k]; }).filter(function (v) { return v.problema; })[0];
+    if (prima) S.scelta = { tipo: "voce", id: prima.id };
+    else if (D.barra.length) S.scelta = { tipo: D.barra[0].tipo, id: D.barra[0].id };
+  }
   aggiornaTutto();
+  if (dopo && dopo.testo) avviso(dopo.testo);
 })();
