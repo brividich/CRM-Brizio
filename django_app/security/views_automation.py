@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 
 from .permissions import can_view_security_center
 from .services import auto_resolution
-from .services.configuration import can_manage_security_config
+from .services.configuration import can_configure_soc
 
 
 def _guard(request):
@@ -18,7 +18,7 @@ def _guard(request):
         from .views import _security_center_denied
 
         return _security_center_denied(request)
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         messages.error(request, "Gli automatismi si gestiscono con il permesso di configurazione del SOC.")
         return redirect("security:dashboard")
     return None

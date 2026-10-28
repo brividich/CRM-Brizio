@@ -33,7 +33,7 @@ from .models import (
 )
 from .permissions import can_view_security_center
 from .services import cpe_ai, cve_gestione, cve_impact, software_inventory
-from .services.configuration import audit_config_change, can_manage_security_config
+from .services.configuration import audit_config_change, can_configure_soc, can_manage_security_config
 from .services.cve_feeds import nvd_api_key, set_nvd_api_key
 
 logger = logging.getLogger(__name__)
@@ -383,7 +383,7 @@ def proposta_ai_decidi(request, pk):
 def inventory_page(request):
     if not can_view_security_center(request.user):
         return _denied(request)
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _config_denied(request)
     if request.method == "POST":
         return _inventory_upload(request)
@@ -443,7 +443,7 @@ def _load_import(pk):
 def inventory_map(request, pk):
     if not can_view_security_center(request.user):
         return _denied(request)
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _config_denied(request)
     item = _load_import(pk)
     errors = []
@@ -516,7 +516,7 @@ def _inventory_run(request, item, date_format):
 def inventory_discard(request, pk):
     if not can_view_security_center(request.user):
         return _denied(request)
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _config_denied(request)
     item = _load_import(pk)
     software_inventory.discard_stored(item)
@@ -571,7 +571,7 @@ def _queue_recompute():
 def software_mapping(request):
     if not can_view_security_center(request.user):
         return _denied(request)
-    if not can_manage_security_config(request.user):
+    if not can_configure_soc(request):
         return _config_denied(request)
     if request.method == "POST":
         return _software_mapping_post(request)

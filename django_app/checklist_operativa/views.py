@@ -16,6 +16,7 @@ from core.acl_v2 import request_has_permission_code
 from core.audit import log_action
 from core.legacy_models import AnagraficaDipendente
 from core.legacy_utils import get_legacy_user, is_legacy_admin
+from core.permessi.impostazioni import impostazioni_o
 
 from .acl_bootstrap import PERM_CONFIGURAZIONE_MANAGE
 from .forms import (
@@ -64,15 +65,14 @@ def configurazione_required(view_func):
 
 
 def impostazioni_required(view_func):
-    """Come ``configurazione_required``, per le pagine di impostazioni (task del catalogo):
-    con il sistema dei ruoli acceso decide l'azione «impostazioni» della matrice."""
+    """Come ``configurazione_required``, per le pagine sotto Configurazione (task del catalogo,
+    eventi, coda delle proposte): con il sistema dei ruoli acceso decide l'azione
+    «impostazioni» della matrice."""
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         if not request.user.is_authenticated:
             from django.contrib.auth.views import redirect_to_login
             return redirect_to_login(request.get_full_path())
-        from core.permessi.impostazioni import impostazioni_o
-
         if not impostazioni_o(request, "checklist_operativa", _can_configure):
             return render(request, "core/pages/forbidden.html", status=403)
         return view_func(request, *args, **kwargs)
@@ -133,6 +133,7 @@ def gestione_home(request):
         "altri_eventi": altri_eventi,
         "proposta_form": ChiusuraPropostaForm(),
         "can_configure": _can_configure(request),
+        "can_impostazioni": impostazioni_o(request, "checklist_operativa", _can_configure),
     }
     return render(request, "checklist_operativa/pages/gestione.html", context)
 
@@ -248,7 +249,7 @@ def configurazione_task_toggle(request, pk: int):
     return redirect("checklist_operativa:configurazione")
 
 
-@configurazione_required
+@impostazioni_required
 def configurazione_evento_nuovo(request):
     if request.method == "POST":
         form = ChiusuraEventoForm(request.POST)
@@ -262,7 +263,7 @@ def configurazione_evento_nuovo(request):
     return render(request, "checklist_operativa/pages/evento_form.html", {"form": form})
 
 
-@configurazione_required
+@impostazioni_required
 def configurazione_evento_detail(request, pk: int):
     evento = get_object_or_404(eventi_con_progresso(), pk=pk)
     voci = (
@@ -278,7 +279,7 @@ def configurazione_evento_detail(request, pk: int):
     return render(request, "checklist_operativa/pages/evento_detail.html", context)
 
 
-@configurazione_required
+@impostazioni_required
 @require_POST
 def configurazione_evento_chiudi(request, pk: int):
     evento = get_object_or_404(ChiusuraEvento, pk=pk)
@@ -289,7 +290,7 @@ def configurazione_evento_chiudi(request, pk: int):
     return redirect("checklist_operativa:riepilogo_detail", pk=evento.pk)
 
 
-@configurazione_required
+@impostazioni_required
 @require_POST
 def configurazione_evento_riapri(request, pk: int):
     """Riapre un evento archiviato per sbaglio, tracciando chi l'ha fatto.
@@ -310,7 +311,7 @@ def configurazione_evento_riapri(request, pk: int):
     return redirect("checklist_operativa:evento_detail", pk=evento.pk)
 
 
-@configurazione_required
+@impostazioni_required
 def configurazione_voce_edit(request, evento_pk: int, pk: int | None = None):
     evento = get_object_or_404(ChiusuraEvento, pk=evento_pk)
     instance = get_object_or_404(ChiusuraVoce, pk=pk, evento=evento) if pk else None
@@ -341,7 +342,7 @@ def configurazione_voce_edit(request, evento_pk: int, pk: int | None = None):
     )
 
 
-@configurazione_required
+@impostazioni_required
 def configurazione_proposte(request):
     proposte = ChiusuraProposta.objects.select_related("evento", "proposto_da", "responsabile_suggerito").filter(
         stato=ChiusuraProposta.STATO_IN_ATTESA
@@ -349,7 +350,7 @@ def configurazione_proposte(request):
     return render(request, "checklist_operativa/pages/proposte.html", {"proposte": proposte})
 
 
-@configurazione_required
+@impostazioni_required
 def configurazione_proposta_decidi(request, pk: int):
     proposta = get_object_or_404(ChiusuraProposta, pk=pk)
     if request.method == "POST":

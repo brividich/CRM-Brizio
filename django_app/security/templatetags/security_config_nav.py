@@ -7,7 +7,7 @@ di schede. La barra è solo navigazione: i permessi restano controllati dalle vi
 from django import template
 from django.urls import reverse
 
-from security.services.configuration import can_manage_security_config
+from security.services.configuration import can_configure_soc, can_manage_security_config
 
 register = template.Library()
 
@@ -42,18 +42,19 @@ def soc_config_home_url(context):
     """La voce di menu porta alla panoramica; chi non configura vede solo le impostazioni (in lettura)."""
     request = context.get("request")
     user = getattr(request, "user", None)
-    return reverse("security:admin_config" if user and can_manage_security_config(user) else "security:soc_settings")
+    return reverse("security:admin_config" if user and can_configure_soc(request) else "security:soc_settings")
 
 
 @register.inclusion_tag("security/admin_config/_tabs.html", takes_context=True)
 def soc_config_tabs(context, url_name):
     request = context.get("request")
     user = getattr(request, "user", None)
-    can_configure = bool(user and can_manage_security_config(user))
+    # Sono tutte pagine di impostazioni: le apre l'azione «impostazioni» della matrice.
+    can_configure = bool(user and can_configure_soc(request))
     tabs = [
         {"url": reverse(f"security:{route}"), "label": label, "active": url_name in names}
-        for route, label, names, admin_only in CONFIG_TABS
-        if can_configure or not admin_only
+        for route, label, names, _admin_only in CONFIG_TABS
+        if can_configure
     ]
     return {"tabs": tabs, "show": is_config_page(url_name) and len(tabs) > 1}
 
@@ -139,12 +140,17 @@ def soc_menu(context, url_name):
     request = context.get("request")
     user = getattr(request, "user", None)
     can_configure = bool(user and can_manage_security_config(user))
+    # Voce «Impostazioni»: ogni scheda tranne la Guida segue l'azione «impostazioni» della matrice.
+    can_impostazioni = bool(user and can_configure_soc(request))
     badges = _badges(user)
     voci, sezione = [], None
     for label, entry, pagine in MENU:
         tabs = []
         for tab_label, route, names, admin_only in pagine:
-            if admin_only and not can_configure:
+            if label == "Impostazioni" and route != "help":
+                if not can_impostazioni:
+                    continue
+            elif admin_only and not can_configure:
                 continue
             tabs.append({"label": tab_label, "url": reverse(f"security:{route}"), "active": url_name in names})
         attiva = any(t["active"] for t in tabs)
@@ -156,6 +162,6 @@ def soc_menu(context, url_name):
     from security.services.config_hub import NOMI
 
     briciola = None
-    if can_configure and url_name != "admin_config" and url_name in NOMI and url_name not in ("soc_settings", "letture", "suppressions"):
+    if can_impostazioni and url_name != "admin_config" and url_name in NOMI and url_name not in ("soc_settings", "letture", "suppressions"):
         briciola = {"url": reverse("security:admin_config"), "nome": NOMI[url_name]}
     return {"voci": voci, "sezione": sezione, "url_name": url_name, "briciola": briciola}
