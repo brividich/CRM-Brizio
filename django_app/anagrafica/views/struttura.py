@@ -776,6 +776,24 @@ def _resolve_caporeparto_id(raw: str | None) -> int | None:
     return value if value > 0 else None
 
 
+def _ids_da_post(raw_list) -> list[int]:
+    """Id POST di un multi-select di persone («Altri responsabili») in legacy_id validi."""
+    return [v for v in (_resolve_caporeparto_id(raw) for raw in raw_list or []) if v is not None]
+
+
+def _capo_da_post(request, unita, campo: str) -> None:
+    """Capo e co-capi scelti in Impostazioni: assegnano la «Responsabilità» (capi_mansione.imposta_capo).
+
+    Solo se il form li manda: la pagina «Reparti, aree e capi» non li ha e non li tocca.
+    """
+    if campo not in request.POST:
+        return
+    from anagrafica.services.capi_mansione import imposta_capo
+
+    imposta_capo(unita, capo=_resolve_caporeparto_id(request.POST.get(campo)),
+                 altri=_ids_da_post(request.POST.getlist("responsabili")), user=request.user)
+
+
 def _ruolo_responsabile_da_post(raw: str | None):
     """Ruolo responsabile scelto nel form: genera la mansione di responsabilità (vuoto = nessuna)."""
     from anagrafica.models import RuoloOperativo
@@ -785,9 +803,9 @@ def _ruolo_responsabile_da_post(raw: str | None):
 
 
 # ── Area Aziendale CRUD (ora il livello FIGLIO) ─────────────────────────────
-# Il responsabile non si sceglie più qui: si sceglie il RUOLO responsabile,
-# che genera la «Responsabilità dell'area»; responsabile è chi ha quella
-# mansione (services.capi_mansione), assegnata dalla pagina «Reparti, aree e capi».
+# Il RUOLO responsabile genera la «Responsabilità dell'area»; responsabile è
+# chi ha quella mansione (services.capi_mansione). Il responsabile scelto in
+# Impostazioni la assegna: le due cose restano sempre la stessa persona.
 
 @login_required
 @require_POST
@@ -817,6 +835,7 @@ def area_aziendale_create(request):
         },
     )
     if created:
+        _capo_da_post(request, obj, "responsabile_legacy_id")
         messages.success(request, f'Area aziendale "{nome}" creata.')
     else:
         messages.warning(request, f'Esiste già un\'area aziendale con il nome "{nome}".')
@@ -848,7 +867,8 @@ def area_aziendale_edit(request, area_id: int):
     if "ruolo_responsabile" in request.POST:  # le Impostazioni non lo mandano: resta com'è
         area.ruolo_responsabile = _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile"))
     area.is_active = request.POST.get("is_active") == "1"
-    area.save()  # segnali_capi: con la regola accesa riallinea capi e schede
+    area.save()  # segnali_capi: riallinea capi e schede
+    _capo_da_post(request, area, "responsabile_legacy_id")
     messages.success(request, f'Area aziendale "{area.nome}" aggiornata.')
     return _helpers._back_to_caller(request, "anagrafica:aree_list")
 
@@ -920,6 +940,7 @@ def area_create(request):
         },
     )
     if created:
+        _capo_da_post(request, obj, "caporeparto_legacy_id")
         messages.success(request, f'Reparto "{nome}" creato.')
     else:
         messages.warning(request, f'Esiste già un reparto con il nome "{nome}".')
@@ -945,11 +966,12 @@ def area_edit(request, area_id: int):
     nome_prima = Reparto.objects.filter(pk=rep.pk).values_list("nome", flat=True).first()
     if "ruolo_responsabile" in request.POST:  # le Impostazioni non lo mandano: resta com'è
         rep.ruolo_responsabile = _ruolo_responsabile_da_post(request.POST.get("ruolo_responsabile"))
-    rep.save()  # segnali_capi: con la regola accesa riallinea capi, schede e mapping
+    rep.save()  # segnali_capi: riallinea capi, schede e mapping
     if nome_prima and nome_prima != rep.nome:
         from core.models import RepartoCapoMapping
 
         RepartoCapoMapping.objects.filter(reparto__iexact=nome_prima).update(reparto=rep.nome)
+    _capo_da_post(request, rep, "caporeparto_legacy_id")
     messages.success(request, f'Reparto "{rep.nome}" aggiornato.')
     return _helpers._back_to_caller(request, "anagrafica:aree_list")
 

@@ -198,7 +198,8 @@ def mappa_capi(oggi=None, *, usa_mansioni: bool | None = None) -> dict[int, Capo
         )
         capo = None
         for origine, candidati in passi:
-            candidati = sorted({int(c) for c in candidati if c} - {p.legacy_id})
+            # Ordine dei titolari: il capo scelto in testa (capi_mansione), poi per id.
+            candidati = [c for c in dict.fromkeys(int(c) for c in candidati if c) if c != p.legacy_id]
             if candidati:
                 capo = Capo(candidati[0], origine, candidati[1:])
                 break

@@ -865,6 +865,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                             <option value="{{ dip.id }}" {% if az.responsabile_legacy_id == dip.id %}selected{% endif %}>{{ dip.label }}</option>
                           {% endfor %}
                         </select>
+                        <p class="imp-help">È chi ha la «Responsabilità dell'area» nel Mansionario (se l'area ne ha una): cambiarlo qui la assegna o la toglie.</p>
                       </div>
                       <div class="imp-field">
                         <label class="imp-label">Altri responsabili</label>
@@ -931,6 +932,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                   <option value="{{ dip.id }}">{{ dip.label }}</option>
                 {% endfor %}
               </select>
+              <p class="imp-help">Riceve la «Responsabilità del reparto» nel Mansionario.</p>
             </div>
             <div class="imp-field">
               <label class="imp-label">Altri responsabili</label>
@@ -1010,6 +1012,7 @@ details[open] > .imp-acc-sum::before { transform:rotate(90deg); }
                             <option value="{{ dip.id }}" {% if a.caporeparto_legacy_id == dip.id %}selected{% endif %}>{{ dip.label }}</option>
                           {% endfor %}
                         </select>
+                        <p class="imp-help">È chi ha la «Responsabilità del reparto» nel Mansionario: cambiarlo qui la assegna o la toglie, e assenze e schede seguono.</p>
                       </div>
                       <div class="imp-field">
                         <label class="imp-label">Altri responsabili</label>
