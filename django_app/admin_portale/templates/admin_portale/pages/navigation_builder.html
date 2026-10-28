@@ -553,7 +553,7 @@ body.theme-dark .nav-builder .nav-perm-note{color:#fcd34d}
 
 {% block content %}
   <div class="nav-builder" data-advanced="{% if advanced_mode %}1{% else %}0{% endif %}">
-    {% include "admin_portale/components/page_header.html" with page_title="Navigation Builder" page_subtitle="Gestione centralizzata menu, ruoli e redirect legacy senza modificare codice. Le modifiche sono immediate; pubblica uno snapshot per salvarle definitivamente." %}
+    {% include "admin_portale/components/page_header.html" with page_title="Menu del portale · Strumenti avanzati" page_subtitle="Campi tecnici, snapshot, redirect legacy e import dal vecchio menu. Per l'uso di tutti i giorni torna a «Menu del portale»." %}
     {% include "admin_portale/components/flash_messages.html" %}
 
     <div class="card" id="nav-permessi-stato">
@@ -901,7 +901,7 @@ body.theme-dark .nav-builder .nav-perm-note{color:#fcd34d}
           </div>
           <div class="field field-actions">
             <button class="btn" type="submit">Filtra</button>
-            <a class="btn btn-secondary" href="{% url 'admin_portale:navigation_builder' %}">Reset</a>
+            <a class="btn btn-secondary" href="{% url 'admin_portale:navigation_builder_avanzato' %}">Reset</a>
           </div>
         </form>
 
