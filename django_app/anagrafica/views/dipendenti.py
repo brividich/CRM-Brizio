@@ -1259,6 +1259,27 @@ def _schede_visibili(request, modulo: str = "anagrafica", azione: str = "vedere"
     return None if ammessi is None else anagrafiche_di_utenti(ammessi)
 
 
+def _nega_scheda(request, legacy_id: int):
+    """403 se la scheda ``legacy_id`` non rientra fra quelle che il ruolo vede, altrimenti None.
+
+    Stesso controllo di ``dipendente_detail``, per le pagine e i pannelli di una
+    sola persona sotto ``/anagrafica/dipendenti/<id>/``: il permesso di pagina dice
+    solo che si apre il modulo, l'ambito (propri/team/tutti) lo decide questo.
+    """
+    if not _helpers._ruoli_attivi():
+        return None
+    visibili = _schede_visibili(request)
+    if visibili is None or int(legacy_id) in visibili:
+        return None
+    from core.permessi.negato import risposta_negata
+
+    return risposta_negata(
+        request,
+        "Questa scheda non rientra fra quelle che il tuo ruolo ti consente di vedere.",
+        pagina="Anagrafica dipendenti",
+    )
+
+
 def _can_view_stats(request) -> bool:
     """Verifica se l'utente corrente può visualizzare la sezione statistiche."""
     if request.user.is_superuser:
@@ -2555,6 +2576,8 @@ def dipendente_libretto_sanitario(request, legacy_id: int):
     compaiono solo con il gate sorveglianza sanitaria
     (``_can_view_visite_mediche``); le prescrizioni mai.
     """
+    if (negata := _nega_scheda(request, legacy_id)) is not None:
+        return negata
     ensure_anagrafica_schema()
     rows = fetch_anagrafica_rows(ids=[legacy_id])
     if not rows:
@@ -5314,6 +5337,8 @@ def organigramma_persona_popup(request, legacy_id: int):
     non ottiene questi dati da una scorciatoia. Solo dati di lavoro (ruolo,
     reparto, recapiti aziendali): l'organigramma non e' il fascicolo.
     """
+    if (negata := _nega_scheda(request, legacy_id)) is not None:
+        return negata
     ensure_anagrafica_schema()
     rows = fetch_anagrafica_rows(ids=[legacy_id])
     if not rows:
@@ -5371,6 +5396,8 @@ def dipendente_conformita_panel(request, legacy_id: int):
     Mai esiti/prescrizioni. La logica privacy è applicata dal service via
     ``include_visite_dettaglio``.
     """
+    if (negata := _nega_scheda(request, legacy_id)) is not None:
+        return negata
     if request.GET.get("vista") == "badge":
         # Solo il semaforo complessivo, per l'intestazione della scheda.
         can_view_visite = _helpers._can_view_visite_mediche(request)
@@ -5535,6 +5562,8 @@ def dipendente_verbale_dpi(request, legacy_id: int):
     """Verbale di consegna DPI (MOD.155) precompilato con i DPI richiesti dalla
     mansione del dipendente. Pagina stampabile (``window.print()``) da firmare;
     riusa i requisiti del resolver mansionario, niente record di consegna creati."""
+    if (negata := _nega_scheda(request, legacy_id)) is not None:
+        return negata
     from django.utils import timezone
     rows = fetch_anagrafica_rows(ids=[legacy_id])
     if not rows:

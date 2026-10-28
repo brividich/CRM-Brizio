@@ -22,6 +22,14 @@ def proprietari_kickoff(oggetto):
 
 registra_modulo(ModuloPermessi(
     chiave="kickoff",
+    # Permesso della pagina principale legato a un prefisso: «ereditava» le rotte di
+    # scrittura/gestione sotto e la matrice lo dava solo a «modificare»/«gestire», cosi'
+    # chi ha «vedere» non apriva il modulo ne' lo trovava nel menu. Le scritture hanno
+    # controlli propri nelle view (verificati il 28/10/2026).
+    capacita_forzate=(
+        ("tasks.kickoff.view", "lettura"),
+        ("tasks.kickoff.projects", "lettura"),
+    ),
     nome="KICK-OFF",
     descrizione="Progetti, attività, Gantt, incontri con convocazione e minuta.",
     area="Produzione",
