@@ -201,6 +201,10 @@ GUIDA = {
                 ("ul", [
                     "Le caselle di posta che ricevono i report (antivirus, firewall, backup) si configurano in «Caselle mail»: creazione, anteprima, lettura manuale, importazione dello storico.",
                     "Il ciclo di lettura gira ogni 15 minuti (lavoro «security_cycle»).",
+                    "Chi apre la voce «Impostazioni» (Configurazione, Avvisi e automatismi, Battito, Letture, Soppressioni, "
+                    "Caselle mail, Inventario software, Autoconfigurazione): in Ruoli e permessi la sotto-riga «↳ Impostazioni e "
+                    "configurazione del SOC». «Chiudere / gestire» non la apre più: resta la gestione operativa (CVE, rischi "
+                    "accettati, soppressioni dagli alert). La Guida resta visibile a tutti.",
                     "Regole, soglie e AI si configurano nelle Impostazioni del Security Center (capitolo «Impostazioni e AI» della guida completa).",
                     "Alert di Microsoft Defender: Impostazioni › «Alert di Microsoft Defender». Serve il permesso Graph SecurityAlert.Read.All "
                     "con consenso amministratore sull'app del portale; prova con manage.py defender_alerts --prova.",

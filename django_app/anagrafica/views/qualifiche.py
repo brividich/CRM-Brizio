@@ -25,6 +25,7 @@ from core.legacy_anagrafica import (
     fetch_anagrafica_rows,
 )
 from core.legacy_utils import get_legacy_user
+from core.permessi.impostazioni import impostazioni_o
 
 from ..models import (
     DipendenteQualifica,
@@ -1635,6 +1636,7 @@ def skill_matrix_macchina(request):
         "n_assenti": n_assenti,
         "n_da_confermare": n_da_confermare,
         "can_manage": _check_skm_permission(request, PERM_SKM_MANAGE),
+        "can_impostazioni": impostazioni_o(request, "anagrafica", lambda r: _check_skm_permission(r, PERM_SKM_MANAGE)),
     })
 
 
@@ -1867,7 +1869,7 @@ def skm_impostazioni(request):
     nessun dato personale. Accesso: ``anagrafica.skillmatrix.manage``.
     """
     from ..acl_bootstrap import PERM_SKM_MANAGE
-    if not _check_skm_permission(request, PERM_SKM_MANAGE):
+    if not impostazioni_o(request, "anagrafica", lambda r: _check_skm_permission(r, PERM_SKM_MANAGE)):
         messages.error(request, "Non hai i permessi per gestire la configurazione Skill Matrix.")
         return redirect("anagrafica:index")
 

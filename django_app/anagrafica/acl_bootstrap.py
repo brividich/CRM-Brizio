@@ -64,7 +64,8 @@ _SKM_ROUTE_BINDINGS = {
     "anagrafica:skm_match_validazione": PERM_SKM_MANAGE,
     "anagrafica:skm_refresh": PERM_SKM_MANAGE,
     "anagrafica:skm_scadenzario": PERM_SKM_MANAGE,
-    "anagrafica:skm_impostazioni": PERM_SKM_MANAGE,
+    # Pagina Impostazioni: permesso delle impostazioni del modulo (core/permessi/impostazioni.py).
+    "anagrafica:skm_impostazioni": "anagrafica.impostazioni.manage",
 }
 
 # Grant di default (CREATE-ONLY: non sovrascrive le scelte fatte in ACL canonico).
@@ -462,6 +463,9 @@ def _bootstrap_skillmatrix_canonical() -> bool:
             )
             changed = changed or created
 
+        from core.permessi.impostazioni import assicura_permesso_impostazioni
+
+        assicura_permesso_impostazioni("anagrafica")
         for route_name, code in _SKM_ROUTE_BINDINGS.items():
             binding, created = RoutePermissionBinding.objects.get_or_create(
                 route_name=route_name, path_pattern="",
