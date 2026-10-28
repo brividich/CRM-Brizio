@@ -19,7 +19,16 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from .models import AbilitazioneMacchina, CompetenzaCatalogo, CompetenzaSkm, Mansione, Reparto, RuoloOperativo
+from .models import (
+    AbilitazioneMacchina,
+    AbilitazioneMacchinaVoce,
+    CompetenzaCatalogo,
+    CompetenzaSkm,
+    Mansione,
+    Reparto,
+    RuoloOperativo,
+    VoceMacchinaCatalogo,
+)
 from .services import mansionario_struttura as svc
 
 MODULE = "anagrafica"
@@ -317,9 +326,6 @@ def mansionario_mansione(request, mansione_id: int):
             f" Prima si chiamava «{nome_prima}»: persone, competenze e rischi restano collegati." if nome_prima else ""))
         return _alla_scheda(mansione.pk, "impostazioni")
 
-    from core.legacy_anagrafica import fetch_anagrafica_rows
-    from core import naming
-
     from .services import mansionario_competenze as comp_svc
 
     competenze = list(comp_svc.competenze(mansione))
@@ -332,6 +338,10 @@ def mansionario_mansione(request, mansione_id: int):
         # Nessun livello registrato sulle competenze: la cosa da fare è valutarla,
         # non leggere l'elenco di tutte le competenze «mancanti».
         p["da_valutare"] = bool(competenze) and not any(r["livello"] or r["requisito"] for r in val.voci)
+        # Matrice persone × competenze: il livello salvato (quello che si cambia) e
+        # quello che conta, col tetto quando manca il requisito formale.
+        salvati = {v.voce_id: v.livello for v in p["abilitazione"].voci.all()}
+        p["celle"] = [{**r, "salvato": salvati.get(r["voce"].pk, "")} for r in val.voci]
     # Ogni persona in una sola casella: sospesa, da valutare, poi l'esito calcolato.
     for p in persone:
         p["stato"] = "sospesa" if p["sospesa"] else "da_valutare" if p["da_valutare"] else p["valutazione"].esito
@@ -346,12 +356,10 @@ def mansionario_mansione(request, mansione_id: int):
     in_lista = {p["legacy_id"] for p in persone}
     candidati = []
     if puo_valutare:
-        candidati = sorted(
-            ({"id": int(r["id"]), "nome": naming.nome_completo(r.get("nome"), r.get("cognome"))}
-             for r in fetch_anagrafica_rows(deduplicate=True)
-             if r.get("attivo", True) and r.get("id") and int(r["id"]) not in in_lista),
-            key=lambda c: c["nome"].casefold(),
-        )
+        # Il reparto nell'etichetta: cercando il reparto e «Seleziona tutti» si
+        # aggiunge un reparto intero in un colpo.
+        candidati = sorted((p for lid, p in _persone_in_forza().items() if lid not in in_lista),
+                           key=lambda c: c["nome"].casefold())
     return render(request, "anagrafica/pages/mansionario_mansione.html", {
         "page_title": mansione.nome,
         "mansione": mansione,
@@ -387,19 +395,31 @@ def mansionario_assegna(request, mansione_id: int):
     if not _puo_valutare(request):
         return _nega(request, "Non hai i permessi per modificare il Mansionario.")
     mansione = get_object_or_404(CompetenzaSkm, pk=mansione_id, tipo__in=svc.TIPI_MANSIONE)
-    lid = request.POST.get("persona") or ""
-    if not lid.isdigit():
-        messages.error(request, "Scegli la persona.")
+    # Una o più persone (picker multiplo): stesso percorso della pagina «in blocco».
+    ids = _ids(request, "persona")
+    if not ids:
+        messages.error(request, "Scegli almeno una persona.")
         return redirect("anagrafica:mansionario_mansione", mansione_id=mansione.pk)
+    from .services import mansioni_in_blocco as mb
     try:
-        svc.assegna(mansione, legacy_anagrafica_id=int(lid), livello=request.POST.get("livello"), user=request.user)
+        esiti = mb.esegui(ids, mansione=mansione, modo=mb.ASSEGNA, livello=request.POST.get("livello"),
+                          user=request.user, applica=True)
     except ValueError as exc:
         messages.error(request, str(exc))
         return redirect("anagrafica:mansionario_mansione", mansione_id=mansione.pk)
+    fatti = [e for e in esiti if e.azione == "cambia"]
+    errori = [e for e in esiti if e.azione == "errore"]
     log_action(request, "mansionario_assegna", MODULE, {
-        "mansione": mansione.pk, "legacy_anagrafica_id": int(lid), "livello": request.POST.get("livello"),
+        "mansione": mansione.pk, "legacy_anagrafica_ids": [e.legacy_id for e in fatti],
+        "livello": request.POST.get("livello"), "errori": len(errori),
     }, oggetto=mansione)
-    messages.success(request, "Persona assegnata alla mansione.")
+    if fatti:
+        messages.success(request, "Persona assegnata alla mansione." if len(fatti) == 1
+                         else f"{len(fatti)} persone assegnate alla mansione.")
+    if errori:
+        messages.error(request, "Non assegnate: " + "; ".join(f"{e.nome} ({e.dettaglio})" for e in errori))
+    elif not fatti:
+        messages.info(request, "Niente da fare: le persone scelte erano già in lista con quel livello.")
     return _torna_a_next(request) or redirect("anagrafica:mansionario_mansione", mansione_id=mansione.pk)
 
 
@@ -412,6 +432,59 @@ def _torna_a_next(request):
                                                      require_https=request.is_secure()):
         return redirect(prossima)
     return None
+
+
+@login_required
+@require_POST
+def mansionario_voce_livello(request, mansione_id: int, abilitazione_id: int, voce_id: int):
+    """Una cella della matrice persone × competenze: livello della competenza, poi il
+    livello sulla mansione si ricalcola (storico per competenza e per mansione + audit)."""
+    if not _puo_valutare(request):
+        return _nega(request, "Non hai i permessi per modificare il Mansionario.")
+    from .services import mansionario_competenze as comp_svc
+
+    ab = get_object_or_404(AbilitazioneMacchina.objects.select_related("competenza"),
+                           pk=abilitazione_id, competenza_id=mansione_id, in_lista=True)
+    voce = get_object_or_404(VoceMacchinaCatalogo, pk=voce_id, mansione_id=mansione_id, attiva=True)
+    livello = (request.POST.get("livello") or "").strip().upper()
+    if livello and livello not in svc.LIVELLI:
+        messages.error(request, "Livello non valido.")
+        return _torna_a_next(request) or _alla_scheda(mansione_id, "persone")
+    prima_voce = AbilitazioneMacchinaVoce.objects.filter(abilitazione=ab, voce=voce).values_list(
+        "livello", flat=True).first() or ""
+    if prima_voce != livello:
+        prima = ab.livello
+        val = comp_svc.registra_livelli(ab, {voce.pk: livello}, user=request.user)
+        log_action(request, "mansionario_voce_livello", MODULE, {
+            "mansione": mansione_id, "legacy_anagrafica_id": ab.legacy_anagrafica_id, "competenza": voce.nome,
+            "livello_prima": prima_voce, "livello": livello, "mansione_prima": prima, "mansione_dopo": ab.livello,
+            "esito": val.esito,
+        }, oggetto=ab)
+        messages.success(request, f"«{voce.nome}»: {prima_voce or '—'} → {livello or '—'}. "
+                                  f"Livello sulla mansione {prima or '—'} → {ab.livello or '—'} ({val.esito_label.lower()}).")
+    return _torna_a_next(request) or _alla_scheda(mansione_id, "persone")
+
+
+@login_required
+@require_POST
+def mansionario_livello(request, mansione_id: int, abilitazione_id: int):
+    """Cambio livello in riga (scheda mansione o scheda persona): storico + audit."""
+    if not _puo_valutare(request):
+        return _nega(request, "Non hai i permessi per modificare il Mansionario.")
+    ab = get_object_or_404(AbilitazioneMacchina.objects.select_related("competenza"),
+                           pk=abilitazione_id, competenza_id=mansione_id)
+    try:
+        prima = svc.cambia_livello(ab, request.POST.get("livello"), user=request.user)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return _torna_a_next(request) or redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
+    if prima is not None:
+        log_action(request, "mansionario_livello", MODULE, {
+            "mansione": mansione_id, "legacy_anagrafica_id": ab.legacy_anagrafica_id,
+            "livello_prima": prima, "livello": ab.livello,
+        }, oggetto=ab)
+        messages.success(request, f"Livello su «{ab.competenza.nome}»: {prima or '—'} → {ab.livello}.")
+    return _torna_a_next(request) or redirect("anagrafica:mansionario_mansione", mansione_id=mansione_id)
 
 
 @login_required
@@ -608,6 +681,12 @@ def mansionario_persona(request, legacy_id: int):
         messages.error(request, "Dipendente non trovato.")
         return redirect("anagrafica:mansionario")
     dip = righe[0]
+    puo_valutare = _puo_valutare(request)
+    assegnabili = []
+    if puo_valutare:
+        from .services.mansioni_in_blocco import mansioni_assegnabili
+        assegnabili = [{"id": m.pk, "nome": m.nome, "reparto": m.reparto_effettivo,
+                        "ruoli": ", ".join(r.nome for r in m.ruoli.all())} for m in mansioni_assegnabili(legacy_id)]
     return render(request, "anagrafica/pages/mansionario_persona.html", {
         "page_title": naming.nome_completo(dip.get("nome"), dip.get("cognome")),
         "legacy_id": legacy_id,
@@ -615,8 +694,48 @@ def mansionario_persona(request, legacy_id: int):
         "mansione_anagrafica": (dip.get("mansione") or "").strip(),
         "scheda": comp_svc.scheda_persona(legacy_id),
         "storico": storico_persona(legacy_id),
+        "storico_mansioni": svc.storico_mansioni_persona(legacy_id),
+        "puo_valutare": puo_valutare,
+        "assegnabili": assegnabili,
+        "livelli_label": list(LIVELLO_LABEL.items()),
         **_rischi_persona(legacy_id, (dip.get("mansione") or "").strip()),
     })
+
+
+@login_required
+@require_POST
+def mansionario_persona_assegna(request, legacy_id: int):
+    """Più mansioni alla stessa persona in un colpo, dalla sua scheda del Mansionario."""
+    if not _puo_valutare(request):
+        return _nega(request, "Non hai i permessi per modificare il Mansionario.")
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    from .services import mansioni_in_blocco as mb
+
+    torna = redirect("anagrafica:mansionario_persona", legacy_id=legacy_id)
+    if not [r for r in fetch_anagrafica_rows(ids=[legacy_id]) if r.get("attivo", True)]:
+        messages.error(request, "Dipendente non trovato o non attivo.")
+        return torna
+    try:
+        esiti = mb.assegna_mansioni(legacy_id, _ids(request, "mansione"), livello=request.POST.get("livello"),
+                                    user=request.user)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return torna
+    fatte = [m for m, azione, _ in esiti if azione == "cambia"]
+    errori = [(m, dettaglio) for m, azione, dettaglio in esiti if azione == "errore"]
+    log_action(request, "mansionario_persona_assegna", MODULE, {
+        "legacy_anagrafica_id": legacy_id, "mansioni": [m.pk for m in fatte],
+        "livello": request.POST.get("livello"), "errori": len(errori),
+    })
+    if fatte:
+        messages.success(request, f"Mansione «{fatte[0].nome}» assegnata." if len(fatte) == 1
+                         else f"{len(fatte)} mansioni assegnate.")
+    if errori:
+        messages.error(request, "Non assegnate: " + "; ".join(f"{m.nome} ({d})" for m, d in errori))
+    elif not fatte:
+        messages.info(request, "Niente da fare: la persona aveva già le mansioni scelte.")
+    return torna
 
 
 @login_required

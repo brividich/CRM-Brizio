@@ -22,9 +22,9 @@ def _snapshot(audit: Audit) -> dict:
 
 def archivia_rapporto(audit: Audit, *, tipo: str, motivo: str, autore) -> AuditRapportoVersione:
     """Genera il PDF dallo stato attuale, lo archivia con SHA-256 e restituisce la versione."""
-    from ..audit_exports import rapporto_audit_pdf
+    from ..audit_exports import rapporto_audit_pdf, rapporto_isms_pdf
 
-    corpo = rapporto_audit_pdf(audit)
+    corpo = rapporto_isms_pdf(audit) if audit.is_isms else rapporto_audit_pdf(audit)
     numero = (audit.versioni_rapporto.aggregate(n=Max("numero"))["n"] or 0) + 1
     versione = AuditRapportoVersione(
         audit=audit, numero=numero, tipo=tipo, motivo=motivo[:500], autore=autore,

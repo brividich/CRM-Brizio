@@ -22,6 +22,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.audit import log_action
+from ..registro_permessi import MODULO_ODL
+from ..services.visibilita import filtra as filtra_visibili
+from ..services.visibilita import filtra_odl
 
 # Etichetta con cui le voci di audit si agganciano all'asset: e' la stessa che
 # `core.audit.storico_oggetto` usa per ripescarle sulla scheda. Costante e non
@@ -319,12 +322,15 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
         operational_view=operational_view,
         user=request.user,
     )
+    # Ambito della matrice ruoli (modulo Ordini di lavoro): con «Propri / del team»
+    # restano gli OdL degli asset visibili e quelli assegnati alla persona.
+    workorders = filtra_odl(request, workorders)
     if operational_view in ("open", "mine", "unassigned"):
         # Coda di lavoro: urgente prima, poi il più vecchio aperto — non l'ultimo creato.
         workorders = workorders.order_by(_workorder_priority_order_case(), "opened_at", "id")
     else:
         workorders = workorders.order_by("-opened_at", "-id")
-    count_source = WorkOrder.objects.all()
+    count_source = filtra_odl(request, WorkOrder.objects.all())
     operational_counts = {
         "open": count_source.filter(status=WorkOrder.STATUS_OPEN).count(),
         "mine": count_source.filter(status=WorkOrder.STATUS_OPEN, assigned_to=request.user).count(),
@@ -469,7 +475,9 @@ def workorder_list(request: HttpRequest) -> HttpResponse:
             "category_options": category_options,
             "user_options": user_options,
             "active_filter_chips": active_filter_chips,
-            "workorder_create_asset_options": Asset.objects.exclude(status=Asset.STATUS_RETIRED).order_by(
+            "workorder_create_asset_options": filtra_visibili(
+                request, Asset.objects.all(), MODULO_ODL
+            ).exclude(status=Asset.STATUS_RETIRED).order_by(
                 "asset_tag",
                 "name",
                 "id",
@@ -1500,6 +1508,8 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
         form = WorkOrderCloseForm(
             initial={
                 "status": WorkOrder.STATUS_DONE,
+                # Il caso normale: chi chiude ha risolto. Gli altri esiti sono un click.
+                "esito": WorkOrder.OUTCOME_RESOLVED,
                 "intervention_duration_minutes": workorder.intervention_duration_minutes,
                 "downtime_minutes": initial_downtime,
                 "labor_cost_eur": workorder.labor_cost_eur,
@@ -1531,9 +1541,10 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             "workorder": workorder,
             "form": form,
             "close_submit_label": (
-                "Conferma annullamento"
-                if (form["status"].value() or WorkOrder.STATUS_DONE) == WorkOrder.STATUS_CANCELED
-                else "Conferma chiusura"
+                "Annulla l'intervento"
+                if form["esito"].value() == WorkOrderCloseForm.ESITO_CANCELED
+                or form["status"].value() == WorkOrder.STATUS_CANCELED
+                else "Chiudi definitivamente"
             ),
             "workorder_status": _workorder_status_payload(workorder.status),
             "workorder_kind": _workorder_kind_payload(workorder.kind),

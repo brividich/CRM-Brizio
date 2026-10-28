@@ -30,7 +30,7 @@ class SoaVoceForm(forms.ModelForm):
         fields = [
             "livello", "vulnerabilita", "riferimenti", "giustificazione",
             "obbligo_legislativo", "obbligo_normativo", "obbligo_regolatorio", "obbligo_cliente", "buona_pratica",
-            "azione", "responsabile", "scadenza", "livello_atteso", "ofi",
+            "azione", "responsabile", "scadenza", "livello_atteso", "vulnerabilita_attesa", "ofi",
         ]
         labels = {
             "livello": "Applicazione del controllo (0-4)",
@@ -46,6 +46,7 @@ class SoaVoceForm(forms.ModelForm):
             "responsabile": "Responsabile dell'azione",
             "scadenza": "Scadenza",
             "livello_atteso": "Livello atteso dopo l'azione",
+            "vulnerabilita_attesa": "Vulnerabilità attesa dopo l'azione",
         }
         widgets = {
             "riferimenti": forms.Textarea(attrs={"rows": 3}),

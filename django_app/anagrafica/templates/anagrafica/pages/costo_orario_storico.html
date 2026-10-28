@@ -1,0 +1,149 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Storico del costo orario | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<style>
+.co-filtri{ grid-template-columns:170px 170px 190px minmax(0,1fr) auto auto; }
+.co-vista{ margin:0 0 14px; }
+.cs-scroll{ overflow-x:auto; }
+.cs-table{ width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; }
+.cs-table th, .cs-table td{ padding:8px 10px; border-bottom:1px solid var(--fmd-line-soft, #eef2f7); white-space:nowrap; }
+.cs-table thead th{ position:sticky; top:0; background:#f8fafc; font-family:var(--fmd-mono); font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--fmd-muted-2, #64748b); text-align:right; z-index:1; }
+.cs-table thead th.cs-l, .cs-table td.cs-l{ text-align:left; }
+.cs-table .cs-pin{ position:sticky; left:0; background:#fff; z-index:2; min-width:190px; }
+.cs-table thead .cs-pin{ background:#f8fafc; z-index:3; }
+.cs-table td{ text-align:right; font-variant-numeric:tabular-nums; }
+.cs-table tfoot td{ font-weight:700; background:#f8fafc; border-top:2px solid var(--fmd-line, #e2e8f0); }
+.cs-table tfoot .cs-pin{ background:#f8fafc; }
+.cs-su{ color:#c2410c; font-size:10px; margin-left:3px; }
+.cs-giu{ color:#1f87cd; font-size:10px; margin-left:3px; }
+.cs-vuoto{ color:#cbd5e1; }
+.cs-var-su{ color:#c2410c; font-weight:700; }
+.cs-var-giu{ color:#1f87cd; font-weight:700; }
+body.theme-dark .cs-su, body.theme-dark .cs-var-su{ color:#fdba74; }
+body.theme-dark .cs-giu, body.theme-dark .cs-var-giu{ color:#7cc4f5; }
+.cs-sub{ display:block; font-size:11px; color:var(--fmd-muted-2, #64748b); font-weight:400; }
+body.theme-dark .cs-table thead th, body.theme-dark .cs-table tfoot td, body.theme-dark .cs-table thead .cs-pin,
+body.theme-dark .cs-table tfoot .cs-pin{ background:var(--surface-alt, #172338); }
+body.theme-dark .cs-table .cs-pin{ background:var(--surface, #0f1b2d); }
+body.theme-dark .cs-table th, body.theme-dark .cs-table td{ border-color:var(--border, #22324a); }
+body.theme-dark .cs-vuoto{ color:#475569; }
+@media (max-width:640px){
+  .co-filtri{ grid-template-columns:minmax(0,1fr); }
+  .cs-table .cs-pin{ min-width:130px; max-width:150px; white-space:normal; }
+}
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  {% include "anagrafica/components/flash_messages.html" %}
+  <div class="fmd-wrap">
+
+    <section class="fmd-hero">
+      <div class="fmd-hero-bg" aria-hidden="true"></div>
+      <div class="fmd-hero-inner">
+        <div>
+          <div class="fmd-hero-eyebrow"><span class="fmd-dot"></span>Anagrafica HR · Amministrazione</div>
+          <h1><svg class="fmd-ico fmd-cap"><use href="#i-coins"/></svg>Costo orario</h1>
+          <p class="fmd-sub">Lo storico mese per mese: RML ÷ giorni ÷ ore del mese, come calcolato a ogni import dei cedolini. La freccia confronta con il mese prima; a destra la variazione nel periodo scelto. Dato riservato: ogni consultazione va nel registro.</p>
+          <div class="fmd-hero-actions">
+            <a class="fmd-btn-template" href="{% url 'anagrafica:retribuzioni_globale' %}"><svg class="fmd-ico"><use href="#i-coins"/></svg>Cedolini</a>
+            <a class="fmd-btn-template" href="{% url 'anagrafica:ratei_list' %}"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Ferie e permessi</a>
+            {% if report_costi %}<a class="fmd-btn-template" href="{% url 'anagrafica:reportistica_genera' report_costi %}" title="Modello «Costo orario del personale» della Reportistica: PDF o Excel"><svg class="fmd-ico"><use href="#i-doc"/></svg>Report</a>{% endif %}
+            <a class="fmd-btn-template" href="{% url 'guida_modulo' 'anagrafica' %}#costo-orario" title="Come funziona questa pagina">? Guida</a>
+          </div>
+        </div>
+        <div class="fmd-hero-side">
+          <div class="fmd-hero-tile"><span class="fmd-corner"></span><span class="fmd-bignum">{{ kpi.mesi }}</span><span class="fmd-lbl">Mesi</span></div>
+          <div class="fmd-hero-tile fmd-alt"><span class="fmd-corner"></span><span class="fmd-bignum">{{ righe|length }}</span><span class="fmd-lbl">Dipendenti</span></div>
+        </div>
+      </div>
+    </section>
+
+    <nav class="fmd-chips co-vista" aria-label="Vista del costo orario">
+      <a class="fmd-chip" href="{% url 'anagrafica:costo_orario' %}">Un mese</a>
+      <a class="fmd-chip fmd-on" href="{% url 'anagrafica:costo_orario_storico' %}" aria-current="page">Storico</a>
+    </nav>
+
+    {% if righe %}
+    <section class="fmd-kpi fmd-kpi-auto" aria-label="Storico in sintesi">
+      {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-coins" valore=kpi.media_ultima label="Media dell'ultimo mese" sub="€/h, con i filtri attivi" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-cal-clock" valore=kpi.variazione label="Variazione della media" sub="dal primo all'ultimo mese" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-coins" valore=kpi.aumenti label="Costo aumentato" sub="dipendenti nel periodo" %}
+      {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-coins" valore=kpi.cali label="Costo diminuito" sub="dipendenti nel periodo" %}
+    </section>
+    {% endif %}
+
+    <section class="fmd-panel">
+      <form method="get" class="fmd-filterbar co-filtri">
+        {% if persona %}<input type="hidden" name="persona" value="{{ persona }}">{% endif %}
+        <div class="fmd-filtf"><label for="cs-dal">Dal</label>
+          <select id="cs-dal" name="dal">{% for m in tutti_mesi %}<option value="{{ m|date:'Y-m-d' }}"{% if m == dal %} selected{% endif %}>{{ m|date:"F Y" }}</option>{% empty %}<option value="">nessun mese</option>{% endfor %}</select>
+        </div>
+        <div class="fmd-filtf"><label for="cs-al">Al</label>
+          <select id="cs-al" name="al">{% for m in tutti_mesi %}<option value="{{ m|date:'Y-m-d' }}"{% if m == al %} selected{% endif %}>{{ m|date:"F Y" }}</option>{% empty %}<option value="">nessun mese</option>{% endfor %}</select>
+        </div>
+        <div class="fmd-filtf"><label for="cs-reparto">Reparto</label>
+          <select id="cs-reparto" name="reparto"><option value="">Tutti</option>{% for r in reparti %}<option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+        </div>
+        <div class="fmd-filtf"><label for="cs-q">Cerca</label><input id="cs-q" type="text" name="q" value="{{ q }}" placeholder="Nome o codice fiscale"></div>
+        <div class="fmd-filtf fmd-go"><button type="submit" class="fmd-btn fmd-btn-navy">Filtra</button></div>
+        <div class="fmd-filtf fmd-go"><a href="{% url 'anagrafica:costo_orario_storico' %}" class="fmd-btn fmd-btn-ghost">Reset</a></div>
+      </form>
+    </section>
+
+    <section class="fmd-panel">
+      <div class="fmd-toolbar" style="border-bottom:1px solid var(--fmd-line-soft);">
+        <div class="fmd-block-title" style="font-size:14px;"><svg class="fmd-ico"><use href="#i-cal-clock"/></svg>{% if persona_nome %}{{ persona_nome }}{% else %}Storico{% endif %}{% if dal %} · {{ dal|date:"m/Y" }}–{{ al|date:"m/Y" }}{% endif %}</div>
+        <span class="fmd-spacer"></span>
+        {% if persona %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:costo_orario_storico' %}">Tutti i dipendenti</a>{% endif %}
+        {% if righe %}{% include "anagrafica/components/_export_menu.html" with export_key="costo_orario_storico" %}{% endif %}
+        <span class="fmd-block-aside">{{ righe|length }} dipendent{{ righe|length|pluralize:"e,i" }}</span>
+      </div>
+      {% if righe %}
+      <div class="cs-scroll" data-fm-table-skip="1">
+        <table class="cs-table">
+          <thead><tr>
+            <th class="cs-l cs-pin" scope="col">Dipendente</th>
+            {% for m in mesi %}<th scope="col">{{ m|date:"M y" }}</th>{% endfor %}
+            <th scope="col" title="Dal primo all'ultimo mese con un valore">Variazione</th>
+          </tr></thead>
+          <tbody>
+            {% for r in righe %}
+            <tr>
+              <td class="cs-l cs-pin">{% if r.legacy_id %}<a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}#costo-orario">{{ r.nome }}</a>{% else %}{{ r.nome }}{% endif %}<span class="cs-sub">{{ r.reparto|default:"—" }}</span></td>
+              {% for x in r.celle %}
+              <td>{% if x.c %}<span title="RML € {{ x.c.rml|floatformat:'2g' }}{% if x.c.rml_manuale %} (corretta a mano){% endif %} ÷ {{ x.c.divisore_giorni.normalize }} ÷ {{ x.c.divisore_ore.normalize }}{% if x.delta %} · {{ x.delta|floatformat:'2' }} rispetto al mese prima{% endif %}">{{ x.c.costo_orario|floatformat:"2g" }}</span>{% if x.su %}<span class="cs-su" aria-label="aumentato">▲</span>{% elif x.giu %}<span class="cs-giu" aria-label="diminuito">▼</span>{% endif %}{% else %}<span class="cs-vuoto">—</span>{% endif %}</td>
+              {% endfor %}
+              <td>{% if r.var is not None %}<span class="{% if r.var > 0 %}cs-var-su{% elif r.var < 0 %}cs-var-giu{% endif %}">{% if r.var > 0 %}+{% endif %}{{ r.var|floatformat:"2g" }}</span><span class="cs-sub">{% if r.var_pct > 0 %}+{% endif %}{{ r.var_pct }}%</span>{% else %}<span class="cs-vuoto">—</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          {% if righe|length > 1 %}
+          <tfoot><tr>
+            <td class="cs-l cs-pin">Media</td>
+            {% for v in medie %}<td>{% if v is not None %}{{ v|floatformat:"2g" }}{% else %}—{% endif %}</td>{% endfor %}
+            <td></td>
+          </tr></tfoot>
+          {% endif %}
+        </table>
+      </div>
+      {% else %}
+      <div class="fmd-empty">
+        <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-coins"/></svg></span>
+        <span class="fmd-et">Nessun costo orario nel periodo</span>
+        <span class="fmd-em">{% if q or reparto or persona %}Nessun risultato con i filtri selezionati.{% else %}Serve la voce RML nei cedolini importati.{% endif %}</span>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

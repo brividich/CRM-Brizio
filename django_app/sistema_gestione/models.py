@@ -52,6 +52,10 @@ class SoaRevisione(models.Model):
     STATI_MODIFICABILI = (STATO_BOZZA,)
 
     numero = models.PositiveIntegerField(unique=True, help_text="Indice di revisione del MOD.165")
+    soglia_rischio = models.PositiveSmallIntegerField(
+        "Soglia di accettabilità del rischio", default=30,
+        help_text="MOD.165: un rischio residuo fino a questo valore è accettabile (scala 0-64).",
+    )
     stato = models.CharField(max_length=10, choices=STATO_CHOICES, default=STATO_BOZZA, db_index=True)
     motivo = models.CharField(max_length=255, blank=True, default="", help_text="Descrizione della revisione")
     origine = models.CharField(max_length=255, blank=True, default="", help_text="Es. import dal PDF MOD.165")
@@ -118,6 +122,7 @@ class SoaVoce(models.Model):
     responsabile = models.CharField(max_length=150, blank=True, default="")
     scadenza = models.DateField(null=True, blank=True)
     livello_atteso = models.PositiveSmallIntegerField(choices=LIVELLO_CHOICES, null=True, blank=True)
+    vulnerabilita_attesa = models.PositiveSmallIntegerField(choices=VULNERABILITA_CHOICES, null=True, blank=True)
     ofi = models.ForeignKey(
         "gestione_specifiche.RegistroOFI", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
@@ -526,6 +531,17 @@ class Audit(models.Model):
     )
     righe = models.ManyToManyField(RigaProgramma, blank=True, related_name="audit_collegati")
     tipo = models.CharField(max_length=24, choices=TIPO_CHOICES, default=TIPO_SISTEMA)
+    # Modulistica: MOD.035A/B (MT CN 12) oppure MOD.171/168 dell'audit ISMS (MT CN 276).
+    MODULO_SGI = "SGI"
+    MODULO_ISMS = "ISMS"
+    MODULO_CHOICES = [
+        (MODULO_SGI, "Audit di sistema SGI (MOD.035A / MOD.035B)"),
+        (MODULO_ISMS, "Audit ISMS ISO/IEC 27001 (MOD.171 / MOD.168)"),
+    ]
+    modulo = models.CharField(
+        "Modulistica", max_length=4, choices=MODULO_CHOICES, default=MODULO_SGI,
+        help_text="L'audit ISMS usa il piano MOD.171 e il rapporto MOD.168 con i 93 controlli precompilati dalla SoA.",
+    )
     en9100 = models.BooleanField(default=True)
     iso45001 = models.BooleanField(default=False)
     iso14001 = models.BooleanField(default=False)
@@ -634,6 +650,18 @@ class Audit(models.Model):
     def norme_codici(self) -> set[str]:
         return {codice for codice, _label in Auditor.NORME if getattr(self, codice, False)}
 
+    @property
+    def is_isms(self) -> bool:
+        return self.modulo == self.MODULO_ISMS
+
+    @property
+    def codice_piano(self) -> str:
+        return "MOD.171" if self.is_isms else "MOD.035A"
+
+    @property
+    def codice_rapporto(self) -> str:
+        return "MOD.168" if self.is_isms else "MOD.035B"
+
     def utente_e_auditor(self, user) -> bool:
         if not user or not getattr(user, "is_authenticated", False):
             return False
@@ -731,6 +759,14 @@ class AuditAgenda(models.Model):
 
 class ChecklistModello(models.Model):
     CODICE_EN9100_FOLDER_B = "EN9100_FOLDER_B"
+    CODICE_ISO45001 = "ISO45001"
+    CODICE_PDR125 = "PDR125"
+    # Flag norma dell'audit -> checklist caricata all'avvio (una revisione attiva per codice).
+    CODICE_PER_NORMA = {
+        "en9100": CODICE_EN9100_FOLDER_B,
+        "iso45001": CODICE_ISO45001,
+        "pdr125": CODICE_PDR125,
+    }
     codice = models.CharField(max_length=40)
     norma = models.CharField(max_length=100)
     revisione = models.PositiveSmallIntegerField(default=0)
@@ -738,6 +774,14 @@ class ChecklistModello(models.Model):
     origine = models.CharField(max_length=255, blank=True, default="")
     attivo = models.BooleanField(default=True, db_index=True)
     importato_il = models.DateTimeField(auto_now_add=True)
+    preparato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    attivato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    attivato_il = models.DateTimeField(null=True, blank=True)
+    motivo = models.CharField("Motivo della revisione", max_length=255, blank=True, default="")
 
     class Meta:
         ordering = ["codice", "-revisione"]
@@ -747,6 +791,13 @@ class ChecklistModello(models.Model):
 
     def __str__(self) -> str:
         return f"{self.titolo} Rev.{self.revisione}"
+
+    @staticmethod
+    def chiave_sezione(sezione) -> tuple:
+        """Ordine delle sezioni di più checklist nello stesso audit: EN 9100, ISO 45001, PdR 125, poi le altre."""
+        ordine = list(ChecklistModello.CODICE_PER_NORMA.values())
+        codice = sezione.modello.codice
+        return (ordine.index(codice) if codice in ordine else len(ordine), sezione.modello_id, sezione.ordine, sezione.pk)
 
 
 class ChecklistSezione(models.Model):
@@ -1198,3 +1249,227 @@ class AuditEsterno(models.Model):
         if self.altre_norme.strip():
             sigle.append(self.altre_norme.strip())
         return sigle
+
+
+# ---------------------------------------------------------------------------
+# Audit ISMS (MT CN 276): piano MOD.171 e rapporto MOD.168
+# ---------------------------------------------------------------------------
+
+RILIEVO_ISMS_NC = "NC"
+RILIEVO_ISMS_COM = "COM"
+RILIEVO_ISMS_AP = "AP"
+RILIEVO_ISMS_CHOICES = [
+    ("", "Nessun rilievo"),
+    (RILIEVO_ISMS_NC, "NC - Non conformità"),
+    (RILIEVO_ISMS_COM, "COM - Commento"),
+    (RILIEVO_ISMS_AP, "AP - Area di miglioramento"),
+]
+GRAVITA_ISMS_CHOICES = [("", "-"), ("MAGGIORE", "NC maggiore"), ("MINORE", "NC minore")]
+LIVELLO_ISMS_CHOICES = [(n, str(n)) for n in range(0, 5)]
+
+
+class AuditIsms(models.Model):
+    """Dati propri del MOD.171 (siti oggetto di audit) e del MOD.168 (testata e valutazioni)."""
+
+    SI_NO_CHOICES = [("", "Da indicare"), ("NO", "No"), ("SI", "Sì")]
+    EFFICACIA_NCMI_CHOICES = [
+        ("", "Da indicare"), ("EFFICACI", "Efficaci"),
+        ("NON_EFFICACI", "Non efficaci (rilasciare una NC maggiore)"), ("NON_PRESENTI", "Non presenti"),
+    ]
+    REPORT_PRECEDENTI_CHOICES = [
+        ("", "Da indicare"), ("EFFICACE", "Efficace"), ("NON_EFFICACE", "Non efficace"),
+        ("NA", "Non applicabile (per assenza di rilievi)"),
+    ]
+    COMMENTI_PRECEDENTI_CHOICES = [("", "Da indicare"), ("SI", "Sì"), ("NO", "No"), ("NON_PRESENTI", "Non presenti")]
+
+    audit = models.OneToOneField(Audit, on_delete=models.CASCADE, related_name="isms")
+    # MOD.171 - Elenco siti oggetto di audit
+    sito_id = models.CharField("ID sito", max_length=10, blank=True, default="1")
+    sito_campo = models.TextField("Campo d'applicazione (sito)", blank=True, default="")
+    sito_remoto = models.BooleanField("Attività da remoto", default=False)
+    sito_funzioni = models.TextField("Funzione e/o processi", blank=True, default="Tutti i processi in scopo")
+    # MOD.168 - testata
+    remoto_percentuale = models.PositiveSmallIntegerField("Attività in remoto (%)", null=True, blank=True)
+    remoto_date = models.CharField("Data/e attività in remoto", max_length=200, blank=True, default="")
+    remoto_ore = models.CharField("Durata in remoto (ore)", max_length=50, blank=True, default="")
+    campo_date = models.CharField("Data/e attività in campo", max_length=200, blank=True, default="")
+    campo_ore = models.CharField("Durata in campo (ore)", max_length=50, blank=True, default="")
+    sito_indirizzo = models.TextField("Indirizzo del sito", blank=True, default="")
+    campo_applicazione = models.TextField("Campo d'applicazione", blank=True, default="")
+    numero_addetti = models.CharField("N.ro addetti", max_length=50, blank=True, default="")
+    turni = models.CharField("Turni di lavoro", max_length=200, blank=True, default="")
+    # MOD.168 - Modifiche significative avvenute dopo il precedente audit
+    modifiche_sistema = models.CharField("Sistema di gestione / informazioni documentate", max_length=2, choices=SI_NO_CHOICES, blank=True, default="")
+    modifiche_sistema_note = models.TextField("Modifiche al sistema: specificare", blank=True, default="")
+    modifiche_campo = models.CharField("Campo di applicazione del sistema di gestione", max_length=2, choices=SI_NO_CHOICES, blank=True, default="")
+    modifiche_campo_note = models.TextField("Modifiche al campo: specificare", blank=True, default="")
+    modifiche_addetti = models.CharField("Numero addetti", max_length=2, choices=SI_NO_CHOICES, blank=True, default="")
+    modifiche_addetti_note = models.TextField("Modifiche agli addetti: specificare", blank=True, default="")
+    modifiche_altro = models.TextField(
+        "Altro (prodotti/servizi, processi, installazioni, impianti, infrastrutture)", blank=True, default="",
+    )
+    # MOD.168 - valutazioni del team di audit
+    efficacia_ncmi = models.CharField(
+        "Azioni sulle NC minori del precedente audit", max_length=12, choices=EFFICACIA_NCMI_CHOICES, blank=True, default="",
+    )
+    report_precedenti = models.CharField(
+        "Trattamento dei rilievi degli ultimi due audit", max_length=12, choices=REPORT_PRECEDENTI_CHOICES, blank=True, default="",
+    )
+    commenti_precedenti = models.CharField(
+        "Analisi dei commenti del precedente audit", max_length=12, choices=COMMENTI_PRECEDENTI_CHOICES, blank=True, default="",
+    )
+    # SoA usata per precompilare i livelli e revisione proposta dopo la chiusura.
+    soa_revisione = models.ForeignKey(
+        SoaRevisione, null=True, blank=True, on_delete=models.SET_NULL, related_name="audit_isms",
+    )
+    soa_proposta = models.ForeignKey(
+        SoaRevisione, null=True, blank=True, on_delete=models.SET_NULL, related_name="audit_isms_proposte",
+    )
+    soa_proposta_il = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Dati audit ISMS"
+        verbose_name_plural = "Dati audit ISMS"
+
+    def __str__(self) -> str:
+        return f"ISMS {self.audit.numero}"
+
+
+class _RilievoIsms(models.Model):
+    evidenze = models.TextField("Evidenze e rilievi", blank=True, default="")
+    rilievo = models.CharField(max_length=3, choices=RILIEVO_ISMS_CHOICES, blank=True, default="")
+    gravita = models.CharField(max_length=8, choices=GRAVITA_ISMS_CHOICES, blank=True, default="")
+    ofi = models.ForeignKey(
+        "gestione_specifiche.RegistroOFI", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    aggiornato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+    def clean(self):
+        super().clean()
+        if self.rilievo and not self.evidenze.strip():
+            raise ValidationError({"evidenze": "Descrivi l'evidenza del rilievo."})
+        if self.rilievo != RILIEVO_ISMS_NC:
+            self.gravita = ""
+        elif not self.gravita:
+            raise ValidationError({"gravita": "Indica se la NC è maggiore o minore."})
+
+
+class AuditIsmsRequisito(_RilievoIsms):
+    """Riga della tabella «ISO 27001:2022 - Evidenze e rilievi» del MOD.168."""
+
+    audit = models.ForeignKey(Audit, on_delete=models.CASCADE, related_name="isms_requisiti")
+    codice = models.CharField(max_length=40)
+    titolo = models.CharField(max_length=255)
+    ordine = models.PositiveIntegerField(default=100)
+
+    class Meta:
+        ordering = ["ordine", "id"]
+        constraints = [models.UniqueConstraint(fields=["audit", "codice"], name="sg_isms_requisito_unico")]
+
+    def __str__(self) -> str:
+        return f"{self.codice} {self.titolo}"
+
+    @property
+    def riferimento(self) -> str:
+        return f"ISO/IEC 27001:2022 {self.codice}"
+
+
+class AuditIsmsControllo(_RilievoIsms):
+    """Riga della tabella dei 93 controlli ISO/IEC 27002:2022 del MOD.168 (applicazione 0-4)."""
+
+    audit = models.ForeignKey(Audit, on_delete=models.CASCADE, related_name="isms_controlli")
+    controllo = models.ForeignKey(ControlloIso27002, on_delete=models.PROTECT, related_name="audit_isms")
+    livello_soa = models.PositiveSmallIntegerField(choices=LIVELLO_ISMS_CHOICES, null=True, blank=True)
+    livello = models.PositiveSmallIntegerField("Applicazione controllo", choices=LIVELLO_ISMS_CHOICES, null=True, blank=True)
+
+    class Meta:
+        ordering = ["controllo__ordine", "id"]
+        constraints = [models.UniqueConstraint(fields=["audit", "controllo"], name="sg_isms_controllo_unico")]
+
+    def __str__(self) -> str:
+        return f"{self.audit.numero} {self.controllo.codice}"
+
+    @property
+    def riferimento(self) -> str:
+        return f"ISO/IEC 27002:2022 {self.controllo.codice}"
+
+    @property
+    def differisce_da_soa(self) -> bool:
+        return self.livello is not None and self.livello_soa is not None and self.livello != self.livello_soa
+
+
+
+# ---------------------------------------------------------------------------
+# Analisi del rischio del MOD.165 (Threat Risk, Threats vs Controls, OT Treatment Plan)
+# ---------------------------------------------------------------------------
+
+class RischioMinaccia(models.Model):
+    """Una minaccia del registro dei rischi: il rischio residuo si calcola dalle vulnerabilità della SoA.
+
+    Residuo = rischio inerente × vulnerabilità massima dei controlli collegati / 4 (come nel MOD.165).
+    """
+
+    revisione = models.ForeignKey(SoaRevisione, on_delete=models.CASCADE, related_name="minacce")
+    ordine = models.PositiveIntegerField(default=100)
+    gruppo = models.CharField("Gruppo", max_length=100, blank=True, default="")
+    agente = models.CharField("Agente di minaccia", max_length=150, blank=True, default="")
+    minaccia = models.CharField("Minaccia", max_length=255)
+    rischio_inerente = models.PositiveSmallIntegerField("Rischio inerente", null=True, blank=True)
+    controlli = models.ManyToManyField(ControlloIso27002, blank=True, related_name="minacce_rischio")
+    residuo_registrato = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Rischio residuo letto dal MOD.165 all'import, per confronto.",
+    )
+    note = models.TextField(blank=True, default="")
+    aggiornata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ordine", "id"]
+        verbose_name = "Minaccia (analisi del rischio)"
+        verbose_name_plural = "Minacce (analisi del rischio)"
+
+    def __str__(self) -> str:
+        return self.minaccia
+
+
+class ScenarioRischioOT(models.Model):
+    """Scenario del piano di trattamento OT (asset di produzione: CNC e macchine)."""
+
+    revisione = models.ForeignKey(SoaRevisione, on_delete=models.CASCADE, related_name="scenari_ot")
+    codice = models.CharField("ID", max_length=20)
+    scenario = models.TextField("Scenario di rischio OT")
+    minacce = models.TextField("Minacce collegate (RAR)", blank=True, default="")
+    controlli = models.ManyToManyField(ControlloIso27002, blank=True, related_name="scenari_ot")
+    misure = models.TextField("Misure esistenti", blank=True, default="")
+    rischio_inerente = models.PositiveSmallIntegerField("Rischio inerente", null=True, blank=True)
+    vulnerabilita_attesa = models.PositiveSmallIntegerField(
+        "Vulnerabilità residua attesa", choices=SoaVoce.VULNERABILITA_CHOICES, null=True, blank=True,
+    )
+    azioni = models.TextField("Azioni", blank=True, default="")
+    opzione = models.CharField("Opzione di trattamento", max_length=120, blank=True, default="")
+    responsabile = models.CharField("Responsabile", max_length=150, blank=True, default="")
+    scadenza = models.DateField("Scadenza", null=True, blank=True)
+    stato = models.CharField("Stato", max_length=80, blank=True, default="")
+    riferimenti = models.TextField("Riferimenti", blank=True, default="")
+    aggiornato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["codice", "id"]
+        constraints = [models.UniqueConstraint(fields=["revisione", "codice"], name="sg_scenario_ot_unico")]
+        verbose_name = "Scenario di rischio OT"
+        verbose_name_plural = "Scenari di rischio OT"
+
+    def __str__(self) -> str:
+        return f"{self.codice} {self.scenario[:60]}"

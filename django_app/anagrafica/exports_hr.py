@@ -9,6 +9,7 @@ Copertura:
 - ``ratei``                  → `/anagrafica/ratei/`
 - ``retribuzioni_globale``   → `/anagrafica/retribuzioni/globale/`
 - ``costo_orario``           → `/anagrafica/retribuzioni/costo-orario/`
+- ``costo_orario_storico``   → `/anagrafica/retribuzioni/costo-orario/storico/`
 - ``visite_mediche`` / ``visite_mediche_copertura`` → `/anagrafica/visite-mediche/`
 
 Privacy/GDPR: ratei, retribuzioni e visite mediche sono dati sensibili. Oltre al
@@ -548,6 +549,68 @@ register(ExportSpec(
     dataset=_costo_orario_rows,
     filters_label=_costo_orario_filters,
     permission=_hr_gate("/anagrafica/retribuzioni/costo-orario/"),
+))
+
+
+# ── Storico del costo orario: una colonna per mese (`views_coefficienti._storico`) ──
+
+def _storico_request(request: HttpRequest, scope: str):
+    if scope == "full":
+        from types import SimpleNamespace
+
+        from django.http import QueryDict
+
+        from anagrafica.models import CostoOrarioMensile
+
+        mesi = list(CostoOrarioMensile.objects.order_by("mese").values_list("mese", flat=True).distinct())
+        q = QueryDict(mutable=True)
+        if mesi:
+            q["dal"], q["al"] = mesi[0].isoformat(), mesi[-1].isoformat()
+        return SimpleNamespace(GET=q)
+    return request
+
+
+def _costo_storico_columns(request: HttpRequest) -> list[tuple[str, str]]:
+    from anagrafica.views_coefficienti import _storico
+
+    scope = request.GET.get("scope") or "filtered"
+    mesi = _storico(_storico_request(request, scope))["mesi"]
+    return ([("Dipendente", "dipendente"), ("Reparto", "reparto")]
+            + [(m.strftime("%m/%Y"), m.strftime("m%Y%m")) for m in mesi]
+            + [("Variazione (€)", "var"), ("Variazione (%)", "var_pct")])
+
+
+def _costo_storico_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.views_coefficienti import _storico
+
+    ctx = _storico(_storico_request(request, scope))
+    out = []
+    for r in ctx["righe"]:
+        riga = {"dipendente": r["nome"], "reparto": r["reparto"], "var": r["var"], "var_pct": r["var_pct"]}
+        for m, x in zip(ctx["mesi"], r["celle"]):
+            riga[m.strftime("m%Y%m")] = x["c"].costo_orario if x["c"] else None
+        out.append(riga)
+    return out
+
+
+def _costo_storico_filters(request: HttpRequest) -> str:
+    parts = []
+    for chiave, etichetta in (("dal", "Dal"), ("al", "Al"), ("reparto", "Reparto"), ("q", "Ricerca")):
+        valore = (request.GET.get(chiave) or "").strip()
+        if valore:
+            parts.append(f"{etichetta}: {valore}")
+    return " · ".join(parts)
+
+
+register(ExportSpec(
+    key="costo_orario_storico",
+    title="Storico del costo orario",
+    sheet_title="Storico costo orario",
+    columns=[("Dipendente", "dipendente"), ("Reparto", "reparto")],
+    columns_fn=_costo_storico_columns,
+    dataset=_costo_storico_rows,
+    filters_label=_costo_storico_filters,
+    permission=_hr_gate("/anagrafica/retribuzioni/costo-orario/storico/"),
 ))
 
 

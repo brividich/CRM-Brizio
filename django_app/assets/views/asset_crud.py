@@ -1024,6 +1024,18 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     # su TUTTO l'inventario: l'utente cerca un asset ovunque sia classificato,
     # anche se il suo tipo non e' di produzione (es. una macchina registrata con
     # tipo generico). Confinare la ricerca al gruppo nasconderebbe risultati.
+    # Asset non IT senza reparto di installazione: non rispondono a nessun caporeparto
+    # e li vede solo chi ha ambito «Tutti». ?senza_reparto=1 li elenca per completarli.
+    from ..services.responsabile_asset import TIPI_REPARTO
+
+    senza_reparto_qs = assets.filter(asset_type__in=sorted(TIPI_REPARTO), reparto="").exclude(
+        status=Asset.STATUS_RETIRED
+    )
+    senza_reparto_count = senza_reparto_qs.count()
+    senza_reparto = _clean_string(request.GET.get("senza_reparto")) == "1"
+    if senza_reparto:
+        assets = senza_reparto_qs
+
     production_group = _clean_string(request.GET.get("group")).lower() == "production"
     search_active = bool(_clean_string(request.GET.get("q")))
     if production_group:
@@ -1285,6 +1297,8 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             "in_repair_count": in_repair_count,
             "open_wo_count": open_wo_count,
             "visible_count": visible_count,
+            "senza_reparto_count": senza_reparto_count,
+            "senza_reparto": senza_reparto,
             "rows": rows,
             "rows_options": rows_options,
             "page_obj": page_obj,

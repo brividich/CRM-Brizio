@@ -25,6 +25,8 @@ from django.utils import timezone
 from core.audit import log_action
 
 from core.legacy_models import AnagraficaDipendente
+from ..registro_permessi import MODULO_MANUTENZIONE, MODULO_VERIFICHE
+from ..services.visibilita import filtra_per_asset
 from ..forms import (
     AssistanceContractForm,
     AssetAdministrativeDeadlineForm,
@@ -467,7 +469,7 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
             deadline_id = _as_int(request.POST.get("deadline_id"), default=0)
             target_legacy_user_id = _as_int(request.POST.get("target_legacy_user_id"), default=0)
             deadline = (
-                AssetAdministrativeDeadline.objects.select_related("asset", "component")
+                filtra_per_asset(request, AssetAdministrativeDeadline.objects.all(), MODULO_VERIFICHE).select_related("asset", "component")
                 .filter(pk=deadline_id)
                 .first()
             )
@@ -524,7 +526,7 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
                 return redirect(redirect_url)
             deadline_id = _as_int(request.POST.get("deadline_id"), default=0)
             deadline = (
-                AssetAdministrativeDeadline.objects.select_related("asset", "component")
+                filtra_per_asset(request, AssetAdministrativeDeadline.objects.all(), MODULO_VERIFICHE).select_related("asset", "component")
                 .filter(pk=deadline_id)
                 .first()
             )
@@ -701,7 +703,7 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
     family_label = _DEADLINE_FAMILY_LABELS.get(family_filter, "")
 
     deadline_qs = (
-        AssetAdministrativeDeadline.objects.select_related("asset", "component")
+        filtra_per_asset(request, AssetAdministrativeDeadline.objects.all(), MODULO_VERIFICHE).select_related("asset", "component")
         .order_by("due_date", "asset__name", "title", "id")
     )
     if selected_asset is not None:
@@ -1066,7 +1068,7 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
     edit_contract = None
     if edit_id:
         edit_contract = (
-            AssistanceContract.objects.select_related("supplier", "asset", "asset_category", "document")
+            filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_MANUTENZIONE).select_related("supplier", "asset", "asset_category", "document")
             .filter(pk=edit_id)
             .first()
         )
@@ -1093,7 +1095,7 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
             contract_id = _as_int(request.POST.get("contract_id"), default=0)
             target_legacy_user_id = _as_int(request.POST.get("target_legacy_user_id"), default=0)
             contract = (
-                AssistanceContract.objects.select_related("supplier", "asset", "asset_category", "document")
+                filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_MANUTENZIONE).select_related("supplier", "asset", "asset_category", "document")
                 .filter(pk=contract_id)
                 .first()
             )
@@ -1221,7 +1223,7 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
             )
 
     contract_rows: list[dict[str, object]] = []
-    contract_qs = AssistanceContract.objects.select_related("supplier", "asset", "asset_category", "document").order_by(
+    contract_qs = filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_MANUTENZIONE).select_related("supplier", "asset", "asset_category", "document").order_by(
         "-is_active",
         "end_date",
         "supplier__ragione_sociale",

@@ -6,6 +6,9 @@ from django.urls import path
 from . import guida
 from . import audit_views, views, processi_views, automation_views, programma_views, report_views, miei_rilievi_views
 from . import esterni_views
+from . import isms_views
+from . import checklist_views
+from . import rischio_views
 
 app_name = "sistema_gestione"
 
@@ -63,6 +66,12 @@ urlpatterns = [
     path("soa/rev/<int:numero>/approva/", views.soa_approva, name="soa_approva"),
     path("soa/rev/<int:numero>/copia-firmata/", views.soa_copia_firmata, name="soa_copia_firmata"),
     path("soa/rev/<int:numero>/copia-firmata/carica/", views.soa_carica_firmata, name="soa_carica_firmata"),
+    path("soa/rev/<int:numero>/rischi/", rischio_views.soa_rischi, name="soa_rischi"),
+    path("soa/rev/<int:numero>/rischi/soglia/", rischio_views.soa_rischio_soglia, name="soa_rischio_soglia"),
+    path("soa/rev/<int:numero>/rischi/minaccia/nuova/", rischio_views.soa_rischio_minaccia, name="soa_rischio_minaccia_nuova"),
+    path("soa/rev/<int:numero>/rischi/minaccia/<int:pk>/", rischio_views.soa_rischio_minaccia, name="soa_rischio_minaccia"),
+    path("soa/rev/<int:numero>/rischi/ot/nuovo/", rischio_views.soa_rischio_ot, name="soa_rischio_ot_nuovo"),
+    path("soa/rev/<int:numero>/rischi/ot/<int:pk>/", rischio_views.soa_rischio_ot, name="soa_rischio_ot"),
     path("threat-intelligence/", views.threat_intelligence, name="threat_intelligence"),
     path("threat-intelligence/nuova/", views.threat_intelligence_nuova, name="threat_intelligence_nuova"),
     path("audit/", audit_views.audit_index, name="audit_index"),
@@ -104,6 +113,16 @@ urlpatterns = [
     path("audit/<int:pk>/rapporto/riapri/", audit_views.audit_riapri_rapporto, name="audit_riapri_rapporto"),
     path("audit/<int:pk>/rapporto/convalida-ente/", audit_views.audit_convalida_ente, name="audit_convalida_ente"),
     path("audit/<int:pk>/rapporto/valuta-rdd/", audit_views.audit_valuta_rdd, name="audit_valuta_rdd"),
+    path("audit/checklist/", checklist_views.checklist_norme, name="checklist_norme"),
+    path("audit/checklist/proponi/<str:codice>/", checklist_views.checklist_proponi, name="checklist_proponi"),
+    path("audit/checklist/<int:pk>/", checklist_views.checklist_modello, name="checklist_modello"),
+    path("audit/checklist/<int:pk>/revisione/", checklist_views.checklist_revisione, name="checklist_revisione"),
+    path("audit/<int:pk>/isms/", isms_views.audit_isms, name="audit_isms"),
+    path("audit/<int:pk>/isms/piano/", isms_views.audit_isms_piano, name="audit_isms_piano"),
+    path("audit/<int:pk>/isms/testata/", isms_views.audit_isms_testata, name="audit_isms_testata"),
+    path("audit/<int:pk>/isms/requisito/<int:riga_pk>/", isms_views.audit_isms_requisito, name="audit_isms_requisito"),
+    path("audit/<int:pk>/isms/controllo/<int:riga_pk>/", isms_views.audit_isms_controllo, name="audit_isms_controllo"),
+    path("audit/<int:pk>/isms/proponi-soa/", isms_views.audit_isms_proponi_soa, name="audit_isms_proponi_soa"),
     path("audit/<int:pk>/<str:documento>/pdf/", audit_views.audit_export, name="audit_export"),
     path("audit/<int:pk>/<str:documento>/copia-firmata/carica/", audit_views.audit_carica_firmata, name="audit_carica_firmata"),
     path("audit/<int:pk>/<str:documento>/copia-firmata/", audit_views.audit_copia_firmata, name="audit_copia_firmata"),

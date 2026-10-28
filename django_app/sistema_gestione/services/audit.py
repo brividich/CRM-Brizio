@@ -227,6 +227,10 @@ def prepara_nuovo_audit(audit: Audit, *, cella: CellaProgramma | None = None, nu
     if nuovo:
         _proponi_persone_e_agenda(audit)
     inizializza_checklist(audit)
+    if audit.is_isms:
+        from .audit_isms import assicura_isms
+
+        assicura_isms(audit)
     return audit
 
 
@@ -316,16 +320,20 @@ def modello_en9100_attivo() -> ChecklistModello | None:
 def inizializza_checklist(audit: Audit) -> int:
     from .audit_automation import genera_checklist_processi
     nuovi_processi = genera_checklist_processi(audit) + genera_domande_followup(audit)
-    if not audit.en9100:
-        return nuovi_processi
-    modello = modello_en9100_attivo()
-    if not modello:
-        return nuovi_processi
+    # Una checklist per ogni norma spuntata che ne ha una revisione attiva (EN 9100, ISO 45001, PdR 125).
+    from .checklist_norme import modelli_per_audit
+
     create = []
-    for sezione in modello.sezioni.prefetch_related("domande"):
-        AuditSezioneCar.objects.get_or_create(audit=audit, sezione=sezione)
-        for domanda in sezione.domande.filter(attiva=True):
-            create.append(AuditEsito(audit=audit, domanda=domanda, strutturato=True, domanda_snapshot={"domanda": domanda.testo, "punti": domanda.punti, "revisione": modello.revisione, "criterio": sezione.criteri}))
+    for modello in modelli_per_audit(audit):
+        for sezione in modello.sezioni.prefetch_related("domande"):
+            AuditSezioneCar.objects.get_or_create(audit=audit, sezione=sezione)
+            for domanda in sezione.domande.filter(attiva=True):
+                create.append(AuditEsito(audit=audit, domanda=domanda, strutturato=True, domanda_snapshot={
+                    "domanda": domanda.testo, "punti": domanda.punti, "revisione": modello.revisione,
+                    "criterio": sezione.criteri, "norma": modello.norma,
+                }))
+    if not create:
+        return nuovi_processi
     before = audit.esiti.count()
     AuditEsito.objects.bulk_create(create, ignore_conflicts=True)
     return audit.esiti.count() - before + nuovi_processi
@@ -507,7 +515,18 @@ def contatori_rilievi(audit: Audit) -> dict[str, int]:
         conformi=Count("pk", filter=Q(esito=AuditEsito.ESITO_CONFORME)),
         na=Count("pk", filter=Q(esito=AuditEsito.ESITO_NA)),
     )
-    return {k: v or 0 for k, v in c.items()}
+    c = {k: v or 0 for k, v in c.items()}
+    if audit.is_isms:
+        # MOD.168: NC come NC, AP come OFI (entrambe nel MOD.174), COM come osservazioni.
+        from .audit_isms import contatori_isms
+
+        isms = contatori_isms(audit)
+        c["nc"] += isms["nc"]
+        c["nc_maggiori"] += isms["nc_maggiori"]
+        c["nc_minori"] += isms["nc_minori"]
+        c["ofi"] += isms["ap"]
+        c["osservazioni"] += isms["com"]
+    return c
 
 
 def chiusura_richiede_car_approvate() -> bool:
@@ -533,6 +552,10 @@ def problemi_chiusura_audit(audit: Audit) -> list[str]:
             problemi.append(f"{esito.clausola_effettiva}: apri la CAR della NC n. {esito.ofi.numero}.")
         elif not car.approvata_il:
             problemi.append(f"{esito.clausola_effettiva}: il piano azioni della NC n. {esito.ofi.numero} non è ancora approvato.")
+    if audit.is_isms:
+        from .audit_isms import problemi_chiusura_isms
+
+        problemi += problemi_chiusura_isms(audit)
     return problemi
 
 
@@ -584,7 +607,7 @@ def verifica_completezza(audit: Audit) -> dict:
     esiti = list(audit.esiti.prefetch_related("allegati"))
     from .audit_automation import problemi_esito
     completi = sum(not problemi_esito(e) for e in esiti)
-    manca(rapporto, not esiti, "Carica una checklist prima di firmare il rapporto.", "checklist")
+    manca(rapporto, not esiti and not audit.is_isms, "Carica una checklist prima di firmare il rapporto.", "checklist")
     for esito in esiti:
         if esito.strutturato:
             for problema in problemi_esito(esito):
@@ -594,9 +617,19 @@ def verifica_completezza(audit: Audit) -> dict:
               f"{esito.punti}: registra evidenze o motivazione N/A.", f"esito-{esito.pk}")
         manca(rapporto, esito.esito in {AuditEsito.ESITO_NC, AuditEsito.ESITO_OFI} and not esito.ofi_id,
               f"{esito.punti}: manca il collegamento al Registro OFI.", f"esito-{esito.pk}")
+    totale = len(esiti)
+    if audit.is_isms:
+        from .audit_isms import problemi_rapporto_isms
+
+        problemi_isms = problemi_rapporto_isms(audit)
+        rapporto.extend(problemi_isms)
+        righe_isms = audit.isms_requisiti.count() + audit.isms_controlli.count()
+        incomplete = {p["sezione"] for p in problemi_isms if p["sezione"].startswith(("isms-req-", "isms-ctrl-"))}
+        totale += righe_isms
+        completi += max(righe_isms - len(incomplete), 0)
     manca(rapporto, not audit.giudizio.strip(), "Scrivi il giudizio conclusivo del rapporto.", "rapporto")
-    return {"piano": piano, "rapporto": rapporto, "completi": completi, "totale": len(esiti),
-            "percentuale": round(100 * completi / len(esiti)) if esiti else 0,
+    return {"piano": piano, "rapporto": rapporto, "completi": completi, "totale": totale,
+            "percentuale": round(100 * completi / totale) if totale else 0,
             "chiusura": problemi_chiusura_audit(audit) if audit.stato == Audit.STATO_RAPPORTO else []}
 
 
@@ -691,6 +724,7 @@ def distribuisci_rapporto(audit: Audit) -> None:
         destinatari.add(msm)
     if not destinatari:
         return
+    conteggi = contatori_rilievi(audit)
     try:
         from core.email_utils import send_hub_mail
 
@@ -698,8 +732,7 @@ def distribuisci_rapporto(audit: Audit) -> None:
             subject=f"Rapporto audit {audit.numero} chiuso",
             body_text=(
                 f"Il rapporto dell'audit {audit.numero} è stato chiuso e valutato.\n"
-                f"OFI: {audit.esiti.filter(esito=AuditEsito.ESITO_OFI).count()} - "
-                f"NC: {audit.esiti.filter(esito=AuditEsito.ESITO_NC).count()}.\n"
+                f"OFI: {conteggi['ofi']} - NC: {conteggi['nc']}.\n"
                 "I rilievi che ti riguardano sono nel portale: Sistema di gestione › Audit › I miei rilievi "
                 "(/sistema-gestione/audit/miei-rilievi/)."
             ),

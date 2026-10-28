@@ -19,6 +19,7 @@ from schede_sicurezza.models import ProdottoChimico
 
 from .maintenance import build_workorder_prefill_payload, get_applicable_assistance_contracts, resolve_asset_maintenance_rules
 from .upload_rules import clean_image_upload
+from .models import IT_DEVICE_TYPES as _IT_DEVICE_TYPES
 from .models import (
     Asset,
     AssetEndpoint,
@@ -75,6 +76,18 @@ def _attach_input_css(form: forms.Form | forms.ModelForm) -> None:
         widget = field.widget
         css = widget.attrs.get("class", "")
         widget.attrs["class"] = f"{css} input".strip()
+
+
+MESSAGGIO_REPARTO_OBBLIGATORIO = (
+    "Indica il reparto di installazione: per un asset non IT decide chi ne risponde "
+    "(il caporeparto) e chi ne vede manutenzioni, ordini di lavoro e verifiche."
+)
+
+
+def _richiedi_reparto(form, cleaned_data, *, non_it: bool) -> None:
+    """Asset non IT senza reparto di installazione: errore sul campo «Reparto»."""
+    if non_it and not str(cleaned_data.get("reparto") or "").strip():
+        form.add_error("reparto", MESSAGGIO_REPARTO_OBBLIGATORIO)
 
 
 class AssetAssignmentChooserMixin(forms.Form):
@@ -682,6 +695,11 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             self.add_error("asset_category", "Per questa categoria usa il form Macchine di lavoro.")
         elif selected_category and selected_category.base_asset_type == Asset.TYPE_CHEMICAL:
             self.add_error("asset_category", "Per questa categoria usa Schede di sicurezza (o \"+ Nuovo prodotto chimico\").")
+        e_it = (
+            (selected_category is not None and selected_category.pk in self.it_network_category_ids)
+            or (self.instance.pk and self.instance.asset_type in IT_DEVICE_TYPES)
+        )
+        _richiedi_reparto(self, cleaned_data, non_it=not e_it)
         return self._validate_category_fields(cleaned_data)
 
 
@@ -781,17 +799,7 @@ class WorkMachineFilterForm(forms.Form):
 # Tipi che popolano la pagina "Dispositivi IT". TYPE_OTHER e' escluso di
 # proposito: gli asset generici/di impianto (es. bruciatori) non sono IT e non
 # devono comparire qui. Per l'hardware IT generico usare TYPE_HW ("Dispositivo").
-IT_DEVICE_TYPES = [
-    Asset.TYPE_PC,
-    Asset.TYPE_NOTEBOOK,
-    Asset.TYPE_SERVER,
-    Asset.TYPE_VM,
-    Asset.TYPE_FIREWALL,
-    Asset.TYPE_STAMPANTE,
-    Asset.TYPE_HW,
-    Asset.TYPE_FONIA,
-    Asset.TYPE_CCTV,
-]
+IT_DEVICE_TYPES = _IT_DEVICE_TYPES
 
 PRODUCTION_ASSET_TYPES = [
     Asset.TYPE_CNC,
@@ -1904,6 +1912,7 @@ class WorkMachineAssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin,
         selected_category = cleaned_data.get("asset_category")
         if selected_category and selected_category.base_asset_type != Asset.TYPE_WORK_MACHINE:
             self.add_error("asset_category", "Questa categoria non appartiene alle macchine di lavoro.")
+        _richiedi_reparto(self, cleaned_data, non_it=True)
         for field_name, meta in self.document_field_map.items():
             category = meta[0]
             cleaned_data[field_name] = json.dumps(
@@ -3175,13 +3184,17 @@ class WorkOrderForm(forms.ModelForm):
 
 
 class WorkOrderCloseForm(forms.Form):
+    # Lo stato non si chiede piu' a parte: lo decide l'esito (``ESITO_CANCELED``
+    # annulla). Resta nel POST per compatibilita' con chi lo manda esplicito.
     status = forms.ChoiceField(
         choices=[
             (WorkOrder.STATUS_DONE, "Chiusa"),
             (WorkOrder.STATUS_CANCELED, "Annullata"),
         ],
         initial=WorkOrder.STATUS_DONE,
+        required=False,
         label="Esito finale",
+        widget=forms.HiddenInput(),
     )
     closed_at = forms.DateTimeField(
         required=False,
@@ -3189,10 +3202,11 @@ class WorkOrderCloseForm(forms.Form):
         input_formats=["%Y-%m-%dT%H:%M"],
         widget=forms.DateTimeInput(format="%Y-%m-%dT%H:%M", attrs={"type": "datetime-local"}),
     )
+    ESITO_CANCELED = "CANCELED"
     esito = forms.ChoiceField(
-        choices=WorkOrder.OUTCOME_CHOICES,
+        choices=list(WorkOrder.OUTCOME_CHOICES) + [(ESITO_CANCELED, "Non eseguito, annulla l'intervento")],
         required=False,
-        label="Esito",
+        label="Com'è andata?",
         widget=forms.RadioSelect,
     )
     follow_up_date = forms.DateField(
@@ -3201,7 +3215,9 @@ class WorkOrderCloseForm(forms.Form):
         widget=forms.DateInput(format="%Y-%m-%d", attrs={"type": "date"}),
     )
     execution_days = forms.CharField(required=False, widget=forms.HiddenInput())
-    resolution = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 4}), label="Risoluzione")
+    resolution = forms.CharField(
+        required=False, widget=forms.Textarea(attrs={"rows": 4}), label="Cosa è stato fatto"
+    )
     failure_cause = forms.ChoiceField(
         choices=[("", "Non specificata")] + list(WorkOrder.FAILURE_CAUSE_CHOICES),
         required=False,
@@ -3264,7 +3280,7 @@ class WorkOrderCloseForm(forms.Form):
             )
             self.fields["resolve_ticket"].help_text = (
                 "Vale solo con esito «Risolto». Con «Risolto temporaneamente» o «Non risolto» "
-                "la segnalazione resta com'e'."
+                "la segnalazione resta com'è."
             )
         # Codici guasto: globali + categoria dell'asset e sue antenate.
         from .models import FailureCode
@@ -3312,7 +3328,7 @@ class WorkOrderCloseForm(forms.Form):
         else:
             self.fields["claim_on_close"].help_text = (
                 "L'intervento non risulta assegnato a nessuno: chiudendolo diventa tuo, "
-                "cosi' lo storico dice chi ci e' andato. Togli la spunta se stai "
+                "così lo storico dice chi ci è andato. Togli la spunta se stai "
                 "registrando il lavoro di un altro."
             )
         self.fields["cost_eur"].help_text = "Opzionale: se compilato sostituisce la somma manodopera + materiali."
@@ -3339,10 +3355,14 @@ class WorkOrderCloseForm(forms.Form):
 
     def clean(self):
         cleaned_data = super().clean()
-        status = cleaned_data.get("status")
+        if cleaned_data.get("esito") == self.ESITO_CANCELED:
+            cleaned_data["status"] = WorkOrder.STATUS_CANCELED
+            cleaned_data["esito"] = ""
+        status = cleaned_data.get("status") or WorkOrder.STATUS_DONE
+        cleaned_data["status"] = status
         resolution = (cleaned_data.get("resolution") or "").strip()
         if status == WorkOrder.STATUS_DONE and not resolution:
-            self.add_error("resolution", "Descrivi la risoluzione prima di chiudere l'intervento.")
+            self.add_error("resolution", "Scrivi cosa è stato fatto prima di chiudere l'intervento.")
 
         closed_at = cleaned_data.get("closed_at") or timezone.now()
         cleaned_data["closed_at"] = closed_at

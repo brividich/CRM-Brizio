@@ -267,6 +267,20 @@
       background: #ecfdf5;
       color: #166534;
     }
+    .nav-builder .visual-badge.warn {
+      background: #fef3c7;
+      border-color: #fcd34d;
+      color: #92400e;
+    }
+    .nav-builder .nav-perm-note {
+      display: block;
+      margin-top: 3px;
+      font-size: 11px;
+      line-height: 1.35;
+      color: #92400e;
+      white-space: normal;
+      max-width: 260px;
+    }
     .nav-builder .visual-badge.off {
       border-color: #fecaca;
       background: #fef2f2;
@@ -381,7 +395,7 @@
     body.theme-dark .nav-builder .visual-card-meta {
       color: var(--text-mid);
     }
-    body.theme-dark .nav-builder .visual-badge:not(.ok):not(.off) {
+    body.theme-dark .nav-builder .visual-badge:not(.ok):not(.off):not(.warn) {
       border-color: var(--border);
       background: var(--surface-alt, #17222f);
       color: var(--text);
@@ -528,6 +542,8 @@ body.theme-dark .nav-builder .visual-lane-head{border-color:var(--border)}
 body.theme-dark .nav-builder .visual-badge{background:var(--surface-alt,#0f1b2d);color:var(--text)}
 body.theme-dark .nav-builder .visual-badge.ok{background:rgba(56,161,105,.18);color:#86efac}
 body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .nav-builder .visual-badge.warn{background:rgba(217,119,6,.18);border-color:rgba(217,119,6,.45);color:#fcd34d}
+body.theme-dark .nav-builder .nav-perm-note{color:#fcd34d}
 </style>
 {% endblock %}
 
@@ -537,8 +553,32 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
 
 {% block content %}
   <div class="nav-builder" data-advanced="{% if advanced_mode %}1{% else %}0{% endif %}">
-    {% include "admin_portale/components/page_header.html" with page_title="Navigation Builder" page_subtitle="Gestione centralizzata menu, ruoli e redirect legacy senza modificare codice. Le modifiche sono immediate; pubblica uno snapshot per salvarle definitivamente." %}
+    {% include "admin_portale/components/page_header.html" with page_title="Menu del portale · Strumenti avanzati" page_subtitle="Campi tecnici, snapshot, redirect legacy e import dal vecchio menu. Per l'uso di tutti i giorni torna a «Menu del portale»." %}
     {% include "admin_portale/components/flash_messages.html" %}
+
+    <div class="card" id="nav-permessi-stato">
+      <div class="card-body">
+        {% if ruoli_attivi %}
+          <div class="acl-notice">
+            <strong>Ruoli e permessi attivo.</strong> Una voce compare a chi può aprire la pagina a cui porta: decide il permesso della pagina.
+            Un permission code scritto sulla voce la restringe solo se protegge davvero qualche pagina, e allora servono entrambi.
+            I «Ruoli abilitati» della voce (ruoli storici) non contano più: una voce senza permesso la vedono solo gli amministratori.
+          </div>
+        {% else %}
+          <div class="acl-notice">
+            <strong>Ruoli e permessi spento:</strong> il menu segue le regole storiche (permission code della voce, poi quello della pagina, poi i ruoli abilitati).
+            I badge gialli dicono cosa cambia quando lo accendi.
+          </div>
+        {% endif %}
+        {% if perm_ignorati or perm_doppi or perm_assenti %}
+          <ul class="field-help" style="margin:8px 0 0 18px;">
+            {% if perm_ignorati %}<li><strong>{{ perm_ignorati }}</strong> voci hanno un permission code che non protegge nessuna pagina (residuo del vecchio menu): con i ruoli attivi vale quello della pagina. Il comando <code>riallinea_permessi_menu</code> lo toglie.</li>{% endif %}
+            {% if perm_doppi %}<li><strong>{{ perm_doppi }}</strong> voci hanno un permission code diverso da quello della pagina: con i ruoli attivi servono entrambi.</li>{% endif %}
+            {% if perm_assenti %}<li><strong>{{ perm_assenti }}</strong> voci visibili non hanno un permesso: con i ruoli attivi le vedono solo gli amministratori.</li>{% endif %}
+          </ul>
+        {% endif %}
+      </div>
+    </div>
 
     <div class="card">
       <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -570,6 +610,9 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
             Ruoli Legacy &nbsp;<span class="cell-muted" style="font-weight:normal;font-size:12px;">— tabella di riferimento ID ruoli per il campo «Ruoli abilitati»</span>
           </summary>
           <div style="margin-top: 10px;">
+            {% if ruoli_attivi %}
+              <p class="acl-notice" style="margin-bottom:8px;">Con «Ruoli e permessi» attivo questi ruoli non decidono più il menu: servono solo se il sistema viene spento.</p>
+            {% endif %}
             <p class="field-help" style="margin-bottom:8px;">
               Quando crei o modifichi una voce puoi limitarne la visibilità a specifici ruoli legacy.
               Usa gli <strong>ID numerici</strong> mostrati qui sotto. Se non selezioni nessun ruolo, la voce è visibile a tutti.
@@ -686,6 +729,7 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
             </select>
             <div class="field-help">
               Usato solo come fallback per voci ancora senza permission code canonico. Nessuna selezione = nessun fallback esplicito.
+              {% if ruoli_attivi %}<strong>Con «Ruoli e permessi» attivo è ignorato.</strong>{% endif %}
             </div>
           </div>
 
@@ -781,6 +825,7 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
                       {% if row.required_permission_code %}
                         <div>perm: <code>{{ row.required_permission_code }}</code></div>
                       {% endif %}
+                      {% include "admin_portale/components/nav_perm_note.html" %}
                       {% if row.section == "subnav" and row.parent_code %}
                         <div>gruppo: <code>{{ row.parent_code }}</code></div>
                       {% endif %}
@@ -792,9 +837,18 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
                       <span class="visual-badge {% if row.is_enabled %}ok{% else %}off{% endif %}">
                         {% if row.is_enabled %}Enabled{% else %}Disabled{% endif %}
                       </span>
-                      <span class="visual-badge">
-                        {% if row.role_ids %}Fallback ruoli {{ row.role_ids|length }}{% else %}Fallback legacy: no{% endif %}
-                      </span>
+                      {% if row.perm_stato == "esplicito_ignorato" %}
+                        <span class="visual-badge warn" title="Il permission code della voce non protegge nessuna pagina">Permesso vecchio</span>
+                      {% elif row.perm_stato == "esplicito_e_pagina" %}
+                        <span class="visual-badge warn" title="Permesso della voce diverso da quello della pagina">Voce + pagina</span>
+                      {% elif row.perm_stato == "assente" and row.section != "admin_subnav" %}
+                        <span class="visual-badge warn" title="Nessun permesso: con i ruoli attivi la vedono solo gli amministratori">Senza permesso</span>
+                      {% endif %}
+                      {% if not ruoli_attivi %}
+                        <span class="visual-badge">
+                          {% if row.role_ids %}Fallback ruoli {{ row.role_ids|length }}{% else %}Fallback legacy: no{% endif %}
+                        </span>
+                      {% endif %}
                     </div>
                     <div class="visual-card-actions">
                       <button class="btn btn-secondary btn-sm nav-focus-row" type="button" data-id="{{ row.id }}" title="Apri in tabella">Apri</button>
@@ -847,7 +901,7 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
           </div>
           <div class="field field-actions">
             <button class="btn" type="submit">Filtra</button>
-            <a class="btn btn-secondary" href="{% url 'admin_portale:navigation_builder' %}">Reset</a>
+            <a class="btn btn-secondary" href="{% url 'admin_portale:navigation_builder_avanzato' %}">Reset</a>
           </div>
         </form>
 
@@ -924,10 +978,13 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
                            title="Route Django — digita o scegli dalla lista">
                   </td>
                   <td><input class="input input-sm" type="text" data-name="url_path" value="{{ row.url_path }}" title="URL path"></td>
-                  <td><input class="input input-sm" type="text" data-name="required_permission_code" value="{{ row.required_permission_code }}" title="Permission code richiesto"></td>
+                  <td>
+                    <input class="input input-sm" type="text" data-name="required_permission_code" value="{{ row.required_permission_code }}" title="Permission code richiesto">
+                    {% include "admin_portale/components/nav_perm_note.html" %}
+                  </td>
                   <td>
                     <select class="input input-sm" data-name="role_ids_csv" multiple size="3"
-                            title="Fallback legacy per voci senza permission code canonico.">
+                            title="{% if ruoli_attivi %}Ignorato con «Ruoli e permessi» attivo.{% else %}Fallback legacy per voci senza permission code canonico.{% endif %}"{% if ruoli_attivi %} style="opacity:.55;"{% endif %}>
                       {% for r in ruoli %}
                         <option value="{{ r.id }}">{{ r.nome }}</option>
                       {% endfor %}
@@ -1090,7 +1147,7 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
 
     {# ─── OVERRIDE NAVIGAZIONE PER UTENTE ─── #}
     <div class="card" id="nav-user-override-card">
-      {% include "admin_portale/components/card_head.html" with card_title="Override Navigazione Utente" card_subtitle="Override hide-only per singolo utente: puoi solo nascondere una voce già consentita dal ruolo canonico." %}
+      {% include "admin_portale/components/card_head.html" with card_title="Override Navigazione Utente" card_subtitle="Override hide-only per singolo utente: puoi solo nascondere una voce. «eredita ✓/—» è calcolato come per le pagine: ruoli del portale, organigramma, ruolo base ed eccezioni della persona." %}
       <div class="card-body">
 
         <form method="get" class="admin-form-grid" style="margin-bottom:0;" id="nav-ov-user-form-nb">
@@ -1142,7 +1199,7 @@ body.theme-dark .nav-builder .visual-badge.off{background:rgba(229,62,62,.16);co
                       data-item-id="{{ row.item_id }}"
                       data-state="{{ row.state }}"
                       data-role="{{ row.role_allowed|yesno:'1,0,' }}"
-                      title="Clicca: eredita → NASCONDI → eredita">
+                      title="{{ row.reason }} — Clicca: eredita → NASCONDI → eredita">
                       {% if row.state == 'ov-hide' %}NASCONDI
                       {% elif row.state == 'role-show' %}eredita ✓
                       {% else %}eredita —

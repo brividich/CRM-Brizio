@@ -21,6 +21,8 @@ from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 
+from ..registro_permessi import MODULO_INVENTARIO, MODULO_MANUTENZIONE
+from .visibilita import filtra_odl, filtra_per_asset, filtra_piani
 from ..models import (
     Asset,
     AssetDocument,
@@ -172,7 +174,7 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
     # --- Piani di manutenzione --------------------------------------------
     plan_list = reverse("assets:maintenance_plan_list")
     if _allows(request, plan_list):
-        qs = MaintenanceInterventionTemplate.objects.filter(
+        qs = filtra_piani(request, MaintenanceInterventionTemplate.objects.all()).filter(
             Q(label__icontains=term) | Q(code__icontains=term) | Q(description__icontains=term)
         ).select_related("asset_category").order_by("label", "id")
         groups.append(_group(
@@ -194,7 +196,10 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
         from .deadline_feed import exclude_mirror_occurrences
 
         open_occ = (
-            exclude_mirror_occurrences(MaintenanceOccurrence.objects.filter(status=MaintenanceOccurrence.STATUS_OPEN))
+            exclude_mirror_occurrences(
+                filtra_per_asset(request, MaintenanceOccurrence.objects.all(), MODULO_MANUTENZIONE)
+                .filter(status=MaintenanceOccurrence.STATUS_OPEN)
+            )
             .filter(Q(plan__label__icontains=term) | _asset_q(term) | Q(asset__reparto__icontains=term))
             .select_related("plan", "asset")
             .order_by("due_date", "id")
@@ -257,7 +262,7 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
         )
         if term.lstrip("#").isdigit():
             wo_q |= Q(pk=int(term.lstrip("#")))
-        qs = WorkOrder.objects.filter(wo_q).select_related("asset", "assigned_to").order_by("-opened_at", "-id")
+        qs = filtra_odl(request, WorkOrder.objects.all()).filter(wo_q).select_related("asset", "assigned_to").order_by("-opened_at", "-id")
 
         def wo_hit(wo):
             if wo.status == WorkOrder.STATUS_OPEN:
@@ -314,7 +319,8 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
     history = reverse("assets:maintenance_history")
     if _allows(request, history):
         qs = (
-            MaintenanceOccurrence.objects.filter(status=MaintenanceOccurrence.STATUS_DONE)
+            filtra_per_asset(request, MaintenanceOccurrence.objects.all(), MODULO_MANUTENZIONE)
+            .filter(status=MaintenanceOccurrence.STATUS_DONE)
             .filter(Q(plan__label__icontains=term) | _asset_q(term) | Q(completion_notes__icontains=term))
             .select_related("plan", "asset")
             .order_by("-completed_on", "-id")
@@ -334,7 +340,7 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
     contracts = reverse("assets:assistance_contract_list")
     if _allows(request, contracts):
         qs = (
-            AssistanceContract.objects.filter(
+            filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_MANUTENZIONE).filter(
                 Q(title__icontains=term) | Q(code__icontains=term) | Q(notes__icontains=term)
                 | Q(supplier__ragione_sociale__icontains=term) | _asset_q(term)
             )
@@ -358,7 +364,7 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
     licenses = reverse("assets:software_license_list")
     if _allows(request, licenses):
         qs = (
-            SoftwareLicense.objects.filter(
+            filtra_per_asset(request, SoftwareLicense.objects.all(), MODULO_INVENTARIO).filter(
                 Q(product_name__icontains=term) | Q(vendor__icontains=term) | Q(edition__icontains=term)
                 | Q(license_reference__icontains=term) | _asset_q(term)
             )
@@ -379,7 +385,7 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
     # --- Documenti degli asset ----------------------------------------------
     if _allows(request, asset_list):
         qs = (
-            AssetDocument.objects.filter(
+            filtra_per_asset(request, AssetDocument.objects.all(), MODULO_INVENTARIO).filter(
                 Q(original_name__icontains=term) | Q(notes__icontains=term) | _asset_q(term)
             )
             .select_related("asset")

@@ -1,0 +1,24 @@
+<tr id="isms-{{ tipo }}-{{ riga.pk }}" class="sg-isms-riga{% if riga.rilievo %} has-rilievo{% endif %}">
+  <th scope="row">{% if tipo == 'ctrl' %}<strong>{{ riga.controllo.codice }}</strong><br><span class="sg-muted">{{ riga.controllo.titolo }}</span>{% else %}<strong>{{ riga.codice }}</strong><br><span class="sg-muted">{{ riga.titolo }}</span>{% endif %}</th>
+  {% if tipo == 'ctrl' %}<td class="sg-isms-livello">{% if riga.livello_soa is not None %}<span class="sg-level l{{ riga.livello_soa }}" title="Livello nella SoA">{{ riga.livello_soa }}</span>{% else %}<span class="sg-muted">—</span>{% endif %}</td>{% endif %}
+  <td>
+    {% if puo_compilare %}
+    <form method="post" action="{% if tipo == 'ctrl' %}{% url 'sistema_gestione:audit_isms_controllo' audit.pk riga.pk %}{% else %}{% url 'sistema_gestione:audit_isms_requisito' audit.pk riga.pk %}{% endif %}" hx-post="{% if tipo == 'ctrl' %}{% url 'sistema_gestione:audit_isms_controllo' audit.pk riga.pk %}{% else %}{% url 'sistema_gestione:audit_isms_requisito' audit.pk riga.pk %}{% endif %}" hx-target="#isms-{{ tipo }}-{{ riga.pk }}" hx-swap="outerHTML" class="sg-isms-form">
+      {% csrf_token %}
+      <div class="sg-isms-campi">
+        {% if tipo == 'ctrl' %}<label>Applicazione (0-4){{ form.livello }}</label>{% endif %}
+        <label>Rilievo{{ form.rilievo }}</label>
+        <label>Gravità NC{{ form.gravita }}</label>
+      </div>
+      <label class="sg-isms-evidenze">{% if tipo == 'ctrl' %}Commento / note{% else %}Evidenze e rilievi{% endif %}{{ form.evidenze }}</label>
+      {% for field in form %}{% for error in field.errors %}<p class="sg-isms-errore" role="alert">{{ error }}</p>{% endfor %}{% endfor %}
+      {% if errore %}<p class="sg-isms-errore" role="alert">{{ errore }}</p>{% endif %}
+      <div class="sg-actions"><button class="btn btn-secondary" type="submit">Salva</button>{% if salvato %}<span class="sg-badge ok" role="status">Salvato</span>{% endif %}{% if riga.differisce_da_soa %}<span class="sg-badge warn">Diverso dalla SoA</span>{% endif %}{% if riga.ofi_id %}<a class="sg-badge" href="{% url 'registro_ofi:dettaglio' riga.ofi_id %}">MOD.174 n. {{ riga.ofi.numero }}</a>{% endif %}</div>
+    </form>
+    {% else %}
+      {% if tipo == 'ctrl' %}<p><strong>Applicazione:</strong> {% if riga.livello is not None %}{{ riga.livello }}{% else %}da valutare{% endif %}{% if riga.differisce_da_soa %} <span class="sg-badge warn">Diverso dalla SoA</span>{% endif %}</p>{% endif %}
+      {% if riga.rilievo %}<p><span class="sg-badge {% if riga.rilievo == 'NC' %}danger{% else %}warn{% endif %}">{{ riga.get_rilievo_display }}{% if riga.gravita %} · {{ riga.get_gravita_display }}{% endif %}</span>{% if riga.ofi_id %} <a href="{% url 'registro_ofi:dettaglio' riga.ofi_id %}">MOD.174 n. {{ riga.ofi.numero }}</a>{% endif %}</p>{% endif %}
+      <p>{{ riga.evidenze|default:"—"|linebreaksbr }}</p>
+    {% endif %}
+  </td>
+</tr>

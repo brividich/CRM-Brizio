@@ -94,7 +94,7 @@ def persone(mansione: CompetenzaSkm) -> list[dict]:
     from core.legacy_anagrafica import fetch_anagrafica_rows
 
     soglia = SkillMatrixConfig.get_instance().soglia_operativa_ordinale
-    abil = list(AbilitazioneMacchina.objects.filter(competenza=mansione, in_lista=True))
+    abil = list(AbilitazioneMacchina.objects.filter(competenza=mansione, in_lista=True).prefetch_related("voci"))
     nomi = {int(r["id"]): naming.nome_completo(r.get("nome"), r.get("cognome"))
             for r in fetch_anagrafica_rows(ids=[a.legacy_anagrafica_id for a in abil])} if abil else {}
     out = [{
@@ -156,12 +156,75 @@ def assegna(mansione: CompetenzaSkm, *, legacy_anagrafica_id: int, livello: str,
     if ab.data_assegnazione is None:
         ab.data_assegnazione = oggi
     ab.save()
+    nota = "Mansionario: assegnazione"
+    calcolato = _livello_da_competenze(ab, livello, user=user)
+    if calcolato and calcolato != ab.livello:
+        AbilitazioneMacchina.objects.filter(pk=ab.pk).update(livello=calcolato)
+        ab.livello = calcolato
+        nota += f" (partenza {livello} → {calcolato}: regole delle competenze)"
     AbilitazioneMacchinaStorico.objects.create(
         legacy_anagrafica_id=legacy_anagrafica_id, asset_id=mansione.asset_id, competenza=mansione,
-        livello=livello, data_rilevazione=oggi, fonte=AbilitazioneMacchinaStorico.FONTE_MANUALE,
-        note="Mansionario: assegnazione",
+        livello=ab.livello, data_rilevazione=oggi, fonte=AbilitazioneMacchinaStorico.FONTE_MANUALE,
+        note=nota,
     )
     return ab
+
+
+def _livello_da_competenze(ab: AbilitazioneMacchina, livello: str, *, user=None) -> str:
+    """Sulle mansioni con competenze il livello sulla mansione lo decide il calcolo.
+
+    Con competenze già valutate vale il livello calcolato; chi è ancora «da
+    valutare» tiene il livello di partenza, ma se non è abilitato (requisito
+    mancante, competenza bloccante) scende sotto la soglia operativa. Stessa
+    regola del ricalcolo automatico. '' = niente da cambiare.
+    """
+    from . import mansionario_competenze as comp
+    from .competenze_ricalcolo import livello_atteso
+
+    voci = list(comp.competenze(ab.competenza))
+    if not voci:
+        return ""
+    config = SkillMatrixConfig.get_instance()
+    ab = AbilitazioneMacchina.objects.prefetch_related("voci").get(pk=ab.pk)
+    return livello_atteso(ab, comp.valuta(ab, voci=voci, config=config), config.soglia_operativa_ordinale)
+
+
+@transaction.atomic
+def cambia_livello(abilitazione: AbilitazioneMacchina, livello: str, *, user=None) -> str | None:
+    """Cambia a mano il livello di chi è in lista e lo storicizza (prima → dopo, chi).
+
+    Restituisce il livello di prima, ``None`` se non è cambiato niente. Sulle mansioni
+    con competenze definite il livello lo calcola «Valuta»: qui si rifiuta.
+    """
+    from ..models import VoceMacchinaCatalogo
+
+    livello = (livello or "").strip().upper()
+    if livello not in LIVELLI:
+        raise ValueError(f"Livello non valido: {livello!r}")
+    if not abilitazione.in_lista:
+        raise ValueError("La persona non è più in lista su questa mansione.")
+    if abilitazione.competenza_id and VoceMacchinaCatalogo.objects.filter(
+            mansione_id=abilitazione.competenza_id, attiva=True).exists():
+        raise ValueError("Questa mansione ha le competenze definite: il livello si cambia da «Valuta».")
+    prima = abilitazione.livello or ""
+    if prima == livello:
+        return None
+    abilitazione.livello = livello
+    abilitazione.save(update_fields=["livello", "updated_at"])
+    chi = (getattr(user, "username", "") or "").strip()
+    AbilitazioneMacchinaStorico.objects.create(
+        legacy_anagrafica_id=abilitazione.legacy_anagrafica_id, asset_id=abilitazione.asset_id,
+        competenza_id=abilitazione.competenza_id, livello=livello, data_rilevazione=timezone.localdate(),
+        fonte=AbilitazioneMacchinaStorico.FONTE_MANUALE,
+        note=f"Mansionario: livello {prima or '—'} → {livello}" + (f" ({chi})" if chi else ""),
+    )
+    return prima
+
+
+def storico_mansioni_persona(legacy_id: int, limit: int = 40) -> list[AbilitazioneMacchinaStorico]:
+    """Assegnazioni, cambi di livello e rimozioni della persona, dal più recente."""
+    return list(AbilitazioneMacchinaStorico.objects.filter(legacy_anagrafica_id=legacy_id, competenza__isnull=False)
+                .select_related("competenza").order_by("-registrato_il", "-id")[:limit])
 
 
 @transaction.atomic

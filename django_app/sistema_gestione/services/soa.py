@@ -13,7 +13,7 @@ from ..models import ControlloIso27002, SoaRevisione, SoaVoce
 _CAMPI_VOCE = (
     "livello", "vulnerabilita", "riferimenti", "giustificazione",
     "obbligo_legislativo", "obbligo_normativo", "obbligo_regolatorio", "obbligo_cliente", "buona_pratica",
-    "azione", "responsabile", "scadenza", "livello_atteso", "ofi_id",
+    "azione", "responsabile", "scadenza", "livello_atteso", "vulnerabilita_attesa", "ofi_id",
 )
 
 
@@ -85,6 +85,13 @@ def nuova_revisione(*, utente=None, motivo: str = "", numero: int | None = None,
                 setattr(voce, campo, getattr(precedente, campo))
         nuove.append(voce)
     SoaVoce.objects.bulk_create(nuove)
+    if base is not None:
+        # L'analisi del rischio fa parte dello stesso MOD.165: segue la revisione.
+        from .rischio import copia_analisi
+
+        revisione.soglia_rischio = base.soglia_rischio
+        revisione.save(update_fields=["soglia_rischio"])
+        copia_analisi(base, revisione)
     return revisione
 
 

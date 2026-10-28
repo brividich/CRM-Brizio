@@ -36,12 +36,13 @@ _GENERALE = [
                  "approvato dalla Direzione, aiutato da Priorità e proposte, Cicli triennali e Calendario."),
                 ("2. Individuazione dell'auditor", "l'elenco Auditor con i requisiti del §6 della MT CN 12 e l'indipendenza "
                  "dal processo verificato."),
-                ("3. Pianificazione", "il piano MOD.035A di ciascun audit: processi, norme e punti norma, team, persone, "
-                 "agenda, approvazione Lead Auditor e Direzione, comunicazione agli auditati."),
-                ("4. Esecuzione", "la checklist con una scheda «Compila verifica» per ogni domanda, evidenze e allegati, "
-                 "utilizzabile anche da tablet."),
-                ("5. Documentazione dei risultati", "il rapporto MOD.035B con firma dell'auditor, convalida del "
-                 "responsabile dell'ente verificato e valutazione RDD."),
+                ("3. Pianificazione", "il piano MOD.035A di ciascun audit (MOD.171 per gli audit ISMS): processi, norme e "
+                 "punti norma, team, persone, agenda, approvazione Lead Auditor e Direzione, comunicazione agli auditati."),
+                ("4. Esecuzione", "la checklist di ogni norma spuntata (EN 9100, ISO 45001, UNI/PdR 125) e dei processi, con "
+                 "una scheda «Compila verifica» per ogni domanda, evidenze e allegati, utilizzabile anche da tablet. Negli "
+                 "audit ISMS si compilano requisiti ISO/IEC 27001 e i 93 controlli ISO/IEC 27002 nel «Rapporto ISMS»."),
+                ("5. Documentazione dei risultati", "il rapporto MOD.035B (MOD.168 per gli audit ISMS) con firma "
+                 "dell'auditor, convalida del responsabile dell'ente verificato e valutazione RDD."),
             ]),
             ("p", "Ogni OFI o NC rilevata diventa una voce del Registro OFI/NC MOD.174. Per le NC si apre la richiesta di "
                   "azione correttiva (CAR) secondo la MT CN 11 «Azioni Correttive», fino alla verifica di efficacia."),
@@ -67,10 +68,13 @@ _GENERALE = [
             ("p", "I permessi si assegnano da Admin › ACL. Con la configurazione predefinita:"),
             ("def", [
                 ("Audit: consulta", "vedere programmi, audit, catalogo, cruscotto ed evidenze. Predefinito: admin e qualità."),
-                ("Audit: modifica", "creare programmi, processi, auditor e piani, comunicare e annullare. Predefinito: admin."),
+                ("Audit: modifica", "creare programmi, processi, auditor e piani, comunicare e annullare; gestire e attivare "
+                 "le «Checklist per norma». Predefinito: admin."),
                 ("Audit: esegui", "approvare come Lead, avviare l'audit, compilare la checklist e il rapporto. Predefinito: admin."),
                 ("Audit: approva", "approvazioni della Direzione, convalide, valutazione RDD, impostazioni. Predefinito: admin."),
                 ("Audit: i miei rilievi", "vedere solo i propri rilievi e la propria CAR. Predefinito: tutti i ruoli."),
+                ("SoA: modifica", "dopo un audit ISMS chiuso, «Apri una revisione della SoA con questi livelli». "
+                 "Predefinito: admin."),
             ]),
             ("p", "Le regole di separazione sono controllate dal portale: la Direzione che approva il piano non può essere "
                   "il Lead Auditor, l'RDD che valuta il rapporto non può essere un auditor dell'audit, chi verifica "
@@ -94,6 +98,13 @@ _GENERALE = [
                 ("CAR", "Corrective Action Request (MOD.036): richiesta di azione correttiva della MT CN 11."),
                 ("MOD.034 / MOD.035A / MOD.035B / MOD.174", "programma annuale, piano di audit, rapporto di audit interno, "
                  "registro OFI/NC."),
+                ("MOD.171 / MOD.168", "piano (M-AUD-01 Audit Plan) e rapporto (M-AUD-02) dell'audit interno ISMS, MT CN 276."),
+                ("NC / COM / AP (audit ISMS)", "non conformità (maggiore o minore), commento, area di miglioramento: NC e AP "
+                 "vanno nel Registro OFI, il COM resta nel rapporto."),
+                ("Applicazione 0-4", "livello di attuazione di un controllo ISO/IEC 27002, come nella SoA (MOD.165): 4 = "
+                 "pienamente applicato, 0 = non applicato o escluso."),
+                ("Checklist per norma", "lista di domande di una norma (EN 9100, ISO 45001, UNI/PdR 125) a revisioni: quella "
+                 "attiva si carica negli audit con la norma spuntata."),
             ]),
         ],
     },
@@ -107,7 +118,7 @@ _PAGINE_AUDIT = [
         "titolo": "Pagina «Audit interni»",
         "blocchi": [
             ("p", "È il punto di partenza. In alto i pulsanti verso le altre pagine: Priorita e proposte, Catalogo processi, "
-                  "Auditor, Cicli triennali, Calendario, Cruscotto, I miei rilievi, Registro OFI (filtrato sui rilievi "
+                  "Checklist per norma, Auditor, Cicli triennali, Calendario, Cruscotto, I miei rilievi, Registro OFI (filtrato sui rilievi "
                   "degli audit), Guida e, secondo i permessi, Impostazioni, Nuovo programma e Nuovo audit. In cima c'è anche «Indicatori di processo - MT CN 13»."),
             ("ul", [
                 "«Anno di riferimento» con «Mostra» cambia l'anno di tessere e tabelle.",
@@ -251,8 +262,10 @@ _PAGINE_AUDIT = [
             ("p", "«Nuovo audit» (o «Pianifica» da una cella del programma) apre il piano in quattro passaggi. Il salvataggio "
                   "crea una bozza: prima delle firme il portale mostra esattamente cosa manca."),
             ("def", [
-                ("1. Campo di audit", "programma e righe, tipo (sistema, mandatorio cliente, straordinario), processi scelti "
-                 "dal catalogo e norme. «Adotta le revisioni attuali del catalogo» aggiorna le schede copiate nel piano. "
+                ("1. Campo di audit", "programma e righe, tipo (sistema, mandatorio cliente, straordinario), «Modulistica» "
+                 "(audit di sistema SGI con MOD.035A/MOD.035B oppure audit ISMS con MOD.171/MOD.168, che spunta da sola "
+                 "ISO/IEC 27001), processi scelti dal catalogo e norme: per ogni norma spuntata con una checklist attiva "
+                 "(EN 9100, ISO 45001, UNI/PdR 125) le domande si caricano all'avvio. «Adotta le revisioni attuali del catalogo» aggiorna le schede copiate nel piano. "
                  "«Perimetro Part 145» (Sì — audit di sistema / Sì — audit di prodotto) porta l'audit e i suoi rilievi "
                  "nel Dossier PART 145: l'anno ne chiede almeno uno di sistema e uno di prodotto (MT CN 70)."),
                 ("2. Criteri e limiti", "punti norma, procedure e criteri (vuoti = quelli delle schede processo) ed esclusioni."),
@@ -269,8 +282,10 @@ _PAGINE_AUDIT = [
         "id": "pagina-audit",
         "titolo": "Scheda dell'audit",
         "blocchi": [
-            ("p", "Raccoglie tutto l'audit. In alto: stato, tipo e data, i PDF MOD.035A e MOD.035B (anteprima con filigrana "
-                  "«BOZZA - NON EMESSO» finché l'audit non è chiuso) e «Modifica piano» mentre è Pianificato."),
+            ("p", "Raccoglie tutto l'audit. In alto: stato, tipo e data, i PDF del piano e del rapporto (MOD.035A e "
+                  "MOD.035B, oppure MOD.171 e MOD.168 con il badge «Audit ISMS»; anteprima con filigrana «BOZZA - NON "
+                  "EMESSO» finché l'audit non è chiuso), «Rapporto ISMS» negli audit ISMS e «Modifica piano» mentre è "
+                  "Pianificato."),
             ("ul", [
                 "«Il prossimo passo» guida l'audit con i link 1. Piano, 2. Persone, 3. Agenda, 4. Verifiche, 5. Rapporto e "
                 "firme e l'elenco puntuale di ciò che manca prima di approvare o firmare.",
@@ -295,9 +310,13 @@ _PAGINE_AUDIT = [
                 "«Avvia audit» porta l'audit In corso e apre la compilazione della checklist.",
                 "«Annulla l'audit» (con motivo) riporta la verifica da pianificare nel programma e cancella l'invito Outlook.",
             ]),
-            ("p", "«Checklist e verifiche di processo»: il menu «Mostra» filtra Tutte le verifiche, Solo da completare o Solo "
-                  "rilievi. Ogni domanda ha «Compila verifica» (o «Apri evidenze» in sola lettura). Con l'audit In corso, "
-                  "«Domanda aggiuntiva» e «Aggiungi alla checklist» ampliano la lista di controllo, come ammette il §5.5."),
+            ("p", "«Checklist e verifiche di processo»: le sezioni di ogni checklist riportano la norma e i criteri; il "
+                  "menu «Mostra» filtra Tutte le verifiche, Solo da completare o Solo rilievi. Ogni domanda ha «Compila "
+                  "verifica» (o «Apri evidenze» in sola lettura). Con l'audit In corso, «Domanda aggiuntiva» e «Aggiungi "
+                  "alla checklist» ampliano la lista di controllo, come ammette il §5.5."),
+            ("p", "Negli audit ISMS il riquadro «Audit ISMS · MOD.171 e MOD.168» riporta controlli valutati, livelli diversi "
+                  "dalla SoA, NC, AP e COM, e «Apri il rapporto ISMS» porta alla compilazione. I punti mancanti del "
+                  "MOD.168 compaiono anche in «Il prossimo passo» e aprono la riga da completare."),
             ("nota", "Gli audit sul processo CND-PT sono presenziati dagli auditor del cliente e dal relativo RL3 (o dall'RL3 "
                      "di Costruzioni Novicrom): indicarli fra le persone coinvolte. Le NC si gestiscono comunque con la MT CN 11."),
         ],
@@ -343,7 +362,8 @@ _PAGINE_AUDIT = [
         "id": "pagina-rapporto",
         "titolo": "Rapporto MOD.035B, firme e chiusura",
         "blocchi": [
-            ("p", "Sezione «D–E · Rapporto e valutazioni» della scheda audit."),
+            ("p", "Sezione «D–E · Rapporto e valutazioni» della scheda audit. Negli audit ISMS il rapporto è il MOD.168: "
+                  "firme, convalida e valutazione RDD si fanno qui come per gli altri audit, i contenuti nel «Rapporto ISMS»."),
             ("ul", [
                 "«Precompila / aggiorna riepilogo» raccoglie i fatti registrati; giudizio conclusivo e punti di forza restano "
                 "la valutazione dell'auditor. «Salva rapporto» registra.",
@@ -360,6 +380,102 @@ _PAGINE_AUDIT = [
                   "e le firme e richiede nuove firme, con motivo."),
             ("p", "«Copie firmate a mano»: «Carica» archivia il PDF firmato del piano (dopo l'approvazione) e del rapporto "
                   "(dopo la chiusura). Il rapporto va distribuito al responsabile della funzione verificata e a MSM."),
+        ],
+    },
+    {
+        "id": "pagina-isms",
+        "titolo": "Audit ISMS ISO/IEC 27001 (MOD.171 e MOD.168)",
+        "blocchi": [
+            ("p", "Per l'audit interno del sistema di gestione della sicurezza delle informazioni (MT CN 276) scegli nel "
+                  "piano «Modulistica: Audit ISMS ISO/IEC 27001 (MOD.171 / MOD.168)». La norma ISO/IEC 27001 viene spuntata "
+                  "da sola. Team, persone, programma orario, approvazioni, comunicazione, firme e chiusura sono gli stessi "
+                  "degli altri audit interni; cambiano i moduli e quello che si compila."),
+            ("ul", [
+                "«Rapporto ISMS» (dalla scheda audit) apre la pagina di compilazione. In «MOD.171 · Elenco siti oggetto di "
+                "audit» si indicano ID, campo d'applicazione, attività da remoto (S/N) e funzioni o processi: modificabile "
+                "finché il piano è pianificato. L'agenda del piano diventa il «Piano di audit» del MOD.171.",
+                "«MOD.168 · Attività, siti, modifiche e valutazioni»: date e durata in remoto (con la percentuale) o in "
+                "campo, sito, campo d'applicazione, addetti e turni, le tre «Modifiche significative» (no / sì con "
+                "specifica, più «Altro») e le tre valutazioni del team (azioni sulle NC minori precedenti, trattamento dei "
+                "rilievi degli ultimi due audit, analisi dei commenti del precedente audit).",
+                "«Efficacia del sistema di gestione»: 15 righe dei requisiti ISO/IEC 27001 del MOD.168 (4.3 … 10.1, obblighi "
+                "di conformità, famiglie di controlli), ognuna con evidenze e rilievo.",
+                "«Controlli ISO/IEC 27002:2022 · applicazione 0-4»: i 93 controlli per tema, con il livello della SoA "
+                "approvata in vigore già inserito. Scala del MOD.165: 4 = pienamente applicato, 0 = non applicato o "
+                "escluso. Se cambi il livello devi motivarlo nel commento; la riga mostra «Diverso dalla SoA». "
+                "«Salva» registra la singola riga senza ricaricare la pagina.",
+            ]),
+            ("def", [
+                ("NC", "Non conformità, maggiore o minore: crea una voce NC nel Registro OFI (MOD.174) con ISO 27001 e il "
+                       "riferimento al requisito o al controllo. Prima della chiusura serve la CAR con piano azioni approvato."),
+                ("AP", "Area di miglioramento: crea una voce OFI nel Registro OFI."),
+                ("COM", "Commento: resta nel rapporto, non crea voci nel registro."),
+            ]),
+            ("p", "Un rilievo già registrato nel MOD.174 non cambia tipo dal rapporto: si prosegue nel registro. Se le azioni "
+                  "sulle NC minori del precedente audit sono «non efficaci» il portale chiede di rilasciare una NC maggiore."),
+            ("p", "Per firmare il rapporto servono: date dell'attività, risposte alle modifiche (con specifica se «sì»), le "
+                  "tre valutazioni, evidenze su ogni requisito, il livello di tutti i 93 controlli e il giudizio conclusivo. "
+                  "L'«Elenco azioni correttive» si compone dalle NC con azione, responsabile e scadenza presi dalla CAR o "
+                  "dalla voce del registro. Alla chiusura il MOD.168 viene emesso e archiviato con impronta SHA-256."),
+            ("p", "Dopo la chiusura, se dei livelli sono diversi dalla SoA, chi ha il permesso di modifica della SoA vede "
+                  "«Apri una revisione della SoA con questi livelli»: nasce una revisione in bozza con i nuovi livelli e la "
+                  "motivazione nella giustificazione, da verificare, proporre e far approvare dalla Direzione."),
+        ],
+    },
+    {
+        "id": "pagina-soa-rischi",
+        "titolo": "SoA e analisi del rischio (MOD.165)",
+        "blocchi": [
+            ("p", "La Dichiarazione di applicabilità (Sistema di gestione › SoA) riporta per ogni controllo ISO/IEC 27002 "
+                  "l'applicazione 0-4 e la vulnerabilità; dalla revisione, «Analisi del rischio» apre il registro dei "
+                  "rischi dello stesso MOD.165."),
+            ("def", [
+                ("Rischio per minaccia", "per ogni minaccia: gruppo, agente, rischio inerente, vulnerabilità (la più alta "
+                 "fra i controlli che la mitigano), rischio residuo = inerente × vulnerabilità / 4 e «Accettabile» (Sì "
+                 "fino alla soglia, predefinita 30). «Controlli che la determinano» indica i controlli con la "
+                 "vulnerabilità più alta: migliorarne l'applicazione nella SoA abbassa il residuo. «Solo oltre la soglia» "
+                 "filtra le minacce non accettabili."),
+                ("Monitoraggio dei controlli", "per ogni controllo: quante minacce mitiga, il rischio inerente più alto, "
+                 "il residuo con la vulnerabilità attuale, l'azione del piano di trattamento e il «Residuo futuro» con la "
+                 "«Vulnerabilità attesa dopo l'azione» indicata nella voce della SoA."),
+                ("Piano di trattamento OT", "scenari sugli asset di produzione (CNC e macchine): misure esistenti, "
+                 "controlli, rischio inerente, residuo attuale e atteso, azioni, opzione (ridurre, accettare…), "
+                 "responsabile, scadenza e stato."),
+            ]),
+            ("ul", [
+                "I colori seguono le fasce del MOD.165: verde fino a 10, giallo da 11 a 30, rosso oltre 30.",
+                "Il residuo si ricalcola da solo quando cambiano le vulnerabilità della SoA. Se differisce dal valore "
+                "letto dal MOD.165 all'import, sotto compare «MOD.165: n» e in alto un avviso.",
+                "In bozza (permesso di modifica della SoA) si aggiornano la soglia, le minacce (inerente, controlli "
+                "collegati, note) e gli scenari OT; «Aggiungi una minaccia» e «Aggiungi uno scenario OT» li inseriscono. "
+                "Revisioni proposte o approvate sono in sola lettura: «Apri nuova revisione» nella SoA copia anche "
+                "l'analisi del rischio.",
+                "«Excel» scarica il registro dei rischi per minaccia.",
+            ]),
+            ("nota", "L'analisi si carica dal PDF del MOD.165 con il comando degli amministratori «importa_rischi_mod165», "
+                     "dopo la Control Matrix della stessa revisione: il comando confronta il residuo del PDF con quello "
+                     "ricalcolato e segnala le differenze prima di scrivere."),
+        ],
+    },
+    {
+        "id": "pagina-checklist-norme",
+        "titolo": "Pagina «Checklist di audit per norma»",
+        "blocchi": [
+            ("p", "Da «Audit interni» › «Checklist per norma». Ogni norma ha le sue revisioni di checklist: quella "
+                  "«Attiva» viene caricata all'avvio degli audit che hanno la norma spuntata nel piano (EN 9100, ISO 45001, "
+                  "UNI/PdR 125). Più norme spuntate = più checklist nello stesso audit, ognuna con le sue sezioni."),
+            ("ul", [
+                "EN 9100: la checklist è il Folder B del MOD.035B, importata dagli amministratori.",
+                "ISO 45001 e UNI/PdR 125: non c'è un modulo aziendale. «Crea la bozza di base» propone sezioni per punto "
+                "norma o area, domande guida scritte per il portale e i riferimenti alle procedure MT CN. La bozza nasce "
+                "«Non attiva»: va verificata da RSGI, adattata ai processi e poi attivata.",
+                "Aprendo una revisione non attiva e mai usata si modificano sezioni (codice, titolo, criteri, ordine) e "
+                "domande (punti norma, domanda guida, ordine, attiva), si aggiungono o rimuovono.",
+                "«Attiva questa revisione» la mette in uso e spegne la precedente della stessa norma. «Disattiva» lascia la "
+                "norma senza domande negli audit avviati da quel momento.",
+                "Una revisione attiva o già usata in un audit non si modifica: «Apri una nuova revisione» ne crea una copia "
+                "non attiva, con il motivo. Gli audit già avviati conservano le domande che hanno usato.",
+            ]),
         ],
     },
     {
@@ -709,13 +825,22 @@ _FAQ = {
             ("Una OFI va trattata con la CAR?", "Non obbligatoriamente: un'osservazione o un'OFI può essere risolta dal "
              "responsabile di processo nel PDCA della voce (MT CN 12 §5.6)."),
             ("Dove trovo il rapporto definitivo?", "In «Versioni del rapporto», versione «Emissione» con impronta SHA-256."),
+            ("Ho spuntato ISO 45001 (o PdR 125) ma l'audit non ha domande di quella norma.", "In «Checklist per norma» la "
+             "norma non ha una revisione «Attiva»: crea o completa la bozza e attivala. Gli audit già avviati non si "
+             "aggiornano: aggiungi le verifiche con «Domanda aggiuntiva»."),
+            ("Perché non posso modificare una checklist?", "È attiva o già usata in un audit: «Apri una nuova revisione», "
+             "modificala e attivala."),
+            ("Nell'audit ISMS i controlli non hanno un livello.", "Non c'era una SoA approvata quando sono stati creati i dati "
+             "ISMS: l'auditor inserisce il livello di ogni controllo."),
+            ("Posso cambiare il tipo di un rilievo ISMS già registrato?", "No: NC e AP già nel Registro OFI si seguono nel "
+             "registro."),
         ]),
     ],
 }
 
 GUIDA_AUDIT = {
     "titolo": "Audit interni e Registro OFI",
-    "codice": "MT CN 12 · MT CN 11 · MOD.174",
+    "codice": "MT CN 12 · MT CN 276 · MT CN 11 · MOD.174",
     "sottotitolo": "Come si programmano, pianificano, eseguono e documentano gli audit interni e come si trattano i rilievi.",
     "sezioni": _GENERALE + _PAGINE_AUDIT + _PAGINE_OFI + [_FAQ],
     "url_name": "sistema_gestione:audit_guida",
@@ -756,6 +881,17 @@ PAGE_HELP = {
     "sistema_gestione:audit_modifica": ("audit", "pagina-piano"),
     "sistema_gestione:audit_elemento_modifica": ("audit", "pagina-audit"),
     "sistema_gestione:audit_dettaglio": ("audit", "pagina-audit"),
+    "sistema_gestione:audit_isms": ("audit", "pagina-isms"),
+    "sistema_gestione:checklist_norme": ("audit", "pagina-checklist-norme"),
+    "sistema_gestione:soa": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_revisione": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_voce": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_rischi": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_rischio_minaccia": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_rischio_minaccia_nuova": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_rischio_ot": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:soa_rischio_ot_nuovo": ("audit", "pagina-soa-rischi"),
+    "sistema_gestione:checklist_modello": ("audit", "pagina-checklist-norme"),
     "sistema_gestione:procedura_preparazione": ("audit", "pagina-preparazione"),
     "sistema_gestione:audit_esito_editor": ("audit", "pagina-verifica"),
     "sistema_gestione:audit_verifica_efficacia": ("audit", "pagina-efficacia"),

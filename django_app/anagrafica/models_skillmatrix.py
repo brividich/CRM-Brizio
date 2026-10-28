@@ -587,10 +587,13 @@ class AbilitazioneMacchinaStorico(models.Model):
     FONTE_IMPORT = "import"
     FONTE_REFRESH = "refresh"
     FONTE_MANUALE = "manuale"
+    # Ricalcolo da competenze/requisiti (services.competenze_ricalcolo), senza un utente.
+    FONTE_AUTOMATICO = "automatico"
     FONTE_CHOICES = [
         (FONTE_IMPORT, "Import baseline"),
         (FONTE_REFRESH, "Refresh semestrale"),
         (FONTE_MANUALE, "Manuale"),
+        (FONTE_AUTOMATICO, "Ricalcolo automatico"),
     ]
 
     legacy_anagrafica_id = models.IntegerField(db_index=True)

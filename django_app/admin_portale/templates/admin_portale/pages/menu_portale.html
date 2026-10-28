@@ -1,0 +1,99 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Menu del portale | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/menu_portale.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="mp" id="menu-portale"
+     data-url-salva="{% url 'admin_portale:api_menu_voce_salva' %}"
+     data-url-sistema="{% url 'admin_portale:api_menu_voce_sistema' %}"
+     data-url-persona="{% url 'admin_portale:api_menu_vedi_persona' %}"
+     data-url-cerca="{% url 'admin_portale:api_acl_v2_legacy_user_search' %}"
+     data-url-riordina="{% url 'admin_portale:api_navigation_reorder' %}"
+     data-url-crea="{% url 'admin_portale:api_navigation_item_create' %}"
+     data-url-nascondi="{% url 'admin_portale:api_nav_user_override_toggle' 0 %}"
+     data-url-ruoli="{% url 'admin_portale:ruoli_portale' %}"
+     data-url-branding="{% url 'admin_portale:branding_config' %}">
+  {% csrf_token %}
+
+  <div class="mp-head">
+    <div class="mp-head-text">
+      <h1 class="mp-title">Menu del portale</h1>
+      <p class="mp-sub">Metti in ordine le voci e controlla cosa vede ognuno.</p>
+    </div>
+    <div class="mp-head-actions">
+      <a class="mp-link" href="{% url 'guida_modulo' 'amministrazione' %}#menu-portale">? Guida</a>
+      <a class="mp-btn mp-btn-light" href="{% url 'admin_portale:navigation_builder_avanzato' %}">Strumenti avanzati</a>
+      <button type="button" class="mp-btn mp-btn-accent" id="mp-aggiungi">+ Aggiungi una voce</button>
+    </div>
+  </div>
+
+  {% if not sistema_attivo %}
+    <div class="mp-avviso">
+      «Ruoli e permessi» è ancora spento: oggi il menu segue le regole storiche. Quello che vedi con un ruolo è come sarà quando lo accendi; con una persona è com'è adesso.
+    </div>
+  {% endif %}
+
+  <div class="mp-come" role="group" aria-label="Guarda il menu come">
+    <span class="mp-come-label">Guarda il menu come</span>
+    <div class="mp-pills" id="mp-ruoli"></div>
+    <div class="mp-cerca">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path></svg>
+      <input type="search" id="mp-persona" placeholder="una persona…" aria-label="Cerca una persona" autocomplete="off">
+      <div class="mp-cerca-esiti" id="mp-persona-esiti" hidden></div>
+    </div>
+  </div>
+
+  <div class="mp-problemi" id="mp-problemi" hidden></div>
+
+  <div class="mp-corpo">
+    <nav class="mp-albero" aria-label="Voci del menu">
+      <div class="mp-albero-testa">
+        <span id="mp-albero-titolo">Tutte le voci del menu</span>
+        <span class="mp-nota">trascina per riordinare</span>
+      </div>
+      <div id="mp-aree"></div>
+    </nav>
+    <section class="mp-scheda" id="mp-scheda" aria-live="polite"></section>
+  </div>
+
+  <dialog class="mp-dialog" id="mp-icone" aria-label="Scegli l'icona">
+    <form method="dialog">
+      <div class="mp-dialog-testa"><strong>Scegli l'icona</strong><button class="mp-x" value="chiudi" aria-label="Chiudi">×</button></div>
+      <div class="mp-icone-griglia">
+        {% for icona in icone %}
+          <button type="button" class="mp-icona" data-icona="{{ icona.nome }}" title="{{ icona.nome }}">{{ icona.svg }}</button>
+        {% endfor %}
+      </div>
+      <p class="mp-nota">Un'immagine tua (.png, .ico) si carica da «Strumenti avanzati».</p>
+    </form>
+  </dialog>
+
+  <dialog class="mp-dialog" id="mp-nuova" aria-label="Aggiungi una voce">
+    <form id="mp-nuova-form">
+      <div class="mp-dialog-testa"><strong>Aggiungi una voce</strong><button type="button" class="mp-x" data-chiudi aria-label="Chiudi">×</button></div>
+      <label class="mp-campo">Nome nel menu<input type="text" name="nome" required maxlength="120"></label>
+      <label class="mp-campo">Area<select name="categoria" id="mp-nuova-area"></select></label>
+      <label class="mp-campo">Pagina a cui porta
+        <input type="text" name="pagina" list="mp-pagine" required placeholder="inizia a scrivere, es. /tickets/">
+        <span class="mp-nota">Scegli dall'elenco delle pagine del portale, oppure un indirizzo esterno (https://…).</span>
+      </label>
+      <datalist id="mp-pagine">
+        {% for r in route_catalog %}<option value="{{ r.path }}" data-route="{{ r.route_name }}">{{ r.route_name }}</option>{% endfor %}
+      </datalist>
+      <p class="mp-nota">Chi la vede lo decide la pagina: non serve scegliere i ruoli.</p>
+      <div class="mp-dialog-azioni">
+        <button type="button" class="mp-btn mp-btn-light" data-chiudi>Annulla</button>
+        <button type="submit" class="mp-btn mp-btn-primary">Aggiungi</button>
+      </div>
+    </form>
+  </dialog>
+
+  {{ dati|json_script:"mp-dati" }}
+</div>
+<script src="{% static 'core/js/menu_portale.js' %}"></script>
+{% endblock %}

@@ -1549,7 +1549,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
             {% endfor %}
           </table>
         </div>
-        <p class="dp-pos-meta" style="margin:6px 0 0;"><a href="{% url 'anagrafica:costo_orario' %}">Costo orario di tutti →</a></p>
+        <p class="dp-pos-meta" style="margin:6px 0 0;"><a href="{% url 'anagrafica:costo_orario_storico' %}?persona={{ legacy_id }}">Storico completo →</a> · <a href="{% url 'anagrafica:costo_orario' %}">Costo orario di tutti →</a></p>
       </details>
       {% endif %}
 

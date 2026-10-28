@@ -22,6 +22,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.audit import log_action
+from ..registro_permessi import MODULO_VERIFICHE
+from ..services.visibilita import filtra_per_asset
 
 # Etichetta con cui le voci di audit si agganciano all'asset: e' la stessa che
 # `core.audit.storico_oggetto` usa per ripescarle sulla scheda. Costante e non
@@ -644,7 +646,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
     edit_verification = None
     if edit_id:
         edit_verification = (
-            PeriodicVerification.objects.select_related("supplier", "created_by")
+            filtra_per_asset(request, PeriodicVerification.objects.all(), MODULO_VERIFICHE, "assets").select_related("supplier", "created_by")
             .prefetch_related("assets")
             .filter(pk=edit_id)
             .first()
@@ -674,7 +676,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
             verification_id = _as_int(request.POST.get("verification_id"), default=0)
             target_legacy_user_id = _as_int(request.POST.get("target_legacy_user_id"), default=0)
             verification = (
-                PeriodicVerification.objects.select_related("supplier", "created_by")
+                filtra_per_asset(request, PeriodicVerification.objects.all(), MODULO_VERIFICHE, "assets").select_related("supplier", "created_by")
                 .prefetch_related("assets")
                 .filter(pk=verification_id)
                 .first()
@@ -949,7 +951,7 @@ def periodic_verification_list(request: HttpRequest) -> HttpResponse:
 
     default_calendar_user_id = _asset_calendar_default_user_id(selected_asset, calendar_user_details)
     verification_queryset = (
-        PeriodicVerification.objects.select_related("supplier", "created_by")
+        filtra_per_asset(request, PeriodicVerification.objects.all(), MODULO_VERIFICHE, "assets").select_related("supplier", "created_by")
         .prefetch_related("assets")
         .filter(assets__asset_type__in=periodic_asset_types)
         .distinct()

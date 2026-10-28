@@ -1,6 +1,7 @@
 from django.urls import include, path
 
 from . import acl_v2_views, api, views, views_accessi_negati, views_bacheca, views_centro_report, views_postazioni, views_ruoli
+from .views import menu_portale
 
 
 app_name = "admin_portale"
@@ -29,7 +30,11 @@ urlpatterns = [
     path("permessi/", views.permessi, name="permessi"),
     path("pulsanti/", views.pulsanti, name="pulsanti"),
     path("topbar-live/", views.topbar_live, name="topbar_live"),
-    path("navigation-builder/", views.navigation_builder, name="navigation_builder"),
+    path("navigation-builder/", menu_portale.menu_portale, name="navigation_builder"),
+    path("navigation-builder/avanzato/", views.navigation_builder, name="navigation_builder_avanzato"),
+    path("api/menu/vedi-persona", menu_portale.api_menu_vedi_persona, name="api_menu_vedi_persona"),
+    path("api/menu/voce/salva", menu_portale.api_menu_voce_salva, name="api_menu_voce_salva"),
+    path("api/menu/voce/sistema", menu_portale.api_menu_voce_sistema, name="api_menu_voce_sistema"),
     path("acl-canonico/", acl_v2_views.acl_canonico, name="acl_canonico"),
     path("acl-route-coverage/", acl_v2_views.acl_route_coverage, name="acl_route_coverage"),
     path("schema-dati/", views.schema_dati, name="schema_dati"),

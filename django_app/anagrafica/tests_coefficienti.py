@@ -329,3 +329,131 @@ class AltreSchermateTests(_Mansioni):
         r = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.p1.pk]))
         self.assertContains(r, "Diretto 2T")
         self.assertContains(r, "€ 20,00/h")
+
+
+class StoricoCostoOrarioTests(_Base):
+    CF = "SNTTST80A01H501Z"
+
+    def setUp(self):
+        super().setUp()
+        oggi = timezone.localdate().replace(day=1)
+        self.mesi = []
+        m = oggi
+        for importo in ("3636.36", "3463.20", "3463.20"):  # dal più recente: 21 · 20 · 20 €/h
+            self.mesi.append(m)
+            imp = ImportazioneRetributiva.objects.create(data_competenza=m)
+            VoceRetributiva.objects.create(importazione=imp, tax_code=self.CF, legacy_anagrafica_id=self.p1.pk,
+                                           data_competenza=m, pay_item="RML", pay_item_key="rml",
+                                           categoria="totale", importo=D(importo))
+            m = (m - timezone.timedelta(days=1)).replace(day=1)
+        self.url = reverse("anagrafica:costo_orario_storico")
+
+    def test_tabella_mesi_variazione(self):
+        from types import SimpleNamespace
+
+        from django.http import QueryDict
+
+        from .views_coefficienti import _storico
+
+        ctx = _storico(SimpleNamespace(GET=QueryDict()))
+        self.assertEqual(ctx["mesi"], sorted(self.mesi))
+        r = ctx["righe"][0]
+        self.assertEqual([x["c"].costo_orario for x in r["celle"]], [D("20.0000"), D("20.0000"), D("21.0000")])
+        self.assertTrue(r["celle"][2]["su"])
+        self.assertEqual((r["var"], r["var_pct"]), (D("1.0000"), D("5.0")))
+        self.assertEqual(ctx["kpi"]["aumenti"], 1)
+        q = QueryDict(mutable=True)
+        q["dal"], q["al"] = self.mesi[1].isoformat(), self.mesi[0].isoformat()
+        self.assertEqual(len(_storico(SimpleNamespace(GET=q))["mesi"]), 2)
+
+    def test_pagina_export_e_permesso(self):
+        r = self.client.get(self.url, {"persona": self.p1.pk})
+        self.assertContains(r, "21,00")
+        self.assertContains(r, "+5,0%")
+        r = self.client.get(reverse("anagrafica:export", args=["costo_orario_storico"]),
+                            {"format": "xlsx", "scope": "full"})
+        self.assertIn("spreadsheetml", r["Content-Type"])
+        normale = User.objects.create_user("cs_normale", "cs@example.invalid", "x")
+        self.client.force_login(normale)
+        self.assertEqual(self.client.get(self.url).status_code, 302)
+
+
+class ReportCostoOrarioTests(_ScenarioMansioni):
+    """Reportistica: costo orario per persona, ripartito con i coefficienti, andamento; solo HR."""
+
+    def setUp(self):
+        from datetime import timedelta
+
+        super().setUp()
+        m1, m2 = self._mansione("Taglio sintetico"), self._mansione("Pulizia sintetica")
+        a = svc.assegna(m1, legacy_anagrafica_id=self.neri, livello="U")
+        b = svc.assegna(m2, legacy_anagrafica_id=self.neri, livello="U")
+        coeff.salva(self.neri, {a.pk: ("D1T", "0.75"), b.pk: ("I1T", "0.25")})
+        self.mese = timezone.localdate().replace(day=1)
+        self.prima = (self.mese - timedelta(days=1)).replace(day=1)
+        for mese, rml in ((self.prima, D("3000.00")), (self.mese, D("3463.20"))):
+            CostoOrarioMensile.objects.create(
+                tax_code="SNTTST80A01H501Z", legacy_anagrafica_id=self.neri, mese=mese, rml=rml,
+                divisore_giorni=D("26"), divisore_ore=D("6.66"),
+                costo_orario=(rml / D("26") / D("6.66")).quantize(D("0.0001")))
+
+    def _ctx(self):
+        from .reportistica.dati import Contesto, Perimetro
+
+        return Contesto(date_from=self.prima, date_to=timezone.localdate(), perimetro=Perimetro(persone=[self.neri]))
+
+    def test_per_persona(self):
+        from .reportistica import sezioni as catalogo
+        from .reportistica.motore import fmt
+
+        res = catalogo.get("costo_orario_persone").calcola(self._ctx(), {})
+        (r,) = res.righe
+        self.assertEqual((fmt(r["rml"]), fmt(r["costo_orario"]), fmt(r["precedente"]), fmt(r["variazione"])),
+                         ("3.463,20", "20,00", "17,33", "2,68"))
+        self.assertEqual(r["classificazione"], "Diretto 1T")
+        (r,) = catalogo.get("costo_orario_persone").calcola(self._ctx(), {"mese": self.prima.isoformat()}).righe
+        self.assertIsNone(r["variazione"])
+
+    def test_ripartito_con_i_coefficienti(self):
+        from .reportistica import sezioni as catalogo
+
+        res = catalogo.get("costo_orario_ripartito").calcola(self._ctx(), {})
+        per_voce = {r["voce"]: r for r in res.righe}
+        self.assertEqual(set(per_voce), {"Diretto 1T", "Indiretto 1T"})
+        self.assertEqual((per_voce["Diretto 1T"]["fte"], per_voce["Diretto 1T"]["rml"]), (D("0.75"), D("2597.40")))
+        self.assertEqual((per_voce["Indiretto 1T"]["quota"], per_voce["Indiretto 1T"]["costo_medio"]),
+                         (D("25.0"), D("20.00")))
+        res = catalogo.get("costo_orario_ripartito").calcola(self._ctx(), {"per": "mansione"})
+        self.assertEqual({r["voce"] for r in res.righe}, {"Taglio sintetico", "Pulizia sintetica"})
+
+    def test_andamento(self):
+        from report_conformita.registry import TONE_WARN
+
+        from .reportistica import sezioni as catalogo
+
+        res = catalogo.get("costo_orario_andamento").calcola(self._ctx(), {})
+        self.assertEqual([r["mese"] for r in res.righe], [f"{self.prima:%m/%Y}", f"{self.mese:%m/%Y}"])
+        self.assertEqual(res.righe[1]["variazione_pct"], D("15.4"))
+        self.assertEqual(res.toni[1], TONE_WARN)
+        self.assertIn("Variazione nel periodo", [k.label for k in res.kpis])
+
+    def test_solo_hr_e_modello_pronto(self):
+        from django.test import RequestFactory
+
+        from .models_reportistica import ReportModello
+        from .reportistica import sezioni as catalogo
+
+        rf = RequestFactory()
+        normale, capo = rf.get("/"), rf.get("/")
+        normale.user = User.objects.create_user("rep_normale", "rn@example.invalid", "x")
+        capo.user = User.objects.create_superuser("rep_hr", "rh@example.invalid", "x")
+        for key in ("costo_orario_persone", "costo_orario_ripartito", "costo_orario_andamento"):
+            self.assertFalse(catalogo.get(key).consentita(normale))
+            self.assertTrue(catalogo.get(key).consentita(capo))
+        from .reportistica.conversazione import catalogo_per_ai
+
+        chiavi = {s["chiave"] for s in catalogo_per_ai(capo, {})["sezioni"]}
+        self.assertFalse(chiavi & {"costo_orario_persone", "costo_orario_ripartito", "costo_orario_andamento"})
+        modello = ReportModello.objects.get(codice_sistema="costo_personale")
+        self.assertEqual(modello.riservatezza, "DATI_PERSONALI")
+        self.assertEqual(modello.blocchi.count(), 5)
