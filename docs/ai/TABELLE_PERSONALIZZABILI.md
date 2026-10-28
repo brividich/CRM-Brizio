@@ -137,7 +137,7 @@ Colonne senza `data-col` sono visibili-sempre e non filtrabili (es. azioni).
 Sopra la `<table>` viene inserita una barra:
 
 ```
-[ 🔍 Cerca globale… ]   [Colonne ▾]   [Viste ▾]   [Reset]   [⛶ Schermo intero]   [✓ Preferenze salvate]   [45 / 1.340]
+45 / 1.340 righe   [ 🔍 Cerca globale… ]   ……   [Colonne ▾]   [Viste ▾]   [⛶]   [✓ Preferenze salvate]
 ```
 
 Menu "Viste" (18/10/2026): viste con nome per utente (colonne, ordine, sort, **filtri e ricerca compresi**), massimo 12 per tabella. Salvate con lo stesso endpoint `/api/table-prefs/<id>/` nel record `<table_id>::viste` (`state = {"viste": [{"nome", "stato"}]}`; id oltre 93 caratteri accorciato con hash), così il salvataggio automatico delle preferenze non le tocca. Applicare una vista passa lo stato in `sessionStorage` (`fm-tbl-vista:<id>`) e ricarica: `initTable` lo usa al posto delle preferenze, poi salva colonne/sort come preferenze correnti. Il pulsante mostra «Vista: nome» finché la pagina non viene ricaricata. Reset non cancella le viste.
@@ -188,3 +188,13 @@ Ogni patch è atomica e self-contained: una può essere posticipata senza blocca
 - Salvataggio "preset" multipli per la stessa tabella (es. "vista commerciale" / "vista HR"). Da PATCH-TBL-06+.
 - Export Excel dei dati filtrati. Già coperto dagli export specifici.
 - Edit inline su cella. Non rientra in questo sistema.
+
+## Aspetto sobrio (28/10/2026)
+
+Richiesta utente: «la visualizzazione è ancora complicata». Solo CSS/JS del motore (`fm-table-enhanced.css`, blocco «Aspetto sobrio»), valido per ogni tabella dentro `.fm-tbl-shell`:
+- barra senza riquadro; pulsanti senza bordo; «Schermo intero» solo icona (testo visibile solo a schermo intero, «Esci (Esc)»); contatore come testo «N righe» a sinistra;
+- «Reset» spostato in fondo al menu Colonne come «Ripristina colonne predefinite» (classe `fm-tbl-reset`, stesso comportamento);
+- intestazioni in minuscolo normale, font del portale (`!important` su `text-transform`/`letter-spacing`/`font-family`, perché alcune pagine li mettono inline);
+- ↕ e imbuto visibili solo con hover/focus o se attivi (solo su dispositivi con mouse: `@media (hover:hover)`).
+Pagine: Ratei con il colore dei gruppi solo nell'intestazione; Dipendenti con email e «Scheda ›» come link leggeri.
+

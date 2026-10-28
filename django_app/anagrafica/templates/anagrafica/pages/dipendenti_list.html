@@ -126,12 +126,12 @@
               </td>
               {% for c in colonne %}{% with v=dip.valori|get_valore:c.colonna.chiave %}
               {% if c.colonna.chiave == "reparto" %}<td>{% if v %}<span class="fmd-badge fmd-b-cyan">{{ v }}</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
-              {% elif c.colonna.chiave == "email" %}<td>{% if v %}<a class="fmd-data-link" href="mailto:{{ v }}" style="font-size:12px;">{{ v }}</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              {% elif c.colonna.chiave == "email" %}<td>{% if v %}<a class="fmd-data-link" href="mailto:{{ v }}" style="font-size:12px;font-weight:500;">{{ v }}</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
               {% else %}<td data-sort-value="{{ dip.valori|get_ordine:c.colonna.chiave }}"{% if not v %} class="fmd-muted"{% endif %}>{{ v|default:"—" }}</td>{% endif %}
               {% endwith %}{% endfor %}
               <td class="fmd-r fmd-nowrap">
                 {% if dip.timbri_legacy_id %}
-                  <a class="fmd-btn fmd-btn-ghost" style="padding:6px 12px;" href="{% url 'anagrafica:dipendente_detail' dip.timbri_legacy_id %}" title="Scheda dipendente">Scheda <svg class="fmd-ico"><use href="#i-chevron-right"/></svg></a>
+                  <a class="fmd-data-link" style="font-weight:500;display:inline-flex;align-items:center;gap:2px;" href="{% url 'anagrafica:dipendente_detail' dip.timbri_legacy_id %}" title="Scheda dipendente">Scheda <svg class="fmd-ico"><use href="#i-chevron-right"/></svg></a>
                 {% else %}<span class="fmd-muted">—</span>{% endif %}
               </td>
             </tr>
