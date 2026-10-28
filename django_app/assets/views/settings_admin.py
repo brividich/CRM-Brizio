@@ -712,6 +712,23 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             messages.success(request, f"Template etichetta rimosso ({scope_info}).")
             return config_redirect
 
+        if action == "collega_reparto_asset":
+            from ..services import reparti_collegati
+
+            testo = request.POST.get("testo", "").strip()
+            unita = request.POST.get("unita", "").strip()
+            try:
+                collegato = reparti_collegati.collega(testo, unita, utente=request.user.get_username())
+            except ValueError as exc:
+                messages.error(request, str(exc))
+            else:
+                log_action(request, "collega_reparto_asset", "assets", {"testo": testo, "unita": unita})
+                if collegato is None:
+                    messages.success(request, f"Collegamento di «{testo}» tolto.")
+                else:
+                    messages.success(request, f"«{testo}» collegato a {collegato.area or collegato.reparto}.")
+            return redirect(f"{reverse('assets:gestione_admin')}?tab=reparti")
+
         if action in CATEGORY_ACTIONS:
             ok, text = _handle_asset_category_request(request)
             if ok:
@@ -857,6 +874,14 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
         )
         document_folder_rows = _build_asset_document_folder_rows(document_folder_categories)
 
+    reparti_righe, reparti_senza = [], 0
+    reparti_unita = []
+    if tab == "reparti":
+        from ..services import reparti_collegati
+
+        reparti_righe, reparti_senza = reparti_collegati.righe()
+        reparti_unita = reparti_collegati.unita_disponibili()
+
     # --- Categorie ticket (solo tab ticket) ---
     from tickets.models import CategoriaTicket as _CategoriaTicket, TipoTicket as _TipoTicket
     categorie_ticket = (
@@ -890,6 +915,9 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             ),
             "page_title": "Impostazioni Assets",
             "tab": tab,
+            "reparti_righe": reparti_righe,
+            "reparti_senza": reparti_senza,
+            "reparti_unita": reparti_unita,
             # stats
             "total_assets": total_assets,
             "assets_by_status": assets_by_status,

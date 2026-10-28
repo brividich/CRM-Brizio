@@ -48,24 +48,26 @@ MESSAGGIO_NEGATO = (
 
 
 def reparti_guidati(utenti) -> list[str]:
-    """Nomi (normalizzati) di aree e reparti il cui capo è fra gli ``utenti.id`` dati."""
+    """Nomi (normalizzati) di aree, reparti e testi collegati di cui un ``utenti.id`` dato è capo o co-capo."""
     utenti = {int(u) for u in utenti or ()}
     if not utenti:
         return []
-    capi = responsabile_asset.capi_per_reparto()
-    if not capi:
+    persone = responsabile_asset.persone_per_reparto()
+    if not persone:
         return []
     try:
         from core.legacy_models import AnagraficaDipendente
 
         utente_di = dict(
-            AnagraficaDipendente.objects.filter(id__in={pid for pid, _nome in capi.values()})
+            AnagraficaDipendente.objects.filter(id__in=set().union(*persone.values()))
             .values_list("id", "utente_id")
         )
     except Exception:
         logger.debug("Utenti dei caporeparto non risolti", exc_info=True)
         return []
-    return sorted(chiave for chiave, (pid, _nome) in capi.items() if utente_di.get(pid) in utenti)
+    return sorted(
+        chiave for chiave, pids in persone.items() if any(utente_di.get(pid) in utenti for pid in pids)
+    )
 
 
 def filtro(request, modulo: str = MODULO) -> Q | None:
