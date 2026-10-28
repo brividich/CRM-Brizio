@@ -320,16 +320,20 @@ def modello_en9100_attivo() -> ChecklistModello | None:
 def inizializza_checklist(audit: Audit) -> int:
     from .audit_automation import genera_checklist_processi
     nuovi_processi = genera_checklist_processi(audit) + genera_domande_followup(audit)
-    if not audit.en9100:
-        return nuovi_processi
-    modello = modello_en9100_attivo()
-    if not modello:
-        return nuovi_processi
+    # Una checklist per ogni norma spuntata che ne ha una revisione attiva (EN 9100, ISO 45001, PdR 125).
+    from .checklist_norme import modelli_per_audit
+
     create = []
-    for sezione in modello.sezioni.prefetch_related("domande"):
-        AuditSezioneCar.objects.get_or_create(audit=audit, sezione=sezione)
-        for domanda in sezione.domande.filter(attiva=True):
-            create.append(AuditEsito(audit=audit, domanda=domanda, strutturato=True, domanda_snapshot={"domanda": domanda.testo, "punti": domanda.punti, "revisione": modello.revisione, "criterio": sezione.criteri}))
+    for modello in modelli_per_audit(audit):
+        for sezione in modello.sezioni.prefetch_related("domande"):
+            AuditSezioneCar.objects.get_or_create(audit=audit, sezione=sezione)
+            for domanda in sezione.domande.filter(attiva=True):
+                create.append(AuditEsito(audit=audit, domanda=domanda, strutturato=True, domanda_snapshot={
+                    "domanda": domanda.testo, "punti": domanda.punti, "revisione": modello.revisione,
+                    "criterio": sezione.criteri, "norma": modello.norma,
+                }))
+    if not create:
+        return nuovi_processi
     before = audit.esiti.count()
     AuditEsito.objects.bulk_create(create, ignore_conflicts=True)
     return audit.esiti.count() - before + nuovi_processi

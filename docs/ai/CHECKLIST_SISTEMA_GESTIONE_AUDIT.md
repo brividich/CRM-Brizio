@@ -22,7 +22,7 @@ prod fino a **0016**; in `release/prod` (non deployate) **0017-0018**.
 | 2 | Audit interni EN 9100: MOD.034 programma, MOD.035A piano, MOD.035B rapporto, auditor, collegamento al Registro OFI | **FATTA e DEPLOYATA** (migrazioni 0003-0016) | `37e4aa8f` + fix `411151c6` (25/09); catalogo processi `d7f28081`, automatismi `113c1009`, CAR/KPI `6cd61801` (28-29/09); prompt 08 `c4d44e4b`…`6f5dc71c` (11/10); verifica MT CN 11/12 + guida `41f65e0d` (12/10); PART 145 `34602a1c` (0015); struttura Qualità `4f31aeae` (0016) |
 | 2+ | Certificazioni e audit esterni, preparazione all'audit dell'ente, scheda processo ridisegnata, Registro OFI come modulo dedicato | **FATTA — in `release/prod`, NON deployata** | `476a29fc` (0017-0018), `1ecfc7f5`, `1f0ab328`, `f05e5197` (26/10); impostazioni modulo `29d48bea` (27/10) |
 | 3 | Audit interni ISMS: MOD.171 piano, MOD.168 rapporto (punteggio 0-4 dei 93 controlli precompilato dalla SoA) | **FATTA — branch `feature/sistema-gestione-audit-isms`, NON deployata** | migrazione 0019; dettaglio e scelte al §7 |
-| 4 | Estensioni: checklist ISO 45001 e UNI/PdR 125, flag PdR 125 nel Registro OFI, (eventuale) analisi del rischio completa del MOD.165 | **IN PARTE** | flag `norma_pdr125` nel Registro OFI **fatto e deployato** (`gestione_specifiche` 0014); audit e checklist di processo accettano 45001/14001/PdR 125 (0011); checklist importate dai moduli 45001/PdR 125 e analisi del rischio MOD.165 **non fatte**; KPI PdR 125 pianificati nel blocco 6 di [PIANO_SGI_FASE_A_2026-10.md](PIANO_SGI_FASE_A_2026-10.md) |
+| 4 | Estensioni: checklist ISO 45001 e UNI/PdR 125, flag PdR 125 nel Registro OFI, (eventuale) analisi del rischio completa del MOD.165 | **FATTA — NON deployata**: checklist per norma (migrazione 0020) e analisi del rischio MOD.165 (migrazione 0021, branch `feature/sistema-gestione-rischio-mod165`); restano solo attività di contenuto (RSGI) | flag `norma_pdr125` nel Registro OFI **fatto e deployato** (`gestione_specifiche` 0014); audit e checklist di processo accettano 45001/14001/PdR 125 (0011); checklist importate dai moduli 45001/PdR 125 e analisi del rischio MOD.165 **non fatte**; KPI PdR 125 pianificati nel blocco 6 di [PIANO_SGI_FASE_A_2026-10.md](PIANO_SGI_FASE_A_2026-10.md) |
 
 ---|---|---|---|
 | 1 | Dichiarazione di applicabilità (SoA) ISO 27001 = MOD.165 Control Matrix + threat intelligence | **FATTA** — mergiata su `main` e `release/prod`, **non deployata** | feature `e525875a`, main `a784d330`, release/prod `e59c3223` |
@@ -81,7 +81,7 @@ prod fino a **0016**; in `release/prod` (non deployate) **0017-0018**.
 | Firme | **Entrambe**: approvazione registrata nel portale (nome, data/ora nel PDF) **e** copia firmata a mano caricabile (PDF, storage privato cifrato) |
 | Auditor | Interni con qualifica + **auditor esterni** (consulenti, con approvazione del CEO come da MT CN 12 §5.3) |
 | Modelli dei documenti | Replicare i moduli aziendali; **il PDF di export deve essere identico al modulo** (MOD.035A in particolare) |
-| Checklist | Per ora **solo EN 9100** (Folder B del MOD.035B) **e ISMS** (MOD.171/168); ISO 45001 e PdR 125 dopo |
+| Checklist | EN 9100 (Folder B del MOD.035B), ISMS (MOD.171/168); dal 27/10/2026 anche ISO 45001 e PdR 125: **non esiste un modulo aziendale**, il portale propone una bozza da far verificare a RSGI prima dell'attivazione |
 | Scala controlli ISO 27001 | **0-4, 4 = pienamente applicato**, 0 = non applicato/escluso (come MOD.165) |
 | MOD.165 sorgente | Esiste **solo il PDF** (l'Excel originale non è disponibile) → import dal PDF |
 | NIS2 | Azienda registrata presso l'ACN ma **non soggetta** alle misure di base → nessuna mappatura ACN per ora (la struttura deve poterla aggiungere dopo) |
@@ -254,12 +254,42 @@ Implementata il 2026-10-27 sul branch `feature/sistema-gestione-audit-isms` (mig
 
 ---
 
+## 7-bis. Fase 4 — Checklist ISO 45001 e UNI/PdR 125 (FATTA — NON DEPLOYATA)
+
+Sulla share SGI non c'è una checklist di audit per ISO 45001 né per PdR 125 (solo procedure MT CN 451-455, MT CN 125_2…13, MOD.147, MOD.202): il contenuto delle checklist nasce nel portale.
+
+- [x] `ChecklistModello`: codici `ISO45001` e `PDR125` accanto a `EN9100_FOLDER_B`; `CODICE_PER_NORMA` collega i flag dell'audit; campi `preparato_da`, `attivato_da/_il`, `motivo` (migrazione 0020).
+- [x] Avvio audit: carica la revisione attiva di ogni norma spuntata (audit integrati = più checklist), snapshot con la norma; nessun duplicato rilanciando.
+- [x] Bozze di base (`services/checklist_norme.py`): ISO 45001 §4-§10 (27 domande guida), PdR 125 sistema di gestione + 6 aree (16 domande), con i riferimenti MT CN; testo scritto per il portale, non quello delle norme. Nascono **non attive**.
+- [x] Pagina «Checklist per norma» e scheda revisione: modifica di sezioni e domande solo su revisione non attiva e mai usata; nuova revisione = copia con motivo; attiva (spegne la precedente) / disattiva; log di ogni azione.
+- [x] Rapporto MOD.035B: sezione C intestata con le checklist usate, norma su ogni sezione con più norme; ordine EN 9100 → ISO 45001 → PdR 125.
+- [x] Guida in-app («Pagina Checklist di audit per norma»), Centro guide, scheda modulo, CHANGELOG, test `tests_checklist_norme.py` (307 test verdi in `sistema_gestione`, `report_conformita`, `registro_ofi` tranne `report_conformita…test_eventi_senza_nominativo`, che fallisce identico anche su `main` dopo le 23 locali: dipende dall'ora).
+- [x] Verifica a video chiaro/scuro (Playwright, SQLite del worktree).
+- [ ] **RSGI**: verificare e completare le bozze ISO 45001 e PdR 125 e attivarle (contenuto, non codice).
+- [x] Analisi del rischio completa del MOD.165 (decisa il 28/10/2026): vedi §7-ter.
+- [ ] Deploy (§8).
+
+---
+
+## 7-ter. Analisi del rischio del MOD.165 (FATTA — NON DEPLOYATA)
+
+Sulla share il MOD.165 è ora alla **Rev.4** (aggiunto il foglio «OT Treatment Plan»). Formule ricavate dai valori del modulo e verificate sul PDF reale: vulnerabilità di una minaccia = massima fra i controlli che la mitigano; residuo = inerente × vulnerabilità / 4; accettabile fino a 30; per controllo residuo = inerente massimo delle minacce collegate × vulnerabilità / 4, futuro con la vulnerabilità attesa; OT atteso = inerente × vulnerabilità residua attesa / 4.
+
+- [x] Modelli `RischioMinaccia` e `ScenarioRischioOT` sulla `SoaRevisione`; `soglia_rischio`, `SoaVoce.vulnerabilita_attesa` (migrazione 0021). Il rischio inerente resta il valore del modulo (probabilità × impatto sugli asset), modificabile in bozza; il residuo è calcolato.
+- [x] Parser `services/mod165_rischi_import.py`: «Threat Risk» (81 minacce, soglia), «Threats vs Controls» (matrice delle «x»), «Threat Monitoring» (vulnerabilità attese), «OT Treatment Plan» (10 scenari). Prova sul PDF reale Rev.4: vulnerabilità massima ricalcolata uguale al PDF su 81/81 minacce, residuo su 80/80 (una minaccia senza inerente).
+- [x] Comando `importa_rischi_mod165 "<PDF>" --numero N [--apply] [--sostituisci]`: dry-run con confronto «uguali/diversi» fra residuo del PDF e residuo ricalcolato dalla SoA della revisione; sostituzione solo in bozza.
+- [x] Pagina «Analisi del rischio» (dalla SoA): tessere, soglia, rischio per minaccia con controlli che determinano la vulnerabilità e filtro «oltre la soglia», monitoraggio dei controlli con residuo futuro, piano OT; modifica minacce/scenari/soglia solo in bozza; Excel. «Apri nuova revisione» della SoA copia l'analisi.
+- [x] Guida in-app (capitolo «SoA e analisi del rischio (MOD.165)» e «Guida di questa pagina» sulle pagine SoA), Centro guide, scheda modulo, schema DB, CHANGELOG, test `tests_rischio.py` (320 verdi in `sistema_gestione`, `report_conformita`, `registro_ofi`), verifica a video chiaro/scuro con dati sintetici.
+- [ ] Non portati nel portale (restano nel modulo Excel): catalogo informazioni C/I/A, tipi di asset, probabilità per asset e calcolo del rischio inerente. Da valutare con l'utente se servono.
+
+---
+
 ## 8. Deploy (per ogni fase)
 
 1. Pacchetto da `release/prod` (vedi `docs/ai/06_TESTING_AND_QUALITY_GATES.md` e `deployment/scripts/package-release.ps1`).
-2. `manage.py migrate` (fase 1: `sistema_gestione 0001-0002`; fase 2: anche `0003_audit_*`; fase 3: `0019_audit_isms`).
+2. `manage.py migrate` (fase 1: `sistema_gestione 0001-0002`; fase 2: anche `0003_audit_*`; fase 3: `0019_audit_isms`; fase 4: `0020_checklist_norme` e `0021_analisi_rischio_mod165`).
 3. `manage.py riorganizza_topbar` (dry-run) e poi `--apply`.
-4. Fase 1: `manage.py importa_soa_mod165 "\\novisrv\Sistema Gestione Integrato\27001_Sistemi Informatici\MOD.165 - RAR RiskAssessmentAndRegister Rev.3.pdf" --numero 3` (controllare l'output) e poi con `--apply` → Rev.3 in bozza da verificare e proporre.
+4. Fase 1: `manage.py importa_soa_mod165 "\\novisrv\Sistema Gestione Integrato\27001_Sistemi Informatici\MOD.165 - RAR RiskAssessmentAndRegister Rev.4.pdf" --numero 4` (controllare l'output; dal 28/10/2026 sulla share c'è la Rev.4, la Rev.3 non c'è più) e poi con `--apply` → Rev.4 in bozza da verificare e proporre. Subito dopo, stessa revisione: `manage.py importa_rischi_mod165 "<stesso PDF>" --numero 4` (deve dare 80 uguali, 0 diversi) e `--apply`.
 5. Fase 2: `manage.py importa_checklist_mod035b "\\novisrv\Sistema Gestione Integrato\9100_Qualità\_Modelli\MOD.035B RAIS Rapporto di Audit Interno di Sistema Rev0.pdf" --revisione 0` (dry-run: verificare sezioni/domande), poi ripetere con `--apply` nell'ambiente autorizzato.
 6. Admin › ACL: assegnare `soa.edit` al CISO, `soa.approva` alla Direzione; per la fase 2 assegnare `audit.view/edit/esegui/approva` separatamente a MSM/RDD, auditor e Direzione.
 7. Fase 2: configurare `SISTEMA_GESTIONE_AUDIT_SEDE` e `SISTEMA_GESTIONE_AUDIT_EMAIL_MSM`; verificare invio email/invito calendario in TEST.

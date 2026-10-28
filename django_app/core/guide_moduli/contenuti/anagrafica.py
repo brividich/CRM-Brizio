@@ -499,9 +499,25 @@ GUIDA = {
                     "solo per chi ha il permesso HR.",
                     "In fondo alla pagina «Divisori»: «Salva e ricalcola» rifà tutti i mesi; «Ricalcola tutto» senza "
                     "cambiarli.",
+                    "«Report» (o Reportistica → modello pronto «Costo orario del personale», Excel o PDF): andamento "
+                    "nel periodo, anche per reparto; ripartizione per classificazione e per mansione; costo per persona.",
+                ]),
+                ("def", [
+                    ("Costo orario per persona", "mese a scelta, RML, giorni, ore, costo, mese prima e variazione € e %, "
+                                                 "«RML da» cedolino o a mano; opzione «Anche chi è in forza senza RML "
+                                                 "nel mese»."),
+                    ("Costo orario per mansione e classificazione", "una riga per classificazione, mansione, reparto o "
+                                                                    "area; ogni persona pesa 1 divisa con i "
+                                                                    "coefficienti: «Teste equivalenti», costo medio "
+                                                                    "pesato, «RML ripartita», «Quota RML»; chi non ha "
+                                                                    "coefficienti va in «Senza mansioni»."),
+                    ("Andamento del costo orario", "una riga per mese del periodo (tutta l'azienda, reparto, area o "
+                                                   "classificazione prevalente): media, minimo, massimo, variazione sul "
+                                                   "mese prima, RML totale; arancione oltre la soglia (di serie 3%)."),
                 ]),
                 ("nota", "Si aggiorna da solo a ogni import dei cedolini e quando si corregge la voce RML. Dato "
-                         "retributivo: solo con il permesso sui dati HR riservati; consultazioni ed esportazioni "
+                         "retributivo: solo con il permesso sui dati HR riservati (senza, le sezioni del report "
+                         "risultano «Sezione omessa»; mai in «Chiedi un report»); consultazioni ed esportazioni "
                          "vanno nel registro attività."),
             ],
         },
@@ -619,7 +635,9 @@ GUIDA = {
                 ("p", "«Da completare» porta dove si risolve: le mansioni si aprono nell'editor (area, processo, ruoli), "
                       "quelle senza mansione di rischio vanno a «Rischi da confermare», i ruoli senza nessuno al "
                       "«Cambio ruoli in blocco» con il ruolo già scelto. Chi gestisce la skill matrix (es. il "
-                      "caporeparto) dalla scheda di una mansione può assegnare persone, valutarle e toglierle."),
+                      "caporeparto) dalla scheda di una mansione può assegnare più persone insieme, cambiarne il "
+                      "livello in riga, valutarle e toglierle; dalla scheda di una persona può darle più mansioni "
+                      "insieme."),
             ],
         },
         {
@@ -721,9 +739,33 @@ GUIDA = {
                     ("Reparto", "per una macchina è quello dell'asset; per un processo si sceglie in «Impostazioni»."),
                     ("Mansioni di rischio", "quelle che comporta chi la svolge: da lì vengono DPI, visite e schede di "
                                             "sicurezza. Una mansione senza mansione di rischio è segnalata."),
-                    ("Persone", "nella scheda «Persone», riquadro «Aggiungi una persona alla mansione»: si scrive in "
-                                "«Cerca» per restringere l'elenco, si sceglie la persona e il «Livello di partenza», poi "
-                                "«Assegna». «Togli» chiede conferma. Ogni modifica resta nello storico delle abilitazioni."),
+                    ("Persone", "nella scheda «Persone», riquadro «Aggiungi persone alla mansione»: si spuntano una "
+                                "o più persone (la ricerca trova anche reparto e area: scritto il reparto, «Seleziona "
+                                "tutti» spunta solo quelle visibili), si sceglie il «Livello di partenza» e «Assegna a N "
+                                "persone». «Togli» chiede conferma. Ogni modifica resta nello storico delle abilitazioni."),
+                    ("Livello in riga", "nella tabella delle persone il livello è una tendina: cambiandolo si salva "
+                                        "subito, con prima → dopo e autore nello storico delle abilitazioni e nel "
+                                        "registro attività. Sulle mansioni con competenze definite il livello sulla "
+                                        "mansione si calcola e la tendina non c'è: si cambiano i livelli per competenza."),
+                    ("Livelli per competenza", "sulle mansioni con competenze, sotto la tabella delle persone c'è "
+                                               "la matrice persone × competenze: ogni cella è una tendina (— = non "
+                                               "valutata) che si salva al cambio, con storico della competenza e "
+                                               "ricalcolo immediato del livello sulla mansione. Cella gialla = sotto "
+                                               "il minimo; rossa con «!» = manca il requisito formale (corso, "
+                                               "qualifica, MOD.128) e la competenza conta al massimo I."),
+                    ("Ricalcolo automatico", "il livello sulla mansione si riallinea da solo quando cambia qualcosa "
+                                             "da cui dipende: corso completato o scaduto, qualifica aggiunta, tolta o "
+                                             "scaduta, abilitazione MOD.128, competenze richieste (nuova, minimo, "
+                                             "bloccante, requisito), regola di calcolo o soglia. Gira dopo ogni "
+                                             "salvataggio e ogni notte (per le scadenze che passano da sole). Ogni "
+                                             "cambio è nello storico con fonte «Ricalcolo automatico» e il motivo. "
+                                             "Chi è ancora da valutare tiene il livello di partenza, ma se non è "
+                                             "abilitato scende sotto la soglia operativa. A mano: comando "
+                                             "«ricalcola_livelli_competenze» (prova, poi --applica)."),
+                    ("Scheda persona", "dal nome della persona: riquadro «Aggiungi mansioni a …» per dare più "
+                                       "mansioni insieme (le responsabilità si danno da «Reparti, aree e capi»), "
+                                       "livello in riga, «Togli» e «Storico delle mansioni» (assegnazioni, cambi di "
+                                       "livello con chi li ha fatti, rimozioni)."),
                     ("Da valutare", "chi è in lista su una mansione con competenze ma non ha ancora un livello su "
                                     "nessuna di esse: il pulsante «Valuta» è evidenziato. Finché non è valutato non "
                                     "risulta abilitato."),
@@ -828,6 +870,11 @@ GUIDA = {
                     ("importa_mansioni_idoneita", "assegna la mansione di rischio ai dipendenti che non l'hanno, dall'elenco "
                                                   "idoneità del medico (codice fiscale e «MANSIONE DI RISCHIO»). In prova di "
                                                   "default, --commit per scrivere."),
+                    ("ricalcola_livelli_competenze", "riallinea il livello sulle mansioni con competenze (requisiti, "
+                                                     "regole, scadenze). Gira già da solo dopo ogni salvataggio e "
+                                                     "ogni notte; a mano serve dopo il deploy o per controllo. In "
+                                                     "prova elenca i cambi, --applica per scrivere, --legacy-id per "
+                                                     "una persona."),
                     ("proponi_mansioni_rischio", "collega a ogni mansione del Mansionario ancora senza mansione di "
                                                  "rischio quella più frequente tra le persone in lista (almeno metà di "
                                                  "loro, a pari merito niente). Da lanciare dopo importa_mansioni_idoneita. "

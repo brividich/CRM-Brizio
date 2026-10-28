@@ -141,8 +141,18 @@ def ricalcola_visite(legacy_ids=None, *, oggi: date | None = None) -> dict[str, 
 
 
 def ricalcola_tutto(legacy_ids=None, *, oggi: date | None = None) -> dict[str, dict]:
-    return {"formazione": ricalcola_formazione(legacy_ids, oggi=oggi),
-            "visite": ricalcola_visite(legacy_ids, oggi=oggi)}
+    esito = {"formazione": ricalcola_formazione(legacy_ids, oggi=oggi),
+             "visite": ricalcola_visite(legacy_ids, oggi=oggi)}
+    # Dopo la formazione: i livelli sulle mansioni con competenze leggono i corsi validi
+    # appena ricalcolati (e qualifiche, MOD.128). La notte copre le scadenze passate.
+    try:
+        from .competenze_ricalcolo import ricalcola as ricalcola_competenze
+
+        c = ricalcola_competenze(legacy_ids, motivo="requisiti o scadenze cambiati")
+        esito["competenze"] = {"valutate": c["valutate"], "cambiate": c["cambiate"]}
+    except Exception:
+        logger.exception("ricalcolo livelli competenze fallito per %s", legacy_ids or "tutti")
+    return esito
 
 
 class _Accumulo:

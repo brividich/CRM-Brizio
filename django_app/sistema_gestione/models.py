@@ -52,6 +52,10 @@ class SoaRevisione(models.Model):
     STATI_MODIFICABILI = (STATO_BOZZA,)
 
     numero = models.PositiveIntegerField(unique=True, help_text="Indice di revisione del MOD.165")
+    soglia_rischio = models.PositiveSmallIntegerField(
+        "Soglia di accettabilità del rischio", default=30,
+        help_text="MOD.165: un rischio residuo fino a questo valore è accettabile (scala 0-64).",
+    )
     stato = models.CharField(max_length=10, choices=STATO_CHOICES, default=STATO_BOZZA, db_index=True)
     motivo = models.CharField(max_length=255, blank=True, default="", help_text="Descrizione della revisione")
     origine = models.CharField(max_length=255, blank=True, default="", help_text="Es. import dal PDF MOD.165")
@@ -118,6 +122,7 @@ class SoaVoce(models.Model):
     responsabile = models.CharField(max_length=150, blank=True, default="")
     scadenza = models.DateField(null=True, blank=True)
     livello_atteso = models.PositiveSmallIntegerField(choices=LIVELLO_CHOICES, null=True, blank=True)
+    vulnerabilita_attesa = models.PositiveSmallIntegerField(choices=VULNERABILITA_CHOICES, null=True, blank=True)
     ofi = models.ForeignKey(
         "gestione_specifiche.RegistroOFI", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
@@ -754,6 +759,14 @@ class AuditAgenda(models.Model):
 
 class ChecklistModello(models.Model):
     CODICE_EN9100_FOLDER_B = "EN9100_FOLDER_B"
+    CODICE_ISO45001 = "ISO45001"
+    CODICE_PDR125 = "PDR125"
+    # Flag norma dell'audit -> checklist caricata all'avvio (una revisione attiva per codice).
+    CODICE_PER_NORMA = {
+        "en9100": CODICE_EN9100_FOLDER_B,
+        "iso45001": CODICE_ISO45001,
+        "pdr125": CODICE_PDR125,
+    }
     codice = models.CharField(max_length=40)
     norma = models.CharField(max_length=100)
     revisione = models.PositiveSmallIntegerField(default=0)
@@ -761,6 +774,14 @@ class ChecklistModello(models.Model):
     origine = models.CharField(max_length=255, blank=True, default="")
     attivo = models.BooleanField(default=True, db_index=True)
     importato_il = models.DateTimeField(auto_now_add=True)
+    preparato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    attivato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    attivato_il = models.DateTimeField(null=True, blank=True)
+    motivo = models.CharField("Motivo della revisione", max_length=255, blank=True, default="")
 
     class Meta:
         ordering = ["codice", "-revisione"]
@@ -770,6 +791,13 @@ class ChecklistModello(models.Model):
 
     def __str__(self) -> str:
         return f"{self.titolo} Rev.{self.revisione}"
+
+    @staticmethod
+    def chiave_sezione(sezione) -> tuple:
+        """Ordine delle sezioni di più checklist nello stesso audit: EN 9100, ISO 45001, PdR 125, poi le altre."""
+        ordine = list(ChecklistModello.CODICE_PER_NORMA.values())
+        codice = sezione.modello.codice
+        return (ordine.index(codice) if codice in ordine else len(ordine), sezione.modello_id, sezione.ordine, sezione.pk)
 
 
 class ChecklistSezione(models.Model):
@@ -1375,3 +1403,73 @@ class AuditIsmsControllo(_RilievoIsms):
     @property
     def differisce_da_soa(self) -> bool:
         return self.livello is not None and self.livello_soa is not None and self.livello != self.livello_soa
+
+
+
+# ---------------------------------------------------------------------------
+# Analisi del rischio del MOD.165 (Threat Risk, Threats vs Controls, OT Treatment Plan)
+# ---------------------------------------------------------------------------
+
+class RischioMinaccia(models.Model):
+    """Una minaccia del registro dei rischi: il rischio residuo si calcola dalle vulnerabilità della SoA.
+
+    Residuo = rischio inerente × vulnerabilità massima dei controlli collegati / 4 (come nel MOD.165).
+    """
+
+    revisione = models.ForeignKey(SoaRevisione, on_delete=models.CASCADE, related_name="minacce")
+    ordine = models.PositiveIntegerField(default=100)
+    gruppo = models.CharField("Gruppo", max_length=100, blank=True, default="")
+    agente = models.CharField("Agente di minaccia", max_length=150, blank=True, default="")
+    minaccia = models.CharField("Minaccia", max_length=255)
+    rischio_inerente = models.PositiveSmallIntegerField("Rischio inerente", null=True, blank=True)
+    controlli = models.ManyToManyField(ControlloIso27002, blank=True, related_name="minacce_rischio")
+    residuo_registrato = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Rischio residuo letto dal MOD.165 all'import, per confronto.",
+    )
+    note = models.TextField(blank=True, default="")
+    aggiornata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ordine", "id"]
+        verbose_name = "Minaccia (analisi del rischio)"
+        verbose_name_plural = "Minacce (analisi del rischio)"
+
+    def __str__(self) -> str:
+        return self.minaccia
+
+
+class ScenarioRischioOT(models.Model):
+    """Scenario del piano di trattamento OT (asset di produzione: CNC e macchine)."""
+
+    revisione = models.ForeignKey(SoaRevisione, on_delete=models.CASCADE, related_name="scenari_ot")
+    codice = models.CharField("ID", max_length=20)
+    scenario = models.TextField("Scenario di rischio OT")
+    minacce = models.TextField("Minacce collegate (RAR)", blank=True, default="")
+    controlli = models.ManyToManyField(ControlloIso27002, blank=True, related_name="scenari_ot")
+    misure = models.TextField("Misure esistenti", blank=True, default="")
+    rischio_inerente = models.PositiveSmallIntegerField("Rischio inerente", null=True, blank=True)
+    vulnerabilita_attesa = models.PositiveSmallIntegerField(
+        "Vulnerabilità residua attesa", choices=SoaVoce.VULNERABILITA_CHOICES, null=True, blank=True,
+    )
+    azioni = models.TextField("Azioni", blank=True, default="")
+    opzione = models.CharField("Opzione di trattamento", max_length=120, blank=True, default="")
+    responsabile = models.CharField("Responsabile", max_length=150, blank=True, default="")
+    scadenza = models.DateField("Scadenza", null=True, blank=True)
+    stato = models.CharField("Stato", max_length=80, blank=True, default="")
+    riferimenti = models.TextField("Riferimenti", blank=True, default="")
+    aggiornato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["codice", "id"]
+        constraints = [models.UniqueConstraint(fields=["revisione", "codice"], name="sg_scenario_ot_unico")]
+        verbose_name = "Scenario di rischio OT"
+        verbose_name_plural = "Scenari di rischio OT"
+
+    def __str__(self) -> str:
+        return f"{self.codice} {self.scenario[:60]}"
