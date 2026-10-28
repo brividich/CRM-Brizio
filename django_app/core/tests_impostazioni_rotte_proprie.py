@@ -1,4 +1,4 @@
-"""core 0100: le pagine Impostazioni rimaste sul permesso condiviso hanno un binding proprio."""
+"""core 0101: le pagine Impostazioni rimaste sul permesso condiviso hanno un binding proprio."""
 from __future__ import annotations
 
 import importlib
@@ -12,13 +12,13 @@ from core.acl_v2 import _find_canonical_binding
 from core.models import PermissionDefinition, RolePermissionGrant, RoutePermissionBinding
 from core.permessi.impostazioni import IMPOSTAZIONI
 
-migrazione = importlib.import_module("core.migrations.0100_impostazioni_rotte_proprie")
+migrazione = importlib.import_module("core.migrations.0101_impostazioni_rotte_proprie")
 
 
 class ImpostazioniRotteProprieTests(TestCase):
     def setUp(self):
         cache.clear()
-        for _rotta, code, fonti, modulo in migrazione.ROTTE + migrazione.ROTTE_PROPRIE:
+        for _rotta, code, fonti, modulo in migrazione.ROTTE:
             for c in (code, *fonti):
                 PermissionDefinition.objects.get_or_create(code=c, defaults={"label": c, "module": modulo})
         # Prima: la pagina impostazioni del diario stava sotto il prefisso della lista.
@@ -39,7 +39,7 @@ class ImpostazioniRotteProprieTests(TestCase):
 
     def test_rotte_legate_al_permesso_delle_impostazioni(self):
         migrazione.avanti(django_apps, None)
-        for rotta, code, _fonti, _modulo in migrazione.ROTTE + migrazione.ROTTE_PROPRIE:
+        for rotta, code, _fonti, _modulo in migrazione.ROTTE:
             binding, come = _find_canonical_binding(route_name=rotta, path_norm=reverse(rotta).rstrip("/").lower())
             self.assertIsNotNone(binding, rotta)
             self.assertEqual(binding.permission_id, code, rotta)

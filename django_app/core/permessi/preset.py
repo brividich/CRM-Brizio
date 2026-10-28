@@ -40,9 +40,11 @@ def _con_impostazioni(celle: dict[str, dict[str, str]]) -> dict[str, dict[str, s
     return celle
 
 
-# «Assets» è diviso in quattro moduli (assets/registro_permessi.py): un preset che
-# dice qualcosa sull'inventario lo dice anche su Manutenzione, Ordini di lavoro e
-# Verifiche e scadenze, salvo che li decida da sé. Le Impostazioni restano all'inventario.
+# «Assets» è diviso in moduli (assets/registro_permessi.py): un preset che dice
+# qualcosa sull'inventario lo dice anche su Manutenzione, Ordini di lavoro e
+# Verifiche e scadenze, salvo che li decida da sé. Le Impostazioni restano
+# all'inventario; Fornitori e contratti segue la manutenzione. IT e rete sono pagine
+# d'insieme che l'ambito non restringe: le riceve solo chi ha l'inventario su «tutti».
 _SOTTOMODULI_ASSETS = ("assets_manutenzione", "assets_odl", "assets_verifiche")
 
 
@@ -53,6 +55,12 @@ def _con_sottomoduli_assets(celle: dict[str, dict[str, str]]) -> dict[str, dict[
         for sotto in _SOTTOMODULI_ASSETS:
             if sotto not in celle:
                 celle[sotto] = {a: amb for a, amb in celle["assets"].items() if a != AZIONE_IMPOSTAZIONI}
+    if "assets_fornitori" not in celle and "assets_manutenzione" in celle:
+        celle["assets_fornitori"] = dict(celle["assets_manutenzione"])
+    if "assets_it" not in celle and "assets" in celle:
+        azioni = {a: amb for a, amb in celle["assets"].items() if a != AZIONE_IMPOSTAZIONI and amb == A}
+        if azioni:
+            celle["assets_it"] = azioni
     return celle
 
 

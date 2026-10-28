@@ -886,6 +886,30 @@ def annulla_view(request, pk: int):
 
 @login_required
 @require_POST
+def consolida_bozze_view(request):
+    """Consolida in blocco le bozze complete fino alla data indicata (dallo Scadenzario)."""
+    from .servizi import consolida_in_blocco
+
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
+    try:
+        fino_al = date.fromisoformat(request.POST.get("fino_al", ""))
+    except ValueError:
+        messages.error(request, "Indica una data valida.")
+        return redirect("rentri_scadenzario")
+    if fino_al > timezone.localdate():
+        messages.error(request, "La data non può essere nel futuro.")
+        return redirect("rentri_scadenzario")
+    esito = consolida_in_blocco(request, fino_al, _get_username(request))
+    messages.success(request, f"Consolidate {esito['consolidabili']} registrazioni fino al {fino_al:%d/%m/%Y}.")
+    if esito["incomplete"]:
+        messages.warning(request, f"{esito['incomplete']} bozze restano da completare (senza quantità o senza movimento collegato).")
+    return redirect("rentri_scadenzario")
+
+
+@login_required
+@require_POST
 def elimina(request, pk: int):
     """Compatibilità: un movimento non si elimina più, si annulla con un motivo (JSON)."""
     denied = _require_rentri_manager(request)
