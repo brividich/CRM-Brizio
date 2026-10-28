@@ -518,16 +518,22 @@ def _costo_orario_rows(request: HttpRequest, scope: str) -> list[dict]:
     return [{
         "dipendente": x["nome"], "reparto": x["reparto"], "classificazione": x["classe"],
         "mese": x["c"].mese.strftime("%m-%Y"), "rml": x["c"].rml, "giorni": x["c"].divisore_giorni,
-        "ore": x["c"].divisore_ore, "costo": x["c"].costo_orario, "manuale": _si_no(x["c"].rml_manuale),
+        "ore": x["c"].divisore_ore, "costo": x["c"].costo_orario, "delta": x["delta"], "delta_pct": x["delta_pct"],
+        "scost": x["scost"], "manuale": _si_no(x["c"].rml_manuale),
     } for x in righe]
 
 
 def _costo_orario_filters(request: HttpRequest) -> str:
     parts = []
+    from anagrafica.views_coefficienti import FILTRI_MOSTRA
+
     for chiave, etichetta in (("mese", "Mese"), ("reparto", "Reparto"), ("q", "Ricerca")):
         valore = (request.GET.get(chiave) or "").strip()
         if valore:
             parts.append(f"{etichetta}: {valore}")
+    mostra = request.GET.get("mostra") or ""
+    if mostra in FILTRI_MOSTRA:
+        parts.append(FILTRI_MOSTRA[mostra][0])
     return " · ".join(parts)
 
 
@@ -544,6 +550,9 @@ register(ExportSpec(
         ("Giorni", "giorni"),
         ("Ore al giorno", "ore"),
         ("Costo orario (€)", "costo"),
+        ("Sul mese prima (€)", "delta"),
+        ("Sul mese prima (%)", "delta_pct"),
+        ("Scostamento dalla media (%)", "scost"),
         ("RML corretta a mano", "manuale"),
     ],
     dataset=_costo_orario_rows,

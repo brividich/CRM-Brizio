@@ -920,6 +920,8 @@ def impostazioni(request):
         ("anagrafica:conformita_report", "Compliance — conformità alla mansione"),
         # Amministrazione (paghe & contratti)
         ("anagrafica:retribuzioni_globale", "Amministrazione — analisi retribuzioni"),
+        ("anagrafica:costo_orario", "Amministrazione — costo orario"),
+        ("anagrafica:costo_orario_storico", "Amministrazione — storico del costo orario"),
         ("anagrafica:retribuzioni_import", "Amministrazione — import retribuzioni"),
         ("anagrafica:contratti_import", "Amministrazione — contratti"),
         ("anagrafica:cedolini_import", "Amministrazione — cedolini"),
