@@ -217,9 +217,10 @@ def _termini_record(record, impacts):
     oggi = timezone.localdate()
     try:
         coperture = accettazione_rischio.attive(oggi)
-        for imp in impacts:
-            imp.termine = (cve_sla.stato(record, imp.aperta_dal or imp.computed_at, oggi, accettazione_rischio.copre(coperture, record.cve_id, imp.host))
-                           if imp.outcome == SecurityCveImpact.IMPACTS else None)
+        with cve_sla.termini_fissati():
+            for imp in impacts:
+                imp.termine = (cve_sla.stato(record, imp.aperta_dal or imp.computed_at, oggi, accettazione_rischio.copre(coperture, record.cve_id, imp.host))
+                               if imp.outcome == SecurityCveImpact.IMPACTS else None)
         return {
             "termine": {"classe": cve_sla.classe(record), "etichetta": cve_sla.ETICHETTE[cve_sla.classe(record)],
                         "giorni": cve_sla.giorni(cve_sla.classe(record)), "kev_due": record.kev_due if record.kev else None,

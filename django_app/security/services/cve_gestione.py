@@ -20,6 +20,10 @@ from security.services import cve_sla
 
 logger = logging.getLogger(__name__)
 
+# Campi della CVE che servono a classe, termine e pagine. Le configurazioni NVD (JSON grande) e la
+# descrizione non si caricano dove non si mostrano: in produzione erano la parte lenta delle pagine.
+CAMPI_CVE = ("cve__cve_id", "cve__kev", "cve__kev_due", "cve__cvss", "cve__severity")
+
 PERIODI = {"30": 30, "90": 90, "365": 365, "tutto": None}
 PERIODO_DEFAULT = "90"
 
@@ -91,7 +95,8 @@ def esposti_oggi(cve_ids) -> set:
 def correzioni_valide(dal, al=None) -> list:
     """PC corretti fra ``dal`` e ``al`` (datetime aware): ultima uscita del periodo per CVE + PC, programma
     aggiornato o disinstallato, PC oggi non di nuovo esposto alla stessa CVE."""
-    qs = SecurityCveRisoluzione.objects.filter(risolta_il__gte=dal).select_related("cve")
+    qs = (SecurityCveRisoluzione.objects.filter(risolta_il__gte=dal).select_related("cve")
+          .only("cve_id", "host", "come", "aperta_dal", "risolta_il", *CAMPI_CVE))
     if al is not None:
         qs = qs.filter(risolta_il__lte=al)
     ultime = ultime_uscite(qs)
@@ -101,6 +106,7 @@ def correzioni_valide(dal, al=None) -> list:
 
 # ── Elenco delle CVE aperte ────────────────────────────────────────────────────
 
+@cve_sla.termini_fissati()
 def elenco_cve(q="", classe="", solo_kev=False, termine="", esito="", oggi=None) -> dict:
     """CVE che impattano o da verificare, una riga per CVE con programmi, termine e correzioni."""
     oggi = oggi or timezone.localdate()
@@ -110,6 +116,7 @@ def elenco_cve(q="", classe="", solo_kev=False, termine="", esito="", oggi=None)
             to_verify=Count("impacts", filter=Q(impacts__outcome=SecurityCveImpact.TO_VERIFY)),
         )
         .filter(Q(impacted__gt=0) | Q(to_verify__gt=0))
+        .defer("configurations")
         .order_by("-kev", "-cvss", "-epss", "-impacted", "cve_id")
     )
     if solo_kev:
@@ -123,7 +130,9 @@ def elenco_cve(q="", classe="", solo_kev=False, termine="", esito="", oggi=None)
 
     impatti = defaultdict(list)
     for imp in (SecurityCveImpact.objects.filter(cve_id__in=list(per_id))
-                .exclude(outcome=SecurityCveImpact.NOT_IMPACTED).select_related("installation")):
+                .exclude(outcome=SecurityCveImpact.NOT_IMPACTED).select_related("installation")
+                .only("cve_id", "host", "outcome", "aperta_dal", "computed_at",
+                      "installation__product_raw", "installation__product", "installation__version_raw")):
         impatti[imp.cve_id].append(imp)
 
     corrette = defaultdict(int)
@@ -213,6 +222,7 @@ def _nel_filtro(come, come_riga, correzione) -> bool:
     return correzione and come_riga == come
 
 
+@cve_sla.termini_fissati()
 def correzioni(periodo=PERIODO_DEFAULT, come=COME_DEFAULT, q="", oggi=None) -> dict:
     """PC usciti da una CVE nel periodo, con versione prima/dopo, giorni e termine, e riepilogo per CVE.
 
@@ -228,7 +238,7 @@ def correzioni(periodo=PERIODO_DEFAULT, come=COME_DEFAULT, q="", oggi=None) -> d
     oggi = oggi or timezone.localdate()
     periodo = periodo if periodo in PERIODI else PERIODO_DEFAULT
     come = come if come in COME_FILTRI else COME_DEFAULT
-    qs = SecurityCveRisoluzione.objects.select_related("cve")
+    qs = SecurityCveRisoluzione.objects.select_related("cve").defer("cve__configurations", "cve__description")
     giorni = PERIODI[periodo]
     if giorni:
         qs = qs.filter(risolta_il__gte=timezone.now() - timedelta(days=giorni))
