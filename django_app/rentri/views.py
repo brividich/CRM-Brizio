@@ -1,17 +1,14 @@
 """
 Rentri — Registro Rifiuti RENTRI
-Gestione locale + sincronizzazione con SharePoint tramite Microsoft Graph API.
+Il registro del portale fa fede; la lista SharePoint è una copia (``sharepoint.py``).
+Le scritture passano da ``servizi.py`` (validazione, consolidamento, annullamento).
 """
 from __future__ import annotations
 
-import csv
-import io
 import json
-import re
+import logging
 from datetime import date, datetime
-from datetime import timezone as dt_timezone
 
-import requests
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.http import JsonResponse
@@ -21,17 +18,27 @@ from django.views.decorators.http import require_POST
 
 from django.contrib import messages
 
-from config.env_config import get_first_env_value
 from core.acl_v2 import request_has_permission_code
 from core.csv_export import safe_csv_writer
-from core.audit import log_action
+from core.audit import log_action, storico_leggibile, storico_oggetto
 from core.contact_people import parse_contact_people, primary_contact, serialize_contact_people
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 from core.module_branding import get_module_branding_context, handle_module_branding_post
 from core.upload_mime import validate_filename, validate_extension_and_mime, UploadMimeValidationError
 
 from .acl_bootstrap import PERM_RENTRI_MANAGE
+from .catena import indice_per_id, risali_a_carichi, split_rif_op
+from .importazione import (  # noqa: F401 - _parse_csv_rows resta importabile da qui
+    ImportAnnullato,
+    _parse_csv_rows,
+    importa_righe,
+)
+from .servizi import ErroreRegistro, annulla, consolida, salva_movimento, segna_trasmesso, fotografia
+from .sharepoint import _graph_configured, pull as sharepoint_pull
+from .validazione import quantita_da_testo
 from core.upload_limits import DOCUMENT_MAX_BYTES
+
+logger = logging.getLogger(__name__)
 
 
 _RENTRI_CSV_MAX_BYTES = 5 * 1024 * 1024
@@ -84,212 +91,6 @@ def _validate_rentri_allegato(uploaded_file):
 
 from .models import RegistroRifiuti, RentriImpostazioni
 from core.permessi.impostazioni import impostazioni_o
-
-# ── Helpers Graph / SharePoint ────────────────────────────────────────────────
-
-
-def _is_placeholder(value: str) -> bool:
-    return not value or value.startswith("<") and value.endswith(">")
-
-
-def _graph_settings() -> dict[str, str]:
-    return {
-        "tenant_id": get_first_env_value("GRAPH_TENANT_ID", "AZURE_TENANT_ID"),
-        "client_id": get_first_env_value("GRAPH_CLIENT_ID", "AZURE_CLIENT_ID"),
-        "client_secret": get_first_env_value("GRAPH_CLIENT_SECRET", "AZURE_CLIENT_SECRET"),
-        "site_id": get_first_env_value("GRAPH_SITE_ID"),
-        "list_id_rentri": get_first_env_value("GRAPH_LIST_ID_RENTRI"),
-    }
-
-
-def _graph_configured() -> bool:
-    gs = _graph_settings()
-    required = ("tenant_id", "client_id", "client_secret", "site_id", "list_id_rentri")
-    return all(not _is_placeholder(gs.get(k, "")) for k in required)
-
-
-def _graph_base_url() -> str:
-    gs = _graph_settings()
-    return (
-        f"https://graph.microsoft.com/v1.0/sites/{gs['site_id']}"
-        f"/lists/{gs['list_id_rentri']}/items"
-    )
-
-
-def _acquire_graph_token(tenant_id: str, client_id: str, client_secret: str) -> str:
-    url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
-    resp = requests.post(
-        url,
-        data={
-            "grant_type": "client_credentials",
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "scope": "https://graph.microsoft.com/.default",
-        },
-        timeout=20,
-    )
-    resp.raise_for_status()
-    return resp.json()["access_token"]
-
-
-def _graph_token() -> str:
-    if not _graph_configured():
-        raise RuntimeError("Configurazione Graph incompleta per RENTRI")
-    gs = _graph_settings()
-    return _acquire_graph_token(gs["tenant_id"], gs["client_id"], gs["client_secret"])
-
-
-def _graph_headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {_graph_token()}", "Content-Type": "application/json"}
-
-
-def _graph_get_all() -> list[dict]:
-    url = f"{_graph_base_url()}?expand=fields&$top=500"
-    rows: list[dict] = []
-    while url:
-        r = requests.get(url, headers=_graph_headers(), timeout=25)
-        if r.status_code != 200:
-            raise RuntimeError(f"Graph GET {r.status_code}: {r.text[:300]}")
-        payload = r.json()
-        rows.extend(payload.get("value", []) or [])
-        url = payload.get("@odata.nextLink")
-    return rows
-
-
-def _graph_create(fields_payload: dict) -> tuple[bool, dict | str]:
-    r = requests.post(
-        _graph_base_url(),
-        headers=_graph_headers(),
-        json={"fields": fields_payload},
-        timeout=20,
-    )
-    if r.status_code in (200, 201):
-        return True, r.json()
-    return False, r.text
-
-
-def _graph_update(item_id: str, fields_payload: dict) -> tuple[bool, dict | str]:
-    r = requests.patch(
-        f"{_graph_base_url()}/{item_id}/fields",
-        headers=_graph_headers(),
-        json=fields_payload,
-        timeout=20,
-    )
-    if r.status_code in (200, 204):
-        if not r.text:
-            return True, {}
-        try:
-            return True, r.json()
-        except Exception:
-            return True, {}
-    return False, r.text
-
-
-def _graph_delete(item_id: str) -> tuple[bool, str]:
-    r = requests.delete(f"{_graph_base_url()}/{item_id}", headers=_graph_headers(), timeout=20)
-    if r.status_code in (200, 202, 204):
-        return True, ""
-    if r.status_code == 404:
-        try:
-            payload = r.json()
-        except ValueError:
-            payload = {}
-        error_code = str((payload.get("error") or {}).get("code") or "").strip()
-        if error_code == "itemNotFound":
-            return True, ""
-    return False, r.text
-
-
-# ── Field mapping helpers ─────────────────────────────────────────────────────
-
-
-def _to_sp_fields(registro: RegistroRifiuti) -> dict:
-    """Convert a RegistroRifiuti instance to SharePoint field dict."""
-    def _dec(v):
-        return float(v) if v is not None else None
-
-    fields: dict = {
-        "Data": registro.data.isoformat() if registro.data else None,
-        "IDRegistrazione": registro.id_registrazione or "",
-        "Rif_x002e_Op": registro.rif_op or "",
-        "Codice": registro.codice or "",
-        "Quantit_x00e0_": _dec(registro.quantita),
-        "Carico_x002f_Scarico": registro.carico_scarico or "",
-        "RentriSI_x002f_NO": registro.rentri_si_no,
-        "Salva": registro.salva,
-        "NOTERENTRI": registro.note_rentri or "",
-        "Pericolosit_x00e0_": registro.pericolosita or "",
-        "RettificaScarico": _dec(registro.rettifica_scarico),
-        "ARRIVOFIR": registro.arrivo_fir or "",
-    }
-    if registro.aggiornato:
-        aggiornato_dt = registro.aggiornato
-        if timezone.is_naive(aggiornato_dt):
-            aggiornato_dt = timezone.make_aware(aggiornato_dt, timezone.get_current_timezone())
-        aggiornato_dt = aggiornato_dt.astimezone(dt_timezone.utc)
-        fields["Aggiornato"] = aggiornato_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    # Remove None values to avoid SP errors on non-nullable fields
-    return {k: v for k, v in fields.items() if v is not None}
-
-
-def _from_sp_item(item: dict) -> dict:
-    """Map a SharePoint item to RegistroRifiuti field values."""
-    fields = item.get("fields") or {}
-
-    def _as_bool(v) -> bool:
-        if isinstance(v, bool):
-            return v
-        if v is None:
-            return False
-        try:
-            return bool(int(v))
-        except Exception:
-            return str(v).strip().lower() in {"1", "true", "yes", "on", "si"}
-
-    def _as_decimal(v):
-        if v is None:
-            return None
-        try:
-            return float(v)
-        except Exception:
-            return None
-
-    def _parse_date(v):
-        if not v:
-            return None
-        try:
-            return datetime.fromisoformat(str(v)[:10]).date()
-        except Exception:
-            return None
-
-    def _parse_dt(v):
-        if not v:
-            return None
-        try:
-            dt = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
-            if timezone.is_naive(dt):
-                dt = timezone.make_aware(dt, dt_timezone.utc)
-            return timezone.localtime(dt, timezone.get_current_timezone()).replace(tzinfo=None)
-        except Exception:
-            return None
-
-    return {
-        "sharepoint_item_id": str(item.get("id") or ""),
-        "data": _parse_date(fields.get("Data")),
-        "id_registrazione": str(fields.get("IDRegistrazione") or "").strip(),
-        "rif_op": str(fields.get("Rif_x002e_Op") or "").strip(),
-        "codice": str(fields.get("Codice") or "").strip(),
-        "quantita": _as_decimal(fields.get("Quantit_x00e0_")),
-        "carico_scarico": str(fields.get("Carico_x002f_Scarico") or "").strip(),
-        "rentri_si_no": _as_bool(fields.get("RentriSI_x002f_NO")),
-        "salva": _as_bool(fields.get("Salva")),
-        "note_rentri": str(fields.get("NOTERENTRI") or "").strip(),
-        "pericolosita": str(fields.get("Pericolosit_x00e0_") or "").strip(),
-        "rettifica_scarico": _as_decimal(fields.get("RettificaScarico")),
-        "arrivo_fir": str(fields.get("ARRIVOFIR") or "").strip(),
-        "aggiornato": _parse_dt(fields.get("Aggiornato")),
-    }
-
 
 # ── Request parsing helpers ───────────────────────────────────────────────────
 
@@ -344,10 +145,14 @@ def _as_bool_field(v) -> bool:
 
 
 def _populate_registro(registro: RegistroRifiuti, data: dict, tipo: str) -> list[str]:
-    """Populate registro fields from POST data dict; return list of error strings."""
+    """Copia nel movimento i campi del modulo; ritorna gli errori di formato.
+
+    Le regole di validità (CER, quantità, collegamenti, giacenza) stanno in
+    ``validazione.py``. Il numero di registrazione non arriva mai dal modulo:
+    lo assegna il portale e non cambia più.
+    """
     errors = []
 
-    # data (date)
     data_val = str(data.get("data") or "").strip()
     if not data_val:
         errors.append("Il campo Data è obbligatorio.")
@@ -358,71 +163,35 @@ def _populate_registro(registro: RegistroRifiuti, data: dict, tipo: str) -> list
             errors.append("Formato data non valido.")
 
     registro.tipo = tipo
-    registro.rif_op = str(data.get("rif_op") or "").strip()
-    registro.codice = str(data.get("codice") or "").strip()
+    registro.rif_op = ", ".join(split_rif_op(data.get("rif_op")))[:200]
+    registro.codice = " ".join(str(data.get("codice") or "").split())[:100]
 
-    quantita_raw = str(data.get("quantita") or "").strip()
-    if quantita_raw:
+    for campo, etichetta in (("quantita", "Quantità"), ("rettifica_scarico", "Rettifica scarico")):
         try:
-            registro.quantita = float(quantita_raw)
+            setattr(registro, campo, quantita_da_testo(data.get(campo)))
         except ValueError:
-            errors.append("Quantità non valida.")
-    else:
-        registro.quantita = None
+            errors.append(f"{etichetta} non valida.")
 
-    registro.carico_scarico = str(data.get("carico_scarico") or "").strip()
+    if "unita" in data:
+        registro.unita = str(data.get("unita") or "").strip()[:3]
+    registro.carico_scarico = tipo
     registro.rentri_si_no = _as_bool_field(data.get("rentri_si_no"))
-    registro.salva = _as_bool_field(data.get("salva"))
     registro.note_rentri = str(data.get("note_rentri") or "").strip()
-    registro.pericolosita = str(data.get("pericolosita") or "").strip()
-
-    rett_raw = str(data.get("rettifica_scarico") or "").strip()
-    if rett_raw:
-        try:
-            registro.rettifica_scarico = float(rett_raw)
-        except ValueError:
-            errors.append("Rettifica scarico non valida.")
-    else:
-        registro.rettifica_scarico = None
-
-    registro.arrivo_fir = str(data.get("arrivo_fir") or "").strip()
-
-    id_reg = str(data.get("id_registrazione") or "").strip()
-    if id_reg:
-        registro.id_registrazione = id_reg
-
+    registro.pericolosita = str(data.get("pericolosita") or "").strip()[:100]
+    registro.arrivo_fir = str(data.get("arrivo_fir") or "").strip()[:200]
     return errors
-
-
-def _sync_to_sp(registro: RegistroRifiuti) -> None:
-    """Push a registro to SharePoint (create or update)."""
-    if not _graph_configured():
-        return
-    fields = _to_sp_fields(registro)
-    if registro.sharepoint_item_id:
-        _graph_update(registro.sharepoint_item_id, fields)
-    else:
-        ok, result = _graph_create(fields)
-        if ok and isinstance(result, dict):
-            sp_id = str((result.get("id") or result.get("fields", {}).get("id") or "")).strip()
-            if not sp_id:
-                # Try nested
-                sp_id = str(result.get("fields", {}).get("@odata.id") or "").strip()
-            if sp_id:
-                RegistroRifiuti.objects.filter(pk=registro.pk).update(sharepoint_item_id=sp_id)
-                registro.sharepoint_item_id = sp_id
 
 
 # ── Helpers wizard (step-by-step): codici CER e catena Rif.Op ─────────────────
 
 
-def _split_rif_op(raw: str) -> list[str]:
-    return [x.strip() for x in str(raw or "").split(",") if x.strip()]
+# Alias storico: la catena vive in ``catena.py``.
+_split_rif_op = split_rif_op
 
 
 def _codici_esistenti(q: str = "") -> list[str]:
     """Codici CER già usati in almeno una registrazione (per lo step di ricerca)."""
-    qs = RegistroRifiuti.objects.exclude(codice="")
+    qs = RegistroRifiuti.objects.attivi().exclude(codice="")
     if q:
         qs = qs.filter(codice__icontains=q)
     return sorted(set(qs.values_list("codice", flat=True)))[:50]
@@ -436,22 +205,26 @@ def _candidati_rif_op(tipo: str, codice: str) -> list[dict]:
     - M: scarichi originali (O) del CER indicato senza uno scarico effettivo già collegato.
     - R: scarichi effettivi (M) del CER indicato senza una rettifica già collegata.
 
-    Il valore da copiare nel nuovo record resta sempre la catena di id dei carichi (C)
-    d'origine (`rif_op`), per restare coerenti con l'export storico e con la vista
-    famiglie di `elenco` (che raggruppa proprio su quella catena).
+    Il wizard salva nel nuovo movimento l'``id_registrazione`` del genitore
+    scelto (catena ``C ← O ← M ← R``, risalita da ``catena.risali_a_carichi``).
+    Un genitore è "già collegato" se un movimento valido del tipo richiesto ne
+    cita l'id, oppure (forma dello storico) ne ripete lo stesso ``rif_op``.
+    Gli annullati non contano. Stesse regole del controllo lato server in
+    ``validazione.py``.
     """
     codice = (codice or "").strip()
     tipo = (tipo or "").strip().upper()
     if not codice or tipo not in ("O", "M", "R"):
         return []
 
+    attivi = RegistroRifiuti.objects.attivi()
     source_tipo = {"O": "C", "M": "O", "R": "M"}[tipo]
-    source_qs = RegistroRifiuti.objects.filter(tipo=source_tipo, codice=codice).order_by("data", "id_registrazione")
+    source_qs = attivi.filter(tipo=source_tipo, codice=codice).order_by("data", "id_registrazione")
 
     if source_tipo == "C":
         referenced: set[str] = set()
-        for raw in RegistroRifiuti.objects.filter(tipo__in=["O", "M", "R"]).values_list("rif_op", flat=True):
-            referenced.update(_split_rif_op(raw))
+        for raw in attivi.filter(tipo__in=["O", "M", "R"]).values_list("rif_op", flat=True):
+            referenced.update(split_rif_op(raw))
         candidates = [r for r in source_qs if r.id_registrazione not in referenced]
         return [
             {
@@ -464,21 +237,25 @@ def _candidati_rif_op(tipo: str, codice: str) -> list[dict]:
             for r in candidates
         ]
 
-    # source_tipo in ("O", "M"): si sceglie per "famiglia" (stesso rif_op = stessa
-    # catena di C d'origine); una famiglia si esclude se esiste già un record di tipo
-    # `tipo` (l'evoluzione successiva) con lo stesso identico rif_op.
-    used_rif_op = {
-        v for v in RegistroRifiuti.objects.filter(tipo=tipo).values_list("rif_op", flat=True)
-        if str(v or "").strip()
-    }
-    candidates = [r for r in source_qs if str(r.rif_op or "").strip() and r.rif_op not in used_rif_op]
+    citati: set[str] = set()
+    used_rif_op: set[str] = set()
+    for raw in attivi.filter(tipo=tipo).values_list("rif_op", flat=True):
+        if str(raw or "").strip():
+            citati.update(split_rif_op(raw))
+            used_rif_op.add(", ".join(split_rif_op(raw)))
+    candidates = [
+        r for r in source_qs
+        if str(r.rif_op or "").strip()
+        and r.id_registrazione not in citati
+        and ", ".join(split_rif_op(r.rif_op)) not in used_rif_op
+    ]
     return [
         {
             "id_registrazione": r.id_registrazione,
             "data": r.data.strftime("%d/%m/%Y") if r.data else "",
             "quantita": float(r.quantita) if r.quantita is not None else None,
             "rif_op": r.rif_op,
-            "carichi": _split_rif_op(r.rif_op),
+            "carichi": split_rif_op(r.rif_op),
         }
         for r in candidates
     ]
@@ -505,39 +282,65 @@ def menu(request):
     return render(request, "rentri/pages/menu.html")
 
 
-def _handle_form(request, tipo: str, template: str):
-    """Generic handler for C/O/M/R form pages."""
-    if request.method == "GET":
-        return render(request, template, {"tipo": tipo})
+def _risposta_errore(exc: ErroreRegistro) -> JsonResponse:
+    return JsonResponse({"ok": False, "error": "; ".join(exc.errori), "errori": exc.errori}, status=exc.stato_http)
 
-    # POST — expect JSON
-    denied = _require_rentri_manager(request)
-    if denied is not None:
-        return denied
+
+def _salva_da_richiesta(request, registro: RegistroRifiuti, tipo: str, *, prima: dict | None) -> JsonResponse:
+    """Parte comune di inserimento e modifica: modulo → validazione → salvataggio."""
+    if prima is not None and registro.bloccato:
+        return _risposta_errore(ErroreRegistro(
+            "Registrazione consolidata o annullata: non si modifica. "
+            "Per correggerla registra una rettifica (R) o annullala.",
+            stato_http=409,
+        ))
     data = _parse_json_body(request)
-    registro = RegistroRifiuti()
-    registro.inserito_da = _get_username(request)
     errors = _populate_registro(registro, data, tipo)
 
-    allegato = request.FILES.get("allegato") if tipo == "C" else None
+    # Allegato: scheda del carico o formulario (FIR) degli scarichi.
+    allegato = request.FILES.get("allegato") if tipo in ("C", "O", "M") else None
     if allegato is not None:
         err = _validate_rentri_allegato(allegato)
         if err:
             errors.append(err)
 
     if errors:
-        return JsonResponse({"ok": False, "error": "; ".join(errors)}, status=400)
+        return JsonResponse({"ok": False, "error": "; ".join(errors), "errori": errors}, status=400)
 
     if allegato is not None:
         registro.allegato = allegato
 
     try:
-        registro.save()
-        _sync_to_sp(registro)
-    except Exception as exc:
-        return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+        salva_movimento(request, registro, prima=prima)
+    except ErroreRegistro as exc:
+        return _risposta_errore(exc)
+    except Exception:  # noqa: BLE001 - il dettaglio va solo nel log
+        logger.exception("RENTRI: salvataggio fallito (movimento %s)", registro.pk)
+        return JsonResponse(
+            {"ok": False, "error": "Errore interno durante il salvataggio: la registrazione non è stata scritta."},
+            status=500,
+        )
 
-    return JsonResponse({"ok": True, "id": registro.pk, "id_registrazione": registro.id_registrazione})
+    return JsonResponse({
+        "ok": True,
+        "id": registro.pk,
+        "id_registrazione": registro.id_registrazione,
+        "avviso_sync": registro.sync_errore or "",
+    })
+
+
+def _handle_form(request, tipo: str, template: str):
+    """Generic handler for C/O/M/R form pages."""
+    if request.method == "GET":
+        return render(request, template, {"tipo": tipo, "unita_choices": RegistroRifiuti.UNITA_CHOICES})
+
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
+    registro = RegistroRifiuti()
+    registro.inserito_da = _get_username(request)
+    registro.origine = "portale"
+    return _salva_da_richiesta(request, registro, tipo, prima=None)
 
 
 @login_required
@@ -562,35 +365,8 @@ def rettifica_scarico(request):
 
 _ORM_ORDER = {"O": 0, "R": 1, "M": 2}
 
-# Profondità massima di risalita della catena rif_op (protezione da catene assurde).
-_RIF_OP_MAX_DEPTH = 8
-
-
-def _risali_a_carichi(rif: str, by_id: dict, depth: int = 0, visti: set | None = None) -> list[str]:
-    """Risolve un `rif_op` negli id dei carichi (C) d'origine.
-
-    `rif_op` può citare direttamente i carichi oppure il genitore immediato
-    (lo scarico originale O per un M, lo scarico effettivo M per un R — vedi
-    `_candidati_rif_op`): in quel caso si risale ricorsivamente il `rif_op` del
-    genitore fino ad arrivare ai carichi.
-    """
-    if depth > _RIF_OP_MAX_DEPTH:
-        return []
-    visti = set() if visti is None else visti
-    carichi: list[str] = []
-    for rid in _split_rif_op(rif):
-        if rid in visti:
-            continue
-        visti.add(rid)
-        candidati = by_id.get(rid) or []
-        if any(r.tipo == "C" for r in candidati):
-            carichi.append(rid)
-            continue
-        padre = next((r for r in candidati if str(r.rif_op or "").strip()), None)
-        if padre is None:
-            continue
-        carichi.extend(_risali_a_carichi(padre.rif_op, by_id, depth + 1, visti))
-    return carichi
+# Alias storico: la risalita vive in ``catena.py``.
+_risali_a_carichi = risali_a_carichi
 
 
 def _build_families(records: list) -> list[dict]:
@@ -606,9 +382,7 @@ def _build_families(records: list) -> list[dict]:
     quando ha almeno un carico (C) e almeno uno scarico effettivo (M). Le famiglie
     chiuse vengono in fondo all'elenco.
     """
-    by_id: dict[str, list] = {}
-    for r in records:
-        by_id.setdefault(str(r.id_registrazione or "").strip(), []).append(r)
+    by_id = indice_per_id(records)
 
     c_map: dict[str, object] = {}
     ops: list = []
@@ -712,7 +486,8 @@ _GROUP_FIELDS = {
 
 @login_required
 def elenco(request):
-    qs = RegistroRifiuti.objects.all()
+    q_annullati = request.GET.get("annullati", "") == "1"
+    qs = RegistroRifiuti.objects.all() if q_annullati else RegistroRifiuti.objects.attivi()
 
     q_tipo   = request.GET.get("tipo",  "").strip()
     q_search = request.GET.get("q",     "").strip()
@@ -742,6 +517,9 @@ def elenco(request):
         "q_group": q_group,
         "q_view": q_view,
         "q_stato": q_stato,
+        "q_annullati": q_annullati,
+        "n_annullati": RegistroRifiuti.objects.filter(annullato=True).count(),
+        "can_manage": _can_manage_rentri(request),
     }
 
     # ── Vista famiglie (default) ───────────────────────────────────────────────
@@ -820,6 +598,7 @@ def _scadenzario_rows(qs, today) -> list[dict]:
             "quantita": r.quantita,
             "giorni": giorni,
             "note": r.note_rentri,
+            "salva": r.salva,
         })
     return rows
 
@@ -827,23 +606,23 @@ def _scadenzario_rows(qs, today) -> list[dict]:
 def _scadenzario_buckets(today) -> list[dict]:
     """Costruisce gli adempimenti aperti del registro RENTRI.
 
-    - FIR mancante: scarichi (O/M/R) senza riferimento al Formulario (arrivo_fir vuoto).
+    - FIR mancante: scarichi (O/M) senza riferimento al Formulario (arrivo_fir vuoto).
+      La rettifica R corregge uno scarico che ha già il suo formulario.
     - Da comunicare: movimenti consolidati (salva=True) non ancora marcati come trasmessi.
-    - Bozze: registrazioni non ancora salvate in via definitiva.
+    - Bozze: registrazioni non ancora consolidate.
+
+    Gli annullati non sono adempimenti aperti.
     """
-    fir_qs = RegistroRifiuti.objects.filter(
-        tipo__in=["O", "M", "R"], arrivo_fir=""
-    ).order_by("data", "id")
-    comunicare_qs = RegistroRifiuti.objects.filter(
-        rentri_si_no=False, salva=True
-    ).order_by("data", "id")
-    bozze_qs = RegistroRifiuti.objects.filter(salva=False).order_by("data", "id")
+    attivi = RegistroRifiuti.objects.attivi()
+    fir_qs = attivi.filter(tipo__in=["O", "M"], arrivo_fir="").order_by("data", "id")
+    comunicare_qs = attivi.filter(rentri_si_no=False, salva=True).order_by("data", "id")
+    bozze_qs = attivi.filter(salva=False).order_by("data", "id")
 
     return [
         {
             "key": "fir",
             "label": "FIR mancante",
-            "desc": "Scarichi (O/M/R) senza riferimento al Formulario di Identificazione Rifiuti.",
+            "desc": "Scarichi (O/M) senza riferimento al Formulario di Identificazione Rifiuti.",
             "tone": "danger",
             "rows": _scadenzario_rows(fir_qs, today),
         },
@@ -857,7 +636,7 @@ def _scadenzario_buckets(today) -> list[dict]:
         {
             "key": "bozze",
             "label": "Bozze da consolidare",
-            "desc": "Registrazioni non ancora salvate in via definitiva.",
+            "desc": "Registrazioni non ancora consolidate: finché sono bozze si possono modificare.",
             "tone": "info",
             "rows": _scadenzario_rows(bozze_qs, today),
         },
@@ -925,8 +704,8 @@ def _giacenze_csv(rows, today, soglie):
     writer = safe_csv_writer(response, delimiter=";")
     writer.writerow([
         "Codice EER", "Pericoloso", "Carichi", "Scarichi",
-        "Entrate", "Uscite", "Giacenza", "Primo carico",
-        "Giorni in deposito", "Stato",
+        "Entrate", "Uscite", "Giacenza", "Unità", "Primo carico",
+        "Carico più vecchio aperto", "Giorni in deposito", "Stato",
     ])
     stato_label = {
         "rosso": "Oltre soglia",
@@ -943,7 +722,9 @@ def _giacenze_csv(rows, today, soglie):
             g.entrate,
             g.uscite,
             g.giacenza,
+            g.unita,
             g.primo_carico.strftime("%d/%m/%Y") if g.primo_carico else "",
+            g.carico_aperto.strftime("%d/%m/%Y") if g.carico_aperto else "",
             g.giorni_giacenza if g.giorni_giacenza is not None else "",
             stato_label.get(tono, tono),
         ])
@@ -958,7 +739,7 @@ def giacenze(request):
     avvicinano o superano il limite di deposito temporaneo. Export CSV con
     ?export=csv. Le soglie sono configurabili (vedi `rentri.giacenze`).
     """
-    from .giacenze import giacenze_per_cer, soglie_deposito
+    from .giacenze import criterio_quantitativo, giacenze_per_cer, soglie_deposito
 
     today = timezone.localdate()
     soglie = soglie_deposito()
@@ -970,7 +751,9 @@ def giacenze(request):
 
     _TONO_ORDER = {"rosso": 0, "giallo": 1, "verde": 2, "chiuso": 3}
     rows = []
-    for g in giacenze_per_cer():
+    tutte = giacenze_per_cer()
+    criterio = criterio_quantitativo(tutte, soglie)
+    for g in tutte:
         tono = g.tono(soglie)
         if q_aperte and not g.aperta:
             continue
@@ -996,6 +779,7 @@ def giacenze(request):
         "totale": len(rows),
         "n_allerta": n_allerta,
         "n_oltre": n_oltre,
+        "criterio": criterio,
         "q_search": q_search,
         "q_allerta": q_allerta,
         "q_pericolosi": q_pericolosi,
@@ -1004,187 +788,132 @@ def giacenze(request):
     })
 
 
+_TEMPLATE_TIPO = {
+    "C": "rentri/pages/carico.html",
+    "O": "rentri/pages/scarico_originale.html",
+    "M": "rentri/pages/scarico_effettivo.html",
+    "R": "rentri/pages/rettifica_scarico.html",
+}
+
+
 @login_required
 def modifica(request, pk: int):
     registro = get_object_or_404(RegistroRifiuti, pk=pk)
 
     if request.method == "GET":
-        tipo_template_map = {
-            "C": "rentri/pages/carico.html",
-            "O": "rentri/pages/scarico_originale.html",
-            "M": "rentri/pages/scarico_effettivo.html",
-            "R": "rentri/pages/rettifica_scarico.html",
-        }
-        template = tipo_template_map.get(registro.tipo, "rentri/pages/carico.html")
-        return render(request, template, {"registro": registro, "edit_mode": True})
+        if registro.bloccato:
+            # Consolidata o annullata: niente modulo, solo la scheda in lettura.
+            return redirect("rentri_dettaglio", pk=registro.pk)
+        template = _TEMPLATE_TIPO.get(registro.tipo, "rentri/pages/carico.html")
+        return render(request, template, {
+            "registro": registro, "edit_mode": True, "unita_choices": RegistroRifiuti.UNITA_CHOICES,
+        })
 
-    # POST or PATCH — accept JSON
     denied = _require_rentri_manager(request)
     if denied is not None:
         return denied
-    data = _parse_json_body(request)
-    errors = _populate_registro(registro, data, registro.tipo)
+    return _salva_da_richiesta(request, registro, registro.tipo, prima=fotografia(registro))
 
-    allegato = request.FILES.get("allegato") if registro.tipo == "C" else None
-    if allegato is not None:
-        err = _validate_rentri_allegato(allegato)
-        if err:
-            errors.append(err)
 
-    if errors:
-        return JsonResponse({"ok": False, "error": "; ".join(errors)}, status=400)
+@login_required
+def dettaglio(request, pk: int):
+    """Scheda di un movimento: dati, collegamenti, storico, azioni."""
+    from .servizi import figli_attivi
 
-    if allegato is not None:
-        registro.allegato = allegato
+    registro = get_object_or_404(RegistroRifiuti, pk=pk)
+    genitori = list(
+        RegistroRifiuti.objects.filter(id_registrazione__in=split_rif_op(registro.rif_op)).order_by("data", "id")
+    )
+    voci = storico_oggetto(registro)
+    return render(request, "rentri/pages/dettaglio.html", {
+        "registro": registro,
+        "genitori": genitori,
+        "figli": figli_attivi(registro),
+        "storico": storico_leggibile(voci),
+        "can_manage": _can_manage_rentri(request),
+    })
 
+
+def _azione_registro(request, pk: int, fn):
+    """Esegue un'azione di pagina (consolida/annulla/trasmesso) e torna alla scheda."""
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
+    registro = get_object_or_404(RegistroRifiuti, pk=pk)
     try:
-        registro.save()
-        _sync_to_sp(registro)
-    except Exception as exc:
-        return JsonResponse({"ok": False, "error": str(exc)}, status=500)
+        esito = fn(registro)
+    except ErroreRegistro as exc:
+        messages.error(request, " ".join(exc.errori))
+    else:
+        messages.success(request, esito)
+        if registro.sync_errore:
+            messages.warning(request, f"Registrazione salvata, ma la copia su SharePoint non è allineata: {registro.sync_errore}")
+    prossima = request.POST.get("next", "")
+    if prossima.startswith("/rentri/") and "//" not in prossima:
+        return redirect(prossima)
+    return redirect("rentri_dettaglio", pk=pk)
 
-    return JsonResponse({"ok": True, "id": registro.pk, "id_registrazione": registro.id_registrazione})
+
+@login_required
+@require_POST
+def consolida_view(request, pk: int):
+    def _fai(registro):
+        consolida(request, registro, _get_username(request))
+        return f"{registro.id_registrazione} consolidata: da ora si corregge solo con una rettifica o annullandola."
+    return _azione_registro(request, pk, _fai)
+
+
+@login_required
+@require_POST
+def trasmesso_view(request, pk: int):
+    trasmesso = request.POST.get("trasmesso", "1") == "1"
+
+    def _fai(registro):
+        segna_trasmesso(request, registro, trasmesso)
+        stato = "trasmessa a RENTRI" if trasmesso else "da trasmettere a RENTRI"
+        return f"{registro.id_registrazione} segnata come {stato}."
+    return _azione_registro(request, pk, _fai)
+
+
+@login_required
+@require_POST
+def annulla_view(request, pk: int):
+    def _fai(registro):
+        annulla(request, registro, request.POST.get("motivo", ""), _get_username(request))
+        return f"{registro.id_registrazione} annullata: resta a registro, barrata, e non conta più."
+    return _azione_registro(request, pk, _fai)
 
 
 @login_required
 @require_POST
 def elimina(request, pk: int):
+    """Compatibilità: un movimento non si elimina più, si annulla con un motivo (JSON)."""
     denied = _require_rentri_manager(request)
     if denied is not None:
         return denied
     registro = get_object_or_404(RegistroRifiuti, pk=pk)
-    sp_id = registro.sharepoint_item_id
-    registro.delete()
-    if sp_id and _graph_configured():
-        _graph_delete(sp_id)
-    return JsonResponse({"ok": True})
-
-
-# ── CSV Import helpers ─────────────────────────────────────────────────────────
-
-_IMPORT_TIPO_MAP = {
-    "C - Carico": "C",
-    "O - Scarico originario": "O",
-    "M - Scarico effettivo": "M",
-    "R - Rettifica scarico": "R",
-}
-
-
-def _parse_num_it(raw: str):
-    """Converte numero in formato italiano (1.234 → 1234) in float o None."""
-    s = raw.strip().replace(".", "").replace(",", ".")
-    if not s:
-        return None
+    data = _parse_json_body(request) if request.body else {}
+    motivo = request.POST.get("motivo") or data.get("motivo") or ""
     try:
-        return float(s)
-    except ValueError:
-        return None
+        annulla(request, registro, motivo, _get_username(request))
+    except ErroreRegistro as exc:
+        return _risposta_errore(exc)
+    return JsonResponse({"ok": True, "annullato": True})
 
 
-def _split_sp_multivalue_csv(raw: str) -> list[str]:
-    """Spezza un campo multi-valore SharePoint (formato ``valore;#id;#valore;#id``)."""
-    raw = raw.strip()
-    if not raw:
-        return []
-    return [p.lstrip("#").strip() for p in raw.split(";") if p.lstrip("#").strip()]
+@login_required
+def verifica(request):
+    """Verifica di coerenza del registro (sola lettura), export CSV con ?export=csv."""
+    from .verifica import verifica_registro, verifica_csv
 
-
-def _parse_pericolosita_csv(raw: str) -> str:
-    """Estrae codici HP (HP04, HP05…) dal campo multi-valore SharePoint o dall'export a lista JSON."""
-    codes = list(dict.fromkeys(re.findall(r"HP\d+", raw)))
-    if codes:
-        return ", ".join(codes)[:100]
-    return raw.strip()[:100]
-
-
-def _detect_csv_delimiter(content: str) -> str:
-    """Rileva il delimitatore (';' o ',') dalla riga di intestazione del CSV."""
-    header_line = content.splitlines()[0] if content else ""
-    try:
-        return csv.Sniffer().sniff(header_line, delimiters=";,").delimiter
-    except csv.Error:
-        return ";"
-
-
-def _parse_rif_op_csv(raw: str) -> str:
-    """Estrae i riferimenti (ID Registrazione) dal campo lookup multi-valore SharePoint."""
-    parts = _split_sp_multivalue_csv(raw)
-    refs = [p for p in parts if "/" in p]
-    if refs:
-        return ", ".join(refs)[:200]
-    return raw.strip()[:200]
-
-
-def _parse_csv_rows(content: str) -> tuple[list[dict], list[dict]]:
-    """Analizza il contenuto CSV; restituisce (righe_ok, errori)."""
-    rows: list[dict] = []
-    errors: list[dict] = []
-
-    reader = csv.reader(io.StringIO(content), delimiter=_detect_csv_delimiter(content))
-    try:
-        next(reader)  # salta intestazione
-    except StopIteration:
-        return [], [{"riga": 0, "msg": "File vuoto o senza intestazione"}]
-
-    # Colonne 10-11 ("Elemento";"Lists/RENTRI") sono metadati SharePoint
-    # (tipo di contenuto e percorso lista), non dati: ignorate.
-    for line_no, row in enumerate(reader, start=2):
-        if not any(cell.strip() for cell in row):
-            continue
-        if len(row) < 10:
-            errors.append({"riga": line_no, "msg": f"Colonne insufficienti ({len(row)})"})
-            continue
-        try:
-            data_raw = row[0].strip()
-            try:
-                data = datetime.strptime(data_raw, "%d/%m/%Y").date()
-            except ValueError:
-                errors.append({"riga": line_no, "msg": f"Data non valida: '{data_raw}'"})
-                continue
-
-            tipo_raw = row[6].strip()
-            tipo = _IMPORT_TIPO_MAP.get(tipo_raw)
-            if not tipo:
-                errors.append({"riga": line_no, "msg": f"Tipo sconosciuto: '{tipo_raw}'"})
-                continue
-
-            id_reg = row[1].strip()
-            codice = " ".join(row[2].split())[:100]
-            pericolosita = _parse_pericolosita_csv(row[3])
-            quantita = _parse_num_it(row[4])
-            rettifica = _parse_num_it(row[5])
-            note = row[7].strip()
-            # Il CSV non ha una colonna "Rentri SI/NO" dedicata: resta al default (False).
-            rentri_si_no = False
-            # Il testo libero contiene il riferimento FIR solo per gli scarichi (O/M);
-            # se presente lo si duplica anche in arrivo_fir (letto dallo scadenzario).
-            arrivo_fir = note if "FIR" in note.upper() else ""
-            inserito_da = row[8].strip()
-            rif_op = _parse_rif_op_csv(row[9])
-
-            esiste = RegistroRifiuti.objects.filter(id_registrazione=id_reg, tipo=tipo).exists()
-
-            rows.append({
-                "riga": line_no,
-                "data": data.strftime("%d-%m-%Y"),
-                "_data_iso": data.isoformat(),
-                "tipo": tipo,
-                "id_reg": id_reg,
-                "codice": codice,
-                "quantita": str(quantita) if quantita is not None else "",
-                "rettifica": str(rettifica) if rettifica is not None else "",
-                "pericolosita": pericolosita,
-                "note": note,
-                "rentri_si_no": rentri_si_no,
-                "arrivo_fir": arrivo_fir,
-                "inserito_da": inserito_da,
-                "rif_op": rif_op,
-                "esiste": esiste,
-            })
-        except Exception as exc:
-            errors.append({"riga": line_no, "msg": str(exc)})
-
-    return rows, errors
+    sezioni = verifica_registro()
+    if request.GET.get("export") == "csv":
+        return verifica_csv(sezioni)
+    return render(request, "rentri/pages/verifica.html", {
+        "sezioni": sezioni,
+        "totale": sum(len(s["righe"]) for s in sezioni),
+        "today": timezone.localdate(),
+    })
 
 
 @login_required
@@ -1234,47 +963,29 @@ def import_confirm(request):
         return JsonResponse({"ok": False, "error": "Errore lettura file CSV (atteso UTF-8)."}, status=400)
 
     rows, parse_errors = _parse_csv_rows(content)
-    created = 0
-    skipped = 0
-    import_errors = list(parse_errors)
-
-    for r in rows:
-        if r["esiste"]:
-            skipped += 1
-            continue
-        try:
-            data = datetime.fromisoformat(r["_data_iso"]).date()
-            quantita = float(r["quantita"]) if r["quantita"] else None
-            rettifica = float(r["rettifica"]) if r["rettifica"] else None
-
-            registro = RegistroRifiuti(
-                tipo=r["tipo"],
-                data=data,
-                id_registrazione=r["id_reg"],
-                codice=r["codice"],
-                quantita=quantita,
-                rettifica_scarico=rettifica,
-                carico_scarico=r["tipo"],
-                pericolosita=r["pericolosita"],
-                note_rentri=r["note"],
-                rentri_si_no=r["rentri_si_no"],
-                arrivo_fir=r["arrivo_fir"],
-                rif_op=r["rif_op"],
-                inserito_da=r["inserito_da"] or _get_username(request),
-            )
-            registro.save()
-            # Forza l'id_registrazione originale (save() potrebbe sovrascriverlo)
-            if registro.id_registrazione != r["id_reg"]:
-                RegistroRifiuti.objects.filter(pk=registro.pk).update(id_registrazione=r["id_reg"])
-            created += 1
-        except Exception as exc:
-            import_errors.append({"riga": r["riga"], "msg": str(exc)})
-
+    if parse_errors:
+        return JsonResponse({
+            "ok": False,
+            "error": "Il file ha righe non valide: correggile e riprova. Non è stato importato nulla.",
+            "created": 0, "skipped": 0, "errors": parse_errors,
+        }, status=400)
+    try:
+        esito = importa_righe(rows, utente=_get_username(request))
+    except ImportAnnullato as exc:
+        return JsonResponse({
+            "ok": False,
+            "error": "Import annullato: alcune righe non si sono potute scrivere. Non è stato importato nulla.",
+            "created": 0, "skipped": 0, "errors": exc.errori,
+        }, status=400)
+    log_action(request, "rentri_import_csv", "rentri", {
+        "file": getattr(csv_file, "name", "")[:120],
+        "creati": esito["created"], "saltati": esito["skipped"], "avvisi": len(esito["avvisi"]),
+    })
     return JsonResponse({
         "ok": True,
-        "created": created,
-        "skipped": skipped,
-        "errors": import_errors,
+        "created": esito["created"],
+        "skipped": esito["skipped"],
+        "errors": esito["avvisi"],
     })
 
 
@@ -1440,6 +1151,8 @@ def export_pdf(request):
     table_data = [header_row]
     for r in records:
         note_fir = r.note_rentri or r.arrivo_fir or ""
+        if r.annullato:
+            note_fir = f"ANNULLATO: {r.motivo_annullamento}"
         table_data.append([
             Paragraph(r.data.strftime("%d-%m-%Y") if r.data else "", cell_s),
             Paragraph(r.id_registrazione or "", cell_s),
@@ -1469,6 +1182,8 @@ def export_pdf(request):
         bg = TIPO_BG.get(r.tipo)
         if bg:
             ts.add("BACKGROUND", (2, i), (2, i), colors.HexColor(bg))
+        if r.annullato:
+            ts.add("TEXTCOLOR", (0, i), (-1, i), colors.HexColor("#94a3b8"))
     table.setStyle(ts)
 
     doc.build([table], onFirstPage=_draw_page, onLaterPages=_draw_page)
@@ -1492,33 +1207,12 @@ def api_sync_pull(request):
         return JsonResponse({"ok": False, "error": "Configurazione Graph non disponibile."}, status=503)
 
     try:
-        items = _graph_get_all()
-    except RuntimeError as exc:
-        return JsonResponse({"ok": False, "error": str(exc)}, status=502)
-
-    created = updated = 0
-    for item in items:
-        sp_id = str(item.get("id") or "").strip()
-        if not sp_id:
-            continue
-        mapped = _from_sp_item(item)
-        if not mapped.get("data"):
-            continue
-
-        existing = RegistroRifiuti.objects.filter(sharepoint_item_id=sp_id).first()
-        if existing:
-            for field, value in mapped.items():
-                setattr(existing, field, value)
-            existing.save()
-            updated += 1
-        else:
-            # Determine tipo from carico_scarico or default to C
-            cs = str(mapped.get("carico_scarico") or "").strip().upper()
-            tipo = "C" if cs == "C" else "O"
-            RegistroRifiuti.objects.create(tipo=tipo, **mapped)
-            created += 1
-
-    return JsonResponse({"ok": True, "created": created, "updated": updated, "total": len(items)})
+        esito = sharepoint_pull(_get_username(request))
+    except Exception:  # noqa: BLE001 - rete/token/risposta: dettaglio nel log
+        logger.exception("RENTRI: lettura SharePoint fallita")
+        return JsonResponse({"ok": False, "error": "SharePoint non raggiungibile o risposta non valida."}, status=502)
+    log_action(request, "rentri_sync_pull", "rentri", esito)
+    return JsonResponse({"ok": True, **esito})
 
 
 @login_required

@@ -7,79 +7,59 @@ Uso:
 Opzioni:
     --dry-run   Simula senza scrivere sul DB
     --clear     Cancella tutti i record esistenti prima di importare
+                (prima ne scrive una copia CSV, vedi --backup)
+
+Stesso parser e stesse regole dell'import dalla pagina (``rentri.importazione``):
+l'import è tutto o niente.
 """
 import csv
-import re
-from datetime import datetime
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
+from django.utils import timezone
 
+from rentri.importazione import (
+    ImportAnnullato,
+    _detect_csv_delimiter,
+    _parse_csv_rows,
+    _parse_num_it,
+    _parse_pericolosita_csv,
+    _parse_rif_op_csv,
+    _split_sp_multivalue_csv,
+    importa_righe,
+)
 from rentri.models import RegistroRifiuti
 
-TIPO_MAP = {
-    "C - Carico": "C",
-    "O - Scarico originario": "O",
-    "M - Scarico effettivo": "M",
-    "R - Rettifica scarico": "R",
-}
-
-# Indici colonne CSV (0-based). Le colonne 10-11 ("Elemento";"Lists/RENTRI")
-# sono metadati SharePoint (tipo di contenuto e percorso lista), non dati.
-COL_DATA = 0
-COL_ID_REG = 1
-COL_CODICE = 2
-COL_PERIC = 3
-COL_QUANTITA = 4
-COL_RETTIFICA = 5
-COL_TIPO = 6
-COL_NOTE = 7
-COL_MODIFICATO = 8
-COL_RIF_OP = 9
-
-
-def _parse_number(raw: str):
-    """Converte numero italiano (1.234 = 1234) in float, o None se vuoto."""
-    s = raw.strip().replace(".", "").replace(",", ".")
-    if not s:
-        return None
-    try:
-        return float(s)
-    except ValueError:
-        return None
-
-
-def _split_sp_multivalue(raw: str) -> list[str]:
-    """Spezza un campo multi-valore SharePoint (formato ``valore;#id;#valore;#id``)."""
-    raw = raw.strip()
-    if not raw:
-        return []
-    return [p.lstrip("#").strip() for p in raw.split(";") if p.lstrip("#").strip()]
-
-
-def _parse_pericolosita(raw: str) -> str:
-    """Estrae i codici HP (es. HP04, HP05) come stringa compatta max 100 char."""
-    codes = list(dict.fromkeys(re.findall(r"HP\d+", raw)))
-    if codes:
-        return ", ".join(codes)[:100]
-    return raw.strip()[:100]
+# Alias storici dei helper (prima duplicati qui, ora unici in rentri.importazione).
+_parse_number = _parse_num_it
+_split_sp_multivalue = _split_sp_multivalue_csv
+_parse_pericolosita = _parse_pericolosita_csv
+_parse_rif_op = _parse_rif_op_csv
 
 
 def _detect_delimiter(header_line: str) -> str:
     """Rileva il delimitatore (';' o ',') dalla riga di intestazione del CSV."""
-    try:
-        return csv.Sniffer().sniff(header_line, delimiters=";,").delimiter
-    except csv.Error:
-        return ";"
+    return _detect_csv_delimiter(header_line)
 
 
-def _parse_rif_op(raw: str) -> str:
-    """Estrae i riferimenti (ID Registrazione) dal campo lookup multi-valore SharePoint."""
-    parts = _split_sp_multivalue(raw)
-    refs = [p for p in parts if "/" in p]
-    if refs:
-        return ", ".join(refs)[:200]
-    return raw.strip()[:200]
+_CAMPI_BACKUP = [
+    "id", "tipo", "data", "id_registrazione", "rif_op", "codice", "quantita", "unita",
+    "rettifica_scarico", "carico_scarico", "rentri_si_no", "salva", "note_rentri",
+    "pericolosita", "arrivo_fir", "inserito_da", "origine", "annullato", "motivo_annullamento",
+    "sharepoint_item_id", "created_at",
+]
+
+
+def _scrivi_backup(percorso: Path) -> int:
+    n = 0
+    with open(percorso, "w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.writer(f, delimiter=";")
+        writer.writerow(_CAMPI_BACKUP)
+        for r in RegistroRifiuti.objects.order_by("id").values_list(*_CAMPI_BACKUP):
+            writer.writerow(["" if v is None else v for v in r])
+            n += 1
+    return n
 
 
 class Command(BaseCommand):
@@ -95,7 +75,13 @@ class Command(BaseCommand):
         parser.add_argument(
             "--clear",
             action="store_true",
-            help="Cancella tutti i record esistenti prima di importare",
+            help="Cancella tutti i record esistenti prima di importare (dopo averne scritto una copia CSV)",
+        )
+        parser.add_argument(
+            "--backup",
+            type=str,
+            default="",
+            help="Percorso della copia CSV scritta prima di --clear (default: rentri_backup_<data_ora>.csv)",
         )
 
     def handle(self, *args, **options):
@@ -109,116 +95,34 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING("=== DRY RUN: nessuna scrittura sul DB ==="))
 
-        if do_clear and not dry_run:
-            count, _ = RegistroRifiuti.objects.all().delete()
-            self.stdout.write(self.style.WARNING(f"Eliminati {count} record esistenti."))
+        content = csv_path.read_text(encoding="utf-8-sig")
+        rows, parse_errors = _parse_csv_rows(content)
+        for e in parse_errors:
+            self.stdout.write(self.style.WARNING(f"Riga {e['riga']}: {e['msg']}"))
+        if parse_errors:
+            raise CommandError(f"{len(parse_errors)} righe non valide: correggile, non è stato importato nulla.")
 
-        created = 0
-        skipped = 0
-        errors = []
+        try:
+            with transaction.atomic():
+                if do_clear and not dry_run:
+                    backup = Path(options["backup"] or f"rentri_backup_{timezone.localtime():%Y%m%d_%H%M%S}.csv")
+                    n = _scrivi_backup(backup)
+                    self.stdout.write(self.style.WARNING(f"Copia di {n} record scritta in {backup.resolve()}"))
+                    count, _ = RegistroRifiuti.objects.all().delete()
+                    self.stdout.write(self.style.WARNING(f"Eliminati {count} record esistenti."))
+                    rows, _ = _parse_csv_rows(content)  # "esiste" va ricalcolato dopo la pulizia
+                esito = importa_righe(rows, dry_run=dry_run)
+        except ImportAnnullato as exc:
+            for e in exc.errori:
+                self.stdout.write(self.style.WARNING(f"Riga {e['riga']}: {e['msg']}"))
+            raise CommandError("Import annullato: nessuna riga scritta (e nessuna cancellazione).") from None
 
-        with open(csv_path, encoding="utf-8-sig", newline="") as f:
-            first_line = f.readline()
-            f.seek(0)
-            reader = csv.reader(f, delimiter=_detect_delimiter(first_line))
-            header = next(reader)  # salta intestazione
-            self.stdout.write(f"Colonne trovate: {len(header)}")
-
-            for line_no, row in enumerate(reader, start=2):
-                if not any(cell.strip() for cell in row):
-                    continue  # riga vuota
-
-                try:
-                    # --- Data ---
-                    data_raw = row[COL_DATA].strip()
-                    try:
-                        data = datetime.strptime(data_raw, "%d/%m/%Y").date()
-                    except ValueError:
-                        errors.append(f"Riga {line_no}: data non valida '{data_raw}'")
-                        skipped += 1
-                        continue
-
-                    # --- Tipo ---
-                    tipo_raw = row[COL_TIPO].strip()
-                    tipo = TIPO_MAP.get(tipo_raw)
-                    if not tipo:
-                        errors.append(f"Riga {line_no}: tipo non riconosciuto '{tipo_raw}'")
-                        skipped += 1
-                        continue
-
-                    # --- ID Registrazione ---
-                    id_reg = row[COL_ID_REG].strip()
-
-                    # --- Duplicate check ---
-                    if RegistroRifiuti.objects.filter(
-                        id_registrazione=id_reg, tipo=tipo
-                    ).exists():
-                        self.stdout.write(f"  Skip (già presente): {id_reg} [{tipo}]")
-                        skipped += 1
-                        continue
-
-                    # --- Codice (strip tab e spazi extra) ---
-                    codice = " ".join(row[COL_CODICE].split())[:100]
-
-                    # --- Quantità / Rettifica ---
-                    quantita = _parse_number(row[COL_QUANTITA])
-                    rettifica = _parse_number(row[COL_RETTIFICA])
-
-                    # --- Pericolosità ---
-                    pericolosita = _parse_pericolosita(row[COL_PERIC])
-
-                    # --- Note / riferimenti ---
-                    # Il CSV non ha una colonna "Rentri SI/NO" dedicata: resta al default (False).
-                    note_rentri = row[COL_NOTE].strip()
-                    # Il testo libero contiene il riferimento FIR solo per gli scarichi (O/M);
-                    # se presente lo si duplica anche in arrivo_fir (letto dallo scadenzario).
-                    arrivo_fir = note_rentri if "FIR" in note_rentri.upper() else ""
-                    inserito_da = row[COL_MODIFICATO].strip()
-                    rif_op = _parse_rif_op(row[COL_RIF_OP])
-
-                    registro = RegistroRifiuti(
-                        tipo=tipo,
-                        data=data,
-                        id_registrazione=id_reg,
-                        codice=codice,
-                        quantita=quantita,
-                        rettifica_scarico=rettifica,
-                        carico_scarico=tipo,
-                        note_rentri=note_rentri,
-                        pericolosita=pericolosita,
-                        arrivo_fir=arrivo_fir,
-                        rif_op=rif_op,
-                        inserito_da=inserito_da,
-                    )
-
-                    if not dry_run:
-                        # Bypassa l'auto-generazione id_registrazione in save()
-                        # impostando il valore prima della chiamata
-                        registro.save()
-                        # Forza l'id_registrazione corretto (save() lo rispetta se già impostato)
-                        if registro.id_registrazione != id_reg:
-                            RegistroRifiuti.objects.filter(pk=registro.pk).update(
-                                id_registrazione=id_reg
-                            )
-
-                    self.stdout.write(f"  + {id_reg} [{tipo}] {data} — {codice[:40]}")
-                    created += 1
-
-                except IndexError as exc:
-                    errors.append(f"Riga {line_no}: colonne insufficienti ({exc})")
-                    skipped += 1
-                except Exception as exc:
-                    errors.append(f"Riga {line_no}: {exc}")
-                    skipped += 1
-
-        # --- Riepilogo ---
+        for a in esito["avvisi"]:
+            self.stdout.write(self.style.WARNING(f"Riga {a['riga']}: {a['msg']}"))
         self.stdout.write("")
         if dry_run:
-            self.stdout.write(self.style.WARNING(f"DRY RUN — da importare: {created}, da saltare: {skipped}"))
+            self.stdout.write(self.style.WARNING(
+                f"DRY RUN — da importare: {esito['created']}, da saltare: {esito['skipped']}"
+            ))
         else:
-            self.stdout.write(self.style.SUCCESS(f"Importati: {created} | Saltati: {skipped}"))
-
-        if errors:
-            self.stdout.write(self.style.WARNING(f"\nErrori ({len(errors)}):"))
-            for e in errors:
-                self.stdout.write(self.style.WARNING(f"  {e}"))
+            self.stdout.write(self.style.SUCCESS(f"Importati: {esito['created']} | Saltati: {esito['skipped']}"))

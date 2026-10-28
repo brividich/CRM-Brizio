@@ -476,7 +476,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
     # ── RENTRI ────────────────────────────────────────────────────────
     try:
         from rentri.models import RegistroRifiuti
-        da_rentri = RegistroRifiuti.objects.filter(rentri_si_no=False, salva=True).count()
+        da_rentri = RegistroRifiuti.objects.attivi().filter(rentri_si_no=False, salva=True).count()
         # arrivo_fir è una CharField (riferimento FIR): "FIR mancante" = stringa vuota
         # sui soli scarichi (O/M/R). Il vecchio filtro `arrivo_fir=False` non matchava
         # le stringhe vuote.

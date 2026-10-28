@@ -274,6 +274,7 @@ body.theme-dark .rn-badge-tipo-R{background:rgba(214,158,46,.16)}
     <a class="rn-footer-link" href="{% url 'rentri_elenco' %}">Elenco registrazioni</a>
     <a class="rn-footer-link" href="{% url 'rentri_scadenzario' %}">&#9888; Scadenzario adempimenti</a>
     <a class="rn-footer-link" href="{% url 'rentri_giacenze' %}">&#9878; Giacenze per CER</a>
+    <a class="rn-footer-link" href="{% url 'rentri_verifica' %}">&#10003; Verifica del registro</a>
     <a class="rn-footer-link" href="{% url 'dashboard_home' %}">&#8592; Dashboard</a>
   </div>
 
@@ -390,10 +391,11 @@ body.theme-dark .rn-badge-tipo-R{background:rgba(214,158,46,.16)}
         result.innerHTML =
           '&#10003; Importati <strong>' + data.created + '</strong> record.' +
           (data.skipped ? ' ' + data.skipped + ' già presenti ignorati.' : '') +
-          (data.errors.length ? ' <span style="color:#dc2626;">&#9888; ' + data.errors.length + ' errori.</span>' : '');
+          (data.errors.length ? ' <span style="color:#b45309;">&#9888; ' + data.errors.length + ' riferimenti Rif. Op da controllare in «Verifica».</span>' : '');
       } else {
         result.style.color = '#dc2626';
-        result.innerHTML = 'Errore: ' + data.error;
+        result.textContent = 'Errore: ' + data.error +
+          ((data.errors || []).length ? ' — ' + data.errors.slice(0, 5).map(function (e) { return 'riga ' + e.riga + ': ' + e.msg; }).join('; ') : '');
         btn.disabled = false;
         btn.textContent = '&#10003; Importa nel registro';
         actions.style.display = 'flex';

@@ -1,0 +1,6 @@
+{# Allegato dello scarico: scansione del formulario (FIR). Facoltativo. #}
+<div class="cp-field cp-full">
+  <label class="cp-label" for="f-allegato">Formulario (FIR) – allegato</label>
+  <input type="file" id="f-allegato" class="cp-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp">
+  {% if edit_mode and registro.allegato %}<div class="rn-wizard-hint">Allegato già presente: caricane uno nuovo solo per sostituirlo.</div>{% endif %}
+</div>

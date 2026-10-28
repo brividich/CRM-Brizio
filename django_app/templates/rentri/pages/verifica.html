@@ -1,0 +1,62 @@
+{% extends "core/base.html" %}
+
+{% block title %}RENTRI | Verifica del registro{% endblock %}
+
+{% block extra_head %}
+{% include "rentri/components/sc_styles.html" %}
+{% endblock %}
+
+{% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="sc-wrap">
+  <div class="sc-head">
+    <div>
+      <h1 class="sc-title">Verifica del registro RENTRI</h1>
+      <p class="sc-sub">{{ totale }} segnalazion{{ totale|pluralize:"e,i" }} · controllo di sola lettura al {{ today|date:"d/m/Y" }} · gli annullati non sono controllati</p>
+    </div>
+    <div class="sc-actions">
+      <a class="sc-btn" href="?export=csv">⬇ Esporta CSV</a>
+      <button type="button" class="sc-btn" onclick="window.print()">🖨 Stampa</button>
+    </div>
+  </div>
+
+  {% if totale == 0 %}
+    <div class="sc-section"><div class="sc-emptyall">✓ Nessuna anomalia: catene, saldi, date e termini sono coerenti.</div></div>
+  {% endif %}
+
+  {% for s in sezioni %}
+  <section class="sc-section" id="{{ s.key }}">
+    <div class="sc-sec-head">
+      <span class="sc-dot sc-dot-{{ s.tone }}"></span>
+      <div>
+        <div class="sc-sec-label">{{ s.label }}</div>
+        <div class="sc-sec-desc">{{ s.desc }}</div>
+      </div>
+      <span class="sc-count sc-count-{{ s.tone }}">{{ s.righe|length }}</span>
+    </div>
+    {% if s.righe %}
+    <table class="sc-table">
+      <thead>
+        <tr><th>Data</th><th>ID Reg.</th><th>Tipo</th><th>Codice EER</th><th>Dettaglio</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in s.righe %}
+        <tr>
+          <td style="white-space:nowrap;">{{ r.data|date:"d/m/Y"|default:"—" }}</td>
+          <td class="sc-id">{{ r.id_registrazione|default:"—" }}</td>
+          <td>{{ r.tipo|default:"—" }}</td>
+          <td>{{ r.codice|default:"—"|truncatechars:42 }}</td>
+          <td>{{ r.dettaglio }}</td>
+          <td>{% if r.pk %}<a class="sc-link" href="{% url 'rentri_dettaglio' r.pk %}">Apri</a>{% else %}<a class="sc-link" href="{% url 'rentri_giacenze' %}?q={{ r.codice|urlencode }}&amp;aperte=0">Giacenze</a>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="sc-empty">Nessuna segnalazione.</div>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

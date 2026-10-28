@@ -10,6 +10,7 @@
   <a class="sub-a{% if current == 'rentri_elenco' %} active{% endif %}" href="{% url 'rentri_elenco' %}">Elenco registrazioni</a>
   <a class="sub-a{% if current == 'rentri_scadenzario' %} active{% endif %}" href="{% url 'rentri_scadenzario' %}">Scadenzario</a>
   <a class="sub-a{% if current == 'rentri_giacenze' %} active{% endif %}" href="{% url 'rentri_giacenze' %}">Giacenze</a>
+  <a class="sub-a{% if current == 'rentri_verifica' %} active{% endif %}" href="{% url 'rentri_verifica' %}">Verifica</a>
   <div class="sub-sep"></div>
   {% impostazioni_visibili "rentri" True as mostra_impostazioni %}{% if mostra_impostazioni %}
   <a class="sub-a{% if current == 'rentri_impostazioni' %} active{% endif %}" href="{% url 'rentri_impostazioni' %}">Impostazioni</a>
