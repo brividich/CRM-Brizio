@@ -110,7 +110,8 @@ def _quarte_copie(records: list, oggi: date) -> list:
     m_citati: set[str] = set()
     m_rif: set[str] = set()
     for r in records:
-        if r.tipo == "M":
+        # Lo scarico effettivo è M, e in produzione arriva in coppia con R: basta uno dei due.
+        if r.tipo in ("M", "R"):
             m_citati.update(split_rif_op(r.rif_op))
             m_rif.add(", ".join(split_rif_op(r.rif_op)))
     righe = []

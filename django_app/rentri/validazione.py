@@ -7,6 +7,12 @@ contemporanea (il chiamante tiene i genitori bloccati, vedi
 
 Le regole sui campi si applicano ai movimenti nuovi e ai campi che cambiano:
 un movimento storico incompleto resta modificabile negli altri campi.
+
+Segni delle quantità, come si registra davvero (produzione, 10/2026): il carico
+C è positivo; lo scarico originale O è spesso **negativo**; lo scarico effettivo
+M ha la quantità vuota e il valore in «Rettifica scarico», **negativo**; la
+rettifica R porta lo stesso valore **positivo**. Quindi il segno è libero
+tranne che sul carico; conta solo che il valore ci sia e non sia zero.
 """
 from __future__ import annotations
 
@@ -65,6 +71,11 @@ def cer_pericoloso(codice: str) -> bool:
     return bool(m and m.group(4))
 
 
+def valore_movimento(registro) -> Decimal | None:
+    """La quantità che il movimento dichiara: ``quantita``, altrimenti ``rettifica_scarico``."""
+    return registro.quantita if registro.quantita is not None else registro.rettifica_scarico
+
+
 def _fmt(q: Decimal) -> str:
     return f"{q:.3f}".rstrip("0").rstrip(".").replace(".", ",")
 
@@ -97,17 +108,22 @@ def valida_movimento(registro, *, prima: dict | None = None) -> list[str]:
         errori.append("Codice CER non valido: servono le sei cifre (per esempio 15 01 06).")
 
     q = registro.quantita
+    valore = valore_movimento(registro)
     if cambiato("quantita") or cambiato("rettifica_scarico"):
-        if tipo in ("C", "O", "M"):
+        if tipo == "C":
             if q is None:
                 errori.append("La quantità è obbligatoria.")
             elif q <= 0:
-                errori.append("La quantità deve essere maggiore di zero.")
-        elif tipo == "R":
-            if q is None and registro.rettifica_scarico is None:
-                errori.append("Indica la quantità della rettifica.")
-            elif (q if q is not None else registro.rettifica_scarico) == 0:
-                errori.append("La rettifica non può essere zero.")
+                errori.append("La quantità del carico deve essere maggiore di zero.")
+        elif tipo == "O":
+            if q is None:
+                errori.append("La quantità è obbligatoria.")
+            elif q == 0:
+                errori.append("La quantità non può essere zero.")
+        elif valore is None:
+            errori.append("Indica la quantità o la rettifica dello scarico." if tipo == "M" else "Indica la quantità della rettifica.")
+        elif valore == 0:
+            errori.append("La quantità non può essere zero.")
 
     if nuovo and registro.unita not in dict(RegistroRifiuti.UNITA_CHOICES):
         errori.append("Scegli l'unità di misura della quantità.")
@@ -118,13 +134,14 @@ def valida_movimento(registro, *, prima: dict | None = None) -> list[str]:
     if tipo in GENITORI_AMMESSI and cambiato("rif_op"):
         errori.extend(_errori_rif_op(registro))
 
-    # Giacenza: uno scarico non può portare fuori più di quanto c'è in deposito.
+    # Giacenza: uno scarico non può portare fuori più di quanto c'è in deposito
+    # (in valore assoluto: O e M si registrano spesso col segno meno).
     if (
-        tipo in ("O", "M") and q is not None and q > 0 and codice
-        and not errori and (cambiato("quantita") or cambiato("codice"))
+        tipo in ("O", "M") and valore and codice and not errori
+        and (cambiato("quantita") or cambiato("rettifica_scarico") or cambiato("codice"))
     ):
         disponibile = giacenza_di(codice, escludi_pk=registro.pk)
-        if q > disponibile + _EPS:
+        if abs(valore) > disponibile + _EPS:
             errori.append(
                 f"Quantità oltre la giacenza del codice {codice}: disponibili {_fmt(max(disponibile, Decimal(0)))}. "
                 "Controlla i carichi registrati."
@@ -211,7 +228,7 @@ def requisiti_consolidamento(registro) -> list[str]:
         errori.append("manca la data")
     if not (registro.codice or "").strip():
         errori.append("manca il codice CER")
-    if registro.tipo in ("C", "O", "M") and not registro.quantita:
+    if not valore_movimento(registro):
         errori.append("manca la quantità")
     if registro.tipo in GENITORI_AMMESSI and not split_rif_op(registro.rif_op):
         errori.append("manca il movimento collegato")

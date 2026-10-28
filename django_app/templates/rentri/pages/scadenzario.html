@@ -36,6 +36,14 @@
       </div>
       <span class="sc-count sc-count-{{ s.tone }}">{{ s.rows|length }}</span>
     </div>
+    {% if s.key == "bozze" and can_manage and s.rows %}
+    <form method="post" action="{% url 'rentri_consolida_bozze' %}" class="sc-sec-head sc-bulk">{% csrf_token %}
+      <span class="sc-sec-desc">Consolida in un colpo tutte le bozze complete con data fino al</span>
+      <input type="date" name="fino_al" required max="{{ today|date:'Y-m-d' }}" value="{{ today|date:'Y-m-d' }}" class="sc-bulk-date">
+      <button type="submit" class="sc-btn sc-btn-primary">Consolida bozze complete</button>
+      <span class="sc-sec-desc">Quelle senza quantità o senza movimento collegato restano bozze.</span>
+    </form>
+    {% endif %}
     {% if s.rows %}
     <table class="sc-table">
       <thead>

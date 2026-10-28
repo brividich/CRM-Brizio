@@ -37,6 +37,7 @@ __all__ = [
     "annulla",
     "segna_trasmesso",
     "figli_attivi",
+    "consolida_in_blocco",
 ]
 
 # Campi che descrivono il movimento (quelli confrontati prima/dopo una modifica).
@@ -203,3 +204,50 @@ def annulla(request, registro: RegistroRifiuti, motivo: str, utente: str) -> Non
                {"id_registrazione": registro.id_registrazione, "tipo": registro.tipo, "motivo": motivo},
                oggetto=registro)
     sincronizza(registro)
+
+
+def consolida_in_blocco(request, fino_al, utente: str, *, applica: bool = True) -> dict:
+    """Consolida tutte le bozze complete con data fino a `fino_al` compreso.
+
+    Le incomplete restano bozze e sono contate per motivo. Una sola voce di audit
+    riassuntiva (più l'audit automatico dei campi su ogni riga). Niente invio a
+    SharePoint riga per riga: se Graph è configurato le righe restano segnate in
+    ``sync_errore`` e ``rentri_sync_riprova`` le reinvia.
+    """
+    from collections import Counter
+
+    from .sharepoint import _graph_configured
+
+    bozze = list(
+        RegistroRifiuti.objects.attivi().filter(salva=False, data__lte=fino_al).order_by("data", "id")
+    )
+    incomplete: Counter = Counter()
+    pronte = []
+    for r in bozze:
+        mancanti = requisiti_consolidamento(r)
+        if mancanti:
+            incomplete.update(mancanti)
+        else:
+            pronte.append(r)
+    esito = {
+        "consolidabili": len(pronte),
+        "incomplete": len(bozze) - len(pronte),
+        "mancanze": dict(incomplete),
+        "fino_al": fino_al.isoformat(),
+    }
+    if not applica or not pronte:
+        return esito
+    adesso = timezone.now()
+    nota_sync = "Da reinviare dopo il consolidamento in blocco" if _graph_configured() else ""
+    with transaction.atomic():
+        for r in pronte:
+            r.salva = True
+            r.consolidato_il = adesso
+            r.consolidato_da = utente[:200]
+            campi = ["salva", "consolidato_il", "consolidato_da", "updated_at"]
+            if nota_sync:
+                r.sync_errore = nota_sync
+                campi.append("sync_errore")
+            r.save(update_fields=campi)
+    log_action(request, "rentri_consolidamento_in_blocco", "rentri", esito)
+    return esito

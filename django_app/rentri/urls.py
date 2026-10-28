@@ -12,6 +12,7 @@ urlpatterns = [
     path("rentri/scadenzario/", views.scadenzario, name="rentri_scadenzario"),
     path("rentri/giacenze/", views.giacenze, name="rentri_giacenze"),
     path("rentri/verifica/", views.verifica, name="rentri_verifica"),
+    path("rentri/scadenzario/consolida-bozze/", views.consolida_bozze_view, name="rentri_consolida_bozze"),
     path("rentri/import/preview/", views.import_preview, name="rentri_import_preview"),
     path("rentri/import/confirm/", views.import_confirm, name="rentri_import_confirm"),
     path("rentri/export/pdf/", views.export_pdf, name="rentri_export_pdf"),
