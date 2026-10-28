@@ -20,5 +20,14 @@ registra_modulo(ModuloPermessi(
     app="diario_preposto",
     moduli_acl=("diario_preposto",),
     proprietario=proprietario_segnalazione,
+    # Il permesso della lista copre tutto /diario-preposto (prefisso) e
+    # «ereditava» la pagina Impostazioni: sembrava amministrazione e lo accendeva
+    # solo «gestire», cosi' il Preposto non apriva il diario ne' lo vedeva nel
+    # menu. Impostazioni, modifica, elimina e allegati hanno permessi loro.
+    # Le ispezioni sono la stessa consultazione (crearne una e' ispezione_nuova).
+    capacita_forzate=(
+        ("legacy.diario_preposto.diario_preposto_lista", "lettura"),
+        ("legacy.diario_preposto.diario_preposto_ispezioni", "lettura"),
+    ),
     domini_ai=("sicurezza",),
 ))
