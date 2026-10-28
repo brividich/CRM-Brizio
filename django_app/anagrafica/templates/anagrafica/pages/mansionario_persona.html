@@ -38,7 +38,7 @@
       <form method="post" action="{% url 'anagrafica:mansionario_persona_assegna' legacy_id %}" class="mns-add">
         {% csrf_token %}
         <div class="mns-add-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Aggiungi mansioni a {{ nome }}</div>
-        <div class="fm-form-field mns-add-pick"><label for="mp-mansione">Mansioni <span class="fmd-muted">({{ assegnabili|length }} disponibili)</span></label>
+        <div class="fm-form-field mns-add-pick"><label for="mp-mansione">Mansioni di {{ ruoli_persona|join:" e " }} <span class="fmd-muted">({{ assegnabili|length }} disponibili)</span></label>
           <select id="mp-mansione" name="mansione" class="fm-input" multiple size="8" data-picker data-picker-placeholder="Mansione, reparto o ruolo…">
             {% for m in assegnabili %}<option value="{{ m.id }}">{{ m.nome }}{% if m.reparto %} — {{ m.reparto }}{% endif %}{% if m.ruoli %} · {{ m.ruoli }}{% endif %}</option>{% endfor %}
           </select></div>
@@ -51,7 +51,7 @@
         </div>
       </form>
       {% else %}
-      <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">Nessuna altra mansione attiva da assegnare.</p>
+      <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">{% if ruoli_persona %}Nessuna altra mansione attiva da assegnare per {{ ruoli_persona|join:" e " }}.{% else %}Nessun ruolo in essere: le mansioni si assegnano solo a chi ricopre il loro ruolo. Dai prima un ruolo alla persona.{% endif %}</p>
       {% endif %}
       {% endif %}
       {% if scheda.righe %}

@@ -151,7 +151,11 @@ class PagineTests(_Base):
         self.assertIsNone(self.tornio.reparto)
 
     def test_assegna_e_togli_dalla_pagina(self):
+        from .models import DipendenteRuoloOperativo
+
         self.client.force_login(self.admin)
+        self.processo.ruoli.add(self.ruolo)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=self.p2.pk, ruolo=self.ruolo)
         self.client.post(reverse("anagrafica:mansionario_assegna", args=[self.processo.pk]),
                          {"persona": self.p2.pk, "livello": "O"})
         ab = AbilitazioneMacchina.objects.get(competenza=self.processo, legacy_anagrafica_id=self.p2.pk)

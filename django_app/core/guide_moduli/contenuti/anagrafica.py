@@ -747,6 +747,12 @@ GUIDA = {
                                 "o più persone (la ricerca trova anche reparto e area: scritto il reparto, «Seleziona "
                                 "tutti» spunta solo quelle visibili), si sceglie il «Livello di partenza» e «Assegna a N "
                                 "persone». «Togli» chiede conferma. Ogni modifica resta nello storico delle abilitazioni."),
+                    ("Solo chi ha il ruolo", "una mansione si assegna solo a chi ricopre oggi uno dei suoi ruoli: "
+                                             "l'elenco «Persone con «ruolo»» mostra solo loro, e la scheda persona "
+                                             "offre solo le mansioni dei suoi ruoli. Mansione senza ruolo: «Collega "
+                                             "prima un ruolo» (in «Impostazioni»). Persona senza ruolo: prima le si "
+                                             "dà il ruolo («Ruoli e mansioni in blocco» o scheda dipendente). Chi è "
+                                             "già in lista senza il ruolo resta e si vede in «senza il ruolo»."),
                     ("Livello in riga", "nella tabella delle persone il livello è una tendina: cambiandolo si salva "
                                         "subito, con prima → dopo e autore nello storico delle abilitazioni e nel "
                                         "registro attività. Sulle mansioni con competenze definite il livello sulla "
@@ -766,7 +772,9 @@ GUIDA = {
                                              "Chi è ancora da valutare tiene il livello di partenza, ma se non è "
                                              "abilitato scende sotto la soglia operativa. A mano: comando "
                                              "«ricalcola_livelli_competenze» (prova, poi --applica)."),
-                    ("Scheda persona", "dal nome della persona: riquadro «Aggiungi mansioni a …» per dare più "
+                    ("Scheda persona", "dal nome della persona, oppure dal Mansionario con «Mansioni di una "
+                                       "persona»: scelta la persona nel filtro, «Apri la persona: mansioni e "
+                                       "livelli →». Lì il riquadro «Aggiungi mansioni a …» per dare più "
                                        "mansioni insieme (le responsabilità si danno da «Reparti, aree e capi»), "
                                        "livello in riga, «Togli» e «Storico delle mansioni» (assegnazioni, cambi di "
                                        "livello con chi li ha fatti, rimozioni)."),

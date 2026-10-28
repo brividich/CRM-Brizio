@@ -29,6 +29,29 @@ def in_lista(mansione: CompetenzaSkm, legacy_ids) -> dict[int, AbilitazioneMacch
         legacy_anagrafica_id__in=list(legacy_ids), in_lista=True, **chiave)}
 
 
+def senza_ruolo(mansione: CompetenzaSkm, legacy_ids) -> set[int]:
+    """Chi, fra ``legacy_ids``, non ricopre oggi nessuno dei ruoli della mansione.
+
+    La mansione sta sotto i suoi ruoli: la riceve solo chi ha uno di quei ruoli.
+    Una mansione senza ruoli non si assegna a nessuno finché non le si collega un ruolo.
+    """
+    from .ruoli_in_blocco import ruoli_in_essere
+
+    ids = {int(i) for i in legacy_ids}
+    ruoli = {r.pk for r in mansione.ruoli.all()}
+    if not ruoli:
+        return ids
+    con = {lid for lid, ass in ruoli_in_essere(ids).items() if any(a.ruolo_id in ruoli for a in ass)}
+    return ids - con
+
+
+def motivo_senza_ruolo(mansione: CompetenzaSkm) -> str:
+    nomi = [r.nome for r in mansione.ruoli.all()]
+    if not nomi:
+        return "la mansione non è collegata a un ruolo"
+    return "non ha il ruolo " + " o ".join(f"«{n}»" for n in nomi)
+
+
 def previsione(ab: AbilitazioneMacchina | None, modo: str, livello: str,
                classificazione: str = "") -> tuple[str, str]:
     """(azione, dettaglio) senza scrivere niente. Classificazione vuota = non si tocca."""
@@ -78,6 +101,7 @@ def esegui(legacy_ids, *, mansione: CompetenzaSkm, modo: str, livello: str = "",
         raise ValueError(f"Al massimo {MAX_PERSONE} persone alla volta.")
     per_id = {p["legacy_id"]: p for p in persone()}
     attuali = in_lista(mansione, ids)
+    fuori_ruolo = senza_ruolo(mansione, ids) if modo == ASSEGNA else set()
     esiti = []
     for lid in ids:
         p = per_id.get(lid)
@@ -85,6 +109,9 @@ def esegui(legacy_ids, *, mansione: CompetenzaSkm, modo: str, livello: str = "",
             esiti.append(Esito(lid, f"#{lid}", "", "errore", "non è un dipendente attivo"))
             continue
         ab = attuali.get(lid)
+        if ab is None and lid in fuori_ruolo:  # chi è già in lista resta modificabile
+            esiti.append(Esito(lid, p["nome"], "non in lista", "errore", motivo_senza_ruolo(mansione)))
+            continue
         azione, dettaglio = previsione(ab, modo, livello, classificazione)
         if applica and azione == "cambia":
             try:
@@ -105,14 +132,19 @@ def esegui(legacy_ids, *, mansione: CompetenzaSkm, modo: str, livello: str = "",
 def mansioni_assegnabili(legacy_id: int) -> list[CompetenzaSkm]:
     """Mansioni attive che la persona non ha in lista, da offrire nella sua scheda.
 
-    Le responsabilità restano fuori: chi le ha è il capo, si assegnano da
-    «Reparti, aree e capi».
+    Solo le mansioni dei ruoli che la persona ricopre oggi. Le responsabilità
+    restano fuori: chi le ha è il capo, si assegnano da «Reparti, aree e capi».
     """
+    from .ruoli_in_blocco import ruoli_in_essere
+
+    ruoli = {a.ruolo_id for a in ruoli_in_essere([legacy_id]).get(legacy_id, [])}
+    if not ruoli:
+        return []
     gia = set(AbilitazioneMacchina.objects.filter(legacy_anagrafica_id=legacy_id, in_lista=True,
                                                   competenza__isnull=False).values_list("competenza_id", flat=True))
-    qs = (CompetenzaSkm.objects.filter(tipo__in=mstr.TIPI_MANSIONE, attiva=True,
+    qs = (CompetenzaSkm.objects.filter(tipo__in=mstr.TIPI_MANSIONE, attiva=True, ruoli__in=ruoli,
                                        responsabilita_reparto__isnull=True, responsabilita_area__isnull=True)
-          .exclude(pk__in=gia).select_related("asset", "reparto").prefetch_related("ruoli"))
+          .exclude(pk__in=gia).distinct().select_related("asset", "reparto").prefetch_related("ruoli"))
     return sorted(qs, key=lambda m: m.nome.casefold())
 
 
@@ -144,6 +176,9 @@ def assegna_mansioni(legacy_id: int, mansioni_ids, *, livello: str, user=None) -
             continue
         if mid in gia:
             esiti.append((m, "salta", f"ce l'ha già, livello {gia[mid].livello or '—'}"))
+            continue
+        if senza_ruolo(m, [legacy_id]):
+            esiti.append((m, "errore", motivo_senza_ruolo(m)))
             continue
         try:
             with transaction.atomic():

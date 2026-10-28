@@ -355,10 +355,12 @@ def mansionario_mansione(request, mansione_id: int):
     }
     in_lista = {p["legacy_id"] for p in persone}
     candidati = []
-    if puo_valutare:
-        # Il reparto nell'etichetta: cercando il reparto e «Seleziona tutti» si
-        # aggiunge un reparto intero in un colpo.
-        candidati = sorted((p for lid, p in _persone_in_forza().items() if lid not in in_lista),
+    ruoli_mansione = {r.pk for r in mansione.ruoli.all()}
+    if puo_valutare and ruoli_mansione:
+        # Solo chi ricopre uno dei ruoli della mansione. Il reparto nell'etichetta:
+        # cercando il reparto e «Seleziona tutti» si aggiunge un reparto intero.
+        candidati = sorted((p for lid, p in _persone_in_forza().items()
+                            if lid not in in_lista and p["ruoli"] & ruoli_mansione),
                            key=lambda c: c["nome"].casefold())
     return render(request, "anagrafica/pages/mansionario_mansione.html", {
         "page_title": mansione.nome,
@@ -682,9 +684,12 @@ def mansionario_persona(request, legacy_id: int):
         return redirect("anagrafica:mansionario")
     dip = righe[0]
     puo_valutare = _puo_valutare(request)
-    assegnabili = []
+    assegnabili, ruoli_persona = [], []
     if puo_valutare:
         from .services.mansioni_in_blocco import mansioni_assegnabili
+        from .services.ruoli_in_blocco import ruoli_in_essere
+        # Solo le mansioni dei ruoli che la persona ricopre oggi.
+        ruoli_persona = [f"«{a.ruolo.nome}»" for a in ruoli_in_essere([legacy_id]).get(legacy_id, [])]
         assegnabili = [{"id": m.pk, "nome": m.nome, "reparto": m.reparto_effettivo,
                         "ruoli": ", ".join(r.nome for r in m.ruoli.all())} for m in mansioni_assegnabili(legacy_id)]
     return render(request, "anagrafica/pages/mansionario_persona.html", {
@@ -697,6 +702,7 @@ def mansionario_persona(request, legacy_id: int):
         "storico_mansioni": svc.storico_mansioni_persona(legacy_id),
         "puo_valutare": puo_valutare,
         "assegnabili": assegnabili,
+        "ruoli_persona": ruoli_persona,
         "livelli_label": list(LIVELLO_LABEL.items()),
         **_rischi_persona(legacy_id, (dip.get("mansione") or "").strip()),
     })
