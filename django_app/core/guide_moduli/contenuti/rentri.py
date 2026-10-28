@@ -29,7 +29,9 @@ GUIDA = {
                     "Cerca il «Codice CER» scrivendo il numero o il nome del rifiuto: servono le sei cifre (per esempio 15 01 06).",
                     "Per gli scarichi scegli il movimento collegato (Rif. Op): il portale mostra solo quelli collegabili, "
                     "con lo stesso codice e non ancora usati.",
-                    "Scrivi la «Quantità» (anche con la virgola, per esempio 12,5) e scegli l'«Unità di misura».",
+                    "Scrivi la «Quantità» (anche con la virgola, per esempio 12,5) e scegli l'«Unità di misura». "
+                    "Il carico è sempre positivo; negli scarichi il segno meno è ammesso (lo scarico effettivo M "
+                    "può avere il valore in «Rettifica scarico», la rettifica R lo stesso valore positivo).",
                     "Per un codice pericoloso (con l'asterisco *) nel carico va indicata la «Pericolosità» (HP).",
                     "Negli scarichi O e M puoi allegare il formulario (FIR).",
                     "Conferma. Il numero di registrazione (anno/progressivo) lo assegna il portale e non cambia più.",
@@ -52,6 +54,8 @@ GUIDA = {
                 ("passi", [
                     "Nell'«Elenco registrazioni» clicca la lente 🔍 della riga: si apre la scheda del movimento.",
                     "«Consolida» rende definitiva la registrazione (anche dallo «Scadenzario», sezione «Bozze da consolidare»).",
+                    "Per consolidare tante bozze insieme: «Scadenzario» → «Bozze da consolidare» → scegli la data e clicca "
+                    "«Consolida bozze complete». Quelle senza quantità o senza movimento collegato restano bozze.",
                     "«Segna trasmessa» indica che il movimento è stato trasmesso al RENTRI.",
                     "«Annulla registrazione» chiede il motivo, obbligatorio. Se ci sono movimenti collegati vanno annullati prima quelli.",
                 ]),
@@ -118,6 +122,8 @@ GUIDA = {
                 ("p", "L'import è tutto o niente: se una riga non è valida non viene importato nulla e l'elenco degli errori dice quali righe correggere. "
                       "I riferimenti Rif. Op che non trovano un movimento sono segnalati come avvisi."),
                 ("nota", "import_rentri_csv --clear cancella il registro prima di importare: scrive sempre una copia CSV (--backup percorso)."),
+                ("p", "Consolidamento in blocco da terminale: rentri_consolida_bozze --fino-al AAAA-MM-GG mostra l'anteprima, "
+                      "con --applica consolida."),
                 ("p", "Per controllare eventuali numeri doppi c'è il comando di sola lettura rentri_id_duplicati --solo-anomalie; "
                       "per tutto il resto rentri_verifica (stessi controlli della pagina)."),
             ],

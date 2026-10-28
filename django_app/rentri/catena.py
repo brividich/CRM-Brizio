@@ -23,11 +23,13 @@ RIF_OP_MAX_DEPTH = 8
 
 # Tipi che un movimento può citare in rif_op. Il genitore immediato è quello che
 # propone il wizard; il carico C resta ammesso per M e R perché lo storico
-# importato scrive spesso la catena dei carichi invece del genitore.
+# importato scrive spesso la catena dei carichi invece del genitore. In
+# produzione (10/2026) R cita lo stesso movimento del suo M (lo scarico
+# originale O o il carico C), non l'M: per R sono ammessi tutti e tre.
 GENITORI_AMMESSI = {
     "O": frozenset({"C"}),
     "M": frozenset({"O", "C"}),
-    "R": frozenset({"M", "C"}),
+    "R": frozenset({"M", "O", "C"}),
 }
 
 

@@ -368,3 +368,76 @@ class DestinatariAvvisoTests(TestCase):
         cfg.save()
         self.assertEqual(_destinatari(None), ["a@example.com", "b@example.com"])
         self.assertEqual(_destinatari("x@example.com"), ["x@example.com"])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class PraticaProduzioneTests(_Base):
+    """Segni come si registrano in produzione: O negativo, M in rettifica negativa, R positiva."""
+
+    def test_famiglia_come_in_produzione(self):
+        c = _mov("C", self.ieri - timedelta(days=10), quantita=3200)
+        r = self.post_json(reverse("rentri_scarico_originale"), {
+            "data": self.ieri.isoformat(), "codice": "15 01 06", "quantita": "-3200", "unita": "kg",
+            "rif_op": c.id_registrazione,
+        })
+        self.assertEqual(r.status_code, 200, r.content)
+        o_id = r.json()["id_registrazione"]
+        r = self.post_json(reverse("rentri_scarico_effettivo"), {
+            "data": self.oggi.isoformat(), "codice": "15 01 06", "rettifica_scarico": "-3100", "unita": "kg",
+            "rif_op": o_id,
+        })
+        self.assertEqual(r.status_code, 200, r.content)
+        # R cita lo stesso O dell'M, con il valore positivo.
+        r = self.post_json(reverse("rentri_rettifica_scarico"), {
+            "data": self.oggi.isoformat(), "codice": "15 01 06", "rettifica_scarico": "3100", "unita": "kg",
+            "rif_op": o_id,
+        })
+        self.assertEqual(r.status_code, 200, r.content)
+
+        from .giacenze import giacenze_per_cer
+        self.assertEqual(giacenze_per_cer()[0].giacenza, 100.0)
+
+    def test_m_in_rettifica_oltre_giacenza(self):
+        c = _mov("C", self.ieri, quantita=10)
+        o = _mov("O", self.ieri, quantita=-10, rif_op=c.id_registrazione)
+        r = self.post_json(reverse("rentri_scarico_effettivo"), {
+            "data": self.ieri.isoformat(), "codice": "15 01 06", "rettifica_scarico": "-12", "unita": "kg",
+            "rif_op": o.id_registrazione,
+        })
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("oltre la giacenza", r.json()["error"])
+
+    def test_quarta_copia_chiusa_dalla_coppia(self):
+        from .verifica import verifica_registro
+
+        c = _mov("C", self.oggi - timedelta(days=200), quantita=10)
+        o = _mov("O", self.oggi - timedelta(days=150), quantita=-10, rif_op=c.id_registrazione)
+        _mov("R", self.oggi - timedelta(days=140), quantita=None, rettifica_scarico=Decimal("10"), rif_op=o.id_registrazione)
+        quarte = next(s for s in verifica_registro() if s["key"] == "quarta_copia")["righe"]
+        self.assertEqual(quarte, [])
+
+
+class ConsolidaInBloccoTests(_Base):
+    def test_solo_bozze_complete_fino_alla_data(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        c = _mov("C", self.oggi - timedelta(days=30))
+        m = _mov("M", self.oggi - timedelta(days=20), quantita=None, rettifica_scarico=Decimal("-5"), rif_op=c.id_registrazione)
+        vuota = _mov("O", self.oggi - timedelta(days=20), quantita=None)
+        recente = _mov("C", self.oggi)
+
+        out = StringIO()
+        call_command("rentri_consolida_bozze", "--fino-al", (self.oggi - timedelta(days=1)).isoformat(), stdout=out)
+        self.assertIn("Da consolidare (anteprima): 2", out.getvalue())
+        self.assertFalse(RegistroRifiuti.objects.filter(salva=True).exists())
+
+        with override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False):
+            r = self.client.post(reverse("rentri_consolida_bozze"), {"fino_al": (self.oggi - timedelta(days=1)).isoformat()})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(set(RegistroRifiuti.objects.filter(salva=True).values_list("pk", flat=True)), {c.pk, m.pk})
+        vuota.refresh_from_db()
+        recente.refresh_from_db()
+        self.assertFalse(vuota.salva)
+        self.assertFalse(recente.salva)
