@@ -379,3 +379,57 @@ body.theme-dark .fm-tbl-status{color:var(--text-light)}
 body.theme-dark .fm-tbl-status-saving{color:#93c5fd}
 body.theme-dark .fm-th-filter-pop-title{border-color:var(--border)}
 body.theme-dark .fm-th-filter-actions{border-color:var(--border)}
+
+/* ── Aspetto sobrio (28/10/2026) ─────────────────────────── */
+/* Meno rumore: la barra non è più un riquadro, i pulsanti sono leggeri,
+ * «Schermo intero» è solo un'icona, il contatore è testo semplice.
+ * Intestazioni in minuscolo normale (niente MAIUSCOLO spaziato, che va a capo
+ * prima) e icone ordina/filtra visibili solo al passaggio del mouse o se
+ * attive. Le regole valgono per ogni tabella gestita dal motore. */
+.fm-tbl-shell > .fm-tbl-controls{
+  border:0;background:transparent;padding:0 2px;margin:0 0 6px;gap:4px;min-height:32px;
+}
+.fm-tbl-shell > .fm-tbl-controls .fm-tbl-btn{
+  padding:5px 9px;font-weight:500;font-size:12.5px;color:#64748b;
+  border-color:transparent;background:transparent;border-radius:6px;
+}
+.fm-tbl-shell > .fm-tbl-controls .fm-tbl-btn:hover{background:#f1f5f9;color:#0f172a;border-color:transparent}
+.fm-tbl-shell > .fm-tbl-controls .fm-tbl-btn.active{background:var(--primary,#002b5c);color:#fff}
+.fm-tbl-shell:not(:fullscreen) .fm-tbl-btn-fs > span{
+  position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;
+}
+.fm-tbl-shell > .fm-tbl-controls .fm-tbl-count{
+  order:-1;margin-right:auto;background:none;padding:0 4px;
+  font-size:12.5px;font-weight:500;color:#64748b;
+}
+.fm-tbl-shell > .fm-tbl-controls .fm-tbl-count::after{content:" righe"}
+.fm-tbl-shell > .fm-tbl-controls .fm-tbl-search{order:-2}
+.fm-tbl-menu .fm-tbl-reset{
+  display:block;width:100%;margin-top:6px;padding:7px 8px;text-align:left;
+  font-size:12.5px;color:#64748b;background:none;border:0;border-top:1px solid #e2e8f0;
+  cursor:pointer;font-family:inherit;
+}
+.fm-tbl-menu .fm-tbl-reset:hover{color:#dc2626}
+.fm-tbl-shell table > thead > tr > th{
+  text-transform:none !important;letter-spacing:normal !important;font-family:inherit !important;
+  font-size:12px;font-weight:600;color:#64748b;
+}
+.fm-tbl-shell > .fm-tbl-controls .fm-tbl-status{margin-left:0}
+.fm-tbl-shell table > thead > tr > th[colspan]:not([colspan="1"]){font-size:11.5px;font-weight:700;color:#334155}
+@media (hover:hover){
+  .fm-tbl-shell th .fm-th-sort,
+  .fm-tbl-shell th .fm-th-filter{opacity:0;transition:opacity .12s}
+  .fm-tbl-shell th:hover .fm-th-sort,
+  .fm-tbl-shell th:hover .fm-th-filter,
+  .fm-tbl-shell th:focus-within .fm-th-sort,
+  .fm-tbl-shell th:focus-within .fm-th-filter,
+  .fm-tbl-shell th .fm-th-sort.active,
+  .fm-tbl-shell th .fm-th-filter.active{opacity:1}
+}
+body.theme-dark .fm-tbl-shell > .fm-tbl-controls{background:transparent}
+body.theme-dark .fm-tbl-shell > .fm-tbl-controls .fm-tbl-btn{background:transparent;border-color:transparent;color:#94a3b8}
+body.theme-dark .fm-tbl-shell > .fm-tbl-controls .fm-tbl-btn:hover{background:rgba(148,163,184,.12);color:#e2e8f0}
+body.theme-dark .fm-tbl-shell > .fm-tbl-controls .fm-tbl-count{background:none;color:#94a3b8}
+body.theme-dark .fm-tbl-shell table > thead > tr > th{color:#94a3b8}
+body.theme-dark .fm-tbl-shell table > thead > tr > th[colspan]:not([colspan="1"]){color:#cbd5e1}
+body.theme-dark .fm-tbl-menu .fm-tbl-reset{border-color:#334155;color:#94a3b8}
