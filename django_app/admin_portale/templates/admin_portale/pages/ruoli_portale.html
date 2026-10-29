@@ -244,7 +244,10 @@
         <span><span class="rp-pag rp-pag-pieno">pagine 3/3</span> tutte</span>
         <span><span class="rp-pag rp-pag-parziale">pagine 1/3</span> solo alcune</span>
         <span><span class="rp-pag rp-pag-vuoto">pagine 0/3</span> nessuna</span>
-        <span><span class="rp-pag rp-pag-vuoto rp-pag-ecc">· a mano</span> modificate dalla pagina Accessi: al prossimo salvataggio della matrice le pagine tolte a mano tornano, quelle aggiunte a mano restano</span>
+        <span><span class="rp-pag rp-pag-vuoto rp-pag-ecc">· a mano</span> eccezioni pagina per pagina</span>
+      </div>
+      <div class="rp-legend">
+        <span>Sotto ogni modulo, <strong>↳ Pagina per pagina</strong>: ogni permesso di pagina del modulo, come nel vecchio elenco dei permessi. <strong>Segue la matrice</strong> = la decide la colonna indicata; <strong>Sì, sempre</strong> la apre anche se la colonna è vuota; <strong>No, mai</strong> la chiude anche se la colonna la concede. Le eccezioni restano anche dopo i salvataggi successivi.</span>
       </div>
 
       <form method="post" action="{% url 'admin_portale:ruoli_portale_matrice' ruolo.id %}">
@@ -306,6 +309,34 @@
                   <td colspan="6"></td>
                 </tr>
               {% endfor %}
+              {% if r.pagine_dettaglio and not ruolo.amministratore %}
+                <tr class="rp-pagine-riga">
+                  <td colspan="8">
+                    <details class="rp-pagine"{% if r.eccezioni %} open{% endif %}>
+                      <summary>↳ Pagina per pagina ({{ r.pagine_dettaglio|length }}){% if r.eccezioni %} · <strong>{{ r.eccezioni }} eccezion{{ r.eccezioni|pluralize:"e,i" }}</strong>{% endif %}</summary>
+                      <table class="rp-pagine-tab">
+                        <thead><tr><th>Pagina</th><th>La apre la colonna</th><th>Adesso</th><th>Per questo ruolo</th></tr></thead>
+                        <tbody>
+                        {% for p in r.pagine_dettaglio %}
+                          <tr>
+                            <td><div class="acl-text">{{ p.label }}</div><div class="acl-muted"><code>{{ p.code }}</code></div></td>
+                            <td class="acl-muted">{{ p.colonna }}</td>
+                            <td>{% if p.aperta %}<span class="acl-chip">aperta</span>{% else %}<span class="acl-chip unset">chiusa</span>{% endif %}</td>
+                            <td>
+                              <select class="rp-pg" name="p__{{ p.code }}" data-modulo="{{ r.spec.chiave }}" data-code="{{ p.code }}" aria-label="{{ r.spec.nome }}: {{ p.label }}"{% if p.origine %} title="Impostata da: {{ p.origine }}"{% endif %}>
+                                <option value=""{% if not p.eccezione %} selected{% endif %}>Segue la matrice</option>
+                                <option value="si"{% if p.eccezione == "si" %} selected{% endif %}>Sì, sempre</option>
+                                <option value="no"{% if p.eccezione == "no" %} selected{% endif %}>No, mai</option>
+                              </select>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                        </tbody>
+                      </table>
+                    </details>
+                  </td>
+                </tr>
+              {% endif %}
             {% endfor %}
             </tbody>
           </table>
@@ -340,6 +371,11 @@
             if (!dati || !dati.moduli[modulo]) return;
             var info = dati.moduli[modulo];
             var cambiata = false;
+            var eccezioni = {};  // code -> «si» / «no» / «» dalle tendine pagina per pagina
+            document.querySelectorAll('select.rp-pg[data-modulo="' + modulo + '"]').forEach(function (sel) {
+              eccezioni[sel.dataset.code] = sel.value;
+              if (sel.value !== valoreIniziale(sel)) cambiata = true;
+            });
             var voluti = {};  // capacita' accese dalla riga dopo il salvataggio
             Object.keys(dati.azioni).forEach(function (azione) {
               var sel = cella(modulo, azione);
@@ -353,6 +389,7 @@
               info.pagine.forEach(function (p) {
                 var code = p[0], cap = p[1], aMano = p[2], negata = p[3];
                 if (caps.indexOf(cap) < 0) return;
+                if (code in eccezioni) { aMano = eccezioni[code] === "si"; negata = eccezioni[code] === "no"; }
                 var lettura = dati.vede_tutto && !info.solo_admin && cap === dati.lettura;
                 if (aMano || (!negata && (voluti[cap] || lettura))) dopo += 1;
               });
@@ -386,6 +423,13 @@
           });
           document.querySelectorAll("td.rp-cell select").forEach(function (sel) {
             sel.addEventListener("change", function () { aggiornaRiga(sel.name.split("__")[1]); });
+          });
+          document.querySelectorAll("select.rp-pg").forEach(function (sel) {
+            sel.addEventListener("change", function () {
+              aggiornaRiga(sel.dataset.modulo);
+              var avviso = document.getElementById("rp-da-salvare");
+              if (avviso && sel.value !== valoreIniziale(sel)) avviso.hidden = false;
+            });
           });
         })();
       </script>
@@ -737,7 +781,7 @@
         </tbody>
       </table>
     </div>
-    <p class="acl-muted">● amministratore · ✓ concesso dalla matrice · ✓ a mano = grant manuale dalla pagina Accessi · ✗ negato · — il ruolo non si esprime. Le righe evidenziate non sono aperte a nessun ruolo. Sola lettura: per cambiare usa «Matrice dei ruoli».</p>
+    <p class="acl-muted">● amministratore · ✓ concesso dalla matrice · ✓ a mano = eccezione «Sì, sempre» (matrice pagina per pagina o pagina Accessi) · ✗ negato · — il ruolo non si esprime. Le righe evidenziate non sono aperte a nessun ruolo. Sola lettura: per cambiare usa «Matrice dei ruoli» › «↳ Pagina per pagina».</p>
     {% endif %}
   </div></div>
   {% endif %}
