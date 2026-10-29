@@ -59,6 +59,7 @@ GUIDA = {
                 ("ul", [
                     "Per un lavoro di manutenzione programmato usa «+ Apri OdL» (ordine di lavoro nel modulo Asset).",
                     "Gli allegati caricati dal QR della macchina vanno controllati: «Valida» oppure «Rifiuta» con motivo.",
+                    "Per cambiare l'asset del ticket (riquadro «Asset collegato» → «Da catalogo») scrivi nome, tag, modello o reparto: ogni risultato mostra il badge «Reparto …» per distinguere asset con lo stesso nome.",
                 ]),
             ],
         },
