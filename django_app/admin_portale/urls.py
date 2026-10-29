@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import acl_v2_views, api, views, views_accessi_negati, views_bacheca, views_centro_report, views_postazioni, views_ruoli
+from . import acl_v2_views, api, views, views_accessi_bloccati, views_accessi_negati, views_bacheca, views_centro_report, views_postazioni, views_ruoli
 from .views import menu_portale
 
 
@@ -143,6 +143,8 @@ urlpatterns = [
     path("ruoli-portale/sistema/", views_ruoli.ruoli_portale_sistema, name="ruoli_portale_sistema"),
     path("accessi-negati/", views_accessi_negati.accessi_negati, name="accessi_negati"),
     path("accessi-negati/azione/", views_accessi_negati.accessi_negati_azione, name="accessi_negati_azione"),
+    path("accessi-bloccati/", views_accessi_bloccati.accessi_bloccati, name="accessi_bloccati"),
+    path("accessi-bloccati/sblocca/", views_accessi_bloccati.accessi_bloccati_sblocca, name="accessi_bloccati_sblocca"),
     path("gestione-accessi/", views.gestione_accessi, name="gestione_accessi"),
     path("accessi-semplice/", views.accessi_semplice, name="accessi_semplice"),
     path("accessi-avanzati/", views.accessi_dashboard, name="accessi_avanzati"),

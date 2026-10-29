@@ -2,7 +2,7 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-    dependencies = [("core", "0102_impostazioni_tutte_le_pagine")]
+    dependencies = [("core", "0103_admin_subnav_accessi_bloccati")]
 
     operations = [
         migrations.CreateModel(

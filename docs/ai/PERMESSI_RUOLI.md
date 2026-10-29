@@ -29,7 +29,7 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
 - **Referti**: azione extra `referti` di `visite_mediche`; `anagrafica.views._can_view_referti`
   la richiede (ambito tutti) con il sistema attivo, su scheda referto, download, documenti della
   scheda e coda referti (`views_sorveglianza._puo`).
-- **Eccezioni sulla persona** (`core.EccezionePermessoPersona`, core 0103, 29/10/2026): per
+- **Eccezioni sulla persona** (`core.EccezionePermessoPersona`, core 0104, 29/10/2026): per
   persona × modulo × azione, `ambito_massimo` vuoto = negato, `propri`/`team` = tetto. Il motore
   (`_decidi`) decide prima dai ruoli (`_decidi_dai_ruoli`), poi applica l'eccezione: solo in meno,
   mai su superuser/amministratori; `Decisione.fonte = "eccezione"`. Il contesto le carica una volta

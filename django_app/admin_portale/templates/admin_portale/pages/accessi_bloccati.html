@@ -1,0 +1,85 @@
+{% extends "core/base.html" %}
+
+{% block title %}Accessi bloccati | Admin Portale{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+.ab-wrap { display: grid; gap: 20px; max-width: 1280px; }
+.ab-guida ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.5; }
+.ab-muted { color: var(--text-mid); }
+.ab-nota { font-size: .85rem; color: var(--text-mid); margin: 0 0 10px; }
+.ab-sub { display: block; font-size: .8rem; color: var(--text-mid); }
+.ab-avviso { display: block; font-size: .8rem; color: var(--warning, #b45309); margin-top: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+  {% url 'admin_portale:accessi_bloccati' as pagina_url %}
+  {% include "admin_portale/components/page_header.html" with page_title="Accessi bloccati" page_subtitle="Chi ha sbagliato la password e ha il login bloccato, con il pulsante «Sblocca»." page_action_label="? Guida" page_action_url=pagina_url|add:"?guida=1" %}
+
+  <div class="ab-wrap">
+    {% if mostra_guida %}
+    <div class="card ab-guida">
+      <div class="card-head"><div class="card-title">Guida</div></div>
+      <div class="card-body">
+        <ol>
+          <li>Dopo <strong>{{ limite }} password sbagliate</strong> lo stesso nome utente, dallo stesso IP, resta bloccato per <strong>{{ durata_minuti }} minuti</strong> e vede «Troppi tentativi di accesso». Ogni nuovo tentativo durante il blocco lo fa ripartire.</li>
+          <li>Il conteggio vale per il login normale e per la pagina «Imposta il PIN» delle postazioni condivise, che chiede la stessa password.</li>
+          <li>«Sblocca» toglie il blocco di quella riga: la persona può riprovare subito, con di nuovo {{ limite }} tentativi. Lo sblocco resta nell'audit («accesso_sbloccato»).</li>
+          <li>Prima di sbloccare, chiedi alla persona se era lei. Tanti blocchi da IP diversi o su molti nomi = tentativo a tappeto: avvisa il SOC.</li>
+          <li><strong>«Account AD, mai entrato»</strong>: la password la verifica Active Directory. Se la persona è sicura della password, quasi sempre l'utente non è in un gruppo AD ammesso al portale (<code>LDAP_GROUP_ALLOWLIST</code>): sbloccare non basta, va aggiunto al gruppo.</li>
+          <li><strong>«Nome utente sconosciuto»</strong>: nessun account del portale con quel nome o quella email: errore di battitura o account da creare.</li>
+          <li>Qui compaiono i tentativi degli ultimi {{ giorni_storico }} giorni; un login riuscito azzera la riga da solo.</li>
+        </ol>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Bloccati ora: {{ n_bloccati }}</div></div>
+      <div class="card-body">
+        <p class="ab-nota">Bloccati prima, poi chi ha già qualche password sbagliata (su {{ limite }}).</p>
+        {% if righe %}
+        <div class="table-wrap">
+          <table class="fm-table">
+            <thead><tr><th>Nome utente</th><th>Persona</th><th>IP</th><th>Errori</th><th>Ultimo tentativo</th><th>Stato</th><th></th></tr></thead>
+            <tbody>
+            {% for r in righe %}
+              <tr>
+                <td>{{ r.username }}<span class="ab-sub">{{ r.pagina }}</span></td>
+                <td>
+                  {% if r.persona.esiste %}
+                    {{ r.persona.nome|default:"—" }}
+                    <span class="ab-sub">{% if r.persona.ad %}Account AD{% else %}Password del portale{% endif %}{% if r.persona.attivo is False %} · utente disattivo{% endif %} · {% if r.persona.ultimo_accesso %}ultimo accesso {{ r.persona.ultimo_accesso|date:"d/m/Y H:i" }}{% else %}mai entrato{% endif %}</span>
+                    {% if r.persona.ad and not r.persona.ultimo_accesso %}<span class="ab-avviso">Account AD, mai entrato: controlla che sia in un gruppo AD ammesso al portale.</span>{% endif %}
+                  {% else %}
+                    <span class="ab-muted">Nome utente sconosciuto</span>
+                  {% endif %}
+                </td>
+                <td>{{ r.ip|default:"—" }}</td>
+                <td>{{ r.errori }} / {{ limite }}</td>
+                <td>{{ r.ultimo|date:"d/m/Y H:i" }}</td>
+                <td>{% if r.bloccato %}<strong>Bloccato</strong> fino alle {{ r.fine_blocco|date:"H:i" }}{% else %}<span class="ab-muted">Non bloccato</span>{% endif %}</td>
+                <td>
+                  <form method="post" action="{% url 'admin_portale:accessi_bloccati_sblocca' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="tentativo" value="{{ r.id }}">
+                    <button type="submit" class="btn {% if r.bloccato %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">{% if r.bloccato %}Sblocca{% else %}Azzera errori{% endif %}</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          <p>Nessun tentativo sbagliato negli ultimi {{ giorni_storico }} giorni.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endblock %}
