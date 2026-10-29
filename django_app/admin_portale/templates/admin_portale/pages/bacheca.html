@@ -137,7 +137,7 @@ body.theme-dark .bz-kind.url{color:#93c5fd}
             <label>Sigla copertina</label>
             <input type="text" name="sigla" maxlength="8" placeholder="Es. VPN">
           </div>
-          <div class="bz-field bz-t-url" style="flex:1">
+          <div class="bz-field bz-t-url" style="flex:1; display:none">
             <label>URL esterno</label>
             <input type="url" name="url" placeholder="https://...">
           </div>
@@ -145,9 +145,9 @@ body.theme-dark .bz-kind.url{color:#93c5fd}
             <label>Nome route Django</label>
             <input type="text" name="route_name" placeholder="Es. assenze_menu">
           </div>
-          <div class="bz-field bz-t-file" style="display:none">
-            <label>File (PDF/Office/immagine)</label>
-            <input type="file" name="file">
+          <div class="bz-field bz-t-file" style="flex:1">
+            <label>File (PDF, Office, immagine; max {{ max_mb }} MB)</label>
+            <input type="file" name="file" accept="{{ accept_ext }}">
           </div>
           <button class="bz-btn primary" type="submit">+ Aggiungi voce</button>
           <div style="flex-basis:100%">
@@ -210,12 +210,16 @@ function onKindChange(sel){
   form.querySelector('.bz-t-internal').style.display = sel.value === 'internal' ? '' : 'none';
   form.querySelector('.bz-t-file').style.display  = sel.value === 'file' ? '' : 'none';
 }
+// Allinea i campi visibili al tipo selezionato all'apertura (il primo tipo è «Documento»).
+document.querySelectorAll('form.bz-form select[name=kind]').forEach(onKindChange);
 async function createLink(ev, categoryId){
   ev.preventDefault();
   const form = ev.target;
-  const kind = form.kind.value;
+  const f = form.elements;
+  const kind = f.kind.value;
   let r;
   if(kind === 'file'){
+    if(!f.file.files.length){ fail({error:'Scegli il file da caricare.'}); return false; }
     const fd = new FormData(form);
     fd.append('category_id', categoryId);
     r = await fetch("{% url 'admin_portale:api_hub_link_create' %}", {method:'POST', headers:{'X-CSRFToken':CSRF}, body:fd});
@@ -223,8 +227,8 @@ async function createLink(ev, categoryId){
     const role_ids = Array.from(form.querySelectorAll('input[name=role_ids]:checked')).map(c => c.value);
     r = await fetch("{% url 'admin_portale:api_hub_link_create' %}", {
       method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
-      body: JSON.stringify({category_id:categoryId, kind, title:form.title.value, description:form.description.value,
-                            sigla:form.sigla.value, url:form.url.value, route_name:form.route_name.value, role_ids})
+      body: JSON.stringify({category_id:categoryId, kind, title:f.title.value, description:f.description.value,
+                            sigla:f.sigla.value, url:f.url.value, route_name:f.route_name.value, role_ids})
     });
   }
   const res = await r.json().catch(() => ({ok:false, error:'Risposta non valida'}));
