@@ -191,8 +191,6 @@
 (function () {
   var tbody = document.getElementById('tim-tbody');
   var form = document.getElementById('tim-filters');
-  var canCopy = {{ can_copy_timbri|yesno:'true,false' }};
-  var canDownload = {{ can_download_timbri|yesno:'true,false' }};
 
   /* Ricerca live: ricarica l'elenco (filtro server-side) mentre si digita. */
   var qInput = form.querySelector('input[name="q"]');
@@ -218,7 +216,8 @@
   };
   var EMPTY_IMG = '<span class="tim-spec-box is-empty"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>';
 
-  function buildPreview(records) {
+  /* Copia/Scarica: li decide il server per QUESTA persona (ambito propri/team/tutti). */
+  function buildPreview(records, canCopy, canDownload) {
     if (!records.length) return '<div class="tim-xmsg">Nessun timbro attivo.</div>';
     return '<div class="tim-prev-list">' + records.map(function (r) {
       var slots = r.slots.map(function (s) {
@@ -261,7 +260,7 @@
     try {
       var resp = await fetch(row.dataset.previewUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       var data = await resp.json();
-      inner.innerHTML = buildPreview(data.records || []);
+      inner.innerHTML = buildPreview(data.records || [], !!data.can_copy_timbri, !!data.can_download_timbri);
       row.dataset.loaded = '1';
     } catch (err) {
       inner.innerHTML = '<div class="tim-xmsg is-err">Errore nel caricamento.</div>';

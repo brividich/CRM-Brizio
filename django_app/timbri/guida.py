@@ -45,8 +45,10 @@ SEZIONI: list[dict] = [
             ("def", [
                 ("Consultare il registro", "ruoli admin, amministrazione, caporeparto e HR."),
                 ("Creare, modificare e archiviare record", "ruoli admin e amministrazione."),
-                ("Copiare un'immagine", "ruoli admin, amministrazione e HR, salvo eccezioni per singolo utente."),
-                ("Scaricare il file PNG", "ruoli admin, amministrazione e HR, salvo eccezioni per singolo utente."),
+                ("Copiare un'immagine (pulsante «Copia»)", "chi ha «Copiare» per il suo ruolo, nell'ambito scelto: "
+                 "Propri (solo i suoi timbri), Propri e del team (anche quelli delle persone che coordina) o Tutti."),
+                ("Scaricare il file PNG (pulsante «Scarica»)", "chi ha «Scaricare» per il suo ruolo, con gli stessi tre ambiti. "
+                 "Copiare non dà il permesso di scaricare e viceversa."),
                 ("Impostazioni del modulo", "chi può modificare i record."),
                 ("Reset del registro", "solo i superutenti."),
             ]),
@@ -152,6 +154,8 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "Sono salvate in un'area privata del server e si aprono solo dal portale, con i permessi giusti.",
                 "Ogni visualizzazione, copia e download viene registrato nel log, compresi i tentativi senza permesso.",
+                "I pulsanti «Copia» e «Scarica» compaiono solo sui timbri che rientrano nel tuo ambito; il portale "
+                "ricontrolla comunque ogni immagine, anche se qualcuno prova ad aprire il collegamento a mano.",
                 "Le immagini non vanno inoltrate né salvate fuori dai documenti a cui servono.",
             ]),
         ],
@@ -160,12 +164,16 @@ SEZIONI: list[dict] = [
         "id": "impostazioni",
         "titolo": "Impostazioni (amministratori)",
         "blocchi": [
-            ("p", "La pagina Impostazioni ha tre schede."),
+            ("p", "La pagina Impostazioni ha quattro schede."),
             ("def", [
-                ("Permessi", "per ogni ruolo, gli interruttori «Copia immagine» e «Scarica immagine»; «Salva permessi» li registra. "
-                 "Sotto, le eccezioni per singolo utente: si sceglie l'utente e per ogni permesso «Forza ON», «Forza OFF» o "
-                 "«da ruolo», poi «Salva override»; la tabella le mostra come «Forzato ON» e «Forzato OFF». "
-                 "«Rimuovi» cancella le eccezioni di quell'utente."),
+                ("Permessi", "per ogni ruolo del portale, le colonne «Copiare» e «Scaricare» con le scelte "
+                 "«Non deciso (no)», «No», «Propri», «Propri e del team», «Tutti»; «Salva permessi» le registra. "
+                 "Se una persona ha più ruoli vale il più ampio. Le cambia solo l'amministratore del portale; "
+                 "gli altri le vedono in sola lettura. Sono le stesse celle della matrice in Ruoli e permessi. "
+                 "Con il sistema dei ruoli spento la scheda mostra invece gli interruttori storici per ruolo e le eccezioni per utente."),
+                ("Registro copie e download", "chi ha copiato o scaricato quale immagine e quando: esito (Copia, Download, "
+                 "Copia negata, Download negato), titolare del timbro, codice, immagine (timbro, firma o sigla), ambito e indirizzo IP. "
+                 "Si filtra per esito e per utente; mostra le ultime 300 righe."),
                 ("Operazioni", "«Bonifica ora» ricollega all'anagrafica gli operatori rimasti senza collegamento ed elimina quelli vuoti; "
                  "«Export CSV locale» scarica l'intero registro; «Reset tabella» cancella tutti i record."),
                 ("Log audit", "lo storico delle operazioni sul registro, con filtro."),
@@ -180,7 +188,8 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("def", [
                 ("Non trovo un dipendente.", "Il registro mostra solo i dipendenti dell'anagrafica centrale: va prima inserito lì."),
-                ("Non vedo il pulsante «Copia».", "Manca il permesso di copia per il tuo ruolo o per il tuo utente: chiedilo a un amministratore."),
+                ("Non vedo il pulsante «Copia» o «Scarica».", "Il tuo ruolo non ha «Copiare» o «Scaricare», oppure il timbro "
+                 "non rientra nel tuo ambito (per esempio hai «Propri» e il timbro è di un collega): chiedilo a un amministratore."),
                 ("Un timbro è sospeso e non so perché.", "Apri la scheda: il riquadro della sospensione indica motivo e date. "
                  "Se è «automatica da MOD.128», va regolarizzata l'abilitazione nel MOD.128."),
                 ("Come ritiro un timbro?", "Con «Archivia» (data di ritiro = oggi) oppure togliendo «Record attivo (in uso)» e indicando la data di ritiro."),

@@ -28,7 +28,9 @@ GUIDA = {
                 ("ul", [
                     "I dipendenti non si creano qui: devono esistere in Anagrafica.",
                     "Creare, modificare e archiviare record: ruoli admin e amministrazione.",
-                    "Chi può copiare o scaricare le immagini si decide in Impostazioni → Permessi del registro.",
+                    "Chi può copiare («Copia») o scaricare («Scarica») le immagini si decide per ruolo in "
+                    "Impostazioni → Permessi del registro: Propri, Propri e del team o Tutti. Le cambia l'amministratore del portale.",
+                    "Impostazioni → Registro copie e download: chi ha copiato o scaricato quale timbro, quando, e i tentativi negati.",
                     "Il reset del registro è solo per i superutenti.",
                 ]),
                 ("p", "Tutti i dettagli sono nella guida completa (collegamento in cima)."),
@@ -42,7 +44,10 @@ GUIDA = {
         },
         {
             "sintomo": "Il pulsante «Copia» o «Scarica» non c'è",
-            "fare": ["Registro timbri → Impostazioni → Permessi: aggiungi il ruolo o la persona."],
+            "fare": [
+                "Registro timbri → Impostazioni → Permessi: dai al ruolo «Copiare» o «Scaricare».",
+                "Se il pulsante c'è solo sui propri timbri, l'ambito è «Propri»: allargalo a «Propri e del team» o «Tutti».",
+            ],
         },
     ],
 }
