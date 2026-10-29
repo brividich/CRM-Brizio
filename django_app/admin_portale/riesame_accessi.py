@@ -187,6 +187,26 @@ def genera_riesame_xlsx(*, preparato_da: str, sistema_attivo: bool) -> bytes:
     for col, larghezza in zip("ABCD", (34, 40, 26, 14)):
         ws.column_dimensions[col].width = larghezza
 
+    # 4b. Eccezioni sulla singola persona (core.permessi.eccezioni): accessi tolti o ristretti.
+    from core.models import EccezionePermessoPersona
+    from core.permessi.eccezioni import descrizione_limite
+
+    ws = wb.create_sheet("Eccezioni sulla persona")
+    _intestazioni(ws, ["Persona", "Modulo", "Azione", "Esito", "Motivo", "Decisa da", "Ultima modifica"])
+    tutti = {u.id: u for u in UtenteLegacy.objects.all()}
+    r = 2
+    for e in EccezionePermessoPersona.objects.order_by("legacy_user_id", "modulo", "azione"):
+        spec = nomi_moduli.get(e.modulo)
+        persona = tutti.get(e.legacy_user_id)
+        valori = [persona.nome if persona else f"#{e.legacy_user_id}", spec.nome if spec else e.modulo,
+                  spec.etichetta_azione(e.azione) if spec else e.azione, descrizione_limite(e.ambito_massimo),
+                  e.motivo, e.creata_da, timezone.localtime(e.updated_at).strftime("%d/%m/%Y")]
+        for c, valore in enumerate(valori, start=1):
+            write_cell(ws, r, c, valore)
+        r += 1
+    for col, larghezza in zip("ABCDEFG", (34, 30, 26, 26, 50, 26, 14)):
+        ws.column_dimensions[col].width = larghezza
+
     # 5. Variazioni degli accessi dovute all'organigramma negli ultimi 12 mesi (core.permessi.variazioni).
     _foglio_variazioni(wb, oggi)
 

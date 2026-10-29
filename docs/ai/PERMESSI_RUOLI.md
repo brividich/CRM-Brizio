@@ -29,6 +29,16 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
 - **Referti**: azione extra `referti` di `visite_mediche`; `anagrafica.views._can_view_referti`
   la richiede (ambito tutti) con il sistema attivo, su scheda referto, download, documenti della
   scheda e coda referti (`views_sorveglianza._puo`).
+- **Eccezioni sulla persona** (`core.EccezionePermessoPersona`, core 0104, 29/10/2026): per
+  persona × modulo × azione, `ambito_massimo` vuoto = negato, `propri`/`team` = tetto. Il motore
+  (`_decidi`) decide prima dai ruoli (`_decidi_dai_ruoli`), poi applica l'eccezione: solo in meno,
+  mai su superuser/amministratori; `Decisione.fonte = "eccezione"`. Il contesto le carica una volta
+  (`eccezioni_della_persona`); il simulatore le conserva in «Prova un ruolo». Pagine:
+  `core/permessi/eccezioni.sincronizza_pagine_persona` scrive `UserPermissionGrant(enabled=False,
+  note="eccezione sulla persona")` sulle pagine aperte **solo** dall'azione negata (non da un'altra
+  azione ancora concessa); crea/cancella solo righe con quella nota. Si richiama a ogni modifica
+  dell'eccezione, al cambio dei ruoli a mano e da `sync.sincronizza_tutti`. Un cambio d'organigramma
+  non la richiama: lo riallinea il «Sincronizza» successivo (il motore invece è sempre aggiornato).
 - **Ruoli dall'organigramma**: `anagrafica.RuoloOperativo.profili_permessi` (M2M verso
   `AccessGroup`, migrazione anagrafica 0177). Chi ricopre oggi un ruolo d'organigramma collegato
   (stesse assegnazioni del team: ruolo attivo, `data_fine` vuota o futura) riceve quei ruoli,

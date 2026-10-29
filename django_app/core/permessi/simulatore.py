@@ -94,6 +94,7 @@ def effetto_modifica(user, *, aggiungi=(), togli=()) -> list[dict]:
     gruppi = list(AccessGroup.objects.filter(id__in=nuovi_ids, is_active=True))
     dopo = contesto_di_ruoli(gruppi, legacy_user_id=oggi.legacy_user_id, amministratore_legacy=admin_legacy,
                              superuser=oggi.superuser)
+    dopo.eccezioni = dict(oggi.eccezioni)  # le eccezioni sulla persona restano anche cambiando ruolo
     prima_dec, dopo_dec = _decisioni(oggi), _decisioni(dopo)
     cambi = []
     for spec in moduli_registrati().values():

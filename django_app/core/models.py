@@ -1613,6 +1613,45 @@ class RuoloPermessoModulo(models.Model):
         return f"RuoloPermesso<ruolo={self.ruolo_id} {self.modulo}.{self.azione}={stato}>"
 
 
+class EccezionePermessoPersona(models.Model):
+    """Eccezione sulla singola persona: toglie o restringe un'azione che i suoi ruoli concedono.
+
+    Serve quando una persona ha lo stesso ruolo dei colleghi ma non deve vedere
+    o fare tutto quello che vedono loro. Solo in meno, mai in piu': per dare
+    qualcosa a una persona si usa un ruolo. ``ambito_massimo`` vuoto = azione
+    negata; ``propri``/``team`` = al massimo quella visibilita'.
+    """
+
+    LIMITE_NEGATO = ""
+    LIMITE_CHOICES = [
+        (LIMITE_NEGATO, "Negato"),
+        (RuoloPermessoModulo.AMBITO_PROPRI, "Al massimo i propri"),
+        (RuoloPermessoModulo.AMBITO_TEAM, "Al massimo propri e del team"),
+    ]
+
+    legacy_user_id = models.IntegerField(db_index=True)
+    modulo = models.CharField(max_length=80)
+    azione = models.CharField(max_length=40)
+    ambito_massimo = models.CharField(max_length=10, choices=LIMITE_CHOICES, blank=True, default=LIMITE_NEGATO)
+    motivo = models.CharField(max_length=255)
+    creata_da = models.CharField(max_length=150, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("legacy_user_id", "modulo", "azione")]
+        ordering = ["legacy_user_id", "modulo", "azione"]
+        verbose_name = "Eccezione sui permessi di una persona"
+        verbose_name_plural = "Eccezioni sui permessi delle persone"
+
+    @property
+    def negata(self) -> bool:
+        return not self.ambito_massimo
+
+    def __str__(self) -> str:
+        return f"Eccezione<utente={self.legacy_user_id} {self.modulo}.{self.azione}={self.ambito_massimo or 'no'}>"
+
+
 class AclDenialEvent(models.Model):
     """Un accesso negato dall'ACL, una riga per persona e permesso (o pagina).
 

@@ -113,6 +113,59 @@
             <a class="btn btn-secondary" href="?tab=anteprima&persona={{ selezionata.id }}">Cosa vede</a>
           </div>
         </form>
+
+        <div class="rp-org-box rp-eccezioni" id="eccezioni">
+          <div class="rp-org-title">Eccezioni sulla persona</div>
+          <div class="acl-muted">Per togliere a questa persona una cosa che i suoi ruoli le danno (anche quelli dall'organigramma), senza toccare i colleghi con lo stesso ruolo. Solo in meno: per dare qualcosa in più si usa un ruolo.</div>
+          {% if eccezioni_selezionata %}
+          <div class="acl-table-wrap" data-fm-table-skip="1">
+            <table class="acl-table">
+              <thead><tr><th>Modulo</th><th>Azione</th><th>Esito</th><th>Motivo</th><th></th></tr></thead>
+              <tbody>
+              {% for e in eccezioni_selezionata %}
+                <tr>
+                  <td>{{ e.modulo }}</td>
+                  <td>{{ e.azione }}</td>
+                  <td><span class="acl-chip deny">{{ e.esito }}</span></td>
+                  <td>{{ e.eccezione.motivo }}<div class="acl-muted">{{ e.eccezione.creata_da }} · {{ e.eccezione.updated_at|date:"d/m/Y" }}</div></td>
+                  <td>
+                    <form method="post" action="{% url 'admin_portale:ruoli_portale_eccezione' selezionata.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="q" value="{{ q }}">
+                      <button class="btn btn-secondary btn-sm" type="submit" name="togli" value="{{ e.eccezione.id }}" data-hub-confirm="Togliere l'eccezione? La persona torna ad avere quello che le dà il ruolo.">Togli</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+          <form method="post" action="{% url 'admin_portale:ruoli_portale_eccezione' selezionata.id %}" class="rp-eccezione-form">
+            {% csrf_token %}
+            <input type="hidden" name="q" value="{{ q }}">
+            <label class="acl-muted" for="rp-ecc-voce">Modulo e azione</label>
+            <select id="rp-ecc-voce" class="input" name="voce" required>
+              <option value="">— scegli —</option>
+              {% for v in voci_eccezione %}
+                <optgroup label="{{ v.modulo.nome }}">
+                  {% for chiave, label in v.azioni %}<option value="{{ v.modulo.chiave }}::{{ chiave }}">{{ v.modulo.nome }} · {{ label }}</option>{% endfor %}
+                </optgroup>
+              {% endfor %}
+            </select>
+            <label class="acl-muted" for="rp-ecc-limite">Esito</label>
+            <select id="rp-ecc-limite" class="input" name="limite">
+              <option value="">Negato</option>
+              <option value="team">Al massimo propri e del team</option>
+              <option value="propri">Al massimo i propri</option>
+            </select>
+            <label class="acl-muted" for="rp-ecc-motivo">Motivo (obbligatorio, resta nel registro)</label>
+            <input id="rp-ecc-motivo" class="input" type="text" name="motivo" maxlength="255" required placeholder="es. conflitto d'interessi sui dati del reparto">
+            <div class="acl-actions" style="margin-top:10px;">
+              <button class="btn" type="submit">Aggiungi eccezione</button>
+            </div>
+          </form>
+        </div>
       {% else %}
         <div class="acl-empty">Scegli una persona dall'elenco per assegnare i ruoli.</div>
       {% endif %}
@@ -523,10 +576,12 @@
             <span class="acl-text"><strong>{{ r.modulo.nome }}</strong></span>
             {% if not r.qualcosa %}<span class="acl-muted">non vede il modulo</span>{% endif %}
           </div>
-          {% if r.qualcosa %}
+          {% if r.qualcosa or r.eccezioni %}
           <div class="rp-preview-actions">
             {% for a in r.azioni %}{% if a.esito.consentito %}
-              <span class="acl-chip allow" title="{{ a.esito.motivo }}">{{ a.label }}: {{ a.esito.ambito_label }}{% if a.esito.ruolo %} · {{ a.esito.ruolo }}{% endif %}</span>
+              <span class="acl-chip allow" title="{{ a.esito.motivo }}">{{ a.label }}: {{ a.esito.ambito_label }}{% if a.esito.ruolo %} · {{ a.esito.ruolo }}{% endif %}{% if a.esito.fonte == "eccezione" %} · limitato da eccezione{% endif %}</span>
+            {% elif a.esito.fonte == "eccezione" %}
+              <span class="acl-chip deny" title="{{ a.esito.motivo }}">{{ a.label }}: no · eccezione sulla persona</span>
             {% endif %}{% endfor %}
           </div>
           {% endif %}
