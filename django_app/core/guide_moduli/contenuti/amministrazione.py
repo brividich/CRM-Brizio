@@ -57,7 +57,8 @@ GUIDA = {
                 ("p", "Amministrazione → «Menu del portale». In alto la barra del portale com'è: le categorie (Per me, Produzione, Persone, Qualità, IT…) "
                       "sono le tendine, le altre voci stanno da sole. Sotto, a sinistra, cosa c'è in ogni tendina, con i sottogruppi "
                       "(es. «Da fare», «Richieste») e le sottovoci; a destra la scheda di quello che hai scelto. "
-                      "Chi vede una voce non si sceglie qui: la vede chi può aprire la pagina a cui porta, e si cambia in «Ruoli e permessi»."),
+                      "Chi vede una voce non si sceglie qui: la vede chi può aprire la pagina a cui porta, e si cambia in «Ruoli e permessi». "
+                      "Fanno eccezione i link esterni: vedi «Link esterni»."),
                 ("def", [
                     ("Guarda il menu come", "«Tutti (amministratore)» mostra tutte le voci; il ruolo base (es. «Operatore (tutti)») e «Un altro ruolo…» "
                                             "mostrano il menu di una persona con quel ruolo; «una persona…» mostra il menu vero di quella persona. "
@@ -74,7 +75,11 @@ GUIDA = {
                                      "«Non è legata a una pagina protetta»: con «Ruoli e permessi» acceso la vedono solo gli amministratori."),
                     ("Cosa vuoi fare", "cambia il nome (per i moduli il nome si cambia in Branding); «In quale categoria» la sposta in un'altra tendina "
                                        "o da sola nella barra, con il «Sottogruppo nella tendina»; per una sottovoce «Sotto quale voce»; "
+                                       "«Pagina a cui porta» (una pagina del portale dall'elenco o un indirizzo esterno https://…), «Apri in una nuova scheda», "
                                        "cambia l'icona, «Nascondila solo a …» (dopo aver scelto una persona in alto), «Apri la pagina». Poi «Salva»."),
+                    ("Link esterni", "una voce che porta a un sito esterno (https://…) senza permesso la vedono tutti. Per limitarla, nella sua scheda "
+                                     "«Chi vede il link esterno» scegli un permesso: la vede chi ha quel permesso in «Ruoli e permessi» "
+                                     "(gli amministratori sempre). Si scelgono solo permessi che proteggono una pagina del portale."),
                     ("Nel menu / Tolta dal menu", "toglie o rimette la voce per tutti, subito."),
                     ("Riordinare", "nella barra in alto trascina una tendina o una voce per cambiare l'ordine della barra; a sinistra trascina una voce "
                                    "sopra un'altra della stessa tendina (o tra le sottovoci della stessa voce). L'ordine si salva da solo. "

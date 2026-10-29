@@ -562,7 +562,7 @@ body.theme-dark .nav-builder .nav-perm-note{color:#fcd34d}
           <div class="acl-notice">
             <strong>Ruoli e permessi attivo.</strong> Una voce compare a chi può aprire la pagina a cui porta: decide il permesso della pagina.
             Un permission code scritto sulla voce la restringe solo se protegge davvero qualche pagina, e allora servono entrambi.
-            I «Ruoli abilitati» della voce (ruoli storici) non contano più: una voce senza permesso la vedono solo gli amministratori.
+            I «Ruoli abilitati» della voce (ruoli storici) non contano più: una voce senza permesso la vedono solo gli amministratori, tranne i link esterni (https://…) che vedono tutti.
           </div>
         {% else %}
           <div class="acl-notice">
@@ -841,6 +841,8 @@ body.theme-dark .nav-builder .nav-perm-note{color:#fcd34d}
                         <span class="visual-badge warn" title="Il permission code della voce non protegge nessuna pagina">Permesso vecchio</span>
                       {% elif row.perm_stato == "esplicito_e_pagina" %}
                         <span class="visual-badge warn" title="Permesso della voce diverso da quello della pagina">Voce + pagina</span>
+                      {% elif row.perm_stato == "assente" and row.esterno %}
+                        <span class="visual-badge" title="Link esterno senza permesso: lo vedono tutti">Link esterno: tutti</span>
                       {% elif row.perm_stato == "assente" and row.section != "admin_subnav" %}
                         <span class="visual-badge warn" title="Nessun permesso: con i ruoli attivi la vedono solo gli amministratori">Senza permesso</span>
                       {% endif %}
