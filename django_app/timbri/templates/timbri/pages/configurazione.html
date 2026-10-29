@@ -55,8 +55,9 @@ body.theme-dark .tim-switch-thumb{background:var(--surface)}
 
     <nav class="fmd-chips" aria-label="Sezioni impostazioni" style="margin-bottom:16px;">
       <a class="fmd-chip{% if tab == 'permessi' %} fmd-on{% endif %}" href="?tab=permessi">Permessi</a>
+      <a class="fmd-chip{% if tab == 'registro' %} fmd-on{% endif %}" href="?tab=registro">Registro copie e download</a>
       <a class="fmd-chip{% if tab == 'operazioni' %} fmd-on{% endif %}" href="?tab=operazioni">Operazioni</a>
-      <a class="fmd-chip{% if tab != 'permessi' and tab != 'operazioni' %} fmd-on{% endif %}" href="?tab=log">Log audit</a>
+      <a class="fmd-chip{% if tab != 'permessi' and tab != 'operazioni' and tab != 'registro' %} fmd-on{% endif %}" href="?tab=log">Log audit</a>
     </nav>
 
     {% if schema_issue %}
@@ -82,7 +83,64 @@ body.theme-dark .tim-switch-thumb{background:var(--surface)}
     {% endif %}
 
     {# ── TAB PERMESSI ──────────────────────────────────────────────────────── #}
-    {% if tab == 'permessi' %}
+    {% if tab == 'permessi' and sistema_ruoli_attivo %}
+      <section class="fmd-panel fmd-block" style="margin-top:0;">
+        <div class="fmd-block-head" style="margin-bottom:6px;">
+          <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Chi può copiare e scaricare timbri, firme e sigle</div>
+          <div class="fmd-block-aside">Per ruolo del portale</div>
+        </div>
+        <p class="fmd-ph-sub" style="margin:0 0 6px;">Per ogni ruolo scegli <strong>di chi</strong> può copiare (appunti) e scaricare (file PNG) le immagini: <strong>Propri</strong> = solo i suoi timbri, <strong>Propri e del team</strong> = anche quelli delle persone che coordina, <strong>Tutti</strong> = di chiunque. Chi vede i timbri si decide con «Vedere» nella matrice dei ruoli.</p>
+        <p class="fmd-ph-sub" style="margin:0 0 14px;">Se una persona ha più ruoli vale il più ampio. Il controllo è fatto dal server su ogni immagine; ogni copia, download o tentativo negato finisce nel <a href="?tab=registro">registro copie e download</a>. Sono le stesse celle della <a href="{% url 'admin_portale:ruoli_portale' %}?tab=modulo&amp;modulo=timbri">matrice dei ruoli</a>.</p>
+        {% if ambiti_ruoli %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_ambiti">
+            <div class="fmd-tablewrap" style="margin:0 -22px;">
+              <table class="fmd-table" data-fm-table-skip="1">
+                <thead>
+                  <tr>
+                    <th>Ruolo</th>
+                    <th>Copiare<span class="tim-th-sub">copia negli appunti</span></th>
+                    <th>Scaricare<span class="tim-th-sub">download file PNG</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in ambiti_ruoli %}
+                    <tr>
+                      <td class="fmd-cell-main">{{ r.ruolo.label }}</td>
+                      {% if r.amministratore %}
+                        <td colspan="2"><span class="tim-pill tim-pill-ok">Tutti</span> <span class="fmd-muted">amministratore del portale</span></td>
+                      {% else %}
+                        <td>
+                          <select class="fmd-select" name="ambito__{{ r.ruolo.id }}__copiare" aria-label="Copiare per {{ r.ruolo.label }}"{% if not puo_decidere_ambiti %} disabled{% endif %}>
+                            {% for k, label in ambiti_scelte %}<option value="{{ k }}"{% if k == r.copiare %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                          </select>
+                        </td>
+                        <td>
+                          <select class="fmd-select" name="ambito__{{ r.ruolo.id }}__scaricare" aria-label="Scaricare per {{ r.ruolo.label }}"{% if not puo_decidere_ambiti %} disabled{% endif %}>
+                            {% for k, label in ambiti_scelte %}<option value="{{ k }}"{% if k == r.scaricare %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                          </select>
+                        </td>
+                      {% endif %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% if puo_decidere_ambiti %}
+              <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+                <button class="fmd-btn fmd-btn-primary" type="submit"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva permessi</button>
+              </div>
+            {% else %}
+              <div class="tim-empty" style="margin-top:14px;">Sola lettura: i permessi dei ruoli li cambia l'amministratore del portale.</div>
+            {% endif %}
+          </form>
+        {% else %}
+          <div class="tim-empty">Nessun ruolo del portale definito.</div>
+        {% endif %}
+      </section>
+
+    {% elif tab == 'permessi' %}
       <section class="fmd-panel fmd-block" style="margin-top:0;">
         <div class="fmd-block-head" style="margin-bottom:6px;">
           <div class="fmd-block-title"><svg class="fmd-ico"><use href="#i-shield"/></svg>Permessi copia / download immagini</div>
@@ -214,6 +272,46 @@ body.theme-dark .tim-switch-thumb{background:var(--surface)}
           </div>
           <button class="fmd-btn fmd-btn-primary" type="submit" style="height:38px;"><svg class="fmd-ico"><use href="#i-check"/></svg>Salva override</button>
         </form>
+      </section>
+
+    {# ── TAB REGISTRO COPIE E DOWNLOAD ────────────────────────────────────── #}
+    {% elif tab == 'registro' %}
+      <section class="fmd-panel" style="margin-top:0;">
+        <form method="get" class="fmd-toolbar">
+          <input type="hidden" name="tab" value="registro">
+          <select class="fmd-select" name="tipo" aria-label="Filtra per esito">
+            <option value="">Copie, download e negati</option>
+            {% for k, label in registro_tipi.items %}<option value="{{ k }}"{% if k == registro_tipo %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          <label class="fmd-search"><svg class="fmd-ico"><use href="#i-search"/></svg><input type="search" name="utente" value="{{ registro_utente }}" placeholder="Chi ha copiato o scaricato" aria-label="Filtra per utente"></label>
+          <button class="fmd-btn fmd-btn-primary" type="submit"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
+          {% if registro_tipo or registro_utente %}<a class="fmd-btn fmd-btn-ghost" href="?tab=registro">Reset</a>{% endif %}
+          <span class="fmd-spacer"></span>
+          <span class="fmd-info">{{ registro_righe|length }} righe (ultime 300)</span>
+        </form>
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead>
+              <tr><th>Quando</th><th>Chi</th><th>Esito</th><th>Timbro di</th><th>Codice</th><th>Immagine</th><th>Ambito</th><th>IP</th></tr>
+            </thead>
+            <tbody>
+              {% for r in registro_righe %}
+                <tr>
+                  <td class="fmd-nowrap fmd-muted" data-sort-value="{{ r.quando|date:'Y-m-d H:i:s' }}">{{ r.quando|date:"d/m/Y H:i" }}</td>
+                  <td class="fmd-cell-main">{{ r.chi|upper|default:"—" }}</td>
+                  <td>{% if r.negato %}<span class="tim-pill tim-pill-bad" title="{{ r.motivo }}">{{ r.esito }}</span>{% elif r.esito == "Download" %}<span class="tim-pill tim-pill-info">{{ r.esito }}</span>{% else %}<span class="tim-pill tim-pill-ok">{{ r.esito }}</span>{% endif %}</td>
+                  <td>{% if r.legacy_id %}<a href="{% url 'timbri:operatore_detail_by_legacy' r.legacy_id %}">{{ r.titolare }}</a>{% else %}{{ r.titolare|default:"—" }}{% endif %}</td>
+                  <td class="fmd-nowrap">{{ r.codice|default:"—" }}</td>
+                  <td>{{ r.variante|default:"—" }}</td>
+                  <td class="fmd-muted">{{ r.ambito|default:"—" }}</td>
+                  <td class="fmd-muted fmd-nowrap">{{ r.ip|default:"—" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="8"><div class="fmd-empty"><span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-et">Nessuna copia o download registrato{% if registro_tipo or registro_utente %} con questi filtri{% endif %}</span></div></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </section>
 
     {# ── TAB OPERAZIONI ───────────────────────────────────────────────────── #}

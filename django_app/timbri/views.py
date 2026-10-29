@@ -67,13 +67,17 @@ def _can_view_timbri(request) -> bool:
     )
 
 
-def _ruoli(request, azione: str) -> bool | None:
-    """Ruoli attivi: esito della matrice per il registro timbri; None = regole storiche."""
+def _ruoli(request, azione: str, oggetto=None) -> bool | None:
+    """Ruoli attivi: esito della matrice per il registro timbri; None = regole storiche.
+
+    Con ``oggetto`` (immagine, record, operatore o id anagrafica) vale anche
+    l'ambito della cella: «propri», «team» o «tutti».
+    """
     from core.permessi import puo_fare, sistema_ruoli_attivo
 
     if not sistema_ruoli_attivo():
         return None
-    return puo_fare(request, "timbri", azione)
+    return puo_fare(request, "timbri", azione, oggetto)
 
 
 def _can_edit_timbri(request) -> bool:
@@ -101,10 +105,11 @@ def _user_timbri_override(user, azione: str):
         return None
 
 
-def _can_copy_timbri(request) -> bool:
+def _can_copy_timbri(request, oggetto=None) -> bool:
+    """Copia negli appunti. Senza ``oggetto``: «puo' copiare almeno i propri?»."""
     if getattr(request.user, "is_superuser", False):
         return True
-    esito = _ruoli(request, "esportare")
+    esito = _ruoli(request, "copiare", oggetto)
     if esito is not None:
         return esito
     legacy_user = _legacy_user(request)
@@ -121,10 +126,11 @@ def _can_copy_timbri(request) -> bool:
     return user_can_modulo_action(request, "timbri", "timbri_copy")
 
 
-def _can_download_timbri(request) -> bool:
+def _can_download_timbri(request, oggetto=None) -> bool:
+    """Download del file PNG. Senza ``oggetto``: «puo' scaricare almeno i propri?»."""
     if getattr(request.user, "is_superuser", False):
         return True
-    esito = _ruoli(request, "esportare")
+    esito = _ruoli(request, "scaricare", oggetto)
     if esito is not None:
         return esito
     legacy_user = _legacy_user(request)
@@ -139,6 +145,25 @@ def _can_download_timbri(request) -> bool:
     if _legacy_role_name(legacy_user) in _DOWNLOAD_ROLE_NAMES:
         return True
     return user_can_modulo_action(request, "timbri", "timbri_download")
+
+
+def _ambito_decisione(request, azione: str) -> str:
+    """Ambito che la matrice concede alla persona per l'azione (per il registro)."""
+    if getattr(request.user, "is_superuser", False):
+        return "superuser"
+    from core.permessi import decisione, sistema_ruoli_attivo
+
+    if not sistema_ruoli_attivo():
+        return "regole storiche"
+    return decisione(request, "timbri", azione).ambito or "-"
+
+
+def _permessi_immagini(request, oggetto) -> dict:
+    """Pulsanti Copia/Scarica per i timbri di UNA persona (ambito applicato)."""
+    return {
+        "can_copy_timbri": _can_copy_timbri(request, oggetto),
+        "can_download_timbri": _can_download_timbri(request, oggetto),
+    }
 
 
 def _can_manage_timbri_config(request) -> bool:
@@ -812,7 +837,7 @@ def operatore_preview(request, legacy_id: int):
             "tipo": r.get_tipo_timbro_display(),
             "slots": slots,
         })
-    return JsonResponse({"records": data})
+    return JsonResponse({"records": data, **_permessi_immagini(request, operatore)})
 
 
 @login_required
@@ -876,7 +901,7 @@ def operatore_report(request, legacy_id: int):
         "sigle": sigle,
         "show_timbri": show_timbri,
         "generated_at": timezone.now(),
-        "can_copy_timbri": _can_copy_timbri(request),
+        "can_copy_timbri": _can_copy_timbri(request, operatore),
         "url_completo": base_url + "?timbri=1",
         "url_senza_timbri": base_url + "?timbri=0",
     })
@@ -930,6 +955,7 @@ def operatore_detail(request, operatore_id: int):
                 "source_label": "bridge locale",
             },
             is_central_profile=False,
+            **_permessi_immagini(request, operatore),
             active_records=active_records,
             historical_records=historical_records,
             stats={
@@ -995,6 +1021,7 @@ def operatore_detail_by_legacy(request, legacy_id: int):
                 "foto_url": foto_url,
             },
             is_central_profile=True,
+            **_permessi_immagini(request, operatore),
             active_records=active_records,
             historical_records=historical_records,
             active_timbri=active_timbri,
@@ -1053,7 +1080,7 @@ def operatore_embed(request, legacy_id: int):
         "historical_records": historical_records,
         "report_url": reverse("timbri:operatore_report", args=[legacy_id_int]) if legacy_id_int else None,
         "can_edit_timbri": _can_edit_timbri(request),
-        "can_copy_timbri": _can_copy_timbri(request),
+        **_permessi_immagini(request, operatore),
         "stats": {
             "totale": registri_qs.count(),
             "attivi": len(active_records),
@@ -1304,6 +1331,141 @@ def _permessi_timbri_context() -> dict:
         return {"permessi_rows": [], "user_override_rows": [], "all_users": [], "overridden_user_ids": set()}
 
 
+_AZIONI_IMMAGINI = ("copiare", "scaricare")
+_VALORE_NO = "no"
+_TIPI_REGISTRO = {
+    "timbri_image_copy": "Copia",
+    "timbri_image_download": "Download",
+    "timbri_image_denied": "Negato",
+}
+
+
+def _puo_decidere_ambiti(request) -> bool:
+    """Chi cambia celle della matrice dei ruoli: come la pagina Ruoli e permessi."""
+    if getattr(request.user, "is_superuser", False):
+        return True
+    legacy_user = _legacy_user(request)
+    return bool(legacy_user and is_legacy_admin(legacy_user))
+
+
+def _ambiti_ruoli_context() -> dict:
+    """Celle «copiare»/«scaricare» del modulo timbri per ogni ruolo del portale."""
+    from core.models import AccessGroup, RuoloPermessoModulo
+    from core.permessi.registro import AMBITI_LABEL
+
+    try:
+        ruoli = list(AccessGroup.objects.all().order_by("-priority", "label", "id"))
+        celle = {
+            (c.ruolo_id, c.azione): (c.ambito if c.consentito else _VALORE_NO)
+            for c in RuoloPermessoModulo.objects.filter(modulo="timbri", azione__in=_AZIONI_IMMAGINI)
+        }
+    except DatabaseError:
+        logger.warning("[timbri] lettura matrice ruoli fallita", exc_info=True)
+        return {"ambiti_ruoli": [], "ambiti_scelte": []}
+    righe = [
+        {
+            "ruolo": ruolo,
+            "amministratore": bool(getattr(ruolo, "amministratore", False)),
+            "copiare": celle.get((ruolo.id, "copiare"), ""),
+            "scaricare": celle.get((ruolo.id, "scaricare"), ""),
+        }
+        for ruolo in ruoli
+    ]
+    scelte = [("", "Non deciso (no)"), (_VALORE_NO, "No")] + [(k, v) for k, v in AMBITI_LABEL.items()]
+    return {"ambiti_ruoli": righe, "ambiti_scelte": scelte}
+
+
+def _salva_ambiti_ruoli(request) -> None:
+    """Scrive le celle della matrice come «Salva matrice» e registra il prima/dopo."""
+    from core.models import AccessGroup, RuoloPermessoModulo
+    from core.permessi.cache import invalida_permessi
+    from core.permessi.registro import AMBITI
+
+    modifiche = []
+    with transaction.atomic():
+        esistenti = {
+            (c.ruolo_id, c.azione): c
+            for c in RuoloPermessoModulo.objects.filter(modulo="timbri", azione__in=_AZIONI_IMMAGINI)
+        }
+        for ruolo in AccessGroup.objects.all():
+            for azione in _AZIONI_IMMAGINI:
+                chiave = f"ambito__{ruolo.id}__{azione}"
+                if chiave not in request.POST:
+                    continue
+                valore = str(request.POST.get(chiave) or "").strip()
+                if valore and valore != _VALORE_NO and valore not in AMBITI:
+                    continue
+                cella = esistenti.get((ruolo.id, azione))
+                prima = "" if cella is None else (cella.ambito if cella.consentito else _VALORE_NO)
+                if valore == prima:
+                    continue
+                if not valore:
+                    cella.delete()
+                else:
+                    if cella is None:
+                        cella = RuoloPermessoModulo(ruolo=ruolo, modulo="timbri", azione=azione)
+                    cella.consentito = valore != _VALORE_NO
+                    cella.ambito = valore if valore in AMBITI else (cella.ambito or "tutti")
+                    cella.note = "impostazioni timbri"
+                    cella.save()
+                modifiche.append({
+                    "ruolo": ruolo.label, "azione": azione, "prima": prima or "-", "dopo": valore or "-",
+                })
+    if not modifiche:
+        messages.info(request, "Nessuna modifica ai permessi di copia e download.")
+        return
+    invalida_permessi()
+    # Stesso evento della matrice dei ruoli: compare anche nel registro di «Ruoli e permessi».
+    log_action(request, "permessi_matrice", "permessi", {"origine": "impostazioni timbri", "modifiche": modifiche})
+    log_action(request, "timbri_permessi_ambito", "timbri", {"modifiche": modifiche})
+    messages.success(request, f"Permessi di copia e download salvati: {len(modifiche)} celle cambiate.")
+
+
+def _registro_copie_context(request) -> dict:
+    """Registro di copie, download e tentativi negati, con il titolare del timbro."""
+    tipo = str(request.GET.get("tipo") or "").strip()
+    qs = AuditLog.objects.filter(modulo="timbri", azione__in=list(_TIPI_REGISTRO))
+    if tipo in _TIPI_REGISTRO:
+        qs = qs.filter(azione=tipo)
+    else:
+        tipo = ""
+    utente = str(request.GET.get("utente") or "").strip()
+    if utente:
+        qs = qs.filter(utente_display__icontains=utente)
+    # I «negato» della sola consultazione non sono copie né download.
+    voci = [
+        v for v in qs.order_by("-created_at")[:600]
+        if v.azione != "timbri_image_denied" or (v.dettaglio or {}).get("tipo") in ("copy", "download")
+    ][:300]
+    operatori = {
+        o.id: o for o in OperatoreTimbri.objects.filter(
+            id__in={int(d) for d in ((v.dettaglio or {}).get("operatore_id") for v in voci) if d}
+        )
+    }
+    righe = []
+    for v in voci:
+        d = v.dettaglio or {}
+        operatore = operatori.get(d.get("operatore_id"))
+        if v.azione == "timbri_image_denied":
+            esito = "Copia negata" if d.get("tipo") == "copy" else "Download negato"
+        else:
+            esito = _TIPI_REGISTRO[v.azione]
+        righe.append({
+            "quando": v.created_at,
+            "chi": v.utente_display,
+            "esito": esito,
+            "negato": v.azione == "timbri_image_denied",
+            "titolare": operatore.full_name if operatore else "",
+            "legacy_id": getattr(operatore, "legacy_anagrafica_id", None),
+            "codice": d.get("codice_timbro") or "",
+            "variante": str(d.get("variante") or "").capitalize(),
+            "ambito": d.get("ambito") or "",
+            "motivo": d.get("motivo") or "",
+            "ip": v.ip_address or "",
+        })
+    return {"registro_righe": righe, "registro_tipo": tipo, "registro_utente": utente, "registro_tipi": _TIPI_REGISTRO}
+
+
 @login_required
 def configurazione_page(request):
     if not _can_manage_timbri_config(request):
@@ -1323,6 +1485,18 @@ def configurazione_page(request):
         )
         if branding_response is not None:
             return branding_response
+
+        if action == "save_ambiti":
+            if not _puo_decidere_ambiti(request):
+                log_action(request, "timbri_permessi_ambito_denied", "timbri", {"motivo": "non amministratore"})
+                messages.error(request, "Solo l'amministratore del portale cambia i permessi dei ruoli.")
+            else:
+                try:
+                    _salva_ambiti_ruoli(request)
+                except DatabaseError as exc:
+                    logger.exception("[timbri] salvataggio ambiti copia/download fallito")
+                    messages.error(request, f"Errore salvataggio permessi: {exc}")
+            return redirect(f"{reverse('timbri:configurazione')}?tab=permessi")
 
         if action == "save_permessi":
             try:
@@ -1474,6 +1648,14 @@ def configurazione_page(request):
         .distinct()
         .order_by("azione")
     )
+    from core.permessi import sistema_ruoli_attivo
+
+    ruoli_attivi = sistema_ruoli_attivo()
+    extra_tab = {}
+    if tab == "permessi" and ruoli_attivi:
+        extra_tab = _ambiti_ruoli_context()
+    elif tab == "registro":
+        extra_tab = _registro_copie_context(request)
     return render(
         request,
         "timbri/pages/configurazione.html",
@@ -1490,7 +1672,10 @@ def configurazione_page(request):
                 "registri": 0 if schema_issue else RegistroTimbro.objects.count(),
                 "orphan_operatori": 0 if schema_issue else OperatoreTimbri.objects.filter(legacy_anagrafica_id__isnull=True).count(),
             },
+            sistema_ruoli_attivo=ruoli_attivi,
+            puo_decidere_ambiti=_puo_decidere_ambiti(request),
             **_permessi_timbri_context(),
+            **extra_tab,
         ),
     )
 
@@ -1556,36 +1741,52 @@ def export_csv(request):
 def serve_timbri_image(request, image_id: int):
     """Serve un'immagine timbro/firma verificando i permessi ACL.
     I file sono in TIMBRI_PRIVATE_ROOT, mai esposta dal web server.
-    ?download=1  → forza Content-Disposition attachment (richiede timbri_download).
-    ?copy=1      → copia negli appunti dal pulsante «Copia» (richiede timbri_copy).
-    Senza parametro → inline (richiede timbri_view).
+    ?download=1  → forza Content-Disposition attachment (azione «scaricare»).
+    ?copy=1      → copia negli appunti dal pulsante «Copia» (azione «copiare»).
+    Senza parametro → inline (consultazione).
+    Copia e download valgono solo nell'ambito concesso dalla matrice (propri,
+    team, tutti) rispetto al titolare del timbro: ogni esito, anche negato,
+    finisce nel registro copie e download.
     """
     as_download = request.GET.get("download") == "1"
     as_copy = not as_download and request.GET.get("copy") == "1"
+    tipo = "download" if as_download else "copy" if as_copy else "view"
 
-    if as_download:
-        can_access = _can_download_timbri(request)
-        denied_reason = "download_not_allowed"
-        tipo = "download"
-    elif as_copy:
-        can_access = _can_copy_timbri(request)
-        denied_reason = "copy_not_allowed"
-        tipo = "copy"
-    else:
-        can_access = _can_view_timbri(request)
-        denied_reason = "permission_denied"
-        tipo = "view"
-
-    if not can_access:
+    def _negato(motivo: str, extra: dict | None = None):
         log_action(
             request,
             "timbri_image_denied",
             "timbri",
-            {"image_id": int(image_id), "tipo": tipo, "motivo": denied_reason},
+            {"image_id": int(image_id), "tipo": tipo, "motivo": motivo, **(extra or {})},
+            oggetto_tipo="timbri.registrotimbroimmagine",
+            oggetto_id=str(int(image_id)),
         )
         return HttpResponseForbidden("Accesso non autorizzato.")
 
-    img = get_object_or_404(RegistroTimbroImmagine, pk=image_id)
+    # Chi non vede i timbri non sa nemmeno se l'immagine esiste.
+    if not _can_view_timbri(request) and not (as_copy or as_download):
+        return _negato("permission_denied")
+    if as_download and not _can_download_timbri(request):
+        return _negato("download_not_allowed")
+    if as_copy and not _can_copy_timbri(request):
+        return _negato("copy_not_allowed")
+
+    img = get_object_or_404(
+        RegistroTimbroImmagine.objects.select_related("registro__operatore"), pk=image_id
+    )
+    operatore = img.registro.operatore
+    dati_titolare = {
+        "registro_id": img.registro_id,
+        "variante": img.variante,
+        "codice_timbro": img.registro.codice_timbro,
+        "operatore_id": operatore.id,
+        "legacy_anagrafica_id": operatore.legacy_anagrafica_id,
+    }
+    if as_download and not _can_download_timbri(request, img):
+        return _negato("fuori_ambito", {**dati_titolare, "ambito": _ambito_decisione(request, "scaricare")})
+    if as_copy and not _can_copy_timbri(request, img):
+        return _negato("fuori_ambito", {**dati_titolare, "ambito": _ambito_decisione(request, "copiare")})
+
     storage = img.image.storage
     if not img.image or not img.image.name or not storage.exists(img.image.name):
         log_action(
@@ -1598,15 +1799,16 @@ def serve_timbri_image(request, image_id: int):
 
     ext = Path(img.image.name).suffix.lower()
     content_type = "image/png" if ext == ".png" else "image/jpeg" if ext in {".jpg", ".jpeg"} else "application/octet-stream"
+    dettaglio = {"image_id": img.id, **dati_titolare}
+    if tipo != "view":
+        dettaglio["ambito"] = _ambito_decisione(request, "scaricare" if as_download else "copiare")
     log_action(
         request,
         {"download": "timbri_image_download", "copy": "timbri_image_copy"}.get(tipo, "timbri_image_view"),
         "timbri",
-        {
-            "image_id": img.id,
-            "registro_id": getattr(img, "registro_id", None),
-            "variante": img.variante,
-        },
+        dettaglio,
+        oggetto_tipo="timbri.registrotimbroimmagine",
+        oggetto_id=str(img.id),
     )
     response = FileResponse(storage.open(img.image.name, "rb"), content_type=content_type)
     response["Cache-Control"] = "private, no-store"
