@@ -188,7 +188,47 @@ def _ctx_persone(request) -> dict:
         "scadenza_selezionata": scadenze[0] if scadenze else None,
         "organigramma_selezionata": organigramma_selezionata,
         "ids_organigramma_selezionata": {r["gruppo"].id for r in organigramma_selezionata},
+        **_ctx_eccezioni(persona_id),
     }
+
+
+def _ctx_eccezioni(persona_id: int | None) -> dict:
+    """Eccezioni della persona scelta e voci del modulo per aggiungerne una."""
+    if not persona_id:
+        return {"eccezioni_selezionata": [], "voci_eccezione": []}
+    from core.permessi.eccezioni import elenco
+
+    voci = [
+        {"modulo": spec, "azioni": [(a, spec.etichetta_azione(a)) for a in spec.azioni]}
+        for spec in sorted(moduli_registrati().values(), key=lambda s: str(s.nome).upper())
+    ]
+    return {"eccezioni_selezionata": elenco(persona_id), "voci_eccezione": voci}
+
+
+@legacy_admin_required
+@require_POST
+def ruoli_portale_eccezione(request, legacy_user_id: int):
+    """Aggiunge, cambia o toglie un'eccezione sulla persona (core.permessi.eccezioni)."""
+    from core.permessi import eccezioni
+
+    persona = UtenteLegacy.objects.filter(id=legacy_user_id).first()
+    if persona is None:
+        messages.error(request, "Persona non trovata.")
+        return redirect(_url("persone"))
+    try:
+        togli_id = _int(request.POST.get("togli"))
+        if togli_id:
+            messages.success(request, eccezioni.togli(request, persona, togli_id))
+        else:
+            modulo, _sep, azione = str(request.POST.get("voce") or "").partition("::")
+            messaggio = eccezioni.salva(
+                request, persona, modulo.strip(), azione.strip(),
+                str(request.POST.get("limite") or "").strip(), request.POST.get("motivo"),
+            )
+            messages.success(request, messaggio)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect(_url("persone", persona=persona.id, q=request.POST.get("q", "")) + "#eccezioni")
 
 
 @legacy_admin_required
@@ -261,6 +301,10 @@ def ruoli_portale_persona(request, legacy_user_id: int):
             oggetto_tipo="utente",
             oggetto_id=str(persona.id),
         )
+        from core.permessi.eccezioni import ha_eccezioni, sincronizza_pagine_persona
+
+        if ha_eccezioni(persona.id):
+            sincronizza_pagine_persona(persona.id)  # con altri ruoli cambiano le pagine da chiudere
         invalida_permessi()
         messages.success(request, f"Ruoli di {persona.nome} aggiornati.")
     else:
@@ -838,6 +882,7 @@ def _ctx_m365(request) -> dict:
 
 _AZIONI_REGISTRO = {
     "permessi_ruoli_persona": "Ruoli di una persona",
+    "permessi_eccezione_persona": "Eccezione sulla persona",
     "permessi_matrice": "Matrice di un ruolo",
     "permessi_ruolo_creato": "Ruolo creato",
     "permessi_ruolo_modificato": "Ruolo modificato",
@@ -857,6 +902,9 @@ def _descrivi(voce) -> str:
         if d.get("tolti"):
             parti.append("tolti: " + ", ".join(d["tolti"]))
         return f"{d.get('persona', '')} — " + "; ".join(parti) + (f" (nota: {d['nota']})" if d.get("nota") else "")
+    if voce.azione == "permessi_eccezione_persona":
+        testo = f"{d.get('persona', '')} — {d.get('voce', '')}: {d.get('prima', '-')} → {d.get('dopo', '-')}"
+        return testo + (f" (motivo: {d['motivo']})" if d.get("motivo") else "")
     if voce.azione == "permessi_matrice":
         celle = [f"{m['modulo']}.{m['azione']}: {m['prima']} → {m['dopo']}" for m in d.get("modifiche", [])]
         return f"{d.get('ruolo', '')} — " + "; ".join(celle)

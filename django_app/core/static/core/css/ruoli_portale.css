@@ -50,6 +50,10 @@
 }
 .rp-org-title { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-mid); margin-bottom: 4px; }
 .rp-org-list { margin: 0 0 6px; padding-left: 18px; }
+/* Eccezioni sulla persona: stesso riquadro, bordo pieno per distinguerle dall'organigramma. */
+.rp-eccezioni { margin-top: 16px; border-style: solid; }
+.rp-eccezioni .acl-table-wrap { margin: 8px 0; }
+.rp-eccezione-form { display: grid; gap: 4px; margin-top: 8px; }
 .rp-org-ambito { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px 10px; margin: 0 0 10px; }
 .rp-org-ambito legend { padding: 0 6px; font-weight: 700; color: var(--text); }
 .rp-org-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 4px 14px; }

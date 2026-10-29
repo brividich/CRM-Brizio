@@ -133,6 +133,7 @@ urlpatterns = [
     path("accessi/preset/", views.accessi_preset, name="accessi_preset"),
     path("ruoli-portale/", views_ruoli.ruoli_portale, name="ruoli_portale"),
     path("ruoli-portale/persona/<int:legacy_user_id>/", views_ruoli.ruoli_portale_persona, name="ruoli_portale_persona"),
+    path("ruoli-portale/persona/<int:legacy_user_id>/eccezione/", views_ruoli.ruoli_portale_eccezione, name="ruoli_portale_eccezione"),
     path("ruoli-portale/matrice/<int:ruolo_id>/", views_ruoli.ruoli_portale_matrice, name="ruoli_portale_matrice"),
     path("ruoli-portale/organigramma/<int:ruolo_id>/", views_ruoli.ruoli_portale_organigramma, name="ruoli_portale_organigramma"),
     path("ruoli-portale/riesame.xlsx", views_ruoli.ruoli_portale_riesame, name="ruoli_portale_riesame"),
