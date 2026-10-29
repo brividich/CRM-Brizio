@@ -11,6 +11,7 @@ GUIDA = {
         ("Guida Ruoli e permessi", "admin_portale:ruoli_portale", "?tab=guida"),
         ("Guida Centro report", "admin_portale:centro_report", "?tab=guida"),
         ("Guida Postazioni condivise", "admin_portale:postazioni_condivise", "?guida=1"),
+        ("Guida Accessi bloccati", "admin_portale:accessi_bloccati", "?guida=1"),
     ],
     "uso": [
         {
@@ -33,6 +34,8 @@ GUIDA = {
                     ("Accessi", "i permessi di pagina per gruppo, ruolo o singola persona. Ha la sua guida."),
                     ("Ruoli e permessi", "un ruolo solo per persona, quello in azienda: i ruoli del portale sono gli accessi che concede e si vedono come «Ruolo in azienda · accessi» (a mano = eccezione). Il sistema unico: matrice ruolo × modulo × azione; le impostazioni di ogni modulo (configurazione, cataloghi) hanno una sotto-riga loro, «↳ Impostazioni del modulo», separata da «Chiudere / gestire»: chi gestisce un modulo non ne vede le impostazioni se non gliele dai; in cima alla matrice «Chi ha il ruolo … oggi» elenca le persone che lo hanno, a mano (con nota e scadenza) o dall'organigramma (con il ruolo d'organigramma che lo dà). Un ruolo si può collegare ai ruoli dell'organigramma: chi li ricopre lo riceve da solo (si cambia anche dalla scheda del ruolo nella Struttura organizzativa) e ogni accesso ricevuto o perso così finisce nel registro della persona e nel foglio «Variazioni da organigramma» del riesame degli accessi. Scheda «Per modulo», «Chi può aprirla» sotto ogni pagina: le persone che la aprono oggi, perché e da dove (secondario e ad interim indicati). Ogni ruolo pronto concede già login, home/dashboard, profilo, notifiche e notizie. Ha la sua guida."),
                     ("Accessi negati", "ogni «Accesso negato» ricevuto dagli utenti, con «Consenti» / «Non consentire»."),
+                    ("Accessi bloccati", "chi ha il login bloccato dopo 5 password sbagliate (per un'ora, stesso nome utente e IP), con «Sblocca» e «Azzera errori». "
+                                         "Per ogni riga: persona, account AD o password del portale, ultimo accesso; «Account AD, mai entrato» = quasi sempre manca il gruppo AD ammesso al portale. Ha la sua guida."),
                     ("Menu del portale", "la barra in alto, le categorie (tendine), le voci e chi le vede (vecchio nome: Navigation Builder). Ha la sua sezione qui sotto."),
                     ("Branding", "logo, favicon, nome e colori."),
                     ("Postazioni condivise", "PC usati a turno con un solo account (es. «zeiss»): un PC per riga (dal registro asset), chi può usarlo, PIN. L'operatore sceglie il proprio nome e digita il PIN. Ha la sua guida."),
@@ -368,6 +371,14 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Una persona vede «Troppi tentativi di accesso» (anche dalla postazione condivisa)",
+            "fare": [
+                "Amministrazione → «Accessi bloccati»: trova la riga del suo nome utente e del suo IP e premi «Sblocca». Può riprovare subito.",
+                "Il blocco scatta dopo 5 password sbagliate e dura un'ora; ogni tentativo durante il blocco lo fa ripartire. Vale anche per «Imposta il PIN» della postazione, che chiede la stessa password.",
+                "Se la riga dice «Account AD, mai entrato» e la persona è sicura della password: l'utente non è in un gruppo AD ammesso al portale. Aggiungilo al gruppo, poi sblocca.",
+            ],
+        },
         {
             "sintomo": "Mail «[SERVER CRITICO] qcluster»",
             "fare": [
