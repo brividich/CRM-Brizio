@@ -54,3 +54,16 @@ class AdminBachecaTests(TestCase):
                              content_type="application/json")
         self.assertEqual(r.status_code, 200)
         self.assertTrue(HubLink.objects.filter(title="Richiesta ferie", kind="internal").exists())
+
+
+class BachecaPaginaCaricamentoTests(TestCase):
+    """La pagina mostra subito il campo file per il tipo predefinito «Documento»."""
+
+    def test_campo_file_visibile_e_filtrato(self):
+        user = get_user_model().objects.create_superuser("bz_admin", "bz@example.com", "x")
+        self.client.force_login(user)
+        HubLinkCategory.objects.create(name="Guide", slug="guide")
+        html = self.client.get(reverse("admin_portale:bacheca")).content.decode()
+        self.assertIn('accept=".doc,.docx,.jpeg,.jpg,.pdf,.png,.ppt,.pptx,.xls,.xlsx"', html)
+        self.assertIn("forEach(onKindChange)", html)
+        self.assertNotIn('class="bz-field bz-t-file" style="display:none"', html)
