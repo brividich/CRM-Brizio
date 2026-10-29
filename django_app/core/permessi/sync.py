@@ -446,6 +446,9 @@ def sincronizza_tutti(*, dry_run: bool = False) -> list[EsitoSync]:
     ]
     if not dry_run:
         from core.permessi.cache import invalida_permessi
+        from core.permessi.eccezioni import sincronizza_tutte
 
+        # Le pagine di un'azione possono essere cambiate: si riallineano i dinieghi delle eccezioni.
+        sincronizza_tutte(capacita=capacita, per_modulo=per_modulo)
         invalida_permessi()
     return esiti
