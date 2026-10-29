@@ -182,6 +182,16 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
                 allowed_values=["CAR", "AMMINISTRAZIONE", "UTENTI"],
                 ui_control="select",
             ),
+            _field(
+                name="inserito_dal_capo",
+                label="Inserita dal caporeparto",
+                data_type="bool",
+                description=(
+                    "Vero se l'ha inserita un caporeparto (profilo CAR) o la persona che è il "
+                    "caporeparto del dipendente (capo_email), anche con profilo AMMINISTRAZIONE."
+                ),
+                is_virtual=True,
+            ),
         ],
     },
     "tasks": {
