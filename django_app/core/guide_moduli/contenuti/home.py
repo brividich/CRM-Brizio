@@ -303,7 +303,7 @@ GUIDA = {
             "fare": [
                 "Chiedi il messaggio esatto che vede.",
                 "«Credenziali non valide»: la password è quella del PC; se l'ha appena cambiata, attenda qualche minuto.",
-                "Accesso bloccato dopo 5 tentativi sbagliati: il blocco dura un'ora. Per sbloccare subito, dal terminale del Setup Wizard: axes_reset_username <nome utente>.",
+                "Accesso bloccato dopo 5 tentativi sbagliati: il blocco dura un'ora. Per sbloccare subito: Amministrazione → «Accessi bloccati» → «Sblocca» (o, dal terminale del Setup Wizard, axes_reset_username <nome utente>).",
                 "L'utente non esiste: va creato o importato da Active Directory (Amministrazione → Import Utenti LDAP).",
                 "Se nessuno riesce a entrare, apri il Manuale di emergenza → «Nessuno riesce a entrare».",
             ],

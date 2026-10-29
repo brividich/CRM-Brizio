@@ -444,6 +444,13 @@ body.theme-dark .ap-mod-link.django:hover{background:var(--surface-alt,#0f1b2d);
           <div class="mod-sub">Policy, ruoli soggetti, reti interne, OTP/TOTP per utente</div>
         </div>
       </a>
+      <a class="mod" href="{% url 'admin_portale:accessi_bloccati' %}">
+        <div class="mod-icon">🔓</div>
+        <div>
+          <div class="mod-name">Accessi bloccati</div>
+          <div class="mod-sub">Login bloccati per troppe password sbagliate: chi, da quale IP, fino a quando, e «Sblocca»</div>
+        </div>
+      </a>
       <a class="mod" href="{% url 'admin_portale:postazioni_condivise' %}">
         <div class="mod-icon">🖥️</div>
         <div>

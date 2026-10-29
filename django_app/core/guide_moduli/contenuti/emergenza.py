@@ -84,7 +84,7 @@ GUIDA = {
                     "Se la password dell'account di servizio è cambiata: aggiornala con il Setup Wizard (sezione LDAP), poi riavvia il pool IIS.",
                     "Se nessuno entra, nemmeno l'amministratore: è il database o il sito (capitoli precedenti).",
                 ]),
-                ("p", "Un singolo utente bloccato dopo 5 tentativi sbagliati si sblocca da solo dopo un'ora, oppure subito con il comando axes_reset_username <utente>."),
+                ("p", "Un singolo utente bloccato dopo 5 tentativi sbagliati si sblocca da solo dopo un'ora, oppure subito da Amministrazione → «Accessi bloccati» → «Sblocca» o con il comando axes_reset_username <utente>."),
             ],
         },
         {

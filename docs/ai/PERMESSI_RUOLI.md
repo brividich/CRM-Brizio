@@ -168,6 +168,14 @@ dalla matrice: il JS della matrice ripete lo stesso calcolo per mostrare i badge
 salvare» prima del salvataggio. Se cambia la logica di `codici_desiderati`/`sincronizza_ruolo`,
 aggiornare anche lo script in `ruoli_portale.html` (test `test_anteprima_prevede_il_risultato_del_salvataggio`).
 
+**Pagina per pagina (29/10/2026)**: la granularità del vecchio ACL canonico dentro la matrice. Sotto ogni
+modulo la riga «↳ Pagina per pagina» elenca i code di `codici_per_modulo` (`pagine_modulo_ruolo`) con una
+tendina `p__<code>`: «Segue la matrice» / «Sì, sempre» / «No, mai». `imposta_eccezioni_pagina` scrive un
+`GroupPermissionGrant` con `NOTA_ECCEZIONE` (`enabled` True/False) o lo cancella; la sincronizzazione
+non tocca i grant con nota diversa da `NOTA_MATRICE`, quindi l'eccezione resta. «No, mai» è un diniego
+del ruolo al suo ordine (resolver: decide il gruppo con priority più alta che ha una riga). Un grant messo
+da Accessi compare come eccezione. Test `core/tests_permessi_pagina_per_pagina.py`.
+
 ## Comandi
 
 ```powershell
