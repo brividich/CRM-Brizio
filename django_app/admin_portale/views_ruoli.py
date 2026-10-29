@@ -34,6 +34,8 @@ from core.permessi.sync import (
     capacita_permessi,
     codici_per_modulo,
     dati_anteprima_ruolo,
+    imposta_eccezioni_pagina,
+    pagine_modulo_ruolo,
     sincronizza_ruolo,
     sincronizza_tutti,
     stato_pagine_ruolo,
@@ -281,6 +283,7 @@ def _ctx_matrice(request) -> dict:
         ruolo = ruoli[0]
     celle = {}
     pagine = {}
+    dettaglio = {}
     anteprima = None
     if ruolo is not None:
         celle = {
@@ -294,6 +297,8 @@ def _ctx_matrice(request) -> dict:
             pagine = stato_pagine_ruolo(ruolo, capacita=capacita, per_modulo=per_modulo)
             # Anteprima lato pagina: come saranno i badge dopo «Salva matrice».
             anteprima = dati_anteprima_ruolo(ruolo, capacita=capacita, per_modulo=per_modulo)
+            # Le pagine una per una, con l'eccezione «Sì sempre» / «No mai».
+            dettaglio = pagine_modulo_ruolo(ruolo, capacita=capacita, per_modulo=per_modulo)
     righe = []
     for spec in moduli_registrati().values():
         righe.append(
@@ -318,6 +323,8 @@ def _ctx_matrice(request) -> dict:
                     }
                     for azione, _label in spec.azioni_extra
                 ],
+                "pagine_dettaglio": dettaglio.get(spec.chiave, []),
+                "eccezioni": sum(1 for p in dettaglio.get(spec.chiave, []) if p["eccezione"]),
             }
         )
     return {
@@ -630,20 +637,31 @@ def ruoli_portale_matrice(request, ruolo_id: int):
                 else:
                     continue
                 modifiche.append({"modulo": spec.chiave, "azione": azione, "prima": prima or "-", "dopo": valore or "-"})
-    if modifiche:
+        eccezioni = []
+        if not ruolo.amministratore:
+            eccezioni = imposta_eccezioni_pagina(
+                ruolo,
+                {k[3:]: str(v or "").strip() for k, v in request.POST.items() if k.startswith("p__")},
+            )
+    if modifiche or eccezioni:
         esito = sincronizza_ruolo(ruolo)
         invalida_permessi()
         log_action(
             request,
             "permessi_matrice",
             MODULO_AUDIT,
-            {"ruolo": ruolo.label, "modifiche": modifiche, "pagine": {"+": esito.accesi, "-": esito.spenti}},
+            {
+                "ruolo": ruolo.label,
+                "modifiche": modifiche,
+                "eccezioni_pagina": eccezioni,
+                "pagine": {"+": esito.accesi, "-": esito.spenti},
+            },
             oggetto_tipo="ruolo",
             oggetto_id=str(ruolo.id),
         )
         messages.success(
             request,
-            f"Matrice di «{ruolo.label}» salvata: {len(modifiche)} celle cambiate, "
+            f"Matrice di «{ruolo.label}» salvata: {len(modifiche)} celle e {len(eccezioni)} pagine cambiate, "
             f"permessi di pagina +{esito.accesi} / -{esito.spenti}.",
         )
     else:

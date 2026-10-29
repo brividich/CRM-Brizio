@@ -184,3 +184,12 @@
 .rp-m365-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .rp-m365-kpi { margin-bottom: 12px; }
 .rp-m365-row-cessato_attivo td { background: var(--danger-bg); }
+
+/* Matrice: dettaglio pagina per pagina sotto ogni modulo */
+.rp-pagine-riga > td { padding-top: 0; }
+.rp-pagine > summary { cursor: pointer; color: var(--text-mid); font-size: .85rem; padding: 2px 0; }
+.rp-pagine[open] > summary { color: var(--text); }
+.rp-pagine-tab { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: .85rem; }
+.rp-pagine-tab th { text-align: left; font-weight: 600; color: var(--text-mid); border-bottom: 1px solid var(--border); padding: 4px 6px; }
+.rp-pagine-tab td { border-bottom: 1px solid var(--border); padding: 4px 6px; vertical-align: top; }
+.rp-pagine-tab select { min-width: 140px; }
