@@ -4,79 +4,201 @@
 #
 #    pip-compile --annotation-style=line --output-file=requirements.txt --strip-extras requirements.in
 #
-aiosqlite==0.22.1         # via asyncua
-annotated-types==0.7.0    # via pydantic
-anyio==4.14.0             # via asyncua
-asgiref==3.11.1           # via django, django-axes, django-htmx
-asyncua==2.0              # via -r requirements.in (collector OPC UA delle CNC)
-azure-core==1.41.0          # via azure-identity
-azure-identity==1.26.0      # via mssql-python
-cachetools==7.0.6         # via -r requirements.in
-certifi==2026.10.19        # via requests
-cffi==2.0.0               # via cryptography
-charset-normalizer==3.4.7  # via reportlab, requests
-colorama==0.4.6           # via qrcode
-croniter==6.2.4           # via -r requirements.in
-cryptography==50.0.2      # via asyncua, msal, pyjwt, pyopenssl, pyspnego
-defusedxml==0.7.1         # via -r requirements.in (fattura elettronica contatori)
-django==5.2.17            # via -r requirements.in, django-axes, django-extensions, django-htmx, django-picklefield, django-q2, mssql-django
-django-axes==7.1.0        # via -r requirements.in
-django-extensions==4.1    # via -r requirements.in
-django-fsm-2==4.2.4       # via -r requirements.in
-django-htmx==1.27.0       # via -r requirements.in
-django-ninja==1.6.2       # via -r requirements.in
-django-picklefield==3.4.0  # via django-q2
-django-stubs-ext==6.0.6   # via django-ninja
-django-q2==1.9.0          # via -r requirements.in
-djangorestframework==3.18.3  # via -r requirements.in (app security / SC-AI)
-et-xmlfile==2.0.0         # via openpyxl
-idna==3.15                # via requests
-ldap3==2.9.1              # via -r requirements.in
-lxml==6.1.3                 # via python-docx
-markupsafe==3.0.3         # via werkzeug
-msal==1.39.0              # via -r requirements.in
-msal-extensions==1.3.1      # via azure-identity
-mssql-django==2.0.0         # via -r requirements.in
-mssql-python==1.16.0        # via mssql-django
-mssql-python-odbc==18.6.2.2  # via mssql-python
-mssql-python-rs==0.3.0      # via mssql-python
-numpy==2.2.6              # via -r requirements.in (lettura planimetrie verifiche periodiche)
-openpyxl==3.1.5           # via -r requirements.in
-packaging==26.3           # via -r requirements.in
-pillow==13.0.0            # via -r requirements.in, qrcode, reportlab
-pyasn1==0.6.4             # via ldap3
-pycparser==3.0            # via cffi
-python-docx==1.2.0          # via -r requirements.in
-xlrd==2.0.2               # legacy .xls reader (intake export gestionale Specifiche)
-pydantic==2.13.4          # via django-ninja
-pydantic-core==2.46.4     # via pydantic
-pyjwt==2.15.0             # via msal, pyjwt
-pymupdf==1.28.2         # via -r requirements.in
-pyodbc==5.3.0             # via -r requirements.in, mssql-django
-pyopenssl==26.4.0         # via asyncua, -r requirements.in
-pyotp==2.10.0              # via -r requirements.in
-pyspnego==0.12.4          # via -r requirements.in
-pyvmomi==8.0.3.0.1        # via -r requirements.in (Registro accessi: ESXi/vCenter)
-python-dateutil==2.9.0.post0  # via asyncua, croniter
-python-magic-bin==0.4.14 ; platform_system == "Windows"  # via -r requirements.in
-python-magic==0.4.27 ; platform_system != "Windows"  # via -r requirements.in
-puresnmp==2.0.1           # via -r requirements.in (modulo contatori SNMP)
-puresnmp-crypto==1.0.1.post1  # via -r requirements.in (SNMPv3 AES/DES)
-pytz==2026.1.post1        # via asyncua, mssql-django
-t61codec==1.0.1           # via puresnmp, x690
-x690==1.0.0.post1         # via puresnmp
-qrcode==8.0               # via -r requirements.in
-reportlab==5.0.1         # via -r requirements.in
-requests==2.33.1          # via -r requirements.in, msal
-six==1.17.0               # via python-dateutil, pyvmomi
-snowballstemmer==3.1.1    # via -r requirements.in
-sortedcontainers==2.4.0   # via asyncua
-sqlparse==0.6.0           # via django
-sspilib==0.5.0            # via pyspnego
-tzdata==2026.2            # via django
-typing-extensions==4.16.0  # via asyncua, pydantic, pyopenssl, python-docx
-typing-inspection==0.4.2  # via pydantic
-urllib3==2.8.0            # via requests
-waitress==3.0.2           # via -r requirements.in
-werkzeug==3.1.9           # via -r requirements.in
-zxing-cpp==3.1.1          # via -r requirements.in (lettura QR/barcode da scansioni)
+aiosqlite==0.22.1
+    # via asyncua
+annotated-types==0.7.0
+    # via pydantic
+anyio==4.14.0
+    # via asyncua
+asgiref==3.11.1
+    # via
+    #   django
+    #   django-axes
+    #   django-htmx
+asyncua==2.0
+    # via -r requirements.in
+azure-core==1.41.0
+    # via azure-identity
+azure-identity==1.26.0
+    # via mssql-python
+cachetools==7.0.6
+    # via -r requirements.in
+certifi==2026.10.19
+    # via requests
+cffi==2.0.0
+    # via cryptography
+charset-normalizer==3.4.7
+    # via
+    #   reportlab
+    #   requests
+croniter==6.2.4
+    # via -r requirements.in
+cryptography==50.0.2
+    # via
+    #   asyncua
+    #   azure-identity
+    #   msal
+    #   puresnmp-crypto
+    #   pyjwt
+    #   pyopenssl
+    #   pyspnego
+defusedxml==0.7.1
+    # via -r requirements.in
+django==6.0.9
+    # via
+    #   -r requirements.in
+    #   django-axes
+    #   django-extensions
+    #   django-fsm-2
+    #   django-htmx
+    #   django-ninja
+    #   django-picklefield
+    #   django-q2
+    #   django-stubs-ext
+    #   djangorestframework
+    #   mssql-django
+django-axes==7.1.0
+    # via -r requirements.in
+django-extensions==4.1
+    # via -r requirements.in
+django-fsm-2==4.2.4
+    # via -r requirements.in
+django-htmx==1.27.0
+    # via -r requirements.in
+django-ninja==1.6.2
+    # via -r requirements.in
+django-picklefield==3.4.0
+    # via django-q2
+django-q2==1.9.0
+    # via -r requirements.in
+django-stubs-ext==6.0.6
+    # via django-fsm-2
+djangorestframework==3.18.3
+    # via -r requirements.in
+et-xmlfile==2.0.0
+    # via openpyxl
+idna==3.15
+    # via
+    #   anyio
+    #   requests
+ldap3==2.9.1
+    # via -r requirements.in
+lxml==6.1.3
+    # via python-docx
+markupsafe==3.0.3
+    # via werkzeug
+msal==1.39.0
+    # via
+    #   -r requirements.in
+    #   azure-identity
+    #   msal-extensions
+msal-extensions==1.3.1
+    # via azure-identity
+mssql-django==2.0.0
+    # via -r requirements.in
+mssql-python==1.16.0
+    # via mssql-django
+mssql-python-odbc==18.6.2.2
+    # via mssql-python
+mssql-python-rs==0.3.0
+    # via mssql-python
+numpy==2.2.6
+    # via -r requirements.in
+openpyxl==3.1.5
+    # via -r requirements.in
+packaging==26.3
+    # via -r requirements.in
+pillow==13.0.0
+    # via
+    #   -r requirements.in
+    #   qrcode
+    #   reportlab
+puresnmp==2.0.1
+    # via -r requirements.in
+puresnmp-crypto==1.0.1.post1
+    # via -r requirements.in
+pyasn1==0.6.4
+    # via ldap3
+pycparser==3.0
+    # via cffi
+pydantic==2.13.4
+    # via django-ninja
+pydantic-core==2.46.4
+    # via pydantic
+pyjwt==2.15.0
+    # via
+    #   msal
+    #   pyjwt
+pymupdf==1.28.2
+    # via -r requirements.in
+pyodbc==5.3.0
+    # via
+    #   -r requirements.in
+    #   mssql-django
+pyopenssl==26.4.0
+    # via
+    #   -r requirements.in
+    #   asyncua
+pyotp==2.10.0
+    # via -r requirements.in
+pyspnego==0.12.4
+    # via -r requirements.in
+python-dateutil==2.9.0.post0
+    # via
+    #   asyncua
+    #   croniter
+python-docx==1.2.0
+    # via -r requirements.in
+python-magic==0.4.27 ; platform_system != "Windows"
+    # via -r requirements.in
+pytz==2026.1.post1
+    # via asyncua
+pyvmomi==8.0.3.0.1
+    # via -r requirements.in
+qrcode==8.0
+    # via -r requirements.in
+reportlab==5.0.1
+    # via -r requirements.in
+requests==2.33.1
+    # via
+    #   -r requirements.in
+    #   azure-core
+    #   msal
+six==1.17.0
+    # via
+    #   python-dateutil
+    #   pyvmomi
+snowballstemmer==3.1.1
+    # via -r requirements.in
+sortedcontainers==2.4.0
+    # via asyncua
+sqlparse==0.6.0
+    # via django
+t61codec==1.0.1
+    # via x690
+typing-extensions==4.16.0
+    # via
+    #   asyncua
+    #   azure-core
+    #   azure-identity
+    #   django-stubs-ext
+    #   pydantic
+    #   pydantic-core
+    #   python-docx
+    #   typing-inspection
+typing-inspection==0.4.2
+    # via pydantic
+tzdata==2026.2
+    # via mssql-django
+urllib3==2.8.0
+    # via requests
+waitress==3.0.2
+    # via -r requirements.in
+werkzeug==3.1.9
+    # via -r requirements.in
+x690==1.0.0.post1
+    # via puresnmp
+xlrd==2.0.2
+    # via -r requirements.in
+zxing-cpp==3.1.1
+    # via -r requirements.in
