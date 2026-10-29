@@ -101,17 +101,30 @@ class TicketTests(ModuliBase):
         self.it_op = ticket(TipoTicket.IT, self.op, self.op_l, "Stampante")
         self.man_altro = ticket(TipoTicket.MAN, self.altro, self.altro_l, "Porta rotta")
 
-    def dashboard(self, user, legacy):
+    def dashboard(self, user, legacy, sezione="tutti"):
+        # «Ticket» (sezione «tutti») mostra cio' che il ruolo vede; «I miei
+        # ticket» (sezione «miei») solo quelli aperti dalla persona.
         from tickets import views
 
-        return set(views.ticket_dashboard(self.req(user, legacy, path="/tickets/")).context_data["tickets"])
+        request = self.req(user, legacy, path="/tickets/")
+        return set(views.ticket_dashboard(request, sezione=sezione).context_data["tickets"])
 
     def test_dipendente_vede_solo_i_propri(self, _r):
+        from tickets import views
+
         # L'Operatore vede i propri ticket di manutenzione; i ticket IT non sono nel ruolo base.
         self.assertEqual(self.dashboard(self.op, self.op_l), {self.man_op})
         self.assertEqual(self.dashboard(self.altro, self.altro_l), {self.man_altro})
+        # «I miei ticket» mostra tutti quelli aperti dalla persona, di qualunque tipo,
+        # e senza ambito team/tutti la sezione «Ticket» non si apre.
+        self.assertEqual(self.dashboard(self.op, self.op_l, sezione="miei"), {self.man_op, self.it_op})
+        self.assertFalse(views.puo_vedere_altri_ticket(self.req(self.op, self.op_l)))
 
     def test_preposto_vede_manutenzione_del_team_ma_non_l_it_del_team(self, _r):
+        from tickets import views
+
+        self.assertTrue(views.puo_vedere_altri_ticket(self.req(self.capo, self.capo_l)))
+        self.assertEqual(self.dashboard(self.capo, self.capo_l, sezione="miei"), set())
         visti = self.dashboard(self.capo, self.capo_l)
         self.assertIn(self.man_op, visti)
         self.assertNotIn(self.it_op, visti)
