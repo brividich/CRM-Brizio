@@ -528,29 +528,51 @@ def _enrich_assenze_payload(payload: Any) -> Any:
     if normalized_salta_approvazione is not None:
         enriched["salta_approvazione"] = normalized_salta_approvazione
 
-    if enriched.get("inserito_da_gruppo") in {None, ""}:
-        enriched["inserito_da_gruppo"] = _resolve_assenza_inserita_da_gruppo(enriched.get("id"))
+    if enriched.get("inserito_da_gruppo") in {None, ""} or enriched.get("inserito_dal_capo") in {None, ""}:
+        gruppo, inserito_da = _resolve_assenza_inserita_da(enriched.get("id"))
+        if enriched.get("inserito_da_gruppo") in {None, ""}:
+            enriched["inserito_da_gruppo"] = gruppo
+        if enriched.get("inserito_dal_capo") in {None, ""}:
+            # Il profilo da solo non basta: un caporeparto con «approvare» su tutti
+            # risulta AMMINISTRAZIONE. Conta se l'autore è il capo che andrebbe in CC.
+            autore_email = _resolve_portal_user_email(inserito_da)
+            enriched["inserito_dal_capo"] = gruppo == "CAR" or bool(autore_email and autore_email == capo_email)
     return enriched
 
 
-def _resolve_assenza_inserita_da_gruppo(assenza_id: Any) -> str:
-    """Profilo Assenze di chi ha inserito la richiesta (CAR / AMMINISTRAZIONE / UTENTI).
+def _resolve_assenza_inserita_da(assenza_id: Any) -> tuple[str, str]:
+    """Profilo Assenze (CAR / AMMINISTRAZIONE / UTENTI) e username di chi ha inserito.
 
-    Vuoto se la richiesta non è nata dal form del portale (SharePoint, import,
+    Vuoti se la richiesta non è nata dal form del portale (SharePoint, import,
     certificazione presenze) o se la tabella non esiste ancora.
     """
     try:
         item_id = int(assenza_id)
     except (TypeError, ValueError):
-        return ""
+        return "", ""
     try:
         from assenze.models import AssenzaInseritaDa
 
-        gruppo = AssenzaInseritaDa.objects.filter(assenza_id=item_id).values_list("gruppo", flat=True).first()
+        row = AssenzaInseritaDa.objects.filter(assenza_id=item_id).values_list("gruppo", "inserito_da").first()
     except Exception:
         logger.debug("inserito_da_gruppo non risolto per assenza %s", assenza_id, exc_info=True)
+        return "", ""
+    if not row:
+        return "", ""
+    return str(row[0] or "").strip().upper(), str(row[1] or "").strip()
+
+
+def _resolve_portal_user_email(username: str) -> str:
+    if not username:
         return ""
-    return str(gruppo or "").strip().upper()
+    try:
+        from django.contrib.auth import get_user_model
+
+        email = get_user_model().objects.filter(username__iexact=username).values_list("email", flat=True).first()
+    except Exception:
+        logger.debug("email non risolta per l'utente %s", username, exc_info=True)
+        return ""
+    return str(email or "").strip().lower()
 
 
 def _enrich_tickets_payload(payload: Any) -> Any:
