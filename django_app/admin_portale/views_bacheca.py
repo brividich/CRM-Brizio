@@ -84,6 +84,8 @@ def bacheca(request):
         "ruoli": ruoli,
         "kinds": HubLink.KIND_CHOICES,
         "sezioni": HubLinkCategory.SEZIONE_CHOICES,
+        "accept_ext": ",".join(sorted(ALLOWED_UPLOAD_EXT)),
+        "max_mb": DOCUMENT_MAX_MB,
     })
 
 
