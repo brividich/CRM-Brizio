@@ -83,3 +83,30 @@ class MatricePaginaPerPaginaTests(PersoneMixin, TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(self._grant("dpi.approva.view").enabled)
         self.assertEqual(self._grant("dpi.detail.view").note, NOTA_MATRICE)
+
+    def test_salva_matrice_in_un_solo_campo_json(self):
+        """Oltre mille tendine non devono sfondare DATA_UPLOAD_MAX_NUMBER_FIELDS (400)."""
+        import json
+
+        admin, _ = self.persona("Amministratore sintetico", superuser=True)
+        self.client.force_login(admin)
+        valori = {f"p__sintetico.pagina{i}.view": "" for i in range(1500)}
+        valori["p__dpi.approva.view"] = "si"
+        resp = self.client.get(reverse("admin_portale:ruoli_portale"), {"tab": "matrice", "ruolo": self.ruolo.id})
+        self.assertContains(resp, 'name="matrice_json"')
+        resp = self.client.post(
+            reverse("admin_portale:ruoli_portale_matrice", args=[self.ruolo.id]),
+            {"matrice_json": json.dumps(valori)},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(self._grant("dpi.approva.view").enabled)
+
+    def test_matrice_json_illeggibile_non_tocca_nulla(self):
+        admin, _ = self.persona("Amministratore sintetico", superuser=True)
+        self.client.force_login(admin)
+        resp = self.client.post(
+            reverse("admin_portale:ruoli_portale_matrice", args=[self.ruolo.id]),
+            {"matrice_json": "[non json"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIsNone(self._grant("dpi.approva.view"))
