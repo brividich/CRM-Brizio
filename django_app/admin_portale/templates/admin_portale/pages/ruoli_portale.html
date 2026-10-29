@@ -303,8 +303,10 @@
         <span>Sotto ogni modulo, <strong>↳ Pagina per pagina</strong>: ogni permesso di pagina del modulo, come nel vecchio elenco dei permessi. <strong>Segue la matrice</strong> = la decide la colonna indicata; <strong>Sì, sempre</strong> la apre anche se la colonna è vuota; <strong>No, mai</strong> la chiude anche se la colonna la concede. Le eccezioni restano anche dopo i salvataggi successivi.</span>
       </div>
 
-      <form method="post" action="{% url 'admin_portale:ruoli_portale_matrice' ruolo.id %}">
+      <form method="post" action="{% url 'admin_portale:ruoli_portale_matrice' ruolo.id %}" id="rp-matrice-form">
         {% csrf_token %}
+        {% comment %}Le tendine viaggiano in un solo campo: una per cella e una per pagina supererebbero DATA_UPLOAD_MAX_NUMBER_FIELDS e il POST tornerebbe 400.{% endcomment %}
+        <input type="hidden" name="matrice_json" value="">
         <div class="rp-matrix-wrap">
           <table class="rp-matrix">
             <thead>
@@ -484,6 +486,25 @@
               if (avviso && sel.value !== valoreIniziale(sel)) avviso.hidden = false;
             });
           });
+          var form = document.getElementById("rp-matrice-form");
+          if (form) {
+            form.addEventListener("submit", function () {
+              var valori = {};
+              form.querySelectorAll('select[name^="c__"], select[name^="p__"]').forEach(function (sel) {
+                valori[sel.name] = sel.value;
+                sel.dataset.nome = sel.name;
+                sel.removeAttribute("name");
+              });
+              form.querySelector('input[name="matrice_json"]').value = JSON.stringify(valori);
+            });
+            // Torna indietro dal browser: le tendine riprendono il nome.
+            window.addEventListener("pageshow", function () {
+              form.querySelectorAll("select[data-nome]").forEach(function (sel) {
+                sel.name = sel.dataset.nome;
+                sel.removeAttribute("data-nome");
+              });
+            });
+          }
         })();
       </script>
     {% endif %}

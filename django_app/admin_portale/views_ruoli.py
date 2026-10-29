@@ -6,6 +6,8 @@ AuditLog con ``modulo="permessi"``: chi, cosa, quando, e il prima/dopo.
 """
 from __future__ import annotations
 
+import json
+
 from django.contrib import messages
 from django.db import DatabaseError, transaction
 from django.db.models import Q
@@ -656,15 +658,29 @@ def ruoli_portale_matrice(request, ruolo_id: int):
     if ruolo is None:
         messages.error(request, "Ruolo non trovato.")
         return redirect(_url("matrice"))
+    # Le tendine arrivano in UN solo campo JSON: una per cella piu' una per
+    # pagina del «pagina per pagina» superano DATA_UPLOAD_MAX_NUMBER_FIELDS
+    # (1000) e Django risponde 400 prima di entrare nella view. Il ramo a campi
+    # separati resta per il caso senza JS.
+    dati = request.POST
+    grezzo = request.POST.get("matrice_json")
+    if grezzo:
+        try:
+            dati = json.loads(grezzo)
+        except ValueError:
+            dati = None
+        if not isinstance(dati, dict):
+            messages.error(request, "Matrice non leggibile: ricarica la pagina e riprova.")
+            return redirect(_url("matrice", ruolo=ruolo.id))
     esistenti = {(c.modulo, c.azione): c for c in RuoloPermessoModulo.objects.filter(ruolo=ruolo)}
     modifiche = []
     with transaction.atomic():
         for spec in moduli_registrati().values():
             for azione in spec.azioni:
                 chiave = f"c__{spec.chiave}__{azione}"
-                if chiave not in request.POST:
+                if chiave not in dati:
                     continue
-                valore = str(request.POST.get(chiave) or "").strip()
+                valore = str(dati.get(chiave) or "").strip()
                 cella = esistenti.get((spec.chiave, azione))
                 prima = "" if cella is None else (cella.ambito if cella.consentito else VALORE_NO)
                 if valore == prima:
@@ -685,7 +701,7 @@ def ruoli_portale_matrice(request, ruolo_id: int):
         if not ruolo.amministratore:
             eccezioni = imposta_eccezioni_pagina(
                 ruolo,
-                {k[3:]: str(v or "").strip() for k, v in request.POST.items() if k.startswith("p__")},
+                {k[3:]: str(v or "").strip() for k, v in dati.items() if k.startswith("p__")},
             )
     if modifiche or eccezioni:
         esito = sincronizza_ruolo(ruolo)
