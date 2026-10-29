@@ -34,6 +34,11 @@ from core.permission_taxonomy import (
 logger = logging.getLogger(__name__)
 
 NOTA_MATRICE = "matrice ruoli"
+# Eccezione pagina per pagina decisa dalla matrice («Sì sempre» / «No mai»):
+# come un grant a mano, la sincronizzazione non la tocca.
+NOTA_ECCEZIONE = "eccezione di pagina (matrice ruoli)"
+ECCEZIONE_SI = "si"
+ECCEZIONE_NO = "no"
 
 
 def _capacita_da_code(code: str, dal_nome: str) -> list[str]:
@@ -293,6 +298,104 @@ def dati_anteprima_ruolo(ruolo, *, capacita=None, per_modulo=None) -> dict:
         "vede_tutto": bool(ruolo.vede_tutto),
         "moduli": moduli,
     }
+
+
+def _azioni_per_capacita(spec) -> dict[str, list[str]]:
+    """capacita' -> etichette delle colonne della matrice che la accendono."""
+    risultato: dict[str, list[str]] = {}
+    for azione, caps in AZIONE_CAPACITA.items():
+        for cap in caps:
+            risultato.setdefault(cap, []).append(spec.etichetta_azione(azione))
+    return risultato
+
+
+def pagine_modulo_ruolo(ruolo, *, capacita=None, per_modulo=None) -> dict[str, list[dict]]:
+    """chiave modulo -> le sue pagine una per una, per il dettaglio della matrice.
+
+    Per ogni pagina: quale colonna la accende, se oggi e' aperta al ruolo e
+    l'eccezione in vigore («si» / «no» / «» = segue la matrice). Un grant
+    fuori dalla matrice (Accessi o eccezione) e' un'eccezione: acceso = «si»,
+    spento = «no».
+    """
+    from core.models import GroupPermissionGrant, PermissionDefinition
+
+    capacita = capacita if capacita is not None else capacita_permessi()
+    per_modulo = per_modulo if per_modulo is not None else codici_per_modulo()
+    specs = moduli_registrati()
+    riservate = pagine_azioni_proprie()
+    tutti = {c for codes in per_modulo.values() for c in codes}
+    etichette = dict(PermissionDefinition.objects.filter(code__in=tutti).values_list("code", "label"))
+    grant = {g.permission_id: g for g in GroupPermissionGrant.objects.filter(group=ruolo)}
+    risultato: dict[str, list[dict]] = {}
+    for chiave, codes in per_modulo.items():
+        spec = specs.get(chiave)
+        if spec is None:
+            continue
+        colonne = _azioni_per_capacita(spec)
+        proprie = riservate.get(chiave, {})
+        righe = []
+        for code in codes:
+            g = grant.get(code)
+            eccezione = ""
+            if g is not None and g.note != NOTA_MATRICE:
+                eccezione = ECCEZIONE_SI if g.enabled else ECCEZIONE_NO
+            if code in proprie:
+                colonna = spec.etichetta_azione(proprie[code])
+            else:
+                colonna = " / ".join(colonne.get(capacita.get(code, CAPABILITY_IGNOTO), [])) or "—"
+            righe.append(
+                {
+                    "code": code,
+                    "label": etichette.get(code) or code,
+                    "colonna": colonna,
+                    "aperta": bool(g is not None and g.enabled),
+                    "eccezione": eccezione,
+                    "origine": (g.note or "") if eccezione else "",
+                }
+            )
+        righe.sort(key=lambda r: (r["colonna"], r["label"].lower()))
+        risultato[chiave] = righe
+    return risultato
+
+
+def imposta_eccezioni_pagina(ruolo, valori: dict[str, str], *, per_modulo=None) -> list[dict]:
+    """Salva le eccezioni pagina per pagina di un ruolo; restituisce le modifiche.
+
+    ``valori``: code -> «si» / «no» / «» (segue la matrice). Solo i code dei
+    moduli registrati; un grant della matrice non e' un'eccezione e non si
+    cancella qui (lo gestisce la sincronizzazione che segue).
+    """
+    from core.models import GroupPermissionGrant
+
+    per_modulo = per_modulo if per_modulo is not None else codici_per_modulo()
+    ammessi = {c for codes in per_modulo.values() for c in codes}
+    esistenti = {
+        g.permission_id: g
+        for g in GroupPermissionGrant.objects.filter(group=ruolo, permission_id__in=set(valori) & ammessi)
+    }
+    modifiche = []
+    with transaction.atomic():
+        for code, valore in sorted(valori.items()):
+            if code not in ammessi or valore not in {"", ECCEZIONE_SI, ECCEZIONE_NO}:
+                continue
+            g = esistenti.get(code)
+            prima = ""
+            if g is not None and g.note != NOTA_MATRICE:
+                prima = ECCEZIONE_SI if g.enabled else ECCEZIONE_NO
+            if valore == prima:
+                continue
+            if not valore:
+                g.delete()
+            elif g is None:
+                GroupPermissionGrant.objects.create(
+                    group=ruolo, permission_id=code, enabled=valore == ECCEZIONE_SI, note=NOTA_ECCEZIONE
+                )
+            else:
+                g.enabled = valore == ECCEZIONE_SI
+                g.note = NOTA_ECCEZIONE
+                g.save(update_fields=["enabled", "note", "updated_at"])
+            modifiche.append({"pagina": code, "prima": prima or "matrice", "dopo": valore or "matrice"})
+    return modifiche
 
 
 def sincronizza_ruolo(ruolo, *, capacita=None, per_modulo=None, dry_run: bool = False) -> EsitoSync:
