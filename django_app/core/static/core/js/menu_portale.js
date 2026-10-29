@@ -351,16 +351,17 @@
       var nonAdmin = v.ruoli.filter(function (id) { return ruoliById[id]; });
       si = nonAdmin.length > 0;
       titolo = v.tutti ? "La vedono tutti" : (si ? "La vedono questi ruoli" : "La vedono solo gli amministratori");
-      testo = v.tutti ? "Ogni persona del portale può aprire la pagina, quindi trova la voce nel menu." : (si ? "Chi può aprire la pagina a cui porta:" : "Nessun ruolo del portale può aprire la pagina a cui porta.");
+      if (v.esterno) testo = v.tutti ? "È un link a un sito esterno senza permesso: lo trova nel menu ogni persona del portale." : (si ? "Chi ha il permesso scelto per il link:" : "Nessun ruolo del portale ha il permesso scelto per il link.");
+      else testo = v.tutti ? "Ogni persona del portale può aprire la pagina, quindi trova la voce nel menu." : (si ? "Chi può aprire la pagina a cui porta:" : "Nessun ruolo del portale può aprire la pagina a cui porta.");
       if (si && !v.tutti) chips = chipsRuoli(nonAdmin);
     } else {
       var nome = nomeVista();
       si = v.ruoli.indexOf(S.ruolo) >= 0;
       titolo = nome + (si ? " la vede" : " non la vede");
-      if (si) testo = "Può aprire la pagina a cui porta, quindi la trova nel menu.";
+      if (si) testo = v.esterno ? "Il link esterno lo vede." : "Può aprire la pagina a cui porta, quindi la trova nel menu.";
       else {
         var altri = v.ruoli.map(function (id) { return (ruoliById[id] || {}).nome; }).filter(Boolean);
-        testo = "Non può aprire la pagina a cui porta, quindi la voce non compare." + (altri.length ? " La vedono: " + altri.join(", ") + "." : "");
+        testo = (v.esterno ? "Non ha il permesso scelto per il link, quindi la voce non compare." : "Non può aprire la pagina a cui porta, quindi la voce non compare.") + (altri.length ? " La vedono: " + altri.join(", ") + "." : "");
       }
     }
     if (!v.visibile) { si = false; titolo = "Tolta dal menu"; testo = "Non la vede nessuno finché non la rimetti nel menu."; chips = null; }
@@ -431,8 +432,45 @@
     return el("label", { "class": "mp-campo" }, ["In quale categoria", sel2, rigaGruppo]);
   }
 
+  function esternoUrl(indirizzo) { return /^https?:\/\//i.test(String(indirizzo || "").trim()); }
+
+  /* Pagina del portale (dall'elenco) -> route_name; altrimenti l'indirizzo cosi' com'e'. */
+  function destinazione(indirizzo) {
+    var opt = Array.prototype.find.call(document.querySelectorAll("#mp-pagine option"), function (o) { return o.value === indirizzo; });
+    return opt ? { route_name: opt.dataset.route } : { route_name: "", url_path: indirizzo };
+  }
+
+  function campiIndirizzo(v, bozza) {
+    var selPermesso = el("select", { onchange: function (e) { bozza.permesso = e.target.value; } },
+      [el("option", { value: "", selected: !v.permesso, testo: "Tutti: nessun permesso" })]);
+    var perModulo = {};
+    (D.permessi || []).forEach(function (p) { (perModulo[p.modulo] = perModulo[p.modulo] || []).push(p); });
+    Object.keys(perModulo).forEach(function (m) {
+      selPermesso.appendChild(el("optgroup", { label: m }, perModulo[m].map(function (p) {
+        return el("option", { value: p.code, selected: p.code === v.permesso, testo: p.nome });
+      })));
+    });
+    if (v.permesso && !(D.permessi || []).some(function (p) { return p.code === v.permesso; })) {
+      selPermesso.insertBefore(el("option", { value: v.permesso, selected: true, testo: v.permesso + " (non protegge più nessuna pagina)" }), selPermesso.children[1] || null);
+    }
+    var rigaPermesso = el("label", { "class": "mp-campo" }, ["Chi vede il link esterno", selPermesso,
+      el("span", { "class": "mp-nota", testo: "Lo vede chi ha questo permesso in «Ruoli e permessi» (gli amministratori sempre). «Tutti» = ogni persona del portale." })]);
+    function aggiorna() { rigaPermesso.hidden = !esternoUrl(bozza.indirizzo); }
+    var campo = el("input", { type: "text", id: "mp-indirizzo-" + v.id, value: v.indirizzo, list: "mp-pagine", maxlength: "500", placeholder: "es. /tickets/ oppure https://…",
+      oninput: function (e) { bozza.indirizzo = e.target.value.trim(); aggiorna(); } });
+    var spunta = el("input", { type: "checkbox", checked: v.nuova_scheda, onchange: function (e) { bozza.nuova_scheda = e.target.checked; } });
+    aggiorna();
+    return [
+      el("div", { "class": "mp-campo" }, [el("label", { "for": "mp-indirizzo-" + v.id, testo: "Pagina a cui porta" }), campo,
+        el("span", { "class": "mp-nota", testo: "Una pagina del portale dall'elenco, oppure un indirizzo esterno (https://…)." }),
+        el("label", { "class": "mp-spunta" }, [spunta, "Apri in una nuova scheda"])]),
+      rigaPermesso,
+    ];
+  }
+
   function schedaVoce(box, v) {
-    var bozza = { nome: v.nome, icona: v.icona, categoria: v.categoria, gruppo: v.gruppo, padre: v.padre };
+    var bozza = { nome: v.nome, icona: v.icona, categoria: v.categoria, gruppo: v.gruppo, padre: v.padre,
+      indirizzo: v.indirizzo, nuova_scheda: v.nuova_scheda, permesso: v.permesso };
     var interruttore = el("button", {
       type: "button", "class": "mp-interruttore", "aria-pressed": v.visibile ? "true" : "false",
       testo: v.visibile ? "Nel menu" : "Tolta dal menu",
@@ -476,8 +514,7 @@
       el("div", { "class": "mp-fare" }, [
         el("label", { "class": "mp-campo" }, ["Cambia il nome", campoNome, notaNome]),
         campoDove(v, bozza),
-        azioneIcona, azionePersona, apri,
-      ]),
+      ].concat(campiIndirizzo(v, bozza), [azioneIcona, azionePersona, apri])),
     ]));
 
     var salva = el("button", { type: "button", "class": "mp-btn mp-btn-primary", testo: "Salva", onclick: function () {
@@ -485,11 +522,15 @@
       if (!v.nome_da_branding) dati.nome = bozza.nome;
       if (v.sezione === "subnav") dati.padre = bozza.padre;
       else { dati.categoria = bozza.categoria; dati.gruppo = bozza.categoria ? bozza.gruppo : ""; }
+      if (!bozza.indirizzo) { avviso("Scrivi la pagina a cui porta la voce.", "error"); return; }
+      if (bozza.indirizzo !== v.indirizzo) Object.assign(dati, destinazione(bozza.indirizzo));
+      dati.nuova_scheda = !!bozza.nuova_scheda;
+      if (esternoUrl(bozza.indirizzo)) dati.permesso = bozza.permesso || "";
       salva.disabled = true;
       post(url.urlSalva, dati).then(function () { ricarica("Salvato."); })
         .catch(function (err) { salva.disabled = false; avviso(err.message, "error"); });
     } });
-    var piedeTesto = el("span", { "class": "mp-piede-testo" }, ["Chi la vede dipende da chi può aprire la pagina. Per cambiarlo: ", el("a", { href: url.urlRuoli, testo: "Ruoli e permessi" }), "."]);
+    var piedeTesto = el("span", { "class": "mp-piede-testo" }, [v.esterno ? "Chi vede il link lo decide il permesso scelto sopra; chi ha quel permesso si cambia in " : "Chi la vede dipende da chi può aprire la pagina. Per cambiarlo: ", el("a", { href: url.urlRuoli, testo: "Ruoli e permessi" }), "."]);
     box.appendChild(el("div", { "class": "mp-piede" }, [piedeTesto, salva]));
   }
 
@@ -596,9 +637,7 @@
     e.preventDefault();
     var f = e.target;
     var pagina = f.pagina.value.trim();
-    var opt = Array.prototype.find.call(document.querySelectorAll("#mp-pagine option"), function (o) { return o.value === pagina; });
-    var dati = { label: f.nome.value.trim(), section: "topbar" };
-    if (opt) dati.route_name = opt.dataset.route; else dati.url_path = pagina;
+    var dati = Object.assign({ label: f.nome.value.trim(), section: "topbar" }, destinazione(pagina));
     post(url.urlCrea, dati).then(function (j) {
       return post(url.urlSalva, { id: j.id, categoria: f.categoria.value ? parseInt(f.categoria.value, 10) : null }).then(function () { return j; });
     }).then(function (j) { ricarica("Voce aggiunta.", { tipo: "voce", id: j.id }); })
