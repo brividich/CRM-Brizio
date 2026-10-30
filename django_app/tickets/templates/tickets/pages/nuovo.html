@@ -370,7 +370,7 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
                   {% endif %}
                 </div>
                 <div id="asset-catalogo">
-                  <input type="text" id="asset-search" placeholder="Nome, tag, tipo, modello o seriale..." autocomplete="off">
+                  <input type="text" id="asset-search" placeholder="Nome, n. interno, tag, tipo, modello o seriale..." autocomplete="off">
                   <div id="asset-results" style="display:none;position:absolute;z-index:100;left:0;right:0;border:1px solid #e2e8f0;border-radius:10px;background:#fff;margin-top:2px;max-height:240px;overflow-y:auto;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.1);"></div>
                 </div>
                 <div id="asset-libero" style="display:none;">
@@ -378,7 +378,7 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
                     placeholder="Es: PC ufficio vendite, Macchina reparto saldatura..."
                     value="{{ form_data.asset_descrizione_libera|default:'' }}">
                 </div>
-                <div class="tkt-asset-search-meta">Ricerca per nome, tag, tipo, categoria, modello, seriale, reparto o produttore.</div>
+                <div class="tkt-asset-search-meta">Ricerca per nome, n. interno, tag, tipo, categoria, modello, seriale, reparto o produttore.</div>
               </div>
 
               <input type="hidden" name="asset_id" id="asset-id-hidden" value="{{ form_data.asset_id|default:'' }}">
@@ -626,6 +626,7 @@ function scoreAssetMatch(asset, query) {
   const fields = [
     asset.name,
     asset.asset_tag,
+    asset.internal_number,
     asset.asset_type,
     asset.asset_type_label,
     asset.asset_category,
@@ -743,7 +744,7 @@ if (assetSearch) {
       `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;" data-id="${asset.id}" data-name="${escapeHtmlN(asset.name)} [${escapeHtmlN(asset.asset_tag)}]">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
           <span><strong>${escapeHtmlN(asset.name)}</strong>${asset.reparto ? ` <span class="tkt-asset-reparto">Reparto ${escapeHtmlN(asset.reparto)}</span>` : ''}</span>
-          <span style="color:#64748b;font-size:11px;font-weight:700;">${escapeHtmlN(asset.asset_tag)}</span>
+          <span style="color:#64748b;font-size:11px;font-weight:700;">${asset.internal_number ? `${escapeHtmlN(asset.internal_number)} · ` : ''}${escapeHtmlN(asset.asset_tag)}</span>
         </div>
         <div style="color:#64748b;font-size:11px;margin-top:2px;">
           ${escapeHtmlN([asset.asset_type_label || asset.asset_type || 'Asset', asset.asset_category || asset.model, asset.manufacturer].filter((v, i, l) => v && l.indexOf(v) === i).join(' · '))}

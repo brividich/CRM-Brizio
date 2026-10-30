@@ -158,6 +158,7 @@ class TicketAssetSearchDataTests(TestCase):
             model="PowerEdge R740",
             serial_number="SN12345",
             reparto="CED",
+            internal_number="Int.148",
             status=Asset.STATUS_IN_USE,
         )
 
@@ -171,6 +172,18 @@ class TicketAssetSearchDataTests(TestCase):
         self.assertEqual(payload[0]["model"], "PowerEdge R740")
         self.assertEqual(payload[0]["serial_number"], "SN12345")
         self.assertEqual(payload[0]["reparto"], "CED")
+        self.assertEqual(payload[0]["internal_number"], "Int.148")
+
+    def test_asset_payload_reparto_ripiega_su_reparto_assegnazione(self):
+        Asset.objects.create(
+            asset_tag="KDX-0001", name="Kardex", asset_type=Asset.TYPE_SERVER,
+            assignment_reparto="Mag 1", status=Asset.STATUS_IN_USE,
+        )
+
+        payload = _get_assets_for_select()
+
+        self.assertEqual(payload[0]["reparto"], "Mag 1")
+        self.assertEqual(payload[0]["internal_number"], "")
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
