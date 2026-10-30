@@ -108,8 +108,8 @@ def user_group_ids(legacy_user_id: int | None) -> list[int]:
     """Id dei gruppi attivi a cui appartiene l'utente legacy.
 
     Comprende i ruoli che arrivano dall'organigramma (``core.permessi.organigramma``).
-    Con il sistema dei ruoli attivo (``core.permessi``) ogni utente ha anche
-    il ruolo base «Operatore», senza bisogno di iscriverlo.
+    Con il sistema dei ruoli attivo (``core.permessi``) chi non ha nessun altro
+    ruolo ha il ruolo base «Operatore», senza bisogno di iscriverlo.
     """
     if not legacy_user_id:
         return []
@@ -127,6 +127,7 @@ def user_group_ids(legacy_user_id: int | None) -> list[int]:
         return []
     from core.permessi.organigramma import profili_da_organigramma
 
+    a_mano = bool(ids)
     for gruppo_id in profili_da_organigramma(legacy_user_id):
         if gruppo_id not in ids:
             ids.append(gruppo_id)
@@ -134,9 +135,19 @@ def user_group_ids(legacy_user_id: int | None) -> list[int]:
         from core.permessi.motore import id_ruolo_base
 
         base = id_ruolo_base()
-        if base and base not in ids:
+        if base and base not in ids and not a_mano and not _qualche_ruolo_attivo(ids):
             ids.append(base)
     return ids
+
+
+def _qualche_ruolo_attivo(ids: list[int]) -> bool:
+    """Un ruolo d'organigramma puo' puntare a un ruolo del portale disattivato: non conta."""
+    if not ids:
+        return False
+    try:
+        return AccessGroup.objects.filter(id__in=ids, is_active=True).exists()
+    except DatabaseError:
+        return False
 
 
 def resolve_group_grant(*, permission_code: str, legacy_user_id: int | None) -> tuple[dict | None, list[dict]]:

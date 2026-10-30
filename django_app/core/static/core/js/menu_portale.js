@@ -114,7 +114,7 @@
     function vai(id) { S.ruolo = id; S.persona = null; document.getElementById("mp-persona").value = ""; aggiornaTutto(); }
     var base = (D.ruoli || []).filter(function (r) { return r.base; })[0];
     var fissi = [{ id: "tutti", nome: "Tutti (amministratore)" }];
-    if (base) fissi.push({ id: base.id, nome: base.nome + " (tutti)" });
+    if (base) fissi.push({ id: base.id, nome: base.nome + " (senza altri ruoli)" });
     fissi.forEach(function (r) {
       box.appendChild(el("button", {
         type: "button", "class": "mp-pill", "aria-pressed": !S.persona && S.ruolo === r.id ? "true" : "false",

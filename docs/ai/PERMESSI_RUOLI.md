@@ -11,7 +11,17 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
   `vede_tutto` (vede ed esporta ogni modulo, anche futuro, senza modificare: Direzione),
   `preset` (da quale preset nasce).
 - **Persona → ruoli**: `AccessGroupMembership` (N ruoli per persona), assegnati **a mano**
-  dalla scheda «Persone». Il ruolo base `dipendente` vale per tutti senza iscrizione.
+  dalla scheda «Persone». Il ruolo base `dipendente` («Operatore») vale senza iscrizione **solo per chi
+  non ha altri ruoli attivi** (a mano o dall'organigramma; 30/10/2026, core 0105): chi ha un ruolo
+  prende solo la sua colonna (`motore.ruoli_della_persona`, `acl_resolver.user_group_ids`,
+  `simulatore.effetto_modifica`, `organigramma.ruoli_spiegati`). Le caselle «sì» di Operatore sono
+  copiate nelle caselle vuote degli altri ruoli da `core/permessi/ruolo_base.completa_dal_ruolo_base`
+  (nota `dal ruolo base`, più i grant di pagina concessi a Operatore e non decisi dal ruolo; mai i «no»,
+  mai le letture ai ruoli «vede tutto», mai agli amministratori): una volta nella migrazione 0105, poi
+  su ogni ruolo nuovo (vista «nuovo ruolo», `applica_preset` per ruoli creati o ripristinati). Nel
+  motore una casella con quella nota conta con l'ordine di Operatore (`ContestoPermessi.celle_dal_base`):
+  non restringe un altro ruolo della persona; cambiata a mano dalla matrice prende l'ordine del ruolo.
+  Una casella aggiunta dopo a Operatore NON si propaga agli altri ruoli.
 - **Scadenza**: `AccessGroupMembership.scade_il` (core 0082), vale fino al giorno compreso.
   Ogni lettura delle appartenenze usa `core.permessi.scadenze.q_appartenenze_valide` (motore,
   `acl_resolver.user_group_ids` / `describe_user_groups`, `utenti_amministratori_da_ruolo`).
@@ -87,7 +97,7 @@ Sede del codice: `django_app/core/permessi/`. Pagina di gestione:
 - **Interruttore** (`SiteConfig permessi.sistema_ruoli_attivo`, scheda «Sistema»):
   - spento → valgono le regole storiche dei moduli (liste di utenti, ruolo legacy);
     la matrice si prepara senza effetti, salvo i ruoli già assegnati che concedono pagine;
-  - acceso → ruolo base implicito per tutti, `RolePermissionGrant`/tabella `permessi`
+  - acceso → ruolo base implicito per chi non ha altri ruoli, `RolePermissionGrant`/tabella `permessi`
     e fallback legacy **ignorati**, pagine senza binding **negate**, i moduli collegati
     usano `puo_fare`.
 
