@@ -406,7 +406,7 @@
           <div class="event-summary-row"><strong>Stato:</strong> <span id="modalStatoText">-</span></div>
           <div class="event-summary-row"><strong>Capo:</strong> <span id="modalCapoText">-</span></div>
           <div class="event-summary-row"><strong>Motivazione:</strong> <span id="modalMotivazioneText">-</span></div>
-          <div class="event-summary-row" id="modalCertificatoRow"><strong>Certificato medico:</strong> <span id="modalCertificatoText">-</span></div>
+          <div class="event-summary-row" id="modalCertificatoRow"><strong>Certificato arrivato:</strong> <span id="modalCertificatoText">-</span></div>
         </section>
         <section class="event-edit-grid">
           <label>
@@ -440,9 +440,8 @@
             Motivazione
             <textarea id="modalMotivazioneInput"></textarea>
           </label>
-          <label class="full" id="modalCertificatoInputWrap">
-            Numero certificato medico
-            <input type="text" id="modalCertificatoInput" placeholder="Inserisci il numero del certificato">
+          <label class="full" id="modalCertificatoInputWrap" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="modalCertificatoInput" value="Arrivato" style="width:18px;min-height:18px;height:18px;padding:0;margin:0;"> Certificato arrivato
           </label>
           <label class="full" id="modalMotivoWrap" hidden>
             Motivo della modifica (obbligatorio: la richiesta è già approvata)
@@ -714,14 +713,14 @@
         document.getElementById("modalStatoText").textContent = item.extendedProps.consenso || "-";
         document.getElementById("modalCapoText").textContent = item.extendedProps.capo || "-";
         document.getElementById("modalMotivazioneText").textContent = item.extendedProps.motivazione || "-";
-        modalCertificatoTextEl.textContent = item.extendedProps.certificato_medico || "-";
+        modalCertificatoTextEl.textContent = item.extendedProps.certificato_medico ? "Sì" : "No";
 
         modalTipoInputEl.value = item.extendedProps.tipo || "Altro";
         document.getElementById("modalStatoInput").value = item.extendedProps.consenso || "In attesa";
         document.getElementById("modalStartInput").value = toLocalInputValue(item.start);
         document.getElementById("modalEndInput").value = toLocalInputValue(item.end);
         document.getElementById("modalMotivazioneInput").value = item.extendedProps.motivazione || "";
-        modalCertificatoInputEl.value = item.extendedProps.certificato_medico || "";
+        modalCertificatoInputEl.checked = !!item.extendedProps.certificato_medico;
         syncCertificatoFields();
 
         const hasRecordId = item.id !== null && item.id !== undefined && String(item.id).trim() !== "";
@@ -770,8 +769,8 @@
 
       function syncCertificatoFields() {
         const isMalattia = modalTipoInputEl.value === "Malattia";
-        const hasValue = Boolean((modalCertificatoInputEl.value || "").trim());
-        modalCertificatoInputWrapEl.style.display = isMalattia ? "" : "none";
+        const hasValue = modalCertificatoInputEl.checked;
+        modalCertificatoInputWrapEl.style.display = isMalattia ? "flex" : "none";
         modalCertificatoRowEl.style.display = (isMalattia || hasValue) ? "" : "none";
       }
 
@@ -794,7 +793,7 @@
           inizio: document.getElementById("modalStartInput").value,
           fine: document.getElementById("modalEndInput").value,
           motivazione: document.getElementById("modalMotivazioneInput").value,
-          certificato_medico: modalCertificatoInputEl.value,
+          certificato_medico: modalCertificatoInputEl.checked ? "Arrivato" : "",
           motivo_modifica: modalMotivoInputEl.value
         };
 
@@ -914,7 +913,7 @@
 
       closeModalBtn.addEventListener("click", closeEventModal);
       modalTipoInputEl.addEventListener("change", syncCertificatoFields);
-      modalCertificatoInputEl.addEventListener("input", syncCertificatoFields);
+      modalCertificatoInputEl.addEventListener("change", syncCertificatoFields);
       modalBackdrop.addEventListener("click", function(evt) {
         if (evt.target === modalBackdrop) closeEventModal();
       });

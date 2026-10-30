@@ -735,7 +735,7 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
                     <button type="button" class="abs-type-card abs-type-malattia" data-type-card="Malattia">
                       <span class="abs-type-card-icon"><svg aria-hidden="true"><use href="#abs-i-file-text"></use></svg></span>
                       <span class="abs-type-card-title">Malattia</span>
-                      <span class="abs-type-card-text">Con campo certificato quando serve.</span>
+                      <span class="abs-type-card-text">Con spunta «Certificato arrivato».</span>
                     </button>
                     <button type="button" class="abs-type-card abs-type-flessibilita" data-type-card="Flessibilita">
                       <span class="abs-type-card-icon"><svg aria-hidden="true"><use href="#abs-i-sync"></use></svg></span>
@@ -774,9 +774,16 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
                 </div>
 
                 <div class="abs-field" id="certificato-wrap">
-                  <label for="certificato_medico">Numero certificato medico</label>
-                  <input id="certificato_medico" type="text" name="certificato_medico" class="abs-input" value="{{ form_data.certificato_medico|default:'' }}" placeholder="Inserisci il numero del certificato">
-                  <div class="abs-field-hint">Campo opzionale, visibile solo per richieste di malattia.</div>
+                  <label class="abs-toggle-row" style="cursor:pointer;">
+                    <span class="abs-toggle">
+                      <input type="checkbox" id="certificato_medico" name="certificato_medico" value="Arrivato"{% if form_data.certificato_medico %} checked{% endif %}>
+                      <span class="abs-toggle-slider"></span>
+                    </span>
+                    <span class="abs-toggle-copy">
+                      <span class="abs-toggle-title">Certificato arrivato</span>
+                      <span class="abs-toggle-sub">Spunta se il certificato medico è già arrivato. Se arriva dopo, si spunta modificando la richiesta.</span>
+                    </span>
+                  </label>
                 </div>
               </div>
 
@@ -1453,7 +1460,7 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
       if (!normalizedType()) hints.push("Scegli un tipo di assenza per attivare regole e suggerimenti.");
       if (isFerie()) hints.push("Ferie: orario bloccato su giornata intera.");
       if (isPermesso()) hints.push("Permesso: inizio e fine devono restare nello stesso giorno.");
-      if (isMalattia()) hints.push("Malattia: il campo certificato e disponibile sotto al tipo richiesta.");
+      if (isMalattia()) hints.push("Malattia: spunta «Certificato arrivato» quando il certificato è arrivato.");
       if (normalizedType() === "flessibilita") {
         if (durationInfo.minutes !== null) {
           var hours = durationInfo.minutes / 60;
@@ -1632,7 +1639,7 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
         return;
       }
       if (certificatoInput && tipo !== "malattia") {
-        certificatoInput.value = "";
+        certificatoInput.checked = false;
       }
 
       if (tipo === "certifica presenza") {

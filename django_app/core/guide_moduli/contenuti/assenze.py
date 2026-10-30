@@ -32,6 +32,8 @@ GUIDA = {
                      "assenza@ arriva una volta sola, con le date. Un singolo giorno si può ancora cambiare o "
                      "decidere a parte da «Assenze del reparto»."),
                     ("Ferie di più giorni", "contano a giornata intera."),
+                    ("Malattia", "spunta «Certificato arrivato» se il certificato medico è già arrivato. Il numero del certificato non si scrive. "
+                     "Se arriva dopo, apri la richiesta con «Modifica» e spunta la casella."),
                     ("Flessibilità", "solo per chi è abilitato, solo negli orari fissati dall'Amministrazione, massimo 2 a settimana."),
                     ("Capo reparto", "è proposto in automatico dall'organigramma. Puoi sceglierne un altro dall'elenco: "
                      "in quel caso la richiesta la vede e la approva solo il capo che hai scelto. Se il capo del "
@@ -64,6 +66,8 @@ GUIDA = {
                     "Clicca «Le mie richieste».",
                     "Le schede in alto (In attesa, Approvate, Rifiutate, Tutte) filtrano l'elenco.",
                     "Una richiesta ancora «In attesa» si può correggere con «Modifica» o togliere con «Elimina».",
+                    "Ogni modifica (date, tipo, motivazione, «Certificato arrivato») manda una mail «Richiesta modificata» "
+                    "ad assenza@ e al capo reparto, con cosa è cambiato prima e dopo.",
                 ]),
                 ("p", "Quando il capo decide ricevi una notifica (campanella in alto; sul telefono «Notifiche» nella barra in basso) e, se attiva, una mail."),
                 ("nota", "Le richieste con l'etichetta «Gestita su SharePoint» sono nate nella vecchia app SharePoint: "
@@ -120,7 +124,10 @@ GUIDA = {
                     "Festività (rosa) e chiusure aziendali (grigio) sono colorate sullo sfondo, con il nome.",
                     "Cliccando una richiesta si apre il dettaglio con lo «Storico della richiesta»: chi l'ha creata, modificata, "
                     "approvata o rifiutata e quando, con i campi cambiati.",
-                    "Per modificare una richiesta già approvata serve scrivere il «Motivo della modifica»: finisce nello storico.",
+                    "Per modificare una richiesta già approvata serve scrivere il «Motivo della modifica»: finisce nello storico "
+                    "e nella mail «Richiesta modificata» che parte ad assenza@ e al capo reparto (non parte se cambia solo lo stato: "
+                    "approvazione e rifiuto hanno già le loro mail).",
+                    "Nelle malattie la casella «Certificato arrivato» si spunta anche da qui.",
                 ]),
             ],
         },

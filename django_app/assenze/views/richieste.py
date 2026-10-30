@@ -1236,7 +1236,7 @@ def api_mia_assenza_update(request, item_id: int):
     certificato_medico = payload.get("certificato_medico") if payload and "certificato_medico" in payload else None
     if certificato_medico is None:
         certificato_medico = request.POST.get("certificato_medico", current.get("certificato_medico") or "")
-    certificato_medico = _helpers._certificato_medico_for_tipo(tipo, certificato_medico)
+    certificato_medico = _helpers._certificato_medico_for_tipo(tipo, certificato_medico, current.get("certificato_medico"))
 
     dt_start = _helpers._parse_input_dt(inizio_raw) if inizio_raw else current.get("data_inizio")
     dt_end = _helpers._parse_input_dt(fine_raw) if fine_raw else current.get("data_fine")
@@ -1266,6 +1266,7 @@ def api_mia_assenza_update(request, item_id: int):
     if not ok:
         return _helpers._json_error("Aggiornamento non eseguito.", status=500)
     calcoli_hr.registra(item_id, "modificata", utente=request.user.get_username(), prima=current, dopo=updates)
+    _helpers._notify_assenza_modificata(request, current, calcoli_hr.differenze(current, updates))
 
     sync_result = _helpers._sp_enqueue_upsert(item_id)
 
@@ -1655,7 +1656,7 @@ def export_assenze_car_csv(request):
         },
     )
 
-    headers = ["Dipendente", "Tipo", "Inizio", "Fine", "Stato", "Certificato medico", "Note"]
+    headers = ["Dipendente", "Tipo", "Inizio", "Fine", "Stato", "Certificato arrivato", "Note"]
 
     def row_iter():
         for r in rows_data:
@@ -1665,7 +1666,7 @@ def export_assenze_car_csv(request):
                 r.get("inizio_label", ""),
                 r.get("fine_label", ""),
                 r.get("consenso", ""),
-                r.get("certificato_medico", ""),
+                "Sì" if r.get("certificato_medico") else "",
                 r.get("note_gestione", ""),
             ]
 

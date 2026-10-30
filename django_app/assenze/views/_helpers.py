@@ -377,10 +377,22 @@ def _has_assenze_column(column_name: str) -> bool:
     return legacy_table_has_column("assenze", column_name)
 
 
-def _certificato_medico_for_tipo(tipo: str, value) -> str:
+# Malattia: si registra solo se il certificato e' arrivato (spunta), non il suo
+# numero. La colonna legacy `certificato_medico` vale «Arrivato» o resta vuota;
+# un numero salvato in passato conta come certificato arrivato.
+CERTIFICATO_ARRIVATO = "Arrivato"
+_CERTIFICATO_NO = {"", "0", "false", "off", "no", "none", "null"}
+
+
+def _certificato_medico_for_tipo(tipo: str, value, current=None) -> str:
     if _norm_tipo(tipo) != "Malattia":
         return ""
-    return str(value or "").strip()
+    if str(value if value is not True else "1").strip().lower() in _CERTIFICATO_NO or value is False:
+        return ""
+    # Gia' arrivato: si tiene il valore salvato (anche un vecchio numero), cosi'
+    # lo storico e la mail di modifica non segnalano un cambio che non c'e'.
+    current_txt = str(current or "").strip()
+    return current_txt or CERTIFICATO_ARRIVATO
 
 
 def _status_from_moderation(value, *, default_pending: bool = False) -> tuple[int | None, str]:
@@ -3332,6 +3344,36 @@ def _e_mia_richiesta(request, current: dict) -> bool:
     if email and rec_email:
         return rec_email.casefold() == email.casefold()
     return bool(name) and str(current.get("copia_nome") or "").strip().casefold() == str(name).strip().casefold()
+
+
+def _notify_assenza_modificata(request, record: dict, modifiche: list[dict], *, motivo: str = "") -> None:
+    """Avvisa assenza@ e il capo reparto di una richiesta modificata (best-effort).
+
+    Non parte se e' cambiato solo lo stato: approvazione e rifiuto hanno gia' le
+    loro mail dalle automazioni.
+    """
+    from ..mail_modifica_service import send_assenza_modificata_notification
+
+    rilevanti = [m for m in modifiche or [] if m.get("campo") != "Stato"]
+    if not rilevanti:
+        return
+    try:
+        capo_email = _resolve_capo_option_value_from_ids(
+            local_id=_as_int(record.get("capo_reparto_id")),
+            lookup_id=_as_int(record.get("capo_reparto_lookup_id")),
+            capi=_load_capi_options(),
+        )
+        nome, email, _ = _legacy_identity(request)
+        send_assenza_modificata_notification(
+            record,
+            modifiche=rilevanti,
+            tipo_display=_tipo_for_display(record.get("tipo_assenza"), record.get("motivazione_richiesta")),
+            capo_email=capo_email,
+            modificata_da=nome or email or request.user.get_username(),
+            motivo=motivo,
+        )
+    except Exception:
+        logger.warning("Notifica modifica assenza id=%s non inviata", record.get("id"), exc_info=True)
 
 
 def _notify_assenza_deleted(request, record: dict) -> None:

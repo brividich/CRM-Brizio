@@ -679,7 +679,7 @@ body.theme-dark #modal-error{color:#fca5a5}
                         <div class="abs-row-title">{{ r.tipo }}</div>
                         {% if r.certificato_medico %}
                           <div class="abs-note-row">
-                            <span class="abs-note-pill cert">Certificato {{ r.certificato_medico }}</span>
+                            <span class="abs-note-pill cert">Certificato arrivato</span>
                           </div>
                         {% endif %}
                       </div>
@@ -754,7 +754,7 @@ body.theme-dark #modal-error{color:#fca5a5}
                           <div class="abs-row-main">
                             <div class="abs-row-title">{{ r.tipo }}</div>
                             {% if r.certificato_medico %}
-                              <div class="abs-note-row"><span class="abs-note-pill cert">Certificato {{ r.certificato_medico }}</span></div>
+                              <div class="abs-note-row"><span class="abs-note-pill cert">Certificato arrivato</span></div>
                             {% endif %}
                           </div>
                         </td>
@@ -857,7 +857,7 @@ body.theme-dark #modal-error{color:#fca5a5}
                           <div class="abs-row-sub">ID richiesta #{{ r.id }}{% if r.creata_label %} &middot; inserita il {{ r.creata_label }}{% endif %}</div>
                           {% if r.certificato_medico %}
                             <div class="abs-note-row">
-                              <span class="abs-note-pill cert">Certificato {{ r.certificato_medico }}</span>
+                              <span class="abs-note-pill cert">Certificato arrivato</span>
                             </div>
                           {% endif %}
                         </div>
@@ -968,8 +968,9 @@ body.theme-dark #modal-error{color:#fca5a5}
             </select>
           </div>
           <div class="modal-field" id="modal-certificato-wrap">
-            <label for="modal-certificato">Numero certificato medico</label>
-            <input type="text" id="modal-certificato" placeholder="Inserisci il numero del certificato">
+            <label for="modal-certificato" style="display:flex;align-items:center;gap:8px;cursor:pointer;min-height:42px;margin-top:22px;font-size:14px;">
+              <input type="checkbox" id="modal-certificato" value="Arrivato" style="width:18px;min-height:18px;height:18px;padding:0;margin:0;"> Certificato arrivato
+            </label>
           </div>
           <div class="modal-field">
             <label for="modal-inizio">Data e ora inizio</label>
@@ -1144,7 +1145,7 @@ body.theme-dark #modal-error{color:#fca5a5}
           modalInizio.value = isoToLocal(btn.dataset.inizioIso);
           modalFine.value = isoToLocal(btn.dataset.fineIso);
           modalMotivazione.value = btn.dataset.motivazione || "";
-          modalCertificato.value = btn.dataset.certificatoMedico || "";
+          modalCertificato.checked = !!(btn.dataset.certificatoMedico || "").trim();
           modalError.textContent = "";
           modalSave.disabled = false;
           syncCertificatoVisibility();
@@ -1186,7 +1187,7 @@ body.theme-dark #modal-error{color:#fca5a5}
             inizio: inizio,
             fine: fine,
             motivazione: modalMotivazione.value.trim(),
-            certificato_medico: modalCertificato.value.trim(),
+            certificato_medico: modalCertificato.checked ? "Arrivato" : "",
           });
           if (!result.res.ok || !result.data.ok) {
             throw new Error(result.data.error || ("HTTP " + result.res.status));

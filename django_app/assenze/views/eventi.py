@@ -594,7 +594,7 @@ def api_evento_update(request, item_id: int | None = None):
     certificato_medico = payload.get("certificato_medico") if payload and "certificato_medico" in payload else None
     if certificato_medico is None:
         certificato_medico = request.POST.get("certificato_medico", current.get("certificato_medico") or "")
-    certificato_medico = _helpers._certificato_medico_for_tipo(tipo, certificato_medico)
+    certificato_medico = _helpers._certificato_medico_for_tipo(tipo, certificato_medico, current.get("certificato_medico"))
 
     dt_start = _helpers._parse_input_dt(inizio_raw) if inizio_raw else current.get("data_inizio")
     dt_end = _helpers._parse_input_dt(fine_raw) if fine_raw else current.get("data_fine")
@@ -647,6 +647,7 @@ def api_evento_update(request, item_id: int | None = None):
             dopo=updates,
             motivo=motivo,
         )
+        _helpers._notify_assenza_modificata(request, current, modifiche, motivo=motivo)
 
     sync_result = _helpers._sp_enqueue_upsert(target_id)
 
