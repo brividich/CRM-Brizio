@@ -107,6 +107,10 @@ GUIDA = {
                       "(di norma dopo 2 giorni, poi ogni 2 giorni finché non decidi)."),
                 ("p", "Dalla dashboard del reparto, «Il mio team» apre in Anagrafica l'elenco delle persone di cui sei "
                       "responsabile con il semaforo di conformità alla mansione (nessun dato sanitario)."),
+                ("p", "La dashboard del reparto conta le stesse persone di «Il mio team»: «Oggi», «Settimana» e "
+                      "«Gestite» sono le assenze di quel team (la pillola «N nel team» apre l'elenco). Se non risulti "
+                      "responsabile di nessuno vale il capo indicato sulle richieste. Chi ha la vista aziendale trova "
+                      "anche la scheda «Tutta l'azienda», con coda e riepiloghi di tutto il personale."),
             ],
         },
         {
