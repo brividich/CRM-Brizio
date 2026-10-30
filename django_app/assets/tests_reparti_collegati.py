@@ -121,3 +121,17 @@ class ModuliItFornitoriTests(TestCase):
             self.assertEqual(preset.celle.get(MODULO_IT, {}), attese, preset.chiave)
             if "assets_manutenzione" in preset.celle:
                 self.assertEqual(preset.celle[MODULO_FORNITORI], preset.celle["assets_manutenzione"], preset.chiave)
+
+
+class PagineLetturaForzateTests(TestCase):
+    def test_scheda_asset_si_apre_con_vedere_anche_con_rotte_bulk_sotto(self):
+        from core.models import PermissionDefinition, RoutePermissionBinding
+        from core.permessi.sync import capacita_permessi
+
+        perm, _ = PermissionDefinition.objects.get_or_create(
+            code="legacy.assets.assets_view", defaults={"module": "assets", "label": "Dettaglio asset"}
+        )
+        RoutePermissionBinding.objects.get_or_create(
+            path_pattern="/assets/view/", match_strategy="prefix", defaults={"permission": perm}
+        )
+        self.assertEqual(capacita_permessi()["legacy.assets.assets_view"], "lettura")

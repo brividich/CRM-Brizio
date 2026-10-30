@@ -479,6 +479,15 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Chi ha solo «Vedere» vede l'elenco ma la scheda asset, le Scadenze, il Quadro o le Verifiche restano chiuse",
+            "fare": [
+                "In Ruoli e permessi apri «↳ Pagina per pagina» del modulo: «Dettaglio asset», «Scadenze», «Quadro», "
+                "«Verifiche periodiche» e «Scadenze amministrative» devono dire «Vedere» nella colonna «La apre la colonna».",
+                "Se dicono «Chiudere / gestire» il portale non è aggiornato; se dicono «Vedere» ma sono «chiusa», "
+                "premi «Salva matrice» sul ruolo per riallineare i permessi di pagina.",
+            ],
+        },
+        {
             "sintomo": "Una scadenza amministrativa compare due volte nello Scadenzario o «Registra» crea un doppione",
             "fare": [
                 "Se la stessa verifica ha anche un piano di manutenzione sull'asset, registrala solo dal piano e "
