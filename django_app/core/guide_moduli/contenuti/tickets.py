@@ -16,7 +16,7 @@ GUIDA = {
                     "«+ Ticket MAN» (macchine, impianti, attrezzature).",
                     "Scrivi il «Titolo / oggetto» in poche parole, per esempio «Stampante ufficio tecnico non stampa».",
                     "Scegli la categoria «Da catalogo», oppure «Libera» se non trovi quella giusta.",
-                    "Se riguarda una macchina o un PC, scegli l'«Asset coinvolto».",
+                    "Se riguarda una macchina o un PC, scegli l'«Asset coinvolto»: «Da catalogo» cerca anche per n. interno o reparto e mostra n. interno, tag e reparto di ogni asset.",
                     "Scegli la «Priorita» e descrivi il problema in «Descrizione»: cosa succede, da quando, cosa hai già provato.",
                     "Clicca «Invia richiesta».",
                 ]),
@@ -59,7 +59,7 @@ GUIDA = {
                 ("ul", [
                     "Per un lavoro di manutenzione programmato usa «+ Apri OdL» (ordine di lavoro nel modulo Asset).",
                     "Gli allegati caricati dal QR della macchina vanno controllati: «Valida» oppure «Rifiuta» con motivo.",
-                    "Per cambiare l'asset del ticket (riquadro «Asset collegato» → «Da catalogo») scrivi nome, tag, modello o reparto: ogni risultato mostra il badge «Reparto …» per distinguere asset con lo stesso nome.",
+                    "Per cambiare l'asset del ticket (riquadro «Asset collegato» → «Da catalogo») scrivi nome, n. interno, tag, modello o reparto: ogni risultato mostra n. interno, tag e il badge «Reparto …» per distinguere asset con lo stesso nome.",
                 ]),
             ],
         },

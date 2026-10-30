@@ -395,6 +395,7 @@ def _get_assets_for_select() -> list[dict]:
                 "id": asset.id,
                 "name": asset.name,
                 "asset_tag": asset.asset_tag,
+                "internal_number": asset.internal_number or "",
                 "asset_type": asset.asset_type,
                 "asset_type_label": asset.get_asset_type_display(),
                 "asset_category": asset.asset_category.label if asset.asset_category_id else "",
