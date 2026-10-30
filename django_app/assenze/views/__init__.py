@@ -46,7 +46,6 @@ from ..constants import (
     SHORTCUT_PRESETS,
     SHORTCUT_CUSTOM,
     PERMESSO_MIN_MINUTES,
-    PERMESSO_MAX_HOURS,
 )
 from core import naming
 from django.http import StreamingHttpResponse

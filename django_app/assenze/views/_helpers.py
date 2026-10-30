@@ -35,7 +35,6 @@ from ..constants import (
     SHORTCUT_PRESETS,
     SHORTCUT_CUSTOM,
     PERMESSO_MIN_MINUTES,
-    PERMESSO_MAX_HOURS,
 )
 from core import naming
 from django.http import StreamingHttpResponse
@@ -1107,8 +1106,8 @@ def _validate_business_rules(
         if dt_start.date() != dt_end.date():
             return "Il permesso deve iniziare e finire nello stesso giorno.", ""
         minutes = (dt_end - dt_start).total_seconds() / 60.0
-        if minutes < PERMESSO_MIN_MINUTES or minutes > PERMESSO_MAX_HOURS * 60:
-            return "Il permesso deve durare tra 30 minuti e 8 ore.", ""
+        if minutes < PERMESSO_MIN_MINUTES:
+            return "Il permesso deve durare almeno 30 minuti.", ""
     if tipo_ui == "Ferie":
         if dt_end.date() <= dt_start.date():
             return "Le ferie devono coprire più di un giorno.", ""
