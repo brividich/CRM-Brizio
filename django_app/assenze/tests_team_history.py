@@ -95,6 +95,17 @@ class TeamHistoryTests(TestCase):
         self.assertEqual([r["id"] for r in views._load_gestite_for_manager(7, periodo="future")], [2])
         self.assertEqual([r["id"] for r in views._load_all_gestite(periodo="future")], [2])
 
+    def test_dashboard_team_e_quello_di_il_mio_team(self):
+        # Il responsabile dell'area (anagrafica 501 = utente 7) ha nel team 601 = utente 17.
+        with patch("anagrafica.views._current_legacy_anagrafica_id", return_value=501):
+            self.assertEqual(views.richieste._utenti_mio_team(None), (1, [17]))
+        now = timezone.localtime().replace(tzinfo=None)
+        self.insert(1, status=0, date=now)
+        self.insert(2, user=18, capo=90, status=0, date=now)
+        start, end = now - timedelta(days=1), now + timedelta(days=1)
+        self.assertEqual([r["id"] for r in views.richieste._load_assenze_car_periodo(7, start, end, utenti_ids=[17])], [1])
+        self.assertEqual([r["id"] for r in views._load_gestite_for_manager(7, utenti_ids=[18])], [2])
+
     def test_calendar_matches_team_without_extending_approval(self):
         self.insert(1)
         self.insert(2, user=18)
@@ -152,3 +163,38 @@ class TeamAccessTests(TestCase):
         self.assertEqual(context["pending_scope"], "mine")
         self.assertTrue(context["history_has_next"])
         self.assertEqual(len(context["gestite"]), 30)
+
+    def _dashboard(self, query):
+        from contextlib import ExitStack
+        from django.http import HttpResponse
+
+        request = RequestFactory().get(f"/assenze/car/dashboard{query}")
+        request.user = SimpleNamespace(is_authenticated=True)
+        with ExitStack() as stack:
+            stack.enter_context(patch("assenze.views._helpers._assenze_permissions", return_value={
+                "view_scope": "all", "legacy_user_id": 7,
+            }))
+            stack.enter_context(patch("assenze.views._helpers._legacy_identity", return_value=("Capo", "capo@example.test", 7)))
+            stack.enter_context(patch("assenze.views._helpers._template_perm_context", return_value={}))
+            stack.enter_context(patch("assenze.views._helpers._load_pending_for_manager", return_value=[]))
+            stack.enter_context(patch("assenze.views.richieste._load_all_pending", return_value=[]))
+            stack.enter_context(patch("assenze.views.richieste._utenti_mio_team", return_value=(19, [17, 18])))
+            periodo = stack.enter_context(patch("assenze.views.richieste._load_assenze_car_periodo", return_value=[]))
+            tutte = stack.enter_context(patch("assenze.views.richieste._load_all_assenze_periodo", return_value=[]))
+            stack.enter_context(patch("assenze.views.richieste._load_gestite_for_manager", return_value=[]))
+            stack.enter_context(patch("assenze.views.richieste._load_all_gestite", return_value=[]))
+            rendered = stack.enter_context(patch("assenze.views._helpers.render", return_value=HttpResponse()))
+            views.car_dashboard(request)
+        return periodo, tutte, rendered.call_args.args[2]
+
+    def test_vista_aziendale_conta_il_mio_team_per_default(self):
+        periodo, tutte, context = self._dashboard("")
+        self.assertFalse(tutte.called)
+        self.assertEqual(periodo.call_args.kwargs["utenti_ids"], [17, 18])
+        self.assertEqual((context["team_persone"], context["team_attivo"]), (19, True))
+
+    def test_tutta_l_azienda_solo_con_la_scheda(self):
+        periodo, tutte, context = self._dashboard("?scope=all")
+        self.assertFalse(periodo.called)
+        self.assertTrue(tutte.called)
+        self.assertFalse(context["team_attivo"])
