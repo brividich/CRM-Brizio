@@ -1894,7 +1894,7 @@ def _ruoli_utente_testo(request) -> str:
         if v["fonte"] == "organigramma":
             origine = "dall'organigramma: " + ", ".join(v["da"])
         elif v["fonte"] == "base":
-            origine = "ruolo base di tutti"
+            origine = "ruolo base (chi non ha altri ruoli)"
         else:
             origine = "assegnato a mano" + (f", valido fino al {v['scade_il']:%d/%m/%Y}" if v["scade_il"] else "")
         righe.append(f"- {v['nome']} ({origine})")

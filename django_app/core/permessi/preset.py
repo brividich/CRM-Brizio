@@ -462,8 +462,10 @@ def applica_preset(*, chiavi=None, reset: bool = False, request=None) -> list[di
 
     from core.models import AccessGroup, RuoloPermessoModulo
     from core.permessi.registro import modulo as modulo_registrato
+    from core.permessi.ruolo_base import PRESET_BASE, completa_dal_ruolo_base
 
     esiti = []
+    da_completare = []
     selezionati = [p for p in PRESETS if not chiavi or p.chiave in set(chiavi)]
     with transaction.atomic():
         for preset in selezionati:
@@ -503,7 +505,13 @@ def applica_preset(*, chiavi=None, reset: bool = False, request=None) -> list[di
                         defaults={"ambito": ambito, "consentito": True, "note": f"preset {preset.chiave}"},
                     )
                     create += int(nuova)
+            if (creato or reset) and preset.chiave != PRESET_BASE:
+                da_completare.append(ruolo)
             esiti.append({"ruolo": ruolo, "creato": creato, "celle_create": create})
+        # Operatore vale solo per chi non ha altri ruoli: i ruoli nuovi ne prendono i «si'».
+        # Dopo il ciclo, perche' Operatore e' l'ultimo preset e puo' nascere adesso.
+        if da_completare:
+            completa_dal_ruolo_base(da_completare)
 
     if request is not None:
         from core.audit import log_action

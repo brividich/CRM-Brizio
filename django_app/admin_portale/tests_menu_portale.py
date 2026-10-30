@@ -126,14 +126,15 @@ class MenuPortaleTests(TestCase):
         )
         self.assertIn({"app": "app_inesistente", "voci": [orfana.id]}, dati_menu()["orfani"])
 
-    def test_ruolo_base_vuol_dire_tutti(self):
+    def test_ruolo_base_vale_solo_per_chi_non_ha_altri_ruoli(self):
         if self.base is None:
             self.skipTest("ruolo base non presente nel DB di test")
         GroupPermissionGrant.objects.create(group=self.base, permission_id=PAGINA, enabled=True)
         self._accendi()
         voce = self._voce(dati_menu(), self.sotto.id)
-        self.assertTrue(voce["tutti"])
-        self.assertIn(self.capo.id, voce["ruoli"])
+        self.assertFalse(voce["tutti"])
+        self.assertIn(self.base.id, voce["ruoli"])
+        self.assertNotIn(self.capo.id, voce["ruoli"])
 
     def test_pagina_mostra_barra_e_strumenti_avanzati(self):
         response = self._come_admin("get", "admin_portale:navigation_builder")

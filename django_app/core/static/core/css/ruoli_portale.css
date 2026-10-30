@@ -171,6 +171,7 @@
 .rp-pag-ecc { border-style: dashed; border-color: var(--warning); font-weight: 600; }
 /* Anteprima: la cella e' cambiata ma non ancora salvata. */
 .rp-pag-dasalvare { border-style: solid; border-color: var(--accent); background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.rp-pag[hidden] { display: none; } /* «Modifiche non salvate»: .rp-pag scavalca l'attributo hidden */
 
 /* Simulatore: «Prova un ruolo» e «Confronta due ruoli» */
 .rp-prova { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 10px 0 14px; }

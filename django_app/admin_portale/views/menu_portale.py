@@ -89,7 +89,7 @@ def _ruoli_portale() -> tuple[list[dict], int | None]:
         }
         for g in gruppi
     ]
-    # Il ruolo base per primo: e' quello di tutti.
+    # Il ruolo base per primo: e' quello di chi non ha altri ruoli.
     ruoli.sort(key=lambda r: (not r["base"], r["amministratore"], -r["priority"], r["nome"].lower()))
     return ruoli, base_id
 
@@ -109,8 +109,8 @@ def _grant_per_ruolo(ruoli: list[dict]) -> dict[int, dict[str, tuple[int, bool]]
     return mappa
 
 
-def _ruolo_vede(ruolo: dict, codes: list[str], grants, base_id: int | None) -> bool:
-    """Una persona con questo ruolo (e il ruolo base) vede la voce?
+def _ruolo_vede(ruolo: dict, codes: list[str], grants) -> bool:
+    """Una persona con questo ruolo vede la voce?
 
     Stessa regola di ``core.acl_resolver.group_grants_map``: vince la priorita'
     piu' alta, a parita' il diniego; nessuno si esprime = negato.
@@ -119,9 +119,8 @@ def _ruolo_vede(ruolo: dict, codes: list[str], grants, base_id: int | None) -> b
         return True
     if not codes:
         return False
+    # Chi ha un ruolo non ha anche il ruolo base: conta solo la sua colonna.
     gruppi = [ruolo["id"]]
-    if base_id is not None and int(base_id) != ruolo["id"]:
-        gruppi.append(int(base_id))
     for code in codes:
         best: tuple[int, bool] | None = None
         for gid in gruppi:
@@ -237,7 +236,7 @@ def dati_menu() -> dict:
     info_map = describe_navigation_items_permission(items)
     nomi_menu = navigation_code_label_map(surface="menu")
     da_branding = _nomi_da_branding()
-    ruoli, base_id = _ruoli_portale()
+    ruoli, _base_id = _ruoli_portale()
     grants = _grant_per_ruolo(ruoli)
     categorie = list(ModuleCategory.objects.all().order_by("order", "label"))
 
@@ -248,7 +247,7 @@ def dati_menu() -> dict:
         if not codes and is_external_navigation_item(item):
             vedono = list(ruoli)  # link esterno: lo vedono tutti
         else:
-            vedono = [r for r in ruoli if _ruolo_vede(r, codes, grants, base_id)]
+            vedono = [r for r in ruoli if _ruolo_vede(r, codes, grants)]
         href = _href(item)
         code_norm = str(item.code or "").strip().lower()
         nome = nomi_menu.get(code_norm, item.label)
@@ -273,7 +272,8 @@ def dati_menu() -> dict:
             "indirizzo": href if item.route_name else str(item.url_path or ""),
             "permesso": str(info.get("explicit") or "") if is_external_navigation_item(item) else "",
             "ruoli": [r["id"] for r in vedono],
-            "tutti": any(r["base"] for r in vedono),
+            # Operatore vale solo per chi non ha altri ruoli: «tutti» = ogni ruolo la vede.
+            "tutti": bool(ruoli) and len(vedono) == len(ruoli),
             "problema": _problema(str(info.get("stato") or ""), vedono, href) if item.is_visible else None,
             "figli": [],
         }

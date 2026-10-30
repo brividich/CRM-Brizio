@@ -199,7 +199,10 @@ class ModelloPresetTests(PersoneMixin, TestCase):
         self.assertEqual(voci["RLS"]["fonte"], "a mano")
         self.assertEqual(voci["Caporeparto"]["fonte"], "organigramma")
         self.assertEqual(voci["Caporeparto"]["da"], ["Capo reparto TEST AI"])
-        self.assertEqual(voci["Operatore"]["fonte"], "base")
+        # Ha altri ruoli: Operatore non c'e' (vale solo per chi non ne ha).
+        self.assertNotIn("Operatore", voci)
+        _user, senza = self.persona("Senza ruoli")
+        self.assertEqual([v["fonte"] for v in ruoli_spiegati(senza.id)], ["base"])
 
     def test_referti_solo_a_gestione_personale(self):
         personale, _ = self.persona("Paghe", ruoli=("ruolo-hr",))
