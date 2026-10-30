@@ -16,14 +16,14 @@ GUIDA = {
                     "Apri Assenze e clicca «Nuova richiesta» nella barra del modulo.",
                     "In «Tipo assenza» scegli Ferie, Permesso, Malattia, Flessibilità o Altro.",
                     "Scegli le date in «Data inizio» e «Data fine». Per un solo giorno metti la stessa data.",
-                    "In «Durata rapida» scegli l'orario già pronto (per esempio «Normale (08:00-17:00)» o "
+                    "In «Durata rapida» scegli l'orario già pronto (per esempio «Normale (08:00-17:00)», «Giornata lunga (08:00-18:00)» per chi fa il turno 8-18 o "
                     "«Mezza mattina (08:00-12:00)»). Se ti serve un orario diverso scegli «Personalizzato» e scrivi "
                     "«Ora inizio» e «Ora fine».",
                     "Controlla il riquadro «Bozza live» a destra: è il riassunto di quello che stai inviando.",
                     "Clicca «Conferma invio». La richiesta arriva al tuo capo, che riceve una mail.",
                 ]),
                 ("def", [
-                    ("Permesso", "da 30 minuti a 8 ore, sempre nello stesso giorno."),
+                    ("Permesso", "almeno 30 minuti, senza un massimo di ore, sempre nello stesso giorno (anche con turni lunghi, es. 8-18)."),
                     ("Permesso su più giorni", "con lo stesso orario: compila il primo giorno e scegli la data in "
                      "«Ripeti lo stesso orario fino al». Si crea una richiesta per ogni giorno lavorativo (sabati, "
                      "domeniche, festività e chiusure aziendali esclusi), al massimo 31 giorni. Il capo riceve una sola mail "

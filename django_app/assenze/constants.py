@@ -24,14 +24,15 @@ SHORTCUT_PRESETS = {
     "mattina": ("06:00", "14:00"),
     "sera":    ("14:00", "22:00"),
     "normale": ("08:00", "17:00"),
+    "lunga":   ("08:00", "18:00"),
     "mezza1":  ("08:00", "12:00"),
     "mezza2":  ("13:00", "17:00"),
 }
 SHORTCUT_CUSTOM = "custom"
 
-# Limiti Permesso (stesso giorno). "0.30h" = 30 minuti (vedi spec).
+# Limite Permesso (stesso giorno). "0.30h" = 30 minuti (vedi spec). Nessun tetto
+# di ore: c'è chi ha turni lunghi o pause ampie (es. 8-18), basta il giorno.
 PERMESSO_MIN_MINUTES = 30
-PERMESSO_MAX_HOURS = 8
 
 # Se l'ora di fine non e' successiva a quella di inizio, la fine viene
 # riallineata a inizio + questo scarto, sullo STESSO giorno dell'inizio.

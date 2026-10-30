@@ -3,7 +3,7 @@ GUIDA = {
     "titolo": "Primi passi nel portale",
     "area": "Per tutti",
     "sintesi": "Come entrare, muoversi tra i moduli, trovare le cose e chiedere aiuto.",
-    "parole": "accesso login password home menu notifiche push telefono conferma elimina annulla cerca profilo scadenzario calendario outlook ics preferiti personalizza tour tabelle viste colonne filtri",
+    "parole": "errore campi svuotati dati persi bozza accesso login password home menu notifiche push telefono conferma elimina annulla cerca profilo scadenzario calendario outlook ics preferiti personalizza tour tabelle viste colonne filtri",
     "url": "dashboard_home",
     "prefissi": ("/dashboard", "/hub/home/", "/profilo", "/notifiche/", "/bacheca/", "/scadenze", "/report/"),
     "dettaglio": [("Guida della home a stanze", "home_portale:guida"), ("Guida I miei report", "miei_report", "?guida=1")],
@@ -264,6 +264,16 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Ho salvato un modulo, è comparso un errore e i campi si sono svuotati",
+            "fare": [
+                "Il portale ricorda quello che hai scritto: se dopo «Salva» compare un messaggio di errore, i campi vengono "
+                "riempiti di nuovo e compare «Ho rimesso nei campi i dati che avevi inserito». Correggi il valore indicato e salva.",
+                "Vale anche tornando indietro con il pulsante «Indietro» del browser subito dopo l'errore.",
+                "Non vengono ricordati i file allegati, le password e i PIN: quelli vanno scelti di nuovo.",
+                "I dati restano solo in quella scheda del browser e per 30 minuti: chiudendo la scheda si perdono.",
+            ],
+        },
         {
             "sintomo": "Mi arriva «Accesso da un nuovo dispositivo» ma ero io",
             "fare": [

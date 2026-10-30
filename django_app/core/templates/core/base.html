@@ -40,6 +40,8 @@
   <script src="{% static 'core/js/hub-flash.js' %}"></script>
   {# Prima di ogni invio: data-hub-confirm apre la finestra di conferma del portale. #}
   <script src="{% static 'core/js/hub-confirm.js' %}?v=2"></script>
+  {# Bozza dei form POST: se l'invio torna con un errore, i dati inseriti vengono rimessi nei campi. #}
+  <script src="{% static 'core/js/hub-form-bozza.js' %}?v=1"></script>
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}nav-{{ ui_prefs.nav_mode|default:'top' }} fs-{{ ui_prefs.font_scale|default:'normal' }}{% if ui_prefs.theme_mode == 'dark' %} theme-dark{% endif %}{% if ui_prefs.sidebar_collapsed %} sb-collapsed{% endif %}{% endblock %}">
