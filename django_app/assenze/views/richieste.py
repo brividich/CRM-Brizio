@@ -870,7 +870,6 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
         username=request.user.get_username(),
         fallback_name=name,
     )
-    today = timezone.localdate()
     capi = _helpers._load_capi_options()
     motivazioni = _motivazioni_options()
     copy_from = str(request.GET.get("copy_from") or "").strip()
@@ -902,8 +901,9 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
             capi=capi,
             legacy_user_id=_legacy_id,
         ),
-        "date_start": today.strftime("%Y-%m-%d"),
-        "date_end": today.strftime("%Y-%m-%d"),
+        # Date vuote: chi compila deve sceglierle, non partire da oggi per sbaglio.
+        "date_start": "",
+        "date_end": "",
         "time_start": "06:00",
         "time_end": "14:00",
         "salta_approvazione": "0",

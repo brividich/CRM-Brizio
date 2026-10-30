@@ -413,9 +413,9 @@ class AssenzeSubmitTokenTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context["submit_token"])
         self.assertContains(response, 'name="submit_token"')
-        today = timezone.localdate().strftime("%Y-%m-%d")
-        self.assertEqual(response.context["form_data"]["date_start"], today)
-        self.assertEqual(response.context["form_data"]["date_end"], today)
+        # Date vuote: chi compila deve sceglierle (niente «oggi» preimpostato).
+        self.assertEqual(response.context["form_data"]["date_start"], "")
+        self.assertEqual(response.context["form_data"]["date_end"], "")
 
     @patch("assenze.views.richieste._resolve_request_display_name", return_value="Luca Bova")
     @patch("assenze.views._helpers._template_perm_context", return_value={})
@@ -2393,6 +2393,14 @@ class AssenzeRichiestaShortcutRenderTests(TestCase):
         self.assertContains(resp, 'id="time_start"')
         self.assertContains(resp, 'id="time_end"')
         self.assertContains(resp, 'value="lunga"> Giornata lunga (08:00-18:00)')
+        html = resp.content.decode()
+        # Date prima dell'orario, card unica Ferie / Permesso, niente menu a tendina del tipo.
+        self.assertLess(html.index('id="date_start"'), html.index('name="shortcut"'))
+        self.assertLess(html.index('id="date_end"'), html.index('id="time_start"'))
+        self.assertContains(resp, "Ferie / Permesso")
+        self.assertContains(resp, '<div class="abs-type-native" hidden>')
+        self.assertNotContains(resp, "Puoi usare le card oppure il menu")
+        self.assertContains(resp, 'id="abs-live-dipendente"')
 
 
 class AssenzeSubnavTests(SimpleTestCase):
