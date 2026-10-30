@@ -16,7 +16,7 @@ GUIDA = {
                     "Apri Assenze e clicca «Nuova richiesta» nella barra del modulo.",
                     "In «Tipo assenza» scegli Ferie, Permesso, Malattia, Flessibilità o Altro.",
                     "Scegli le date in «Data inizio» e «Data fine». Per un solo giorno metti la stessa data.",
-                    "In «Durata rapida» scegli l'orario già pronto (per esempio «Normale (08:00-17:00)» o "
+                    "In «Durata rapida» scegli l'orario già pronto (per esempio «Normale (08:00-17:00)», «Giornata lunga (08:00-18:00)» per chi fa il turno 8-18 o "
                     "«Mezza mattina (08:00-12:00)»). Se ti serve un orario diverso scegli «Personalizzato» e scrivi "
                     "«Ora inizio» e «Ora fine».",
                     "Controlla il riquadro «Bozza live» a destra: è il riassunto di quello che stai inviando.",
