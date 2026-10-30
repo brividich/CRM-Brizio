@@ -176,8 +176,8 @@ def _role_info(role_id: int | None) -> dict:
 def _portal_role_info(legacy_user_id: int | None) -> dict:
     """Il ruolo del portale che comanda per la persona: quello con ordine piu' alto.
 
-    Senza ruoli propri resta il ruolo base, che vale per tutti i dipendenti:
-    va detto, perche' consentire li' apre la pagina a chiunque.
+    Senza ruoli propri resta il ruolo base, che vale per tutti quelli senza
+    altri ruoli: va detto, perche' consentire li' apre la pagina a tutti loro.
     """
     from core.permessi.motore import PRESET_BASE, id_ruolo_base, ruoli_della_persona
     from core.permessi.scadenze import q_appartenenze_valide
@@ -194,7 +194,7 @@ def _portal_role_info(legacy_user_id: int | None) -> dict:
         base = ruolo.preset == PRESET_BASE
         if base:
             members = UtenteLegacy.objects.filter(attivo=True).count()
-            label = f"ruolo base: vale per tutti i dipendenti ({members} persone attive)"
+            label = f"ruolo base: vale per chi non ha altri ruoli (su {members} persone attive)"
         else:
             members = (
                 AccessGroupMembership.objects.filter(q_appartenenze_valide(), group_id=ruolo.id)

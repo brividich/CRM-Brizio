@@ -32,6 +32,7 @@ from core.permessi.motore import (
 from core.permessi.organigramma import provenienze_per_utenti
 from core.permessi.preset import PRESETS_PER_CHIAVE, applica_preset
 from core.permessi.registro import AMBITI, AMBITI_LABEL, AZIONI_LABEL, AZIONI_STANDARD, moduli_registrati
+from core.permessi.ruolo_base import completa_dal_ruolo_base
 from core.permessi.sync import (
     capacita_permessi,
     codici_per_modulo,
@@ -520,7 +521,7 @@ def ruoli_portale_organigramma(request, ruolo_id: int):
         messages.error(request, "Un ruolo amministratore si assegna solo a mano: non si collega all'organigramma.")
         return redirect(_url("matrice", ruolo=ruolo.id))
     if ruolo.preset == PRESET_BASE:
-        messages.error(request, "Il ruolo base vale già per tutti: non serve collegarlo all'organigramma.")
+        messages.error(request, "Il ruolo base vale già per chi non ha altri ruoli: non serve collegarlo all'organigramma.")
         return redirect(_url("matrice", ruolo=ruolo.id))
     attuali = set(ruolo.ruoli_organigramma.values_list("id", flat=True))
     voluti = {i for i in (_int(v) for v in request.POST.getlist("ruoli_organigramma")) if i}
@@ -752,16 +753,20 @@ def ruoli_portale_ruolo(request, ruolo_id: int | None = None):
         while AccessGroup.objects.filter(code=code).exists():
             code, n = f"{base}-{n}", n + 1
         ruolo = AccessGroup.objects.create(code=code, **dati)
-        log_action(request, "permessi_ruolo_creato", MODULO_AUDIT, {"ruolo": ruolo.label, **dati},
+        # Operatore vale solo per chi non ha altri ruoli: il ruolo nuovo parte dalle sue caselle.
+        copiate = completa_dal_ruolo_base([ruolo]) if not ruolo.amministratore else []
+        log_action(request, "permessi_ruolo_creato", MODULO_AUDIT,
+                   {"ruolo": ruolo.label, **dati, "dal_ruolo_base": copiate[0]["celle"] if copiate else []},
                    oggetto_tipo="ruolo", oggetto_id=str(ruolo.id))
-        messages.success(request, f"Ruolo «{ruolo.label}» creato: compila la sua matrice.")
+        messages.success(request, f"Ruolo «{ruolo.label}» creato con le caselle di «Operatore»: "
+                                  "compila la sua matrice e togli quello che non serve.")
     else:
         ruolo = AccessGroup.objects.filter(id=ruolo_id).first()
         if ruolo is None:
             messages.error(request, "Ruolo non trovato.")
             return redirect(_url("matrice"))
         if ruolo.preset == PRESET_BASE and not dati["is_active"]:
-            messages.error(request, "Il ruolo base «Operatore» non si disattiva: e' il minimo di ogni utente.")
+            messages.error(request, "Il ruolo base «Operatore» non si disattiva: e' il ruolo di chi non ne ha altri.")
             return redirect(_url("matrice", ruolo=ruolo.id))
         prima = {k: getattr(ruolo, k) for k in dati}
         for chiave, valore in dati.items():

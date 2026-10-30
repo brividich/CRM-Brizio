@@ -5,7 +5,7 @@ Nessuna scrittura. Le decisioni passano dalla stessa funzione del runtime
 può dire una cosa e il portale farne un'altra.
 
 - :func:`confronta_ruoli`: ruolo A contro ruolo B, modulo per modulo e azione per
-  azione, ognuno da solo (senza ruolo base, senza organigramma).
+  azione, ognuno da solo (senza organigramma).
 - :func:`effetto_modifica`: la persona com'è oggi contro la persona con un ruolo
   in più e/o in meno. Si vedono solo le azioni che cambiano.
 """
@@ -13,7 +13,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from core.permessi.motore import ContestoPermessi, Decisione, _decidi, _Ruolo, contesto_per
+from core.permessi.motore import (
+    PRESET_BASE,
+    ContestoPermessi,
+    Decisione,
+    _decidi,
+    _Ruolo,
+    carica_celle,
+    contesto_per,
+)
 
 
 def _ruolo(g) -> _Ruolo:
@@ -21,23 +29,11 @@ def _ruolo(g) -> _Ruolo:
                   vede_tutto=bool(g.vede_tutto), amministratore=bool(g.amministratore))
 
 
-def _carica_celle(ctx: ContestoPermessi) -> None:
-    from core.models import RuoloPermessoModulo
-
-    ctx.celle = {}
-    if not ctx.ruoli:
-        return
-    for ruolo_id, mod, azione, consentito, ambito in RuoloPermessoModulo.objects.filter(
-        ruolo_id__in=[r.id for r in ctx.ruoli]
-    ).values_list("ruolo_id", "modulo", "azione", "consentito", "ambito"):
-        ctx.celle[(int(ruolo_id), mod, azione)] = (bool(consentito), ambito)
-
-
 def contesto_di_ruoli(gruppi, *, legacy_user_id=None, amministratore_legacy=False, superuser=False) -> ContestoPermessi:
     ruoli = sorted((_ruolo(g) for g in gruppi), key=lambda r: (-r.priority, r.label, r.id))
     ctx = ContestoPermessi(legacy_user_id=legacy_user_id, superuser=superuser,
                            amministratore=amministratore_legacy or any(r.amministratore for r in ruoli), ruoli=ruoli)
-    _carica_celle(ctx)
+    carica_celle(ctx)
     return ctx
 
 
@@ -92,6 +88,9 @@ def effetto_modifica(user, *, aggiungi=(), togli=()) -> list[dict]:
     togli_ids = {int(x) for x in togli}
     nuovi_ids = (ids - togli_ids) | {int(x) for x in aggiungi}
     gruppi = list(AccessGroup.objects.filter(id__in=nuovi_ids, is_active=True))
+    # Stessa regola del motore: Operatore solo se non resta nessun altro ruolo.
+    propri = [g for g in gruppi if g.preset != PRESET_BASE]
+    gruppi = propri or gruppi or list(AccessGroup.objects.filter(preset=PRESET_BASE, is_active=True)[:1])
     dopo = contesto_di_ruoli(gruppi, legacy_user_id=oggi.legacy_user_id, amministratore_legacy=admin_legacy,
                              superuser=oggi.superuser)
     dopo.eccezioni = dict(oggi.eccezioni)  # le eccezioni sulla persona restano anche cambiando ruolo

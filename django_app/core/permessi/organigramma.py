@@ -141,8 +141,10 @@ def ruoli_spiegati(legacy_user_id: int | None) -> list[dict]:
             voce = voci.setdefault(gruppo.id, {"nome": gruppo.label, "ordine": int(gruppo.priority or 0),
                                                 "fonte": "organigramma", "da": [], "scade_il": None})
             voce["da"] = sorted(da_org[gruppo.id])
+        attivi = set(AccessGroup.objects.filter(id__in=list(voci), is_active=True).values_list("id", flat=True))
         base = AccessGroup.objects.filter(preset=PRESET_BASE, is_active=True).first()
-        if base is not None and base.id not in voci:
+        # Il ruolo base vale solo per chi non ha nessun altro ruolo attivo.
+        if base is not None and base.id not in voci and not attivi:
             voci[base.id] = {"nome": base.label, "ordine": int(base.priority or 0), "fonte": "base",
                              "da": [], "scade_il": None}
     except DatabaseError:
