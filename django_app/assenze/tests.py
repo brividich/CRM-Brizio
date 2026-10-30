@@ -2286,6 +2286,15 @@ class AssenzeRegoleDurataTests(SimpleTestCase):
         )
         self.assertEqual(err, "")
 
+    def test_durata_rapida_giornata_lunga_8_18_ok(self):
+        err, _ = _validate_business_rules(
+            tipo="Permesso",
+            dt_start=self._dt("2026-03-10 08:00"),
+            dt_end=self._dt("2026-03-10 18:00"),
+            shortcut="lunga",
+        )
+        self.assertEqual(err, "")
+
     def test_durata_rapida_multi_giorno_respinto(self):
         err, _ = _validate_business_rules(
             tipo="Permesso",
@@ -2383,6 +2392,7 @@ class AssenzeRichiestaShortcutRenderTests(TestCase):
         self.assertContains(resp, 'name="shortcut"')
         self.assertContains(resp, 'id="time_start"')
         self.assertContains(resp, 'id="time_end"')
+        self.assertContains(resp, 'value="lunga"> Giornata lunga (08:00-18:00)')
 
 
 class AssenzeSubnavTests(SimpleTestCase):
