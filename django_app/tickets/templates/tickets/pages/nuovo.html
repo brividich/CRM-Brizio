@@ -96,6 +96,7 @@
 }
 .tkt-asset-tog-btn.active { background:#0369a1; color:#fff; border-color:#0369a1; }
 .tkt-asset-search-meta { font-size:11px; color:#64748b; margin-top:4px; }
+.tkt-asset-reparto { display:inline-block; font-size:10px; font-weight:700; color:#0e7490; background:#ecfeff; border:1px solid #a5f3fc; border-radius:999px; padding:0 7px; margin-left:4px; vertical-align:middle; }
 .tkt-my-asset-chip {
   padding:5px 12px; border-radius:20px; font-size:12px; font-weight:600;
   border:1.5px solid #bae6fd; background:#f0f9ff; color:#0e7490;
@@ -176,6 +177,7 @@ body.theme-dark .tkt-my-asset-chip.selected { background:rgba(14,116,144,.45); c
 body.theme-dark .tkt-asset-tog-btn { background:var(--surface); border-color:var(--border); color:var(--text-mid); }
 body.theme-dark .tkt-asset-tog-btn.active { background:#1d4ed8; color:#fff; border-color:#1d4ed8; }
 body.theme-dark .tkt-asset-search-meta { color:var(--text-light); }
+body.theme-dark .tkt-asset-reparto { color:#67e8f9; background:rgba(14,116,144,.2); border-color:rgba(14,116,144,.4); }
 
 body.theme-dark .tkt-dropzone { border-color:var(--border); color:var(--text-light); }
 body.theme-dark .tkt-dropzone:hover,
@@ -690,9 +692,9 @@ function showAssetResults(list, q) {
   assetRes.innerHTML = list.map(a => {
     const tagText = a.internal_number ? `${escapeHtmlN(a.internal_number)} · ${escapeHtmlN(a.asset_tag)}` : escapeHtmlN(a.asset_tag);
     const tag    = a.asset_tag ? `<span style="color:#64748b;font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:4px;">${tagText}</span>` : '';
-    const meta   = [a.asset_type_label || a.asset_type, a.asset_category, a.reparto].filter(Boolean).join(' · ');
+    const meta   = [a.asset_type_label || a.asset_type, a.asset_category, a.manufacturer].filter((v, i, l) => v && l.indexOf(v) === i).join(' · ');
     return `<div style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;" data-id="${a.id}" data-name="${escapeHtmlN(a.name)} [${escapeHtmlN(a.asset_tag)}]">
-      <strong style="font-size:13px;">${escapeHtmlN(a.name)}</strong> ${tag}
+      <strong style="font-size:13px;">${escapeHtmlN(a.name)}</strong> ${tag}${a.reparto ? ` <span class="tkt-asset-reparto">Reparto ${escapeHtmlN(a.reparto)}</span>` : ''}
       ${meta ? `<div style="color:#94a3b8;font-size:11px;margin-top:1px;">${escapeHtmlN(meta)}</div>` : ''}
     </div>`;
   }).join('');
@@ -738,15 +740,14 @@ if (assetSearch) {
     }
 
     assetRes.innerHTML = matches.map(({ asset }) =>
-      `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;" data-id="${asset.id}" data-name="${asset.name} [${asset.asset_tag}]">
+      `<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;" data-id="${asset.id}" data-name="${escapeHtmlN(asset.name)} [${escapeHtmlN(asset.asset_tag)}]">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-          <strong>${asset.name}</strong>
-          <span style="color:#64748b;font-size:11px;font-weight:700;">${asset.asset_tag}</span>
+          <span><strong>${escapeHtmlN(asset.name)}</strong>${asset.reparto ? ` <span class="tkt-asset-reparto">Reparto ${escapeHtmlN(asset.reparto)}</span>` : ''}</span>
+          <span style="color:#64748b;font-size:11px;font-weight:700;">${escapeHtmlN(asset.asset_tag)}</span>
         </div>
         <div style="color:#64748b;font-size:11px;margin-top:2px;">
-          ${(asset.asset_type_label || asset.asset_type || 'Asset')} · ${(asset.asset_category || asset.model || 'N/D')}
-          ${(asset.manufacturer || asset.reparto) ? ` · ${asset.manufacturer || asset.reparto}` : ''}
-          ${asset.serial_number ? ` · S/N ${asset.serial_number}` : ''}
+          ${escapeHtmlN([asset.asset_type_label || asset.asset_type || 'Asset', asset.asset_category || asset.model, asset.manufacturer].filter((v, i, l) => v && l.indexOf(v) === i).join(' · '))}
+          ${asset.serial_number ? ` · S/N ${escapeHtmlN(asset.serial_number)}` : ''}
         </div>
       </div>`
     ).join("");
