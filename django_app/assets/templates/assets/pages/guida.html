@@ -98,6 +98,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li><span class="ag-btn">Registra</span> con la <strong>prossima scadenza</strong> compilata rinnova la voce a quella data. Se la lasci vuota, la voce periodica si rinnova da sola alla data di esecuzione più la periodicità; una voce senza periodicità si chiude.</li>
         <li>Se la voce fa parte di una <strong>serie</strong> inserita una riga per data (stesso asset e titolo), «Registra» la chiude e la serie prosegue con la data successiva: non nasce un doppione.</li>
         <li>Una verifica che ha già il suo piano di manutenzione sull'asset (es. VTS, VAP, SAT, TUS dei forni) si registra solo dal piano: non va ripetuta qui.</li>
+        <li>Le scadenze svolte si ritrovano con <span class="ag-btn">Svolte →</span>: apre Manutenzione &rsaquo; <strong>Storico</strong> con ogni esecuzione registrata (data, chi, costo, prossima scadenza), anche delle voci che si sono rinnovate. Le voci senza periodicità, una volta registrate, sono nella scheda <strong>Chiuse</strong>.</li>
       </ul>
       <p class="ag-note">Registrare è riservato all'amministrazione del modulo Asset. Per spostare nei piani le manutenzioni finite nel registro c'è il comando <code>riordina_scadenze_amministrative</code> (prima in prova, poi con <code>--apply</code>).</p>
     </section>

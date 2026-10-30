@@ -124,6 +124,7 @@
     {% for tab in status_tabs %}
       <a class="md-tab {% if tab.active and not month_filter %}active{% endif %}" href="{{ tab.url }}"{% if tab.active %} aria-current="true"{% endif %}>{{ tab.label }}<span class="ad-tab-count">{{ tab.count }}</span></a>
     {% endfor %}
+    <a class="md-tab" href="{% url 'assets:maintenance_history' %}?source=deadlines" title="Ogni esecuzione registrata, anche delle scadenze che si sono rinnovate">Svolte →</a>
   </div>
 
   <form class="md-filters" method="get">

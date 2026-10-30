@@ -283,6 +283,7 @@ GUIDA = {
                     "Il numero interno si assegna solo a mano («Assegna progressivo»).",
                     "Le scadenze amministrative (revisioni, verifiche di legge, certificati, garanzie) sono separate dai "
                     "piani di manutenzione. Con «Si ripete ogni (mesi)» basta una voce: «Registra» la rinnova da sola. "
+                    "Le esecuzioni registrate si ritrovano in Manutenzione → «Storico» (o «Svolte →» nelle pagine Scadenze). "
                     "Le manutenzioni finite nel registro si spostano nei piani con il comando "
                     "riordina_scadenze_amministrative (prima in prova, poi con --apply; --mesi \"Titolo=12\" per i "
                     "titoli senza serie).",
