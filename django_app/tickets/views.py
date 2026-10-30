@@ -401,7 +401,7 @@ def _get_assets_for_select() -> list[dict]:
                 "manufacturer": asset.manufacturer or "",
                 "model": asset.model or "",
                 "serial_number": asset.serial_number or "",
-                "reparto": asset.reparto or "",
+                "reparto": asset.reparto or asset.assignment_reparto or "",
             }
             for asset in assets
         ]
