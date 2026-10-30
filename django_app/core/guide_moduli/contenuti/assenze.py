@@ -14,12 +14,13 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "Apri Assenze e clicca «Nuova richiesta» nella barra del modulo.",
-                    "In «Tipo assenza» scegli Ferie, Permesso, Malattia, Flessibilità o Altro.",
-                    "Scegli le date in «Data inizio» e «Data fine». Per un solo giorno metti la stessa data.",
+                    "In «Tipo assenza» clicca una card: «Ferie / Permesso», «Malattia», «Flessibilità» o «Certifica presenza».",
+                    "Scegli le date in «Data inizio» e «Data fine»: partono vuote, vanno sempre scelte. Per un solo giorno metti la stessa data. "
+                    "Con «Ferie / Permesso» decidono le date: un solo giorno è un permesso a ore, più giorni sono ferie a giornata intera.",
                     "In «Durata rapida» scegli l'orario già pronto (per esempio «Normale (08:00-17:00)», «Giornata lunga (08:00-18:00)» per chi fa il turno 8-18 o "
                     "«Mezza mattina (08:00-12:00)»). Se ti serve un orario diverso scegli «Personalizzato» e scrivi "
                     "«Ora inizio» e «Ora fine».",
-                    "Controlla il riquadro «Bozza live» a destra: è il riassunto di quello che stai inviando.",
+                    "Controlla il riquadro «Bozza live» a destra: è il riassunto di quello che stai inviando, con il nome del dipendente per cui fai la richiesta.",
                     "Clicca «Conferma invio». La richiesta arriva al tuo capo, che riceve una mail.",
                 ]),
                 ("def", [
