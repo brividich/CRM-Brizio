@@ -482,6 +482,41 @@ def _team_history_period(periodo):
     return "", []
 
 
+def _utenti_mio_team(request) -> tuple[int, list[int]]:
+    """Persone di «Il mio team» (Anagrafica): quante sono e i loro ``utenti.id``.
+
+    Senza questa, la dashboard contava le assenze di un perimetro (tutta
+    l'azienda o i capi_reparto) e il pulsante «Il mio team» apriva un altro
+    elenco: due numeri che non si parlavano. Vuoto se l'utente non è collegato
+    a un'anagrafica o non è responsabile di nessuno.
+    """
+    try:
+        from anagrafica.views import _current_legacy_anagrafica_id
+        from anagrafica.views_mio_team import membri_team
+        from core.legacy_models import AnagraficaDipendente
+
+        io = _current_legacy_anagrafica_id(request)
+        membri = membri_team(io) if io else []
+        if not membri:
+            return 0, []
+        return len(membri), sorted({
+            int(u) for u in AnagraficaDipendente.objects.filter(id__in=membri, utente_id__isnull=False)
+            .values_list("utente_id", flat=True)
+        })
+    except Exception:
+        logger.warning("assenze: team di «Il mio team» non calcolabile", exc_info=True)
+        return 0, []
+
+
+def _where_team(utenti_ids, manager_kwargs: dict) -> tuple[str, list, bool]:
+    """Perimetro della dashboard: il team di «Il mio team» se c'è, altrimenti il
+    capo assegnato alla richiesta (regola di prima)."""
+    if utenti_ids and _helpers._has_assenze_column("utente_id"):
+        ids = sorted({int(u) for u in utenti_ids})
+        return f"a.utente_id IN ({', '.join(['%s'] * len(ids))})", ids, False
+    return _helpers._combined_manager_assignment_where_clause(assenze_alias="a", capi_alias="cr", **manager_kwargs)
+
+
 def _load_gestite_for_manager(
     legacy_user_id: int | None,
     limit: int = 30,
@@ -490,18 +525,17 @@ def _load_gestite_for_manager(
     manager_email: str = "",
     offset: int = 0,
     periodo: str = "tutte",
+    utenti_ids=None,
 ) -> list[dict]:
-    """Assenze già gestite (Approvato/Rifiutato) dal CAR indicato."""
+    """Assenze già gestite (Approvato/Rifiutato) dal CAR indicato, o del team ``utenti_ids``."""
     if not _helpers._table_exists("assenze"):
         return []
-    manager_where_sql, manager_where_params, use_legacy_join = _helpers._combined_manager_assignment_where_clause(
-        per_approvazione=True,
-        legacy_user_id=legacy_user_id,
-        manager_name=manager_name,
-        manager_email=manager_email,
-        assenze_alias="a",
-        capi_alias="cr",
-    )
+    manager_where_sql, manager_where_params, use_legacy_join = _where_team(utenti_ids, {
+        "per_approvazione": True,
+        "legacy_user_id": legacy_user_id,
+        "manager_name": manager_name,
+        "manager_email": manager_email,
+    })
     if not manager_where_sql:
         return []
     join_sql = " LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id " if use_legacy_join else ""
@@ -565,17 +599,16 @@ def _load_assenze_car_periodo(
     *,
     manager_name: str = "",
     manager_email: str = "",
+    utenti_ids=None,
 ) -> list[dict]:
-    """Assenze del personale del CAR in un dato intervallo (per riepilogo oggi/settimana)."""
+    """Assenze del personale del CAR (o del team ``utenti_ids``) in un intervallo, per oggi/settimana."""
     if not _helpers._table_exists("assenze"):
         return []
-    manager_where_sql, manager_where_params, use_legacy_join = _helpers._combined_manager_assignment_where_clause(
-        legacy_user_id=legacy_user_id,
-        manager_name=manager_name,
-        manager_email=manager_email,
-        assenze_alias="a",
-        capi_alias="cr",
-    )
+    manager_where_sql, manager_where_params, use_legacy_join = _where_team(utenti_ids, {
+        "legacy_user_id": legacy_user_id,
+        "manager_name": manager_name,
+        "manager_email": manager_email,
+    })
     if not manager_where_sql:
         return []
     join_sql = " LEFT JOIN capi_reparto cr ON cr.id = a.capo_reparto_id " if use_legacy_join else ""
@@ -1063,23 +1096,20 @@ def car_dashboard(request):
     monday = today_start - timedelta(days=today_start.weekday())
     next_monday = monday + timedelta(days=7)
 
-    if view_all:
-        if pending_scope == "all":
-            da_gestire = _load_all_pending(limit=100)
-        else:
-            da_gestire = _helpers._load_pending_for_manager(
-                legacy_user_id,
-                limit=100,
-                manager_name=manager_name,
-                manager_email=manager_email,
-            )
+    # Vista «Il mio team» (predefinita): oggi, settimana e storico sono quelli
+    # delle stesse persone del pulsante «Il mio team». La coda resta quella
+    # delle richieste che aspettano la decisione di chi guarda. Tutta l'azienda
+    # solo con la scheda «Tutta l'azienda» (perimetro «all»).
+    team_persone, team_ids = (0, []) if pending_scope == "all" else _utenti_mio_team(request)
+    if pending_scope == "all":
+        da_gestire = _load_all_pending(limit=100)
         gestite = _load_all_gestite(limit=31, offset=history_offset, periodo=history_period)
         riepilogo_oggi = _load_all_assenze_periodo(today_start, today_end, limit=200)
         riepilogo_settimana = _load_all_assenze_periodo(monday, next_monday, limit=500)
     else:
         da_gestire = _helpers._load_pending_for_manager(
             legacy_user_id,
-            limit=60,
+            limit=100 if view_all else 60,
             manager_name=manager_name,
             manager_email=manager_email,
         )
@@ -1090,6 +1120,7 @@ def car_dashboard(request):
             periodo=history_period,
             manager_name=manager_name,
             manager_email=manager_email,
+            utenti_ids=team_ids,
         )
         riepilogo_oggi = _load_assenze_car_periodo(
             legacy_user_id,
@@ -1098,6 +1129,7 @@ def car_dashboard(request):
             limit=100,
             manager_name=manager_name,
             manager_email=manager_email,
+            utenti_ids=team_ids,
         )
         riepilogo_settimana = _load_assenze_car_periodo(
             legacy_user_id,
@@ -1106,6 +1138,7 @@ def car_dashboard(request):
             limit=300,
             manager_name=manager_name,
             manager_email=manager_email,
+            utenti_ids=team_ids,
         )
 
     history_has_next = len(gestite) > 30
@@ -1142,6 +1175,8 @@ def car_dashboard(request):
             "is_admin_view": is_admin,
             "can_view_all": view_all,
             "pending_scope": pending_scope,
+            "team_persone": team_persone,
+            "team_attivo": bool(team_ids),
             "show_diag": show_diag,
             "capo_diag": capo_diag,
             "sync_diag": sync_diag,

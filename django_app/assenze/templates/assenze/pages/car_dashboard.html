@@ -162,17 +162,16 @@
       <span class="abs-eyebrow">Segnalazioni</span>
       <h1>Dashboard reparto assenze</h1>
       <p>
-        {% if can_view_all %}
-          {% if pending_scope == "all" %}
-            Vista aziendale con coda globale, riepiloghi e strumenti di diagnostica sync.
-          {% else %}
-            Vista aziendale focalizzata sulle richieste assegnate ai tuoi reparti.
-          {% endif %}
+        {% if pending_scope == "all" %}
+          Tutta l'azienda: coda globale, assenze di oggi e della settimana di tutto il personale.
+        {% elif team_attivo %}
+          Le assenze delle {{ team_persone }} persone di «Il mio team» e le richieste che aspettano la tua decisione.
         {% else %}
-          Vista capo reparto per approvare o rifiutare le richieste del personale e controllare l'andamento di oggi e settimana.
+          Le richieste del personale assegnato a te: approva o rifiuta e controlla l'andamento di oggi e della settimana.
         {% endif %}
       </p>
       <div class="abs-hero-meta">
+        {% if team_attivo %}<a class="abs-hero-pill" href="{% url 'anagrafica:mio_team' %}" title="Apri l'elenco delle persone del tuo team">{{ team_persone }} nel team</a>{% endif %}
         <span class="abs-hero-pill">{{ da_gestire|length }} in attesa</span>
         <span class="abs-hero-pill">{{ riepilogo_oggi|length }} oggi</span>
         <span class="abs-hero-pill">{{ gestite|length }} gia gestite</span>
@@ -230,7 +229,7 @@
         <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-sun"></use></svg></span>
       </div>
       <div class="abs-kpi-value">{{ riepilogo_oggi|length }}</div>
-      <div class="abs-kpi-note">Assenze previste o in corso per {{ data_oggi }}.</div>
+      <div class="abs-kpi-note">Assenze previste o in corso per {{ data_oggi }}{% if team_attivo %} nel tuo team{% endif %}.</div>
     </article>
     <article class="abs-kpi green">
       <div class="abs-kpi-top">
@@ -238,7 +237,7 @@
         <span class="abs-kpi-icon"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg></span>
       </div>
       <div class="abs-kpi-value">{{ riepilogo_settimana|length }}</div>
-      <div class="abs-kpi-note">Finestra {{ data_lunedi }} - {{ data_domenica }}.</div>
+      <div class="abs-kpi-note">Finestra {{ data_lunedi }} - {{ data_domenica }}{% if team_attivo %} nel tuo team{% endif %}.</div>
     </article>
     <article class="abs-kpi red">
       <div class="abs-kpi-top">
@@ -254,8 +253,8 @@
     <section class="abs-panel">
       <div class="abs-panel-body" style="padding-top:16px;padding-bottom:16px;">
         <div class="abs-tabs">
-          <a class="abs-tab {% if pending_scope != 'all' %}active{% endif %}" href="{% url 'assenze_car_dashboard' %}">In attesa mie</a>
-          <a class="abs-tab {% if pending_scope == 'all' %}active{% endif %}" href="{% url 'assenze_car_dashboard' %}?scope=all">Tutte in attesa</a>
+          <a class="abs-tab {% if pending_scope != 'all' %}active{% endif %}" href="{% url 'assenze_car_dashboard' %}">Il mio team</a>
+          <a class="abs-tab {% if pending_scope == 'all' %}active{% endif %}" href="{% url 'assenze_car_dashboard' %}?scope=all">Tutta l'azienda</a>
         </div>
       </div>
     </section>
@@ -395,7 +394,7 @@
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
           <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-sun"></use></svg>Assenze oggi</h2>
-          <p class="abs-panel-subtitle">{{ data_oggi }}</p>
+          <p class="abs-panel-subtitle">{{ data_oggi }}{% if team_attivo %} · persone di «Il mio team»{% elif pending_scope == "all" %} · tutta l'azienda{% endif %}</p>
         </div>
         <div class="abs-panel-meta"><span class="abs-panel-badge soft">{{ riepilogo_oggi|length }}</span></div>
       </div>
@@ -438,7 +437,7 @@
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
           <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-calendar"></use></svg>Questa settimana</h2>
-          <p class="abs-panel-subtitle">{{ data_lunedi }} - {{ data_domenica }}</p>
+          <p class="abs-panel-subtitle">{{ data_lunedi }} - {{ data_domenica }}{% if team_attivo %} · persone di «Il mio team»{% elif pending_scope == "all" %} · tutta l'azienda{% endif %}</p>
         </div>
         <div class="abs-panel-meta"><span class="abs-panel-badge soft">{{ riepilogo_settimana|length }}</span></div>
       </div>
