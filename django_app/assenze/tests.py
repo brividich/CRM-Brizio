@@ -2215,15 +2215,14 @@ class AssenzeRegoleDurataTests(SimpleTestCase):
     def _dt(self, s):
         return datetime.strptime(s, "%Y-%m-%d %H:%M")
 
-    # --- Permesso: 30min-8h, stesso giorno -------------------------------
-    def test_permesso_oltre_8h_respinto(self):
+    # --- Permesso: almeno 30min, nessun tetto di ore, stesso giorno ------
+    def test_permesso_turno_lungo_8_18_ok(self):
         err, _ = _validate_business_rules(
             tipo="Permesso",
             dt_start=self._dt("2026-03-10 08:00"),
-            dt_end=self._dt("2026-03-10 17:00"),  # 9h
+            dt_end=self._dt("2026-03-10 18:00"),  # 10h: turno 8-18
         )
-        self.assertTrue(err)
-        self.assertIn("8 ore", err)
+        self.assertEqual(err, "")
 
     def test_permesso_sotto_30min_respinto(self):
         err, _ = _validate_business_rules(
@@ -2344,7 +2343,7 @@ class AssenzeInvioRegoleDurataTests(TestCase):
     @patch("assenze.views.richieste._insert_assenza", return_value=1)
     @patch("assenze.views._helpers._table_exists", return_value=True)
     @patch("assenze.views._helpers._assenze_permissions", return_value={"can_insert": True, "can_skip_approval": False})
-    def test_invio_permesso_oltre_8h_respinto(
+    def test_invio_permesso_sotto_30min_respinto(
         self, _mock_perms, _mock_table_exists, mock_insert, mock_render,
     ):
         self.client.force_login(self.user)
@@ -2356,12 +2355,12 @@ class AssenzeInvioRegoleDurataTests(TestCase):
             "date_start": "2026-03-10",
             "date_end": "2026-03-10",
             "time_start": "08:00",
-            "time_end": "17:00",            # 9h
+            "time_end": "08:15",            # 15 minuti
             "caporeparto": "",
         })
         self.assertEqual(resp.status_code, 200)
         mock_insert.assert_not_called()
-        self.assertIn("8 ore", mock_render.call_args.kwargs["error"])
+        self.assertIn("30 minuti", mock_render.call_args.kwargs["error"])
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

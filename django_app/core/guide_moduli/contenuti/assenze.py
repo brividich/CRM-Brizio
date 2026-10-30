@@ -23,7 +23,7 @@ GUIDA = {
                     "Clicca «Conferma invio». La richiesta arriva al tuo capo, che riceve una mail.",
                 ]),
                 ("def", [
-                    ("Permesso", "da 30 minuti a 8 ore, sempre nello stesso giorno."),
+                    ("Permesso", "almeno 30 minuti, senza un massimo di ore, sempre nello stesso giorno (anche con turni lunghi, es. 8-18)."),
                     ("Permesso su più giorni", "con lo stesso orario: compila il primo giorno e scegli la data in "
                      "«Ripeti lo stesso orario fino al». Si crea una richiesta per ogni giorno lavorativo (sabati, "
                      "domeniche, festività e chiusure aziendali esclusi), al massimo 31 giorni. Il capo riceve una sola mail "

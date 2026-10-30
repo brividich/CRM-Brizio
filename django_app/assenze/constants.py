@@ -29,9 +29,9 @@ SHORTCUT_PRESETS = {
 }
 SHORTCUT_CUSTOM = "custom"
 
-# Limiti Permesso (stesso giorno). "0.30h" = 30 minuti (vedi spec).
+# Limite Permesso (stesso giorno). "0.30h" = 30 minuti (vedi spec). Nessun tetto
+# di ore: c'è chi ha turni lunghi o pause ampie (es. 8-18), basta il giorno.
 PERMESSO_MIN_MINUTES = 30
-PERMESSO_MAX_HOURS = 8
 
 # Se l'ora di fine non e' successiva a quella di inizio, la fine viene
 # riallineata a inizio + questo scarto, sullo STESSO giorno dell'inizio.
