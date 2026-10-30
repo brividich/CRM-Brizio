@@ -1163,12 +1163,13 @@ def _validate_execution_attachment_uploads(request: HttpRequest) -> tuple[list, 
 
 @login_required
 def maintenance_history(request: HttpRequest) -> HttpResponse:
-    """Storico aziendale unico: OdL conclusi e ticket MAN, senza alterarne i flussi."""
+    """Storico aziendale unico: OdL conclusi, manutenzioni registrate, scadenze
+    amministrative svolte e ticket MAN, senza alterarne i flussi."""
     from tickets.models import StatoTicket, Ticket, TipoTicket
 
     q = _clean_string(request.GET.get("q"))
     source = _clean_string(request.GET.get("source")).lower() or "all"
-    if source not in {"all", "workorders", "maintenance", "tickets"}:
+    if source not in {"all", "workorders", "maintenance", "deadlines", "tickets"}:
         source = "all"
 
     def parsed_date(name: str) -> date | None:
@@ -1258,6 +1259,53 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
                 }
             )
 
+    if source in {"all", "deadlines"}:
+        # Scadenze amministrative svolte (revisioni, controlli periodici, certificati):
+        # registrandole la scadenza si rinnova o si chiude, quindi dall'elenco delle
+        # scadenze l'esecuzione sparisce. Qui resta come lavoro fatto.
+        from ..models import AssetAdministrativeDeadline, AssetAdministrativeDeadlineCompletion
+
+        completions = AssetAdministrativeDeadlineCompletion.objects.filter(
+            deadline__in=filtra_per_asset(
+                request, AssetAdministrativeDeadline.objects.all(), MODULO_VERIFICHE
+            ).values("id")
+        ).select_related("deadline__asset", "completed_by")
+        if q:
+            completions = completions.filter(
+                Q(deadline__title__icontains=q)
+                | Q(deadline__reference_code__icontains=q)
+                | Q(deadline__issuer__icontains=q)
+                | Q(notes__icontains=q)
+                | Q(deadline__asset__asset_tag__icontains=q)
+                | Q(deadline__asset__name__icontains=q)
+            )
+        if date_from:
+            completions = completions.filter(completed_on__gte=date_from)
+        if date_to:
+            completions = completions.filter(completed_on__lte=date_to)
+        deadlines_url = reverse("assets:asset_administrative_deadline_list")
+        for completion in completions.order_by("-completed_on", "-id")[:500]:
+            deadline = completion.deadline
+            rows.append(
+                {
+                    "source": "deadline",
+                    "source_label": "Scadenza amministrativa",
+                    "date": timezone.make_aware(datetime.combine(completion.completed_on, datetime.min.time())),
+                    "title": deadline.title,
+                    "asset": deadline.asset,
+                    "type_label": deadline.get_deadline_type_display(),
+                    "status_label": (
+                        f"Svolta · prossima {completion.next_due_date:%d/%m/%Y}"
+                        if completion.next_due_date else "Svolta"
+                    ),
+                    "technician": (completion.completed_by.get_full_name() or completion.completed_by.username)
+                    if completion.completed_by_id else "-",
+                    "duration_minutes": completion.duration_minutes,
+                    "cost": completion.cost_eur,
+                    "url": f"{deadlines_url}?status=all&q={quote(deadline.asset.asset_tag or deadline.title)}",
+                }
+            )
+
     if source in {"all", "tickets"}:
         tickets = Ticket.objects.filter(
             tipo=TipoTicket.MAN,
@@ -1320,6 +1368,7 @@ def maintenance_history(request: HttpRequest) -> HttpResponse:
             "history_workorder_count": sum(1 for row in rows if row["source"] == "workorder"),
             "history_ticket_count": sum(1 for row in rows if row["source"] == "ticket"),
             "history_occurrence_count": sum(1 for row in rows if row["source"] == "occurrence"),
+            "history_deadline_count": sum(1 for row in rows if row["source"] == "deadline"),
             "history_duration_hours": round(total_duration / 60, 1),
             "history_total_cost": total_cost,
             "history_duration_coverage": copertura_durata["label"],

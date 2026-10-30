@@ -7856,6 +7856,35 @@ class AssetMaintenanceRegisterTicketTests(TestCase):
         self.assertEqual(response.context["history_workorder_count"], 1)
         self.assertEqual(response.context["history_ticket_count"], 1)
 
+    def test_company_maintenance_history_includes_completed_administrative_deadlines(self):
+        deadline = AssetAdministrativeDeadline.objects.create(
+            asset=self.asset,
+            title="Revisione periodica carrello",
+            due_date=timezone.localdate(),
+            recurrence_months=12,
+        )
+        AssetAdministrativeDeadlineCompletion.objects.create(
+            deadline=deadline,
+            completed_on=timezone.localdate(),
+            completed_by=self.user,
+            cost_eur=Decimal("80.00"),
+            next_due_date=timezone.localdate() + timedelta(days=365),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("assets:maintenance_history"))
+        self.assertContains(response, "Revisione periodica carrello")
+        self.assertContains(response, "Scadenza amministrativa")
+        self.assertEqual(response.context["history_deadline_count"], 1)
+
+        solo_scadenze = self.client.get(reverse("assets:maintenance_history"), {"source": "deadlines"})
+        self.assertEqual(solo_scadenze.context["history_total"], 1)
+        solo_odl = self.client.get(reverse("assets:maintenance_history"), {"source": "workorders"})
+        self.assertNotContains(solo_odl, "Revisione periodica carrello")
+
+        elenco = self.client.get(reverse("assets:asset_administrative_deadline_list"))
+        self.assertContains(elenco, f'{reverse("assets:maintenance_history")}?source=deadlines')
+
 
 class AssetMaintenanceRegisterUnifiedTests(TestCase):
     """Test per il registro manutenzione unificato e generazione massiva (PATCH 21A-FINAL)."""
