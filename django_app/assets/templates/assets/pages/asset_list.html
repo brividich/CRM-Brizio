@@ -83,6 +83,8 @@
 .id { background: #e2e8f0; color: #475569; }
 .tf { padding: 10px 12px; color: #6d84a6; font-size: var(--fs-sm); display: flex; justify-content: space-between; }
 .rows-tools { display: flex; gap: 6px; align-items: center; }
+/* Telefono: conteggio, righe per pagina e pagine vanno a capo invece di finire fuori. */
+@media (max-width: 720px) { .tf { flex-wrap: wrap; gap: 8px; } .rows-tools, .pager { flex-wrap: wrap; } .pager { margin-left: 0; } }
 .rows-btn { border: 1px solid #d8e2f2; border-radius: 7px; background: #fff; color: #5d7496; padding: 3px 8px; text-decoration: none; font-size: var(--fs-sm); font-weight: 700; }
 .rows-btn.active { background: #1f64d8; border-color: #1f64d8; color: #fff; }
 .pager { display: flex; gap: 6px; align-items: center; margin-left: 8px; }

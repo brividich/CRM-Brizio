@@ -24,6 +24,7 @@ Context (vedi dashboard/views_scadenze.py):
   .sg-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:12px 18px; min-width:120px; }
   .sg-kpi b { display:block; font-size:1.5rem; font-weight:800; line-height:1; }
   .sg-kpi span { color:#64748b; font-size:.82rem; }
+  @media (max-width:720px) { .sg-kpis { gap:8px; } .sg-kpi { flex:1 1 calc(50% - 8px); min-width:0; } }
   .sg-kpi.danger b { color:#b91c1c; }
   .sg-kpi.warn b { color:#9a3412; }
   .sg-kpi.info b { color:#1e40af; }

@@ -38,7 +38,15 @@
   /* ---- KPI cards --------------------------------------------------------- */
   .gs-kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:18px; }
   @media(max-width:900px){ .gs-kpis{ grid-template-columns:repeat(2,1fr); } }
-  @media(max-width:520px){ .gs-kpis{ grid-template-columns:1fr; } }
+  @media(max-width:520px){ .gs-kpis{ gap:10px; } }
+  /* Telefono: .content è una colonna flex e i margini auto tolgono lo stretch, senza width la
+     pagina prende la larghezza della tabella (920px). Testata compatta, comandi a capo. */
+  @media(max-width:720px){
+    .gs-wrap{ width:100%; }
+    .gs-hero{ padding:20px 18px 18px; }
+    .gs-hero h1{ font-size:24px; }
+    .gs-hero__side{ flex-direction:row; flex-wrap:wrap; align-items:center; width:100%; gap:8px; }
+  }
   .gs-kpi{ background:#fff; border:1px solid #e6ecf4; border-radius:16px; padding:18px; text-decoration:none; display:block;
     box-shadow:0 1px 3px rgba(12,37,69,.04), 0 8px 22px rgba(12,37,69,.05); transition:transform .15s, box-shadow .15s; }
   .gs-kpi--link{ cursor:pointer; }

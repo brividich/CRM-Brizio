@@ -214,6 +214,8 @@ th.st-th { cursor:default; }
 @media (max-width:760px)  {
   .hr-metric-grid { grid-template-columns:1fr; }
   .hr-grid-2 { grid-template-columns:1fr; }
+  /* Pulsanti della testata (es. Skill Matrix) a capo invece di uscire a destra. */
+  .hr-pagehead > div { min-width:0; max-width:100%; flex-wrap:wrap; }
   .hr-hero-stats { min-width:0; width:100%; }
   .hr-hero-title { font-size:23px; }
   /* Telefono: testata bassa, numeri tutti dentro lo schermo (colonne che si stringono). */

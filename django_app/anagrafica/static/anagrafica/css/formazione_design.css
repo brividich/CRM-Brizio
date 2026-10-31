@@ -257,6 +257,7 @@ a.fmd-mtr:hover{ transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,43,92,
 .fmd-btn-mini:hover{ border-color:#cfd9ea; }
 .fmd-btn-mini.fmd-danger{ background:#fff5f5; border-color:#f6cccc; color:#c53030; }
 .fmd-cat-actions{ display:flex; gap:7px; justify-content:flex-end; }
+.fmd-grid2{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }
 
 /* ── Pill conteggio (riepiloghi) ── */
 .fmd-pill{ display:inline-flex; align-items:center; gap:7px; padding:5px 13px; border-radius:999px; font-size:12px; font-weight:700; }
@@ -715,6 +716,13 @@ body.theme-dark .fmd-c-mai{color:var(--text-light)}
   .fmd-hero{ padding:14px 16px 13px; }
   .fmd-hero .fmd-sub{ display:none; }
   .fmd-hero h1{ font-size:21px; }
+  /* Tessere e pulsante della testata vanno a capo invece di uscire a destra. */
+  .fmd-hero-side{ flex-wrap:wrap; width:100%; gap:8px; }
+  .fmd-hero-tile{ min-width:0; flex:1 1 120px; padding:11px 14px 10px; }
+  .fmd-hero-tile .fmd-bignum{ font-size:24px; }
+  .fmd-block-title{ white-space:normal; min-width:0; }
+  .fmd-cat-actions{ flex-wrap:wrap; }
+  .fmd-grid2{ grid-template-columns:minmax(0,1fr); }
 }
 
 /* ── Sezione «+ Nuovo …» richiudibile (cataloghi anagrafica, 25/10/2026) ───
