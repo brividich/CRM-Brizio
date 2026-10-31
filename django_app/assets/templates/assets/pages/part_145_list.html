@@ -78,8 +78,10 @@
 .p145-foot { color:#64748b; font-size:var(--fs-sm); margin:0; }
 
 @media (max-width:640px) {
-  .p145-bar { position:static; }
-  .p145-menu-list { right:auto; left:0; min-width:min(280px, calc(100vw - 32px)); }
+  /* Il menu si apre ancorato alla barra (a destra), non al pulsante: resta nello schermo. */
+  .p145-bar { position:relative; }
+  .p145-menu { position:static; }
+  .p145-menu-list { right:0; left:auto; min-width:min(280px, calc(100vw - 32px)); }
 }
 
 /* Tema scuro */

@@ -13,11 +13,10 @@
   {% endfor %}
 </div>
 
-<div class="notice" style="margin-top:10px;">
-  {% for item in admin_subnav_items %}
-    {% if item.active and item.description %}
-      <strong>{{ item.label }}:</strong> {{ item.description }}
-    {% endif %}
-  {% endfor %}
-</div>
+{# Solo la voce attiva con descrizione: senza, niente riquadro vuoto. #}
+{% for item in admin_subnav_items %}
+  {% if item.active and item.description %}
+<div class="notice" style="margin-top:10px;"><strong>{{ item.label }}:</strong> {{ item.description }}</div>
+  {% endif %}
+{% endfor %}
 {% endif %}

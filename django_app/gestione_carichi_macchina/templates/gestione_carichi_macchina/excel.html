@@ -150,6 +150,13 @@
     border-radius: 8px; border: 1px solid var(--primary-mid,#1f87cd); background: #fff; color: var(--primary-mid,#1f87cd);
     font-weight: 800; font-size: .76rem; cursor: pointer; }
   .gcm-usaslot:hover { background: var(--primary-mid,#1f87cd); color: #fff; }
+/* Telefono: titolo sopra, comandi a capo; la matrice resta una griglia che scorre. */
+@media (max-width: 720px) {
+  .gcm-head { flex-direction: column; align-items: stretch; padding: 12px 12px 12px 18px; }
+  .gcm-head h1 { font-size: 1.2rem; }
+  .gcm-nav { flex-wrap: wrap; }
+  .gcm-btn, .gcm-toggle a { min-height: 40px; }
+}
 /* Dark mode (additivo) */
   body.theme-dark .gcm-head {
     background: var(--surface);
@@ -291,7 +298,7 @@ body.theme-dark .gcm-usaslot{color:#93c5fd}
   </div>
 
   <div class="gcm-scroll">
-    <table class="gcm">
+    <table class="gcm" data-mcards-off>
       <thead>
         <tr>
           <th class="gcm-corner gcm-mac">Macchina</th>

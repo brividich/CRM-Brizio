@@ -65,7 +65,11 @@
   @media (max-width: 720px) {
     .ntf-item { flex-wrap:wrap; }
     .ntf-item-actions { width:100%; justify-content:flex-end; }
-    .ntf-filters input[type=search] { min-width:0; flex:1; }
+    .ntf-filters { width:100%; }
+    /* Categoria su una riga, ricerca e «Cerca» sotto: la tendina lunga non schiaccia il campo. */
+    .ntf-filters select { flex:1 1 100%; min-width:0; height:40px; }
+    .ntf-filters input[type=search] { min-width:0; flex:1; height:40px; }
+    .ntf-filters .ntf-btn { min-height:40px; }
   }
 </style>
 

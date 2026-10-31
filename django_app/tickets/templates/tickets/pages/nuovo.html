@@ -13,6 +13,7 @@
 .tkt-hero-title { font-size:24px; font-weight:900; letter-spacing:-.02em; }
 .tkt-hero-sub { font-size:13px; opacity:.7; margin-top:3px; }
 
+.tkt-tipo-box { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:32px; }
 .tkt-tipo-cards { display:grid; grid-template-columns:1fr 1fr; gap:20px; max-width:600px; margin:0 auto; }
 .tkt-tipo-card {
   background:#fff; border:2px solid #e2e8f0; border-radius:18px; padding:32px 24px;
@@ -144,9 +145,18 @@
 @media (max-width: 720px) {
   .tkt-field-row { grid-template-columns:1fr; }
   .tkt-sicurezza-options { flex-direction:column; gap:10px; }
+  /* Scelta del tipo: due righe a tutta larghezza, icona a sinistra. */
+  .tkt-tipo-box { padding:18px 14px; }
+  .tkt-tipo-box > div:first-child { margin-bottom:16px !important; }
+  .tkt-tipo-cards { grid-template-columns:1fr; gap:12px; }
+  .tkt-tipo-card { display:grid; grid-template-columns:52px 1fr; align-items:center; gap:2px 14px; padding:16px; }
+  .tkt-tipo-card-icon { grid-row:span 2; font-size:38px; text-align:center; }
+  .tkt-tipo-card-label { font-size:17px; }
+  .tkt-tipo-card-sub { text-align:left; }
 }
 
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
+body.theme-dark .tkt-tipo-box { background:var(--surface); border-color:var(--border); }
 body.theme-dark .tkt-tipo-card { background:var(--surface); border-color:var(--border); }
 body.theme-dark .tkt-tipo-card:hover { border-color:#3b82f6; box-shadow:0 6px 24px rgba(59,130,246,.15); }
 body.theme-dark .tkt-tipo-card-label { color:var(--text); }
@@ -204,7 +214,7 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
   </div>
 
   {% if not tipo %}
-  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:32px;">
+  <div class="tkt-tipo-box">
     <div style="text-align:center;margin-bottom:28px;">
       <div style="font-size:18px;font-weight:800;color:#0f172a;">Che tipo di intervento richiedi?</div>
       <div style="font-size:13px;color:#64748b;margin-top:4px;">Scegli la categoria del problema</div>

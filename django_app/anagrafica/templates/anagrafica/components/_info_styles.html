@@ -25,4 +25,6 @@ quindi resta utilizzabile anche senza questa CSS.
 body.theme-dark .hr-hint{background:#475569;}
 body.theme-dark .hr-hint .hr-hint-pop{background:#1e293b;border:1px solid #334155;}
 @media (max-width:600px){.hr-hint .hr-hint-pop{max-width:210px;}}
+/* Telefono: il fumetto è fisso sopra la barra in basso, così non allarga la pagina. */
+@media (max-width:720px){.hr-hint .hr-hint-pop{position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom,0px));transform:none;width:auto;max-width:none;}.hr-hint .hr-hint-pop::after{display:none;}}
 </style>

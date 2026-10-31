@@ -83,7 +83,11 @@ body.theme-dark .sg-ev a{color:#93c5fd}
 .sg-checklist-row select{width:100%}
 .sg-signatures{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
 .sg-signature{padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-soft);font-size:var(--fs-sm)}
-@media (max-width:760px){.sg-form-grid{grid-template-columns:1fr}.sg-actions input[type=text]{min-width:0;width:100%}}
+@media (max-width:760px){.sg-form-grid{grid-template-columns:1fr}.sg-actions input[type=text]{min-width:0;width:100%}
+/* Filtri «etichetta + campo» (es. Glossario): ogni etichetta accanto al suo campo, pulsante sotto. */
+form.sg-actions:has(> label){display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 10px}
+form.sg-actions:has(> label) > select{min-width:0;width:100%}
+form.sg-actions:has(> label) > button{grid-column:1 / -1;justify-self:start}}
 @media (max-width:900px){.sg-columns{grid-template-columns:1fr}.sg-checklist-row{grid-template-columns:1fr}}
 .sg-form fieldset{min-width:0;border:1px solid var(--border);border-radius:12px;padding:18px;margin:18px 0}
 .sg-form legend{padding:0 8px;color:var(--text)}

@@ -10,6 +10,8 @@
   var mq = window.matchMedia("(max-width:720px)");
   var tables = [];
 
+  var BLOCK_TAGS = /^(DIV|P|UL|OL|SECTION|TABLE|FORM)$/;
+
   function clean(t) { return String(t || "").replace(/\s+/g, " ").trim(); }
 
   function headCells(table) {
@@ -67,6 +69,10 @@
           if (/^[-–—]?$/.test(text) && !td.querySelector("input, select, textarea, img, svg, button, a")) td.classList.add("mcards-empty");
           /* Senza etichetta, o con un'etichetta uguale al contenuto (es. pulsante «Scheda»). */
           if (!h || h === text) td.classList.add("mcards-nolabel");
+          /* Più blocchi nella cella (righe di dettaglio): uno sotto l'altro a destra dell'etichetta. */
+          var blocks = 0;
+          for (var k = 0; k < td.children.length; k++) if (BLOCK_TAGS.test(td.children[k].tagName)) blocks++;
+          if (blocks > 1) td.classList.add("mcards-stack");
         });
       });
     });
