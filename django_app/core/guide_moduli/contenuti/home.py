@@ -66,6 +66,7 @@ GUIDA = {
                     "(es. le colonne di un profilo SNMP) stanno una sotto l'altra a destra del titolo.",
                     "Le pagine non scorrono di lato: i pulsanti delle testate e i filtri vanno a capo. Solo i grafici e le "
                     "griglie larghe (es. la matrice di Carichi macchina) scorrono di lato dentro il loro riquadro.",
+                    "Toccando un campo la pagina non si ingrandisce: i campi sul telefono hanno il testo più grande apposta.",
                 ]),
                 ("p", "Prima di eliminare, togliere o fare un'azione che non si annulla, in tutti i moduli il portale "
                       "chiede conferma in una finestra al centro della pagina: il titolo dice cosa succede, sotto "

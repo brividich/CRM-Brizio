@@ -514,9 +514,17 @@
       .abs-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 560px) {
-      .abs-flow-strip,
       .abs-type-grid { grid-template-columns: 1fr; }
-      .abs-type-card { min-height: 88px; }
+      /* Telefono: i quattro passi su una riga (numero e nome), i tipi con l'icona a sinistra,
+         le durate rapide su due colonne. */
+      .abs-flow-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+      .abs-flow-step { min-height: 0; padding: 8px 4px; gap: 3px; justify-items: center; text-align: center; border-radius: 12px; }
+      .abs-flow-step strong { font-size: 11.5px; }
+      .abs-flow-step span:last-child { display: none; }
+      .abs-type-card { min-height: 0; grid-template-columns: 36px minmax(0, 1fr); gap: 2px 12px; align-items: center; padding: 10px 12px; }
+      .abs-type-card-icon { grid-row: span 2; }
+      .abs-shortcut-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .abs-shortcut-item { padding: 9px 10px; font-size: 12.5px; min-height: 44px; }
     }
     /* ── Dark mode ──────────────────────────────────────────────────────────── */
     body.theme-dark .abs-live-panel,
