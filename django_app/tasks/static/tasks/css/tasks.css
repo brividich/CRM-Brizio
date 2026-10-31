@@ -123,6 +123,8 @@ body.theme-dark .ts-shell {
 /* Telefono: i pulsanti vanno a capo dentro la testata invece di uscire a destra. */
 @media (max-width: 720px) {
   .ts-hero-right { flex-shrink: 1; min-width: 0; max-width: 100%; }
+  /* Comandi piccoli più comodi da toccare (specificità alta: le regole base stanno più in basso). */
+  body .tl-scope-btn, body a.ts-chip, body .ts-guide-link { min-height: 36px; display: inline-flex; align-items: center; }
 }
 
 .ts-hero-action {

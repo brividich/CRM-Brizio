@@ -84,6 +84,12 @@ body.theme-dark .mbar-item{color:var(--text-light)}
 body.theme-dark .mbar-item:active{background:rgba(255,255,255,.06)}
 body.theme-dark .mbar-item.is-active{color:#93c5fd}
 
+/* ── Campi sul telefono: almeno 16px, sotto quella misura iOS ingrandisce la pagina al tocco ── */
+@media (max-width:720px) and (pointer:coarse){
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=hidden]),
+  select,textarea{font-size:16px!important}
+}
+
 /* ── Tabelle a schede sul telefono (logica in core/js/mobile-tables.js) ── */
 @media (max-width:720px){
   table.mcards{display:block;width:100%;min-width:0!important;border:0;background:transparent}
