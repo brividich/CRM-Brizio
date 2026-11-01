@@ -3846,6 +3846,28 @@ def _get_active_teams_presets():
     return list(TeamsWebhookPreset.objects.filter(is_active=True).order_by("name"))
 
 
+def _managed_flow_info(rule, binding):
+    """Riepilogo della scheda «flusso gestito»: stato, cadenza attuale, prossima esecuzione.
+
+    La descrizione viene dal catalogo (commenti di ``schedules.py``) e non dalla copia
+    salvata sulla regola all'installazione, che resta ferma se cambia l'orario nel codice.
+    """
+    from ..managed_flows import catalog
+    from ..schedules import describe_cadence
+
+    next_run = None
+    if binding.kind == "schedule":
+        from django_q.models import Schedule
+        next_run = Schedule.objects.filter(name=binding.code).values_list("next_run", flat=True).first()
+    return {
+        "active": rule.is_active and not rule.is_draft,
+        "description": (catalog().get(binding.code) or {}).get("description") or rule.description,
+        "cadence": describe_cadence({"schedule_type": binding.schedule_type, "minutes": binding.minutes,
+                                     "cron": binding.cron}) if binding.kind == "schedule" else "",
+        "next_run": next_run,
+    }
+
+
 def _build_rule_designer_context(
     *,
     rule: AutomationRule | None,
@@ -3877,12 +3899,15 @@ def _build_rule_designer_context(
     teams_flow_endpoints, teams_flow_endpoints_warning = _helpers._get_teams_flow_endpoints_context(active_only=True)
     from ..flow_forms import ManagedScheduleForm
     binding = getattr(rule, "managed_flow", None)
+    managed_info = None
     if binding:
         trigger_descriptor["label"] = "Pianificazione" if binding.kind == "schedule" else "Evento applicativo"
+        managed_info = _managed_flow_info(rule, binding)
     return {
         **_helpers._base_context(),
         **_build_source_catalog_context(source_code),
         "managed_binding": binding,
+        "managed_info": managed_info,
         "managed_schedule_form": ManagedScheduleForm(instance=binding) if binding and binding.kind == "schedule" else None,
         "enable_smart_field_panel": True,
         "rule": rule,
