@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=14">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
 <style>
 .rl-page { display:flex; flex-direction:column; gap:14px; }
 .rl-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:11px; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; border:1px solid transparent; transition:background .15s; }
@@ -98,6 +98,13 @@ body.theme-dark .rl-page-btn:hover{background:var(--surface-alt,#0f1b2d)}
 body.theme-dark .rl-kpi{border-color:var(--border);background:var(--surface-alt,#0f1b2d);color:var(--text-mid)}
 body.theme-dark .rl-kpi.red{background:rgba(229,62,62,.16);color:#fca5a5}
 body.theme-dark .rl-kpi.amber{background:rgba(214,158,46,.16);color:#fdba74}
+@media (max-width:720px){
+  /* Telefono: ogni filtro a tutta larghezza, i campi del saldo si stringono. */
+  .rl-filter-bar > div { flex:1 1 100%; min-width:0; }
+  .rl-filter-bar .rl-filter-input { min-width:0; max-width:100%; }
+  .rl-filter-bar > div > .rl-filter-input, #rl-rep-select { width:100%; }
+  .rl-filter-bar select[name=saldo_op] { flex:0 0 64px!important; }
+}
 </style>
 {% endblock %}
 

@@ -3,7 +3,7 @@ GUIDA = {
     "titolo": "Primi passi nel portale",
     "area": "Per tutti",
     "sintesi": "Come entrare, muoversi tra i moduli, trovare le cose e chiedere aiuto.",
-    "parole": "errore campi svuotati dati persi bozza accesso login password home menu notifiche push telefono conferma elimina annulla cerca profilo scadenzario calendario outlook ics preferiti personalizza tour tabelle viste colonne filtri",
+    "parole": "errore campi svuotati dati persi bozza accesso login password home menu notifiche push telefono conferma elimina annulla cerca profilo scadenzario calendario outlook ics preferiti personalizza tour tabelle viste colonne filtri schede scorrere lato",
     "url": "dashboard_home",
     "prefissi": ("/dashboard", "/hub/home/", "/profilo", "/notifiche/", "/bacheca/", "/scadenze", "/report/"),
     "dettaglio": [("Guida della home a stanze", "home_portale:guida"), ("Guida I miei report", "miei_report", "?guida=1")],
@@ -62,7 +62,14 @@ GUIDA = {
                     "Le schede dentro una pagina (per esempio quelle della scheda dipendente o della scheda asset) "
                     "funzionano allo stesso modo: un pulsante con la scheda aperta, che mostra l'elenco delle altre.",
                     "Le tabelle troppo larghe per lo schermo mostrano ogni riga come un riquadro: in alto il nome, "
-                    "sotto gli altri dati con il titolo della colonna. I campi vuoti non compaiono.",
+                    "sotto gli altri dati con il titolo della colonna. I campi vuoti non compaiono; se un campo ha più righe "
+                    "(es. le colonne di un profilo SNMP) stanno una sotto l'altra a destra del titolo.",
+                    "Le pagine non scorrono di lato: i pulsanti delle testate e i filtri vanno a capo. Solo i grafici e le "
+                    "griglie larghe (es. la matrice di Carichi macchina) scorrono di lato dentro il loro riquadro, come le "
+                    "tabelle con intestazioni su più righe che non si possono mostrare a riquadri.",
+                    "Nei moduli e nei form le colonne affiancate vanno una sotto l'altra: impostazioni, filtri e schede "
+                    "si compilano dall'alto in basso, senza campi schiacciati.",
+                    "Toccando un campo la pagina non si ingrandisce: i campi sul telefono hanno il testo più grande apposta.",
                 ]),
                 ("p", "Prima di eliminare, togliere o fare un'azione che non si annulla, in tutti i moduli il portale "
                       "chiede conferma in una finestra al centro della pagina: il titolo dice cosa succede, sotto "

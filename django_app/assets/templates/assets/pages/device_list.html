@@ -187,6 +187,7 @@ body.theme-dark .dv-bulk-hint { color:var(--text-light); }
 /* ── Striscia manutenzione in scadenza ───────────────────── */
 .dv-maint-strip { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:10px 16px; background:#fff; border:1px solid #dbe1ea; border-radius:14px; box-shadow:0 2px 8px rgba(15,23,42,.05); }
 .dv-maint-strip-title { font-size:var(--fs-xs); font-weight:700; color:#334155; text-transform:uppercase; letter-spacing:.05em; flex-shrink:0; }
+@media (max-width:720px) { .dv-maint-strip-title { flex-shrink:1; min-width:0; } }
 .dv-maint-strip-hint { font-size:var(--fs-xs); font-weight:400; color:#94a3b8; text-transform:none; letter-spacing:0; }
 .dv-maint-strip-metrics { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 .dv-maint-metric { display:flex; flex-direction:column; align-items:center; min-width:60px; }
