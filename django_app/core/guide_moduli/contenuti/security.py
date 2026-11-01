@@ -91,6 +91,12 @@ GUIDA = {
                 ("p", "Dispositivi › «Patch installate»: lo storico delle patch chiuse, con PC, CVE corrette e motivo "
                       "(«Installata» se lo dice un task WatchGuard, «Non più segnalata da WatchGuard», «PC non più in WatchGuard»). "
                       "Filtri per periodo, motivo e testo; «Scarica CSV» esporta tutte le righe del filtro."),
+                ("p", "Dispositivi › «Tempi delle patch»: ogni patch mancante ha un termine da «pubblicata il» secondo la classe "
+                      "(corregge una CVE sfruttata 7 giorni, critica 14, importante 30, moderata e altre 90; si cambiano in Impostazioni › "
+                      "«Patch: tempi di installazione»). La pagina mostra il tempo medio di installazione e quante entro il termine per "
+                      "classe, l'andamento settimanale di installate e mancanti, e le patch ferme (oltre il termine o con l'installazione "
+                      "fallita) con CSV. Con l'interruttore acceso (spento di default) ogni patch oltre il termine apre un alert che si chiude "
+                      "da solo. Gli stessi numeri sono nel report periodico, nel controllo ISO 8.8 e nel riquadro «Patch» della scheda asset."),
             ],
         },
         {
@@ -261,6 +267,13 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Tempi delle patch: il grafico «Patch mancanti a fine settimana» è vuoto o parte da poco",
+            "fare": [
+                "La fotografia si scrive a ogni lettura delle patch WatchGuard (06:10 e 13:10): prima dell'installazione della funzione non c'è.",
+                "Se resta vuoto: Impostazioni › «WatchGuard Endpoint Security (API)», interruttore «Leggi le patch mancanti» acceso, poi «Letture automatiche» › WatchGuard › «Esegui ora».",
+            ],
+        },
         {
             "sintomo": "Un incidente mostra «Riesame mancante» o arrivano promemoria sul riesame",
             "fare": [

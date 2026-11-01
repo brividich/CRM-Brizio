@@ -322,6 +322,38 @@ Filtri: periodo (30, 90 giorni, un anno, tutto), motivo, ricerca per PC, patch, 
 
 Per sapere se la CVE è davvero chiusa sul PC conta la pagina **Correzioni CVE**, che guarda la versione del programma nell'inventario: la patch chiusa è il «perché», la correzione CVE è la verifica.
 
+### Tempi delle patch
+
+Pagina **Dispositivi › Tempi delle patch** (anche dall'avviso «patch ferme» di Patch e protezione): quanto ci mettiamo a installare le patch e quali sono ferme. È la prova che chiede l'audit ISO 27001 8.8 (e NIS2) per le patch, accanto ai tempi di correzione delle CVE.
+
+Ogni patch mancante su un PC ha un **termine** che parte da **«pubblicata il»** (la data del produttore che dà WatchGuard) e dipende dalla **classe** della patch:
+
+| Classe | Quando | Termine (predefinito) |
+| --- | --- | --- |
+| Corregge una CVE sfruttata (KEV) | almeno una delle sue CVE è nel catalogo CISA KEV | 7 giorni |
+| Critica | criticità «Critica» di WatchGuard | 14 giorni |
+| Importante | criticità «Importante» | 30 giorni |
+| Moderata e altre | moderata, bassa, service pack, non specificata | 90 giorni |
+
+I giorni si cambiano in **Impostazioni › Avvisi e automatismi › Patch: tempi di installazione (ISO 27001 8.8)**. Una patch senza data di pubblicazione non ha termine.
+
+La pagina ha quattro parti:
+
+- **In cima**: patch installate nel periodo scelto (30, 90 giorni, un anno, tutto), **tempo medio di installazione** in giorni, quante **entro il termine**, e adesso: patch mancanti (una per patch e PC), oltre il termine (quante KEV o critiche), con l'installazione fallita.
+- **Per classe**: termine, installate, giorni medi e mediana, entro il termine e in ritardo, mancanti e oltre il termine adesso. Il numero «oltre il termine» porta all'elenco delle patch ferme di quella classe.
+- **Andamento**: due grafici delle ultime 26 settimane. «Patch installate per settimana» viene dalle date di chiusura; «Patch mancanti a fine settimana» viene da una fotografia scritta a ogni lettura WatchGuard (06:10 e 13:10), quindi parte dal giorno in cui la funzione è stata installata.
+- **Patch ferme**: patch mancanti **oltre il termine** o con l'**ultima installazione fallita** (errore di download o di installazione nel task WatchGuard), una riga per patch con i PC, il ritardo e le CVE. Filtri per classe, cosa (oltre il termine, installazione fallita o tutte e due) e testo. **Scarica CSV** ha una riga per patch e PC ed è registrato nell'audit (`soc_patch_ferme_export`).
+
+Il **tempo di installazione** è da «pubblicata il» al giorno in cui WatchGuard non segnala più la patch. Le patch sparite perché il PC è uscito da WatchGuard non contano: non sono installazioni.
+
+**Alert**: con l'interruttore «Segnala le patch oltre il termine» acceso, a ogni ciclo del SOC nasce un alert per ogni patch oltre il termine (uno per patch e termine, con i PC nel dettaglio): severità alta per KEV e critiche, media per le altre. Si chiude da solo quando la patch non manca più oltre il termine su nessun PC. Ogni apertura e chiusura va nell'audit sigillato. L'interruttore è **spento di default**: alla prima accensione ogni patch vecchia apre subito il suo alert, quindi conviene guardare prima la pagina.
+
+Gli stessi numeri sono nel **report periodico** (sezione «Patch (WatchGuard)», anche nel PDF), nel controllo **8.8** della pagina Conformità ISO 27001 e nel **pacchetto mensile** di evidenze, e nel riquadro **Patch** della scheda asset.
+
+### Patch nella scheda asset
+
+Nella scheda di un PC che WatchGuard conosce c'è il riquadro **Patch** (accanto a «Vulnerabilità»; solo per chi vede il Security Center): patch mancanti, oltre il termine, con l'installazione fallita e chiuse nell'ultimo anno con le CVE corrette. La tabella elenca le prime 10 patch mancanti con classe, data di pubblicazione e termine («entro il …» o «scaduto da N gg»); sotto, le patch chiuse nell'ultimo anno con i giorni dalla pubblicazione, le CVE e il motivo. «Storico completo di questo PC» apre Patch installate già filtrata sul PC.
+
 ### Alert e ticket automatici
 
 Quando l'inventario dice che un PC ha una versione vulnerabile di una CVE **critica** (CVSS 9 o più) o **sfruttata attivamente** (CISA KEV), il SOC apre un alert critico, senza aspettare che lo segnali Defender.

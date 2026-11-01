@@ -23,7 +23,7 @@ Gli esiti sono **prudenti**: un dato che manca non vale mai come conforme. «Dat
 | Controllo | Cosa guarda | Conforme quando | Non conforme quando |
 | --- | --- | --- | --- |
 | **5.7** Threat intelligence | Lettura «CVE: NVD, CISA KEV, EPSS» | Accesa, ultimo giro riuscito da meno di 24 ore, tutti i giri del periodo riusciti | Lettura spenta o mai riuscita |
-| **8.8** Vulnerabilità tecniche | Tempi di correzione per classe (servizio `cve_sla`), correzioni e giorni medi (pagina Vulnerabilità) | Almeno il 90% delle CVE corrette nei tempi e nessuna esposizione oltre il termine | Esposizioni scadute senza accettazione del rischio, o meno del 70% nei tempi |
+| **8.8** Vulnerabilità tecniche | Tempi di correzione per classe (servizio `cve_sla`), correzioni e giorni medi (pagina Vulnerabilità); tempi di installazione delle patch WatchGuard per classe (pagina Tempi delle patch) | Almeno il 90% delle CVE corrette nei tempi, nessuna esposizione oltre il termine e nessuna patch KEV o critica oltre il termine (altrimenti «attenzione») | Esposizioni scadute senza accettazione del rischio, o meno del 70% nei tempi |
 | **8.7** Protezione da malware | Dispositivi visti dal SOC con WatchGuard o Defender; stato della protezione WatchGuard | 100% dei dispositivi coperti, protezione attiva su tutti | Sotto il 90% di copertura |
 | **6.8** Segnalazione degli eventi | Canale di segnalazione scritto in Impostazioni › Avvisi e automatismi › «Conformità ISO 27001» | Canale definito | — (vuoto = «da definire», da guardare) |
 | **5.24** Pianificazione incidenti | Ruoli della gestione incidenti (servizio `iso_incidenti`) | Tutti i ruoli assegnati | Ruoli senza persona |

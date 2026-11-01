@@ -1774,6 +1774,29 @@ class WatchGuardPatch(models.Model):
         return [c for c in self.cve.split("|") if c]
 
 
+class WatchGuardPatchGiorno(models.Model):
+    """Fotografia giornaliera delle patch mancanti (``services/patch_sla.py``): l'andamento nel tempo.
+
+    Scritta a ogni lettura delle patch WatchGuard (l'ultima del giorno vince). Le patch chiuse per
+    settimana si ricavano da ``WatchGuardPatch.chiusa_il``; le mancanti di un giorno passato no, per
+    questo si fotografano qui.
+    """
+
+    giorno = models.DateField(unique=True)
+    mancanti = models.PositiveIntegerField(default=0)
+    pc = models.PositiveIntegerField(default=0)
+    critiche = models.PositiveIntegerField(default=0)
+    kev = models.PositiveIntegerField(default=0)
+    oltre_termine = models.PositiveIntegerField(default=0)
+    letto_il = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-giorno"]
+
+    def __str__(self):
+        return f"{self.giorno}: {self.mancanti} patch mancanti"
+
+
 class DefenderVulnerabilita(models.Model):
     """CVE che Microsoft Defender vede su un PC (``vulnerabilities/machinesVulnerabilities``).
 

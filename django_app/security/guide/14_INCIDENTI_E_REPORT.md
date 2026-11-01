@@ -85,6 +85,7 @@ Contiene:
 - alert creati, ancora aperti e **tempo medio di chiusura**;
 - **backup** riusciti, con avvisi e falliti, con l'elenco dei job falliti;
 - **CVE critiche e alte** aperte con dispositivi esposti;
+- **patch** WatchGuard installate nel periodo, tempo medio di installazione, quante entro il termine e quante oltre il termine adesso, per classe (solo se le patch WatchGuard sono lette; vedi [Tempi delle patch](/soc/docs/12-automatismi-e-vulnerabilita/#tempi-delle-patch));
 - **postura attuale** per area, con indice e giudizio (passa sopra una riga per vedere la formula);
 - alert per gravità e i più frequenti;
 - accessi VPN consentiti e negati (solo numeri, **nessun nome utente**), ticket aperti e chiusi, report elaborati;
