@@ -418,13 +418,16 @@ def watchguard_pc(request):
     from .services import patch_storico
 
     chiuse = patch_storico.conta_chiuse(30)
+    from .services import patch_sla
+
+    ferme = patch_sla.ferme()["kpi"]
     ultima = max((d.letto_il for d in dispositivi), default=None)
     attivi = {k: soc_settings.value(f"watchguard.api.{k}") for k in ("dispositivi", "software", "patch")}
     return render(request, "security/watchguard_pc.html", {
         "configurato": wg.configurato(), "attivi": attivi, "ultima": ultima,
         "gestiti": len(gestiti), "protezione": protezione, "senza_agente": senza_agente,
         "patch": patch[:150], "patch_totale": len(patch), "pc_con_patch": len({p.host for g in patch for p in g["pc"]}),
-        "kev_totale": sum(1 for g in patch if g["kev"]), "errori": errori, "chiuse": chiuse,
+        "kev_totale": sum(1 for g in patch if g["kev"]), "errori": errori, "chiuse": chiuse, "ferme": ferme,
         "can_edit": can_manage_security_config(request.user),
     })
 
@@ -466,6 +469,58 @@ def _patch_installate_csv(request, dati):
                    {"righe": len(dati["righe"]), "periodo": dati["periodo"], "motivo": dati["motivo"], "q": dati["q"]})
     except Exception:  # noqa: BLE001 - l'audit non blocca l'export
         logger.exception("Audit export patch installate non registrato")
+    return risposta
+
+
+def watchguard_patch_tempi(request):
+    """Tempi delle patch: tempo di installazione per classe, andamento settimanale, patch ferme (services/patch_sla.py)."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from datetime import date, timedelta
+
+    from .services import patch_sla, patch_storico
+
+    periodo = request.GET.get("periodo") or patch_storico.PERIODO_DEFAULT
+    periodo = periodo if periodo in patch_storico.PERIODI else patch_storico.PERIODO_DEFAULT
+    oggi = timezone.localdate()
+    giorni = patch_storico.PERIODI[periodo]
+    dal = oggi - timedelta(days=giorni - 1) if giorni else date(2000, 1, 1)
+    ferme = patch_sla.ferme(
+        oggi, classe_filtro=request.GET.get("classe") or "", stato_filtro=request.GET.get("stato") or "",
+        q=(request.GET.get("q") or "")[:100],
+    )
+    if request.GET.get("formato") == "csv":
+        return _patch_ferme_csv(request, ferme)
+    return render(request, "security/watchguard_patch_tempi.html", {
+        "t": patch_sla.tempi(dal, oggi, oggi), "f": ferme, "a": patch_sla.andamento(oggi=oggi),
+        "periodo": periodo, "periodi": list(patch_storico.PERIODI_LABEL.items()),
+        "allerta_attiva": soc_settings.value("patch.sla.attivo"), "can_edit": can_manage_security_config(request.user),
+    })
+
+
+def _patch_ferme_csv(request, ferme):
+    """Una riga per patch e PC fermi (oltre il termine o installazione fallita), con le celle protette dalle formule."""
+    from core.audit import log_action
+    from core.csv_export import csv_download_response
+
+    risposta, w = csv_download_response(f"patch-ferme-{timezone.localdate():%Y%m%d}.csv", delimiter=";")
+    w.writerow(["Patch", "Programma", "Classe", "Pubblicata il", "Termine (giorni)", "Scadenza", "PC", "Oltre il termine",
+                "Giorni di ritardo", "Ultimo esito installazione", "Esito il", "CVE corrette", "CVE sfruttate (KEV)"])
+    for g in ferme["righe"]:
+        for v in g["pc"]:
+            p = v["p"]
+            w.writerow([
+                p.nome, p.programma, v["etichetta"], p.rilasciata_il.strftime("%d/%m/%Y") if p.rilasciata_il else "",
+                v["giorni"], v["scadenza"].strftime("%d/%m/%Y") if v["scadenza"] else "", p.host_display or p.host,
+                "sì" if v["scaduta"] else "no", v["giorni_ritardo"] or "", p.esito_label,
+                timezone.localtime(p.esito_il).strftime("%d/%m/%Y %H:%M") if p.esito_il else "",
+                ", ".join(p.cve_lista), ", ".join(v["kev"]),
+            ])
+    try:
+        log_action(request, "soc_patch_ferme_export", "security",
+                   {"patch": len(ferme["righe"]), "classe": ferme["classe"], "stato": ferme["stato"], "q": ferme["q"]})
+    except Exception:  # noqa: BLE001 - l'audit non blocca l'export
+        logger.exception("Audit export patch ferme non registrato")
     return risposta
 
 

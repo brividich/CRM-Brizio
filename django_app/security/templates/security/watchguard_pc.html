@@ -22,6 +22,8 @@
 </div>
 <p class="sec-muted sec-small">{% if ultima %}Ultima lettura da WatchGuard Cloud: {{ ultima|date:"d/m/Y H:i" }}.{% else %}Nessuna lettura ancora.{% endif %} <a href="{% url 'security:letture' %}#lettura-watchguard">Storico dei giri ed «Esegui ora»</a>. Le patch si installano dalla console WatchGuard (Patch Management): qui si vede cosa manca e com'è andata. Una patch esce dall'elenco quando WatchGuard non la segnala più (installata o non più necessaria).</p>
 
+{% if ferme.patch %}<p class="sec-callout sec-callout-warning sec-small"><strong>{{ ferme.patch }} patch ferm{{ ferme.patch|pluralize:"a,e" }}</strong> su {{ ferme.pc }} PC: {{ ferme.scadute }} oltre il termine di installazione, {{ ferme.errori }} con installazione fallita. <a href="{% url 'security:watchguard_patch_tempi' %}#patch-ferme">Vedi i tempi delle patch</a></p>{% endif %}
+
 <section class="sec-panel">
   <div class="sec-section-head"><h2>Patch mancanti</h2><span class="sec-muted sec-small">prima quelle che correggono CVE sfruttate, poi per criticità e numero di PC</span></div>
   {% if patch %}

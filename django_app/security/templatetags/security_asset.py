@@ -137,3 +137,18 @@ def security_asset_vulns(context, asset):
         "software_count": installs.count(),
         "inventory_date": installs.aggregate(last=Max("last_inventory_date"))["last"],
     }
+
+
+@register.inclusion_tag("security/partials/asset_patch.html", takes_context=True)
+def security_asset_patch(context, asset):
+    """Sezione «Patch» nella pagina di un asset HUB: patch WatchGuard mancanti con il termine e installate nell'ultimo anno."""
+    request = context.get("request")
+    if not can_view_security_center(getattr(request, "user", None)) or not getattr(asset, "pk", None):
+        return {"show": False}
+    from security.models import WatchGuardPatch
+
+    if not WatchGuardPatch.objects.filter(hub_asset=asset).exists():
+        return {"show": False}
+    from security.services import patch_sla
+
+    return {"show": True, "asset": asset, **patch_sla.per_asset(asset)}

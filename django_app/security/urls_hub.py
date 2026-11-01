@@ -97,6 +97,7 @@ urlpatterns = [
     path("impostazioni/letture/<slug:codice>/esegui/", views_work.lettura_esegui, name="lettura_esegui"),
     path("dispositivi/patch/", views_work.watchguard_pc, name="watchguard_pc"),
     path("dispositivi/patch/installate/", views_work.watchguard_patch_installate, name="watchguard_patch_installate"),
+    path("dispositivi/patch/tempi/", views_work.watchguard_patch_tempi, name="watchguard_patch_tempi"),
     path("mio-lavoro/", views_work.my_work, name="my_work"),
     path("segnalazioni/", _guard(views_work.segnalazioni), name="segnalazioni"),
     path("cerca/", views_work.search, name="search"),

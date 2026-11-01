@@ -488,6 +488,30 @@ def _evaluate_cve_sla_scaduta(event):
     _mark_rule_triggered(rule)
 
 
+def _evaluate_patch_sla_scaduta(event):
+    """Patch WatchGuard mancante oltre il termine di installazione (``patch_sla``): un alert per patch e termine.
+
+    Severità alta per patch che correggono CVE sfruttate (KEV) o critiche, media per le altre. Si chiude
+    da solo quando la patch non manca più oltre il termine su nessun PC (``patch_sla.chiudi_rientrate``).
+    """
+    from security.services import patch_sla
+
+    payload = event.payload or {}
+    rule = _get_rule(patch_sla.EVENT_SLA)
+    if not soc_settings_value("patch.sla.attivo") or (rule and not rule.enabled):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Segnalazione delle patch oltre il termine spenta in /soc/impostazioni/"}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Patch mancante oltre il termine di installazione della sua classe => alert",
+        "patch": payload.get("patch"), "classe": payload.get("classe"), "pc": payload.get("pc"),
+        "scadenza": payload.get("scadenza"), "giorni_ritardo": payload.get("giorni_ritardo"),
+    }
+    _alert_da_evento(event, patch_sla.titolo_evento(payload), rule.severity if rule else event.severity, trace)
+    _mark_rule_triggered(rule)
+
+
 def _evaluate_accettazione_rischio(event):
     """Accettazione del rischio in scadenza o scaduta (``accettazione_rischio``): un alert di attenzione per fase."""
     from security.services import accettazione_rischio
@@ -1011,6 +1035,7 @@ _HANDLERS = {
     "apparato_raggiungibile": _evaluate_apparato_raggiungibile,
     "backup_repository_space": _evaluate_backup_repository_space,
     "cve_sla_scaduta": _evaluate_cve_sla_scaduta,
+    "patch_sla_scaduta": _evaluate_patch_sla_scaduta,
     "accettazione_rischio": _evaluate_accettazione_rischio,
     "backup_restore_test_failed": _evaluate_backup_restore_test_failed,
 }

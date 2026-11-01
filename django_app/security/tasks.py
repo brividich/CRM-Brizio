@@ -71,6 +71,14 @@ def _termini_correzione_cve():
     return {**accettazioni, "oltre_termine": eventi, "rientrati": chiusi}
 
 
+def _termini_patch():
+    """Patch WatchGuard oltre il termine di installazione (``patch_sla``): eventi nuovi e alert rientrati."""
+    from security.services import patch_sla
+
+    eventi, chiusi = patch_sla.segnala_scadute()
+    return {"oltre_termine": eventi, "rientrati": chiusi}
+
+
 def _iso_incidenti():
     """ISO 27001 5.28: sigilla (SHA-256) i contenitori di evidenze ancora senza impronta."""
     from security.services.iso_incidenti import ciclo
@@ -201,6 +209,7 @@ def run_security_cycle_task():
         ("rules", evaluate_security_rules),
         ("heartbeat", lambda: len(evaluate_source_heartbeat())),
         ("termini_cve", _termini_correzione_cve),
+        ("termini_patch", _termini_patch),
         ("rules_after_heartbeat", evaluate_security_rules),
         ("kpis", build_daily_kpi_snapshots),
         ("rientri", _periodic_recoveries),

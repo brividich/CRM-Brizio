@@ -161,6 +161,16 @@ def _vulnerability_section(since, until):
     }
 
 
+def _patch_section(start, end):
+    """Patch WatchGuard installate nel periodo e tempi per classe (``patch_sla.tempi``); ``None`` senza patch lette."""
+    from security.models import WatchGuardPatch
+    from security.services import patch_sla
+
+    if not WatchGuardPatch.objects.exists():
+        return None
+    return patch_sla.tempi(start, end)
+
+
 def _vpn_section(since, until):
     accesses = SecurityVpnAccess.objects.filter(login_at__gte=since, login_at__lt=until).filter(Q(kind="vpn") | Q(kind=""))
     agg = accesses.aggregate(
@@ -231,6 +241,7 @@ def build_report(start: date, end: date, label: str = "", now=None):
         "alerts": _alerts_section(since, until),
         "backup": _backup_section(since, until),
         "vulnerabilities": _vulnerability_section(since, until),
+        "patch": _patch_section(start, end),
         "vpn": _vpn_section(since, until),
         "tickets": _tickets_section(since, until),
         "incidents": _incidents_section(since, until, now),
