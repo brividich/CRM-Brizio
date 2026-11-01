@@ -77,6 +77,7 @@ MENU = [
         ("Elenco", "pc_copertura", ("pc_copertura", "pc_detail", "assets"), False),
         ("Backup", "backup", ("backup", "backup_device", "backup_log", "backup_ripristini"), False),
         ("Patch e protezione", "watchguard_pc", ("watchguard_pc",), False),
+        ("Patch installate", "watchguard_patch_installate", ("watchguard_patch_installate",), False),
         ("Rete (IP)", "rete_indirizzi", ("rete_indirizzi",), False),
         ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),
         ("Correzioni CVE", "cve_correzioni", ("cve_correzioni",), False),
