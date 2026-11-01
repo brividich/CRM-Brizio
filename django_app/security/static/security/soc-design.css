@@ -221,6 +221,9 @@ body.theme-dark .soc-module .soc-kind.kind-incident { color: #fca5a5; }
 .soc-module .wgp-stat strong { font-size: 24px; line-height: 1.1; }
 .soc-module .wgp-stat span { font-weight: 600; font-size: 13px; }
 .soc-module .wgp-stat small { color: var(--text-light); font-size: 12px; }
+.soc-module a.wgp-stat { color: inherit; text-decoration: none; }
+.soc-module a.wgp-stat:hover { border-color: var(--text-light); }
+.soc-module .wgp-cve-cell { white-space: normal; max-width: 260px; line-height: 1.5; }
 .soc-module .wgp-stat.is-danger strong { color: var(--danger); }
 .soc-module .wgp-stat.is-warn strong { color: #b7791f; }
 .soc-module .wgp-stat.is-ok strong { color: var(--success); }

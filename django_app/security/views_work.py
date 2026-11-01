@@ -1,4 +1,5 @@
 """Impostazioni avvisi, «Il mio lavoro», ricerca unica e scheda PC del SOC."""
+import logging
 from urllib.parse import quote, urlencode
 
 from django.contrib import messages
@@ -23,6 +24,8 @@ from .permissions import can_view_security_center
 from .services import soc_settings
 from .services.configuration import can_configure_soc, can_manage_security_config
 from .templatetags.security_i18n import ui_label
+
+logger = logging.getLogger(__name__)
 
 
 def _denied(request):
@@ -412,7 +415,9 @@ def watchguard_pc(request):
         g["cve"] = sorted(g["cve"])
     errori = list(WatchGuardPatch.objects.filter(esito__in=WatchGuardPatch.ESITI_ERRORE, esito_il__gte=now - timedelta(days=14))
                   .select_related("hub_asset").order_by("-esito_il")[:50])
-    chiuse = WatchGuardPatch.objects.filter(presente=False, chiusa_il__gte=now - timedelta(days=30)).count()
+    from .services import patch_storico
+
+    chiuse = patch_storico.conta_chiuse(30)
     ultima = max((d.letto_il for d in dispositivi), default=None)
     attivi = {k: soc_settings.value(f"watchguard.api.{k}") for k in ("dispositivi", "software", "patch")}
     return render(request, "security/watchguard_pc.html", {
@@ -422,6 +427,46 @@ def watchguard_pc(request):
         "kev_totale": sum(1 for g in patch if g["kev"]), "errori": errori, "chiuse": chiuse,
         "can_edit": can_manage_security_config(request.user),
     })
+
+
+def watchguard_patch_installate(request):
+    """Storico delle patch chiuse: PC, patch, CVE corrette e perché risultano chiuse (services/patch_storico.py)."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from .services import patch_storico
+
+    dati = patch_storico.installate(
+        periodo=request.GET.get("periodo") or patch_storico.PERIODO_DEFAULT,
+        motivo_filtro=request.GET.get("motivo") or "",
+        q=(request.GET.get("q") or "")[:100],
+    )
+    if request.GET.get("formato") == "csv":
+        return _patch_installate_csv(request, dati)
+    return render(request, "security/watchguard_patch_installate.html", {"d": dati})
+
+
+def _patch_installate_csv(request, dati):
+    """Tutte le righe del filtro (non solo quelle mostrate), con le celle protette dalle formule."""
+    from core.audit import log_action
+    from core.csv_export import csv_download_response
+
+    risposta, w = csv_download_response(f"patch-installate-{timezone.localdate():%Y%m%d}.csv", delimiter=";")
+    w.writerow(["Chiusa il", "PC", "Patch", "Programma", "Versione", "Produttore", "Criticità", "Pubblicata il",
+                "Motivo", "Esito installazione", "Esito il", "CVE corrette", "CVE sfruttate (KEV)"])
+    for x in dati["righe"]:
+        p = x["p"]
+        w.writerow([
+            timezone.localtime(p.chiusa_il).strftime("%d/%m/%Y %H:%M"), p.host_display or p.host, p.nome, p.programma,
+            p.versione, p.produttore, p.criticita_label, p.rilasciata_il.strftime("%d/%m/%Y") if p.rilasciata_il else "",
+            x["motivo_label"], p.esito_label, timezone.localtime(p.esito_il).strftime("%d/%m/%Y %H:%M") if p.esito_il else "",
+            ", ".join(x["cve"]), ", ".join(x["kev"]),
+        ])
+    try:
+        log_action(request, "soc_patch_installate_export", "security",
+                   {"righe": len(dati["righe"]), "periodo": dati["periodo"], "motivo": dati["motivo"], "q": dati["q"]})
+    except Exception:  # noqa: BLE001 - l'audit non blocca l'export
+        logger.exception("Audit export patch installate non registrato")
+    return risposta
 
 
 # --- Letture automatiche: stato, storico, «Esegui ora» --------------------------------------
