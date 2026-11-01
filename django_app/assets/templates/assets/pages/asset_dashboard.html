@@ -146,6 +146,7 @@
 .ad-cat-count { font-size:var(--fs-2xs); font-weight:800; padding:0 6px; border-radius:999px; background:rgba(148,163,184,.2); line-height:1.7; }
 .ad-cat.all .ad-cat-count { background:rgba(255,255,255,.2); }
 details.ad-cats-more { display:contents; }
+details.ad-cats-more:not([open]) > :not(summary) { display:none; }
 details.ad-cats-more > summary { list-style:none; cursor:pointer; display:inline-flex; align-items:center; padding:4px 11px; border-radius:8px;
   border:1px dashed var(--border); color:#1d4ed8; font-size:var(--fs-sm); font-weight:800; }
 details.ad-cats-more > summary::-webkit-details-marker { display:none; }

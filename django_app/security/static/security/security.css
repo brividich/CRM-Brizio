@@ -923,3 +923,8 @@ body.theme-dark .soc-module .sec-btn-link:hover{color:#93c5fd}
 .soc-module .soc-subnav a { flex: 0 0 auto; padding: 6px 11px; border-radius: 8px 8px 0 0; color: var(--text-mid); font-size: var(--fs-sm, 13px); font-weight: 600; text-decoration: none; white-space: nowrap; border-bottom: 2px solid transparent; }
 .soc-module .soc-subnav a:hover { color: var(--text); background: var(--hover-bg, rgba(0, 43, 92, 0.06)); }
 .soc-module .soc-subnav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Documentazione SOC su telefono: indice sopra, testo sotto (la regola base sta dopo i media) */
+@media (max-width: 820px) {
+  .soc-module .sec-doc-layout { grid-template-columns: minmax(0, 1fr); }
+}

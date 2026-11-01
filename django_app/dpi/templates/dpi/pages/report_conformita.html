@@ -53,6 +53,12 @@ body.theme-dark .dpi-summary-neutral{background:var(--surface-alt,#0f1b2d);color
 body.theme-dark .dpi-status-ok{color:#86efac}
 body.theme-dark .dpi-status-scaduto{color:#fcd34d}
 body.theme-dark .dpi-status-mancante{color:#fca5a5}
+/* Telefono: colonne una sotto l'altra, schede meno imbottite */
+@media (max-width:720px) {
+  .dpi-grid, .dpi-grid-2, .dpi-filters { grid-template-columns:minmax(0,1fr)!important; }
+  .dpi-grid > *, .dpi-grid-2 > * { min-width:0; }
+  .dpi-card { padding:16px; }
+}
 </style>
 {% endblock %}
 

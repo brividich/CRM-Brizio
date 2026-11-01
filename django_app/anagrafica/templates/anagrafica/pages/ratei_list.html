@@ -102,6 +102,8 @@ body.theme-dark .rl-kpi.amber{background:rgba(214,158,46,.16);color:#fdba74}
   /* Telefono: ogni filtro a tutta larghezza, i campi del saldo si stringono. */
   .rl-filter-bar > div { flex:1 1 100%; min-width:0; }
   .rl-filter-bar .rl-filter-input { min-width:0; max-width:100%; }
+  .rl-filter-bar > div > .rl-filter-input, #rl-rep-select { width:100%; }
+  .rl-filter-bar select[name=saldo_op] { flex:0 0 64px!important; }
 }
 </style>
 {% endblock %}

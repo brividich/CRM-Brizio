@@ -226,3 +226,10 @@ body.theme-dark .rcr-tab-link{color:#93c5fd}
 body.theme-dark .rcr-card-sub{color:var(--text-light)}
 body.theme-dark .rcr-card-score{color:#93c5fd}
 body.theme-dark a.rcr-card-name:hover{color:#93c5fd}
+
+/* ── Telefono: criterio sopra, punteggio sotto; pulsanti che vanno a capo ── */
+@media (max-width: 720px) {
+  .rcr-crit-row { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .rcr-scale { flex-wrap: wrap; }
+  .rcr-actions { flex-wrap: wrap; }
+}

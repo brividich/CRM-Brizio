@@ -124,6 +124,12 @@ body.theme-dark .dpi-empty strong { color:var(--text-mid); }
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .dpi-hero-count{background:rgba(255,255,255,.06)}
 body.theme-dark .dpi-btn-gray:hover{background:var(--surface-alt,#0f1b2d)}
+/* Telefono: colonne una sotto l'altra, schede meno imbottite */
+@media (max-width:720px) {
+  .dpi-grid, .dpi-grid-2, .dpi-filters { grid-template-columns:minmax(0,1fr)!important; }
+  .dpi-grid > *, .dpi-grid-2 > * { min-width:0; }
+  .dpi-card { padding:16px; }
+}
 </style>
 {% endblock %}
 

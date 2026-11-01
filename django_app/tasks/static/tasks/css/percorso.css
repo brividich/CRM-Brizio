@@ -131,13 +131,16 @@
 
 /* ── Responsive: rail orizzontale in cima ────────────────────────────── */
 @media (max-width: 760px) {
-  .kp-layout { grid-template-columns: 1fr; }
+  .kp-layout { grid-template-columns: minmax(0, 1fr); }
+  .kp-layout > * { min-width: 0; }
   .kp-rail { position: static; }
   .kp-rail-title, .kp-progress { display: none; }
   .kp-rail-nodes { flex-direction: row; overflow-x: auto; gap: 16px; padding-bottom: 8px; }
   .kp-node { grid-template-columns: auto auto; padding-bottom: 0; white-space: nowrap; }
   .kp-node:not(:last-child)::before { display: none; }
-  .kp-grid { grid-template-columns: 1fr; }
+  .kp-grid { grid-template-columns: minmax(0, 1fr); }
+  /* i campi «larghi» non devono creare colonne implicite su una griglia a una colonna */
+  .kp-field.col-2, .kp-field.col-3 { grid-column: 1 / -1; }
 }
 
 /* ===========================================================================
