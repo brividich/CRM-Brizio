@@ -381,6 +381,12 @@ def sincronizza_patch(now=None, *, righe: list[dict] | None = None) -> dict:
         })
         visti.add(obj.pk)
     chiuse = WatchGuardPatch.objects.filter(presente=True).exclude(pk__in=visti).update(presente=False, chiusa_il=now)
+    try:
+        from security.services.patch_sla import registra_giorno
+
+        registra_giorno(now)
+    except Exception:  # noqa: BLE001 - la fotografia dell'andamento non blocca la lettura
+        logger.exception("WatchGuard patch: fotografia giornaliera non scritta")
     return {"patch": len(visti), "chiuse": chiuse}
 
 

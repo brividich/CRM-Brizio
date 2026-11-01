@@ -168,6 +168,23 @@ SECTIONS = [
         ],
     },
     {
+        "code": "patch_termini",
+        "title": "Patch: tempi di installazione (ISO 27001 8.8)",
+        "intro": "Ogni patch che WatchGuard segnala mancante su un PC ha un termine che parte da «pubblicata il» e dipende dalla "
+                 "classe: corregge una CVE sfruttata (CISA KEV), critica, importante, moderata e altre (criticità di WatchGuard). "
+                 "Le patch oltre il termine o con l'installazione fallita sono in Dispositivi › Tempi delle patch. Con la "
+                 "segnalazione accesa nasce un alert per patch e termine, che si chiude da solo quando la patch non manca più.",
+        "channels_optional": True,
+        "options": [
+            Option("patch.sla.attivo", False, "Segnala le patch oltre il termine (un alert per patch)",
+                   "Spento di default: alla prima accensione le patch vecchie aprono subito un alert ciascuna. Guardare prima la pagina Tempi delle patch."),
+            Option("patch.sla.kev_giorni", 7, "Corregge una CVE sfruttata (CISA KEV)", "Giorni da «pubblicata il».", "int", min_value=1, max_value=365, unit="giorni"),
+            Option("patch.sla.critica_giorni", 14, "Critica", "", "int", min_value=1, max_value=365, unit="giorni"),
+            Option("patch.sla.importante_giorni", 30, "Importante", "", "int", min_value=1, max_value=365, unit="giorni"),
+            Option("patch.sla.altre_giorni", 90, "Moderata, bassa e altre", "", "int", min_value=1, max_value=365, unit="giorni"),
+        ],
+    },
+    {
         "code": "software_conformita",
         "title": "Software non conforme",
         "intro": "Confronta l'inventario software con le decisioni del Catalogo software (modulo Asset): un alert per prodotto quando "

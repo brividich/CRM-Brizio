@@ -198,7 +198,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
     {
         "nome": "WatchGuard Cloud (API Endpoint Security)",
         "cosa": "Lettura dei PC con agente (protezione, ultima connessione, MAC), dei dispositivi in rete senza agente, del software installato e delle patch mancanti con l'esito dei task di installazione. Sola lettura.",
-        "chi": "Security Center → Dispositivi › Patch e protezione, inventario software (fonte WatchGuard), pannello CVE, riga «Visto da» della scheda asset. Tabelle security_watchguarddispositivo, security_watchguardpatch.",
+        "chi": "Security Center → Dispositivi › Patch e protezione, Patch installate, Tempi delle patch; inventario software (fonte WatchGuard), pannello CVE, riga «Visto da» e riquadro «Patch» della scheda asset. Tabelle security_watchguarddispositivo, security_watchguardpatch, security_watchguardpatchgiorno (fotografia giornaliera delle patch mancanti).",
         "config": "SOC › Impostazioni › «Credenziali API WatchGuard» (URL API della regione, ID account, Access ID, password, API Key da Managed Access; cifrate nel database) e interruttori «WatchGuard Endpoint Security (API)».",
         "controllo": "«Prova la connessione» nelle Impostazioni o manage.py soc_api_sync --prova; esito del task watchguard_api_sync.",
     },
