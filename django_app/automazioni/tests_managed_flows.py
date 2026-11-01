@@ -78,6 +78,24 @@ class ManagedFlowsTests(TestCase):
         self.assertEqual(self.binding.minutes, 7)
         self.assertEqual(Schedule.objects.get(name=self.binding.code).minutes, 7)
 
+    def test_designer_card_shows_current_cadence_and_code_description(self):
+        # La descrizione salvata sulla regola all'installazione resta ferma: la scheda
+        # deve mostrare quella del codice e la cadenza effettiva del flusso.
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+        binding = ManagedFlow.objects.select_related("rule").get(code="contatori_letture_mensili")
+        AutomationRule.objects.filter(pk=binding.rule_id).update(description="snapshot alle 08:00 (copia vecchia)")
+        binding.schedule_type, binding.cron = "C", "0 0 1 * *"
+        binding.save()
+        admin = get_user_model().objects.create_superuser("flow_card", "card@example.com", "synthetic")
+        self.client.force_login(admin)
+        response = self.client.get(reverse("admin_portale:automazioni_rule_designer", args=[binding.rule_id]))
+        self.assertContains(response, "alle 00:00 (fuso del portale)")
+        # La copia salvata resta modificabile nel modulo della regola più in basso, non nella scheda.
+        self.assertNotContains(response, '<p class="mf-desc">snapshot alle 08:00')
+        self.assertContains(response, "Prossima esecuzione")
+        self.assertContains(response, 'data-mf-type="C"')
+
     def setUp(self):
         install_flows()
         self.binding = ManagedFlow.objects.select_related("rule").get(code="automation_queue")

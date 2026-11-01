@@ -31,6 +31,31 @@
   .designer-meta-value { margin-top:6px; color:#0f172a; font-size:15px; word-break:break-word; }
   .designer-sections { display:grid; gap:18px; }
   .designer-section-card { border:1px solid #e2e8f0; border-radius:18px; background:#fff; overflow:hidden; }
+  /* Scheda «flusso gestito» (pianificati ed eventi applicativi) */
+  .mf-card { margin-bottom:18px; padding:20px 22px; display:grid; gap:14px; }
+  .mf-head { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:12px; }
+  .mf-kicker { font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#64748b; }
+  .mf-title { margin:2px 0 0; font-size:20px; line-height:1.25; }
+  .mf-head-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .mf-pill { margin:0; }
+  .mf-summary { display:flex; flex-wrap:wrap; gap:10px; margin:0; }
+  .mf-summary > div { flex:1 1 220px; padding:10px 14px; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc; }
+  .mf-summary dt { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .mf-summary dd { margin:2px 0 0; font-size:15px; font-weight:700; color:#0f172a; }
+  .mf-desc { margin:0; font-size:13px; line-height:1.5; color:#334155; max-width:90ch; }
+  .mf-fields { display:flex; flex-wrap:wrap; align-items:flex-start; gap:12px 16px; }
+  .mf-field { display:grid; gap:4px; flex:0 1 200px; min-width:0; }
+  .mf-field--wide { flex:1 1 320px; max-width:460px; }
+  .mf-field[hidden] { display:none; }
+  .mf-field input, .mf-field select { width:100%; box-sizing:border-box; }
+  .mf-field input[name=cron] { font-family:ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:.04em; }
+  .mf-label { font-size:12px; font-weight:700; color:#334155; }
+  .mf-help { font-size:12px; line-height:1.4; color:#64748b; }
+  .mf-help code { white-space:nowrap; }
+  .mf-error { font-size:12px; font-weight:700; color:#b91c1c; }
+  .mf-submit { align-self:flex-start; padding-top:20px; }
+  .mf-note { margin:0; font-size:12px; line-height:1.45; color:#64748b; max-width:90ch; }
+  @media (max-width:640px) { .mf-card { padding:16px; } .mf-field, .mf-field--wide { flex:1 1 100%; max-width:none; } .mf-submit { padding-top:0; width:100%; } .mf-submit .btn { width:100%; } }
   .designer-section-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; padding:18px 18px 0; }
   .designer-section-title { font-size:18px; font-weight:800; color:#0f172a; }
   .designer-section-subtitle { margin-top:4px; color:#475569; font-size:13px; max-width:760px; }
@@ -456,6 +481,10 @@ body.theme-dark .designer-meta-card { background:var(--surface); border-color:va
 body.theme-dark .designer-meta-label { color:var(--text-light); }
 body.theme-dark .designer-meta-value { color:var(--text); }
 body.theme-dark .designer-section-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .mf-kicker, body.theme-dark .mf-summary dt, body.theme-dark .mf-help, body.theme-dark .mf-note { color:var(--text-light); }
+body.theme-dark .mf-summary > div { background:var(--surface-alt,#0f1b2d); border-color:var(--border); }
+body.theme-dark .mf-summary dd, body.theme-dark .mf-desc, body.theme-dark .mf-label { color:var(--text); }
+body.theme-dark .mf-error { color:#fca5a5; }
 body.theme-dark .designer-section-title { color:var(--text); }
 body.theme-dark .designer-section-subtitle { color:var(--text-mid); }
 body.theme-dark .designer-field label { color:var(--text-mid); }
@@ -638,20 +667,71 @@ body.theme-dark .flow-branch-pill--false{background:rgba(214,158,46,.16);color:#
 
 {% block content %}
 {% if managed_binding %}
-  <section class="designer-section-card managed-flow-settings" style="margin-bottom:18px;padding:18px;">
-  <h2>{{ managed_binding.get_kind_display }} · {{ rule.name }}</h2>
-  <p>{{ rule.description }}</p>
-  <p>Gestisci condizioni e azioni nel flusso. L'azione «Esegui processo del modulo» mantiene le regole operative del modulo e può essere disattivata o sostituita.</p>
-  {% if managed_schedule_form %}
-    <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}" style="display:grid;gap:12px;max-width:640px;">
-    {% csrf_token %}<input type="hidden" name="name" value="{{ managed_binding.code }}"><input type="hidden" name="action" value="save_schedule">
-    {{ managed_schedule_form.as_p }}
-    <button type="submit" class="btn btn-primary">Salva pianificazione</button>
-  </form>
-    <p><a href="{% url 'admin_portale:automazioni_pianificati' %}">Pianificazioni e impostazioni messaggi</a></p>
-  {% else %}<p>Il flusso parte quando il modulo emette l'evento, senza modificare il salvataggio dei dati aziendali.</p>{% endif %}
-  <a href="{% url 'admin_portale:automazioni_run_log_list' %}?rule={{ rule.id }}">Storico esecuzioni</a>
-</section>
+  <section class="designer-section-card mf-card">
+    <header class="mf-head">
+      <div class="mf-head-text">
+        <div class="mf-kicker">{{ managed_binding.get_kind_display }} · flusso gestito</div>
+        <h2 class="mf-title">{{ rule.name|capfirst }}</h2>
+      </div>
+      <div class="mf-head-actions">
+        {% if managed_info.active %}<span class="flow-pill flow-pill-green mf-pill">Attivo</span>{% else %}<span class="flow-pill flow-pill-red mf-pill">Disattivato</span>{% endif %}
+        <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:automazioni_run_log_list' %}?rule={{ rule.id }}">Storico esecuzioni</a>
+        {% if managed_schedule_form %}<a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:automazioni_pianificati' %}">Tutte le pianificazioni</a>{% endif %}
+      </div>
+    </header>
+
+    {% if managed_schedule_form %}
+      <dl class="mf-summary">
+        <div><dt>Quando</dt><dd>{{ managed_info.cadence|capfirst }}</dd></div>
+        <div><dt>Prossima esecuzione</dt><dd>{% if managed_info.next_run %}{{ managed_info.next_run|date:"d/m/Y H:i" }}{% elif managed_info.active %}in attesa del pianificatore{% else %}nessuna, flusso disattivato{% endif %}</dd></div>
+      </dl>
+    {% endif %}
+
+    {% if managed_info.description %}<p class="mf-desc">{{ managed_info.description }}</p>{% endif %}
+
+    {% if managed_schedule_form %}
+      {% with f=managed_schedule_form %}
+      <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}" class="mf-form" id="mf-schedule-form">
+        {% csrf_token %}<input type="hidden" name="name" value="{{ managed_binding.code }}"><input type="hidden" name="action" value="save_schedule">
+        <div class="mf-fields">
+          <label class="mf-field">
+            <span class="mf-label">{{ f.schedule_type.label }}</span>
+            {{ f.schedule_type }}
+          </label>
+          <label class="mf-field" data-mf-type="I">
+            <span class="mf-label">{{ f.minutes.label }}</span>
+            {{ f.minutes }}
+            {% for e in f.minutes.errors %}<span class="mf-error">{{ e }}</span>{% endfor %}
+          </label>
+          <label class="mf-field mf-field--wide" data-mf-type="C">
+            <span class="mf-label">Calendario</span>
+            {{ f.cron }}
+            <span class="mf-help">Cinque campi: minuto, ora, giorno, mese, giorno della settimana. Esempio <code>0 7 * * 1-5</code> = alle 07:00 dal lunedì al venerdì. Fuso del portale.</span>
+            {% for e in f.cron.errors %}<span class="mf-error">{{ e }}</span>{% endfor %}
+          </label>
+          <div class="mf-submit"><button type="submit" class="btn btn-primary">Salva pianificazione</button></div>
+        </div>
+      </form>
+      {% endwith %}
+    {% else %}
+      <p class="mf-note">Il flusso parte quando il modulo emette l'evento, senza modificare il salvataggio dei dati aziendali.</p>
+    {% endif %}
+    <p class="mf-note">Condizioni e azioni si modificano nel designer qui sotto. L'azione «Esegui processo del modulo» applica le regole operative del modulo e può essere disattivata o sostituita.</p>
+  </section>
+  <script>
+  (function () {
+    var form = document.getElementById("mf-schedule-form");
+    if (!form) return;
+    var select = form.querySelector("[name=schedule_type]");
+    function sync() {
+      form.querySelectorAll("[data-mf-type]").forEach(function (el) {
+        el.hidden = el.getAttribute("data-mf-type") !== select.value;
+      });
+    }
+    select.addEventListener("change", sync);
+    sync();
+  })();
+  </script>
 {% endif %}
   {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Designer visuale" page_subtitle="Vista affiancata al builder classico per leggere e modificare la regola in modo piu' chiaro." %}
   {% include "automazioni/components/toasts.html" %}

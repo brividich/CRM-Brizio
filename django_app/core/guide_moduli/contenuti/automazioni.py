@@ -51,6 +51,13 @@ GUIDA = {
                 ("p", "«Pianificati» elenca i lavori che girano a orari fissi (sincronizzazioni, promemoria, pulizie): si accendono, "
                       "si spengono e per quelli con mail si configura il testo. Lo stato di salute di ognuno è in "
                       "Amministrazione → Monitoring → «Salute degli schedule»."),
+                ("p", "«Apri flusso» porta alla scheda del lavoro in cima al designer: stato (Attivo o Disattivato), "
+                      "«Quando» (la cadenza in parole), «Prossima esecuzione» e la descrizione aggiornata dal codice. "
+                      "Per cambiare l'orario scegli la Ricorrenza: «Ogni N minuti» chiede l'intervallo, «Calendario» "
+                      "chiede i cinque campi minuto, ora, giorno, mese, giorno della settimana (es. 0 0 1 * * = il giorno 1 "
+                      "del mese alle 00:00, fuso del portale), poi «Salva pianificazione»: vale subito, senza riavvii."),
+                ("nota", "L'orario di un lavoro già installato resta quello salvato nel flusso: se cambia nel codice "
+                         "di una nuova versione, va aggiornato qui a mano."),
                 ("nota", "Tutte le automazioni e i lavori pianificati girano nel servizio «qcluster» sul server. Se è fermo, "
                          "non parte niente: vedi il Manuale di emergenza."),
             ],
