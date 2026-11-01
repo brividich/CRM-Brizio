@@ -88,6 +88,9 @@ GUIDA = {
                 ("p", "Dispositivi › «Patch e protezione»: patch mancanti per PC lette da WatchGuard (prima quelle che correggono CVE "
                       "sfruttate), installazioni non riuscite, PC con la protezione da sistemare e dispositivi in rete senza agente. "
                       "Le patch si installano dalla console WatchGuard; il pannello CVE dice su quali PC la patch è pronta."),
+                ("p", "Dispositivi › «Patch installate»: lo storico delle patch chiuse, con PC, CVE corrette e motivo "
+                      "(«Installata» se lo dice un task WatchGuard, «Non più segnalata da WatchGuard», «PC non più in WatchGuard»). "
+                      "Filtri per periodo, motivo e testo; «Scarica CSV» esporta tutte le righe del filtro."),
             ],
         },
         {

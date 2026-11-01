@@ -18,7 +18,7 @@
   <div class="wgp-stat{% if kev_totale %} is-danger{% endif %}"><strong>{{ kev_totale }}</strong><span>correggono CVE sfruttate</span><small>CISA KEV: da installare per prime</small></div>
   <div class="wgp-stat{% if protezione %} is-danger{% endif %}"><strong>{{ protezione|length }}</strong><span>PC con la protezione da sistemare</span><small>su {{ gestiti }} con agente</small></div>
   <div class="wgp-stat{% if senza_agente %} is-warn{% endif %}"><strong>{{ senza_agente|length }}</strong><span>in rete senza agente</span><small>trovati dalle sonde WatchGuard</small></div>
-  <div class="wgp-stat is-ok"><strong>{{ chiuse }}</strong><span>patch chiuse</span><small>negli ultimi 30 giorni</small></div>
+  <a class="wgp-stat is-ok" href="{% url 'security:watchguard_patch_installate' %}?periodo=30"><strong>{{ chiuse }}</strong><span>patch chiuse</span><small>negli ultimi 30 giorni · storico</small></a>
 </div>
 <p class="sec-muted sec-small">{% if ultima %}Ultima lettura da WatchGuard Cloud: {{ ultima|date:"d/m/Y H:i" }}.{% else %}Nessuna lettura ancora.{% endif %} <a href="{% url 'security:letture' %}#lettura-watchguard">Storico dei giri ed «Esegui ora»</a>. Le patch si installano dalla console WatchGuard (Patch Management): qui si vede cosa manca e com'è andata. Una patch esce dall'elenco quando WatchGuard non la segnala più (installata o non più necessaria).</p>
 

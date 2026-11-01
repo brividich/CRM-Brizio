@@ -310,6 +310,18 @@ La lettura del **software** sostituisce l'export WatchGuard caricato a mano: ent
 
 Nella scheda asset la riga **Visto da** usa questi dati: «WatchGuard · protezione attiva · 3 patch mancanti», rosso se la protezione non va o se il PC è in rete senza agente.
 
+### Patch installate
+
+Pagina **Dispositivi › Patch installate** (anche dal riquadro «patch chiuse» di Patch e protezione): lo storico delle patch WatchGuard che non sono più mancanti, la più recente in cima. Per ogni riga: quando si è chiusa, PC, patch e programma, criticità, le **CVE che ha corretto** (con «CVE sfruttata» se è nel catalogo CISA KEV) e il **motivo**:
+
+- **Installata (esito del task WatchGuard)**: un task di installazione di Patch Management ha registrato «Installata» o «Era già installata». È la prova più forte.
+- **Non più segnalata da WatchGuard**: il PC c'è ancora ma WatchGuard non segnala più la patch, senza un esito di installazione: installata da Windows Update o dall'utente, oppure sostituita da una patch più recente.
+- **PC non più in WatchGuard**: il PC è uscito dai dispositivi WatchGuard; la patch è sparita con lui. Non dice che sia stata installata.
+
+Filtri: periodo (30, 90 giorni, un anno, tutto), motivo, ricerca per PC, patch, programma o CVE. In cima: patch chiuse, PC, CVE corrette, quante sfruttate (KEV), quante critiche e il conteggio per motivo. La tabella mostra le prime 500 righe e lo dice; **Scarica CSV** contiene tutte le righe del filtro ed è registrato nell'audit. Lo storico parte dalla prima lettura delle patch: una patch che ricompare (per esempio dopo una disinstallazione) torna fra le mancanti ed esce dallo storico.
+
+Per sapere se la CVE è davvero chiusa sul PC conta la pagina **Correzioni CVE**, che guarda la versione del programma nell'inventario: la patch chiusa è il «perché», la correzione CVE è la verifica.
+
 ### Alert e ticket automatici
 
 Quando l'inventario dice che un PC ha una versione vulnerabile di una CVE **critica** (CVSS 9 o più) o **sfruttata attivamente** (CISA KEV), il SOC apre un alert critico, senza aspettare che lo segnali Defender.

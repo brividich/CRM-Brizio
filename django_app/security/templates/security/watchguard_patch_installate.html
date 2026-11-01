@@ -1,0 +1,72 @@
+{% extends "security/_base_soc.html" %}
+{# Storico delle patch WatchGuard chiuse (services/patch_storico.py). Sola lettura. #}
+
+{% block title %}Patch installate | Security Center AI{% endblock %}
+{% block page_marker %}Dispositivi{% endblock %}
+{% block page_title %}Patch installate: lo storico{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <p class="sec-small">
+    Le patch che WatchGuard non segnala più come mancanti, la più recente in cima, con le CVE che correggono.
+    Il <strong>motivo</strong> dice quanto è sicura la chiusura: «Installata» viene da un task di installazione WatchGuard; «Non più segnalata» vuol dire
+    installata fuori da WatchGuard (Windows Update, a mano) o sostituita da una patch più recente; «PC non più in WatchGuard» non è un'installazione.
+    La verifica sulla versione del programma è in <a href="{% url 'security:cve_correzioni' %}">Correzioni CVE</a>.
+    <a href="{% url 'security:watchguard_pc' %}">Torna alle patch mancanti</a>
+  </p>
+  <div class="sec-fact-grid">
+    <div class="sec-fact"><span>Patch chiuse</span><strong>{{ d.kpi.patch }}</strong> <small class="sec-muted">su {{ d.kpi.pc }} PC</small></div>
+    <div class="sec-fact"><span>CVE corrette dalle patch</span><strong>{{ d.kpi.cve }}</strong> <small class="sec-muted">{{ d.kpi.kev }} sfruttat{{ d.kpi.kev|pluralize:"a,e" }} (KEV)</small></div>
+    <div class="sec-fact"><span>Patch critiche</span><strong>{{ d.kpi.critiche }}</strong></div>
+    <div class="sec-fact"><span>Installate (esito WatchGuard)</span><strong>{{ d.kpi.confermata }}</strong></div>
+    <div class="sec-fact"><span>Non più segnalate</span><strong>{{ d.kpi.non_segnalata }}</strong></div>
+    <div class="sec-fact"><span>PC non più in WatchGuard</span><strong>{{ d.kpi.pc_uscito }}</strong></div>
+  </div>
+  <form class="sec-filter-bar" method="get" style="margin-top: 10px;">
+    <label>Periodo
+      <select name="periodo">{% for k, v in d.periodi %}<option value="{{ k }}" {% if d.periodo == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    </label>
+    <label>Motivo
+      <select name="motivo">{% for k, v in d.motivi_scelte %}<option value="{{ k }}" {% if d.motivo == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select>
+    </label>
+    <label>Cerca <input type="search" name="q" value="{{ d.q }}" placeholder="PC, patch, programma o CVE"></label>
+    <button class="sec-button-primary" type="submit">Filtra</button>
+    <a class="sec-button" href="{% url 'security:watchguard_patch_installate' %}">Reimposta</a>
+    <a class="sec-button" href="?periodo={{ d.periodo }}&amp;motivo={{ d.motivo }}&amp;q={{ d.q|urlencode }}&amp;formato=csv">Scarica CSV</a>
+  </form>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Patch chiuse</h2>
+    {% if d.righe|length > d.righe_mostrate|length %}<span class="sec-muted sec-small">mostrate le prime {{ d.righe_max }} di {{ d.righe|length }}: il CSV le contiene tutte</span>{% endif %}
+  </div>
+  {% if d.righe_mostrate %}
+  <div class="sec-table-wrap">
+    <table class="sec-table" data-preview-scope>
+      <thead><tr><th>Chiusa il</th><th>PC</th><th>Patch</th><th>Criticità</th><th>CVE corrette</th><th>Motivo</th></tr></thead>
+      <tbody>
+      {% for x in d.righe_mostrate %}
+        <tr>
+          <td class="sec-nowrap" data-sort-value="{{ x.p.chiusa_il|date:'Y-m-d H:i' }}">{{ x.p.chiusa_il|date:"d/m/Y H:i" }}</td>
+          <td>{% if x.p.hub_asset %}<a href="{% url 'assets:asset_view' x.p.hub_asset.pk %}">{{ x.p.host_display|default:x.p.host }}</a>{% else %}{{ x.p.host_display|default:x.p.host }}{% endif %}</td>
+          <td><strong>{{ x.p.nome }}</strong>{% if x.p.programma or x.p.di_sistema %}<br><small class="sec-muted">{{ x.p.programma }}{% if x.p.versione %} {{ x.p.versione }}{% endif %}{% if x.p.di_sistema %}{% if x.p.programma %} · {% endif %}sistema operativo{% endif %}</small>{% endif %}</td>
+          <td>{% if x.p.criticita_label %}<span class="sec-badge {% if x.p.criticita == 201 %}high{% elif x.p.criticita == 202 %}medium{% else %}muted{% endif %}">{{ x.p.criticita_label }}</span>{% endif %}</td>
+          <td><div class="wgp-cve-cell">
+            {% if x.kev %}<span class="sec-badge critical" title="{{ x.kev|join:', ' }}">CVE sfruttata</span><br>{% endif %}
+            {% for c in x.cve|slice:":3" %}<a href="{% url 'security:cve_detail' c %}" data-preview="{% url 'security:cve_pannello_cve' c %}">{{ c }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="sec-muted">—</span>{% endfor %}
+            {% if x.cve|length > 3 %}<small class="sec-muted"> e altre {{ x.cve|length|add:"-3" }}</small>{% endif %}
+          </div></td>
+          <td><div>
+            <span class="sec-badge {% if x.motivo == 'confermata' %}low{% elif x.motivo == 'pc_uscito' %}muted{% else %}info{% endif %}">{{ x.motivo_label }}</span>
+            {% if x.p.esito_il %}<br><small class="sec-muted">{{ x.p.esito_label }} il {{ x.p.esito_il|date:"d/m/Y" }}</small>{% endif %}
+          </div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="sec-empty">Nessuna patch chiusa con questi filtri.</p>
+  {% endif %}
+</section>
+{% endblock %}
