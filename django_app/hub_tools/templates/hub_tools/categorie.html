@@ -70,6 +70,12 @@ body.theme-dark .btn-edit:hover{background:var(--surface-alt,#0f1b2d)}
 body.theme-dark .btn-del{background:rgba(229,62,62,.16);color:#fca5a5}
 body.theme-dark .btn-del:hover{background:rgba(229,62,62,.16)}
 body.theme-dark .cat-icon{background:rgba(139,92,246,.2)}
+@media (max-width:720px){
+  .nav-item-row{flex-wrap:wrap;gap:8px}
+  .nav-item-row>*{min-width:0}
+  .nav-item-icon-form{flex-wrap:wrap}
+  .form-grid{grid-template-columns:minmax(0,1fr)!important}
+}
 </style>
 
 <div class="hub-header">

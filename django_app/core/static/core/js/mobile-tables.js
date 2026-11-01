@@ -96,10 +96,28 @@
     return true;
   }
 
+  /* Tabelle che non diventano schede (intestazioni a più righe, celle unite) ma escono dallo
+     schermo: le si mette in un riquadro che scorre di lato da solo, così la pagina resta ferma. */
+  function scrollBox(table) {
+    if (table.__mcBox || table.getClientRects().length === 0) return;
+    if (table.closest(".mnav-sheet, .mcards")) return;
+    var w = document.documentElement.clientWidth;
+    if (table.getBoundingClientRect().right <= w + 2) return;
+    for (var p = table.parentElement; p && p !== document.body; p = p.parentElement) {
+      var o = window.getComputedStyle(p).overflowX;
+      if (o === "auto" || o === "scroll" || o === "hidden") return;
+    }
+    table.__mcBox = true;
+    var box = document.createElement("div");
+    box.className = "mtable-scroll";
+    table.parentNode.insertBefore(box, table);
+    box.appendChild(table);
+  }
+
   function scan() {
     if (!mq.matches) return;
     document.querySelectorAll("table").forEach(function (table) {
-      if (!eligible(table)) return;
+      if (!eligible(table)) { scrollBox(table); return; }
       table.__mc = true;
       label(table);
       tables.push(table);

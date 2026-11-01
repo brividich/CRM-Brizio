@@ -113,6 +113,12 @@ body.theme-dark .dpi-hbtn-white{background:var(--surface);color:#86efac}
 body.theme-dark .dpi-hbtn-white:hover{background:rgba(56,161,105,.18)}
 body.theme-dark .dpi-hbtn-outline{background:rgba(255,255,255,.06)}
 body.theme-dark .dpi-hbtn-outline:hover{background:rgba(255,255,255,.06)}
+/* Telefono: colonne una sotto l'altra, schede meno imbottite */
+@media (max-width:720px) {
+  .dpi-grid, .dpi-grid-2, .dpi-filters { grid-template-columns:minmax(0,1fr)!important; }
+  .dpi-grid > *, .dpi-grid-2 > * { min-width:0; }
+  .dpi-card { padding:16px; }
+}
 </style>
 {% endblock %}
 

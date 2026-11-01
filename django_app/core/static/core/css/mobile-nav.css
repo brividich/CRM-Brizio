@@ -120,3 +120,39 @@ body.theme-dark .mbar-item.is-active{color:#93c5fd}
 }
 body.theme-dark table.mcards tbody tr{background:var(--surface);border-color:var(--border);box-shadow:none}
 body.theme-dark table.mcards tbody td{border-color:var(--border)}
+
+/* ── Rete di sicurezza contro lo scorrimento laterale (telefono) ─────── */
+@media (max-width:720px){
+  .content>*{max-width:100%!important;min-width:0;box-sizing:border-box}
+  .content img,.content video,.content iframe{max-width:100%}
+  .content pre{white-space:pre-wrap;overflow-wrap:anywhere}
+  .content code{overflow-wrap:anywhere}
+  .content p,.content li,.content dd,.content h1,.content h2,.content h3,.content label{overflow-wrap:break-word}
+}
+.mtable-scroll{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* ── Griglie scritte nel template (style="grid-template-columns:…") ──
+   Su telefono: 3-4 colonne diventano 2, affiancamenti e barre laterali una sotto l'altra.
+   Le griglie auto-fit/auto-fill e «1fr auto» (campo + pulsante) restano come sono. */
+@media (max-width:720px){
+  .content [style*="repeat(3,1fr)"],.content [style*="repeat(3, 1fr)"],
+  .content [style*="repeat(3,minmax(0,1fr))"],.content [style*="repeat(4,1fr)"],
+  .content [style*="repeat(4, 1fr)"],.content [style*="repeat(4,minmax(0,1fr))"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .content [style*="grid-template-columns:1fr 1fr"],.content [style*="grid-template-columns: 1fr 1fr"],
+  .content [style*="grid-template-columns:2fr 1fr"],.content [style*="grid-template-columns:1fr 2fr"],
+  .content [style*="grid-template-columns:2fr 2fr"],.content [style*="grid-template-columns:1.25fr 1fr"],
+  .content [style*="grid-template-columns:1fr 320px"],.content [style*="grid-template-columns:1fr 330px"],
+  .content [style*="grid-template-columns:1fr 216px"],.content [style*="grid-template-columns:200px 1fr"],
+  .content [style*="grid-template-columns:1fr 180px"],.content [style*="grid-template-columns:140px 120px"],
+  .content [style*="repeat(4,minmax(0,1fr)) auto"]{grid-template-columns:minmax(0,1fr)!important}
+  .content [style*="grid-template-columns"]>*{min-width:0}
+  .content [style*="grid-template-columns"]>[style*="grid-column:span"],
+  .content [style*="grid-template-columns"]>[style*="grid-column: span"]{grid-column:1 / -1!important}
+}
+
+/* ── Tocchi comodi sui comandi piccoli ricorrenti (telefono) ─────────── */
+@media (max-width:720px) and (pointer:coarse){
+  .fm-tbl-shell>.fm-tbl-controls .fm-tbl-btn{min-height:36px;min-width:36px;justify-content:center}
+  .rc-back,.as-backlink,.gs-back,.hi-back,.topbar-back{display:inline-flex;align-items:center;min-height:36px}
+  .hub-flash-close{min-width:36px;min-height:36px}
+}
