@@ -145,8 +145,9 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
             ("ul", [
                 "Con una nota l'avanzamento non può restare «In attesa».",
                 "L'anomalia si chiude da sola con «Accetto lo stato», «Apertura ORE/RIPI» o aprendo un RDC.",
-                "Stessa decisione per tutto il blocco: spunta «Applica la stessa decisione anche alle altre … anomalie "
-                "aperte di questi seriali» prima di salvare.",
+                "Stessa decisione su più anomalie: in «Applica la stessa decisione anche a» scegli stesso blocco, tutte "
+                "le aperte dell'OP o «Scelte a mano»; prima di salvare un riepilogo le mostra tutte. Le già decise "
+                "restano fuori, salvo spuntarle.",
                 "Il segnalante riceve la decisione per mail qualche minuto dopo: non serve nessun invio.",
             ]),
         ],
