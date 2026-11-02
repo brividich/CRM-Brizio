@@ -121,6 +121,22 @@ def _contesto_calendario(request, approval, decision: str) -> dict:
     }
 
 
+def _decisa_da(approval, email: str) -> bool:
+    """La richiesta è già decisa e a deciderla è stato proprio ``email``.
+
+    Chi riapre il proprio link (doppio clic, pagina ricaricata, mail riaperta) deve
+    rivedere la sua decisione, non «Richiesta già elaborata»: sembrava che l'avesse
+    gestita qualcun altro.
+    """
+    from ..approval_security import normalize_actor_email
+    from ..models import AutomationApproval
+
+    if approval.status not in (AutomationApproval.Status.APPROVED, AutomationApproval.Status.REJECTED):
+        return False
+    me = normalize_actor_email(email)
+    return bool(me) and normalize_actor_email(approval.decided_by_email) == me
+
+
 def _dopo_decisione(request, approval, decision: str, email: str) -> str:
     """Registra la richiesta di calendario dopo «Approva»; ritorna il suffisso del redirect."""
     from ..calendario_outlook import richiedi_da_approvazione
@@ -155,7 +171,9 @@ def approval_link_page(request, token: str, decision: str):
     }
 
     if request.method == "GET":
-        if request.GET.get("done") == "1" and approval.status != AutomationApproval.Status.PENDING:
+        if _decisa_da(approval, link.recipient_email) or (
+            request.GET.get("done") == "1" and approval.status != AutomationApproval.Status.PENDING
+        ):
             return _render_decision(request, {**base_context, "just_done": True})
         if link.used_at is not None or approval.status != AutomationApproval.Status.PENDING:
             return _render_decision(request, {**base_context, "already_decided": True})
@@ -180,6 +198,8 @@ def approval_link_page(request, token: str, decision: str):
         # Fa fede la casella a cui è arrivato il link, non chi lo apre.
         return redirect(request.path + _dopo_decisione(request, approval, normalized, link.recipient_email))
     approval.refresh_from_db()
+    if _decisa_da(approval, link.recipient_email):
+        return _render_decision(request, {**base_context, "just_done": True})
     return _render_decision(request, {
         **base_context,
         "result": {k: v for k, v in result.items() if k != "link"},
@@ -247,7 +267,9 @@ def approval_decision_page(request, token: str, decision: str):
 
     if request.method == "GET":
         already = approval.status != AutomationApproval.Status.PENDING
-        just_done = already and request.GET.get("done") == "1"
+        just_done = already and (
+            request.GET.get("done") == "1" or _decisa_da(approval, _session_approver_email(request))
+        )
         return _render_decision(request, {
             **base_context,
             "is_expired": approval.is_expired(),
@@ -256,6 +278,10 @@ def approval_decision_page(request, token: str, decision: str):
         })
 
     result, validation = _decide_as_session_user(request, token, normalized, via="portal_link")
+    if not (result or {}).get("ok"):
+        approval.refresh_from_db()
+        if _decisa_da(approval, _session_approver_email(request)):
+            return _render_decision(request, {**base_context, "just_done": True})
     if result is None:
         return _render_decision(request, {
             **base_context,

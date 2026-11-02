@@ -70,7 +70,7 @@
         </div>
       {% elif just_done %}
         <div class="card-title">
-          {% if decision == "approved" %}Richiesta Approvata ✅{% else %}Richiesta Rifiutata{% endif %}
+          {% if approval.status == "approved" %}Richiesta Approvata ✅{% else %}Richiesta Rifiutata{% endif %}
         </div>
         <div class="card-subtitle">La tua decisione è stata registrata correttamente.</div>
       {% elif result %}
@@ -85,7 +85,7 @@
         {% endif %}
       {% elif already_decided and not result %}
         <div class="card-title">Richiesta già Elaborata</div>
-        <div class="card-subtitle">Questa richiesta è già stata gestita.</div>
+        <div class="card-subtitle">Questa richiesta è già stata gestita{% if approval.decided_by_email %} da {{ approval.decided_by_email }}{% endif %}.</div>
       {% elif is_expired %}
         <div class="card-title">Richiesta Scaduta</div>
         <div class="card-subtitle">Il link di approvazione non è più valido.</div>

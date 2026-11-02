@@ -146,6 +146,47 @@ class ApprovalViewsTests(TestCase):
         self.assertEqual(self.approval.status, "approved")
         self.assertEqual(self.approval.decided_by_email, APPROVER_A)
 
+    def test_personal_link_reopened_by_its_decider_shows_own_decision(self):
+        """Doppio clic, ricarica o mail riaperta: chi ha deciso non legge «già gestita»."""
+        raw = create_link(self.approval, APPROVER_A)
+        approve_url, reject_url = build_link_urls(raw)
+        path = approve_url.replace("https://portale.example.local", "")
+
+        response = self.client.post(path, follow=True)
+        self.assertContains(response, "La tua decisione è stata registrata correttamente.")
+        self.assertNotContains(response, "Richiesta già Elaborata")
+
+        for url in (path, reject_url.replace("https://portale.example.local", "")):
+            response = self.client.get(url)
+            self.assertContains(response, "Richiesta Approvata")
+            self.assertNotContains(response, "Richiesta già Elaborata")
+
+        response = self.client.post(path)  # secondo invio dello stesso modulo
+        self.assertContains(response, "La tua decisione è stata registrata correttamente.")
+        self.assertNotContains(response, "Richiesta già Elaborata")
+
+    def test_personal_link_of_other_recipient_says_who_decided(self):
+        raw_a = create_link(self.approval, APPROVER_A)
+        raw_b = create_link(self.approval, APPROVER_B)
+        self.assertTrue(decide_with_link(raw_a, "approved")["ok"])
+
+        path_b = build_link_urls(raw_b)[0].replace("https://portale.example.local", "")
+        response = self.client.get(path_b)
+        self.assertContains(response, "Richiesta già Elaborata")
+        self.assertContains(response, f"già stata gestita da {APPROVER_A}")
+
+    def test_request_link_reopened_by_logged_decider_shows_own_decision(self):
+        user = get_user_model().objects.create_user("approvatore", email=APPROVER_B, password="x")
+        self.client.force_login(user)
+        path = f"/automazioni/approvazione/{self.approval.token}/rifiuta/"
+        self.client.post(path)
+
+        response = self.client.get(path)
+        self.assertContains(response, "Richiesta Rifiutata")
+        self.assertNotContains(response, "Richiesta già Elaborata")
+        response = self.client.post(path)
+        self.assertContains(response, "La tua decisione è stata registrata correttamente.")
+
     def test_request_link_requires_login(self):
         path = f"/automazioni/approvazione/{self.approval.token}/approva/"
         response = self.client.post(path)
