@@ -228,7 +228,8 @@ PRESETS: tuple[Preset, ...] = (
         "controllo-qualita", "Controllo qualità", 480,
         "Apre e istruisce le non conformità di tutti i reparti; consulta specifiche, commesse e timbri.",
         celle=_posizione(
-            anomalie={"vedere": A, "creare": A, "modificare": A, "esportare": A},
+            # Apre segnalazioni ovunque; modifica solo gli OP propri (CC/CAR o aperte da lui).
+            anomalie={"vedere": A, "creare": A, "modificare": P, "esportare": A},
             timbri={"vedere": A},
             specifiche={"vedere": A},
             kickoff={"vedere": A},

@@ -150,6 +150,23 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
 
     # Azioni dispositive: aggiorna il DB legacy e marca il token monouso
     if is_dispositive:
+        # Stessa regola della pagina: una nota scritta non lascia l'anomalia «In attesa».
+        from .views import MSG_NOTA_STATO_IN_ATTESA, _nota_con_stato_in_attesa
+
+        stato_live = {str(a.get("id")): str(a.get(_STATO_FIELD) or "") for a in anomalie_live}
+        default_avanzamento = nuovo_avanzamento or _ACTION_TO_AVANZAMENTO.get(action, "")
+        for anomalia_id, per_riga in aggiornamenti_per_id.items():
+            if str(anomalia_id) not in stato_live or not isinstance(per_riga, dict):
+                continue
+            riga_note = str(per_riga.get("note") or "").strip() or (note if action in _NOTE_GLOBALE_ACTIONS else "")
+            # Avanzamento vuoto = «invariato»: vale quello attuale.
+            riga_avanzamento = (
+                str(per_riga.get("avanzamento") or "").strip() or default_avanzamento or stato_live[str(anomalia_id)]
+            )
+            if _nota_con_stato_in_attesa(riga_note, riga_avanzamento):
+                return _render_error(
+                    request, f"Anomalia #{anomalia_id}: {MSG_NOTA_STATO_IN_ATTESA} Torna indietro e correggi.", "invalid",
+                )
         # Presa in carico atomica del token PRIMA di toccare le anomalie: con due invii
         # simultanei (doppio click, due schede) solo uno passa. Se l'applicazione
         # solleva un'eccezione il token torna disponibile per un nuovo tentativo.

@@ -1331,7 +1331,12 @@ def _resolve_op_lookup_id(op_item_id, op_title) -> int | None:
         if not rows:
             return None
         sp_id = str(rows[0].get(OP_ITEM_ID_COL) or "").strip()
-        return int(sp_id) if sp_id.isdigit() else None
+        # Gli OP creati nel portale hanno id negativi ("-3"): isdigit() li scartava
+        # e ogni salvataggio azzerava op_lookup_id della riga.
+        try:
+            return int(sp_id) if sp_id else None
+        except ValueError:
+            return None
     except Exception:
         return None
 
@@ -1554,18 +1559,32 @@ def _op_role_codes_for_current_user(request, op_id: str) -> list[str]:
         return []
     if not rows:
         return []
+    return _op_role_codes_da_persone(request, _row_capocommessa(rows[0]), rows[0].get("incaricato"))
 
-    current_name_norms = _current_user_name_norms(request)
-    identity = _current_user_identity(request)
-    if not current_name_norms and identity["name_norm"]:
-        current_name_norms = {identity["name_norm"]}
+
+def _request_name_norms(request) -> set[str]:
+    """Nomi normalizzati della persona collegata (calcolati una volta per richiesta)."""
+    cached = getattr(request, "_anomalie_name_norms", None)
+    if cached is not None:
+        return cached
+    names = _current_user_name_norms(request)
+    if not names:
+        name_norm = _current_user_identity(request)["name_norm"]
+        names = {name_norm} if name_norm else set()
+    request._anomalie_name_norms = names
+    return names
+
+
+def _op_role_codes_da_persone(request, capocommessa, incaricato) -> list[str]:
+    """Ruoli (CC/CAR) che la persona ricopre su un OP, dai campi già letti."""
+    current_name_norms = _request_name_norms(request)
     if not current_name_norms:
         return []
 
     matched_roles: list[str] = []
     role_to_people = {
-        AnomalieRoleType.CAPO_COMMESSA: _row_capocommessa(rows[0]),
-        AnomalieRoleType.CAR: rows[0].get("incaricato"),
+        AnomalieRoleType.CAPO_COMMESSA: capocommessa,
+        AnomalieRoleType.CAR: incaricato,
     }
     for role_code, raw_people in role_to_people.items():
         tokens = _split_people_tokens(str(raw_people or ""))
@@ -1592,6 +1611,158 @@ def _anomalie_role_access_level_for_codes(role_codes: list[str]) -> str:
 
 def _op_role_access_level_for_current_user(request, op_id: str) -> str:
     return _anomalie_role_access_level_for_codes(_op_role_codes_for_current_user(request, op_id))
+
+
+# ─── Permessi per OP con il sistema dei ruoli ───────────────────────────────
+# La matrice decide l'ambito di «vedere» e «modificare» sulle anomalie:
+#   «tutti»  → ogni OP;
+#   «team»   → gli OP dove capocommessa/CAR o chi ha aperto un'anomalia è la
+#              persona o qualcuno del suo team;
+#   «propri» → solo gli OP della persona (capocommessa/CAR o anomalie aperte da lei).
+# Chi è capocommessa/CAR dell'OP lo vede sempre e lo modifica secondo le regole
+# CC/CAR del modulo; chi ha aperto un'anomalia vede sempre il suo OP.
+
+
+def _nomi_norm_di_utenti(legacy_ids) -> frozenset[str]:
+    """Nomi normalizzati («Nome Cognome» e «Cognome Nome») di un insieme di utenti legacy."""
+    ids = {int(i) for i in legacy_ids if i}
+    if not ids:
+        return frozenset()
+    names: set[str] = set()
+    try:
+        for nome in UtenteLegacy.objects.filter(id__in=ids).values_list("nome", flat=True):
+            if nome:
+                names.add(_normalize_identity_text(nome))
+        for nome, cognome in AnagraficaDipendente.objects.filter(utente_id__in=ids).values_list("nome", "cognome"):
+            nome, cognome = str(nome or "").strip(), str(cognome or "").strip()
+            if nome and cognome:
+                names.add(_normalize_identity_text(f"{nome} {cognome}"))
+                names.add(_normalize_identity_text(f"{cognome} {nome}"))
+    except DatabaseError:
+        logger.warning("anomalie: nomi del team non risolti", exc_info=True)
+    return frozenset(n for n in names if n)
+
+
+def _ambito_anomalie(request, azione: str):
+    """``None`` = tutti gli OP; altrimenti ``(utenti.id ammessi, loro nomi normalizzati)``.
+
+    Insiemi vuoti = azione non concessa dalla matrice.
+    """
+    cache = request.__dict__.setdefault("_anomalie_ambiti", {})
+    if azione not in cache:
+        from core.permessi import utenti_visibili
+
+        ids = utenti_visibili(request, "anomalie", azione)
+        cache[azione] = None if ids is None else (frozenset(ids), _nomi_norm_di_utenti(ids))
+    return cache[azione]
+
+
+def _request_legacy_user_id(request) -> int | None:
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    return int(legacy_user.id) if legacy_user and getattr(legacy_user, "id", None) else None
+
+
+def _persone_op_norm(capocommessa, incaricato) -> set[str]:
+    return {
+        _normalize_identity_text(t)
+        for raw in (capocommessa, incaricato)
+        for t in _split_people_tokens(str(raw or ""))
+    }
+
+
+def _ambito_copre_op(request, azione: str, capocommessa, incaricato, creatori) -> bool:
+    ambito = _ambito_anomalie(request, azione)
+    if ambito is None:
+        return True
+    ids, nomi = ambito
+    if not ids:
+        return False
+    return bool(_persone_op_norm(capocommessa, incaricato) & nomi) or bool(set(creatori) & ids)
+
+
+def _vede_op_ruoli(request, capocommessa, incaricato, creatori) -> bool:
+    """Visibilità di un OP con il sistema dei ruoli (dati dell'OP già letti)."""
+    if _op_role_codes_da_persone(request, capocommessa, incaricato):
+        return True
+    me = _request_legacy_user_id(request)
+    if me is not None and me in set(creatori):
+        return True
+    return (
+        _ambito_copre_op(request, "vedere", capocommessa, incaricato, creatori)
+        or _ambito_copre_op(request, "modificare", capocommessa, incaricato, creatori)
+    )
+
+
+def _modifica_op_ruoli(request, capocommessa, incaricato, creatori) -> bool:
+    """Modifica delle anomalie di un OP con il sistema dei ruoli."""
+    ruoli = _op_role_codes_da_persone(request, capocommessa, incaricato)
+    if ruoli and _access_level_at_least(
+        _anomalie_role_access_level_for_codes(ruoli), AnomalieAccessLevel.EDIT_ASSIGNED
+    ):
+        return True
+    return _ambito_copre_op(request, "modificare", capocommessa, incaricato, creatori)
+
+
+def _op_persone_row(op_title: str) -> dict:
+    """Capocommessa/CAR di un OP per titolo ({} se l'OP non è in ordini_produzione)."""
+    if not op_title or not _has_table("ordini_produzione"):
+        return {}
+    try:
+        rows = _fetch_all_dict(
+            "SELECT TOP 1 capocomessa, incaricato FROM ordini_produzione WHERE title = %s",
+            [op_title],
+        )
+    except Exception:
+        return {}
+    return rows[0] if rows else {}
+
+
+def _creatori_anomalie_op(op_title: str) -> set[int]:
+    """``utenti.id`` di chi ha aperto anomalie sull'OP (per titolo, copre op_lookup_id NULL)."""
+    if not op_title or "created_by_user_id" not in (legacy_table_columns("anomalie") or set()):
+        return set()
+    try:
+        rows = _fetch_all_dict(
+            "SELECT DISTINCT created_by_user_id AS uid FROM anomalie "
+            "WHERE LOWER(CAST(ex_op_nominativo AS NVARCHAR(200))) = LOWER(%s) AND created_by_user_id IS NOT NULL",
+            [op_title],
+        )
+    except Exception:
+        return set()
+    return {int(r["uid"]) for r in rows if r.get("uid") is not None}
+
+
+def _dati_op_per_permessi(op_id: str) -> tuple:
+    op_title = _safe_text(op_id, 100) or ""
+    row = _op_persone_row(op_title)
+    return _row_capocommessa(row), row.get("incaricato"), _creatori_anomalie_op(op_title)
+
+
+def _can_create_anomalie_for_op(request, op_id: str) -> bool:
+    """Aprire segnalazioni su un OP: chi può modificarlo o, con i ruoli accesi, chi
+    ha «creare» sulle anomalie (la segnalazione nasce sua, la decisione resta del
+    capocommessa)."""
+    if _can_edit_anomalie_for_op(request, op_id):
+        return True
+    from core.permessi import decisione, sistema_ruoli_attivo
+
+    return bool(sistema_ruoli_attivo() and decisione(request, "anomalie", "creare").consentito)
+
+
+def _is_creatore_anomalia(request, local_id: int) -> bool:
+    me = _request_legacy_user_id(request)
+    if me is None or "created_by_user_id" not in (legacy_table_columns("anomalie") or set()):
+        return False
+    try:
+        rows = _fetch_all_dict("SELECT TOP 1 created_by_user_id AS uid FROM anomalie WHERE id = %s", [int(local_id)])
+    except Exception:
+        return False
+    return bool(rows and rows[0].get("uid") is not None and int(rows[0]["uid"]) == me)
+
+
+def _can_attach_anomalia(request, local_id: int, op_id: str) -> bool:
+    """Allegati di un'anomalia: chi modifica l'OP o chi l'ha aperta (foto del controllo)."""
+    return _can_edit_anomalie_for_op(request, op_id) or _is_creatore_anomalia(request, local_id)
 
 
 def _user_created_anomalia_on_op(request, op_id: str) -> bool:
@@ -1628,6 +1799,13 @@ def _can_view_anomalie_for_op(request, op_id: str) -> bool:
     user = getattr(request, "user", None)
     if not getattr(user, "is_authenticated", False):
         return False
+
+    from core.permessi import sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        if bool(getattr(user, "is_superuser", False)):
+            return True
+        return _vede_op_ruoli(request, *_dati_op_per_permessi(op_id))
 
     scope = _request_anomalie_list_scope(request)
     if scope == AnomalieListScope.ALL:
@@ -1670,11 +1848,9 @@ def _can_edit_anomalie_for_op(request, op_id: str) -> bool:
     from core.permessi import sistema_ruoli_attivo
 
     if sistema_ruoli_attivo():
-        # Ruoli: niente whitelist per nome (omonimi); valgono i ruoli dell'OP.
-        matched_op_roles = _op_role_codes_for_current_user(request, op_id)
-        return _access_level_at_least(
-            _anomalie_role_access_level_for_codes(matched_op_roles), AnomalieAccessLevel.EDIT_ASSIGNED
-        )
+        # Ruoli: niente whitelist per nome (omonimi); valgono i ruoli dell'OP e
+        # l'ambito di «modificare» (propri / team) della matrice.
+        return _modifica_op_ruoli(request, *_dati_op_per_permessi(op_id))
 
     config_lists = _load_anomalie_lists()
     edit_whitelist = config_lists.get("autorizzati_modifica", []) if isinstance(config_lists, dict) else []
@@ -2054,17 +2230,24 @@ def legacy_apertura_anomalie_redirect(request):
     return redirect(f"{reverse('gestione_anomalie_page')}?view=apertura_anomalie")
 
 
-@login_required
-def api_db_ordini(request):
-    if not _has_table("ordini_produzione"):
-        return JsonResponse([], safe=False)
-    try:
+def _ordini_payload(request, *, per_apertura: bool):
+    """Elenco OP con i conteggi delle anomalie.
+
+    Gestione (``per_apertura=False``): con il sistema dei ruoli solo gli OP che la
+    persona può vedere (vedi ``_vede_op_ruoli``). Apertura segnalazione: chi può
+    «creare» sceglie fra tutti gli OP. Ogni riga dice se l'OP è «in carico» alla
+    persona (capocommessa/CAR) e, con i ruoli, se può modificarlo.
+    """
+    from core.permessi import decisione, sistema_ruoli_attivo
+
+    ruoli_attivi = sistema_ruoli_attivo()
+    is_super = bool(getattr(request.user, "is_superuser", False))
+    scope_where = ""
+    scope_params: list = []
+    if not ruoli_attivi:
         list_scope = _request_anomalie_list_scope(request)
         identity = _current_user_identity(request)
         legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
-
-        scope_where = ""
-        scope_params: list = []
 
         if list_scope == AnomalieListScope.ASSIGNED:
             user_name = identity["name"]
@@ -2096,48 +2279,87 @@ def api_db_ordini(request):
             else:
                 scope_where = "WHERE 1=0"
 
-        sql = f"""
-            SELECT
-                op.{OP_ITEM_ID_COL} AS item_id,
-                op.title AS op_title,
-                op.part_number,
-                op.incaricato,
-                op.capocomessa,
-                op.stato,
-                COUNT(a.id) AS anomalie_count,
-                SUM(CASE WHEN COALESCE(a.chiudere, 0) = 0 THEN 1 ELSE 0 END) AS anomalie_aperte_count,
-                SUM(CASE WHEN COALESCE(a.chiudere, 0) = 0
-                          AND COALESCE(a.aprire_rdc, 0) = 0 AND COALESCE(a.segnalare_cliente, 0) = 0
-                          AND LOWER(LTRIM(RTRIM(COALESCE(CAST(a.avanzamento AS NVARCHAR(200)), '')))) IN ('', 'in attesa')
-                          AND LTRIM(RTRIM(COALESCE(CAST(a.note_capocommessa AS NVARCHAR(200)), ''))) = ''
-                     THEN 1 ELSE 0 END) AS anomalie_da_decidere_count
-            FROM ordini_produzione op
-            LEFT JOIN anomalie a
-                ON a.op_lookup_id = TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)
-            {scope_where}
-            GROUP BY
-                op.{OP_ITEM_ID_COL}, op.title, op.part_number,
-                op.incaricato, op.capocomessa, op.stato
-            ORDER BY op.title
-        """
-        rows = _fetch_all_dict(sql, scope_params or None)
-        result = [
-            {
-                "item_id": r.get("item_id"),
-                "id": r.get("op_title") or "—",
-                "pn": r.get("part_number") or "—",
-                "capo": _row_capocommessa(r) or "—",
-                "car": r.get("incaricato") or "—",
-                "stato": r.get("stato"),
-                "anomalie_count": int(r.get("anomalie_count") or 0),
-                "anomalie_aperte_count": int(r.get("anomalie_aperte_count") or 0),
+    # Le anomalie si agganciano all'OP per op_lookup_id oppure, quando è NULL
+    # (OP senza sharepoint_item_id), per titolo: altrimenti chiuse e aperte di
+    # quegli OP sparivano dai conteggi.
+    sql = f"""
+        SELECT
+            op.{OP_ITEM_ID_COL} AS item_id,
+            op.title AS op_title,
+            op.part_number,
+            op.incaricato,
+            op.capocomessa,
+            op.stato,
+            COUNT(a.id) AS anomalie_count,
+            SUM(CASE WHEN a.id IS NOT NULL AND COALESCE(a.chiudere, 0) = 0 THEN 1 ELSE 0 END) AS anomalie_aperte_count,
+            SUM(CASE WHEN a.id IS NOT NULL AND COALESCE(a.chiudere, 0) = 0
+                      AND COALESCE(a.aprire_rdc, 0) = 0 AND COALESCE(a.segnalare_cliente, 0) = 0
+                      AND LOWER(LTRIM(RTRIM(COALESCE(CAST(a.avanzamento AS NVARCHAR(200)), '')))) IN ('', 'in attesa')
+                      AND LTRIM(RTRIM(COALESCE(CAST(a.note_capocommessa AS NVARCHAR(200)), ''))) = ''
+                 THEN 1 ELSE 0 END) AS anomalie_da_decidere_count
+        FROM ordini_produzione op
+        LEFT JOIN anomalie a
+            ON a.op_lookup_id = TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)
+            OR (a.op_lookup_id IS NULL
+                AND LOWER(CAST(a.ex_op_nominativo AS NVARCHAR(200))) = LOWER(CAST(op.title AS NVARCHAR(200))))
+        {scope_where}
+        GROUP BY
+            op.{OP_ITEM_ID_COL}, op.title, op.part_number,
+            op.incaricato, op.capocomessa, op.stato
+        ORDER BY op.title
+    """
+    rows = _fetch_all_dict(sql, scope_params or None)
+
+    filtra = ruoli_attivi and not is_super
+    if filtra and per_apertura and decisione(request, "anomalie", "creare").consentito:
+        filtra = False
+    creatori_per_op: dict[str, set[int]] = {}
+    if ruoli_attivi and not is_super and "created_by_user_id" in (legacy_table_columns("anomalie") or set()):
+        try:
+            for r in _fetch_all_dict(
+                "SELECT DISTINCT LOWER(CAST(ex_op_nominativo AS NVARCHAR(200))) AS op, created_by_user_id AS uid "
+                "FROM anomalie WHERE created_by_user_id IS NOT NULL"
+            ):
+                creatori_per_op.setdefault(str(r.get("op") or ""), set()).add(int(r["uid"]))
+        except Exception:
+            logger.warning("anomalie: autori delle anomalie per OP non letti", exc_info=True)
+
+    result = []
+    for r in rows:
+        capo = _row_capocommessa(r)
+        car = r.get("incaricato")
+        creatori = creatori_per_op.get(str(r.get("op_title") or "").lower(), set())
+        if filtra and not _vede_op_ruoli(request, capo, car, creatori):
+            continue
+        item = {
+            "item_id": r.get("item_id"),
+            "id": r.get("op_title") or "—",
+            "pn": r.get("part_number") or "—",
+            "capo": capo or "—",
+            "car": car or "—",
+            "stato": r.get("stato"),
+            "anomalie_count": int(r.get("anomalie_count") or 0),
+            "anomalie_aperte_count": int(r.get("anomalie_aperte_count") or 0),
             # Aperte su cui il capocommessa non ha ancora deciso nulla (stessa regola
             # di controllo_service.riga_gestita): ordinano e segnalano gli OP in carico.
             "anomalie_da_decidere_count": int(r.get("anomalie_da_decidere_count") or 0),
-            }
-            for r in rows
-        ]
-        return JsonResponse(result, safe=False)
+            # «In carico a me»: la persona è capocommessa o CAR dell'OP; poterlo
+            # modificare non basta.
+            "in_carico": bool(_op_role_codes_da_persone(request, capo, car)),
+        }
+        if ruoli_attivi:
+            item["can_edit"] = is_super or _modifica_op_ruoli(request, capo, car, creatori)
+        result.append(item)
+    return result
+
+
+@login_required
+def api_db_ordini(request):
+    """OP per l'apertura di una segnalazione."""
+    if not _has_table("ordini_produzione"):
+        return JsonResponse([], safe=False)
+    try:
+        return JsonResponse(_ordini_payload(request, per_apertura=True), safe=False)
     except DatabaseError as exc:
         return _json_error(str(exc), status=500)
 
@@ -2309,9 +2531,11 @@ def api_db_anomalie(request):
     if not _has_table("anomalie"):
         return JsonResponse([], safe=False)
 
-    # Scope ristretto (ASSIGNED/OWN): lettura del singolo OP consentita solo se
-    # l'utente ha titolo. Per lo scope ALL (caso comune) si salta la verifica.
-    if _request_anomalie_list_scope(request) != AnomalieListScope.ALL:
+    # Scope ristretto (ASSIGNED/OWN) o sistema dei ruoli: lettura del singolo OP
+    # consentita solo se l'utente ha titolo. Per lo scope ALL si salta la verifica.
+    from core.permessi import sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo() or _request_anomalie_list_scope(request) != AnomalieListScope.ALL:
         op_row = _report_op_row(sp_item_id_int, None)
         op_title = _safe_text((op_row or {}).get("title"), 100)
         if not _can_view_anomalie_for_op(request, op_title):
@@ -2348,8 +2572,13 @@ def api_db_anomalie(request):
 
 @login_required
 def api_ordini(request):
-    # Compatibilita frontend legacy: per ora serviamo i dati dal DB locale.
-    return api_db_ordini(request)
+    """OP della pagina Gestione anomalie: solo quelli che la persona può vedere."""
+    if not _has_table("ordini_produzione"):
+        return JsonResponse([], safe=False)
+    try:
+        return JsonResponse(_ordini_payload(request, per_apertura=False), safe=False)
+    except DatabaseError as exc:
+        return _json_error(str(exc), status=500)
 
 
 @login_required
@@ -2490,7 +2719,7 @@ def api_anomalie_allegati_upload(request):
         if not row:
             return _json_error("Anomalia non trovata", status=404)
         op_id = str(row.get("ex_op_nominativo") or "").strip()
-        if not _can_edit_anomalie_for_op(request, op_id):
+        if not _can_attach_anomalia(request, local_id, op_id):
             return _json_error("Permesso negato", status=403)
 
         files = request.FILES.getlist("files")
@@ -2621,7 +2850,7 @@ def api_anomalie_allegati_delete(request):
         if not row:
             return _json_error("Anomalia non trovata", status=404)
         op_id = str(row.get("ex_op_nominativo") or "").strip()
-        if not _can_edit_anomalie_for_op(request, op_id):
+        if not _can_attach_anomalia(request, local_id, op_id):
             return _json_error("Permesso negato", status=403)
         if file_id.startswith("descrizione:") and file_id.split(":", 1)[1].isdigit():
             from .quality_models import AnomaliaDescrizioneAllegato
@@ -2674,7 +2903,7 @@ def api_anomalie_descrizione_allegati_upload(request):
     if not row:
         return _json_error("Anomalia non trovata", status=404)
     op_id = str(row.get("ex_op_nominativo") or "").strip()
-    if not _can_edit_anomalie_for_op(request, op_id):
+    if not _can_attach_anomalia(request, local_id, op_id):
         return _json_error("Permesso negato", status=403)
     from .quality_models import AnomaliaDescrizione, AnomaliaDescrizioneAllegato
     descrizione = AnomaliaDescrizione.objects.filter(
@@ -2941,13 +3170,28 @@ def _decisione_su_propria_anomalia(local_pk_id, cols, writable: dict, legacy_use
             "RDC, chiusura) la prende un'altra persona.")
 
 
-def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True) -> dict:
+def _nota_con_stato_in_attesa(note, avanzamento) -> bool:
+    """Una risposta scritta nelle note non può lasciare l'anomalia «In attesa»."""
+    from anomalie.controllo_service import _STATI_LIBERI
+
+    return bool(str(note or "").strip()) and str(avanzamento or "").strip().lower() in _STATI_LIBERI
+
+
+MSG_NOTA_STATO_IN_ATTESA = (
+    "Hai scritto una nota: scegli anche lo stato di avanzamento, "
+    "l'anomalia non può restare «In attesa»."
+)
+
+
+def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True, da_controllo: bool = False) -> dict:
     """Inserisce o aggiorna UNA riga della tabella legacy ``anomalie``.
 
     Percorso unico per il portale (``api_salva``) e per l'inserimento a blocchi
     (``controllo_views``): permessi per OP, audit, timeline e notifiche restano
     gli stessi. ``notifica_debounce=False`` lascia fuori la riga dalla coda della
     mail di riepilogo, quando la mail la gestisce il controllo.
+    ``da_controllo=True``: righe del controllo dell'operatore (nuove o non ancora
+    decise), ammesse con il permesso di aprire segnalazioni.
 
     Ritorna ``{"success", "error", "status", "local_id", "item_id", "created"}``.
     """
@@ -2955,8 +3199,18 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True)
     op_id = _safe_text(data.get("op_id"), 100)
     if not op_id:
         return {"success": False, "error": "op_id obbligatorio", "status": 400}
-    if not _can_edit_anomalie_for_op(request, op_id):
+    puo_modificare = _can_edit_anomalie_for_op(request, op_id)
+    if da_controllo or not item_id:
+        if not puo_modificare and not _can_create_anomalie_for_op(request, op_id):
+            return {"success": False, "error": "Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", "status": 403}
+    elif not puo_modificare:
         return {"success": False, "error": "Permesso negato: non autorizzato a modificare questo OP", "status": 403}
+    if not puo_modificare:
+        # Chi apre soltanto la segnalazione non ne decide la disposizione.
+        data = {**data, "note": "", "aprire_rdc": False, "numero_rdc": "", "segnalare": False, "chiudere": False,
+                "avanzamento": "In attesa"}
+    if not da_controllo and _nota_con_stato_in_attesa(data.get("note"), data.get("avanzamento")):
+        return {"success": False, "error": MSG_NOTA_STATO_IN_ATTESA, "status": 400}
 
     cols = legacy_table_columns("anomalie")
     if not cols:
@@ -3434,7 +3688,7 @@ def api_notifica_op(request):
     op_id = _safe_text(data.get("op_id"), 100)
     if not op_id:
         return _json_error("op_id obbligatorio", status=400)
-    if not _can_edit_anomalie_for_op(request, op_id):
+    if not _can_create_anomalie_for_op(request, op_id):
         return _json_error("Permesso negato: non autorizzato su questo OP", status=403)
 
     from automazioni.models import AutomationRule
@@ -4408,7 +4662,23 @@ def _anomalie_scope_where(request) -> tuple[list[str], list]:
     solo gli OP in cui è capocommessa/CAR, OWN_ANOMALIE solo gli OP su cui ha
     aperto almeno un'anomalia. Statistiche, ricerca e contatore della home
     passano da qui, così il numero coincide con quello dell'elenco.
+    Con il sistema dei ruoli: gli OP che ``_ordini_payload`` (Gestione) mostra.
     """
+    from core.permessi import sistema_ruoli_attivo
+
+    if sistema_ruoli_attivo():
+        if bool(getattr(request.user, "is_superuser", False)) or (
+            _ambito_anomalie(request, "vedere") is None or _ambito_anomalie(request, "modificare") is None
+        ):
+            return [], []
+        titoli = sorted({
+            str(r["id"]).lower() for r in _ordini_payload(request, per_apertura=False) if r.get("id") not in ("", "—")
+        })
+        if not titoli:
+            return ["1=0"], []
+        return [
+            f"LOWER(CAST(ex_op_nominativo AS NVARCHAR(200))) IN ({', '.join(['%s'] * len(titoli))})"
+        ], titoli
     scope = _request_anomalie_list_scope(request)
     if scope == AnomalieListScope.ALL:
         return [], []

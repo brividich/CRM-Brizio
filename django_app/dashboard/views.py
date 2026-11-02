@@ -1304,27 +1304,43 @@ def _board_data_anomalie(legacy_user: Any, is_admin: bool, params: dict) -> list
             return []
         limit = min(int(params.get("max_items") or 8), MAX_BOARD_WIDGET_ITEMS)
         solo_aperte = bool(params.get("solo_aperte", True))
-        nome = getattr(legacy_user, "nome", "") or ""
-        if not is_admin and not nome.strip():
-            # Senza nome non si sa quali siano le «sue»: niente righe, non tutte.
-            return []
         vendor = connections["default"].vendor
-        where_parts = []
-        sql_params: list = []
-        if solo_aperte:
-            where_parts.append("COALESCE(chiudere, 0) = 0")
-        if not is_admin and nome:
-            where_parts.append("(UPPER(COALESCE(ex_op_nominativo,'')) LIKE UPPER(%s) OR UPPER(COALESCE(capo_commessa,'')) LIKE UPPER(%s))")
-            sql_params.extend([f"%{nome}%", f"%{nome}%"])
-        where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+        where_sql = "WHERE COALESCE(a.chiudere, 0) = 0" if solo_aperte else ""
+        # Fuori dagli amministratori: solo le anomalie degli OP in carico alla persona
+        # (capocommessa o CAR), come «In carico a me» in Gestione anomalie.
+        miei_nomi: set[str] = set()
+        if not is_admin:
+            if not legacy_table_columns("ordini_produzione"):
+                return []
+            from anomalie.views import _nomi_norm_di_utenti, _normalize_identity_text
+
+            miei_nomi = set(_nomi_norm_di_utenti([legacy_user.id]))
+            if getattr(legacy_user, "nome", ""):
+                miei_nomi.add(_normalize_identity_text(legacy_user.nome))
+            miei_nomi.discard("")
+            if not miei_nomi:
+                return []
+        top = limit if is_admin else 2000
+        select = (
+            "a.id, a.ex_op_nominativo, a.seriale, a.avanzamento, a.chiudere, a.modified_datetime"
+            + ("" if is_admin else ", op.capocomessa, op.incaricato")
+        )
+        join = "" if is_admin else (
+            " LEFT JOIN ordini_produzione op"
+            " ON LOWER(CAST(op.title AS NVARCHAR(200))) = LOWER(CAST(a.ex_op_nominativo AS NVARCHAR(200)))"
+        )
         if vendor == "sqlite":
-            sql = f"SELECT id, ex_op_nominativo, seriale, avanzamento, chiudere, modified_datetime FROM anomalie {where_sql} ORDER BY id DESC LIMIT {limit}"
+            sql = f"SELECT {select} FROM anomalie a{join} {where_sql} ORDER BY a.id DESC LIMIT {top}"
         else:
-            sql = f"SELECT TOP {limit} id, ex_op_nominativo, seriale, avanzamento, chiudere, modified_datetime FROM anomalie {where_sql} ORDER BY id DESC"
+            sql = f"SELECT TOP {top} {select} FROM anomalie a{join} {where_sql} ORDER BY a.id DESC"
         with connections["default"].cursor() as cursor:
-            cursor.execute(sql, sql_params)
+            cursor.execute(sql)
             cols_desc = [c[0] for c in cursor.description]
             rows = [dict(zip(cols_desc, r)) for r in cursor.fetchall()]
+        if not is_admin:
+            from anomalie.views import _persone_op_norm
+
+            rows = [r for r in rows if _persone_op_norm(r.get("capocomessa"), r.get("incaricato")) & miei_nomi][:limit]
         out = []
         for row in rows:
             out.append({
