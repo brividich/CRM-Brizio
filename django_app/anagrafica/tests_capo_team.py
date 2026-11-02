@@ -36,6 +36,8 @@ class _Scenario(TestCase):
         self.resp = RuoloOperativo.objects.create(nome="Responsabile produzione")
         self.capo = RuoloOperativo.objects.create(nome="Caporeparto", riporta_a=self.resp)
         self.op = RuoloOperativo.objects.create(nome="Operatore", riporta_a=self.capo)
+        # Caporeparto è il ruolo responsabile dei reparti: chi lo ricopre guida il suo reparto.
+        Reparto.objects.filter(pk__in=[self.fresatura.pk, self.saldatura.pk]).update(ruolo_responsabile=self.capo)
         self.gialli = self._persona("gialli", "Direzione", None, self.resp)
         self.bianchi = self._persona("bianchi", "Fresatura", self.in2, self.capo)
         self.neri = self._persona("neri", "Saldatura", self.sa1, self.capo)
@@ -96,6 +98,45 @@ class CapoTeamTests(_Scenario):
             data_inizio="2020-01-01", data_fine="2020-12-31"
         )
         self.assertEqual(self._capo(self.rossi).legacy_id, self.gialli)
+
+    # ── Organigramma produttivo (02/11/2026) ──────────────────────────────
+    def test_ruolo_sopra_in_altro_reparto_e_il_capo(self):
+        # Il responsabile di produzione è inquadrato in UT, il CEO pure: prima si
+        # saltavano entrambi (altro reparto) e vinceva la cima.
+        ut = Reparto.objects.create(nome="UT")
+        operations = AreaAziendale.objects.create(nome="OPERATIONS", reparto=ut)
+        ceo = RuoloOperativo.objects.create(nome="CEO")
+        RuoloOperativo.objects.filter(pk=self.resp.pk).update(riporta_a=ceo)
+        DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=self.gialli).update(area_aziendale=operations)
+        self._persona("ceo", "UT", operations, ceo)
+        capo = self._capo(self.bianchi)
+        self.assertEqual((capo.legacy_id, capo.origine), (self.gialli, capo_team.ORIGINE_ORGANIGRAMMA))
+
+    def test_ruoli_di_altri_organigrammi_non_decidono_il_capo(self):
+        from .models import AmbitoRuolo
+
+        produttivo, _ = AmbitoRuolo.objects.get_or_create(nome="Produttivo", defaults={"alimenta_scheda": True})
+        AmbitoRuolo.objects.filter(pk=produttivo.pk).update(alimenta_scheda=True)
+        sicurezza, _ = AmbitoRuolo.objects.get_or_create(nome="Sicurezza ISO 45001")
+        AmbitoRuolo.objects.filter(pk=sicurezza.pk).update(alimenta_scheda=False)
+        RuoloOperativo.objects.filter(pk__in=[self.resp.pk, self.capo.pk, self.op.pk]).update(ambito=produttivo)
+        rspp = RuoloOperativo.objects.create(nome="Responsabile sicurezza", ambito=sicurezza)
+        preposto = RuoloOperativo.objects.create(nome="Preposto", riporta_a=rspp, ambito=sicurezza)
+        DipendenteRuoloOperativo.objects.create(legacy_anagrafica_id=self.bianchi, ruolo=preposto)
+        self._persona("sicuro", "Direzione", None, rspp)
+        # Due persone in cima (responsabile produzione e sicurezza): prima nessun capo.
+        self.assertEqual(self._capo(self.bianchi).legacy_id, self.gialli)
+
+    def test_persona_con_soli_ruoli_di_altri_organigrammi_non_ha_capo_da_organigramma(self):
+        from .models import AmbitoRuolo
+
+        sicurezza, _ = AmbitoRuolo.objects.get_or_create(nome="Sicurezza ISO 45001")
+        AmbitoRuolo.objects.filter(pk=sicurezza.pk).update(alimenta_scheda=False)
+        rspp = RuoloOperativo.objects.create(nome="Responsabile sicurezza", ambito=sicurezza)
+        addetto = RuoloOperativo.objects.create(nome="Addetto emergenze", riporta_a=rspp, ambito=sicurezza)
+        self._persona("sicuro", "Direzione", None, rspp)
+        solo = self._persona("solo", "Direzione", None, addetto)
+        self.assertIsNone(self._capo(solo).legacy_id)
 
     # ── Eccezioni manuali ─────────────────────────────────────────────────
     def test_caporeparto_indicato_a_mano_vince_sull_organigramma(self):
