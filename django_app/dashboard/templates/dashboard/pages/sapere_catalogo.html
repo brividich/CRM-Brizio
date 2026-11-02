@@ -1,0 +1,59 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ catalogo.titolo }} · Cataloghi · NOVICROM HUB{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/home_portale.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=4">
+{% endblock %}
+
+{% block content %}
+<div class="hp-wrap">
+  <nav class="sp-crumb" aria-label="Percorso"><a href="{% url 'sapere_cataloghi' %}">Cataloghi</a> › {{ catalogo.titolo }}</nav>
+
+  <header class="sp-hero{% if catalogo.copertina %} has-img{% endif %}" style="--cover:{{ catalogo.colore }}{% if catalogo.copertina %};--cover-img:url('{{ catalogo.copertina }}'){% endif %}">
+    <div class="sp-hero-bd">
+      <span class="sp-hero-k">Catalogo · {{ catalogo.totale }} vo{{ catalogo.totale|pluralize:"ce,ci" }}</span>
+      <h1 class="sp-hero-t">{{ catalogo.titolo }}</h1>
+      {% if catalogo.descrizione %}<p class="sp-hero-d">{{ catalogo.descrizione }}</p>{% endif %}
+    </div>
+    <div class="sp-hero-a">
+      {% if is_admin %}<a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:sapere_catalogo' catalogo.id %}">Modifica catalogo</a>{% endif %}
+      <a class="btn btn-secondary btn-sm" href="{% url 'home_portale:guida' %}#sapere">? Guida</a>
+    </div>
+  </header>
+
+  <section class="hp-card">
+    <div class="hs-pad">
+      {% if catalogo.voci %}
+        <div class="hs-lib">
+          {% for it in catalogo.voci %}
+            <a class="hs-book" href="{{ it.href }}"{% if it.nuova_scheda %} target="_blank" rel="noopener"{% endif %}{% if it.descrizione %} title="{{ it.descrizione }}"{% endif %}>
+              <span class="hs-cover{% if it.copertina %} has-img{% endif %}" style="--cover:{{ it.colore }}{% if it.copertina %};--cover-img:url('{{ it.copertina }}'){% endif %}">
+                <span class="hs-cover-k">{{ forloop.counter }}</span>
+                <span class="hs-cover-g">{% if not it.copertina %}{{ it.sigla }}{% endif %}</span>
+                <span class="hs-cover-k">{{ it.etichetta }}</span>
+              </span>
+              <span class="hs-book-t">{{ it.titolo }}</span>
+              {% if it.descrizione %}<span class="hs-book-d">{{ it.descrizione }}</span>{% endif %}
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="hp-empty">In questo catalogo non ci sono voci che puoi aprire.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if altri_cataloghi %}
+  <section class="hp-card">
+    <header class="hp-card-h"><div><h3 class="hp-card-t">Altri cataloghi</h3></div>
+      <a href="{% url 'sapere_cataloghi' %}" class="hp-card-link">Tutti →</a></header>
+    <div class="hs-pad">
+      {% include "dashboard/pages/_sapere_copertine.html" with elenco=altri_cataloghi %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -15,7 +15,7 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'core/css/home_portale.css' %}">
-<link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=4">
 {% endblock %}
 
 {% block content %}
@@ -197,6 +197,21 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
 
     {# ── SAPERE ── #}
     <section class="hs-room" id="hs-room-sapere" role="tabpanel" aria-labelledby="hs-tab-sapere" hidden>
+      {% if sapere_cataloghi %}
+      <div class="hp-card">
+        <header class="hp-card-h">
+          <div>
+            <h3 class="hp-card-t">Cataloghi</h3>
+            <p class="hp-card-s">Guide, documenti e collegamenti raccolti per argomento</p>
+          </div>
+          <a href="{% url 'sapere_cataloghi' %}" class="hp-card-link">{% if sapere_cataloghi_altri %}Tutti i cataloghi (+{{ sapere_cataloghi_altri }}) →{% else %}Tutti i cataloghi →{% endif %}</a>
+        </header>
+        <div class="hs-pad">
+          {% include "dashboard/pages/_sapere_copertine.html" with elenco=sapere_cataloghi %}
+        </div>
+      </div>
+      {% endif %}
+
       <div class="hp-card">
         <header class="hp-card-h">
           <div>
@@ -215,9 +230,9 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
             {% for g in self_help_groups %}
               {% for it in g.items %}
                 <a class="hs-book" data-shelf="{{ g.slug }}" href="{{ it.href }}"{% if it.open_in_new_tab %} target="_blank" rel="noopener"{% endif %}{% if it.description %} title="{{ it.description }}"{% endif %}>
-                  <span class="hs-cover" style="--cover:{{ g.colore }}">
+                  <span class="hs-cover{% if it.copertina %} has-img{% endif %}" style="--cover:{{ g.colore }}{% if it.copertina %};--cover-img:url('{{ it.copertina }}'){% endif %}">
                     <span class="hs-cover-k">{{ g.name }}</span>
-                    <span class="hs-cover-g">{{ it.sigla }}</span>
+                    <span class="hs-cover-g">{% if not it.copertina %}{{ it.sigla }}{% endif %}</span>
                     <span class="hs-cover-k">{{ it.kind_label }}</span>
                   </span>
                   <span class="hs-book-t">{{ it.title }}{% if it.is_new %} <span class="hs-new">NUOVA</span>{% endif %}</span>

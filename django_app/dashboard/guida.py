@@ -10,7 +10,7 @@ aggiornata anche qui.
 """
 from __future__ import annotations
 
-from dashboard.views_home_portale import SELF_HELP_NUOVA_GIORNI
+from dashboard.views_home_portale import SAPERE_CATALOGHI_HOME, SELF_HELP_NUOVA_GIORNI
 
 DOC_TITOLO = "Home del portale"
 
@@ -89,13 +89,17 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Qui ci sono le risorse da consultare in autonomia."),
             ("ul", [
-                "«Risorse self-help» è uno scaffale di guide, manuali e video. Ogni risorsa ha una copertina con il colore "
-                "della sua categoria e una sigla (per esempio VPN o 2FA). I pulsanti in alto filtrano per categoria.",
+                "«Cataloghi» raccoglie guide, documenti e collegamenti per argomento (per esempio «Primo giorno in azienda»). "
+                f"Qui ne vedi al massimo {SAPERE_CATALOGHI_HOME}; «Tutti i cataloghi →» apre la pagina con l'elenco completo. "
+                "Aprendo un catalogo trovi le sue voci in ordine: guide del Centro guide, documenti da scaricare e pagine del portale.",
+                "«Risorse self-help» è uno scaffale di guide, manuali e video. Ogni risorsa ha una copertina: un'immagine, "
+                "oppure il colore della sua categoria con una sigla (per esempio VPN o 2FA). I pulsanti in alto filtrano per categoria.",
                 f"La scritta «NUOVA» segna le risorse pubblicate negli ultimi {SELF_HELP_NUOVA_GIORNI} giorni.",
                 "«Documenti & Collegamenti» elenca documenti aziendali, collegamenti esterni e scorciatoie del portale, "
                 "divisi per categoria. «Apri tutti →» apre la bacheca completa.",
             ]),
-            ("p", "Vedi solo le risorse aperte al tuo ruolo: una risorsa senza ruoli assegnati è visibile a tutti."),
+            ("p", "Vedi solo i cataloghi e le risorse aperti al tuo ruolo: senza ruoli assegnati sono visibili a tutti. "
+                  "Una pagina del portale dentro un catalogo si apre solo se hai il permesso per quella pagina."),
         ],
     },
     {
@@ -143,7 +147,11 @@ SEZIONI: list[dict] = [
                 ("Risorse self-help e documenti", "Admin portale → Documenti & Collegamenti. Ogni categoria ha una "
                  "«Sezione della home»: «Documenti & collegamenti» (elenco) o «Risorse self-help» (scaffale), e un "
                  "«Colore copertine». Ogni voce può avere una «Sigla copertina» fino a 8 caratteri; se è vuota, la sigla "
-                 "nasce dalle iniziali del titolo."),
+                 "nasce dalle iniziali del titolo. «+ Copertina» sulla riga (o il campo «Copertina» della nuova voce) "
+                 "mette un'immagine JPG, PNG o WEBP al posto di colore e sigla; «Togli copertina» la toglie."),
+                ("Cataloghi", "Admin portale → Cataloghi Sapere. Un catalogo raccoglie in ordine guide del Centro guide, "
+                 "risorse della bacheca e collegamenti (pagina del portale che inizia con «/» o indirizzo https://), "
+                 "con copertina, colore e ruoli che lo vedono. Un catalogo senza voci visibili non compare."),
                 ("Figure della sicurezza", "Anagrafica → Ruoli: i ruoli dell'ambito «Sicurezza ISO 45001» e le persone "
                  "assegnate. La descrizione del ruolo diventa il testo della tessera «Responsabilità»."),
                 ("News", "modulo Notizie aziendali."),
