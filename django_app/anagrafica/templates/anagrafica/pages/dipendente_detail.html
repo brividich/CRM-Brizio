@@ -227,6 +227,32 @@ body.theme-dark .dp-ruoli-gruppo-h { color:var(--text-light); }
 /* Sezione HR riservata */
 .dp-hr-badge { display:inline-flex; align-items:center; gap:6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; margin-bottom:12px; }
 
+/* Card «Anagrafica aziendale»: blocchi in lettura, «Modifica» apre il form del blocco */
+.dp-blocchi { display:flex; flex-direction:column; gap:12px; }
+.dp-blocco { border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
+.dp-blocco-head { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+.dp-blocco-title { margin:0; font-size:13px; font-weight:700; color:#0f172a; }
+.dp-blocco-form { display:none; flex-direction:column; gap:10px; }
+.dp-blocco.dp-blocco-aperto { border-color:#1f87cd; box-shadow:0 0 0 3px rgba(31,135,205,.12); }
+.dp-blocco.dp-blocco-aperto .dp-blocco-form { display:flex; }
+.dp-blocco.dp-blocco-aperto .dp-blocco-vista,
+.dp-blocco.dp-blocco-aperto .dp-vuoti-toggle,
+.dp-blocco.dp-blocco-aperto .dp-blocco-apri,
+.dp-blocco-form [data-dp-motivo-esclusione][hidden] { display:none; }
+.dp-blocco-bloccato { background:#f8fafc; }
+.dp-blocco-link { font-size:12px; font-weight:700; color:#1f87cd; text-decoration:none; }
+.dp-blocco-link:hover { text-decoration:underline; }
+.dp-blocco-hint { font-size:11px; color:#94a3b8; }
+.dp-blocco-check { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:#0f172a; align-self:end; min-height:34px; }
+.dp-blocco-nota { font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.dp-blocco-azioni { display:flex; gap:8px; flex-wrap:wrap; }
+body.theme-dark .dp-blocco { border-color:var(--border); }
+body.theme-dark .dp-blocco-title,
+body.theme-dark .dp-blocco-check { color:var(--text); }
+body.theme-dark .dp-blocco-bloccato { background:var(--surface-alt); }
+body.theme-dark .dp-blocco-link { color:#60a5fa; }
+body.theme-dark .dp-blocco-nota { background:rgba(253,230,138,.08); border-color:rgba(253,230,138,.3); color:#fcd34d; }
+
 /* Toggle sezione edit */
 .dp-edit-section { display:none; margin-top:14px; padding:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; }
 .dp-edit-section.open { display:block; }
@@ -671,6 +697,7 @@ body.theme-dark .dp-btn-edit-sm:hover{background:rgba(59,130,246,.18)}
 body.theme-dark .dp-pos-l{color:var(--text-light)}
 body.theme-dark .dp-pos-warn{color:#fdba74}
 body.theme-dark .dp-pos-meta{color:var(--text-light)}
+body.theme-dark .dp-pos-v a,body.theme-dark .dp-pos-list a,body.theme-dark .dp-pos-vai{color:#93c5fd}
 body.theme-dark .sp-gap{border-color:var(--border)}
 body.theme-dark .sp-gap-titolo{color:#fcd34d}
 body.theme-dark .sp-card-foot{border-color:var(--border)}
@@ -1008,151 +1035,170 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
     </div>
   </div>
 
-  <!-- ANAGRAFICA AZIENDALE (spostata nella tab Anagrafica) -->
+  <!-- ANAGRAFICA AZIENDALE: blocchi in sola lettura, ognuno col suo «Modifica» -->
   {% if is_admin %}
-  <div class="dp-card" data-tab="anagrafica">
+  <div class="dp-card" data-tab="anagrafica" id="anagrafica-aziendale">
     <div class="dp-card-head">
       <div class="dp-card-title">🏢 Anagrafica aziendale</div>
-      <button type="button" onclick="toggleSection('az-edit')" class="dp-btn dp-btn-ghost dp-btn-sm">✏ Modifica</button>
     </div>
-    <div class="dp-card-body">
-      <div class="dp-info-grid">
-        <div class="dp-info-item"><div class="dp-info-label">Nome <button type="button" onclick="document.getElementById('nome-form').classList.toggle('open')" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Correggi nome e cognome">✏</button></div><div class="dp-info-value">{{ dip.nome|parte_nome|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Cognome</div><div class="dp-info-value">{{ dip.cognome|parte_nome|default:"—" }}</div></div>
-        <div class="dp-info-item" style="grid-column:1/-1;">
-          <div class="dp-mansione-form" id="nome-form">
-            <form method="post" action="{% url 'anagrafica:dipendente_dati_base_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              {% csrf_token %}
-              <input type="text" name="nome" class="dp-select" value="{{ dip.nome|default:'' }}" maxlength="100" placeholder="Nome" required aria-label="Nome" autocomplete="off">
-              <input type="text" name="cognome" class="dp-select" value="{{ dip.cognome|default:'' }}" maxlength="100" placeholder="Cognome" required aria-label="Cognome" autocomplete="off">
-              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
-              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="document.getElementById('nome-form').classList.remove('open')">Annulla</button>
-            </form>
-            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Il nome si salva in maiuscolo e viene riportato sull'account portale collegato.</div>
-          </div>
-        </div>
-        <div class="dp-info-item">
-          <div class="dp-info-label">Matricola
-            {% if is_admin %}<button type="button" onclick="toggleMatricolaForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia matricola">✏</button>{% endif %}
-          </div>
-          <div class="dp-info-value">{{ dip.matricola|default:"—" }}</div>
-          {% if is_admin %}
-          <div class="dp-mansione-form" id="matricola-form">
-            <form method="post" action="{% url 'anagrafica:dipendente_matricola_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              {% csrf_token %}
-              <input type="text" name="matricola" class="dp-select" value="{{ dip.matricola|default:'' }}" maxlength="100" placeholder="Es. CNO 0001" style="min-width:180px;" autocomplete="off">
-              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
-              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleMatricolaForm()">Annulla</button>
-            </form>
-            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">
-              Utile per i preinserimenti (dipendente creato prima dell'assegnazione matricola) e per i candidati importati dal recruiting.
-            </div>
-          </div>
-          {% endif %}
-        </div>
-        <div class="dp-info-item"><div class="dp-info-label">Badge</div><div class="dp-info-value">{{ aziendale.badge|default:"—" }}</div></div>
-        <div class="dp-info-item">
-          <div class="dp-info-label">Reparto</div>
-          <div class="dp-info-value">{% if dip.reparto %}{{ dip.reparto }}{% elif aziendale and aziendale.area %}{{ aziendale.area }}{% else %}—{% endif %}</div>
-        </div>
-        <div class="dp-info-item">
-          <div class="dp-info-label">Mansione di rischio</div>
-          <div class="dp-info-value">{{ dip.mansione|default:"—" }}</div>
-        </div>
-        <div class="dp-info-item">
-          <div class="dp-info-label">Area aziendale</div>
-          <div class="dp-info-value">
-            {% if aziendale.area_aziendale %}
-              {{ aziendale.area_aziendale.nome }}
-            {% else %}
-              <span style="color:#94a3b8;font-size:12px;">Non assegnata</span>
-            {% endif %}
-          </div>
-        </div>
-        <div class="dp-info-item">
-          <div class="dp-info-label">Caporeparto</div>
-          <div class="dp-info-value">
-            {% if caporeparto_label %}
-              {{ caporeparto_label }}
-            {% else %}
-              <span style="color:#94a3b8;font-size:12px;">Auto dal reparto</span>
-            {% endif %}
-          </div>
-        </div>
-        <div class="dp-info-item"><div class="dp-info-label">Ruolo aziendale</div><div class="dp-info-value">{{ aziendale.ruolo_aziendale|default:"—" }}</div></div>
-        <div class="dp-info-item">
-          <div class="dp-info-label">Username
-            {% if is_admin %}<button type="button" onclick="toggleUsernameForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia username">✏</button>{% endif %}
-          </div>
-          <div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div>
-          {% if is_admin %}
-          <div class="dp-mansione-form" id="username-form">
-            <form method="post" action="{% url 'anagrafica:dipendente_username_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              {% csrf_token %}
-              <input type="text" name="aliasusername" class="dp-select" value="{{ dip.aliasusername|default:'' }}" maxlength="150" placeholder="Username (es. m.rossi)" style="min-width:180px;" autocomplete="off">
-              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
-              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="toggleUsernameForm()">Annulla</button>
-            </form>
-          </div>
-          {% endif %}
-        </div>
-        <div class="dp-info-item"><div class="dp-info-label">Email account</div><div class="dp-info-value">{{ dip.email|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Email notifica <button type="button" onclick="document.getElementById('email-notifica-form').classList.toggle('open')" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia email per le notifiche">✏</button></div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f87cd;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div>
-          <div class="dp-mansione-form" id="email-notifica-form">
-            <form method="post" action="{% url 'anagrafica:dipendente_dati_base_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-              {% csrf_token %}
-              <input type="email" name="email_notifica" class="dp-select" value="{{ dip.email_notifica|default:'' }}" maxlength="200" placeholder="nome@azienda.it" aria-label="Email per le notifiche" style="min-width:200px;" autocomplete="off">
-              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
-              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="document.getElementById('email-notifica-form').classList.remove('open')">Annulla</button>
-            </form>
-          </div>
-        </div>
-        <div class="dp-info-item"><div class="dp-info-label">Email aziendale</div><div class="dp-info-value">{% if aziendale.email_aziendale %}<a href="mailto:{{ aziendale.email_aziendale }}" style="color:#1f87cd;">{{ aziendale.email_aziendale }}</a>{% else %}—{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Telefono aziendale</div><div class="dp-info-value">{{ aziendale.telefono_aziendale|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Data prima assunzione</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Data assunzione corrente</div><div class="dp-info-value">{% if aziendale.data_assunzione_ultima and aziendale.data_assunzione_ultima != aziendale.data_prima_assunzione %}{{ aziendale.data_assunzione_ultima|date:"d-m-Y" }}{% else %}—{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Data cessazione</div><div class="dp-info-value">{% if aziendale.data_cessazione %}<span class="dp-pill dp-pill-gray">{{ aziendale.data_cessazione|date:"d-m-Y" }}</span>{% else %}<span style="color:#16a34a;font-weight:600;">In forza</span>{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Conteggi organico</div><div class="dp-info-value">{% if aziendale.escluso_dai_conteggi %}<span class="dp-pill dp-pill-gray" title="Non entra in persone in forza, turnover, organico per reparto e indici infortuni">Escluso</span>{% if aziendale.motivo_esclusione_conteggi %} <span style="font-size:11px;color:#64748b;">{{ aziendale.motivo_esclusione_conteggi }}</span>{% endif %}{% else %}Conteggiato{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Periodo di prova</div><div class="dp-info-value">{% if aziendale.prova_data_inizio %}{{ aziendale.prova_data_inizio|date:"d-m-Y" }} → {% if aziendale.prova_data_fine %}{{ aziendale.prova_data_fine|date:"d-m-Y" }}{% else %}…{% endif %}{% else %}—{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Consenso privacy</div><div class="dp-info-value">{% if aziendale.consenso_privacy %}<span class="dp-pill dp-pill-green">Sì</span>{% if aziendale.data_consenso_privacy %} <span style="font-size:11px;color:#64748b;">{{ aziendale.data_consenso_privacy|date:"d-m-Y" }}</span>{% endif %}{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Taglia scarpe</div><div class="dp-info-value">{{ aziendale.taglia_scarpe|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Taglia pantalone</div><div class="dp-info-value">{{ aziendale.taglia_pantalone|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Taglia maglia</div><div class="dp-info-value">{% if aziendale %}{{ aziendale.get_taglia_maglia_display|default:"—" }}{% else %}—{% endif %}</div></div>
-      </div>
+    <div class="dp-card-body dp-blocchi">
 
-      <!-- Form modifica anagrafica aziendale -->
-      <div class="dp-edit-section" id="az-edit">
-        <div class="dp-form-section-title">Modifica dati aziendali</div>
-        <form method="post" action="{% url 'anagrafica:dipendente_aziendale_save' legacy_id %}">
+      <!-- Identità -->
+      <section class="dp-blocco" id="blocco-identita">
+        <div class="dp-blocco-head">
+          <h3 class="dp-blocco-title">Identità</h3>
+          <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs dp-blocco-apri" data-dp-blocco="blocco-identita">✏ Modifica</button>
+        </div>
+        <div class="dp-info-grid dp-blocco-vista">
+          <div class="dp-info-item"><div class="dp-info-label">Nome</div><div class="dp-info-value">{{ dip.nome|parte_nome|default:"—" }}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Cognome</div><div class="dp-info-value">{{ dip.cognome|parte_nome|default:"—" }}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Matricola</div><div class="dp-info-value">{{ dip.matricola|default:"—" }}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Email per le notifiche</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f87cd;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
+        </div>
+        <form method="post" action="{% url 'anagrafica:dipendente_dati_base_set' legacy_id %}" class="dp-blocco-form">
           {% csrf_token %}
           <div class="dp-form-grid">
-            {% for field in form_aziendale %}
-            <div class="dp-form-field">
-              <label class="dp-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-              {{ field }}
-              {% if field.errors %}<div style="font-size:11px;color:#b91c1c;">{{ field.errors|join:", " }}</div>{% endif %}
-            </div>
-            {% endfor %}
-            <div class="dp-form-field">
-              <label class="dp-form-label">Reparto · Area · Mansione di rischio · Ruolo</label>
-              <input type="text" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;"
-                     value="{{ dip.reparto|default:'—' }}{% if aziendale.area_aziendale %} · {{ aziendale.area_aziendale.nome }}{% endif %} · {{ dip.mansione|default:'—' }} · {{ aziendale.ruolo_aziendale|default:'—' }}">
-              <span style="font-size:11px;color:#94a3b8;">
-                Si cambiano da <strong>Spostamenti organizzativi</strong>, con decorrenza e verifica di idoneità.
-              </span>
-            </div>
-            <div class="dp-form-field">
-              <label class="dp-form-label">Caporeparto</label>
-              <input type="text" id="az-capo-autofill" class="dp-input" readonly style="background:#f8fafc;color:#64748b;cursor:default;" value="{{ caporeparto_label|default:'' }}">
-              <span style="font-size:11px;color:#94a3b8;">Compilata automaticamente dal reparto</span>
-            </div>
+            <div class="dp-form-field"><label class="dp-form-label" for="az-nome">Nome</label><input type="text" id="az-nome" name="nome" class="dp-input" value="{{ dip.nome|default:'' }}" maxlength="100" required autocomplete="off"></div>
+            <div class="dp-form-field"><label class="dp-form-label" for="az-cognome">Cognome</label><input type="text" id="az-cognome" name="cognome" class="dp-input" value="{{ dip.cognome|default:'' }}" maxlength="100" required autocomplete="off"></div>
+            <div class="dp-form-field"><label class="dp-form-label" for="az-matricola">Matricola</label><input type="text" id="az-matricola" name="matricola" class="dp-input" value="{{ dip.matricola|default:'' }}" maxlength="100" placeholder="Es. CNO 0001" autocomplete="off"></div>
+            <div class="dp-form-field"><label class="dp-form-label" for="az-email-notifica">Email per le notifiche</label><input type="email" id="az-email-notifica" name="email_notifica" class="dp-input" value="{{ dip.email_notifica|default:'' }}" maxlength="200" placeholder="nome@azienda.it" autocomplete="off"></div>
           </div>
-          <div style="display:flex;gap:8px;margin-top:14px;">
+          <span class="dp-blocco-hint">Nome e cognome si salvano in maiuscolo e vengono riportati sull'account portale collegato. La matricola si può lasciare vuota per i preinserimenti.</span>
+          <div class="dp-blocco-azioni">
             <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
-            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm" onclick="toggleSection('az-edit')">Annulla</button>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm dp-blocco-chiudi">Annulla</button>
           </div>
         </form>
-      </div>
+      </section>
+
+      <!-- Account portale -->
+      <section class="dp-blocco" id="blocco-account">
+        <div class="dp-blocco-head">
+          <h3 class="dp-blocco-title">Accesso al portale</h3>
+          <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs dp-blocco-apri" data-dp-blocco="blocco-account">✏ Modifica</button>
+        </div>
+        <div class="dp-info-grid dp-blocco-vista">
+          <div class="dp-info-item"><div class="dp-info-label">Username</div><div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Email account</div><div class="dp-info-value">{{ dip.email|default:"—" }}</div></div>
+        </div>
+        <form method="post" action="{% url 'anagrafica:dipendente_username_set' legacy_id %}" class="dp-blocco-form">
+          {% csrf_token %}
+          <div class="dp-form-grid">
+            <div class="dp-form-field"><label class="dp-form-label" for="az-username">Username</label><input type="text" id="az-username" name="aliasusername" class="dp-input" value="{{ dip.aliasusername|default:'' }}" maxlength="150" placeholder="Es. m.rossi" required autocomplete="off"></div>
+            <div class="dp-form-field"><span class="dp-form-label">Email account</span><span class="dp-info-value">{{ dip.email|default:"—" }}</span><span class="dp-blocco-hint">È l'indirizzo di accesso: non si modifica da qui.</span></div>
+          </div>
+          <span class="dp-blocco-hint">Lo username vale anche per l'account portale collegato.</span>
+          <div class="dp-blocco-azioni">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm dp-blocco-chiudi">Annulla</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Badge e contatti aziendali -->
+      <section class="dp-blocco" id="blocco-contatti">
+        <div class="dp-blocco-head">
+          <h3 class="dp-blocco-title">Badge e contatti aziendali</h3>
+          <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs dp-blocco-apri" data-dp-blocco="blocco-contatti">✏ Modifica</button>
+        </div>
+        <div class="dp-info-grid dp-blocco-vista">
+          <div class="dp-info-item"><div class="dp-info-label">Badge</div><div class="dp-info-value">{{ aziendale.badge|default:"—" }}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Email aziendale</div><div class="dp-info-value">{% if aziendale.email_aziendale %}<a href="mailto:{{ aziendale.email_aziendale }}" style="color:#1f87cd;">{{ aziendale.email_aziendale }}</a>{% else %}—{% endif %}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Telefono aziendale</div><div class="dp-info-value">{{ aziendale.telefono_aziendale|default:"—" }}</div></div>
+        </div>
+        <form method="post" action="{% url 'anagrafica:dipendente_aziendale_save' legacy_id %}" class="dp-blocco-form">
+          {% csrf_token %}<input type="hidden" name="blocco" value="contatti">
+          {% include "anagrafica/partials/_az_blocco_campi.html" with form=form_az_blocchi.contatti %}
+          <div class="dp-blocco-azioni">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm dp-blocco-chiudi">Annulla</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Rapporto di lavoro -->
+      <section class="dp-blocco" id="blocco-rapporto">
+        <div class="dp-blocco-head">
+          <h3 class="dp-blocco-title">Rapporto di lavoro</h3>
+          <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs dp-blocco-apri" data-dp-blocco="blocco-rapporto">✏ Modifica</button>
+        </div>
+        <div class="dp-info-grid dp-blocco-vista">
+          <div class="dp-info-item"><div class="dp-info-label">Data prima assunzione</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Data assunzione corrente</div><div class="dp-info-value">{% if aziendale.data_assunzione_ultima and aziendale.data_assunzione_ultima != aziendale.data_prima_assunzione %}{{ aziendale.data_assunzione_ultima|date:"d-m-Y" }}{% else %}—{% endif %}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Periodo di prova</div><div class="dp-info-value">{% if aziendale.prova_data_inizio %}{{ aziendale.prova_data_inizio|date:"d-m-Y" }} → {% if aziendale.prova_data_fine %}{{ aziendale.prova_data_fine|date:"d-m-Y" }}{% else %}…{% endif %}{% else %}—{% endif %}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Stato</div><div class="dp-info-value">{% if aziendale.data_cessazione %}<span class="dp-pill dp-pill-gray">Cessato il {{ aziendale.data_cessazione|date:"d-m-Y" }}</span>{% elif offboarding_pratica_attiva %}<span class="dp-pill dp-pill-gray">Uscita in corso</span>{% else %}<span style="color:#16a34a;font-weight:600;">In forza</span>{% endif %}</div></div>
+        </div>
+        <form method="post" action="{% url 'anagrafica:dipendente_aziendale_save' legacy_id %}" class="dp-blocco-form">
+          {% csrf_token %}<input type="hidden" name="blocco" value="rapporto">
+          {% include "anagrafica/partials/_az_blocco_campi.html" with form=form_az_blocchi.rapporto %}
+          <div class="dp-blocco-nota">
+            La data di cessazione non si scrive qui: la registra l'uscita del dipendente, che chiude anche account e assegnazioni.
+            {% if not aziendale.data_cessazione and not offboarding_pratica_attiva %}<button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" data-dp-dialog="dp-offboarding-dialog">Avvia uscita dipendente…</button>{% endif %}
+          </div>
+          <div class="dp-blocco-azioni">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm dp-blocco-chiudi">Annulla</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Organico e privacy -->
+      <section class="dp-blocco" id="blocco-organico">
+        <div class="dp-blocco-head">
+          <h3 class="dp-blocco-title">Organico e privacy</h3>
+          <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs dp-blocco-apri" data-dp-blocco="blocco-organico">✏ Modifica</button>
+        </div>
+        <div class="dp-info-grid dp-blocco-vista">
+          <div class="dp-info-item"><div class="dp-info-label">Conteggi organico</div><div class="dp-info-value">{% if aziendale.escluso_dai_conteggi %}<span class="dp-pill dp-pill-gray" title="Non entra in persone in forza, turnover, organico per reparto e indici infortuni">Escluso</span>{% if aziendale.motivo_esclusione_conteggi %} <span style="font-size:11px;color:#64748b;">{{ aziendale.motivo_esclusione_conteggi }}</span>{% endif %}{% else %}Conteggiato{% endif %}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Consenso privacy</div><div class="dp-info-value">{% if aziendale.consenso_privacy %}<span class="dp-pill dp-pill-green">Sì</span>{% if aziendale.data_consenso_privacy %} <span style="font-size:11px;color:#64748b;">{{ aziendale.data_consenso_privacy|date:"d-m-Y" }}</span>{% endif %}{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
+        </div>
+        <form method="post" action="{% url 'anagrafica:dipendente_aziendale_save' legacy_id %}" class="dp-blocco-form">
+          {% csrf_token %}<input type="hidden" name="blocco" value="organico">
+          {% include "anagrafica/partials/_az_blocco_campi.html" with form=form_az_blocchi.organico %}
+          <span class="dp-blocco-hint">Chi è escluso dai conteggi resta negli elenchi e in formazione, visite, DPI e scadenze.</span>
+          <div class="dp-blocco-azioni">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm dp-blocco-chiudi">Annulla</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Taglie -->
+      <section class="dp-blocco" id="blocco-taglie">
+        <div class="dp-blocco-head">
+          <h3 class="dp-blocco-title">Taglie</h3>
+          <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs dp-blocco-apri" data-dp-blocco="blocco-taglie">✏ Modifica</button>
+        </div>
+        <div class="dp-info-grid dp-blocco-vista">
+          <div class="dp-info-item"><div class="dp-info-label">Taglia scarpe</div><div class="dp-info-value">{{ aziendale.taglia_scarpe|default:"—" }}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Taglia pantalone</div><div class="dp-info-value">{{ aziendale.taglia_pantalone|default:"—" }}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Taglia maglia</div><div class="dp-info-value">{% if aziendale %}{{ aziendale.get_taglia_maglia_display|default:"—" }}{% else %}—{% endif %}</div></div>
+        </div>
+        <form method="post" action="{% url 'anagrafica:dipendente_aziendale_save' legacy_id %}" class="dp-blocco-form">
+          {% csrf_token %}<input type="hidden" name="blocco" value="taglie">
+          {% include "anagrafica/partials/_az_blocco_campi.html" with form=form_az_blocchi.taglie %}
+          <div class="dp-blocco-azioni">
+            <button type="submit" class="dp-btn dp-btn-primary dp-btn-sm">Salva</button>
+            <button type="button" class="dp-btn dp-btn-ghost dp-btn-sm dp-blocco-chiudi">Annulla</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Collocazione: sola lettura, la governano gli spostamenti -->
+      <section class="dp-blocco dp-blocco-bloccato" id="blocco-collocazione">
+        <div class="dp-blocco-head">
+          <h3 class="dp-blocco-title">Collocazione</h3>
+          <a href="#spostamenti-organizzativi" class="dp-blocco-link">Cambia da Spostamenti organizzativi →</a>
+        </div>
+        <div class="dp-info-grid">
+          <div class="dp-info-item"><div class="dp-info-label">Reparto</div><div class="dp-info-value">{% if dip.reparto %}{{ dip.reparto }}{% elif aziendale and aziendale.area %}{{ aziendale.area }}{% else %}—{% endif %}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Area aziendale</div><div class="dp-info-value">{% if aziendale.area_aziendale %}{{ aziendale.area_aziendale.nome }}{% else %}<span style="color:#94a3b8;font-size:12px;">Non assegnata</span>{% endif %}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Mansione di rischio</div><div class="dp-info-value">{{ dip.mansione|default:"—" }}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Ruolo aziendale</div><div class="dp-info-value">{{ aziendale.ruolo_aziendale|default:"—" }}</div></div>
+          <div class="dp-info-item"><div class="dp-info-label">Caporeparto</div><div class="dp-info-value">{% if caporeparto_label %}{{ caporeparto_label }}{% else %}<span style="color:#94a3b8;font-size:12px;">Auto dal reparto</span>{% endif %} <a href="{% url 'anagrafica:coerenza_capi' %}" class="dp-blocco-link" title="Indicare a mano un capo diverso">Coerenza capi →</a></div></div>
+        </div>
+      </section>
+
     </div>
   </div>
   {% endif %}
@@ -1769,7 +1815,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
 
   <!-- SPOSTAMENTI ORGANIZZATIVI (assegnazioni a periodo) -->
   {% if is_admin %}
-  <div class="dp-card" data-tab="anagrafica">
+  <div class="dp-card" data-tab="anagrafica" id="spostamenti-organizzativi">
     <div class="dp-card-head">
       <div class="dp-card-title">🔀 Spostamenti organizzativi</div>
       <button type="button" onclick="toggleSection('spostamento-form')" class="dp-btn dp-btn-primary dp-btn-sm">+ Nuovo spostamento</button>
@@ -3311,15 +3357,36 @@ window.addEventListener('beforeunload', e => {
 {% endif %}
 
 <script>
-function toggleUsernameForm() {
-  const f = document.getElementById('username-form');
-  if (f) f.classList.toggle('open');
+// Card «Anagrafica aziendale»: «Modifica» apre il form del solo blocco.
+document.querySelectorAll('[data-dp-blocco]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var blocco = document.getElementById(btn.getAttribute('data-dp-blocco'));
+    if (!blocco) return;
+    blocco.classList.add('dp-blocco-aperto');
+    var primo = blocco.querySelector('.dp-blocco-form input:not([type=hidden]), .dp-blocco-form select');
+    if (primo) primo.focus();
+  });
+});
+document.querySelectorAll('.dp-blocco-chiudi').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var blocco = btn.closest('.dp-blocco');
+    var form = blocco && blocco.querySelector('.dp-blocco-form');
+    if (form) form.reset();
+    if (blocco) blocco.classList.remove('dp-blocco-aperto');
+    sincronizzaMotivoEsclusione();
+  });
+});
+// Il motivo dell'esclusione serve solo se la casella è spuntata.
+function sincronizzaMotivoEsclusione() {
+  var chk = document.querySelector('#blocco-organico input[name="escluso_dai_conteggi"]');
+  var motivo = document.querySelector('#blocco-organico [data-dp-motivo-esclusione]');
+  if (chk && motivo) motivo.hidden = !chk.checked;
 }
-
-function toggleMatricolaForm() {
-  const f = document.getElementById('matricola-form');
-  if (f) f.classList.toggle('open');
-}
+(function () {
+  var chk = document.querySelector('#blocco-organico input[name="escluso_dai_conteggi"]');
+  if (chk) chk.addEventListener('change', sincronizzaMotivoEsclusione);
+  sincronizzaMotivoEsclusione();
+})();
 
 // Spostamenti organizzativi — verifica idoneità in anteprima.
 // Alla scelta della mansione chiede al server se la persona è abilitata
