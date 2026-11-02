@@ -209,6 +209,29 @@
         </tr>
         {% endif %}
 
+        {% if portal_url %}
+        <!-- APRI NEL PORTALE -->
+        <tr>
+          <td class="ep" style="padding:14px 34px 18px;background:#ffffff;">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+              <tr>
+                <td style="border-radius:10px;background:#12395f;">
+                  <a href="{{ portal_url }}"
+                     style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;
+                            color:#ffffff;text-decoration:none;border-radius:10px;
+                            background:#12395f;mso-padding-alt:14px 32px;">
+                    Apri l'OP nel portale
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:10px 0 0;font-size:12px;color:#64748b;">
+              Dai PC aziendali entri in automatico con l'utente Windows; da telefono o fuori rete si apre il login.
+            </p>
+          </td>
+        </tr>
+        {% endif %}
+
         {% if source_label %}
         <tr>
           <td class="ep" style="padding:4px 34px 16px;background:#ffffff;">
