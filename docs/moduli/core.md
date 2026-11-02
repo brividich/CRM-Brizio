@@ -136,6 +136,12 @@ Procedura: backup del DB → `pulizia_pre_golive` (verificare i conteggi) → `p
 - Audit 09/10 (Fase 2): blocco TOTP per utente con anti-replay e limite ai codici email; allowlist gruppi AD anche al login/SSO (`LDAP_GROUP_ALLOWLIST_ON_LOGIN`); utente disattivato = sessioni chiuse; rotazione della chiave documenti con `DOCUMENT_ENCRYPTION_OLD_KEYS` + `rotate_document_encryption_key --apply`; `backup_portale` non copia il `.env` accanto ai dati (`BACKUP_ENV_DIR` per la copia separata); versione cache ACL basata sul tempo; log separati `app.log`/`qcluster.log`/`commands.log`; CSP senza host esterni; niente SVG negli upload serviti da `/media/`.
 - Audit 09/10 (finding fuori roadmap): `ForcedPasswordChangeMiddleware` impone il cambio password obbligatorio; password di almeno 12 caratteri con i validatori Django; logout via GET da altri siti ignorato; `core/numbering_retry.save_with_next_number` per le numerazioni `MAX()+1` con retry; token Graph cifrato in cache; wizard `/setup/` sempre chiuso con settings di produzione.
 
+## Link «Apri nel portale» nelle mail (02/11/2026)
+
+- `core.accounts.portal_links.portal_link(path)`: URL assoluto su `SITE_URL`; con LDAP attivo e `SiteConfig.login_sso_visibile` = 1 passa da `/login/windows/?next=<path>`, così dai PC del dominio l'accesso è automatico. Nessun token di accesso nella mail: un inoltro non dà accesso. Senza `SITE_URL` restituisce "".
+- `/login/windows/`: chi è già autenticato va dritto a `next`; la sfida 401 ha un corpo HTML che, se il browser non negozia (telefono, PC fuori dominio), passa al login con la stessa `next`; ogni errore torna al login mantenendo `next` (resta valida solo se interna, `get_safe_redirect_target`).
+- Usato oggi dalle mail anomalie; gli altri moduli possono adottarlo al posto di `SITE_URL + path`.
+
 ## Postazioni condivise (`/postazione/`, 23/10/2026)
 
 PC usati a turno con un solo account (es. «zeiss» del controllo): ogni PC è registrato con il suo IP e ha i suoi operatori, che entrano con il proprio nome e un PIN personale; la sessione diventa loro.

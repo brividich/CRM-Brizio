@@ -271,6 +271,11 @@ SEZIONI: list[dict] = [
                  "soli quando l'OP è stato gestito."),
                 ("Resoconto giornaliero", "nei giorni lavorativi, se attivato dagli amministratori."),
             ]),
+            ("p", "La mail del controllo e il riepilogo hanno il pulsante «Apri nel portale» («Apri l'OP nel portale» "
+                  "nel riepilogo): apre l'OP direttamente in Gestione anomalie, senza la pagina pubblica del link. Dai PC "
+                  "aziendali entri in automatico con l'utente Windows; da telefono o fuori rete si apre il login e, dopo "
+                  "l'accesso, arrivi comunque all'OP. Il pulsante non contiene credenziali: inoltrare la mail non dà "
+                  "accesso a nessuno."),
             ("p", "Le mail inviate dal modulo sono registrate e si possono rispedire dalla configurazione (Log attività)."),
         ],
     },

@@ -25,7 +25,6 @@ import logging
 from collections import defaultdict
 from urllib.parse import quote
 
-from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils import timezone
 
@@ -97,16 +96,24 @@ def _select_base(cols: set[str], extra: tuple[str, ...] = ()) -> tuple[str, list
     return ", ".join(parts), present
 
 
-def _site_url() -> str:
-    return str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
-
-
 def op_url(op_id: str) -> str:
     return f"/gestione-anomalie?op={quote(str(op_id or ''), safe='/')}"
 
 
+def _portal_link(path: str) -> str:
+    """Link delle mail: indirizzo interno del portale con accesso Windows automatico."""
+    from core.accounts.portal_links import portal_link
+    return portal_link(path)
+
+
+def op_portal_link(op_id: str, *, base: str | None = None) -> str:
+    """Pulsante «Apri nel portale» delle mail sull'OP."""
+    from core.accounts.portal_links import portal_link
+    return portal_link(op_url(op_id), base=base)
+
+
 def report_url(op_id: str) -> str:
-    return f"{_site_url()}/api/anomalie/report?op_id={quote(str(op_id or ''), safe='')}"
+    return _portal_link(f"/api/anomalie/report?op_id={quote(str(op_id or ''), safe='')}")
 
 
 def _marker_exists(tipo: str, chiave: str, since=None) -> bool:
@@ -221,7 +228,7 @@ def notify_ricorrenze_pn(*, soglia_n: int, giorni: int, now=None) -> int:
             intro=(f"Superata la soglia di {soglia_n} anomalie sullo stesso P/N. "
                    "Valutare un'azione correttiva sulla causa comune."),
             columns=["Data", "OP", "S/N", "Descrizione", "Stato"], rows=rows,
-            cta_url=f"{_site_url()}/gestione-anomalie/statistiche" if _site_url() else "",
+            cta_url=_portal_link("/gestione-anomalie/statistiche"),
             cta_label="Apri le statistiche",
         )
         if _send(kind="ricorrenza_pn", subject=subject, lines=lines, html=html, to=to,
@@ -416,7 +423,7 @@ def send_digest(*, soglia_ore: int, now=None, force: bool = False) -> bool:
         title=riepilogo[:1].upper() + riepilogo[1:],
         intro="Andamento della settimana e stato attuale delle anomalie aperte.",
         kpis=kpis, columns=["Tipo", "Riferimento", "Nuove"] if rows else [], rows=rows,
-        cta_url=f"{_site_url()}/gestione-anomalie/statistiche" if _site_url() else "",
+        cta_url=_portal_link("/gestione-anomalie/statistiche"),
         cta_label="Apri le statistiche",
     )
     if _send(kind="digest_settimanale", subject=subject, lines=lines, html=html, to=to, context={"settimana": chiave}):
@@ -625,7 +632,7 @@ def invia_decisioni_operatore(op_id: str, piano: list[dict], *, deciso_da: str =
         pn = _fetch_pn_for_ops([op_id]).get(str(op_id).strip().lower(), "")
     except Exception:
         logger.warning("decisioni operatore: P/N non letto op=%s", op_id, exc_info=True)
-    link = f"{_site_url()}{op_url(op_id)}" if _site_url() else ""
+    link = op_portal_link(op_id)
     sent = 0
     for g in piano:
         n = len(g["righe"])

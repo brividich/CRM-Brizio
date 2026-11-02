@@ -22,6 +22,8 @@ GUIDA = {
                     "liste di Configurazione → Notifiche che ricevono il riepilogo, e il riquadro torna nel riepilogo "
                     "finale.",
                     "Invia: il capocommessa riceve la mail e decide dal portale o dal collegamento nella mail.",
+                    "Nella mail del controllo e nel riepilogo «Apri nel portale» apre l'OP in Gestione anomalie: dai PC "
+                    "aziendali entri in automatico con l'utente Windows, altrove si apre il login e poi l'OP.",
                     "Nel portale e nella pagina della mail «Applica la stessa decisione anche alle altre … anomalie aperte "
                     "di questi seriali» copia la decisione su tutto il blocco.",
                 ]),
@@ -51,6 +53,9 @@ GUIDA = {
                     "un controllo». La stessa vista è in Automazioni → Notifiche di sistema: un dato solo, due pagine.",
                     "La vecchia regola Automazioni «AU-MAIL-ANOMALIE anomalia modificata» è spenta: il riepilogo "
                     "delle modifiche lo manda il modulo, 5 minuti dopo l'ultima modifica sull'OP.",
+                    "I pulsanti «Apri nel portale» delle mail puntano all'indirizzo del portale (SITE_URL) passando "
+                    "dall'accesso Windows (/login/windows/) quando LDAP è attivo e il pulsante «Accedi con credenziali "
+                    "Windows» è visibile nel login; altrimenti puntano direttamente alla pagina, che chiede il login.",
                 ]),
             ],
         },
@@ -80,6 +85,16 @@ GUIDA = {
                 "Configurazione → Log attività: cerca la mail, leggi l'errore e usa «Reinvia».",
                 "Controlla l'email di notifica del capocommessa in Anagrafica.",
                 "Se nessuna mail del portale parte, Manuale di emergenza → «Le mail non partono».",
+            ],
+        },
+        {
+            "sintomo": "«Apri nel portale» apre il login invece di entrare da solo",
+            "perche": "l'accesso Windows automatico funziona solo dai PC del dominio con il portale tra i siti "
+                      "intranet del browser; da telefono o fuori rete serve il login.",
+            "fare": [
+                "Accedi con nome utente e password: dopo l'accesso si apre comunque l'OP.",
+                "Se succede da un PC aziendale, prova «Accedi con credenziali Windows» nella pagina di login: se "
+                "fallisce anche lì il problema è l'accesso Windows (IT), non la mail.",
             ],
         },
         {
