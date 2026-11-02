@@ -97,9 +97,9 @@ SEZIONI: list[dict] = [
                 "Dal menu premi «Apertura Segnalazione».",
                 "Cerca l'OP per titolo, P/N, capocommessa o CAR e cliccalo. Se l'OP non esiste ancora, «+ Nuovo OP»: "
                 "compila P/N, poi anno e numero, infine capocommessa e CAR (i campi si sbloccano in ordine) e premi "
-                "«Continua». L'OP si crea solo quando salvi il primo blocco di anomalie: se esci prima non resta "
-                "niente (in alto c'è «Nuovo · si crea al primo salvataggio»). Se l'OP esiste già la pagina lo dice: "
-                "sceglilo dall'elenco.",
+                "«Continua». L'OP si crea solo quando salvi il primo blocco di anomalie (in alto c'è «Nuovo · si crea "
+                "al primo salvataggio»); quello che scrivi prima si salva comunque in bozza. Se l'OP esiste già la "
+                "pagina lo dice: sceglilo dall'elenco.",
                 "Scrivi la «Fase del controllo», per esempio accettazione materiale, lavorazione o collaudo finale. "
                 "Vale per tutti i blocchi e si può cambiare durante il controllo con «Cambia».",
                 "Sotto «Mail al capocommessa: una sola, a fine controllo» vedi a chi andrà la mail: «A» il capocommessa "
@@ -130,7 +130,13 @@ SEZIONI: list[dict] = [
             ("p", "Salvataggio automatico: mentre scrivi un blocco, seriali, stato superficie e descrizioni si salvano da "
                   "soli pochi secondi dopo ogni modifica (sotto il titolo del blocco compare «salvato in automatico alle …»). "
                   "Se chiudi la pagina o si spegne il PC, rientrando nell'OP con «Riprendi» ritrovi il blocco com'era. "
+                  "Vale anche per un OP nuovo non ancora creato e per i blocchi copiati con «Clona» ancora da caricare. "
                   "Gli allegati non si salvano in automatico: dopo il ripristino vanno ricaricati."),
+            ("p", "Bozza dimenticata: se un blocco resta scritto e non salvato per 15 minuti (lo stesso tempo del "
+                  "promemoria) e non ci sono anomalie salvate da inviare, ricevi una notifica nel portale e una mail con "
+                  "quello che avevi scritto (seriali, descrizioni, blocchi copiati ancora da caricare) e il link che "
+                  "riapre il controllo dove eri rimasto, anche su un OP nuovo. Un promemoria per ogni pausa: se riprendi "
+                  "a scrivere e ti fermi di nuovo, arriva di nuovo. La bozza non parte mai da sola: va salvata."),
         ],
     },
     {

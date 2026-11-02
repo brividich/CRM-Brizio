@@ -226,6 +226,8 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
         "ultima_mail_at": controllo.ultima_mail_at.isoformat() if controllo.ultima_mail_at else "",
         "mail_errore": controllo.mail_errore,
         "bozza": controllo.bozza if isinstance(controllo.bozza, dict) else {},
+        # OP nuovo non ancora creato (si crea al primo «Salva blocco»).
+        "op_nuovo": controllo.op_nuovo if isinstance(controllo.op_nuovo, dict) else {},
         "bozza_at": controllo.bozza_at.isoformat() if controllo.bozza_at else "",
         "destinatari_extra": [
             {"email": d.get("email", ""), "nome": d.get("nome", "")}
@@ -691,7 +693,117 @@ def flush_controlli() -> dict:
             and invia_promemoria_controllore(controllo, invio_auto_minuti=tempi["invio_auto"])
         ):
             promemoria += 1
-    return {"controlli_inviati": inviati, "controlli_promemoria": promemoria}
+    return {"controlli_inviati": inviati, "controlli_promemoria": promemoria,
+            "bozze_promemoria": promemoria_bozze(now, tempi["promemoria"])}
+
+
+def promemoria_bozze(now, minuti: int) -> int:
+    """Bozze ferme da ``minuti`` (blocco scritto e mai salvato, anche su un OP nuovo
+    non ancora creato) senza anomalie salvate da inviare: promemoria al controllore,
+    uno per pausa. Con anomalie da inviare ci pensa il promemoria del controllo."""
+    from .quality_models import AnomaliaControllo
+
+    inviati = 0
+    for controllo in AnomaliaControllo.objects.filter(
+        terminato_at__isnull=True, bozza_at__isnull=False,
+        bozza_at__gte=now - timedelta(days=14), bozza_at__lte=now - timedelta(minutes=minuti),
+    ):
+        if controllo.da_notificare or not bozza_piena(controllo.bozza):
+            continue
+        if controllo.promemoria_bozza_at and controllo.promemoria_bozza_at >= controllo.bozza_at:
+            continue
+        if invia_promemoria_bozza(controllo):
+            inviati += 1
+    return inviati
+
+
+def bozza_piena(bozza) -> bool:
+    """Stessa regola della pagina: seriali, stati, anomalie o blocchi copiati da caricare."""
+    if not isinstance(bozza, dict):
+        return False
+    return bool(bozza.get("voci") or bozza.get("stati") or bozza.get("anomalie") or bozza.get("coda"))
+
+
+def righe_bozza(bozza) -> list[str]:
+    """Testo leggibile della bozza per la mail: seriali, anomalie, blocchi copiati in coda."""
+    out: list[str] = []
+    voci = [str(v) for v in (bozza.get("voci") or []) if str(v).strip()]
+    anomalie = [a for a in (bozza.get("anomalie") or []) if isinstance(a, dict)]
+    if voci or anomalie:
+        out.append(f"  S/N {', '.join(voci) or '—'}")
+        for a in anomalie:
+            testo = str(a.get("testo") or "").strip() or "(senza descrizione)"
+            allegati = int(a.get("allegati") or 0)
+            out.append(f"    • {testo}" + (f" (+{allegati} allegati da ricaricare)" if allegati else ""))
+    coda = [b for b in (bozza.get("coda") or []) if isinstance(b, dict)]
+    if coda:
+        n = sum(len(b.get("anomalie") or []) for b in coda)
+        out.append(f"  Da copiare ancora: {len(coda)} blocc{'o' if len(coda) == 1 else 'hi'} con {n} anomali{'a' if n == 1 else 'e'}")
+        for b in coda:
+            out.append(f"    S/N {', '.join(str(v) for v in (b.get('seriali') or [])) or '—'}")
+    return out
+
+
+def invia_promemoria_bozza(controllo) -> bool:
+    """Notifica nel portale e mail al controllore con il contenuto della bozza e il
+    link che riapre il controllo. ``promemoria_bozza_at`` evita di ripeterlo finché
+    la bozza non cambia."""
+    controllo.promemoria_bozza_at = timezone.now()
+    controllo.save(update_fields=["promemoria_bozza_at", "updated_at"])
+
+    from core.accounts.portal_links import portal_link
+
+    url = url_controllo(controllo)
+    link = portal_link(url) or url
+    nuovo = bool(controllo.op_nuovo)
+    op_txt = f"OP {controllo.op_id}" + (" (nuovo, non ancora creato)" if nuovo else "")
+    legacy_id, email = _contatti_operatore(controllo)
+    fatto = False
+    if legacy_id:
+        try:
+            from core.models import Notifica
+
+            Notifica.objects.filter(
+                legacy_user_id=legacy_id, tipo=TIPO_NOTIFICA_PROMEMORIA, url_azione=url, letta=False,
+            ).update(letta=True)
+            Notifica.objects.create(
+                legacy_user_id=legacy_id,
+                tipo=TIPO_NOTIFICA_PROMEMORIA,
+                messaggio=(f"{op_txt} · fase {controllo.fase}: hai anomalie scritte ma non salvate. Riprendi il "
+                           "controllo e premi «Salva blocco».")[:500],
+                url_azione=url,
+            )
+            fatto = True
+        except Exception:
+            logger.warning("controllo %s: notifica bozza non creata", controllo.pk, exc_info=True)
+    if email:
+        try:
+            from .mail_action_service import send_and_log_email
+
+            body = "\n".join([
+                f"Nel controllo su {op_txt} (fase {controllo.fase}) ci sono anomalie scritte ma non ancora "
+                "salvate: finché non premi «Salva blocco» non arrivano al capocommessa"
+                + (" e l'OP non viene creato." if nuovo else "."),
+                "",
+                "Quello che hai scritto (salvato in automatico):",
+                *righe_bozza(controllo.bozza),
+                "",
+                f"Riprendi da qui e premi «Salva blocco», poi «Termina controllo»: {link}",
+                "Gli allegati non si salvano in bozza: vanno ricaricati.",
+            ])
+            ok, _log = send_and_log_email(
+                kind="promemoria_bozza_controllo",
+                subject=f"[Novicrom Hub] {op_txt}: anomalie non ancora salvate",
+                body_text=body,
+                to=[email],
+                op_id=controllo.op_id,
+                context={"controllo_id": controllo.pk, "op_nuovo": nuovo},
+                fail_silently=True,
+            )
+            fatto = fatto or bool(ok)
+        except Exception:
+            logger.warning("controllo %s: mail bozza non inviata", controllo.pk, exc_info=True)
+    return fatto
 
 
 def url_controllo(controllo) -> str:
@@ -700,7 +812,10 @@ def url_controllo(controllo) -> str:
 
     from django.urls import reverse
 
-    return f"{reverse('apertura_segnalazione')}?op_id={quote(str(controllo.op_id or ''), safe='/')}"
+    # ``controllo`` riapre direttamente questo controllo (serve anche per un OP nuovo
+    # non ancora creato, che nell'elenco degli OP non c'e').
+    return (f"{reverse('apertura_segnalazione')}?op_id={quote(str(controllo.op_id or ''), safe='/')}"
+            f"&controllo={controllo.pk}")
 
 
 def _contatti_operatore(controllo) -> tuple[int | None, str]:

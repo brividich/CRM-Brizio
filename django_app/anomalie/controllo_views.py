@@ -61,6 +61,73 @@ def _get_controllo(request, pk: int):
     return controllo, None
 
 
+def _op_esiste(op_id: str) -> bool:
+    from .views import _fetch_all_dict, _has_table
+
+    if not op_id or not _has_table("ordini_produzione"):
+        return False
+    return bool(_fetch_all_dict("SELECT COUNT(*) AS n FROM ordini_produzione WHERE title = %s", [op_id])[0]["n"])
+
+
+def _op_ancora_da_creare(op_id: str) -> bool:
+    try:
+        return not _op_esiste(op_id)
+    except Exception:
+        return False
+
+
+def _apri_su_op_nuovo(request, dati) -> tuple[str, dict, JsonResponse | None]:
+    """Controllo su un OP nuovo non ancora creato: ``(titolo, dati puliti, errore)``.
+    Stesse regole di «+ Nuovo OP»; l'OP vero nasce al primo «Salva blocco»."""
+    from .views import _can_create_anomalie_for_op, _op_role_codes_da_persone, titolo_nuovo_op
+
+    if not isinstance(dati, dict):
+        return "", {}, _err("Dati del nuovo OP non validi")
+    campi = ("causale_doc", "anno", "numero", "fase", "pn", "capocommessa", "car", "note", "collaudo_benestare")
+    pulito = {k: dati.get(k) for k in campi if k in dati}
+    for k, label in (("pn", "P/N"), ("anno", "anno"), ("numero", "numero"), ("capocommessa", "Capocommessa"),
+                     ("car", "CAR")):
+        if not str(pulito.get(k) or "").strip():
+            return "", {}, _err(f"{label} obbligatorio")
+    titolo = titolo_nuovo_op(pulito)
+    if _op_esiste(titolo):
+        return "", {}, _err(f"L'OP {titolo} esiste già: sceglilo dall'elenco.", 409)
+    puo = _can_create_anomalie_for_op(request, titolo) or bool(
+        _op_role_codes_da_persone(request, pulito.get("capocommessa"), pulito.get("car")))
+    if not puo:
+        return "", {}, _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
+    return titolo, pulito, None
+
+
+def crea_op_del_controllo(request, controllo) -> tuple[dict | None, str]:
+    """Primo «Salva blocco» su un OP nuovo: crea l'OP (o aggancia quello con lo stesso
+    titolo, se nel frattempo l'ha creato qualcun altro) e svuota ``op_nuovo``."""
+    from .views import _fetch_all_dict, crea_op_da_dati
+
+    if not controllo.op_nuovo:
+        return None, ""
+    if _op_esiste(controllo.op_id):
+        rows = _fetch_all_dict(
+            "SELECT sharepoint_item_id, title, part_number, capocomessa, incaricato, stato "
+            "FROM ordini_produzione WHERE title = %s", [controllo.op_id])
+        r = rows[0] if rows else {}
+        op = {"item_id": str(r.get("sharepoint_item_id") or ""), "id": r.get("title") or controllo.op_id,
+              "pn": r.get("part_number") or "—", "capo": r.get("capocomessa") or "—",
+              "car": r.get("incaricato") or "—", "stato": r.get("stato") or "Aperto"}
+    else:
+        esito = crea_op_da_dati(request, controllo.op_nuovo)
+        if not esito["success"] or not esito.get("op"):
+            return None, esito.get("error") or "Creazione OP non riuscita"
+        op = esito["op"]
+    controllo.op_id = str(op.get("id") or controllo.op_id)[:100]
+    controllo.op_item_id = str(op.get("item_id") or "")[:100]
+    controllo.op_nuovo = {}
+    controllo.save(update_fields=["op_id", "op_item_id", "op_nuovo", "updated_at"])
+    log_action(request, "anomalie_controllo_op_creato", "anomalie",
+               {"controllo_id": controllo.pk, "op_id": controllo.op_id})
+    return op, ""
+
+
 @login_required
 @require_GET
 def api_controlli(request):
@@ -70,7 +137,7 @@ def api_controlli(request):
     op_id = _txt(request.GET.get("op_id"), 100)
     if not op_id:
         return _err("op_id obbligatorio")
-    if not _can_create_anomalie_for_op(request, op_id):
+    if not _can_create_anomalie_for_op(request, op_id) and not _op_ancora_da_creare(op_id):
         return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
     recenti = timezone.now() - timedelta(days=7)
     aperti = AnomaliaControllo.objects.filter(
@@ -132,11 +199,18 @@ def api_controllo_apri(request):
     data = _body(request)
     op_id = _txt(data.get("op_id"), 100)
     fase = _txt(data.get("fase"), 100)
+    op_nuovo = {}
+    if data.get("op_nuovo"):
+        if not fase:
+            return _err("Indica la fase del controllo")
+        op_id, op_nuovo, errore = _apri_su_op_nuovo(request, data.get("op_nuovo"))
+        if errore:
+            return errore
     if not op_id:
         return _err("op_id obbligatorio")
     if not fase:
         return _err("Indica la fase del controllo")
-    if not _can_create_anomalie_for_op(request, op_id):
+    if not op_nuovo and not _can_create_anomalie_for_op(request, op_id):
         return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
     extra, rifiutati = cs.normalizza_destinatari_extra(data.get("destinatari_extra"))
     if rifiutati:
@@ -144,7 +218,8 @@ def api_controllo_apri(request):
     identity = _current_user_identity(request)
     controllo = AnomaliaControllo.objects.create(
         op_id=op_id,
-        op_item_id=_txt(data.get("op_item_id"), 100),
+        op_item_id="" if op_nuovo else _txt(data.get("op_item_id"), 100),
+        op_nuovo=op_nuovo,
         fase=fase,
         mail_mode=_mail_mode(data.get("mail_mode")),
         destinatari_extra=extra,
@@ -303,6 +378,12 @@ def api_controllo_blocco(request, pk: int):
             "seriali_scoperti": scoperti,
         }, status=409)
 
+    op_creato = None
+    if controllo.op_nuovo:
+        op_creato, errore_op = crea_op_del_controllo(request, controllo)
+        if errore_op:
+            return _err(f"OP non creato: {errore_op}", 400)
+
     with transaction.atomic():
         if blocco is None:
             ultimo = controllo.blocchi.order_by("-ordine").values_list("ordine", flat=True).first()
@@ -385,6 +466,7 @@ def api_controllo_blocco(request, pk: int):
         "blocco_id": blocco.pk,
         "risultati": risultati,
         "controllo": cs.serializza_controllo(controllo),
+        "op_creato": op_creato,
     }, status=200 if not errori else 207)
 
 
