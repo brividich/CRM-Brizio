@@ -41,6 +41,7 @@ urlpatterns = [
     path("api/anomalie/allegati/file", views.api_anomalie_allegati_file, name="api_anomalie_allegati_file"),
     path("api/anomalie/campi", views.api_campi, name="api_anomalie_campi"),
     path("api/anomalie/salva", views.api_salva, name="api_anomalie_salva"),
+    path("api/anomalie/riapri", views.api_riapri, name="api_anomalie_riapri"),
     path("api/anomalie/notifica-op", views.api_notifica_op, name="api_anomalie_notifica_op"),
     path("api/anomalie/seriali-op", views.api_seriali_op, name="api_anomalie_seriali_op"),
     path("api/anomalie/controlli", controllo_views.api_controlli, name="api_anomalie_controlli"),

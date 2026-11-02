@@ -1804,6 +1804,45 @@ function GestioneAnomalie() {
     setDescrizioneAnswers(baseline.risposte);
     setEditDesc(false);
   };
+
+  // Riapertura: capocommessa, CAR, controllore o chi modifica l'OP (deciso dal server).
+  const riapri = async () => {
+    if (!sn.local_id || !API.riapri) return;
+    setSaving(true);
+    try {
+      const r = await fetch(API.riapri, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken()
+        },
+        body: JSON.stringify({
+          local_id: sn.local_id
+        }),
+        credentials: "same-origin"
+      });
+      const data = await readJsonOrThrow(r, "Riapertura anomalia");
+      if (!data.success) throw new Error(data.error || "risposta non valida");
+      setAnomalie(prev => prev.map(a => a.item_id === sn.item_id ? {
+        ...a,
+        chiudere: false,
+        avanzamento: "In attesa",
+        can_riaprire: false
+      } : a));
+      setAvanzamento("In attesa");
+      flash({
+        ok: true,
+        text: `Anomalia #${sn.local_id} riaperta · in attesa di decisione`
+      });
+      loadOrdini();
+    } catch (e) {
+      flash({
+        ok: false,
+        text: "Errore: " + e.message
+      }, 7000);
+    }
+    setSaving(false);
+  };
   const duplica = () => {
     setMenuOpen(false);
     setCurrentItemId(null);
@@ -2088,7 +2127,11 @@ function GestioneAnomalie() {
     className: "ga-det__head"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-det__crumb"
-  }, /*#__PURE__*/React.createElement("span", null, op.id), sn.fase && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("span", null, op.id), op.pn && op.pn !== "—" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
+    className: "ga-det__sep"
+  }, "\xB7"), /*#__PURE__*/React.createElement("span", null, "P/N ", /*#__PURE__*/React.createElement("b", {
+    className: "ga-det__pn"
+  }, op.pn))), sn.fase && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("span", {
     className: "ga-det__sep"
   }, "\u203A"), /*#__PURE__*/React.createElement("span", null, "Fase ", sn.fase)), /*#__PURE__*/React.createElement("span", {
     className: `ga-pill ${isBenestare ? "ga-pill--ben" : "ga-pill--muted"}`
@@ -2120,9 +2163,14 @@ function GestioneAnomalie() {
     className: "ga-det__body"
   }, !canEditCurrentOp && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--warn"
-  }, "Sola lettura: puoi consultare ma non decidere su questo OP."), canEditCurrentOp && isSelectedClosed && /*#__PURE__*/React.createElement("div", {
-    className: "ga-note ga-note--ok"
-  }, "Anomalia chiusa: i dati restano consultabili ma non modificabili."), /*#__PURE__*/React.createElement("div", {
+  }, "Sola lettura: puoi consultare ma non decidere su questo OP."), isSelectedClosed && (canEditCurrentOp || sn.can_riaprire) && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--ok ga-note--row"
+  }, /*#__PURE__*/React.createElement("span", null, "Anomalia chiusa: i dati restano consultabili ma non modificabili."), sn.can_riaprire && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--outline ga-btn--xs",
+    onClick: riapri,
+    disabled: saving
+  }, saving ? "Riapertura…" : "Riapri anomalia")), /*#__PURE__*/React.createElement("div", {
     className: "ga-card"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-card__head"
