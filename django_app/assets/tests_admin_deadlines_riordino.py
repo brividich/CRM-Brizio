@@ -73,6 +73,59 @@ class RegistraScadenzaTests(TestCase):
         self.assertContains(response, "Si ripete ogni (mesi)")
 
 
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class StessaScadenzaAltriAssetTests(TestCase):
+    """«Registra» propone la stessa scadenza sugli altri asset, da registrare insieme."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_superuser(username="also-admin", password="x", email="a@b.c")
+        cls.today = timezone.localdate()
+        cls.c1 = Asset.objects.create(asset_tag="MOV-A1", name="Carrello uno")
+        cls.c2 = Asset.objects.create(asset_tag="MOV-A2", name="Carrello due")
+        cls.c3 = Asset.objects.create(asset_tag="MOV-A3", name="Carrello tre")
+        cls.c4 = Asset.objects.create(asset_tag="MOV-A4", name="Carrello quattro")
+        due = cls.today - timedelta(days=10)
+        cls.main = AD.objects.create(asset=cls.c1, deadline_type=AD.TYPE_TECHNICAL, title="Controllo Batterie", due_date=due, recurrence_months=3)
+        cls.same = AD.objects.create(asset=cls.c2, deadline_type=AD.TYPE_TECHNICAL, title="controllo batterie", due_date=due, recurrence_months=3)
+        # Troppo lontana, tipo diverso: non proposte.
+        cls.far = AD.objects.create(asset=cls.c3, deadline_type=AD.TYPE_TECHNICAL, title="Controllo Batterie", due_date=due + timedelta(days=90))
+        cls.other_type = AD.objects.create(asset=cls.c4, deadline_type=AD.TYPE_ADMINISTRATIVE, title="Controllo Batterie", due_date=due)
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_la_finestra_propone_solo_la_stessa_scadenza_vicina(self):
+        page = self.client.get(reverse("assets:asset_administrative_deadline_list"))
+        self.assertContains(page, f'data-ad-also-for="{self.main.id}"')
+        self.assertContains(page, f'name="also_complete" value="{self.same.id}"')
+        self.assertNotContains(page, f'name="also_complete" value="{self.far.id}"')
+        self.assertNotContains(page, f'name="also_complete" value="{self.other_type.id}"')
+
+    def test_registra_insieme_e_ignora_id_non_proposti(self):
+        response = self.client.post(
+            reverse("assets:asset_administrative_deadline_list"),
+            {
+                "action": "complete_administrative_deadline",
+                "deadline_id": str(self.main.id),
+                "execution_date": self.today.isoformat(),
+                "execution_cost_eur": "80",
+                "execution_notes": "Fatti tutti in giornata",
+                "also_complete": [str(self.same.id), str(self.far.id)],
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.same.refresh_from_db()
+        self.far.refresh_from_db()
+        completion = self.same.completions.get()
+        self.assertEqual(completion.notes, "Fatti tutti in giornata")
+        self.assertIsNone(completion.cost_eur)
+        self.assertEqual(self.main.completions.get().cost_eur, 80)
+        self.assertEqual(self.same.due_date, completion.next_due_date)
+        self.assertGreater(self.same.due_date, self.today)
+        self.assertFalse(self.far.completions.exists())
+
+
 class RiordinoComandoTests(TestCase):
     @classmethod
     def setUpTestData(cls):
