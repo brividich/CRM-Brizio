@@ -232,6 +232,10 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
           </dd>
           {% endif %}
           <dt>Ricevuta firmata</dt><dd>{% if consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
+          {% if consegna.conferma %}
+          <dt>Conferma via mail</dt>
+          <dd>{{ consegna.conferma.get_stato_display }}{% if consegna.conferma.decisa_il %} il {{ consegna.conferma.decisa_il|date:"d-m-Y H:i" }} da {{ consegna.conferma.decisa_da_email }}{% else %} ({{ consegna.conferma.get_destinatario_tipo_display|lower }}, mail del {{ consegna.conferma.created_at|date:"d-m-Y" }}){% endif %}{% if consegna.conferma.nota %} — «{{ consegna.conferma.nota }}»{% endif %}</dd>
+          {% endif %}
           {% if consegna.firma_immagine %}<dt>Firma</dt><dd><img class="dpi-signature-preview" src="{{ consegna.firma_immagine }}" alt="Firma consegna"></dd>{% endif %}
           {% if consegna.note_consegna %}<dt>Note</dt><dd>{{ consegna.note_consegna }}</dd>{% endif %}
         </dl>

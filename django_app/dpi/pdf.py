@@ -18,6 +18,7 @@ import io
 import logging
 from typing import Iterable, Sequence
 
+from django.utils import timezone
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import Image, Paragraph, Spacer
@@ -104,6 +105,13 @@ def _info_consegna_paragraphs(
         ("Consegnato da", (consegna.consegnato_da_nome or "").upper() or "—"),
         ("Firma ricevuta", "Sì" if consegna.firmato_ricevuta else "No"),
     ]
+    conferma = getattr(consegna, "conferma", None)
+    if conferma is not None:
+        if conferma.decisa_il:
+            quando = timezone.localtime(conferma.decisa_il).strftime("%d-%m-%Y %H:%M")
+            rows.append(("Conferma via mail", f"{conferma.get_stato_display()} il {quando} da {conferma.decisa_da_email}"))
+        else:
+            rows.append(("Conferma via mail", f"{conferma.get_stato_display()} ({conferma.get_destinatario_tipo_display().lower()})"))
     items = [Paragraph(f"<b>{k}:</b> {v}", body_style) for k, v in rows]
     if consegna.note_consegna:
         items.append(Paragraph(f"<b>Note:</b> {consegna.note_consegna}", body_style))

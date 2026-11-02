@@ -45,7 +45,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "planimetria": ("Operations", "#a3a3a3", "Ponte verso le planimetrie di assets"),
     "diario_preposto": ("Sicurezza sul lavoro", "#ef4444", "Diario del preposto e ispezioni"),
     "rilevazione_incidenti": ("Sicurezza sul lavoro", "#f43f5e", "Incidenti, near miss, situazioni pericolose"),
-    "dpi": ("Sicurezza sul lavoro", "#8b5cf6", "DPI: catalogo, richieste, consegne, magazzino"),
+    "dpi": ("Sicurezza sul lavoro", "#8b5cf6", "DPI: catalogo, richieste, consegne, magazzino, conferme di ricevuta via mail"),
     "schede_sicurezza": ("Sicurezza sul lavoro", "#dc2626", "Schede di sicurezza dei prodotti chimici"),
     "rentri": ("Sicurezza sul lavoro", "#84cc16", "Registro rifiuti RENTRI"),
     "procedure_refresh": ("Qualità", "#22c55e", "Presa visione procedure, sync SGI"),
