@@ -14,14 +14,24 @@ class WizardStepByStepTests(TestCase):
         self.client.force_login(self.user)
 
     def test_pages_render(self):
-        for url in [
-            "/rentri/carico/",
-            "/rentri/scarico-originale/",
-            "/rentri/scarico-effettivo/",
-            "/rentri/rettifica-scarico/",
+        for url, tipo in [
+            ("/rentri/carico/", "C"),
+            ("/rentri/scarico-originale/", "O"),
+            ("/rentri/scarico-effettivo/", "M"),
+            ("/rentri/rettifica-scarico/", "R"),
         ]:
             r = self.client.get(url)
             assert r.status_code == 200, (url, r.status_code)
+            # Form unico a pagina singola: niente piu' passi «Avanti».
+            self.assertContains(r, 'id="rnf-form"')
+            self.assertContains(r, f'data-tipo="{tipo}"')
+            self.assertContains(r, 'id="f-unita"')
+            self.assertNotContains(r, "Avanti")
+            self.assertNotContains(r, "{#")
+            if tipo == "C":
+                self.assertNotContains(r, 'id="rifop-list"')
+            else:
+                self.assertContains(r, 'id="rifop-list"')
 
     def test_api_codici(self):
         RegistroRifiuti.objects.create(tipo="C", data=datetime.date(2026, 1, 1), codice="150101", quantita=1)
@@ -69,3 +79,6 @@ class WizardStepByStepTests(TestCase):
         o = RegistroRifiuti.objects.create(tipo="O", data=datetime.date(2026, 1, 2), codice="YY", rif_op=c.id_registrazione, quantita=5)
         r = self.client.get(f"/rentri/{o.pk}/modifica/")
         assert r.status_code == 200, r.content
+        self.assertContains(r, 'data-tipo="O"')
+        self.assertContains(r, c.id_registrazione)
+        self.assertContains(r, "Aggiorna registrazione")
