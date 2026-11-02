@@ -111,6 +111,13 @@ SEZIONI: list[dict] = [
                   "Ogni cella mostra il totale letto, le copie rispetto al trimestre prima e la fonte. «+ manca» "
                   "(in giallo) è un trimestre chiuso senza lettura, dalla prima lettura della MFC in poi: un clic "
                   "apre l'inserimento già compilato. In rosso i contatori scesi rispetto alla lettura prima. "
+                  "Nella colonna del trimestre «in corso», se la lettura del trimestre non c'è ancora, compare in "
+                  "grigio corsivo l'ultima lettura mensile presa nel trimestre (es. «mensile 01/11») con le copie "
+                  "rispetto al trimestre prima: è provvisoria, non conta come lettura e non si modifica da lì. "
+                  "«+ Nuova lettura» (o «+ manca», «+») con stampante e trimestre scelti precompila i contatori "
+                  "dalla lettura mensile SNMP: per un trimestre chiuso quella del primo giorno del trimestre dopo "
+                  "(presa entro il giorno 7), per il trimestre in corso l'ultima presa, provvisoria. Cambiando "
+                  "stampante o trimestre i valori si ricaricano; senza mensile si inseriscono a mano. "
                   "«Anche le MFC dismesse» mostra le macchine non più attive."),
             ("p", "Stampanti MFC: si cerca per reparto, matricola, contratto, IP, modello o asset e si filtra per "
                   "salute SNMP e per lettura del trimestre in corso («Mancante» / «Presente»). Le MFC dismesse "

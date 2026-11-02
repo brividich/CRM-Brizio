@@ -135,7 +135,9 @@ GUIDA = {
                     "Consegna diretta al banco: nessuna mail di approvazione né «Da consegnare»; alla consegna parte il report come sempre.",
                     "Consegna registrata senza firma né ricevuta su carta: mail «Conferma la ricevuta dei DPI» al dipendente (mail "
                     "aziendale) o al caporeparto; «Non li ho ricevuti» → mail «Consegna contestata» al Magazzino; dopo 3 giorni "
-                    "senza risposta un promemoria (task delle 07:10).",
+                    "senza risposta un promemoria (task delle 07:10). Le due mail sono le regole «DPI consegnato - conferma "
+                    "della ricevuta via mail» e «DPI - consegna contestata» in Automazioni: spegnendo la prima la mail non "
+                    "parte e il banco lo segnala.",
                     "«Pronto per il ritiro» (dal magazzino): mail e notifica nel portale al dipendente. Con la spunta «Avvisa il "
                     "dipendente di ritirare il DPI subito all'approvazione» l'avviso parte già all'approvazione e il passaggio del "
                     "magazzino non serve.",
@@ -173,7 +175,8 @@ GUIDA = {
             "titolo": "Permessi",
             "blocchi": [
                 ("ul", [
-                    "Gestire (consegne, magazzino, catalogo, impostazioni): ruoli RSPP e Amministrazione.",
+                    "Gestire (consegne, Banco consegne, magazzino, catalogo, impostazioni): ruoli RSPP e Amministrazione.",
+                    "Il link della mail di conferma della ricevuta non chiede il login: vale solo per chi l'ha ricevuto e una volta.",
                     "Approvare: caporeparto e preposti, solo per i loro dipendenti (team dell'organigramma).",
                     "Si assegnano in Amministrazione → «Accessi» o in «Ruoli e permessi».",
                 ]),

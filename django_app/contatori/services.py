@@ -1611,6 +1611,26 @@ def proposte_letture_trimestrali(trimestre):
     return proposte
 
 
+def mensile_per_trimestre(macchina, trimestre, oggi=None):
+    """Lettura mensile SNMP da cui precompilare la lettura trimestrale, o None.
+
+    Trimestre chiuso: la mensile di chiusura (primo giorno del trimestre dopo, presa
+    entro il giorno ``GIORNI_RECUPERO_MENSILE``), la stessa delle letture proposte.
+    Trimestre in corso: l'ultima mensile presa dentro il trimestre (provvisoria).
+    """
+    from datetime import datetime, time, timedelta
+    inizio, chiusura = limiti_trimestre(trimestre)
+    corrente = trimestre_di(oggi or timezone.localdate())
+    mensili = LetturaMensileContatori.objects.filter(macchina=macchina)
+    if trimestre < corrente:
+        limite = timezone.make_aware(datetime.combine(chiusura + timedelta(days=GIORNI_RECUPERO_MENSILE),
+                                                      time(0, 0)))
+        return mensili.filter(mese=chiusura, rilevata_il__lt=limite).first()
+    if trimestre == corrente:
+        return mensili.filter(mese__gt=inizio, mese__lt=chiusura).order_by("-mese").first()
+    return None
+
+
 def conferma_proposta(proposta, trimestre):
     """Crea la lettura trimestrale dalla mensile proposta (fonte SNMP, data reale)."""
     mensile = proposta["mensile"]
@@ -1667,6 +1687,10 @@ def registro_letture(trimestri=8, *, dismesse=False, oggi=None):
     oppure lo stato della mancanza: `mancante` dal primo trimestre letto in poi,
     `in_corso` per il trimestre corrente. I cali sono confrontati con la lettura
     precedente qualunque sia il trimestre.
+
+    Il trimestre in corso senza lettura mostra come `provvisoria` l'ultima lettura
+    mensile presa dentro il trimestre (la mensile del primo giorno del trimestre e'
+    la chiusura del precedente): non e' una lettura trimestrale e non si conta.
     """
     oggi = oggi or timezone.localdate()
     corrente = trimestre_di(oggi)
@@ -1676,6 +1700,9 @@ def registro_letture(trimestri=8, *, dismesse=False, oggi=None):
     per_macchina = defaultdict(list)
     for l in LetturaContatori.objects.filter(macchina__in=macchine).order_by("trimestre"):
         per_macchina[l.macchina_id].append(l)
+    inizio, fine = limiti_trimestre(corrente)
+    provvisorie = {l.macchina_id: l for l in LetturaMensileContatori.objects.filter(
+        macchina__in=macchine, mese__gt=inizio, mese__lt=fine).order_by("mese")}
     righe, mancanti, cali = [], 0, 0
     for m in macchine:
         letture = per_macchina.get(m.pk, [])
@@ -1693,7 +1720,16 @@ def registro_letture(trimestri=8, *, dismesse=False, oggi=None):
                               "copie": (l.totale - consecutiva.totale
                                         if consecutiva is not None and not scesi else None)})
             elif t == corrente:
-                celle.append({"trimestre": t, "stato": "in_corso"})
+                cella = {"trimestre": t, "stato": "in_corso"}
+                mensile = provvisorie.get(m.pk)
+                if mensile is not None:
+                    precedente = letture[-1] if letture else None
+                    consecutiva = per_trim.get(trimestre_precedente(t))
+                    scesi = _cali(mensile, precedente)
+                    cella.update(provvisoria=mensile, cali=scesi,
+                                 copie=(mensile.totale - consecutiva.totale
+                                        if consecutiva is not None and not scesi else None))
+                celle.append(cella)
             elif m.attiva and t >= prima:
                 mancanti += 1
                 celle.append({"trimestre": t, "stato": "mancante"})

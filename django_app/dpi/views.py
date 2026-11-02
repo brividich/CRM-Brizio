@@ -1168,7 +1168,12 @@ def _chiedi_conferma(request, consegne: list[ConsegnaDPI]) -> None:
     from . import conferme
 
     autore = request.user.get_full_name() or request.user.username
-    conferma, tipo = conferme.richiedi(consegne, autore=autore)
+    conferma, tipo, inviate = conferme.richiedi(consegne, autore=autore)
+    if conferma is not None and not inviate:
+        messages.warning(request, "Mail di conferma della ricevuta non inviata (regola «DPI consegnato - conferma della "
+                                  "ricevuta via mail» spenta in Automazioni o invio fallito): fai firmare il dipendente "
+                                  "o conserva la ricevuta su carta.")
+        return
     if conferma is None:
         messages.warning(request, "Nessuna mail a cui chiedere la conferma di ricevuta: fai firmare il dipendente o "
                                   "conserva la ricevuta su carta.")
