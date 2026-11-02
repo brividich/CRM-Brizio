@@ -380,9 +380,12 @@ GUIDA = {
                       "mansione si assegna come nel Mansionario."),
                 ("p", "Il capo di una persona si cerca in quest'ordine: 1) eccezione indicata a mano sulla persona; "
                       "2) chi ha la «Responsabilità dell'area» della sua area; 3) chi ha la «Responsabilità del reparto» "
-                      "del suo reparto; 4) organigramma: chi ha un ruolo sopra quello della persona («riporta a») e lavora nella "
-                      "stessa area, poi nello stesso reparto, poi chi non ha un reparto (ruolo trasversale); se nessuno, "
-                      "si sale di livello: chi guida un altro reparto non diventa mai il capo. Nessuno è capo di sé stesso. "
+                      "del suo reparto; 4) organigramma produttivo: chi ricopre il ruolo a cui riporta il ruolo della persona "
+                      "(«riporta a»), anche in un altro reparto (Caporeparto → Operations Manager); contano solo i ruoli "
+                      "dell'assetto produttivo, non Preposto, Privacy Manager o gli altri organigrammi (45001, 27001…); "
+                      "fra più titolari stessa area, poi stesso reparto, poi chi non ha reparto, e il capo di un altro "
+                      "reparto non diventa mai il capo (si sale). L'eccezione sulla persona (pagina «Coerenza capi») "
+                      "cambia il capo a mano e vince su tutto. Nessuno è capo di sé stesso. "
                       "Più persone con la stessa mansione sono co-capo: le assenze le approva la prima, le richieste DPI "
                       "tutte. Il team è l'inverso: le persone di cui sei il capo, e i loro team."),
                 ("p", "Persone → Reparti apre «Reparti, aree e capi»: una scheda per reparto con «Ruolo responsabile», "

@@ -45,7 +45,7 @@
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:aree_list' %}">Reparti, aree e capi</a>
       </div>
       <p class="cc-sub" style="margin:0;">
-        {% if regola_attiva %}Il capo è chi ha la mansione del capo del suo reparto (o del responsabile della sua area); se non c'è nessuno vale l'organigramma dei ruoli. Permessi (team), assenze, DPI, solleciti, digest e il «Caporeparto» delle schede usano tutti questo capo. Qui sotto si gestiscono solo le eccezioni sulla persona.
+        {% if regola_attiva %}Il capo è chi ha la mansione del capo del suo reparto (o del responsabile della sua area); se non c'è nessuno vale l'organigramma produttivo (il ruolo a cui si riporta, anche in un altro reparto; Preposto e gli altri organigrammi non contano). Permessi (team), assenze, DPI, solleciti, digest e il «Caporeparto» delle schede usano tutti questo capo. Qui sotto si gestiscono solo le eccezioni sulla persona.
         {% else %}Oggi ogni modulo usa i capi scelti a mano. Il passaggio alle mansioni si fa da «Reparti, aree e capi»: assegna la mansione del capo a chi oggi è capo, poi tutti i moduli useranno la colonna «Capo con la regola unica».{% endif %}
       </p>
     </section>
