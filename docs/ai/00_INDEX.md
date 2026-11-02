@@ -45,3 +45,4 @@ Important: Do not read all docs automatically. Open only the files relevant to t
 ## Rule Of Thumb
 
 Start with root [../../CLAUDE.md](../../CLAUDE.md). If the task touches a specific area, open the matching file above. If the task changes code, check [06_TESTING_AND_QUALITY_GATES.md](06_TESTING_AND_QUALITY_GATES.md) before finishing.
+- [CHECKLIST_REGISTRA_INSIEME.md](CHECKLIST_REGISTRA_INSIEME.md) — «Registra insieme» su voci gemelle (manutenzioni, licenze, contratti, nuove scadenze): checklist e avanzamento
