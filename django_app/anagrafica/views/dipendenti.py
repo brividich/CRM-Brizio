@@ -42,11 +42,10 @@ from core.legacy_models import AnagraficaDipendente, UtenteLegacy
 from core.legacy_utils import get_legacy_user, is_legacy_admin, legacy_table_columns
 
 from ..forms import (
-    AZIENDALE_BLOCCHI,
+    AZIENDALE_SCHEDE,
     AnagraficaAziendaleForm,
     AnagraficaCivileForm,
     FiglioACaricoFormSet,
-    anagrafica_aziendale_form_blocco,
     DipendenteLegacyForm,
     VisitaMedicaForm,
 )
@@ -1674,10 +1673,11 @@ def dipendente_detail(request, legacy_id: int):
     civile_foto_url = _foto_dipendente_url(civile, legacy_id)
     form_civile = AnagraficaCivileForm(instance=civile) if is_admin else None
     form_aziendale = AnagraficaAziendaleForm(instance=aziendale) if is_admin else None
-    # Card «Anagrafica aziendale»: un form per blocco, ognuno col suo «Modifica».
-    form_az_blocchi = (
-        {blocco: anagrafica_aziendale_form_blocco(blocco)(instance=aziendale) for blocco in AZIENDALE_BLOCCHI}
-        if is_admin else {}
+    # Pannello «Modifica» della card «Anagrafica aziendale»: campi divisi in schede.
+    schede_az = (
+        [(chiave, titolo, [form_aziendale[campo] for campo in campi])
+         for chiave, (titolo, campi) in AZIENDALE_SCHEDE.items()]
+        if form_aziendale else []
     )
     formset_figli = FiglioACaricoFormSet(instance=civile, prefix="figli") if is_admin else None
     figli_list = list(civile.figli.all()) if civile else []
@@ -2342,7 +2342,7 @@ def dipendente_detail(request, legacy_id: int):
         "aziendale": aziendale,
         "form_civile": form_civile,
         "form_aziendale": form_aziendale,
-        "form_az_blocchi": form_az_blocchi,
+        "schede_az": schede_az,
         "formset_figli": formset_figli,
         "figli_list": figli_list,
         "reparti_catalog": reparti_catalog,
@@ -3056,38 +3056,27 @@ def dipendente_matricola_set(request, legacy_id: int):
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 
-@login_required
-@require_POST
-def dipendente_dati_base_set(request, legacy_id: int):
-    """Modifica nome, cognome, matricola ed email per le notifiche della scheda legacy.
+def _salva_dati_base(request, legacy_id: int, dip: dict, post) -> bool | None:
+    """Nome, cognome, matricola ed email per le notifiche dalla scheda legacy.
 
-    Stesso permesso degli altri dati della scheda (amministrazione anagrafica).
-    Si aggiornano solo i campi presenti nel POST; nome e cognome non possono
+    Si aggiornano solo i campi presenti in ``post``; nome e cognome non possono
     restare vuoti. Il nome passa dalla normalizzazione unica di
     ``upsert_anagrafica_dipendente`` e viene riportato sull'account portale
-    collegato. Ogni modifica finisce nel registro attività.
+    collegato. Ogni modifica finisce nel registro attività. Ritorna True se ha
+    salvato, None se non c'era niente da cambiare, False se ha rifiutato
+    (l'errore è già nei messaggi).
     """
-    if not _helpers._is_anagrafica_admin(request):
-        messages.error(request, "Non hai i permessi per modificare i dati anagrafici.")
-        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
-
-    rows = fetch_anagrafica_rows(ids=[legacy_id])
-    if not rows:
-        messages.error(request, "Dipendente non trovato.")
-        return redirect("anagrafica:dipendenti_list")
-    dip = rows[0]
-
     nuovi = {
-        campo: (request.POST.get(campo) or "").strip()[:limite]
+        campo: (post.get(campo) or "").strip()[:limite]
         for campo, limite in (("nome", 100), ("cognome", 100), ("matricola", 100), ("email_notifica", 200))
-        if campo in request.POST
+        if campo in post
     }
     if not nuovi:
-        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+        return None
     for campo in ("nome", "cognome"):
         if campo in nuovi and not nuovi[campo]:
             messages.error(request, f"Il {campo} non può essere vuoto.")
-            return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+            return False
     if nuovi.get("email_notifica"):
         from django.core.exceptions import ValidationError
         from django.core.validators import validate_email
@@ -3095,7 +3084,7 @@ def dipendente_dati_base_set(request, legacy_id: int):
             validate_email(nuovi["email_notifica"])
         except ValidationError:
             messages.error(request, "L'email per le notifiche non è un indirizzo valido.")
-            return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+            return False
 
     precedenti = {campo: str(dip.get(campo) or "").strip() for campo in nuovi}
     try:
@@ -3115,7 +3104,7 @@ def dipendente_dati_base_set(request, legacy_id: int):
     except Exception:
         logger.exception("Errore aggiornamento dati anagrafici dipendente %s", legacy_id)
         messages.error(request, "Errore durante l'aggiornamento dei dati anagrafici.")
-        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+        return False
 
     cambiati = {
         campo: {"prima": precedenti[campo], "dopo": str(aggiornato.get(campo) or "").strip()}
@@ -3123,8 +3112,7 @@ def dipendente_dati_base_set(request, legacy_id: int):
         if precedenti[campo] != str(aggiornato.get(campo) or "").strip()
     }
     if not cambiati:
-        messages.info(request, "Nessuna modifica ai dati anagrafici.")
-        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+        return None
 
     if "matricola" in cambiati:
         _registra_cambiamento(
@@ -3153,33 +3141,49 @@ def dipendente_dati_base_set(request, legacy_id: int):
     log_action(request, "DIPENDENTE_DATI_ANAGRAFICI_MODIFICATI", "anagrafica",
                {"dipendente_id": legacy_id, "modifiche": cambiati},
                oggetto_tipo="dipendente", oggetto_id=str(legacy_id))
-    messages.success(request, "Dati anagrafici aggiornati.")
-    return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+    return True
 
 
 @login_required
 @require_POST
-def dipendente_username_set(request, legacy_id: int):
-    legacy_user = get_legacy_user(request.user)
+def dipendente_dati_base_set(request, legacy_id: int):
+    """Modifica nome, cognome, matricola ed email per le notifiche (vedi ``_salva_dati_base``)."""
     if not _helpers._is_anagrafica_admin(request):
-        messages.error(request, "Non hai i permessi per modificare lo username.")
+        messages.error(request, "Non hai i permessi per modificare i dati anagrafici.")
         return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    esito = _salva_dati_base(request, legacy_id, rows[0], request.POST)
+    if esito:
+        messages.success(request, "Dati anagrafici aggiornati.")
+    elif esito is None:
+        messages.info(request, "Nessuna modifica ai dati anagrafici.")
+    return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
 
-    new_alias = (request.POST.get("aliasusername") or "").strip()[:150]
+
+def _salva_username(request, legacy_id: int, dip: dict, new_alias: str) -> bool | None:
+    """Username dell'anagrafica, tenuto allineato all'account portale collegato.
+
+    Ritorna True se ha salvato, None se era già quello, False se ha rifiutato
+    (l'errore è già nei messaggi).
+    """
+    new_alias = (new_alias or "").strip()[:150]
 
     if not new_alias:
         messages.error(request, "Lo username non può essere vuoto.")
-        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+        return False
     if " " in new_alias:
         messages.error(request, "Lo username non può contenere spazi.")
-        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+        return False
 
     # Normalizza con la stessa regola di upsert_anagrafica_dipendente, così
     # anagrafica e account portale restano allineati sullo stesso valore.
     new_alias = normalize_legacy_alias(new_alias)
     if not new_alias:
         messages.error(request, "Lo username non è valido.")
-        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+        return False
 
     # Unicità: nessun altro dipendente deve avere lo stesso alias
     conflict = AnagraficaDipendente.objects.filter(
@@ -3187,14 +3191,11 @@ def dipendente_username_set(request, legacy_id: int):
     ).exclude(id=legacy_id).first()
     if conflict:
         messages.error(request, f"Lo username '{new_alias}' è già in uso da un altro dipendente.")
-        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+        return False
 
-    rows = fetch_anagrafica_rows(ids=[legacy_id])
-    if not rows:
-        messages.error(request, "Dipendente non trovato.")
-        return redirect("anagrafica:dipendenti_list")
-    dip = rows[0]
     old_alias = (dip.get("aliasusername") or "").strip()
+    if old_alias == new_alias:
+        return None
 
     # Account portale Django collegato: anagrafica.utente_id -> Profile.legacy_user_id -> User.
     # aliasusername è la fonte di verità: lo username Django viene tenuto allineato.
@@ -3221,7 +3222,7 @@ def dipendente_username_set(request, legacy_id: int):
         )
         if username_conflict:
             messages.error(request, f"Lo username '{new_alias}' è già in uso da un altro account portale.")
-            return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+            return False
 
     try:
         with transaction.atomic():
@@ -3246,13 +3247,25 @@ def dipendente_username_set(request, legacy_id: int):
                 django_profile.user.username = new_alias
                 django_profile.user.save(update_fields=["username"])
         _registra_cambiamento(legacy_id, "USERNAME", old_alias, new_alias, request.user)
-        if django_profile and django_profile.user_id:
-            messages.success(request, f"Username aggiornato a '{new_alias}' (anagrafica + account portale).")
-        else:
-            messages.success(request, f"Username aggiornato a '{new_alias}'.")
+        return True
     except Exception:
         logger.exception("Errore aggiornamento username dipendente %s", legacy_id)
         messages.error(request, "Errore durante l'aggiornamento dello username.")
+    return False
+
+
+@login_required
+@require_POST
+def dipendente_username_set(request, legacy_id: int):
+    if not _helpers._is_anagrafica_admin(request):
+        messages.error(request, "Non hai i permessi per modificare lo username.")
+        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    if _salva_username(request, legacy_id, rows[0], request.POST.get("aliasusername")):
+        messages.success(request, "Username aggiornato (anagrafica e account portale collegato).")
     return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
 
 
@@ -3882,37 +3895,52 @@ def dipendente_anagrafica_aziendale_save(request, legacy_id: int):
     # Reparto, area aziendale e ruolo aziendale non passano più da qui: li governa
     # lo spostamento organizzativo (DipendenteAssegnazione), che li assegna insieme
     # con una sola decorrenza. Questo form copre il resto dei dati aziendali.
-    # La scheda salva un blocco alla volta (``blocco`` nel POST): il form tocca
-    # solo i campi di quel blocco. Senza blocco resta il form completo.
-    blocco = (request.POST.get("blocco") or "").strip()
-    if blocco and blocco not in AZIENDALE_BLOCCHI:
-        messages.error(request, "Sezione dei dati aziendali non riconosciuta.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
-    form_class = anagrafica_aziendale_form_blocco(blocco) if blocco else AnagraficaAziendaleForm
-    titolo = AZIENDALE_BLOCCHI[blocco][0] if blocco else "Anagrafica aziendale"
-    form = form_class(request.POST, instance=instance)
-    if form.is_valid():
-        modifiche = {
-            campo: {"prima": str(form.initial.get(campo) or ""), "dopo": str(form.cleaned_data.get(campo) or "")}
-            for campo in form.changed_data
-        }
-        obj = form.save(commit=False)
-        obj.legacy_anagrafica_id = legacy_id
-        obj.updated_by = request.user
-        obj.save()
-        if modifiche:
-            from core.audit import log_action
-            log_action(request, "DIPENDENTE_ANAGRAFICA_AZIENDALE_MODIFICATA", "anagrafica",
-                       {"dipendente_id": legacy_id, "blocco": blocco or "tutto", "modifiche": modifiche},
-                       oggetto_tipo="dipendente", oggetto_id=str(legacy_id))
-            messages.success(request, f"Salvato: {titolo}.")
-        else:
-            messages.info(request, f"Nessuna modifica in «{titolo}».")
-    else:
+    # Il pannello «Modifica» della scheda manda insieme ai dati aziendali anche
+    # nome, cognome, matricola, email per le notifiche e username: si convalida
+    # tutto prima e si scrive solo se il form aziendale è valido.
+    form = AnagraficaAziendaleForm(request.POST, instance=instance)
+    if not form.is_valid():
         for field, errs in form.errors.items():
             etichetta = form.fields[field].label if field in form.fields else field
             for err in errs:
                 messages.error(request, f"{etichetta}: {err}")
+        return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+
+    salvati = False
+    if {"nome", "cognome", "matricola", "email_notifica", "aliasusername"} & set(request.POST):
+        rows = fetch_anagrafica_rows(ids=[legacy_id])
+        if not rows:
+            messages.error(request, "Dipendente non trovato.")
+            return redirect("anagrafica:dipendenti_list")
+        esito = _salva_dati_base(request, legacy_id, rows[0], request.POST)
+        if esito is False:
+            return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+        salvati = salvati or bool(esito)
+        if "aliasusername" in request.POST:
+            # Riletto: ogni salvataggio legacy riscrive tutta la riga.
+            esito = _salva_username(request, legacy_id, fetch_anagrafica_rows(ids=[legacy_id])[0],
+                                    request.POST.get("aliasusername"))
+            if esito is False:
+                return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
+            salvati = salvati or bool(esito)
+
+    modifiche = {
+        campo: {"prima": str(form.initial.get(campo) or ""), "dopo": str(form.cleaned_data.get(campo) or "")}
+        for campo in form.changed_data
+    }
+    obj = form.save(commit=False)
+    obj.legacy_anagrafica_id = legacy_id
+    obj.updated_by = request.user
+    obj.save()
+    if modifiche:
+        from core.audit import log_action
+        log_action(request, "DIPENDENTE_ANAGRAFICA_AZIENDALE_MODIFICATA", "anagrafica",
+                   {"dipendente_id": legacy_id, "modifiche": modifiche},
+                   oggetto_tipo="dipendente", oggetto_id=str(legacy_id))
+    if modifiche or salvati:
+        messages.success(request, "Anagrafica aziendale salvata.")
+    else:
+        messages.info(request, "Nessuna modifica all'anagrafica aziendale.")
     return redirect(reverse("anagrafica:dipendente_detail", args=[legacy_id]) + "#anagrafica-aziendale")
 
 
