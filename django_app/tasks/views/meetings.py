@@ -677,6 +677,7 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
                     meeting.annullato_motivo = ""
                     meeting.convocazione_inviata_at = None
                     meeting.convocazione_firma = ""
+                    meeting.convocazione_dati = ""
                     meeting.reminder_sent_at = None
                 meeting.save()
                 form.save_m2m()

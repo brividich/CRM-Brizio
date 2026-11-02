@@ -56,9 +56,15 @@ SEZIONI: list[dict] = [
                 "oppure spuntando «Invia la convocazione ai partecipanti dopo il salvataggio» in fondo al form.",
                 "Il dettaglio dice se la convocazione è stata inviata e quando. Se dopo l'invio cambiano data, ora, luogo, "
                 "convocati o ordine del giorno compare «Convocazione da reinviare»; il pulsante diventa "
-                "«Invia aggiornamento convocazione» e la mail esce come «Aggiornamento convocazione».",
+                "«Invia aggiornamento convocazione» e la mail esce come «Aggiornamento convocazione». Sotto l'avviso "
+                "c'è l'elenco di cosa è cambiato (per esempio «Data: 12-11-2026 → 14-11-2026», «Convocati aggiunti: …», "
+                "«Punti dell'ordine del giorno tolti: …»); per le convocazioni inviate prima del 02/11/2026 l'avviso resta generico.",
+                "Durata dell'evento (Outlook e invito .ics): la somma delle durate dei punti all'ordine del giorno; "
+                "se nessun punto ha una durata, un'ora.",
                 "Se l'incontro viene spostato a un'altra data, il promemoria del giorno prima riparte sulla data nuova.",
                 "L'evento Outlook è un canale separato dalla mail: si attiva con «Calendario Outlook» nel form.",
+                "L'invito .ics allegato alla mail usa l'ora italiana e l'organizzatore dell'evento Outlook (campo «Email organizzatore», "
+                "altrimenti chi ha creato l'incontro); quello di annullamento elenca anche i convocati, così il calendario toglie l'evento.",
             ]),
         ],
     },
