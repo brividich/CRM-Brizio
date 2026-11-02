@@ -6,7 +6,6 @@ team = membri del Django Group SMS_TEAM; solleciti/escalation ai referenti
 """
 from __future__ import annotations
 
-from django.conf import settings
 from django.contrib.auth.models import Group
 
 from core.email_utils import send_hub_mail
@@ -16,12 +15,11 @@ from .models import SuggestionCornerConfig
 EMAIL_TYPE = "Suggestion Corner"
 
 
-def _base_url() -> str:
-    return (getattr(settings, "SITE_URL", "") or "").rstrip("/")
-
-
 def _dettaglio_url(seg) -> str:
-    return f"{_base_url()}/suggestion-corner/{seg.pk}/"
+    from core.accounts.portal_links import portal_link
+
+    path = f"/suggestion-corner/{seg.pk}/"
+    return portal_link(path) or path
 
 
 def team_emails() -> list[str]:

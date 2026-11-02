@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 
-from django.conf import settings
 
 from core.notifiche import invia_notifica, invia_notifica_email
 
@@ -65,8 +64,8 @@ def _invia_email_html(email: str, spec, url_rel: str) -> None:
     """
     try:
         from core.email_utils import email_cta, email_facts_table, send_hub_mail
-        base = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
-        url = (base + url_rel) if base else url_rel
+        from core.accounts.portal_links import portal_link
+        url = portal_link(url_rel) or url_rel
         codice = getattr(spec, "codice", "") or ""
         rev = getattr(spec, "revisione", "") or ""
         titolo = getattr(spec, "titolo", "") or ""

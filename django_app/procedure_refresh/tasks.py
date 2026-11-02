@@ -21,16 +21,14 @@ from pathlib import Path
 
 from django.conf import settings
 
+from core.accounts.portal_links import portal_link
+
 logger = logging.getLogger(__name__)
 
 _CHECK_NAME = "sgi_share_drift"
 
 # Ordine settimana coerente con reminder_config.GIORNI_VALIDI (lun=0 ... dom=6).
 _WEEKDAYS = ("lun", "mar", "mer", "gio", "ven", "sab", "dom")
-
-
-def _site_url() -> str:
-    return str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
 
 
 def log_sgi_change(
@@ -141,7 +139,7 @@ def _send_reminder_mail(user, email: str, assignments: list, *, subject: str, in
         due = a.due_date.strftime("%d/%m/%Y") if a.due_date else "-"
         lines.append(f"- {doc.code} — {doc.title} (rev. {a.revision.revision_code}, scadenza {due})")
     lines += ["", "Accedi al portale per confermare la presa visione:",
-              f"{_site_url()}/procedure-refresh/"]
+              portal_link("/procedure-refresh/") or "/procedure-refresh/"]
     try:
         send_hub_mail(
             subject,
@@ -304,7 +302,7 @@ def run_assignment_lifecycle(**kwargs) -> dict:
                             f"{doc.code} {doc.title} (scadenza {due})"
                         )
                     lines.append("")
-                lines.append(f"Report completo: {_site_url()}/procedure-refresh/admin/report/campagna/")
+                lines.append(f"Report completo: {portal_link('/procedure-refresh/admin/report/campagna/')}")
                 from core.email_utils import send_hub_mail
 
                 try:

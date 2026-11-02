@@ -331,9 +331,10 @@ def _ticket_body(ticket) -> str:
 def _link(path: str) -> str:
     # In the HUB the canonical absolute base is SITE_URL (used by every other module's
     # notifications); SECURITY_CENTER_BASE_URL stays supported for the standalone deploy.
-    base = str(
-        getattr(settings, "SECURITY_CENTER_BASE_URL", "")
-        or getattr(settings, "SITE_URL", "")
-        or ""
-    ).rstrip("/")
-    return f"{base}{path}" if base else f"(open Security Center: {path})"
+    # Inside the HUB the link goes through portal_link (Windows SSO when enabled).
+    standalone = str(getattr(settings, "SECURITY_CENTER_BASE_URL", "") or "").rstrip("/")
+    if standalone:
+        return f"{standalone}{path}"
+    from core.accounts.portal_links import portal_link
+
+    return portal_link(path) or f"(open Security Center: {path})"
