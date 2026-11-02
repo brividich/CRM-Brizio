@@ -939,7 +939,14 @@
       const [segnalare, setSegnalare] = useState(false);
       const [avanzamento, setAvanzamento] = useState(DEFAULT_AVANZAMENTO);
       const [rdcNum, setRdcNum] = useState("");
-      const [applicaBlocco, setApplicaBlocco] = useState(false);
+      // «Applica la stessa decisione anche a…»: perimetro (solo questa, stesso blocco,
+      // tutte le aperte dell'OP, scelte a mano), già decise escluse di serie, riepilogo
+      // in un popup prima di salvare.
+      const [ambito, setAmbito] = useState("solo");
+      const [scelteMano, setScelteMano] = useState([]);
+      const [includiDecise, setIncludiDecise] = useState(false);
+      const [riepilogo, setRiepilogo] = useState(null);  // null | { prossima: bool }
+      const resetAmbito = () => { setAmbito("solo"); setScelteMano([]); setIncludiDecise(false); };
 
       const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc), [aprireRdc]);
       const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento);
@@ -974,7 +981,7 @@
         setCurrentItemId(null);
         setCurrentLocalId(null);
         setAttachments([]);
-        setApplicaBlocco(false);
+        resetAmbito();
         setEditDesc(false);
       };
 
@@ -1121,7 +1128,7 @@
         setRdcNum(baseline.rdcNum);
         setSegnalare(baseline.segnalare);
         setAvanzamento(baseline.avanzamento);
-        setApplicaBlocco(false);
+        resetAmbito();
         setEditDesc(false);
       }, [sn.item_id]);
 
@@ -1165,11 +1172,35 @@
       };
 
       // Altre anomalie aperte dello stesso blocco di seriali.
-      const fratelliBlocco = useMemo(() => (
-        sn && sn.blocco_id
-          ? anomalie.filter((x) => x.blocco_id === sn.blocco_id && x.item_id !== sn.item_id && !x.chiudere)
-          : []
-      ), [anomalie, sn && sn.blocco_id, sn && sn.item_id]);
+      // Altre anomalie aperte dell'OP; con «includi già decise» spento, solo quelle da decidere.
+      const altreAperte = useMemo(() => (
+        anomalie.filter((x) => x.item_id !== sn.item_id && !x.chiudere && (includiDecise || isDaDecidere(x)))
+      ), [anomalie, sn && sn.item_id, includiDecise]);
+      const stessoBlocco = useMemo(() => (
+        sn && sn.blocco_id ? altreAperte.filter((x) => x.blocco_id === sn.blocco_id) : []
+      ), [altreAperte, sn && sn.blocco_id]);
+      const giaDecise = useMemo(() => (
+        anomalie.filter((x) => x.item_id !== sn.item_id && !x.chiudere && !isDaDecidere(x)).length
+      ), [anomalie, sn && sn.item_id]);
+      const bersagli = useMemo(() => {
+        if (ambito === "blocco") return stessoBlocco;
+        if (ambito === "op") return altreAperte;
+        if (ambito === "mano") return altreAperte.filter((x) => scelteMano.includes(x.item_id));
+        return [];
+      }, [ambito, stessoBlocco, altreAperte, scelteMano]);
+      // Su una «Azione di recupero» senza azione effettuata la chiusura non è ammessa:
+      // la decisione si applica, l'anomalia resta aperta.
+      const chiudeBersaglio = (x) => chiudereAuto && !(x.serve_azione && !aprireRdc);
+      const gruppiPerSn = (lista) => {
+        const out = [];
+        lista.forEach((x) => {
+          const chiave = x.blocco_id ? `b${x.blocco_id}` : `s${x.sn}`;
+          let g = out.find((y) => y.chiave === chiave);
+          if (!g) { g = { chiave, titolo: x.blocco_label || x.sn || "—", righe: [] }; out.push(g); }
+          g.righe.push(x);
+        });
+        return out;
+      };
 
       // ── Allegati ──
       const attachmentsFor = useRef(null);
@@ -1237,12 +1268,14 @@
       const lightboxIdx = immagini.findIndex((f) => f.file_id === lightbox);
 
       // ── Salvataggio ──
-      const handleSave = async () => {
+      const handleSave = async (confermato = false, prossima = false) => {
         if (!op.id || op.id === "—") { flash({ ok: false, text: "Seleziona un ordine prima di salvare" }); return false; }
         if (!canEditCurrentOp) { flash({ ok: false, text: "Permesso negato: non puoi modificare questo OP" }); return false; }
         if (isSelectedClosed) { flash({ ok: false, text: "Anomalia chiusa: in sola lettura" }); return false; }
         if (!currentItemId) { flash({ ok: false, text: "Seleziona un'anomalia" }); return false; }
         if (notaSenzaStato) { flash({ ok: false, text: NOTA_STATO_MSG }, 7000); return false; }
+        if (ambito === "mano" && !bersagli.length) { flash({ ok: false, text: "Scegli almeno un'altra anomalia, oppure «Solo questa»." }, 6000); return false; }
+        if (bersagli.length && !confermato) { setRiepilogo({ prossima }); return false; }
         setSaving(true);
         let ok = false;
         try {
@@ -1267,10 +1300,11 @@
           };
           setAnomalie((prev) => prev.map((a) => (a.item_id === currentItemId ? { ...a, ...aggiornato } : a)));
           let testo = chiudereAuto ? "Decisione salvata · anomalia chiusa" : "Decisione salvata";
-          if (applicaBlocco && fratelliBlocco.length) {
+          if (bersagli.length) {
             let n = 0;
             const errori = [];
-            for (const f of fratelliBlocco) {
+            for (const f of bersagli) {
+              const chiudeF = chiudeBersaglio(f);
               try {
                 const rf = await fetch(API.salva, {
                   method: "POST",
@@ -1278,26 +1312,26 @@
                   body: JSON.stringify({
                     item_id: f.item_id, op_id: op.id, sn: f.sn || "", desc: f.desc || "",
                     note, pezzi_prec: !!f.pezzi_prec, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "",
-                    segnalare, chiudere: chiudereAuto, avanzamento,
+                    segnalare, chiudere: chiudeF, avanzamento,
                   }),
                   credentials: "same-origin",
                 });
-                const df = await readJsonOrThrow(rf, "Salvataggio anomalia del blocco");
+                const df = await readJsonOrThrow(rf, "Salvataggio anomalia");
                 if (!df.success) throw new Error(df.error || "errore");
                 n += 1;
                 setAnomalie((prev) => prev.map((a) => (a.item_id === f.item_id ? {
-                  ...a, note, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare, chiudere: chiudereAuto, avanzamento,
+                  ...a, note, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare, chiudere: chiudeF, avanzamento,
                 } : a)));
               } catch (err) {
                 errori.push(`#${f.local_id}: ${err.message}`);
               }
             }
-            setApplicaBlocco(false);
+            resetAmbito();
             if (errori.length) {
-              flash({ ok: false, text: `Salvata; sul blocco ${n} aggiornate e ${errori.length} no (${errori.join("; ")})` }, 8000);
+              flash({ ok: false, text: `Salvata; delle altre ${n} aggiornate e ${errori.length} no (${errori.join("; ")})` }, 8000);
               testo = "";
             } else {
-              testo += ` · applicata anche ad altre ${n}`;
+              testo += ` · applicata anche ad altr${n === 1 ? "a" : "e"} ${n}`;
             }
           }
           if (testo) flash({ ok: true, text: data.protocollo ? `${testo} · ${data.protocollo}` : testo });
@@ -1309,13 +1343,20 @@
         return ok;
       };
 
-      const salvaEProssima = async () => {
-        // La prossima è la successiva in elenco ancora da decidere (o la successiva aperta).
+      // La prossima è la successiva in elenco ancora da decidere (o la successiva aperta).
+      const trovaProssima = (escluse = []) => {
+        const via = new Set([sn.item_id, ...escluse]);
         const dopo = ordineVisibile.slice(posizione + 1);
-        const prossima = dopo.find((a) => isDaDecidere(a) && a.item_id !== sn.item_id)
-          || ordineVisibile.find((a) => isDaDecidere(a) && a.item_id !== sn.item_id)
-          || dopo.find((a) => !a.chiudere);
-        if (!(await handleSave())) return;
+        return dopo.find((a) => isDaDecidere(a) && !via.has(a.item_id))
+          || ordineVisibile.find((a) => isDaDecidere(a) && !via.has(a.item_id))
+          || dopo.find((a) => !a.chiudere && !via.has(a.item_id));
+      };
+      const salvaEProssima = async () => {
+        const prossima = trovaProssima(bersagli.map((x) => x.item_id));
+        if (!(await handleSave(false, true))) return;
+        vaiAllaProssima(prossima);
+      };
+      const vaiAllaProssima = (prossima) => {
         if (prossima) setSelectedSnId(prossima.item_id);
         else flash({ ok: true, text: "Decisione salvata · nessun'altra anomalia da decidere su questo OP" });
       };
@@ -1755,14 +1796,53 @@
                       ) : canEditSelected && chiudereAuto && !sn.chiudere && (
                         <div className="ga-note ga-note--ok">Con questa decisione l'anomalia verrà <b>chiusa</b> al salvataggio.</div>
                       )}
-                      {canEditSelected && fratelliBlocco.length > 0 && (
-                        <label className="ga-apply">
-                          <input type="checkbox" checked={applicaBlocco} onChange={(e) => setApplicaBlocco(e.target.checked)} />
-                          <span>
-                            Applica la stessa decisione anche alle altre <b>{fratelliBlocco.length}</b> anomali{fratelliBlocco.length === 1 ? "a" : "e"} aperte di questi seriali
-                            <PezziInteressati sn={sn} compact />
-                          </span>
-                        </label>
+                      {canEditSelected && (altreAperte.length > 0 || giaDecise > 0) && (
+                        <div className="ga-apply ga-apply--ambito">
+                          <div className="ga-apply__t">Applica la stessa decisione anche a</div>
+                          <div className="ga-apply__opts" role="radiogroup" aria-label="Applica la stessa decisione anche a">
+                            {[
+                              ["solo", "Solo questa", null],
+                              ...(sn.blocco_id ? [["blocco", "Stesso blocco di seriali", stessoBlocco.length]] : []),
+                              ["op", "Tutte le aperte dell'OP", altreAperte.length],
+                              ["mano", "Scelte a mano", null],
+                            ].map(([k, label, n]) => (
+                              <button key={k} type="button" role="radio" aria-checked={ambito === k}
+                                className={`ga-chip-opt${ambito === k ? " is-on" : ""}`}
+                                disabled={n === 0} onClick={() => setAmbito(k)}>
+                                {label}{n != null ? <span className="ga-chip-opt__n">{n}</span> : null}
+                              </button>
+                            ))}
+                          </div>
+                          {ambito === "blocco" && <PezziInteressati sn={sn} compact />}
+                          {ambito === "mano" && (
+                            <div className="ga-apply__mano">
+                              <div className="ga-apply__mano-acts">
+                                <span className="ga-hint">{scelteMano.filter((id) => altreAperte.some((x) => x.item_id === id)).length} scelte su {altreAperte.length}</span>
+                                <button type="button" className="ga-link" onClick={() => setScelteMano(altreAperte.map((x) => x.item_id))}>Tutte</button>
+                                <button type="button" className="ga-link" onClick={() => setScelteMano([])}>Nessuna</button>
+                              </div>
+                              {altreAperte.length === 0 ? <div className="ga-hint">Nessun'altra anomalia {includiDecise ? "aperta" : "da decidere"}.</div> : gruppiPerSn(altreAperte).map((g) => (
+                                <div key={g.chiave} className="ga-apply__grp">
+                                  <div className="ga-apply__grp-t">S/N {g.titolo}</div>
+                                  {g.righe.map((x) => (
+                                    <label key={x.item_id} className="ga-apply__row">
+                                      <input type="checkbox" checked={scelteMano.includes(x.item_id)}
+                                        onChange={(e) => setScelteMano((prev) => (e.target.checked ? [...prev, x.item_id] : prev.filter((id) => id !== x.item_id)))} />
+                                      <span className="ga-apply__txt">{x.testo || x.desc || "—"}</span>
+                                      <span className="ga-hint">#{x.local_id}{isDaDecidere(x) ? "" : ` · ${x.avanzamento || "decisa"}`}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {giaDecise > 0 && ambito !== "solo" && (
+                            <label className="ga-apply__decise">
+                              <input type="checkbox" checked={includiDecise} onChange={(e) => setIncludiDecise(e.target.checked)} />
+                              <span>Includi anche le {giaDecise} già decise (la loro decisione viene sostituita)</span>
+                            </label>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -1785,7 +1865,7 @@
                     <div className="ga-det__foot">
                       <span className={`ga-det__state${dirty ? " is-dirty" : ""}`}>{dirty ? "● Modifiche non salvate" : "Nessuna modifica"}</span>
                       {dirty && <button type="button" className="ga-btn ga-btn--ghost-dark" onClick={annullaModifiche} disabled={saving}>Annulla</button>}
-                      <button type="button" className="ga-btn ga-btn--outline" onClick={handleSave} disabled={saving} title="Ctrl+S">{saving ? "Salvataggio…" : "Salva"}</button>
+                      <button type="button" className="ga-btn ga-btn--outline" onClick={() => handleSave()} disabled={saving} title="Ctrl+S">{saving ? "Salvataggio…" : "Salva"}</button>
                       <button type="button" className="ga-btn ga-btn--accent" onClick={salvaEProssima} disabled={saving}>Salva e prossima {Ico.next}</button>
                     </div>
                   )}
@@ -1793,6 +1873,51 @@
               )}
             </section>
           </div>
+
+          {/* Riepilogo prima di applicare la decisione ad altre anomalie */}
+          {riepilogo && (
+            <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-riep-t">
+              <div className="ga-modal__box ga-modal__box--wide">
+                <div className="ga-modal__title" id="ga-riep-t">Applica la decisione a {bersagli.length + 1} anomalie</div>
+                <div className="ga-riep__dec">
+                  <span><b>Avanzamento</b> {avanzamento}</span>
+                  {aprireRdc && <span><b>RDC</b> {rdcNum || "da aprire"}</span>}
+                  {segnalare && <span><b>Segnalata al cliente</b></span>}
+                  {note.trim() && <span className="ga-riep__nota"><b>Note</b> {note.trim()}</span>}
+                </div>
+                <div className="ga-riep__list">
+                  {gruppiPerSn([sn, ...bersagli]).map((g) => (
+                    <div key={g.chiave} className="ga-riep__grp">
+                      <div className="ga-apply__grp-t">S/N {g.titolo}</div>
+                      {g.righe.map((x) => {
+                        const chiude = x.item_id === sn.item_id ? chiudereAuto : chiudeBersaglio(x);
+                        return (
+                          <div key={x.item_id} className="ga-riep__row">
+                            <span className="ga-apply__txt">#{x.local_id} {x.testo || x.desc || "—"}{x.item_id === sn.item_id ? " (questa)" : ""}</span>
+                            <span className="ga-riep__stato">{x.avanzamento || "In attesa"} → {avanzamento}</span>
+                            {chiude ? <span className="ga-pill ga-pill--chiuso">Si chiude</span>
+                              : (chiudereAuto && x.serve_azione ? <span className="ga-pill ga-pill--attesa" title="Prima decisione «Azione di recupero»: serve l'azione effettuata">Resta aperta</span> : null)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                {chiudereAuto && bersagli.some((x) => x.serve_azione) && !aprireRdc && (
+                  <div className="ga-note ga-note--warn">Le anomalie in «Azione di recupero» ricevono la decisione ma restano aperte finché non si registra l'azione effettuata.</div>
+                )}
+                <div className="ga-modal__acts">
+                  <button type="button" className="ga-btn ga-btn--ghost-dark" onClick={() => setRiepilogo(null)}>Annulla</button>
+                  <button type="button" className="ga-btn ga-btn--accent" disabled={saving} onClick={async () => {
+                    const prossima = riepilogo.prossima ? trovaProssima(bersagli.map((x) => x.item_id)) : null;
+                    const vaiAvanti = riepilogo.prossima;
+                    setRiepilogo(null);
+                    if (await handleSave(true) && vaiAvanti) vaiAllaProssima(prossima);
+                  }}>Conferma e salva {bersagli.length + 1} anomalie</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Modifiche non salvate prima di cambiare anomalia/OP */}
           {pendingNav && (

@@ -217,3 +217,22 @@ class RiaperturaTests(TestCase):
     def test_api_rifiuta_anomalia_gia_aperta(self):
         resp = self._post({"id": 1, "ex_op_nominativo": "OP/1", "chiudere": 0}, consentito=True)
         self.assertEqual(resp.status_code, 400)
+
+
+class ServeAzioneRigheTests(TestCase):
+    """Le righe di /api/anomalie/anomalie dicono quali anomalie non si possono chiudere
+    senza l'azione effettuata (prima decisione «Azione di recupero»)."""
+
+    def test_flag_serve_azione(self):
+        from django.utils import timezone
+
+        from anomalie.quality_models import AnomaliaSchedaQualita
+
+        AnomaliaSchedaQualita.objects.create(anomalia_id=11, primo_avanzamento="Azione di recupero")
+        AnomaliaSchedaQualita.objects.create(anomalia_id=12, primo_avanzamento="Azione di recupero",
+                                             azione_effettuata_il=timezone.now())
+        AnomaliaSchedaQualita.objects.create(anomalia_id=13, primo_avanzamento="Accetto lo stato")
+        rows = [{"local_id": 11, "chiudere": False}, {"local_id": 12, "chiudere": False},
+                {"local_id": 13, "chiudere": False}, {"local_id": 14, "chiudere": True}]
+        av._segna_serve_azione(rows)
+        self.assertEqual([r["serve_azione"] for r in rows], [True, False, False, False])
