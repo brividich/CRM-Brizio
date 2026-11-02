@@ -8,10 +8,16 @@ Le eccezioni indicate a mano vincono. Il capo si cerca in quest'ordine:
 2. **responsabile dell'area aziendale**: chi ha la «Responsabilità dell'area»
    (generata dal ruolo responsabile dell'area; senza, segue il reparto);
 3. **capo del reparto**: chi ha la «Responsabilità del reparto»;
-4. **organigramma**: chi ricopre un ruolo sopra quello della persona e lavora
-   nella stessa area, poi nello stesso reparto, poi chi non ha reparto (ruolo
-   trasversale); se nessuno, si sale di livello — chi guida un altro reparto
-   non è mai il capo; in cima, se l'ultimo livello ha una persona sola, è lei.
+4. **organigramma produttivo** (decisione del 02/11/2026): contano solo i
+   ruoli dell'assetto produttivo (ambito che alimenta la scheda, o senza
+   ambito) e la loro catena ``riporta_a``; Preposto, Privacy Manager e gli
+   altri sotto-organigrammi (45001, 27001…) non decidono il capo. Si sale un
+   livello alla volta: il capo è chi ricopre il ruolo a cui si riporta, anche
+   se lavora in un altro reparto. Area e reparto servono solo a scegliere fra
+   più titolari (stessa area, poi stesso reparto, poi chi non ha reparto);
+   se nessuno è nel perimetro e il ruolo è quello di **capo di reparto**
+   (``Reparto.ruolo_responsabile``) si sale, perché chi guida un altro reparto
+   non è il capo; altrimenti approva il primo per id e gli altri si segnalano.
 
 Ai passi 2 e 3, con la regola spenta (prima del passaggio, vedi
 ``services.capi_mansione``) valgono ancora le persone scelte a mano
@@ -41,7 +47,7 @@ ORIGINE_LABEL = {
     ORIGINE_PERSONA: "Eccezione sulla persona",
     ORIGINE_AREA: "Responsabile dell'area",
     ORIGINE_REPARTO: "Capo del reparto",
-    ORIGINE_ORGANIGRAMMA: "Organigramma (ruolo sopra, stesso perimetro)",
+    ORIGINE_ORGANIGRAMMA: "Organigramma produttivo (ruolo a cui si riporta)",
     "": "Nessun capo trovato",
 }
 
@@ -120,6 +126,25 @@ def _padri_ruoli():
     }
 
 
+def _ruoli_produttivi() -> set[int]:
+    """Ruoli dell'organigramma produttivo: senza ambito o dell'ambito che alimenta la scheda.
+
+    Stessa definizione di ``RuoloOperativo.alimenta_ruolo_principale``."""
+    from ..models import RuoloOperativo
+
+    return {
+        int(rid)
+        for rid in RuoloOperativo.objects.filter(is_active=True)
+        .filter(Q(ambito__isnull=True) | Q(ambito__alimenta_scheda=True))
+        .values_list("id", flat=True)
+    }
+
+
+def _ruoli_capo_reparto(reparti) -> set[int]:
+    """Ruoli responsabili di un reparto: chi li ricopre guida quel reparto e non un altro."""
+    return {int(r.ruolo_responsabile_id) for r in reparti if getattr(r, "ruolo_responsabile_id", None)}
+
+
 def _livelli_sopra(ruoli: set[int], padri: dict[int, int]) -> list[set[int]]:
     """Ruoli sopra quelli dati, un livello per volta (senza cicli)."""
     livelli: list[set[int]] = []
@@ -139,18 +164,19 @@ def _scegli(candidati: list[int]) -> tuple[int, list[int]]:
     return ordinati[0], ordinati[1:]
 
 
-def _capo_organigramma(p: _Persona, persone, titolari: dict[int, set[int]], padri) -> Capo:
-    if not p.ruoli:
+def _capo_organigramma(
+    p: _Persona, persone, titolari: dict[int, set[int]], padri, produttivi: set[int], capi_reparto: set[int]
+) -> Capo:
+    ruoli = p.ruoli & produttivi
+    if not ruoli:
         return Capo(None)
-    in_cima: set[int] = set()
-    for livello in _livelli_sopra(p.ruoli, padri):
+    padri = {r: padre for r, padre in padri.items() if r in produttivi and padre in produttivi}
+    for livello in _livelli_sopra(ruoli, padri):
         candidati = {pid for r in livello for pid in titolari.get(r, set())} - {p.legacy_id}
         if not candidati:
             continue
-        in_cima = candidati
-        # Stessa area, poi stesso reparto, poi chi non ha un reparto (ruolo
-        # trasversale, es. il responsabile di produzione). Chi guida un ALTRO
-        # reparto non è mai il capo: si sale invece di prenderlo.
+        # Fra più titolari: stessa area, poi stesso reparto, poi chi non ha un
+        # reparto (ruolo trasversale).
         for stesso in (
             [c for c in candidati if p.area_id and persone[c].area_id == p.area_id],
             [c for c in candidati if p.reparto_id and persone[c].reparto_id == p.reparto_id],
@@ -159,10 +185,13 @@ def _capo_organigramma(p: _Persona, persone, titolari: dict[int, set[int]], padr
             if stesso:
                 capo, altri = _scegli(stesso)
                 return Capo(capo, ORIGINE_ORGANIGRAMMA, altri)
-    # Nessun perimetro in comune a nessun livello: vale la persona del livello
-    # più alto, se è una sola (es. il direttore inquadrato in un reparto).
-    if len(in_cima) == 1:
-        return Capo(next(iter(in_cima)), ORIGINE_ORGANIGRAMMA)
+        # Nessuno nel perimetro. Il capo di un ALTRO reparto non è il capo: si
+        # sale. Per gli altri ruoli vale chi li ricopre, ovunque sia inquadrato
+        # (es. Caporeparto → Operations Manager in UT).
+        if livello <= capi_reparto:
+            continue
+        capo, altri = _scegli(list(candidati))
+        return Capo(capo, ORIGINE_ORGANIGRAMMA, altri)
     return Capo(None)
 
 
@@ -184,6 +213,8 @@ def mappa_capi(oggi=None, *, usa_mansioni: bool | None = None) -> dict[int, Capo
         tit_rep = {r.id: [r.caporeparto_legacy_id] for r in reparti.values() if r.caporeparto_legacy_id}
         tit_area = {a.id: [a.responsabile_legacy_id] for a in aree.values() if a.responsabile_legacy_id}
     padri = _padri_ruoli()
+    produttivi = _ruoli_produttivi()
+    capi_reparto = _ruoli_capo_reparto(reparti.values())
     titolari: dict[int, set[int]] = {}
     for p in persone.values():
         for r in p.ruoli:
@@ -203,7 +234,7 @@ def mappa_capi(oggi=None, *, usa_mansioni: bool | None = None) -> dict[int, Capo
             if candidati:
                 capo = Capo(candidati[0], origine, candidati[1:])
                 break
-        risultato[p.legacy_id] = capo or _capo_organigramma(p, persone, titolari, padri)
+        risultato[p.legacy_id] = capo or _capo_organigramma(p, persone, titolari, padri, produttivi, capi_reparto)
     return risultato
 
 
