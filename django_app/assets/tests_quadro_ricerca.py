@@ -196,6 +196,32 @@ class RegistraInsiemeEChiusuraMassivaTests(TestCase):
         # Un'altra macchina non si registra mai da qui.
         self.assertEqual(foreign.status, MaintenanceOccurrence.STATUS_OPEN)
 
+    def test_stesso_piano_su_altre_macchine(self):
+        terza = Asset.objects.create(asset_tag="INS-03", name="Terza macchina", status=Asset.STATUS_IN_USE)
+        main = MaintenanceOccurrence.objects.create(plan=self.p1, asset=self.asset, due_date=self.today, warning_days=10)
+        gemella = MaintenanceOccurrence.objects.create(plan=self.p1, asset=self.altro, due_date=self.today + timedelta(days=60), warning_days=10)
+        contatore = MaintenanceOccurrence.objects.create(plan=self.p1, asset=terza, due_date=self.today, warning_days=10, is_meter_based=True)
+        altro_piano = MaintenanceOccurrence.objects.create(plan=self.p2, asset=terza, due_date=self.today, warning_days=10)
+        page = self.client.get(reverse("assets:occurrence_complete", args=[main.id]))
+        self.assertContains(page, "Stesso piano su altre macchine")
+        self.assertContains(page, f'name="also_complete_assets" value="{gemella.id}"')
+        self.assertContains(page, '<li data-insieme-days="60">')
+        self.assertNotContains(page, f'value="{contatore.id}"')
+        self.assertNotContains(page, f'value="{altro_piano.id}"')
+        self.assertNotContains(page, "{#")
+        self.client.post(
+            reverse("assets:occurrence_complete", args=[main.id]),
+            {"completed_on": self.today.isoformat(), "downtime_minutes": 20, "notes": "giro unico",
+             "also_complete_assets": [gemella.id, contatore.id, altro_piano.id]},
+        )
+        for occ in (main, gemella, contatore, altro_piano):
+            occ.refresh_from_db()
+        self.assertEqual(gemella.status, MaintenanceOccurrence.STATUS_DONE)
+        self.assertEqual(gemella.completion_notes, "giro unico")
+        self.assertFalse(gemella.downtime_minutes)
+        self.assertEqual(contatore.status, MaintenanceOccurrence.STATUS_OPEN)
+        self.assertEqual(altro_piano.status, MaintenanceOccurrence.STATUS_OPEN)
+
     def test_chiudi_selezionati_salta_chi_ha_manutenzioni_aperte(self):
         libero = WorkOrder.objects.create(asset=self.asset, title="Guasto libero")
         con_manutenzioni = WorkOrder.objects.create(asset=self.asset, title="Con manutenzioni")

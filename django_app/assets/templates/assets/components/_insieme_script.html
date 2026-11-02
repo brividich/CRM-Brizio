@@ -1,0 +1,61 @@
+{% comment %}Riquadri «Registra insieme»: ogni contenitore data-insieme ha il filtro
+   data-insieme-window, le voci data-insieme-days="<giorni dalla voce principale>" con la loro
+   casella, facoltativi data-insieme-empty e data-insieme-all. Chi esce dal periodo perde la
+   spunta; dopo ogni cambio parte l'evento «insieme:change» per i contatori della pagina.{% endcomment %}
+<style>
+[data-insieme] [hidden]{display:none!important}
+.insieme-window{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-xs);font-weight:700;color:var(--text-mid,#64748b)}
+.insieme-window select{font:inherit;color:inherit;background:var(--surface,#fff);border:1px solid var(--border,#cbd5e1);border-radius:8px;padding:4px 6px;min-height:32px}
+</style>
+<script>
+(function () {
+  function boxes(item) { return item.querySelectorAll('input[type="checkbox"]'); }
+  function apply(scope) {
+    var select = scope.querySelector('[data-insieme-window]');
+    var limit = select ? parseInt(select.value, 10) : Infinity;
+    var shown = 0;
+    scope.querySelectorAll('[data-insieme-days]').forEach(function (item) {
+      var inside = parseInt(item.getAttribute('data-insieme-days'), 10) <= limit;
+      item.hidden = !inside;
+      if (inside) { shown += 1; } else { boxes(item).forEach(function (box) { box.checked = false; }); }
+    });
+    var empty = scope.querySelector('[data-insieme-empty]');
+    if (empty) { empty.hidden = shown > 0; }
+    var all = scope.querySelector('[data-insieme-all]');
+    if (all) { all.hidden = shown === 0; }
+    document.dispatchEvent(new CustomEvent('insieme:change', { detail: { scope: scope } }));
+  }
+  window.hubInsiemeApply = apply;
+  // Pulsante del modulo con data-insieme-submit: dice quante altre voci partono insieme.
+  document.addEventListener('insieme:change', function (event) {
+    var form = event.detail.scope.closest('form');
+    var button = form && form.querySelector('[data-insieme-submit]');
+    if (!button) { return; }
+    var extra = form.querySelectorAll('[data-insieme] [data-insieme-days]:not([hidden]) input[type="checkbox"]:checked').length;
+    var label = button.getAttribute('data-insieme-label') || button.textContent;
+    button.textContent = extra ? label + ' (+' + extra + ')' : label;
+  });
+  document.addEventListener('change', function (event) {
+    var scope = event.target.closest('[data-insieme]');
+    if (!scope) { return; }
+    if (event.target.matches('[data-insieme-window]')) { apply(scope); return; }
+    if (event.target.matches('input[type="checkbox"]')) {
+      document.dispatchEvent(new CustomEvent('insieme:change', { detail: { scope: scope } }));
+    }
+  });
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-insieme-all]');
+    if (!button) { return; }
+    var scope = button.closest('[data-insieme]');
+    var visible = [];
+    scope.querySelectorAll('[data-insieme-days]:not([hidden])').forEach(function (item) {
+      boxes(item).forEach(function (box) { visible.push(box); });
+    });
+    var all = visible.length && visible.every(function (box) { return box.checked; });
+    visible.forEach(function (box) { box.checked = !all; });
+    document.dispatchEvent(new CustomEvent('insieme:change', { detail: { scope: scope } }));
+  });
+  function init() { document.querySelectorAll('[data-insieme]').forEach(apply); }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+})();
+</script>

@@ -29,6 +29,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#menu">Il menu a sinistra</a>
     <a href="#rinvio">Rinvio di una manutenzione</a>
     <a href="#scadenze-amministrative">Scadenze amministrative</a>
+    <a href="#registra-insieme">Registrare insieme su più asset</a>
     <a href="#fatta-oggi">«Fatta oggi» e segnalazione dal QR</a>
     <a href="#contatori">Contatori e piani a contatore</a>
     <a href="#codici-guasto">Codici guasto e guasti più frequenti</a>
@@ -102,6 +103,19 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li>Le scadenze svolte si ritrovano con <span class="ag-btn">Svolte →</span>: apre Manutenzione &rsaquo; <strong>Storico</strong> con ogni esecuzione registrata (data, chi, costo, prossima scadenza), anche delle voci che si sono rinnovate. Le voci senza periodicità, una volta registrate, sono nella scheda <strong>Chiuse</strong>.</li>
       </ul>
       <p class="ag-note">Registrare è riservato all'amministrazione del modulo Asset. Per spostare nei piani le manutenzioni finite nel registro c'è il comando <code>riordina_scadenze_amministrative</code> (prima in prova, poi con <code>--apply</code>).</p>
+    </section>
+
+    <section class="ag-sec" id="registra-insieme">
+      <h2>Registrare insieme su più asset</h2>
+      <p>Quando chiudi o rinnovi una voce, il portale propone le <strong>voci gemelle</strong> su altri asset: le spunti e partono insieme, senza ripetere il modulo. Nulla cambia da solo, e al salvataggio il portale ricontrolla che le voci spuntate siano davvero gemelle e visibili a te. Dove c'è il filtro <strong>«scadute o entro»</strong> scegli il periodo (7, 15, 30, 60, 90 giorni, 6 mesi o un anno; di partenza 30): le voci già scadute si vedono sempre, chi esce dal periodo perde la spunta.</p>
+      <ul>
+        <li><strong>Registra l'esecuzione di una manutenzione</strong> &rsaquo; <strong>«Stesso piano su altre macchine»</strong>: lo stesso piano ancora aperto su altre macchine (una riga per macchina, la prima scadenza). Spuntate, si registrano con la stessa data, le stesse note e lo stesso rapporto; il fermo macchina resta solo su quella aperta. Le manutenzioni a contatore non compaiono: vogliono la lettura di ogni macchina. Il pulsante diventa «Registra N manutenzioni».</li>
+        <li><strong>Scadenze amministrative</strong> &rsaquo; <span class="ag-btn">Registra</span> &rsaquo; <strong>«Stessa scadenza su altri asset»</strong>: vedi sopra.</li>
+        <li><strong>Licenze software</strong> &rsaquo; <span class="ag-btn">Rinnova</span> &rsaquo; <strong>«Rinnova anche»</strong>: le altre licenze attive dello stesso prodotto e produttore. Prendono la stessa nuova scadenza, data di rinnovo, fornitore, riferimento e note; l'inizio periodo è il giorno dopo la loro vecchia scadenza. Posti e costo restano sulla licenza aperta. Ogni licenza ha il suo rinnovo nello storico.</li>
+        <li><strong>Contratti assistenza</strong> &rsaquo; <span class="ag-btn">Rinnova</span>: nuova data fine (proposta: un anno dopo la attuale, deve essere successiva) e nota facoltativa. Il contratto torna attivo e nelle note si aggiunge «Rinnovato il gg/mm/aaaa: fine da … a …». In <strong>«Rinnova anche»</strong> ci sono gli altri contratti attivi dello stesso fornitore, che prendono la stessa data fine e la stessa nota.</li>
+        <li><strong>Nuova scadenza</strong> &rsaquo; <strong>«Crea anche su…»</strong>: aperta da un asset (o dopo averlo scelto nel modulo, se il titolo è ancora vuoto la pagina si ricarica), elenca gli altri asset in uso della stessa categoria. Spuntati ricevono la stessa scadenza (tipo, titolo, data, periodicità, preavviso, riferimento, ente e note; senza componente). Chi ha già una scadenza attiva con lo stesso titolo e tipo viene saltato. Il pulsante diventa «Salva su N asset».</li>
+      </ul>
+      <p class="ag-note">Una voce gemella che non si può registrare (es. manca il rapporto obbligatorio, data non valida) non blocca le altre: compare un avviso «Non registrata / Non rinnovata / Non creata su …». Ogni voce registrata insieme ha la sua riga nello storico delle operazioni, collegata a quella principale.</p>
     </section>
 
     <section class="ag-sec" id="fatta-oggi">

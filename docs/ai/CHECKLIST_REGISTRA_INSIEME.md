@@ -29,65 +29,72 @@ test `assets/tests_admin_deadlines_riordino.py::StessaScadenzaAltriAssetTests`.
 
 ## Voci
 
-### 1. Registra esecuzione manutenzione: «Stesso piano su altre macchine» — [ ] IN CORSO (feature/assets-registra-insieme)
+### 1. Registra esecuzione manutenzione: «Stesso piano su altre macchine» — [x] FATTA (02/11/2026)
 Pagina: `assets/manutenzione/occorrenze/<id>/registra/` (`views_maintenance.occurrence_complete`,
 template `occurrence_complete.html`). Oggi c'è solo «Sulla stessa macchina entro 30 giorni»
 (`_completion_suggestions` → `same_asset_open`, `_complete_same_outing`, campo `also_complete`).
 
-- [ ] `_completion_suggestions`: aggiungere `same_plan_other_assets` = occorrenze **aperte**, stesso `plan_id`,
+- [x] `_completion_suggestions`: aggiungere `same_plan_other_assets` = occorrenze **aperte**, stesso `plan_id`,
       asset diverso, visibili (`filtra_per_asset(..., MODULO_MANUTENZIONE)`), scadenza entro un anno dalla
       scadenza di questa (le scadute sempre); una per asset (la prima); con i giorni di distanza.
-- [ ] Escludere le occorrenze **a contatore** (`is_meter_based`): servono letture diverse per macchina.
-- [ ] Template: riquadro «Stesso piano su altre macchine» con filtro «scadute o entro» (stesse opzioni
+- [x] Escludere le occorrenze **a contatore** (`is_meter_based`): servono letture diverse per macchina.
+- [x] Template: riquadro «Stesso piano su altre macchine» con filtro «scadute o entro» (stesse opzioni
       delle scadenze), «Spunta tutte», pulsante «Registra N manutenzioni» che conta entrambi i riquadri.
-- [ ] POST: nuovo campo `also_complete_assets`; `_complete_same_outing` accetta anche quelle, ricalcolando
+- [x] POST: nuovo campo `also_complete_assets`; `_complete_same_outing` accetta anche quelle, ricalcolando
       l'elenco consentito (stesso piano, aperte, visibili, non a contatore). Fermo macchina solo sulla principale;
       stessa data, note, rapporto condiviso. Chiusura OdL collegati come oggi (`touched`).
-- [ ] Test in `assets/tests_maintenance_flow.py` (o nuovo file): proposta, filtro contatore, id non consentiti ignorati.
+- [x] Test in `assets/tests_maintenance_flow.py` (o nuovo file): proposta, filtro contatore, id non consentiti ignorati.
 
-### 2. Rinnovo licenze software: «Rinnova anche» — [ ] IN CORSO (feature/assets-registra-insieme)
+### 2. Rinnovo licenze software: «Rinnova anche» — [x] FATTA (02/11/2026)
 Pagina: `assets/licenze-software/` (`deadlines.software_license_list`, azione `renew_software_license`,
 template `software_license_list.html`, form `SoftwareLicenseRenewalForm` con prefisso `renew-<id>`).
 
-- [ ] Gemelle = licenze **attive**, stesso `product_name` (senza maiuscole/spazi) e stesso `vendor`,
+- [x] Gemelle = licenze **attive**, stesso `product_name` (senza maiuscole/spazi) e stesso `vendor`,
       con scadenza entro un anno da quella della licenza (le scadute sempre; senza scadenza escluse).
-- [ ] Nel modulo «Rinnova» di ogni riga: elenco a spunta «Rinnova anche» con filtro periodo.
-- [ ] POST: per ogni gemella consentita crea `SoftwareLicenseRenewal` con stessa nuova scadenza, data rinnovo,
+- [x] Nel modulo «Rinnova» di ogni riga: elenco a spunta «Rinnova anche» con filtro periodo.
+- [x] POST: per ogni gemella consentita crea `SoftwareLicenseRenewal` con stessa nuova scadenza, data rinnovo,
       inizio periodo, fornitore, riferimento e note; `previous_expiry` della gemella; posti e costo **solo**
       sulla principale. Aggiorna `expiry_date`/`renewal_date`/`is_active` della gemella. Audit per ciascuna.
-- [ ] Test.
+- [x] Test.
 
-### 3. Contratti di assistenza: «Rinnova» (+ «Rinnova anche») — [ ] IN CORSO (feature/assets-registra-insieme)
+### 3. Contratti di assistenza: «Rinnova» (+ «Rinnova anche») — [x] FATTA (02/11/2026)
 Pagina: `assets/contratti-assistenza/` (`deadlines.assistance_contract_list`). Oggi non c'è rinnovo:
 si modifica la data fine a mano. Nessun modello di storico → niente migrazione: lo storico sta nell'audit
 e in una riga aggiunta alle note («Rinnovato il gg/mm/aaaa: fine da A a B»).
 
-- [ ] Azione `renew_assistance_contract` (solo admin assets): nuova data fine (obbligatoria, > attuale),
+- [x] Azione `renew_assistance_contract` (solo admin assets): nuova data fine (obbligatoria, > attuale),
       riattiva il contratto, riga nelle note, audit con fine precedente/nuova.
-- [ ] Pulsante «Rinnova» sulla riga con finestra/riquadro (pattern `details` delle licenze).
-- [ ] «Rinnova anche»: contratti **attivi** dello **stesso fornitore**, data fine entro un anno da quella del
+- [x] Pulsante «Rinnova» sulla riga con finestra/riquadro (pattern `details` delle licenze).
+- [x] «Rinnova anche»: contratti **attivi** dello **stesso fornitore**, data fine entro un anno da quella del
       contratto (scaduti sempre), visibili (`filtra_per_asset(..., MODULO_FORNITORI)`); stessa nuova data fine.
-- [ ] Test.
+- [x] Test.
 
-### 4. Nuova scadenza amministrativa: «Crea anche su…» — [ ] IN CORSO (feature/assets-registra-insieme)
+### 4. Nuova scadenza amministrativa: «Crea anche su…» — [x] FATTA (02/11/2026)
 Pagina: `assets/scadenze/nuova/` (`deadlines.asset_administrative_deadline_create`,
 template `asset_admin_deadline_form.html`, form `AssetAdministrativeDeadlineForm`). Stesso schema di
 «Altri asset con la stessa manutenzione» nella creazione OdL (`workorders._create_sibling_workorders_from_request`).
 
-- [ ] Dopo la scelta dell'asset: elenco degli asset della **stessa categoria** (`asset_category_id`), in uso,
+- [x] Dopo la scelta dell'asset: elenco degli asset della **stessa categoria** (`asset_category_id`), in uso,
       visibili, che **non** hanno già una scadenza attiva con lo stesso titolo e tipo (calcolato al salvataggio
       sul titolo inserito; in pagina proposta per categoria con nota).
-- [ ] POST campo `extra_asset_ids`: ricalcolo lato server degli asset consentiti; copia di tipo, titolo,
+- [x] POST campo `extra_asset_ids`: ricalcolo lato server degli asset consentiti; copia di tipo, titolo,
       data, preavviso, periodicità, riferimento, ente, note; **senza componente**. Audit per ciascuna.
-- [ ] Messaggio «Creata anche su N asset: …».
-- [ ] Test.
+- [x] Messaggio «Creata anche su N asset: …».
+- [x] Test.
 
 ## Avanzamento
 
 | Voce | Stato | Branch | Merge main | Merge release/prod |
 |---|---|---|---|---|
 | 0. Scadenze amministrative (riferimento) | fatta | feature/assets-scadenze-altri-* | 12ec0c20 | a2ecbe30 |
-| 1. Manutenzione stesso piano | in corso | feature/assets-registra-insieme | — | — |
-| 2. Licenze rinnova anche | in corso | feature/assets-registra-insieme | — | — |
-| 3. Contratti rinnova | in corso | feature/assets-registra-insieme | — | — |
-| 4. Nuova scadenza crea anche | in corso | feature/assets-registra-insieme | — | — |
+| 1. Manutenzione stesso piano | fatta | feature/assets-registra-insieme | vedi nota | vedi nota |
+| 2. Licenze rinnova anche | fatta | feature/assets-registra-insieme | vedi nota | vedi nota |
+| 3. Contratti rinnova | fatta | feature/assets-registra-insieme | vedi nota | vedi nota |
+| 4. Nuova scadenza crea anche | fatta | feature/assets-registra-insieme | vedi nota | vedi nota |
+
+Nota: le voci 1-4 sono nello stesso branch, fuse su main e release/prod il 02/11/2026 (commit nel log: «merge: feature/assets-registra-insieme»). Codice comune: `assets/registra_insieme.py`, `components/_insieme_window_select.html`, `components/_insieme_script.html`. Test: 83 OK (`tests_quadro_ricerca`, `tests_licenze_rinnovi`, `tests_registra_insieme`, `tests_admin_deadlines_riordino`, `tests_deadline_feed`, `tests_maintenance_flow`). Verifica a video: chiaro, scuro, 390px.
+
+## Idee successive (non fatte)
+
+- Verifiche periodiche (`PeriodicVerification`): oggi passano dagli OdL, coperte dalla creazione OdL «Altri asset con la stessa manutenzione».
+- Licenze: «Rinnova anche» per stesso fornitore di rinnovo (oggi solo stesso prodotto e produttore).

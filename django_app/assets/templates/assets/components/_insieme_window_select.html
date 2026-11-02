@@ -1,0 +1,7 @@
+{% comment %}Filtro «scadute o entro» dei riquadri «Registra insieme» (vedi assets/registra_insieme.py):
+   va dentro un contenitore data-insieme, con _insieme_script.html nella pagina.{% endcomment %}
+<label class="insieme-window">scadute o entro
+  <select data-insieme-window aria-label="Mostra le voci entro">
+    {% for days, label in insieme_window_choices %}<option value="{{ days }}"{% if days == insieme_window_default %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select>
+</label>
