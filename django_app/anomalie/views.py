@@ -4401,6 +4401,50 @@ def anomalie_statistiche_page(request):
     return render(request, "anomalie/pages/anomalie_statistiche.html", context)
 
 
+def _anomalie_scope_where(request) -> tuple[list[str], list]:
+    """Filtro di visibilità sulle righe di ``anomalie`` per lo scope dell'utente.
+
+    Stessa regola dell'elenco OP (``api_db_ordini``): ALL vede tutto, ASSIGNED
+    solo gli OP in cui è capocommessa/CAR, OWN_ANOMALIE solo gli OP su cui ha
+    aperto almeno un'anomalia. Statistiche, ricerca e contatore della home
+    passano da qui, così il numero coincide con quello dell'elenco.
+    """
+    scope = _request_anomalie_list_scope(request)
+    if scope == AnomalieListScope.ALL:
+        return [], []
+    if connections["default"].vendor == "sqlite":
+        op_id = f"CAST(op.{OP_ITEM_ID_COL} AS INTEGER)"
+    else:
+        op_id = f"TRY_CAST(op.{OP_ITEM_ID_COL} AS INT)"
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if (
+        scope == AnomalieListScope.OWN_ANOMALIE
+        and legacy_user
+        and "created_by_user_id" in (legacy_table_columns("anomalie") or set())
+    ):
+        return [
+            "op_lookup_id IN (SELECT a_own.op_lookup_id FROM anomalie a_own "
+            "WHERE a_own.created_by_user_id = %s)"
+        ], [legacy_user.id]
+    user_name = _current_user_identity(request)["name"]
+    if not user_name or (scope == AnomalieListScope.OWN_ANOMALIE and not legacy_user):
+        return ["1=0"], []
+    return [
+        f"op_lookup_id IN (SELECT {op_id} FROM ordini_produzione op "
+        "WHERE op.capocomessa LIKE %s OR op.incaricato LIKE %s)"
+    ], [f"%{user_name}%", f"%{user_name}%"]
+
+
+def conta_anomalie_aperte_visibili(request) -> int:
+    """Anomalie aperte che l'utente vede nell'elenco: il numero della home."""
+    if not _has_table("anomalie"):
+        return 0
+    where_parts, params = _anomalie_scope_where(request)
+    where_parts = ["COALESCE(chiudere, 0) = 0", *where_parts]
+    rows = _fetch_all_dict(f"SELECT COUNT(*) AS n FROM anomalie WHERE {' AND '.join(where_parts)}", params or None)
+    return int((rows or [{"n": 0}])[0]["n"])
+
+
 def _statistiche_where(request, cols: set[str]) -> tuple[list[str], list]:
     """Costruisce i frammenti WHERE condivisi tra statistiche, ricerca ed export."""
     da = request.GET.get("da", "").strip()
@@ -4446,7 +4490,8 @@ def _statistiche_where(request, cols: set[str]) -> tuple[list[str], list]:
             ors = " OR ".join(f"{_quote_identifier(c)} LIKE %s" for c in text_cols)
             where_parts.append("(" + ors + ")")
             params.extend([like] * len(text_cols))
-    return where_parts, params
+    scope_parts, scope_params = _anomalie_scope_where(request)
+    return where_parts + scope_parts, params + scope_params
 
 
 @login_required
@@ -4541,11 +4586,15 @@ def api_anomalie_statistiche(request):
 
     capocommessa_list: list[str] = []
     if "ex_op_nominativo" in cols:
+        # Solo gli OP che l'utente può vedere: la tendina non deve elencare quelli altrui.
+        scope_parts, scope_params = _anomalie_scope_where(request)
+        scope_sql = "".join(f" AND {p}" for p in scope_parts)
         capocommessa_list = [
             str(r["ex_op_nominativo"])
             for r in _fetch_all_dict(
                 "SELECT DISTINCT ex_op_nominativo FROM anomalie "
-                "WHERE ex_op_nominativo IS NOT NULL AND ex_op_nominativo != '' ORDER BY ex_op_nominativo"
+                f"WHERE ex_op_nominativo IS NOT NULL AND ex_op_nominativo != ''{scope_sql} ORDER BY ex_op_nominativo",
+                scope_params or None,
             )
         ]
 

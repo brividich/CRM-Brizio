@@ -763,7 +763,7 @@ def get_asset_maintenance_costs(asset_id: int, today: date | None = None) -> dic
 # Condiviso tra Dashboard Assets (cruscotto) e Centro Manutenzione (hub).
 # ---------------------------------------------------------------------------
 
-def get_cose_da_fare_overview(today: date | None = None, limit: int = 6) -> dict:
+def get_cose_da_fare_overview(today: date | None = None, limit: int = 6, request=None) -> dict:
     """Sintesi operativa delle cose da fare per il modulo asset.
 
     Aggrega gli elementi azionabili (OdL aperti, scadenze e verifiche scadute o
@@ -778,6 +778,9 @@ def get_cose_da_fare_overview(today: date | None = None, limit: int = 6) -> dict
         total_urgent       int   – somma degli elementi scaduti o aperti da troppo tempo
         items              list  – OdL aperti più vecchi (per la lista breve)
         has_data           bool  – True se c'è almeno un elemento da gestire
+
+    Con ``request`` i conteggi e la lista seguono l'ambito del ruolo (OdL,
+    scadenze e verifiche dei soli asset visibili); senza, tutta l'azienda.
     """
     from assets.maintenance import get_workorder_overdue_days
 
@@ -788,16 +791,27 @@ def get_cose_da_fare_overview(today: date | None = None, limit: int = 6) -> dict
     wo_qs = WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN).exclude(
         asset__status=Asset.STATUS_RETIRED
     )
+    visibili = None
+    if request is not None:
+        from ..registro_permessi import MODULO_MANUTENZIONE
+        from .visibilita import filtra_odl, ids_visibili
+
+        wo_qs = filtra_odl(request, wo_qs)
+        visibili = ids_visibili(request, MODULO_MANUTENZIONE)
     wo_open = _safe_count(wo_qs)
     wo_overdue = _safe_count(wo_qs.filter(opened_at__date__lte=overdue_threshold))
 
     dues = feed.administrative_dues(due_to=horizon_30)
+    if visibili is not None:
+        dues = [due for due in dues if due.asset.id in visibili]
     deadlines_overdue = sum(1 for due in dues if due.due_date < today)
     deadlines_30 = sum(1 for due in dues if due.due_date >= today)
 
     pv_qs = PeriodicVerification.objects.filter(
         is_active=True, is_legacy=False, next_verification_date__isnull=False
     )
+    if visibili is not None:
+        pv_qs = pv_qs.filter(pk__in=PeriodicVerification.objects.filter(assets__in=visibili).values("pk"))
     verifiche_overdue = _safe_count(pv_qs.filter(next_verification_date__lt=today))
 
     items: list[dict[str, Any]] = []
@@ -824,6 +838,14 @@ def get_cose_da_fare_overview(today: date | None = None, limit: int = 6) -> dict
         "total_urgent": wo_overdue + deadlines_overdue + verifiche_overdue,
         "items": items,
         "has_data": bool(wo_open or deadlines_overdue or verifiche_overdue or deadlines_30),
+    }
+
+
+def segnalazioni_vuote() -> dict:
+    """Stesse chiavi di ``get_segnalazioni_overview``, a zero: per chi non gestisce i ticket MAN."""
+    return {
+        "open_total": 0, "nuove": 0, "in_carico": 0, "in_attesa": 0, "urgenti": 0,
+        "recenti_7gg": 0, "by_priorita": [], "items": [], "has_data": False,
     }
 
 

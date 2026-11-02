@@ -239,6 +239,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
     {# Con tutti e cinque i riquadri vuoti si mostra una riga sola invece di cinque «nessuno». #}
     {% if cruscotto.righe_formazione or cruscotto.righe_visite or cruscotto.righe_stato_operativo or cruscotto.righe_cambi or cruscotto.righe_qualifiche or cruscotto.assunti_30 or cruscotto.cessati_30 or cruscotto.programmati or cruscotto.n_non_idonei_operare %}
     <div class="hrg-dash-grid">
+      {% if cruscotto.formazione %}
       <section class="hr-card hrg-box">
         <div class="hrg-box-head">
           <span class="hrg-box-title">📘 Formazione da sistemare</span>
@@ -246,6 +247,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
         </div>
         {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_formazione vuoto="Tutta la formazione obbligatoria è in regola." %}
       </section>
+      {% endif %}
       {% if cruscotto.visite %}
       <section class="hr-card hrg-box">
         <div class="hrg-box-head">

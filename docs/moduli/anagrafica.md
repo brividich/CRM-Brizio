@@ -232,6 +232,10 @@ Anagrafica master HR del portale, integrata con Active Directory e tabelle legac
 - **Sync LDAP/AD** con `sync_ldap_users`, paging configurabile, credenziali service account su `config/.env`
 - **Fallback email** automatico `email_notifica` → `email` per notifiche legacy
 
+## Numeri della dashboard e ambito (02/11/2026)
+
+Dashboard HR (`cruscotto_hr.calcola(visibili=..., include_formazione=...)`), «In elenco» dei Dipendenti e cruscotto qualifiche contano solo le schede che il ruolo vede (`_schede_visibili`); la formazione solo con il permesso formazione. Il cruscotto qualifiche conta l'ultima qualifica per persona e tipo (`id_qualifiche_correnti`) senza cessati, come dashboard HR e scadenzario.
+
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)): elenco ed export dipendenti mostrano solo le schede visibili (propri / team / tutti) e la scheda fuori perimetro risponde «Accesso negato». Gestione, dati riservati (azione «Dati riservati»), dashboard visite mediche e formazione richiedono visibilità «tutti» su Anagrafica, Visite mediche o Formazione: chi ha «team» non apre le pagine globali. I singleton AnagraficaHR/Visite/Formazione/Stat valgono solo a sistema spento.

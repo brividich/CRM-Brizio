@@ -41,9 +41,15 @@ class QualificheCruscottoTests(TestCase):
             durata_mesi=60,
         )
         oggi = timezone.localdate()
-        # Una scaduta + una in scadenza entro 60gg
+        # Una scaduta (altro tipo) + una in scadenza entro 60gg
+        self.tipo_scaduto = TipoQualifica.objects.create(
+            nome="Patentino PLE",
+            categoria=TipoQualifica.CAT_PROFESSIONALE,
+            durata_mesi=60,
+            is_active=False,
+        )
         DipendenteQualifica.objects.create(
-            legacy_anagrafica_id=1, tipo=self.tipo,
+            legacy_anagrafica_id=1, tipo=self.tipo_scaduto,
             data_conseguimento=date(2020, 1, 1), data_scadenza=oggi - timedelta(days=10),
         )
         DipendenteQualifica.objects.create(
@@ -63,6 +69,18 @@ class QualificheCruscottoTests(TestCase):
         self.assertEqual(resp.context["n_scadute"], 1)
         self.assertEqual(len(resp.context["timeline"]), 12)
         self.assertEqual(len(resp.context["prossime_sessioni"]), 1)
+
+    def test_dashboard_ignora_la_qualifica_superata_da_un_rinnovo(self):
+        # Rinnovo dello stesso tipo: la vecchia registrazione scaduta non conta più,
+        # come in dashboard HR e scadenzario.
+        oggi = timezone.localdate()
+        DipendenteQualifica.objects.create(
+            legacy_anagrafica_id=1, tipo=self.tipo,
+            data_conseguimento=date(2019, 1, 1), data_scadenza=oggi - timedelta(days=400),
+        )
+        resp = self.client.get(reverse("anagrafica:qualifiche_dashboard"))
+        self.assertEqual(resp.context["tot_assegnazioni"], 2)
+        self.assertEqual(resp.context["n_scadute"], 1)
 
     def test_scadenzario_default(self):
         resp = self.client.get(reverse("anagrafica:qualifiche_scadenzario"))

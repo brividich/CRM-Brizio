@@ -309,7 +309,9 @@ SEZIONI: list[dict] = [
                 "Imposta i filtri: periodo di creazione, avanzamento, nominativo OP, stato, RDC, segnalazione cliente e "
                 "ricerca libera (seriale, descrizione, OP, RDC).",
                 "Premi «Aggiorna»; «Azzera filtri» li toglie.",
-                "Leggi i KPI in alto e le tabelle per avanzamento, per mese, per difetto, origine e decisione, e i top OP.",
+                "Leggi i KPI in alto e le tabelle per avanzamento, per mese, per difetto, origine e decisione, e i top OP. "
+                "Numeri, tabelle e ricerca contano solo le anomalie degli OP che vedi nell'elenco: con visibilità "
+                "«assegnati» quelli in cui sei capocommessa o CAR, con «proprie anomalie» quelli su cui ne hai aperta una.",
                 "In «Ricerca dettaglio» scorri le anomalie (25 per pagina) e scarica tutto con «Esporta CSV»: l'export "
                 "rispetta i filtri ed è registrato.",
             ]),

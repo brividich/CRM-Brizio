@@ -650,6 +650,14 @@ def _load_assenze_car_periodo(
     return out
 
 
+def count_all_pending() -> int:
+    """Quante assenze sono in attesa in tutta l'azienda: il totale di `_load_all_pending` senza limite."""
+    if not _helpers._table_exists("assenze"):
+        return 0
+    rows = _helpers._fetch_all_dict("SELECT COUNT(*) AS n FROM assenze a WHERE COALESCE(a.moderation_status, 2) = 2")
+    return int((rows or [{"n": 0}])[0]["n"])
+
+
 def _load_all_pending(limit: int = 100) -> list[dict]:
     """Tutte le assenze in attesa (nessun filtro su capo): per AMMINISTRAZIONE."""
     if not _helpers._table_exists("assenze"):
