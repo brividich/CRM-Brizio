@@ -150,6 +150,7 @@ GUIDA = {
                 ("ul", [
                     "«⚙ Personalizza»: stanza di apertura, riquadri da mostrare (Azioni rapide, Il tuo brief di oggi, News aziendali) e «Rifai il tour».",
                     "Preferiti: nella stanza «Moduli» tocca ☆ su una tessera; il modulo compare in «I miei preferiti» nella colonna di sinistra (massimo 12).",
+                    "Azioni rapide: compaiono solo quelle che i tuoi permessi ti fanno usare (Le mie attività e Scadenzario sempre; poi anomalie, ticket, assenze, near miss, diario, task, DPI, assistente), al massimo 6.",
                     "La prima volta che entri parte un giro di benvenuto: barra di ricerca, notifiche, assistente, guida, stanze e preferiti.",
                 ]),
             ],
