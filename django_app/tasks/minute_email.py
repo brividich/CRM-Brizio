@@ -69,7 +69,18 @@ def _sections_html_text(meeting, sections: list[tuple[str, str]]) -> tuple[list[
 
 
 def _cta(meeting, label: str) -> str:
-    url = meeting_url(meeting) or "#"
+    from django.urls import reverse
+
+    from core.accounts.portal_links import portal_link
+
+    try:
+        path = reverse(
+            "tasks:project_meeting_detail",
+            kwargs={"project_id": meeting.project_id, "meeting_id": meeting.pk},
+        )
+    except Exception:
+        path = ""
+    url = (portal_link(path) if path else "") or "#"
     return email_cta(label, url, note="Accedi al portale per i dettagli.")
 
 

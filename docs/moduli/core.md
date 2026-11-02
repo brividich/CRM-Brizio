@@ -146,7 +146,8 @@ Procedura: backup del DB → `pulizia_pre_golive` (verificare i conteggi) → `p
 
 - `core.accounts.portal_links.portal_link(path)`: URL assoluto su `SITE_URL`; con LDAP attivo e `SiteConfig.login_sso_visibile` = 1 passa da `/login/windows/?next=<path>`, così dai PC del dominio l'accesso è automatico. Nessun token di accesso nella mail: un inoltro non dà accesso. Senza `SITE_URL` restituisce "".
 - `/login/windows/`: chi è già autenticato va dritto a `next`; la sfida 401 ha un corpo HTML che, se il browser non negozia (telefono, PC fuori dominio), passa al login con la stessa `next`; ogni errore torna al login mantenendo `next` (resta valida solo se interna, `get_safe_redirect_target`).
-- Usato oggi dalle mail anomalie; gli altri moduli possono adottarlo al posto di `SITE_URL + path`.
+- Usato dalle mail di anomalie, contatori, formazione (promemoria sessione), avviso IT ingresso, assenze (solleciti al CAR), automazioni (`{object_url}`, `{sds_url}`), checklist operativa, scadenze (digest), gestione specifiche, procedure, SOC (`_link`, salvo `SECURITY_CENTER_BASE_URL` del deploy separato), Suggestion Corner, minute/convocazioni KICK-OFF (pulsante della mail; le notifiche in-app e gli .ics usano ancora `meeting_url` diretto) (02/11/2026).
+- Restano diretti di proposito: link di approvazione a token (`/automazioni/approvazione/*`, `/approval-actions/*`, anche via Entra Application Proxy), etichette QR stampate, eventi del calendario Outlook (`dashboard/scadenze_calendario`, `assenze/outlook_sync`: il link entra nell'impronta e cambiarlo riscriverebbe tutti gli eventi), monitoraggio certificato.
 
 ## Postazioni condivise (`/postazione/`, 23/10/2026)
 

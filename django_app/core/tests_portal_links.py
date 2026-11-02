@@ -64,3 +64,41 @@ class PortalLinkTests(TestCase):
     def test_next_esterno_resta_rifiutato(self):
         response = self.client.get(f"{reverse('windows_sso')}?next=https://evil.example/x")
         self.assertNotIn("evil.example", response["Location"])
+
+
+@override_settings(SITE_URL="https://hub.example.local", LDAP_ENABLED=True)
+class LinkMailModuliTests(TestCase):
+    """Le mail degli altri moduli usano lo stesso ingresso via accesso Windows."""
+
+    SSO = "https://hub.example.local/login/windows/?next="
+
+    def test_suggestion_corner(self):
+        from types import SimpleNamespace
+
+        from suggestion_corner.notifications import _dettaglio_url
+
+        self.assertEqual(_dettaglio_url(SimpleNamespace(pk=7)), self.SSO + "%2Fsuggestion-corner%2F7%2F")
+
+    def test_gestione_specifiche_scadenze(self):
+        from gestione_specifiche.scadenze import _abs_url
+
+        self.assertEqual(_abs_url("/specifiche/3/"), self.SSO + "%2Fspecifiche%2F3%2F")
+        self.assertEqual(_abs_url("https://altro.example/x"), "https://altro.example/x")
+
+    def test_link_record_automazioni(self):
+        from automazioni.services import _OBJECT_URL_PATH_BY_SOURCE, _build_object_url
+
+        source = next(iter(_OBJECT_URL_PATH_BY_SOURCE))
+        self.assertTrue(_build_object_url(source, {"id": 5}).startswith(self.SSO))
+
+    @override_settings(SECURITY_CENTER_BASE_URL="")
+    def test_security_center(self):
+        from security.services.notifications import _link
+
+        self.assertEqual(_link("/soc/tickets/1/"), self.SSO + "%2Fsoc%2Ftickets%2F1%2F")
+
+    @override_settings(SECURITY_CENTER_BASE_URL="https://soc.example.local")
+    def test_security_center_standalone_resta_diretto(self):
+        from security.services.notifications import _link
+
+        self.assertEqual(_link("/soc/tickets/1/"), "https://soc.example.local/soc/tickets/1/")
