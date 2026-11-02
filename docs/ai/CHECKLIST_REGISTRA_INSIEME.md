@@ -82,6 +82,16 @@ template `asset_admin_deadline_form.html`, form `AssetAdministrativeDeadlineForm
 - [x] Messaggio «Creata anche su N asset: …».
 - [x] Test.
 
+### 5. Chiudi intervento (OdL): «Stesso intervento su altri asset» — [x] FATTA (02/11/2026)
+Pagina: `assets/workorders/close/<id>/` (`views/workorders.workorder_close`, template `workorder_close.html`).
+
+- [x] `_same_work_other_assets`: OdL aperti, visibili (`filtra_odl`), altro asset, stesso `reference_batch` o
+      `maintenance_rule` o `periodic_verification` oppure stesso titolo (iexact) e tipo; uno per asset; finestra sulla `due_at`.
+- [x] Bloccati (casella disabilitata, «apri a parte»): checklist obbligatoria aperta, manutenzioni raccolte aperte.
+- [x] POST `also_close` ricalcolato; `_close_same_work_others` → `close_workorder` per ciascuno (transazione propria),
+      tempo/fermo/costi/allegati solo sul principale, contratto di ciascuno, ticket non toccato, audit.
+- [x] Test `assets/tests_odl_chiudi_insieme.py`.
+
 ## Avanzamento
 
 | Voce | Stato | Branch | Merge main | Merge release/prod |
@@ -91,6 +101,7 @@ template `asset_admin_deadline_form.html`, form `AssetAdministrativeDeadlineForm
 | 2. Licenze rinnova anche | fatta | feature/assets-registra-insieme | vedi nota | vedi nota |
 | 3. Contratti rinnova | fatta | feature/assets-registra-insieme | vedi nota | vedi nota |
 | 4. Nuova scadenza crea anche | fatta | feature/assets-registra-insieme | vedi nota | vedi nota |
+| 5. Chiudi intervento stesso intervento | fatta | feature/assets-chiudi-odl-insieme | — | — |
 
 Nota: le voci 1-4 sono nello stesso branch, fuse su main e release/prod il 02/11/2026 (commit nel log: «merge: feature/assets-registra-insieme»). Codice comune: `assets/registra_insieme.py`, `components/_insieme_window_select.html`, `components/_insieme_script.html`. Test: 83 OK (`tests_quadro_ricerca`, `tests_licenze_rinnovi`, `tests_registra_insieme`, `tests_admin_deadlines_riordino`, `tests_deadline_feed`, `tests_maintenance_flow`). Verifica a video: chiaro, scuro, 390px.
 

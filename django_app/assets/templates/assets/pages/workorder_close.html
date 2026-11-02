@@ -35,6 +35,7 @@
 .woc-gate ul { padding-left:18px; max-height:180px; overflow:auto; }
 .woc-gate-actions { display:flex; gap:8px; flex-wrap:wrap; }
 .woc-after { max-width:940px; }
+.woc-insieme-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 12px; }
 .woc-card { border:1px solid var(--border,#dbe1ea); border-radius:12px; background:var(--surface,#fff); }
 body.theme-dark .woc-esito:has(input:checked) { background:rgba(59,130,246,.16); border-color:#60a5fa; box-shadow:inset 0 0 0 1px #60a5fa; }
 body.theme-dark .woc-esito--cancel:has(input:checked) { background:rgba(229,62,62,.16); border-color:#f87171; box-shadow:inset 0 0 0 1px #f87171; }
@@ -162,6 +163,31 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
     </div>
   </fieldset>
 
+  {% if same_work_others %}
+    <aside class="md-suggest" aria-label="Stesso intervento su altri asset">
+      <div class="md-suggest-row is-list" data-insieme>
+        <div class="woc-insieme-head">
+          <strong>Stesso intervento su altri asset</strong>
+          {% include "assets/components/_insieme_window_select.html" %}
+        </div>
+        <span>Se li hai fatti nello stesso giro, spuntali: si chiudono insieme a questo con lo stesso esito, la stessa data, lo stesso esecutore e la stessa descrizione. Tempo, fermo macchina, costi e allegati restano solo su questo.</span>
+        <ul class="md-also-list">
+          {% for other in same_work_others %}
+            <li data-insieme-days="{{ other.insieme_days }}">
+              <label class="md-also">
+                <input type="checkbox" name="also_close" value="{{ other.pk }}"{% if other.insieme_blocked %} disabled{% endif %}>
+                <span>#{{ other.display_number }} · <strong>{{ other.asset.asset_tag|default:other.asset.name }}</strong>{% if other.asset.asset_tag and other.asset.name %} {{ other.asset.name }}{% endif %}{% if other.title|lower != workorder.title|lower %} · {{ other.title }}{% endif %}{% if other.due_at %} · scadenza {{ other.due_at|date:"d/m/Y" }}{% if other.due_at|date:"Y-m-d" < today|date:"Y-m-d" %} <em>(scaduto)</em>{% endif %}{% endif %}{% if other.insieme_blocked %} · <em>{{ other.insieme_blocked }}: chiudilo a parte</em>{% endif %}</span>
+              </label>
+              <a class="md-sub" href="{% url 'assets:wo_close' other.pk %}">apri a parte</a>
+            </li>
+          {% endfor %}
+        </ul>
+        <p class="md-hint" data-insieme-empty hidden>Nessun altro asset in questo periodo: allarga il filtro.</p>
+        <button type="button" class="btn btn-sm btn-secondary" data-insieme-all>Spunta tutti</button>
+      </div>
+    </aside>
+  {% endif %}
+
   <details class="woc-more"{% if form.execution_days.value or form.assistance_contract.value or form.labor_cost_eur.value or form.materials_cost_eur.value or form.cost_eur.value or form.log_note.value or form.failure_problem.value or form.failure_cause_code.value or form.failure_remedy.value %} open{% endif %}>
     <summary>Altri dettagli <span>— giorni di lavoro, assegnazione{% if workorder.kind == "CORRECTIVE" or workorder.kind == "SAFETY" or workorder.kind == "CALIBRATION" %}, codici guasto{% endif %}, costi, nota</span></summary>
     <div class="woc-more-body">
@@ -270,7 +296,10 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
     if(documentsBox)documentsBox.hidden=canceled;
     if(executionTitle)executionTitle.textContent=canceled?"Motivo":"Esecuzione";
     if(resolutionLabel)resolutionLabel.textContent=canceled?"Perché si annulla":"Cosa è stato fatto";
-    if(submitButton)submitButton.textContent=canceled?"Annulla l'intervento":(esito==="NOT_RESOLVED"?"Registra e lascia aperto":"Chiudi definitivamente");
+    // Gemelli spuntati in «Stesso intervento su altri asset»: il pulsante dice quanti partono insieme.
+    const extra=document.querySelectorAll('[data-insieme] [data-insieme-days]:not([hidden]) input[name=also_close]:checked').length;
+    const label=canceled?"Annulla l'intervento":(esito==="NOT_RESOLVED"?"Registra e lascia aperto":"Chiudi definitivamente");
+    if(submitButton)submitButton.textContent=extra?label+" (+"+extra+")":label;
     syncResolveTicket();
   }
 
@@ -280,6 +309,7 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
   if(closedAtField)closedAtField.addEventListener("change",syncDayLimits);
   if(contractField)contractField.addEventListener("change",syncCoverage);
   esitoRadios.forEach(function(r){r.addEventListener("change",syncEsito);});
+  document.addEventListener("insieme:change",syncEsito);
   syncCoverage(); syncDayLimits(); syncEsito();
 })();
 </script>
@@ -292,7 +322,7 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
   const key=form.dataset.autosaveKey;
   if(!key)return;
   const skipTypes=new Set(["file","hidden","submit","button"]);
-  const fields=Array.from(form.querySelectorAll("input,select,textarea")).filter(function(el){return el.name&&!skipTypes.has(el.type);});
+  const fields=Array.from(form.querySelectorAll("input,select,textarea")).filter(function(el){return el.name&&!skipTypes.has(el.type)&&!el.closest("[data-insieme]");});
   function readDraft(){try{const raw=localStorage.getItem(key);return raw?JSON.parse(raw):null;}catch(e){return null;}}
   function saveDraft(){
     const data={};
@@ -324,4 +354,5 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
   form.addEventListener("submit",function(){try{localStorage.removeItem(key);}catch(e){}});
 })();
 </script>
+{% include "assets/components/_insieme_script.html" %}
 {% endblock %}

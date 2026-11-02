@@ -14,7 +14,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Case, IntegerField, When
+from django.db.models import Case, F, IntegerField, Q, When
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.utils.dateparse import parse_date
 from django.shortcuts import get_object_or_404, redirect, render
@@ -22,6 +22,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.audit import log_action
+from .. import registra_insieme
 from ..registro_permessi import MODULO_ODL
 from ..services.visibilita import filtra as filtra_visibili
 from ..services.visibilita import filtra_odl
@@ -175,6 +176,99 @@ def _create_sibling_workorders_from_request(*, request: HttpRequest, source: Wor
     if created:
         WorkOrder.mark_batch([source, *created])
     return created
+
+
+def _same_work_other_assets(request: HttpRequest, workorder: WorkOrder) -> list[WorkOrder]:
+    """Lo stesso intervento ancora aperto su altri asset visibili, da chiudere insieme
+    quando il giro e' stato uno solo: creati insieme (stesso lotto), stessa regola di
+    manutenzione, stesso piano di verifica, oppure stesso titolo e tipo. Uno per asset
+    (il primo in scadenza), gia' scaduti o entro ``registra_insieme.WINDOW_MAX_DAYS``
+    dalla scadenza di questo (senza scadenza: sempre). Su ognuno:
+    ``insieme_days`` = giorni di distanza, ``insieme_blocked`` = perche' va chiuso a parte
+    (checklist obbligatoria aperta o manutenzioni raccolte non registrate), vuoto se no."""
+    from ..models import MaintenanceOccurrence
+
+    twins = Q(title__iexact=workorder.title, kind=workorder.kind) if (workorder.title or "").strip() else Q(pk__in=[])
+    if workorder.reference_batch:
+        twins |= Q(reference_batch=workorder.reference_batch)
+    if workorder.maintenance_rule_id:
+        twins |= Q(maintenance_rule_id=workorder.maintenance_rule_id)
+    if workorder.periodic_verification_id:
+        twins |= Q(periodic_verification_id=workorder.periodic_verification_id)
+    reference = timezone.localdate(workorder.due_at) if workorder.due_at else None
+    candidates = (
+        filtra_odl(request, WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN))
+        .filter(twins)
+        .exclude(asset_id=workorder.asset_id)
+        .select_related("asset")
+        .prefetch_related("checklist_items")
+        .order_by(F("due_at").asc(nulls_last=True), "id")
+    )
+    seen: set[int] = set()
+    others: list[WorkOrder] = []
+    for other in candidates:
+        if other.asset_id in seen:
+            continue
+        other_due = timezone.localdate(other.due_at) if other.due_at else None
+        if other_due is not None and not registra_insieme.within_window(reference, other_due):
+            continue
+        seen.add(other.asset_id)
+        other.insieme_days = registra_insieme.days_between(reference, other_due) or 0
+        other.insieme_blocked = ""
+        others.append(other)
+    if others:
+        with_pending = set(
+            MaintenanceOccurrence.objects.filter(
+                work_order_id__in=[other.pk for other in others], status=MaintenanceOccurrence.STATUS_OPEN
+            ).values_list("work_order_id", flat=True)
+        )
+        for other in others:
+            if any(item.blocks_closure for item in other.checklist_items.all()):
+                other.insieme_blocked = "checklist da completare"
+            elif other.pk in with_pending:
+                other.insieme_blocked = "manutenzioni da registrare"
+    return others
+
+
+def _close_same_work_others(request: HttpRequest, workorder: WorkOrder, close_data, others: list[WorkOrder]) -> None:
+    """Chiude con gli stessi dati gli interventi gemelli spuntati, uno per volta (ognuno
+    nella sua transazione): stesso esito, data, esecutore, descrizione e codici guasto.
+    Tempo, fermo, costi e allegati restano solo sul principale, per non contarli due
+    volte; il contratto resta quello di ciascuno; la segnalazione collegata non si tocca."""
+    from dataclasses import replace
+
+    from ..services.workorder_close import RequestIdentity, WorkOrderCloseError, close_workorder
+
+    note = f"Chiuso insieme all'intervento #{workorder.display_number} ({workorder.asset.asset_tag or workorder.asset.name})."
+    done, failed = [], []
+    for other in others:
+        data = replace(
+            close_data,
+            intervention_duration=None, downtime=None, labor_cost=None, materials_cost=None, cost=None,
+            covered_by_contract=other.covered_by_contract, assistance_contract=other.assistance_contract,
+            resolved_supplier=None, uploads=(), resolve_ticket=False,
+            pending_occurrences_count=0, pending_reason="",
+            log_note=f"{close_data.log_note} {note}".strip(),
+        )
+        label = other.asset.asset_tag or other.asset.name
+        try:
+            close_workorder(other.pk, data=data, user=request.user, request_identity=RequestIdentity())
+        except (WorkOrderCloseError, ValidationError) as exc:
+            failed.append(f"#{other.display_number} {label}: {'; '.join(getattr(exc, 'messages', None) or [str(exc)])}")
+            continue
+        done.append(f"#{other.display_number} {label}")
+        log_action(
+            request,
+            "ASSET_ODL_CHIUSO_INSIEME",
+            "assets",
+            {"odl": other.pk, "asset": other.asset.asset_tag, "insieme_a_odl": workorder.pk,
+             "insieme_a_asset": workorder.asset.asset_tag, "esito": close_data.esito},
+            oggetto=other,
+        )
+    if done:
+        messages.success(request, f"Chius{'o' if len(done) == 1 else 'i'} insieme anche: " + ", ".join(done) + ".")
+    for text in failed:
+        messages.warning(request, f"Non chiuso — {text}")
 
 
 def _prepopulate_workorder_checklist_from_template(workorder: WorkOrder) -> int:
@@ -1407,6 +1501,7 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
     pending_reason_required = False
     pending_reason_value = ""
     can_force_close = can_plan_maintenance(request)
+    same_work_others = _same_work_other_assets(request, workorder)
 
     if request.method == "POST":
         form = WorkOrderCloseForm(request.POST, asset=workorder.asset, workorder=workorder, **form_ticket_kwargs)
@@ -1497,6 +1592,11 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                     messages.success(request, text)
                 for text in result.warnings:
                     messages.warning(request, text)
+                # Stesso intervento su altri asset: solo quelli che la pagina proporrebbe.
+                also_ids = registra_insieme.ids_from_post(request, "also_close", exclude=workorder.pk)
+                chosen = [o for o in same_work_others if o.pk in also_ids and not o.insieme_blocked]
+                if chosen:
+                    _close_same_work_others(request, workorder, close_data, chosen)
                 return redirect("assets:wo_view", id=workorder.id)
     else:
         # Fermo: se l'OdL non lo dice ma la segnalazione si', si parte da quello
@@ -1566,6 +1666,9 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
                 and getattr(workorder.ticket, "ore_fermo_macchina", None)
             ),
             "occurrences_anchor": f"{reverse('assets:wo_view', kwargs={'id': workorder.id})}#manutenzioni-raccolte",
+            "same_work_others": same_work_others,
+            "today": timezone.localdate(),
+            **registra_insieme.window_context(),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
             "assets_section_nav": None,
         },
