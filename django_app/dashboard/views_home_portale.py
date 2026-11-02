@@ -763,14 +763,55 @@ def _active_unit(legacy_user_id) -> str | None:
         return None
 
 
-def _header_actions(request) -> list[dict]:
-    return [
-        {"label": "Le mie attività",   "href": _safe_url("mie_attivita"),          "variant": "primary"},
-        {"label": "Scadenzario",       "href": _safe_url("scadenze_globali"),      "variant": "ghost"},
-        {"label": "Nuovo ticket",      "href": _safe_url("tickets:nuovo"),       "variant": "ghost"},
-        {"label": "Segnala anomalia",  "href": _safe_url("apertura_segnalazione"), "variant": "ghost"},
-        {"label": "Richiedi permesso", "href": _safe_url("assenze_richiesta"),     "variant": "ghost"},
-    ]
+# Azioni rapide della colonna «polso». Ogni voce dichiara la tessera del catalogo
+# (regola legacy: Pulsanti del ruolo) e i permessi che la aprono col sistema dei
+# ruoli (basta uno). Senza tessera/permessi = sempre visibile (pagine personali).
+# Si mostrano le prime HOME_AZIONI_MAX che la persona può davvero usare.
+_AZIONI_RAPIDE: list[dict] = [
+    {"label": "Le mie attività",       "url_name": "mie_attivita"},
+    {"label": "Scadenzario",           "url_name": "scadenze_globali"},
+    {"label": "Segnala anomalia",      "url_name": "apertura_segnalazione",     "mod": "anomalie",   "perm": (("anomalie", "creare"),)},
+    {"label": "Nuovo ticket",          "url_name": "tickets:nuovo",             "mod": "ticket",     "perm": (("ticket_it", "creare"), ("ticket_manutenzione", "creare"))},
+    {"label": "Richiedi permesso",     "url_name": "assenze_richiesta",         "mod": "assenze",    "perm": (("assenze", "creare"),)},
+    {"label": "Segnala near miss",     "url_name": "rilevazione_incidenti:nuovo", "mod": "incidenti", "perm": (("rilevazione_incidenti", "creare"),)},
+    {"label": "Nuova voce di diario",  "url_name": "diario_preposto:nuovo",     "mod": "diario",     "perm": (("diario_preposto", "creare"),)},
+    {"label": "Nuovo task",            "url_name": "tasks:create",              "mod": "task",       "perm": (("kickoff", "creare"),)},
+    {"label": "Richiedi DPI",          "url_name": "dpi:nuova",                 "mod": "dpi",        "perm": (("dpi", "creare"),)},
+    {"label": "Chiedi all'assistente", "url_name": "ai_assistant:chat",         "mod": "ai",         "perm": (("assistente_ai", "vedere"),)},
+]
+HOME_AZIONI_MAX = 6
+
+
+def _azione_consentita(request, spec: dict, is_admin: bool, da_ruoli: bool, visibili: set[str] | None) -> bool:
+    if is_admin or not spec.get("mod"):
+        return True
+    if da_ruoli:
+        from core.permessi.motore import puo_fare
+
+        return any(puo_fare(request, chiave, azione) for chiave, azione in spec.get("perm", ()))
+    return visibili is not None and spec["mod"] in visibili
+
+
+def _header_actions(request, is_admin: bool = False) -> list[dict]:
+    """Azioni rapide filtrate su ciò che la persona può aprire (stessa regola delle tessere)."""
+    da_ruoli = _sistema_ruoli_attivo()
+    visibili = None if (da_ruoli or is_admin) else moduli_visibili(request, is_admin)
+    out: list[dict] = []
+    for spec in _AZIONI_RAPIDE:
+        href = _safe_url(spec["url_name"])
+        if href == "#":
+            continue
+        try:
+            ok = _azione_consentita(request, spec, is_admin, da_ruoli, visibili)
+        except Exception:
+            logger.exception("Home: azione rapida %s non valutata", spec["label"])
+            ok = False
+        if not ok:
+            continue
+        out.append({"label": spec["label"], "href": href, "variant": "primary" if not out else "ghost"})
+        if len(out) >= HOME_AZIONI_MAX:
+            break
+    return out
 
 
 # ── Bacheca "Documenti & Collegamenti" ────────────────────────────────────────
@@ -1026,7 +1067,7 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         "time_label":         now.strftime("%H:%M"),
         "active_role":        _active_role(legacy_user),
         "active_unit":        _active_unit(legacy_user_id),
-        "header_actions":     _header_actions(request),
+        "header_actions":     _header_actions(request, is_admin),
         "priority_kpis":      _priority_kpis(request, tile_kpis),
         "module_groups":      groups,
         "module_total":       sum(g["total"] for g in groups),
