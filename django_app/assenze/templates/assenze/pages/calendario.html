@@ -442,6 +442,7 @@
           </label>
           <label class="full" id="modalCertificatoInputWrap" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
             <input type="checkbox" id="modalCertificatoInput" value="Arrivato" style="width:18px;min-height:18px;height:18px;padding:0;margin:0;"> Certificato arrivato
+            <span id="modalCertificatoMotivoHint" class="muted" style="font-weight:400;font-size:12px;" hidden>vale come motivo della modifica</span>
           </label>
           <label class="full" id="modalMotivoWrap" hidden>
             Motivo della modifica (obbligatorio: la richiesta è già approvata)
@@ -526,6 +527,7 @@
       const modalCertificatoTextEl = document.getElementById("modalCertificatoText");
       const modalCertificatoInputWrapEl = document.getElementById("modalCertificatoInputWrap");
       const modalCertificatoInputEl = document.getElementById("modalCertificatoInput");
+      const modalCertificatoMotivoHintEl = document.getElementById("modalCertificatoMotivoHint");
 
       const state = {
         selectedDate: new Date(),
@@ -734,8 +736,11 @@
           el.disabled = !canEditEvents || gestitaSp;
         });
         const approvata = (item.extendedProps.consenso || "") === "Approvato";
-        modalMotivoWrapEl.hidden = !(canEditEvents && approvata && !gestitaSp);
+        motivoState.richiesto = canEditEvents && approvata && !gestitaSp;
+        motivoState.certIniziale = modalCertificatoInputEl.checked;
+        motivoState.iniziali = valoriModificabili();
         modalMotivoInputEl.value = "";
+        syncMotivoModifica();
         loadStorico(hasRecordId && (canEditEvents || canDeleteEvents) ? item.id : null);
         if (gestitaSp) {
           modalMessageEl.textContent = "Richiesta nata su SharePoint: si gestisce dall'app SharePoint.";
@@ -772,6 +777,32 @@
         const hasValue = modalCertificatoInputEl.checked;
         modalCertificatoInputWrapEl.style.display = isMalattia ? "flex" : "none";
         modalCertificatoRowEl.style.display = (isMalattia || hasValue) ? "" : "none";
+        syncMotivoModifica();
+      }
+
+      // Richiesta approvata: il motivo della modifica e' obbligatorio, tranne
+      // quando l'unico cambio e' la spunta «Certificato arrivato» appena messa
+      // (malattia): la spunta e' gia' il motivo, uno esclude l'altro.
+      const motivoState = { richiesto: false, certIniziale: false, iniziali: "" };
+
+      function valoriModificabili() {
+        return JSON.stringify([
+          modalTipoInputEl.value,
+          document.getElementById("modalStatoInput").value,
+          document.getElementById("modalStartInput").value,
+          document.getElementById("modalEndInput").value,
+          document.getElementById("modalMotivazioneInput").value
+        ]);
+      }
+
+      function syncMotivoModifica() {
+        if (!modalMotivoWrapEl) return;
+        const certAppenaArrivato = modalTipoInputEl.value === "Malattia"
+          && modalCertificatoInputEl.checked && !motivoState.certIniziale;
+        const altriCambi = valoriModificabili() !== motivoState.iniziali;
+        const bastaCertificato = certAppenaArrivato && !altriCambi;
+        modalMotivoWrapEl.hidden = !motivoState.richiesto || bastaCertificato;
+        modalCertificatoMotivoHintEl.hidden = !(motivoState.richiesto && bastaCertificato);
       }
 
       function closeEventModal() {
@@ -794,7 +825,7 @@
           fine: document.getElementById("modalEndInput").value,
           motivazione: document.getElementById("modalMotivazioneInput").value,
           certificato_medico: modalCertificatoInputEl.checked ? "Arrivato" : "",
-          motivo_modifica: modalMotivoInputEl.value
+          motivo_modifica: modalMotivoWrapEl.hidden ? "" : modalMotivoInputEl.value
         };
 
         const resp = await fetch(endpoints.update, {
@@ -914,6 +945,13 @@
       closeModalBtn.addEventListener("click", closeEventModal);
       modalTipoInputEl.addEventListener("change", syncCertificatoFields);
       modalCertificatoInputEl.addEventListener("change", syncCertificatoFields);
+      ["modalStatoInput", "modalStartInput", "modalEndInput", "modalMotivazioneInput"].forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener("input", syncMotivoModifica);
+          el.addEventListener("change", syncMotivoModifica);
+        }
+      });
       modalBackdrop.addEventListener("click", function(evt) {
         if (evt.target === modalBackdrop) closeEventModal();
       });
