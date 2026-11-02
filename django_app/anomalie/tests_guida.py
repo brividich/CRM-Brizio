@@ -97,3 +97,71 @@ class GuidaPaginaMailTests(TestCase):
         self.assertContains(response, "Come funziona questa pagina")
         self.assertContains(response, "Conferma e invia aggiornamenti")
         self.assertNotContains(response, "?guida=1")
+
+
+class GuideRuoliContenutoTests(SimpleTestCase):
+    """Guide rapide del controllore e del capocommessa/CAR (``anomalie/guida_ruoli.py``)."""
+
+    def test_sezioni_e_immagini(self):
+        from django.contrib.staticfiles import finders
+
+        from anomalie.guida_ruoli import GUIDE_RUOLI
+
+        self.assertEqual(set(GUIDE_RUOLI), {"controllore", "capocommessa"})
+        for chiave, guida in GUIDE_RUOLI.items():
+            ids = [s["id"] for s in guida["sezioni"]]
+            self.assertEqual(len(ids), len(set(ids)))
+            for s in guida["sezioni"]:
+                for kind, contenuto in s["blocchi"]:
+                    with self.subTest(guida=chiave, sezione=s["id"], kind=kind):
+                        self.assertIn(kind, _TIPI | {"img"})
+                        if kind == "img":
+                            self.assertIsNotNone(finders.find(contenuto[0]), contenuto[0])
+                            self.assertTrue(contenuto[1])
+
+    def test_pdf_con_immagini(self):
+        from core.guida_pdf import render_guida_pdf
+
+        from anomalie.guida_ruoli import GUIDE_RUOLI
+
+        for guida in GUIDE_RUOLI.values():
+            pdf = render_guida_pdf(titolo=guida["titolo"], sottotitolo=guida["sottotitolo"], sezioni=guida["sezioni"])
+            self.assertTrue(pdf.startswith(b"%PDF"))
+            self.assertIn(b"/Image", pdf)
+
+    def test_immagine_mancante_lascia_la_didascalia(self):
+        from core.guida_pdf import render_guida_pdf
+
+        sezioni = [{"id": "x", "titolo": "X", "blocchi": [("img", ("anomalie/guida/non_esiste.jpg", "Didascalia"))]}]
+        self.assertTrue(render_guida_pdf(titolo="T", sottotitolo="S", sezioni=sezioni).startswith(b"%PDF"))
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SETUP_WIZARD_REQUIRED=False, SECURE_SSL_REDIRECT=False)
+class GuideRuoliPagineTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(
+            username="guida-ruoli", password="x", is_superuser=True, is_staff=True
+        )
+        self.client.force_login(user)
+
+    def test_pagina_per_ruolo(self):
+        from anomalie.guida_ruoli import GUIDE_RUOLI
+
+        for chiave, guida in GUIDE_RUOLI.items():
+            with self.subTest(guida=chiave):
+                response = self.client.get(reverse("gestione_anomalie_page"), {"guida": chiave})
+                self.assertEqual(response.status_code, 200)
+                self.assertTemplateUsed(response, "anomalie/pages/guida.html")
+                self.assertContains(response, guida["titolo"])
+                self.assertContains(response, f'href="?guida=pdf&amp;per={chiave}"')
+                self.assertContains(response, "<img ")
+
+    def test_pdf_per_ruolo(self):
+        response = self.client.get(reverse("apertura_segnalazione"), {"guida": "pdf", "per": "controllore"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Guida_Anomalie_Controllore.pdf", response["Content-Disposition"])
+
+    def test_guida_completa_rimanda_alle_guide_per_ruolo(self):
+        response = self.client.get(reverse("gestione_anomalie_page"), {"guida": "1"})
+        self.assertContains(response, 'href="?guida=controllore"')
+        self.assertContains(response, 'href="?guida=capocommessa"')

@@ -420,35 +420,51 @@ def con_guida(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
         formato = str(request.GET.get("guida") or "").strip().lower()
-        if request.method == "GET" and formato in ("1", "pdf"):
+        if request.method == "GET" and (formato in ("1", "pdf") or formato in _guide_ruoli()):
             return guida_response(request, formato)
         return view_func(request, *args, **kwargs)
 
     return _wrapped
 
 
+def _guide_ruoli() -> dict:
+    from anomalie.guida_ruoli import GUIDE_RUOLI
+
+    return GUIDE_RUOLI
+
+
 def guida_response(request, formato: str) -> HttpResponse:
+    """Guida completa (``?guida=1`` / ``?guida=pdf``) o guida rapida per ruolo
+    (``?guida=controllore`` / ``?guida=pdf&per=controllore``, vedi ``guida_ruoli``)."""
+    ruoli = _guide_ruoli()
+    per = formato if formato in ruoli else str(request.GET.get("per") or "").strip().lower()
+    guida_ruolo = ruoli.get(per)
+    titolo = guida_ruolo["titolo"] if guida_ruolo else DOC_TITOLO
+    sezioni = guida_ruolo["sezioni"] if guida_ruolo else SEZIONI
     if formato == "pdf":
         from core.guida_pdf import render_guida_pdf
 
         autore = (request.user.get_full_name() or request.user.get_username() or "").strip()
         pdf = render_guida_pdf(
-            titolo=DOC_TITOLO,
-            sottotitolo=DOC_SOTTOTITOLO,
-            sezioni=SEZIONI,
+            titolo=titolo,
+            sottotitolo=guida_ruolo["sottotitolo"] if guida_ruolo else DOC_SOTTOTITOLO,
+            sezioni=sezioni,
             generato_da=autore,
             generato_il=timezone.localdate().strftime("%d-%m-%Y"),
         )
+        nome = guida_ruolo["file"] if guida_ruolo else "Guida_Gestione_Anomalie.pdf"
         response = HttpResponse(pdf, content_type="application/pdf")
-        response["Content-Disposition"] = 'attachment; filename="Guida_Gestione_Anomalie.pdf"'
+        response["Content-Disposition"] = f'attachment; filename="{nome}"'
         return response
     return render(
         request,
         "anomalie/pages/guida.html",
         {
-            "page_title": f"Guida · {DOC_TITOLO}",
-            "doc_titolo": DOC_TITOLO,
-            "sezioni": SEZIONI,
+            "page_title": titolo if guida_ruolo else f"Guida · {titolo}",
+            "doc_titolo": titolo,
+            "sezioni": sezioni,
             "torna_url": request.path,
+            "guida_per": per if guida_ruolo else "",
+            "guide_ruoli": [{"chiave": k, "etichetta": g["etichetta"]} for k, g in ruoli.items()],
         },
     )

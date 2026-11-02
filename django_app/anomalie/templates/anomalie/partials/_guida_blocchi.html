@@ -1,4 +1,5 @@
 {% comment %}Blocchi di una sezione della guida (anomalie/guida.py): pagina guida e riquadro della pagina a token.{% endcomment %}
+{% load static %}
 {% for kind, contenuto in blocchi %}
   {% if kind == "p" %}
     <p>{{ contenuto }}</p>
@@ -10,5 +11,7 @@
     <dl>{% for termine, spiegazione in contenuto %}<dt>{{ termine }}</dt><dd>{{ spiegazione }}</dd>{% endfor %}</dl>
   {% elif kind == "nota" %}
     <div class="ag-nota" role="note">{{ contenuto }}</div>
+  {% elif kind == "img" %}
+    <figure class="ag-fig"><img src="{% static contenuto.0 %}" alt="{{ contenuto.1 }}" loading="lazy"><figcaption>{{ contenuto.1 }}</figcaption></figure>
   {% endif %}
 {% endfor %}
