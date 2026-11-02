@@ -12,7 +12,10 @@ class ProjectSourceTests(SimpleTestCase):
         self.assertIsNotNone(d)
         self.assertEqual(d["table_name"], "tasks_project")
         names = {f["name"] for f in d["fields"]}
-        self.assertTrue({"phase", "safety_impact", "vrf_status", "project_manager_id"} <= names)
+        self.assertTrue({"phase", "safety_impact", "vrf_status"} <= names)
+        # Il team e' in ProjectMember: colonne PM/capo commessa non esistono e
+        # una condizione su di loro non scatterebbe mai.
+        self.assertFalse({"project_manager_id", "capo_commessa_id"} & names)
 
     def test_trigger_file_targets_project_table(self):
         path = Path(__file__).resolve().parent / "migrations" / "trg_tasks_project_automation.sql"

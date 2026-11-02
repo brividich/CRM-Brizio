@@ -41,7 +41,8 @@ GUIDA = {
                 ("passi", [
                     "«+ Nuovo incontro»: data, ora, sala, partecipanti e ordine del giorno. L'ordine del giorno si precompila con i problemi aperti.",
                     "Clicca «Invia convocazione» (o spunta l'invio nel form prima di salvare): parte la mail con l'invito da aggiungere al calendario. "
-                    "Il dettaglio dice quando è partita; se dopo cambi data, luogo, convocati o ordine del giorno compare «Convocazione da reinviare».",
+                    "Il dettaglio dice quando è partita; se dopo cambi data, luogo, convocati o ordine del giorno compare «Convocazione da reinviare», con l'elenco di cosa è cambiato. "
+                    "L'evento in calendario dura quanto la somma dei punti all'ordine del giorno (un'ora se nessun punto ha una durata).",
                     "Durante la riunione puoi usare «Conduci incontro»: appello dei convocati, un punto alla volta, con il tempo e le note.",
                     "Dopo la riunione registra l'esito: presenti, note per ogni punto, decisioni e azioni (chi fa cosa entro quando).",
                     "Clicca «Invia minuta» (o «Scarica minuta PDF»).",

@@ -81,7 +81,16 @@
   {% elif meeting.stato == "PIANIFICATO" %}
     {% if meeting.convocazione_da_reinviare %}
       <div class="md-convocazione-note warn">
-        <strong>Convocazione da reinviare:</strong> data, luogo, convocati o ordine del giorno sono cambiati dopo l'invio del {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.
+        {% with modifiche=meeting.modifiche_convocazione %}
+        {% if modifiche %}
+          <strong>Convocazione da reinviare:</strong> dall'invio del {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }} è cambiato:
+          <ul class="md-convocazione-modifiche">
+            {% for riga in modifiche %}<li>{{ riga }}</li>{% endfor %}
+          </ul>
+        {% else %}
+          <strong>Convocazione da reinviare:</strong> data, luogo, convocati o ordine del giorno sono cambiati dopo l'invio del {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.
+        {% endif %}
+        {% endwith %}
       </div>
     {% elif meeting.convocazione_inviata %}
       <div class="md-convocazione-note">Convocazione inviata il {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.</div>

@@ -286,7 +286,9 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
         "supported_operations": ["insert", "update"],
         "description": (
             "Progetti/commesse KICK-OFF. Alert (impatto sicurezza, VRF non caricato) con "
-            "destinatari PM/capo commessa risolti in Python (azione send_project_alert)."
+            "destinatari PM/capo commessa risolti in Python (azione send_project_alert): "
+            "il team sta in ProjectMember, non in colonne della tabella, quindi non e' "
+            "un campo filtrabile."
         ),
         "fields": [
             _field(name="id", label="ID", data_type="int", description="Chiave primaria progetto.", aliases=["project_id", "kickoff_id"]),
@@ -297,8 +299,6 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
             _field(name="vrf_status", label="Stato VRF", data_type="string", description="Stato documento VRF: PENDING, UPLOADED, NOT_REQUIRED.", aliases=["stato_vrf"]),
             _field(name="safety_impact", label="Impatto sicurezza", data_type="bool", description="Il progetto ha impatto sulla sicurezza.", aliases=["impatto_sicurezza"]),
             _field(name="old_safety_impact", label="Impatto sicurezza precedente", data_type="bool", description="Valore precedente di `safety_impact` nel payload update.", is_virtual=True),
-            _field(name="project_manager_id", label="Project manager (ID)", data_type="int", description="PM del progetto.", aliases=["pm_id"]),
-            _field(name="capo_commessa_id", label="Capo commessa (ID)", data_type="int", description="Capo commessa del progetto."),
             _field(name="part_number", label="Part number", data_type="string", description="Part number del progetto."),
             _field(name="client_name", label="Cliente", data_type="string", description="Nome cliente.", aliases=["cliente"]),
         ],

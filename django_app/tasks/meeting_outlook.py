@@ -141,29 +141,36 @@ def _meeting_body_html(request, meeting) -> str:
     except Exception:
         detail_url = ""
 
+    # Testi scritti dagli utenti: protetti come le voci dell'agenda, sennò un
+    # «<» o un «&» nel titolo rompe il corpo dell'evento.
     lines = [
-        f"<p><strong>Kickoff:</strong> {meeting.project.name}</p>",
+        f"<p><strong>Kickoff:</strong> {escape(meeting.project.name)}</p>",
         f"<p><strong>Incontro:</strong> {meeting.numero}"
-        + (f" — {meeting.titolo}" if meeting.titolo else "") + "</p>",
+        + (f" — {escape(meeting.titolo)}" if meeting.titolo else "") + "</p>",
     ]
     if meeting.luogo:
-        lines.append(f"<p><strong>Luogo:</strong> {meeting.luogo}</p>")
+        lines.append(f"<p><strong>Luogo:</strong> {escape(meeting.luogo)}</p>")
     agenda_html = _agenda_items_html(meeting)
     if agenda_html:
         lines.append(f"<p><strong>Ordine del giorno:</strong></p>{agenda_html}")
     if meeting.ordine_del_giorno:
-        odg = str(meeting.ordine_del_giorno).replace("\n", "<br>")
+        odg = escape(str(meeting.ordine_del_giorno)).replace("\n", "<br>")
         label = "Note aggiuntive ordine del giorno" if agenda_html else "Ordine del giorno"
         lines.append(f"<p><strong>{label}:</strong><br>{odg}</p>")
     if detail_url:
-        lines.append(f'<p><a href="{detail_url}">Apri verbale incontro sul portale</a></p>')
+        lines.append(f'<p><a href="{escape(detail_url)}">Apri verbale incontro sul portale</a></p>')
     return "\n".join(lines)
+
+
+def meeting_duration_minutes(meeting) -> int:
+    """Durata dell'incontro: somma dei punti all'ordine del giorno, un'ora se mancano."""
+    return meeting.durata_prevista_minuti() or DEFAULT_DURATION_MINUTES
 
 
 def _meeting_start_end(meeting) -> tuple[datetime, datetime]:
     ora: time = meeting.ora or time(DEFAULT_START_HOUR, 0)
     start = datetime.combine(meeting.data, ora)
-    end = start + timedelta(minutes=DEFAULT_DURATION_MINUTES)
+    end = start + timedelta(minutes=meeting_duration_minutes(meeting))
     return start, end
 
 
@@ -220,7 +227,7 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
         transaction_id=transaction_id,
         reminder_minutes_before_start=15,
         start_hour=start.hour,
-        duration_minutes=DEFAULT_DURATION_MINUTES,
+        duration_minutes=meeting_duration_minutes(meeting),
     )
     # Sovrascrive start/end con l'ora esatta dell'incontro
     tz = "W. Europe Standard Time"
