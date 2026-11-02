@@ -350,6 +350,18 @@ Il **tempo di installazione** è da «pubblicata il» al giorno in cui WatchGuar
 
 Gli stessi numeri sono nel **report periodico** (sezione «Patch (WatchGuard)», anche nel PDF), nel controllo **8.8** della pagina Conformità ISO 27001 e nel **pacchetto mensile** di evidenze, e nel riquadro **Patch** della scheda asset.
 
+### Librerie del portale
+
+Pagina **Dispositivi › Librerie del portale**: le vulnerabilità note nelle librerie Python installate nel portale stesso (il server di NOVICROM HUB). Ogni mattina alle **06:50** le librerie dell'ambiente Python del portale si confrontano con il database pubblico **OSV** (osv.dev), lo stesso che usa pip-audit nel controllo prima del pacchetto. Così una vulnerabilità pubblicata dopo il deploy si vede il giorno dopo, non al pacchetto successivo.
+
+- **Da aggiornare**: una riga per libreria con la versione installata, la gravità più alta, le vulnerabilità (link al bollettino OSV) e **«Aggiornare almeno a»**, la versione più bassa che le corregge tutte. Le voci che OSV dà con più codici (PYSEC, GHSA, CVE dello stesso problema) contano una volta.
+- **Gravità**: quella del bollettino GitHub (GHSA) se c'è, altrimenti il CVSS della CVE già letta da NVD; senza nessuna delle due è «Media» con la nota «gravità non classificata».
+- **Risolte negli ultimi 90 giorni**: si chiudono da sole quando la libreria è aggiornata **nell'ambiente del portale** (`pip install -r requirements.txt` e riavvio). Cambiare solo `requirements.txt` non basta: il controllo guarda quello che è installato.
+- **Alert**: uno per libreria e versione installata, con la severità della vulnerabilità più grave; si chiude da solo dopo l'aggiornamento. Apertura e chiusura vanno nell'audit sigillato.
+- **Se OSV non risponde** (server senza accesso a Internet verso api.osv.dev) la lettura va in **errore** in Impostazioni › Letture automatiche e la pagina lo dice: l'elenco resta quello del controllo precedente, non vuol dire «nessuna vulnerabilità».
+
+Interruttori in **Impostazioni › Avvisi e automatismi › Librerie del portale (ISO 27001 8.8)**: «Controlla le librerie del portale ogni mattina» e «Alert per le librerie vulnerabili», tutti e due accesi di default. «Esegui ora» è in Letture automatiche. Le vulnerabilità aperte contano nella Panoramica e nel report periodico come le altre (un dispositivo esposto: il server del portale); nel controllo **8.8** della Conformità ISO 27001 una libreria con gravità alta o critica porta l'esito da «ok» ad «attenzione».
+
 ### Patch nella scheda asset
 
 Nella scheda di un PC che WatchGuard conosce c'è il riquadro **Patch** (accanto a «Vulnerabilità»; solo per chi vede il Security Center): patch mancanti, oltre il termine, con l'installazione fallita e chiuse nell'ultimo anno con le CVE corrette. La tabella elenca le prime 10 patch mancanti con classe, data di pubblicazione e termine («entro il …» o «scaduto da N gg»); sotto, le patch chiuse nell'ultimo anno con i giorni dalla pubblicazione, le CVE e il motivo. «Storico completo di questo PC» apre Patch installate già filtrata sul PC.

@@ -44,6 +44,7 @@ SCHEDULE_DI_LETTURA = {
     "registro_infra": ("registro_log_infra", None),
     "cpe_ai": ("security_ai_cpe", None),
     "pacchetto_iso": ("security_pacchetto_iso", None),
+    "dipendenze_portale": ("security_dipendenze_portale", None),
 }
 
 

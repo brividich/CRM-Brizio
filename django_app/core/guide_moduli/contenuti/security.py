@@ -97,6 +97,11 @@ GUIDA = {
                       "classe, l'andamento settimanale di installate e mancanti, e le patch ferme (oltre il termine o con l'installazione "
                       "fallita) con CSV. Con l'interruttore acceso (spento di default) ogni patch oltre il termine apre un alert che si chiude "
                       "da solo. Gli stessi numeri sono nel report periodico, nel controllo ISO 8.8 e nel riquadro «Patch» della scheda asset."),
+                ("p", "Dispositivi › «Librerie del portale»: le vulnerabilità note nelle librerie Python del portale, confrontate ogni "
+                      "mattina alle 06:50 con il database pubblico OSV (lo stesso di pip-audit). Per ogni libreria: versione installata, "
+                      "gravità, vulnerabilità e «Aggiornare almeno a». Si chiudono da sole dopo l'aggiornamento nell'ambiente del portale "
+                      "(pip install -r requirements.txt e riavvio); un alert per libreria, acceso di default. Se OSV non risponde la "
+                      "lettura va in errore, mai «nessuna vulnerabilità»."),
             ],
         },
         {
@@ -267,6 +272,20 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Librerie del portale: la lettura è in errore «OSV non raggiungibile»",
+            "fare": [
+                "Il server del portale deve poter aprire https://api.osv.dev (porta 443): verificare firewall e proxy (variabile HTTPS_PROXY dell'utente del qcluster).",
+                "Poi Impostazioni › «Letture automatiche» › «Librerie Python del portale (OSV)» › «Esegui ora».",
+            ],
+        },
+        {
+            "sintomo": "Librerie del portale: ho aggiornato requirements.txt ma la vulnerabilità resta aperta",
+            "fare": [
+                "Il controllo guarda le librerie installate, non il file: in produzione pip install -r requirements.txt nel venv del portale, poi riavvio di sito e qcluster.",
+                "Al controllo successivo (06:50 o «Esegui ora») la vulnerabilità passa fra le risolte e l'alert si chiude.",
+            ],
+        },
         {
             "sintomo": "Tempi delle patch: il grafico «Patch mancanti a fine settimana» è vuoto o parte da poco",
             "fare": [

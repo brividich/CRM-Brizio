@@ -95,6 +95,11 @@ LETTURE = (
             "L'AI locale esamina i casi «da verificare» del calcolo CVE: propone il CPE fra quelli delle CVE note o l'esito per PC. Solo proposte, da accettare o rifiutare.",
             "ogni 6 ore", "security.services.cpe_ai:giro_lettura", ("ai.cpe.attivo",), "ollama",
             dati_url="security:software_mapping", dati_label="Software e CPE", manuale="security.services.cpe_ai:giro_manuale"),
+    Lettura("dipendenze_portale", "Librerie Python del portale (OSV)", "Vulnerabilità",
+            "Le librerie installate nel portale confrontate con il database pubblico OSV (lo stesso di pip-audit): "
+            "vulnerabilità nuove, risolte dopo un aggiornamento, alert per libreria. Serve l'accesso a api.osv.dev.",
+            "ogni mattina alle 06:50", "security.services.dipendenze_portale:run", ("dipendenze.controllo.attivo",),
+            dati_url="security:dipendenze_portale", dati_label="Librerie del portale", lunga=True),
     Lettura("tabella_mac", "Tabella MAC degli switch", "Rete",
             "Su quale porta di ogni switch «Rete» sta ogni MAC: dice a quale porta è collegato ogni PC.",
             "ogni notte alle 05:30", "contatori.tabella_mac:run", ("apparati.tabella_mac.attivo",),
@@ -335,6 +340,9 @@ ETICHETTE = {
     # proposte AI su CPE ed esiti
     "cpe": "Collegamenti CPE", "esiti": "Esiti CVE su PC", "casi": "casi esaminati", "proposte": "proposte",
     "scartate": "risposte scartate", "superate": "proposte superate", "ms_medi": "ms per risposta",
+    # librerie del portale
+    "pacchetti": "librerie controllate", "vulnerabili": "librerie vulnerabili", "vulnerabilita": "vulnerabilità aperte",
+    "risolte": "risolte", "alert_chiusi": "alert chiusi",
     # switch / caselle
     "switch": "switch", "mac": "MAC", "caselle": "caselle", "lette": "lette",
     # pacchetto ISO 27001
