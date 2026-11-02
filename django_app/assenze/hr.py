@@ -926,7 +926,7 @@ CAMPI_STORICO = {
     "data_inizio": "Inizio",
     "data_fine": "Fine",
     "motivazione_richiesta": "Motivazione",
-    "certificato_medico": "Certificato medico",
+    "certificato_medico": "Certificato arrivato",
     "consenso": "Stato",
     "note_gestione": "Nota",
 }

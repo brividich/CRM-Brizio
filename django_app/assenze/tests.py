@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
+from django.core import mail
 from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -545,7 +546,7 @@ class AssenzeSubmitTokenTests(TestCase):
                 "submit_token": submit_token,
                 "tipoassenza": "Malattia",
                 "motivazione": "Influenza",
-                "certificato_medico": "CERT-12345",
+                "certificato_medico": "Arrivato",
                 "date_start": "2026-03-12",
                 "date_end": "2026-03-12",
                 "time_start": "08:00",
@@ -557,7 +558,7 @@ class AssenzeSubmitTokenTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = mock_insert.call_args.args[0]
         self.assertEqual(payload["tipo_assenza"], "Malattia")
-        self.assertEqual(payload["certificato_medico"], "CERT-12345")
+        self.assertEqual(payload["certificato_medico"], "Arrivato")
 
     def _post_invio_con_capo(self, perms, capo_value):
         capi = [
@@ -1309,6 +1310,9 @@ class MiaAssenzaUpdateTests(TestCase):
             username="assenze-update-user", email="assenze-update@example.com", password="pass12345"
         )
 
+    @patch("assenze.mail_modifica_service._hr_mailbox", return_value="")
+    @patch("assenze.views._helpers._load_capi_options",
+           return_value=[{"Value": "Capo Uno", "Email": "capo1@example.com", "LookupId": 5}])
     @patch("assenze.views._helpers._graph_configured", return_value=False)
     @patch("assenze.views._helpers._update_assenza", return_value=True)
     @patch("assenze.views._helpers._validate_business_rules", return_value=(None, ""))
@@ -1323,6 +1327,8 @@ class MiaAssenzaUpdateTests(TestCase):
         _mock_validate,
         mock_update,
         _mock_graph_configured,
+        _mock_capi,
+        _mock_hr_mailbox,
     ):
         mock_get_assenza.return_value = {
             "id": 42,
@@ -1335,19 +1341,47 @@ class MiaAssenzaUpdateTests(TestCase):
             "certificato_medico": "",
             "consenso": "In attesa",
             "moderation_status": 2,
+            "capo_reparto_lookup_id": 5,
         }
         self.client.force_login(self.user)
 
         response = self.client.post(
             reverse("assenze_api_mia_update", args=[42]),
             content_type="application/json",
-            data='{"tipo":"Malattia","inizio":"2026-03-12T08:00:00.000Z","fine":"2026-03-12T17:00:00.000Z","motivazione":"Influenza","certificato_medico":"CERT-777"}',
+            data='{"tipo":"Malattia","inizio":"2026-03-12T08:00:00.000Z","fine":"2026-03-12T17:00:00.000Z","motivazione":"Influenza","certificato_medico":"Arrivato"}',
         )
 
         self.assertEqual(response.status_code, 200)
         updates = mock_update.call_args.args[1]
         self.assertEqual(updates["tipo_assenza"], "Malattia")
-        self.assertEqual(updates["certificato_medico"], "CERT-777")
+        self.assertEqual(updates["certificato_medico"], "Arrivato")
+        # La modifica avvisa assenza@ e il capo reparto, con cosa e' cambiato.
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, ["assenza@costruzioninovicrom.it", "capo1@example.com"])
+        self.assertIn("Richiesta modificata", msg.subject)
+        self.assertIn("Certificato arrivato: — -> Arrivato", msg.body)
+
+
+class CertificatoArrivatoTests(SimpleTestCase):
+    def test_spunta_solo_per_malattia(self):
+        from assenze.views._helpers import _certificato_medico_for_tipo as cert
+        self.assertEqual(cert("Malattia", "Arrivato"), "Arrivato")
+        self.assertEqual(cert("Malattia", "on"), "Arrivato")
+        self.assertEqual(cert("Malattia", ""), "")
+        self.assertEqual(cert("Malattia", "false"), "")
+        self.assertEqual(cert("Ferie", "Arrivato"), "")
+
+    def test_vecchio_numero_resta_e_non_risulta_modificato(self):
+        from assenze.views._helpers import _certificato_medico_for_tipo as cert
+        self.assertEqual(cert("Malattia", "Arrivato", "CERT-1"), "CERT-1")
+        self.assertEqual(cert("Malattia", "", "CERT-1"), "")
+
+    @patch("assenze.mail_modifica_service.send_assenza_modificata_notification")
+    def test_solo_cambio_stato_niente_mail(self, mock_send):
+        from assenze.views._helpers import _notify_assenza_modificata
+        _notify_assenza_modificata(None, {"id": 1}, [{"campo": "Stato", "prima": "In attesa", "dopo": "Approvato"}])
+        mock_send.assert_not_called()
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
