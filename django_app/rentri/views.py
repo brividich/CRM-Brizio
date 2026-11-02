@@ -329,10 +329,48 @@ def _salva_da_richiesta(request, registro: RegistroRifiuti, tipo: str, *, prima:
     })
 
 
-def _handle_form(request, tipo: str, template: str):
-    """Generic handler for C/O/M/R form pages."""
+# Testi del form unico dei movimenti (rentri/pages/movimento_form.html), per tipo.
+_FORM_TIPO = {
+    "C": {
+        "lettera": "C", "titolo": "Carico", "titolo_breve": "Carico",
+        "sottotitolo": "Il rifiuto viene prodotto e messo nel deposito temporaneo.",
+        "rif_tipo": "", "rif_help": "",
+    },
+    "O": {
+        "lettera": "O", "titolo": "Scarico originale", "titolo_breve": "Scarico originale",
+        "sottotitolo": "Il rifiuto parte con il formulario: quantità stimata.",
+        "rif_tipo": "C",
+        "rif_help": "I carichi di questo codice CER che non hanno ancora uno scarico collegato.",
+    },
+    "M": {
+        "lettera": "M", "titolo": "Scarico effettivo", "titolo_breve": "Scarico effettivo",
+        "sottotitolo": "La quantità vera pesata dal destinatario, con il FIR di ritorno.",
+        "rif_tipo": "O",
+        "rif_help": "Gli scarichi originali (O) di questo codice CER senza uno scarico effettivo collegato.",
+    },
+    "R": {
+        "lettera": "R", "titolo": "Rettifica scarico", "titolo_breve": "Rettifica",
+        "sottotitolo": "Correzione di uno scarico effettivo già registrato, positiva o negativa.",
+        "rif_tipo": "M",
+        "rif_help": "Gli scarichi effettivi (M) di questo codice CER senza una rettifica collegata.",
+    },
+}
+
+
+def _render_form(request, tipo: str, registro=None):
+    return render(request, "rentri/pages/movimento_form.html", {
+        "tipo": tipo,
+        "cfg": _FORM_TIPO[tipo],
+        "registro": registro,
+        "edit_mode": registro is not None,
+        "unita_choices": RegistroRifiuti.UNITA_CHOICES,
+    })
+
+
+def _handle_form(request, tipo: str):
+    """Pagina e salvataggio di un nuovo movimento C/O/M/R."""
     if request.method == "GET":
-        return render(request, template, {"tipo": tipo, "unita_choices": RegistroRifiuti.UNITA_CHOICES})
+        return _render_form(request, tipo)
 
     denied = _require_rentri_manager(request)
     if denied is not None:
@@ -345,22 +383,22 @@ def _handle_form(request, tipo: str, template: str):
 
 @login_required
 def carico(request):
-    return _handle_form(request, "C", "rentri/pages/carico.html")
+    return _handle_form(request, "C")
 
 
 @login_required
 def scarico_originale(request):
-    return _handle_form(request, "O", "rentri/pages/scarico_originale.html")
+    return _handle_form(request, "O")
 
 
 @login_required
 def scarico_effettivo(request):
-    return _handle_form(request, "M", "rentri/pages/scarico_effettivo.html")
+    return _handle_form(request, "M")
 
 
 @login_required
 def rettifica_scarico(request):
-    return _handle_form(request, "R", "rentri/pages/rettifica_scarico.html")
+    return _handle_form(request, "R")
 
 
 _ORM_ORDER = {"O": 0, "R": 1, "M": 2}
@@ -788,12 +826,6 @@ def giacenze(request):
     })
 
 
-_TEMPLATE_TIPO = {
-    "C": "rentri/pages/carico.html",
-    "O": "rentri/pages/scarico_originale.html",
-    "M": "rentri/pages/scarico_effettivo.html",
-    "R": "rentri/pages/rettifica_scarico.html",
-}
 
 
 @login_required
@@ -804,10 +836,7 @@ def modifica(request, pk: int):
         if registro.bloccato:
             # Consolidata o annullata: niente modulo, solo la scheda in lettura.
             return redirect("rentri_dettaglio", pk=registro.pk)
-        template = _TEMPLATE_TIPO.get(registro.tipo, "rentri/pages/carico.html")
-        return render(request, template, {
-            "registro": registro, "edit_mode": True, "unita_choices": RegistroRifiuti.UNITA_CHOICES,
-        })
+        return _render_form(request, registro.tipo if registro.tipo in _FORM_TIPO else "C", registro)
 
     denied = _require_rentri_manager(request)
     if denied is not None:

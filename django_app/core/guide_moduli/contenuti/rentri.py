@@ -25,18 +25,22 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "Apri RENTRI e clicca la voce del tipo giusto (per esempio «C - Carico»).",
-                    "Il modulo procede a passi: compila «Data» e clicca «Avanti →». La data non può essere nel futuro.",
-                    "Cerca il «Codice CER» scrivendo il numero o il nome del rifiuto: servono le sei cifre (per esempio 15 01 06).",
-                    "Per gli scarichi scegli il movimento collegato (Rif. Op): il portale mostra solo quelli collegabili, "
-                    "con lo stesso codice e non ancora usati.",
+                    "Il modulo è una pagina sola, divisa in sezioni numerate. Compila la «Data»: non può essere nel futuro.",
+                    "Cerca il «Codice CER» scrivendo il numero o il nome del rifiuto: servono le sei cifre (per esempio 15 01 06). "
+                    "Le frecce ↑ ↓ e Invio scelgono un suggerimento.",
+                    "Per gli scarichi spunta il movimento collegato nella sezione «Collegato a»: l'elenco si aggiorna da solo "
+                    "quando cambi codice e mostra solo i movimenti collegabili, con lo stesso codice e non ancora usati.",
                     "Scrivi la «Quantità» (anche con la virgola, per esempio 12,5) e scegli l'«Unità di misura». "
                     "Il carico è sempre positivo; negli scarichi il segno meno è ammesso (lo scarico effettivo M "
                     "può avere il valore in «Rettifica scarico», la rettifica R lo stesso valore positivo).",
                     "Per un codice pericoloso (con l'asterisco *) nel carico va indicata la «Pericolosità» (HP).",
                     "Negli scarichi O e M puoi allegare il formulario (FIR).",
-                    "Conferma. Il numero di registrazione (anno/progressivo) lo assegna il portale e non cambia più.",
+                    "Clicca «Salva registrazione» nel riquadro «Riepilogo». Il numero di registrazione (anno/progressivo) "
+                    "lo assegna il portale e non cambia più. Se non hai spuntato «Scheda da inviare al RENTRI», il portale "
+                    "chiede se segnarla da inviare.",
                 ]),
-                ("p", "Con «← Indietro» torni al passo prima senza perdere i dati."),
+                ("p", "Il «Riepilogo» a lato mostra i dati inseriti e spunta i campi obbligatori man mano che li compili. "
+                      "Se ne manca uno, il salvataggio si ferma e il campo è evidenziato in rosso. «Svuota» ripulisce il modulo."),
                 ("nota", "Il portale rifiuta uno scarico che porta fuori più di quanto c'è in giacenza per quel codice, "
                          "uno scarico datato prima del movimento a cui si collega e un carico già scaricato. "
                          "Il messaggio dice cosa correggere."),
