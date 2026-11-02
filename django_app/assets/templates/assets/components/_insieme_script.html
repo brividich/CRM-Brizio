@@ -9,7 +9,7 @@
 </style>
 <script>
 (function () {
-  function boxes(item) { return item.querySelectorAll('input[type="checkbox"]'); }
+  function boxes(item) { return item.querySelectorAll('input[type="checkbox"]:not(:disabled)'); }
   function apply(scope) {
     var select = scope.querySelector('[data-insieme-window]');
     var limit = select ? parseInt(select.value, 10) : Infinity;

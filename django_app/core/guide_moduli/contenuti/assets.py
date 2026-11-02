@@ -53,6 +53,8 @@ GUIDA = {
                     "Salva: il pulsante dice su quante voci parte.",
                 ]),
                 ("p", "Dove compare: manutenzione → «Stesso piano su altre macchine» (non le manutenzioni a contatore); "
+                      "Chiudi intervento → «Stesso intervento su altri asset» (stesso lotto, regola, piano di verifica o "
+                      "stesso titolo e tipo; non chi ha checklist obbligatoria o manutenzioni da registrare); "
                       "Scadenze amministrative → «Stessa scadenza su altri asset»; Licenze software → «Rinnova anche» (stesso "
                       "prodotto e produttore); Contratti assistenza → «Rinnova» e «Rinnova anche» (stesso fornitore); Nuova "
                       "scadenza → «Crea anche su…» (stessa categoria, salta chi ce l'ha già)."),
@@ -144,7 +146,9 @@ GUIDA = {
                     "«Chiudi intervento» è uguale per asset IT e di produzione: «Com'è andata?» (Risolto già scelto, "
                     "Risolto temporaneamente, Non risolto, Non eseguito - annulla), poi Esecuzione (data e ora, "
                     "eseguito da, tempo impiegato, fermo macchina, «Cosa è stato fatto» obbligatorio) e rapportino. "
-                    "Giorni di lavoro, codici guasto, costi, contratto e nota sono in «Altri dettagli».",
+                    "Giorni di lavoro, codici guasto, costi, contratto e nota sono in «Altri dettagli». Se lo stesso "
+                    "intervento è aperto su altri asset, «Stesso intervento su altri asset» li chiude insieme (stesso "
+                    "esito, data, esecutore e descrizione; tempo, fermo, costi e allegati solo su quello aperto).",
                     "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» la casella «Segna anche la "
                     "segnalazione … come Risolta» si spunta da sola (solo per chi gestisce i ticket di manutenzione); "
                     "con «Risolto temporaneamente» o «Non risolto» la segnalazione non cambia. Il fermo parte da quello "
