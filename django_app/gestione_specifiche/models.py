@@ -509,6 +509,12 @@ class RegistroOFI(models.Model):
     def is_chiuso(self) -> bool:
         return self.fase == self.FASE_CHIUSO or self.data_chiusura is not None
 
+    @classmethod
+    def q_aperte(cls) -> models.Q:
+        """Il contrario di ``is_chiuso`` per i queryset: unica definizione di «aperta»
+        per registro, home, «Le mie» e report MOD.174."""
+        return ~models.Q(fase=cls.FASE_CHIUSO) & models.Q(data_chiusura__isnull=True)
+
     @property
     def is_scaduto(self) -> bool:
         """Scaduta: data richiesta passata e voce ancora aperta."""

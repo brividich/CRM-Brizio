@@ -23,6 +23,9 @@ from core.module_branding import get_module_branding_context, handle_module_bran
 
 from .models import (
     AssignmentStatus,
+    q_in_attesa,
+    q_scadute,
+    scaduta_ora,
     CampaignStatus,
     ChangeRequestStatus,
     ProcedureAssignment,
@@ -267,10 +270,10 @@ def my_assignments(request):
         "total": len(all_assignments),
         "filtered": 0,
         "pending": sum(1 for a in all_assignments if a.status in pending_statuses),
-        "assigned": sum(1 for a in all_assignments if a.status == AssignmentStatus.ASSIGNED),
-        "opened": sum(1 for a in all_assignments if a.status == AssignmentStatus.OPENED),
+        "assigned": sum(1 for a in all_assignments if a.status == AssignmentStatus.ASSIGNED and not scaduta_ora(a, today)),
+        "opened": sum(1 for a in all_assignments if a.status == AssignmentStatus.OPENED and not scaduta_ora(a, today)),
         "confirmed": sum(1 for a in all_assignments if a.status == AssignmentStatus.READ_CONFIRMED),
-        "overdue": sum(1 for a in all_assignments if a.status == AssignmentStatus.OVERDUE),
+        "overdue": sum(1 for a in all_assignments if scaduta_ora(a, today)),
         "cancelled": sum(1 for a in all_assignments if a.status == AssignmentStatus.CANCELLED),
         "due_soon": sum(
             1
@@ -280,7 +283,12 @@ def my_assignments(request):
     }
 
     assignments = all_assignments
-    if status_filter:
+    if status_filter == AssignmentStatus.OVERDUE:
+        # Il filtro segue il contatore: anche le scadute non ancora marcate dal job.
+        assignments = [a for a in assignments if scaduta_ora(a, today)]
+    elif status_filter in (AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED):
+        assignments = [a for a in assignments if a.status == status_filter and not scaduta_ora(a, today)]
+    elif status_filter:
         assignments = [a for a in assignments if a.status == status_filter]
     pr_stats["filtered"] = len(assignments)
 
@@ -539,10 +547,11 @@ def admin_dashboard(request):
     n_confirmed = ProcedureAssignment.objects.filter(
         status=AssignmentStatus.READ_CONFIRMED
     ).count()
-    n_pending = ProcedureAssignment.objects.filter(
-        status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]
-    ).count()
-    n_overdue = ProcedureAssignment.objects.filter(status=AssignmentStatus.OVERDUE).count()
+    # Scadute dal vivo: lo stato OVERDUE lo scrive il job delle 06:45, ma una
+    # scadenza passata ieri sera è già scaduta adesso.
+    oggi = timezone.localdate()
+    n_pending = ProcedureAssignment.objects.filter(q_in_attesa(oggi)).count()
+    n_overdue = ProcedureAssignment.objects.filter(q_scadute(oggi)).count()
     n_change_requests_open = ProcedureChangeRequest.objects.filter(
         status__in=[ChangeRequestStatus.APERTA, ChangeRequestStatus.IN_CARICO]
     ).count()
@@ -1678,10 +1687,8 @@ def report_campaign(request):
             report_stats = {
                 "total": assignments.count(),
                 "confirmed": assignments.filter(status=AssignmentStatus.READ_CONFIRMED).count(),
-                "pending": assignments.filter(
-                    status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]
-                ).count(),
-                "overdue": assignments.filter(status=AssignmentStatus.OVERDUE).count(),
+                "pending": assignments.filter(q_in_attesa(timezone.localdate())).count(),
+                "overdue": assignments.filter(q_scadute(timezone.localdate())).count(),
             }
         except (ProcedureCampaign.DoesNotExist, ValueError):
             pass

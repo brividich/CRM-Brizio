@@ -370,8 +370,10 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
         workorders_base = workorders_base.filter(asset__reparto=reparto_filter)
 
     open_workorders = workorders_base.filter(status=WorkOrder.STATUS_OPEN).order_by("opened_at", "id")
+    from assets.maintenance import q_odl_in_ritardo
+
     wo_overdue_days = get_workorder_overdue_days()
-    overdue_workorders = open_workorders.filter(opened_at__lt=now - timedelta(days=wo_overdue_days))
+    overdue_workorders = open_workorders.filter(q_odl_in_ritardo(now))
     recent_done_workorders = workorders_base.filter(
         status=WorkOrder.STATUS_DONE,
         closed_at__gte=now - timedelta(days=60),

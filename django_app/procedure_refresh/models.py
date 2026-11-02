@@ -30,6 +30,35 @@ class AssignmentStatus(models.TextChoices):
     CANCELLED = "cancelled", "Annullata"
 
 
+def q_scadute(oggi):
+    """Assegnazioni scadute **adesso**: già marcate OVERDUE oppure ancora da
+    leggere con scadenza passata in una campagna pubblicata (stessa regola di
+    ``run_assignment_lifecycle``, che le marca solo alle 06:45)."""
+    return models.Q(status=AssignmentStatus.OVERDUE) | models.Q(
+        status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED],
+        campaign__status=CampaignStatus.PUBLISHED,
+        due_date__isnull=False,
+        due_date__lt=oggi,
+    )
+
+
+def q_in_attesa(oggi):
+    """Da leggere e non ancora scadute: il complemento di ``q_scadute`` fra le pendenti."""
+    return models.Q(status__in=[AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED]) & ~q_scadute(oggi)
+
+
+def scaduta_ora(assignment, oggi) -> bool:
+    """``q_scadute`` per una riga già caricata."""
+    if assignment.status == AssignmentStatus.OVERDUE:
+        return True
+    return bool(
+        assignment.status in (AssignmentStatus.ASSIGNED, AssignmentStatus.OPENED)
+        and assignment.due_date
+        and assignment.due_date < oggi
+        and assignment.campaign.status == CampaignStatus.PUBLISHED
+    )
+
+
 class ReadEventType(models.TextChoices):
     OPENED = "opened", "Aperta"
     CONFIRMED = "confirmed", "Confermata"

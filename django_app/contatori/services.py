@@ -1194,19 +1194,19 @@ def dispositivo_dello_stesso_apparato(macchina):
 
 def centrale_snmp_riepilogo():
     """KPI compatti della centrale, inclusi MFC e dispositivi generici."""
+    # Stati dalla stessa funzione dei riquadri «Stato flotta» (``stato_flotta``):
+    # prima qui si leggeva lo stato grezzo, che contava come «ok» anche chi non
+    # risponde da giorni, e la stessa pagina mostrava due numeri di operativi.
+    flotta = stato_flotta()
     mfc = Macchina.objects.filter(attiva=True)
     dispositivi = dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True))
-    stati = list(mfc.values_list("snmp_stato", flat=True))
-    stati += list(dispositivi.values_list("snmp_stato", flat=True))
-    totale = len(stati)
-    configurati = mfc.exclude(host__isnull=True).count() + dispositivi.count()
     return {
-        "totale": totale,
-        "configurati": configurati,
-        "ok": stati.count(StatoSNMP.OK),
-        "warning": stati.count(StatoSNMP.WARNING),
-        "errori": stati.count(StatoSNMP.ERROR),
-        "mai": stati.count(StatoSNMP.MAI),
+        "totale": mfc.count() + dispositivi.count(),
+        "configurati": flotta["totale"],
+        "ok": flotta["ok"],
+        "warning": flotta["attenzione"],
+        "errori": flotta["errore"],
+        "mai": flotta["non_interrogati"],
         "sonde": SondaSNMP.objects.filter(attiva=True, dispositivo__attivo=True).count(),
     }
 

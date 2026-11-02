@@ -376,12 +376,9 @@ def _legacy_asset_dashboard_list_redirect_url(request: HttpRequest) -> str:
 
 def _dashboard_workorders(request: HttpRequest, today: date, limit: int = 6) -> dict:
     """OdL aperti per il centro "Da fare": urgenti e in ritardo in testa."""
-    from assets.maintenance import get_workorder_overdue_days
+    from assets.maintenance import odl_in_ritardo, q_odl_in_ritardo
 
     now = timezone.now()
-    age_threshold = today - timedelta(days=get_workorder_overdue_days())
-    from django.db.models import Q
-
     from ..services.visibilita import filtra_odl
 
     qs = filtra_odl(
@@ -393,12 +390,10 @@ def _dashboard_workorders(request: HttpRequest, today: date, limit: int = 6) -> 
     # Le righe servono solo a scegliere le prime da mostrare: i conteggi qui
     # sotto si fanno sul queryset intero, mai sulla lista troncata.
     open_rows = list(qs.order_by("opened_at", "id")[:400])
-    late_q = Q(due_at__lt=now) | Q(opened_at__date__lte=age_threshold)
+    late_q = q_odl_in_ritardo(now)
 
     def _late(wo) -> bool:
-        if wo.due_at and wo.due_at < now:
-            return True
-        return bool(wo.opened_at and wo.opened_at.date() <= age_threshold)
+        return odl_in_ritardo(wo, now)
 
     def _sort_key(wo):
         return (

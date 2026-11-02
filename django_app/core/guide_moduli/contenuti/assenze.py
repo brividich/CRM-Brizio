@@ -274,6 +274,12 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": 'Il numero «In attesa» della dashboard segnalazioni è diverso dalla lista',
+            "fare": [
+                '«In attesa» conta tutte le richieste da decidere, con la stessa regola del badge in alto e del menu; la lista sotto ne mostra le prime e lo dice. «Gestite» conta la pagina dello storico aperta.',
+            ],
+        },
+        {
             "sintomo": "La richiesta va al capo sbagliato",
             "perche": "il capo si ricava dall'Anagrafica, oppure il dipendente ne ha scelto un altro nella richiesta.",
             "fare": [

@@ -469,6 +469,13 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Un OdL conta come «aperto da troppo» su una pagina e non su un'altra",
+            "fare": [
+                'Ora la regola è una sola ovunque (dashboard, Centro manutenzione, Macchine di lavoro, Report, Inventario): conta un OdL aperto da più dei giorni di soglia (21 se non impostati) o con la scadenza superata, se ne ha una.',
+                "Report, chip della lista, conformità e indicatori IT contano solo gli asset dell'ambito del ruolo.",
+            ],
+        },
+        {
             "sintomo": "Un caporeparto non vede una macchina, un piano o una scadenza del suo reparto (o vede quelli di altri)",
             "fare": [
                 "Controlla in Ruoli e permessi l'ambito del suo ruolo sulla riga giusta: Inventario, Manutenzione, Ordini di lavoro "

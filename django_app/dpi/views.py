@@ -487,14 +487,16 @@ def dashboard(request):
     # Scadenze prossime (entro 30 giorni, solo consegnate)
     oggi = timezone.localdate()
     fra_30 = oggi + timedelta(days=30)
-    n_in_scadenza = ConsegnaDPI.objects.filter(
+    # Stesso perimetro delle richieste sopra: le consegne delle sole richieste visibili.
+    consegne = ConsegnaDPI.objects.filter(richiesta__in=qs_all.values("pk"))
+    n_in_scadenza = consegne.filter(
         data_scadenza_stimata__isnull=False,
         data_scadenza_stimata__lte=fra_30,
         data_scadenza_stimata__gte=oggi,
         richiesta__stato=StatoRichiesta.CONSEGNATA,
         sostituita_da__isnull=True,
     ).count()
-    n_scadute = ConsegnaDPI.objects.filter(
+    n_scadute = consegne.filter(
         data_scadenza_stimata__isnull=False,
         data_scadenza_stimata__lt=oggi,
         richiesta__stato=StatoRichiesta.CONSEGNATA,

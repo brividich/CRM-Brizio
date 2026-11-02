@@ -118,11 +118,16 @@ def my_work(request):
     for incident in incidents:
         incident.next_deadline = next_open_deadline(incident, now)
     incidents.sort(key=lambda i: (i.next_deadline is None, i.next_deadline["due_at"] if i.next_deadline else i.detected_at))
-    tickets = list(SecurityRemediationTicket.objects.filter(status__in=ACTIVE_CASE_STATUSES).select_related("source").order_by("-updated_at")[:50])
-    alerts = list(SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES).select_related("source").order_by("-updated_at")[:30])
+    tickets_qs = SecurityRemediationTicket.objects.filter(status__in=ACTIVE_CASE_STATUSES)
+    alerts_qs = SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES)
+    tickets = list(tickets_qs.select_related("source").order_by("-updated_at")[:50])
+    alerts = list(alerts_qs.select_related("source").order_by("-updated_at")[:30])
+    # Totali pieni (come «segnalazioni aperte»): le liste mostrano solo le più recenti.
+    n_tickets, n_alerts = tickets_qs.count(), alerts_qs.count()
     return render(request, "security/my_work.html", {
         "incidents": incidents, "tickets": tickets, "alerts": alerts,
-        "total": len(incidents) + len(tickets) + len(alerts),
+        "n_tickets": n_tickets, "n_alerts": n_alerts,
+        "total": len(incidents) + n_tickets + n_alerts,
     })
 
 
@@ -157,6 +162,9 @@ def segnalazioni(request):
 
         per_tipo = Counter(r["kind"] for r in svc.elenco(urgenti=True))
         counts = {k: per_tipo.get(k, 0) for k, _l in svc.KINDS}
+    # Le righe si fermano a PER_KIND_LIMIT per tipo: la pagina lo dice invece di
+    # mostrare «1200» sul chip sopra una lista di 300.
+    troncata = any(n > svc.PER_KIND_LIMIT for n in counts.values()) and not (urgenti or scadenza)
 
     def link(**cambi):
         params = {"tipo": tipo, "stato": stato, "gravita": severity, "q": q, "urgenti": "1" if urgenti else "", "scadenza": "1" if scadenza else ""}
@@ -165,7 +173,8 @@ def segnalazioni(request):
 
     return render(request, "security/segnalazioni.html", {
         "page": page, "righe_totali": len(righe), "tipo": tipo, "stato": stato, "gravita": severity, "q": q,
-        "urgenti": urgenti, "scadenza": scadenza, "n_urgenti": len(svc.elenco(urgenti=True)),
+        "urgenti": urgenti, "scadenza": scadenza, "n_urgenti": svc.conta_urgenti(),
+        "troncata": troncata, "limite_per_tipo": svc.PER_KIND_LIMIT,
         "link_urgenti": link(urgenti="" if urgenti else "1", scadenza="", page=""),
         "counts": counts, "counts_totale": sum(counts.values()),
         "chips_tipo": [{"value": "", "label": "Tutte", "count": sum(counts.values()), "active": not tipo, "url": link(tipo="", page="")}] + [

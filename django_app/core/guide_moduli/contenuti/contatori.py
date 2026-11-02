@@ -106,6 +106,12 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": 'Nella Centrale «ok» e «Operativi» danno numeri diversi',
+            "fare": [
+                "Ora sono lo stesso numero: un apparato non interrogato da oltre i giorni di soglia conta tra i «Non interrogati», anche se l'ultimo controllo era riuscito.",
+            ],
+        },
+        {
             "sintomo": "Un apparato è in errore SNMP",
             "perche": "il codice dell'errore dice la causa.",
             "fare": [

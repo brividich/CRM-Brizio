@@ -864,6 +864,15 @@ def _build_scadenzario_voci(
             })
 
     # Ordina per urgenza: prima le più scadute (giorni più negativi), poi le più vicine
+    # Ambito del ruolo (propri / team / tutti), come l'elenco dipendenti: un capo
+    # con ambito team vede le scadenze delle sue persone, non di tutta l'azienda.
+    # Vale per pagina, «Cose da gestire» e badge della subnav (stessa funzione).
+    if _ruoli_attivi():
+        from .dipendenti import _schede_visibili
+
+        visibili = _schede_visibili(request)
+        if visibili is not None:
+            voci = [v for v in voci if int(v.get("legacy_id") or 0) in visibili]
     voci.sort(key=lambda x: x["giorni"])
     return voci
 

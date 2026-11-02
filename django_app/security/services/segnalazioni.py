@@ -35,10 +35,17 @@ def _filtra(qs, *, severity, q, campi_testo):
     return qs
 
 
-def _alerts(stato, severity, q):
+GRAVI = (Severity.CRITICAL, Severity.HIGH)
+
+
+def _alerts(stato, severity, q, gravi=False):
     qs = SecurityAlert.objects.select_related("source", "event", "event__asset")
     qs = qs.filter(status__in=ACTIVE_ALERT_STATUSES) if stato == "aperte" else (qs.exclude(status__in=ACTIVE_ALERT_STATUSES) if stato == "chiuse" else qs)
     qs = _filtra(qs, severity=severity, q=q, campi_testo=["title", "source__name", "event__asset__hostname"])
+    if gravi:
+        # «Solo urgenti»: il filtro va sul queryset, prima del limite, o un
+        # critico aggiornato tempo fa restava fuori dalle prime 300 righe.
+        qs = qs.filter(severity__in=GRAVI)
     for a in qs.order_by("-updated_at")[:PER_KIND_LIMIT]:
         yield {
             "kind": "alert", "kind_label": "Alert", "pk": a.pk, "title": a.title, "severity": a.severity, "status": a.status,
@@ -48,10 +55,12 @@ def _alerts(stato, severity, q):
         }
 
 
-def _tickets(stato, severity, q):
+def _tickets(stato, severity, q, gravi=False):
     qs = SecurityRemediationTicket.objects.select_related("source", "assignee")
     qs = qs.filter(status__in=ACTIVE_CASE_STATUSES) if stato == "aperte" else (qs.exclude(status__in=ACTIVE_CASE_STATUSES) if stato == "chiuse" else qs)
     qs = _filtra(qs, severity=severity, q=q, campi_testo=["title", "cve", "affected_product", "source__name"])
+    if gravi:
+        qs = qs.filter(severity__in=GRAVI)
     for t in qs.order_by("-updated_at")[:PER_KIND_LIMIT]:
         yield {
             "kind": "ticket", "kind_label": "Ticket", "pk": t.pk, "title": f"#{t.pk} · {t.title}", "severity": t.severity, "status": t.status,
@@ -61,14 +70,16 @@ def _tickets(stato, severity, q):
         }
 
 
-def _incidents(stato, severity, q, now):
+def _incidents(stato, severity, q, now, limite=PER_KIND_LIMIT):
     qs = SecurityIncident.objects.select_related("owner")
     qs = qs.filter(status__in=ACTIVE_INCIDENT_STATUSES) if stato == "aperte" else (qs.exclude(status__in=ACTIVE_INCIDENT_STATUSES) if stato == "chiuse" else qs)
     qs = _filtra(qs, severity=severity, q=q, campi_testo=["title", "code", "description"])
-    for i in qs.order_by("-detected_at")[:PER_KIND_LIMIT]:
+    for i in (qs.order_by("-detected_at")[:limite] if limite else qs.order_by("-detected_at")):
         active = i.status in ACTIVE_INCIDENT_STATUSES
         legale = i.is_significant or i.personal_data_breach
-        deadline = next_open_deadline(i, now) if active and legale else None
+        # Il termine di legge vale anche a incidente chiuso (es. relazione finale
+        # NIS2): stessa regola del riquadro «scadenze NIS2/GDPR».
+        deadline = next_open_deadline(i, now) if legale else None
         # una notifica NIS2/GDPR scaduta o in scadenza passa davanti a tutto: ha un termine di legge
         boost = 3 if deadline and deadline["state"] in {"overdue", "due_soon"} else (1 if deadline else 0)
         yield {
@@ -87,6 +98,17 @@ def conteggi():
         "ticket": SecurityRemediationTicket.objects.filter(status__in=ACTIVE_CASE_STATUSES).count(),
         "incident": SecurityIncident.objects.filter(status__in=ACTIVE_INCIDENT_STATUSES).count(),
     }
+
+
+def conta_urgenti(now=None) -> int:
+    """Quante segnalazioni urgenti (stessa definizione di ``elenco(urgenti=True)``), contate per intero:
+    alert e ticket con COUNT, incidenti aperti uno per uno (sono pochi e servono i termini di legge)."""
+    now = now or timezone.now()
+    n = SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES, severity__in=GRAVI).count()
+    n += SecurityRemediationTicket.objects.filter(status__in=ACTIVE_CASE_STATUSES, severity__in=GRAVI).count()
+    for riga in _incidents("aperte", "", "", now, limite=None):
+        n += 1 if _urgente(riga) else 0
+    return n
 
 
 def _urgente(riga):
@@ -108,12 +130,13 @@ def elenco(*, tipo="", stato="aperte", severity="", q="", urgenti=False, scadenz
     if severity not in {v for v, _l in GRAVITA}:
         severity = ""
     righe = []
-    if tipo in ("", "alert"):
-        righe += list(_alerts(stato, severity, q))
-    if tipo in ("", "ticket"):
-        righe += list(_tickets(stato, severity, q))
+    if tipo in ("", "alert") and not scadenza:
+        righe += list(_alerts(stato, severity, q, gravi=urgenti))
+    if tipo in ("", "ticket") and not scadenza:
+        righe += list(_tickets(stato, severity, q, gravi=urgenti))
     if tipo in ("", "incident"):
-        righe += list(_incidents(stato, severity, q, now))
+        # «In scadenza» = termini di legge: anche gli incidenti già chiusi che li hanno ancora aperti.
+        righe += list(_incidents("tutte" if scadenza else stato, severity, q, now))
     for r in righe:
         r["urgente"] = _urgente(r)
     if urgenti:

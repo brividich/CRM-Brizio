@@ -44,7 +44,7 @@ def segnalazioni_urgenti():
     """Alert, ticket e incidenti aperti critici o alti, più gli incidenti con una notifica di legge scaduta o in scadenza."""
     from security.services import segnalazioni
 
-    n = len(segnalazioni.elenco(urgenti=True))
+    n = segnalazioni.conta_urgenti()
     return Metrica("urgenti", "segnalazioni urgenti", "segnalazioni", "adesso", "alert, ticket e incidenti del SOC", n,
                    reverse("security:segnalazioni") + "?urgenti=1", icon="alert", tone="critical" if n else "success")
 
@@ -76,18 +76,31 @@ def scadenze_legali():
 
 # --- Backup: sempre per PC ------------------------------------------------------------------
 
+def _finestra_backup(days):
+    """Giorni di report da guardare: il periodo più lungo della pagina Backup (90).
+
+    Con una finestra fissa di 7 giorni un PC i cui backup si erano fermati del
+    tutto da più tempo non aveva esecuzioni nel periodo e spariva dai ko. Deve
+    essere uno dei periodi della pagina, così il link apre le stesse righe.
+    """
+    from security.services.backup_center import PERIODS
+
+    return max(days, max(p for p, _l in PERIODS))
+
+
 def pc_backup_ko_rows(days=7):
     from security.services.backup_center import FAIL, overview
 
-    return [d for d in overview(days)["devices"] if d["stale"] or d["last_status"] == FAIL]
+    return [d for d in overview(_finestra_backup(days))["devices"] if d["stale"] or d["last_status"] == FAIL]
 
 
 def pc_backup_ko(days=7):
     from security.services.backup_center import stale_days
 
+    finestra = _finestra_backup(days)
     n = len(pc_backup_ko_rows(days))
-    return Metrica("backup", "PC con backup ko", "PC", f"ultimi {days} giorni", "report di backup (Synology, Veeam)", n,
-                   reverse("security:backup") + f"?giorni={days}&stato=ko#pc", icon="disk", tone="warning" if n else "success",
+    return Metrica("backup", "PC con backup ko", "PC", f"ultimi {finestra} giorni", "report di backup (Synology, Veeam)", n,
+                   reverse("security:backup") + f"?giorni={finestra}&stato=ko#pc", icon="disk", tone="warning" if n else "success",
                    title=f"PC con l'ultimo backup fallito o senza un backup riuscito da oltre {stale_days()} giorni")
 
 

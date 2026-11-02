@@ -1024,6 +1024,7 @@ def snmp_centrale(request):
         "macchine": macchine,
         "flotta": flotta, "flotta_etichetta": services.FLOTTA.get(flotta, ""),
         "riepilogo": services.centrale_snmp_riepilogo(),
+        "flotta_giorni": services.SNMP_NON_INTERROGATO_GIORNI,
         "categoria": categoria,
         "stato": stato,
         "categorie": [("TVCC", "Videosorveglianza (NVR e telecamere)"), *DispositivoSNMP.Categoria.choices],

@@ -302,11 +302,13 @@ def get_maintenance_kpis_for_types(
     asset_types: list[str],
     today: date | None = None,
     window_days: int = 90,
+    visibili: set[int] | None = None,
 ) -> dict:
     """
     Versione single-family di get_maintenance_status_by_family.
     Restituisce coinvolti / manutentati / da_manutentare / percent_done
-    per l'insieme di asset_type passato.
+    per l'insieme di asset_type passato. visibili = id degli asset che
+    l'utente vede (None = tutti), come i totali della stessa pagina.
     """
     today = today or timezone.localdate()
     horizon = today + timedelta(days=window_days)
@@ -318,6 +320,8 @@ def get_maintenance_kpis_for_types(
     coinvolti_ids: set[int] = {
         due.asset_id for due in feed.administrative_dues(asset_filter=type_filter, due_to=horizon)
     }
+    if visibili is not None:
+        coinvolti_ids &= visibili
     if not coinvolti_ids:
         return {"coinvolti": 0, "manutentati": 0, "da_manutentare": 0, "percent_done": 0}
 
@@ -782,10 +786,7 @@ def get_cose_da_fare_overview(today: date | None = None, limit: int = 6, request
     Con ``request`` i conteggi e la lista seguono l'ambito del ruolo (OdL,
     scadenze e verifiche dei soli asset visibili); senza, tutta l'azienda.
     """
-    from assets.maintenance import get_workorder_overdue_days
-
     today = today or timezone.localdate()
-    overdue_threshold = today - timedelta(days=get_workorder_overdue_days())
     horizon_30 = today + timedelta(days=30)
 
     wo_qs = WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN).exclude(
@@ -799,7 +800,9 @@ def get_cose_da_fare_overview(today: date | None = None, limit: int = 6, request
         wo_qs = filtra_odl(request, wo_qs)
         visibili = ids_visibili(request, MODULO_MANUTENZIONE)
     wo_open = _safe_count(wo_qs)
-    wo_overdue = _safe_count(wo_qs.filter(opened_at__date__lte=overdue_threshold))
+    from assets.maintenance import odl_in_ritardo, q_odl_in_ritardo
+
+    wo_overdue = _safe_count(wo_qs.filter(q_odl_in_ritardo()))
 
     dues = feed.administrative_dues(due_to=horizon_30)
     if visibili is not None:
@@ -816,7 +819,6 @@ def get_cose_da_fare_overview(today: date | None = None, limit: int = 6, request
 
     items: list[dict[str, Any]] = []
     for wo in wo_qs.select_related("asset").order_by("opened_at")[:limit]:
-        opened_date = wo.opened_at.date() if wo.opened_at else None
         items.append(
             {
                 "id": wo.pk,
@@ -825,7 +827,7 @@ def get_cose_da_fare_overview(today: date | None = None, limit: int = 6, request
                 "asset_name": wo.asset.name if wo.asset_id else "",
                 "reparto": (wo.asset.reparto if wo.asset_id else "") or "",
                 "opened_at": wo.opened_at,
-                "is_overdue": bool(opened_date and opened_date <= overdue_threshold),
+                "is_overdue": odl_in_ritardo(wo),
             }
         )
 

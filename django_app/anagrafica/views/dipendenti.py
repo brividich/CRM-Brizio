@@ -661,7 +661,10 @@ def dipendenti_list(request):
     # fetch legacy pur restando sull'unica fonte condivisa filtro/ordina.
     rows = build_dipendenti_rows(request, base_rows=rows_all)
 
-    _helpers.aree_list = sorted(
+    # Variabile locale: prima si scriveva su ``_helpers.aree_list``, cioè si
+    # sostituiva la view «Reparti» del modulo con una lista condivisa fra le
+    # richieste (Waitress è multithread), sovrascritta anche dal report.
+    aree_opts = sorted(
         DipendenteAnagraficaAziendale.objects.exclude(area="")
         .values_list("area", flat=True)
         .distinct()
@@ -811,7 +814,7 @@ def dipendenti_list(request):
         "area": area_filter,
         "tipologia_contratto": contratto_filter,
         "reparti": reparti_list,
-        "aree": _helpers.aree_list,
+        "aree": aree_opts,
         "tipologie_contratto": tipologie_contratto_list,
         "n_totale": n_totale,
         "n_reparti": len(reparti_list),
@@ -4622,7 +4625,7 @@ def dipendenti_report(request):
     reparti_list = list(
         Reparto.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)
     )
-    _helpers.aree_list = list(
+    aree_opts = list(
         AreaAziendale.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)
     )
 
@@ -4638,7 +4641,7 @@ def dipendenti_report(request):
         "consenso_privacy": consenso_filter,
         "categoria_protetta": cat_protetta_filter,
         "reparti": reparti_list,
-        "aree": _helpers.aree_list,
+        "aree": aree_opts,
         "contratto_choices": DipendenteAnagraficaAziendale.CONTRATTO_CHOICES,
         "n_totale": len(all_rows),
     })

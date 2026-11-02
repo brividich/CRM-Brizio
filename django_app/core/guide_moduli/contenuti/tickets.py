@@ -139,6 +139,12 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": 'I numeri in testa alla gestione ticket comprendono tipi che non gestisco',
+            "fare": [
+                'Ora contano solo i tipi che gestisci (IT, manutenzione o entrambi), come le liste sotto.',
+            ],
+        },
+        {
             "sintomo": "Il tecnico non vede i ticket in «Gestione ticket»",
             "fare": [
                 "Controlla che abbia il permesso di gestione del tipo giusto (IT oppure MAN).",

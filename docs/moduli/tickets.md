@@ -35,3 +35,7 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) T
 - **I miei ticket** (`/tickets/`, `tickets:dashboard`): solo i ticket aperti dalla persona (account, id legacy o email), per tutti, gestori compresi.
 - **Ticket** (`/tickets/elenco/`, `tickets:elenco`, migration `tickets 0014` per il binding): tutti i ticket che il ruolo vede (`filtro_ticket_visibili`, «vedere» team o tutti su Ticket IT / manutenzione; a sistema ruoli spento gestori e amministratori). La voce compare solo a chi vede ticket di altri (`puo_vedere_altri_ticket`, tag `tickets_nav.vede_altri_ticket`). Sui ticket altrui il dettaglio è in sola lettura: niente riquadro commenti (l'API `api_commento` lo nega comunque). Resta l'eccezione storica degli allegati sui ticket legati a un asset (rapportino dal QR).
 - **Gestione ticket**: invariata, a chi gestisce.
+
+## KPI coerenti e in tempo reale (02/11/2026)
+
+KPI della gestione ticket sui soli tipi gestiti dall'utente.

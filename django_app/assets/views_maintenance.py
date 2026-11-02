@@ -1101,11 +1101,19 @@ def _conformita(request: HttpRequest, *, today: date) -> dict[str, Any]:
     from .services import deadline_feed as feed
 
     dues = feed.administrative_dues()
+    # Stesso ambito del resto della Panoramica (modulo Manutenzione).
+    from .registro_permessi import MODULO_MANUTENZIONE
+
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili is not None:
+        dues = [due for due in dues if due.asset.id in visibili]
     scaduti = sum(1 for due in dues if due.due_date < today)
     kinds = feed.allowed_kinds(request) & {feed.KIND_LICENSE, feed.KIND_CONTRACT}
     rinnovi = feed.collect(
         start=None, end=today + timedelta(days=90), filters=feed.FeedFilters(kinds=frozenset(kinds)), today=today
     ) if kinds else []
+    if visibili is not None:
+        rinnovi = [row for row in rinnovi if row.asset_id in visibili]
     return {
         "adempimenti_aperti": len(dues),
         "adempimenti_scaduti": scaduti,
@@ -1213,16 +1221,15 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
     # non mantengono. Sono un SOTTOINSIEME di open_workorders.
     from .maintenance import get_workorder_overdue_days
 
+    from .maintenance import q_odl_in_ritardo
+
     wo_overdue_days = get_workorder_overdue_days()
+    # Stessa regola di dashboard e report; il numero si conta sul queryset, la
+    # lista mostra i 40 più vecchi (prima il numero era len() della lista: max 40).
+    overdue_qs = odl().filter(q_odl_in_ritardo(), status=WorkOrder.STATUS_OPEN)
+    n_overdue_workorders = overdue_qs.count()
     overdue_workorders = []
-    for work_order in (
-        odl().filter(
-            status=WorkOrder.STATUS_OPEN,
-            opened_at__date__lte=today - timedelta(days=wo_overdue_days),
-        )
-        .select_related("asset", "assigned_to")
-        .order_by("opened_at")[:40]
-    ):
+    for work_order in overdue_qs.select_related("asset", "assigned_to").order_by("opened_at")[:40]:
         # I giorni si contano qui: il template non deve fare aritmetica, e
         # "1 mese, 1 settimana" e' meno leggibile di "38 giorni" in una colonna.
         work_order.days_open = (today - timezone.localtime(work_order.opened_at).date()).days
@@ -1286,7 +1293,7 @@ def _responsabile_response(request: HttpRequest) -> HttpResponse:
         "workorders_open": open_workorders.count(),
         "workorders_running": sum(1 for wo in open_workorders if wo.started_at and not wo.is_waiting),
         "waiting": sum(1 for wo in open_workorders if wo.is_waiting),
-        "workorders_overdue": len(overdue_workorders),
+        "workorders_overdue": n_overdue_workorders,
         "report_missing": len(report_missing),
         "follow_ups": follow_ups.count(),
         "conflicts": len(conflicts),

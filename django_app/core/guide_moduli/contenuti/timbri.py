@@ -39,6 +39,13 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": 'Una persona vede meno dipendenti di prima nel registro',
+            "fare": [
+                "Con «Ruoli e permessi» attivo il registro, i filtri e le tessere contano solo le persone dell'ambito «Vedere» (propri, team o tutti) e chi non ha «Vedere» non apre il registro: allarga l'ambito del ruolo.",
+                '«Record attivi» conta i timbri attivi delle persone in elenco; «Da gestire» tutti i problemi di import aperti.',
+            ],
+        },
+        {
             "sintomo": "Una persona non compare nel registro",
             "fare": ["Controlla che esista in Anagrafica e sia in forza.", "Ricarica il registro."],
         },
