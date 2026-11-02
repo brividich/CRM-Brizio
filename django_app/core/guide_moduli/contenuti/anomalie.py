@@ -42,6 +42,12 @@ GUIDA = {
                       "«Tutti» mostra anche quelli con sole anomalie chiuse."),
                 ("p", "Se scrivi una nota nella decisione, l'avanzamento non può restare «In attesa»: va scelto uno "
                       "stato diverso, nel portale come nella pagina della mail."),
+                ("p", "«Tempi ed esiti», nel dettaglio dell'anomalia, mostra i tempi in giorni lavorativi (risposta "
+                      "del capocommessa, attesa del cliente, esecuzione, risoluzione) e serve a registrare la risposta "
+                      "del cliente e l'azione effettuata (rilavorazione, scarto…) con mail, foto e documenti allegati. "
+                      "Con «Azione di recupero» l'anomalia si chiude solo registrando l'azione effettuata; dopo una "
+                      "rilavorazione o riparazione serve «Pezzo riverificato conforme». In Statistiche i tempi per "
+                      "capocommessa, nella scheda NC quelli delle sue anomalie."),
                 ("p", "«Segnalare al cliente» porta l'avanzamento su «In attesa risposta cliente»: l'anomalia resta "
                       "aperta finché il capocommessa non sceglie lo stato definitivo dopo la risposta del cliente."),
                 ("p", "Un'anomalia chiusa la riapre chi ne è incaricato (capocommessa, CAR, controllore che l'ha "

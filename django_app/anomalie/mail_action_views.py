@@ -167,6 +167,13 @@ def _handle_post(request: HttpRequest, token_obj, anomalie_live: list[dict]) -> 
                 return _render_error(
                     request, f"Anomalia #{anomalia_id}: {MSG_NOTA_STATO_IN_ATTESA} Torna indietro e correggi.", "invalid",
                 )
+            # Prima decisione «Azione di recupero»: si chiude solo con l'azione effettuata.
+            if per_riga.get("chiudere") and not per_riga.get("aprire_rdc"):
+                from .tempi_service import MSG_SERVE_AZIONE, serve_azione_per_chiudere
+                if serve_azione_per_chiudere(int(anomalia_id)):
+                    return _render_error(
+                        request, f"Anomalia #{anomalia_id}: {MSG_SERVE_AZIONE} Si registra dal portale.", "invalid",
+                    )
         # Presa in carico atomica del token PRIMA di toccare le anomalie: con due invii
         # simultanei (doppio click, due schede) solo uno passa. Se l'applicazione
         # solleva un'eccezione il token torna disponibile per un nuovo tentativo.
@@ -280,6 +287,16 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
                     )
             except Exception:
                 logger.exception("mail_action: salvataggio risposte descrizione fallito id=%s", anomalia_id)
+        if ok:
+            # Scheda qualita' e tempi (prima decisione, attesa cliente, chiusura).
+            try:
+                from django.db import transaction
+
+                from .qualita_service import sync_da_anomalia
+                with transaction.atomic():
+                    sync_da_anomalia(int(anomalia_id))
+            except Exception:
+                logger.warning("mail_action: scheda/tempi non aggiornati id=%s", anomalia_id, exc_info=True)
         results.append({
             "id": anomalia_id,
             "ok": ok,

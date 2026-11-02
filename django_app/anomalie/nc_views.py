@@ -180,6 +180,33 @@ def _passi(nc) -> list[dict]:
             for i, (_, label) in enumerate(NC.Stato.choices)]
 
 
+def _tempi_nc(nc, righe: list[dict]) -> dict | None:
+    """Tempi delle anomalie della NC (giorni lavorativi) e da quanto e' aperta la NC.
+    Aggiunge a ogni riga ``t_risposta`` / ``t_risoluzione`` gia' in etichetta."""
+    from django.utils import timezone
+
+    from .tempi_service import etichetta_durata, giorni_lavorativi, riepilogo, tempi_per_anomalie
+
+    try:
+        tempi = tempi_per_anomalie([{"id": r["anomalia_id"], "created_datetime": r.get("creata_il")}
+                                    for r in righe if r.get("esiste")])
+        for r in righe:
+            t = tempi.get(r["anomalia_id"]) or {}
+            for chiave in ("risposta", "risoluzione"):
+                v = t.get(chiave)
+                r[f"t_{chiave}"] = (etichetta_durata(v["giorni"]) + (" (in corso)" if v["in_corso"] else "")) if v else "—"
+        kpi = riepilogo(tempi)["metriche"]
+        return {
+            "risposta": etichetta_durata(kpi["risposta"]["mediana"]),
+            "risoluzione": etichetta_durata(kpi["risoluzione"]["mediana"]),
+            "nc_aperta": etichetta_durata(giorni_lavorativi(nc.created_at, nc.chiusa_il or timezone.now())),
+            "nc_chiusa": bool(nc.chiusa_il),
+        }
+    except Exception:
+        logger.warning("NC %s: tempi non calcolati", nc.pk, exc_info=True)
+        return None
+
+
 @login_required
 @con_guida
 def nc_dettaglio(request, pk: int):
@@ -196,10 +223,12 @@ def nc_dettaglio(request, pk: int):
     if not (nc.capocommessa or nc.car):
         nc_service.riallinea_responsabili(nc)
     perche = list(nc.analisi_perche or []) + [""] * 5
+    tempi_nc = _tempi_nc(nc, righe)
     return render(request, "anomalie/pages/nc_dettaglio.html", {
         "nc": nc,
         "perm": perm,
         "righe": righe,
+        "tempi_nc": tempi_nc,
         "contenimento_cc": nc_service.contenimento_capocommessa(righe),
         "passi": _passi(nc),
         "perche": perche[:5],

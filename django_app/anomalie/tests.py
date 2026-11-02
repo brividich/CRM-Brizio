@@ -773,7 +773,7 @@ class AnomalieTimelineTests(TestCase):
 
     def test_precompiled_bundle_contains_components(self):
         """Il bundle committato contiene davvero i componenti React attesi
-        (stepper, timeline) e il pulsante di export PDF del report."""
+        (percorso dell'anomalia, esiti, timeline) e il pulsante di export PDF del report."""
         import anomalie
 
         bundle = (
@@ -782,7 +782,8 @@ class AnomalieTimelineTests(TestCase):
         )
         self.assertTrue(bundle.exists(), f"Bundle mancante: {bundle}")
         text = bundle.read_text(encoding="utf-8")
-        self.assertIn("StatoStepper", text)
+        self.assertIn("PercorsoAnomalia", text)
+        self.assertIn("EsitiAnomalia", text)
         self.assertIn("TimelineOp", text)
         # Il PDF del report passa per ?format=pdf (vedi handleOpenReport).
         self.assertIn('"format"', text)

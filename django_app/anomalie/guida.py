@@ -230,6 +230,9 @@ SEZIONI: list[dict] = [
             ("passi", [
                 "Apri l'OP e scegli l'anomalia (filtro «Da decidere» per vedere solo quelle aperte).",
                 "Leggi la «Segnalazione» e guarda gli allegati: un clic su una foto la ingrandisce.",
+                "In cima alla «Decisione del capocommessa» il percorso dell'anomalia mostra i passi con la loro data: "
+                "Segnalata, Decisa (con la decisione presa), Risposta del cliente se è stata segnalata, Azione "
+                "effettuata con «Azione di recupero», Chiusa; il passo arancione è quello in corso.",
                 "Nella «Decisione del capocommessa» scegli i flag: «Aprire RDC», «Segnalare al cliente», «Pezzi precedenti "
                 "al benestare».",
                 "Scegli l'«Avanzamento». Con «Aprire RDC» indica anche il «Numero RDC».",
@@ -256,6 +259,44 @@ SEZIONI: list[dict] = [
             ("p", "Al salvataggio parte in automatico, qualche minuto dopo, la mail di riepilogo al segnalante, al "
                   "capocommessa, al CAR e alla lista configurata; le anomalie con RDC o da segnalare al cliente sono "
                   "evidenziate in cima. Non serve nessun pulsante di invio."),
+        ],
+    },
+    {
+        "id": "tempi",
+        "titolo": "Tempi ed esiti: risposta del cliente e azione effettuata",
+        "blocchi": [
+            ("p", "Nel dettaglio dell'anomalia, sotto la decisione, il riquadro «Tempi ed esiti» mostra da quanto "
+                  "tempo è aperta e quanto hanno richiesto le fasi, sempre in giorni lavorativi (sabati, domeniche e "
+                  "festivi nazionali non contano; sotto il giorno si vede in ore). Un tempo «in corso» è ancora aperto; "
+                  "in rosso se ha superato l'obiettivo."),
+            ("def", [
+                ("Risposta del capocommessa", "dalla mail del controllo (o dalla creazione, se l'anomalia è nata fuori "
+                 "da un controllo) alla prima decisione."),
+                ("Attesa del cliente", "da quando l'anomalia è «In attesa risposta cliente» a quando registri la "
+                 "risposta o cambi lo stato."),
+                ("Esecuzione dell'azione", "dalla decisione «Azione di recupero» all'azione effettuata."),
+                ("Risoluzione", "dalla creazione alla chiusura (dopo una riapertura conta l'ultima chiusura)."),
+            ]),
+            ("passi", [
+                "Risposta del cliente: quando l'anomalia è segnalata al cliente compare «Risposta del cliente». Scrivi "
+                "cosa ha risposto, allega la mail (.msg o .eml, anche trascinandola da Outlook), foto o PDF e premi "
+                "«Registra risposta». Poi scegli lo stato definitivo nella decisione.",
+                "Azione effettuata: con la decisione «Azione di recupero» il riquadro è già aperto; per le altre "
+                "anomalie aperte usa «+ Registra un'azione effettuata». Scegli l'azione (Rilavorato, Riparato, "
+                "Scartato, Reso al fornitore, Accettato in deroga), scrivi le note, allega foto o documenti.",
+                "Lascia «Chiudi l'anomalia» spuntato per chiuderla con l'azione. Dopo una rilavorazione o riparazione "
+                "per chiudere serve anche «Pezzo riverificato conforme».",
+                "Premi «Registra e chiudi» (o «Registra azione» se non la chiudi).",
+            ]),
+            ("ul", [
+                "Se la prima decisione è stata «Azione di recupero», l'anomalia non si chiude dalla decisione (né dal "
+                "link della mail) finché non registri l'azione effettuata; aprire un RDC resta possibile.",
+                "Registrano risposta e azione il capocommessa, il CAR, il controllore che ha segnalato e chi può "
+                "modificare l'OP.",
+                "Gli allegati finiscono anche tra gli allegati dell'anomalia; mail e testi si scaricano, non si aprono "
+                "nel browser.",
+                "Risposte e azioni compaiono nella «Cronologia azioni».",
+            ]),
         ],
     },
     {
@@ -340,6 +381,9 @@ SEZIONI: list[dict] = [
                 "«assegnati» quelli in cui sei capocommessa o CAR, con «proprie anomalie» quelli su cui ne hai aperta una.",
                 "In «Ricerca dettaglio» scorri le anomalie (25 per pagina) e scarica tutto con «Esporta CSV»: l'export "
                 "rispetta i filtri ed è registrato.",
+                "«Tempi di risposta e risoluzione»: mediana e media dei tempi conclusi, quanti sono ancora in corso, "
+                "la percentuale entro l'obiettivo e le anomalie aperte oltre l'obiettivo, più le mediane per "
+                "capocommessa. Tutto in giorni lavorativi e con gli stessi filtri della pagina.",
             ]),
         ],
     },
@@ -356,7 +400,9 @@ SEZIONI: list[dict] = [
                  "e l'ultimo invio. Qui si cambiano le liste di destinatari fissi (riepilogo modifiche, RDC / "
                  "segnalazione cliente, supervisori), l'indirizzo della mail «nuova anomalia fuori da un controllo», "
                  "gli interruttori e gli orari. È la stessa vista di Automazioni → Notifiche di sistema: quello che "
-                 "cambi in una pagina lo trovi già cambiato nell'altra."),
+                 "cambi in una pagina lo trovi già cambiato nell'altra. In «Orari e soglie» ci sono anche gli "
+                 "obiettivi dei tempi: «Tempi: obiettivo prima decisione» (di serie 2 giorni lavorativi) e «Tempi: "
+                 "obiettivo chiusura» (di serie 10)."),
                 ("Qualità", "catalogo dei tipi difetto e chi può chiudere le non conformità."),
                 ("Permessi", "ruoli operativi (sola lettura, dall'Anagrafica) e regole di accesso per ruolo e per "
                  "singolo utente."),
@@ -384,6 +430,8 @@ SEZIONI: list[dict] = [
                  "tuo team). Controlla anche il filtro: «Con aperte» nasconde gli OP con sole anomalie chiuse, «Tutti» "
                  "li mostra."),
                 ("Il link della mail dice che è scaduto o già usato.", "Apri l'OP dal portale in Gestione anomalie."),
+                ("Non riesco a chiudere un'anomalia in «Azione di recupero».", "Va registrata prima l'azione "
+                 "effettuata in «Tempi ed esiti»: con «Chiudi l'anomalia» la chiude direttamente."),
             ]),
         ],
     },

@@ -275,6 +275,11 @@
         <textarea id="avanzamenti" class="input" spellcheck="false"></textarea>
       </div>
       <div class="field" style="grid-column:1/-1;">
+        <label for="azioni_effettuate">Scelte Azione effettuata</label>
+        <small>Usate nel riquadro «Tempi ed esiti» della gestione anomalie (rilavorazione, scarto...). Le voci con «rilavor» o «ripar» chiedono «Pezzo riverificato conforme» per chiudere.</small>
+        <textarea id="azioni_effettuate" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
         <label for="autorizzati_modifica">Utenti extra autorizzati modifica</label>
         <small>Un nome o email per riga. Questi utenti possono modificare sempre, oltre a capocommessa/CAR dell'OP.</small>
         <textarea id="autorizzati_modifica" class="input" spellcheck="false"></textarea>
@@ -964,6 +969,7 @@
       conferma_aggiornamenti: [],
       rdc_segnalazione: [],
       escalation_supervisori: [],
+      azioni_effettuate: ["Rilavorato", "Riparato", "Scartato", "Reso al fornitore", "Accettato in deroga"],
       attachments_dir: "media\\anomalie_allegati",
     };
 
@@ -971,6 +977,7 @@
       "causali_doc",
       "stati_superficie",
       "avanzamenti",
+      "azioni_effettuate",
       "autorizzati_modifica",
     ];
     const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
