@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone as dt_timezone
 
-from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
@@ -113,9 +112,10 @@ class Command(BaseCommand):
             ]
             if sess.docente_nome:
                 facts.append(("Docente", sess.docente_nome))
-            base = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
+            from core.accounts.portal_links import portal_link
+
             url_rel = f"/anagrafica/formazione/sessioni/{sess.pk}/iscritti/"
-            cta_url = (base + url_rel) if base else url_rel
+            cta_url = portal_link(url_rel) or url_rel
             fragment = (
                 text_to_html("Ti ricordiamo il prossimo appuntamento formativo:")
                 + '<div style="height:12px;line-height:12px;font-size:0;">&nbsp;</div>'

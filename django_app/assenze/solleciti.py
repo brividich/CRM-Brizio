@@ -95,8 +95,9 @@ def _corpo_mail(righe: list[dict]) -> tuple[str, str]:
 
     from .views import _helpers
 
-    base = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
-    link = f"{base}/assenze/car/dashboard" if base else "/assenze/car/dashboard"
+    from core.accounts.portal_links import portal_link
+
+    link = portal_link("/assenze/car/dashboard") or "/assenze/car/dashboard"
     voci = []
     for r in righe:
         tipo = _helpers._tipo_for_display(r.get("tipo_assenza"), r.get("motivazione_richiesta"))

@@ -56,8 +56,8 @@ def _legacy_user_id(user):
 
 
 def _abs_url(url: str) -> str:
-    base = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
-    return base + url if base and url.startswith("/") else url
+    from core.accounts.portal_links import portal_link
+    return (portal_link(url) or url) if url.startswith("/") else url
 
 
 def _fragment_email(messaggio: str, url: str, facts) -> str:

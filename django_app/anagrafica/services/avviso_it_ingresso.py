@@ -29,6 +29,7 @@ from django.db import transaction
 from django.urls import reverse
 
 from core import naming
+from core.accounts.portal_links import portal_link
 from core.models import SiteConfig
 from core.reminder_recipients import split_emails
 
@@ -158,12 +159,14 @@ def raccogli_dati(request, legacy_id: int, *, scelta_tipo: str) -> DatiAvviso | 
         email_notifica=(getattr(row, "email_notifica", "") or "").strip(),
         esito_account=testo_account,
         account_da_creare=da_creare,
-        url_scheda=f"{base}{scheda_rel}",
+        url_scheda=portal_link(scheda_rel, base=base),
         url_scheda_rel=scheda_rel,
         pratica_id=pratica.pk if pratica else None,
     )
     if pratica:
-        dati.url_onboarding = base + reverse("anagrafica:onboarding_detail", kwargs={"pratica_id": pratica.pk})
+        dati.url_onboarding = portal_link(
+            reverse("anagrafica:onboarding_detail", kwargs={"pratica_id": pratica.pk}), base=base
+        )
     dati.righe = [
         ("Nominativo", dati.nominativo),
         ("Reparto", dati.reparto or "—"),
@@ -328,7 +331,7 @@ def invia_avviso(request, legacy_id: int, *, scelta_tipo: str) -> dict:
             ticket = _apri_ticket(request, dati)
             esito["canali"].append("ticket")
             esito["ticket"] = ticket.numero_ticket
-            url_ticket = _base_url(request) + reverse("tickets:detail", kwargs={"pk": ticket.pk})
+            url_ticket = portal_link(reverse("tickets:detail", kwargs={"pk": ticket.pk}), base=_base_url(request))
             try:
                 esito["ticket_su_onboarding"] = _collega_ticket_a_voce(dati, ticket, url_ticket)
             except Exception:

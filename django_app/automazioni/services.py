@@ -694,9 +694,11 @@ def _enrich_anagrafica_dipendenti_payload(payload: Any) -> Any:
     if dipendente_email:
         enriched.setdefault("dipendente_email", dipendente_email)
 
+    from core.accounts.portal_links import portal_link
+
     site_url = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
     if site_url:
-        enriched.setdefault("sds_url", f"{site_url}/schede-sicurezza/da-leggere/")
+        enriched.setdefault("sds_url", portal_link("/schede-sicurezza/da-leggere/", base=site_url))
         enriched.setdefault(
             "sds_conferma_tutte_url", f"{site_url}/schede-sicurezza/da-leggere/conferma-tutte/"
         )
@@ -765,10 +767,9 @@ def _build_object_url(source_code: str | None, payload: Any) -> str:
     record_id = payload.get("id")
     if record_id in (None, ""):
         return ""
-    site_url = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
-    if not site_url:
-        return ""
-    return f"{site_url}{path_template.format(id=record_id)}"
+    from core.accounts.portal_links import portal_link
+
+    return portal_link(path_template.format(id=record_id))
 
 
 def _enrich_payload_for_source(source_code: str | None, payload: Any) -> Any:

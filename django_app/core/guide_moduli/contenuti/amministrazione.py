@@ -443,5 +443,14 @@ GUIDA = {
                 "Non fare SHRINK del database: lo spazio liberato viene riusato.",
             ],
         },
+        {
+            "sintomo": "Un link «Apri…» in una mail del portale apre il login invece di entrare da solo",
+            "fare": [
+                "I link delle mail (anomalie, assenze, formazione, checklist, scadenze, specifiche, procedure, SOC, Suggestion Corner, KICK-OFF, avviso IT, automazioni) passano dall'accesso Windows quando LDAP è attivo e in «Login» il pulsante «Accedi con credenziali Windows» è «Visibile»: dai PC del dominio si entra da soli e si arriva alla pagina.",
+                "Da telefono o da PC fuori dominio si apre il login normale, che dopo l'accesso porta comunque alla pagina: è il comportamento previsto.",
+                "Se succede da un PC del dominio: il portale deve stare tra i siti intranet del browser (criterio di gruppo, IT). Con il pulsante Windows «Nascosto» i link restano diretti senza accesso automatico.",
+                "I link di approvazione a token e le etichette QR non cambiano: restano diretti.",
+            ],
+        },
     ],
 }

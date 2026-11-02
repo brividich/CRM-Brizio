@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 from datetime import date
 
-from django.conf import settings
 from django.http import HttpRequest
 from django.urls import reverse
 from django.utils import timezone
@@ -92,8 +91,9 @@ def invia_digest_utente(canali, *, oggi: date | None = None, dry_run: bool = Fal
     resto = max(0, len(voci) - MAX_VOCI_MAIL)
     scadute_mail = scadute[:MAX_VOCI_MAIL]
     prossime_mail = prossime[: max(0, MAX_VOCI_MAIL - len(scadute_mail))]
-    base = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
-    link = f"{base}{reverse('scadenze_globali')}" if base else reverse("scadenze_globali")
+    from core.accounts.portal_links import portal_link
+
+    link = portal_link(reverse("scadenze_globali")) or reverse("scadenze_globali")
     intro = (
         f"{len(scadute)} scadute e {len(prossime)} in scadenza entro {canali.digest_giorni} giorni. "
         f"Elenco completo: {link}"
