@@ -62,7 +62,8 @@ const peopleMatchCurrentUser = rawPeople => {
 };
 const QUERY_PARAMS = new URLSearchParams(window.location.search || "");
 const INITIAL_FILTER = normalizeChoice(QUERY_PARAMS.get("filter")).toLowerCase();
-const ACTIVE_FILTER = ["aperte", "in_carico"].includes(INITIAL_FILTER) ? INITIAL_FILTER : "";
+// Di default solo gli OP con anomalie aperte: le chiuse restano sotto «Tutti».
+const ACTIVE_FILTER = ["tutti", "aperte", "in_carico"].includes(INITIAL_FILTER) ? INITIAL_FILTER : "aperte";
 // ?op=<titolo OP>: arrivo da un promemoria in dashboard o da una mail -> preseleziona l'OP.
 const INITIAL_OP = normalizeChoice(QUERY_PARAMS.get("op")).toLowerCase();
 const canUserEditOp = (opCapocommessa, opCar) => {
@@ -95,6 +96,7 @@ const shouldAutoClose = (isAprireRdc, avanzamentoValue) => {
   const avanz = normalizeChoice(avanzamentoValue).toLowerCase();
   return Boolean(isAprireRdc || avanz === "accetto lo stato" || avanz === "apertura ore/ripi");
 };
+const NOTA_STATO_MSG = "Hai scritto una nota: scegli anche lo stato di avanzamento, l'anomalia non può restare «In attesa».";
 
 // --- CSRF helper ---
 const getCsrfToken = () => (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
@@ -1324,6 +1326,8 @@ function GestioneAnomalie() {
   const [applicaBlocco, setApplicaBlocco] = useState(false);
   const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc), [aprireRdc]);
   const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento);
+  // Una risposta scritta nelle note non può lasciare l'anomalia «In attesa».
+  const notaSenzaStato = !!note.trim() && ["", "in attesa"].includes(normalizeChoice(avanzamento).toLowerCase());
   const flash = (msg, ms = 4500) => {
     setSaveMsg(msg);
     if (ms) setTimeout(() => setSaveMsg(cur => cur === msg ? null : cur), ms);
@@ -1367,14 +1371,16 @@ function GestioneAnomalie() {
   }, []);
   useEffect(() => {
     const nextUrl = new URL(window.location.href);
-    if (pageFilter) nextUrl.searchParams.set("filter", pageFilter);else nextUrl.searchParams.delete("filter");
+    if (pageFilter && pageFilter !== "aperte") nextUrl.searchParams.set("filter", pageFilter);else nextUrl.searchParams.delete("filter");
     window.history.replaceState({}, "", nextUrl.toString());
   }, [pageFilter]);
   const apertiDi = o => Number(o?.anomalie_aperte_count ?? o?.anomalie_count ?? 0);
   const daDecidereDi = o => Number(o?.anomalie_da_decidere_count ?? 0);
   const orderMatches = (o, filtro) => {
     if (filtro === "aperte") return apertiDi(o) > 0;
-    if (filtro === "in_carico") return apertiDi(o) > 0 && canUserEditOp(o?.capo, o?.car);
+    // «In carico a me» = sono capocommessa o CAR dell'OP (lo dice il server);
+    // poter modificare l'OP non basta.
+    if (filtro === "in_carico") return apertiDi(o) > 0 && (o?.in_carico !== undefined ? Boolean(o.in_carico) : peopleMatchCurrentUser(o?.capo) || peopleMatchCurrentUser(o?.car));
     return true;
   };
   const ordiniCercati = useMemo(() => {
@@ -1383,20 +1389,21 @@ function GestioneAnomalie() {
     return ordini.filter(o => [o.id, o.pn, o.capo, o.car].some(v => String(v || "").toLowerCase().includes(q)));
   }, [ordini, searchOp]);
   const contatoriFiltro = useMemo(() => ({
-    "": ordiniCercati.length,
+    tutti: ordiniCercati.length,
     aperte: ordiniCercati.filter(o => orderMatches(o, "aperte")).length,
     in_carico: ordiniCercati.filter(o => orderMatches(o, "in_carico")).length
   }), [ordiniCercati]);
   const filteredOrdini = useMemo(() => {
     const list = ordiniCercati.filter(o => orderMatches(o, pageFilter));
     // Nei filtri operativi prima gli OP con decisioni in sospeso.
-    if (pageFilter) return [...list].sort((a, b) => daDecidereDi(b) - daDecidereDi(a));
+    if (pageFilter !== "tutti") return [...list].sort((a, b) => daDecidereDi(b) - daDecidereDi(a));
     return list;
   }, [ordiniCercati, pageFilter]);
 
   // L'OP resta selezionato anche se una ricerca lo nasconde dall'elenco.
   const op = useMemo(() => ordini.find(o => opKey(o) === selectedOpKey) || filteredOrdini[0] || {}, [ordini, filteredOrdini, selectedOpKey]);
-  const canEditCurrentOp = useMemo(() => canUserEditOp(op.capo, op.car), [op.capo, op.car]);
+  // Con il sistema dei ruoli il server dice OP per OP se si può modificare.
+  const canEditCurrentOp = useMemo(() => op.can_edit !== undefined ? Boolean(op.can_edit) : canUserEditOp(op.capo, op.car), [op.can_edit, op.capo, op.car]);
   const nuovaAnomaliaUrl = op.id && op.id !== "—" ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(op.id)}` : "/gestione-anomalie/nuova-segnalazione";
 
   // Preselezione da ?op= (promemoria in dashboard, mail).
@@ -1448,7 +1455,7 @@ function GestioneAnomalie() {
       const list = Array.isArray(data) ? data : [];
       setAnomalie(list);
       // Si apre la prima anomalia che aspetta una decisione.
-      const first = list.find(isDaDecidere) || list.find(a => !a.chiudere) || list[0];
+      const first = list.find(isDaDecidere) || list.find(a => !a.chiudere);
       setSelectedSnId(first ? first.item_id : "");
       setLoadingAnom(false);
     }).catch(e => {
@@ -1653,6 +1660,13 @@ function GestioneAnomalie() {
         ok: false,
         text: "Seleziona un'anomalia"
       });
+      return false;
+    }
+    if (notaSenzaStato) {
+      flash({
+        ok: false,
+        text: NOTA_STATO_MSG
+      }, 7000);
       return false;
     }
     setSaving(true);
@@ -1960,8 +1974,8 @@ function GestioneAnomalie() {
     className: "ga-col__title"
   }, "Ordini di produzione"), /*#__PURE__*/React.createElement("div", {
     className: "ga-chips"
-  }, [["", "Tutti"], ["aperte", "Con aperte"], ["in_carico", "In carico a me"]].map(([v, l]) => /*#__PURE__*/React.createElement(Chip, {
-    key: v || "all",
+  }, [["aperte", "Con aperte"], ["in_carico", "In carico a me"], ["tutti", "Tutti"]].map(([v, l]) => /*#__PURE__*/React.createElement(Chip, {
+    key: v,
     active: pageFilter === v,
     count: loadingOrdini ? "…" : contatoriFiltro[v],
     onClick: () => setPageFilter(v)
@@ -2257,13 +2271,13 @@ function GestioneAnomalie() {
   })), /*#__PURE__*/React.createElement("div", {
     className: "ga-grid2"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Avanzamento"), /*#__PURE__*/React.createElement("select", {
-    className: "ga-input",
+    className: `ga-input${canEditSelected && notaSenzaStato ? " is-invalid" : ""}`,
     value: avanzamento,
     onChange: e => setAvanzamento(e.target.value),
-    disabled: segnalare || !canEditSelected
+    disabled: segnalare && !note.trim() || !canEditSelected
   }, avanzamentoOptions.map(opt => /*#__PURE__*/React.createElement("option", {
     key: opt
-  }, opt))), segnalare && /*#__PURE__*/React.createElement("div", {
+  }, opt))), segnalare && !note.trim() && /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
   }, "Con \xABSegnalare al cliente\xBB l'avanzamento resta quello attuale.")), aprireRdc && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Numero RDC"), /*#__PURE__*/React.createElement("input", {
     className: "ga-input",
@@ -2278,7 +2292,9 @@ function GestioneAnomalie() {
     onChange: e => setNote(e.target.value),
     disabled: !canEditSelected,
     placeholder: "Decisione, istruzioni di rilavorazione, riferimenti\u2026"
-  })), canEditSelected && chiudereAuto && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
+  })), canEditSelected && notaSenzaStato && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, NOTA_STATO_MSG), canEditSelected && chiudereAuto && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--ok"
   }, "Con questa decisione l'anomalia verr\xE0 ", /*#__PURE__*/React.createElement("b", null, "chiusa"), " al salvataggio."), canEditSelected && fratelliBlocco.length > 0 && /*#__PURE__*/React.createElement("label", {
     className: "ga-apply"

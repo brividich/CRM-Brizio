@@ -158,7 +158,7 @@ class LegacyTableMixin:
             cur.execute(f"UPDATE anomalie SET {sets} WHERE id = %s", [*campi.values(), anomalia_id])
 
 
-def _salva_finta(request, data, *, notifica_debounce=True):
+def _salva_finta(request, data, *, notifica_debounce=True, da_controllo=False):
     """Equivalente SQLite di ``views._salva_riga_anomalia``."""
     item = str(data.get("item_id") or "")
     with connection.cursor() as cur:

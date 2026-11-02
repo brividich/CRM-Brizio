@@ -67,7 +67,8 @@
     };
     const QUERY_PARAMS = new URLSearchParams(window.location.search || "");
     const INITIAL_FILTER = normalizeChoice(QUERY_PARAMS.get("filter")).toLowerCase();
-    const ACTIVE_FILTER = ["aperte", "in_carico"].includes(INITIAL_FILTER) ? INITIAL_FILTER : "";
+    // Di default solo gli OP con anomalie aperte: le chiuse restano sotto «Tutti».
+    const ACTIVE_FILTER = ["tutti", "aperte", "in_carico"].includes(INITIAL_FILTER) ? INITIAL_FILTER : "aperte";
     // ?op=<titolo OP>: arrivo da un promemoria in dashboard o da una mail -> preseleziona l'OP.
     const INITIAL_OP = normalizeChoice(QUERY_PARAMS.get("op")).toLowerCase();
 
@@ -111,6 +112,8 @@
         avanz === "apertura ore/ripi"
       );
     };
+
+    const NOTA_STATO_MSG = "Hai scritto una nota: scegli anche lo stato di avanzamento, l'anomalia non può restare «In attesa».";
 
     // --- CSRF helper ---
     const getCsrfToken = () =>
@@ -761,6 +764,8 @@
 
       const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc), [aprireRdc]);
       const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento);
+      // Una risposta scritta nelle note non può lasciare l'anomalia «In attesa».
+      const notaSenzaStato = !!note.trim() && ["", "in attesa"].includes(normalizeChoice(avanzamento).toLowerCase());
 
       const flash = (msg, ms = 4500) => {
         setSaveMsg(msg);
@@ -798,7 +803,7 @@
 
       useEffect(() => {
         const nextUrl = new URL(window.location.href);
-        if (pageFilter) nextUrl.searchParams.set("filter", pageFilter);
+        if (pageFilter && pageFilter !== "aperte") nextUrl.searchParams.set("filter", pageFilter);
         else nextUrl.searchParams.delete("filter");
         window.history.replaceState({}, "", nextUrl.toString());
       }, [pageFilter]);
@@ -807,7 +812,10 @@
       const daDecidereDi = (o) => Number(o?.anomalie_da_decidere_count ?? 0);
       const orderMatches = (o, filtro) => {
         if (filtro === "aperte") return apertiDi(o) > 0;
-        if (filtro === "in_carico") return apertiDi(o) > 0 && canUserEditOp(o?.capo, o?.car);
+        // «In carico a me» = sono capocommessa o CAR dell'OP (lo dice il server);
+        // poter modificare l'OP non basta.
+        if (filtro === "in_carico") return apertiDi(o) > 0 && (o?.in_carico !== undefined
+          ? Boolean(o.in_carico) : (peopleMatchCurrentUser(o?.capo) || peopleMatchCurrentUser(o?.car)));
         return true;
       };
       const ordiniCercati = useMemo(() => {
@@ -816,14 +824,14 @@
         return ordini.filter((o) => [o.id, o.pn, o.capo, o.car].some((v) => String(v || "").toLowerCase().includes(q)));
       }, [ordini, searchOp]);
       const contatoriFiltro = useMemo(() => ({
-        "": ordiniCercati.length,
+        tutti: ordiniCercati.length,
         aperte: ordiniCercati.filter((o) => orderMatches(o, "aperte")).length,
         in_carico: ordiniCercati.filter((o) => orderMatches(o, "in_carico")).length,
       }), [ordiniCercati]);
       const filteredOrdini = useMemo(() => {
         const list = ordiniCercati.filter((o) => orderMatches(o, pageFilter));
         // Nei filtri operativi prima gli OP con decisioni in sospeso.
-        if (pageFilter) return [...list].sort((a, b) => daDecidereDi(b) - daDecidereDi(a));
+        if (pageFilter !== "tutti") return [...list].sort((a, b) => daDecidereDi(b) - daDecidereDi(a));
         return list;
       }, [ordiniCercati, pageFilter]);
 
@@ -831,7 +839,10 @@
       const op = useMemo(() => (
         ordini.find((o) => opKey(o) === selectedOpKey) || filteredOrdini[0] || {}
       ), [ordini, filteredOrdini, selectedOpKey]);
-      const canEditCurrentOp = useMemo(() => canUserEditOp(op.capo, op.car), [op.capo, op.car]);
+      // Con il sistema dei ruoli il server dice OP per OP se si può modificare.
+      const canEditCurrentOp = useMemo(() => (
+        op.can_edit !== undefined ? Boolean(op.can_edit) : canUserEditOp(op.capo, op.car)
+      ), [op.can_edit, op.capo, op.car]);
       const nuovaAnomaliaUrl = (op.id && op.id !== "—")
         ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(op.id)}`
         : "/gestione-anomalie/nuova-segnalazione";
@@ -885,7 +896,7 @@
             const list = Array.isArray(data) ? data : [];
             setAnomalie(list);
             // Si apre la prima anomalia che aspetta una decisione.
-            const first = list.find(isDaDecidere) || list.find((a) => !a.chiudere) || list[0];
+            const first = list.find(isDaDecidere) || list.find((a) => !a.chiudere);
             setSelectedSnId(first ? first.item_id : "");
             setLoadingAnom(false);
           })
@@ -1020,6 +1031,7 @@
         if (!canEditCurrentOp) { flash({ ok: false, text: "Permesso negato: non puoi modificare questo OP" }); return false; }
         if (isSelectedClosed) { flash({ ok: false, text: "Anomalia chiusa: in sola lettura" }); return false; }
         if (!currentItemId) { flash({ ok: false, text: "Seleziona un'anomalia" }); return false; }
+        if (notaSenzaStato) { flash({ ok: false, text: NOTA_STATO_MSG }, 7000); return false; }
         setSaving(true);
         let ok = false;
         try {
@@ -1226,8 +1238,8 @@
               <div className="ga-col__head">
                 <div className="ga-col__title">Ordini di produzione</div>
                 <div className="ga-chips">
-                  {[["", "Tutti"], ["aperte", "Con aperte"], ["in_carico", "In carico a me"]].map(([v, l]) => (
-                    <Chip key={v || "all"} active={pageFilter === v} count={loadingOrdini ? "…" : contatoriFiltro[v]}
+                  {[["aperte", "Con aperte"], ["in_carico", "In carico a me"], ["tutti", "Tutti"]].map(([v, l]) => (
+                    <Chip key={v} active={pageFilter === v} count={loadingOrdini ? "…" : contatoriFiltro[v]}
                       onClick={() => setPageFilter(v)}>{l}</Chip>
                   ))}
                 </div>
@@ -1437,10 +1449,10 @@
                       <div className="ga-grid2">
                         <div>
                           <FieldLabel>Avanzamento</FieldLabel>
-                          <select className="ga-input" value={avanzamento} onChange={(e) => setAvanzamento(e.target.value)} disabled={segnalare || !canEditSelected}>
+                          <select className={`ga-input${canEditSelected && notaSenzaStato ? " is-invalid" : ""}`} value={avanzamento} onChange={(e) => setAvanzamento(e.target.value)} disabled={(segnalare && !note.trim()) || !canEditSelected}>
                             {avanzamentoOptions.map((opt) => <option key={opt}>{opt}</option>)}
                           </select>
-                          {segnalare && <div className="ga-hint">Con «Segnalare al cliente» l'avanzamento resta quello attuale.</div>}
+                          {segnalare && !note.trim() && <div className="ga-hint">Con «Segnalare al cliente» l'avanzamento resta quello attuale.</div>}
                         </div>
                         {aprireRdc && (
                           <div>
@@ -1454,6 +1466,9 @@
                         <textarea className="ga-input" rows={3} value={note} onChange={(e) => setNote(e.target.value)} disabled={!canEditSelected}
                           placeholder="Decisione, istruzioni di rilavorazione, riferimenti…" />
                       </div>
+                      {canEditSelected && notaSenzaStato && (
+                        <div className="ga-note ga-note--warn">{NOTA_STATO_MSG}</div>
+                      )}
                       {canEditSelected && chiudereAuto && !sn.chiudere && (
                         <div className="ga-note ga-note--ok">Con questa decisione l'anomalia verrà <b>chiusa</b> al salvataggio.</div>
                       )}
