@@ -148,7 +148,8 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
                 "Stessa decisione su più anomalie: in «Applica la stessa decisione anche a» scegli stesso blocco, tutte "
                 "le aperte dell'OP o «Scelte a mano»; prima di salvare un riepilogo le mostra tutte. Le già decise "
                 "restano fuori, salvo spuntarle.",
-                "Il segnalante riceve la decisione per mail qualche minuto dopo: non serve nessun invio.",
+                "Le decisioni partono in un'unica mail quando sull'OP non salvi niente per 5 minuti; la barra in cima al "
+                "dettaglio dice quante sono in attesa e «Invia ora» le manda subito.",
             ]),
         ],
     },

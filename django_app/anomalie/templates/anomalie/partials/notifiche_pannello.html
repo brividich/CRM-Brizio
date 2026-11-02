@@ -112,6 +112,9 @@ Notifiche e in Automazioni → Notifiche di sistema: stessi dati, stesso salvata
       <label class="field">Controllo OP: invio automatico dopo minuti
         <input type="number" min="15" max="1440" class="input" data-ntf-param="controllo_invio_auto_minuti" value="{{ notifiche.parametri.controllo_invio_auto_minuti }}"{% if not notifiche_modificabile %} readonly{% endif %}>
       </label>
+      <label class="field">Riepilogo decisioni: invio dopo minuti di pausa
+        <input type="number" min="1" max="120" class="input" data-ntf-param="riepilogo_decisioni_minuti" value="{{ notifiche.parametri.riepilogo_decisioni_minuti }}"{% if not notifiche_modificabile %} readonly{% endif %}>
+      </label>
       <label class="field">Tempi: obiettivo prima decisione (giorni lavorativi)
         <input type="number" min="1" max="60" class="input" data-ntf-param="tempi_risposta_gg" value="{{ notifiche.parametri.tempi_risposta_gg }}"{% if not notifiche_modificabile %} readonly{% endif %}>
       </label>

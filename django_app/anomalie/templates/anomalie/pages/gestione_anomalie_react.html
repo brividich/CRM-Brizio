@@ -248,6 +248,12 @@
     .ga-modal__box { width: min(460px, 100%); background: var(--surface); color: var(--text); border-radius: 16px; padding: 22px; box-shadow: 0 24px 60px rgba(0,0,0,.3); display: grid; gap: 10px; }
     .ga-modal__title { font-size: var(--fs-lg); font-weight: 800; }
     .ga-modal__acts { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    /* Decisioni in attesa del riepilogo (barra in fondo al dettaglio) */
+    .ga-coda { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 10px 16px 0; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 10px; background: var(--accent-light); font-size: var(--fs-sm); color: var(--text); }
+    .ga-coda__txt { flex: 1; min-width: 180px; }
+    .ga-coda b { color: var(--text); }
+    .ga-coda__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+
     /* «Applica la stessa decisione anche a…» e riepilogo */
     .ga-apply--ambito { display: grid; gap: 8px; cursor: default; }
     .ga-apply__t { font-weight: 700; color: var(--text); }
@@ -321,6 +327,7 @@
       salva: "{% url 'api_anomalie_salva' %}",
       riapri: "{% url 'api_anomalie_riapri' %}",
       esiti: "{% url 'api_anomalie_esiti' %}",
+      decisioni_coda: "{% url 'api_anomalie_decisioni_coda' %}",
       esito: "{% url 'api_anomalie_esito' %}",
       allegati_list: "{% url 'api_anomalie_allegati' %}",
       allegati_upload: "{% url 'api_anomalie_allegati_upload' %}",

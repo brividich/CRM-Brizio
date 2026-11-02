@@ -3472,6 +3472,43 @@ def _percorso_anomalia(row: dict, scheda, esiti_azione) -> list[dict]:
 
 
 @login_required
+def api_decisioni_coda(request):
+    """GET: decisioni dell'OP in attesa del riepilogo; POST {op_id}: le invia subito."""
+    from anomalie.mail_action_service import decisioni_in_coda, flush_pending_update_notifications
+
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body.decode("utf-8") or "{}")
+        except Exception:
+            data = {}
+        op_id = _safe_text(data.get("op_id"), 100)
+    else:
+        op_id = _safe_text(request.GET.get("op_id"), 100)
+    if not op_id:
+        return _json_error("op_id obbligatorio", status=400)
+    if not _can_edit_anomalie_for_op(request, op_id):
+        return _json_error("Permesso negato", status=403)
+    if request.method == "POST":
+        coda = decisioni_in_coda(op_id)
+        if not coda:
+            return JsonResponse({"success": True, "inviate": 0, "coda": None})
+        esito = flush_pending_update_notifications(op_id=op_id)
+        try:
+            log_action(request, "anomalie_riepilogo_inviato_subito", "anomalie", {"op_id": op_id, "decisioni": coda["n"]})
+        except Exception:
+            pass
+        rimaste = decisioni_in_coda(op_id)
+        if rimaste:
+            return _json_error("Invio non riuscito: il sistema riprova da solo fra poco.", status=502)
+        return JsonResponse({"success": True, "inviate": coda["n"], "mail": bool(esito.get("sent")), "coda": None})
+    coda = decisioni_in_coda(op_id)
+    return JsonResponse({
+        "success": True,
+        "coda": {"n": coda["n"], "partenza": coda["partenza"].isoformat()} if coda else None,
+    })
+
+
+@login_required
 def api_anomalie_esiti(request):
     """Tempi ed esiti (risposta del cliente, azione effettuata) di un'anomalia."""
     from anomalie.quality_models import AnomaliaEsito

@@ -946,6 +946,36 @@
       const [scelteMano, setScelteMano] = useState([]);
       const [includiDecise, setIncludiDecise] = useState(false);
       const [riepilogo, setRiepilogo] = useState(null);  // null | { prossima: bool }
+      // Decisioni salvate su questo OP e non ancora partite nel riepilogo (parte dopo
+      // la pausa configurata; «Invia ora» lo anticipa).
+      const [coda, setCoda] = useState(null);  // null | { n, partenza }
+      const [adesso, setAdesso] = useState(Date.now());
+      const [inviando, setInviando] = useState(false);
+      const caricaCoda = () => {
+        if (!op.id || op.id === "—" || !API.decisioni_coda || !canEditCurrentOp) { setCoda(null); return; }
+        fetch(`${API.decisioni_coda}?op_id=${encodeURIComponent(op.id)}`, { credentials: "same-origin" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => setCoda(d && d.success && d.coda ? d.coda : null))
+          .catch(() => {});
+      };
+      const inviaOra = async () => {
+        setInviando(true);
+        try {
+          const r = await fetch(API.decisioni_coda, {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify({ op_id: op.id }),
+          });
+          const d = await readJsonOrThrow(r, "Invio riepilogo");
+          if (!r.ok || !d.success) throw new Error(d.error || `HTTP ${r.status}`);
+          setCoda(null);
+          flash({ ok: true, text: d.inviate ? `Riepilogo inviato: ${d.inviate} decision${d.inviate === 1 ? "e" : "i"}` : "Nessuna decisione da inviare" });
+        } catch (e) {
+          flash({ ok: false, text: "Errore: " + e.message }, 7000);
+          caricaCoda();
+        }
+        setInviando(false);
+      };
       const resetAmbito = () => { setAmbito("solo"); setScelteMano([]); setIncludiDecise(false); };
 
       const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc), [aprireRdc]);
@@ -1043,6 +1073,15 @@
       const canEditCurrentOp = useMemo(() => (
         op.can_edit !== undefined ? Boolean(op.can_edit) : canUserEditOp(op.capo, op.car)
       ), [op.can_edit, op.capo, op.car]);
+      useEffect(() => { caricaCoda(); }, [op.id, canEditCurrentOp]);
+      useEffect(() => {
+        const t = setInterval(() => setAdesso(Date.now()), 20000);
+        return () => clearInterval(t);
+      }, []);
+      // Passata l'ora prevista, si ricontrolla: il riepilogo sarà partito (o in partenza).
+      useEffect(() => {
+        if (coda && new Date(coda.partenza).getTime() + 70000 < adesso) caricaCoda();
+      }, [adesso]);
       const nuovaAnomaliaUrl = (op.id && op.id !== "—")
         ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(op.id)}`
         : "/gestione-anomalie/nuova-segnalazione";
@@ -1336,6 +1375,7 @@
           }
           if (testo) flash({ ok: true, text: data.protocollo ? `${testo} · ${data.protocollo}` : testo });
           loadOrdini();
+          caricaCoda();
         } catch (e) {
           flash({ ok: false, text: "Errore: " + e.message }, 7000);
         }
@@ -1639,6 +1679,19 @@
 
             {/* ── 3. Dettaglio ── */}
             <section className="ga-col ga-col--det" style={{ display: showCol("dettaglio") ? undefined : "none" }}>
+              {/* Decisioni salvate sull'OP e non ancora partite nel riepilogo: sempre in vista,
+                  anche quando l'anomalia aperta è ormai chiusa. */}
+              {coda && coda.n > 0 && (() => {
+                const min = Math.max(0, Math.ceil((new Date(coda.partenza).getTime() - Date.now()) / 60000));
+                return (
+                  <div className="ga-coda" role="status"
+                    title="Il riepilogo a capocommessa, CAR e segnalanti parte dopo una pausa sull'OP; ogni salvataggio fa ripartire l'attesa">
+                    <span className="ga-coda__dot" />
+                    <span className="ga-coda__txt"><b>{coda.n}</b> decision{coda.n === 1 ? "e" : "i"} in attesa di invio · {min > 0 ? `il riepilogo parte fra ${min} min` : "in partenza"}</span>
+                    <button type="button" className="ga-btn ga-btn--outline ga-btn--xs" disabled={inviando} onClick={inviaOra}>{inviando ? "Invio…" : "Invia ora"}</button>
+                  </div>
+                );
+              })()}
               {!sn.item_id ? (
                 <div className="ga-empty ga-empty--big">
                   {op.id ? "Seleziona un'anomalia dall'elenco." : "Seleziona un ordine di produzione."}
