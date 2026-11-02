@@ -48,11 +48,37 @@ GUIDA = {
                     "«Proponi con l'AI» suggerisce una decisione: è solo un consiglio.",
                     "Clicca «Approva» oppure «Rifiuta» (scrivi il motivo). Con «Aggiungi nota» lasci un commento.",
                     "Il magazzino riceve la mail «Da consegnare», prepara il DPI e clicca «Pronto per il ritiro»: il dipendente "
-                    "riceve mail e notifica. «Avvisa di nuovo» ripete l'avviso.",
+                    "riceve mail e notifica. «Avvisa di nuovo» ripete l'avviso. Più veloce: dal «Banco consegne» (vedi sotto).",
                     "Quando il DPI viene consegnato, il magazzino clicca «Registra consegna», fa firmare il dipendente "
                     "nel riquadro firma e salva. «Cancella firma» ripulisce il riquadro se serve rifarla.",
                 ]),
                 ("nota", "Nessuno può approvare la propria richiesta. Il responsabile vede solo le richieste dei suoi dipendenti."),
+            ],
+        },
+        {
+            "id": "banco",
+            "titolo": "Banco consegne (magazzino)",
+            "blocchi": [
+                ("p", "DPI → «Banco consegne» è la pagina di lavoro del magazzino: tutte le richieste approvate da "
+                      "preparare e consegnare, raggruppate per persona. In alto i numeri: «Persone in attesa», «Da preparare», "
+                      "«Pronti al ritiro» e «Giacenza insufficiente»."),
+                ("passi", [
+                    "Quando la persona arriva al banco scrivi il suo nome in «Cerca la persona al banco».",
+                    "Nella sua scheda tutti i DPI sono già spuntati: togli la spunta a quelli che non consegni adesso. "
+                    "Accanto a ogni DPI vedi quanti pezzi ci sono «in magazzino» (in rosso se non bastano).",
+                    "Clicca «Consegna…»: si apre il riquadro con «Data consegna», le note e la firma.",
+                    "Fai firmare il dipendente una volta sola (vale per tutti i DPI spuntati) e clicca «Registra consegna dei DPI spuntati». "
+                    "Se ha firmato su carta spunta «Ricevuta firmata su carta».",
+                ]),
+                ("p", "«Pronto per il ritiro (avvisa)» manda in un colpo l'avviso di ritiro per tutti i DPI spuntati della persona "
+                      "(chi era già avvisato non riceve un secondo avviso). Non compare se in Impostazioni l'avviso parte già all'approvazione."),
+                ("p", "Ogni consegna fatta dal banco vale come quella dalla scheda richiesta: PDF nei documenti del dipendente, "
+                      "scarico del magazzino, sostituzione del DPI precedente dello stesso tipo, report al responsabile."),
+                ("p", "«Consegna diretta al banco» (solo se qualche categoria ha la spunta «Consegna diretta dal banco»): scegli "
+                      "dipendente, DPI, taglia e quantità e clicca «Aggiungi al banco». La richiesta nasce già approvata, senza "
+                      "passare dal responsabile, e si apre subito la sua scheda per la firma."),
+                ("nota", "Il banco mostra solo le categorie con «La consegna la fa il magazzino». Le altre (per esempio le scarpe) "
+                         "si vedono con «Mostra anche gli altri DPI»."),
             ],
         },
         {
@@ -71,8 +97,10 @@ GUIDA = {
             "blocchi": [
                 ("p", "DPI → «Impostazioni». Il catalogo ha quattro livelli, dal generale al particolare:"),
                 ("def", [
-                    ("Categoria", "per esempio «Calzature». Ha l'icona, la vita utile in mesi, il flag «obbligatorio da mansionario» e "
-                                  "«Alla consegna avvisa l'Amministrazione». «+ Nuova categoria»."),
+                    ("Categoria", "per esempio «Calzature». Ha l'icona, la vita utile in mesi, il flag «obbligatorio da mansionario», "
+                                  "«Alla consegna avvisa l'Amministrazione», «La consegna la fa il magazzino» (togli la spunta per le "
+                                  "scarpe: escono dal Banco consegne e la mail «Da consegnare» va ai referenti DPI) e «Consegna diretta "
+                                  "dal banco, senza approvazione» (consumabili come guanti e tappi). «+ Nuova categoria»."),
                     ("Tipo", "sottocategoria, per esempio «Scarpe S3». «+ Nuovo tipo»."),
                     ("Modello", "prodotto preciso con codice, produttore e foto. Se ha una vita utile propria vince su quella della categoria. «+ Nuovo modello»."),
                     ("Taglia", "valore della taglia. «+ Nuova taglia»."),
@@ -91,11 +119,13 @@ GUIDA = {
                     "Con la spunta «Email ai referenti (responsabili + email aggiuntive) per ogni nuova richiesta» la mail va "
                     "anche ai «Responsabili» e alle «Email notifiche aggiuntive» delle Impostazioni.",
                     "Richiesta di un CAR o di un preposto (per sé o per un suo dipendente): approvata da sola, nessuna mail «da approvare».",
-                    "Richiesta approvata: mail «Da consegnare» al Magazzino.",
+                    "Richiesta approvata: mail «Da consegnare» al Magazzino; per le categorie senza «La consegna la fa il "
+                    "magazzino» (per esempio le scarpe) va invece ai referenti DPI («Responsabili» + «Email notifiche aggiuntive»).",
+                    "Consegna diretta al banco: nessuna mail di approvazione né «Da consegnare»; alla consegna parte il report come sempre.",
                     "«Pronto per il ritiro» (dal magazzino): mail e notifica nel portale al dipendente. Con la spunta «Avvisa il "
                     "dipendente di ritirare il DPI subito all'approvazione» l'avviso parte già all'approvazione e il passaggio del "
                     "magazzino non serve.",
-                    "Richiesta rifiutata dopo l'approvazione: mail «Consegna annullata» al Magazzino, così non consegna.",
+                    "Richiesta rifiutata dopo l'approvazione: mail «Consegna annullata» a chi consegna (Magazzino o referenti), così non consegna.",
                     "Consegna registrata: report con il PDF del modulo di consegna al responsabile/preposto del dipendente e, "
                     "solo per le categorie con la spunta «Alla consegna avvisa l'Amministrazione», all'Amministrazione.",
                     "Il dipendente riceve la notifica nel portale (campanella) ad approvazione, rifiuto, ritiro e consegna.",

@@ -31,6 +31,7 @@ urlpatterns = [
     path("impostazioni/modelli/<int:pk>/modifica/", views.modello_edit, name="modello_modifica"),
     path("impostazioni/taglie/nuova/", views.taglia_edit, name="taglia_nuova"),
     path("impostazioni/taglie/<int:pk>/modifica/", views.taglia_edit, name="taglia_modifica"),
+    path("banco/", views.banco, name="banco"),
     path("magazzino/", views.magazzino_view, name="magazzino"),
     path("magazzino/report/", views.magazzino_report, name="magazzino_report"),
     path("documenti/", views.documenti, name="documenti"),

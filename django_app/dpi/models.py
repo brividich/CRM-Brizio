@@ -83,6 +83,16 @@ class CategoriaDPI(models.Model):
         default=True,
         help_text="Alla consegna manda il report con il PDF anche all'Amministrazione",
     )
+    consegna_magazzino = models.BooleanField(
+        default=True,
+        help_text="La consegna la fa il magazzino: compare nel «Banco consegne» e la mail «Da consegnare» va al "
+                  "Magazzino. Senza spunta (es. scarpe) la mail va ai referenti DPI.",
+    )
+    consegna_diretta = models.BooleanField(
+        default=False,
+        help_text="Il magazzino la può consegnare al banco senza una richiesta approvata (consumabili: guanti, "
+                  "tappi, mascherine…). Il report di consegna va comunque al responsabile.",
+    )
     is_active = models.BooleanField(default=True)
     order_index = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
