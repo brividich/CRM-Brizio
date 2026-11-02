@@ -4292,6 +4292,8 @@ body.theme-dark .ts-guide-nota { background: rgba(251,146,60,.12); border-color:
 .md-convocazione-note.warn { border-color: #fdba74; background: #fff7ed; color: #7c2d12; }
 body.theme-dark .md-convocazione-note.warn { background: rgba(251,146,60,.12); border-color: rgba(251,146,60,.45); color: #fed7aa; }
 .md-convocazione-note[hidden] { display: none; }
+.md-convocazione-modifiche { flex-basis: 100%; margin: 0; padding-left: 20px; }
+.md-convocazione-modifiche li { margin: 2px 0; }
 
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .ts-kpi.blue  .ts-kpi-value{color:#93c5fd}

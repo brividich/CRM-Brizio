@@ -1147,6 +1147,9 @@ class KickoffMeeting(models.Model):
         null=True, blank=True, verbose_name="Convocazione inviata il"
     )
     convocazione_firma = models.CharField(max_length=64, blank=True, default="")
+    # Copia leggibile degli stessi dati al momento dell'invio: serve a dire
+    # *cosa* e' cambiato, non solo che qualcosa e' cambiato.
+    convocazione_dati = models.TextField(blank=True, default="")
     annullato_at = models.DateTimeField(null=True, blank=True, verbose_name="Annullato il")
     annullato_da = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -1388,12 +1391,9 @@ class KickoffMeeting(models.Model):
                 emails.append(email)
         return emails
 
-    def firma_convocazione(self) -> str:
-        """Impronta dei dati che finiscono nella convocazione."""
-        import hashlib
-        import json
-
-        payload = {
+    def dati_convocazione(self) -> dict:
+        """Dati che finiscono nella convocazione (base di firma e confronto)."""
+        return {
             # str(): data e ora possono essere ancora stringhe su un'istanza appena creata.
             "data": str(self.data or ""),
             "ora": str(self.ora or "")[:5],
@@ -1406,8 +1406,104 @@ class KickoffMeeting(models.Model):
                 if isinstance(item, dict)
             ],
         }
-        raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+
+    def firma_convocazione(self) -> str:
+        """Impronta dei dati che finiscono nella convocazione."""
+        import hashlib
+        import json
+
+        raw = json.dumps(self.dati_convocazione(), sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def registra_convocazione_inviata(self) -> list[str]:
+        """Valorizza firma e copia dei dati inviati; ritorna i campi da salvare."""
+        import json
+
+        self.convocazione_firma = self.firma_convocazione()
+        self.convocazione_dati = json.dumps(self.dati_convocazione(), ensure_ascii=False)
+        return ["convocazione_firma", "convocazione_dati"]
+
+    def modifiche_convocazione(self) -> list[str]:
+        """Cosa e' cambiato dall'ultimo invio, una riga leggibile per voce.
+
+        Vuoto se la convocazione non va reinviata o se l'invio e' precedente
+        alla copia dei dati (il dettaglio allora resta generico).
+        """
+        import json
+
+        if not self.convocazione_da_reinviare or not self.convocazione_dati:
+            return []
+        try:
+            prima = json.loads(self.convocazione_dati)
+        except (TypeError, ValueError):
+            return []
+        if not isinstance(prima, dict):
+            return []
+        ora = self.dati_convocazione()
+        righe: list[str] = []
+
+        def _data(valore: str) -> str:
+            parti = str(valore or "").split("-")
+            return "-".join(reversed(parti)) if len(parti) == 3 else (valore or "—")
+
+        if prima.get("data") != ora["data"]:
+            righe.append(f"Data: {_data(prima.get('data'))} → {_data(ora['data'])}")
+        if (prima.get("ora") or "") != ora["ora"]:
+            righe.append(f"Ora: {prima.get('ora') or '—'} → {ora['ora'] or '—'}")
+        if (prima.get("luogo") or "") != ora["luogo"]:
+            righe.append(f"Luogo: {prima.get('luogo') or '—'} → {ora['luogo'] or '—'}")
+
+        prima_conv = set(prima.get("convocati") or [])
+        ora_conv = set(ora["convocati"])
+        if prima_conv != ora_conv:
+            from django.contrib.auth import get_user_model
+
+            from tasks.forms import etichetta_utente
+
+            User = get_user_model()
+            utenti = {u.pk: u for u in User.objects.filter(pk__in=prima_conv | ora_conv)}
+
+            def _nomi(pks) -> str:
+                nomi = [etichetta_utente(utenti[pk]) if pk in utenti else f"utente {pk}" for pk in pks]
+                return ", ".join(sorted(nomi))
+
+            if ora_conv - prima_conv:
+                righe.append(f"Convocati aggiunti: {_nomi(ora_conv - prima_conv)}")
+            if prima_conv - ora_conv:
+                righe.append(f"Convocati tolti: {_nomi(prima_conv - ora_conv)}")
+
+        prima_est = set(prima.get("esterni") or [])
+        ora_est = set(ora["esterni"])
+        if ora_est - prima_est:
+            righe.append(f"Esterni aggiunti: {', '.join(sorted(ora_est - prima_est))}")
+        if prima_est - ora_est:
+            righe.append(f"Esterni tolti: {', '.join(sorted(prima_est - ora_est))}")
+
+        prima_odg = [tuple(item) for item in (prima.get("odg") or []) if isinstance(item, (list, tuple))]
+        if prima_odg != ora["odg"]:
+            prima_titoli = [t for t, _ in prima_odg]
+            ora_titoli = [t for t, _ in ora["odg"]]
+            aggiunti = [t for t in ora_titoli if t not in prima_titoli]
+            tolti = [t for t in prima_titoli if t not in ora_titoli]
+            if aggiunti:
+                righe.append(f"Punti dell'ordine del giorno aggiunti: {', '.join(aggiunti)}")
+            if tolti:
+                righe.append(f"Punti dell'ordine del giorno tolti: {', '.join(tolti)}")
+            if not aggiunti and not tolti:
+                righe.append("Ordine del giorno: cambiati l'ordine dei punti o le durate")
+        return righe
+
+    def durata_prevista_minuti(self) -> int | None:
+        """Somma delle durate dei punti all'ordine del giorno, se ce ne sono."""
+        totale = 0
+        for item in self.agenda_items or []:
+            if not isinstance(item, dict):
+                continue
+            try:
+                totale += int(item.get("durata_minuti") or 0)
+            except (TypeError, ValueError):
+                continue
+        return totale or None
 
     @property
     def convocazione_inviata(self) -> bool:
