@@ -88,9 +88,12 @@ class StessaScadenzaAltriAssetTests(TestCase):
         due = cls.today - timedelta(days=10)
         cls.main = AD.objects.create(asset=cls.c1, deadline_type=AD.TYPE_TECHNICAL, title="Controllo Batterie", due_date=due, recurrence_months=3)
         cls.same = AD.objects.create(asset=cls.c2, deadline_type=AD.TYPE_TECHNICAL, title="controllo batterie", due_date=due, recurrence_months=3)
-        # Troppo lontana, tipo diverso: non proposte.
-        cls.far = AD.objects.create(asset=cls.c3, deadline_type=AD.TYPE_TECHNICAL, title="Controllo Batterie", due_date=due + timedelta(days=90))
+        # Oltre un anno, tipo diverso: non proposte.
+        cls.far = AD.objects.create(asset=cls.c3, deadline_type=AD.TYPE_TECHNICAL, title="Controllo Batterie", due_date=due + timedelta(days=800))
         cls.other_type = AD.objects.create(asset=cls.c4, deadline_type=AD.TYPE_ADMINISTRATIVE, title="Controllo Batterie", due_date=due)
+        # Fra 90 giorni: proposta, la nasconde il filtro della finestra (30 di default).
+        c5 = Asset.objects.create(asset_tag="MOV-A5", name="Carrello cinque")
+        cls.mid = AD.objects.create(asset=c5, deadline_type=AD.TYPE_TECHNICAL, title="Controllo Batterie", due_date=due + timedelta(days=90))
 
     def setUp(self):
         self.client.force_login(self.admin)
@@ -101,6 +104,10 @@ class StessaScadenzaAltriAssetTests(TestCase):
         self.assertContains(page, f'name="also_complete" value="{self.same.id}"')
         self.assertNotContains(page, f'name="also_complete" value="{self.far.id}"')
         self.assertNotContains(page, f'name="also_complete" value="{self.other_type.id}"')
+        self.assertContains(page, '<li data-ad-also-days="90">')
+        self.assertContains(page, f'name="also_complete" value="{self.mid.id}"')
+        self.assertContains(page, 'data-ad-also-window')
+        self.assertContains(page, '<option value="30" selected>30 giorni</option>', html=True)
 
     def test_registra_insieme_e_ignora_id_non_proposti(self):
         response = self.client.post(

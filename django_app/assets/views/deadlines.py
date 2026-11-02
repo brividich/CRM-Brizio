@@ -445,14 +445,22 @@ def _group_deadline_series(rows: list[dict]) -> list[dict]:
 
 
 # «Registra» propone la stessa scadenza sugli altri asset quando la loro data cade
-# entro questi giorni da quella registrata (o e' gia' passata): stessa uscita.
+# entro N giorni da quella registrata (o e' gia' passata): stessa uscita. N si
+# sceglie nella finestra fra queste opzioni; il server accetta fino al massimo.
 _DEADLINE_SAME_OUTING_DAYS = 30
+_DEADLINE_SAME_OUTING_CHOICES = (
+    (7, "7 giorni"), (15, "15 giorni"), (30, "30 giorni"), (60, "60 giorni"),
+    (90, "90 giorni"), (180, "6 mesi"), (365, "un anno"),
+)
+_DEADLINE_SAME_OUTING_MAX_DAYS = max(days for days, _label in _DEADLINE_SAME_OUTING_CHOICES)
 
 
-def _same_deadline_other_assets(request: HttpRequest, deadlines) -> dict[int, list[AssetAdministrativeDeadline]]:
+def _same_deadline_other_assets(request: HttpRequest, deadlines) -> dict[int, list[dict]]:
     """Per ogni scadenza attiva, la stessa scadenza (stesso titolo e tipo) ancora
-    attiva su altri asset visibili, con data entro ``_DEADLINE_SAME_OUTING_DAYS``
-    dalla sua: una voce per asset e componente, la prima della serie."""
+    attiva su altri asset visibili, con data entro ``_DEADLINE_SAME_OUTING_MAX_DAYS``
+    dalla sua: una voce per asset e componente, la prima della serie. Ogni voce e'
+    ``{"deadline", "days"}``, con i giorni di distanza (negativi = prima della sua)
+    che il filtro della finestra usa per restringere l'elenco."""
     deadlines = [deadline for deadline in deadlines if deadline.is_active]
     if not deadlines:
         return {}
@@ -469,8 +477,8 @@ def _same_deadline_other_assets(request: HttpRequest, deadlines) -> dict[int, li
     ):
         if key(candidate) in wanted:
             by_key[key(candidate)].append(candidate)
-    window = timedelta(days=_DEADLINE_SAME_OUTING_DAYS)
-    result: dict[int, list[AssetAdministrativeDeadline]] = {}
+    window = timedelta(days=_DEADLINE_SAME_OUTING_MAX_DAYS)
+    result: dict[int, list[dict]] = {}
     for deadline in deadlines:
         seen: set[tuple[int, int | None]] = set()
         others = []
@@ -481,7 +489,7 @@ def _same_deadline_other_assets(request: HttpRequest, deadlines) -> dict[int, li
             if candidate.due_date > deadline.due_date + window:
                 continue
             seen.add(slot)
-            others.append(candidate)
+            others.append({"deadline": candidate, "days": (candidate.due_date - deadline.due_date).days})
         result[deadline.id] = others
     return result
 
@@ -684,7 +692,7 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
             also_deadlines = []
             if also_ids:
                 allowed = _same_deadline_other_assets(request, [deadline]).get(deadline.id, [])
-                also_deadlines = [other for other in allowed if other.id in also_ids]
+                also_deadlines = [item["deadline"] for item in allowed if item["deadline"].id in also_ids]
             explicit_next_due = next_due_date
             try:
                 completion, next_due_date, next_in_series, attachments = _register_deadline_completion(
@@ -1012,6 +1020,7 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
             "today_iso": today.isoformat(),
             "today": today,
             "same_outing_days": _DEADLINE_SAME_OUTING_DAYS,
+            "same_outing_choices": _DEADLINE_SAME_OUTING_CHOICES,
             "family_filter": family_filter,
             "family_label": family_label,
             **_assets_shell_context(

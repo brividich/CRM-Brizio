@@ -291,8 +291,8 @@ GUIDA = {
                     "Il numero interno si assegna solo a mano («Assegna progressivo»).",
                     "Le scadenze amministrative (revisioni, verifiche di legge, certificati, garanzie) sono separate dai "
                     "piani di manutenzione. Con «Si ripete ogni (mesi)» basta una voce: «Registra» la rinnova da sola. "
-                    "Se la stessa scadenza (stesso titolo e tipo) è aperta su altri asset entro 30 giorni, la finestra "
-                    "«Registra» li propone: spuntati, si registrano insieme con la stessa data, note, prossima scadenza "
+                    "Se la stessa scadenza (stesso titolo e tipo) è aperta su altri asset, la finestra "
+                    "«Registra» li propone (filtro «scadute o entro», da 7 giorni a un anno, di partenza 30): spuntati, si registrano insieme con la stessa data, note, prossima scadenza "
                     "e allegati (costo e durata solo sulla voce aperta). "
                     "Le esecuzioni registrate si ritrovano in Manutenzione → «Storico» (o «Svolte →» nelle pagine Scadenze). "
                     "Le manutenzioni finite nel registro si spostano nei piani con il comando "
