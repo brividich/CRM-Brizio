@@ -231,6 +231,9 @@ SEZIONI: list[dict] = [
                 "Se scrivi qualcosa nelle note, l'avanzamento non può restare «In attesa»: scegline un altro, altrimenti "
                 "il salvataggio si ferma con l'avviso (anche dal link della mail).",
                 "Con «Segnalare al cliente» l'avanzamento resta quello attuale, a meno che tu non scriva una nota.",
+                "Un'anomalia chiusa si riapre con «Riapri anomalia» nel riquadro verde in alto: il pulsante c'è per il "
+                "capocommessa, il CAR, il controllore che l'ha segnalata e chi può modificare l'OP. Torna aperta e "
+                "«In attesa»; la riapertura resta nella «Cronologia azioni».",
                 "«Applica la stessa decisione anche alle altre anomalie aperte di questi seriali» copia la decisione sulle "
                 "altre anomalie aperte del blocco; sotto la frase sono ripetuti i seriali interessati.",
                 "Se cambi anomalia o OP senza salvare, la pagina chiede se salvare, scartare o restare.",
