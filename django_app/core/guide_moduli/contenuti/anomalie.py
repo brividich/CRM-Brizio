@@ -35,7 +35,8 @@ GUIDA = {
                       "qualunque pagina Anomalie scegli «Guida del controllore» o «Guida del capocommessa / CAR»."),
                 ("p", "Un OP nuovo (da «+ Nuovo OP» o da «Clona») si crea solo quando salvi il primo blocco di "
                       "anomalie: chi esce prima non lascia OP vuoti. Se il numero è già usato la pagina lo dice prima "
-                      "di andare avanti."),
+                      "di andare avanti. Quello che scrivi si salva comunque in bozza, e una bozza ferma da 15 minuti "
+                      "manda al controllore una mail con il contenuto e il link per riprendere."),
                 ("p", "Gestione anomalie mostra solo gli OP che ti riguardano: quelli di cui sei capocommessa o CAR, "
                       "quelli dove hai aperto un'anomalia e quelli che il tuo ruolo ti fa vedere (team o tutti). Di "
                       "partenza il filtro è «Con aperte»; «In carico a me» tiene gli OP di cui sei capocommessa o CAR, "

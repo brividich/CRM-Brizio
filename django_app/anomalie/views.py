@@ -2443,7 +2443,30 @@ def api_db_ordini_crea(request):
         return _json_error("Body JSON non valido", status=400)
     if not isinstance(data, dict):
         return _json_error("Body JSON non valido", status=400)
+    return _crea_op_response(request, data)
 
+
+def titolo_nuovo_op(data: dict) -> str:
+    """Titolo dell'OP che ``_crea_op_response`` creerebbe con questi dati."""
+    causale_doc = (_safe_text(data.get("causale_doc"), 20) or "OP").upper()
+    return _safe_text(f"{causale_doc}/{_safe_text(data.get('anno'), 10)}/{_safe_text(data.get('numero'), 30)}", 100) or ""
+
+
+def crea_op_da_dati(request, data: dict) -> dict:
+    """Crea l'OP dai dati del modulo «+ Nuovo OP» (stesse regole di
+    ``/api/anomalie/db/ordini/crea``): ``{"success", "op", "error", "status"}``."""
+    if not _has_table("ordini_produzione"):
+        return {"success": False, "error": "Tabella ordini_produzione non disponibile", "status": 500}
+    response = _crea_op_response(request, {k: v for k, v in (data or {}).items() if k != "verifica"})
+    try:
+        payload = json.loads(response.content.decode("utf-8") or "{}")
+    except Exception:
+        payload = {}
+    return {"success": bool(payload.get("success")), "op": payload.get("op"),
+            "error": payload.get("error", ""), "status": response.status_code}
+
+
+def _crea_op_response(request, data: dict):
     causale_doc = (_safe_text(data.get("causale_doc"), 20) or "OP").upper()
     anno = _safe_text(data.get("anno"), 10)
     numero = _safe_text(data.get("numero"), 30)

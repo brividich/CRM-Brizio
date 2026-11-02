@@ -238,6 +238,12 @@ class AnomaliaControllo(models.Model):
     # quando il blocco viene salvato; «Riprendi» la rimette nell'editor.
     bozza = models.JSONField(default=dict, blank=True)
     bozza_at = models.DateTimeField(null=True, blank=True)
+    # Promemoria al controllore per una bozza ferma senza blocchi da inviare: uno per
+    # pausa (si rimanda quando la bozza cambia dopo l'ultimo promemoria).
+    promemoria_bozza_at = models.DateTimeField(null=True, blank=True)
+    # OP nuovo non ancora creato (dati del modulo «+ Nuovo OP»): l'OP si crea al primo
+    # «Salva blocco» e il campo torna vuoto. Finché è pieno, ``op_id`` è il titolo previsto.
+    op_nuovo = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
