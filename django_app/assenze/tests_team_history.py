@@ -49,7 +49,8 @@ class TeamHistoryTests(TestCase):
                       [id, user, capo, email, date, date + timedelta(hours=8), status])
 
     def test_current_team_sees_pending_past_and_future_without_capo_record(self):
-        self.insert(1, status=2)
+        # In coda solo se non finita da oltre CODA_GIORNI_DOPO_FINE: data relativa a oggi.
+        self.insert(1, status=2, date=timezone.localtime().replace(tzinfo=None) - timedelta(days=2))
         self.insert(2, date=datetime(2025, 1, 1))
         self.insert(3, date=datetime(2028, 1, 1))
         self.assertEqual([r["id"] for r in views._load_pending_for_manager(7)], [1])
