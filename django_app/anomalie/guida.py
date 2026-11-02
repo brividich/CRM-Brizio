@@ -97,7 +97,9 @@ SEZIONI: list[dict] = [
                 "Dal menu premi «Apertura Segnalazione».",
                 "Cerca l'OP per titolo, P/N, capocommessa o CAR e cliccalo. Se l'OP non esiste ancora, «+ Nuovo OP»: "
                 "compila P/N, poi anno e numero, infine capocommessa e CAR (i campi si sbloccano in ordine) e premi "
-                "«Crea OP e continua».",
+                "«Continua». L'OP si crea solo quando salvi il primo blocco di anomalie: se esci prima non resta "
+                "niente (in alto c'è «Nuovo · si crea al primo salvataggio»). Se l'OP esiste già la pagina lo dice: "
+                "sceglilo dall'elenco.",
                 "Scrivi la «Fase del controllo», per esempio accettazione materiale, lavorazione o collaudo finale. "
                 "Vale per tutti i blocchi e si può cambiare durante il controllo con «Cambia».",
                 "Sotto «Mail al capocommessa: una sola, a fine controllo» vedi a chi andrà la mail: «A» il capocommessa "
@@ -205,7 +207,8 @@ SEZIONI: list[dict] = [
                 "«Clona» (sulla riga dell'OP, al passaggio del mouse) copia anomalie su un nuovo OP: spunta nella colonna "
                 "Anomalie quelle da copiare (anche le chiuse; la casella sul blocco le prende tutte, «Tutte», «Aperte» e "
                 "«Nessuna» fanno prima) e premi «Continua». Si apre «Nuova segnalazione» con il nuovo OP già compilato "
-                "(P/N, capocommessa, CAR): scrivi il numero e crea, oppure scegli l'OP se esiste già. Confermata la fase "
+                "(P/N, capocommessa, CAR): scrivi il numero e premi «Continua», oppure scegli l'OP se esiste già; il nuovo "
+                "OP si crea solo al primo «Salva blocco». Confermata la fase "
                 "(proposta quella dell'OP di origine), i blocchi copiati si caricano uno alla volta con seriali, stato "
                 "superficie e testi: cambia quello che serve e «Salva blocco» passa al successivo; «Salta questo blocco» "
                 "lo scarta, «Carica ora» nell'elenco «Da copiare ancora» ne anticipa uno. Gli allegati dell'anomalia di "
@@ -238,7 +241,9 @@ SEZIONI: list[dict] = [
                 "ORE/RIPI»: la pagina lo avvisa prima di salvare.",
                 "Se scrivi qualcosa nelle note, l'avanzamento non può restare «In attesa»: scegline un altro, altrimenti "
                 "il salvataggio si ferma con l'avviso (anche dal link della mail).",
-                "Con «Segnalare al cliente» l'avanzamento resta quello attuale, a meno che tu non scriva una nota.",
+                "Spuntando «Segnalare al cliente» l'avanzamento passa a «In attesa risposta cliente»: l'anomalia resta "
+                "aperta e puoi scrivere la nota. Quando il cliente risponde scegli lo stato definitivo; togliendo la "
+                "spunta torna lo stato di prima. Vale anche nella pagina del link della mail.",
                 "Un'anomalia chiusa si riapre con «Riapri anomalia» nel riquadro verde in alto: il pulsante c'è per il "
                 "capocommessa, il CAR, il controllore che l'ha segnalata e chi può modificare l'OP. Torna aperta e "
                 "«In attesa»; la riapertura resta nella «Cronologia azioni».",
@@ -368,7 +373,7 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("def", [
                 ("Non trovo l'OP.", "Cercalo per P/N o capocommessa. Se non esiste, crealo con «+ Nuovo OP» in Apertura "
-                 "Segnalazione."),
+                 "Segnalazione: compare negli elenchi dopo che hai salvato il primo blocco."),
                 ("Ho salvato un blocco con un errore.", "«Modifica o aggiungi anomalie» lo riapre finché il capocommessa non "
                  "ha deciso."),
                 ("Il capocommessa non ha ricevuto la mail.", "Controlla nel riepilogo del controllo a chi è andata; gli "

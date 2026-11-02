@@ -31,12 +31,17 @@ GUIDA = {
                       "le anomalie da copiare e «Continua»: il nuovo OP arriva con P/N, capocommessa e CAR già scritti "
                       "(manca il numero) e i blocchi copiati si caricano uno alla volta, da controllare e salvare. Gli "
                       "allegati si copiano solo se lo scegli sull'anomalia."),
+                ("p", "Un OP nuovo (da «+ Nuovo OP» o da «Clona») si crea solo quando salvi il primo blocco di "
+                      "anomalie: chi esce prima non lascia OP vuoti. Se il numero è già usato la pagina lo dice prima "
+                      "di andare avanti."),
                 ("p", "Gestione anomalie mostra solo gli OP che ti riguardano: quelli di cui sei capocommessa o CAR, "
                       "quelli dove hai aperto un'anomalia e quelli che il tuo ruolo ti fa vedere (team o tutti). Di "
                       "partenza il filtro è «Con aperte»; «In carico a me» tiene gli OP di cui sei capocommessa o CAR, "
                       "«Tutti» mostra anche quelli con sole anomalie chiuse."),
                 ("p", "Se scrivi una nota nella decisione, l'avanzamento non può restare «In attesa»: va scelto uno "
                       "stato diverso, nel portale come nella pagina della mail."),
+                ("p", "«Segnalare al cliente» porta l'avanzamento su «In attesa risposta cliente»: l'anomalia resta "
+                      "aperta finché il capocommessa non sceglie lo stato definitivo dopo la risposta del cliente."),
                 ("p", "Un'anomalia chiusa la riapre chi ne è incaricato (capocommessa, CAR, controllore che l'ha "
                       "segnalata, chi può modificare l'OP) con «Riapri anomalia»: torna «In attesa». Accanto al "
                       "numero dell'OP, in cima al dettaglio, c'è il P/N."),

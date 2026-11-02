@@ -156,6 +156,7 @@
     .toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%); background: var(--success); color: #fff; padding: 12px 28px; border-radius: 10px; font-weight: 700; font-size: var(--fs-md); box-shadow: 0 4px 20px rgba(0,0,0,.20); z-index: 9999; white-space: nowrap; }
     /* ── Controllo a blocchi ── */
     .step-card--wide { max-width: 940px; }
+    .op-info-chip.is-nuovo { border-style: dashed; font-style: italic; }
     .op-info-chip.is-benestare { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 800; }
     .ctl-head { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; justify-content: space-between; padding: 14px 28px; border-bottom: 1px solid var(--border); background: var(--bg); position: sticky; top: 52px; z-index: 20; }
     .ctl-head__fase, .ctl-head__mail { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -593,25 +594,21 @@
       setCreating(true);
       try {
         const csrf = getCsrf();
+        // Solo verifica: l'OP si crea davvero al primo «Salva blocco» (Step 2).
         const r = await fetch(API.db_ordini_crea, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-          body: JSON.stringify(newOp),
+          body: JSON.stringify({ ...newOp, verifica: true }),
           credentials: 'same-origin',
         });
         const j = await parseJsonSafe(r, {});
         if (!r.ok || !j.success) {
-          throw new Error(j.error || ('Errore creazione OP (HTTP ' + r.status + ')'));
+          throw new Error(j.error || ('Errore verifica OP (HTTP ' + r.status + ')'));
         }
-        const created = j.op || null;
-        if (!created || !created.item_id) {
-          throw new Error('Risposta creazione OP non valida.');
-        }
-
-        setOrdini(prev => [created, ...prev.filter(op => String(op.item_id) !== String(created.item_id))]);
+        if (!j.op || !j.op.id) throw new Error('Risposta verifica OP non valida.');
         setShowCreate(false);
         setNewOp(newOpDaClona(clona));
-        onSelect(created);
+        onSelect({ ...j.op, item_id: null, daCreare: { ...newOp } });
       } catch (e) {
         setCreateErr(e.message || 'Errore creazione OP');
       } finally {
@@ -644,7 +641,7 @@
         {clona && (
           <div style={{ padding: '16px 28px 0' }}>
             <ClonaBanner clona={clona}>
-              P/N, capocommessa e CAR sono già copiati: scrivi il <strong>numero</strong> del nuovo OP e crea. Se il nuovo OP esiste già, sceglilo dall’elenco sotto. Le anomalie arriveranno già divise in blocchi, da controllare prima di salvarle.
+              P/N, capocommessa e CAR sono già copiati: scrivi il <strong>numero</strong> del nuovo OP e premi «Continua» (l’OP si crea solo quando salvi il primo blocco). Se il nuovo OP esiste già, sceglilo dall’elenco sotto. Le anomalie arriveranno già divise in blocchi, da controllare prima di salvarle.
             </ClonaBanner>
           </div>
         )}
@@ -659,7 +656,7 @@
                 {showCreate ? 'Chiudi inserimento nuovo OP' : '+ Nuovo OP'}
               </button>
               <div className="create-op-hint">
-                Prima scelta: puoi creare subito un nuovo OP e passare direttamente alla segnalazione.
+                Prima scelta: puoi inserire un nuovo OP e passare direttamente alla segnalazione; l’OP si crea solo quando salvi il primo blocco di anomalie.
                 Compila prima il <strong>P/N</strong>, poi i dati dell'OP (anno e numero), infine Capocommessa e CAR: i campi si sbloccano in ordine.
               </div>
 
@@ -792,7 +789,7 @@
                       Annulla
                     </button>
                     <button className="btn-primary" onClick={handleCreateOp} disabled={creating || !newOpValid}>
-                      {creating ? 'Creazione OP...' : 'Crea OP e continua'}
+                      {creating ? 'Verifica OP...' : 'Continua'}
                     </button>
                   </div>
                 </div>
@@ -1409,7 +1406,10 @@
     })),
   });
 
-  const Step2Controllo = ({ op, onBack, onDone, clona }) => {
+  const Step2Controllo = ({ op, onBack, onDone, clona, onOpCreato }) => {
+    // OP nuovo non ancora creato: nasce con il primo «Salva blocco»; uscendo prima non resta niente.
+    const opRef = useRef(op);
+    const daCreare = !!op.daCreare;
     const [loading, setLoading] = useState(true);
     const [controllo, setControllo] = useState(null);
     const [riprendibili, setRiprendibili] = useState([]);
@@ -1459,7 +1459,7 @@
     const isBenestare = String(op.stato || '').toLowerCase().includes('benestare');
 
     const loadSerialiAperti = () => {
-      if (!op || !op.id) return;
+      if (!op || !op.id || opRef.current.daCreare) return;
       fetch(`${API.seriali_op}?op_id=${encodeURIComponent(op.id)}`, { credentials: 'same-origin' })
         .then(r => (r.ok ? r.json() : { seriali: [], dettagli: {} }))
         .then(d => setSerialiAperti({ seriali: Array.isArray(d.seriali) ? d.seriali : [], dettagli: d.dettagli || {} }))
@@ -1467,6 +1467,12 @@
     };
 
     useEffect(() => {
+      if (opRef.current.daCreare) {
+        const benestare = !!opRef.current.daCreare.collaudo_benestare;
+        setDestinatari({ to: benestare ? op.car : op.capo, cc: benestare ? op.capo : op.car });
+        setLoading(false);
+        return undefined;
+      }
       let alive = true;
       getJson(`${API.controlli}?op_id=${encodeURIComponent(op.id)}`, 'Controlli in corso')
         .then(j => {
@@ -1540,7 +1546,10 @@
       if (!fase.trim()) { setError('Indica la fase del controllo.'); return; }
       setError(''); setSaving(true);
       try {
-        const j = await postJson(API.controllo_apri, { op_id: op.id, op_item_id: op.item_id, fase: fase.trim(), mail_mode: 'fine', destinatari_extra: extraAvvio }, 'Avvio controllo');
+        // OP da creare: il controllo resta solo nella pagina finché non si salva un blocco.
+        const j = opRef.current.daCreare
+          ? { controllo: { id: null, op_id: op.id, fase: fase.trim(), mail_mode: 'fine', destinatari_extra: extraAvvio, operatore: window._AP_USERNAME || '', blocchi: [], da_notificare: 0, terminato: false, bozza: {} } }
+          : await postJson(API.controllo_apri, { op_id: op.id, op_item_id: op.item_id, fase: fase.trim(), mail_mode: 'fine', destinatari_extra: extraAvvio }, 'Avvio controllo');
         setControllo(j.controllo);
         setEditor(editorDopo(coda));
         if (coda.length) setNotice(`Caricato il primo dei ${coda.length} blocchi copiati: controlla S/N e testi, poi «Salva blocco».`);
@@ -1579,7 +1588,7 @@
       body: JSON.stringify(body),
     });
     useEffect(() => {
-      if (!controllo || controllo.terminato || riepilogo || saving) return undefined;
+      if (!controllo || !controllo.id || controllo.terminato || riepilogo || saving) return undefined;
       const dirty = editorDirty(editor);
       if (!dirty && !bozzaRef.current.salvata) { bozzaRef.current.pending = null; return undefined; }
       const body = { bozza: dirty ? bozzaDa(editor) : {} };
@@ -1607,6 +1616,11 @@
 
     const salvaImpostazioni = async (patch) => {
       setError('');
+      if (!controllo.id) {
+        setControllo(prev => ({ ...prev, ...patch }));
+        if (patch.fase) setEditingFase(false);
+        return;
+      }
       try {
         const j = await postJson(urlFor(API.controllo_impostazioni, controllo.id), patch, 'Impostazioni controllo');
         setControllo(prev => ({ ...prev, fase: j.controllo.fase, mail_mode: j.controllo.mail_mode, destinatari_extra: j.controllo.destinatari_extra || [] }));
@@ -1641,6 +1655,24 @@
       if (!r.ok) throw new Error(j.error || `Caricamento allegati: HTTP ${r.status}`);
     };
 
+    // Primo salvataggio su un OP nuovo: crea l'OP, poi apre il controllo con fase,
+    // modalità mail e destinatari scelti nella pagina. Ritorna l'id del controllo.
+    const creaOpEControllo = async () => {
+      if (opRef.current.daCreare) {
+        const j = await postJson(API.db_ordini_crea, opRef.current.daCreare, 'Creazione OP');
+        if (!j.op || !j.op.item_id) throw new Error('Creazione OP: risposta non valida.');
+        opRef.current = j.op;
+        if (onOpCreato) onOpCreato(j.op);
+      }
+      const creato = opRef.current;
+      const j = await postJson(API.controllo_apri, {
+        op_id: creato.id, op_item_id: creato.item_id, fase: controllo.fase,
+        mail_mode: controllo.mail_mode, destinatari_extra: controllo.destinatari_extra || [],
+      }, 'Avvio controllo');
+      setControllo(j.controllo);
+      return j.controllo.id;
+    };
+
     const salvaBlocco = async () => {
       const ed = editor;
       const anomalie = ed.anomalie.filter(a => a.localId || a.testo.trim() || a.files.length);
@@ -1659,7 +1691,9 @@
       if (!scopertiOk) { setError(''); setConfirmScoperti(scoperti); return false; }
       setError(''); setNotice(''); setSaving(true);
       try {
-        const j = await postJson(urlFor(API.controllo_blocco, controllo.id), {
+        const opNuovo = !controllo.id && !!opRef.current.daCreare;
+        const cid = controllo.id || await creaOpEControllo();
+        const j = await postJson(urlFor(API.controllo_blocco, cid), {
           blocco_id: ed.bloccoId,
           seriali: ed.voci,
           stato_superficie: ed.stati,
@@ -1701,7 +1735,7 @@
           setError(`Blocco salvato solo in parte: ${j.error}`);
           return false;
         }
-        const fresh = await getJson(urlFor(API.controllo_dettaglio, controllo.id), 'Aggiornamento controllo');
+        const fresh = await getJson(urlFor(API.controllo_dettaglio, cid), 'Aggiornamento controllo');
         setControllo(fresh.controllo);
         setDestinatari(fresh.destinatari || null);
         setEditor(ed.bloccoId === null ? editorDopo(coda) : newEditor());
@@ -1710,7 +1744,7 @@
         loadSerialiAperti();
         const n = anomalie.length;
         const restanti = ed.bloccoId === null ? coda.length : 0;
-        setNotice(`Salvato: ${n} anomali${n === 1 ? 'a' : 'e'} su ${labelVoci(ed.voci)}.`
+        setNotice((opNuovo ? `Creato l’OP ${opRef.current.id}. ` : '') + `Salvato: ${n} anomali${n === 1 ? 'a' : 'e'} su ${labelVoci(ed.voci)}.`
           + (ed.daClona ? (restanti ? ` Caricato il prossimo blocco copiato (${restanti === 1 ? 'ne resta 1' : `ne restano ${restanti}`}).` : ' Copiati tutti i blocchi: controlla e premi «Termina controllo».') : '')
           + (uploadErrors.length ? ` Attenzione, allegati non caricati (${uploadErrors.join('; ')}): riapri il blocco con «Modifica» e riallegali.` : ''));
         setTimeout(() => snRef.current && snRef.current.focus(), 50);
@@ -1760,6 +1794,12 @@
     // «Termina controllo» passa sempre dal riepilogo: l'operatore vede tutto prima della mail.
     const apriRiepilogo = async (salvaPrima) => {
       if (salvaPrima && !(await salvaBlocco())) { setConfirmTermina(false); return; }
+      if (!salvaPrima && !controllo.id) {
+        // Nessun blocco salvato su un OP nuovo: non c'è niente da comunicare né da creare.
+        setConfirmTermina(false); setEditor(newEditor());
+        setNotice('Blocco scartato: l’OP non è stato creato.');
+        return;
+      }
       setConfirmTermina(false); setSaving(true); setError('');
       try {
         const fresh = await getJson(urlFor(API.controllo_dettaglio, controllo.id), 'Riepilogo controllo');
@@ -1840,6 +1880,7 @@
         <button className="op-info-back" onClick={onBack} disabled={saving || (dirty && !!controllo)} title={dirty ? 'Salva o svuota il blocco in corso prima di cambiare OP' : ''}>← Cambio OP</button>
         <div className="op-info-items">
           <div className="op-info-chip"><strong>{op.id}</strong></div>
+          {daCreare && <div className="op-info-chip is-nuovo" title="L’OP si crea quando salvi il primo blocco: uscendo prima non resta niente">Nuovo · si crea al primo salvataggio</div>}
           {op.pn && op.pn !== '—' && <div className="op-info-chip"><strong>P/N</strong> {op.pn}</div>}
           {op.capo && op.capo !== '—' && <div className="op-info-chip"><strong>Capocommessa</strong> {op.capo}</div>}
           {op.car && op.car !== '—' && <div className="op-info-chip"><strong>CAR</strong> {op.car}</div>}
@@ -2301,6 +2342,8 @@
     }, []);
 
     const handleSelectOp = (op) => { setSelectedOp(op); setStep(2); setFormKey(k => k + 1); };
+    // OP nuovo creato al primo salvataggio: da qui in poi si lavora sull'OP vero.
+    const handleOpCreato = (op) => setSelectedOp(op);
     const handleBack = () => { setStep(1); setSelectedOp(null); };
 
     // Preselezione OP da query string (?op_id=...): salta direttamente allo Step 2.
@@ -2359,6 +2402,7 @@
               onBack={handleBack}
               onDone={handleDone}
               clona={clona}
+              onOpCreato={handleOpCreato}
             />
           )}
         </div>

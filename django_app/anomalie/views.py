@@ -1361,6 +1361,8 @@ def _canonicalize_avanzamento(value: str) -> str:
     for c in choices:
         if str(c).strip().lower() == raw.lower():
             return str(c).strip()
+    if raw.lower() == AVANZAMENTO_RISPOSTA_CLIENTE.lower():
+        return AVANZAMENTO_RISPOSTA_CLIENTE
     if choices:
         logger.warning(
             "anomalie: avanzamento fuori catalogo: %r (catalogo=%s)", raw, list(choices)
@@ -2462,6 +2464,23 @@ def api_db_ordini_crea(request):
     op_title = _safe_text(f"{causale_doc}/{anno}/{numero}", 100)
     stato_val = "Benestare" if collaudo_benestare else "Aperto"
 
+    if data.get("verifica"):
+        # Solo controllo, nessun inserimento: la pagina crea l'OP al primo salvataggio
+        # di un blocco, così chi esce prima non lascia OP vuoti.
+        try:
+            with connections["default"].cursor() as cursor:
+                cursor.execute("SELECT COUNT(*) FROM ordini_produzione WHERE title = %s", [op_title])
+                esiste = bool((cursor.fetchone() or [0])[0])
+        except DatabaseError as exc:
+            return _json_error(str(exc), status=500)
+        if esiste:
+            return _json_error(f"L'OP {op_title} esiste già: sceglilo dall'elenco.", status=409)
+        return JsonResponse({
+            "success": True,
+            "verifica": True,
+            "op": {"item_id": None, "id": op_title, "pn": pn, "capo": capocommessa, "car": car, "stato": stato_val},
+        })
+
     info_chunks: list[str] = []
     if fase:
         info_chunks.append(f"Fase {fase}")
@@ -3351,6 +3370,18 @@ MSG_NOTA_STATO_IN_ATTESA = (
     "l'anomalia non può restare «In attesa»."
 )
 
+AVANZAMENTO_RISPOSTA_CLIENTE = "In attesa risposta cliente"
+
+
+def avanzamento_dopo_segnalazione(segnalare, avanzamento, attuale: str = "") -> str:
+    """«Segnalare al cliente» senza uno stato scelto (vuoto o «In attesa»): l'anomalia
+    resta aperta «In attesa risposta cliente». ``attuale`` vale se ``avanzamento`` è vuoto."""
+    from anomalie.controllo_service import _STATI_LIBERI
+
+    if segnalare and str(avanzamento or attuale or "").strip().lower() in _STATI_LIBERI:
+        return AVANZAMENTO_RISPOSTA_CLIENTE
+    return avanzamento
+
 
 def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True, da_controllo: bool = False) -> dict:
     """Inserisce o aggiorna UNA riga della tabella legacy ``anomalie``.
@@ -3378,6 +3409,8 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
         # Chi apre soltanto la segnalazione non ne decide la disposizione.
         data = {**data, "note": "", "aprire_rdc": False, "numero_rdc": "", "segnalare": False, "chiudere": False,
                 "avanzamento": "In attesa"}
+    if _as_bool_int(data.get("segnalare")):
+        data = {**data, "avanzamento": avanzamento_dopo_segnalazione(True, data.get("avanzamento"))}
     if not da_controllo and _nota_con_stato_in_attesa(data.get("note"), data.get("avanzamento")):
         return {"success": False, "error": MSG_NOTA_STATO_IN_ATTESA, "status": 400}
 
