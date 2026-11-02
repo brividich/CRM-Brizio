@@ -15,6 +15,9 @@ GUIDA = {
                       "di ferie, manda la mail al capo». Chi usa il portale non deve fare niente: le regole lavorano da sole."),
                 ("p", "Se ricevi una mail di approvazione con i pulsanti Approva / Rifiuta, il collegamento è personale: "
                       "non inoltrarlo ad altri."),
+                ("p", "Dopo «Conferma Approvazione» o «Conferma Rifiuto» compare «Richiesta Approvata» o «Richiesta "
+                      "Rifiutata»: la decisione è registrata. Se riapri il link più tardi rivedi la tua decisione. "
+                      "«Richiesta già Elaborata» compare solo se ha deciso un altro approvatore, indicato nel messaggio."),
             ],
         },
     ],
@@ -72,6 +75,15 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Dopo aver approvato dalla mail compariva «Richiesta già Elaborata»",
+            "perche": "fino al 02/11/2026 il secondo invio della conferma (doppio clic) o la riapertura del link mostravano "
+                      "«già gestita» anche a chi aveva appena deciso; la decisione era comunque registrata.",
+            "fare": [
+                "Ora chi ha deciso rivede «Richiesta Approvata/Rifiutata» con data e casella registrate.",
+                "Se il messaggio indica un altro indirizzo, la richiesta l'ha decisa quell'approvatore.",
+            ],
+        },
         {
             "sintomo": "Una mail automatica non è partita",
             "fare": [
