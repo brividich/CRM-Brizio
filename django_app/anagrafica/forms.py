@@ -207,11 +207,10 @@ class AnagraficaAziendaleForm(forms.ModelForm):
         return val
 
 
-# Blocchi della card «Anagrafica aziendale» nella scheda dipendente: ogni blocco
-# ha il suo «Modifica» e salva solo i propri campi, così un salvataggio parziale
-# non svuota i campi degli altri blocchi.
-AZIENDALE_BLOCCHI = {
-    "contatti": ("Badge e contatti aziendali", ["badge", "email_aziendale", "telefono_aziendale"]),
+# Schede del pannello «Modifica» della card «Anagrafica aziendale» (scheda
+# dipendente): solo il raggruppamento a video, il form resta uno.
+AZIENDALE_SCHEDE = {
+    "contatti": ("Badge e contatti", ["badge", "email_aziendale", "telefono_aziendale"]),
     "rapporto": ("Rapporto di lavoro", [
         "data_prima_assunzione", "data_assunzione_ultima", "prova_data_inizio", "prova_data_fine",
     ]),
@@ -220,15 +219,6 @@ AZIENDALE_BLOCCHI = {
     ]),
     "taglie": ("Taglie", ["taglia_scarpe", "taglia_pantalone", "taglia_maglia"]),
 }
-
-
-def anagrafica_aziendale_form_blocco(blocco: str):
-    """Classe form limitata ai campi di un blocco di ``AZIENDALE_BLOCCHI``."""
-    return forms.modelform_factory(
-        DipendenteAnagraficaAziendale,
-        form=AnagraficaAziendaleForm,
-        fields=AZIENDALE_BLOCCHI[blocco][1],
-    )
 
 
 # ---------------------------------------------------------------------------

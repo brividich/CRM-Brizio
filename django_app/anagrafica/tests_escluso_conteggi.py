@@ -153,49 +153,76 @@ class DatiBaseModificabiliTest(TestCase):
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
-class AziendaleBlocchiTest(TestCase):
-    """La card «Anagrafica aziendale» salva un blocco alla volta."""
+class PannelloModificaAziendaleTest(TestCase):
+    """Il pannello «Modifica» salva in un colpo dati aziendali, nome, matricola e username."""
 
     @classmethod
     def setUpTestData(cls):
         _ensure_anagrafica_table()
-        cls.admin = User.objects.create_superuser(username="blk_admin", email="blk_admin@x.local", password="x")
-        cls.semplice = User.objects.create_user(username="blk_semplice", email="blk_semplice@x.local", password="x")
+        cls.admin = User.objects.create_superuser(username="pan_admin", email="pan_admin@x.local", password="x")
+        cls.semplice = User.objects.create_user(username="pan_semplice", email="pan_semplice@x.local", password="x")
 
     def setUp(self):
-        self.legacy_id = 9601
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM anagrafica_dipendenti")
+            cursor.execute(
+                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, attivo) VALUES (%s, %s, %s, %s)",
+                ["m.prova", "MARIO", "PROVA", 1],
+            )
+            cursor.execute("SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["m.prova"])
+            self.legacy_id = int(cursor.fetchone()[0])
         self.az = DipendenteAnagraficaAziendale.objects.create(
-            legacy_anagrafica_id=self.legacy_id, badge="412", taglia_scarpe="43",
-            email_aziendale="m.prova@example.com", capo_eccezione_legacy_id=77,
+            legacy_anagrafica_id=self.legacy_id, badge="412", taglia_scarpe="43", capo_eccezione_legacy_id=77,
         )
         self.url = reverse("anagrafica:dipendente_aziendale_save", args=[self.legacy_id])
 
-    def test_blocco_salva_solo_i_suoi_campi(self):
+    def _dati(self, **extra) -> dict:
+        dati = {"nome": "Mario", "cognome": "Prova", "matricola": "", "aliasusername": "m.prova",
+                "email_notifica": "", "badge": "412", "taglia_scarpe": "43"}
+        dati.update(extra)
+        return dati
+
+    def test_salva_tutto_insieme(self):
         self.client.force_login(self.admin)
-        resp = self.client.post(self.url, {"blocco": "taglie", "taglia_scarpe": "44", "taglia_pantalone": "50"})
+        resp = self.client.post(self.url, self._dati(
+            nome="Marco", matricola="CNO 0042", aliasusername="m.prova2", taglia_scarpe="44",
+        ))
         self.assertIn("#anagrafica-aziendale", resp["Location"])
+        riga = fetch_anagrafica_rows(ids=[self.legacy_id])[0]
+        # Nome e username scritti in due passi: nessuno dei due annulla l'altro.
+        self.assertEqual((riga["nome"], riga["matricola"], riga["aliasusername"]), ("MARCO", "CNO 0042", "m.prova2"))
         self.az.refresh_from_db()
-        self.assertEqual((self.az.taglia_scarpe, self.az.taglia_pantalone), ("44", "50"))
-        # Gli altri blocchi restano com'erano.
-        self.assertEqual((self.az.badge, self.az.email_aziendale), ("412", "m.prova@example.com"))
+        self.assertEqual((self.az.taglia_scarpe, self.az.badge), ("44", "412"))
         self.assertEqual(self.az.capo_eccezione_legacy_id, 77)
         log = AuditLog.objects.get(azione="DIPENDENTE_ANAGRAFICA_AZIENDALE_MODIFICATA")
-        self.assertEqual(log.dettaglio["blocco"], "taglie")
-        self.assertEqual(set(log.dettaglio["modifiche"]), {"taglia_scarpe", "taglia_pantalone"})
+        self.assertEqual(set(log.dettaglio["modifiche"]), {"taglia_scarpe"})
 
-    def test_blocco_sconosciuto_rifiutato(self):
+    def test_nome_vuoto_non_salva_niente(self):
         self.client.force_login(self.admin)
-        self.client.post(self.url, {"blocco": "capo", "capo_eccezione_legacy_id": "1"})
+        self.client.post(self.url, self._dati(nome=" ", taglia_scarpe="44"))
         self.az.refresh_from_db()
-        self.assertEqual(self.az.capo_eccezione_legacy_id, 77)
+        self.assertEqual(self.az.taglia_scarpe, "43")
+        self.assertEqual(fetch_anagrafica_rows(ids=[self.legacy_id])[0]["nome"], "MARIO")
+
+    def test_schede_coprono_tutto_il_form(self):
+        from anagrafica.forms import AZIENDALE_SCHEDE
+        campi_schede = [c for _titolo, campi in AZIENDALE_SCHEDE.values() for c in campi]
+        self.assertCountEqual(campi_schede, list(AnagraficaAziendaleForm().fields))
 
     def test_campi_tecnici_e_cessazione_fuori_dal_form(self):
         campi = set(AnagraficaAziendaleForm().fields)
         for campo in ("capo_eccezione_legacy_id", "capo_eccezione_motivo", "utente_id_pre_offboarding", "data_cessazione"):
             self.assertNotIn(campo, campi)
 
+    def test_pannello_nella_scheda(self):
+        self.client.force_login(self.admin)
+        resp = self.client.get(reverse("anagrafica:dipendente_detail", args=[self.legacy_id]))
+        self.assertContains(resp, 'id="dp-az-pannello"')
+        self.assertContains(resp, 'data-dp-scheda="organico"')
+        self.assertNotContains(resp, 'id="id_data_cessazione"')
+
     def test_senza_permessi_non_modifica(self):
         self.client.force_login(self.semplice)
-        self.client.post(self.url, {"blocco": "taglie", "taglia_scarpe": "99"})
+        self.client.post(self.url, self._dati(taglia_scarpe="99"))
         self.az.refresh_from_db()
         self.assertEqual(self.az.taglia_scarpe, "43")
