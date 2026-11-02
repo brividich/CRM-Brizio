@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import logging
 import uuid
+from urllib.parse import quote
 
 from cachetools import TTLCache
 from django.conf import settings
@@ -10,6 +11,7 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.http.request import split_domain_port
 from django.http import HttpResponse
+from django.utils.html import escape
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
@@ -35,6 +37,29 @@ def _normalize_principal(principal: str) -> str:
     return normalize_windows_principal_to_upn(principal)
 
 
+def _login_url(next_url: str) -> str:
+    return f"{reverse('login')}?next={quote(next_url, safe='')}"
+
+
+def _login_con_ritorno(next_url: str):
+    """Login con password che riporta comunque alla pagina richiesta."""
+    return redirect(_login_url(next_url))
+
+
+def _risposta_sfida(next_url: str) -> HttpResponse:
+    """401 Negotiate. Se il browser non sa entrare con Windows (telefono, PC fuori
+    dominio) mostra il corpo: si passa subito al login normale con la stessa pagina.
+    I browser che negoziano rimandano la richiesta senza mostrarlo."""
+    login_url = escape(_login_url(next_url))
+    body = (
+        '<!doctype html><html lang="it"><head><meta charset="utf-8">'
+        f'<meta http-equiv="refresh" content="0;url={login_url}"><title>Accesso</title></head>'
+        "<body><p>Accesso Windows non disponibile su questo dispositivo. "
+        f'<a href="{login_url}">Accedi con nome utente e password</a>.</p></body></html>'
+    )
+    return HttpResponse(body, status=401, content_type="text/html; charset=utf-8")
+
+
 def _spnego_server_context(request, spnego_module):
     configured_hostname = str(getattr(settings, "WINDOWS_SSO_HOSTNAME", "") or "").strip()
     hostname = configured_hostname
@@ -54,24 +79,27 @@ def windows_sso_view(request):
       2. Browser rimanda con token SPNEGO (Kerberos: 1 step; NTLM: 2 step)
       3. Autenticazione completata -> login e redirect
     """
+    next_url = get_safe_redirect_target(request, request.GET.get("next")) or reverse("dashboard_home")
+    if request.user.is_authenticated:
+        # Link «Apri nel portale» delle mail: chi è già dentro va dritto alla pagina.
+        return redirect(next_url)
     if not getattr(settings, "LDAP_ENABLED", False):
         messages.error(request, "SSO Windows non abilitato (LDAP_ENABLED=0).")
-        return redirect("login")
+        return _login_con_ritorno(next_url)
 
     try:
         import spnego
     except ImportError:
         messages.error(request, "Modulo pyspnego non installato.")
-        return redirect("login")
+        return _login_con_ritorno(next_url)
 
-    next_url = get_safe_redirect_target(request, request.GET.get("next")) or reverse("dashboard_home")
     auth_header = request.META.get("HTTP_AUTHORIZATION", "")
 
     if not auth_header:
         # Passo 1: sfida il browser
         ctx_id = str(uuid.uuid4())
         _SPNEGO_CONTEXTS[ctx_id] = _spnego_server_context(request, spnego)
-        response = HttpResponse(status=401)
+        response = _risposta_sfida(next_url)
         response["WWW-Authenticate"] = "Negotiate"
         response.set_cookie("_sso_ctx", ctx_id, max_age=60, httponly=True, samesite="Lax")
         return response
@@ -79,7 +107,7 @@ def windows_sso_view(request):
     scheme, _, token_b64 = auth_header.partition(" ")
     if scheme.lower() not in ("negotiate", "ntlm"):
         messages.error(request, "Schema di autenticazione non supportato.")
-        return redirect("login")
+        return _login_con_ritorno(next_url)
 
     ctx_id = request.COOKIES.get("_sso_ctx", "")
     ctx = _SPNEGO_CONTEXTS.get(ctx_id)
@@ -94,7 +122,7 @@ def windows_sso_view(request):
         logger.warning("Windows SSO: SPNEGO step fallito: %s", exc)
         _SPNEGO_CONTEXTS.pop(ctx_id, None)
         messages.error(request, "Autenticazione Windows fallita. Riprova.")
-        return redirect("login")
+        return _login_con_ritorno(next_url)
 
     if not ctx.complete:
         # NTLM richiede un altro round: invia il challenge
@@ -110,7 +138,7 @@ def windows_sso_view(request):
     if not principal:
         logger.warning("Windows SSO: principal vuoto dopo autenticazione")
         messages.error(request, "Impossibile determinare l'utente Windows. Riprova.")
-        return redirect("login")
+        return _login_con_ritorno(next_url)
 
     logger.info("Windows SSO: autenticato %s", principal)
 
@@ -122,7 +150,7 @@ def windows_sso_view(request):
     if not ldap_login_group_allowed(groups):
         logger.warning("Windows SSO negato per %s: nessun gruppo in LDAP_GROUP_ALLOWLIST", principal)
         messages.error(request, f"Utente {principal} non autorizzato.")
-        return redirect("login")
+        return _login_con_ritorno(next_url)
     legacy_user = provision_legacy_user(
         resolved_upn or normalized_upn,
         full_name=resolved_full_name,
@@ -130,12 +158,12 @@ def windows_sso_view(request):
     )
     if legacy_user is None:
         messages.error(request, f"Utente {principal} non autorizzato o disabilitato.")
-        return redirect("login")
+        return _login_con_ritorno(next_url)
 
     django_user = sync_django_user_from_legacy(legacy_user)
     if django_user is None:
         messages.error(request, "Errore sincronizzazione utente. Contatta l'amministratore.")
-        return redirect("login")
+        return _login_con_ritorno(next_url)
 
     login(request, django_user, backend="core.accounts.backends.LDAPBackend")
     # Come il login con password: senza questa riga gli accessi SSO non comparivano nell'audit.
