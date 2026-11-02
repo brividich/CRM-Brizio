@@ -2766,6 +2766,47 @@ def api_anomalie_allegati(request):
 
 
 @login_required
+@require_POST
+def api_anomalie_allegati_copia(request):
+    """Copia gli allegati di un'anomalia di origine su una nuova (clonazione di un OP)."""
+    import shutil
+
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+        da_id, a_id = int(data.get("da")), int(data.get("a"))
+    except Exception:
+        return _json_error("Anomalie non valide", status=400)
+    origine, destinazione = _anomaly_local_row(da_id), _anomaly_local_row(a_id)
+    if not origine or not destinazione:
+        return _json_error("Anomalia non trovata", status=404)
+    if not _can_view_anomalie_for_op(request, str(origine.get("ex_op_nominativo") or "").strip()):
+        return _json_error("Permesso negato sull'anomalia di origine", status=403)
+    if not _can_attach_anomalia(request, a_id, str(destinazione.get("ex_op_nominativo") or "").strip()):
+        return _json_error("Permesso negato sulla nuova anomalia", status=403)
+
+    sorgente = _attachment_dir_for_local(da_id)
+    allegati = _list_attachments_for_local(da_id)
+    if not allegati:
+        return JsonResponse({"success": True, "copiati": 0})
+    cartella = _attachment_dir_for_local(a_id, create=True)
+    copiati, errori = 0, []
+    for item in allegati:
+        try:
+            nome = _safe_attachment_filename(item["name"]) or "allegato"
+            shutil.copy2(sorgente / item["file_id"], cartella / f"{uuid4().hex}__{nome}")
+            copiati += 1
+        except OSError as exc:
+            errori.append(f"{item['name']}: {exc}")
+    try:
+        log_action(request, "anomalia_allegati_copiati", "anomalie", {"da": da_id, "a": a_id, "copiati": copiati})
+    except Exception:
+        pass
+    if errori:
+        logger.warning("[anomalie] copia allegati %s -> %s: %s", da_id, a_id, "; ".join(errori))
+    return JsonResponse({"success": not errori, "copiati": copiati, "errors": errori})
+
+
+@login_required
 def api_anomalie_allegati_upload(request):
     try:
         if request.method != "POST":

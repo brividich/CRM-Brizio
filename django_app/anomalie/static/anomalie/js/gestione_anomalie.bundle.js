@@ -1186,6 +1186,22 @@ const Ico = {
   }, /*#__PURE__*/React.createElement("path", {
     d: "M4 6h16M4 10h16M4 14h16M4 18h16"
   })),
+  copy: /*#__PURE__*/React.createElement("svg", {
+    width: "14",
+    height: "14",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    viewBox: "0 0 24 24"
+  }, /*#__PURE__*/React.createElement("rect", {
+    x: "9",
+    y: "9",
+    width: "13",
+    height: "13",
+    rx: "2"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"
+  })),
   edit: /*#__PURE__*/React.createElement("svg", {
     width: "20",
     height: "20",
@@ -1294,6 +1310,8 @@ function GestioneAnomalie() {
   const [pageFilter, setPageFilter] = useState(ACTIVE_FILTER);
   const [snFilter, setSnFilter] = useState("tutte"); // "tutte" | "da_decidere"
   const [closedCollapsed, setClosedCollapsed] = useState(true);
+  // Clonazione dell'OP: anomalie scelte da copiare su un nuovo OP ({ opKey, ids }).
+  const [clona, setClona] = useState(null);
   const [pendingNav, setPendingNav] = useState(null); // azione rinviata per modifiche non salvate
   const [menuOpen, setMenuOpen] = useState(false);
   const [editDesc, setEditDesc] = useState(false);
@@ -1520,6 +1538,30 @@ function GestioneAnomalie() {
     setSelectedOpKey(opKey(o));
     if (isMobile) setMobilePanel("serie");
   });
+  const avviaClona = o => guard(() => {
+    setSelectedOpKey(opKey(o));
+    setClona({
+      opKey: opKey(o),
+      ids: []
+    });
+    setClosedCollapsed(false);
+    if (isMobile) setMobilePanel("serie");
+  });
+  const clonaIds = clona && clona.opKey === opKey(op) ? clona.ids : null;
+  const toggleClona = (ids, on) => setClona(prev => {
+    if (!prev) return prev;
+    const resto = prev.ids.filter(x => !ids.includes(x));
+    return {
+      ...prev,
+      ids: on ? [...resto, ...ids] : resto
+    };
+  });
+  const continuaClona = () => {
+    if (!clonaIds || !clonaIds.length) return;
+    // Stesso ordine dell'elenco, così i blocchi arrivano come li vedi qui.
+    const ordinati = anomalie.map(a => a.local_id).filter(x => clonaIds.includes(x));
+    window.location.href = `/gestione-anomalie/nuova-segnalazione?clona_da=${encodeURIComponent(op.id)}&anomalie=${ordinati.join(",")}`;
+  };
   const vaiA = delta => {
     if (posizione < 0) return;
     const target = ordineVisibile[posizione + delta];
@@ -1894,12 +1936,19 @@ function GestioneAnomalie() {
   const renderAnomalia = a => {
     const st = statoAnomalia(a);
     const selected = a.item_id === sn.item_id;
+    const inClona = clonaIds && clonaIds.includes(a.local_id);
     return /*#__PURE__*/React.createElement("button", {
       type: "button",
       key: a.item_id,
-      className: `ga-an${selected ? " is-sel" : ""}${a.chiudere ? " is-closed" : ""}`,
-      onClick: () => selectSn(a)
-    }, /*#__PURE__*/React.createElement("span", {
+      className: `ga-an${selected ? " is-sel" : ""}${a.chiudere ? " is-closed" : ""}${inClona ? " is-clona" : ""}`,
+      onClick: () => {
+        if (clonaIds) toggleClona([a.local_id], !inClona);
+        selectSn(a);
+      }
+    }, clonaIds ? /*#__PURE__*/React.createElement("span", {
+      className: `ga-an__check${inClona ? " is-on" : ""}`,
+      "aria-hidden": "true"
+    }, inClona ? Ico.check : null) : /*#__PURE__*/React.createElement("span", {
       className: `ga-an__dot ga-an__dot--${st.variant}`
     }), /*#__PURE__*/React.createElement("span", {
       className: "ga-an__main"
@@ -1927,13 +1976,22 @@ function GestioneAnomalie() {
     if (!a.blocco_id || prev && prev.blocco_id === a.blocco_id) return renderAnomalia(a);
     const delBlocco = list.filter(y => y.blocco_id === a.blocco_id);
     const daDec = delBlocco.filter(isDaDecidere).length;
+    const idsBlocco = delBlocco.map(y => y.local_id);
+    const bloccoTutto = Boolean(clonaIds) && idsBlocco.every(x => clonaIds.includes(x));
     return /*#__PURE__*/React.createElement(React.Fragment, {
       key: `blk-${a.blocco_id}-${a.item_id}`
     }, /*#__PURE__*/React.createElement("div", {
       className: "ga-blk"
     }, /*#__PURE__*/React.createElement("div", {
       className: "ga-blk__sn"
-    }, a.blocco_label || a.sn || "—"), /*#__PURE__*/React.createElement("div", {
+    }, clonaIds && /*#__PURE__*/React.createElement("label", {
+      className: "ga-blk__clona",
+      title: "Copia tutte le anomalie di questo blocco"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: bloccoTutto,
+      onChange: e => toggleClona(idsBlocco, e.target.checked)
+    })), a.blocco_label || a.sn || "—"), /*#__PURE__*/React.createElement("div", {
       className: "ga-blk__meta"
     }, [a.fase ? `Fase ${a.fase}` : "", a.controllo_operatore, fmtData(a.controllo_data)].filter(Boolean).join(" · "), daDec > 0 && /*#__PURE__*/React.createElement("span", {
       className: "ga-blk__todo"
@@ -2036,9 +2094,11 @@ function GestioneAnomalie() {
     const aperte = apertiDi(o);
     const daDec = daDecidereDi(o);
     const chiuse = Math.max(0, tot - aperte);
-    return /*#__PURE__*/React.createElement("button", {
-      type: "button",
+    return /*#__PURE__*/React.createElement("div", {
       key: opKey(o),
+      className: "ga-op-wrap"
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
       className: `ga-op${sel ? " is-sel" : ""}`,
       onClick: () => selectOp(o)
     }, /*#__PURE__*/React.createElement("span", {
@@ -2066,7 +2126,12 @@ function GestioneAnomalie() {
       className: "ga-op__bar-txt"
     }, aperte, " apert", aperte === 1 ? "a" : "e", " \xB7 ", tot, " total", tot === 1 ? "e" : "i")) : /*#__PURE__*/React.createElement("span", {
       className: "ga-op__none"
-    }, "Nessuna anomalia"));
+    }, "Nessuna anomalia")), tot > 0 && /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: `ga-op__clona${clona && clona.opKey === opKey(o) ? " is-on" : ""}`,
+      title: "Clona: scegli le anomalie da copiare su un nuovo OP",
+      onClick: () => avviaClona(o)
+    }, Ico.copy, /*#__PURE__*/React.createElement("span", null, "Clona")));
   }))), /*#__PURE__*/React.createElement("section", {
     className: "ga-col ga-col--sn",
     style: {
@@ -2078,7 +2143,9 @@ function GestioneAnomalie() {
     className: "ga-col__title"
   }, "Anomalie ", op.id ? /*#__PURE__*/React.createElement("span", {
     className: "ga-col__sub"
-  }, nAperte, " apert", nAperte === 1 ? "a" : "e", " su ", anomalie.length) : null), /*#__PURE__*/React.createElement("div", {
+  }, nAperte, " apert", nAperte === 1 ? "a" : "e", " su ", anomalie.length) : null), clonaIds && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--info"
+  }, /*#__PURE__*/React.createElement("b", null, "Clona ", op.id), ": spunta le anomalie da copiare sul nuovo OP (anche le chiuse), poi \xABContinua\xBB."), /*#__PURE__*/React.createElement("div", {
     className: "ga-chips"
   }, /*#__PURE__*/React.createElement(Chip, {
     active: snFilter === "tutte",
@@ -2116,7 +2183,37 @@ function GestioneAnomalie() {
     style: {
       transform: closedCollapsed ? "rotate(-90deg)" : "none"
     }
-  }, "\u25BE"), " Chiuse (", closedSeriali.length, ")"), !closedCollapsed && renderGrouped(closedSeriali))))), /*#__PURE__*/React.createElement("section", {
+  }, "\u25BE"), " Chiuse (", closedSeriali.length, ")"), !closedCollapsed && renderGrouped(closedSeriali)))), clonaIds && /*#__PURE__*/React.createElement("div", {
+    className: "ga-clona"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-clona__top"
+  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, clonaIds.length), " da copiare"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link",
+    onClick: () => toggleClona(anomalie.map(a => a.local_id), true)
+  }, "Tutte"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link",
+    onClick: () => toggleClona(anomalie.filter(a => !a.chiudere).map(a => a.local_id), true)
+  }, "Aperte"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link",
+    onClick: () => setClona(p => p ? {
+      ...p,
+      ids: []
+    } : p)
+  }, "Nessuna")), /*#__PURE__*/React.createElement("div", {
+    className: "ga-clona__acts"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--ghost-dark ga-btn--xs",
+    onClick: () => setClona(null)
+  }, "Annulla"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--accent ga-btn--xs",
+    disabled: !clonaIds.length,
+    onClick: continuaClona
+  }, "Continua ", Ico.next)))), /*#__PURE__*/React.createElement("section", {
     className: "ga-col ga-col--det",
     style: {
       display: showCol("dettaglio") ? undefined : "none"

@@ -657,6 +657,7 @@
       check: <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.6" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>,
       list: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>,
       rows: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>,
+      copy: <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>,
       edit: <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
     };
 
@@ -731,6 +732,8 @@
       const [pageFilter, setPageFilter] = useState(ACTIVE_FILTER);
       const [snFilter, setSnFilter] = useState("tutte");   // "tutte" | "da_decidere"
       const [closedCollapsed, setClosedCollapsed] = useState(true);
+      // Clonazione dell'OP: anomalie scelte da copiare su un nuovo OP ({ opKey, ids }).
+      const [clona, setClona] = useState(null);
       const [pendingNav, setPendingNav] = useState(null);  // azione rinviata per modifiche non salvate
       const [menuOpen, setMenuOpen] = useState(false);
       const [editDesc, setEditDesc] = useState(false);
@@ -947,6 +950,24 @@
       };
       const selectSn = (a) => guard(() => { setSelectedSnId(a.item_id); if (isMobile) setMobilePanel("dettaglio"); });
       const selectOp = (o) => guard(() => { setSelectedOpKey(opKey(o)); if (isMobile) setMobilePanel("serie"); });
+      const avviaClona = (o) => guard(() => {
+        setSelectedOpKey(opKey(o));
+        setClona({ opKey: opKey(o), ids: [] });
+        setClosedCollapsed(false);
+        if (isMobile) setMobilePanel("serie");
+      });
+      const clonaIds = clona && clona.opKey === opKey(op) ? clona.ids : null;
+      const toggleClona = (ids, on) => setClona((prev) => {
+        if (!prev) return prev;
+        const resto = prev.ids.filter((x) => !ids.includes(x));
+        return { ...prev, ids: on ? [...resto, ...ids] : resto };
+      });
+      const continuaClona = () => {
+        if (!clonaIds || !clonaIds.length) return;
+        // Stesso ordine dell'elenco, così i blocchi arrivano come li vedi qui.
+        const ordinati = anomalie.map((a) => a.local_id).filter((x) => clonaIds.includes(x));
+        window.location.href = `/gestione-anomalie/nuova-segnalazione?clona_da=${encodeURIComponent(op.id)}&anomalie=${ordinati.join(",")}`;
+      };
       const vaiA = (delta) => {
         if (posizione < 0) return;
         const target = ordineVisibile[posizione + delta];
@@ -1187,9 +1208,13 @@
       const renderAnomalia = (a) => {
         const st = statoAnomalia(a);
         const selected = a.item_id === sn.item_id;
+        const inClona = clonaIds && clonaIds.includes(a.local_id);
         return (
-          <button type="button" key={a.item_id} className={`ga-an${selected ? " is-sel" : ""}${a.chiudere ? " is-closed" : ""}`} onClick={() => selectSn(a)}>
-            <span className={`ga-an__dot ga-an__dot--${st.variant}`} />
+          <button type="button" key={a.item_id} className={`ga-an${selected ? " is-sel" : ""}${a.chiudere ? " is-closed" : ""}${inClona ? " is-clona" : ""}`}
+            onClick={() => { if (clonaIds) toggleClona([a.local_id], !inClona); selectSn(a); }}>
+            {clonaIds
+              ? <span className={`ga-an__check${inClona ? " is-on" : ""}`} aria-hidden="true">{inClona ? Ico.check : null}</span>
+              : <span className={`ga-an__dot ga-an__dot--${st.variant}`} />}
             <span className="ga-an__main">
               <span className="ga-an__txt">{a.blocco_id ? (a.testo || a.desc || "(nessuna descrizione)") : (a.sn ? `S/N ${a.sn}` : (a.testo || a.desc || "—"))}</span>
               <span className="ga-an__meta">
@@ -1209,10 +1234,19 @@
         if (!a.blocco_id || (prev && prev.blocco_id === a.blocco_id)) return renderAnomalia(a);
         const delBlocco = list.filter((y) => y.blocco_id === a.blocco_id);
         const daDec = delBlocco.filter(isDaDecidere).length;
+        const idsBlocco = delBlocco.map((y) => y.local_id);
+        const bloccoTutto = Boolean(clonaIds) && idsBlocco.every((x) => clonaIds.includes(x));
         return (
           <React.Fragment key={`blk-${a.blocco_id}-${a.item_id}`}>
             <div className="ga-blk">
-              <div className="ga-blk__sn">{a.blocco_label || a.sn || "—"}</div>
+              <div className="ga-blk__sn">
+                {clonaIds && (
+                  <label className="ga-blk__clona" title="Copia tutte le anomalie di questo blocco">
+                    <input type="checkbox" checked={bloccoTutto} onChange={(e) => toggleClona(idsBlocco, e.target.checked)} />
+                  </label>
+                )}
+                {a.blocco_label || a.sn || "—"}
+              </div>
               <div className="ga-blk__meta">
                 {[a.fase ? `Fase ${a.fase}` : "", a.controllo_operatore, fmtData(a.controllo_data)].filter(Boolean).join(" · ")}
                 {daDec > 0 && <span className="ga-blk__todo">{daDec} da decidere</span>}
@@ -1286,7 +1320,8 @@
                     const daDec = daDecidereDi(o);
                     const chiuse = Math.max(0, tot - aperte);
                     return (
-                      <button type="button" key={opKey(o)} className={`ga-op${sel ? " is-sel" : ""}`} onClick={() => selectOp(o)}>
+                      <div key={opKey(o)} className="ga-op-wrap">
+                      <button type="button" className={`ga-op${sel ? " is-sel" : ""}`} onClick={() => selectOp(o)}>
                         <span className="ga-op__row">
                           <span className="ga-op__id">{o.id}</span>
                           {String(o.stato || "").toLowerCase() === "benestare" && <span className="ga-pill ga-pill--ben">Benestare</span>}
@@ -1301,6 +1336,13 @@
                           </span>
                         ) : <span className="ga-op__none">Nessuna anomalia</span>}
                       </button>
+                      {tot > 0 && (
+                        <button type="button" className={`ga-op__clona${clona && clona.opKey === opKey(o) ? " is-on" : ""}`}
+                          title="Clona: scegli le anomalie da copiare su un nuovo OP" onClick={() => avviaClona(o)}>
+                          {Ico.copy}<span>Clona</span>
+                        </button>
+                      )}
+                      </div>
                     );
                   })}
               </div>
@@ -1312,6 +1354,11 @@
                 <div className="ga-col__title">
                   Anomalie {op.id ? <span className="ga-col__sub">{nAperte} apert{nAperte === 1 ? "a" : "e"} su {anomalie.length}</span> : null}
                 </div>
+                {clonaIds && (
+                  <div className="ga-note ga-note--info">
+                    <b>Clona {op.id}</b>: spunta le anomalie da copiare sul nuovo OP (anche le chiuse), poi «Continua».
+                  </div>
+                )}
                 <div className="ga-chips">
                   <Chip active={snFilter === "tutte"} onClick={() => setSnFilter("tutte")} count={anomalie.length}>Tutte</Chip>
                   <Chip active={snFilter === "da_decidere"} onClick={() => setSnFilter("da_decidere")} count={nDaDecidere} tone="warn">Da decidere</Chip>
@@ -1343,6 +1390,20 @@
                     </>
                   )}
               </div>
+              {clonaIds && (
+                <div className="ga-clona">
+                  <div className="ga-clona__top">
+                    <span><b>{clonaIds.length}</b> da copiare</span>
+                    <button type="button" className="ga-link" onClick={() => toggleClona(anomalie.map((a) => a.local_id), true)}>Tutte</button>
+                    <button type="button" className="ga-link" onClick={() => toggleClona(anomalie.filter((a) => !a.chiudere).map((a) => a.local_id), true)}>Aperte</button>
+                    <button type="button" className="ga-link" onClick={() => setClona((p) => (p ? { ...p, ids: [] } : p))}>Nessuna</button>
+                  </div>
+                  <div className="ga-clona__acts">
+                    <button type="button" className="ga-btn ga-btn--ghost-dark ga-btn--xs" onClick={() => setClona(null)}>Annulla</button>
+                    <button type="button" className="ga-btn ga-btn--accent ga-btn--xs" disabled={!clonaIds.length} onClick={continuaClona}>Continua {Ico.next}</button>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* ── 3. Dettaglio ── */}

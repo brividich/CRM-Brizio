@@ -190,6 +190,21 @@
     .ga-note--ok { background: var(--success-bg); color: var(--success); border: 1px solid color-mix(in srgb, var(--success) 35%, transparent); }
     .ga-note--row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     .ga-btn--xs { padding: 5px 11px; font-size: var(--fs-sm); }
+    .ga-note--info { background: var(--accent-light); color: var(--text); border: 1px solid rgba(249,115,22,.3); font-weight: 500; }
+    /* Clona OP: pulsante sulla riga dell'ordine e selezione delle anomalie da copiare */
+    .ga-op-wrap { position: relative; }
+    .ga-op__clona { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-mid); font: inherit; font-size: var(--fs-xs); font-weight: 700; cursor: pointer; opacity: 0; transition: opacity .15s; }
+    .ga-op-wrap:hover .ga-op__clona, .ga-op-wrap:focus-within .ga-op__clona, .ga-op__clona.is-on, .ga--mobile .ga-op__clona { opacity: 1; }
+    .ga-op__clona:hover, .ga-op__clona.is-on { border-color: var(--accent); color: var(--accent); }
+    .ga-an__check { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 1px; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; border: 2px solid var(--border-strong, #94a3b8); background: var(--surface); color: #fff; }
+    .ga-an__check.is-on { background: var(--accent); border-color: var(--accent); }
+    .ga-an.is-clona { background: var(--accent-light); }
+    .ga-blk__clona { display: inline-flex; margin-right: 6px; vertical-align: middle; }
+    .ga-blk__clona input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+    .ga-clona { display: grid; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); background: var(--surface); box-shadow: 0 -6px 16px rgba(15,23,42,.05); }
+    .ga-clona__top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: var(--fs-sm); }
+    .ga-clona__top .ga-link { margin-left: 0; }
+    .ga-clona__acts { display: flex; justify-content: flex-end; gap: 8px; }
     .ga-apply { display: flex; align-items: flex-start; gap: 9px; padding: 10px 12px; border: 1px dashed var(--accent); border-radius: 10px; background: var(--bg); font-size: var(--fs-sm); cursor: pointer; }
     .ga-apply input { margin-top: 3px; accent-color: var(--accent); width: 16px; height: 16px; min-height: 0; }
 
