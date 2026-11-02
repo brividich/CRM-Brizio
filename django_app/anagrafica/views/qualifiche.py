@@ -237,7 +237,23 @@ def qualifiche_dashboard(request):
 
     tipi_attivi = TipoQualifica.objects.filter(is_active=True).count()
 
-    quals = list(DipendenteQualifica.objects.select_related("tipo").all())
+    # Stesse righe di dashboard HR e scadenzario: solo la qualifica corrente per
+    # persona e tipo (non quelle superate da un rinnovo), senza i cessati e
+    # nell'ambito del ruolo. Prima si contava tutto: «scadute» 40 qui, 12 altrove.
+    from ..reportistica.dati import filtra_in
+    from ..services.requisiti import id_qualifiche_correnti
+
+    cessati = _helpers._cessati_legacy_ids()
+    quals = [
+        q for q in filtra_in(DipendenteQualifica.objects.select_related("tipo"), "pk", id_qualifiche_correnti())
+        if q.legacy_anagrafica_id not in cessati
+    ]
+    if _helpers._ruoli_attivi():
+        from .dipendenti import _schede_visibili
+
+        visibili = _schede_visibili(request)
+        if visibili is not None:
+            quals = [q for q in quals if q.legacy_anagrafica_id in visibili]
     n_valide = n_scadute = n_s30 = n_s60 = n_permanenti = 0
     n_con_evidenza = n_da_verificare = 0
     dipendenti_ids: set[int] = set()

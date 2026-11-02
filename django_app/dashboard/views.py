@@ -1305,6 +1305,9 @@ def _board_data_anomalie(legacy_user: Any, is_admin: bool, params: dict) -> list
         limit = min(int(params.get("max_items") or 8), MAX_BOARD_WIDGET_ITEMS)
         solo_aperte = bool(params.get("solo_aperte", True))
         nome = getattr(legacy_user, "nome", "") or ""
+        if not is_admin and not nome.strip():
+            # Senza nome non si sa quali siano le «sue»: niente righe, non tutte.
+            return []
         vendor = connections["default"].vendor
         where_parts = []
         sql_params: list = []
@@ -2049,170 +2052,98 @@ _HUB_MONTH_IT = [
 
 
 def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
-    """Raccoglie KPI cross-modulo per la hub preview. Ogni modulo è opzionale."""
-    from django.utils import timezone as tz
+    """KPI cross-modulo della hub preview, con le stesse regole della home.
+
+    I numeri vengono da ``_tile_kpi_counts`` (già ristretti all'ambito di chi
+    guarda) e una tessera compare solo se l'utente può aprire il modulo:
+    prima qui si contavano ticket, asset, anomalie e incidenti di tutta
+    l'azienda e li vedeva chiunque.
+    """
+    from dashboard.views_home_portale import _tile_kpi_counts, moduli_visibili
+
     kpis: list[dict] = []
-    today = tz.localdate()
+    if request is None or not request.user.is_authenticated:
+        return kpis
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
+    tile = _tile_kpi_counts(legacy_user, is_admin, request_user=request.user, request=request)
+    visibili = moduli_visibili(request, is_admin)
 
-    # ── Assenze ──
-    kpis.append({
-        "kpi_key": "assenze",
-        "label": "Richieste in attesa",
-        "value": ctx.get("richieste_attesa", 0),
-        "sub": f"{ctx.get('richieste_total', 0)} totali",
-        "icon": "ASS",
-        "icon_class": "yellow",
-    })
-
-    # ── Anomalie (tabella legacy, raw SQL) ──
-    try:
-        with connections["default"].cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM anomalie WHERE COALESCE(chiudere, 0) = 0")
-            row = cur.fetchone()
+    # (chiave SiteConfig, id modulo della home, etichetta, icona, colore)
+    for kpi_key, modulo, label, icon, icon_class in (
+        ("assenze", "assenze", "Richieste in attesa", "ASS", "yellow"),
+        ("anomalie", "anomalie", "Anomalie aperte", "ANO", "red"),
+        ("ticket", "ticket", "Ticket aperti", "TKT", "blue"),
+        ("asset", "asset", "Asset", "AST", "green"),
+        ("task", "task", "Task attivi", "TSK", "blue"),
+        ("diario", "diario", "Diario preposto", "DRP", "blue"),
+        ("incidenti", "incidenti", "Incidenti in analisi", "INC", "red"),
+    ):
+        rows = tile.get(modulo) or []
+        if modulo not in visibili or not rows:
+            continue
+        sub = rows[0]["unit"]
+        if len(rows) > 1:
+            sub += f" · {rows[1]['value']} {rows[1]['unit']}"
         kpis.append({
-            "kpi_key": "anomalie",
-            "label": "Anomalie aperte",
-            "value": int(row[0]) if row else 0,
-            "sub": "in produzione",
-            "icon": "ANO",
-            "icon_class": "red",
+            "kpi_key": kpi_key,
+            "label": label,
+            "value": rows[0]["value"],
+            "sub": sub,
+            "icon": icon,
+            "icon_class": icon_class,
         })
-    # Stessa regola dei riquadri della home: la tessera puo' mancare, ma non in
-    # silenzio — un KPI assente si legge come "zero", che e' l'errore peggiore.
-    except Exception:
-        logger.exception("Dashboard: KPI «anomalie» non calcolato")
 
-    # ── Ticket ──
-    try:
-        from tickets.models import Ticket, StatoTicket
-        aperta = Ticket.objects.filter(stato=StatoTicket.APERTA).count()
-        in_carico = Ticket.objects.filter(stato=StatoTicket.IN_CARICO).count()
-        kpis.append({
-            "kpi_key": "ticket",
-            "label": "Ticket aperti",
-            "value": aperta,
-            "sub": f"{in_carico} in lavorazione",
-            "icon": "TKT",
-            "icon_class": "blue",
-        })
-    except Exception:
-        logger.exception("Dashboard: KPI «ticket» non calcolato")
+    # ── DPI richieste in attesa: stesso filtro della dashboard DPI ──
+    if "dpi" in visibili:
+        try:
+            from dpi.models import RichiestaDPI
+            from dpi.views import _filtro_visibili
 
-    # ── Asset ──
-    try:
-        from assets.models import Asset
-        in_uso = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
-        totale = Asset.objects.count()
-        kpis.append({
-            "kpi_key": "asset",
-            "label": "Asset monitorati",
-            "value": totale,
-            "sub": f"{in_uso} in uso",
-            "icon": "AST",
-            "icon_class": "green",
-        })
-    except Exception:
-        logger.exception("Dashboard: KPI «asset» non calcolato")
+            dpi_attesa = RichiestaDPI.objects.filter(stato="INVIATA").filter(_filtro_visibili(request)).count()
+            if dpi_attesa:
+                kpis.append({
+                    "kpi_key": "dpi",
+                    "label": "DPI in attesa",
+                    "value": dpi_attesa,
+                    "sub": "richieste",
+                    "icon": "DPI",
+                    "icon_class": "yellow",
+                })
+        except Exception:
+            logger.exception("Dashboard: KPI «dpi» non calcolato")
 
-    # ── Task / KICK-OFF ──
-    try:
-        from tasks.models import Task, TaskStatus
-        attivi = Task.objects.filter(
-            status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS]
-        ).count()
-        kpis.append({
-            "kpi_key": "task",
-            "label": "Task attivi",
-            "value": attivi,
-            "sub": "kick-off",
-            "icon": "TSK",
-            "icon_class": "blue",
-        })
-    except Exception:
-        logger.exception("Dashboard: KPI «task» non calcolato")
+    # ── Scadenze asset: registro aziendale, solo per gli amministratori ──
+    if is_admin:
+        try:
+            import datetime
 
-    # ── DPI richieste in attesa ──
-    try:
-        from dpi.models import RichiestaDPI
-        dpi_attesa = RichiestaDPI.objects.filter(stato="INVIATA").count()
-        if dpi_attesa:
+            from assets.models import PeriodicVerification
+            from assets.services import deadline_feed
+
+            horizon = timezone.localdate() + datetime.timedelta(days=30)
+            # Scadenze amministrative (registro separato dai piani), senza doppioni.
+            scad_amm = len(deadline_feed.administrative_dues(due_to=horizon, exclude_retired=False))
+            scad_man = PeriodicVerification.objects.filter(
+                is_active=True, next_verification_date__lte=horizon
+            ).count()
+            totale_scad = scad_amm + scad_man
             kpis.append({
-                "kpi_key": "dpi",
-                "label": "DPI in attesa",
-                "value": dpi_attesa,
-                "sub": "richieste",
-                "icon": "DPI",
-                "icon_class": "yellow",
+                "kpi_key": "scadenze",
+                "label": "Scadenze imminenti",
+                "value": totale_scad,
+                "sub": f"{scad_amm} amm. · {scad_man} manut.",
+                "icon": "SCA",
+                "icon_class": "red" if totale_scad else "green",
             })
-    except Exception:
-        logger.exception("Dashboard: KPI «dpi» non calcolato")
+        except Exception:
+            logger.exception("Dashboard: KPI «scadenze» non calcolato")
 
-    # ── Scadenze imminenti asset ──
-    try:
-        from assets.models import PeriodicVerification
-        import datetime
-        horizon = today + datetime.timedelta(days=30)
-        from assets.services import deadline_feed
-
-        # Scadenze amministrative (registro separato dai piani), senza doppioni.
-        scad_amm = len(deadline_feed.administrative_dues(due_to=horizon, exclude_retired=False))
-        scad_man = PeriodicVerification.objects.filter(
-            is_active=True, next_verification_date__lte=horizon
-        ).count()
-        totale_scad = scad_amm + scad_man
-        kpis.append({
-            "kpi_key": "scadenze",
-            "label": "Scadenze imminenti",
-            "value": totale_scad,
-            "sub": f"{scad_amm} amm. · {scad_man} manut.",
-            "icon": "SCA",
-            "icon_class": "red" if totale_scad else "green",
-        })
-    except Exception:
-        logger.exception("Dashboard: KPI «scadenze» non calcolato")
-
-    # ── Diario preposto ──
-    try:
-        from diario_preposto.models import SegnalazionePreposto
-        anno = today.year
-        n_segnalazioni = SegnalazionePreposto.objects.filter(
-            data_segnalazione__year=anno
-        ).count()
-        kpis.append({
-            "kpi_key": "diario",
-            "label": "Diario preposto",
-            "value": n_segnalazioni,
-            "sub": f"segnalazioni {anno}",
-            "icon": "DRP",
-            "icon_class": "blue",
-        })
-    except Exception:
-        logger.exception("Dashboard: KPI «diario preposto» non calcolato")
-
-    # ── Rilevazione incidenti ──
-    try:
-        from rilevazione_incidenti.models import RilevazioneIncidente
-        anno = today.year
-        n_incidenti = RilevazioneIncidente.objects.filter(
-            data_segnalazione__year=anno
-        ).count()
-        kpis.append({
-            "kpi_key": "incidenti",
-            "label": "Incidenti rilevati",
-            "value": n_incidenti,
-            "sub": f"anno {anno}",
-            "icon": "INC",
-            "icon_class": "red" if n_incidenti else "green",
-        })
-    except Exception:
-        logger.exception("Dashboard: KPI «incidenti» non calcolato")
-
-    # ── Notizie da leggere ──
+    # ── Notizie da leggere (personale) ──
     try:
         from django.db.models import Exists, OuterRef
         from notizie.models import Notizia, NotiziaLettura
         from notizie.models import STATO_PUBBLICATA
-        legacy_user = ctx.get("legacy_user")
         if legacy_user:
             confermata = NotiziaLettura.objects.filter(
                 notizia=OuterRef("pk"),
@@ -2236,23 +2167,21 @@ def _hub_kpi_cards(ctx: dict, request=None) -> list[dict]:
     except Exception:
         logger.exception("Dashboard: KPI «notizie» non calcolato")
 
-    # ── Procedure refresh da confermare ──
+    # ── Procedure refresh da confermare (personale) ──
     try:
         from procedure_refresh.models import ProcedureAssignment, AssignmentStatus
-        user = request.user if request else None
-        if user and user.is_authenticated:
-            da_confermare = ProcedureAssignment.objects.filter(
-                user=user,
-                status=AssignmentStatus.ASSIGNED,
-            ).count()
-            kpis.append({
-                "kpi_key": "procedure",
-                "label": "Procedure da confermare",
-                "value": da_confermare,
-                "sub": "presa visione",
-                "icon": "PRF",
-                "icon_class": "yellow" if da_confermare else "green",
-            })
+        da_confermare = ProcedureAssignment.objects.filter(
+            user=request.user,
+            status=AssignmentStatus.ASSIGNED,
+        ).count()
+        kpis.append({
+            "kpi_key": "procedure",
+            "label": "Procedure da confermare",
+            "value": da_confermare,
+            "sub": "presa visione",
+            "icon": "PRF",
+            "icon_class": "yellow" if da_confermare else "green",
+        })
     except Exception:
         logger.exception("Dashboard: KPI «procedure» non calcolato")
 
@@ -2309,19 +2238,29 @@ def dashboard_hub_preview(request):
     except Exception:
         logger.exception("Hub preview: branding non caricato")
 
+    # Pannelli con dati di tutta l'azienda: solo a chi ha visibilità «tutti»
+    # sul modulo, come le tessere senza proprietario della home.
+    from dashboard.views_home_portale import _TUTTI, _ambito_kpi, moduli_visibili
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
+    visibili = moduli_visibili(request, is_admin)
+
     maintenance_by_family: list = []
-    try:
-        from assets.services.dashboard_kpi import get_maintenance_status_by_family
-        maintenance_by_family = get_maintenance_status_by_family()
-    except Exception:
-        logger.exception("Hub preview: stato manutenzioni per famiglia non caricato")
+    if "asset" in visibili and _ambito_kpi(request.user, is_admin, "assets") is _TUTTI:
+        try:
+            from assets.services.dashboard_kpi import get_maintenance_status_by_family
+            maintenance_by_family = get_maintenance_status_by_family()
+        except Exception:
+            logger.exception("Hub preview: stato manutenzioni per famiglia non caricato")
 
     safety_kpis = {}
-    try:
-        from rilevazione_incidenti.services import get_safety_kpis
-        safety_kpis = get_safety_kpis()
-    except Exception:
-        logger.exception("Hub preview: KPI sicurezza non caricati")
+    if "incidenti" in visibili and _ambito_kpi(request.user, is_admin, "rilevazione_incidenti") is _TUTTI:
+        try:
+            from rilevazione_incidenti.services import get_safety_kpis
+            safety_kpis = get_safety_kpis()
+        except Exception:
+            logger.exception("Hub preview: KPI sicurezza non caricati")
 
     ctx.update({
         "page_title": "Hub Preview",

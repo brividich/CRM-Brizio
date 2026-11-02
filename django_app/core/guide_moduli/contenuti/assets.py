@@ -33,7 +33,10 @@ GUIDA = {
                       "sono pagine di tutta l'azienda e l'ambito non le restringe. «Tutti» vede tutto; «Propri» i beni "
                       "assegnati a te e gli asset dei reparti che guidi; «Propri e del team» anche quelli delle persone che ti riportano. "
                       "Un piano su più reparti (es. tutti i compressori) si vede se tocca almeno un tuo asset, con le sole scadenze tue. "
-                      "Gli ordini di lavoro assegnati a te si vedono sempre. Sulla mappa officina le altre macchine sono punti grigi."),
+                      "Gli ordini di lavoro assegnati a te si vedono sempre. Sulla mappa officina le altre macchine sono punti grigi. "
+                      "Anche i numeri della dashboard Asset (totali, OdL aperti, urgenti, in ritardo, miei, scadenze e verifiche) "
+                      "e della dashboard Macchine di lavoro contano solo ciò che vedi, come le liste a cui portano; le "
+                      "segnalazioni di manutenzione compaiono solo a chi gestisce i ticket di manutenzione."),
                 ("p", "Sotto il cruscotto della scheda, «Lo stesso apparato in» porta alla stampante in Contatori e al dispositivo nel SOC; "
                       "lì trovi la stessa testata dell'asset, con il link «Scheda asset» per tornare."),
             ],

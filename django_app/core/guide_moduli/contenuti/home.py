@@ -354,6 +354,9 @@ GUIDA = {
                 "Controlla che il modulo sia acceso (Amministrazione → Hub → «Moduli»).",
                 "Stanza «Moduli» della home vuota o incompleta: con «Ruoli e permessi» attivo le tessere seguono "
                 "«Cosa vede questa persona» (azione «Vedere»); dai il ruolo giusto lì, non il ruolo storico della scheda utente.",
+                "I numeri delle tessere e della Hub Preview contano solo i dati che la persona vede nel modulo "
+                "(es. «Anomalie aperte» con la stessa visibilità dell'elenco anomalie, «Approvazioni» come il badge in alto): "
+                "se due persone leggono numeri diversi è per l'ambito del loro ruolo, non un errore.",
                 "Controlla i suoi permessi: Amministrazione → «Accessi negati» mostra ogni pagina bloccata con il motivo e i pulsanti «Consenti» / «Non consentire».",
             ],
         },

@@ -433,7 +433,13 @@ def index(request):
     cruscotto = None
     try:
         from ..services.cruscotto_hr import calcola as calcola_cruscotto
-        cruscotto = calcola_cruscotto(include_visite=can_view_visite)
+        # Stesso ambito dell'elenco dipendenti (propri/team/tutti) e niente
+        # formazione a chi non ha il permesso: prima contava tutta l'azienda.
+        cruscotto = calcola_cruscotto(
+            include_visite=can_view_visite,
+            include_formazione=_helpers._can_view_formazione(request),
+            visibili=_schede_visibili(request) if _helpers._ruoli_attivi() else None,
+        )
         n_dipendenti = cruscotto.persone
         n_qualifiche_scadute = cruscotto.n_qualifiche_scadute
         n_qualifiche_scadenza = cruscotto.n_qualifiche_in_scadenza
@@ -457,7 +463,7 @@ def index(request):
         "cose_da_gestire": cose_da_gestire,
         "cruscotto": cruscotto,
         "cruscotto_coperture": (
-            [("Formazione obbligatoria", cruscotto.formazione)]
+            ([("Formazione obbligatoria", cruscotto.formazione)] if cruscotto.formazione else [])
             + ([("Sorveglianza sanitaria", cruscotto.visite)] if cruscotto.visite else [])
         ) if cruscotto else [],
         "can_admin": _helpers._is_anagrafica_admin(request),
@@ -642,9 +648,12 @@ def dipendenti_list(request):
     contratto_filter = request.GET.get("tipologia_contratto", "").strip()
 
     rows_all = _dipendenti_base_rows()
-    # NB: `reparti_list` e `n_totale` sono calcolati sulle righe PRE-filtro.
-    reparti_list = sorted({str(row.get("reparto") or "").strip() for row in rows_all if str(row.get("reparto") or "").strip()})
-    n_totale = len(rows_all)
+    # `reparti_list` e `n_totale` sulle righe PRE-filtri di ricerca ma GIA'
+    # ristrette all'ambito del ruolo: un capo con ambito team non deve leggere
+    # «In elenco 180» sopra le sue 12 righe, né i reparti altrui.
+    rows_ambito = build_dipendenti_rows(request, base_rows=rows_all, apply_filters=False)
+    reparti_list = sorted({str(row.get("reparto") or "").strip() for row in rows_ambito if str(row.get("reparto") or "").strip()})
+    n_totale = len(rows_ambito)
     cessati_ids = _helpers._cessati_legacy_ids()
 
     # Stessa costruzione righe dell'export (`anagrafica.exports._dipendenti_rows`

@@ -353,6 +353,7 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
     )
 
     from ..services.visibilita import filtra as filtra_visibili
+    from ..services.visibilita import filtra_odl
 
     machine_base_qs = filtra_visibili(
         request,
@@ -361,7 +362,10 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
     if reparto_filter:
         machine_base_qs = machine_base_qs.filter(reparto=reparto_filter)
 
-    workorders_base = WorkOrder.objects.select_related("asset").filter(asset__asset_type__in=PRODUCTION_ASSET_TYPES)
+    # Stesso ambito delle macchine: OdL e totali per reparto solo di ciò che si vede.
+    workorders_base = filtra_odl(
+        request, WorkOrder.objects.select_related("asset").filter(asset__asset_type__in=PRODUCTION_ASSET_TYPES)
+    )
     if reparto_filter:
         workorders_base = workorders_base.filter(asset__reparto=reparto_filter)
 
@@ -403,7 +407,7 @@ def work_machine_dashboard(request: HttpRequest) -> HttpResponse:
 
     total_machines = len(machine_rows)
     reparto_totals = list(
-        Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES)
+        filtra_visibili(request, Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES))
         .exclude(reparto="")
         .values("reparto")
         .annotate(total=Count("id"))
