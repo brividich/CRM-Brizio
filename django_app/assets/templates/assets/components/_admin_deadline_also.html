@@ -1,0 +1,12 @@
+{% if item.also_rows %}
+<template data-ad-also-for="{{ item.deadline.id }}">
+  {% for other in item.also_rows %}
+    <li>
+      <label class="ad-also">
+        <input type="checkbox" name="also_complete" value="{{ other.id }}" data-ad-also>
+        <span>{{ other.due_date|date:"d/m/Y" }}{% if other.due_date < today %} <em>(scaduta)</em>{% endif %} · <strong>{{ other.asset.asset_tag|default:other.asset.name }}</strong>{% if other.asset.asset_tag and other.asset.name %} {{ other.asset.name }}{% endif %}{% if other.component_id %} · {{ other.component.name }}{% endif %}</span>
+      </label>
+    </li>
+  {% endfor %}
+</template>
+{% endif %}

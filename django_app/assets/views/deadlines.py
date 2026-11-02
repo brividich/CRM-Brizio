@@ -444,6 +444,112 @@ def _group_deadline_series(rows: list[dict]) -> list[dict]:
     return grouped
 
 
+# «Registra» propone la stessa scadenza sugli altri asset quando la loro data cade
+# entro questi giorni da quella registrata (o e' gia' passata): stessa uscita.
+_DEADLINE_SAME_OUTING_DAYS = 30
+
+
+def _same_deadline_other_assets(request: HttpRequest, deadlines) -> dict[int, list[AssetAdministrativeDeadline]]:
+    """Per ogni scadenza attiva, la stessa scadenza (stesso titolo e tipo) ancora
+    attiva su altri asset visibili, con data entro ``_DEADLINE_SAME_OUTING_DAYS``
+    dalla sua: una voce per asset e componente, la prima della serie."""
+    deadlines = [deadline for deadline in deadlines if deadline.is_active]
+    if not deadlines:
+        return {}
+
+    def key(deadline) -> tuple[str, str]:
+        return ((deadline.title or "").strip().lower(), deadline.deadline_type or "")
+
+    wanted = {key(deadline) for deadline in deadlines}
+    by_key: dict[tuple[str, str], list[AssetAdministrativeDeadline]] = defaultdict(list)
+    for candidate in (
+        filtra_per_asset(request, AssetAdministrativeDeadline.objects.filter(is_active=True), MODULO_VERIFICHE)
+        .select_related("asset", "component")
+        .order_by("due_date", "id")
+    ):
+        if key(candidate) in wanted:
+            by_key[key(candidate)].append(candidate)
+    window = timedelta(days=_DEADLINE_SAME_OUTING_DAYS)
+    result: dict[int, list[AssetAdministrativeDeadline]] = {}
+    for deadline in deadlines:
+        seen: set[tuple[int, int | None]] = set()
+        others = []
+        for candidate in by_key.get(key(deadline), []):
+            slot = (candidate.asset_id, candidate.component_id)
+            if candidate.asset_id == deadline.asset_id or slot in seen:
+                continue
+            if candidate.due_date > deadline.due_date + window:
+                continue
+            seen.add(slot)
+            others.append(candidate)
+        result[deadline.id] = others
+    return result
+
+
+def _register_deadline_completion(
+    deadline: AssetAdministrativeDeadline,
+    *,
+    user,
+    completed_on: date,
+    next_due_date: date | None,
+    cost_eur: Decimal | None = None,
+    duration_minutes: int = 0,
+    notes: str = "",
+    uploads=(),
+    shared_attachments=(),
+):
+    """Registra l'esecuzione e rinnova o chiude la voce. ``shared_attachments`` riusa
+    i file gia' caricati per un'altra voce della stessa uscita (nessuna copia).
+    Ritorna ``(completion, next_due_date, next_in_series, allegati creati)``."""
+    # Serie inserita una riga per data: la voce eseguita si chiude e la serie
+    # prosegue con la riga successiva. Rinnovarla creerebbe un doppione.
+    next_in_series = (
+        deadline.series_siblings().filter(due_date__gt=deadline.due_date).order_by("due_date", "id").first()
+    )
+    if next_in_series is not None:
+        next_due_date = None
+    elif next_due_date is None:
+        next_due_date = deadline.next_due_after(completed_on)
+    author = user if user is not None and user.is_authenticated else None
+    attachments: list[AssetAdministrativeDeadlineCompletionAttachment] = []
+    with transaction.atomic():
+        completion = AssetAdministrativeDeadlineCompletion.objects.create(
+            deadline=deadline,
+            completed_on=completed_on,
+            completed_by=author,
+            cost_eur=cost_eur,
+            duration_minutes=duration_minutes,
+            notes=notes,
+            next_due_date=next_due_date,
+        )
+        for upload in uploads:
+            attachments.append(
+                AssetAdministrativeDeadlineCompletionAttachment.objects.create(
+                    completion=completion,
+                    file=upload,
+                    original_name=Path(getattr(upload, "name", "") or "").name[:255],
+                    uploaded_by=author,
+                )
+            )
+        for shared in shared_attachments:
+            attachments.append(
+                AssetAdministrativeDeadlineCompletionAttachment.objects.create(
+                    completion=completion,
+                    file=shared.file.name,
+                    original_name=shared.original_name,
+                    uploaded_by=author,
+                )
+            )
+        if next_due_date is not None:
+            deadline.due_date = next_due_date
+            deadline.is_active = True
+            deadline.save(update_fields=["due_date", "is_active", "updated_at"])
+        else:
+            deadline.is_active = False
+            deadline.save(update_fields=["is_active", "updated_at"])
+    return completion, next_due_date, next_in_series, attachments
+
+
 def _deadline_category_choices() -> list[tuple[str, str]]:
     from ..forms_maintenance import category_filter_choices
 
@@ -571,42 +677,26 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
                 for error in upload_errors:
                     messages.error(request, error)
                 return redirect(redirect_url)
-            # Serie inserita una riga per data: la voce eseguita si chiude e la serie
-            # prosegue con la riga successiva. Rinnovarla creerebbe un doppione.
-            next_in_series = (
-                deadline.series_siblings().filter(due_date__gt=deadline.due_date).order_by("due_date", "id").first()
-            )
-            if next_in_series is not None:
-                next_due_date = None
-            elif next_due_date is None:
-                next_due_date = deadline.next_due_after(completed_on)
-            attachments_total = 0
+            # La stessa scadenza su altri asset, spuntata nella finestra: l'elenco
+            # consentito si ricalcola qui (prima di rinnovare la voce), non si
+            # accettano id qualsiasi dal modulo.
+            also_ids = {_as_int(raw, default=0) for raw in request.POST.getlist("also_complete")} - {0, deadline.id}
+            also_deadlines = []
+            if also_ids:
+                allowed = _same_deadline_other_assets(request, [deadline]).get(deadline.id, [])
+                also_deadlines = [other for other in allowed if other.id in also_ids]
+            explicit_next_due = next_due_date
             try:
-                with transaction.atomic():
-                    completion = AssetAdministrativeDeadlineCompletion.objects.create(
-                        deadline=deadline,
-                        completed_on=completed_on,
-                        completed_by=request.user if request.user.is_authenticated else None,
-                        cost_eur=cost_value,
-                        duration_minutes=duration_minutes,
-                        notes=notes_text,
-                        next_due_date=next_due_date,
-                    )
-                    for upload in uploads:
-                        AssetAdministrativeDeadlineCompletionAttachment.objects.create(
-                            completion=completion,
-                            file=upload,
-                            original_name=Path(getattr(upload, "name", "") or "").name[:255],
-                            uploaded_by=request.user if request.user.is_authenticated else None,
-                        )
-                        attachments_total += 1
-                    if next_due_date is not None:
-                        deadline.due_date = next_due_date
-                        deadline.is_active = True
-                        deadline.save(update_fields=["due_date", "is_active", "updated_at"])
-                    else:
-                        deadline.is_active = False
-                        deadline.save(update_fields=["is_active", "updated_at"])
+                completion, next_due_date, next_in_series, attachments = _register_deadline_completion(
+                    deadline,
+                    user=request.user,
+                    completed_on=completed_on,
+                    next_due_date=explicit_next_due,
+                    cost_eur=cost_value,
+                    duration_minutes=duration_minutes,
+                    notes=notes_text,
+                    uploads=uploads,
+                )
             except ValidationError as exc:
                 messages.error(request, f"Completamento non registrabile: {exc}")
                 return redirect(redirect_url)
@@ -625,11 +715,51 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
                     "next_due_date": str(next_due_date) if next_due_date else None,
                     "cost_eur": str(cost_value) if cost_value is not None else None,
                     "duration_minutes": duration_minutes,
-                    "attachments": attachments_total,
+                    "attachments": len(attachments),
                 },
                 oggetto_tipo=AUDIT_OGGETTO_ASSET,
                 oggetto_id=deadline.asset_id,
             )
+            # Stessa data, note, prossima scadenza indicata e allegati; costo e durata
+            # restano solo sulla voce principale, per non contarli due volte.
+            also_done: list[str] = []
+            for other in also_deadlines:
+                try:
+                    other_completion, other_next_due, _series, other_attachments = _register_deadline_completion(
+                        other,
+                        user=request.user,
+                        completed_on=completed_on,
+                        next_due_date=explicit_next_due,
+                        notes=notes_text,
+                        shared_attachments=attachments,
+                    )
+                except Exception as exc:
+                    messages.warning(request, f"Non registrata su {other.asset.asset_tag or other.asset.name}: {exc}")
+                    continue
+                also_done.append(other.asset.asset_tag or other.asset.name)
+                log_action(
+                    request,
+                    "complete_administrative_deadline",
+                    "assets",
+                    {
+                        "deadline_id": other.id,
+                        "asset_id": other.asset_id,
+                        "completion_id": other_completion.id,
+                        "completed_on": str(completed_on),
+                        "next_due_date": str(other_next_due) if other_next_due else None,
+                        "attachments": len(other_attachments),
+                        "together_with_deadline_id": deadline.id,
+                    },
+                    oggetto_tipo=AUDIT_OGGETTO_ASSET,
+                    oggetto_id=other.asset_id,
+                )
+            if also_done:
+                messages.success(
+                    request,
+                    f"Registrata anche su {len(also_done)} altr{'o' if len(also_done) == 1 else 'i'} "
+                    f"asset: {', '.join(also_done)}.",
+                )
+            attachments_total = len(attachments)
             attach_suffix = f" ({attachments_total} allegati)" if attachments_total else ""
             if next_due_date is not None:
                 messages.success(
@@ -787,6 +917,19 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
             row["state"]["status"], "tone-grey"
         )
 
+    if _is_assets_admin(request):
+        # Per la finestra «Registra»: la stessa scadenza sugli altri asset (anche
+        # per le date successive di una serie, che si registrano dal dettaglio).
+        same_on_others = _same_deadline_other_assets(
+            request,
+            [row["deadline"] for row in deadline_rows]
+            + [other["deadline"] for row in deadline_rows for other in row["series"]],
+        )
+        for row in deadline_rows:
+            row["also_rows"] = same_on_others.get(row["deadline"].id, [])
+            for other in row["series"]:
+                other["also_rows"] = same_on_others.get(other["deadline"].id, [])
+
     list_url = reverse("assets:asset_administrative_deadline_list")
 
     def _tab_url(**changes) -> str:
@@ -867,6 +1010,8 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
             "outlook_calendar_ready": _outlook_calendar_graph_ready() if can_manage_outlook_calendar else False,
             "calendar_user_choices": calendar_user_choices,
             "today_iso": today.isoformat(),
+            "today": today,
+            "same_outing_days": _DEADLINE_SAME_OUTING_DAYS,
             "family_filter": family_filter,
             "family_label": family_label,
             **_assets_shell_context(
