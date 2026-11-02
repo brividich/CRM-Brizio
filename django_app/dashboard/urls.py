@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import htmx_views, views, views_bacheca, views_mie_attivita, views_scadenze
+from . import htmx_views, views, views_bacheca, views_mie_attivita, views_sapere, views_scadenze
 
 
 urlpatterns = [
@@ -27,4 +27,8 @@ urlpatterns = [
     # Bacheca "Documenti & Collegamenti"
     path("bacheca/", views_bacheca.bacheca, name="bacheca"),
     path("bacheca/doc/<int:pk>/", views_bacheca.hub_link_download, name="hub_link_download"),
+    # Stanza «Sapere»: cataloghi di guide, risorse e collegamenti
+    path("sapere/", views_sapere.sapere_cataloghi, name="sapere_cataloghi"),
+    path("sapere/copertina/<str:tipo>/<int:pk>/", views_sapere.sapere_copertina, name="sapere_copertina"),
+    path("sapere/<slug:slug>/", views_sapere.sapere_catalogo, name="sapere_catalogo"),
 ]

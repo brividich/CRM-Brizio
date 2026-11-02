@@ -1,0 +1,14 @@
+{# Griglia di copertine dei cataloghi: usata da indice cataloghi e pagina catalogo (variabile «elenco»). #}
+<div class="hs-cats">
+  {% for c in elenco %}
+    <a class="hs-book hs-cat" href="{{ c.href }}"{% if c.descrizione %} title="{{ c.descrizione }}"{% endif %}>
+      <span class="hs-cover{% if c.copertina %} has-img{% endif %}" style="--cover:{{ c.colore }}{% if c.copertina %};--cover-img:url('{{ c.copertina }}'){% endif %}">
+        <span class="hs-cover-k">Catalogo</span>
+        <span class="hs-cover-g">{% if not c.copertina %}{{ c.sigla }}{% endif %}</span>
+        <span class="hs-cover-k">{{ c.totale }} vo{{ c.totale|pluralize:"ce,ci" }}</span>
+      </span>
+      <span class="hs-book-t">{{ c.titolo }}</span>
+      {% if c.descrizione %}<span class="hs-book-d">{{ c.descrizione }}</span>{% endif %}
+    </a>
+  {% endfor %}
+</div>

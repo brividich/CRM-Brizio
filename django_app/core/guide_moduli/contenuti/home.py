@@ -3,9 +3,9 @@ GUIDA = {
     "titolo": "Primi passi nel portale",
     "area": "Per tutti",
     "sintesi": "Come entrare, muoversi tra i moduli, trovare le cose e chiedere aiuto.",
-    "parole": "errore campi svuotati dati persi bozza accesso login password home menu notifiche push telefono conferma elimina annulla cerca profilo scadenzario calendario outlook ics preferiti personalizza tour tabelle viste colonne filtri schede scorrere lato",
+    "parole": "errore campi svuotati dati persi bozza accesso login password home menu notifiche push telefono conferma elimina annulla cerca profilo scadenzario calendario outlook ics preferiti personalizza tour cataloghi sapere copertine guide tabelle viste colonne filtri schede scorrere lato",
     "url": "dashboard_home",
-    "prefissi": ("/dashboard", "/hub/home/", "/profilo", "/notifiche/", "/bacheca/", "/scadenze", "/report/"),
+    "prefissi": ("/dashboard", "/hub/home/", "/profilo", "/notifiche/", "/bacheca/", "/sapere/", "/scadenze", "/report/"),
     "dettaglio": [("Guida della home a stanze", "home_portale:guida"), ("Guida I miei report", "miei_report", "?guida=1")],
     "uso": [
         {
@@ -152,6 +152,7 @@ GUIDA = {
                     "Preferiti: nella stanza «Moduli» tocca ☆ su una tessera; il modulo compare in «I miei preferiti» nella colonna di sinistra (massimo 12).",
                     "Azioni rapide: compaiono solo quelle che i tuoi permessi ti fanno usare (Le mie attività e Scadenzario sempre; poi anomalie, ticket, assenze, near miss, diario, task, DPI, assistente), al massimo 6.",
                     "La prima volta che entri parte un giro di benvenuto: barra di ricerca, notifiche, assistente, guida, stanze e preferiti.",
+                    "Stanza «Sapere»: in alto i «Cataloghi», raccolte di guide, documenti e collegamenti per argomento; «Tutti i cataloghi →» apre la pagina Cataloghi. Vedi solo i cataloghi e le voci aperti al tuo ruolo.",
                 ]),
             ],
         },

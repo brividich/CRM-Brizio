@@ -1,0 +1,76 @@
+{% extends "core/base.html" %}
+
+{% block title %}Cataloghi Sapere | Admin Portale{% endblock %}
+
+{% block extra_head %}{% include "admin_portale/pages/_sapere_stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="hp-wrap">
+  <div class="page-header">
+    <div class="page-header-main">
+      <h1 class="page-h">Cataloghi Sapere</h1>
+      <p class="page-sub">Raccolte di guide del Centro guide, risorse della bacheca e collegamenti, mostrate nella home (stanza «Sapere») e nella pagina <a href="{% url 'sapere_cataloghi' %}">Cataloghi</a>. Ogni catalogo può avere un'immagine di copertina e una visibilità per ruolo: nessun ruolo scelto = visibile a tutti.</p>
+    </div>
+    <div class="page-header-actions">
+      <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:bacheca' %}">Documenti &amp; Collegamenti</a>
+      <a class="btn btn-secondary btn-sm" href="{% url 'guida_modulo' 'amministrazione' %}?vista=admin#sapere-cataloghi">? Guida</a>
+    </div>
+  </div>
+
+  <div class="sc-wrap">
+    <div class="sc-card">
+      <div class="sc-card-h"><h3>Nuovo catalogo</h3></div>
+      <form class="sc-form" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="sc-field grow">
+          <label for="sc-titolo">Titolo</label>
+          <input type="text" id="sc-titolo" name="titolo" maxlength="120" required placeholder="Es. Primo giorno in azienda, IT e accessi">
+        </div>
+        <div class="sc-field grow">
+          <label for="sc-descr">Descrizione</label>
+          <input type="text" id="sc-descr" name="descrizione" maxlength="300" placeholder="Facoltativa: una riga sotto la copertina">
+        </div>
+        <div class="sc-field">
+          <label for="sc-colore">Colore</label>
+          <input type="color" id="sc-colore" name="colore" value="{{ colore_default }}">
+        </div>
+        <div class="sc-field">
+          <label for="sc-cop">Copertina (JPG, PNG, WEBP; max {{ max_mb }} MB)</label>
+          <input type="file" id="sc-cop" name="copertina" accept="{{ accept }}">
+        </div>
+        <p class="sc-hint">Visibile ai ruoli (nessuno selezionato = tutti):</p>
+        <div class="sc-roles">
+          {% for r in ruoli %}<label><input type="checkbox" name="ruoli" value="{{ r.id }}"> {{ r.nome }}</label>{% empty %}<span class="sc-hint">Nessun ruolo disponibile.</span>{% endfor %}
+        </div>
+        <button class="btn btn-primary btn-sm" type="submit">+ Crea catalogo</button>
+      </form>
+    </div>
+
+    <div class="sc-card">
+      <div class="sc-card-h"><h3>Cataloghi</h3><span class="sc-chip">{{ righe|length }}</span></div>
+      <div class="sc-body">
+        {% for r in righe %}
+          <div class="sc-row">
+            {% if r.copertina %}<img class="sc-thumb" src="{{ r.copertina }}" alt="" loading="lazy">{% else %}<span class="sc-sigla" style="--cover:{{ r.colore }}">{{ r.sigla }}</span>{% endif %}
+            <div class="sc-row-bd">
+              <div class="sc-row-t"><a href="{% url 'admin_portale:sapere_catalogo' r.obj.id %}">{{ r.obj.titolo }}</a></div>
+              <div class="sc-row-m">{{ r.voci }} vo{{ r.voci|pluralize:"ce,ci" }}{% if r.obj.descrizione %} · {{ r.obj.descrizione }}{% endif %}</div>
+            </div>
+            <div class="sc-row-a">
+              {% if not r.obj.is_visible %}<span class="sc-chip off">Nascosto</span>{% endif %}
+              {% for nome in r.ruoli %}<span class="sc-chip">{{ nome }}</span>{% empty %}<span class="sc-chip all">Tutti</span>{% endfor %}
+              <form method="post" action="{% url 'admin_portale:sapere_catalogo' r.obj.id %}">{% csrf_token %}
+                <button class="btn btn-secondary btn-sm" name="azione" value="su" title="Sposta su" aria-label="Sposta su"{% if forloop.first %} disabled{% endif %}>↑</button>
+                <button class="btn btn-secondary btn-sm" name="azione" value="giu" title="Sposta giù" aria-label="Sposta giù"{% if forloop.last %} disabled{% endif %}>↓</button>
+              </form>
+              <a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:sapere_catalogo' r.obj.id %}">Modifica</a>
+            </div>
+          </div>
+        {% empty %}
+          <div class="sc-empty">Nessun catalogo. Creane uno qui sopra.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
