@@ -83,12 +83,16 @@ const canUserEditOp = (opCapocommessa, opCar) => {
   return false;
 };
 
+// «Segnalare al cliente» porta l'anomalia in attesa della risposta del cliente
+// (resta aperta; il capocommessa cambia stato quando il cliente risponde).
+const AVANZAMENTO_RISPOSTA_CLIENTE = "In attesa risposta cliente";
+
 // Regola PowerApps: la prima scelta cambia in base a "Aprire RDC?"
 const buildAvanzamentoOptions = isAprireRdc => {
   const dynamicFirst = isAprireRdc ? "Apertura ORE/RIPI" : "Azione di recupero";
   const dynamicAlt = isAprireRdc ? "Azione di recupero" : "Apertura ORE/RIPI";
   const sanitizedBase = BASE_AVANZAMENTO_OPTIONS.filter(opt => normalizeChoice(opt).toLowerCase() !== dynamicAlt.toLowerCase());
-  return dedupeChoices([dynamicFirst, ...sanitizedBase]);
+  return dedupeChoices([dynamicFirst, ...sanitizedBase, AVANZAMENTO_RISPOSTA_CLIENTE]);
 };
 
 // Regola PowerApps: chiusura automatica in base ad avanzamento/apertura RDC.
@@ -136,6 +140,7 @@ const snColor = avanz => {
   if (avanz === "Accetto lo stato") return "#10b981";
   if (avanz === "In attesa") return "#f59e0b";
   if (avanz === "Finito trattato") return "#6366f1";
+  if (avanz === "In attesa risposta cliente") return "#0ea5e9";
   return "#94a3b8";
 };
 
@@ -242,7 +247,8 @@ const StatoStepper = ({
   chiuso
 }) => {
   const steps = BASE_AVANZAMENTO_OPTIONS;
-  const norm = String(avanzamento || "").trim().toLowerCase();
+  let norm = String(avanzamento || "").trim().toLowerCase();
+  if (norm === AVANZAMENTO_RISPOSTA_CLIENTE.toLowerCase()) norm = "in attesa"; // stesso passo
   let currentIdx = steps.findIndex(s => String(s).trim().toLowerCase() === norm);
   if (chiuso) currentIdx = steps.length; // tutti completati
   return /*#__PURE__*/React.createElement("div", {
@@ -1346,6 +1352,17 @@ function GestioneAnomalie() {
   const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento);
   // Una risposta scritta nelle note non può lasciare l'anomalia «In attesa».
   const notaSenzaStato = !!note.trim() && ["", "in attesa"].includes(normalizeChoice(avanzamento).toLowerCase());
+
+  // Spuntare «Segnalare al cliente» porta lo stato su «In attesa risposta cliente»;
+  // togliere la spunta riporta lo stato di partenza.
+  const toggleSegnalare = () => {
+    const on = !segnalare;
+    setSegnalare(on);
+    if (on) setAvanzamento(AVANZAMENTO_RISPOSTA_CLIENTE);else if (avanzamento === AVANZAMENTO_RISPOSTA_CLIENTE) {
+      const base = baseline.avanzamento; // dichiarato più sotto: letto solo al clic
+      setAvanzamento(base && base !== AVANZAMENTO_RISPOSTA_CLIENTE ? base : "In attesa");
+    }
+  };
   const flash = (msg, ms = 4500) => {
     setSaveMsg(msg);
     if (ms) setTimeout(() => setSaveMsg(cur => cur === msg ? null : cur), ms);
@@ -2407,7 +2424,7 @@ function GestioneAnomalie() {
     label: "Segnalare al cliente",
     checked: segnalare,
     disabled: !canEditSelected,
-    onChange: () => setSegnalare(!segnalare)
+    onChange: toggleSegnalare
   }), /*#__PURE__*/React.createElement(FlagToggle, {
     label: "Pezzi precedenti al benestare",
     checked: pezziPrec,
@@ -2419,12 +2436,12 @@ function GestioneAnomalie() {
     className: `ga-input${canEditSelected && notaSenzaStato ? " is-invalid" : ""}`,
     value: avanzamento,
     onChange: e => setAvanzamento(e.target.value),
-    disabled: segnalare && !note.trim() || !canEditSelected
+    disabled: !canEditSelected
   }, avanzamentoOptions.map(opt => /*#__PURE__*/React.createElement("option", {
     key: opt
-  }, opt))), segnalare && !note.trim() && /*#__PURE__*/React.createElement("div", {
+  }, opt))), segnalare && avanzamento === AVANZAMENTO_RISPOSTA_CLIENTE && /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
-  }, "Con \xABSegnalare al cliente\xBB l'avanzamento resta quello attuale.")), aprireRdc && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Numero RDC"), /*#__PURE__*/React.createElement("input", {
+  }, "L'anomalia resta aperta in attesa del cliente: cambia lo stato quando risponde.")), aprireRdc && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Numero RDC"), /*#__PURE__*/React.createElement("input", {
     className: "ga-input",
     placeholder: "Es. RDC-2026-014",
     value: rdcNum,

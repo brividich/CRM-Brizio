@@ -429,7 +429,7 @@
                   <span>Aprire RDC?</span>
                 </label>
                 <label class="toggle-row">
-                  <input type="checkbox" id="seg-{{ a.id }}" {% if a.segnalare_cliente %}checked{% endif %} onchange="onToggleChange({{ a.id }})">
+                  <input type="checkbox" id="seg-{{ a.id }}" {% if a.segnalare_cliente %}checked{% endif %} onchange="onSegnalareChange({{ a.id }})">
                   <span>Segnalare a cliente?</span>
                 </label>
                 <label class="toggle-row toggle-readonly">
@@ -565,13 +565,15 @@
 
   // ── Regole Power Apps (identiche alla pagina web di gestione) ──
   var BASE_AVANZAMENTO = ["In attesa", "Accetto lo stato", "Finito trattato"];
+  // «Segnalare al cliente» porta l'anomalia in attesa della risposta del cliente.
+  var AVANZAMENTO_RISPOSTA_CLIENTE = "In attesa risposta cliente";
 
   function buildAvanzamentoOptions(isAprireRdc) {
     var dynamicFirst = isAprireRdc ? "Apertura ORE/RIPI" : "Azione di recupero";
     var dynamicAlt   = isAprireRdc ? "Azione di recupero" : "Apertura ORE/RIPI";
     var base = BASE_AVANZAMENTO.filter(function(o){ return o.toLowerCase() !== dynamicAlt.toLowerCase(); });
     var out = [dynamicFirst];
-    base.forEach(function(o){ if (out.map(function(x){return x.toLowerCase();}).indexOf(o.toLowerCase()) < 0) out.push(o); });
+    base.concat([AVANZAMENTO_RISPOSTA_CLIENTE]).forEach(function(o){ if (out.map(function(x){return x.toLowerCase();}).indexOf(o.toLowerCase()) < 0) out.push(o); });
     return out;
   }
 
@@ -597,8 +599,18 @@
     if (prev && opts.indexOf(prev) >= 0) sel.value = prev;
   }
 
-  // Applica le regole: se "Segnalare a cliente" è ON disabilita l'avanzamento;
-  // ricalcola "Chiudere automatico" da aprireRdc + avanzamento.
+  // Spuntare «Segnalare al cliente» porta lo stato su «In attesa risposta cliente»;
+  // togliere la spunta torna a «invariato».
+  function onSegnalareChange(id) {
+    var seg = document.getElementById('seg-' + id);
+    var av  = document.getElementById('av-' + id);
+    rebuildSelect(id);
+    if (av && seg && seg.checked) av.value = AVANZAMENTO_RISPOSTA_CLIENTE;
+    else if (av && av.value === AVANZAMENTO_RISPOSTA_CLIENTE) av.value = '';
+    onToggleChange(id);
+  }
+
+  // Ricalcola "Chiudere automatico" da aprireRdc + avanzamento.
   function onToggleChange(id) {
     var rdc  = document.getElementById('rdc-' + id);
     var seg  = document.getElementById('seg-' + id);
@@ -607,14 +619,6 @@
 
     rebuildSelect(id);
 
-    if (av) {
-      // Con una nota scritta lo stato va scelto anche se si segnala al cliente.
-      var noteEl = document.getElementById('note-' + id);
-      var disabled = seg && seg.checked && !(noteEl && noteEl.value.trim());
-      av.disabled = disabled;
-      av.style.opacity = disabled ? '0.6' : '1';
-      av.style.cursor = disabled ? 'not-allowed' : 'pointer';
-    }
     if (chk) chk.checked = shouldAutoClose(rdc && rdc.checked, av ? av.value : '');
     var numWrap = document.getElementById('numwrap-' + id);
     if (numWrap) numWrap.hidden = !(rdc && rdc.checked);

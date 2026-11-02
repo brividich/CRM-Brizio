@@ -239,6 +239,10 @@ def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_av
             riga_segnalare = bool(per_riga.get("segnalare"))
             riga_chiudere = bool(per_riga.get("chiudere"))
             riga_numero_rdc = str(per_riga.get("numero_rdc") or "").strip()[:100]
+            if riga_segnalare:
+                from .views import avanzamento_dopo_segnalazione
+
+                riga_avanzamento = avanzamento_dopo_segnalazione(True, riga_avanzamento, anomalia.get(_STATO_FIELD) or "")
         else:
             riga_note = note if (note and action in _NOTE_GLOBALE_ACTIONS) else None
             riga_aprire_rdc = riga_segnalare = riga_chiudere = None
