@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Collector CNC – Guida al pilota su NOVISQL</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 10pt; line-height: 1.45; color: #1d2430; }
+  h1 { font-size: 20pt; margin: 0 0 4px; color: #0d3b66; }
+  h2 { font-size: 13.5pt; color: #0d3b66; border-bottom: 2px solid #0d3b66; padding-bottom: 3px; margin: 22px 0 8px; page-break-after: avoid; }
+  h3 { font-size: 11pt; margin: 14px 0 4px; page-break-after: avoid; }
+  p { margin: 5px 0; }
+  ul, ol { margin: 4px 0 6px 0; padding-left: 20px; }
+  li { margin: 2px 0; }
+  code { font-family: Consolas, "Courier New", monospace; font-size: 9pt; background: #eef1f5; padding: 0 3px; border-radius: 3px; }
+  pre { font-family: Consolas, "Courier New", monospace; font-size: 8.8pt; background: #f3f5f8; border: 1px solid #d5dbe3; border-left: 4px solid #0d3b66; padding: 7px 9px; white-space: pre-wrap; word-break: break-all; page-break-inside: avoid; margin: 6px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 8px; font-size: 9pt; page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  th, td { border: 1px solid #c9d1db; padding: 4px 6px; vertical-align: top; text-align: left; }
+  th { background: #e4eaf2; }
+  .sub { color: #5a6676; font-size: 10pt; margin-bottom: 14px; }
+  .box { border: 1px solid #c9d1db; border-radius: 4px; padding: 7px 10px; margin: 8px 0; page-break-inside: avoid; }
+  .ok { background: #eef8f0; border-color: #9cc9a6; }
+  .warn { background: #fff7e6; border-color: #e5c07b; }
+  .stop { background: #fdeeee; border-color: #e0a0a0; }
+  .box b:first-child { display: block; margin-bottom: 2px; }
+  .src { font-size: 8.5pt; word-break: break-all; }
+  .chk li { list-style: none; margin-left: -16px; }
+  .chk li::before { content: "\2610  "; }
+  .small { font-size: 8.8pt; color: #5a6676; }
+  .pb { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>Collector CNC – Guida al pilota su NOVISQL</h1>
+<div class="sub">NOVICROM HUB · collector CNC v2.0.0 in sola lettura (OPC UA, Heidenhain LSV2, Fanuc FOCAS) · Fase 2 · 28/10/2026<br>
+Ramo git <code>feature/assets-cnc-lsv2-focas</code> (non ancora in main, niente in produzione)</div>
+
+<div class="box ok"><b>In breve</b>
+Lo script <code>avvia_collector.ps1</code> legge le macchine e scrive i dati solo in una cartella locale su NOVISQL. Il portale non viene toccato, perché lo script svuota <code>PORTALE_URL</code> e <code>PORTALE_TOKEN</code>.<br>
+Sequenza: <b>installa → verifica → una lettura (<code>-Once</code>) → pilota 72 h</b>. Ferma tutto con CTRL+C in qualunque momento.</div>
+
+<h2>1. Cosa fa e cosa non fa</h2>
+<ul>
+  <li><b>Legge</b>:
+    <ul>
+      <li>stato (in lavoro, fermo, allarme, emergenza…), modo, programma, override, allarmi e contatori;</li>
+      <li>una lettura ogni 5 s per macchina, con almeno 2 s tra una e l'altra, e una sola connessione persistente per macchina;</li>
+      <li>se la macchina non risponde, riprova a intervalli crescenti fino a 5 minuti.</li>
+    </ul></li>
+  <li><b>Non scrive mai sul controllo</b>:
+    <ul>
+      <li>niente trasferimento di file, selezione di programmi, start, stop o reset;</li>
+      <li>ogni driver passa attraverso una «lista ammessi» di funzioni in sola lettura, e qualunque altra chiamata viene bloccata con un errore;</li>
+      <li>un test verifica che nel codice dei driver non compaiano nomi di funzioni di scrittura (<code>write_value</code>, <code>cnc_wr*</code>, <code>pmc_wr*</code>, <code>send_file</code>…).</li>
+    </ul></li>
+  <li><b>Silenzioso</b>: scrive su disco solo quando cambia qualcosa, più una riga di «battito» ogni 5 minuti. Gli errori ripetuti finiscono nel log una volta sola, quando cambia lo stato.</li>
+</ul>
+
+<h2>2. Dove trovi i file</h2>
+<h3>2.1 Sul PC di sviluppo (sorgenti)</h3>
+<table>
+<tr><th>Cosa</th><th>Percorso</th></tr>
+<tr><td>Cartella del collector (<b>quella da copiare su NOVISQL</b>)</td><td><code>C:\Dev\pn-cnc-drivers\django_app\assets\collector_cnc\</code></td></tr>
+<tr><td>Script di avvio del pilota</td><td><code>…\collector_cnc\avvia_collector.ps1</code></td></tr>
+<tr><td>Elenco macchine di esempio</td><td><code>…\collector_cnc\machines.example.json</code></td></tr>
+<tr><td>Modello dei segreti</td><td><code>…\collector_cnc\collector.env.example</code></td></tr>
+<tr><td>Dipendenze Python</td><td><code>…\collector_cnc\requirements-collector.txt</code> (asyncua 2.0, pyLSV2 1.8.0)</td></tr>
+<tr><td>Manuale tecnico completo</td><td><code>…\collector_cnc\README.md</code></td></tr>
+<tr><td>Driver (OPC UA, LSV2, FOCAS)</td><td><code>…\collector_cnc\drivers\</code> (<code>opcua.py</code>, <code>lsv2.py</code>, <code>focas.py</code>, <code>base.py</code>)</td></tr>
+<tr><td>Elenco delle funzioni vietate</td><td><code>…\collector_cnc\vietati.py</code></td></tr>
+<tr><td>Servizio Linux (per dopo)</td><td><code>…\collector_cnc\systemd\cnc-collector.service</code></td></tr>
+<tr><td>Runbook (errori, avvio/arresto, rollback)</td><td><code>C:\Dev\pn-cnc-drivers\docs\assets\collector_cnc\RUNBOOK.md</code></td></tr>
+<tr><td>Decisioni di progetto (ADR)</td><td><code>C:\Dev\pn-cnc-drivers\docs\assets\collector_cnc\adr\</code> (0001–0004)</td></tr>
+<tr><td>Questa guida</td><td><code>C:\Dev\pn-cnc-drivers\docs\assets\collector_cnc\GUIDA_PILOTA.pdf</code> (sorgente <code>.html</code> accanto)</td></tr>
+<tr><td>Test automatici</td><td><code>C:\Dev\pn-cnc-drivers\django_app\assets\tests_cnc\</code></td></tr>
+</table>
+<p class="small">Se la cartella <code>C:\Dev\pn-cnc-drivers</code> non c'è più, i file sono comunque su GitHub nel ramo <code>feature/assets-cnc-lsv2-focas</code>, nella stessa posizione.</p>
+
+<h3>2.2 Su NOVISQL, dopo la copia</h3>
+<table>
+<tr><th>Cosa</th><th>Percorso</th><th>Chi lo crea</th></tr>
+<tr><td>Programma</td><td><code>C:\CollectorCnc\</code></td><td>tu, copiando la cartella</td></tr>
+<tr><td>Cartella di lavoro del pilota</td><td><code>C:\CollectorCnc\pilota\</code></td><td>lo script</td></tr>
+<tr><td>Ambiente Python</td><td><code>C:\CollectorCnc\pilota\.venv\</code></td><td><code>-Installa</code></td></tr>
+<tr><td>Macchine da leggere</td><td><code>C:\CollectorCnc\pilota\machines.json</code></td><td>lo script, al primo avvio, copiando l'esempio</td></tr>
+<tr><td>Segreti (facoltativo)</td><td><code>C:\CollectorCnc\pilota\collector.env</code></td><td>tu, dal modello <code>.example</code></td></tr>
+<tr><td>Log del collector</td><td><code>C:\CollectorCnc\pilota\logs\collector.log</code> (+ <code>.1</code>…<code>.5</code>, 5 MB l'uno)</td><td>il collector</td></tr>
+<tr><td>Copia di tutto ciò che appare a schermo</td><td><code>C:\CollectorCnc\pilota\logs\console-AAAAMMGG-hhmmss.log</code></td><td>lo script, uno per avvio</td></tr>
+<tr><td>Registro locale (SQLite)</td><td><code>C:\CollectorCnc\pilota\machines.db</code></td><td>il collector</td></tr>
+<tr><td>Ultimo stato di ogni macchina</td><td><code>C:\CollectorCnc\pilota\dati\status.json</code></td><td>il collector</td></tr>
+<tr><td>Storico per macchina e giorno</td><td><code>C:\CollectorCnc\pilota\dati\&lt;MACCHINA&gt;\AAAA-MM-GG.jsonl</code></td><td>il collector</td></tr>
+<tr><td>Libreria Fanuc</td><td>ad es. <code>C:\Fanuc\Fwlib64.dll</code> (<b>fuori</b> dalla cartella del programma)</td><td>tu</td></tr>
+</table>
+
+<h2>3. Prerequisiti</h2>
+<ul>
+  <li><b>Python 3.11 o più recente a 64 bit</b> su NOVISQL. Verifica con <code>py --version</code>.</li>
+  <li><b>Rete</b>: NOVISQL deve raggiungere le macchine. Aprire queste porte sul WatchGuard <b>solo da NOVISQL verso la VLAN macchine</b>:
+    <table>
+    <tr><th>Porta</th><th>Protocollo</th><th>Macchina del pilota</th><th>Prova</th></tr>
+    <tr><td>4840</td><td>OPC UA (box MDC)</td><td>DM6-MDC 192.168.23.115</td><td><code>Test-NetConnection 192.168.23.115 -Port 4840</code></td></tr>
+    <tr><td>19000</td><td>Heidenhain LSV2</td><td>AGV1 192.168.23.105 (DM6 .114 solo confronto)</td><td><code>Test-NetConnection 192.168.23.105 -Port 19000</code></td></tr>
+    <tr><td>8193</td><td>Fanuc FOCAS</td><td>HYUNDAI 192.168.23.117</td><td><code>Test-NetConnection 192.168.23.117 -Port 8193</code></td></tr>
+    </table>
+    Non serve nessuna porta in ingresso verso NOVISQL. Il risultato atteso della prova è <code>TcpTestSucceeded : True</code>.</li>
+  <li><b>Libreria Fanuc</b> <code>Fwlib64.dll</code>, solo per la HYUNDAI:
+    <ul>
+      <li>non è nel repository e non si scarica con pip; si prende dal pacchetto FOCAS2 di Fanuc (CD o distributore);</li>
+      <li>deve essere a 64 bit, come Python.</li>
+    </ul>
+    Senza la libreria, la HYUNDAI risulta «non leggibile» e le altre macchine funzionano lo stesso.</li>
+  <li><b>Utente</b>: basta un utente normale. Non servono diritti di amministratore.</li>
+</ul>
+
+<h2>4. Installazione passo passo</h2>
+<h3>4.1 Copia del programma</h3>
+<p>Copia la cartella <code>collector_cnc</code> dal PC di sviluppo a <code>C:\CollectorCnc</code> su NOVISQL, senza le cartelle temporanee:</p>
+<pre>robocopy "C:\Dev\pn-cnc-drivers\django_app\assets\collector_cnc" "\\NOVISQL\C$\CollectorCnc" /E /XD __pycache__ pilota</pre>
+<p class="small">In alternativa puoi copiarla a mano con Esplora risorse e cancellare poi <code>__pycache__</code>.</p>
+
+<h3>4.2 Installazione delle dipendenze (solo la prima volta)</h3>
+<p>Su NOVISQL apri PowerShell in <code>C:\CollectorCnc</code>:</p>
+<pre>cd C:\CollectorCnc
+.\avvia_collector.ps1 -Installa -FwlibPath C:\Fanuc\Fwlib64.dll</pre>
+<p>Se Windows blocca lo script («esecuzione di script disabilitata»), consentilo solo per quella finestra:</p>
+<pre>Set-ExecutionPolicy -Scope Process Bypass</pre>
+<p><b>Se NOVISQL non ha accesso a Internet:</b></p>
+<ol>
+  <li>Su un PC con Internet scarica i pacchetti:
+    <pre>py -m pip download -r requirements-collector.txt -d wheels</pre></li>
+  <li>Copia la cartella <code>wheels</code> in <code>C:\CollectorCnc\wheels</code>.</li>
+  <li>Lancia l'installazione dai pacchetti locali:
+    <pre>.\avvia_collector.ps1 -Installa -Wheelhouse .\wheels -FwlibPath C:\Fanuc\Fwlib64.dll</pre></li>
+</ol>
+
+<h3>4.3 Configurazione</h3>
+<p>Al primo avvio lo script crea <code>pilota\machines.json</code> copiando l'esempio. Il file contiene già il pilota:</p>
+<table>
+<tr><th>Nome</th><th>Driver</th><th>IP</th><th>Stato</th></tr>
+<tr><td>DM6-MDC</td><td>opcua</td><td>192.168.23.115</td><td>attiva (box MDC di DM6)</td></tr>
+<tr><td>AGV1</td><td>lsv2</td><td>192.168.23.105</td><td>attiva (iTNC 530)</td></tr>
+<tr><td>HYUNDAI</td><td>focas</td><td>192.168.23.117 : 8193</td><td>attiva</td></tr>
+<tr><td>DM6</td><td>lsv2</td><td>192.168.23.114</td><td><code>"enabled": false</code>: solo confronto con <code>-Once DM6</code></td></tr>
+<tr><td>Altre DMG, AGV2/3, DM3, DM14</td><td>opcua / lsv2</td><td>–</td><td>disattivate</td></tr>
+</table>
+<ul>
+  <li>Per accendere o spegnere una macchina usa <code>"enabled": true</code> / <code>false</code>, poi riavvia lo script.</li>
+  <li><code>collector.env</code> serve solo se vuoi indicare <code>CNC_FWLIB_PATH</code> invece di <code>-FwlibPath</code>, oppure per la password OPC UA di DM7, che per ora è spenta. Si crea copiando <code>collector.env.example</code> in <code>pilota\collector.env</code>. I valori non finiscono mai nel log e il file non va mai nel repository.</li>
+</ul>
+
+<h2>5. Le tre prove, in ordine</h2>
+<h3>5.1 Controllo della configurazione (non si collega a niente)</h3>
+<pre>.\avvia_collector.ps1 -Verifica</pre>
+<p>Il controllo segnala driver sconosciuti, IP doppi, poll sotto i 2 s e campi mancanti. Con anche un solo errore il collector non parte: correggi le righe marcate <code>ERRORE</code> e ripeti.</p>
+
+<h3>5.2 Una lettura per macchina</h3>
+<pre>.\avvia_collector.ps1 -Once            # tutte le macchine attive
+.\avvia_collector.ps1 -Once DM6-MDC
+.\avvia_collector.ps1 -Once AGV1
+.\avvia_collector.ps1 -Once HYUNDAI
+.\avvia_collector.ps1 -Once DM6        # TNC 640 di DM6, anche se disattivata</pre>
+<p>Ogni comando stampa un JSON con stato, modo, programma, override e allarmi, e poi esce. <b>Confronta il JSON con il pannello della macchina</b>; l'output resta anche in <code>pilota\logs\console-*.log</code>.</p>
+
+<h3>5.3 Pilota di 72 ore</h3>
+<pre>.\avvia_collector.ps1 -DurataOre 72</pre>
+<ul>
+  <li>La finestra deve restare aperta. Se la chiudi, il pilota si ferma.</li>
+  <li>Se il collector si chiude per un errore imprevisto, lo script lo riavvia dopo 30 s.</li>
+  <li>Dopo 72 ore si ferma da solo, e puoi fermarlo prima con CTRL+C.</li>
+  <li>In entrambi i casi stampa un riepilogo: quanti avvii ci sono stati, le righe ERROR, i thread bloccati e l'ultima riga di salute.</li>
+  <li>Se su NOVISQL gira anche il collector del portale (operazione pianificata <code>CollectorCnc_*</code>), lo script lo segnala: DM6-MDC avrà due sessioni OPC UA in lettura, e va bene così.</li>
+</ul>
+
+<h2>6. Cosa guardare durante il pilota</h2>
+<table>
+<tr><th>Dove</th><th>Cosa</th><th>Valore atteso</th></tr>
+<tr><td>Righe <code>salute:</code> (ogni 10 min)</td><td>memoria del processo</td><td>stabile: non deve crescere giorno dopo giorno</td></tr>
+<tr><td>Righe <code>salute:</code></td><td>numero di thread</td><td>costante (uno per AGV1 e uno per HYUNDAI, più quelli di Python)</td></tr>
+<tr><td>Righe <code>salute:</code></td><td>thread bloccati</td><td>0; se sale, cerca «thread bloccato» nel log</td></tr>
+<tr><td><code>dati\status.json</code></td><td>stato attuale</td><td>corrisponde a quello che si vede in officina</td></tr>
+<tr><td><code>dati\&lt;MACCHINA&gt;\*.jsonl</code></td><td>cambi di stato</td><td>orari plausibili rispetto ai turni</td></tr>
+<tr><td>Pannelli delle macchine</td><td>messaggi, richieste di accesso, sessioni DNC</td><td>nessuno: chiedi agli operatori</td></tr>
+</table>
+<p>Per leggere il registro locale ti servono <code>sqlite3</code> o DB Browser for SQLite. Apri una copia del file: con <code>machines.db</code> aperto mentre il collector gira, le scritture restano in attesa.</p>
+<pre>SELECT machine, state, start_utc, end_utc, program FROM state_log ORDER BY id DESC LIMIT 50;
+SELECT machine, code, message, start_utc, end_utc FROM alarm_log ORDER BY id DESC LIMIT 50;</pre>
+<p class="small">Gli orari nel registro sono in UTC: in ora legale aggiungi 2 ore, in ora solare 1.</p>
+
+<h2 class="pb">7. Le macchine si accorgeranno di qualcosa?</h2>
+<p>Durante la lavorazione non dovrebbe succedere niente: il collector solo legge, una volta ogni 5 secondi, con una connessione. Le ricerche però hanno trovato <b>limiti reali</b> da verificare prima, per ogni tipo di controllo.</p>
+
+<h3>7.1 DM6-MDC (OPC UA, box MDC)</h3>
+<div class="box ok"><b>Rischio basso</b>
+Il collector legge il box MDC, non il controllo numerico. Non ho trovato limiti di sessioni documentati per il box MDC o l'IoTconnector, e la stessa lettura la fa già il collector integrato nel portale.</div>
+
+<h3>7.2 Fanuc HYUNDAI (FOCAS)</h3>
+<div class="box warn"><b>Limite documentato: massimo 5 client</b>
+Il manuale Fanuc della serie 0i-D (B-64305EN) dice testualmente che FOCAS2/Ethernet ammette <b>al massimo 5 client</b> collegati allo stesso CNC. Dice anche che l'accesso contemporaneo di più applicazioni può <b>sovraccaricare il CNC</b> e rallentare le comunicazioni.<br>
+Il collector occupa <b>1 posto</b> con un solo handle che resta aperto. Se ci sono già DNC, un MES o il software del costruttore, conta quanti posti sono occupati.</div>
+<ul>
+  <li>Verifica che il controllo sia davvero Fanuc, perché Hyundai-WIA monta anche Siemens, e che la funzione FOCAS2/Ethernet sia attiva sulla porta 8193.</li>
+  <li>Il collector legge stato, programma, avanzamenti e il contatore pezzi (parametro 6711). Il primo valore letto fa da base. Se il contatore scende, viene trattato come un azzeramento e scritto una volta sola nel log.</li>
+</ul>
+
+<h3>7.3 Heidenhain AGV1 (iTNC 530) e DM6 (TNC 640)</h3>
+<div class="box warn"><b>I punti da controllare</b>
+<ul>
+  <li><b>Le sessioni LSV2 sono limitate.</b> Chi le ha misurate su iTNC 530 e TNC 640 riporta che una nuova connessione aperta entro circa 1 s dalla chiusura della precedente a volte viene rifiutata.<br>
+  Il collector usa già una sola sessione persistente, con almeno 2 s tra un tentativo e l'altro e attese crescenti.</li>
+  <li><b>Accesso esterno.</b> Su alcune macchine la connessione viene accettata e chiusa dopo circa 5 s, senza errore. Le cause sono tre: accesso esterno disattivato, una lista di IP ammessi, oppure un posto già occupato.<br>
+  Sul TNC 640 si regola da <b>MOD → Impostazioni macchina → Accesso esterno</b>. Se è spento, non si collega nemmeno TNCremo.</li>
+  <li><b>TNC 640 con software NC recente.</b> Di default LSV2 è permesso solo attraverso un tunnel SSH. Senza tunnel serve il parametro macchina <code>allowUnsecureLsv2</code> (135401), che imposta il costruttore.<br>
+  HEIDENHAIN annuncia che LSV2 sarà tolto nelle versioni future, e nel controllo può comparire l'avviso «connessione non sicura».</li>
+  <li><b>Conferma sul pannello.</b> Sui controlli recenti, con il controllo degli accessi attivo, l'accesso di un PC remoto va concesso a mano sul pannello. È documentato per il TNC7; per DM6 è possibile.</li>
+  <li><b>Opzione software #18.</b> Per leggere programma e stato, il collector fa anche il login DNC, che è in sola lettura. Se il controllo non ha l'opzione #18, il login viene rifiutato: la macchina compare come «Non leggibile», che è diverso da OFFLINE, e il collector riprova ogni 5 minuti.</li>
+  <li><b>Programma in corso.</b> Non ho trovato una garanzia scritta di HEIDENHAIN sul fatto che la lettura LSV2 non influisca su un programma in esecuzione. Integrazioni di terze parti leggono gli stessi dati senza segnalare problemi, ma non è una dichiarazione del costruttore.</li>
+</ul></div>
+<p>Se DM6 accetta LSV2 solo via SSH, la lettura LSV2 di DM6 non funzionerà. Per DM6 resta comunque la via MDC (OPC UA), che è quella scelta per il portale.</p>
+
+<h2>8. Lista di controllo prima della prova</h2>
+<ul class="chk">
+  <li>Su <b>DM6 e AGV1</b>: annota la versione del software NC (tasto MOD).</li>
+  <li>Su <b>DM6 e AGV1</b>: controlla che l'accesso esterno sia attivo e senza restrizioni di IP verso NOVISQL.</li>
+  <li>Sulla <b>HYUNDAI</b>: verifica che il controllo sia Fanuc, che FOCAS2/Ethernet sia attivo e quanti client sono già collegati (massimo 5).</li>
+  <li>Su NOVISQL: <code>Test-NetConnection</code> sulle tre porte del capitolo 3.</li>
+  <li><code>.\avvia_collector.ps1 -Verifica</code> senza errori.</li>
+  <li>Prima prova <code>-Once</code> con un operatore davanti al pannello, a macchina ferma o con un pezzo non critico.</li>
+  <li><code>-Once DM6</code> guardando il pannello del TNC 640, per vedere se compaiono messaggi o richieste di accesso.</li>
+  <li>Con il collector acceso, prova TNCremo (Heidenhain) e il DNC o il software Fanuc già in uso: devono continuare a funzionare.</li>
+  <li>Solo dopo: <code>-DurataOre 72</code>.</li>
+</ul>
+<div class="box stop"><b>Se compare qualcosa di strano sul pannello</b>
+Premi CTRL+C nella finestra PowerShell: le sessioni si chiudono subito.<br>
+Per escludere solo quella macchina, metti <code>"enabled": false</code> in <code>machines.json</code> e riavvia lo script. Annota l'ora e il messaggio, e conserva <code>pilota\logs\</code>.</div>
+
+<h2>9. Arresto, riavvio e rollback</h2>
+<ul>
+  <li><b>Fermare il pilota</b>: CTRL+C nella finestra, oppure si ferma da solo dopo <code>-DurataOre</code>.<br>
+  Lo stop è pulito: chiude le sessioni OPC UA e LSV2, libera l'handle FOCAS e chiude gli intervalli aperti nel registro.</li>
+  <li><b>Riavviare</b>: rilancia lo stesso comando. <code>machines.db</code> e i log continuano da dove erano rimasti.</li>
+  <li><b>Togliere tutto</b>: ferma lo script e cancella <code>C:\CollectorCnc</code>. Sulle macchine e sul portale non resta niente, perché il pilota non ha toccato né le une né l'altro.</li>
+  <li><b>Più avanti</b> (non ora): per la gestione come servizio Windows, con NSSM, vedi il README; per il rollback del portale, la migrazione <code>assets 0157</code>, che è reversibile, vedi il RUNBOOK.</li>
+</ul>
+
+<h2>10. Problemi più probabili</h2>
+<table>
+<tr><th>Nel log</th><th>Causa</th><th>Cosa fare</th></tr>
+<tr><td><code>non raggiungibile (… timed out)</code></td><td>macchina spenta, cavo, VLAN, porta chiusa sul WatchGuard</td><td><code>Test-NetConnection &lt;ip&gt; -Port …</code>; aprire la porta solo da NOVISQL</td></tr>
+<tr><td><code>NON_LEGGIBILE (login DNC rifiutato … opzione #18)</code></td><td>il controllo Heidenhain non ha l'opzione #18</td><td>chiedere l'opzione a Heidenhain/DMG; intanto la macchina resta «Non leggibile»</td></tr>
+<tr><td><code>libreria Fwlib non trovata</code> / <code>non caricata</code></td><td>percorso mancante, oppure DLL a 32 bit con Python a 64 bit</td><td><code>-FwlibPath C:\…\Fwlib64.dll</code> o <code>CNC_FWLIB_PATH</code> in <code>collector.env</code></td></tr>
+<tr><td><code>rifiuta l'accesso anonimo</code></td><td>il server OPC UA vuole un utente (es. DM7)</td><td><code>username</code> + <code>password_env</code> in <code>machines.json</code>, password in <code>collector.env</code></td></tr>
+<tr><td><code>collector NON avviato: N errori nella configurazione</code></td><td><code>machines.json</code> non valido</td><td><code>-Verifica</code>, poi correggi le righe ERRORE</td></tr>
+<tr><td><code>cnc_statinfo = -16: connessione persa</code></td><td>rete instabile o controllo Fanuc riavviato</td><td>si riconnette da solo; se continua, controlla la rete</td></tr>
+<tr><td><code>… disattivata dopo 3 errori</code></td><td>il controllo non supporta quella lettura</td><td>nessuna azione: la lettura si riprova alla riconnessione</td></tr>
+<tr><td><code>thread bloccato in una lettura</code></td><td>una chiamata alla libreria non risponde</td><td>il thread viene sostituito da solo; se si ripete, mandami il log</td></tr>
+<tr><td><code>machines.db non scrivibile (database is locked)</code></td><td>il file è aperto in un altro programma (DB Browser, antivirus, backup)</td><td>chiudi il programma; le scritture in attesa ripartono da sole</td></tr>
+<tr><td><code>l'orologio di sistema è saltato di …</code></td><td>NTP o cambio dell'ora a mano</td><td>controlla la sincronizzazione dell'ora del server; le durate restano corrette</td></tr>
+<tr><td>La connessione LSV2 cade dopo circa 5 s</td><td>accesso esterno spento, lista IP, posto occupato, oppure solo SSH</td><td>vedi capitolo 7.3</td></tr>
+</table>
+
+<h2>11. Cosa mandarmi dopo la prova</h2>
+<ol>
+  <li>Il file <code>C:\CollectorCnc\pilota\logs\console-*.log</code> delle prove <code>-Once</code>, cioè il JSON di DM6-MDC, AGV1, HYUNDAI e DM6.</li>
+  <li>Per ogni macchina, cosa mostrava il pannello in quel momento: stato, modo, programma e override.</li>
+  <li>Le versioni del software NC di DM6 e AGV1, e qualunque messaggio comparso sui pannelli.</li>
+  <li>Alla fine del pilota: il riepilogo stampato dallo script e la cartella <code>pilota\logs\</code>.</li>
+</ol>
+<p class="small">Questi file contengono solo dati di macchina, non dati di persone. Anche così, non vanno messi nel repository: <code>.gitignore</code> esclude già <code>pilota/</code>, <code>logs/</code>, <code>machines.db*</code> e <code>collector.env</code>.</p>
+<p>Con i tuoi output chiudo la Fase 2 (unione in <code>main</code>). Le fasi successive sono il pilota in ombra di 72 ore (Fase 3) e l'attivazione macchina per macchina (Fase 4).</p>
+
+<h2>12. Fonti</h2>
+<ul class="src">
+  <li>Fanuc 0i-D, Ethernet settings (B-64305EN), limite di 5 client FOCAS2, porta 8193: https://www.cnc.uk.com/wp-content/uploads/2015/05/Fanuc_0iD_Ethernet_Settings.pdf</li>
+  <li>pyLSV2, issue #89 (sessioni limitate, riconnessione entro 1 s, chiusura dopo 5 s): https://github.com/drunsinn/pyLSV2/issues/89</li>
+  <li>HEIDENHAIN, messaggi di errore NC (LSV2 via SSH, allowUnsecureLsv2): https://content.heidenhain.de/doku/tnc_guide/pdf_files/Fehlermeldungen_TNC/pdf/errors_en.pdf</li>
+  <li>TNC 640, manuale utente, «Accesso esterno»: https://www.manualslib.com/manual/1372445/Heidenhain-Tnc-640.html?page=796</li>
+  <li>TNC7, manuale utente (accesso remoto concesso dal pannello): https://content.heidenhain.de/doku/tnc_guide/pdf_files/TNC7/81762x-17/bhb/1358773-21.pdf</li>
+  <li>HEIDENHAIN TNC 640, opzioni OPC UA NC Server: https://www.heidenhain.us/wp-content/uploads/2022/07/PR_TNC640_HSCI_GEN3_OEM_ID1303179_en.pdf</li>
+  <li>EMQX Neuron, driver Heidenhain (dati letti da terzi): https://docs.emqx.com/en/neuron/latest/configuration/south-devices/heidenhain-cnc/heidenhain-cnc.html</li>
+  <li>DMG MORI Connectivity (MDC, IoTconnector): https://en.dmgmori.com/products/digitization/connectivity</li>
+</ul>
+
+</body>
+</html>

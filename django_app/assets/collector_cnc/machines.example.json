@@ -1,8 +1,29 @@
 {
+  "collector": {
+    "poll_seconds": 5,
+    "heartbeat_seconds": 300,
+    "log_file": "logs/collector.log"
+  },
   "machines": [
-    {"name": "CNC-A", "model": "DMC 85",   "serial": "00000000001", "ip": "192.0.2.11", "department": "REP1", "asset_tag": "CNC-0001"},
-    {"name": "CNC-B", "model": "CTX 2000", "serial": "00000000002", "ip": "192.0.2.12", "department": "REP2", "asset_tag": "CNC-0002"},
-    {"name": "CNC-C", "model": "DMC 160",  "serial": "00000000003", "ip": "192.0.2.13", "department": "REP1", "asset_tag": "",
-     "username": "", "password": "", "enabled": false}
+    {"name": "DM6-MDC", "driver": "opcua", "ip": "192.168.23.115", "nota": "box MDC di DM6: via scelta per il portale (ADR 0003)"},
+    {"name": "AGV1",    "driver": "lsv2",  "ip": "192.168.23.105", "nota": "iTNC 530"},
+    {"name": "HYUNDAI", "driver": "focas", "ip": "192.168.23.117", "port": 8193},
+    {"name": "DM6",     "driver": "lsv2",  "ip": "192.168.23.114", "enabled": false,
+     "nota": "TNC 640 della stessa DM6: solo per confronto con --once DM6"},
+
+    {"name": "DM7",   "driver": "opcua", "ip": "192.168.23.20",  "enabled": false, "username": "LETTORE",
+     "password_env": "CNC_DM7_PASSWORD", "nota": "MDC, non accetta l'accesso anonimo"},
+    {"name": "DM9",   "driver": "opcua", "ip": "192.168.23.23",  "enabled": false, "nota": "MDC"},
+    {"name": "DM11",  "driver": "opcua", "ip": "192.168.23.124", "enabled": false, "nota": "MDC"},
+    {"name": "DM10",  "driver": "opcua", "ip": "192.168.23.125", "enabled": false, "nota": "MDC"},
+    {"name": "DM12",  "driver": "opcua", "ip": "192.168.23.126", "enabled": false, "nota": "MDC"},
+    {"name": "DM13",  "driver": "opcua", "ip": "192.168.23.131", "enabled": false, "nota": "MDC"},
+    {"name": "DM15",  "driver": "opcua", "ip": "192.168.23.134", "enabled": false, "nota": "MDC"},
+    {"name": "DM16",  "driver": "opcua", "ip": "192.168.23.137", "enabled": false, "nota": "CELOS X"},
+    {"name": "DM17",  "driver": "opcua", "ip": "192.168.23.139", "enabled": false, "nota": "CELOS X"},
+    {"name": "AGV2",  "driver": "lsv2",  "ip": "192.168.23.106", "enabled": false},
+    {"name": "DM3",   "driver": "lsv2",  "ip": "192.168.23.107", "enabled": false},
+    {"name": "AGV3",  "driver": "lsv2",  "ip": "192.168.23.128", "enabled": false},
+    {"name": "DM14",  "driver": "lsv2",  "ip": "192.168.23.132", "enabled": false}
   ]
 }
