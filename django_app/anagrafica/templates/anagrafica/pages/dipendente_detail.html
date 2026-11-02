@@ -1017,8 +1017,20 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
     </div>
     <div class="dp-card-body">
       <div class="dp-info-grid">
-        <div class="dp-info-item"><div class="dp-info-label">Nome</div><div class="dp-info-value">{{ dip.nome|parte_nome|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Nome <button type="button" onclick="document.getElementById('nome-form').classList.toggle('open')" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Correggi nome e cognome">✏</button></div><div class="dp-info-value">{{ dip.nome|parte_nome|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Cognome</div><div class="dp-info-value">{{ dip.cognome|parte_nome|default:"—" }}</div></div>
+        <div class="dp-info-item" style="grid-column:1/-1;">
+          <div class="dp-mansione-form" id="nome-form">
+            <form method="post" action="{% url 'anagrafica:dipendente_dati_base_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              {% csrf_token %}
+              <input type="text" name="nome" class="dp-select" value="{{ dip.nome|default:'' }}" maxlength="100" placeholder="Nome" required aria-label="Nome" autocomplete="off">
+              <input type="text" name="cognome" class="dp-select" value="{{ dip.cognome|default:'' }}" maxlength="100" placeholder="Cognome" required aria-label="Cognome" autocomplete="off">
+              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
+              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="document.getElementById('nome-form').classList.remove('open')">Annulla</button>
+            </form>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Il nome si salva in maiuscolo e viene riportato sull'account portale collegato.</div>
+          </div>
+        </div>
         <div class="dp-info-item">
           <div class="dp-info-label">Matricola
             {% if is_admin %}<button type="button" onclick="toggleMatricolaForm()" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia matricola">✏</button>{% endif %}
@@ -1085,12 +1097,22 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
           {% endif %}
         </div>
         <div class="dp-info-item"><div class="dp-info-label">Email account</div><div class="dp-info-value">{{ dip.email|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f87cd;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Email notifica <button type="button" onclick="document.getElementById('email-notifica-form').classList.toggle('open')" style="background:none;border:none;cursor:pointer;color:#1f87cd;font-size:11px;font-weight:700;padding:0 4px;vertical-align:middle;" title="Cambia email per le notifiche">✏</button></div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f87cd;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div>
+          <div class="dp-mansione-form" id="email-notifica-form">
+            <form method="post" action="{% url 'anagrafica:dipendente_dati_base_set' legacy_id %}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              {% csrf_token %}
+              <input type="email" name="email_notifica" class="dp-select" value="{{ dip.email_notifica|default:'' }}" maxlength="200" placeholder="nome@azienda.it" aria-label="Email per le notifiche" style="min-width:200px;" autocomplete="off">
+              <button type="submit" class="dp-btn dp-btn-primary dp-btn-xs">Salva</button>
+              <button type="button" class="dp-btn dp-btn-ghost dp-btn-xs" onclick="document.getElementById('email-notifica-form').classList.remove('open')">Annulla</button>
+            </form>
+          </div>
+        </div>
         <div class="dp-info-item"><div class="dp-info-label">Email aziendale</div><div class="dp-info-value">{% if aziendale.email_aziendale %}<a href="mailto:{{ aziendale.email_aziendale }}" style="color:#1f87cd;">{{ aziendale.email_aziendale }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Telefono aziendale</div><div class="dp-info-value">{{ aziendale.telefono_aziendale|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Data prima assunzione</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Data assunzione corrente</div><div class="dp-info-value">{% if aziendale.data_assunzione_ultima and aziendale.data_assunzione_ultima != aziendale.data_prima_assunzione %}{{ aziendale.data_assunzione_ultima|date:"d-m-Y" }}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Data cessazione</div><div class="dp-info-value">{% if aziendale.data_cessazione %}<span class="dp-pill dp-pill-gray">{{ aziendale.data_cessazione|date:"d-m-Y" }}</span>{% else %}<span style="color:#16a34a;font-weight:600;">In forza</span>{% endif %}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Conteggi organico</div><div class="dp-info-value">{% if aziendale.escluso_dai_conteggi %}<span class="dp-pill dp-pill-gray" title="Non entra in persone in forza, turnover, organico per reparto e indici infortuni">Escluso</span>{% if aziendale.motivo_esclusione_conteggi %} <span style="font-size:11px;color:#64748b;">{{ aziendale.motivo_esclusione_conteggi }}</span>{% endif %}{% else %}Conteggiato{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Periodo di prova</div><div class="dp-info-value">{% if aziendale.prova_data_inizio %}{{ aziendale.prova_data_inizio|date:"d-m-Y" }} → {% if aziendale.prova_data_fine %}{{ aziendale.prova_data_fine|date:"d-m-Y" }}{% else %}…{% endif %}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Consenso privacy</div><div class="dp-info-value">{% if aziendale.consenso_privacy %}<span class="dp-pill dp-pill-green">Sì</span>{% if aziendale.data_consenso_privacy %} <span style="font-size:11px;color:#64748b;">{{ aziendale.data_consenso_privacy|date:"d-m-Y" }}</span>{% endif %}{% else %}<span class="dp-pill dp-pill-gray">No</span>{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Taglia scarpe</div><div class="dp-info-value">{{ aziendale.taglia_scarpe|default:"—" }}</div></div>

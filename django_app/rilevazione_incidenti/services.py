@@ -25,8 +25,12 @@ def active_headcount() -> int:
         rows = fetch_anagrafica_rows(deduplicate=True)
     except Exception:
         return 0
+    # Chi e' escluso dai conteggi dell'organico (CEO, RSPP esterno) non entra
+    # nelle ore lavorate su cui si calcolano gli indici.
+    from anagrafica.services.conteggi_organico import righe_in_organico
+
     return sum(
-        1 for row in rows
+        1 for row in righe_in_organico(rows)
         if row.get("id") and (row.get("attivo") is None or bool(row.get("attivo")))
     )
 

@@ -43,6 +43,9 @@ class Dipendente:
     ids: tuple[int, ...] = ()
     # Area aziendale (FK) della scheda: requisiti di area e simulazione del cambio mansione.
     area_aziendale_id: int | None = None
+    # Scheda con «Escludi dai conteggi dell'organico» (CEO, RSPP esterno...):
+    # la persona resta negli elenchi ma non entra in organico, turnover e indici.
+    escluso_conteggi: bool = False
 
     @property
     def tutti_gli_id(self) -> tuple[int, ...]:
@@ -277,6 +280,7 @@ def carica_dipendenti() -> list[Dipendente]:
             attivo_legacy=bool(row.get("attivo", True)),
             ids=fusi,
             area_aziendale_id=az.area_aziendale_id if az else None,
+            escluso_conteggi=any(az_map[i].escluso_dai_conteggi for i in fusi if i in az_map),
         ))
     out.sort(key=lambda d: d.nominativo.casefold())
     return out
@@ -351,6 +355,13 @@ class Contesto:
             .filter(Q(data_scadenza__isnull=True) | Q(data_scadenza__gte=self.today))
             .values_list("legacy_anagrafica_id", flat=True)
         }
+
+    def in_organico(self) -> list[Dipendente]:
+        """Perimetro senza le persone escluse dai conteggi dell'organico.
+
+        Base unica di persone in forza, organico medio, movimenti e turnover.
+        """
+        return [d for d in self.dipendenti_perimetro() if not d.escluso_conteggi]
 
     def dipendenti(self) -> list[Dipendente]:
         """Persone da elencare: in forza oggi, oppure tutte se richiesto."""

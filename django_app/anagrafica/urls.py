@@ -132,6 +132,8 @@ urlpatterns = [
     # ── fine mansioni di rischio ─────────────────────────────────────────────
     # Matricola dipendente (aggiorna campo legacy; preinserimento/recruiting)
     path("dipendenti/<int:legacy_id>/matricola/set", views.dipendente_matricola_set, name="dipendente_matricola_set"),
+    # Nome, cognome ed email per le notifiche (campi legacy della scheda)
+    path("dipendenti/<int:legacy_id>/dati-base/set", views.dipendente_dati_base_set, name="dipendente_dati_base_set"),
     # Username dipendente (aliasusername)
     path("dipendenti/<int:legacy_id>/username/set", views.dipendente_username_set, name="dipendente_username_set"),
     # Attiva/disattiva dipendente (campo attivo)

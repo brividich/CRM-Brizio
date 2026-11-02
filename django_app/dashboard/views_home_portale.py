@@ -360,11 +360,13 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
     if is_admin:
         try:
             from django.db import connections
+            from anagrafica.services.conteggi_organico import esclusi_dai_conteggi_ids
             with connections["default"].cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM anagrafica_dipendenti WHERE COALESCE(attivo,1) = 1")
-                row = cur.fetchone()
+                cur.execute("SELECT id FROM anagrafica_dipendenti WHERE COALESCE(attivo,1) = 1")
+                attivi = {int(r[0]) for r in cur.fetchall()}
+            # Chi e' escluso dai conteggi dell'organico (CEO, RSPP esterno) non si conta.
             out["anagrafica"] = [
-                {"value": row[0] if row else None, "unit": "in forza", "tone": "info"},
+                {"value": len(attivi - esclusi_dai_conteggi_ids()), "unit": "in forza", "tone": "info"},
             ]
         except Exception:
             logger.exception("Home: riquadro «Anagrafica» non calcolato")

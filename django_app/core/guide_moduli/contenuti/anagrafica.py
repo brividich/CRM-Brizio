@@ -51,6 +51,17 @@ GUIDA = {
                       "sulla mansione. Le azioni che chiudono o sospendono il rapporto (Avvia uscita dipendente…, "
                       "Disattiva account, Rimetti in forza) sono nel menu «Azioni ▾»: l'uscita si compila in una finestra "
                       "con motivo, data e restituzioni."),
+                ("p", "Nella scheda Anagrafica, riquadro «Anagrafica aziendale», chi amministra l'anagrafica corregge "
+                      "con «✏» nome e cognome (salvati in maiuscolo e riportati sull'account portale), matricola, "
+                      "username ed «Email notifica»; i dati civili e gli altri dati aziendali da «✏ Modifica». Reparto, "
+                      "area, mansione e ruolo si cambiano da «Spostamenti organizzativi», contratto e livello dallo "
+                      "storico contratti. Ogni correzione resta nel registro attività."),
+                ("p", "«Escludi dai conteggi dell'organico» (in «✏ Modifica» dei dati aziendali, con un motivo) serve "
+                      "per chi va tenuto in anagrafica ma non è organico: amministratore, RSPP esterno, consulenti. La "
+                      "persona resta negli elenchi e in formazione, visite, DPI e scadenze, ma non conta in: persone in "
+                      "forza (home e cruscotto), «Attivi» e organico per reparto dell'elenco, report Organico e "
+                      "turnover, Assunzioni e cessazioni, Parità di genere, indici infortuni. L'elenco mostra il riquadro "
+                      "«Fuori conteggio»; la scheda dice «Escluso» o «Conteggiato»."),
                 ("p", "Le schede sono nove: Riepilogo, Anagrafica, Ruolo e competenze, Contratto e retribuzione "
                       "(con l'Onboarding in fondo), Ferie e assenze (ratei dall'ultimo cedolino e storico assenze), "
                       "Formazione, Visite mediche, Documenti e Dotazioni (DPI, asset, licenze software e timbri; i "
