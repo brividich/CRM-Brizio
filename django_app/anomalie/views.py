@@ -77,6 +77,7 @@ ANOMALIE_LIST_KEYS = (
     "conferma_aggiornamenti",
     "rdc_segnalazione",
     "escalation_supervisori",
+    "azioni_effettuate",
 )
 ANOMALIE_LIST_DEFAULTS = {
     "capi_reparto": [],
@@ -99,8 +100,11 @@ ANOMALIE_LIST_DEFAULTS = {
     # Email supervisori del resoconto escalation "OP da controllare"
     # (anomalie ferme in "In attesa" oltre soglia ore).
     "escalation_supervisori": [],
+    # Scelte del riquadro «Azione effettuata» (rilavorazione, scarto...): chi
+    # contiene «rilavor» o «ripar» chiede la riverifica per chiudere.
+    "azioni_effettuate": ["Rilavorato", "Riparato", "Scartato", "Reso al fornitore", "Accettato in deroga"],
 }
-ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti"})
+ANOMALIE_NON_EMPTY_DEFAULT_KEYS = frozenset({"causali_doc", "stati_superficie", "avanzamenti", "azioni_effettuate"})
 # SEC: liste di sola configurazione (email notifica/escalation, destinatari RDC,
 # whitelist autorizzati alla modifica). Vanno esposte solo a chi gestisce la config,
 # non a tutti gli utenti del modulo via il GET di api_anomalie_config_liste.
@@ -143,6 +147,10 @@ ALLEGATI_ALLOWED_EXTENSIONS = {
     ".csv",
 }
 ALLEGATI_MAX_FILE_SIZE = DOCUMENT_MAX_BYTES
+# Allegati di «Risposta del cliente» e «Azione effettuata»: anche le mail salvate
+# (Outlook .msg, .eml) e i testi; si scaricano sempre, mai aperti nel browser.
+ESITI_SOLO_DOWNLOAD = {".msg", ".eml", ".txt"}
+ESITI_ALLOWED_EXTENSIONS = ALLEGATI_ALLOWED_EXTENSIONS | ESITI_SOLO_DOWNLOAD
 _ALLEGATI_FILE_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 ALLEGATI_SYNC_META_FILENAME = "__sync_meta__.json"
 ALLEGATI_SYNC_PENDING = "pending"
@@ -3115,6 +3123,8 @@ def api_anomalie_allegati_file(request):
         mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         display_name = _attachment_display_name(path.name)
         force_download = str(request.GET.get("download") or "").strip() in {"1", "true", "yes", "on"}
+        # Mail e testi degli esiti si scaricano sempre: il browser non li apre in modo sicuro.
+        force_download = force_download or path.suffix.lower() in ESITI_SOLO_DOWNLOAD
         try:
             log_action(
                 request,
@@ -3285,6 +3295,286 @@ def api_riapri(request):
     return JsonResponse({"success": True, "local_id": local_id, "item_id": f"local:{local_id}"})
 
 
+# ── Esiti: risposta del cliente e azione effettuata ──────────────────────────
+# Li registra chi e' incaricato dell'anomalia (capocommessa, CAR, controllore, chi
+# modifica l'OP), con i file allegati: stanno nella cartella dell'anomalia, quindi si
+# vedono e si scaricano come gli altri allegati.
+
+_AZIONI_CON_RIVERIFICA = ("rilavor", "ripar")
+
+
+def _azione_chiede_riverifica(azione: str) -> bool:
+    nome = str(azione or "").strip().lower()
+    return any(k in nome for k in _AZIONI_CON_RIVERIFICA)
+
+
+def _salva_file_esito(local_id: int, files) -> tuple[list[str], list[str]]:
+    """Salva i file nella cartella allegati dell'anomalia: ``(file_id salvati, errori)``."""
+    salvati: list[str] = []
+    errori: list[str] = []
+    if not files:
+        return salvati, errori
+    folder = _attachment_dir_for_local(local_id, create=True)
+    for f in files:
+        originale = str(getattr(f, "name", "") or "").strip()
+        nome = _safe_attachment_filename(originale)
+        if not nome:
+            errori.append(f"{originale or 'file'}: nome non valido")
+            continue
+        if Path(nome).suffix.lower() not in ESITI_ALLOWED_EXTENSIONS:
+            errori.append(f"{originale}: formato non supportato")
+            continue
+        size = int(getattr(f, "size", 0) or 0)
+        if size <= 0:
+            errori.append(f"{originale}: file vuoto")
+            continue
+        if size > ALLEGATI_MAX_FILE_SIZE:
+            errori.append(f"{originale}: supera {DOCUMENT_MAX_MB} MB")
+            continue
+        file_id = f"{uuid4().hex}__{nome}"
+        try:
+            with (folder / file_id).open("wb") as dest:
+                for chunk in f.chunks():
+                    dest.write(chunk)
+        except OSError as exc:
+            logger.error("[anomalie] esito: scrittura allegato fallita id=%s file=%s: %s", local_id, nome, exc)
+            errori.append(f"{originale}: scrittura fallita ({exc})")
+            continue
+        salvati.append(file_id)
+    if salvati:
+        _mark_attachment_pending(local_id, salvati)
+    return salvati, errori
+
+
+def _serializza_esito(e) -> dict:
+    return {
+        "id": e.pk,
+        "tipo": e.tipo,
+        "tipo_label": e.get_tipo_display(),
+        "azione": e.azione,
+        "testo": e.testo,
+        "riverificato": e.riverificato,
+        "chiusa": e.chiusa,
+        "utente": e.utente_display or "—",
+        "data": e.created_at.isoformat() if e.created_at else "",
+        "allegati": [{"file_id": f, "name": _attachment_display_name(f)} for f in (e.allegati or [])],
+    }
+
+
+def _tempi_payload(local_id: int, created) -> dict:
+    from anomalie.quality_models import AnomaliaSchedaQualita
+    from anomalie.tempi_service import METRICHE, etichetta_durata, notifiche_il, soglie, tempi_anomalia
+
+    scheda = AnomaliaSchedaQualita.objects.filter(anomalia_id=local_id).first()
+    tempi = tempi_anomalia(creata_il=created, scheda=scheda, notificata_il=notifiche_il([local_id]).get(local_id))
+    out = []
+    for chiave, label in METRICHE:
+        t = tempi.get(chiave)
+        if t:
+            out.append({"chiave": chiave, "label": label, "giorni": t["giorni"], "in_corso": t["in_corso"],
+                        "testo": etichetta_durata(t["giorni"])})
+    return {"tempi": out, "soglie": soglie(), "scheda": scheda}
+
+
+def _iso(valore) -> str:
+    if not valore:
+        return ""
+    if isinstance(valore, str):
+        return valore
+    if dj_tz.is_naive(valore):
+        valore = dj_tz.make_aware(valore, timezone.utc)
+    return valore.isoformat()
+
+
+def _percorso_anomalia(row: dict, scheda, esiti_azione) -> list[dict]:
+    """Passi del percorso dell'anomalia con la loro data: segnalata, decisa, cliente
+    (solo se coinvolto), azione effettuata (solo con «Azione di recupero» o se c'e'),
+    chiusa. Il primo passo senza data e' quello in corso."""
+    from anomalie.tempi_service import AVANZAMENTO_RECUPERO
+
+    primo = (scheda.primo_avanzamento if scheda else "").strip()
+    avanz = str(row.get("avanzamento") or "").strip()
+    decisione = avanz if avanz and avanz.lower() != "in attesa" else primo
+    passi = [
+        {"chiave": "segnalata", "label": "Segnalata", "data": _iso(row.get("created_datetime")), "dettaglio": ""},
+        {"chiave": "decisa", "label": "Decisa", "data": _iso(scheda.prima_decisione_il if scheda else None),
+         "dettaglio": decisione if scheda and scheda.prima_decisione_il else ""},
+    ]
+    if scheda and scheda.attesa_cliente_dal:
+        passi.append({"chiave": "cliente", "label": "Risposta del cliente", "data": _iso(scheda.risposta_cliente_il),
+                      "dettaglio": "chiesta il " + dj_tz.localtime(scheda.attesa_cliente_dal).strftime("%d/%m")})
+    recupero = AVANZAMENTO_RECUPERO.lower() in (primo.lower(), avanz.lower())
+    if recupero or (scheda and scheda.azione_effettuata_il):
+        ultima = esiti_azione[-1] if esiti_azione else None
+        passi.append({"chiave": "azione", "label": "Azione effettuata",
+                      "data": _iso(scheda.azione_effettuata_il if scheda else None),
+                      "dettaglio": (ultima.azione + (" · riverificato" if ultima.riverificato else "")) if ultima else ""})
+    chiusa = bool(row.get("chiudere"))
+    passi.append({"chiave": "chiusa", "label": "Chiusa",
+                  "data": _iso(scheda.chiusa_il if scheda and scheda.chiusa_il else None) if chiusa else "",
+                  "dettaglio": ""})
+    in_corso = False
+    for p in passi:
+        if p["data"] or (p["chiave"] == "chiusa" and chiusa):
+            p["stato"] = "fatto"
+        elif not in_corso:
+            p["stato"], in_corso = "attuale", True
+        else:
+            p["stato"] = "da_fare"
+    return passi
+
+
+@login_required
+def api_anomalie_esiti(request):
+    """Tempi ed esiti (risposta del cliente, azione effettuata) di un'anomalia."""
+    from anomalie.quality_models import AnomaliaEsito
+    from anomalie.tempi_service import AVANZAMENTO_RECUPERO, AVANZAMENTO_RISPOSTA_CLIENTE
+
+    local_id_raw = str(request.GET.get("local_id") or "").strip()
+    if not local_id_raw.isdigit():
+        return _json_error("local_id non valido", status=400)
+    local_id = int(local_id_raw)
+    if not _has_table("anomalie"):
+        return _json_error("Tabella anomalie non disponibile", status=500)
+    cols = legacy_table_columns("anomalie") or set()
+    select = ", ".join(c for c in ("id", "ex_op_nominativo", "chiudere", "avanzamento", "segnalare_cliente",
+                                   "created_datetime") if c in cols)
+    rows = _fetch_all_dict(f"SELECT TOP 1 {select} FROM anomalie WHERE id = %s", [local_id])
+    if not rows:
+        return _json_error("Anomalia non trovata", status=404)
+    row = rows[0]
+    op_id = str(row.get("ex_op_nominativo") or "").strip()
+    if not _can_view_anomalie_for_op(request, op_id):
+        return _json_error("Permesso negato", status=403)
+    tempi = _tempi_payload(local_id, row.get("created_datetime"))
+    scheda = tempi.pop("scheda")
+    esiti_azione = list(AnomaliaEsito.objects.filter(anomalia_id=local_id, tipo=AnomaliaEsito.Tipo.AZIONE))
+    primo = (scheda.primo_avanzamento if scheda else "").strip()
+    avanz = str(row.get("avanzamento") or "").strip()
+    return JsonResponse({
+        "success": True,
+        "local_id": local_id,
+        **tempi,
+        "esiti": [_serializza_esito(e) for e in AnomaliaEsito.objects.filter(anomalia_id=local_id)],
+        "can_registrare": _can_riaprire_anomalia(request, local_id, op_id),
+        "chiusa": bool(row.get("chiudere")),
+        "in_attesa_cliente": avanz.lower() == AVANZAMENTO_RISPOSTA_CLIENTE.lower(),
+        "segnalata_cliente": bool(row.get("segnalare_cliente")),
+        "recupero": primo.lower() == AVANZAMENTO_RECUPERO.lower() or avanz.lower() == AVANZAMENTO_RECUPERO.lower(),
+        "serve_azione": bool(scheda and primo.lower() == AVANZAMENTO_RECUPERO.lower() and not scheda.azione_effettuata_il),
+        "azione_registrata": bool(scheda and scheda.azione_effettuata_il),
+        "percorso": _percorso_anomalia(row, scheda, esiti_azione),
+    })
+
+
+@login_required
+@require_POST
+def api_anomalie_esito(request):
+    """Registra la risposta del cliente o l'azione effettuata, con gli allegati.
+
+    Azione effettuata con «Chiudi l'anomalia»: la chiude; dopo una rilavorazione o
+    riparazione serve anche «Pezzo riverificato conforme» (EN 9100 §8.7).
+    """
+    from anomalie.quality_models import AnomaliaEsito, AnomaliaSchedaQualita
+
+    local_id_raw = str(request.POST.get("local_id") or "").strip()
+    if not local_id_raw.isdigit():
+        return _json_error("local_id non valido", status=400)
+    local_id = int(local_id_raw)
+    tipo = str(request.POST.get("tipo") or "").strip().upper()
+    if tipo not in AnomaliaEsito.Tipo.values:
+        return _json_error("Tipo non valido", status=400)
+    testo = _safe_text(request.POST.get("testo"), 4000) or ""
+    azione = _safe_text(request.POST.get("azione"), 100) or ""
+    riverificato = str(request.POST.get("riverificato") or "").lower() in ("1", "true", "on")
+    chiudi = str(request.POST.get("chiudi") or "").lower() in ("1", "true", "on")
+    files = request.FILES.getlist("files")
+    if not _has_table("anomalie"):
+        return _json_error("Tabella anomalie non disponibile", status=500)
+    rows = _fetch_all_dict("SELECT TOP 1 id, ex_op_nominativo, chiudere FROM anomalie WHERE id = %s", [local_id])
+    if not rows:
+        return _json_error("Anomalia non trovata", status=404)
+    op_id = str(rows[0].get("ex_op_nominativo") or "").strip()
+    if not _can_riaprire_anomalia(request, local_id, op_id):
+        return _json_error("Permesso negato: registra l'esito solo chi è incaricato dell'anomalia", status=403)
+    gia_chiusa = bool(rows[0].get("chiudere"))
+    if gia_chiusa:
+        return _json_error("L'anomalia è chiusa: riaprila prima di registrare un esito", status=400)
+    if tipo == AnomaliaEsito.Tipo.RISPOSTA_CLIENTE:
+        if not testo and not files:
+            return _json_error("Scrivi la risposta del cliente o allega la mail.", status=400)
+        azione, riverificato, chiudi = "", False, False
+    else:
+        if not azione:
+            return _json_error("Scegli l'azione effettuata.", status=400)
+        if chiudi and _azione_chiede_riverifica(azione) and not riverificato:
+            return _json_error("Dopo una rilavorazione o riparazione la chiusura chiede «Pezzo riverificato "
+                               "conforme».", status=400)
+
+    salvati, errori = _salva_file_esito(local_id, files)
+    if files and not salvati:
+        return _json_error("Allegati non salvati: " + " · ".join(errori), status=400)
+
+    identity = _current_user_identity(request)
+    nome_utente = identity.get("name") or request.user.get_username()
+    esito = AnomaliaEsito.objects.create(
+        anomalia_id=local_id, tipo=tipo, azione=azione, testo=testo, riverificato=riverificato,
+        chiusa=chiudi, allegati=salvati, utente=request.user, utente_display=nome_utente[:200],
+    )
+    from anomalie.qualita_service import get_or_create_scheda
+    scheda, _ = get_or_create_scheda(local_id)
+    if scheda is not None:
+        campo = "risposta_cliente_il" if tipo == AnomaliaEsito.Tipo.RISPOSTA_CLIENTE else "azione_effettuata_il"
+        if tipo == AnomaliaEsito.Tipo.AZIONE or getattr(scheda, campo) is None:
+            AnomaliaSchedaQualita.objects.filter(pk=scheda.pk).update(**{campo: esito.created_at})
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    if chiudi:
+        cols = legacy_table_columns("anomalie")
+        sets = ["chiudere = 1"]
+        params: list = []
+        if "modified_datetime" in cols:
+            sets.append("modified_datetime = SYSUTCDATETIME()")
+        if "modified_by_user_id" in cols and legacy_user:
+            sets.append("modified_by_user_id = %s")
+            params.append(legacy_user.id)
+        try:
+            with connections["default"].cursor() as cursor:
+                cursor.execute(f"UPDATE anomalie SET {', '.join(sets)} WHERE id = %s", params + [local_id])
+        except DatabaseError as exc:
+            return _json_error(f"Esito registrato ma chiusura non riuscita: {exc}", status=500)
+
+    try:
+        log_action(request, "anomalia_esito", "anomalie",
+                   {"local_id": local_id, "op_id": op_id, "tipo": tipo, "azione": azione, "chiusa": chiudi,
+                    "allegati": len(salvati)})
+    except Exception:
+        pass
+    try:
+        from anomalie.mail_action_service import log_anomalia_portal_action
+        log_anomalia_portal_action(
+            anomalia_id=local_id,
+            op_id=op_id,
+            action="risposta_cliente" if tipo == AnomaliaEsito.Tipo.RISPOSTA_CLIENTE else "azione",
+            user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=nome_utente,
+            previous_status="",
+            new_status="Chiusa" if chiudi else (azione or ""),
+            ip_address=_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        )
+    except Exception:
+        logger.warning("api_anomalie_esito: timeline log fallita id=%s", local_id, exc_info=True)
+    try:
+        from anomalie.qualita_service import sync_da_anomalia
+        with transaction.atomic():
+            sync_da_anomalia(local_id)
+    except Exception:
+        logger.warning("api_anomalie_esito: scheda qualita' non aggiornata id=%s", local_id, exc_info=True)
+    return JsonResponse({"success": True, "esito": _serializza_esito(esito), "chiusa": chiudi, "errors": errori})
+
+
 def _insert_anomalia_return_id(cursor, quoted_cols: str, placeholders: str, params: list) -> int | None:
     """INSERT nella tabella legacy ``anomalie`` restituendo l'id della nuova riga.
 
@@ -3381,6 +3671,15 @@ def avanzamento_dopo_segnalazione(segnalare, avanzamento, attuale: str = "") -> 
     if segnalare and str(avanzamento or attuale or "").strip().lower() in _STATI_LIBERI:
         return AVANZAMENTO_RISPOSTA_CLIENTE
     return avanzamento
+
+
+def _serve_azione_per_chiudere(anomalia_id: int) -> bool:
+    try:
+        from anomalie.tempi_service import serve_azione_per_chiudere
+        return serve_azione_per_chiudere(anomalia_id)
+    except Exception:
+        logger.warning("tempi: verifica azione effettuata fallita id=%s", anomalia_id, exc_info=True)
+        return False
 
 
 def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True, da_controllo: bool = False) -> dict:
@@ -3494,6 +3793,12 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
                 prev_av = str(pre_row[0] or "").strip()
                 prev_chiuso = bool(pre_row[1])
                 previous_status = "Chiusa" if prev_chiuso else (prev_av or "In attesa")
+                # Prima decisione «Azione di recupero»: si chiude solo con l'azione
+                # effettuata (o aprendo un RDC, che porta la decisione al cliente).
+                if (not prev_chiuso and chiudere_val and not _as_bool_int(data.get("aprire_rdc"))
+                        and _serve_azione_per_chiudere(local_pk_id)):
+                    from anomalie.tempi_service import MSG_SERVE_AZIONE
+                    return {"success": False, "error": MSG_SERVE_AZIONE, "status": 400}
         except DatabaseError:
             logger.warning("api_salva: lettura stato precedente fallita id=%s", local_pk_id, exc_info=True)
         errore = _decisione_su_propria_anomalia(local_pk_id, cols, writable, legacy_user)
@@ -3636,6 +3941,8 @@ _TIMELINE_ACTION_LABELS = {
     "aggiorna": "Anomalia aggiornata",
     "chiudi": "Anomalia chiusa",
     "riapri": "Anomalia riaperta",
+    "risposta_cliente": "Risposta del cliente registrata",
+    "azione": "Azione effettuata",
     "prendi_in_carico": "Presa in carico",
     "approva": "Approvata",
     "respingi": "Respinta",
@@ -4967,6 +5274,28 @@ def _statistiche_where(request, cols: set[str]) -> tuple[list[str], list]:
     return where_parts + scope_parts, params + scope_params
 
 
+def _capocommessa_per_op(op_titles) -> dict[str, str]:
+    """{titolo OP in minuscolo: capocommessa} da ordini_produzione."""
+    titoli = sorted({str(t).strip() for t in op_titles if str(t or "").strip()})
+    if not titoli or not _has_table("ordini_produzione"):
+        return {}
+    out: dict[str, str] = {}
+    for i in range(0, len(titoli), 500):
+        chunk = titoli[i:i + 500]
+        ph = ",".join(["%s"] * len(chunk))
+        for r in _fetch_all_dict(f"SELECT title, capocomessa FROM ordini_produzione WHERE title IN ({ph})", chunk):
+            out[str(r.get("title") or "").strip().lower()] = str(r.get("capocomessa") or "").strip()
+    return out
+
+
+def _tempi_statistiche(rows: list[dict]) -> dict:
+    from anomalie.tempi_service import riepilogo, tempi_per_anomalie
+
+    capi = _capocommessa_per_op(r.get("ex_op_nominativo") for r in rows)
+    gruppi = {int(r["id"]): capi.get(str(r.get("ex_op_nominativo") or "").strip().lower(), "") for r in rows}
+    return riepilogo(tempi_per_anomalie(rows), gruppi=gruppi)
+
+
 @login_required
 def api_anomalie_statistiche(request):
     """Statistiche aggregate anomalie con filtri opzionali."""
@@ -5082,8 +5411,19 @@ def api_anomalie_statistiche(request):
     except Exception:
         logger.warning("statistiche anomalie: pareto qualita' non disponibile", exc_info=True)
 
+    # Tempi (giorni lavorativi) delle anomalie del filtro, per capocommessa dell'OP.
+    tempi = None
+    if "created_datetime" in cols:
+        try:
+            tempi = _tempi_statistiche(
+                _fetch_all_dict(f"SELECT id, created_datetime, ex_op_nominativo FROM anomalie {_where()}", params)
+            )
+        except Exception:
+            logger.warning("statistiche anomalie: tempi non disponibili", exc_info=True)
+
     return JsonResponse({
         "qualita": qualita,
+        "tempi": tempi,
         "totale": totale,
         "aperte": totale - chiuse,
         "chiuse": chiuse,

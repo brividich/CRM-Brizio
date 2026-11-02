@@ -84,6 +84,22 @@ SEZIONI_CONTROLLORE: list[dict] = [
         ],
     },
     {
+        "id": "c-azione",
+        "titolo": "Registrare l'azione effettuata",
+        "blocchi": [
+            ("p", "Quando il pezzo è stato rilavorato, riparato o scartato lo registri sull'anomalia: serve a chiuderla "
+                  "e a calcolare i tempi."),
+            ("passi", [
+                "Gestione anomalie › apri l'anomalia › riquadro «Tempi ed esiti».",
+                "Scegli l'«Azione effettuata» e scrivi cosa è stato fatto.",
+                "Allega foto o documenti (trascina, sfoglia o Ctrl+V).",
+                "Rilavorato o riparato: spunta «Pezzo riverificato conforme».",
+                "Premi «Registra e chiudi».",
+            ]),
+            ("img", (_IMG + "e1_azione.jpg", "Azione effettuata con riverifica e chiusura")),
+        ],
+    },
+    {
         "id": "c-riapri",
         "titolo": "Riaprire un'anomalia chiusa",
         "blocchi": [
@@ -143,6 +159,21 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
                 "Quando il cliente risponde, torna sull'anomalia in Gestione e scegli lo stato definitivo.",
             ]),
             ("img", (_IMG + "k3_cliente.jpg", "«Segnalare al cliente» e stato «In attesa risposta cliente»")),
+        ],
+    },
+    {
+        "id": "k-esiti",
+        "titolo": "Risposta del cliente e azione effettuata",
+        "blocchi": [
+            ("passi", [
+                "Il cliente ha risposto: nel riquadro «Tempi ed esiti» scrivi la risposta, allega la mail (.msg o .eml) "
+                "e premi «Registra risposta», poi scegli lo stato definitivo.",
+                "Con «Azione di recupero» l'anomalia si chiude solo registrando l'azione effettuata (la registri tu, il "
+                "CAR o il controllore): rilavorato o riparato chiede «Pezzo riverificato conforme».",
+            ]),
+            ("img", (_IMG + "e2_cliente.jpg", "Tempi in giorni lavorativi e risposta del cliente con la mail allegata")),
+            ("p", "I tempi sono in giorni lavorativi; in rosso quelli oltre l'obiettivo. In Statistiche trovi i tempi di "
+                  "risposta e risoluzione per capocommessa."),
         ],
     },
     {

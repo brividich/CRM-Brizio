@@ -92,13 +92,14 @@
     <div>
       <div class="card-title">Anomalie dell'OP ({{ righe|length }})</div>
       <div class="page-sub" style="margin-top:4px;">Avanzamento dato dal capocommessa: {{ contenimento_cc.gestite }} di {{ contenimento_cc.totale }} gestite, {{ contenimento_cc.chiuse }} chiuse.{% if contenimento_cc.tutte_chiuse %} <span class="nc-pill ok">tutte chiuse</span>{% endif %}</div>
+      {% if tempi_nc %}<div class="page-sub" style="margin-top:2px;">Tempi in giorni lavorativi: prima decisione {{ tempi_nc.risposta }} e risoluzione {{ tempi_nc.risoluzione }} (mediane delle anomalie concluse) · NC {% if tempi_nc.nc_chiusa %}chiusa in{% else %}aperta da{% endif %} {{ tempi_nc.nc_aperta }}.</div>{% endif %}
     </div>
     <a href="{{ gestione_url }}" class="btn btn-secondary btn-sm">Apri in gestione</a>
   </div>
   <div class="card-body" style="padding:0;">
     <div class="table-wrap" style="border:none;border-radius:0;">
       <table class="admin-table">
-        <thead><tr><th>S/N</th><th>Descrizione</th><th>Tipo difetto</th><th>Gravit&agrave;</th><th>Q.t&agrave; NC / scarto</th><th>Decisione</th><th>Avanzamento</th></tr></thead>
+        <thead><tr><th>S/N</th><th>Descrizione</th><th>Tipo difetto</th><th>Gravit&agrave;</th><th>Q.t&agrave; NC / scarto</th><th>Decisione</th><th>Avanzamento</th><th title="Giorni lavorativi">Prima decisione</th><th title="Giorni lavorativi">Risoluzione</th></tr></thead>
         <tbody>
         {% for r in righe %}
           <tr>
@@ -109,9 +110,11 @@
             <td>{{ r.scheda.quantita_nc|default_if_none:"—" }} / {{ r.scheda.quantita_scartata|default_if_none:"—" }}</td>
             <td>{{ r.scheda.get_disposizione_display }}</td>
             <td>{% if r.chiusa %}<span class="nc-pill ok">Chiusa</span>{% endif %} {{ r.avanzamento|default:"—" }}{% if r.rdc %}<span class="nc-pill rdc">RDC{% if r.numero_rdc %} {{ r.numero_rdc }}{% endif %}</span>{% endif %}{% if r.cliente %}<span class="nc-pill cli">Cliente</span>{% endif %}</td>
+            <td style="white-space:nowrap;">{{ r.t_risposta|default:"—" }}</td>
+            <td style="white-space:nowrap;">{{ r.t_risoluzione|default:"—" }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="7" class="cell-muted" style="text-align:center;">Nessuna anomalia collegata.</td></tr>
+          <tr><td colspan="9" class="cell-muted" style="text-align:center;">Nessuna anomalia collegata.</td></tr>
         {% endfor %}
         </tbody>
       </table>
