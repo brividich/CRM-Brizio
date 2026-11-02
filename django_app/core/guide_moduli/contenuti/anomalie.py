@@ -24,8 +24,9 @@ GUIDA = {
                     "Invia: il capocommessa riceve la mail e decide dal portale o dal collegamento nella mail.",
                     "Nella mail del controllo e nel riepilogo «Apri nel portale» apre l'OP in Gestione anomalie: dai PC "
                     "aziendali entri in automatico con l'utente Windows, altrove si apre il login e poi l'OP.",
-                    "Nel portale e nella pagina della mail «Applica la stessa decisione anche alle altre … anomalie aperte "
-                    "di questi seriali» copia la decisione su tutto il blocco.",
+                    "Nel portale e nella pagina della mail «Applica la stessa decisione anche a» copia la decisione sullo "
+                    "stesso blocco, su tutte le anomalie aperte o su quelle scelte a mano (le già decise solo se "
+                    "spuntate), con un riepilogo da confermare prima del salvataggio.",
                 ]),
                 ("p", "Stesse anomalie su un altro OP? In Gestione anomalie premi «Clona» sulla riga dell'OP, spunta "
                       "le anomalie da copiare e «Continua»: il nuovo OP arriva con P/N, capocommessa e CAR già scritti "

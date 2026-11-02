@@ -1804,6 +1804,29 @@ def _is_controllore_anomalia(request, local_id: int) -> bool:
     ).exists()
 
 
+def _segna_serve_azione(rows: list[dict]) -> None:
+    """``serve_azione`` sulle righe aperte la cui prima decisione è stata «Azione di
+    recupero» senza azione effettuata: la chiusura per loro non è ammessa."""
+    from anomalie.quality_models import AnomaliaSchedaQualita
+    from anomalie.tempi_service import AVANZAMENTO_RECUPERO
+
+    aperte = {int(r["local_id"]): r for r in rows if r.get("local_id") and not r.get("chiudere")}
+    for r in rows:
+        r["serve_azione"] = False
+    if not aperte:
+        return
+    try:
+        ids = set(AnomaliaSchedaQualita.objects.filter(
+            anomalia_id__in=list(aperte), primo_avanzamento__iexact=AVANZAMENTO_RECUPERO,
+            azione_effettuata_il__isnull=True,
+        ).values_list("anomalia_id", flat=True))
+    except Exception:
+        logger.warning("anomalie: verifica azione effettuata non riuscita", exc_info=True)
+        return
+    for aid in ids:
+        aperte[aid]["serve_azione"] = True
+
+
 def _segna_riapribili(request, rows: list[dict], op_title: str, autori: dict) -> None:
     """``can_riaprire`` sulle righe chiuse (stessa regola di ``_can_riaprire_anomalia``)."""
     chiuse = [r for r in rows if r.get("chiudere")]
@@ -2781,6 +2804,7 @@ def api_anomalie(request):
         payload_rows = _serialize_anomalie_rows(unique_rows)
         _arricchisci_con_blocchi(payload_rows)
         _segna_riapribili(request, payload_rows, op_title, autori)
+        _segna_serve_azione(payload_rows)
         return JsonResponse(payload_rows, safe=False)
     except DatabaseError as exc:
         return _json_error(str(exc), status=500)

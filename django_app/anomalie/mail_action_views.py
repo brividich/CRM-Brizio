@@ -221,6 +221,28 @@ def _release_token(token_obj) -> None:
     logger.warning("mail_action: applicazione fallita, token %s… rilasciato", str(token_obj.token)[:8])
 
 
+def _segna_decise_e_azioni(anomalie_live) -> None:
+    """Per «Applica la stessa decisione anche a…»: ``decisa`` (il capocommessa ha già
+    deciso qualcosa) e ``serve_azione`` (prima decisione «Azione di recupero» senza
+    azione effettuata: la decisione si applica ma l'anomalia resta aperta)."""
+    from .controllo_service import riga_gestita
+
+    serve: set[int] = set()
+    try:
+        from .quality_models import AnomaliaSchedaQualita
+        from .tempi_service import AVANZAMENTO_RECUPERO
+
+        ids = [int(a["id"]) for a in anomalie_live if a.get("id")]
+        serve = set(AnomaliaSchedaQualita.objects.filter(
+            anomalia_id__in=ids, primo_avanzamento__iexact=AVANZAMENTO_RECUPERO, azione_effettuata_il__isnull=True,
+        ).values_list("anomalia_id", flat=True)) if ids else set()
+    except Exception:
+        logger.warning("mail_action: verifica azione effettuata non riuscita", exc_info=True)
+    for a in anomalie_live:
+        a["decisa"] = riga_gestita(a)
+        a["serve_azione"] = int(a.get("id") or 0) in serve
+
+
 def _apply_dispositive(request, token_obj, anomalie_live, action, note, nuovo_avanzamento, aggiornamenti_per_id):
     from .mail_action_models import AnomaliaActionLog
 
@@ -604,6 +626,7 @@ def _raggruppa(token_obj, anomalie_live: list[dict]) -> list[dict]:
             {"chiave": f"r{a['id']}", "titolo": a.get("seriale") or "", "sottotitolo": "", "righe": [a]}
             for a in anomalie_live
         ]
+    _segna_decise_e_azioni(anomalie_live)
     for gruppo in gruppi:
         gruppo["nuovo"] = any(r.get("nuova") for r in gruppo["righe"])
     gruppi.sort(key=lambda g: 0 if g["nuovo"] else 1)

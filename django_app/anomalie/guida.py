@@ -256,8 +256,12 @@ SEZIONI: list[dict] = [
                 "Un'anomalia chiusa si riapre con «Riapri anomalia» nel riquadro verde in alto: il pulsante c'è per il "
                 "capocommessa, il CAR, il controllore che l'ha segnalata e chi può modificare l'OP. Torna aperta e "
                 "«In attesa»; la riapertura resta nella «Cronologia azioni».",
-                "«Applica la stessa decisione anche alle altre anomalie aperte di questi seriali» copia la decisione sulle "
-                "altre anomalie aperte del blocco; sotto la frase sono ripetuti i seriali interessati.",
+                "«Applica la stessa decisione anche a» copia la decisione (avanzamento, RDC, cliente, note) su altre "
+                "anomalie aperte: «Solo questa» (di serie), «Stesso blocco di seriali», «Tutte le aperte dell'OP» o "
+                "«Scelte a mano» (spunte raggruppate per S/N, con «Tutte» e «Nessuna»). Le anomalie già decise restano "
+                "fuori, a meno di spuntare «Includi anche le … già decise». Al salvataggio un riepilogo mostra ogni "
+                "anomalia con lo stato attuale e quello nuovo e quali si chiuderanno: «Conferma e salva» le salva tutte. "
+                "Quelle in «Azione di recupero» senza azione effettuata ricevono la decisione ma restano aperte.",
                 "Se cambi anomalia o OP senza salvare, la pagina chiede se salvare, scartare o restare.",
                 "Puoi aggiungere allegati anche qui (trascina, sfoglia o Ctrl+V) e correggere il testo con «Modifica testo».",
                 "«Cronologia azioni», in fondo al dettaglio, mostra chi ha fatto cosa sull'OP, dal portale e dalla mail.",
@@ -316,9 +320,9 @@ SEZIONI: list[dict] = [
                 "Espandi un'anomalia per vedere descrizione, foto e allegati. «Espandi tutte» le apre tutte.",
                 "Nella «Decisione su questa anomalia» scegli «Aprire RDC?», «Segnalare a cliente?», il «Nuovo avanzamento» "
                 "e scrivi la risposta. «Chiudere? (automatico)» si calcola da solo.",
-                "Per dare la stessa decisione a tutto il blocco spunta «Applica la stessa decisione anche alle altre … anomalie "
-                "aperte di questi seriali» prima di «Salva»: avanzamento, RDC, cliente e note vengono copiati, come in "
-                "Gestione anomalie.",
+                "Per dare la stessa decisione ad altre anomalie scegli in «Applica la stessa decisione anche a» lo stesso "
+                "blocco, tutte le aperte della pagina o quelle scelte a mano, poi «Salva»: un riepilogo le mostra tutte "
+                "prima di confermare; avanzamento, RDC, cliente e note vengono copiati, come in Gestione anomalie.",
                 "Premi «Conferma e invia aggiornamenti», controlla il riepilogo e conferma con «Conferma e invia».",
             ]),
             ("ul", [
