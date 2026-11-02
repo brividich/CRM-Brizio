@@ -43,6 +43,7 @@
       {% url 'anagrafica:dipendenti_list' as u_dip %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="navy" icona="i-users" valore=n_totale label="In elenco" sub="schede dipendente" url=u_dip %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="green" icona="i-check" valore=n_attivi label="Attivi" sub="scheda attiva" %}
+      {% if n_esclusi_conteggi %}{% include "anagrafica/components/_kpi_tile.html" with tono="violet" icona="i-users" valore=n_esclusi_conteggi label="Fuori conteggio" sub="in elenco, non nell'organico" %}{% endif %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="amber" icona="i-alert-cir" valore=n_non_attivi label="Non attivi" sub="scheda disattivata" %}
       {% include "anagrafica/components/_kpi_tile.html" with tono="cyan" icona="i-building" valore=n_reparti label="Reparti" sub="con almeno un dipendente" %}
       {% url 'anagrafica:ex_dipendenti_list' as u_ex %}

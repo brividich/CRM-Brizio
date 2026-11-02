@@ -1103,7 +1103,7 @@ def _valore_dimensione(p, dim: str, oggi: date) -> str:
 
 
 def _movimenti(ctx: Contesto) -> tuple[list, list]:
-    tutti = ctx.dipendenti_perimetro()
+    tutti = ctx.in_organico()
     assunti = [p for p in tutti if p.data_assunzione and ctx.date_from <= p.data_assunzione <= ctx.date_to]
     cessati = [p for p in tutti if p.data_cessazione and ctx.date_from <= p.data_cessazione <= ctx.date_to]
     return assunti, cessati
@@ -1111,9 +1111,10 @@ def _movimenti(ctx: Contesto) -> tuple[list, list]:
 
 def _organico(ctx: Contesto, o: dict) -> Risultato:
     res = Risultato()
-    tutti = ctx.dipendenti_perimetro()
+    tutti = ctx.in_organico()
     in_forza = [p for p in tutti if p.in_forza_al(ctx.today)]
     totale = len(in_forza)
+    esclusi = sum(1 for p in ctx.dipendenti_perimetro() if p.escluso_conteggi and p.in_forza_al(ctx.today))
     assunti, cessati = _movimenti(ctx)
     inizio = sum(1 for p in tutti if p.in_forza_al(ctx.date_from))
     fine = sum(1 for p in tutti if p.in_forza_al(ctx.date_to))
@@ -1144,6 +1145,8 @@ def _organico(ctx: Contesto, o: dict) -> Risultato:
         "Dati aggregati: nessun nominativo.",
         f"Movimenti e turnover nel periodo {ctx.periodo_label}; organico medio = media fra inizio e fine periodo.",
     ]
+    if esclusi:
+        res.note.append(f"Escluse dai conteggi dell'organico (amministratori, consulenti esterni...): {esclusi} persone.")
     if o["soglia_anonimato"] > 1:
         res.note.append(f"Conteggi sotto {o['soglia_anonimato']} mostrati come «<{o['soglia_anonimato']}» per anonimato.")
     return res
@@ -1396,7 +1399,7 @@ def _parita_genere(ctx: Contesto, o: dict) -> Risultato:
 
     res = Risultato()
     k = o["soglia_anonimato"]
-    tutti = ctx.dipendenti_perimetro()
+    tutti = ctx.in_organico()
     in_forza = [p for p in tutti if p.in_forza_al(ctx.today)]
     assunti, cessati = _movimenti(ctx)
 

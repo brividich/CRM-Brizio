@@ -354,6 +354,7 @@ def _v_8_8(dal, al):
     patch KEV o critiche oltre il termine. Senza patch lette (WatchGuard API spenta) resta l'esito delle CVE.
     """
     esito = _v_8_8_cve(dal, al)
+    _v_8_8_librerie(esito)
     from security.models import WatchGuardPatch
 
     if not WatchGuardPatch.objects.exists():
@@ -383,6 +384,36 @@ def _v_8_8(dal, al):
             esito["stato"] = ATTENZIONE
             esito["frase"] += f" Però {_plurale(t['oltre_termine_gravi'], 'patch KEV o critica è', 'patch KEV o critiche sono')} oltre il termine di installazione."
     return esito
+
+
+def _v_8_8_librerie(esito):
+    """Librerie Python del portale con vulnerabilità aperte (``dipendenze_portale``): numeri, evidenza, azione.
+
+    Un esito «ok» scende ad «attenzione» se una libreria ha vulnerabilità alte o critiche. Senza nessun
+    controllo eseguito l'esito non cambia.
+    """
+    from security.models import SecurityLetturaLog
+    from security.services import dipendenze_portale
+
+    if not SecurityLetturaLog.objects.filter(codice="dipendenze_portale").exists():
+        return
+    try:
+        librerie = dipendenze_portale.per_pacchetto()
+    except Exception:  # noqa: BLE001
+        logger.exception("dipendenze_portale.per_pacchetto non riuscito")
+        return
+    gravi = [g for g in librerie if g["gravita"] in ("critical", "high")]
+    esito["numeri"].update({"librerie_portale_vulnerabili": len(librerie), "librerie_portale_gravi": len(gravi)})
+    ev = _evidenza("Librerie del portale", "security:dipendenze_portale")
+    if ev.get("url"):
+        esito["evidenze"].append(ev)
+    if librerie:
+        esito["azioni"].append("Aggiornare le librerie del portale con vulnerabilità note: "
+                               + ", ".join(f"{g['pacchetto']} {g['versione']}" + (f" → {g['aggiorna_a']}" if g["aggiorna_a"] else "")
+                                           for g in librerie[:6]) + (" …" if len(librerie) > 6 else "") + ".")
+    if gravi and esito["stato"] == OK:
+        esito["stato"] = ATTENZIONE
+        esito["frase"] += f" Però {_plurale(len(gravi), 'libreria del portale ha', 'librerie del portale hanno')} vulnerabilità alte o critiche."
 
 
 def _v_8_8_cve(dal, al):

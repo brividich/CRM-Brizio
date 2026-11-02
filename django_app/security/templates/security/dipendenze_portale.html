@@ -1,0 +1,97 @@
+{% extends "security/_base_soc.html" %}
+{# Librerie Python del portale con vulnerabilità note dal database OSV (services/dipendenze_portale.py). Sola lettura. #}
+
+{% block title %}Librerie del portale | Security Center AI{% endblock %}
+{% block page_marker %}Dispositivi{% endblock %}
+{% block page_title %}Librerie del portale: vulnerabilità note{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <p class="sec-small">
+    Le librerie Python installate nel portale, confrontate ogni mattina alle 06:50 con il database pubblico OSV (lo stesso che usa pip-audit nel release guard).
+    Una vulnerabilità si chiude da sola quando la libreria viene aggiornata nell'ambiente del portale (<code>pip install -r requirements.txt</code> e riavvio):
+    aggiornare solo <code>requirements.txt</code> non basta.
+    {% if alert_attivo %}Per ogni libreria vulnerabile c'è un alert, che si chiude dopo l'aggiornamento.{% else %}Gli alert sulle librerie sono spenti in Impostazioni.{% endif %}
+  </p>
+  {% if not controllo_attivo %}
+    <p class="sec-callout sec-callout-warning sec-small">Il controllo delle librerie è spento in Impostazioni › «Librerie del portale»: i dati qui sotto non si aggiornano.</p>
+  {% endif %}
+  {% if ultimo %}
+    {% if ultimo.stato == "errore" or ultimo.stato == "parziale" %}
+      <p class="sec-callout sec-callout-warning sec-small">
+        Ultimo controllo del {{ ultimo.avviata_il|date:"d/m/Y H:i" }} {% if ultimo.stato == "errore" %}non riuscito{% else %}incompleto{% endif %}: {{ ultimo.messaggio }}.
+        {% if ultimo.stato == "errore" %}L'elenco qui sotto è quello del controllo precedente: non vuol dire che non ci siano vulnerabilità.{% endif %}
+      </p>
+    {% else %}
+      <p class="sec-small sec-muted">Ultimo controllo: {{ ultimo.avviata_il|date:"d/m/Y H:i" }}{% if ultimo.riepilogo.pacchetti %}, {{ ultimo.riepilogo.pacchetti }} librerie controllate{% endif %}.</p>
+    {% endif %}
+  {% else %}
+    <p class="sec-callout sec-callout-warning sec-small">Nessun controllo ancora eseguito: si può lanciare da Impostazioni › <a href="{% url 'security:letture' %}">Letture automatiche</a> («Esegui ora»).</p>
+  {% endif %}
+  <div class="sec-fact-grid">
+    <div class="sec-fact"><span>Librerie vulnerabili</span><strong>{{ librerie|length }}</strong></div>
+    <div class="sec-fact"><span>Vulnerabilità aperte</span><strong>{{ vulnerabilita }}</strong></div>
+    <div class="sec-fact"><span>Librerie con gravità alta o critica</span><strong>{{ gravi }}</strong></div>
+    <div class="sec-fact"><span>Risolte negli ultimi 90 giorni</span><strong>{{ risolte|length }}</strong></div>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Da aggiornare</h2></div>
+  {% if librerie %}
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Libreria</th><th>Installata</th><th>Gravità</th><th>Vulnerabilità</th><th>Aggiornare almeno a</th><th>Vista dal</th></tr></thead>
+      <tbody>
+      {% for g in librerie %}
+        <tr>
+          <td><strong>{{ g.pacchetto }}</strong></td>
+          <td class="sec-nowrap">{{ g.versione }}</td>
+          <td><span class="sec-badge {{ g.gravita }}">{{ g.etichetta }}</span></td>
+          <td>
+            {% for v in g.voci %}
+              <div>
+                <a href="https://osv.dev/vulnerability/{{ v.cve|urlencode }}" target="_blank" rel="noopener noreferrer">{{ v.cve }}</a>
+                {% if not v.payload.classificata %}<small class="sec-muted">(gravità non classificata)</small>{% endif %}
+                {% if v.payload.descrizione %}<br><small class="sec-muted">{{ v.payload.descrizione|truncatechars:140 }}</small>{% endif %}
+              </div>
+            {% endfor %}
+          </td>
+          <td class="sec-nowrap">{% if g.aggiorna_a %}<strong>{{ g.aggiorna_a }}</strong>{% else %}<span class="sec-muted">nessuna versione corretta nota</span>{% endif %}</td>
+          <td class="sec-nowrap" data-sort-value="{{ g.dal|date:'Y-m-d' }}">{{ g.dal|date:"d/m/Y" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif ultimo and ultimo.stato == "ok" %}
+    <p class="sec-empty">Nessuna vulnerabilità nota nelle librerie del portale all'ultimo controllo.</p>
+  {% else %}
+    <p class="sec-empty">Nessuna vulnerabilità registrata.</p>
+  {% endif %}
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Risolte negli ultimi 90 giorni</h2></div>
+  {% if risolte %}
+  <div class="sec-table-wrap">
+    <table class="sec-table">
+      <thead><tr><th>Risolta il</th><th>Libreria</th><th>Vulnerabilità</th><th>Era la versione</th><th>Adesso</th></tr></thead>
+      <tbody>
+      {% for v in risolte %}
+        <tr>
+          <td class="sec-nowrap" data-sort-value="{{ v.risolta_il|date:'Y-m-d H:i' }}">{{ v.risolta_il|date:"d/m/Y" }}</td>
+          <td>{{ v.payload.pacchetto }}</td>
+          <td>{{ v.cve }}</td>
+          <td>{{ v.payload.versione }}</td>
+          <td>{{ v.payload.versione_dopo }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="sec-empty">Nessuna vulnerabilità risolta negli ultimi 90 giorni.</p>
+  {% endif %}
+</section>
+{% endblock %}

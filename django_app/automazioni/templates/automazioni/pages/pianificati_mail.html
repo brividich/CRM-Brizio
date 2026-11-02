@@ -52,7 +52,7 @@ body.theme-dark .mailc-btn{border-color:var(--border);background:var(--surface);
       <div class="mailc-card">
         <h3>Destinatari</h3>
         <p class="hint">Uno o più indirizzi email, separati da virgola, punto e virgola o a capo.
-          Vuoto = usa i destinatari di sistema (ADMINS). Chiave: <code>{{ meta.config_key }}</code>.</p>
+          {% if meta.solo_destinatari %}Vuoto = la mail non parte.{% else %}Vuoto = usa i destinatari di sistema (ADMINS).{% endif %} Chiave: <code>{{ meta.config_key }}</code>.</p>
         <div class="mailc-field">
           <label for="recipients">Email destinatari</label>
           <textarea id="recipients" name="recipients" placeholder="es. rspp@azienda.it, hr@azienda.it">{{ recipients }}</textarea>

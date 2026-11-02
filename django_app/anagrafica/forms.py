@@ -183,7 +183,16 @@ class AnagraficaAziendaleForm(forms.ModelForm):
             "prova_data_fine": forms.DateInput(attrs={"class": "dp-input", "type": "date"}, format="%Y-%m-%d"),
             "email_aziendale": forms.EmailInput(attrs={"class": "dp-input"}),
             "telefono_aziendale": forms.TextInput(attrs={"class": "dp-input", "placeholder": "+39 ..."}),
+            "motivo_esclusione_conteggi": forms.TextInput(
+                attrs={"class": "dp-input", "placeholder": "Es. amministratore, RSPP esterno"}
+            ),
         }
+
+    def clean(self):
+        cleaned = super().clean()
+        if not cleaned.get("escluso_dai_conteggi"):
+            cleaned["motivo_esclusione_conteggi"] = ""
+        return cleaned
 
     def clean_badge(self):
         val = self.cleaned_data.get("badge", "").strip()

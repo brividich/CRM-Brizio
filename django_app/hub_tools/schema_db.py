@@ -116,6 +116,13 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "controllo": "Monitoring → Centrale di comando e «Salute degli schedule»; logs\\qcluster.log.",
     },
     {
+        "nome": "OSV (database pubblico delle vulnerabilità)",
+        "cosa": "Ogni mattina alle 06:50 il SOC manda a https://api.osv.dev nomi e versioni delle librerie Python installate nel portale (nessun dato personale) e riceve le vulnerabilità note: Dispositivi › Librerie del portale.",
+        "chi": "Security Center (security.services.dipendenze_portale, schedule security_dipendenze_portale).",
+        "config": "Interruttori in /soc/impostazioni/ › «Librerie del portale»; accesso HTTPS in uscita verso api.osv.dev (eventuale proxy da HTTPS_PROXY).",
+        "controllo": "SOC › Impostazioni › Letture automatiche › «Librerie Python del portale (OSV)»; Battito del SOC.",
+    },
+    {
         "nome": "Active Directory (LDAP)",
         "cosa": "Login con utente e password del PC, import degli utenti, gruppi.",
         "chi": "Accesso al portale, Amministrazione → Utenti.",

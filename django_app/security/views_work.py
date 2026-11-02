@@ -472,6 +472,27 @@ def _patch_installate_csv(request, dati):
     return risposta
 
 
+def dipendenze_portale(request):
+    """Librerie Python del portale con vulnerabilità note (services/dipendenze_portale.py). Sola lettura."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from .models import SecurityLetturaLog
+    from .services import dipendenze_portale as dp
+
+    librerie = dp.per_pacchetto()
+    ultimo = SecurityLetturaLog.objects.filter(codice="dipendenze_portale").exclude(
+        stato__in=(SecurityLetturaLog.CODA, SecurityLetturaLog.IN_CORSO)).order_by("-avviata_il").first()
+    return render(request, "security/dipendenze_portale.html", {
+        "librerie": librerie,
+        "vulnerabilita": sum(len(g["voci"]) for g in librerie),
+        "gravi": sum(1 for g in librerie if g["gravita"] in ("critical", "high")),
+        "risolte": dp.risolte_recenti(),
+        "ultimo": ultimo,
+        "controllo_attivo": soc_settings.value("dipendenze.controllo.attivo"),
+        "alert_attivo": soc_settings.value("dipendenze.alert.attivo"),
+    })
+
+
 def watchguard_patch_tempi(request):
     """Tempi delle patch: tempo di installazione per classe, andamento settimanale, patch ferme (services/patch_sla.py)."""
     if not can_view_security_center(request.user):

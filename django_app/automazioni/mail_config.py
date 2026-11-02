@@ -50,6 +50,12 @@ MAIL_TASKS: dict[str, dict] = {
         "config_key": "assets_reminder_emails",
         "label": "Reminder manutenzioni/verifiche assets",
     },
+    # solo_destinatari: nessun ripiego su ADMINS/superuser, con la lista vuota la mail non parte.
+    "contatori_letture_mensili": {
+        "config_key": "contatori_letture_mensili_emails",
+        "label": "Letture mensili MFC: riepilogo e mancanti",
+        "solo_destinatari": True,
+    },
 }
 
 
