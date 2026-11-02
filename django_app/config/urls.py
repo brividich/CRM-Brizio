@@ -63,6 +63,8 @@ urlpatterns = [
     path("automazioni/", include(("automazioni.urls", "automazioni"), namespace="automazioni")),
     # Approval proxy — endpoint GET per Entra Application Proxy.
     # Pubblicare SOLO /approval-actions/* nell'Application Proxy (non /automazioni/).
+    # Conferma di ricevuta dei DPI (link personale monouso, stesso schema dei link di approvazione).
+    path("approval-actions/dpi/", include(("dpi.urls_pubblici", "dpi_pubblico"), namespace="dpi_pubblico")),
     path("approval-actions/", include(("automazioni.approval_proxy_urls", "approval_proxy"), namespace="approval_proxy")),
     path("monitoring/", include(("monitoring.urls", "monitoring"), namespace="monitoring")),
     path("anagrafica/", include(("anagrafica.urls", "anagrafica"), namespace="anagrafica")),

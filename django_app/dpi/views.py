@@ -1157,7 +1157,25 @@ def consegna_richiesta(request, pk: int):
     )
     messages.success(request, f"Consegna DPI {richiesta.numero} registrata.")
     _avviso_giacenza(request, richiesta, residuo)
+    if not firmato:
+        _chiedi_conferma(request, [richiesta.consegna])
     return redirect("dpi:gestione_detail", pk=pk)
+
+
+def _chiedi_conferma(request, consegne: list[ConsegnaDPI]) -> None:
+    """Senza firma ne' ricevuta su carta: mail di conferma al dipendente (mail aziendale)
+    o al suo caporeparto. La consegna resta registrata comunque."""
+    from . import conferme
+
+    autore = request.user.get_full_name() or request.user.username
+    conferma, tipo = conferme.richiedi(consegne, autore=autore)
+    if conferma is None:
+        messages.warning(request, "Nessuna mail a cui chiedere la conferma di ricevuta: fai firmare il dipendente o "
+                                  "conserva la ricevuta su carta.")
+        return
+    chi = "al dipendente" if tipo == conferma.Destinatario.DIPENDENTE else "al caporeparto (il dipendente non ha la mail aziendale)"
+    log_action(request, "dpi_conferma_richiesta", "dpi", f"Conferma ricevuta {conferma.pk} per {conferma.richiedente_nome} ({tipo})")
+    messages.info(request, f"Mail di conferma della ricevuta inviata {chi}.")
 
 
 def _avviso_giacenza(request, richiesta: RichiestaDPI, residuo: int | None) -> None:
@@ -1265,6 +1283,7 @@ def impostazioni(request):
         impost.magazzino_emails = request.POST.get("magazzino_emails", "").strip()
         impost.amministrazione_emails = request.POST.get("amministrazione_emails", "").strip()
         impost.avviso_ritiro_all_approvazione = bool(request.POST.get("avviso_ritiro_all_approvazione"))
+        impost.domini_email_aziendali = request.POST.get("domini_email_aziendali", "").strip()[:300]
         impost.save()
         log_action(request, "modifica", "dpi", "Aggiornate impostazioni DPI")
         messages.success(request, "Impostazioni salvate.")
@@ -1967,7 +1986,7 @@ def _banco_consegna_diretta(request, tutte: bool):
         testo=f"Consegna diretta al banco ({categoria.nome}: categoria senza approvazione), inserita da {autore}.",
     )
     log_action(request, "crea", "dpi", f"Consegna diretta al banco {r.numero} - {categoria.nome} per {r.richiedente_nome}")
-    messages.success(request, f"{r.numero} aggiunta: fai firmare {r.richiedente_nome} e premi «Consegna».")
+    messages.success(request, f"{r.numero} aggiunta: registra la consegna a {r.richiedente_nome}.")
     return _banco_redirect("apri-" + _chiave_persona(r), tutte)
 
 
@@ -2007,13 +2026,18 @@ def _banco_azione(request):
             return _banco_redirect(chiave, tutte)
         firmato = bool(firma_immagine) or bool(request.POST.get("firmato_ricevuta"))
         note = request.POST.get("note_consegna", "").strip()
+        per_persona: dict[str, list[ConsegnaDPI]] = {}
         for r in richieste:
             residuo = _registra_consegna(
                 request, r, data_consegna=data_consegna, note=note, firmato=firmato, firma_immagine=firma_immagine,
             )
             _avviso_giacenza(request, r, residuo)
+            per_persona.setdefault(_chiave_persona(r), []).append(r.consegna)
         nomi = sorted({r.richiedente_nome for r in richieste})
         messages.success(request, f"Consegnati {len(richieste)} DPI a {', '.join(nomi)}.")
+        if not firmato:
+            for consegne in per_persona.values():
+                _chiedi_conferma(request, consegne)
         return _banco_redirect(tutte=tutte)
 
     messages.error(request, "Azione non riconosciuta.")
@@ -2060,7 +2084,22 @@ def banco(request):
         m.giacenza = giac.get(m.pk, 0)
         m.taglie_attive = [t for t in m.taglie.all() if t.is_active]
 
+    from .models import ConfermaConsegnaDPI
+
+    conferme_qs = ConfermaConsegnaDPI.objects.prefetch_related("consegne__richiesta")
+    if sistema_ruoli_attivo():
+        ids_gestire = _anagrafiche_visibili(request, "gestire")
+        if ids_gestire is not None:
+            conferme_qs = conferme_qs.filter(richiedente_legacy_id__in=list(ids_gestire))
+    conferme_attesa = list(conferme_qs.filter(stato=ConfermaConsegnaDPI.Stato.IN_ATTESA).order_by("created_at")[:30])
+    conferme_contestate = list(conferme_qs.filter(
+        stato=ConfermaConsegnaDPI.Stato.CONTESTATA, decisa_il__gte=timezone.now() - timedelta(days=30)
+    ).order_by("-decisa_il")[:30])
+
     return render(request, "dpi/pages/banco.html", {
+        "conferme_attesa": conferme_attesa,
+        "n_conferme_attesa": conferme_qs.filter(stato=ConfermaConsegnaDPI.Stato.IN_ATTESA).count(),
+        "conferme_contestate": conferme_contestate,
         "is_gestore": True,
         "is_approvatore": True,
         "persone": persone,

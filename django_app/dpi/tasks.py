@@ -21,7 +21,15 @@ def run_dpi_expiry_reminders() -> dict:
 
     try:
         call_command("send_dpi_expiry_reminders", verbosity=0)
-        return {"ok": True}
+        solleciti = 0
+        try:
+            from .conferme import sollecita
+
+            # Conferme di ricevuta senza risposta da 3 giorni: un solo promemoria.
+            solleciti = sollecita()
+        except Exception:
+            logger.exception("run_dpi_expiry_reminders: solleciti conferma ricevuta non inviati")
+        return {"ok": True, "solleciti_conferma": solleciti}
     except Exception:
         logger.exception("run_dpi_expiry_reminders: eccezione inattesa")
         raise

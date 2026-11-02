@@ -245,6 +245,12 @@ class DPIImpostazioni(models.Model):
         blank=True, default="",
         help_text="Report di consegna (per le categorie con l'avviso all'Amministrazione), uno per riga",
     )
+    domini_email_aziendali = models.CharField(
+        max_length=300, blank=True, default="",
+        help_text="Domini della mail aziendale (es. azienda.it), separati da virgola: la conferma di ricevuta va al "
+                  "dipendente solo se la sua mail di notifica e' di questi domini, altrimenti al caporeparto. "
+                  "Vuoto = qualunque mail di notifica.",
+    )
     avviso_ritiro_all_approvazione = models.BooleanField(
         default=False,
         help_text="Avvisa il dipendente di ritirare il DPI subito all'approvazione, "
@@ -448,6 +454,14 @@ class ConsegnaDPI(models.Model):
         help_text="Consegna successiva dello stesso tipo DPI che ha rimpiazzato questa (storico, mai cancellata).",
     )
     data_sostituzione = models.DateField(null=True, blank=True)
+    conferma = models.ForeignKey(
+        "ConfermaConsegnaDPI",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="consegne",
+        help_text="Conferma di ricevuta via mail (al posto della firma al banco).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -478,6 +492,57 @@ class ConsegnaDPI(models.Model):
         if sc <= oggi + timedelta(days=30):
             return "arancione"
         return "verde"
+
+
+# ---------------------------------------------------------------------------
+# Conferma di ricevuta via mail (al posto della firma al banco)
+# ---------------------------------------------------------------------------
+
+class ConfermaConsegnaDPI(models.Model):
+    """Il magazzino registra la consegna; chi ha ricevuto i DPI (o, senza mail
+    aziendale, il suo caporeparto) conferma dal link personale della mail.
+    Una conferma copre tutte le consegne fatte insieme alla stessa persona."""
+
+    class Stato(models.TextChoices):
+        IN_ATTESA = "IN_ATTESA", "Da confermare"
+        CONFERMATA = "CONFERMATA", "Confermata"
+        CONTESTATA = "CONTESTATA", "Contestata"
+
+    class Destinatario(models.TextChoices):
+        DIPENDENTE = "DIPENDENTE", "Dipendente"
+        RESPONSABILE = "RESPONSABILE", "Caporeparto / responsabile"
+
+    richiedente_legacy_id = models.IntegerField(null=True, blank=True, db_index=True)
+    richiedente_nome = models.CharField(max_length=200)
+    destinatario_tipo = models.CharField(max_length=15, choices=Destinatario.choices)
+    stato = models.CharField(max_length=12, choices=Stato.choices, default=Stato.IN_ATTESA, db_index=True)
+    decisa_il = models.DateTimeField(null=True, blank=True)
+    decisa_da_email = models.CharField(max_length=200, blank=True, default="")
+    nota = models.CharField(max_length=500, blank=True, default="")
+    creata_da_nome = models.CharField(max_length=200, blank=True, default="")
+    sollecitata_il = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Conferma consegna DPI"
+        verbose_name_plural = "Conferme consegna DPI"
+
+    def __str__(self) -> str:
+        return f"Conferma {self.richiedente_nome} - {self.get_stato_display()}"
+
+
+class LinkConfermaDPI(models.Model):
+    """Link personale della mail di conferma: a DB solo l'hash del segreto."""
+
+    conferma = models.ForeignKey(ConfermaConsegnaDPI, on_delete=models.CASCADE, related_name="link")
+    email = models.CharField(max_length=200)
+    token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Link conferma DPI"
+        verbose_name_plural = "Link conferma DPI"
 
 
 # ---------------------------------------------------------------------------

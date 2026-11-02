@@ -35,6 +35,10 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)): 
 
 `/dpi/banco/` (`dpi:banco`, gate `_is_gestore`, perimetro «gestire» con i ruoli attivi): richieste `APPROVATA` raggruppate per richiedente, ricerca client-side, giacenza per modello (`magazzino.giacenze`). Azioni POST sulla stessa URL: `pronta` (avviso di ritiro per le spuntate non ancora pronte), `consegna` (una firma per tutte le spuntate, ognuna passa da `_registra_consegna`, lo stesso percorso di `/dpi/gestione/<id>/consegna/`), `diretta` (crea la richiesta già `APPROVATA` per un dipendente di `_dipendenti_selezionabili`, solo modelli di categorie con `consegna_diretta`; nessuna mail fino alla consegna). `CategoriaDPI.consegna_magazzino` (default sì; migrazione `0015` la spegne per le calzature): il banco mostra solo queste (le altre con `?tutte=1`) e `flusso.destinatari_consegna` manda «Da consegnare»/«Consegna annullata» al Magazzino oppure ai referenti DPI.
 
+## Conferma della ricevuta via mail (02/11/2026)
+
+Consegna senza firma né «Ricevuta firmata su carta» (banco o scheda) → `conferme.richiedi(consegne)`: una `ConfermaConsegnaDPI` per le consegne fatte insieme alla persona, una mail con link personale (`LinkConfermaDPI`, solo hash) al dipendente se la sua `email_notifica` è di `DPIImpostazioni.domini_email_aziendali` (vuoto = qualunque), altrimenti a `flusso.email_preposti`, in mancanza ai referenti DPI. Pagina pubblica `/approval-actions/dpi/<segreto>/<conferma|contesta>/` (`views_conferma.conferma_ricevuta`, `@risposta_pubblica_con_form`, CSRF esente come i link di approvazione: GET mostra, POST decide una volta). Contestata → mail a `flusso.destinatari_consegna`. `conferme.sollecita()` dal task `run_dpi_expiry_reminders`: un promemoria dopo 3 giorni, link rigenerati. URL pubblica nuova ma sotto un prefisso già in `MIDDLEWARE_EXEMPT_PREFIXES`; con token inesistente risponde 404 (nessuna voce in `PUBLIC_VIEWS`).
+
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 «In scadenza» e «Scadute» della dashboard sulle consegne delle richieste visibili.

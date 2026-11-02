@@ -66,9 +66,20 @@ GUIDA = {
                     "Quando la persona arriva al banco scrivi il suo nome in «Cerca la persona al banco».",
                     "Nella sua scheda tutti i DPI sono già spuntati: togli la spunta a quelli che non consegni adesso. "
                     "Accanto a ogni DPI vedi quanti pezzi ci sono «in magazzino» (in rosso se non bastano).",
-                    "Clicca «Consegna…»: si apre il riquadro con «Data consegna», le note e la firma.",
-                    "Fai firmare il dipendente una volta sola (vale per tutti i DPI spuntati) e clicca «Registra consegna dei DPI spuntati». "
-                    "Se ha firmato su carta spunta «Ricevuta firmata su carta».",
+                    "Clicca «Consegna…»: si apre il riquadro con «Data consegna» e le note.",
+                    "Clicca «Registra consegna dei DPI spuntati». Non serve la firma: parte da sola la mail di conferma della ricevuta (vedi sotto).",
+                    "Se al banco c'è un tablet o hai la ricevuta su carta, apri «Firma sul tablet o ricevuta su carta»: con la firma "
+                    "(o la spunta «Ricevuta firmata su carta») la mail di conferma non parte.",
+                ]),
+                ("p", "Conferma della ricevuta via mail: una sola mail per tutti i DPI consegnati insieme, con i pulsanti "
+                      "«Confermo, ricevuti» e «Non li ho ricevuti». Va al dipendente se ha la mail aziendale (i domini si scrivono "
+                      "in Impostazioni, «Domini della mail aziendale»), altrimenti al suo caporeparto/responsabile; se non c'è "
+                      "nessuno dei due, ai referenti DPI. Il link si apre anche dal telefono, senza entrare nel portale, e vale una volta."),
+                ("ul", [
+                    "«Non li ho ricevuti» (con una nota facoltativa) manda la mail «Consegna contestata» al Magazzino.",
+                    "Senza risposta dopo 3 giorni parte un solo promemoria con un link nuovo (il vecchio non vale più).",
+                    "In fondo al banco il riquadro «Conferme di ricevuta» elenca quelle da confermare e le contestate degli ultimi 30 giorni.",
+                    "La consegna vale subito per magazzino e scadenze; l'esito della conferma compare nella scheda della richiesta e nel PDF del modulo di consegna.",
                 ]),
                 ("p", "«Pronto per il ritiro (avvisa)» manda in un colpo l'avviso di ritiro per tutti i DPI spuntati della persona "
                       "(chi era già avvisato non riceve un secondo avviso). Non compare se in Impostazioni l'avviso parte già all'approvazione."),
@@ -122,6 +133,9 @@ GUIDA = {
                     "Richiesta approvata: mail «Da consegnare» al Magazzino; per le categorie senza «La consegna la fa il "
                     "magazzino» (per esempio le scarpe) va invece ai referenti DPI («Responsabili» + «Email notifiche aggiuntive»).",
                     "Consegna diretta al banco: nessuna mail di approvazione né «Da consegnare»; alla consegna parte il report come sempre.",
+                    "Consegna registrata senza firma né ricevuta su carta: mail «Conferma la ricevuta dei DPI» al dipendente (mail "
+                    "aziendale) o al caporeparto; «Non li ho ricevuti» → mail «Consegna contestata» al Magazzino; dopo 3 giorni "
+                    "senza risposta un promemoria (task delle 07:10).",
                     "«Pronto per il ritiro» (dal magazzino): mail e notifica nel portale al dipendente. Con la spunta «Avvisa il "
                     "dipendente di ritirare il DPI subito all'approvazione» l'avviso parte già all'approvazione e il passaggio del "
                     "magazzino non serve.",
@@ -217,6 +231,19 @@ GUIDA = {
                 "Controlla l'email di notifica nella scheda anagrafica del responsabile.",
                 "Prova il comando send_dpi_expiry_reminders --dry-run: elenca i responsabili che riceverebbero la mail.",
             ],
+        },
+        {
+            "sintomo": "La conferma di ricevuta va al caporeparto anche se il dipendente ha la mail",
+            "perche": "la mail di notifica del dipendente non è di un dominio aziendale.",
+            "fare": [
+                "DPI → Impostazioni: controlla «Domini della mail aziendale» (es. azienda.it).",
+                "Controlla la mail di notifica nella scheda anagrafica del dipendente.",
+            ],
+        },
+        {
+            "sintomo": "Il link della mail di conferma dice «Link non valido»",
+            "perche": "dopo il promemoria vale solo l'ultimo link, oppure il link è stato copiato a metà.",
+            "fare": ["Usa il link dell'ultima mail ricevuta («Promemoria: conferma la ricevuta dei DPI»)."],
         },
         {
             "sintomo": "Il magazzino non riceve la mail di consegna",
