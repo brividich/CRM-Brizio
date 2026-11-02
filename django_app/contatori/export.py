@@ -135,3 +135,28 @@ def storico_macchina_xlsx(macchina):
         append_row(ws, [etichetta, valore])
     _autolarghezza(ws)
     return wb
+
+
+def letture_mensili_xlsx(dati):
+    """Workbook delle letture mensili di un mese (dati di ``mail_mensile.riepilogo``)."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"Letture {dati['mese']:%m-%Y}"
+    etichette = [e for _, e in services.CONTATORI]
+    _intesta(ws, ["Reparto", "Matricola", "Modello", "IP", "Letta il", *etichette, "Totale",
+                  *[f"Copie {e}" for e in etichette], "Copie del mese"])
+    for r in dati["lette"]:
+        m, l, c = r["macchina"], r["lettura"], r["copie"] or {}
+        append_row(ws, [m.reparto, m.matricola, m.modello, m.host,
+                        timezone.localtime(l.rilevata_il).strftime("%d/%m/%Y %H:%M"),
+                        *[getattr(l, campo) for campo in services.CAMPI], l.totale,
+                        *[c.get(campo) for campo in services.CAMPI], c.get("totale")])
+    if dati["mancanti"]:
+        append_row(ws)
+        append_row(ws, ["Mancanti"])
+        ws.cell(row=ws.max_row, column=1).font = _DANGER
+        for r in dati["mancanti"]:
+            m = r["macchina"]
+            append_row(ws, [m.reparto, m.matricola, m.modello, m.host, r["motivo"]])
+    _autolarghezza(ws)
+    return wb
