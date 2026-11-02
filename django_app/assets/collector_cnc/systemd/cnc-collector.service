@@ -1,0 +1,30 @@
+# Collector CNC in sola lettura su Linux (VM ESXi). Copia in /etc/systemd/system/ e adatta i percorsi.
+# Password OPC UA e CNC_FWLIB_PATH in /opt/cnc-collector/collector.env (permessi 600, mai nel repository).
+[Unit]
+Description=Collector CNC NOVICROM (sola lettura: OPC UA, LSV2, FOCAS)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cnc-collector
+Group=cnc-collector
+WorkingDirectory=/opt/cnc-collector
+EnvironmentFile=-/opt/cnc-collector/collector.env
+ExecStart=/opt/cnc-collector/.venv/bin/python /opt/cnc-collector/collector.py \
+    --config /opt/cnc-collector/machines.json --db /opt/cnc-collector/machines.db \
+    --log-file /opt/cnc-collector/logs/collector.log --jsonl /opt/cnc-collector/dati
+# SIGTERM: il collector chiude sessioni OPC UA/LSV2 e libera gli handle FOCAS prima di uscire
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=30
+# codice 2 = configurazione non valida: inutile riprovare finché non si corregge machines.json
+RestartPreventExitStatus=2
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/cnc-collector
+
+[Install]
+WantedBy=multi-user.target

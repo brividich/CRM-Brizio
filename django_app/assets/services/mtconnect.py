@@ -51,6 +51,7 @@ STATO_ETICHETTE = {
     "emergenza": "Emergenza",
     "spenta": "Offline",
     "non_raggiungibile": "Non raggiungibile",
+    "non_leggibile": "Non leggibile",
     "mai": "Mai letta",
 }
 STATI_ALLARME = {"allarme", "emergenza"}
@@ -58,6 +59,8 @@ STATI_ALLARME = {"allarme", "emergenza"}
 STATI_COLLECTOR = {
     "LAVORO": "in_lavoro", "SETUP": "setup", "INTERROTTA": "ferma", "FERMA": "pronta",
     "ALLARME": "allarme", "EMERGENZA": "emergenza", "OFFLINE": "spenta",
+    # la macchina risponde ma non dà lo stato (es. Heidenhain senza opzione #18, libreria Fwlib assente)
+    "NON_LEGGIBILE": "non_leggibile",
 }
 SEVERITA_ALLARME = 801  # da questa severità OPC UA un messaggio è un allarme vero (come nel collector)
 _MODALITA_MANUALE = {"MANUAL", "MANUAL_DATA_INPUT", "MDI", "JOG", "EDIT"}
@@ -374,7 +377,7 @@ def applica_stato_collector(coll, dati: dict, quando, ora=None) -> None:
     ora = ora or timezone.now()
     coll.controllato_il = ora
     coll.letto_il = ora
-    coll.errore = ""
+    coll.errore = str(dati.get("errore") or "")[:300]
     coll.programma = str(dati.get("programma") or "")[:200]
     coll.modalita = str(dati.get("modalita") or "")[:30]
     coll.esecuzione = str(dati.get("esecuzione") or "")[:30]

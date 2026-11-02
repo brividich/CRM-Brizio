@@ -507,7 +507,7 @@ def export_gestione_assenze_csv(request):
         },
     )
 
-    headers = ["Tipo", "Inizio", "Fine", "Stato", "Motivazione", "Certificato medico", "Note"]
+    headers = ["Tipo", "Inizio", "Fine", "Stato", "Motivazione", "Certificato arrivato", "Note"]
 
     def row_iter():
         for r in rows_data:
@@ -517,7 +517,7 @@ def export_gestione_assenze_csv(request):
                 r.get("fine", ""),
                 r.get("stato", ""),
                 r.get("motivazione", ""),
-                r.get("certificato_medico", ""),
+                "Sì" if r.get("certificato_medico") else "",
                 r.get("note_gestione", ""),
             ]
 

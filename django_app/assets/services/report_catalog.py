@@ -582,7 +582,7 @@ COLONNE_UTILIZZO = (
     ("Ferma h", ("pronta",)),
     ("Interrotta h", ("ferma",)),
     ("Allarme/emergenza h", ("allarme", "emergenza")),
-    ("Offline h", ("spenta", "non_raggiungibile", "mai")),
+    ("Offline h", ("spenta", "non_raggiungibile", "non_leggibile", "mai")),
 )
 
 
