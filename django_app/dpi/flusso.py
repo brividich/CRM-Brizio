@@ -246,6 +246,14 @@ def destinatari_magazzino() -> list[str]:
     return _split_emails(DPIImpostazioni.get_singleton().magazzino_emails)
 
 
+def destinatari_consegna(richiesta) -> list[str]:
+    """Chi prepara e consegna: il Magazzino, oppure i referenti DPI per le categorie
+    che il magazzino non distribuisce (es. scarpe, spunta «La consegna la fa il magazzino»)."""
+    if getattr(richiesta.categoria, "consegna_magazzino", True):
+        return destinatari_magazzino()
+    return destinatari_referenti()
+
+
 def destinatari_amministrazione() -> list[str]:
     from .models import DPIImpostazioni
 
@@ -318,13 +326,13 @@ def notifica_approvata(richiesta) -> None:
     if DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione:
         passo = "il dipendente e' gia' stato avvisato di passare a ritirarlo: consegnalo e registra la consegna"
     else:
-        passo = ("preparalo, poi in DPI > Gestione richieste premi «Pronto per il ritiro» (avvisa il dipendente) "
-                 "e alla consegna registra la consegna")
+        passo = ("preparalo, poi in DPI > Banco consegne premi «Pronto per il ritiro» (avvisa il dipendente) "
+                 "e alla consegna registra la consegna con la firma")
     try:
         _mail(
             f"[DPI] Da consegnare {richiesta.numero} - {richiesta.richiedente_nome}",
             _dettaglio_richiesta(richiesta) + f"\n\nLa richiesta e' stata approvata: {passo}.",
-            destinatari_magazzino(),
+            destinatari_consegna(richiesta),
             title="DPI da consegnare",
         )
     except Exception:
@@ -393,8 +401,8 @@ def notifica_rifiutata_dopo_approvazione(richiesta) -> None:
     """Rifiuto di una richiesta gia' approvata: il magazzino aveva ricevuto l'avviso
     di preparare il DPI, va detto di non consegnarlo."""
     try:
-        destinatari = destinatari_magazzino()
-        motivo = f"\nMotivazione: {richiesta.note_gestione}" if richiesta.note_gestione else ""
+        destinatari = destinatari_consegna(richiesta)
+        motivo =f"\nMotivazione: {richiesta.note_gestione}" if richiesta.note_gestione else ""
         _mail(
             f"[DPI] Consegna annullata {richiesta.numero} - {richiesta.richiedente_nome}",
             _dettaglio_richiesta(richiesta)
