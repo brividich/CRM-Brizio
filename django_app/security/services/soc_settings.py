@@ -185,6 +185,19 @@ SECTIONS = [
         ],
     },
     {
+        "code": "dipendenze_portale",
+        "title": "Librerie del portale (ISO 27001 8.8)",
+        "intro": "Ogni mattina le librerie Python installate nel portale si confrontano con il database pubblico OSV (lo stesso di "
+                 "pip-audit): le vulnerabilità note sono in Dispositivi › Librerie del portale e si chiudono da sole quando la "
+                 "libreria viene aggiornata. Serve l'accesso a Internet verso api.osv.dev; se manca la lettura va in errore.",
+        "channels_optional": True,
+        "options": [
+            Option("dipendenze.controllo.attivo", True, "Controlla le librerie del portale ogni mattina"),
+            Option("dipendenze.alert.attivo", True, "Alert per le librerie vulnerabili (uno per libreria e versione)",
+                   "Si chiude da solo dopo l'aggiornamento della libreria."),
+        ],
+    },
+    {
         "code": "software_conformita",
         "title": "Software non conforme",
         "intro": "Confronta l'inventario software con le decisioni del Catalogo software (modulo Asset): un alert per prodotto quando "

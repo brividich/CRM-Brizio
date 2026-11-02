@@ -162,6 +162,16 @@ def pacchetto_iso_task():
     return letture.esegui("pacchetto_iso")
 
 
+def dipendenze_portale_task():
+    """Librerie Python del portale contro il database OSV (schedule `security_dipendenze_portale`, lettura `dipendenze_portale`).
+
+    Ogni mattina alle 06:50: vulnerabilità nuove e risolte in Dispositivi › Librerie del portale, alert per libreria.
+    """
+    from security.services import letture
+
+    return letture.esegui("dipendenze_portale")
+
+
 def suggest_cpe_task(vendor, product):
     """Suggerimenti CPE dal dizionario NVD per un prodotto dell'inventario (accodato dalla pagina Software)."""
     from security.models import SoftwareCpeMapping

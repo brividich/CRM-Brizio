@@ -796,6 +796,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SOC — librerie Python del portale contro il database pubblico OSV (lo stesso di pip-audit):
+        # vulnerabilità nuove e risolte in Dispositivi › Librerie del portale, alert per libreria e versione.
+        # Spegnibile da /soc/impostazioni/; si vede in Letture automatiche e nel Battito del SOC.
+        "name": "security_dipendenze_portale",
+        "func": "security.tasks.dipendenze_portale_task",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "50 6 * * *",       # ogni mattina alle 06:50
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 600}},
+    },
+    {
         # CONTATORI — tabella MAC degli switch «Rete» (sola lettura): a quale porta è collegato ogni PC.
         "name": "contatori_tabella_mac",
         "func": "contatori.tasks.run_tabella_mac",

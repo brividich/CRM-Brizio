@@ -382,6 +382,34 @@ def _evaluate_defender_alert(event):
         notify_alert_created(alert)
 
 
+def _evaluate_dipendenza_vulnerabile(event):
+    """Libreria Python del portale con vulnerabilità note (``dipendenze_portale``): un alert per libreria e versione.
+
+    Severità della vulnerabilità più grave della libreria. Si chiude da solo quando quella versione non è
+    più installata o non ha più vulnerabilità aperte (``dipendenze_portale.chiudi_rientrati``).
+    """
+    from security.services import dipendenze_portale
+
+    payload = event.payload or {}
+    rule = _get_rule(dipendenze_portale.EVENT)
+    if not soc_settings_value("dipendenze.alert.attivo") or (rule and not rule.enabled):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Alert sulle librerie del portale spenti in /soc/impostazioni/"}
+        event.save(update_fields=["decision_trace"])
+        return
+    if not dipendenze_portale.ancora_vulnerabile(event):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Libreria già aggiornata prima della valutazione: nessun alert"}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Libreria Python del portale con vulnerabilità note nel database OSV => alert",
+        "pacchetto": payload.get("pacchetto"), "versione": payload.get("versione"),
+        "vulnerabilita": payload.get("vulnerabilita"), "aggiorna_a": payload.get("aggiorna_a"),
+    }
+    _alert_da_evento(event, dipendenze_portale.titolo_evento(payload), rule.severity if rule else event.severity, trace)
+    _mark_rule_triggered(rule)
+
+
 def _alert_da_evento(event, title, severity, trace):
     """Apre o riusa l'alert del SOC per un evento (stesso dedup), con traccia e notifica."""
     alert, alert_created = _get_or_create_active_alert(
@@ -1036,6 +1064,7 @@ _HANDLERS = {
     "backup_repository_space": _evaluate_backup_repository_space,
     "cve_sla_scaduta": _evaluate_cve_sla_scaduta,
     "patch_sla_scaduta": _evaluate_patch_sla_scaduta,
+    "dipendenza_vulnerabile": _evaluate_dipendenza_vulnerabile,
     "accettazione_rischio": _evaluate_accettazione_rischio,
     "backup_restore_test_failed": _evaluate_backup_restore_test_failed,
 }

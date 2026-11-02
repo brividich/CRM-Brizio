@@ -82,6 +82,7 @@ MENU = [
         ("Rete (IP)", "rete_indirizzi", ("rete_indirizzi",), False),
         ("Vulnerabilità", "vulnerabilities", ("vulnerabilities", "cve_detail"), False),
         ("Correzioni CVE", "cve_correzioni", ("cve_correzioni",), False),
+        ("Librerie del portale", "dipendenze_portale", ("dipendenze_portale",), False),
         ("Rischi accettati", "accettazioni_rischio", ("accettazioni_rischio",), False),
         ("Accessi VPN", "vpn_history", ("vpn_history",), False),
     ]),
