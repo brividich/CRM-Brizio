@@ -37,4 +37,29 @@
           {% endif %}
         </div>
       </nav>
+      <script>
+      (function () {
+        /* Barra su una riga che scorre: la voce attiva resta in vista e la sfumatura
+           dice da che parte ci sono altre voci; la rotella verticale la fa scorrere. */
+        var tabs = document.querySelector('.as-section-tabs');
+        if (!tabs) { return; }
+        function edges() {
+          var max = tabs.scrollWidth - tabs.clientWidth;
+          tabs.classList.toggle('has-more-left', max > 1 && tabs.scrollLeft > 1);
+          tabs.classList.toggle('has-more-right', max > 1 && tabs.scrollLeft < max - 1);
+        }
+        var active = tabs.querySelector('.as-section-tab.active');
+        if (active && tabs.scrollWidth > tabs.clientWidth) {
+          tabs.scrollLeft = active.offsetLeft - tabs.offsetLeft - (tabs.clientWidth - active.offsetWidth) / 2;
+        }
+        tabs.addEventListener('scroll', edges, { passive: true });
+        tabs.addEventListener('wheel', function (event) {
+          if (tabs.scrollWidth <= tabs.clientWidth || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) { return; }
+          event.preventDefault();
+          tabs.scrollLeft += event.deltaY;
+        }, { passive: false });
+        window.addEventListener('resize', edges);
+        edges();
+      })();
+      </script>
     {% endif %}
