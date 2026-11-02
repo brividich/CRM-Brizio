@@ -25,6 +25,8 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from automazioni.managed_flows import event_flow
+
 from . import flusso
 
 logger = logging.getLogger(__name__)
@@ -79,6 +81,7 @@ def _righe_dpi(consegne) -> list[str]:
     return [f"- {flusso._riga_dpi(c.richiesta)} ({c.richiesta.numero})" for c in consegne]
 
 
+@event_flow("dpi_conferma_ricevuta", skipped_result=0)
 def _invia(conferma, consegne, *, sollecito: bool = False) -> int:
     """Crea un link per destinatario e manda la mail. Ritorna le mail inviate."""
     import html
@@ -134,18 +137,18 @@ def _invia(conferma, consegne, *, sollecito: bool = False) -> int:
 def richiedi(consegne, *, autore: str = ""):
     """Apre la conferma per le consegne fatte insieme a una persona e manda la mail.
 
-    Ritorna (conferma, tipo destinatario) oppure (None, "") se non c'e' nessuno a
-    cui chiederla. Fail-soft: un errore non annulla mai la consegna registrata."""
+    Ritorna (conferma, tipo destinatario, mail inviate) oppure (None, "", 0) se non
+    c'e' nessuno a cui chiederla (0 inviate anche con la regola spenta in Automazioni). Fail-soft: un errore non annulla mai la consegna registrata."""
     from .models import ConfermaConsegnaDPI
 
     consegne = [c for c in consegne if c is not None]
     if not consegne:
-        return None, ""
+        return None, "", 0
     try:
         r = consegne[0].richiesta
         tipo, emails = destinatari(r)
         if not emails:
-            return None, ""
+            return None, "", 0
         with transaction.atomic():
             conferma = ConfermaConsegnaDPI.objects.create(
                 richiedente_legacy_id=r.richiedente_legacy_id, richiedente_nome=r.richiedente_nome,
@@ -154,11 +157,10 @@ def richiedi(consegne, *, autore: str = ""):
             for c in consegne:
                 c.conferma = conferma
                 c.save(update_fields=["conferma"])
-        _invia(conferma, consegne)
-        return conferma, tipo
+        return conferma, tipo, _invia(conferma, consegne) or 0
     except Exception:
         logger.warning("Conferma di ricevuta DPI non aperta", exc_info=True)
-        return None, ""
+        return None, "", 0
 
 
 def link_da_token(raw: str):
@@ -195,6 +197,7 @@ def decidi(link, decisione: str, nota: str = "") -> bool:
     return True
 
 
+@event_flow("dpi_consegna_contestata", skipped_result=None)
 def _avvisa_contestazione(conferma, consegne) -> None:
     try:
         r = consegne[0].richiesta
