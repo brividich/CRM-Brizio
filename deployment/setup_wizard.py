@@ -118,8 +118,8 @@ _MODULE_VERSION_ENV_KEYS = (
 )
 
 # Registro centralizzato dei moduli installabili.
-# Usato da ModulesPage (selezione wizard) e dal migrate selettivo in InstallPage /
-# ReleaseRunPage.  Ogni voce descrive un'app Django opzionale o richiesta.
+# Usato da ModulesPage (selezione wizard) e per le etichette del migrate
+# (run_migrate_pendenti).  Ogni voce descrive un'app Django opzionale o richiesta.
 #
 # Campi:
 #   key          – identificatore univoco (coincide con app_label Django)
@@ -228,12 +228,65 @@ MODULE_REGISTRY: list[dict] = [
 # Mappa key → entry per lookup O(1)
 _MODULE_BY_KEY: dict[str, dict] = {m["key"]: m for m in MODULE_REGISTRY}
 
-# App Django di sistema (non custom) che devono sempre essere migrate
-# prima dei moduli custom. Django le risolve tramite le dependency declarations
-# nelle migration, ma le elenchiamo esplicitamente per chiarezza e robustezza.
-_DJANGO_BUILTIN_MIGRATE_LABELS: tuple[str, ...] = (
-    "contenttypes", "auth", "sessions", "admin", "axes",
-)
+def _parse_pending_migrations(plan_output: str) -> list[str]:
+    """Da `showmigrations --plan` estrae le migrazioni non applicate ("app.nome")."""
+    pending = []
+    for line in plan_output.splitlines():
+        m = re.match(r"\s*\[ \]\s+(\S+)", line)
+        if m:
+            pending.append(m.group(1))
+    return pending
+
+
+def run_migrate_pendenti(page, *, venv_py, django_app, env_vars, settings) -> bool:
+    """Applica SOLO le migrazioni pendenti (funzione di modulo condivisa).
+
+    Un solo `showmigrations --plan` per sapere cosa manca: se non manca nulla non
+    si lancia nessun migrate; altrimenti un unico `migrate` globale, che rispetta
+    da solo l'ordine delle dipendenze e copre anche le app assenti dal
+    MODULE_REGISTRY. Prima erano ~30 processi `manage.py migrate`, uno per app,
+    anche senza niente da applicare.
+    """
+    page._log_line("  $ manage.py showmigrations --plan", "dim")
+    pending = None
+    try:
+        r = subprocess.run(
+            [str(venv_py), "manage.py", "showmigrations", "--plan", f"--settings={settings}"],
+            cwd=str(django_app), env=env_vars,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        if r.returncode == 0:
+            pending = _parse_pending_migrations(r.stdout)
+        else:
+            out = (r.stderr or r.stdout or "").strip()[-500:]
+            page._log_line(f"  ⚠ Elenco migrazioni non disponibile: {out}", "warn")
+    except Exception as e:
+        page._log_line(f"  ⚠ Elenco migrazioni non disponibile: {e}", "warn")
+
+    if pending == []:
+        page._log_line("  ✓ Nessuna migrazione da applicare", "ok")
+        return True
+
+    if pending:
+        per_app: dict[str, int] = {}
+        for name in pending:
+            app_label = name.split(".", 1)[0]
+            per_app[app_label] = per_app.get(app_label, 0) + 1
+        labels = {m["app_label"]: m["label"] for m in MODULE_REGISTRY}
+        page._log_line(f"  → {len(pending)} migrazioni da applicare:", "dim")
+        for app_label, n in per_app.items():
+            page._log_line(f"    • {labels.get(app_label, app_label)}: {n}", "dim")
+    else:
+        page._log_line("  → Applico le migrazioni pendenti (elenco non letto)", "dim")
+
+    ok = page._cmd(
+        [str(venv_py), "manage.py", "migrate", f"--settings={settings}", "--noinput"],
+        cwd=django_app, env=env_vars,
+    )
+    if not ok:
+        page._log_line("  ✗ migrate fallito", "err")
+    return ok
 
 
 def _load_app_version(default: str = _DEFAULT_APP_VERSION) -> str:
@@ -2573,8 +2626,8 @@ class ModulesPage(Page):
     I moduli "sistema" sono sempre obbligatori (checkbox disabilitato).
     I moduli "standard" sono pre-selezionati.
     I moduli "optional" sono disattivati per default (futuro licensing).
-    La selezione viene salvata in cfg.selected_modules e usata dal migrate
-    selettivo in InstallPage._run_prod / _run_dev e ReleaseRunPage._run_promote.
+    La selezione viene salvata in cfg.selected_modules. Il migrate applica
+    comunque tutte le migrazioni pendenti (run_migrate_pendenti).
     """
 
     _TIER_LABELS = {
@@ -3252,81 +3305,15 @@ class InstallPage(Page):
         settings,
         selected_module_keys: list[str],
     ) -> bool:
-        """Esegue migrate selettivo per i moduli scelti dall'utente.
+        """Applica solo le migrazioni pendenti (vedi run_migrate_pendenti).
 
-        Strategia:
-        1. Migra i built-in Django (contenttypes, auth, sessions, admin, axes).
-        2. Migra i moduli "required" del MODULE_REGISTRY.
-        3. Migra solo i moduli opzionali presenti in selected_module_keys.
-
-        Django risolve le migration dependency declarations all'interno di ogni
-        app_label, quindi l'ordine esplicito garantisce che le tabelle siano
-        create nel giusto ordine senza dipendere da `migrate --noinput` globale.
-
-        Ritorna True solo se TUTTI i target hanno avuto successo.
+        `selected_module_keys` resta per compatibilità: le migrazioni di tutte le
+        app in INSTALLED_APPS vanno comunque applicate, altrimenti 500 in prod.
         """
-        selected = set(selected_module_keys)
-        all_ok = True
-
-        # 1. Built-in Django
-        for app_label in _DJANGO_BUILTIN_MIGRATE_LABELS:
-            ok = self._cmd(
-                [str(venv_py), "manage.py", "migrate", app_label,
-                 f"--settings={settings}", "--noinput"],
-                cwd=django_app, env=env_vars,
-            )
-            if not ok:
-                self._log_line(f"  ✗ migrate {app_label} fallito", "err")
-                all_ok = False
-
-        # 2. Moduli required (sistema)
-        for m in MODULE_REGISTRY:
-            if not m["required"] or not m["has_migrations"]:
-                continue
-            ok = self._cmd(
-                [str(venv_py), "manage.py", "migrate", m["app_label"],
-                 f"--settings={settings}", "--noinput"],
-                cwd=django_app, env=env_vars,
-            )
-            if ok:
-                self._log_line(f"  ✓ {m['label']}", "ok")
-            else:
-                self._log_line(f"  ✗ migrate {m['app_label']} fallito", "err")
-                all_ok = False
-
-        # 3. Moduli opzionali selezionati
-        for m in MODULE_REGISTRY:
-            if m["required"] or not m["has_migrations"]:
-                continue
-            if m["key"] not in selected:
-                self._log_line(f"  —  {m['label']} (non selezionato — skip)", "dim")
-                continue
-            ok = self._cmd(
-                [str(venv_py), "manage.py", "migrate", m["app_label"],
-                 f"--settings={settings}", "--noinput"],
-                cwd=django_app, env=env_vars,
-            )
-            if ok:
-                self._log_line(f"  ✓ {m['label']}", "ok")
-            else:
-                self._log_line(f"  ✗ migrate {m['app_label']} fallito", "err")
-                all_ok = False
-
-        # 4. Safety-net: applica QUALSIASI migrazione residua (app non presenti nel
-        # MODULE_REGISTRY o aggiunte dopo). Senza questo, un'app in INSTALLED_APPS ma
-        # assente dal registry resta senza tabelle → 500 in prod.
-        ok = self._cmd(
-            [str(venv_py), "manage.py", "migrate",
-             f"--settings={settings}", "--noinput"],
-            cwd=django_app, env=env_vars,
+        return run_migrate_pendenti(
+            self, venv_py=venv_py, django_app=django_app,
+            env_vars=env_vars, settings=settings,
         )
-        if ok:
-            self._log_line("  ✓ migrazioni residue (safety-net globale)", "ok")
-        else:
-            self._log_line("  ✗ migrate globale (safety-net) fallito", "err")
-            all_ok = False
-
-        return all_ok
 
     def _run_assenze_tipo_alignment(
         self,
@@ -3864,7 +3851,7 @@ class InstallPage(Page):
         else:
             self._log_line("  manage.py non trovato — skip", "warn")
 
-        # 8. migrate selettivo per modulo
+        # 8. migrate: solo le migrazioni pendenti
         step(8, "Django migrate", 75)
         migrate_ok = False
         database_ready = True
@@ -5619,63 +5606,15 @@ class ReleaseRunPage(Page):
         self, *, venv_py, django_app, env_vars, settings,
         selected_module_keys: list[str],
     ) -> bool:
-        """Stessa logica di InstallPage._run_selective_migrate (non c'è ereditarietà)."""
-        selected = set(selected_module_keys)
-        all_ok = True
-        for app_label in _DJANGO_BUILTIN_MIGRATE_LABELS:
-            ok = self._cmd(
-                [str(venv_py), "manage.py", "migrate", app_label,
-                 f"--settings={settings}", "--noinput"],
-                cwd=django_app, env=env_vars,
-            )
-            if not ok:
-                self._log_line(f"  ✗ migrate {app_label} fallito", "err")
-                all_ok = False
-        for m in MODULE_REGISTRY:
-            if not m["required"] or not m["has_migrations"]:
-                continue
-            ok = self._cmd(
-                [str(venv_py), "manage.py", "migrate", m["app_label"],
-                 f"--settings={settings}", "--noinput"],
-                cwd=django_app, env=env_vars,
-            )
-            if ok:
-                self._log_line(f"  ✓ {m['label']}", "ok")
-            else:
-                self._log_line(f"  ✗ migrate {m['app_label']} fallito", "err")
-                all_ok = False
-        for m in MODULE_REGISTRY:
-            if m["required"] or not m["has_migrations"]:
-                continue
-            if m["key"] not in selected:
-                self._log_line(f"  —  {m['label']} (non selezionato — skip)", "dim")
-                continue
-            ok = self._cmd(
-                [str(venv_py), "manage.py", "migrate", m["app_label"],
-                 f"--settings={settings}", "--noinput"],
-                cwd=django_app, env=env_vars,
-            )
-            if ok:
-                self._log_line(f"  ✓ {m['label']}", "ok")
-            else:
-                self._log_line(f"  ✗ migrate {m['app_label']} fallito", "err")
-                all_ok = False
+        """Applica solo le migrazioni pendenti (vedi run_migrate_pendenti).
 
-        # 4. Safety-net: applica QUALSIASI migrazione residua (app non presenti nel
-        # MODULE_REGISTRY o aggiunte dopo). Senza questo, un'app in INSTALLED_APPS ma
-        # assente dal registry resta senza tabelle → 500 in prod.
-        ok = self._cmd(
-            [str(venv_py), "manage.py", "migrate",
-             f"--settings={settings}", "--noinput"],
-            cwd=django_app, env=env_vars,
+        `selected_module_keys` resta per compatibilità: le migrazioni di tutte le
+        app in INSTALLED_APPS vanno comunque applicate, altrimenti 500 in prod.
+        """
+        return run_migrate_pendenti(
+            self, venv_py=venv_py, django_app=django_app,
+            env_vars=env_vars, settings=settings,
         )
-        if ok:
-            self._log_line("  ✓ migrazioni residue (safety-net globale)", "ok")
-        else:
-            self._log_line("  ✗ migrate globale (safety-net) fallito", "err")
-            all_ok = False
-
-        return all_ok
 
     def _run_assenze_tipo_alignment(self, *, venv_py, django_app, env_vars, settings) -> bool:
         self._log_line("  -> Assenze SQL Server: allineamento tipo_assenza legacy", "dim")
@@ -5917,7 +5856,7 @@ class ReleaseRunPage(Page):
                 self._append_error(errors, "collectstatic")
                 self._log_line("  ✗ collectstatic fallito", "err")
 
-        # 5. migrate selettivo per modulo
+        # 5. migrate: solo le migrazioni pendenti
         step(5, "Django migrate", 65)
         migrate_ok = False
         if not deps_ready:
