@@ -33,6 +33,9 @@ GUIDA = {
                       "«Tutti» mostra anche quelli con sole anomalie chiuse."),
                 ("p", "Se scrivi una nota nella decisione, l'avanzamento non può restare «In attesa»: va scelto uno "
                       "stato diverso, nel portale come nella pagina della mail."),
+                ("p", "Un'anomalia chiusa la riapre chi ne è incaricato (capocommessa, CAR, controllore che l'ha "
+                      "segnalata, chi può modificare l'OP) con «Riapri anomalia»: torna «In attesa». Accanto al "
+                      "numero dell'OP, in cima al dettaglio, c'è il P/N."),
                 ("p", "Nella scheda di una NC aperta «Segna come Part 145» indica che riguarda un componente lavorato per "
                       "l'organizzazione di manutenzione: la NC compare nel Dossier PART 145 del modulo Asset."),
                 ("p", "La guida completa, con ogni schermata, è nel collegamento in cima."),

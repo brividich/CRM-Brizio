@@ -1115,6 +1115,30 @@
         setAvanzamento(baseline.avanzamento); setDescrizioneAnswers(baseline.risposte); setEditDesc(false);
       };
 
+      // Riapertura: capocommessa, CAR, controllore o chi modifica l'OP (deciso dal server).
+      const riapri = async () => {
+        if (!sn.local_id || !API.riapri) return;
+        setSaving(true);
+        try {
+          const r = await fetch(API.riapri, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify({ local_id: sn.local_id }),
+            credentials: "same-origin",
+          });
+          const data = await readJsonOrThrow(r, "Riapertura anomalia");
+          if (!data.success) throw new Error(data.error || "risposta non valida");
+          setAnomalie((prev) => prev.map((a) => (a.item_id === sn.item_id
+            ? { ...a, chiudere: false, avanzamento: "In attesa", can_riaprire: false } : a)));
+          setAvanzamento("In attesa");
+          flash({ ok: true, text: `Anomalia #${sn.local_id} riaperta · in attesa di decisione` });
+          loadOrdini();
+        } catch (e) {
+          flash({ ok: false, text: "Errore: " + e.message }, 7000);
+        }
+        setSaving(false);
+      };
+
       const duplica = () => {
         setMenuOpen(false);
         setCurrentItemId(null);
@@ -1332,7 +1356,8 @@
                   <div className="ga-det__head">
                     <div className="ga-det__crumb">
                       <span>{op.id}</span>
-                      {sn.fase && <><span className="ga-det__sep">›</span><span>Fase {sn.fase}</span></>}
+                      {op.pn && op.pn !== "—" && <><span className="ga-det__sep">·</span><span>P/N <b className="ga-det__pn">{op.pn}</b></span></>}
+                      {sn.fase &&<><span className="ga-det__sep">›</span><span>Fase {sn.fase}</span></>}
                       <span className={`ga-pill ${isBenestare ? "ga-pill--ben" : "ga-pill--muted"}`}>{isBenestare ? "Collaudo di benestare" : "Altro controllo"}</span>
                     </div>
                     <div className="ga-det__titlerow">
@@ -1354,7 +1379,12 @@
 
                   <div className="ga-det__body">
                     {!canEditCurrentOp && <div className="ga-note ga-note--warn">Sola lettura: puoi consultare ma non decidere su questo OP.</div>}
-                    {canEditCurrentOp && isSelectedClosed && <div className="ga-note ga-note--ok">Anomalia chiusa: i dati restano consultabili ma non modificabili.</div>}
+                    {isSelectedClosed && (canEditCurrentOp || sn.can_riaprire) && (
+                      <div className="ga-note ga-note--ok ga-note--row">
+                        <span>Anomalia chiusa: i dati restano consultabili ma non modificabili.</span>
+                        {sn.can_riaprire && <button type="button" className="ga-btn ga-btn--outline ga-btn--xs" onClick={riapri} disabled={saving}>{saving ? "Riapertura…" : "Riapri anomalia"}</button>}
+                      </div>
+                    )}
 
                     {/* Segnalazione */}
                     <div className="ga-card">

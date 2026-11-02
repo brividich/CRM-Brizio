@@ -1765,6 +1765,62 @@ def _can_attach_anomalia(request, local_id: int, op_id: str) -> bool:
     return _can_edit_anomalie_for_op(request, op_id) or _is_creatore_anomalia(request, local_id)
 
 
+def _riapre_su_op(request, op_id: str) -> bool:
+    """Riaprire per ruolo sull'OP: chi lo modifica o chi ne è capocommessa/CAR."""
+    if _can_edit_anomalie_for_op(request, op_id):
+        return True
+    row = _op_persone_row(_safe_text(op_id, 100) or "")
+    return bool(_op_role_codes_da_persone(request, _row_capocommessa(row), row.get("incaricato")))
+
+
+def _controlli_dell_utente(request) -> set[int]:
+    """Id dei controlli eseguiti dall'utente (è il controllore delle loro anomalie)."""
+    from anomalie.quality_models import AnomaliaControllo
+
+    uid = getattr(getattr(request, "user", None), "pk", None)
+    if not uid:
+        return set()
+    return set(AnomaliaControllo.objects.filter(operatore_id=uid).values_list("pk", flat=True))
+
+
+def _is_controllore_anomalia(request, local_id: int) -> bool:
+    if _is_creatore_anomalia(request, local_id):
+        return True
+    from anomalie.quality_models import AnomaliaSegnalazioneMeta
+
+    controlli = _controlli_dell_utente(request)
+    return bool(controlli) and AnomaliaSegnalazioneMeta.objects.filter(
+        anomalia_id=int(local_id), controllo_id__in=controlli
+    ).exists()
+
+
+def _segna_riapribili(request, rows: list[dict], op_title: str, autori: dict) -> None:
+    """``can_riaprire`` sulle righe chiuse (stessa regola di ``_can_riaprire_anomalia``)."""
+    chiuse = [r for r in rows if r.get("chiudere")]
+    for r in rows:
+        r["can_riaprire"] = False
+    if not chiuse:
+        return
+    if _riapre_su_op(request, op_title):
+        for r in chiuse:
+            r["can_riaprire"] = True
+        return
+    me = _request_legacy_user_id(request)
+    controlli = _controlli_dell_utente(request)
+    for r in chiuse:
+        autore = autori.get(r.get("local_id"))
+        r["can_riaprire"] = bool(
+            (me is not None and autore is not None and int(autore) == me)
+            or (r.get("controllo_id") and r["controllo_id"] in controlli)
+        )
+
+
+def _can_riaprire_anomalia(request, local_id: int, op_id: str) -> bool:
+    """Riapre un'anomalia chiusa chi ne è incaricato: capocommessa, CAR, controllore
+    (chi l'ha segnalata) e chi può modificare l'OP."""
+    return _riapre_su_op(request, op_id) or _is_controllore_anomalia(request, local_id)
+
+
 def _user_created_anomalia_on_op(request, op_id: str) -> bool:
     """True se l'utente corrente ha creato almeno un'anomalia sull'OP (scope OWN)."""
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
@@ -2608,6 +2664,7 @@ def api_anomalie(request):
 
     cols = legacy_table_columns("anomalie")
     rdc_col = ", numero_rdc" if "numero_rdc" in cols else ""
+    autore_col = ", created_by_user_id" if "created_by_user_id" in cols else ""
 
     # Se non ho il titolo OP ma ho il lookup id, lo derivo per estendere il match
     # anche ai record con op_lookup_id NULL ma stesso ex_op_nominativo.
@@ -2654,7 +2711,7 @@ def api_anomalie(request):
                 segnalare_cliente,
                 chiudere,
                 avanzamento,
-                modified_datetime
+                modified_datetime{autore_col}
             FROM anomalie
             WHERE {where_clause}
             ORDER BY seriale
@@ -2670,8 +2727,10 @@ def api_anomalie(request):
                 continue
             seen_ids.add(rid)
             unique_rows.append(r)
+        autori = {r.get("id"): r.get("created_by_user_id") for r in unique_rows}
         payload_rows = _serialize_anomalie_rows(unique_rows)
         _arricchisci_con_blocchi(payload_rows)
+        _segna_riapribili(request, payload_rows, op_title, autori)
         return JsonResponse(payload_rows, safe=False)
     except DatabaseError as exc:
         return _json_error(str(exc), status=500)
@@ -3097,6 +3156,75 @@ def api_salva(request):
     )
 
 
+@login_required
+def api_riapri(request):
+    """Riapre un'anomalia chiusa: torna aperta e «In attesa» della decisione."""
+    if request.method != "POST":
+        return _json_error("Metodo non consentito", status=405)
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+        local_id = int(data.get("local_id"))
+    except Exception:
+        return _json_error("local_id non valido", status=400)
+    if not _has_table("anomalie"):
+        return _json_error("Tabella anomalie non disponibile", status=500)
+    rows = _fetch_all_dict("SELECT TOP 1 id, ex_op_nominativo, chiudere FROM anomalie WHERE id = %s", [local_id])
+    if not rows:
+        return _json_error("Anomalia non trovata", status=404)
+    op_id = str(rows[0].get("ex_op_nominativo") or "").strip()
+    if not _can_riaprire_anomalia(request, local_id, op_id):
+        return _json_error("Permesso negato: riapre l'anomalia solo chi ne è incaricato", status=403)
+    if not rows[0].get("chiudere"):
+        return _json_error("L'anomalia è già aperta", status=400)
+
+    cols = legacy_table_columns("anomalie")
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    sets = ["chiudere = 0"]
+    params: list = []
+    if "avanzamento" in cols:
+        sets.append("avanzamento = %s")
+        params.append(_canonicalize_avanzamento("In attesa"))
+    if "modified_datetime" in cols:
+        sets.append("modified_datetime = SYSUTCDATETIME()")
+    if "modified_by_user_id" in cols and legacy_user:
+        sets.append("modified_by_user_id = %s")
+        params.append(legacy_user.id)
+    try:
+        with connections["default"].cursor() as cursor:
+            cursor.execute(f"UPDATE anomalie SET {', '.join(sets)} WHERE id = %s", params + [local_id])
+    except DatabaseError as exc:
+        return _json_error(str(exc), status=500)
+
+    try:
+        log_action(request, "anomalia_riaperta", "anomalie", {"local_id": local_id, "op_id": op_id})
+    except Exception:
+        pass
+    try:
+        identity = _current_user_identity(request)
+        from anomalie.mail_action_service import log_anomalia_portal_action
+        log_anomalia_portal_action(
+            anomalia_id=local_id,
+            op_id=op_id,
+            action="riapri",
+            user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=identity.get("name") or request.user.username,
+            previous_status="Chiusa",
+            new_status="In attesa",
+            ip_address=_client_ip(request),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        )
+    except Exception:
+        logger.warning("api_riapri: timeline log fallita id=%s", local_id, exc_info=True)
+    try:
+        from anomalie.qualita_service import sync_da_anomalia
+        with transaction.atomic():
+            sync_da_anomalia(local_id)
+    except Exception:
+        logger.warning("api_riapri: scheda qualita' non aggiornata id=%s", local_id, exc_info=True)
+    return JsonResponse({"success": True, "local_id": local_id, "item_id": f"local:{local_id}"})
+
+
 def _insert_anomalia_return_id(cursor, quoted_cols: str, placeholders: str, params: list) -> int | None:
     """INSERT nella tabella legacy ``anomalie`` restituendo l'id della nuova riga.
 
@@ -3433,6 +3561,7 @@ _TIMELINE_ACTION_LABELS = {
     "crea": "Anomalia creata",
     "aggiorna": "Anomalia aggiornata",
     "chiudi": "Anomalia chiusa",
+    "riapri": "Anomalia riaperta",
     "prendi_in_carico": "Presa in carico",
     "approva": "Approvata",
     "respingi": "Respinta",

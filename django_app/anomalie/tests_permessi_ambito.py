@@ -153,3 +153,67 @@ class RegoleSalvataggioTests(TestCase):
             patch("anomalie.views._fetch_all_dict", return_value=[{"sharepoint_item_id": "-3"}]),
         ):
             self.assertEqual(av._resolve_op_lookup_id(None, "OP/3"), -3)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class RiaperturaTests(TestCase):
+    """Riapre un'anomalia chiusa chi ne è incaricato: CC, CAR, controllore, chi modifica l'OP."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = get_user_model().objects.create_user(username="anom-riapri", password="pass12345")
+
+    def _request(self, legacy_id=5):
+        request = RequestFactory().post("/api/anomalie/riapri")
+        request.user = self.user
+        request.legacy_user = SimpleNamespace(id=legacy_id, nome="Mario Rossi", email="")
+        return request
+
+    def _righe(self, *, edit=False, persone=None, legacy_id=5, controlli=()):
+        rows = [
+            {"local_id": 1, "chiudere": True, "controllo_id": None},
+            {"local_id": 2, "chiudere": True, "controllo_id": 40},
+            {"local_id": 3, "chiudere": False, "controllo_id": None},
+        ]
+        with (
+            patch("anomalie.views._can_edit_anomalie_for_op", return_value=edit),
+            patch("anomalie.views._op_persone_row", return_value=persone or {}),
+            patch("anomalie.views._request_name_norms", return_value={"MARIO ROSSI"}),
+            patch("anomalie.views._controlli_dell_utente", return_value=set(controlli)),
+        ):
+            av._segna_riapribili(self._request(legacy_id), rows, "OP/1", {1: 5, 2: 99, 3: 5})
+        return {r["local_id"]: r["can_riaprire"] for r in rows}
+
+    def test_capocommessa_riapre_tutte_le_chiuse(self):
+        self.assertEqual(self._righe(persone={"capocomessa": "Mario Rossi"}), {1: True, 2: True, 3: False})
+
+    def test_car_riapre(self):
+        self.assertEqual(self._righe(persone={"incaricato": "Mario Rossi"}), {1: True, 2: True, 3: False})
+
+    def test_chi_modifica_l_op_riapre(self):
+        self.assertEqual(self._righe(edit=True), {1: True, 2: True, 3: False})
+
+    def test_controllore_riapre_solo_le_sue(self):
+        # Autore della riga 1 (created_by) e operatore del controllo 40 (riga 2).
+        self.assertEqual(self._righe(controlli={40}), {1: True, 2: True, 3: False})
+        self.assertEqual(self._righe(legacy_id=8), {1: False, 2: False, 3: False})
+
+    def _post(self, riga, *, consentito):
+        import json
+
+        request = self._request()
+        request._body = json.dumps({"local_id": 1}).encode()
+        with (
+            patch("anomalie.views._has_table", return_value=True),
+            patch("anomalie.views._fetch_all_dict", return_value=[riga]),
+            patch("anomalie.views._can_riaprire_anomalia", return_value=consentito),
+        ):
+            return av.api_riapri.__wrapped__(request)
+
+    def test_api_nega_chi_non_e_incaricato(self):
+        resp = self._post({"id": 1, "ex_op_nominativo": "OP/1", "chiudere": 1}, consentito=False)
+        self.assertEqual(resp.status_code, 403)
+
+    def test_api_rifiuta_anomalia_gia_aperta(self):
+        resp = self._post({"id": 1, "ex_op_nominativo": "OP/1", "chiudere": 0}, consentito=True)
+        self.assertEqual(resp.status_code, 400)
