@@ -144,3 +144,58 @@ class DatiBaseModificabiliTest(TestCase):
         self.client.force_login(self.semplice)
         self.client.post(self.url, {"nome": "Hacker"})
         self.assertEqual(self._riga()["nome"], "MARIO")
+
+    def test_matricola_dal_blocco_identita(self):
+        self.client.force_login(self.admin)
+        resp = self.client.post(self.url, {"nome": "Mario", "cognome": "Prova", "matricola": "CNO 0042"})
+        self.assertIn("#anagrafica-aziendale", resp["Location"])
+        self.assertEqual(self._riga()["matricola"], "CNO 0042")
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class AziendaleBlocchiTest(TestCase):
+    """La card «Anagrafica aziendale» salva un blocco alla volta."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+        cls.admin = User.objects.create_superuser(username="blk_admin", email="blk_admin@x.local", password="x")
+        cls.semplice = User.objects.create_user(username="blk_semplice", email="blk_semplice@x.local", password="x")
+
+    def setUp(self):
+        self.legacy_id = 9601
+        self.az = DipendenteAnagraficaAziendale.objects.create(
+            legacy_anagrafica_id=self.legacy_id, badge="412", taglia_scarpe="43",
+            email_aziendale="m.prova@example.com", capo_eccezione_legacy_id=77,
+        )
+        self.url = reverse("anagrafica:dipendente_aziendale_save", args=[self.legacy_id])
+
+    def test_blocco_salva_solo_i_suoi_campi(self):
+        self.client.force_login(self.admin)
+        resp = self.client.post(self.url, {"blocco": "taglie", "taglia_scarpe": "44", "taglia_pantalone": "50"})
+        self.assertIn("#anagrafica-aziendale", resp["Location"])
+        self.az.refresh_from_db()
+        self.assertEqual((self.az.taglia_scarpe, self.az.taglia_pantalone), ("44", "50"))
+        # Gli altri blocchi restano com'erano.
+        self.assertEqual((self.az.badge, self.az.email_aziendale), ("412", "m.prova@example.com"))
+        self.assertEqual(self.az.capo_eccezione_legacy_id, 77)
+        log = AuditLog.objects.get(azione="DIPENDENTE_ANAGRAFICA_AZIENDALE_MODIFICATA")
+        self.assertEqual(log.dettaglio["blocco"], "taglie")
+        self.assertEqual(set(log.dettaglio["modifiche"]), {"taglia_scarpe", "taglia_pantalone"})
+
+    def test_blocco_sconosciuto_rifiutato(self):
+        self.client.force_login(self.admin)
+        self.client.post(self.url, {"blocco": "capo", "capo_eccezione_legacy_id": "1"})
+        self.az.refresh_from_db()
+        self.assertEqual(self.az.capo_eccezione_legacy_id, 77)
+
+    def test_campi_tecnici_e_cessazione_fuori_dal_form(self):
+        campi = set(AnagraficaAziendaleForm().fields)
+        for campo in ("capo_eccezione_legacy_id", "capo_eccezione_motivo", "utente_id_pre_offboarding", "data_cessazione"):
+            self.assertNotIn(campo, campi)
+
+    def test_senza_permessi_non_modifica(self):
+        self.client.force_login(self.semplice)
+        self.client.post(self.url, {"blocco": "taglie", "taglia_scarpe": "99"})
+        self.az.refresh_from_db()
+        self.assertEqual(self.az.taglia_scarpe, "43")

@@ -167,6 +167,11 @@ class AnagraficaAziendaleForm(forms.ModelForm):
             # qui creerebbe un secondo scrittore capace di desincronizzare
             # l'assetto reale dall'assegnazione in corso.
             "area", "area_aziendale", "ruolo_aziendale",
+            # Il capo indicato a mano si gestisce da «Coerenza capi» (con la
+            # ricerca della persona, non con un ID); l'account pre-offboarding e
+            # la data di cessazione li scrivono uscita e rientro del dipendente.
+            "capo_eccezione_legacy_id", "capo_eccezione_motivo",
+            "utente_id_pre_offboarding", "data_cessazione",
         ]
         widgets = {
             "badge": forms.TextInput(attrs={"class": "dp-input", "placeholder": "Codice badge fisico"}),
@@ -190,7 +195,7 @@ class AnagraficaAziendaleForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        if not cleaned.get("escluso_dai_conteggi"):
+        if "escluso_dai_conteggi" in self.fields and not cleaned.get("escluso_dai_conteggi"):
             cleaned["motivo_esclusione_conteggi"] = ""
         return cleaned
 
@@ -200,6 +205,30 @@ class AnagraficaAziendaleForm(forms.ModelForm):
             stripped = val.lstrip("0")
             return stripped if stripped else "0"
         return val
+
+
+# Blocchi della card «Anagrafica aziendale» nella scheda dipendente: ogni blocco
+# ha il suo «Modifica» e salva solo i propri campi, così un salvataggio parziale
+# non svuota i campi degli altri blocchi.
+AZIENDALE_BLOCCHI = {
+    "contatti": ("Badge e contatti aziendali", ["badge", "email_aziendale", "telefono_aziendale"]),
+    "rapporto": ("Rapporto di lavoro", [
+        "data_prima_assunzione", "data_assunzione_ultima", "prova_data_inizio", "prova_data_fine",
+    ]),
+    "organico": ("Organico e privacy", [
+        "escluso_dai_conteggi", "motivo_esclusione_conteggi", "consenso_privacy", "data_consenso_privacy",
+    ]),
+    "taglie": ("Taglie", ["taglia_scarpe", "taglia_pantalone", "taglia_maglia"]),
+}
+
+
+def anagrafica_aziendale_form_blocco(blocco: str):
+    """Classe form limitata ai campi di un blocco di ``AZIENDALE_BLOCCHI``."""
+    return forms.modelform_factory(
+        DipendenteAnagraficaAziendale,
+        form=AnagraficaAziendaleForm,
+        fields=AZIENDALE_BLOCCHI[blocco][1],
+    )
 
 
 # ---------------------------------------------------------------------------
