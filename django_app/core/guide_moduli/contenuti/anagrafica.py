@@ -55,12 +55,17 @@ GUIDA = {
                       "sulla mansione. Le azioni che chiudono o sospendono il rapporto (Avvia uscita dipendente…, "
                       "Disattiva account, Rimetti in forza) sono nel menu «Azioni ▾»: l'uscita si compila in una finestra "
                       "con motivo, data e restituzioni."),
-                ("p", "Nella scheda Anagrafica, riquadro «Anagrafica aziendale», chi amministra l'anagrafica corregge "
-                      "con «✏» nome e cognome (salvati in maiuscolo e riportati sull'account portale), matricola, "
-                      "username ed «Email notifica»; i dati civili e gli altri dati aziendali da «✏ Modifica». Reparto, "
-                      "area, mansione e ruolo si cambiano da «Spostamenti organizzativi», contratto e livello dallo "
-                      "storico contratti. Ogni correzione resta nel registro attività."),
-                ("p", "«Escludi dai conteggi dell'organico» (in «✏ Modifica» dei dati aziendali, con un motivo) serve "
+                ("p", "Nella scheda Anagrafica il riquadro «Anagrafica aziendale» è diviso in blocchi: Identità (nome, "
+                      "cognome, matricola, email per le notifiche), Accesso al portale (username), Badge e contatti "
+                      "aziendali, Rapporto di lavoro, Organico e privacy, Taglie. Chi amministra l'anagrafica apre "
+                      "«✏ Modifica» sul blocco che vuole correggere: si modifica solo quel blocco, con «Salva» e "
+                      "«Annulla» propri. Nome e cognome si salvano in maiuscolo e passano sull'account portale. "
+                      "Ogni salvataggio resta nel registro attività con il nome del blocco."),
+                ("p", "Il blocco «Collocazione» (reparto, area, mansione di rischio, ruolo, caporeparto) è in sola "
+                      "lettura: si cambia da «Spostamenti organizzativi»; un capo diverso da quello dell'organigramma "
+                      "si indica da «Coerenza capi». La data di cessazione non si scrive a mano: la registra «Avvia "
+                      "uscita dipendente…». Contratto e livello si cambiano dallo storico contratti."),
+                ("p", "«Escludi dai conteggi dell'organico» (blocco «Organico e privacy», con un motivo) serve "
                       "per chi va tenuto in anagrafica ma non è organico: amministratore, RSPP esterno, consulenti. La "
                       "persona resta negli elenchi e in formazione, visite, DPI e scadenze, ma non conta in: persone in "
                       "forza (home e cruscotto), «Attivi» e organico per reparto dell'elenco, report Organico e "
