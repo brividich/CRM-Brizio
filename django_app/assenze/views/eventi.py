@@ -626,6 +626,10 @@ def api_evento_update(request, item_id: int | None = None):
     modifiche = calcoli_hr.differenze(current, updates)
     motivo = str((payload.get("motivo_modifica") if payload else None) or request.POST.get("motivo_modifica") or "").strip()
     era_approvata = _helpers._effective_status(current.get("consenso"), current.get("moderation_status"))[1] == "Approvato"
+    # Malattia: la spunta «Certificato arrivato» e' gia' il motivo. Se e' l'unico
+    # cambio non serve scriverlo (uno esclude l'altro); con altri cambi si'.
+    if era_approvata and not motivo and _helpers._solo_certificato_arrivato(current, modifiche):
+        motivo = _helpers.CERTIFICATO_ARRIVATO_MOTIVO
     if era_approvata and modifiche and not motivo:
         return _helpers._json_error(
             "La richiesta era già approvata: scrivi il motivo della modifica.", status=400,
