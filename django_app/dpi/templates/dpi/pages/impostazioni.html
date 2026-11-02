@@ -170,6 +170,10 @@ body.theme-dark .dpi-catalog-actions a{background:rgba(59,130,246,.18);color:#93
           <input type="checkbox" name="avviso_ritiro_all_approvazione" id="avviso-ritiro" value="1"{% if impost.avviso_ritiro_all_approvazione %} checked{% endif %}>
           <label for="avviso-ritiro" style="text-transform:none; font-size:13px; font-weight:600; margin:0; cursor:pointer;">Avvisa il dipendente di ritirare il DPI subito all'approvazione (senza «Pronto per il ritiro» del magazzino)</label>
         </div>
+        <div class="dpi-field">
+          <label for="domini-aziendali">Domini della mail aziendale per la conferma di ricevuta (es. azienda.it, separati da virgola; vuoto = qualunque mail di notifica)</label>
+          <input type="text" name="domini_email_aziendali" id="domini-aziendali" value="{{ impost.domini_email_aziendali }}" placeholder="azienda.it">
+        </div>
 
         <button type="submit" class="dpi-btn dpi-btn-green">Salva impostazioni</button>
       </form>
