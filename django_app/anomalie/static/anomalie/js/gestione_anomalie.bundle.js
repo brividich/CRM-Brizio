@@ -239,88 +239,345 @@ const FieldLabel = ({
   }
 }, "*"));
 
-// â"€â"€â"€ Stepper stati anomalia (#4) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
-// Mostra l'avanzamento dei 3 stati fissi + lo stato "Chiusa". L'indice corrente
-// deriva da `avanzamento`; se `chiuso` è true tutti gli step risultano completati.
-const StatoStepper = ({
-  avanzamento,
-  chiuso
+// ─── Percorso dell'anomalia: eventi veri con le date (api/anomalie/esiti) ───
+// Segnalata → Decisa → (cliente) → (azione effettuata) → Chiusa; i passi che non
+// riguardano l'anomalia non compaiono. Il primo passo senza data è quello in corso.
+const PercorsoAnomalia = ({
+  passi
 }) => {
-  const steps = BASE_AVANZAMENTO_OPTIONS;
-  let norm = String(avanzamento || "").trim().toLowerCase();
-  if (norm === AVANZAMENTO_RISPOSTA_CLIENTE.toLowerCase()) norm = "in attesa"; // stesso passo
-  let currentIdx = steps.findIndex(s => String(s).trim().toLowerCase() === norm);
-  if (chiuso) currentIdx = steps.length; // tutti completati
-  return /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: 0,
-      flexWrap: "wrap"
-    }
-  }, steps.map((label, i) => {
-    const done = i < currentIdx;
-    const active = i === currentIdx && !chiuso;
-    const col = snColor(label);
-    const dotBg = active ? col : done ? col : "#e2e8f0";
-    const dotColor = active || done ? "#fff" : "#94a3b8";
-    return /*#__PURE__*/React.createElement(React.Fragment, {
-      key: label
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        minWidth: 70
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: 22,
-        height: 22,
-        borderRadius: "50%",
-        background: dotBg,
-        color: dotColor,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 11,
-        fontWeight: 700,
-        boxShadow: active ? `0 0 0 4px ${col}33` : "none"
-      }
-    }, done ? "✓" : i + 1), /*#__PURE__*/React.createElement("span", {
-      className: "text-2xs",
-      style: {
-        marginTop: 4,
-        textAlign: "center",
-        lineHeight: 1.15,
-        color: active || done ? "var(--text)" : "#94a3b8",
-        fontWeight: active ? 700 : 500
-      }
-    }, label)), i < steps.length - 1 && /*#__PURE__*/React.createElement("div", {
-      style: {
-        flex: 1,
-        minWidth: 16,
-        height: 2,
-        background: i < currentIdx ? snColor(steps[i]) : "#e2e8f0",
-        marginTop: -16
-      }
-    }));
-  }), chiuso && /*#__PURE__*/React.createElement("span", {
-    className: "text-2xs font-semibold",
-    style: {
-      marginLeft: 10,
-      padding: "2px 8px",
-      borderRadius: 4,
-      background: "var(--success-bg)",
-      color: "var(--success)",
-      border: "1px solid #c6f6d5",
-      fontWeight: 600
-    }
-  }, "CHIUSA"));
+  if (!Array.isArray(passi) || !passi.length) return null;
+  const quando = iso => iso ? new Date(iso).toLocaleString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }) : "";
+  return /*#__PURE__*/React.createElement("ol", {
+    className: "ga-percorso",
+    "aria-label": "Percorso dell'anomalia"
+  }, passi.map((p, i) => /*#__PURE__*/React.createElement("li", {
+    key: p.chiave,
+    className: `ga-percorso__passo is-${p.stato}`
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-percorso__dot"
+  }, p.stato === "fatto" ? Ico.check : i + 1), /*#__PURE__*/React.createElement("span", {
+    className: "ga-percorso__label"
+  }, p.label), p.dettaglio ? /*#__PURE__*/React.createElement("span", {
+    className: "ga-percorso__det"
+  }, p.dettaglio) : null, /*#__PURE__*/React.createElement("span", {
+    className: "ga-percorso__data"
+  }, p.data ? quando(p.data) : p.stato === "attuale" ? "in corso" : ""))));
 };
 
 // â"€â"€â"€ Pannello timeline azioni OP (#2) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 // Consuma /api/anomalie/timeline (aggregata per OP). Lazy: carica al cambio OP.
+// ─── Tempi ed esiti dell'anomalia: risposta del cliente, azione effettuata ───
+// Tempi in giorni lavorativi (anomalie/tempi_service.py); gli allegati degli esiti
+// finiscono nella cartella dell'anomalia, insieme agli altri.
+const AZIONI_EFFETTUATE = Array.isArray(CONFIG_LISTS.azioni_effettuate) && CONFIG_LISTS.azioni_effettuate.length ? CONFIG_LISTS.azioni_effettuate : ["Rilavorato", "Riparato", "Scartato", "Reso al fornitore", "Accettato in deroga"];
+const ESITI_ACCEPT = ".jpg,.jpeg,.png,.gif,.bmp,.webp,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.msg,.eml,.txt";
+const chiedeRiverifica = azione => /rilavor|ripar/i.test(String(azione || ""));
+const FileEsito = ({
+  files,
+  setFiles,
+  disabled
+}) => {
+  const ref = useRef(null);
+  const [over, setOver] = useState(false);
+  const aggiungi = lista => setFiles(prev => {
+    const next = [...prev];
+    lista.forEach(f => {
+      if (!next.some(x => x.name === f.name && x.size === f.size)) next.push(f);
+    });
+    return next;
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    className: `ga-att ga-att--esito${over ? " is-over" : ""}`,
+    tabIndex: disabled ? -1 : 0,
+    onDragOver: e => {
+      if (disabled) return;
+      e.preventDefault();
+      setOver(true);
+    },
+    onDragLeave: () => setOver(false),
+    onDrop: e => {
+      e.preventDefault();
+      setOver(false);
+      if (!disabled) aggiungi(Array.from(e.dataTransfer.files || []));
+    },
+    onPaste: e => {
+      const fs = Array.from(e.clipboardData && e.clipboardData.items || []).filter(it => it.kind === "file").map(it => it.getAsFile()).filter(Boolean);
+      if (fs.length && !disabled) {
+        e.preventDefault();
+        aggiungi(nomeAppunti(fs));
+      }
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    ref: ref,
+    type: "file",
+    multiple: true,
+    hidden: true,
+    accept: ESITI_ACCEPT,
+    onChange: e => {
+      const f = Array.from(e.target.files || []);
+      e.target.value = "";
+      aggiungi(f);
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "ga-att__head"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-card__sub"
+  }, Ico.clip, " Allegati ", files.length ? `(${files.length})` : ""), /*#__PURE__*/React.createElement("span", {
+    className: "ga-hint"
+  }, "Mail (.msg, .eml), foto, PDF: trascina, ", /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link",
+    disabled: disabled,
+    onClick: () => ref.current && ref.current.click()
+  }, "sfoglia"), " o clicca e premi Ctrl+V")), files.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "ga-esito__files"
+  }, files.map((f, i) => /*#__PURE__*/React.createElement("span", {
+    key: f.name + i,
+    className: "ga-esito__file"
+  }, f.name, " ", /*#__PURE__*/React.createElement("span", {
+    className: "ga-hint"
+  }, formatBytes(f.size)), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": `Togli ${f.name}`,
+    onClick: () => setFiles(prev => prev.filter((_, j) => j !== i))
+  }, "\xD7")))));
+};
+const EsitiAnomalia = ({
+  localId,
+  avanzamento,
+  chiusa,
+  segnalare,
+  onSaved,
+  onInfo,
+  flash
+}) => {
+  const [data, setData] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [risposta, setRisposta] = useState("");
+  const [filesRisposta, setFilesRisposta] = useState([]);
+  const [azioneAperta, setAzioneAperta] = useState(false);
+  const [azione, setAzione] = useState("");
+  const [notaAzione, setNotaAzione] = useState("");
+  const [filesAzione, setFilesAzione] = useState([]);
+  const [riverificato, setRiverificato] = useState(false);
+  const [chiudi, setChiudi] = useState(true);
+  const carica = () => {
+    if (!localId || !API.esiti) {
+      setData(null);
+      if (onInfo) onInfo(null);
+      return;
+    }
+    fetch(`${API.esiti}?local_id=${encodeURIComponent(localId)}`, {
+      credentials: "same-origin"
+    }).then(r => r.ok ? r.json() : null).then(d => {
+      setData(d && d.success ? d : null);
+      if (onInfo) onInfo(d && d.success ? d : null);
+    }).catch(() => setData(null));
+  };
+  useEffect(() => {
+    setRisposta("");
+    setFilesRisposta([]);
+    setAzione("");
+    setNotaAzione("");
+    setFilesAzione([]);
+    setRiverificato(false);
+    setChiudi(true);
+    setAzioneAperta(false);
+    carica();
+  }, [localId, avanzamento, chiusa, segnalare]);
+  if (!data) return null;
+  const urlFile = fileId => `${API.allegati_file}?local_id=${encodeURIComponent(localId)}&file_id=${encodeURIComponent(fileId)}`;
+  const soglia = k => (data.soglie || {})[k];
+  const oltre = t => t.in_corso && soglia(t.chiave) && t.giorni > soglia(t.chiave);
+  const puoi = data.can_registrare && !data.chiusa;
+  const mostraRisposta = puoi && (data.in_attesa_cliente || data.segnalata_cliente);
+  const mostraAzione = puoi && (data.recupero || azioneAperta);
+  const serveRiverifica = chiudi && chiedeRiverifica(azione) && !riverificato;
+  const invia = async tipo => {
+    const form = new FormData();
+    form.append("local_id", String(localId));
+    form.append("tipo", tipo);
+    if (tipo === "RISPOSTA_CLIENTE") {
+      form.append("testo", risposta);
+      filesRisposta.forEach(f => form.append("files", f));
+    } else {
+      form.append("azione", azione);
+      form.append("testo", notaAzione);
+      form.append("riverificato", riverificato ? "1" : "");
+      form.append("chiudi", chiudi ? "1" : "");
+      filesAzione.forEach(f => form.append("files", f));
+    }
+    setSaving(true);
+    try {
+      const r = await fetch(API.esito, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCsrfToken()
+        },
+        body: form,
+        credentials: "same-origin"
+      });
+      const d = await readJsonOrThrow(r, "Registrazione esito");
+      if (!r.ok || !d.success) throw new Error(d.error || `HTTP ${r.status}`);
+      const avvisi = (d.errors || []).length ? ` · file non salvati: ${d.errors.join("; ")}` : "";
+      flash({
+        ok: !avvisi,
+        text: (tipo === "RISPOSTA_CLIENTE" ? "Risposta del cliente registrata: ora scegli lo stato definitivo" : d.chiusa ? "Azione effettuata registrata · anomalia chiusa" : "Azione effettuata registrata") + avvisi
+      }, avvisi ? 8000 : 4500);
+      if (onSaved) onSaved({
+        chiusa: !!d.chiusa
+      });
+      carica();
+      if (tipo === "RISPOSTA_CLIENTE") {
+        setRisposta("");
+        setFilesRisposta([]);
+      } else {
+        setAzione("");
+        setNotaAzione("");
+        setFilesAzione([]);
+        setRiverificato(false);
+        setAzioneAperta(false);
+      }
+    } catch (e) {
+      flash({
+        ok: false,
+        text: "Errore: " + e.message
+      }, 7000);
+    }
+    setSaving(false);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "ga-card ga-card--esiti"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-card__head"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-card__title"
+  }, "Tempi ed esiti"), /*#__PURE__*/React.createElement("span", {
+    className: "ga-hint"
+  }, "giorni lavorativi")), data.tempi && data.tempi.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "ga-tempi"
+  }, data.tempi.map(t => /*#__PURE__*/React.createElement("span", {
+    key: t.chiave,
+    className: `ga-tempo${t.in_corso ? " is-corso" : ""}${oltre(t) ? " is-oltre" : ""}`,
+    title: oltre(t) ? `Oltre l'obiettivo di ${soglia(t.chiave)} giorni lavorativi` : ""
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "ga-tempo__l"
+  }, t.label), /*#__PURE__*/React.createElement("b", null, t.testo), t.in_corso ? /*#__PURE__*/React.createElement("span", {
+    className: "ga-tempo__c"
+  }, "in corso") : null))), data.esiti && data.esiti.length > 0 && /*#__PURE__*/React.createElement("ol", {
+    className: "ga-esiti"
+  }, data.esiti.map(e => /*#__PURE__*/React.createElement("li", {
+    key: e.id,
+    className: "ga-esito"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-esito__head"
+  }, /*#__PURE__*/React.createElement("b", null, e.tipo === "AZIONE" ? `Azione effettuata: ${e.azione}` : "Risposta del cliente"), e.riverificato && /*#__PURE__*/React.createElement("span", {
+    className: "ga-pill ga-pill--chiuso"
+  }, "Riverificato conforme"), e.chiusa && /*#__PURE__*/React.createElement("span", {
+    className: "ga-pill ga-pill--muted"
+  }, "Ha chiuso l'anomalia"), /*#__PURE__*/React.createElement("span", {
+    className: "ga-hint ga-esito__chi"
+  }, e.utente, " \xB7 ", e.data ? new Date(e.data).toLocaleString("it-IT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }) : "")), e.testo && /*#__PURE__*/React.createElement("div", {
+    className: "ga-esito__testo"
+  }, e.testo), e.allegati.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "ga-esito__files"
+  }, e.allegati.map(f => /*#__PURE__*/React.createElement("a", {
+    key: f.file_id,
+    className: "ga-esito__file",
+    href: urlFile(f.file_id),
+    target: "_blank",
+    rel: "noopener"
+  }, Ico.clip, " ", f.name)))))), mostraRisposta && /*#__PURE__*/React.createElement("div", {
+    className: "ga-esito-form"
+  }, /*#__PURE__*/React.createElement(FieldLabel, null, "Risposta del cliente"), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
+    rows: 2,
+    value: risposta,
+    onChange: e => setRisposta(e.target.value),
+    disabled: saving,
+    placeholder: "Cosa ha risposto il cliente (riferimento della mail, decisione\u2026)"
+  }), /*#__PURE__*/React.createElement(FileEsito, {
+    files: filesRisposta,
+    setFiles: setFilesRisposta,
+    disabled: saving
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "ga-esito-form__acts"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--outline",
+    disabled: saving || !risposta.trim() && !filesRisposta.length,
+    onClick: () => invia("RISPOSTA_CLIENTE")
+  }, saving ? "Salvataggio…" : "Registra risposta"))), puoi && !mostraAzione && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-link ga-esito-apri",
+    onClick: () => setAzioneAperta(true)
+  }, "+ Registra un'azione effettuata"), mostraAzione && /*#__PURE__*/React.createElement("div", {
+    className: "ga-esito-form"
+  }, data.serve_azione && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--info"
+  }, "Decisione \xABAzione di recupero\xBB: l'anomalia si chiude registrando qui l'azione effettuata."), /*#__PURE__*/React.createElement("div", {
+    className: "ga-grid2"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, {
+    required: true
+  }, "Azione effettuata"), /*#__PURE__*/React.createElement("select", {
+    className: "ga-input",
+    value: azione,
+    onChange: e => setAzione(e.target.value),
+    disabled: saving
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Scegli\u2026"), AZIONI_EFFETTUATE.map(a => /*#__PURE__*/React.createElement("option", {
+    key: a
+  }, a)))), /*#__PURE__*/React.createElement("div", {
+    className: "ga-esito-form__flags"
+  }, /*#__PURE__*/React.createElement(FlagToggle, {
+    label: "Pezzo riverificato conforme",
+    checked: riverificato,
+    disabled: saving,
+    onChange: () => setRiverificato(!riverificato)
+  }), /*#__PURE__*/React.createElement(FlagToggle, {
+    label: "Chiudi l'anomalia",
+    checked: chiudi,
+    disabled: saving,
+    onChange: () => setChiudi(!chiudi)
+  }))), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
+    rows: 2,
+    value: notaAzione,
+    onChange: e => setNotaAzione(e.target.value),
+    disabled: saving,
+    placeholder: "Note: cosa \xE8 stato fatto, da chi, riferimenti\u2026"
+  }), /*#__PURE__*/React.createElement(FileEsito, {
+    files: filesAzione,
+    setFiles: setFilesAzione,
+    disabled: saving
+  }), serveRiverifica && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, "Dopo una rilavorazione o riparazione, per chiudere spunta \xABPezzo riverificato conforme\xBB."), /*#__PURE__*/React.createElement("div", {
+    className: "ga-esito-form__acts"
+  }, !data.recupero && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--ghost",
+    disabled: saving,
+    onClick: () => setAzioneAperta(false)
+  }, "Annulla"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--outline",
+    disabled: saving || !azione || serveRiverifica,
+    onClick: () => invia("AZIONE")
+  }, saving ? "Salvataggio…" : chiudi ? "Registra e chiudi" : "Registra azione"))));
+};
 const TimelineOp = ({
   opId,
   opItemId
@@ -1350,6 +1607,8 @@ function GestioneAnomalie() {
   const [applicaBlocco, setApplicaBlocco] = useState(false);
   const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc), [aprireRdc]);
   const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento);
+  // Tempi ed esiti dell'anomalia aperta: «serve_azione» blocca la chiusura senza azione effettuata.
+  const [esitiInfo, setEsitiInfo] = useState(null);
   // Una risposta scritta nelle note non può lasciare l'anomalia «In attesa».
   const notaSenzaStato = !!note.trim() && ["", "in attesa"].includes(normalizeChoice(avanzamento).toLowerCase());
 
@@ -2410,9 +2669,8 @@ function GestioneAnomalie() {
     className: "ga-card__head"
   }, /*#__PURE__*/React.createElement("span", {
     className: "ga-card__title"
-  }, "Decisione del capocommessa")), /*#__PURE__*/React.createElement(StatoStepper, {
-    avanzamento: sn.avanzamento,
-    chiuso: Boolean(sn.chiudere)
+  }, "Decisione del capocommessa")), /*#__PURE__*/React.createElement(PercorsoAnomalia, {
+    passi: esitiInfo && esitiInfo.local_id === sn.local_id ? esitiInfo.percorso : null
   }), /*#__PURE__*/React.createElement("div", {
     className: "ga-flags"
   }, /*#__PURE__*/React.createElement(FlagToggle, {
@@ -2456,7 +2714,9 @@ function GestioneAnomalie() {
     placeholder: "Decisione, istruzioni di rilavorazione, riferimenti\u2026"
   })), canEditSelected && notaSenzaStato && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--warn"
-  }, NOTA_STATO_MSG), canEditSelected && chiudereAuto && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
+  }, NOTA_STATO_MSG), canEditSelected && chiudereAuto && !sn.chiudere && !aprireRdc && esitiInfo && esitiInfo.serve_azione ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, "La prima decisione \xE8 stata \xABAzione di recupero\xBB: per chiudere registra l'azione effettuata in \xABTempi ed esiti\xBB.") : canEditSelected && chiudereAuto && !sn.chiudere && /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--ok"
   }, "Con questa decisione l'anomalia verr\xE0 ", /*#__PURE__*/React.createElement("b", null, "chiusa"), " al salvataggio."), canEditSelected && fratelliBlocco.length > 0 && /*#__PURE__*/React.createElement("label", {
     className: "ga-apply"
@@ -2467,7 +2727,27 @@ function GestioneAnomalie() {
   }), /*#__PURE__*/React.createElement("span", null, "Applica la stessa decisione anche alle altre ", /*#__PURE__*/React.createElement("b", null, fratelliBlocco.length), " anomali", fratelliBlocco.length === 1 ? "a" : "e", " aperte di questi seriali", /*#__PURE__*/React.createElement(PezziInteressati, {
     sn: sn,
     compact: true
-  })))), op.id && op.id !== "—" && /*#__PURE__*/React.createElement(TimelineOp, {
+  })))), sn.local_id && /*#__PURE__*/React.createElement(EsitiAnomalia, {
+    localId: sn.local_id,
+    avanzamento: sn.avanzamento,
+    chiusa: Boolean(sn.chiudere),
+    segnalare: Boolean(sn.segnalare),
+    flash: flash,
+    onInfo: setEsitiInfo,
+    onSaved: ({
+      chiusa
+    }) => {
+      if (chiusa) {
+        setAnomalie(prev => prev.map(a => a.item_id === sn.item_id ? {
+          ...a,
+          chiudere: true,
+          can_riaprire: true
+        } : a));
+        loadOrdini();
+      }
+      loadAttachments(sn.local_id);
+    }
+  }), op.id && op.id !== "—" && /*#__PURE__*/React.createElement(TimelineOp, {
     opId: op.id,
     opItemId: op.item_id
   })), canEditSelected && /*#__PURE__*/React.createElement("div", {

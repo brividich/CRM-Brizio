@@ -67,6 +67,15 @@ CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MAX = 5, 240
 DEFAULT_CTRL_INVIO_AUTO_MIN = 60
 CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX = 15, 1440
 
+# Obiettivi dei tempi delle anomalie (anomalie/tempi_service.py), in giorni lavorativi:
+# servono alle statistiche («entro l'obiettivo», «aperte oltre l'obiettivo»).
+KEY_TEMPI_RISPOSTA_GG = "anomalie_tempi_risposta_gg"
+KEY_TEMPI_RISOLUZIONE_GG = "anomalie_tempi_risoluzione_gg"
+DEFAULT_TEMPI_RISPOSTA_GG = 2
+TEMPI_RISPOSTA_MIN, TEMPI_RISPOSTA_MAX = 1, 60
+DEFAULT_TEMPI_RISOLUZIONE_GG = 10
+TEMPI_RISOLUZIONE_MIN, TEMPI_RISOLUZIONE_MAX = 1, 250
+
 
 def _parse_bool(raw: str, default: bool) -> bool:
     if raw is None or raw == "":
@@ -127,6 +136,14 @@ def get_escalation_config() -> dict:
             SiteConfig.get(KEY_CTRL_INVIO_AUTO_MIN, "") or DEFAULT_CTRL_INVIO_AUTO_MIN,
             DEFAULT_CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX,
         ),
+        "tempi_risposta_gg": _clamp_int(
+            SiteConfig.get(KEY_TEMPI_RISPOSTA_GG, "") or DEFAULT_TEMPI_RISPOSTA_GG,
+            DEFAULT_TEMPI_RISPOSTA_GG, TEMPI_RISPOSTA_MIN, TEMPI_RISPOSTA_MAX,
+        ),
+        "tempi_risoluzione_gg": _clamp_int(
+            SiteConfig.get(KEY_TEMPI_RISOLUZIONE_GG, "") or DEFAULT_TEMPI_RISOLUZIONE_GG,
+            DEFAULT_TEMPI_RISOLUZIONE_GG, TEMPI_RISOLUZIONE_MIN, TEMPI_RISOLUZIONE_MAX,
+        ),
     }
 
 
@@ -182,6 +199,12 @@ def save_automazioni_config(payload: dict) -> bool:
         "controllo_invio_auto_minuti": (
             KEY_CTRL_INVIO_AUTO_MIN, DEFAULT_CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX,
             "Anomalie: minuti dall'ultimo blocco salvato dopo cui la mail del controllo parte da sola."),
+        "tempi_risposta_gg": (
+            KEY_TEMPI_RISPOSTA_GG, DEFAULT_TEMPI_RISPOSTA_GG, TEMPI_RISPOSTA_MIN, TEMPI_RISPOSTA_MAX,
+            "Anomalie: obiettivo in giorni lavorativi per la prima decisione del capocommessa."),
+        "tempi_risoluzione_gg": (
+            KEY_TEMPI_RISOLUZIONE_GG, DEFAULT_TEMPI_RISOLUZIONE_GG, TEMPI_RISOLUZIONE_MIN, TEMPI_RISOLUZIONE_MAX,
+            "Anomalie: obiettivo in giorni lavorativi per la chiusura dell'anomalia."),
     }
     for field, (key, default, lo, hi, desc) in numbers.items():
         if field in payload:

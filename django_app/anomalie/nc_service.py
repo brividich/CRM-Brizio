@@ -202,6 +202,7 @@ def anomalie_della_nc(nc) -> list[dict]:
             "numero_rdc": str(r.get("numero_rdc") or ""),
             "cliente": bool(r.get("segnalare_cliente")),
             "note": str(r.get("note_capocommessa") or ""),
+            "creata_il": r.get("created_datetime"),
             "esiste": bool(r),
         })
     return out

@@ -13,6 +13,9 @@ id, senza toccare lo schema legacy.
   facoltative; lo stato e' calcolato da quello che e' compilato.
 - ``AnomaliaNCAzione`` / ``AnomaliaNCEvento`` / ``AnomaliaNCAllegato``: azioni,
   storico e allegati della NC.
+- ``AnomaliaEsito``: risposta del cliente e azione effettuata (rilavorazione,
+  scarto...) sulla singola anomalia, con i file allegati; le date degli eventi che
+  servono ai tempi di risposta e risoluzione stanno nella scheda qualita'.
 """
 from __future__ import annotations
 
@@ -165,6 +168,16 @@ class AnomaliaSchedaQualita(models.Model):
     # True finche' la disposizione e' quella dedotta dal sistema dai flag
     # dell'anomalia; diventa False appena un utente la sceglie a mano.
     disposizione_auto = models.BooleanField(default=True)
+
+    # Date degli eventi per i tempi (anomalie/tempi_service.py): le scrive il
+    # salvataggio dell'anomalia, mai a mano. ``primo_avanzamento`` e' lo stato della
+    # prima decisione: con «Azione di recupero» la chiusura chiede l'azione effettuata.
+    prima_decisione_il = models.DateTimeField(null=True, blank=True)
+    primo_avanzamento = models.CharField(max_length=100, blank=True, default="")
+    attesa_cliente_dal = models.DateTimeField(null=True, blank=True)
+    risposta_cliente_il = models.DateTimeField(null=True, blank=True)
+    azione_effettuata_il = models.DateTimeField(null=True, blank=True)
+    chiusa_il = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -411,3 +424,36 @@ class AnomaliaNCAllegato(models.Model):
         ordering = ["-created_at", "-id"]
         verbose_name = "Allegato NC"
         verbose_name_plural = "Allegati NC"
+
+
+class AnomaliaEsito(models.Model):
+    """Risposta del cliente o azione effettuata su un'anomalia, con i suoi allegati.
+
+    I file stanno nella cartella allegati dell'anomalia (stessa validazione e stesso
+    download degli altri allegati): qui si tiene solo l'elenco dei ``file_id``.
+    """
+
+    class Tipo(models.TextChoices):
+        RISPOSTA_CLIENTE = "RISPOSTA_CLIENTE", "Risposta del cliente"
+        AZIONE = "AZIONE", "Azione effettuata"
+
+    anomalia_id = models.IntegerField(db_index=True)
+    tipo = models.CharField(max_length=16, choices=Tipo.choices)
+    azione = models.CharField(max_length=100, blank=True, default="")
+    testo = models.TextField(blank=True, default="")
+    riverificato = models.BooleanField(default=False)
+    chiusa = models.BooleanField(default=False)
+    allegati = models.JSONField(default=list, blank=True)
+    utente = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    utente_display = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        verbose_name = "Esito anomalia"
+        verbose_name_plural = "Esiti anomalie"
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} anomalia {self.anomalia_id}"

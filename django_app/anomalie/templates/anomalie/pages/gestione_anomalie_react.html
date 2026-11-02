@@ -165,6 +165,42 @@
     .ga-att { border: 2px dashed var(--border); border-radius: 12px; padding: 10px 12px; display: grid; gap: 10px; outline: none; transition: border-color .15s, background .15s; }
     .ga-att:focus { border-color: rgba(249,115,22,.5); }
     .ga-att.is-over { border-color: var(--accent); background: var(--accent-light); }
+    /* Tempi ed esiti (risposta del cliente, azione effettuata) */
+    .ga-tempi { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ga-tempo { display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-size: var(--fs-sm); color: var(--text); }
+    .ga-tempo__l { font-size: var(--fs-xs); color: var(--text-mid); font-weight: 600; }
+    .ga-tempo__c { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; color: var(--text-light); }
+    .ga-tempo.is-corso { border-style: dashed; }
+    .ga-tempo.is-oltre { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); }
+    .ga-tempo.is-oltre .ga-tempo__c { color: var(--danger); }
+    .ga-esiti { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+    .ga-esito { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; display: grid; gap: 4px; background: var(--surface); }
+    .ga-esito__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text); }
+    .ga-esito__chi { margin-left: auto; }
+    .ga-esito__testo { font-size: var(--fs-sm); color: var(--text); white-space: pre-wrap; }
+    .ga-esito__files { display: flex; flex-wrap: wrap; gap: 6px; }
+    .ga-esito__file { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px; font-size: var(--fs-xs); color: var(--text); text-decoration: none; background: var(--bg); max-width: 100%; overflow-wrap: anywhere; }
+    a.ga-esito__file:hover { border-color: var(--accent); }
+    .ga-esito__file button { border: 0; background: none; color: var(--text-light); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; min-height: 0; }
+    .ga-esito-form { display: grid; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--border); }
+    .ga-esito-form__flags { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+    .ga-esito-form__acts { display: flex; justify-content: flex-end; gap: 8px; }
+    .ga-esito-apri { justify-self: start; }
+    .ga-att--esito { padding: 8px 10px; }
+    /* Percorso dell'anomalia (al posto del vecchio stepper a stati fissi) */
+    .ga-percorso { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
+    .ga-percorso__passo { position: relative; display: grid; justify-items: center; text-align: center; gap: 2px; padding: 0 4px; min-width: 0; }
+    .ga-percorso__passo + .ga-percorso__passo::before { content: ""; position: absolute; top: 11px; right: 50%; width: 100%; height: 2px; background: var(--border); z-index: 0; }
+    .ga-percorso__passo.is-fatto + .ga-percorso__passo::before { background: var(--success); }
+    .ga-percorso__dot { position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--bg); color: var(--text-light); border: 2px solid var(--border); }
+    .ga-percorso__passo.is-fatto .ga-percorso__dot { background: var(--success); border-color: var(--success); color: #fff; }
+    .ga-percorso__passo.is-attuale .ga-percorso__dot { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 0 4px var(--accent-light); }
+    .ga-percorso__label { font-size: var(--fs-xs); font-weight: 700; color: var(--text); line-height: 1.2; }
+    .ga-percorso__passo.is-da_fare .ga-percorso__label { color: var(--text-light); font-weight: 600; }
+    .ga-percorso__det { font-size: 11px; color: var(--text-mid); line-height: 1.2; overflow-wrap: anywhere; }
+    .ga-percorso__data { font-size: 10.5px; color: var(--text-light); }
+    .ga-percorso__passo.is-attuale .ga-percorso__data { color: var(--accent); font-weight: 700; }
+    @media (max-width: 560px) { .ga-percorso { grid-auto-flow: row; gap: 8px; } .ga-percorso__passo { grid-template-columns: 22px 1fr; justify-items: start; text-align: left; column-gap: 8px; } .ga-percorso__passo > :not(.ga-percorso__dot) { grid-column: 2; } .ga-percorso__dot { grid-row: span 3; } .ga-percorso__passo + .ga-percorso__passo::before { display: none; } }
     .ga-att__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
     .ga-att__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
     .ga-att__item { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); display: grid; }
@@ -259,6 +295,8 @@
       anomalie: "{% url 'api_anomalie_anomalie' %}",
       salva: "{% url 'api_anomalie_salva' %}",
       riapri: "{% url 'api_anomalie_riapri' %}",
+      esiti: "{% url 'api_anomalie_esiti' %}",
+      esito: "{% url 'api_anomalie_esito' %}",
       allegati_list: "{% url 'api_anomalie_allegati' %}",
       allegati_upload: "{% url 'api_anomalie_allegati_upload' %}",
       allegati_delete: "{% url 'api_anomalie_allegati_delete' %}",
