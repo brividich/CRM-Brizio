@@ -391,7 +391,9 @@ def index(request):
     # Esclude gli ex dipendenti (rapporto cessato) dai KPI "in organico":
     # restano a sistema solo per storico ma non concorrono al conteggio attivi.
     cessati_ids = _helpers._cessati_legacy_ids()
-    rows_attivi = [row for row in rows if int(row.get("id") or 0) not in cessati_ids]
+    from ..services.conteggi_organico import righe_in_organico
+    # Senza le persone escluse dai conteggi dell'organico (CEO, RSPP esterno...).
+    rows_attivi = righe_in_organico([row for row in rows if int(row.get("id") or 0) not in cessati_ids])
     n_dipendenti = len(rows_attivi)
     n_reparti = len({str(row.get("reparto") or "").strip().casefold() for row in rows_attivi if str(row.get("reparto") or "").strip()})
 
@@ -743,6 +745,15 @@ def dipendenti_list(request):
     colonne_elenco.arricchisci(list(page.object_list), [c["colonna"] for c in colonne])
 
     status_stats = count_anagrafica_statuses()
+    # «Attivi» e organico per reparto non contano chi e' escluso dai conteggi
+    # dell'organico (CEO, RSPP esterno...): resta comunque in elenco.
+    from ..services.conteggi_organico import esclusi_dai_conteggi_ids, righe_in_organico
+    esclusi_ids = esclusi_dai_conteggi_ids()
+    righe_organico = righe_in_organico(rows_all, esclusi_ids)
+    n_esclusi_conteggi = sum(
+        1 for r in rows_all
+        if r not in righe_organico and r.get("attivo") not in {None, 0, False, "0"}
+    ) if esclusi_ids else 0
     tipologie_contratto_list = list(
         TipologiaContratto.objects.filter(is_active=True).order_by("ordine", "codice")
     )
@@ -750,7 +761,9 @@ def dipendenti_list(request):
     # Stile C: una scheda per reparto con l'organico per tipo di contratto, sullo
     # stesso perimetro visibile dell'elenco (senza i filtri della barra).
     from ..services import sezioni_c
-    visibili = build_dipendenti_rows(request, base_rows=rows_all, apply_filters=False)
+    visibili = righe_in_organico(
+        build_dipendenti_rows(request, base_rows=rows_all, apply_filters=False), esclusi_ids,
+    )
     tipologia_per_id = dict(
         DipendenteAnagraficaAziendale.objects
         .filter(legacy_anagrafica_id__in=[int(r.get("id") or 0) for r in visibili])
@@ -793,7 +806,8 @@ def dipendenti_list(request):
         "tipologie_contratto": tipologie_contratto_list,
         "n_totale": n_totale,
         "n_reparti": len(reparti_list),
-        "n_attivi": status_stats["active"],
+        "n_attivi": max(status_stats["active"] - n_esclusi_conteggi, 0),
+        "n_esclusi_conteggi": n_esclusi_conteggi,
         "n_non_attivi": status_stats["inactive"],
         "n_ex": len(cessati_ids),
         "vista": vista,
@@ -3019,6 +3033,99 @@ def dipendente_matricola_set(request, legacy_id: int):
     except Exception:
         logger.exception("Errore aggiornamento matricola dipendente %s", legacy_id)
         messages.error(request, "Errore durante l'aggiornamento della matricola.")
+    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def dipendente_dati_base_set(request, legacy_id: int):
+    """Modifica nome, cognome ed email per le notifiche della scheda legacy.
+
+    Stesso permesso degli altri dati della scheda (amministrazione anagrafica).
+    Si aggiornano solo i campi presenti nel POST; nome e cognome non possono
+    restare vuoti. Il nome passa dalla normalizzazione unica di
+    ``upsert_anagrafica_dipendente`` e viene riportato sull'account portale
+    collegato. Ogni modifica finisce nel registro attività.
+    """
+    if not _helpers._is_anagrafica_admin(request):
+        messages.error(request, "Non hai i permessi per modificare i dati anagrafici.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    rows = fetch_anagrafica_rows(ids=[legacy_id])
+    if not rows:
+        messages.error(request, "Dipendente non trovato.")
+        return redirect("anagrafica:dipendenti_list")
+    dip = rows[0]
+
+    nuovi = {
+        campo: (request.POST.get(campo) or "").strip()[:limite]
+        for campo, limite in (("nome", 100), ("cognome", 100), ("email_notifica", 200))
+        if campo in request.POST
+    }
+    if not nuovi:
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    for campo in ("nome", "cognome"):
+        if campo in nuovi and not nuovi[campo]:
+            messages.error(request, f"Il {campo} non può essere vuoto.")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    if nuovi.get("email_notifica"):
+        from django.core.exceptions import ValidationError
+        from django.core.validators import validate_email
+        try:
+            validate_email(nuovi["email_notifica"])
+        except ValidationError:
+            messages.error(request, "L'email per le notifiche non è un indirizzo valido.")
+            return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    precedenti = {campo: str(dip.get(campo) or "").strip() for campo in nuovi}
+    try:
+        aggiornato = upsert_anagrafica_dipendente(
+            row_id=legacy_id,
+            aliasusername=dip.get("aliasusername") or "",
+            nome=nuovi.get("nome", dip.get("nome") or ""),
+            cognome=nuovi.get("cognome", dip.get("cognome") or ""),
+            reparto=dip.get("reparto") or "",
+            mansione=dip.get("mansione") or "",
+            ruolo=dip.get("ruolo") or "",
+            matricola=dip.get("matricola") or "",
+            email=dip.get("email") or "",
+            email_notifica=nuovi.get("email_notifica", dip.get("email_notifica") or ""),
+            attivo=bool(dip.get("attivo", True)),
+        ) or {}
+    except Exception:
+        logger.exception("Errore aggiornamento dati anagrafici dipendente %s", legacy_id)
+        messages.error(request, "Errore durante l'aggiornamento dei dati anagrafici.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    cambiati = {
+        campo: {"prima": precedenti[campo], "dopo": str(aggiornato.get(campo) or "").strip()}
+        for campo in nuovi
+        if precedenti[campo] != str(aggiornato.get(campo) or "").strip()
+    }
+    if not cambiati:
+        messages.info(request, "Nessuna modifica ai dati anagrafici.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+    # Account portale collegato: nome e cognome restano allineati alla scheda.
+    if {"nome", "cognome"} & set(cambiati) and int(dip.get("utente_id") or 0) > 0:
+        try:
+            from core.models import Profile
+
+            profilo = Profile.objects.select_related("user").filter(
+                legacy_user_id=int(dip["utente_id"])
+            ).first()
+            if profilo and profilo.user_id:
+                profilo.user.first_name = str(aggiornato.get("nome") or "")[:150]
+                profilo.user.last_name = str(aggiornato.get("cognome") or "")[:150]
+                profilo.user.save(update_fields=["first_name", "last_name"])
+        except Exception:
+            logger.warning("Nome non riportato sull'account portale del dipendente %s", legacy_id, exc_info=True)
+
+    from core.audit import log_action
+    log_action(request, "DIPENDENTE_DATI_ANAGRAFICI_MODIFICATI", "anagrafica",
+               {"dipendente_id": legacy_id, "modifiche": cambiati},
+               oggetto_tipo="dipendente", oggetto_id=str(legacy_id))
+    messages.success(request, "Dati anagrafici aggiornati.")
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
 
 

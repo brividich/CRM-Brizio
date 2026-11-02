@@ -1335,6 +1335,18 @@ class DipendenteAnagraficaAziendale(models.Model):
         max_length=200, blank=True, default="", verbose_name="Motivo dell'eccezione",
     )
     ruolo_aziendale = models.CharField(max_length=200, blank=True, default="", verbose_name="Ruolo aziendale")
+    # Persone da tenere in anagrafica (CEO, RSPP esterno, consulenti...) ma da non
+    # contare nell'organico: KPI persone in forza, turnover, organico per reparto,
+    # indici infortuni. Restano in elenchi, scadenze, formazione e visite.
+    escluso_dai_conteggi = models.BooleanField(
+        default=False,
+        verbose_name="Escludi dai conteggi dell'organico",
+        help_text="La persona resta in anagrafica ma non entra in persone in forza, turnover e indici.",
+    )
+    motivo_esclusione_conteggi = models.CharField(
+        max_length=120, blank=True, default="", verbose_name="Motivo dell'esclusione",
+        help_text="Es. amministratore, RSPP esterno, consulente.",
+    )
 
     taglia_scarpe = models.CharField(max_length=10, blank=True, default="")
     taglia_pantalone = models.CharField(max_length=20, blank=True, default="")

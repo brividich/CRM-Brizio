@@ -103,7 +103,10 @@ def calcola(*, include_visite: bool, oggi: date | None = None) -> Cruscotto:
     ctx = requisiti.ambito(oggi)
     tutti = ctx._tutti()
     in_forza = {p.id: p for p in tutti if p.in_forza_al(oggi)}
-    out = Cruscotto(persone=len(in_forza), reparti=len({p.reparto.casefold() for p in in_forza.values() if p.reparto}))
+    # Persone e reparti contano solo l'organico (senza CEO, RSPP esterno...);
+    # gli obblighi di formazione, visite e qualifiche valgono per tutti.
+    organico = [p for p in in_forza.values() if not p.escluso_conteggi]
+    out = Cruscotto(persone=len(organico), reparti=len({p.reparto.casefold() for p in organico if p.reparto}))
     inizio = oggi - timedelta(days=30)
     out.assunti_30 = sorted((p for p in tutti if p.data_assunzione and inizio <= p.data_assunzione <= oggi),
                             key=lambda p: p.data_assunzione, reverse=True)

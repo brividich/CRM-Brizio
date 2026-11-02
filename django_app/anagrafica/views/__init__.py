@@ -218,6 +218,7 @@ from .dipendenti import (
     dipendente_esposizione_rischio_remove,
     dipendente_libretto_formativo,
     dipendente_libretto_sanitario,
+    dipendente_dati_base_set,
     dipendente_matricola_set,
     dipendente_offboarding_chiudi,
     dipendente_offboarding_licenziamento,
