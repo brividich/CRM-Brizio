@@ -1142,23 +1142,47 @@ def consegna_richiesta(request, pk: int):
         messages.error(request, "Data di consegna non valida.")
         return redirect("dpi:gestione_detail", pk=pk)
 
-    # Calcola scadenza automatica da vita utile modello, se presente, altrimenti categoria.
-    scadenza = None
-    vita_utile = (
-        richiesta.modello_dpi.effective_vita_utile_giorni
-        if richiesta.modello_dpi
-        else richiesta.categoria.vita_utile_giorni
-    )
-    if vita_utile:
-        scadenza = data_consegna + timedelta(days=vita_utile)
-
-    # Gestisci override manuale scadenza
+    # Override manuale della scadenza (vuoto = calcolata dalla vita utile).
+    scadenza_override = None
     scadenza_override_str = request.POST.get("data_scadenza_stimata", "").strip()
     if scadenza_override_str:
         try:
-            scadenza = date.fromisoformat(scadenza_override_str)
+            scadenza_override = date.fromisoformat(scadenza_override_str)
         except ValueError:
             pass
+
+    residuo = _registra_consegna(
+        request, richiesta, data_consegna=data_consegna, note=note, firmato=firmato,
+        firma_immagine=firma_immagine, scadenza_override=scadenza_override,
+    )
+    messages.success(request, f"Consegna DPI {richiesta.numero} registrata.")
+    _avviso_giacenza(request, richiesta, residuo)
+    return redirect("dpi:gestione_detail", pk=pk)
+
+
+def _avviso_giacenza(request, richiesta: RichiestaDPI, residuo: int | None) -> None:
+    if residuo is not None and residuo < 0:
+        messages.warning(request, f"Giacenza di magazzino negativa ({residuo}) per {richiesta.modello_dpi.codice}: registra il carico dei DDT o una rettifica.")
+    elif residuo is not None and richiesta.modello_dpi.scorta_minima and residuo <= richiesta.modello_dpi.scorta_minima:
+        messages.warning(request, f"{richiesta.modello_dpi.codice} sotto scorta minima: restano {residuo} pezzi.")
+
+
+def _registra_consegna(request, richiesta: RichiestaDPI, *, data_consegna, note: str = "", firmato: bool = False,
+                       firma_immagine: str = "", scadenza_override=None) -> int | None:
+    """Registra la consegna di una richiesta approvata: consegna + stato, sostituzione
+    delle precedenti, PDF nei documenti del dipendente, notifiche, scarico di magazzino.
+    Ritorna la giacenza residua del modello (None se la richiesta non ha un modello).
+    Unico punto per la consegna dalla scheda richiesta e dal Banco consegne."""
+    # Scadenza automatica da vita utile modello, se presente, altrimenti categoria.
+    scadenza = scadenza_override
+    if scadenza is None:
+        vita_utile = (
+            richiesta.modello_dpi.effective_vita_utile_giorni
+            if richiesta.modello_dpi
+            else richiesta.categoria.vita_utile_giorni
+        )
+        if vita_utile:
+            scadenza = data_consegna + timedelta(days=vita_utile)
 
     consegna, _ = ConsegnaDPI.objects.update_or_create(
         richiesta=richiesta,
@@ -1195,12 +1219,7 @@ def consegna_richiesta(request, pk: int):
     movimento, residuo = magazzino.scarica_per_consegna(richiesta, data_consegna, user=request.user)
     if movimento is not None:
         log_action(request, "DPI_MAGAZZINO_SCARICO", "dpi", f"Scarico {movimento.quantita} x {movimento.modello.codice} per {richiesta.numero}")
-    messages.success(request, f"Consegna DPI {richiesta.numero} registrata.")
-    if residuo is not None and residuo < 0:
-        messages.warning(request, f"Giacenza di magazzino negativa ({residuo}) per {richiesta.modello_dpi.codice}: registra il carico dei DDT o una rettifica.")
-    elif residuo is not None and richiesta.modello_dpi.scorta_minima and residuo <= richiesta.modello_dpi.scorta_minima:
-        messages.warning(request, f"{richiesta.modello_dpi.codice} sotto scorta minima: restano {residuo} pezzi.")
-    return redirect("dpi:gestione_detail", pk=pk)
+    return residuo
 
 
 @login_required
@@ -1280,6 +1299,8 @@ def categoria_edit(request, pk: int | None = None):
             "unita_misura": request.POST.get("unita_misura", "pz").strip() or "pz",
             "scorta_minima": _parse_optional_positive_int(request.POST.get("scorta_minima")) or 0,
             "avvisa_amministrazione_consegna": bool(request.POST.get("avvisa_amministrazione_consegna")),
+            "consegna_magazzino": bool(request.POST.get("consegna_magazzino")),
+            "consegna_diretta": bool(request.POST.get("consegna_diretta")),
             "is_active": bool(request.POST.get("is_active")),
             "order_index": _parse_optional_positive_int(request.POST.get("order_index")) or 0,
         }
@@ -1875,3 +1896,182 @@ def magazzino_report(request):
         return response
 
     return render(request, "dpi/pages/magazzino_report.html", {**dati, "is_gestore": True, "periodi": (30, 90, 180, 365)})
+
+
+# ---------------------------------------------------------------------------
+# Banco consegne: la coda del magazzino per persona, consegna di piu' DPI con una
+# sola firma, consegna diretta dei consumabili senza richiesta approvata.
+# ---------------------------------------------------------------------------
+
+def _banco_queryset(request):
+    """Richieste approvate da consegnare, nel perimetro di chi gestisce."""
+    qs = RichiestaDPI.objects.filter(stato=StatoRichiesta.APPROVATA).select_related(
+        "categoria", "tipo_dpi", "modello_dpi", "taglia_dpi"
+    )
+    if sistema_ruoli_attivo():
+        ids = _anagrafiche_visibili(request, "gestire")
+        if ids is not None:
+            qs = qs.filter(richiedente_legacy_id__in=list(ids))
+    return qs
+
+
+def _banco_redirect(chiave: str = "", tutte: bool = False):
+    from django.urls import reverse
+
+    url = reverse("dpi:banco") + ("?tutte=1" if tutte else "")
+    return redirect(url + (f"#{chiave}" if chiave else ""))
+
+
+def _chiave_persona(richiesta: RichiestaDPI) -> str:
+    if richiesta.richiedente_legacy_id:
+        return f"p{richiesta.richiedente_legacy_id}"
+    return "n" + "".join(c for c in (richiesta.richiedente_nome or "").casefold() if c.isalnum())[:40]
+
+
+def _banco_selezionate(request) -> list[RichiestaDPI]:
+    ids = [i for i in (_int_or_none(v) for v in request.POST.getlist("ids")) if i]
+    if not ids:
+        return []
+    return list(_banco_queryset(request).filter(pk__in=ids).order_by("created_at"))
+
+
+def _banco_consegna_diretta(request, tutte: bool):
+    """Consumabili (categorie con «Consegna diretta»): il magazzino crea la richiesta gia'
+    approvata per il dipendente al banco; poi la consegna con la firma come le altre."""
+    scelti = {d["id"]: d["nome"] for d in _dipendenti_selezionabili(request)}
+    legacy_id = _int_or_none(request.POST.get("dipendente"))
+    if not legacy_id or legacy_id not in scelti:
+        messages.error(request, "Scegli il dipendente a cui consegni il DPI.")
+        return _banco_redirect(tutte=tutte)
+    categoria, tipo_dpi, modello_dpi, taglia_dpi, errors = _resolve_richiesta_catalog_selection(request.POST)
+    if not errors and (modello_dpi is None or not categoria.consegna_diretta):
+        errors.append("Scegli un DPI di una categoria con «Consegna diretta dal banco».")
+    if errors:
+        for e in errors:
+            messages.error(request, e)
+        return _banco_redirect(tutte=tutte)
+    quantita = max(1, _int_or_none(request.POST.get("quantita")) or 1)
+    info = _richiedente_info(request, legacy_id)
+    autore = request.user.get_full_name() or request.user.username
+    r = RichiestaDPI.objects.create(
+        categoria=categoria, tipo_dpi=tipo_dpi, modello_dpi=modello_dpi, taglia_dpi=taglia_dpi,
+        quantita=quantita, motivazione=request.POST.get("motivazione", "").strip(),
+        stato=StatoRichiesta.APPROVATA,
+        richiedente_legacy_id=legacy_id, richiedente_nome=info["nome"] or scelti[legacy_id],
+        richiedente_email=info["email"], richiedente_reparto=info["reparto"],
+        note_gestione=f"[Consegna diretta al banco: inserita da {autore}]",
+        created_by=request.user,
+    )
+    RichiestaDPICommento.objects.create(
+        richiesta=r, autore_nome="Portale", is_interno=False,
+        testo=f"Consegna diretta al banco ({categoria.nome}: categoria senza approvazione), inserita da {autore}.",
+    )
+    log_action(request, "crea", "dpi", f"Consegna diretta al banco {r.numero} - {categoria.nome} per {r.richiedente_nome}")
+    messages.success(request, f"{r.numero} aggiunta: fai firmare {r.richiedente_nome} e premi «Consegna».")
+    return _banco_redirect("apri-" + _chiave_persona(r), tutte)
+
+
+def _banco_azione(request):
+    azione = request.POST.get("azione", "")
+    tutte = request.POST.get("tutte") == "1"
+    if azione == "diretta":
+        return _banco_consegna_diretta(request, tutte)
+    richieste = _banco_selezionate(request)
+    if not richieste:
+        messages.warning(request, "Spunta almeno un DPI.")
+        return _banco_redirect(tutte=tutte)
+    chiave = _chiave_persona(richieste[0])
+    autore = request.user.get_full_name() or request.user.username
+
+    if azione == "pronta":
+        avvisate = 0
+        for r in richieste:
+            if r.pronta_ritiro_il is None:
+                _segna_pronta(request, r, da_nome=autore)
+                avvisate += 1
+        if avvisate:
+            messages.success(request, f"Avvisi di ritiro inviati: {avvisate}.")
+        else:
+            messages.info(request, "I DPI spuntati erano già segnati come pronti.")
+        return _banco_redirect(chiave, tutte)
+
+    if azione == "consegna":
+        try:
+            data_consegna = date.fromisoformat(request.POST.get("data_consegna", "").strip())
+        except ValueError:
+            messages.error(request, "Data di consegna non valida.")
+            return _banco_redirect(chiave, tutte)
+        firma_immagine, firma_error = _clean_signature_data_uri(request.POST.get("firma_immagine", ""))
+        if firma_error:
+            messages.error(request, firma_error)
+            return _banco_redirect(chiave, tutte)
+        firmato = bool(firma_immagine) or bool(request.POST.get("firmato_ricevuta"))
+        note = request.POST.get("note_consegna", "").strip()
+        for r in richieste:
+            residuo = _registra_consegna(
+                request, r, data_consegna=data_consegna, note=note, firmato=firmato, firma_immagine=firma_immagine,
+            )
+            _avviso_giacenza(request, r, residuo)
+        nomi = sorted({r.richiedente_nome for r in richieste})
+        messages.success(request, f"Consegnati {len(richieste)} DPI a {', '.join(nomi)}.")
+        return _banco_redirect(tutte=tutte)
+
+    messages.error(request, "Azione non riconosciuta.")
+    return _banco_redirect(tutte=tutte)
+
+
+@login_required
+def banco(request):
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+    if request.method == "POST":
+        return _banco_azione(request)
+
+    tutte = request.GET.get("tutte") == "1"
+    qs = _banco_queryset(request)
+    n_altre = qs.filter(categoria__consegna_magazzino=False).count()
+    if not tutte:
+        qs = qs.filter(categoria__consegna_magazzino=True)
+    giac = magazzino.giacenze()
+
+    gruppi: dict[str, dict] = {}
+    for r in qs.order_by("richiedente_nome", "created_at"):
+        chiave = _chiave_persona(r)
+        g = gruppi.setdefault(chiave, {
+            "chiave": chiave, "nome": r.richiedente_nome, "reparto": r.richiedente_reparto,
+            "righe": [], "n_pronte": 0, "n_da_preparare": 0, "n_mancanti": 0,
+        })
+        g_mod = giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id else None
+        manca = g_mod is not None and g_mod < r.quantita
+        g["righe"].append({"r": r, "giacenza": g_mod, "manca": manca})
+        g["n_pronte" if r.pronta_ritiro_il else "n_da_preparare"] += 1
+        g["n_mancanti"] += int(manca)
+    persone = sorted(gruppi.values(), key=lambda g: (g["nome"] or "").casefold())
+
+    modelli_diretti = list(
+        ModelloDPI.objects.filter(
+            is_active=True, tipo__is_active=True, tipo__categoria__is_active=True,
+            tipo__categoria__consegna_diretta=True,
+        ).select_related("tipo", "tipo__categoria").prefetch_related("taglie")
+        .order_by("tipo__categoria__order_index", "tipo__categoria__nome", "tipo__ordine", "nome")
+    )
+    for m in modelli_diretti:
+        m.giacenza = giac.get(m.pk, 0)
+        m.taglie_attive = [t for t in m.taglie.all() if t.is_active]
+
+    return render(request, "dpi/pages/banco.html", {
+        "is_gestore": True,
+        "is_approvatore": True,
+        "persone": persone,
+        "n_persone": len(persone),
+        "n_pronte": sum(g["n_pronte"] for g in persone),
+        "n_da_preparare": sum(g["n_da_preparare"] for g in persone),
+        "n_mancanti": sum(g["n_mancanti"] for g in persone),
+        "n_altre": n_altre,
+        "tutte": tutte,
+        "oggi": timezone.localdate(),
+        "avviso_all_approvazione": DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione,
+        "modelli_diretti": modelli_diretti,
+        "dipendenti": _dipendenti_selezionabili(request) if modelli_diretti else [],
+    })

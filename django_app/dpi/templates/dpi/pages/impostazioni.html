@@ -373,6 +373,14 @@ body.theme-dark .dpi-catalog-actions a{background:rgba(59,130,246,.18);color:#93
         <input type="checkbox" name="avvisa_amministrazione_consegna" id="avvisa-amministrazione" value="1"{% if not cat_edit or cat_edit.avvisa_amministrazione_consegna %} checked{% endif %}>
         <label for="avvisa-amministrazione" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Alla consegna avvisa l'Amministrazione (report con PDF)</label>
       </div>
+      <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" name="consegna_magazzino" id="consegna-magazzino" value="1"{% if not cat_edit or cat_edit.consegna_magazzino %} checked{% endif %}>
+        <label for="consegna-magazzino" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">La consegna la fa il magazzino (Banco consegne e mail «Da consegnare»; togli per le scarpe)</label>
+      </div>
+      <div class="dpi-field" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" name="consegna_diretta" id="consegna-diretta" value="1"{% if cat_edit.consegna_diretta %} checked{% endif %}>
+        <label for="consegna-diretta" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Consegna diretta dal banco, senza approvazione (consumabili: guanti, tappi…)</label>
+      </div>
 
       <div style="display:flex; gap:10px; margin-top:8px;">
         <button type="submit" class="dpi-btn dpi-btn-green">Salva categoria</button>
