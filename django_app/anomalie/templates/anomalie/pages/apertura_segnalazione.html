@@ -2308,7 +2308,7 @@
           <div className="ctl-footer">
             <div className="field-hint">
               {controllo.mail_mode === 'fine'
-                ? (controllo.da_notificare ? `${controllo.da_notificare} anomalie in attesa: partiranno in un’unica mail con «Termina controllo». Se ti fermi, fra ${durata(TEMPI.promemoria)} ricevi un promemoria.` : 'La mail partirà con «Termina controllo».')
+                ? (controllo.da_notificare ? `${controllo.da_notificare === 1 ? '1 anomalia in attesa: partirà' : `${controllo.da_notificare} anomalie in attesa: partiranno`} in un’unica mail con «Termina controllo». Se ti fermi, fra ${durata(TEMPI.promemoria)} ricevi un promemoria.` : 'La mail partirà con «Termina controllo».')
                 : (controllo.da_notificare ? `${controllo.da_notificare} anomalie in coda: la mail parte pochi minuti dopo l’ultimo salvataggio.` : 'Ogni blocco salvato viene comunicato al capocommessa.')}
               {controllo.mail_errore && <div className="copilot-err">Ultimo invio non riuscito: {controllo.mail_errore}</div>}
             </div>

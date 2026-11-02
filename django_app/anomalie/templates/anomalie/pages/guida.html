@@ -1,6 +1,6 @@
 {% extends "core/base.html" %}
 
-{% block title %}Guida · {{ doc_titolo }}{% endblock %}
+{% block title %}{% if guida_per %}{{ doc_titolo }}{% else %}Guida · {{ doc_titolo }}{% endif %}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -15,6 +15,12 @@
   background: var(--ag-navy); color: #fff; text-decoration: none; font-weight: 700; font-size: 13px;
 }
 .ag-pdf:hover { filter: brightness(1.1); }
+.ag-head .ag-ruoli { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.ag-ruoli a { font-weight: 700; font-size: .9rem; padding: 4px 12px; border: 1px solid var(--hub-color-border, #d7e0ea); border-radius: 999px; text-decoration: none; color: inherit; }
+.ag-ruoli a:hover { border-color: var(--ag-cyan); }
+.ag-fig { margin: 8px 0 14px; }
+.ag-fig img { display: block; max-width: 100%; height: auto; border: 1px solid var(--hub-color-border, #d7e0ea); border-radius: 8px; }
+.ag-fig figcaption { font-size: .85rem; color: var(--hub-color-text-muted, #4a5568); margin-top: 4px; }
 .ag-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 22px; align-items: start; }
 .ag-panel {
   background: var(--hub-color-surface, #fff); border: 1px solid var(--hub-color-border, #d7e0ea);
@@ -62,11 +68,19 @@ body.theme-dark .ag-nota { background: rgba(251, 146, 60, .12); border-color: rg
   <div class="ag-head">
     <div>
       <a class="ag-back" href="{{ torna_url }}">&#8592; Torna alla pagina</a>
-      <h1>Guida · {{ doc_titolo }}</h1>
+      <h1>{% if guida_per %}{{ doc_titolo }}{% else %}Guida · {{ doc_titolo }}{% endif %}</h1>
+      {% if guida_per %}
+      <p>Guida rapida: i compiti di tutti i giorni, passo per passo. Le immagini mostrano dati di esempio.</p>
+      {% else %}
       <p>Come si segnalano le anomalie, come decide il capocommessa e dove si ritrovano mail, statistiche e non conformità.</p>
+      {% endif %}
+      <p class="ag-ruoli">
+        {% if guida_per %}<a href="?guida=1">Guida completa</a>{% endif %}
+        {% for g in guide_ruoli %}{% if g.chiave != guida_per %}<a href="?guida={{ g.chiave }}">{{ g.etichetta }}</a>{% endif %}{% endfor %}
+      </p>
     </div>
     <div class="ag-head-actions">
-      <a class="ag-pdf" href="?guida=pdf">&#8595; Scarica PDF</a>
+      <a class="ag-pdf" href="?guida=pdf{% if guida_per %}&amp;per={{ guida_per }}{% endif %}">&#8595; Scarica PDF</a>
     </div>
   </div>
 

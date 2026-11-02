@@ -31,6 +31,8 @@ GUIDA = {
                       "le anomalie da copiare e «Continua»: il nuovo OP arriva con P/N, capocommessa e CAR già scritti "
                       "(manca il numero) e i blocchi copiati si caricano uno alla volta, da controllare e salvare. Gli "
                       "allegati si copiano solo se lo scegli sull'anomalia."),
+                ("p", "Guide rapide con le immagini delle pagine, da scaricare in PDF: dal pulsante «? Guida» di "
+                      "qualunque pagina Anomalie scegli «Guida del controllore» o «Guida del capocommessa / CAR»."),
                 ("p", "Un OP nuovo (da «+ Nuovo OP» o da «Clona») si crea solo quando salvi il primo blocco di "
                       "anomalie: chi esce prima non lascia OP vuoti. Se il numero è già usato la pagina lo dice prima "
                       "di andare avanti."),

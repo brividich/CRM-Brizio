@@ -2,7 +2,9 @@
 
 Le sezioni hanno la forma usata da ``anomalie/guida.py``: ``{"id", "titolo",
 "blocchi"}``, con blocchi ``("p", testo)``, ``("passi", [voci])`` (numerati),
-``("ul", [voci])``, ``("nota", testo)`` e ``("def", [(termine, spiegazione)])``.
+``("ul", [voci])``, ``("nota", testo)``, ``("def", [(termine, spiegazione)])`` e
+``("img", (percorso static, didascalia))`` (immagine trovata con gli staticfiles
+finders; se manca si stampa solo la didascalia).
 Il testo e' semplice: qui passa da ``escape()``.
 """
 from __future__ import annotations
@@ -31,6 +33,25 @@ def render_guida_pdf(*, titolo: str, sottotitolo: str, sezioni: list[dict],
     st_p = ParagraphStyle("gp", parent=ss["Normal"], fontSize=10, leading=14, spaceAfter=5)
     st_toc = ParagraphStyle("gtoc", parent=st_p, spaceAfter=1)
     st_nota = ParagraphStyle("gn", parent=st_p, fontSize=9.5, textColor=colors.HexColor("#7c2d12"), spaceAfter=0)
+
+    st_cap = ParagraphStyle("gc", parent=st_p, fontSize=8.5, textColor=grey, spaceAfter=8)
+
+    def _immagine(percorso, didascalia):
+        from django.contrib.staticfiles import finders
+        from reportlab.lib.utils import ImageReader
+        from reportlab.platypus import Image
+
+        trovato = finders.find(percorso)
+        if not trovato:
+            return [p(didascalia, st_cap)]
+        larg, alt = ImageReader(trovato).getSize()
+        w = min(174 * mm, larg * 0.75)  # px → pt a 96 dpi, mai più larga della pagina
+        h = w * alt / larg
+        if h > 120 * mm:
+            h, w = 120 * mm, 120 * mm * larg / alt
+        img = Image(trovato, width=w, height=h)
+        img.hAlign = "LEFT"
+        return [Spacer(1, 2), KeepTogether([img, p(didascalia, st_cap)])]
 
     def p(text, style=st_p):
         return Paragraph(escape(str(text)), style)
@@ -61,6 +82,8 @@ def render_guida_pdf(*, titolo: str, sottotitolo: str, sezioni: list[dict],
             elif kind == "def":
                 for term, desc in content:
                     parts.append(Paragraph(f"<b>{escape(term)}</b> — {escape(desc)}", st_p))
+            elif kind == "img":
+                parts += _immagine(content[0], content[1])
             elif kind == "nota":
                 box = Table([[p(content, st_nota)]], colWidths=[174 * mm])
                 box.setStyle(TableStyle([
