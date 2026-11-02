@@ -1727,17 +1727,30 @@ def righe_letture_macchina(macchina, letture=None):
     return righe[::-1]
 
 
+def copie_mensili(lettura, precedente):
+    """Copie del mese per contatore (+ "totale") rispetto alla lettura mensile precedente.
+
+    None se la precedente manca, non è del mese prima o un contatore è sceso:
+    fonte unica per scheda MFC e mail delle letture mensili.
+    """
+    if precedente is None or _cali(lettura, precedente):
+        return None
+    if (precedente.mese.year * 12 + precedente.mese.month) + 1 != lettura.mese.year * 12 + lettura.mese.month:
+        return None
+    copie = {campo: getattr(lettura, campo) - getattr(precedente, campo) for campo in CAMPI}
+    copie["totale"] = lettura.totale - precedente.totale
+    return copie
+
+
 def righe_mensili_macchina(macchina, ultimi=24):
     """Ultime letture mensili con le copie del mese (rispetto al mese precedente letto)."""
     mensili = list(macchina.letture_mensili.order_by("-mese")[:ultimi + 1])[::-1]
     righe = []
     for i, l in enumerate(mensili):
         prec = mensili[i - 1] if i else None
-        consecutivo = prec is not None and (
-            (prec.mese.year * 12 + prec.mese.month) + 1 == l.mese.year * 12 + l.mese.month)
-        scesi = _cali(l, prec)
-        righe.append({"lettura": l, "cali": scesi,
-                      "copie": l.totale - prec.totale if consecutivo and not scesi else None})
+        copie = copie_mensili(l, prec)
+        righe.append({"lettura": l, "cali": _cali(l, prec),
+                      "copie": copie["totale"] if copie else None})
     return righe[::-1][:ultimi]
 
 

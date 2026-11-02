@@ -1,4 +1,5 @@
 """Job per lo scheduler django-q2 esistente del portale."""
+import logging
 from datetime import date, timedelta
 
 from django.core.cache import cache
@@ -11,6 +12,7 @@ from .models import (
 from .services import interroga_dispositivo, leggi_mensile_macchina
 from .snmp import SNMPError
 
+logger = logging.getLogger(__name__)
 
 # Audit S9: poco oltre il timeout del task (110 s) e un'attesa in coda ragionevole.
 # Con 3600 s un worker ucciso lasciava l'apparato senza letture per un'ora.
@@ -144,7 +146,19 @@ def run_letture_mensili():
         _enqueue("contatori.tasks.leggi_mensile", pk, mese.isoformat())
         for pk in macchine.exclude(pk__in=presenti).values_list("pk", flat=True)
     )
-    return {"mese": mese.isoformat(), "accodati": queued}
+    from .mail_mensile import e_ultimo_giro
+    return {"mese": mese.isoformat(), "accodati": queued,
+            "mail": _notifica_mensile(mese, ultimo_giro=e_ultimo_giro())}
+
+
+def _notifica_mensile(mese, *, ultimo_giro=False):
+    """Mail di riepilogo delle letture mensili: un errore di invio non fa fallire la lettura."""
+    from .mail_mensile import notifica
+    try:
+        return notifica(mese, ultimo_giro=ultimo_giro)
+    except Exception:
+        logger.exception("contatori: invio mail letture mensili %s non riuscito", mese)
+        return "errore"
 
 
 def leggi_mensile(pk, mese):
@@ -159,7 +173,10 @@ def leggi_mensile(pk, mese):
             # Spenta o in sospensione: stato ed errore restano sulla macchina,
             # il recupero (ogni 15 minuti fino al giorno 7) la rilegge appena risponde.
             return {"macchina_id": pk, "non_raggiungibile": True, "errore": str(exc)[:200]}
-        return {"lettura_id": lettura.pk, "creata": creata}
+        esito = {"lettura_id": lettura.pk, "creata": creata}
+        if creata:
+            esito["mail"] = _notifica_mensile(lettura.mese)
+        return esito
     finally:
         cache.delete(key)
 

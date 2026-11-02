@@ -193,6 +193,11 @@ SEZIONI: list[dict] = [
                 "Dal giorno 2 al 7 la Centrale mostra «N letture mensili in attesa»; dal giorno 8 diventa "
                 "«N letture mensili saltate»: la MFC non ha mai risposto, controlla che sia accesa e in rete.",
                 "La prima lettura riuscita del mese non viene più sovrascritta.",
+                "Mail di riepilogo: quando tutte le MFC sono lette parte una mail con contatori, copie del mese "
+                "(«—» se manca la lettura del mese prima o un contatore è sceso), Excel allegato e link a queste "
+                "letture. Il giorno 7 dalle 23:00, se manca ancora qualche MFC, parte con le mancanti e il motivo. "
+                "Destinatari in Automazioni → «Pianificati» → «contatori letture mensili» → «Configura mail»: "
+                "senza destinatari non parte.",
             ]),
         ],
     },

@@ -88,6 +88,21 @@ GUIDA = {
                 ]),
             ],
         },
+        {
+            "id": "mail-letture-mensili",
+            "titolo": "Mail delle letture mensili",
+            "blocchi": [
+                ("p", "Quando tutte le MFC attive con IP hanno la lettura del mese parte una mail con i quattro contatori, "
+                      "le copie del mese di ogni MFC, l'Excel allegato e il link alle letture mensili. Se il giorno 7 "
+                      "dalle 23:00 ne manca ancora qualcuna parte una mail con le mancanti e il motivo; se poi l'ultima "
+                      "rientra arriva anche quella completa."),
+                ("passi", [
+                    "Amministrazione → Automazioni → «Pianificati» → «contatori letture mensili» → «Configura mail».",
+                    "Scrivi i destinatari (virgola, punto e virgola o a capo) e salva. Oggetto, introduzione e nota sono facoltativi.",
+                ]),
+                ("nota", "Senza destinatari la mail non parte: non va agli amministratori di sistema."),
+            ],
+        },
     ],
     "problemi": [
         {
@@ -126,6 +141,14 @@ GUIDA = {
                 "Amministrazione → Monitoring → «Salute degli schedule»: controlla i lavori dei contatori.",
                 "Se il cluster è fermo segui «Le automazioni non partono» nel Manuale di emergenza.",
                 "Inserisci la lettura a mano dalla scheda MFC.",
+            ],
+        },
+        {
+            "sintomo": "La mail delle letture mensili non è arrivata",
+            "fare": [
+                "Controlla i destinatari in Automazioni → «Pianificati» → «contatori letture mensili» → «Configura mail»: vuoti = nessun invio.",
+                "La mail parte solo quando tutte le MFC attive con IP sono lette, oppure il giorno 7 dalle 23:00 con le mancanti.",
+                "Se i destinatari sono stati aggiunti dopo, la mail parte al giro successivo del recupero (ogni 15 minuti fino al giorno 7).",
             ],
         },
     ],
