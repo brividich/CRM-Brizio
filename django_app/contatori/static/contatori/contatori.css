@@ -280,6 +280,7 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 /* Registro letture, scheda MFC e import multiplo fatture */
 .contatori-module .registro-letture td.cella{white-space:nowrap;font-variant-numeric:tabular-nums}
 .contatori-module .registro-letture td.cella .muted{font-size:11px}
+.contatori-module .registro-letture td.provvisoria > .muted{font-style:italic}
 .contatori-module .registro-letture td.mancante{background:color-mix(in srgb,var(--cm-warn) 10%,transparent)}
 .contatori-module .registro-letture td.calo,.contatori-module tr.riga-calo td{background:color-mix(in srgb,var(--cm-danger) 9%,transparent)}
 .contatori-module .registro-letture tr.dismessa td,.contatori-module tr.riga-mancante td{opacity:.75}

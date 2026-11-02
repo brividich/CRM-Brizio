@@ -15,7 +15,7 @@ GUIDA = {
                 ("ul", [
                     "Il cruscotto mostra le multifunzione (MFC) con le ultime letture, i toner e lo stato degli apparati monitorati.",
                     "Clicca una MFC per la scheda: letture trimestrali con le copie e i trimestri mancanti, letture mensili, fatture del contratto, consumabili, asset collegato; «Esporta storico» scarica tutto in Excel.",
-                    "«Letture» → Registro letture: tutte le MFC per trimestre, con le letture mancanti e i cali in evidenza. «Tutte le MFC di un trimestre» inserisce le letture di più stampanti in una pagina.",
+                    "«Letture» → Registro letture: tutte le MFC per trimestre, con le letture mancanti e i cali in evidenza; nel trimestre in corso senza lettura compare in grigio l'ultima lettura mensile, provvisoria. «Nuova lettura» precompila i contatori dalla lettura mensile SNMP (per un trimestre chiuso quella del primo giorno del trimestre dopo). «Tutte le MFC di un trimestre» inserisce le letture di più stampanti in una pagina.",
                     "Scheda di un dispositivo SNMP: uptime e «Risposte ultime 24 ore / 7 giorni», cioè quante interrogazioni hanno avuto risposta (sotto il 95% in rosso).",
                     "Le letture si fanno da sole ogni mese il giorno 1 a mezzanotte, con un secondo tentativo alle 08:00 per le macchine spente.",
                     "«? Guida» nella barra del modulo apre la guida completa da qualunque pagina.",

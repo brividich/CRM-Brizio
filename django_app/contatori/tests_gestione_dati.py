@@ -137,6 +137,45 @@ class RegistroLettureTests(_AuthedClientMixin, TestCase):
         self.assertEqual(celle[3]["stato"], "in_corso")
         self.assertEqual(reg["mancanti"], 1)
 
+    def test_in_corso_mostra_la_mensile_provvisoria(self):
+        # La mensile del 01/10 e' la chiusura del Q3: non e' provvisoria del Q4.
+        LetturaMensileContatori.objects.create(macchina=self.m, mese=date(2026, 10, 1),
+                                               rilevata_il=_aware(2026, 10, 1, 0, 5), **{**V, "a4_bn": 1450})
+        reg = services.registro_letture(4, oggi=date(2026, 10, 20))
+        self.assertNotIn("provvisoria", reg["righe"][0]["celle"][3])
+        LetturaMensileContatori.objects.create(macchina=self.m, mese=date(2026, 11, 1),
+                                               rilevata_il=_aware(2026, 11, 1, 0, 5), **{**V, "a4_bn": 1800})
+        reg = services.registro_letture(4, oggi=date(2026, 11, 10))
+        cella = reg["righe"][0]["celle"][3]
+        self.assertEqual(cella["stato"], "in_corso")
+        self.assertEqual(cella["provvisoria"].mese, date(2026, 11, 1))
+        self.assertEqual(cella["copie"], 300)
+        self.assertEqual((reg["mancanti"], reg["cali"]), (1, 0))
+        with mock.patch("contatori.services.timezone.localdate", return_value=date(2026, 11, 10)):
+            r = self.client.get(reverse("contatori:letture_registro"))
+        self.assertContains(r, "mensile 01/11")
+
+    def test_nuova_lettura_precompilata_dalla_mensile(self):
+        LetturaMensileContatori.objects.create(macchina=self.m, mese=date(2026, 10, 1),
+                                               rilevata_il=_aware(2026, 10, 1, 0, 5), **{**V, "a4_bn": 1450})
+        LetturaMensileContatori.objects.create(macchina=self.m, mese=date(2026, 11, 1),
+                                               rilevata_il=_aware(2026, 11, 1, 0, 5), **{**V, "a4_bn": 1800})
+        oggi = date(2026, 11, 10)
+        self.assertEqual(services.mensile_per_trimestre(self.m, "2026-Q3", oggi).a4_bn, 1450)
+        self.assertEqual(services.mensile_per_trimestre(self.m, "2026-Q4", oggi).a4_bn, 1800)
+        self.assertIsNone(services.mensile_per_trimestre(self.m, "2026-Q2", oggi))
+        url = reverse("contatori:importa_lettura")
+        with mock.patch("django.utils.timezone.localdate", return_value=oggi):
+            r = self.client.get(f"{url}?macchina={self.m.pk}&trimestre=2026-Q4")
+        form = r.context["form"]
+        self.assertEqual((form.initial["a4_bn"], form.initial["fonte"]), (1800, "SNMP"))
+        self.assertTrue(r.context["provvisoria"])
+        self.assertContains(r, "valore provvisorio")
+        with mock.patch("django.utils.timezone.localdate", return_value=oggi):
+            r = self.client.get(f"{url}?macchina={self.m.pk}&trimestre=2026-Q2")
+        self.assertIsNone(r.context["mensile"])
+        self.assertContains(r, "inserisci i contatori a mano")
+
     def test_calo_evidenziato(self):
         LetturaContatori.objects.create(macchina=self.m, trimestre="2026-Q4", data=date(2026, 12, 20),
                                         **{**V, "a4_bn": 900})

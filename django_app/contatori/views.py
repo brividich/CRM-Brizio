@@ -456,6 +456,7 @@ def importa_lettura(request, pk=None):
     """Inserimento (pk assente) o correzione di una lettura trimestrale."""
     lettura = get_object_or_404(LetturaContatori.objects.select_related("macchina"), pk=pk) if pk else None
     ritorno = _ritorno_gestione(request)
+    mensile = None
     if request.method == "POST":
         form = LetturaForm(request.POST, instance=lettura)
         if form.is_valid():
@@ -473,9 +474,20 @@ def importa_lettura(request, pk=None):
                 initial["macchina"] = request.GET["macchina"]
             if services.trimestre_valido(request.GET.get("trimestre")):
                 initial["trimestre"] = request.GET["trimestre"]
+            macchina = Macchina.objects.filter(pk=initial.get("macchina")).first()
+            if macchina is not None:
+                # I contatori si prendono dalla lettura mensile SNMP (mezzanotte del primo del mese).
+                mensile = services.mensile_per_trimestre(macchina, initial["trimestre"])
+            if mensile is not None:
+                initial.update({c: getattr(mensile, c) for c in services.CAMPI},
+                               data=timezone.localtime(mensile.rilevata_il).date(),
+                               fonte=LetturaContatori.Fonte.SNMP,
+                               note=f"Da lettura mensile del {mensile.mese:%m/%Y}")
         form = LetturaForm(instance=lettura, initial=initial)
     return render(request, "contatori/importa_lettura.html",
-                  {"form": form, "lettura": lettura, "ritorno": ritorno})
+                  {"form": form, "lettura": lettura, "ritorno": ritorno,
+                   "mensile": mensile,
+                   "provvisoria": mensile is not None and form.initial["trimestre"] == services.trimestre_corrente()})
 
 
 @richiede_gestione

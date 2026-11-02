@@ -4,13 +4,31 @@
 {% if lettura %}<div class="eyebrow">{{ lettura.macchina.reparto }} · {{ lettura.macchina.matricola }}</div>{% endif %}
 <h1>{% if lettura %}Correggi lettura {{ lettura.trimestre }}{% else %}Nuova lettura{% endif %}</h1>
 <p class="sub">I contatori sono cumulativi: non possono scendere rispetto al trimestre precedente. Il portale lo controlla e chiede conferma solo in caso di azzeramento o sostituzione della macchina.</p>
-<form method="post" class="form-sezioni">{% csrf_token %}{% if ritorno %}<input type="hidden" name="next" value="{{ ritorno }}">{% endif %}
+{% if mensile %}<p class="af-note" role="status">Contatori presi dalla lettura mensile SNMP del {{ mensile.rilevata_il|date:"d/m/Y H:i" }}{% if provvisoria %}: il trimestre è in corso, è un valore provvisorio (la chiusura è la lettura del primo giorno del trimestre dopo){% else %}, la chiusura del trimestre{% endif %}. Controlla e salva.</p>
+{% elif not lettura and form.initial.macchina %}<p class="af-note" role="status">Nessuna lettura mensile SNMP per questo trimestre: inserisci i contatori a mano.</p>{% endif %}
+<form method="post" class="form-sezioni" id="form-lettura">{% csrf_token %}{% if ritorno %}<input type="hidden" name="next" value="{{ ritorno }}">{% endif %}
   {% include "contatori/_form_sezioni.html" %}
   <div class="form-actions">
     <a class="btn ghost" href="{% if ritorno %}{{ ritorno }}{% elif lettura %}{% url 'contatori:macchina' lettura.macchina_id %}{% else %}{% url 'contatori:dashboard' %}{% endif %}">Annulla</a>
     <button class="btn" type="submit">Salva lettura</button>
   </div>
 </form>
+{% if not lettura %}<script>
+// Cambiando stampante o trimestre la pagina si ricarica e riprende i contatori dalla lettura mensile.
+(function () {
+  var form = document.getElementById("form-lettura");
+  ["macchina", "trimestre"].forEach(function (nome) {
+    var campo = form && form.elements[nome];
+    if (!campo) return;
+    campo.addEventListener("change", function () {
+      var q = new URLSearchParams(window.location.search);
+      q.set("macchina", form.elements.macchina.value);
+      q.set("trimestre", form.elements.trimestre.value);
+      window.location.search = q.toString();
+    });
+  });
+})();
+</script>{% endif %}
 {% if lettura %}
 <form method="post" action="{% url 'contatori:lettura_elimina' lettura.pk %}" data-hub-confirm="Eliminare la lettura {{ lettura.trimestre }} di {{ lettura.macchina.reparto }}?">{% csrf_token %}{% if ritorno %}<input type="hidden" name="next" value="{{ ritorno }}">{% endif %}
   <button class="btn ghost danger" type="submit">Elimina lettura</button>
