@@ -85,8 +85,11 @@ class VisiteEventiTest(_Base):
         def rinomina():
             self.biennale.nome = "Visita medica ogni due anni"
             self.biennale.save()
+        from anagrafica.services.scadenze import invalida_badge
+
         _r, callbacks = self.dopo_commit(rinomina)
-        self.assertEqual(len(callbacks), 0)
+        # Resta solo l'aggiornamento dei badge (costa una scrittura in cache), nessun ricalcolo.
+        self.assertEqual([c for c in callbacks if c is not invalida_badge], [])
 
     def test_visita_superata_torna_alla_scadenza_del_tipo(self):
         ruolo = RuoloOperativo.objects.create(nome="Saldatore")

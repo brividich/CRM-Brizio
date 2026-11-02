@@ -273,6 +273,14 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Il numero sul filtro è più alto delle righe dell'elenco",
+            "fare": [
+                "L'elenco mostra le 300 segnalazioni più recenti per tipo e lo scrive sopra la tabella; i numeri dei filtri, «Solo urgenti» e la barra di stato contano tutto. Usa ricerca o gravità per restringere.",
+                '«PC con backup ko» guarda gli ultimi 90 giorni: un PC i cui backup si sono fermati da settimane resta tra i ko.',
+                '«Scadenze NIS2/GDPR» comprende anche gli incidenti chiusi con una notifica di legge ancora dovuta.',
+            ],
+        },
+        {
             "sintomo": "Librerie del portale: la lettura è in errore «OSV non raggiungibile»",
             "fare": [
                 "Il server del portale deve poter aprire https://api.osv.dev (porta 443): verificare firewall e proxy (variabile HTTPS_PROXY dell'utente del qcluster).",

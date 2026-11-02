@@ -61,7 +61,9 @@ SEZIONI: list[dict] = [
             ("p", "La pagina iniziale mostra i dipendenti dell'anagrafica con il numero di record attivi e di storico."),
             ("ul", [
                 "Le tessere in alto riassumono il registro: Dipendenti, Con timbri, Record attivi, Da gestire. "
-                "Un clic su «Record attivi» filtra l'elenco.",
+                "Un clic su «Record attivi» filtra l'elenco. Con «Ruoli e permessi» attivo elenco e tessere contano "
+                "solo le persone del tuo ambito «Vedere»; «Record attivi» segue anche i filtri, «Da gestire» conta "
+                "tutti i problemi di import aperti.",
                 "La ricerca trova nome, matricola, reparto e codice timbro. Il codice si trova anche scritto "
                 "senza spazi: «cnoq101» trova «CNO Q101».",
                 "I filtri Reparto e Qualifica restringono l'elenco; «Filtra» li applica, «Reset» li toglie.",

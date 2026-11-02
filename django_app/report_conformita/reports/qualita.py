@@ -46,7 +46,7 @@ def _registro_nc_ofi(params: ReportParams) -> ReportResult:
     if norma in _NORMA_FIELD:
         base = base.filter(**{_NORMA_FIELD[norma]: True})
 
-    aperte = base.exclude(fase=RegistroOFI.FASE_CHIUSO)
+    aperte = base.filter(RegistroOFI.q_aperte())
     nel_periodo = base.filter(data_apertura__range=(params.date_from, params.date_to))
     chiuse_periodo = base.filter(
         fase=RegistroOFI.FASE_CHIUSO, data_chiusura__range=(params.date_from, params.date_to)

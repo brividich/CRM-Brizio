@@ -157,6 +157,12 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": '«In scadenza» e «Scadute» della dashboard non tornano con le richieste',
+            "fare": [
+                'Ora contano le consegne delle sole richieste che vedi (propri, team o tutti), come gli altri numeri della pagina.',
+            ],
+        },
+        {
             "sintomo": "Il responsabile non vede la richiesta da approvare",
             "perche": "l'approvazione segue il team dell'organigramma (o il preposto del reparto).",
             "fare": [

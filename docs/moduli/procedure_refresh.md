@@ -36,3 +36,7 @@ Campagne di aggiornamento procedure MT/MTSI con tracking letture obbligatorio (c
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) campagne, documenti e report sono di chi ha «gestire» con visibilità «tutti» su Procedure (preset Sicurezza e Qualità).
+
+## KPI coerenti e in tempo reale (02/11/2026)
+
+«Scadute» e «In attesa» (dashboard admin, report campagna, «Le mie procedure» e relativo filtro) usano `models.q_scadute` / `q_in_attesa` / `scaduta_ora`: una scadenza passata conta subito, senza aspettare `run_assignment_lifecycle` delle 06:45.

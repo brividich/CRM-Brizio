@@ -197,7 +197,15 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
     reports_scope = _normalize_reports_scope(request.GET.get("scope"))
     reports_context = _reports_scope_context(reports_scope)
     report_asset_types = list(reports_context["asset_types"])
-    scoped_asset_qs = Asset.objects.filter(asset_type__in=report_asset_types).select_related("asset_category")
+    from assets.maintenance import odl_in_ritardo, q_odl_in_ritardo
+
+    from ..services.visibilita import filtra as filtra_visibili
+    from ..services.visibilita import filtra_odl
+
+    # Ambito del ruolo: un report di reparto non mostra dati e costi di tutta l'azienda.
+    scoped_asset_qs = filtra_visibili(
+        request, Asset.objects.filter(asset_type__in=report_asset_types).select_related("asset_category")
+    )
     # Budget e costi dagli OdL; lo stato delle manutenzioni dalle occorrenze,
     # come Scadenzario e KPI (il vecchio motore a regole non entra piu' nel conto).
     maintenance_report_kpis = build_maintenance_report_kpis(
@@ -220,11 +228,11 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
         )
         budget_rows.append(row)
 
-    open_workorders = WorkOrder.objects.select_related("asset", "supplier").filter(
+    open_workorders = filtra_odl(request, WorkOrder.objects.select_related("asset", "supplier").filter(
         status=WorkOrder.STATUS_OPEN,
         asset__asset_type__in=report_asset_types,
-    )
-    late_open_workorders = open_workorders.filter(opened_at__lt=now - timedelta(days=30)).order_by("opened_at")
+    ))
+    late_open_workorders = open_workorders.filter(q_odl_in_ritardo(now)).order_by("opened_at")
     open_workorder_rows: list[dict[str, object]] = []
     for workorder in open_workorders.order_by("opened_at", "id")[:12]:
         opened_at = workorder.opened_at
@@ -234,10 +242,10 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
             {
                 "workorder": workorder,
                 "open_days": open_days,
-                "is_late": open_days > 30,
+                "is_late": odl_in_ritardo(workorder, now),
             }
         )
-    recent_done_workorders = (
+    recent_done_workorders = filtra_odl(request, (
         WorkOrder.objects.select_related(
             "asset",
             "asset__asset_category",
@@ -247,7 +255,7 @@ def reports_dashboard(request: HttpRequest) -> HttpResponse:
         .filter(status=WorkOrder.STATUS_DONE, closed_at__gte=period_start)
         .filter(asset__asset_type__in=report_asset_types)
         .order_by("-closed_at", "-id")
-    )
+    ))
     if reports_context["maintenance_month_enabled"]:
         maintenance_month_dataset = _build_work_machine_maintenance_month_dataset(
             month_value=request.GET.get("month"),

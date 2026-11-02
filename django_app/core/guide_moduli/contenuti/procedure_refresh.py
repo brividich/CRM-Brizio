@@ -70,6 +70,12 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": 'Una presa visione risulta «scaduta» prima che arrivi il sollecito',
+            "fare": [
+                'I contatori «Scadute» contano subito le assegnazioni da leggere con la scadenza passata; lo stato sulla riga diventa «Scaduta» con il controllo delle 06:45. Il filtro «Scadute» segue il contatore.',
+            ],
+        },
+        {
             "sintomo": "Una nuova revisione non compare",
             "fare": [
                 "Apri «Log sync» e guarda l'ultima sincronizzazione.",

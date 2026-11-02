@@ -163,6 +163,26 @@ class _Accumulo:
         self.tutti = False
 
 
+BADGE_VERSIONE_KEY = "anagrafica:scadenze:versione"
+
+
+def versione_badge() -> int:
+    """Versione dei contatori di scadenze in cache (badge della subnav): cambia a ogni modifica dei dati HR."""
+    from django.core.cache import cache
+
+    return int(cache.get(BADGE_VERSIONE_KEY) or 0)
+
+
+def invalida_badge() -> None:
+    """Fa ricalcolare subito i badge di tutti: si chiama a ogni salvataggio di dati anagrafica."""
+    from django.core.cache import cache
+
+    try:
+        cache.incr(BADGE_VERSIONE_KEY)
+    except ValueError:
+        cache.set(BADGE_VERSIONE_KEY, 1, None)
+
+
 def _esegui_ricalcolo(conn) -> None:
     """Callback on_commit: il primo che parte ricalcola tutto l'accumulato, gli altri non trovano nulla."""
     acc = getattr(conn, "_scadenze_accumulo", None)
@@ -174,6 +194,15 @@ def _esegui_ricalcolo(conn) -> None:
         ricalcola_tutto(bersaglio)
     except Exception:
         logger.exception("ricalcolo scadenze dopo il salvataggio fallito per %s", bersaglio or "tutti")
+    # Adempimenti del cambio mansione: si chiudono appena il requisito è
+    # soddisfatto (corso fatto, visita registrata), non alle 00:20.
+    try:
+        from .cambio_mansione import aggiorna_piani
+
+        aggiorna_piani(bersaglio)
+    except Exception:
+        logger.exception("chiusura adempimenti cambio mansione fallita per %s", bersaglio or "tutti")
+    invalida_badge()
 
 
 def ricalcola_dopo_commit(legacy_ids) -> None:

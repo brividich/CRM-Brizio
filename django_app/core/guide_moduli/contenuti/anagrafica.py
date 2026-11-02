@@ -932,6 +932,14 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": 'Lo scadenzario o la dashboard mostrano meno persone a un capo',
+            "fare": [
+                "Scadenzario, «Cose da gestire», badge della subnav e riquadri formazione contano solo le persone che il ruolo vede (propri, team o tutti), come l'elenco dipendenti.",
+                'I badge si aggiornano appena si salva un dato; gli adempimenti del cambio mansione si chiudono appena il requisito è soddisfatto, senza aspettare la notte.',
+                '«Senza visita» conta solo chi ricopre oggi un ruolo che richiede la visita.',
+            ],
+        },
+        {
             "sintomo": "Lo storico di una mansione o di un ruolo è vuoto, ma la voce è stata modificata",
             "perche": "le modifiche registrate prima del 27/10/2026 non erano agganciate al record, oppure il cambio è "
                       "avvenuto fuori dal portale (import, scrittura diretta in tabella).",

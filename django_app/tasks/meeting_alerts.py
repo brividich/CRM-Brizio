@@ -119,8 +119,11 @@ def build_meeting_alerts(request, *, only_mine: bool = True) -> dict:
             _row(meeting, tone=tone, motivo=motivo, action_url=action_url, action_label=action_label)
         )
 
+    # Le tre categorie si leggono intere: il totale (badge) conta tutto, la
+    # lista mostra le prime _LIMIT. Prima ogni categoria era già tagliata a
+    # _LIMIT e il badge non superava mai 18.
     # 1. Incontro passato ancora «pianificato»: l'esito non e' mai stato registrato.
-    for meeting in base.filter(stato=MeetingStatus.PIANIFICATO, data__lt=today).order_by("-data")[: _LIMIT]:
+    for meeting in base.filter(stato=MeetingStatus.PIANIFICATO, data__lt=today).order_by("-data"):
         giorni = (today - meeting.data).days
         add(
             meeting,
@@ -133,7 +136,7 @@ def build_meeting_alerts(request, *, only_mine: bool = True) -> dict:
     # 2. Incontro svolto con minuta mai approvata.
     for meeting in base.filter(
         stato=MeetingStatus.SVOLTO, minuta_chiusa_at__isnull=True
-    ).order_by("-data")[: _LIMIT]:
+    ).order_by("-data"):
         if not can_manage(meeting.project):
             continue
         add(
@@ -154,7 +157,7 @@ def build_meeting_alerts(request, *, only_mine: bool = True) -> dict:
             )
         )
         .filter(aperti__gt=0)
-        .order_by("-data")[: _LIMIT]
+        .order_by("-data")
     )
     for meeting in con_problemi:
         add(

@@ -243,3 +243,7 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)): 
 - **Referti clinici**: azione «Referti clinici» delle visite mediche. Con il sistema attivo scheda referto, download del file, documenti di tipo referto nella scheda e coda referti la richiedono (visibilità «tutti»); nei preset ce l'ha solo Gestione personale.
 - **Ruoli dall'organigramma**: un ruolo del catalogo può essere collegato a ruoli del portale («Ruoli e permessi» → matrice → «Dall'organigramma», campo `RuoloOperativo.profili_permessi`, migrazione 0177). Chi lo ricopre riceve quei permessi finché lo ricopre.
 - **Ambito «Incarichi»** (migrazione 0178): per gestione personale, gestione formazione, auditor e docenti; non alimenta il «Ruolo aziendale» della scheda.
+
+## KPI coerenti e in tempo reale (02/11/2026)
+
+Scadenzario (pagina, «Cose da gestire», badge subnav) ristretto a `_schede_visibili`; badge con versione in cache svuotata a ogni scrittura su anagrafica (`services.scadenze.invalida_badge`); `aggiorna_piani` dopo ogni ricalcolo scadenze; riquadro formazione dello scadenzario solo corsi obbligatori; «Senza visita» solo ruoli in essere (`_richiesti_per_ruoli`); «Il mio team» con la regola unica capo/team quando accesa; `aree_opts` locale (prima sovrascriveva `_helpers.aree_list`).

@@ -146,6 +146,10 @@ def soc_menu(context, url_name):
     # Voce «Impostazioni»: ogni scheda tranne la Guida segue l'azione «impostazioni» della matrice.
     can_impostazioni = bool(user and can_configure_soc(request))
     badges = _badges(user)
+    if not can_impostazioni:
+        # Senza configurazione la voce contiene solo la Guida: il numero delle
+        # sorgenti in ritardo porterebbe a una pagina che non si apre.
+        badges.pop("Impostazioni", None)
     voci, sezione = [], None
     for label, entry, pagine in MENU:
         tabs = []

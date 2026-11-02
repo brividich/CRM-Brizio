@@ -1488,6 +1488,9 @@ def ticket_gestione_list(request):
         tickets_it  = _apply_filters(base.filter(tipo=TipoTicket.IT)) if can_it else None
         tickets_man = _apply_filters(base.filter(tipo=TipoTicket.MAN)) if can_man else None
 
+    # KPI sui soli tipi che l'utente gestisce (come le liste sotto): un gestore
+    # solo IT non deve contare i ticket di manutenzione.
+    kpi_qs = Ticket.objects.filter(tipo__in=[t for t, ok in ((TipoTicket.IT, can_it), (TipoTicket.MAN, can_man)) if ok])
     ctx = {
         "tickets_it":    tickets_it,
         "tickets_man":   tickets_man,
@@ -1513,11 +1516,10 @@ def ticket_gestione_list(request):
         ).count(),
         "categorie_it":    get_categorie(TipoTicket.IT),
         "categorie_man":   get_categorie(TipoTicket.MAN),
-        # KPI globali
-        "n_aperte":    Ticket.objects.filter(stato=StatoTicket.APERTA).count(),
-        "n_in_carico": Ticket.objects.filter(stato=StatoTicket.IN_CARICO).count(),
-        "n_urgenti":   Ticket.objects.filter(priorita=PrioritaTicket.URGENTE, stato__in=[StatoTicket.APERTA, StatoTicket.IN_CARICO]).count(),
-        "n_risolti":   Ticket.objects.filter(stato=StatoTicket.RISOLTO).count(),
+        "n_aperte":    kpi_qs.filter(stato=StatoTicket.APERTA).count(),
+        "n_in_carico": kpi_qs.filter(stato=StatoTicket.IN_CARICO).count(),
+        "n_urgenti":   kpi_qs.filter(priorita=PrioritaTicket.URGENTE, stato__in=[StatoTicket.APERTA, StatoTicket.IN_CARICO]).count(),
+        "n_risolti":   kpi_qs.filter(stato=StatoTicket.RISOLTO).count(),
     }
     return render(request, "tickets/pages/gestione_list.html", ctx)
 

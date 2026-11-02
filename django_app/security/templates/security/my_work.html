@@ -31,7 +31,7 @@
 
 <section class="sec-grid sec-two-col" style="margin-top: 12px; align-items: start;">
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Ticket</h2><span class="sec-badge">{{ tickets|length }}</span></div>
+    <div class="sec-section-head"><h2>Ticket</h2><span class="sec-badge">{% if n_tickets > tickets|length %}{{ tickets|length }} di {{ n_tickets }}{% else %}{{ n_tickets }}{% endif %}</span></div>
     <ul class="sec-mini-list">
       {% for t in tickets %}
         <li><a href="{% url 'security:case_detail' t.pk %}">#{{ t.pk }} {{ t.title|truncatechars:70 }}</a><span class="sec-nowrap"><span class="sec-badge {{ t.severity }}">{{ t.severity|ui_label }}</span></span></li>
@@ -39,7 +39,7 @@
     </ul>
   </div>
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Alert aperti</h2><span class="sec-badge">{{ alerts|length }}</span></div>
+    <div class="sec-section-head"><h2>Alert aperti</h2><span class="sec-badge">{% if n_alerts > alerts|length %}{{ alerts|length }} più recenti di {{ n_alerts }}{% else %}{{ n_alerts }}{% endif %}</span></div>
     <ul class="sec-mini-list">
       {% for a in alerts %}
         <li><a href="{% url 'security:alert_detail' a.pk %}">{{ a.title|truncatechars:70 }}</a><span class="sec-nowrap"><span class="sec-badge {{ a.severity }}">{{ a.severity|ui_label }}</span></span></li>

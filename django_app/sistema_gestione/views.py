@@ -73,7 +73,9 @@ def index(request):
         "di_lavoro": di_lavoro,
         "kpi_in_vigore": kpi_revisione(in_vigore) if in_vigore else [],
         "ti_anno": ti_anno,
-        "audit_anno": Audit.objects.filter(data_inizio__year=timezone.localdate().year).count() if puo_audit else 0,
+        # Come «programmati» dell'indice audit: gli annullati non contano.
+        "audit_anno": Audit.objects.filter(data_inizio__year=timezone.localdate().year)
+        .exclude(stato=Audit.STATO_ANNULLATO).count() if puo_audit else 0,
     })
 
 
