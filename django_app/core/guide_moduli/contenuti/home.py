@@ -70,6 +70,8 @@ GUIDA = {
                     "Nei moduli e nei form le colonne affiancate vanno una sotto l'altra: impostazioni, filtri e schede "
                     "si compilano dall'alto in basso, senza campi schiacciati.",
                     "Toccando un campo la pagina non si ingrandisce: i campi sul telefono hanno il testo più grande apposta.",
+                    "Pulsanti, filtri a pastiglia, briciole di pane, indici delle guide e sezioni da aprire sono alti "
+                    "almeno quanto un dito: si toccano senza prendere la voce accanto.",
                 ]),
                 ("p", "Prima di eliminare, togliere o fare un'azione che non si annulla, in tutti i moduli il portale "
                       "chiede conferma in una finestra al centro della pagina: il titolo dice cosa succede, sotto "

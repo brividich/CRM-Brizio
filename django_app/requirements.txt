@@ -6,7 +6,7 @@
 #
 aiosqlite==0.22.1         # via asyncua
 annotated-types==0.7.0    # via pydantic
-anyio==4.14.0             # via asyncua
+anyio==4.14.2             # via asyncua
 asgiref==3.11.1           # via django, django-axes, django-htmx
 asyncua==2.0              # via -r requirements.in (collector OPC UA delle CNC)
 azure-core==1.41.0          # via azure-identity
@@ -44,7 +44,7 @@ numpy==2.2.6              # via -r requirements.in (lettura planimetrie verifich
 openpyxl==3.1.5           # via -r requirements.in
 packaging==26.3           # via -r requirements.in
 pillow==13.0.0            # via -r requirements.in, qrcode, reportlab
-pyasn1==0.6.4             # via ldap3
+pyasn1==0.6.5             # via ldap3
 pycparser==3.0            # via cffi
 python-docx==1.2.0          # via -r requirements.in
 xlrd==2.0.2               # legacy .xls reader (intake export gestionale Specifiche)

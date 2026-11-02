@@ -156,3 +156,20 @@ body.theme-dark table.mcards tbody td{border-color:var(--border)}
   .rc-back,.as-backlink,.gs-back,.hi-back,.topbar-back{display:inline-flex;align-items:center;min-height:36px}
   .hub-flash-close{min-width:36px;min-height:36px}
 }
+
+/* ── Sesto giro: pulsanti e filtri a pastiglia almeno 36px al tocco ──
+   Vale per i comandi con «btn»/«chip» nella classe dentro il contenuto; le tabelle
+   desktop e i campi restano come sono. */
+@media (max-width:720px) and (pointer:coarse){
+  .content :is(a,button)[class*="btn"]:not([class*="btn-link"]),
+  .content :is(a,button)[class*="chip"],
+  .content input:is([type=submit],[type=button]){min-height:36px}
+  .content a[class*="btn"]:not([class*="btn-link"]),.content a[class*="chip"]{align-items:center}
+  /* Briciole di pane: area di tocco più alta senza spostare il testo */
+  .content :is(.as-crumbs,.fmd-crumb,.gm-crumb,.hg-crumb,.sic-breadcrumb,.hr-pagehead-eyebrow) a{padding-top:9px;padding-bottom:9px}
+  /* Elenchi di collegamenti (guide, indici): una riga comoda per voce */
+  .content :is(.gm-card-links,.ag-toc,.elg-indice,.gpa-indice,.sg-section) a{display:flex;align-items:center;min-height:36px}
+  .content :is(h2,h3)>a:not([class]){padding-top:8px;padding-bottom:8px}
+  .content summary{min-height:36px;align-items:center;box-sizing:border-box}
+  .content summary:not([class]){padding-top:8px;padding-bottom:8px}
+}
