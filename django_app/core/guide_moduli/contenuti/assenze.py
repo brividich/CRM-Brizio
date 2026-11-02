@@ -349,6 +349,15 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Approvo o rifiuto dalla mail e compare «Richiesta già Elaborata»",
+            "perche": "fino al 02/11/2026 un secondo clic su «Conferma» o la riapertura del link mostravano «già gestita» "
+                      "anche a chi aveva appena deciso. La decisione era registrata.",
+            "fare": [
+                "Ora chi ha deciso rivede «Richiesta Approvata/Rifiutata»; «già Elaborata» resta solo se ha deciso un altro "
+                "approvatore, e il messaggio dice chi.",
+            ],
+        },
+        {
             "sintomo": "Una richiesta approvata dalla mail torna «In attesa»",
             "perche": "prima della correzione del 23/10/2026 l'approvazione dalla mail non arrivava a SharePoint, e la "
                       "lettura successiva da SharePoint rimetteva la richiesta in attesa.",
