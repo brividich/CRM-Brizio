@@ -191,11 +191,28 @@ body.theme-dark .btn.btn-danger:hover:not(:disabled) { background:rgba(220,38,38
 .as-crumbs a:hover { color: #1f64d8; }
 .as-crumb-current { color: #0f172a; }
 .as-crumb-sep { color: #b6c3d5; }
+/* Le voci restano su una riga: quando non ci stanno la barra scorre di lato
+   (prima andava a capo su due righe gia' a 1440px). */
 .as-section-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
 }
+.as-section-tabs > .as-section-tab { flex: 0 0 auto; white-space: nowrap; }
+/* Senza min-width:0 la riga lunga allarga la griglia e la pagina scorre di lato. */
+.as-section-nav { min-width: 0; max-width: 100%; }
+.as-section-nav > *, .as-section-main { min-width: 0; }
+.as-section-main > .as-help, .as-section-main > .as-section-actions { flex: 0 0 auto; }
+/* Sfumatura sul lato dove ci sono altre voci (classi messe da section_nav.html). */
+.as-section-tabs.has-more-right { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
+.as-section-tabs.has-more-left { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); }
+.as-section-tabs.has-more-left.has-more-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); }
+.as-section-actions .as-section-action { white-space: nowrap; }
 .as-section-main {
   display: flex;
   justify-content: space-between;
