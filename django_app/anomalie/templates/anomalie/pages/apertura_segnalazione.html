@@ -109,6 +109,14 @@
     .sn-dup-card__meta strong { color: var(--text); }
     .sn-dup-card__from { font-size: var(--fs-xs, 11px); color: var(--text-light); }
     .error-msg { background: var(--danger-bg); border: 1px solid #fca5a5; color: var(--danger); border-radius: 8px; padding: 10px 14px; font-size: var(--fs-base); font-weight: 600; }
+    .clona-banner { display: grid; gap: 4px; padding: 12px 16px; border: 1px solid var(--accent); border-left: 4px solid var(--accent); border-radius: 10px; background: var(--accent-light); color: var(--text); font-size: var(--fs-base); }
+    .clona-att { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-mid); cursor: pointer; }
+    .clona-att input { width: 16px; height: 16px; accent-color: var(--accent); }
+    .clona-coda { display: grid; gap: 6px; padding: 12px 14px; border: 1px dashed var(--border); border-radius: 12px; background: var(--bg); }
+    .clona-coda__row { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: var(--fs-sm); }
+    .clona-coda__sn { font-family: ui-monospace, Consolas, monospace; font-weight: 700; color: var(--text); white-space: nowrap; }
+    .clona-coda__txt { flex: 1; min-width: 0; color: var(--text-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    body.theme-dark .clona-banner { background: rgba(249,115,22,.10); }
     .info-msg { background: var(--bg); border: 1px solid var(--border); border-left: 4px solid var(--primary-mid); color: var(--text); border-radius: 8px; padding: 10px 14px; font-size: var(--fs-base); font-weight: 600; }
     .loading-msg, .empty-msg { padding: 32px 28px; text-align: center; font-size: var(--fs-md); color: var(--text-light); }
     .action-bar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; padding-top: 4px; }
@@ -378,6 +386,8 @@
       controllo_bozza: "{% url 'api_anomalie_controllo_bozza' 0 %}",
       controllo_destinatari: "{% url 'api_anomalie_controllo_destinatari' %}",
       controllo_persone: "{% url 'api_anomalie_controllo_persone' %}",
+      clona: "{% url 'api_anomalie_clona' %}",
+      allegati_copia: "{% url 'api_anomalie_allegati_copia' %}",
     };
   </script>
 
@@ -400,7 +410,18 @@
     controllo_bozza: '/api/anomalie/controlli/0/bozza',
     controllo_destinatari: '/api/anomalie/controlli/destinatari',
     controllo_persone: '/api/anomalie/controlli/persone',
+    clona: '/api/anomalie/clona',
+    allegati_copia: '/api/anomalie/allegati/copia',
   };
+
+  /* Clonazione da Gestione anomalie: ?clona_da=<OP>&anomalie=<id,id,…> */
+  const CLONA_PARAMS = (() => {
+    const q = new URLSearchParams(window.location.search);
+    const da = (q.get('clona_da') || '').trim();
+    const ids = (q.get('anomalie') || '').split(',').map(x => x.trim()).filter(x => /^\d+$/.test(x));
+    return da && ids.length ? { da, ids } : null;
+  })();
+  const contaClona = (c) => (c ? c.blocchi.reduce((n, b) => n + b.anomalie.length, 0) : 0);
 
   const cfgLists = window._AP_CONFIG_LISTS || {};
   const CFG_CAPI_REPARTO = Array.isArray(cfgLists.capi_reparto) ? cfgLists.capi_reparto : [];
@@ -473,16 +494,38 @@
     note: '',
   });
 
-  const Step1SelectOP = ({ onSelect }) => {
+  /* Bozza del nuovo OP dai dati dell'OP clonato: resta da scrivere il numero. */
+  const newOpDaClona = (c) => {
+    const base = makeNewOpDraft();
+    if (!c) return base;
+    const parti = String(c.op.id || '').split('/');
+    return {
+      ...base,
+      causale_doc: parti.length === 3 && parti[0] ? parti[0] : base.causale_doc,
+      pn: c.op.pn || '',
+      capocommessa: c.op.capo || '',
+      car: c.op.car || '',
+      collaudo_benestare: String(c.op.stato || '').toLowerCase().includes('benestare'),
+    };
+  };
+
+  const ClonaBanner = ({ clona, children }) => (
+    <div className="clona-banner">
+      <div><strong>Copia da {clona.op.id}</strong>{clona.op.pn ? ` · P/N ${clona.op.pn}` : ''}: {contaClona(clona)} anomali{contaClona(clona) === 1 ? 'a' : 'e'} in {clona.blocchi.length} blocch{clona.blocchi.length === 1 ? 'o' : 'i'}.</div>
+      {children && <div className="field-hint">{children}</div>}
+    </div>
+  );
+
+  const Step1SelectOP = ({ onSelect, clona }) => {
     const [ordini, setOrdini] = useState([]);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState('');
     const [search, setSearch] = useState('');
 
-    const [showCreate, setShowCreate] = useState(false);
+    const [showCreate, setShowCreate] = useState(!!clona);
     const [creating, setCreating] = useState(false);
     const [createErr, setCreateErr] = useState('');
-    const [newOp, setNewOp] = useState(makeNewOpDraft());
+    const [newOp, setNewOp] = useState(() => newOpDaClona(clona));
 
     const loadOrdini = () => {
       setLoading(true);
@@ -567,7 +610,7 @@
 
         setOrdini(prev => [created, ...prev.filter(op => String(op.item_id) !== String(created.item_id))]);
         setShowCreate(false);
-        setNewOp(makeNewOpDraft());
+        setNewOp(newOpDaClona(clona));
         onSelect(created);
       } catch (e) {
         setCreateErr(e.message || 'Errore creazione OP');
@@ -580,7 +623,7 @@
       if (creating) return;
       setShowCreate(false);
       setCreateErr('');
-      setNewOp(makeNewOpDraft());
+      setNewOp(newOpDaClona(clona));
     };
 
     return (
@@ -598,6 +641,13 @@
           </div>
         )}
 
+        {clona && (
+          <div style={{ padding: '16px 28px 0' }}>
+            <ClonaBanner clona={clona}>
+              P/N, capocommessa e CAR sono già copiati: scrivi il <strong>numero</strong> del nuovo OP e crea. Se il nuovo OP esiste già, sceglilo dall’elenco sotto. Le anomalie arriveranno già divise in blocchi, da controllare prima di salvarle.
+            </ClonaBanner>
+          </div>
+        )}
         {window._AP_HAS_ORDINI && (
           <>
             <div className="create-op-wrap">
@@ -624,7 +674,7 @@
                         placeholder="Part number"
                         value={newOp.pn}
                         onChange={e => updateNewOp('pn', e.target.value)}
-                        autoFocus
+                        autoFocus={!clona}
                       />
                     </div>
 
@@ -1333,12 +1383,45 @@
     );
   };
 
-  const Step2Controllo = ({ op, onBack, onDone }) => {
+  /* Blocco copiato da un altro OP -> editor: stessi S/N, stato superficie e testi. */
+  const editorDaClona = (b) => ({
+    ...newEditor(),
+    voci: [...(b.seriali || [])],
+    stati: (b.stato_superficie || []).filter(st => STATI_SUPERFICIE.includes(st)),
+    anomalie: (b.anomalie || []).map(a => ({
+      ...newAnomalia(),
+      testo: a.testo || '',
+      tutti: a.tutti !== false,
+      sel: a.tutti === false ? tokensOf(a.seriali || []) : [],
+      origineId: a.origine_id,
+      allegatiOrigine: a.allegati || 0,
+      copiaAllegati: false,
+    })),
+    attiva: -1,
+    daClona: true,
+  });
+
+  const editorCorrenteBlocco = (ed) => ({
+    seriali: ed.voci,
+    stato_superficie: ed.stati,
+    anomalie: ed.anomalie.filter(a => a.testo.trim() || a.origineId).map(a => ({
+      origine_id: a.origineId, testo: a.testo, tutti: a.tutti, seriali: a.sel, allegati: a.allegatiOrigine || 0,
+    })),
+  });
+
+  const Step2Controllo = ({ op, onBack, onDone, clona }) => {
     const [loading, setLoading] = useState(true);
     const [controllo, setControllo] = useState(null);
     const [riprendibili, setRiprendibili] = useState([]);
     const [fasiNote, setFasiNote] = useState([]);
-    const [fase, setFase] = useState('');
+    const [fase, setFase] = useState(clona ? (clona.fase || '') : '');
+    // Blocchi copiati non ancora caricati nell'editor (in ordine).
+    const [coda, setCoda] = useState(clona ? clona.blocchi : []);
+    const editorDopo = (codaAttuale) => {
+      if (!codaAttuale.length) return newEditor();
+      setCoda(codaAttuale.slice(1));
+      return editorDaClona(codaAttuale[0]);
+    };
     const [editingFase, setEditingFase] = useState(false);
     const [editor, setEditor] = useState(newEditor());
     const [saving, setSaving] = useState(false);
@@ -1459,7 +1542,8 @@
       try {
         const j = await postJson(API.controllo_apri, { op_id: op.id, op_item_id: op.item_id, fase: fase.trim(), mail_mode: 'fine', destinatari_extra: extraAvvio }, 'Avvio controllo');
         setControllo(j.controllo);
-        setEditor(newEditor());
+        setEditor(editorDopo(coda));
+        if (coda.length) setNotice(`Caricato il primo dei ${coda.length} blocchi copiati: controlla S/N e testi, poi «Salva blocco».`);
         setTimeout(() => snRef.current && snRef.current.focus(), 50);
       } catch (e) { setError(e.message); }
       finally { setSaving(false); }
@@ -1481,7 +1565,7 @@
           setNotice('Ripristinato il blocco che stavi scrivendo (salvato in automatico).'
             + (allegati ? ` Gli allegati non si salvano in bozza: ricarica ${allegati === 1 ? 'il file' : `i ${allegati} file`}.` : ''));
         } else {
-          setEditor(newEditor());
+          setEditor(editorDopo(coda));
         }
       } catch (e) { setError(e.message); }
       finally { setSaving(false); }
@@ -1595,6 +1679,14 @@
             catch (e) { uploadErrors.push(`anomalia ${i + 1}: ${e.message}`); }
           }
         }
+        // Allegati dell'anomalia di origine, se scelto di copiarli.
+        for (let i = 0; i < anomalie.length; i += 1) {
+          const res = risultati[i];
+          if (res && res.ok && res.local_id && anomalie[i].origineId && anomalie[i].copiaAllegati) {
+            try { await postJson(API.allegati_copia, { da: anomalie[i].origineId, a: res.local_id }, 'Copia allegati'); }
+            catch (e) { uploadErrors.push(`anomalia ${i + 1}: ${e.message}`); }
+          }
+        }
         if (!j.success) {
           // Salvataggio parziale: le anomalie riuscite tengono il loro id, così un nuovo
           // tentativo le aggiorna invece di duplicarle.
@@ -1612,12 +1704,14 @@
         const fresh = await getJson(urlFor(API.controllo_dettaglio, controllo.id), 'Aggiornamento controllo');
         setControllo(fresh.controllo);
         setDestinatari(fresh.destinatari || null);
-        setEditor(newEditor());
+        setEditor(ed.bloccoId === null ? editorDopo(coda) : newEditor());
         setConfirmRipetuti(null);
         setConfirmScoperti(null);
         loadSerialiAperti();
         const n = anomalie.length;
+        const restanti = ed.bloccoId === null ? coda.length : 0;
         setNotice(`Salvato: ${n} anomali${n === 1 ? 'a' : 'e'} su ${labelVoci(ed.voci)}.`
+          + (ed.daClona ? (restanti ? ` Caricato il prossimo blocco copiato (${restanti === 1 ? 'ne resta 1' : `ne restano ${restanti}`}).` : ' Copiati tutti i blocchi: controlla e premi «Termina controllo».') : '')
           + (uploadErrors.length ? ` Attenzione, allegati non caricati (${uploadErrors.join('; ')}): riapri il blocco con «Modifica» e riallegali.` : ''));
         setTimeout(() => snRef.current && snRef.current.focus(), 50);
         return true;
@@ -1816,6 +1910,11 @@
             <h2>Nuovo controllo</h2>
           </div>
           <div className="form-body">
+            {clona && coda.length > 0 && (
+              <ClonaBanner clona={clona}>
+                Conferma la fase{clona.fasi && clona.fasi.length > 1 ? ` (sull’OP di origine: ${clona.fasi.join(', ')})` : ''} e premi «Inizia controllo»: i blocchi copiati si caricano uno alla volta, pronti da salvare.
+              </ClonaBanner>
+            )}
             {riprendibili.length > 0 && (
               <div className="resume-box">
                 <div className="field-label">Hai un controllo ancora aperto su questo OP</div>
@@ -1859,7 +1958,7 @@
         <div className="blk-head">
           <div className="blk-num is-active">{editor.bloccoId ? blocchi.findIndex(b => b.id === editor.bloccoId) + 1 : blocchi.length + 1}</div>
           <div className="blk-head__main">
-            <div className="blk-title">{editor.bloccoId ? 'Modifica blocco' : 'Nuovo blocco di seriali'}</div>
+            <div className="blk-title">{editor.bloccoId ? 'Modifica blocco' : (editor.daClona ? `Blocco copiato da ${clona ? clona.op.id : 'altro OP'}` : 'Nuovo blocco di seriali')}</div>
             <div className="blk-meta">Fase {controllo.fase}{bozzaAt ? ` · salvato in automatico alle ${new Date(bozzaAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}` : ''}</div>
           </div>
         </div>
@@ -1927,6 +2026,7 @@
                     <span className="anom-card__txt">{a.testo.trim() || <em>Anomalia senza descrizione</em>}</span>
                     {!a.tutti && tokens.length > 1 && <span className="pill pill-parz">Su {tokens.filter(t => a.sel.some(x => x.toLowerCase() === t.toLowerCase())).length} di {tokens.length} S/N</span>}
                     {nAll > 0 && <span className="anom-card__att">📎 {nAll}</span>}
+                    {a.origineId && <span className="pill pill-info">da #{a.origineId}{a.copiaAllegati && a.allegatiOrigine ? ` · 📎 ${a.allegatiOrigine}` : ''}</span>}
                     {a.gestita && <span className="pill pill-info">{a.avanzamento || 'Gestita'}</span>}
                     <span className="anom-card__edit">{a.gestita ? 'Vedi' : 'Apri'}</span>
                   </button>
@@ -1938,6 +2038,7 @@
                     <span className="anom-card__n">{i + 1}</span>
                     <span className="anom-card__title">Anomalia {i + 1}{a.localId ? ` · #${a.localId}` : ''}</span>
                     {a.gestita && <span className="pill pill-info">Gestita dal capocommessa: {a.avanzamento || 'decisione presa'}</span>}
+                    {a.origineId && <span className="pill pill-info">Copiata da #{a.origineId}</span>}
                     {!a.localId && editor.anomalie.length > 1 && (
                       <button type="button" className="link-btn link-btn--danger" onClick={() => rimuoviAnomalia(i)}>Rimuovi</button>
                     )}
@@ -2008,6 +2109,12 @@
                       </div>
                     );
                   })()}
+                  {a.origineId && a.allegatiOrigine > 0 && !a.localId && (
+                    <label className="clona-att">
+                      <input type="checkbox" checked={!!a.copiaAllegati} onChange={e => updAnomalia(i, { copiaAllegati: e.target.checked })} />
+                      <span>Copia anche {a.allegatiOrigine === 1 ? 'l’allegato' : `i ${a.allegatiOrigine} allegati`} dell’anomalia #{a.origineId}</span>
+                    </label>
+                  )}
                   <AttachmentZone files={a.files} existing={a.existing} disabled={a.gestita}
                     onAdd={files => addFiles(i, files, false)}
                     onRemove={fi => updAnomalia(i, { files: a.files.filter((_, idx) => idx !== fi) })} />
@@ -2069,7 +2176,10 @@
           {editor.bloccoId !== null && (
             <button type="button" className="btn-secondary" onClick={() => { setEditor(newEditor()); setError(''); }} disabled={saving}>Annulla modifiche</button>
           )}
-          {editor.bloccoId === null && dirty && (
+          {editor.bloccoId === null && editor.daClona && (
+            <button type="button" className="btn-secondary" onClick={() => { setEditor(editorDopo(coda)); setError(''); setNotice(''); }} disabled={saving}>Salta questo blocco</button>
+          )}
+          {editor.bloccoId === null && dirty && !editor.daClona && (
             <button type="button" className="btn-secondary" onClick={() => { setEditor(newEditor()); setError(''); }} disabled={saving}>Svuota</button>
           )}
           <button type="button" className="btn-primary" onClick={() => salvaBlocco()} disabled={saving}>
@@ -2120,6 +2230,25 @@
                   onEdit={() => { setEditor(editorFromBlocco(b)); setError(''); setNotice(''); }} />
           ))}
           {editor.bloccoId === null && editorCard}
+          {coda.length > 0 && (
+            <div className="clona-coda">
+              <div className="field-label">Da copiare ancora ({coda.length})</div>
+              {coda.map((b, i) => (
+                <div key={i} className="clona-coda__row">
+                  <span className="clona-coda__sn">{labelVoci(b.seriali)}</span>
+                  <span className="clona-coda__txt">{b.anomalie.length} anomali{b.anomalie.length === 1 ? 'a' : 'e'} · {b.anomalie.map(a => a.testo).filter(Boolean).join(' · ')}</span>
+                  <button type="button" className="link-btn" disabled={saving || (dirty && !editor.daClona) || editor.bloccoId !== null}
+                    title="Carica ora questo blocco (quello in scrittura torna in coda)"
+                    onClick={() => {
+                      const resto = coda.filter((_, idx) => idx !== i);
+                      setCoda(editor.daClona && editorCorrenteBlocco(editor) ? [editorCorrenteBlocco(editor), ...resto] : resto);
+                      setEditor(editorDaClona(b));
+                      setError('');
+                    }}>Carica ora</button>
+                </div>
+              ))}
+            </div>
+          )}
 
           {notice && <div className="info-msg">{notice}</div>}
           {error && <div className="error-msg">{error}</div>}
@@ -2156,6 +2285,20 @@
     const [step,       setStep]       = useState(1);
     const [selectedOp, setSelectedOp] = useState(null);
     const [formKey,    setFormKey]    = useState(0);
+    const [clona,      setClona]      = useState(null);
+    const [clonaStato, setClonaStato] = useState(CLONA_PARAMS ? 'loading' : '');
+
+    useEffect(() => {
+      if (!CLONA_PARAMS) return;
+      getJson(`${API.clona}?op_id=${encodeURIComponent(CLONA_PARAMS.da)}&anomalie=${CLONA_PARAMS.ids.join(',')}`, 'Anomalie da copiare')
+        .then(j => {
+          if (!j.blocchi || !j.blocchi.length) { setClonaStato('Nessuna delle anomalie scelte è stata trovata su questo OP.'); return; }
+          setClona(j); setClonaStato('');
+          // Un ricaricamento non deve ricopiare tutto da capo (OP e blocchi doppi).
+          window.history.replaceState(null, '', window.location.pathname);
+        })
+        .catch(e => setClonaStato(e.message || 'Errore nel caricare le anomalie da copiare'));
+    }, []);
 
     const handleSelectOp = (op) => { setSelectedOp(op); setStep(2); setFormKey(k => k + 1); };
     const handleBack = () => { setStep(1); setSelectedOp(null); };
@@ -2179,6 +2322,7 @@
 
     const handleDone = (action) => {
       if (action === 'menu') { window.location.href = '/anomalie-menu'; return; }
+      setClona(null);
       if (action === 'altro_op') { handleBack(); return; }
       setFormKey(k => k + 1);
     };
@@ -2201,14 +2345,20 @@
 
         {/* Content */}
         <div className="content">
-          {step === 1 ? (
-            <Step1SelectOP onSelect={handleSelectOp} />
+          {clonaStato === 'loading' ? (
+            <div className="step-card"><div style={{ padding: '24px 28px' }}>Caricamento delle anomalie da copiare…</div></div>
+          ) : step === 1 ? (
+            <>
+              {clonaStato && <div className="error-msg" style={{ marginBottom: 16 }}>{clonaStato}</div>}
+              <Step1SelectOP onSelect={handleSelectOp} clona={clona} />
+            </>
           ) : (
             <Step2Controllo
               key={formKey}
               op={selectedOp}
               onBack={handleBack}
               onDone={handleDone}
+              clona={clona}
             />
           )}
         </div>
