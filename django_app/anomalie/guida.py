@@ -63,10 +63,16 @@ SEZIONI: list[dict] = [
                 ("Capocommessa dell'OP", "decide sulle anomalie dei propri OP, dal portale o dal link della mail."),
                 ("CAR dell'OP", "riceve le mail in copia e, se abilitato, decide sugli OP di cui è incaricato. "
                  "Per i collaudi di benestare è il destinatario principale."),
-                ("Chi gestisce tutti gli OP", "decide su qualunque OP (permesso di modifica globale)."),
+                ("Capo del team", "con «modificare» sul team (ruolo Caporeparto) vede e decide sugli OP del suo team: "
+                 "quelli dove lui o un membro del team è capocommessa o CAR e quelli con anomalie aperte dal team."),
+                ("Chi gestisce tutti gli OP", "decide su qualunque OP (in «Ruoli e permessi»: anomalie, modificare = "
+                 "«Tutti»; di serie solo il ruolo Qualità)."),
                 ("Amministratori del modulo", "configurano liste, promemoria, accessi e vedono i log."),
             ]),
-            ("p", "Chi può solo consultare vede tutto ma trova i campi della decisione disattivati, con l'avviso "
+            ("p", "Con il sistema «Ruoli e permessi» acceso ognuno vede solo gli OP che lo riguardano: quelli di cui è "
+                  "capocommessa o CAR, quelli dove ha aperto un'anomalia e quelli che l'ambito di «vedere» gli concede "
+                  "(team o tutti). Ingegneria e Controllo qualità aprono segnalazioni su qualsiasi OP ma modificano "
+                  "solo i propri. Chi può solo consultare trova i campi della decisione disattivati, con l'avviso "
                   "«Sola lettura». I pulsanti del menu compaiono solo a chi ha il permesso corrispondente."),
         ],
     },
@@ -190,8 +196,10 @@ SEZIONI: list[dict] = [
             ("p", "La pagina ha tre colonne: ordini di produzione, anomalie dell'OP scelto, dettaglio dell'anomalia. "
                   "Da telefono le tre colonne diventano le schede Ordini, Anomalie e Dettaglio in basso."),
             ("ul", [
-                "Ordini: i filtri «Tutti», «Con aperte» e «In carico a me» con i conteggi; la ricerca trova OP, P/N, "
-                "capocommessa e CAR. Il numero arancione su un OP indica le anomalie da decidere.",
+                "Ordini: i filtri «Con aperte» (quello di partenza: gli OP con anomalie ancora aperte), «In carico a me» "
+                "(OP con anomalie aperte di cui sei capocommessa o CAR) e «Tutti» (anche gli OP con sole anomalie "
+                "chiuse), con i conteggi; la ricerca trova OP, P/N, capocommessa e CAR. Il numero arancione su un OP "
+                "indica le anomalie aperte ancora da decidere.",
                 "Anomalie: raggruppate per blocco di seriali, con fase, operatore e data. «Da decidere» mostra solo quelle "
                 "senza decisione; le chiuse sono raccolte in fondo in «Chiuse».",
                 "Dettaglio: in alto OP, fase e se è un «Collaudo di benestare»; le frecce (o Alt+↑ / Alt+↓) "
@@ -220,7 +228,9 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "L'anomalia si chiude da sola al salvataggio quando apri un RDC o scegli «Accetto lo stato» o «Apertura "
                 "ORE/RIPI»: la pagina lo avvisa prima di salvare.",
-                "Con «Segnalare al cliente» l'avanzamento resta quello attuale.",
+                "Se scrivi qualcosa nelle note, l'avanzamento non può restare «In attesa»: scegline un altro, altrimenti "
+                "il salvataggio si ferma con l'avviso (anche dal link della mail).",
+                "Con «Segnalare al cliente» l'avanzamento resta quello attuale, a meno che tu non scriva una nota.",
                 "«Applica la stessa decisione anche alle altre anomalie aperte di questi seriali» copia la decisione sulle "
                 "altre anomalie aperte del blocco; sotto la frase sono ripetuti i seriali interessati.",
                 "Se cambi anomalia o OP senza salvare, la pagina chiede se salvare, scartare o restare.",
@@ -352,8 +362,11 @@ SEZIONI: list[dict] = [
                  "ha deciso."),
                 ("Il capocommessa non ha ricevuto la mail.", "Controlla nel riepilogo del controllo a chi è andata; gli "
                  "amministratori la vedono e la possono reinviare da Configurazione → Log attività."),
-                ("Vedo i campi della decisione grigi.", "Non sei capocommessa o CAR dell'OP e non hai il permesso di "
-                 "modifica globale: chiedilo a un amministratore."),
+                ("Vedo i campi della decisione grigi.", "Non sei capocommessa o CAR dell'OP e l'ambito di «modificare» "
+                 "del tuo ruolo non lo copre: chiedilo a un amministratore."),
+                ("Non vedo un OP.", "Vedi solo gli OP che ti riguardano (capocommessa, CAR, anomalie aperte da te o dal "
+                 "tuo team). Controlla anche il filtro: «Con aperte» nasconde gli OP con sole anomalie chiuse, «Tutti» "
+                 "li mostra."),
                 ("Il link della mail dice che è scaduto o già usato.", "Apri l'OP dal portale in Gestione anomalie."),
             ]),
         ],

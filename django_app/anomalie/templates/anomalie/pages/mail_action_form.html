@@ -210,6 +210,7 @@
       align-items: center; gap: 6px;
     }
     .salva-esito.visible { display: flex; }
+    .salva-esito.is-error { background: #fee2e2; color: #991b1b; }
 
     /* Notice permessi */
     .readonly-notice {
@@ -456,7 +457,7 @@
                 </div>
                 <div class="field-wide">
                   <div class="field-label">Risposta / note del capocommessa</div>
-                  <textarea class="field-textarea" id="note-{{ a.id }}" placeholder="Decisione, istruzioni per il reparto...">{{ a.note_capocommessa|default:'' }}</textarea>
+                  <textarea class="field-textarea" id="note-{{ a.id }}" oninput="onToggleChange({{ a.id }})" placeholder="Decisione, istruzioni per il reparto...">{{ a.note_capocommessa|default:'' }}</textarea>
                 </div>
                 {% if gruppo.righe|length > 1 %}
                 <label class="applica-blocco field-wide">
@@ -607,7 +608,9 @@
     rebuildSelect(id);
 
     if (av) {
-      var disabled = seg && seg.checked;
+      // Con una nota scritta lo stato va scelto anche se si segnala al cliente.
+      var noteEl = document.getElementById('note-' + id);
+      var disabled = seg && seg.checked && !(noteEl && noteEl.value.trim());
       av.disabled = disabled;
       av.style.opacity = disabled ? '0.6' : '1';
       av.style.cursor = disabled ? 'not-allowed' : 'pointer';
@@ -692,6 +695,18 @@
     var chiudere = shouldAutoClose(aprireRdc, av.value);
     var num = document.getElementById('num-' + id);
 
+    // Una nota scritta non può lasciare l'anomalia «In attesa» (stesso controllo del server).
+    var pill = document.getElementById('stato-' + id);
+    var statoEffettivo = String((av.disabled ? '' : av.value) || (pill ? pill.dataset.stato : '') || '').trim().toLowerCase();
+    if (note && note.value.trim() && (statoEffettivo === '' || statoEffettivo === 'in attesa')) {
+      if (esito) {
+        esito.classList.add('visible', 'is-error');
+        esito.textContent = 'Hai scritto una nota: scegli anche lo stato di avanzamento, l'anomalia non può restare «In attesa».';
+      }
+      av.focus();
+      return;
+    }
+
     aggiornamenti[id] = {
       avanzamento: av.disabled ? '' : av.value,
       note: note ? note.value.trim() : '',
@@ -726,6 +741,7 @@
       testo += ' (dalla decisione del blocco)';
     }
     if (esito) {
+      esito.classList.remove('is-error');
       esito.classList.add('visible');
       esito.textContent = testo;
     }

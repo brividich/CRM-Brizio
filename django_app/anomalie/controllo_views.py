@@ -65,13 +65,13 @@ def _get_controllo(request, pk: int):
 @require_GET
 def api_controlli(request):
     """Controlli ancora aperti dell'utente sull'OP (per riprenderli) e fasi già usate."""
-    from .views import _can_edit_anomalie_for_op
+    from .views import _can_create_anomalie_for_op
 
     op_id = _txt(request.GET.get("op_id"), 100)
     if not op_id:
         return _err("op_id obbligatorio")
-    if not _can_edit_anomalie_for_op(request, op_id):
-        return _err("Permesso negato: non autorizzato a modificare questo OP", 403)
+    if not _can_create_anomalie_for_op(request, op_id):
+        return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
     recenti = timezone.now() - timedelta(days=7)
     aperti = AnomaliaControllo.objects.filter(
         op_id__iexact=op_id, operatore=request.user, terminato_at__isnull=True, created_at__gte=recenti,
@@ -104,13 +104,13 @@ def api_controllo_dettaglio(request, pk: int):
 def api_destinatari_op(request):
     """Chi riceverà la mail del controllo su un OP: serve alla pagina prima ancora
     che il controllo esista, per mostrare i destinatari già in fase di avvio."""
-    from .views import _can_edit_anomalie_for_op
+    from .views import _can_create_anomalie_for_op
 
     op_id = _txt(request.GET.get("op_id"), 100)
     if not op_id:
         return _err("op_id obbligatorio")
-    if not _can_edit_anomalie_for_op(request, op_id):
-        return _err("Permesso negato: non autorizzato a modificare questo OP", 403)
+    if not _can_create_anomalie_for_op(request, op_id):
+        return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
     return JsonResponse({"success": True, "destinatari": cs.destinatari_display(op_id)})
 
 
@@ -127,7 +127,7 @@ def api_persone(request):
 @login_required
 @require_POST
 def api_controllo_apri(request):
-    from .views import _can_edit_anomalie_for_op, _current_user_identity
+    from .views import _can_create_anomalie_for_op, _current_user_identity
 
     data = _body(request)
     op_id = _txt(data.get("op_id"), 100)
@@ -136,8 +136,8 @@ def api_controllo_apri(request):
         return _err("op_id obbligatorio")
     if not fase:
         return _err("Indica la fase del controllo")
-    if not _can_edit_anomalie_for_op(request, op_id):
-        return _err("Permesso negato: non autorizzato a modificare questo OP", 403)
+    if not _can_create_anomalie_for_op(request, op_id):
+        return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
     extra, rifiutati = cs.normalizza_destinatari_extra(data.get("destinatari_extra"))
     if rifiutati:
         return _err("Indirizzi non collegati a nessuna persona in anagrafica: " + ", ".join(rifiutati))
@@ -344,7 +344,7 @@ def api_controllo_blocco(request, pk: int):
             "aprire_rdc": False,
             "segnalare": False,
             "chiudere": False,
-        }, notifica_debounce=False)
+        }, notifica_debounce=False, da_controllo=True)
         if not esito.get("success"):
             risultati.append({"local_id": a["local_id"], "ok": False, "error": esito.get("error", "")})
             continue

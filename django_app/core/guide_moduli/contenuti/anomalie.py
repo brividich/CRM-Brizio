@@ -27,6 +27,12 @@ GUIDA = {
                     "Nel portale e nella pagina della mail «Applica la stessa decisione anche alle altre … anomalie aperte "
                     "di questi seriali» copia la decisione su tutto il blocco.",
                 ]),
+                ("p", "Gestione anomalie mostra solo gli OP che ti riguardano: quelli di cui sei capocommessa o CAR, "
+                      "quelli dove hai aperto un'anomalia e quelli che il tuo ruolo ti fa vedere (team o tutti). Di "
+                      "partenza il filtro è «Con aperte»; «In carico a me» tiene gli OP di cui sei capocommessa o CAR, "
+                      "«Tutti» mostra anche quelli con sole anomalie chiuse."),
+                ("p", "Se scrivi una nota nella decisione, l'avanzamento non può restare «In attesa»: va scelto uno "
+                      "stato diverso, nel portale come nella pagina della mail."),
                 ("p", "Nella scheda di una NC aperta «Segna come Part 145» indica che riguarda un componente lavorato per "
                       "l'organizzazione di manutenzione: la NC compare nel Dossier PART 145 del modulo Asset."),
                 ("p", "La guida completa, con ogni schermata, è nel collegamento in cima."),
@@ -40,6 +46,11 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Chi è capocommessa e chi riceve le mail si decide con i ruoli del modulo e in Anagrafica.",
+                    "Con «Ruoli e permessi» acceso l'ambito delle celle anomalie decide chi vede e modifica: «Tutti» "
+                    "ogni OP, «Team» gli OP del team (capocommessa, CAR o autori delle anomalie nel team), «Propri» "
+                    "solo i suoi. Capocommessa e CAR modificano sempre i propri OP (regole CC/CAR del modulo). Di "
+                    "serie: Qualità modifica tutto, Caporeparto il suo team, Ingegneria e Controllo qualità aprono "
+                    "segnalazioni ovunque ma modificano solo i propri OP (migrazione core 0106 del 02/11/2026).",
                     "La mail al capocommessa parte una sola volta, a fine controllo; se il controllo resta fermo il "
                     "controllore riceve un promemoria (notifica + mail con riepilogo, default 15 minuti) e la mail parte "
                     "da sola dopo il tempo di invio automatico (default 1 ora). I due tempi si cambiano in "

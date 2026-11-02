@@ -75,6 +75,7 @@ class AnomalieOrdiniApiTests(TestCase):
                     "anomalie_count": 4,
                     "anomalie_aperte_count": 2,
                     "anomalie_da_decidere_count": 1,
+                    "in_carico": False,
                 }
             ],
         )
