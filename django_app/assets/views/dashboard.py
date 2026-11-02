@@ -270,29 +270,41 @@ _WIDGET_META: dict[str, dict] = {
 }
 
 
-def _compute_dashboard_kpis(today: date) -> dict:
-    """Calcola tutti i valori KPI per la dashboard assets."""
+def _compute_dashboard_kpis(request: HttpRequest, today: date) -> dict:
+    """Calcola tutti i valori KPI per la dashboard assets.
+
+    Ogni numero è ristretto all'ambito del ruolo («Propri», «del team»,
+    «Tutti»), come le liste a cui portano: prima un CAR leggeva i totali di
+    tutta l'azienda e cliccando trovava una lista più corta.
+    """
+    from ..registro_permessi import MODULO_MANUTENZIONE
+    from ..services.visibilita import filtra, filtra_odl, ids_visibili
 
     in_30 = today + timedelta(days=30)
     in_90 = today + timedelta(days=90)
     first_day_month = today.replace(day=1)
 
-    total = Asset.objects.exclude(status=Asset.STATUS_RETIRED).count()
-    in_uso = Asset.objects.filter(status=Asset.STATUS_IN_USE).count()
-    in_repair = Asset.objects.filter(status=Asset.STATUS_IN_REPAIR).count()
+    assets_qs = filtra(request, Asset.objects.all())
+    total = assets_qs.exclude(status=Asset.STATUS_RETIRED).count()
+    in_uso = assets_qs.filter(status=Asset.STATUS_IN_USE).count()
+    in_repair = assets_qs.filter(status=Asset.STATUS_IN_REPAIR).count()
 
     # Scadenze amministrative: registro separato dai piani, senza le copie
     # migrate (``deadline_feed``).
     from ..services import deadline_feed as feed
 
     admin_dues = feed.administrative_dues(due_to=in_90, exclude_retired=False)
+    visibili_man = ids_visibili(request, MODULO_MANUTENZIONE)
+    if visibili_man is not None:
+        admin_dues = [due for due in admin_dues if due.asset.id in visibili_man]
     dl_scadute = sum(1 for due in admin_dues if due.due_date < today)
     dl_30 = sum(1 for due in admin_dues if today <= due.due_date <= in_30)
     dl_90 = sum(1 for due in admin_dues if in_30 < due.due_date <= in_90)
 
     # OdL
-    wo_aperte = WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN).count()
-    wo_chiuse_mese = WorkOrder.objects.filter(
+    wo_qs = filtra_odl(request, WorkOrder.objects.all())
+    wo_aperte = wo_qs.filter(status=WorkOrder.STATUS_OPEN).count()
+    wo_chiuse_mese = wo_qs.filter(
         status=WorkOrder.STATUS_DONE, closed_at__date__gte=first_day_month
     ).count()
 
@@ -303,7 +315,7 @@ def _compute_dashboard_kpis(today: date) -> dict:
 
     # Asset per stato
     status_map = dict(Asset.STATUS_CHOICES)
-    per_stato_qs = Asset.objects.values("status").annotate(n=Count("id")).order_by("-n")
+    per_stato_qs = assets_qs.values("status").annotate(n=Count("id")).order_by("-n")
     per_stato = [
         {"status": r["status"], "label": status_map.get(r["status"], r["status"]), "count": r["n"]}
         for r in per_stato_qs
@@ -311,7 +323,7 @@ def _compute_dashboard_kpis(today: date) -> dict:
 
     # Asset per categoria (top 10 + "Altro")
     per_cat_qs = list(
-        Asset.objects.values("asset_category__id", "asset_category__label")
+        assets_qs.values("asset_category__id", "asset_category__label")
         .annotate(n=Count("id"))
         .order_by("-n")[:12]
     )
@@ -368,12 +380,20 @@ def _dashboard_workorders(request: HttpRequest, today: date, limit: int = 6) -> 
 
     now = timezone.now()
     age_threshold = today - timedelta(days=get_workorder_overdue_days())
-    qs = (
+    from django.db.models import Q
+
+    from ..services.visibilita import filtra_odl
+
+    qs = filtra_odl(
+        request,
         WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN)
         .exclude(asset__status=Asset.STATUS_RETIRED)
-        .select_related("asset", "assigned_to")
+        .select_related("asset", "assigned_to"),
     )
+    # Le righe servono solo a scegliere le prime da mostrare: i conteggi qui
+    # sotto si fanno sul queryset intero, mai sulla lista troncata.
     open_rows = list(qs.order_by("opened_at", "id")[:400])
+    late_q = Q(due_at__lt=now) | Q(opened_at__date__lte=age_threshold)
 
     def _late(wo) -> bool:
         if wo.due_at and wo.due_at < now:
@@ -410,10 +430,10 @@ def _dashboard_workorders(request: HttpRequest, today: date, limit: int = 6) -> 
     return {
         "items": items,
         "total": qs.count(),
-        "urgent": sum(1 for wo in open_rows if wo.priority == WorkOrder.PRIORITY_URGENT),
-        "late": sum(1 for wo in open_rows if _late(wo)),
-        "unassigned": sum(1 for wo in open_rows if not wo.assigned_to_id),
-        "mine": sum(1 for wo in open_rows if wo.assigned_to_id == request.user.id),
+        "urgent": qs.filter(priority=WorkOrder.PRIORITY_URGENT).count(),
+        "late": qs.filter(late_q).count(),
+        "unassigned": qs.filter(assigned_to__isnull=True).count(),
+        "mine": qs.filter(assigned_to_id=request.user.id).count(),
     }
 
 
@@ -434,8 +454,18 @@ def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> d
         )
     except Exception:
         deadlines = []
+    from django.db.models import Q
+
+    from ..registro_permessi import MODULO_MANUTENZIONE
+    from ..services.visibilita import ids_visibili
+
+    # Ambito «Propri / del team»: solo le scadenze degli asset visibili, come
+    # il calendario della manutenzione.
+    visibili = ids_visibili(request, MODULO_MANUTENZIONE)
     for dl in deadlines:
         if dl.state == feed.STATE_DONE:
+            continue
+        if visibili is not None and dl.asset_id not in visibili:
             continue
         rows.append({
             "source": dl.kind,
@@ -453,7 +483,12 @@ def _dashboard_deadlines(request: HttpRequest, today: date, limit: int = 8) -> d
     verifications = PeriodicVerification.objects.filter(
         is_active=True, is_legacy=False, next_verification_date__isnull=False,
         next_verification_date__lte=horizon,
-    ).order_by("next_verification_date")[:200]
+    )
+    if visibili is not None:
+        verifications = verifications.filter(
+            pk__in=PeriodicVerification.objects.filter(Q(assets__in=visibili)).values("pk")
+        )
+    verifications = verifications.order_by("next_verification_date")[:200]
     pv_url = reverse("assets:periodic_verifications")
     for pv in verifications:
         rows.append({
@@ -551,7 +586,7 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
     cfg, _ = AssetDashboardConfig.objects.get_or_create(user=request.user)
     enabled = cfg.get_enabled_widgets()
 
-    kpis = _compute_dashboard_kpis(today)
+    kpis = _compute_dashboard_kpis(request, today)
     family_kpis = get_family_dashboard_kpis(selected_family_id, today=today)
     family_distribution = get_families_distribution(today=today)
     maintenance_by_family = get_maintenance_by_family(today=today)
@@ -568,12 +603,6 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
 
     # Cruscotto operativo (cose da fare + segnalazioni arrivate), condiviso con il Centro Manutenzione
     from assets.services.dashboard_kpi import get_cose_da_fare_overview, get_segnalazioni_overview
-    cose_da_fare = get_cose_da_fare_overview(today=today)
-    segnalazioni = get_segnalazioni_overview(today=today)
-
-    # Centro "Da fare": interventi, segnalazioni e scadenze con le azioni rapide
-    dash_wo = _dashboard_workorders(request, today)
-    dash_deadlines = _dashboard_deadlines(request, today)
     from tickets.views import _can_manage_tickets
     from tickets.models import TipoTicket
 
@@ -581,6 +610,16 @@ def asset_dashboard(request: HttpRequest) -> HttpResponse:
         can_manage_man = _can_manage_tickets(request, TipoTicket.MAN)
     except Exception:
         can_manage_man = False
+    from assets.services.dashboard_kpi import segnalazioni_vuote
+
+    cose_da_fare = get_cose_da_fare_overview(today=today, request=request)
+    # Le segnalazioni MAN (titoli e conteggi) le vede solo chi le gestisce:
+    # gli altri trovavano titoli altrui e un collegamento che dà 403.
+    segnalazioni = get_segnalazioni_overview(today=today) if can_manage_man else segnalazioni_vuote()
+
+    # Centro "Da fare": interventi, segnalazioni e scadenze con le azioni rapide
+    dash_wo = _dashboard_workorders(request, today)
+    dash_deadlines = _dashboard_deadlines(request, today)
     attention_total = (
         dash_wo["urgent"] + dash_wo["late"] + segnalazioni["urgenti"] + dash_deadlines["overdue"]
     )

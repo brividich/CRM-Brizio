@@ -47,6 +47,10 @@ Segnalazione e gestione anomalie rilevate in produzione dagli operatori.
 - **Export CSV** tracciato in AuditLog
 - **ACL**: il launcher resta accessibile ai ruoli con almeno un permesso operativo (`anomalie_aperte` o `inserimento_anomalie`) anche senza grant del contenitore
 
+## Statistiche con l'ambito dell'utente (02/11/2026)
+
+Statistiche, Ricerca dettaglio, tendina degli OP e contatore della home passano da `_anomalie_scope_where`: con scope ASSIGNED contano solo gli OP in cui l'utente è capocommessa/CAR, con OWN_ANOMALIE quelli su cui ha aperto un'anomalia, come l'elenco OP (`api_db_ordini`).
+
 ## Hardening ottobre 2026
 
 - Correzione 10/10: la copia di riepilogo al segnalante non partiva mai (la query cercava `utenti.cognome`, colonna inesistente, e avrebbe usato `utenti.email`, che è il login). Ora l'indirizzo è l'`email_notifica` della scheda anagrafica.

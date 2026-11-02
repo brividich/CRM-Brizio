@@ -397,7 +397,11 @@ class AssetsRoutingTests(TestCase):
         )
 
         self.client.force_login(self.user)
+        # Le segnalazioni MAN le vede solo chi gestisce i ticket di manutenzione.
         response = self.client.get(reverse("assets:asset_dashboard"))
+        self.assertNotContains(response, "Rumore anomalo mandrino")
+        with patch("tickets.views._can_manage_tickets", return_value=True):
+            response = self.client.get(reverse("assets:asset_dashboard"))
 
         self.assertEqual(response.status_code, 200)
         dash_wo = response.context["dash_wo"]

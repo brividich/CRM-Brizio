@@ -53,7 +53,8 @@ class Cruscotto:
     assunti_30: list = field(default_factory=list)
     cessati_30: list = field(default_factory=list)
     programmati: list = field(default_factory=list)
-    formazione: Copertura = field(default_factory=Copertura)
+    # None = l'utente non ha il permesso formazione: niente numeri né nomi.
+    formazione: Copertura | None = field(default_factory=Copertura)
     visite: Copertura | None = None
     righe_formazione: list[Riga] = field(default_factory=list)
     righe_visite: list[Riga] = field(default_factory=list)
@@ -70,7 +71,12 @@ class Cruscotto:
 
     @property
     def copertura_totale(self) -> Copertura:
-        tot = Copertura(self.formazione.ok, self.formazione.warn, self.formazione.ko, self.formazione.mancante)
+        tot = Copertura()
+        if self.formazione:
+            tot.ok += self.formazione.ok
+            tot.warn += self.formazione.warn
+            tot.ko += self.formazione.ko
+            tot.mancante += self.formazione.mancante
         if self.visite:
             tot.ok += self.visite.ok
             tot.warn += self.visite.warn
@@ -96,12 +102,27 @@ def _prime(righe: list[Riga]) -> list[Riga]:
     return sorted(righe, key=lambda r: (_ORDINE.get(r.tono, 9), r.data or date.max, r.nominativo))[:MAX_RIGHE]
 
 
-def calcola(*, include_visite: bool, oggi: date | None = None) -> Cruscotto:
+def calcola(
+    *,
+    include_visite: bool,
+    include_formazione: bool = True,
+    visibili: set[int] | None = None,
+    oggi: date | None = None,
+) -> Cruscotto:
+    """Numeri della dashboard HR.
+
+    ``visibili`` = id anagrafica delle schede che l'utente può vedere (None =
+    tutte): con un ambito «team» la dashboard conta e nomina solo quelle,
+    come l'elenco dipendenti.
+    """
     from ..models import AdempimentoCambioMansione, DipendenteAssegnazione, DipendenteQualifica
 
     oggi = oggi or timezone.localdate()
     ctx = requisiti.ambito(oggi)
     tutti = ctx._tutti()
+    ammessi = None if visibili is None else {ctx.canonico(i) for i in visibili}
+    if ammessi is not None:
+        tutti = [p for p in tutti if p.id in ammessi]
     in_forza = {p.id: p for p in tutti if p.in_forza_al(oggi)}
     # Persone e reparti contano solo l'organico (senza CEO, RSPP esterno...);
     # gli obblighi di formazione, visite e qualifiche valgono per tutti.
@@ -112,17 +133,20 @@ def calcola(*, include_visite: bool, oggi: date | None = None) -> Cruscotto:
                             key=lambda p: p.data_assunzione, reverse=True)
     out.cessati_30 = sorted((p for p in tutti if p.data_cessazione and inizio <= p.data_cessazione <= oggi),
                             key=lambda p: p.data_cessazione, reverse=True)
-    out.programmati = list(
-        DipendenteAssegnazione.objects.filter(attivata_il__isnull=True, data_inizio__gt=oggi)
-        .order_by("data_inizio")[:MAX_RIGHE]
-    )
+    programmati = DipendenteAssegnazione.objects.filter(attivata_il__isnull=True, data_inizio__gt=oggi).order_by("data_inizio")
+    if ammessi is None:
+        out.programmati = list(programmati[:MAX_RIGHE])
+    else:
+        out.programmati = [a for a in programmati if ctx.canonico(a.legacy_anagrafica_id) in ammessi][:MAX_RIGHE]
     nomi = {p.id: p.nominativo for p in tutti}
     for a in out.programmati:
         a.nominativo = nomi.get(ctx.canonico(a.legacy_anagrafica_id), f"#{a.legacy_anagrafica_id}")
 
     persone_ko: set[int] = set()
     righe: list[Riga] = []
-    for v in requisiti.formazione(ctx, in_forza):
+    if not include_formazione:
+        out.formazione = None
+    for v in (requisiti.formazione(ctx, in_forza) if include_formazione else ()):
         if not v.obbligatorio:
             continue
         if v.stato == "SCADUTO":
@@ -176,7 +200,8 @@ def calcola(*, include_visite: bool, oggi: date | None = None) -> Cruscotto:
 
     try:
         from . import stato_operativo
-        stati = [s for s in stato_operativo.calcola(giorno=oggi).values() if s.codice != stato_operativo.OK]
+        stati = [s for s in stato_operativo.calcola(giorno=oggi).values() if s.codice != stato_operativo.OK
+                 and (ammessi is None or ctx.canonico(s.legacy_id) in ammessi)]
         out.n_non_idonei_operare = sum(1 for s in stati if s.bloccante)
         out.righe_stato_operativo = _prime([
             Riga(ctx.canonico(s.legacy_id), nomi.get(ctx.canonico(s.legacy_id), f"#{s.legacy_id}"),
@@ -188,8 +213,8 @@ def calcola(*, include_visite: bool, oggi: date | None = None) -> Cruscotto:
         import logging
         logging.getLogger(__name__).warning("cruscotto: stato operativo non calcolabile", exc_info=True)
 
-    aperti = list(AdempimentoCambioMansione.objects.filter(stato=AdempimentoCambioMansione.STATO_APERTO, attivo=True)
-                  .order_by("entro_il"))
+    aperti = [a for a in AdempimentoCambioMansione.objects.filter(stato=AdempimentoCambioMansione.STATO_APERTO, attivo=True)
+              .order_by("entro_il") if ammessi is None or ctx.canonico(a.legacy_anagrafica_id) in ammessi]
     out.cambi_aperti = len(aperti)
     out.cambi_ritardo = sum(1 for a in aperti if a.in_ritardo)
     per_persona: dict[int, list] = {}

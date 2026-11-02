@@ -7,6 +7,7 @@ from __future__ import annotations
 from calendar import monthrange
 from datetime import date, datetime, timedelta
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
 from django.shortcuts import redirect, render
@@ -14,6 +15,7 @@ from django.utils import timezone
 
 from .views import (
     _assenze_permissions,
+    _events_manager_scope,
     _load_events,
     _template_perm_context,
 )
@@ -65,7 +67,14 @@ def calendario_month_partial(request):
     # Carica gli eventi per il mese selezionato
     month_start = datetime(mese_date.year, mese_date.month, 1)
     month_end = datetime(mese_date.year, mese_date.month, monthrange(mese_date.year, mese_date.month)[1], 23, 59, 59)
-    eventi_raw = _load_events(start=month_start, end=month_end, limit=500)
+    # Stesso perimetro e stesso tetto del calendario principale (api_eventi):
+    # senza manager_scope il frammento mostrava le assenze di tutta l'azienda.
+    eventi_raw = _load_events(
+        start=month_start,
+        end=month_end,
+        limit=int(getattr(settings, "ASSENZE_CALENDAR_MAX_EVENTS", 1500) or 1500),
+        manager_scope=_events_manager_scope(request),
+    )
 
     # Adatta i dati per la vista lista
     eventi: list[dict] = []

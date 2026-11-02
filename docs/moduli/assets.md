@@ -248,6 +248,10 @@ Scheda asset: cruscotto con i KPI del tipo di dispositivo (MFC, firewall, PC/ser
 
 Asset IT: mini-andamenti nel cruscotto (pagine MFC, sonde SNMP, esiti backup); pagina «Riconciliazione dispositivi» per collegare in blocco SNMP, MFC e SOC agli asset; avvisi giornalieri per dispositivi muti o in errore e consumabili bassi (dopo il deploy: `setup_q_schedules`).
 
+## KPI con l'ambito del ruolo (02/11/2026)
+
+Dashboard Asset (`_compute_dashboard_kpis(request, …)`, centro «Da fare», scadenze e verifiche), `get_cose_da_fare_overview(request=…)` e dashboard Macchine di lavoro filtrano con `visibilita.filtra` / `filtra_odl` / `ids_visibili`; i contatori degli OdL sono COUNT sul queryset. Le segnalazioni MAN compaiono solo a chi gestisce i ticket MAN.
+
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) amministra il modulo chi ha «gestire» con visibilità «tutti» (preset Tecnico IT e Tecnico Manutenzione). L'elenco non è filtrato per assegnatario.

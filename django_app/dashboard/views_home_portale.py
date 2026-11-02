@@ -187,6 +187,14 @@ def _mod_is_accessible(mod: dict, user_slugs: set[str], is_admin: bool) -> bool:
     return False
 
 
+
+def moduli_visibili(request, is_admin: bool) -> set[str]:
+    """Id dei moduli del catalogo che l'utente può aprire: stessa regola delle tessere."""
+    if _sistema_ruoli_attivo():
+        return {spec["id"] for spec in _MODULE_CATALOG if _mod_visibile_da_ruoli(request, spec, is_admin)}
+    accessible = _build_accessible_set(request)
+    return {spec["id"] for spec in _MODULE_CATALOG if _mod_is_accessible(spec, accessible, is_admin)}
+
 # ── Data layer ────────────────────────────────────────────────────────────────
 
 def _first_kpi_value(tile_kpis: dict, module_id: str) -> int:
@@ -252,7 +260,7 @@ def _user_ids_da_legacy(legacy_ids) -> list[int]:
     return list(Profile.objects.filter(legacy_user_id__in=list(legacy_ids)).values_list("user_id", flat=True))
 
 
-def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
+def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=None) -> dict:
     """Multi-KPI per tile. Returns dict[module_id, list[{value, unit, tone}]].
     Tutte le query sono lightweight e avvolte in try/except — un errore non blocca la home."""
     from datetime import timedelta
@@ -267,10 +275,14 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
 
     # ── ANOMALIE ──────────────────────────────────────────────────────
     try:
-        raw = _board_data_anomalie(legacy_user, is_admin, {"max_items": 500, "solo_aperte": True})
-        out["anomalie"] = [
-            {"value": len(raw), "unit": "aperte", "tone": "danger"},
-        ]
+        # Conteggio pieno con lo stesso ambito dell'elenco anomalie: la lista del
+        # widget è troncata (MAX_BOARD_WIDGET_ITEMS) e non va mai contata.
+        if request is not None:
+            from anomalie.views import conta_anomalie_aperte_visibili
+
+            out["anomalie"] = [
+                {"value": conta_anomalie_aperte_visibili(request), "unit": "aperte", "tone": "danger"},
+            ]
     # Un riquadro che si rompe non deve far cadere la home — ma se sparisce in
     # silenzio e' indistinguibile da "nessun dato", e nessuno lo scopre mai.
     except Exception:
@@ -373,10 +385,22 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None) -> dict:
 
     # ── ASSENZE ───────────────────────────────────────────────────────
     try:
-        pending = _board_data_assenze_da_approvare(legacy_user, is_admin, {"max_items": 500})
-        out["assenze"] = [
-            {"value": len(pending), "unit": "in approvazione", "tone": "warning"},
-        ]
+        # Conteggio pieno, stesso perimetro della coda di approvazione: chi vede
+        # tutto (admin/amministrazione) conta tutte le attese, il capo le sue —
+        # con la stessa funzione del badge in alto, non con la lista troncata.
+        if legacy_user:
+            ruolo = str(getattr(legacy_user, "ruolo", "") or "").strip().upper()
+            if is_admin or ruolo in ("AMMINISTRAZIONE", "ADMIN"):
+                from assenze.views import count_all_pending
+
+                in_attesa = count_all_pending()
+            else:
+                from core.context_processors import _count_car_pending
+
+                in_attesa = _count_car_pending(int(legacy_user.id), legacy_user=legacy_user)
+            out["assenze"] = [
+                {"value": in_attesa, "unit": "in approvazione", "tone": "warning"},
+            ]
     except Exception:
         logger.exception("Home: riquadro «Assenze» non calcolato")
 
@@ -973,7 +997,7 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         parts.append(f"{len(pending)} richieste in approvazione")
     greeting_summary = " e ".join(parts) + "." if parts else "Benvenuto nel portale."
 
-    tile_kpis = _tile_kpi_counts(legacy_user, is_admin, request_user=request.user)
+    tile_kpis = _tile_kpi_counts(legacy_user, is_admin, request_user=request.user, request=request)
     groups = _module_groups(request, accessible_set, is_admin, image_lookup, tile_kpis)
 
     # "Cose da gestire": aggregato cross-modulo delle azioni che spettano all'utente.

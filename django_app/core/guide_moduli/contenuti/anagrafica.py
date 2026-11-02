@@ -22,6 +22,10 @@ GUIDA = {
                     ("Salute e sicurezza", "cruscotto sicurezza, visite mediche, idoneità, mansioni di rischio. Sulle pagine "
                                            "della sezione, sotto il menu compare una seconda riga con le sue parti "
                                            "(Operatività, Sorveglianza sanitaria, Rischi e mansioni, Formazione e DPI)."),
+                    ("Numeri della dashboard", "dashboard HR, «In elenco» dei Dipendenti e cruscotto qualifiche contano solo "
+                                               "le persone che il tuo ruolo vede (propri, team o tutti); la formazione "
+                                               "compare solo a chi ha il permesso formazione. Le qualifiche contano solo "
+                                               "l'ultima per persona e tipo, senza gli ex dipendenti."),
                     ("Amministrazione", "due pagine: «Cedolini» (voci retributive del mese, con l'importazione del CSV "
                                         "dello studio paghe in fondo) e «Ferie e permessi» (saldi ferie, ROL ed ex festività, "
                                         "con l'importazione del file cedolini, anche da SharePoint, in fondo). L'import dei "
