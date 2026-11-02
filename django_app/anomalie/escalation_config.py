@@ -67,6 +67,12 @@ CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MAX = 5, 240
 DEFAULT_CTRL_INVIO_AUTO_MIN = 60
 CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX = 15, 1440
 
+# Riepilogo delle decisioni salvate dal portale: parte quando l'OP resta fermo da
+# questi minuti (ogni salvataggio fa ripartire l'attesa). «Invia ora» lo anticipa.
+KEY_RIEPILOGO_MINUTI = "anomalie_riepilogo_decisioni_minuti"
+DEFAULT_RIEPILOGO_MINUTI = 5
+RIEPILOGO_MINUTI_MIN, RIEPILOGO_MINUTI_MAX = 1, 120
+
 # Obiettivi dei tempi delle anomalie (anomalie/tempi_service.py), in giorni lavorativi:
 # servono alle statistiche («entro l'obiettivo», «aperte oltre l'obiettivo»).
 KEY_TEMPI_RISPOSTA_GG = "anomalie_tempi_risposta_gg"
@@ -136,6 +142,10 @@ def get_escalation_config() -> dict:
             SiteConfig.get(KEY_CTRL_INVIO_AUTO_MIN, "") or DEFAULT_CTRL_INVIO_AUTO_MIN,
             DEFAULT_CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX,
         ),
+        "riepilogo_decisioni_minuti": _clamp_int(
+            SiteConfig.get(KEY_RIEPILOGO_MINUTI, "") or DEFAULT_RIEPILOGO_MINUTI,
+            DEFAULT_RIEPILOGO_MINUTI, RIEPILOGO_MINUTI_MIN, RIEPILOGO_MINUTI_MAX,
+        ),
         "tempi_risposta_gg": _clamp_int(
             SiteConfig.get(KEY_TEMPI_RISPOSTA_GG, "") or DEFAULT_TEMPI_RISPOSTA_GG,
             DEFAULT_TEMPI_RISPOSTA_GG, TEMPI_RISPOSTA_MIN, TEMPI_RISPOSTA_MAX,
@@ -145,6 +155,14 @@ def get_escalation_config() -> dict:
             DEFAULT_TEMPI_RISOLUZIONE_GG, TEMPI_RISOLUZIONE_MIN, TEMPI_RISOLUZIONE_MAX,
         ),
     }
+
+
+def riepilogo_decisioni_minuti() -> int:
+    """Minuti di pausa sull'OP prima del riepilogo delle decisioni (di serie 5)."""
+    try:
+        return int(get_escalation_config()["riepilogo_decisioni_minuti"])
+    except Exception:
+        return DEFAULT_RIEPILOGO_MINUTI
 
 
 def tempi_controllo() -> dict:
@@ -199,6 +217,9 @@ def save_automazioni_config(payload: dict) -> bool:
         "controllo_invio_auto_minuti": (
             KEY_CTRL_INVIO_AUTO_MIN, DEFAULT_CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MIN, CTRL_INVIO_AUTO_MAX,
             "Anomalie: minuti dall'ultimo blocco salvato dopo cui la mail del controllo parte da sola."),
+        "riepilogo_decisioni_minuti": (
+            KEY_RIEPILOGO_MINUTI, DEFAULT_RIEPILOGO_MINUTI, RIEPILOGO_MINUTI_MIN, RIEPILOGO_MINUTI_MAX,
+            "Anomalie: minuti di pausa sull'OP dopo cui parte il riepilogo delle decisioni salvate dal portale."),
         "tempi_risposta_gg": (
             KEY_TEMPI_RISPOSTA_GG, DEFAULT_TEMPI_RISPOSTA_GG, TEMPI_RISPOSTA_MIN, TEMPI_RISPOSTA_MAX,
             "Anomalie: obiettivo in giorni lavorativi per la prima decisione del capocommessa."),

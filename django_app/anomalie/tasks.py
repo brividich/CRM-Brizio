@@ -18,8 +18,15 @@ def run_anomalie_pending_notifications(threshold_minutes: int = 5) -> dict:
     Fallback al tasto 'Salva e notifica': se l'operatore dimentica di notificare,
     la mail di riepilogo parte comunque dopo la soglia di inattività.
     """
+    from anomalie.escalation_config import riepilogo_decisioni_minuti
     from anomalie.mail_action_service import flush_pending_update_notifications
 
+    # L'attesa vera è quella di Configurazione → Notifiche; il kwarg dello schedule
+    # resta solo come valore di ripiego.
+    try:
+        threshold_minutes = riepilogo_decisioni_minuti()
+    except Exception:
+        pass
     try:
         result = flush_pending_update_notifications(threshold_minutes=threshold_minutes)
         if result.get("sent"):

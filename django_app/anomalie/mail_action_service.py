@@ -748,7 +748,22 @@ def register_pending_update(
         logger.warning("register_pending_update: errore op=%s", op_str, exc_info=True)
 
 
-def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
+def decisioni_in_coda(op_id: str) -> dict | None:
+    """Decisioni salvate dal portale su un OP e non ancora inviate nel riepilogo:
+    ``{"n", "partenza"}`` (istante previsto dell'invio) oppure None."""
+    from datetime import timedelta
+
+    from .escalation_config import riepilogo_decisioni_minuti
+    from .mail_action_models import AnomaliaPendingNotification
+
+    p = AnomaliaPendingNotification.objects.filter(op_id__iexact=str(op_id or "").strip(), notified=False).first()
+    snapshot = p.updates_snapshot if p and isinstance(p.updates_snapshot, list) else []
+    if not snapshot:
+        return None
+    return {"n": len(snapshot), "partenza": p.last_modified_at + timedelta(minutes=riepilogo_decisioni_minuti())}
+
+
+def flush_pending_update_notifications(*, threshold_minutes: int = 5, op_id: str | None = None) -> dict:
     """Invia la mail di conferma per gli OP fermi da più di `threshold_minutes`.
 
     Affidabilità (no fallimenti silenziosi):
@@ -763,10 +778,14 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
     from django.utils import timezone as _tz
     from datetime import timedelta
 
-    cutoff = _tz.now() - timedelta(minutes=threshold_minutes)
-    pending = list(
-        AnomaliaPendingNotification.objects.filter(notified=False, last_modified_at__lte=cutoff)
-    )
+    if op_id:
+        # «Invia ora» da Gestione anomalie: solo quell'OP, senza aspettare la pausa.
+        pending = list(AnomaliaPendingNotification.objects.filter(notified=False, op_id__iexact=str(op_id).strip()))
+    else:
+        cutoff = _tz.now() - timedelta(minutes=threshold_minutes)
+        pending = list(
+            AnomaliaPendingNotification.objects.filter(notified=False, last_modified_at__lte=cutoff)
+        )
     from . import automazioni_service as automazioni_decisioni
 
     sent = 0
@@ -796,7 +815,8 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
                 op_nominativo=p.op_nominativo or "",
                 anomalie_rows=[{"id": u.get("id"), "seriale": u.get("seriale")} for u in snapshot],
                 updates_summary=snapshot,
-                source_label=f"Modifiche da portale (debounce {threshold_minutes} min)",
+                source_label=("Modifiche da portale (inviate subito)" if op_id
+                              else f"Modifiche da portale (debounce {threshold_minutes} min)"),
                 exclude_emails=[g["email"] for g in piano_operatori if g.get("email")],
             )
         except Exception as exc:
@@ -832,11 +852,12 @@ def flush_pending_update_notifications(*, threshold_minutes: int = 5) -> dict:
     result = {"sent": sent, "failed": failed, "given_up": given_up, "checked": len(pending),
               "decisioni_operatore": decisioni_inviate}
     # Controlli OP a blocchi: mail al capocommessa con il link di decisione.
-    try:
-        from .controllo_service import flush_controlli
-        result.update(flush_controlli())
-    except Exception:
-        logger.warning("flush_pending_update_notifications: invio mail controlli fallito", exc_info=True)
+    if not op_id:
+        try:
+            from .controllo_service import flush_controlli
+            result.update(flush_controlli())
+        except Exception:
+            logger.warning("flush_pending_update_notifications: invio mail controlli fallito", exc_info=True)
     if flushed_ops:
         # Automazione «OP completato»: se con queste modifiche l'OP ha chiuso l'ultima
         # anomalia aperta, CC/CAR ricevono subito la mail (idempotente, vedi marcatori).

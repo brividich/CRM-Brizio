@@ -44,6 +44,7 @@ urlpatterns = [
     path("api/anomalie/salva", views.api_salva, name="api_anomalie_salva"),
     path("api/anomalie/riapri", views.api_riapri, name="api_anomalie_riapri"),
     path("api/anomalie/esiti", views.api_anomalie_esiti, name="api_anomalie_esiti"),
+    path("api/anomalie/decisioni-coda", views.api_decisioni_coda, name="api_anomalie_decisioni_coda"),
     path("api/anomalie/esito", views.api_anomalie_esito, name="api_anomalie_esito"),
     path("api/anomalie/notifica-op", views.api_notifica_op, name="api_anomalie_notifica_op"),
     path("api/anomalie/seriali-op", views.api_seriali_op, name="api_anomalie_seriali_op"),

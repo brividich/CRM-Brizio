@@ -266,9 +266,12 @@ SEZIONI: list[dict] = [
                 "Puoi aggiungere allegati anche qui (trascina, sfoglia o Ctrl+V) e correggere il testo con «Modifica testo».",
                 "«Cronologia azioni», in fondo al dettaglio, mostra chi ha fatto cosa sull'OP, dal portale e dalla mail.",
             ]),
-            ("p", "Al salvataggio parte in automatico, qualche minuto dopo, la mail di riepilogo al segnalante, al "
-                  "capocommessa, al CAR e alla lista configurata; le anomalie con RDC o da segnalare al cliente sono "
-                  "evidenziate in cima. Non serve nessun pulsante di invio."),
+            ("p", "Dopo il salvataggio parte da sola la mail di riepilogo al segnalante, al capocommessa, al CAR e alla "
+                  "lista configurata, con tutte le decisioni prese sull'OP; le anomalie con RDC o da segnalare al cliente "
+                  "sono evidenziate in cima. Parte quando sull'OP non salvi niente per 5 minuti (ogni salvataggio fa "
+                  "ripartire l'attesa), così chi decide una alla volta manda una mail sola. In cima al dettaglio la "
+                  "barra «N decisioni in attesa di invio · il riepilogo parte fra … min» lo ricorda: «Invia ora» lo "
+                  "manda subito. Dal link della mail invece le decisioni partono alla conferma."),
         ],
     },
     {
@@ -340,8 +343,9 @@ SEZIONI: list[dict] = [
             ("def", [
                 ("Mail del controllo", "al capocommessa con il link di decisione, il CAR in copia (per i collaudi di "
                  "benestare il contrario)."),
-                ("Riepilogo dopo una decisione", "al segnalante, al capocommessa, al CAR e alla lista configurata, qualche "
-                 "minuto dopo l'ultimo salvataggio. RDC e segnalazioni al cliente vanno anche al destinatario dedicato."),
+                ("Riepilogo dopo una decisione", "al segnalante, al capocommessa, al CAR e alla lista configurata, dopo 5 "
+                 "minuti senza salvataggi sull'OP (configurabile) oppure subito con «Invia ora». RDC e segnalazioni al "
+                 "cliente vanno anche al destinatario dedicato."),
                 ("Decisioni all'operatore", "chi ha segnalato riceve una mail con la decisione e una notifica nel portale "
                  "che apre l'OP."),
                 ("Promemoria", "a capocommessa e CAR, nella dashboard, per gli OP con anomalie «In attesa»; si chiudono da "
@@ -410,7 +414,8 @@ SEZIONI: list[dict] = [
                  "e l'ultimo invio. Qui si cambiano le liste di destinatari fissi (riepilogo modifiche, RDC / "
                  "segnalazione cliente, supervisori), l'indirizzo della mail «nuova anomalia fuori da un controllo», "
                  "gli interruttori e gli orari. È la stessa vista di Automazioni → Notifiche di sistema: quello che "
-                 "cambi in una pagina lo trovi già cambiato nell'altra. In «Orari e soglie» ci sono anche gli "
+                 "cambi in una pagina lo trovi già cambiato nell'altra. In «Orari e soglie» ci sono anche «Riepilogo "
+                 "decisioni: invio dopo minuti di pausa» (di serie 5) e gli "
                  "obiettivi dei tempi: «Tempi: obiettivo prima decisione» (di serie 2 giorni lavorativi) e «Tempi: "
                  "obiettivo chiusura» (di serie 10)."),
                 ("Qualità", "catalogo dei tipi difetto e chi può chiudere le non conformità."),

@@ -50,6 +50,9 @@ GUIDA = {
                       "Con «Azione di recupero» l'anomalia si chiude solo registrando l'azione effettuata; dopo una "
                       "rilavorazione o riparazione serve «Pezzo riverificato conforme». In Statistiche i tempi per "
                       "capocommessa, nella scheda NC quelli delle sue anomalie."),
+                ("p", "Le decisioni prese nel portale partono in un'unica mail di riepilogo dopo 5 minuti senza "
+                      "salvataggi sull'OP (Configurazione → Notifiche); la barra «N decisioni in attesa di invio» in "
+                      "Gestione anomalie permette di mandarle subito con «Invia ora»."),
                 ("p", "«Segnalare al cliente» porta l'avanzamento su «In attesa risposta cliente»: l'anomalia resta "
                       "aperta finché il capocommessa non sceglie lo stato definitivo dopo la risposta del cliente."),
                 ("p", "Un'anomalia chiusa la riapre chi ne è incaricato (capocommessa, CAR, controllore che l'ha "
