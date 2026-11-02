@@ -45,7 +45,9 @@ SEZIONI: list[dict] = [
                  "Un clic apre il modulo."),
                 ("I miei preferiti", "i moduli che hai segnato con ☆ nella stanza «Moduli», nell'ordine in cui li hai scelti. "
                  "Al massimo 12."),
-                ("Azioni rapide", "Le mie attività, Scadenzario, Nuovo ticket, Segnala anomalia e Richiedi permesso."),
+                ("Azioni rapide", "scorciatoie scelte in base ai tuoi permessi: Le mie attività e Scadenzario ci sono sempre; "
+                 "poi, se puoi farlo, Segnala anomalia, Nuovo ticket, Richiedi permesso, Segnala near miss, "
+                 "Nuova voce di diario, Nuovo task, Richiedi DPI e Chiedi all'assistente. Al massimo 6, in quest'ordine."),
                 ("Emergenza", "il numero unico 112 e chi coordina le emergenze, preso dall'organigramma della sicurezza."),
             ]),
         ],
