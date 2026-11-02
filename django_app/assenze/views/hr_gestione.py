@@ -130,10 +130,16 @@ def hr_cruscotto(request):
         "n_ferie_elevate": sum(1 for r in res.values() if r.ferie_residue >= soglia_ore),
         "giornate_ferie_elevate": GIORNATE_FERIE_ELEVATE,
         "n_contatori_oltre": sum(c["oltre"] for c in calcoli.riepilogo_contatori()),
-        "n_in_attesa": len(_helpers._fetch_all_dict(
-            "SELECT id FROM assenze WHERE COALESCE(moderation_status, 2) = 2", []
-        )) if _helpers._table_exists("assenze") else 0,
+        "n_in_attesa": _n_coda_attiva(),
     })
+
+
+def _n_coda_attiva() -> int:
+    """Richieste ancora da decidere: la stessa coda della dashboard segnalazioni."""
+    if not _helpers._table_exists("assenze"):
+        return 0
+    coda_sql, coda_params = _helpers._sql_coda_attiva("assenze")
+    return len(_helpers._fetch_all_dict(f"SELECT id FROM assenze WHERE {coda_sql}", coda_params))
 
 
 # ─── Saldi ───────────────────────────────────────────────────────────────────
