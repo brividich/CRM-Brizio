@@ -49,8 +49,10 @@ SEZIONI_CONTROLLORE: list[dict] = [
             ("img", (_IMG + "c3_blocco.jpg", "Un blocco pronto da salvare")),
             ("ul", [
                 "Errore in un blocco salvato? «Modifica o aggiungi anomalie», finché il capocommessa non ha deciso.",
-                "Mentre scrivi la pagina salva da sola: se si chiude, rientra nell'OP e premi «Riprendi» (gli allegati "
-                "vanno ricaricati).",
+                "Mentre scrivi la pagina salva da sola, anche su un OP nuovo: se si chiude, rientra nell'OP e premi "
+                "«Riprendi» (gli allegati vanno ricaricati).",
+                "Blocco scritto e non salvato da 15 minuti: ti arriva una mail con quello che hai scritto e il link per "
+                "riprendere. Riprendi e premi «Salva blocco».",
             ]),
         ],
     },

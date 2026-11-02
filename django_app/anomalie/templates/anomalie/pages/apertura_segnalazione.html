@@ -977,7 +977,9 @@
     stati: ed.stati,
     anomalie: ed.anomalie.filter(a => a.localId || a.testo.trim() || a.files.length).map(a => ({
       localId: a.localId, testo: a.testo, tutti: a.tutti, sel: a.sel, allegati: a.files.length,
+      origineId: a.origineId || null, allegatiOrigine: a.allegatiOrigine || 0, copiaAllegati: !!a.copiaAllegati,
     })),
+    daClona: !!ed.daClona,
   });
   const bozzaPiena = (bz) => !!bz && ((bz.voci || []).length > 0 || (bz.stati || []).length > 0 || (bz.anomalie || []).length > 0 || !!bz.bloccoId);
   const editorDaBozza = (bz, blocchi) => {
@@ -991,7 +993,10 @@
       const b = perId[a.localId];
       return b && !a.gestita ? { ...a, testo: b.testo || '', tutti: b.tutti !== false, sel: b.sel || [] } : a;
     }) : [];
-    const nuove = daBozza.filter(a => !a.localId).map(a => ({ ...newAnomalia(), testo: a.testo || '', tutti: a.tutti !== false, sel: a.sel || [] }));
+    const nuove = daBozza.filter(a => !a.localId).map(a => ({
+      ...newAnomalia(), testo: a.testo || '', tutti: a.tutti !== false, sel: a.sel || [],
+      ...(a.origineId ? { origineId: a.origineId, allegatiOrigine: a.allegatiOrigine || 0, copiaAllegati: !!a.copiaAllegati } : {}),
+    }));
     const anomalie = [...esistenti, ...nuove];
     return {
       ...base,
@@ -999,6 +1004,7 @@
       stati: [...(bz.stati || base.stati)],
       anomalie: anomalie.length ? anomalie : [newAnomalia()],
       attiva: anomalie.length ? anomalie.length - 1 : 0,
+      daClona: !!bz.daClona,
     };
   };
   /* S/N del blocco senza nessuna anomalia (stessa regola di controllo_service.seriali_senza_anomalia). */
@@ -1406,7 +1412,7 @@
     })),
   });
 
-  const Step2Controllo = ({ op, onBack, onDone, clona, onOpCreato }) => {
+  const Step2Controllo = ({ op, onBack, onDone, clona, onOpCreato, riprendiId }) => {
     // OP nuovo non ancora creato: nasce con il primo «Salva blocco»; uscendo prima non resta niente.
     const opRef = useRef(op);
     const daCreare = !!op.daCreare;
@@ -1467,11 +1473,18 @@
     };
 
     useEffect(() => {
+      if (riprendiId) riprendi({ id: riprendiId });
       if (opRef.current.daCreare) {
+        // OP non ancora creato: destinatari dai nomi scritti, e i controlli lasciati in
+        // bozza sullo stesso OP nuovo (per «Riprendi»).
         const benestare = !!opRef.current.daCreare.collaudo_benestare;
         setDestinatari({ to: benestare ? op.car : op.capo, cc: benestare ? op.capo : op.car });
-        setLoading(false);
-        return undefined;
+        let vivo = true;
+        getJson(`${API.controlli}?op_id=${encodeURIComponent(op.id)}`, 'Controlli in corso')
+          .then(j => vivo && setRiprendibili(j.controlli || []))
+          .catch(() => {})
+          .finally(() => vivo && setLoading(false));
+        return () => { vivo = false; };
       }
       let alive = true;
       getJson(`${API.controlli}?op_id=${encodeURIComponent(op.id)}`, 'Controlli in corso')
@@ -1546,10 +1559,11 @@
       if (!fase.trim()) { setError('Indica la fase del controllo.'); return; }
       setError(''); setSaving(true);
       try {
-        // OP da creare: il controllo resta solo nella pagina finché non si salva un blocco.
-        const j = opRef.current.daCreare
-          ? { controllo: { id: null, op_id: op.id, fase: fase.trim(), mail_mode: 'fine', destinatari_extra: extraAvvio, operatore: window._AP_USERNAME || '', blocchi: [], da_notificare: 0, terminato: false, bozza: {} } }
-          : await postJson(API.controllo_apri, { op_id: op.id, op_item_id: op.item_id, fase: fase.trim(), mail_mode: 'fine', destinatari_extra: extraAvvio }, 'Avvio controllo');
+        // OP da creare: il controllo nasce subito (bozza e promemoria funzionano), l'OP
+        // vero lo crea il server al primo «Salva blocco».
+        const j = await postJson(API.controllo_apri, opRef.current.daCreare
+          ? { op_id: op.id, op_nuovo: opRef.current.daCreare, fase: fase.trim(), mail_mode: 'fine', destinatari_extra: extraAvvio }
+          : { op_id: op.id, op_item_id: op.item_id, fase: fase.trim(), mail_mode: 'fine', destinatari_extra: extraAvvio }, 'Avvio controllo');
         setControllo(j.controllo);
         setEditor(editorDopo(coda));
         if (coda.length) setNotice(`Caricato il primo dei ${coda.length} blocchi copiati: controlla S/N e testi, poi «Salva blocco».`);
@@ -1566,6 +1580,9 @@
         setDestinatari(j.destinatari || null);
         setFase(j.controllo.fase);
         const bz = j.controllo.bozza;
+        // Blocchi copiati ancora da caricare: tornano in coda come erano.
+        const codaBozza = bz && Array.isArray(bz.coda) ? bz.coda : null;
+        if (codaBozza) setCoda(codaBozza);
         if (bozzaPiena(bz)) {
           setEditor(editorDaBozza(bz, j.controllo.blocchi));
           bozzaRef.current.salvata = true;
@@ -1574,7 +1591,8 @@
           setNotice('Ripristinato il blocco che stavi scrivendo (salvato in automatico).'
             + (allegati ? ` Gli allegati non si salvano in bozza: ricarica ${allegati === 1 ? 'il file' : `i ${allegati} file`}.` : ''));
         } else {
-          setEditor(editorDopo(coda));
+          setEditor(editorDopo(codaBozza || coda));
+          if (codaBozza && codaBozza.length) setNotice(`Ripresi i blocchi copiati: ${codaBozza.length === 1 ? 'ne resta 1' : `ne restano ${codaBozza.length}`} da caricare.`);
         }
       } catch (e) { setError(e.message); }
       finally { setSaving(false); }
@@ -1589,9 +1607,9 @@
     });
     useEffect(() => {
       if (!controllo || !controllo.id || controllo.terminato || riepilogo || saving) return undefined;
-      const dirty = editorDirty(editor);
+      const dirty = editorDirty(editor) || coda.length > 0;
       if (!dirty && !bozzaRef.current.salvata) { bozzaRef.current.pending = null; return undefined; }
-      const body = { bozza: dirty ? bozzaDa(editor) : {} };
+      const body = { bozza: dirty ? { ...(editorDirty(editor) ? bozzaDa(editor) : {}), ...(coda.length ? { coda } : {}) } : {} };
       bozzaRef.current.pending = body;
       const t = setTimeout(() => {
         inviaBozza(body)
@@ -1605,7 +1623,7 @@
           .catch(() => {});
       }, 1500);
       return () => clearTimeout(t);
-    }, [editor, controllo && controllo.id, riepilogo, saving]);
+    }, [editor, coda, controllo && controllo.id, riepilogo, saving]);
     // Chiudendo la pagina prima dei 1,5 s parte comunque l'ultima bozza.
     useEffect(() => {
       if (!controllo) return undefined;
@@ -1616,11 +1634,6 @@
 
     const salvaImpostazioni = async (patch) => {
       setError('');
-      if (!controllo.id) {
-        setControllo(prev => ({ ...prev, ...patch }));
-        if (patch.fase) setEditingFase(false);
-        return;
-      }
       try {
         const j = await postJson(urlFor(API.controllo_impostazioni, controllo.id), patch, 'Impostazioni controllo');
         setControllo(prev => ({ ...prev, fase: j.controllo.fase, mail_mode: j.controllo.mail_mode, destinatari_extra: j.controllo.destinatari_extra || [] }));
@@ -1655,23 +1668,7 @@
       if (!r.ok) throw new Error(j.error || `Caricamento allegati: HTTP ${r.status}`);
     };
 
-    // Primo salvataggio su un OP nuovo: crea l'OP, poi apre il controllo con fase,
-    // modalità mail e destinatari scelti nella pagina. Ritorna l'id del controllo.
-    const creaOpEControllo = async () => {
-      if (opRef.current.daCreare) {
-        const j = await postJson(API.db_ordini_crea, opRef.current.daCreare, 'Creazione OP');
-        if (!j.op || !j.op.item_id) throw new Error('Creazione OP: risposta non valida.');
-        opRef.current = j.op;
-        if (onOpCreato) onOpCreato(j.op);
-      }
-      const creato = opRef.current;
-      const j = await postJson(API.controllo_apri, {
-        op_id: creato.id, op_item_id: creato.item_id, fase: controllo.fase,
-        mail_mode: controllo.mail_mode, destinatari_extra: controllo.destinatari_extra || [],
-      }, 'Avvio controllo');
-      setControllo(j.controllo);
-      return j.controllo.id;
-    };
+    const opNuovoAperto = !!(controllo && controllo.op_nuovo && Object.keys(controllo.op_nuovo).length);
 
     const salvaBlocco = async () => {
       const ed = editor;
@@ -1691,8 +1688,8 @@
       if (!scopertiOk) { setError(''); setConfirmScoperti(scoperti); return false; }
       setError(''); setNotice(''); setSaving(true);
       try {
-        const opNuovo = !controllo.id && !!opRef.current.daCreare;
-        const cid = controllo.id || await creaOpEControllo();
+        const opNuovo = opNuovoAperto;
+        const cid = controllo.id;
         const j = await postJson(urlFor(API.controllo_blocco, cid), {
           blocco_id: ed.bloccoId,
           seriali: ed.voci,
@@ -1704,6 +1701,8 @@
             return { local_id: a.localId, testo: a.testo.trim(), tutti, seriali: tutti ? [] : selDi(a) };
           }),
         }, 'Salvataggio blocco');
+        // Primo blocco su un OP nuovo: il server ha creato l'OP.
+        if (j.op_creato) { opRef.current = j.op_creato; if (onOpCreato) onOpCreato(j.op_creato); }
         const risultati = j.risultati || [];
         const uploadErrors = [];
         for (let i = 0; i < anomalie.length; i += 1) {
@@ -1794,7 +1793,7 @@
     // «Termina controllo» passa sempre dal riepilogo: l'operatore vede tutto prima della mail.
     const apriRiepilogo = async (salvaPrima) => {
       if (salvaPrima && !(await salvaBlocco())) { setConfirmTermina(false); return; }
-      if (!salvaPrima && !controllo.id) {
+      if (!salvaPrima && opNuovoAperto && !((controllo && controllo.blocchi) || []).length) {
         // Nessun blocco salvato su un OP nuovo: non c'è niente da comunicare né da creare.
         setConfirmTermina(false); setEditor(newEditor());
         setNotice('Blocco scartato: l’OP non è stato creato.');
@@ -2344,12 +2343,38 @@
     const handleSelectOp = (op) => { setSelectedOp(op); setStep(2); setFormKey(k => k + 1); };
     // OP nuovo creato al primo salvataggio: da qui in poi si lavora sull'OP vero.
     const handleOpCreato = (op) => setSelectedOp(op);
-    const handleBack = () => { setStep(1); setSelectedOp(null); };
+    const handleBack = () => { setStep(1); setSelectedOp(null); setRiprendiId(null); };
+
+    // Link del promemoria (?controllo=<id>): riapre quel controllo; per un OP nuovo
+    // non ancora creato l'OP si ricostruisce dai dati salvati nel controllo.
+    const [riprendiId, setRiprendiId] = useState(null);
+    useEffect(() => {
+      const cid = new URLSearchParams(window.location.search).get('controllo');
+      if (!cid || !/^\d+$/.test(cid)) return;
+      getJson(urlFor(API.controllo_dettaglio, cid), 'Ripresa controllo')
+        .then(async (j) => {
+          const c = j.controllo || {};
+          const nuovo = c.op_nuovo && Object.keys(c.op_nuovo).length ? c.op_nuovo : null;
+          let opSel = null;
+          if (nuovo) {
+            opSel = { id: c.op_id, item_id: null, pn: nuovo.pn || '—', capo: nuovo.capocommessa || '—', car: nuovo.car || '—',
+                      stato: nuovo.collaudo_benestare ? 'Benestare' : 'Aperto', daCreare: nuovo };
+          } else {
+            const list = await getJson(API.db_ordini, 'Ordini').catch(() => []);
+            opSel = (Array.isArray(list) ? list : []).find(o => String(o.id) === String(c.op_id)) || null;
+          }
+          if (!opSel) return;
+          window.history.replaceState(null, '', window.location.pathname);
+          setRiprendiId(Number(cid)); setSelectedOp(opSel); setStep(2); setFormKey(k => k + 1);
+        })
+        .catch(() => {});
+    }, []);
 
     // Preselezione OP da query string (?op_id=...): salta direttamente allo Step 2.
     useEffect(() => {
-      const preId = new URLSearchParams(window.location.search).get('op_id');
-      if (!preId) return;
+      const qs = new URLSearchParams(window.location.search);
+      const preId = qs.get('op_id');
+      if (!preId || qs.get('controllo')) return;
       let alive = true;
       fetch(API.db_ordini, { credentials: 'same-origin' })
         .then(r => r.ok ? r.json() : [])
@@ -2403,6 +2428,7 @@
               onDone={handleDone}
               clona={clona}
               onOpCreato={handleOpCreato}
+              riprendiId={riprendiId}
             />
           )}
         </div>
