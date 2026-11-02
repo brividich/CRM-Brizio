@@ -395,6 +395,21 @@ def _certificato_medico_for_tipo(tipo: str, value, current=None) -> str:
     return current_txt or CERTIFICATO_ARRIVATO
 
 
+CERTIFICATO_ARRIVATO_MOTIVO = "Certificato medico arrivato"
+
+
+def _solo_certificato_arrivato(current: dict, modifiche: list[dict]) -> bool:
+    """True se l'unico cambio e' la spunta «Certificato arrivato» appena messa.
+
+    In quel caso la modifica di una richiesta approvata non chiede il motivo:
+    l'arrivo del certificato e' il motivo.
+    """
+    if str((current or {}).get("certificato_medico") or "").strip():
+        return False
+    campi = {m.get("campo") for m in modifiche or []}
+    return campi == {"Certificato arrivato"}
+
+
 def _status_from_moderation(value, *, default_pending: bool = False) -> tuple[int | None, str]:
     parsed = _as_int(value)
     if parsed is None and default_pending:
@@ -3539,12 +3554,18 @@ def _notify_assenza_modificata(request, record: dict, modifiche: list[dict], *, 
     rilevanti = [m for m in modifiche or [] if m.get("campo") != "Stato"]
     if not rilevanti:
         return
+    # Il capo e' un destinatario in piu': se non si risolve, la mail parte
+    # comunque verso la casella assenze.
+    capo_email = ""
     try:
         capo_email = _resolve_capo_option_value_from_ids(
             local_id=_as_int(record.get("capo_reparto_id")),
             lookup_id=_as_int(record.get("capo_reparto_lookup_id")),
             capi=_load_capi_options(),
         )
+    except Exception:
+        logger.warning("Notifica modifica assenza id=%s: capo reparto non risolto", record.get("id"), exc_info=True)
+    try:
         nome, email, _ = _legacy_identity(request)
         send_assenza_modificata_notification(
             record,

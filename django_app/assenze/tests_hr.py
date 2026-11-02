@@ -294,6 +294,38 @@ class ModificaApprovataTests(TestCase):
         storico = self.client.get(reverse("assenze_api_storico", args=[42]))
         self.assertEqual(storico.json()["voci"][0]["motivo"], "Prolungate su richiesta")
 
+    def _malattia(self):
+        self.current.update(tipo_assenza="Malattia", data_fine=datetime(2026, 6, 10, 23, 59), capo_reparto_id=None)
+        return {"tipo": "Malattia", "fine": "2026-06-10T23:59"}
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+                       DEFAULT_FROM_EMAIL="noreply@example.com")
+    def test_malattia_certificato_arrivato_vale_come_motivo(self):
+        from django.core import mail
+
+        resp, upd = self._post(certificato_medico="Arrivato", **self._malattia())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(upd.call_args[0][1]["certificato_medico"], "Arrivato")
+        voce = AssenzaModifica.objects.get(assenza_id=42)
+        self.assertEqual(voce.motivo, "Certificato medico arrivato")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("assenza@costruzioninovicrom.it", mail.outbox[0].to)
+        self.assertIn("Motivo della modifica: Certificato medico arrivato", mail.outbox[0].body)
+
+    def test_malattia_certificato_con_altri_cambi_chiede_motivo(self):
+        dati = self._malattia()
+        dati["fine"] = "2026-06-11T23:59"
+        resp, upd = self._post(certificato_medico="Arrivato", **dati)
+        self.assertEqual(resp.status_code, 400)
+        upd.assert_not_called()
+
+    def test_malattia_togliere_certificato_chiede_motivo(self):
+        dati = self._malattia()
+        self.current["certificato_medico"] = "Arrivato"
+        resp, upd = self._post(certificato_medico="", **dati)
+        self.assertEqual(resp.status_code, 400)
+        upd.assert_not_called()
+
     def test_salvataggio_senza_cambi_non_chiede_motivo(self):
         resp, _ = self._post(fine="2026-06-09T23:59")
         self.assertEqual(resp.status_code, 200)
