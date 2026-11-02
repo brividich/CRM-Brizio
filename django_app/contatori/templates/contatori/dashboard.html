@@ -108,7 +108,7 @@
   </section>
 
   <section class="panel centrale-col" id="errori-snmp">
-    <div class="panel-head"><div><h2>SNMP</h2><p>{{ snmp_riepilogo.totale }} endpoint · {{ snmp_riepilogo.ok }} ok · {{ snmp_riepilogo.errori }} errori · {{ snmp_riepilogo.warning }} attenzione</p></div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:snmp_centrale' %}">Monitor</a></div>
+    <div class="panel-head"><div><h2>SNMP</h2><p>{{ snmp_riepilogo.configurati }} monitorati · {{ snmp_riepilogo.ok }} ok · {{ snmp_riepilogo.errori }} errori · {{ snmp_riepilogo.warning }} attenzione</p></div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:snmp_centrale' %}">Monitor</a></div>
     <div class="centrale-scroll">
       <h3 class="centrale-sub">Ultimi errori</h3>
       {% if errori_snmp %}

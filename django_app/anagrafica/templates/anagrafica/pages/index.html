@@ -136,9 +136,9 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
         <div class="hr-hero-stat-val">{% if cruscotto.copertura_totale.totale %}{{ cruscotto.copertura_totale.pct_in_regola }}%{% else %}—{% endif %}</div>
         <div class="hr-hero-stat-lbl">Obblighi in regola</div>
       </a>
-      <a class="hr-hero-stat" href="{% url 'anagrafica:scadenzario' %}?stato=scaduta">
+      <a class="hr-hero-stat" href="{% url 'anagrafica:scadenzario' %}?stato=scaduta" title="Persone, non voci: lo scadenzario elenca ogni scadenza, comprese qualifiche e contratti">
         <div class="hr-hero-stat-val">{{ cruscotto.persone_ko }}</div>
-        <div class="hr-hero-stat-lbl">Persone con obblighi scaduti</div>
+        <div class="hr-hero-stat-lbl">Persone con formazione o visite scadute</div>
       </a>
       {% endif %}
     </div>

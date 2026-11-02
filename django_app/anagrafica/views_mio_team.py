@@ -37,6 +37,15 @@ def membri_team(responsabile_id: int) -> list[int]:
         DipendenteAnagraficaAziendale.objects.filter(data_cessazione__isnull=False)
         .values_list("legacy_anagrafica_id", flat=True)
     )
+    from anagrafica.services import capo_team
+
+    if capo_team.regola_unica_attiva():
+        # Regola unica capo/team accesa: lo stesso team che decide calendario e
+        # permessi (``core.permessi.team``), non la vecchia mappa dei responsabili.
+        return sorted(
+            lid for lid in capo_team.team_anagrafica(responsabile_id)
+            if int(lid) != int(responsabile_id) and lid not in cessati
+        )
     return sorted(
         lid for lid, resp in build_responsabile_effettivo_map().items()
         if int(resp) == int(responsabile_id) and int(lid) != int(responsabile_id) and lid not in cessati

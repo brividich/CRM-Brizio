@@ -87,3 +87,7 @@ Il rapporto MOD.035B diventa immutabile dopo la firma dell'auditor; l'auditor as
 #### Collegamento con la Struttura organizzativa (23/10/2026)
 
 Scheda processo: sezione «Chi possiede e chi esegue il processo» (`processi_views._persone_processo` → `anagrafica.services.struttura_processo.persone_processo`): titolari del ruolo owner, mansioni lavorative con `processo_sgi` = processo, operativi e in lista. Piano di audit (stato Pianificato, permesso di modifica): «Proposte dalla struttura organizzativa» (`audit_views._proposte_auditati`) con owner come «Responsabile del processo» ed esecutori operativi come «Auditato»; «Aggiungi» invia al già esistente `audit_persona_salva`. Nessuna migrazione, nessun URL nuovo.
+
+## KPI coerenti e in tempo reale (02/11/2026)
+
+«Audit pianificati nell'anno» dell'hub esclude gli annullati, come l'indice audit.

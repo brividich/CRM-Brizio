@@ -59,9 +59,6 @@ from ..models import (
     AssetSidebarButton,
     WorkOrder,
 )
-from ..maintenance import (
-    get_workorder_overdue_days,
-)
 from ..services import storico_asset
 from ..models import AssetFieldHistory
 
@@ -1195,11 +1192,12 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     assigned_count = kpi_qs.exclude(assignment_to__isnull=True).exclude(assignment_to="").count()
     _kpi_wo_qs = WorkOrder.objects.filter(asset__in=kpi_qs)
     open_wo_count = _kpi_wo_qs.filter(status=WorkOrder.STATUS_OPEN).count()
-    maintenance_due_count = _kpi_wo_qs.filter(
-        status=WorkOrder.STATUS_OPEN,
-        opened_at__lt=timezone.now() - timedelta(days=get_workorder_overdue_days()),
-    ).count()
-    work_machine_total = Asset.objects.filter(asset_type__in=PRODUCTION_ASSET_TYPES).count()
+    from assets.maintenance import q_odl_in_ritardo
+
+    maintenance_due_count = _kpi_wo_qs.filter(q_odl_in_ritardo(), status=WorkOrder.STATUS_OPEN).count()
+    # Chip e ciclo di vita nell'ambito del ruolo, come gli altri numeri della pagina.
+    ambito_qs = filtra_visibili(request, Asset.objects.all())
+    work_machine_total = ambito_qs.filter(asset_type__in=PRODUCTION_ASSET_TYPES).count()
 
     # Salute = quota di asset NON in riparazione sul totale filtrato; rischio =
     # asset in riparazione + OdL aperti (unita' diverse: niente barra, solo numero).
@@ -1221,7 +1219,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
     # denominatore e' il totale degli OdL aperti dello stesso perimetro.
     due_percent = round(maintenance_due_count / open_wo_count * 100, 1) if open_wo_count else 0.0
 
-    phase_1_count = Asset.objects.filter(
+    phase_1_count = ambito_qs.filter(
         asset_type__in=[
             Asset.TYPE_PC,
             Asset.TYPE_NOTEBOOK,
@@ -1229,7 +1227,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             Asset.TYPE_HW,
         ]
     ).count()
-    phase_2_count = Asset.objects.filter(
+    phase_2_count = ambito_qs.filter(
         asset_type__in=[
             Asset.TYPE_SERVER,
             Asset.TYPE_VM,
@@ -1237,7 +1235,7 @@ def asset_list(request: HttpRequest) -> HttpResponse:
             Asset.TYPE_CCTV,
         ]
     ).count()
-    phase_3_count = Asset.objects.filter(
+    phase_3_count = ambito_qs.filter(
         asset_type__in=[Asset.TYPE_CNC, Asset.TYPE_WORK_MACHINE, Asset.TYPE_OTHER],
     ).count()
     lifecycle_total = phase_1_count + phase_2_count + phase_3_count

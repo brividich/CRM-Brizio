@@ -441,13 +441,10 @@ def menu(request):
         # Stesso perimetro della dashboard segnalazioni, che apre sempre in scope
         # "mine": contare tutte le pendenti globali mostrerebbe un badge che non
         # corrisponde a nulla di visibile nella pagina di destinazione.
-        pending_count = len(
-            _helpers._load_pending_for_manager(
-                legacy_id,
-                limit=200,
-                manager_name=name,
-                manager_email=email,
-            )
+        # Conteggio pieno con la stessa funzione del badge in alto (prima len() di
+        # una lista tagliata a 200: tre numeri diversi per la stessa coda).
+        pending_count = _helpers.count_pending_for_manager(
+            legacy_id, manager_name=name, manager_email=email,
         )
     return _helpers.render(
         request,

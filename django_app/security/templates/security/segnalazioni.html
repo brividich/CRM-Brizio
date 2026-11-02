@@ -41,6 +41,7 @@
     <h2>{% if urgenti %}Urgenti{% elif stato == "chiuse" %}Chiuse{% elif stato == "tutte" %}Tutte{% else %}Da gestire{% endif %}</h2>
     <span class="sec-badge">{{ righe_totali }} segnalazion{{ righe_totali|pluralize:"e,i" }}</span>
   </div>
+  {% if troncata %}<p class="sec-muted">Mostrate le {{ limite_per_tipo }} più recenti per tipo: i numeri sui filtri sono il totale. Usa ricerca o gravità per restringere.</p>{% endif %}
   <div class="sec-table-wrap">
     <table class="sec-table">
       <thead><tr><th>Tipo</th><th>Gravità</th><th>Cosa</th><th>Dove</th><th>Stato</th><th>Aperta da</th><th>Chi se ne occupa</th></tr></thead>

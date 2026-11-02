@@ -174,7 +174,9 @@ SEZIONI: list[dict] = [
             ("p", "Monitor SNMP: «Interroga tutti ora» interroga subito tutti i dispositivi attivi (chiede "
                   "conferma; il monitor lo fa comunque ogni 5 minuti). I filtri Cerca, Categoria e Stato valgono "
                   "anche per la tabella «Stampanti MFC»; una categoria diversa da «Stampante / MFC extra» la "
-                  "svuota. Sotto i filtri, i filtri rapidi «Videosorveglianza», «In errore», «Non interrogati»."),
+                  "svuota. Sotto i filtri, i filtri rapidi «Videosorveglianza», «In errore», «Non interrogati». "
+                  "I riquadri Operativi / Attenzione / Errori / Non interrogati sono gli stessi numeri di «Stato "
+                  "flotta» della Centrale: chi non risponde da oltre i giorni di soglia è «Non interrogato»."),
             ("p", "Scheda MFC: «Prova SNMP» verifica subito che la stampante risponda e mostra i contatori letti "
                   "senza salvarli; «Asset …» apre la scheda dell'asset collegato. Dopo «Modifica MFC» si torna "
                   "alla scheda della stampante."),

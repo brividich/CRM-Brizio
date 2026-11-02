@@ -523,8 +523,12 @@ def _scadenze_scadute(request) -> dict[str, int]:
     che applica da sé i permessi per sorgente. In cache per utente: la subnav compare ovunque."""
     from django.core.cache import cache
 
+    from anagrafica.services.scadenze import versione_badge
+
     user_id = getattr(getattr(request, "user", None), "pk", None)
-    chiave = f"anagrafica:safety_subnav:scadute:{user_id}"
+    # La versione cambia a ogni salvataggio di dati anagrafica: il badge segue la
+    # lista subito, la cache serve solo fra un salvataggio e l'altro.
+    chiave = f"anagrafica:safety_subnav:scadute:v{versione_badge()}:{user_id}"
     valori = cache.get(chiave)
     if valori is None:
         from anagrafica.views import _build_scadenzario_voci

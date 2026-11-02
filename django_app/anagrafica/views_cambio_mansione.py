@@ -119,7 +119,8 @@ def cambi_mansione(request):
         voce["voci"].append(a)
         voce["aperti"] += a.aperto
         voce["ritardo"] += a.in_ritardo
-    tutti_aperti = AdempimentoCambioMansione.objects.filter(stato=AdempimentoCambioMansione.STATO_APERTO)
+    # Come cruscotto HR e subnav: solo gli adempimenti attivi.
+    tutti_aperti = AdempimentoCambioMansione.objects.filter(stato=AdempimentoCambioMansione.STATO_APERTO, attivo=True)
     # Stato operativo (visita del cambio mansione mancante, non idoneità): solo
     # l'etichetta, il perché resta a chi ha il permesso visite.
     from .services import stato_operativo

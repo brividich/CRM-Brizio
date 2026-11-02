@@ -63,6 +63,27 @@ def get_workorder_overdue_days() -> int:
     return value if value > 0 else WORKORDER_OVERDUE_DAYS_DEFAULT
 
 
+def q_odl_in_ritardo(now=None) -> Q:
+    """OdL in ritardo: scadenza superata oppure aperto da più dei giorni di soglia (SiteConfig).
+
+    Unica definizione per dashboard, Centro manutenzione, macchine di lavoro e
+    report: prima erano quattro (con o senza scadenza, ``lt`` o ``lte``, soglia
+    fissa di 30 giorni) e le pagine davano numeri diversi.
+    """
+    now = now or timezone.now()
+    soglia = timezone.localdate(now) - timedelta(days=get_workorder_overdue_days())
+    return Q(due_at__lt=now) | Q(opened_at__date__lte=soglia)
+
+
+def odl_in_ritardo(workorder, now=None) -> bool:
+    """``q_odl_in_ritardo`` per un OdL già caricato."""
+    now = now or timezone.now()
+    if workorder.due_at and workorder.due_at < now:
+        return True
+    soglia = timezone.localdate(now) - timedelta(days=get_workorder_overdue_days())
+    return bool(workorder.opened_at and timezone.localdate(workorder.opened_at) <= soglia)
+
+
 def _resolved_rule_row(
     *,
     asset: Asset,

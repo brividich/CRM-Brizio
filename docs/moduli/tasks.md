@@ -88,3 +88,7 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 ## Ruoli del portale
 
 Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)): i codici d'azione (tasks_view, tasks_create, tasks_edit, tasks_admin) vengono dalla matrice di «KICK-OFF» (tasks_admin = «gestire» su tutti). Visibilità: tutti; oppure partecipazione ai progetti più attività e progetti delle persone del team d'organigramma; oppure solo partecipazione. «Modificare» su tutti o sul team apre la modifica delle relative attività. Le regole di accesso per ruolo di progetto (PM/CC/PRG/CR) restano attive sotto la matrice.
+
+## KPI coerenti e in tempo reale (02/11/2026)
+
+Incontri «da gestire»: le tre categorie si leggono intere, il totale (badge) non è più limitato a 18.

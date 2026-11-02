@@ -245,3 +245,23 @@ def collega() -> None:
     if m is not None:
         post_save.connect(_legacy_post, sender=m, dispatch_uid=f"{_UID}save_legacy")
         post_delete.connect(_legacy_post, sender=m, dispatch_uid=f"{_UID}del_legacy")
+
+    # Badge delle scadenze (subnav): qualunque scrittura su un modello di
+    # anagrafica (qualifiche, contratti, documenti... non solo i dati del motore).
+    post_save.connect(_invalida_badge, dispatch_uid=f"{_UID}badge_save")
+    post_delete.connect(_invalida_badge, dispatch_uid=f"{_UID}badge_del")
+
+
+def _invalida_badge(sender, **kwargs) -> None:
+    meta = getattr(sender, "_meta", None)
+    if meta is None or (meta.app_label != "anagrafica" and meta.label != "core.AnagraficaDipendente"):
+        return
+    from django.db import transaction
+
+    from anagrafica.services.scadenze import invalida_badge
+
+    try:
+        # A transazione conclusa: prima, un'altra richiesta rimetterebbe in cache il numero vecchio.
+        transaction.on_commit(invalida_badge)
+    except Exception:
+        logger.warning("badge scadenze: invalidazione fallita", exc_info=True)

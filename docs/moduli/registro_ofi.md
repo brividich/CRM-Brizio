@@ -39,3 +39,7 @@ Area **Qualità** · URL `/ofi-registro/` · codice [`django_app/registro_ofi/`]
 
 - In-app: `sistema_gestione/guida.py` (`GUIDA_OFI`, capitoli `ofi-*`, `PAGE_HELP` per ogni rotta).
 - Centro guide: `core/guide_moduli/contenuti/registro_ofi.py`.
+
+## KPI coerenti e in tempo reale (02/11/2026)
+
+«Aperta» ha una sola definizione: `RegistroOFI.q_aperte()` (registro, «Le mie», report MOD.174).

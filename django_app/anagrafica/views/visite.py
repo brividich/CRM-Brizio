@@ -857,6 +857,22 @@ _ALLOWED_DOC_MIMES = {
 _MAX_DOC_SIZE = DOCUMENT_MAX_BYTES
 
 
+def _richiesti_per_ruoli(ruoli_ids, oggi) -> set[int]:
+    """Persone che devono una visita perché ricoprono **oggi** uno dei ruoli collegati.
+
+    Unica regola per dashboard ed export: senza il filtro sul periodo contava anche
+    chi aveva già lasciato il ruolo, che risultava «senza visita».
+    """
+    return set(
+        DipendenteRuoloOperativo.objects
+        .filter(Q(data_fine__isnull=True) | Q(data_fine__gte=oggi), ruolo_id__in=ruoli_ids)
+        .exclude(legacy_anagrafica_id__in=DipendenteAnagraficaAziendale.objects.filter(
+            data_cessazione__isnull=False,
+        ).values("legacy_anagrafica_id"))
+        .values_list("legacy_anagrafica_id", flat=True)
+    )
+
+
 @login_required
 def visite_mediche_dashboard(request):
     """Dashboard globale visite mediche.
@@ -971,14 +987,7 @@ def visite_mediche_dashboard(request):
     for t in tipi_attivi_qs:
         ruoli_ids = list(t.ruoli_operativi.values_list("id", flat=True))
         if ruoli_ids:
-            legacy_ids_richiesti = set(
-                DipendenteRuoloOperativo.objects
-                .filter(ruolo_id__in=ruoli_ids)
-                .exclude(legacy_anagrafica_id__in=DipendenteAnagraficaAziendale.objects.filter(
-                    data_cessazione__isnull=False,
-                ).values("legacy_anagrafica_id"))
-                .values_list("legacy_anagrafica_id", flat=True)
-            )
+            legacy_ids_richiesti = _richiesti_per_ruoli(ruoli_ids, oggi)
         else:
             legacy_ids_richiesti = set()
         legacy_ids_coperti = set(
@@ -1819,14 +1828,7 @@ def visite_mediche_export_copertura(request):
     for t in tipi:
         ruoli_ids = list(t.ruoli_operativi.values_list("id", flat=True))
         if ruoli_ids:
-            legacy_ids_richiesti = set(
-                DipendenteRuoloOperativo.objects
-                .filter(ruolo_id__in=ruoli_ids)
-                .exclude(legacy_anagrafica_id__in=DipendenteAnagraficaAziendale.objects.filter(
-                    data_cessazione__isnull=False,
-                ).values("legacy_anagrafica_id"))
-                .values_list("legacy_anagrafica_id", flat=True)
-            )
+            legacy_ids_richiesti = _richiesti_per_ruoli(ruoli_ids, oggi)
         else:
             legacy_ids_richiesti = set()
         legacy_ids_coperti = set(

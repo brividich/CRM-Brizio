@@ -650,6 +650,11 @@ def _load_assenze_car_periodo(
     return out
 
 
+# Oggi e settimana si contano con len() delle righe: il tetto è alto apposta
+# perché non tagli mai (prima 100-500 righe, troncate senza avviso).
+_LIMITE_PERIODO = 5000
+
+
 def count_all_pending() -> int:
     """Quante assenze sono in attesa in tutta l'azienda: il totale di `_load_all_pending` senza limite."""
     if not _helpers._table_exists("assenze"):
@@ -1112,8 +1117,9 @@ def car_dashboard(request):
     if pending_scope == "all":
         da_gestire = _load_all_pending(limit=100)
         gestite = _load_all_gestite(limit=31, offset=history_offset, periodo=history_period)
-        riepilogo_oggi = _load_all_assenze_periodo(today_start, today_end, limit=200)
-        riepilogo_settimana = _load_all_assenze_periodo(monday, next_monday, limit=500)
+        riepilogo_oggi = _load_all_assenze_periodo(today_start, today_end, limit=_LIMITE_PERIODO)
+        riepilogo_settimana = _load_all_assenze_periodo(monday, next_monday, limit=_LIMITE_PERIODO)
+        n_in_attesa = count_all_pending()
     else:
         da_gestire = _helpers._load_pending_for_manager(
             legacy_user_id,
@@ -1134,7 +1140,7 @@ def car_dashboard(request):
             legacy_user_id,
             today_start,
             today_end,
-            limit=100,
+            limit=_LIMITE_PERIODO,
             manager_name=manager_name,
             manager_email=manager_email,
             utenti_ids=team_ids,
@@ -1143,10 +1149,15 @@ def car_dashboard(request):
             legacy_user_id,
             monday,
             next_monday,
-            limit=300,
+            limit=_LIMITE_PERIODO,
             manager_name=manager_name,
             manager_email=manager_email,
             utenti_ids=team_ids,
+        )
+
+        # Stesso perimetro della coda e del badge in alto, senza il limite della lista.
+        n_in_attesa = _helpers.count_pending_for_manager(
+            legacy_user_id, manager_name=manager_name, manager_email=manager_email,
         )
 
     history_has_next = len(gestite) > 30
@@ -1175,6 +1186,7 @@ def car_dashboard(request):
             "history_next": history_page + 1,
             "history_has_next": history_has_next,
             "history_period": history_period,
+            "n_in_attesa": n_in_attesa,
             "riepilogo_oggi": riepilogo_oggi,
             "riepilogo_settimana": riepilogo_settimana,
             "data_oggi": today_start.strftime("%d-%m-%Y"),

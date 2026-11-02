@@ -32,6 +32,13 @@ def _shared():
     return {"items": items, "last_report": last, "computed_at": timezone.now()}
 
 
+def invalida(*args, **kwargs) -> None:
+    """Svuota la cache a transazione conclusa (ricevitore dei segnali in SecurityConfig.ready)."""
+    from django.db import transaction
+
+    transaction.on_commit(lambda: cache.delete(CACHE_KEY))
+
+
 def live_status(user):
     data = cache.get(CACHE_KEY)
     if data is None:
