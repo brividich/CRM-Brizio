@@ -111,6 +111,11 @@ GUIDA = {
                       "«Gestite» sono le assenze di quel team (la pillola «N nel team» apre l'elenco). Se non risulti "
                       "responsabile di nessuno vale il capo indicato sulle richieste. Chi ha la vista aziendale trova "
                       "anche la scheda «Tutta l'azienda», con coda e riepiloghi di tutto il personale."),
+                ("p", "La persona di una richiesta si riconosce dall'email o dal nome scritto sulla richiesta (anche "
+                      "«COGNOME NOME» o «NOME COGNOME»), confrontati con l'Anagrafica e con l'utente del portale."),
+                ("p", "«In attesa» e «Richieste in attesa» contano solo le richieste ancora da decidere: quelle rimaste "
+                      "in attesa e finite da più di 30 giorni (in gran parte importate dal vecchio portale e mai decise) "
+                      "escono dalla coda, ma restano nello storico e nel calendario."),
             ],
         },
         {
@@ -249,6 +254,25 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Un capo vede «Tutta l'azienda» e può approvare le richieste di tutti",
+            "perche": "nella matrice dei permessi il suo ruolo ha «Vedere» o «Approvare» di Assenze con ambito «tutti».",
+            "fare": [
+                "Apri Amministrazione → Ruoli e permessi, ruolo «Caporeparto», modulo Assenze.",
+                "Metti «Vedere», «Approvare», «Modificare» ed «Esportare» su «team»: il capo vede e approva solo il suo team.",
+                "«Creare» può restare su «tutti»: inserire una richiesta per un altro non vuol dire approvarla.",
+            ],
+        },
+        {
+            "sintomo": "«Il mio team» della dashboard è vuoto anche se il capo ha delle persone",
+            "perche": "le richieste si collegano alla persona da email o nome; se il nome sulla richiesta è scritto "
+                      "diversamente dall'Anagrafica la richiesta non viene riconosciuta.",
+            "fare": [
+                "Controlla in Anagrafica → «Il mio team» del capo che le persone ci siano (team dall'organigramma).",
+                "Controlla che nome e cognome in Anagrafica coincidano con il nome sulle richieste, oppure che la "
+                "richiesta porti l'email della persona.",
+            ],
+        },
         {
             "sintomo": "La richiesta va al capo sbagliato",
             "perche": "il capo si ricava dall'Anagrafica, oppure il dipendente ne ha scelto un altro nella richiesta.",

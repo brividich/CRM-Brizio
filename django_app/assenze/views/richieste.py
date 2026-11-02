@@ -511,9 +511,10 @@ def _utenti_mio_team(request) -> tuple[int, list[int]]:
 def _where_team(utenti_ids, manager_kwargs: dict) -> tuple[str, list, bool]:
     """Perimetro della dashboard: il team di «Il mio team» se c'è, altrimenti il
     capo assegnato alla richiesta (regola di prima)."""
-    if utenti_ids and _helpers._has_assenze_column("utente_id"):
-        ids = sorted({int(u) for u in utenti_ids})
-        return f"a.utente_id IN ({', '.join(['%s'] * len(ids))})", ids, False
+    if utenti_ids:
+        where, params = _helpers._where_utenti(utenti_ids, "a")
+        if where:
+            return where, params, False
     return _helpers._combined_manager_assignment_where_clause(assenze_alias="a", capi_alias="cr", **manager_kwargs)
 
 
@@ -542,7 +543,7 @@ def _load_gestite_for_manager(
 
     _note_col = ", a.note_gestione" if _helpers._has_assenze_column("note_gestione") else ""
     _cert_col = ", a.certificato_medico" if _helpers._has_assenze_column("certificato_medico") else ""
-    _utente_col = ", a.utente_id" if _helpers._has_assenze_column("utente_id") else ""
+    _utente_col = _helpers._col_utente_id("a")
     _capo_cols = "".join(f", a.{col}" for col in ("capo_reparto_id", "capo_reparto_lookup_id") if _helpers._has_assenze_column(col))
     base_sql = f"""
         SELECT
@@ -651,11 +652,15 @@ def _load_assenze_car_periodo(
 
 
 def _load_all_pending(limit: int = 100) -> list[dict]:
-    """Tutte le assenze in attesa (nessun filtro su capo): per AMMINISTRAZIONE."""
+    """Tutte le assenze in attesa (nessun filtro su capo): per AMMINISTRAZIONE.
+
+    Stessa coda dei capi: fuori le richieste finite da oltre
+    ``CODA_GIORNI_DOPO_FINE`` giorni e mai decise (vecchio portale)."""
     if not _helpers._table_exists("assenze"):
         return []
+    coda_sql, coda_params = _helpers._sql_coda_attiva("a")
     _cert_col = ", a.certificato_medico" if _helpers._has_assenze_column("certificato_medico") else ""
-    _utente_col = ", a.utente_id" if _helpers._has_assenze_column("utente_id") else ""
+    _utente_col = _helpers._col_utente_id("a")
     _creata_col = ", a.created_datetime" if _helpers._has_assenze_column("created_datetime") else ""
     _capo_cols = "".join(f", a.{col}" for col in ("capo_reparto_id", "capo_reparto_lookup_id") if _helpers._has_assenze_column(col))
     base_sql = f"""
@@ -669,10 +674,10 @@ def _load_all_pending(limit: int = 100) -> list[dict]:
             a.moderation_status,
             a.motivazione_richiesta{_cert_col}{_utente_col}{_creata_col}{_capo_cols}
         FROM assenze a
-        WHERE COALESCE(a.moderation_status, 2) = 2
+        WHERE {coda_sql}
     """
     sql = _helpers._select_limited(base_sql, "ORDER BY a.data_inizio DESC, a.id DESC", limit)
-    rows = _helpers._applica_nominativo(_helpers._fetch_all_dict(sql))
+    rows = _helpers._applica_nominativo(_helpers._fetch_all_dict(sql, coda_params))
     out = []
     for row in rows:
         _, moderation_label = _helpers._status_from_moderation(row.get("moderation_status"), default_pending=True)

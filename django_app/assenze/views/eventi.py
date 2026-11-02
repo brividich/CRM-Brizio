@@ -327,11 +327,11 @@ def _load_events(
     if manager_scope is not None and "utenti_ids" in manager_scope:
         # Perimetro dei ruoli del portale: elenco esplicito di persone. Vuoto o
         # colonna assente = fail-closed.
-        ids = [int(i) for i in manager_scope.get("utenti_ids") or []]
-        if not ids or not _helpers._has_assenze_column("utente_id"):
+        team_where, team_params = _helpers._where_utenti(manager_scope.get("utenti_ids"), "a")
+        if not team_where:
             return []
-        where_clauses.append(f"a.utente_id IN ({', '.join(['%s'] * len(ids))})")
-        params.extend(ids)
+        where_clauses.append(team_where)
+        params.extend(team_params)
     elif manager_scope is not None:
         scope_where, scope_params, use_legacy_join = _helpers._combined_manager_assignment_where_clause(
             legacy_user_id=manager_scope.get("legacy_user_id"),
