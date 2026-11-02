@@ -1391,6 +1391,10 @@ class HubLink(models.Model):
     original_filename = models.CharField(max_length=255, blank=True, default="")
     file_size = models.PositiveIntegerField(null=True, blank=True)
     content_type = models.CharField(max_length=120, blank=True, default="")
+    # Immagine di copertina (facoltativa): JPEG ricodificato da core.copertine,
+    # storage privato, servito solo da dashboard:sapere_copertina con l'ACL della voce.
+    copertina = models.FileField(storage=HubLinkStorage(), upload_to="hub_covers/%Y/%m",
+                                 blank=True, null=True)
     open_in_new_tab = models.BooleanField(default=False)
     order = models.IntegerField(default=100)
     is_visible = models.BooleanField(default=True)
@@ -1432,6 +1436,13 @@ class HubLink(models.Model):
             return parole[0][:4].upper()
         return "".join(p[0] for p in parole[:3]).upper()
 
+    @property
+    def copertina_url(self) -> str:
+        """Indirizzo protetto della copertina ('' se manca)."""
+        from core.sapere import url_copertina
+
+        return url_copertina("risorsa", self)
+
     def resolve_href(self) -> str:
         if self.kind == self.KIND_URL:
             return self.url or "#"
@@ -1463,6 +1474,89 @@ class HubLinkRoleAccess(models.Model):
 
     def __str__(self) -> str:
         return f"HubLinkAccess<link={self.link_id} role={self.legacy_role_id}>"
+
+
+class Catalogo(models.Model):
+    """Catalogo della stanza «Sapere»: raccolta ordinata di guide e altro.
+
+    Le voci (``CatalogoVoce``) possono essere risorse della bacheca, guide del
+    Centro guide o collegamenti liberi (pagina del portale o indirizzo esterno).
+    La visibilità per ruolo segue la regola della bacheca: nessun
+    ``CatalogoRoleAccess`` = visibile a tutti. Ogni voce mantiene in più i suoi
+    controlli (ACL della risorsa, guide riservate agli amministratori).
+    """
+
+    titolo = models.CharField(max_length=120)
+    slug = models.SlugField(max_length=140, unique=True)
+    descrizione = models.CharField(max_length=300, blank=True, default="")
+    copertina = models.FileField(storage=HubLinkStorage(), upload_to="hub_covers/cataloghi/%Y/%m",
+                                 blank=True, null=True)
+    colore = models.CharField(max_length=7, blank=True, default="",
+                              help_text="Colore della copertina quando manca l'immagine, es. #1f4f86.")
+    ordine = models.IntegerField(default=100)
+    is_visible = models.BooleanField(default=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, blank=True, related_name="cataloghi_creati")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, blank=True, related_name="cataloghi_modificati")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ordine", "titolo", "id"]
+        verbose_name = "Catalogo Sapere"
+        verbose_name_plural = "Cataloghi Sapere"
+
+    def __str__(self) -> str:
+        return f"Catalogo<{self.slug}>"
+
+
+class CatalogoRoleAccess(models.Model):
+    """Visibilità per ruolo legacy di un catalogo (nessun record = tutti)."""
+
+    catalogo = models.ForeignKey(Catalogo, on_delete=models.CASCADE, related_name="role_accesses")
+    legacy_role_id = models.IntegerField(db_index=True)
+
+    class Meta:
+        unique_together = [("catalogo", "legacy_role_id")]
+
+    def __str__(self) -> str:
+        return f"CatalogoAccess<cat={self.catalogo_id} role={self.legacy_role_id}>"
+
+
+class CatalogoVoce(models.Model):
+    """Voce di un catalogo: risorsa della bacheca, guida del Centro guide o collegamento."""
+
+    TIPO_RISORSA = "risorsa"
+    TIPO_GUIDA = "guida"
+    TIPO_COLLEGAMENTO = "collegamento"
+    TIPO_CHOICES = [
+        (TIPO_RISORSA, "Risorsa della bacheca"),
+        (TIPO_GUIDA, "Guida del Centro guide"),
+        (TIPO_COLLEGAMENTO, "Collegamento"),
+    ]
+
+    catalogo = models.ForeignKey(Catalogo, on_delete=models.CASCADE, related_name="voci")
+    tipo = models.CharField(max_length=16, choices=TIPO_CHOICES)
+    hub_link = models.ForeignKey(HubLink, on_delete=models.CASCADE, null=True, blank=True,
+                                 related_name="voci_catalogo")
+    guida_slug = models.CharField(max_length=60, blank=True, default="")
+    # Collegamento: indirizzo che inizia con «/» (pagina del portale) o http(s)://.
+    url = models.CharField(max_length=500, blank=True, default="")
+    # Titolo e descrizione: obbligatori per il collegamento, altrimenti sostituiscono quelli della fonte.
+    titolo = models.CharField(max_length=160, blank=True, default="")
+    descrizione = models.CharField(max_length=300, blank=True, default="")
+    sigla = models.CharField(max_length=8, blank=True, default="")
+    copertina = models.FileField(storage=HubLinkStorage(), upload_to="hub_covers/voci/%Y/%m",
+                                 blank=True, null=True)
+    ordine = models.IntegerField(default=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["ordine", "id"]
+
+    def __str__(self) -> str:
+        return f"CatalogoVoce<{self.catalogo_id}:{self.tipo}>"
 
 
 # ---------------------------------------------------------------------------

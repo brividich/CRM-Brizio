@@ -1,0 +1,39 @@
+<style>
+  .sc-wrap{ display:flex; flex-direction:column; gap:16px }
+  .sc-card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow) }
+  .sc-card-h{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 16px; border-bottom:1px solid var(--border) }
+  .sc-card-h h3{ font-size:var(--fs-md); font-weight:800; margin:0 }
+  .sc-card-h .sp{ flex:1 }
+  .sc-body{ padding:12px 16px }
+  .sc-form{ display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; padding:12px 16px }
+  .sc-field{ display:flex; flex-direction:column; gap:4px; min-width:160px; max-width:100% }
+  .sc-field.grow{ flex:1 1 240px }
+  .sc-field label, .sc-lbl{ font-size:var(--fs-2xs); font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--text-light) }
+  .sc-field input[type=text], .sc-field select{ min-height:36px; padding:6px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font-size:16px; max-width:100% }
+  .sc-field input[type=file]{ max-width:100% }
+  .sc-field input[type=color]{ width:52px; min-height:36px; padding:2px; border:1px solid var(--border); border-radius:8px; background:var(--surface); cursor:pointer }
+  .sc-check{ display:inline-flex; align-items:center; gap:6px; font-size:var(--fs-sm) }
+  .sc-roles{ flex-basis:100%; display:flex; flex-wrap:wrap; gap:8px 14px }
+  .sc-roles label{ display:inline-flex; align-items:center; gap:5px; font-size:var(--fs-xs) }
+  .sc-hint{ flex-basis:100%; font-size:var(--fs-xs); color:var(--text-light); margin:0 }
+  .sc-row{ display:flex; align-items:center; gap:12px; padding:10px; border-radius:9px; flex-wrap:wrap }
+  .sc-row + .sc-row{ border-top:1px solid var(--border) }
+  .sc-row:hover{ background:var(--bg) }
+  .sc-row-bd{ flex:1 1 220px; min-width:0 }
+  .sc-row-t{ font-weight:700; font-size:var(--fs-base); overflow-wrap:anywhere }
+  .sc-row-t a{ color:inherit }
+  .sc-row-m{ font-size:var(--fs-xs); color:var(--text-light); overflow-wrap:anywhere }
+  .sc-warn{ font-size:var(--fs-xs); color:var(--warning, #b45309); font-weight:600 }
+  .sc-row-a{ display:flex; gap:6px; flex-wrap:wrap; align-items:center }
+  .sc-row-a form{ display:inline-flex; gap:6px; align-items:center; margin:0 }
+  .sc-thumb{ flex-shrink:0; width:64px; height:48px; border-radius:8px; object-fit:cover; border:1px solid var(--border) }
+  .sc-sigla{ flex-shrink:0; width:64px; height:48px; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:900; font-size:15px; background:var(--cover, #1f4f86) }
+  .sc-chip{ font-size:var(--fs-2xs); font-weight:700; padding:2px 8px; border-radius:999px; background:var(--bg); border:1px solid var(--border); color:var(--text-mid) }
+  .sc-chip.all{ background:var(--success-bg); color:var(--success); border-color:transparent }
+  .sc-chip.off{ background:var(--danger-bg); color:var(--danger); border-color:transparent }
+  .sc-empty{ padding:14px; color:var(--text-light); font-size:var(--fs-sm) }
+  .sc-preview{ width:160px; height:120px; border-radius:10px; object-fit:cover; border:1px solid var(--border) }
+  .sc-t-risorsa, .sc-t-guida, .sc-t-collegamento{ display:none }
+  .sc-form[data-tipo=risorsa] .sc-t-risorsa, .sc-form[data-tipo=guida] .sc-t-guida, .sc-form[data-tipo=collegamento] .sc-t-collegamento{ display:flex }
+  .sc-filebtn{ cursor:pointer }
+</style>

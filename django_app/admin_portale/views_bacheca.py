@@ -16,6 +16,7 @@ from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_GET, require_POST
 
 from core.audit import log_action
+from core.copertine import COPERTINA_ACCEPT, CopertinaNonValida, rimuovi_copertina, sostituisci_copertina
 from core.legacy_models import Ruolo
 from core.models import HubLink, HubLinkCategory, HubLinkRoleAccess
 
@@ -85,6 +86,7 @@ def bacheca(request):
         "kinds": HubLink.KIND_CHOICES,
         "sezioni": HubLinkCategory.SEZIONE_CHOICES,
         "accept_ext": ",".join(sorted(ALLOWED_UPLOAD_EXT)),
+        "accept_copertina": COPERTINA_ACCEPT,
         "max_mb": DOCUMENT_MAX_MB,
     })
 
@@ -150,10 +152,12 @@ def api_hub_link_create(request):
         data = request.POST
         role_ids = request.POST.getlist("role_ids")
         upload = request.FILES.get("file")
+        copertina = request.FILES.get("copertina")
     else:
         data = _json_body(request)
         role_ids = data.get("role_ids") or []
         upload = None
+        copertina = None
 
     try:
         cat = HubLinkCategory.objects.get(pk=int(data.get("category_id")))
@@ -197,6 +201,11 @@ def api_hub_link_create(request):
         link.clean()
     except Exception as exc:
         return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+    if copertina:
+        try:
+            sostituisci_copertina(link, copertina)
+        except CopertinaNonValida as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=400)
 
     with transaction.atomic():
         link.save()
@@ -210,7 +219,34 @@ def api_hub_link_create(request):
 @require_POST
 def api_hub_link_delete(request):
     data = _json_body(request)
-    HubLink.objects.filter(pk=data.get("id")).delete()
+    for link in HubLink.objects.filter(pk=data.get("id")):
+        rimuovi_copertina(link)
+        link.delete()
+    return JsonResponse({"ok": True})
+
+
+@legacy_admin_required
+@csrf_protect
+@require_POST
+def api_hub_link_copertina(request):
+    """Multipart: ``id`` + ``copertina`` (immagine) oppure ``rimuovi=1``."""
+    try:
+        link = HubLink.objects.get(pk=int(request.POST.get("id")))
+    except (HubLink.DoesNotExist, TypeError, ValueError):
+        return JsonResponse({"ok": False, "error": "Voce non trovata."}, status=404)
+    upload = request.FILES.get("copertina")
+    try:
+        if upload:
+            sostituisci_copertina(link, upload)
+        elif request.POST.get("rimuovi"):
+            rimuovi_copertina(link)
+        else:
+            return JsonResponse({"ok": False, "error": "Scegli un'immagine."}, status=400)
+    except CopertinaNonValida as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+    link.updated_by = request.user
+    link.save(update_fields=["copertina", "updated_by", "updated_at"])
+    log_action(request, "update", "bacheca", {"link_id": link.id, "copertina": bool(link.copertina)})
     return JsonResponse({"ok": True})
 
 

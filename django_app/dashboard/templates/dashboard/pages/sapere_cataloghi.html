@@ -1,0 +1,35 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Cataloghi · NOVICROM HUB{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'core/css/home_portale.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=4">
+{% endblock %}
+
+{% block content %}
+<div class="hp-wrap">
+  <div class="page-header">
+    <div class="page-header-main">
+      <h1 class="page-h">Cataloghi</h1>
+      <p class="page-sub">Guide, documenti e collegamenti raccolti per argomento. Vedi solo i cataloghi aperti al tuo ruolo.</p>
+    </div>
+    <div class="page-header-actions">
+      <a class="btn btn-secondary btn-sm" href="{% url 'guide_indice' %}">Centro guide</a>
+      {% if is_admin %}<a class="btn btn-secondary btn-sm" href="{% url 'admin_portale:sapere_cataloghi' %}">Gestisci cataloghi</a>{% endif %}
+      <a class="btn btn-secondary btn-sm" href="{% url 'home_portale:guida' %}#sapere">? Guida</a>
+    </div>
+  </div>
+
+  <section class="hp-card">
+    <div class="hs-pad">
+      {% if cataloghi %}
+        {% include "dashboard/pages/_sapere_copertine.html" with elenco=cataloghi %}
+      {% else %}
+        <p class="hp-empty">Nessun catalogo disponibile per il tuo profilo.{% if is_admin %}<br><span class="hp-docs-empty-hint">Creane uno da Admin portale → Cataloghi Sapere.</span>{% endif %}</p>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

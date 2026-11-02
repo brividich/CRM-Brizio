@@ -145,6 +145,9 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     # «La mia scheda»: solo i dati del dipendente collegato all'utente (nessun id
     # nell'URL sceglie la persona; l'attestato di un altro risponde 404).
     "/anagrafica/la-mia-scheda/",
+    # Stanza «Sapere» (cataloghi, pagina catalogo, copertine): aperta a chi ha fatto
+    # l'accesso; cataloghi, voci e copertine sono filtrati per ruolo in-view (core.sapere).
+    "/sapere/",
     # Centro guide: aperto a chi ha fatto l'accesso, nessun dato personale; le
     # parti per amministratori sono verificate nella view (403).
     "/guide/",

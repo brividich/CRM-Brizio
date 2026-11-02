@@ -1,0 +1,147 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ catalogo.titolo }} · Cataloghi Sapere | Admin Portale{% endblock %}
+
+{% block extra_head %}{% include "admin_portale/pages/_sapere_stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="hp-wrap">
+  <div class="page-header">
+    <div class="page-header-main">
+      <h1 class="page-h">{{ catalogo.titolo }}</h1>
+      <p class="page-sub"><a href="{% url 'admin_portale:sapere_cataloghi' %}">← Cataloghi Sapere</a> · le voci si vedono nell'ordine qui sotto; ognuna resta soggetta ai suoi permessi.</p>
+    </div>
+    <div class="page-header-actions">
+      {% if catalogo.is_visible %}<a class="btn btn-secondary btn-sm" href="{% url 'sapere_catalogo' catalogo.slug %}">Vedi come utente</a>{% endif %}
+      <a class="btn btn-secondary btn-sm" href="{% url 'guida_modulo' 'amministrazione' %}?vista=admin#sapere-cataloghi">? Guida</a>
+    </div>
+  </div>
+
+  <div class="sc-wrap">
+    <div class="sc-card">
+      <div class="sc-card-h"><h3>Dati del catalogo</h3></div>
+      <form class="sc-form" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="azione" value="salva">
+        {% if copertina %}<img class="sc-preview" src="{{ copertina }}" alt="Copertina attuale">{% endif %}
+        <div class="sc-field grow">
+          <label for="sc-titolo">Titolo</label>
+          <input type="text" id="sc-titolo" name="titolo" maxlength="120" required value="{{ catalogo.titolo }}">
+        </div>
+        <div class="sc-field grow">
+          <label for="sc-descr">Descrizione</label>
+          <input type="text" id="sc-descr" name="descrizione" maxlength="300" value="{{ catalogo.descrizione }}">
+        </div>
+        <div class="sc-field">
+          <label for="sc-colore">Colore</label>
+          <input type="color" id="sc-colore" name="colore" value="{{ catalogo.colore|default:colore_default }}">
+        </div>
+        <div class="sc-field">
+          <label for="sc-cop">{% if copertina %}Cambia copertina{% else %}Copertina{% endif %} (max {{ max_mb }} MB)</label>
+          <input type="file" id="sc-cop" name="copertina" accept="{{ accept }}">
+          {% if copertina %}<label class="sc-check"><input type="checkbox" name="rimuovi_copertina" value="1"> Togli la copertina</label>{% endif %}
+        </div>
+        <label class="sc-check"><input type="checkbox" name="is_visible" value="1"{% if catalogo.is_visible %} checked{% endif %}> Visibile</label>
+        <p class="sc-hint">Visibile ai ruoli (nessuno selezionato = tutti):</p>
+        <div class="sc-roles">
+          {% for r in ruoli %}<label><input type="checkbox" name="ruoli" value="{{ r.id }}"{% if r.id in ruoli_scelti %} checked{% endif %}> {{ r.nome }}</label>{% empty %}<span class="sc-hint">Nessun ruolo disponibile.</span>{% endfor %}
+        </div>
+        <button class="btn btn-primary btn-sm" type="submit">Salva</button>
+      </form>
+    </div>
+
+    <div class="sc-card">
+      <div class="sc-card-h"><h3>Voci</h3><span class="sc-chip">{{ voci|length }}</span></div>
+      <div class="sc-body">
+        {% for v in voci %}
+          <div class="sc-row">
+            {% if v.copertina %}<img class="sc-thumb" src="{{ v.copertina }}" alt="" loading="lazy">{% else %}<span class="sc-sigla" style="--cover:#64748b">{{ forloop.counter }}</span>{% endif %}
+            <div class="sc-row-bd">
+              <div class="sc-row-t">{{ v.titolo }}</div>
+              <div class="sc-row-m">{{ v.obj.get_tipo_display }} · {{ v.sorgente }}</div>
+              {% if v.avviso %}<div class="sc-warn">{{ v.avviso }}</div>{% endif %}
+            </div>
+            <div class="sc-row-a">
+              <form method="post">{% csrf_token %}<input type="hidden" name="voce_id" value="{{ v.obj.id }}">
+                <button class="btn btn-secondary btn-sm" name="azione" value="voce_su" title="Sposta su" aria-label="Sposta su"{% if forloop.first %} disabled{% endif %}>↑</button>
+                <button class="btn btn-secondary btn-sm" name="azione" value="voce_giu" title="Sposta giù" aria-label="Sposta giù"{% if forloop.last %} disabled{% endif %}>↓</button>
+              </form>
+              <form method="post" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="voce_id" value="{{ v.obj.id }}"><input type="hidden" name="azione" value="voce_copertina">
+                <label class="btn btn-secondary btn-sm sc-filebtn" title="Immagine solo per questa voce nel catalogo">{% if v.obj.copertina %}Cambia copertina{% else %}+ Copertina{% endif %}
+                  <input type="file" name="copertina" accept="{{ accept }}" hidden onchange="this.form.submit()">
+                </label>
+                {% if v.obj.copertina %}<button class="btn btn-secondary btn-sm" name="rimuovi_copertina" value="1">Togli copertina</button>{% endif %}
+              </form>
+              <form method="post" data-hub-confirm="Togliere questa voce dal catalogo? La guida o la risorsa originale resta dove è.">{% csrf_token %}<input type="hidden" name="voce_id" value="{{ v.obj.id }}">
+                <button class="btn btn-secondary btn-sm" name="azione" value="voce_elimina">Togli</button>
+              </form>
+            </div>
+          </div>
+        {% empty %}
+          <div class="sc-empty">Nessuna voce. Aggiungine una qui sotto.</div>
+        {% endfor %}
+      </div>
+
+      <form class="sc-form" method="post" enctype="multipart/form-data" data-tipo="guida" id="sc-nuova-voce" style="border-top:1px dashed var(--border); background:var(--bg)">
+        {% csrf_token %}
+        <input type="hidden" name="azione" value="aggiungi_voce">
+        <div class="sc-field">
+          <label for="sc-tipo">Aggiungi</label>
+          <select id="sc-tipo" name="tipo" onchange="this.form.dataset.tipo=this.value">
+            {% for value, label in tipi %}<option value="{{ value }}"{% if value == "guida" %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="sc-field grow sc-t-guida">
+          <label for="sc-guida">Guida</label>
+          <select id="sc-guida" name="guida_slug">
+            <option value="">— scegli —</option>
+            {% for g in guide %}<option value="{{ g.slug }}">{{ g.area }} · {{ g.titolo }}{% if g.solo_admin %} (solo amministratori){% endif %}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="sc-field grow sc-t-risorsa">
+          <label for="sc-risorsa">Risorsa della bacheca</label>
+          <select id="sc-risorsa" name="hub_link_id">
+            <option value="">— scegli —</option>
+            {% for l in risorse %}<option value="{{ l.id }}">{{ l.category.name }} · {{ l.title }}{% if not l.is_visible %} (nascosta){% endif %}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="sc-field grow sc-t-collegamento">
+          <label for="sc-url">Indirizzo</label>
+          <input type="text" id="sc-url" name="url" maxlength="500" placeholder="/anagrafica/la-mia-scheda/ oppure https://…">
+        </div>
+        <div class="sc-field grow">
+          <label for="sc-vtitolo">Titolo</label>
+          <input type="text" id="sc-vtitolo" name="titolo" maxlength="160" placeholder="Vuoto = quello della guida o risorsa">
+        </div>
+        <div class="sc-field grow">
+          <label for="sc-vdescr">Descrizione</label>
+          <input type="text" id="sc-vdescr" name="descrizione" maxlength="300" placeholder="Facoltativa">
+        </div>
+        <div class="sc-field" style="min-width:100px">
+          <label for="sc-vsigla">Sigla</label>
+          <input type="text" id="sc-vsigla" name="sigla" maxlength="8" placeholder="Es. VPN">
+        </div>
+        <div class="sc-field">
+          <label for="sc-vcop">Copertina (facoltativa)</label>
+          <input type="file" id="sc-vcop" name="copertina" accept="{{ accept }}">
+        </div>
+        <button class="btn btn-primary btn-sm" type="submit">+ Aggiungi voce</button>
+        <p class="sc-hint">Una risorsa della bacheca mostra la sua copertina, se ce l'ha; la copertina della voce la sostituisce solo in questo catalogo. Un collegamento a una pagina del portale si apre solo a chi ha il permesso per quella pagina.</p>
+      </form>
+    </div>
+
+    <div class="sc-card">
+      <div class="sc-card-h"><h3>Elimina catalogo</h3></div>
+      <form class="sc-form" method="post" data-hub-confirm="Eliminare il catalogo e le sue voci? Guide e risorse della bacheca restano dove sono.">
+        {% csrf_token %}
+        <p class="sc-hint" style="flex:1">Elimina il catalogo e l'elenco delle sue voci. Le guide e le risorse della bacheca non vengono toccate.</p>
+        <button class="btn btn-danger btn-sm" name="azione" value="elimina">Elimina catalogo</button>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+  // Allinea i campi visibili al tipo scelto (anche dopo il «torna indietro» del browser).
+  (function(){ var f = document.getElementById('sc-nuova-voce'); if(f){ f.dataset.tipo = f.elements.tipo.value; } })();
+</script>
+{% endblock %}

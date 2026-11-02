@@ -38,6 +38,9 @@ GUIDA = {
                                          "Per ogni riga: persona, account AD o password del portale, ultimo accesso; «Account AD, mai entrato» = quasi sempre manca il gruppo AD ammesso al portale. Ha la sua guida."),
                     ("Menu del portale", "la barra in alto, le categorie (tendine), le voci e chi le vede (vecchio nome: Navigation Builder). Ha la sua sezione qui sotto."),
                     ("Branding", "logo, favicon, nome e colori."),
+                    ("Documenti & Collegamenti", "le risorse della home (stanza «Sapere»): categorie, documenti, collegamenti e scorciatoie, "
+                                                 "con sigla, immagine di copertina e ruoli che le vedono."),
+                    ("Cataloghi Sapere", "raccolte di guide, risorse e collegamenti con copertina, mostrate nella stanza «Sapere». Ha la sua sezione qui sotto."),
                     ("Postazioni condivise", "PC usati a turno con un solo account (es. «zeiss»): un PC per riga (dal registro asset), chi può usarlo, PIN. L'operatore sceglie il proprio nome e digita il PIN. Ha la sua guida."),
                     ("Gestione notifiche / Log notifiche", "accendere o spegnere categorie di notifica e l'avviso per mail «Avvisa l'utente quando viene impersonato»; vedere cosa è partito e a chi."),
                     ("Centro report", "tutti i report del portale per modulo (catalogo), chi ha scaricato quale file e con quali filtri "
@@ -203,6 +206,33 @@ GUIDA = {
                 ]),
                 ("nota", "I controlli girano da soli ogni 30 minuti: se uno diventa rosso si apre una segnalazione e parte una mail agli amministratori. "
                          "Il ripristino da Hub → «Database» è disattivato: si fa solo con il tool dedicato, dopo aver parlato con la Direzione."),
+            ],
+        },
+        {
+            "id": "sapere-cataloghi",
+            "titolo": "Cataloghi e copertine della stanza «Sapere»",
+            "blocchi": [
+                ("p", "Amministrazione → «Cataloghi Sapere». Un catalogo raccoglie in un ordine scelto guide del Centro guide, "
+                      "risorse della bacheca (Documenti & Collegamenti) e collegamenti liberi: per esempio «Primo giorno in azienda» "
+                      "o «IT e accessi». Una stessa guida o risorsa può stare in più cataloghi."),
+                ("passi", [
+                    "In «Nuovo catalogo» scrivi titolo e descrizione, scegli il colore, carica se vuoi un'immagine di copertina e spunta "
+                    "i ruoli che lo vedono (nessuno = tutti). «+ Crea catalogo» apre la pagina del catalogo.",
+                    "In «Aggiungi» scegli «Guida del Centro guide», «Risorsa della bacheca» o «Collegamento». Per il collegamento servono "
+                    "titolo e indirizzo: una pagina del portale che inizia con «/» oppure un indirizzo che inizia con https://.",
+                    "Titolo, descrizione e sigla della voce sono facoltativi per guide e risorse: vuoti, si usano quelli originali.",
+                    "Con ↑ e ↓ cambi l'ordine delle voci e dei cataloghi; «Togli» toglie la voce dal catalogo (la guida o la risorsa restano dove sono).",
+                    "«Vedi come utente» apre la pagina del catalogo come la vedono gli altri.",
+                ]),
+                ("def", [
+                    ("Copertine", "JPG, PNG o WEBP fino a 10 MB. Il portale le riduce a 1200 pixel sul lato lungo e le salva di nuovo in JPEG, "
+                                  "senza i dati nascosti della foto (posizione GPS, modello del telefono). Senza immagine la copertina mostra colore e sigla."),
+                    ("Copertina di una risorsa", "si carica in «Documenti & Collegamenti» («+ Copertina» sulla riga o nel modulo della nuova voce) "
+                                                 "e vale ovunque; la copertina di una voce di catalogo la sostituisce solo in quel catalogo."),
+                    ("Chi vede cosa", "il catalogo segue i suoi ruoli; dentro, ogni voce segue i suoi permessi: una risorsa riservata ad altri ruoli, "
+                                      "nascosta o una guida per soli amministratori non compare. Un catalogo senza voci visibili non compare nella home."),
+                ]),
+                ("nota", "Nelle copertine e negli screenshot usa solo immagini senza dati di persone o clienti reali."),
             ],
         },
         {

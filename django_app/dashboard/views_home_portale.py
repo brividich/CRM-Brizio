@@ -872,6 +872,7 @@ def _documenti_collegamenti(request, preview: bool = True, sezione: str | None =
 
 SELF_HELP_NUOVA_GIORNI = 14
 SELF_HELP_COLORE_DEFAULT = "#1f4f86"
+SAPERE_CATALOGHI_HOME = 8  # copertine dei cataloghi nella stanza; gli altri in /sapere/
 
 
 def _risorse_self_help(request) -> list[dict]:
@@ -902,6 +903,7 @@ def _risorse_self_help(request) -> list[dict]:
                 "href": l.resolve_href(),
                 "open_in_new_tab": bool(l.open_in_new_tab or l.kind == HubLink.KIND_URL),
                 "is_new": bool(l.created_at and l.created_at >= soglia),
+                "copertina": l.copertina_url,
             } for l in g["items"]],
         })
     return out
@@ -1049,6 +1051,13 @@ def home_portale(request: HttpRequest) -> HttpResponse:
 
     bacheca_groups = _documenti_collegamenti(request, sezione=HubLinkCategory.SEZIONE_DOCUMENTI)
     self_help = _risorse_self_help(request)
+    try:
+        from core import sapere
+
+        sapere_cataloghi = sapere.schede_cataloghi(sapere.identita(request))
+    except Exception:
+        logger.exception("home: cataloghi Sapere non disponibili")
+        sapere_cataloghi = []
     sicurezza = _sicurezza(legacy_user)
     home_prefs = _home_prefs(request.user)
 
@@ -1079,7 +1088,9 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         "cose_da_gestire_total":  cose_da_gestire["total"],
         "bacheca_groups":     bacheca_groups,
         "self_help_groups":   self_help,
-        "self_help_total":    sum(len(g["items"]) for g in self_help),
+        "self_help_total":    sum(len(g["items"]) for g in self_help) + len(sapere_cataloghi),
+        "sapere_cataloghi":   sapere_cataloghi[:SAPERE_CATALOGHI_HOME],
+        "sapere_cataloghi_altri": max(0, len(sapere_cataloghi) - SAPERE_CATALOGHI_HOME),
         "sicurezza":          sicurezza,
         "module_launcher":    _module_launcher(groups),
         "news_items":         _news_items(request),
