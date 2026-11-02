@@ -202,6 +202,14 @@ SEZIONI: list[dict] = [
                 "indica le anomalie aperte ancora da decidere.",
                 "Anomalie: raggruppate per blocco di seriali, con fase, operatore e data. «Da decidere» mostra solo quelle "
                 "senza decisione; le chiuse sono raccolte in fondo in «Chiuse».",
+                "«Clona» (sulla riga dell'OP, al passaggio del mouse) copia anomalie su un nuovo OP: spunta nella colonna "
+                "Anomalie quelle da copiare (anche le chiuse; la casella sul blocco le prende tutte, «Tutte», «Aperte» e "
+                "«Nessuna» fanno prima) e premi «Continua». Si apre «Nuova segnalazione» con il nuovo OP già compilato "
+                "(P/N, capocommessa, CAR): scrivi il numero e crea, oppure scegli l'OP se esiste già. Confermata la fase "
+                "(proposta quella dell'OP di origine), i blocchi copiati si caricano uno alla volta con seriali, stato "
+                "superficie e testi: cambia quello che serve e «Salva blocco» passa al successivo; «Salta questo blocco» "
+                "lo scarta, «Carica ora» nell'elenco «Da copiare ancora» ne anticipa uno. Gli allegati dell'anomalia di "
+                "origine si copiano solo spuntando «Copia anche … allegati».",
                 "Dettaglio: in alto OP, fase e se è un «Collaudo di benestare»; le frecce (o Alt+↑ / Alt+↓) "
                 "passano all'anomalia precedente o successiva.",
                 "Sotto il titolo, la fascia «Pezzi interessati» mostra i seriali dell'anomalia uno per chip (un "

@@ -27,6 +27,10 @@ GUIDA = {
                     "Nel portale e nella pagina della mail «Applica la stessa decisione anche alle altre … anomalie aperte "
                     "di questi seriali» copia la decisione su tutto il blocco.",
                 ]),
+                ("p", "Stesse anomalie su un altro OP? In Gestione anomalie premi «Clona» sulla riga dell'OP, spunta "
+                      "le anomalie da copiare e «Continua»: il nuovo OP arriva con P/N, capocommessa e CAR già scritti "
+                      "(manca il numero) e i blocchi copiati si caricano uno alla volta, da controllare e salvare. Gli "
+                      "allegati si copiano solo se lo scegli sull'anomalia."),
                 ("p", "Gestione anomalie mostra solo gli OP che ti riguardano: quelli di cui sei capocommessa o CAR, "
                       "quelli dove hai aperto un'anomalia e quelli che il tuo ruolo ti fa vedere (team o tutti). Di "
                       "partenza il filtro è «Con aperte»; «In carico a me» tiene gli OP di cui sei capocommessa o CAR, "

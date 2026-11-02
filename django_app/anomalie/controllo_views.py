@@ -436,3 +436,94 @@ def api_controllo_termina(request, pk: int):
         "mail": esito,
         "controllo": cs.serializza_controllo(controllo, con_allegati=False),
     })
+
+
+MAX_CLONA = 200
+
+
+@login_required
+@require_GET
+def api_clona_dati(request):
+    """Dati per clonare un OP: OP di origine e blocchi con le anomalie scelte.
+
+    Le anomalie dello stesso blocco di seriali restano insieme (stessi S/N e stato
+    superficie, ognuna con i suoi S/N se non vale per tutti); quelle nate fuori da
+    un controllo diventano un blocco ciascuna. La fase proposta è la più usata.
+    """
+    from collections import Counter
+
+    from .seriali import espandi_seriale_composito
+    from .views import _can_view_anomalie_for_op, _fetch_all_dict, _list_attachments_for_local, _row_capocommessa
+
+    op_id = _txt(request.GET.get("op_id"), 100)
+    try:
+        ids = [int(x) for x in str(request.GET.get("anomalie") or "").split(",") if x.strip()][:MAX_CLONA]
+    except ValueError:
+        return _err("Elenco anomalie non valido")
+    if not op_id or not ids:
+        return _err("OP e anomalie da copiare obbligatori")
+    if not _can_view_anomalie_for_op(request, op_id):
+        return _err("Permesso negato: non puoi consultare le anomalie di questo OP", 403)
+
+    righe = {
+        i: r for i, r in cs.carica_righe(ids).items()
+        if str(r.get("ex_op_nominativo") or "").strip().lower() == op_id.lower()
+    }
+    metas = {
+        m.anomalia_id: m
+        for m in AnomaliaSegnalazioneMeta.objects.filter(anomalia_id__in=list(righe)).select_related("blocco")
+    }
+    blocchi: list[dict] = []
+    per_chiave: dict[str, dict] = {}
+    fasi: Counter = Counter()
+    for i in dict.fromkeys(ids):
+        row = righe.get(i)
+        if row is None:
+            continue
+        meta = metas.get(i)
+        stati, testo = cs.separa_descrizione(row.get("descrizione"))
+        if meta and meta.fase:
+            fasi[meta.fase] += 1
+        if meta and meta.blocco_id:
+            chiave = f"b{meta.blocco_id}"
+            info = cs.seriali_anomalia(row.get("seriale"), meta.blocco)
+            voci = list(meta.blocco.seriali) if isinstance(meta.blocco.seriali, list) else []
+            stati_blocco = list(meta.blocco.stato_superficie) if isinstance(meta.blocco.stato_superficie, list) else []
+            copertura = {"tutti": info["tutti"], "seriali": [] if info["tutti"] else info["seriali"]}
+        else:
+            chiave = f"r{i}"
+            voci = comprimi_seriali(espandi_seriale_composito(row.get("seriale")))
+            stati_blocco = stati
+            copertura = {"tutti": True, "seriali": []}
+        blocco = per_chiave.get(chiave)
+        if blocco is None:
+            blocco = {"seriali": voci, "stato_superficie": stati_blocco, "anomalie": []}
+            per_chiave[chiave] = blocco
+            blocchi.append(blocco)
+        blocco["anomalie"].append({
+            "origine_id": i,
+            "testo": testo,
+            **copertura,
+            "allegati": len(_list_attachments_for_local(i)),
+        })
+
+    op_info = {"id": op_id, "pn": "", "capo": "", "car": "", "stato": ""}
+    try:
+        rows = _fetch_all_dict("SELECT TOP 1 * FROM ordini_produzione WHERE title = %s", [op_id])
+    except Exception:
+        rows = []
+    if rows:
+        r = rows[0]
+        op_info.update({
+            "pn": str(r.get("part_number") or "").strip(),
+            "capo": str(_row_capocommessa(r) or "").strip(),
+            "car": str(r.get("incaricato") or "").strip(),
+            "stato": str(r.get("stato") or "").strip(),
+        })
+    return JsonResponse({
+        "success": True,
+        "op": op_info,
+        "fase": fasi.most_common(1)[0][0] if fasi else "",
+        "fasi": list(fasi),
+        "blocchi": blocchi,
+    })
