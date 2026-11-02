@@ -229,6 +229,8 @@ def build_anomalie_action_email(
         ]
 
     action_url = site_url + reverse("anomalie_mail_action", kwargs={"token": token_str})
+    from .automazioni_service import op_portal_link
+    portal_url = op_portal_link(op_id, base=site_url)
 
     n_tot = len(anomalie_rows)
     troncato = n_tot > MAX_ANOMALIE_IN_EMAIL
@@ -267,6 +269,7 @@ def build_anomalie_action_email(
         action_label=action_label,
         action_url=action_url,
         expires_at=expires_at,
+        portal_url=portal_url,
     )
 
     body_html = render_to_string(
@@ -283,6 +286,7 @@ def build_anomalie_action_email(
             "action": action,
             "action_label": action_label,
             "action_url": action_url,
+            "portal_url": portal_url,
             "expires_at": expires_at,
             "site_url": site_url,
         },
@@ -383,6 +387,7 @@ def _build_plain_text(
     action_label: str,
     action_url: str,
     expires_at: Any,
+    portal_url: str = "",
 ) -> str:
     plurale = n_tot != 1
     lines = [
@@ -427,6 +432,9 @@ def _build_plain_text(
             lines.append(f"Link valido fino a: {local_exp.strftime('%d/%m/%Y %H:%M')}")
         except Exception:
             pass
+    if portal_url:
+        lines += ["", "Oppure apri l'OP direttamente in Gestione anomalie (accesso automatico dai PC aziendali):",
+                  portal_url]
     lines += [
         "",
         "—",
@@ -641,6 +649,10 @@ def send_anomalie_update_confirmation(
         for u in altre_rows:
             lines += _fmt_row(u)
         lines.append("")
+    from .automazioni_service import op_portal_link
+    portal_url = op_portal_link(op_id)
+    if portal_url:
+        lines += [f"Apri l'OP nel portale (accesso automatico dai PC aziendali): {portal_url}", ""]
     if source_label:
         lines += [f"Origine: {source_label}", ""]
     lines += [
@@ -662,6 +674,7 @@ def send_anomalie_update_confirmation(
             "altre_rows": altre_rows,
             "has_rdc": has_rdc,
             "source_label": source_label,
+            "portal_url": portal_url,
             "n": n,
             "n_aprire": n_aprire,
             "n_segnalare": n_segnalare,

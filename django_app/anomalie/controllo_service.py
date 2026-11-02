@@ -739,12 +739,12 @@ def invia_promemoria_controllore(controllo, *, invio_auto_minuti: int | None = N
     if not rows:
         return False
 
-    from django.conf import settings
+    from core.accounts.portal_links import portal_link
 
     n = len(rows)
     cosa = f"{n} anomali{'a' if n == 1 else 'e'}"
     url = url_controllo(controllo)
-    link = f"{str(getattr(settings, 'SITE_URL', '') or '').rstrip('/')}{url}"
+    link = portal_link(url) or url
     legacy_id, email = _contatti_operatore(controllo)
     fatto = False
 

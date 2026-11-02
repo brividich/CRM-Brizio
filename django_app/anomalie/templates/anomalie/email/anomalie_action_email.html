@@ -171,8 +171,23 @@
                     {% endif %}
                   </a>
                 </td>
+                {% if portal_url %}
+                <td style="width:10px;font-size:0;line-height:0;">&nbsp;</td>
+                <td style="border-radius:10px;background:#ffffff;border:2px solid #12395f;">
+                  <a href="{{ portal_url }}"
+                     style="display:inline-block;padding:12px 24px;font-size:15px;font-weight:700;
+                            color:#12395f;text-decoration:none;border-radius:10px;mso-padding-alt:12px 24px;">
+                    Apri nel portale
+                  </a>
+                </td>
+                {% endif %}
               </tr>
             </table>
+            {% if portal_url %}
+            <p style="margin:10px 0 0;font-size:12px;color:#64748b;">
+              «Apri nel portale» porta all'OP in Gestione anomalie: dai PC aziendali entri in automatico con l'utente Windows.
+            </p>
+            {% endif %}
             <p style="margin:14px 0 0;font-size:12px;color:#94a3b8;word-break:break-all;">
               Link diretto: <a href="{{ action_url }}" style="color:#1f5c91;text-decoration:none;">{{ action_url }}</a>
             </p>
