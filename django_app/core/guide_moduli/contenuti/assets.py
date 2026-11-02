@@ -42,6 +42,25 @@ GUIDA = {
             ],
         },
         {
+            "id": "registra-insieme",
+            "titolo": "Registrare o rinnovare la stessa cosa su più asset in un colpo",
+            "blocchi": [
+                ("passi", [
+                    "Apri la voce da chiudere o rinnovare (Registra della manutenzione o della scadenza, Rinnova della licenza "
+                    "o del contratto, oppure Nuova scadenza da un asset).",
+                    "Nel riquadro delle voci gemelle scegli il periodo con «scadute o entro» (di partenza 30 giorni) e spunta "
+                    "quelle fatte insieme, o «Spunta tutti».",
+                    "Salva: il pulsante dice su quante voci parte.",
+                ]),
+                ("p", "Dove compare: manutenzione → «Stesso piano su altre macchine» (non le manutenzioni a contatore); "
+                      "Scadenze amministrative → «Stessa scadenza su altri asset»; Licenze software → «Rinnova anche» (stesso "
+                      "prodotto e produttore); Contratti assistenza → «Rinnova» e «Rinnova anche» (stesso fornitore); Nuova "
+                      "scadenza → «Crea anche su…» (stessa categoria, salta chi ce l'ha già)."),
+                ("p", "Le gemelle prendono data, note, allegati e nuova scadenza; costi, durate, posti e fermo macchina restano "
+                      "solo sulla voce aperta, per non contarli due volte."),
+            ],
+        },
+        {
             "id": "rete",
             "titolo": "Correggere IP, switch e porta di un PC; vedere chi è collegato a uno switch",
             "blocchi": [
@@ -476,6 +495,15 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Nel riquadro delle voci gemelle («Stesso piano su altre macchine», «Rinnova anche», «Crea anche su…») manca un asset",
+            "fare": [
+                "Allarga il filtro «scadute o entro»: di partenza mostra 30 giorni; oltre un anno non si propone nulla.",
+                "Le gemelle devono avere lo stesso titolo e tipo (scadenze), lo stesso piano (manutenzioni, non a contatore), "
+                "lo stesso prodotto e produttore (licenze), lo stesso fornitore (contratti), la stessa categoria e stato «In uso» "
+                "(nuova scadenza), essere attive e tra gli asset che il tuo ruolo vede.",
+            ],
+        },
         {
             "sintomo": "Un OdL conta come «aperto da troppo» su una pagina e non su un'altra",
             "fare": [

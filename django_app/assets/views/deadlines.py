@@ -25,7 +25,9 @@ from django.utils import timezone
 from core.audit import log_action
 
 from core.legacy_models import AnagraficaDipendente
+from .. import registra_insieme
 from ..registro_permessi import MODULO_FORNITORI, MODULO_VERIFICHE
+from ..services.visibilita import filtra as filtra_asset_visibili
 from ..services.visibilita import filtra_per_asset
 from ..forms import (
     AssistanceContractForm,
@@ -447,12 +449,9 @@ def _group_deadline_series(rows: list[dict]) -> list[dict]:
 # «Registra» propone la stessa scadenza sugli altri asset quando la loro data cade
 # entro N giorni da quella registrata (o e' gia' passata): stessa uscita. N si
 # sceglie nella finestra fra queste opzioni; il server accetta fino al massimo.
-_DEADLINE_SAME_OUTING_DAYS = 30
-_DEADLINE_SAME_OUTING_CHOICES = (
-    (7, "7 giorni"), (15, "15 giorni"), (30, "30 giorni"), (60, "60 giorni"),
-    (90, "90 giorni"), (180, "6 mesi"), (365, "un anno"),
-)
-_DEADLINE_SAME_OUTING_MAX_DAYS = max(days for days, _label in _DEADLINE_SAME_OUTING_CHOICES)
+_DEADLINE_SAME_OUTING_DAYS = registra_insieme.WINDOW_DEFAULT_DAYS
+_DEADLINE_SAME_OUTING_CHOICES = registra_insieme.WINDOW_CHOICES
+_DEADLINE_SAME_OUTING_MAX_DAYS = registra_insieme.WINDOW_MAX_DAYS
 
 
 def _same_deadline_other_assets(request: HttpRequest, deadlines) -> dict[int, list[dict]]:
@@ -1035,6 +1034,73 @@ def asset_administrative_deadline_list(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _deadline_create_also_assets(request: HttpRequest, asset: Asset | None, *, title: str = "", deadline_type: str = "") -> list[Asset]:
+    """«Crea anche su…»: gli altri asset in uso e visibili della stessa categoria. Con
+    titolo e tipo (al salvataggio) si tolgono quelli che hanno gia' una scadenza attiva
+    uguale, per non creare doppioni; in pagina il titolo non c'e' ancora."""
+    if asset is None or not asset.asset_category_id:
+        return []
+    qs = filtra_asset_visibili(
+        request,
+        Asset.objects.filter(asset_category_id=asset.asset_category_id, status=Asset.STATUS_IN_USE).exclude(pk=asset.pk),
+        MODULO_VERIFICHE,
+    )
+    if title:
+        already = AssetAdministrativeDeadline.objects.filter(
+            is_active=True, title__iexact=title.strip(), deadline_type=deadline_type
+        ).values_list("asset_id", flat=True)
+        qs = qs.exclude(pk__in=list(already))
+    return list(qs.only("id", "asset_tag", "name").order_by("asset_tag", "name", "id"))
+
+
+def _create_deadline_copies(request: HttpRequest, source: AssetAdministrativeDeadline) -> list[AssetAdministrativeDeadline]:
+    """Copie della scadenza appena creata sugli asset spuntati in «Crea anche su…»,
+    ricalcolati qui (stessa categoria, visibili, senza la stessa scadenza). Senza componente."""
+    requested = registra_insieme.ids_from_post(request, "extra_asset_ids", exclude=source.asset_id)
+    if not requested:
+        return []
+    allowed = _deadline_create_also_assets(
+        request, source.asset, title=source.title, deadline_type=source.deadline_type
+    )
+    created: list[AssetAdministrativeDeadline] = []
+    for target in (asset for asset in allowed if asset.id in requested):
+        copy = AssetAdministrativeDeadline(
+            asset=target,
+            deadline_type=source.deadline_type,
+            title=source.title,
+            reference_code=source.reference_code,
+            issuer=source.issuer,
+            issued_on=source.issued_on,
+            due_date=source.due_date,
+            recurrence_months=source.recurrence_months,
+            warning_days=source.warning_days,
+            notes=source.notes,
+            is_active=source.is_active,
+        )
+        try:
+            copy.full_clean()
+            copy.save()
+        except ValidationError as exc:
+            messages.warning(request, f"Non creata su {target.asset_tag or target.name}: {' '.join(exc.messages)}")
+            continue
+        log_action(
+            request,
+            "create_asset_deadline",
+            "assets",
+            {
+                "deadline_id": copy.id,
+                "asset_id": copy.asset_id,
+                "deadline_type": copy.deadline_type,
+                "due_date": copy.due_date.isoformat() if copy.due_date else "",
+                "together_with_deadline_id": source.id,
+            },
+            oggetto_tipo=AUDIT_OGGETTO_ASSET,
+            oggetto_id=copy.asset_id,
+        )
+        created.append(copy)
+    return created
+
+
 @login_required
 def asset_administrative_deadline_create(request: HttpRequest) -> HttpResponse:
     selected_asset_id = _as_int(request.GET.get("asset"), default=0)
@@ -1082,6 +1148,13 @@ def asset_administrative_deadline_create(request: HttpRequest) -> HttpResponse:
                 oggetto_id=deadline.asset_id,
             )
             messages.success(request, "Scadenza salvata correttamente.")
+            copies = _create_deadline_copies(request, deadline)
+            if copies:
+                messages.success(
+                    request,
+                    f"Creata anche su {len(copies)} altr{'o' if len(copies) == 1 else 'i'} asset: "
+                    + ", ".join(copy.asset.asset_tag or copy.asset.name for copy in copies) + ".",
+                )
             return redirect(
                 _asset_administrative_deadline_page_url(
                     asset_id=deadline.asset_id,
@@ -1106,6 +1179,15 @@ def asset_administrative_deadline_create(request: HttpRequest) -> HttpResponse:
         {
             "page_title": "Nuova scadenza amministrativa",
             "form": form,
+            # «Crea anche su…»: si propone quando l'asset e' noto (dal link o dal modulo rimandato).
+            "also_assets": _deadline_create_also_assets(
+                request,
+                selected_asset or (
+                    Asset.objects.filter(pk=_as_int(request.POST.get("asset"), default=0)).first()
+                    if request.method == "POST" else None
+                ),
+            ),
+            "also_checked": registra_insieme.ids_from_post(request, "extra_asset_ids") if request.method == "POST" else set(),
             "selected_asset": selected_asset,
             "selected_component": selected_component,
             "is_edit": False,
@@ -1303,7 +1385,10 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
                 messages.error(request, f"Creazione evento Outlook fallita: {exc}")
             return redirect(redirect_url)
 
-        if action in {"create_assistance_contract", "update_assistance_contract", "delete_assistance_contract"} and not can_manage_contracts:
+        if action in {
+            "create_assistance_contract", "update_assistance_contract", "delete_assistance_contract",
+            "renew_assistance_contract",
+        } and not can_manage_contracts:
             messages.error(request, "Solo admin puo gestire i contratti assistenza.")
             return redirect(
                 _assistance_contracts_page_url(
@@ -1366,6 +1451,71 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
                 )
                 contract.delete()
                 messages.success(request, "Contratto assistenza eliminato.")
+            return redirect(
+                _assistance_contracts_page_url(
+                    asset_id=selected_asset.id if selected_asset else 0,
+                    supplier_filter=supplier_filter,
+                    state=state_filter,
+                    scope=scope_filter,
+                    q=q,
+                )
+            )
+        elif action == "renew_assistance_contract":
+            contract = (
+                filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_FORNITORI)
+                .filter(pk=_as_int(request.POST.get("contract_id"), default=0))
+                .first()
+            )
+            new_end = None
+            try:
+                new_end = date.fromisoformat(_clean_string(request.POST.get("renew_end_date")))
+            except ValueError:
+                pass
+            if contract is None:
+                messages.error(request, "Contratto assistenza non trovato.")
+            elif new_end is None:
+                messages.error(request, "Rinnovo non salvato: indica la nuova data fine.")
+            else:
+                renewed_on = timezone.localdate()
+                note = _clean_string(request.POST.get("renew_note"))
+                # «Rinnova anche»: solo i contratti che la pagina propone, ricalcolati prima del rinnovo.
+                also_ids = registra_insieme.ids_from_post(request, "also_renew", exclude=contract.id)
+                also_contracts = [
+                    item["contract"]
+                    for item in _assistance_contract_twins(request, [contract]).get(contract.id, [])
+                    if item["contract"].id in also_ids
+                ] if also_ids else []
+                done: list[str] = []
+                for target in [contract, *also_contracts]:
+                    try:
+                        with transaction.atomic():
+                            previous_end = _renew_assistance_contract(
+                                target, new_end=new_end, renewed_on=renewed_on, note=note
+                            )
+                    except ValidationError as exc:
+                        messages.error(request, f"Non rinnovato «{target.title}»: {' '.join(exc.messages)}.")
+                        if target is contract:
+                            break
+                        continue
+                    log_action(
+                        request,
+                        "renew_assistance_contract",
+                        "assets",
+                        {
+                            "contract_id": target.id,
+                            "supplier_id": target.supplier_id,
+                            "previous_end": str(previous_end or ""),
+                            "new_end": str(new_end),
+                            **({"together_with_contract_id": contract.id} if target is not contract else {}),
+                        },
+                    )
+                    done.append(target.code or target.title)
+                if done:
+                    messages.success(
+                        request,
+                        f"Contratt{'o' if len(done) == 1 else 'i'} rinnovat{'o' if len(done) == 1 else 'i'} "
+                        f"fino al {new_end:%d/%m/%Y}: {', '.join(done)}.",
+                    )
             return redirect(
                 _assistance_contracts_page_url(
                     asset_id=selected_asset.id if selected_asset else 0,
@@ -1453,6 +1603,11 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
         )
         row["calendar_event_rows"] = list(contract_event_map.get(contract.id, []))
         row["default_calendar_user_id"] = default_calendar_user_id
+    if can_manage_contracts:
+        contract_twins = _assistance_contract_twins(request, (row["contract"] for row in contract_rows))
+        for row in contract_rows:
+            row["renew_default_end"] = _one_year_after(row["contract"].end_date)
+            row["also_rows"] = contract_twins.get(row["contract"].id, [])
 
     periodic_cost_total = Decimal("0")
     for row in contract_rows:
@@ -1472,6 +1627,8 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
             "expired_count": sum(1 for row in contract_rows if row["state"]["status"] == "expired"),
             "periodic_cost_total": periodic_cost_total,
             "can_manage_contracts": can_manage_contracts,
+            "today": today,
+            **registra_insieme.window_context(),
             "is_edit": edit_contract is not None,
             "edit_contract": edit_contract,
             "selected_asset": selected_asset,
@@ -1506,6 +1663,91 @@ def assistance_contract_list(request: HttpRequest) -> HttpResponse:
             ),
         },
         )
+
+
+def _one_year_after(day: date | None) -> date | None:
+    if day is None:
+        return None
+    try:
+        return day.replace(year=day.year + 1)
+    except ValueError:  # 29 febbraio
+        return day.replace(year=day.year + 1, day=28)
+
+
+def _assistance_contract_twins(request: HttpRequest, contracts) -> dict[int, list[dict]]:
+    """Per ogni contratto, gli altri contratti attivi e visibili dello stesso fornitore
+    con data fine gia' passata o entro un anno dalla sua: «Rinnova anche».
+    Voci ``{"contract", "days"}`` (giorni dalla sua data fine, per il filtro)."""
+    contracts = list(contracts)
+    if not contracts:
+        return {}
+    by_supplier: dict[int, list[AssistanceContract]] = defaultdict(list)
+    for candidate in (
+        filtra_per_asset(request, AssistanceContract.objects.all(), MODULO_FORNITORI)
+        .filter(is_active=True, end_date__isnull=False, supplier_id__in={c.supplier_id for c in contracts})
+        .select_related("asset", "asset_category")
+        .order_by("end_date", "id")
+    ):
+        by_supplier[candidate.supplier_id].append(candidate)
+    return {
+        contract.id: [
+            {"contract": other, "days": registra_insieme.days_between(contract.end_date, other.end_date) or 0}
+            for other in by_supplier.get(contract.supplier_id, [])
+            if other.id != contract.id and registra_insieme.within_window(contract.end_date, other.end_date)
+        ]
+        for contract in contracts
+    }
+
+
+def _renew_assistance_contract(contract: AssistanceContract, *, new_end: date, renewed_on: date, note: str = "") -> date | None:
+    """Sposta la data fine e riattiva il contratto. Non c'e' un modello di storico:
+    il rinnovo resta nelle note (una riga) e nell'audit. Ritorna la fine precedente."""
+    previous_end = contract.end_date
+    if previous_end and new_end <= previous_end:
+        raise ValidationError(f"la nuova data fine deve essere dopo il {previous_end:%d/%m/%Y}")
+    if contract.start_date and new_end < contract.start_date:
+        raise ValidationError(f"la nuova data fine precede l'inizio ({contract.start_date:%d/%m/%Y})")
+    line = (
+        f"Rinnovato il {renewed_on:%d/%m/%Y}: fine "
+        f"{'da ' + format(previous_end, '%d/%m/%Y') if previous_end else 'senza data'} a {new_end:%d/%m/%Y}"
+        + (f" — {note}" if note else "")
+        + "."
+    )
+    contract.end_date = new_end
+    contract.is_active = True
+    contract.notes = f"{contract.notes}\n{line}".strip() if contract.notes else line
+    contract.save(update_fields=["end_date", "is_active", "notes", "updated_at"])
+    return previous_end
+
+
+def _license_twin_key(license_row: SoftwareLicense) -> tuple[str, str]:
+    return ((license_row.vendor or "").strip().lower(), (license_row.product_name or "").strip().lower())
+
+
+def _software_license_twins(licenses) -> dict[int, list[dict]]:
+    """Per ogni licenza, le altre licenze attive dello stesso prodotto e produttore con
+    scadenza gia' passata o entro un anno dalla sua: «Rinnova anche» nel modulo di
+    rinnovo. Voci ``{"license", "days"}`` (giorni dalla sua scadenza, per il filtro)."""
+    licenses = list(licenses)
+    if not licenses:
+        return {}
+    wanted = {_license_twin_key(row) for row in licenses}
+    by_key: dict[tuple[str, str], list[SoftwareLicense]] = defaultdict(list)
+    for candidate in (
+        SoftwareLicense.objects.filter(is_active=True, expiry_date__isnull=False)
+        .select_related("asset")
+        .order_by("expiry_date", "id")
+    ):
+        if _license_twin_key(candidate) in wanted:
+            by_key[_license_twin_key(candidate)].append(candidate)
+    result: dict[int, list[dict]] = {}
+    for row in licenses:
+        result[row.id] = [
+            {"license": other, "days": registra_insieme.days_between(row.expiry_date, other.expiry_date) or 0}
+            for other in by_key.get(_license_twin_key(row), [])
+            if other.id != row.id and registra_insieme.within_window(row.expiry_date, other.expiry_date)
+        ]
+    return result
 
 
 def _active_supplier_options() -> list:
@@ -1671,6 +1913,14 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
                 renewal_form = SoftwareLicenseRenewalForm(request.POST, prefix=f"renew-{license_row.id}")
                 if renewal_form.is_valid():
                     data = renewal_form.cleaned_data
+                    # «Rinnova anche»: solo le gemelle che la pagina propone, ricalcolate qui
+                    # prima di spostare la scadenza della principale.
+                    also_ids = registra_insieme.ids_from_post(request, "also_renew", exclude=license_row.id)
+                    also_licenses = [
+                        item["license"]
+                        for item in _software_license_twins([license_row]).get(license_row.id, [])
+                        if item["license"].id in also_ids
+                    ] if also_ids else []
                     with transaction.atomic():
                         renewal = renewal_form.save(commit=False)
                         renewal.license = license_row
@@ -1701,6 +1951,52 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
                         request,
                         f"Licenza rinnovata: nuova scadenza {renewal.period_end:%d/%m/%Y}.",
                     )
+                    # Stessa nuova scadenza, data, fornitore, riferimento e note; posti e
+                    # costo restano sulla principale, per non contarli due volte.
+                    also_done: list[str] = []
+                    for other in also_licenses:
+                        try:
+                            with transaction.atomic():
+                                other_renewal = SoftwareLicenseRenewal.objects.create(
+                                    license=other,
+                                    renewed_on=data["renewed_on"],
+                                    period_start=(
+                                        other.expiry_date + timedelta(days=1) if other.expiry_date else data.get("period_start")
+                                    ),
+                                    period_end=data["period_end"],
+                                    previous_expiry=other.expiry_date,
+                                    supplier=data.get("supplier"),
+                                    reference=data.get("reference") or "",
+                                    notes=data.get("notes") or "",
+                                    created_by=request.user if request.user.is_authenticated else None,
+                                )
+                                other.expiry_date = data["period_end"]
+                                other.renewal_date = data["renewed_on"]
+                                other.is_active = True
+                                other.save(update_fields=["expiry_date", "renewal_date", "is_active", "updated_at"])
+                        except Exception as exc:
+                            messages.warning(request, f"Non rinnovata: {other} — {exc}")
+                            continue
+                        log_action(
+                            request,
+                            "renew_software_license",
+                            "assets",
+                            {
+                                "license_id": other.id,
+                                "renewal_id": other_renewal.id,
+                                "previous_expiry": str(other_renewal.previous_expiry or ""),
+                                "new_expiry": str(other_renewal.period_end or ""),
+                                "together_with_license_id": license_row.id,
+                            },
+                        )
+                        also_done.append(other.assignment_label)
+                    if also_done:
+                        messages.success(
+                            request,
+                            f"Rinnovate anche {len(also_done)} altre licenze: {', '.join(also_done)}."
+                            if len(also_done) > 1
+                            else f"Rinnovata anche la licenza di {also_done[0]}.",
+                        )
                 else:
                     error_text = " ".join(
                         str(error) for errors in renewal_form.errors.values() for error in errors
@@ -1889,6 +2185,10 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
         row["installed_on"] = installed
         row["over_seats"] = bool(installed and lic.seats_total and installed > lic.seats_total)
         row["expired_but_installed"] = bool(installed and row["state"]["status"] in {"expired", "inactive"})
+    if can_manage_licenses:
+        twins = _software_license_twins(row["license"] for row in license_rows)
+        for row in license_rows:
+            row["also_rows"] = twins.get(row["license"].id, [])
 
     try:
         from assets.services.software_licenze import coverage_report
@@ -1920,6 +2220,7 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
                 _active_supplier_options() if can_manage_licenses else []
             ),
             "today": today,
+            **registra_insieme.window_context(),
             "is_edit": edit_license is not None,
             "edit_license": edit_license,
             "selected_asset": selected_asset,

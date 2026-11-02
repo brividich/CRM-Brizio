@@ -55,6 +55,13 @@ body.theme-dark .sl-cov-group h3 { color:#e2e8f0; }
 .sl-filters, .sl-form-grid { display:grid; gap:12px; grid-template-columns:repeat(4, minmax(0, 1fr)); align-items:end; }
 .sl-field { display:grid; gap:6px; }
 .sl-field--full { grid-column:1/-1; }
+.sl-insieme { display:grid; gap:6px; border:1px solid var(--border,#dbe1ea); border-radius:10px; padding:8px 10px; background:var(--surface-alt,#f8fafc); }
+.sl-insieme-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 10px; }
+.sl-insieme-note { margin:0; font-size:var(--fs-xs); color:var(--text-mid,#64748b); }
+.sl-insieme-list { list-style:none; margin:0; padding:0; display:grid; gap:2px; max-height:calc(30 * var(--vh, 1vh)); overflow:auto; }
+.sl-insieme-list label { display:flex; gap:8px; align-items:center; cursor:pointer; font-size:var(--fs-sm); }
+.sl-insieme-list li:has(input:checked) { background:rgba(37,99,235,.08); border-radius:6px; }
+.sl-insieme .btn { justify-self:start; }
 .sl-field label { font-weight:700; color:#24364f; }
 .sl-field :is(input, select, textarea) {
   width:100%;
@@ -428,8 +435,26 @@ body.theme-dark .sl-empty{color:var(--text-light)}
                                 <label for="id_{{ row.renew_prefix }}-notes">Note</label>
                                 <textarea id="id_{{ row.renew_prefix }}-notes" name="{{ row.renew_prefix }}-notes" rows="2"></textarea>
                               </div>
+                              {% if row.also_rows %}
+                                <div class="sl-field--full sl-insieme" data-insieme>
+                                  <div class="sl-insieme-head">
+                                    <strong>Rinnova anche</strong>
+                                    {% include "assets/components/_insieme_window_select.html" %}
+                                  </div>
+                                  <p class="sl-insieme-note">Altre licenze {{ row.license.product_name }}{% if row.license.vendor %} di {{ row.license.vendor }}{% endif %}: spuntate prendono la stessa nuova scadenza, data, fornitore, riferimento e note. Posti e costo restano su questa.</p>
+                                  <ul class="sl-insieme-list">
+                                    {% for item in row.also_rows %}{% with other=item.license %}
+                                      <li data-insieme-days="{{ item.days }}">
+                                        <label><input type="checkbox" name="also_renew" value="{{ other.id }}"> <span>{{ other.expiry_date|date:"d/m/Y" }}{% if other.expiry_date < today %} <em>(scaduta)</em>{% endif %} · <strong>{{ other.assignment_label }}</strong>{% if other.edition %} · {{ other.edition }}{% endif %}{% if other.license_reference %} · {{ other.license_reference }}{% endif %}</span></label>
+                                      </li>
+                                    {% endwith %}{% endfor %}
+                                  </ul>
+                                  <p class="sl-insieme-note" data-insieme-empty hidden>Nessun'altra licenza in questo periodo: allarga il filtro.</p>
+                                  <button type="button" class="btn btn-sm btn-secondary" data-insieme-all>Spunta tutte</button>
+                                </div>
+                              {% endif %}
                               <div class="sl-actions">
-                                <button type="submit" class="btn btn-primary">Salva rinnovo</button>
+                                <button type="submit" class="btn btn-primary" data-insieme-submit data-insieme-label="Salva rinnovo">Salva rinnovo</button>
                               </div>
                             </form>
                           </details>
@@ -454,4 +479,5 @@ body.theme-dark .sl-empty{color:var(--text-light)}
     {% endif %}
   </section>
 </section>
+{% if can_manage_licenses %}{% include "assets/components/_insieme_script.html" %}{% endif %}
 {% endblock %}
