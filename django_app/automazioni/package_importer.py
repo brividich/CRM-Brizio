@@ -875,8 +875,12 @@ def _collect_placeholders(value: Any) -> set[str]:
 
 
 def _missing_placeholders_in_payload(value: Any, payload: dict[str, Any]) -> list[str]:
+    # I placeholder iniettati dal runtime ({object_url}, {approve_url}, ...) non
+    # stanno nel payload di test: li valorizza services.py in esecuzione.
     missing: list[str] = []
     for placeholder in sorted(_collect_placeholders(value)):
+        if placeholder in RUNTIME_INJECTED_PLACEHOLDERS:
+            continue
         if safe_get_payload_value(payload, placeholder) is None:
             missing.append(placeholder)
     return missing
@@ -2007,8 +2011,13 @@ def run_package_dry_run(
     if analysis.get("status") == "blocked":
         raise PackageImportError("Il package e' bloccato e non puo' essere testato.")
 
-    normalized_payload = deepcopy(payload)
-    normalized_old_payload = deepcopy(old_payload) if old_payload is not None else None
+    # Come in esecuzione (run_rule): arricchisce il payload con i campi letti dal
+    # record e con {object_url}, cosi' l'anteprima mostra il link vero.
+    source_code = analysis.get("source_code")
+    normalized_payload = enrich_payload_for_source(source_code, deepcopy(payload))
+    normalized_old_payload = (
+        enrich_payload_for_source(source_code, deepcopy(old_payload)) if old_payload is not None else None
+    )
     rule_results: list[dict[str, Any]] = []
     has_errors = False
 
