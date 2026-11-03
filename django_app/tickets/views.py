@@ -7,6 +7,7 @@ import logging
 import mimetypes
 from io import BytesIO
 from datetime import datetime, timedelta, timezone as dt_timezone
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 
 from django.contrib import messages
@@ -320,7 +321,23 @@ def _get_user_reparto(legacy_id) -> str:
     return ""
 
 
-def _get_my_assets(legacy_id, name: str, reparto: str, tipo: str) -> tuple[list[dict], str]:
+def _anagrafica_id(request) -> int | None:
+    """Id anagrafica della persona collegata (capo/co-capo dei reparti), se c'è."""
+    try:
+        from core.legacy_models import AnagraficaDipendente
+        return (
+            AnagraficaDipendente.objects
+            .filter(aliasusername=request.user.username)
+            .values_list("id", flat=True)
+            .first()
+        )
+    except Exception:
+        logger.debug("Anagrafica di %s non risolta", request.user.username, exc_info=True)
+        return None
+
+
+def _get_my_assets(legacy_id, name: str, reparto: str, tipo: str,
+                   anagrafica_id: int | None = None) -> tuple[list[dict], str]:
     """
     Ritorna (lista_asset, label) in base al tipo ticket.
     - IT:  asset assegnati all'utente; fallback → asset IT-type (PC/NB/Stampante/HW)
@@ -363,13 +380,20 @@ def _get_my_assets(legacy_id, name: str, reparto: str, tipo: str) -> tuple[list[
             return items, "Asset IT" if items else ""
 
         elif tipo == TipoTicket.MAN:
-            # 1° tentativo: asset del reparto utente
-            if reparto:
-                items = _serialize(AssetModel.objects.filter(
-                    Q(reparto__iexact=reparto) | Q(assignment_reparto__iexact=reparto)
-                ))
+            # 1° tentativo: asset del reparto utente, col testo del reparto
+            # riconosciuto come nella planimetria (nomi, aree, «Reparti e capi»)
+            if reparto or anagrafica_id:
+                from assets.models import IT_DEVICE_TYPES
+                from assets.services.mappa_ticket import asset_del_reparto
+                candidati = (
+                    AssetModel.objects.exclude(asset_type__in=IT_DEVICE_TYPES)
+                    .filter(status__in=["IN_USE", "IN_STOCK"])
+                    .only("pk", "reparto", "assignment_reparto")
+                )
+                ids = [a.pk for a in asset_del_reparto(reparto, anagrafica_id, candidati)]
+                items = _serialize(AssetModel.objects.filter(pk__in=ids)) if ids else []
                 if items:
-                    return items, f"Asset reparto «{reparto}»"
+                    return items, f"Asset reparto «{reparto}»" if reparto else "Asset dei tuoi reparti"
             # Fallback: tutte le macchine/impianti
             items = _serialize(AssetModel.objects.filter(
                 asset_type__in=["CNC", "WORK_MACHINE"]
@@ -381,13 +405,59 @@ def _get_my_assets(legacy_id, name: str, reparto: str, tipo: str) -> tuple[list[
     return [], ""
 
 
+def _sinonimi_categoria(categoria) -> str:
+    """Parole comuni della categoria asset e della categoria madre (ricerca del ticket)."""
+    if categoria is None:
+        return ""
+    parti = [categoria.sinonimi]
+    if categoria.parent_id and categoria.parent is not None:
+        parti.append(categoria.parent.sinonimi)
+    return ", ".join(p for p in parti if p)
+
+
+def _mappa_context(request, reparto: str, *, solo_asset: int | None = None,
+                   solo_layout: int | None = None) -> dict:
+    """Planimetrie per scegliere o mostrare l'asset di un ticket di manutenzione."""
+    try:
+        from assets.services.mappa_ticket import mappe
+        cfg = TicketImpostazioni.objects.filter(tipo=TipoTicket.MAN).only("mappa_reparto_da").first()
+        modalita = cfg.mappa_reparto_da if cfg else TicketImpostazioni.MAPPA_REPARTO_TESTO
+        dati = mappe(reparto, _anagrafica_id(request), modalita,
+                     solo_asset=solo_asset, solo_layout=solo_layout)
+        preferite = dict(
+            CategoriaTicket.objects.filter(tipo=TipoTicket.MAN).exclude(planimetria="")
+            .values_list("codice", "planimetria")
+        )
+    except Exception:
+        logger.warning("Planimetrie per il ticket non disponibili", exc_info=True)
+        dati, preferite = [], {}
+    return {"mappe_ticket": dati, "mappa_preferite": preferite}
+
+
+def _punto_mappa(post) -> tuple[object, Decimal | None, Decimal | None]:
+    """(planimetria, x, y) del punto indicato sul form; niente se manca un pezzo."""
+    from assets.models import PlantLayout
+    try:
+        layout_id = int(post.get("mappa_layout_id") or 0)
+        x = Decimal(str(post.get("mappa_x") or "")).quantize(Decimal("0.01"))
+        y = Decimal(str(post.get("mappa_y") or "")).quantize(Decimal("0.01"))
+    except (ValueError, TypeError, InvalidOperation):
+        return None, None, None
+    if not layout_id or not (0 <= x <= 100 and 0 <= y <= 100):
+        return None, None, None
+    layout = PlantLayout.objects.filter(pk=layout_id, is_active=True).first()
+    if layout is None:
+        return None, None, None
+    return layout, x, y
+
+
 def _get_assets_for_select() -> list[dict]:
     """Carica asset attivi per il datalist nel form."""
     try:
         from assets.models import Asset
         assets = (
             Asset.objects.filter(status__in=["IN_USE", "IN_STOCK"])
-            .select_related("asset_category")
+            .select_related("asset_category", "asset_category__parent")
             .order_by("name")[:500]
         )
         return [
@@ -403,6 +473,7 @@ def _get_assets_for_select() -> list[dict]:
                 "model": asset.model or "",
                 "serial_number": asset.serial_number or "",
                 "reparto": asset.reparto or asset.assignment_reparto or "",
+                "sinonimi": _sinonimi_categoria(asset.asset_category),
             }
             for asset in assets
         ]
@@ -1010,11 +1081,15 @@ def ticket_nuovo(request):
     name, email, legacy_id = _legacy_identity(request)
     reparto = _get_user_reparto(legacy_id)
 
+    anagrafica_id = _anagrafica_id(request)
+
     def _ctx(tipo_eff=None, **kwargs):
         t = tipo_eff or tipo
-        my, lbl = _get_my_assets(legacy_id, name, reparto, t)
+        my, lbl = _get_my_assets(legacy_id, name, reparto, t, anagrafica_id)
         ctx = _ticket_form_context(tipo=t, my_assets_list=my, my_assets_label=lbl, **kwargs)
         ctx["initial_asset"] = initial_asset
+        if t == TipoTicket.MAN:
+            ctx.update(_mappa_context(request, reparto))
         return ctx
 
     if request.method == "POST":
@@ -1047,10 +1122,16 @@ def ticket_nuovo(request):
                      error="Titolo, descrizione e categoria sono obbligatori.",
                      form_data=request.POST))
 
+        mappa_layout, mappa_x, mappa_y = (
+            _punto_mappa(request.POST) if tipo_post == TipoTicket.MAN else (None, None, None)
+        )
+        if not asset_id and not asset_libera and mappa_layout is not None:
+            asset_libera = f"Punto indicato sulla {mappa_layout.name}"[:300]
+
         if not asset_id and not asset_libera:
             return render(request, "tickets/pages/nuovo.html",
                 _ctx(tipo_eff=tipo_post,
-                     error="Indica l'asset coinvolto: seleziona un asset dal catalogo, dai tuoi asset o inserisci almeno un nome generico.",
+                     error="Indica l'asset coinvolto: seleziona un asset dal catalogo, dai tuoi asset, dalla mappa o inserisci almeno un nome generico.",
                      form_data=request.POST))
 
         if priorita not in dict(PrioritaTicket.choices):
@@ -1073,6 +1154,9 @@ def ticket_nuovo(request):
             incide_sicurezza=sicurezza,
             asset=asset_obj,
             asset_descrizione_libera=asset_libera,
+            mappa_layout=mappa_layout,
+            mappa_x=mappa_x,
+            mappa_y=mappa_y,
             richiedente_nome=name,
             richiedente_email=email,
             richiedente_legacy_user_id=legacy_id,
@@ -1142,6 +1226,13 @@ def ticket_detail(request, pk: int):
         "is_richiedente":is_richiedente,
         "richiedente_anagrafica_id": richiedente_anagrafica_id,
     }
+    if ticket.tipo == TipoTicket.MAN and (ticket.asset_id or ticket.mappa_layout_id):
+        _, _, legacy_id = _legacy_identity(request)
+        ctx.update(_mappa_context(
+            request, _get_user_reparto(legacy_id),
+            solo_asset=None if ticket.mappa_layout_id and not ticket.asset_id else ticket.asset_id,
+            solo_layout=ticket.mappa_layout_id if not ticket.asset_id else None,
+        ))
     return render(request, "tickets/pages/detail.html", ctx)
 
 
@@ -1549,7 +1640,8 @@ def ticket_gestione_detail(request, pk: int):
     stato_log   = ticket.stato_log.all()
 
     reparto          = _get_user_reparto(legacy_id)
-    my_assets, my_assets_label = _get_my_assets(legacy_id, name, reparto, ticket.tipo)
+    my_assets, my_assets_label = _get_my_assets(legacy_id, name, reparto, ticket.tipo,
+                                                _anagrafica_id(request))
 
     # Workorder generati da questo ticket
     workorders_generati = ticket.workorders_generati.select_related("asset", "supplier").all()
@@ -1600,6 +1692,8 @@ def ticket_gestione_detail(request, pk: int):
         "costo_totale":          round(costo_manodopera_tot + costo_materiali_tot, 2) if (costo_manodopera_tot or costo_materiali_tot) else None,
         "richiedente_anagrafica_id": richiedente_anagrafica_id,
     }
+    if ticket.tipo == TipoTicket.MAN:
+        ctx.update(_mappa_context(request, reparto))
     return render(request, "tickets/pages/gestione_detail.html", ctx)
 
 
@@ -1693,6 +1787,29 @@ def ticket_impostazioni(request):
             messages.success(request, f"Categoria '{cat_label}' eliminata.")
             return redirect_target
 
+        if action == "save_mappa_config":
+            from assets.models import PlantLayout
+            cfg = TicketImpostazioni.get_or_create_for(TipoTicket.MAN)
+            modalita = (request.POST.get("mappa_reparto_da") or "").strip()
+            if modalita in dict(TicketImpostazioni.MAPPA_REPARTO_CHOICES):
+                cfg.mappa_reparto_da = modalita
+                cfg.save(update_fields=["mappa_reparto_da", "updated_at"])
+            planimetrie = {
+                c.casefold(): c for c in PlantLayout.objects.filter(is_active=True).values_list("category", flat=True)
+            }
+            cambiate = 0
+            for cat in CategoriaTicket.objects.filter(tipo=TipoTicket.MAN):
+                scelta = (request.POST.get(f"planimetria_{cat.pk}") or "").strip()
+                scelta = planimetrie.get(scelta.casefold(), "") if scelta else ""
+                if scelta != cat.planimetria:
+                    cat.planimetria = scelta
+                    cat.save(update_fields=["planimetria"])
+                    cambiate += 1
+            log_action(request, "save_ticket_mappa_config", "tickets",
+                       {"mappa_reparto_da": cfg.mappa_reparto_da, "categorie_cambiate": cambiate})
+            messages.success(request, "Impostazioni della mappa salvate.")
+            return redirect_target
+
         if action == "save_escalation_config":
             from tickets.escalation_config import save_escalation_config
             attivo = (request.POST.get("esc_attivo") or "").strip().lower() in {"1", "on", "true", "si"}
@@ -1737,8 +1854,26 @@ def ticket_impostazioni(request):
             CategoriaTicket.objects.filter(tipo=TipoTicket.MAN).order_by("ordine", "etichetta")
         ),
         "top_cause": top_cause,
+        "mappa_choices": TicketImpostazioni.MAPPA_REPARTO_CHOICES,
+        **_mappa_impostazioni(),
     }
     return render(request, "tickets/pages/impostazioni.html", ctx)
+
+
+def _mappa_impostazioni() -> dict:
+    """Planimetrie attive e quante aree di reparto hanno (riquadro «Mappa asset»)."""
+    try:
+        from assets.models import PlantLayout
+        planimetrie = list(
+            PlantLayout.objects.filter(is_active=True)
+            .annotate(n_aree=Count("areas", distinct=True), n_marker=Count("markers", distinct=True))
+            .order_by("category", "name")
+            .values("category", "name", "n_aree", "n_marker")
+        )
+    except Exception:
+        logger.warning("Planimetrie non disponibili per le impostazioni ticket", exc_info=True)
+        planimetrie = []
+    return {"mappa_planimetrie": planimetrie}
 
 
 # ---------------------------------------------------------------------------
