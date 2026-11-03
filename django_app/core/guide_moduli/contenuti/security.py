@@ -23,6 +23,7 @@ GUIDA = {
                     "Apri il Security Center: la «Panoramica IT» dice in una riga se va tutto bene.",
                     "Guarda «Da guardare adesso»: le cose più gravi sono in cima.",
                     "Apri un allarme: «Spiega con l'AI» lo spiega in parole semplici, «Cosa sappiamo» mostra lo storico.",
+                    "«Proponi la soluzione» dà causa probabile, passi e verifica, e prepara il modulo di chiusura con esito e motivo: chiudi tu, dopo aver controllato.",
                     "Decidi: prendi in carico, chiudi come risolto o scarta come falso allarme (scrivendo il perché).",
                 ]),
                 ("p", "La guida completa del Security Center ha un capitolo per ogni pagina: i collegamenti sono in cima."),
@@ -92,6 +93,10 @@ GUIDA = {
                       "aggiornamento più recente che manca sullo stesso PC dice «Compresa in KB…» e va in fondo; quella più recente "
                       "dice «Comprende anche» e quante CVE in più chiude. Si riconosce dal build di Windows nel nome e, con "
                       "l'interruttore «Cerca le patch comprese in una più recente (Microsoft)», dal Security Update Guide di Microsoft."),
+                ("p", "Aprendo una patch e nel pannello di una CVE, «Spiega con l'AI» dice cosa corregge, quanto è urgente e come "
+                      "procedere. Con «Cerca anche sul web» (Impostazioni › «Ricerca sul web per l'AI», spenta di serie) l'AI legge anche "
+                      "l'articolo Microsoft della KB con i problemi noti e gli avvisi del produttore della CVE; escono solo codici pubblici "
+                      "(CVE, KB, codici d'errore), mai nomi di PC o utenti, e le fonti lette compaiono sotto la risposta."),
                 ("p", "Dispositivi › «Patch installate»: lo storico delle patch chiuse, con PC, CVE corrette e motivo "
                       "(«Installata» se lo dice un task WatchGuard, «Non più segnalata da WatchGuard», «PC non più in WatchGuard»). "
                       "Filtri per periodo, motivo e testo; «Scarica CSV» esporta tutte le righe del filtro."),
@@ -304,6 +309,14 @@ GUIDA = {
                 "Per queste serve il Security Update Guide di Microsoft: Impostazioni › «WatchGuard Endpoint Security (API)», interruttore «Cerca le patch comprese in una più recente (Microsoft)» acceso.",
                 "Il server deve poter uscire su HTTPS verso api.msrc.microsoft.com; l'esito è in «Letture automatiche» › WatchGuard (voce «msrc»).",
                 "La KB nel nome arriva alla lettura delle patch successiva (06:10 e 13:10). Gli aggiornamenti fuori ciclo non di sicurezza non sono nel Security Update Guide: per Windows vale il build nel nome.",
+            ],
+        },
+        {
+            "sintomo": "La casella «Cerca anche sul web» non c'è, oppure la risposta dice «Nessuna pagina utile letta»",
+            "fare": [
+                "La casella compare solo con Impostazioni › «Ricerca sul web per l'AI» › «Permetti all'AI di consultare le fonti ufficiali sul web» acceso.",
+                "«Nessuna pagina utile letta»: il server del portale deve poter uscire su HTTPS (porta 443) verso i siti ammessi (nvd.nist.gov, support.microsoft.com, cisa.gov…); verificare firewall e proxy. Il registro AI del SOC riporta l'errore per sito (azione «web_pagina»).",
+                "«Nessun identificativo pubblico»: l'alert non contiene codici CVE, KB o d'errore, quindi il web non viene consultato. Per cercare codici d'errore ed Event ID serve il motore di ricerca interno (campo SearXNG in Impostazioni).",
             ],
         },
         {

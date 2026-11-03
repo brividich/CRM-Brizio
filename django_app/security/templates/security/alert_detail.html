@@ -21,6 +21,20 @@
   </div>
 </section>
 
+{% if can_act %}
+<section class="sec-panel ai-panel" id="ai-risolvi">
+  <div class="sec-section-head">
+    <h2>Come risolverlo</h2>
+    <form class="ai-ask" method="post" action="{% url 'security:alert_resolve' alert.pk %}" hx-post="{% url 'security:alert_resolve' alert.pk %}" hx-target="#ai-risolvi-body">
+      {% csrf_token %}{% include "security/partials/ai_casella_web.html" %}<button class="sec-button-primary" type="submit" data-busy-label="L'AI sta cercando la soluzione…">Proponi la soluzione</button>
+    </form>
+  </div>
+  <div id="ai-risolvi-body">
+    {% if ai_risoluzione %}{% with ai=ai_risoluzione %}{% include "security/partials/alert_ai_risoluzione.html" %}{% endwith %}{% else %}<p class="sec-muted">L'AI locale propone la causa probabile, i passi per risolvere, come verificare e l'esito di chiusura, partendo dalla procedura standard e da come sono stati chiusi gli alert simili. Il modulo di chiusura arriva già compilato: chiude solo quando confermi.</p>{% endif %}
+  </div>
+</section>
+{% endif %}
+
 <section class="sec-detail-hero">
   <div class="sec-panel">
     <div class="sec-section-head">

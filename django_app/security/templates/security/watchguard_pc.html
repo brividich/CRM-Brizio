@@ -51,6 +51,11 @@
         {% if g.comprende %}<p class="wgp-cve">Comprende anche: {% for kb, n in g.comprende %}<a href="?q={{ kb|urlencode }}">{{ kb }}</a> ({{ n }} PC){% if not forloop.last %}, {% endif %}{% endfor %}{% if g.chiude_anche %} · chiude altre {{ g.chiude_anche|length }} CVE{% endif %}.</p>{% endif %}
         {% if g.compresa_in %}<p class="wgp-cve">Già compresa in {% for kb, n in g.compresa_in %}<a href="?q={{ kb|urlencode }}">{{ kb }}</a> ({{ n }} PC){% if not forloop.last %}, {% endif %}{% endfor %}: installa quella, questa si chiude da sola.</p>{% endif %}
         {% if g.download_url or g.riavvio_automatico %}<p class="wgp-cve sec-small">{% if g.download_url %}<a href="{{ g.download_url }}" target="_blank" rel="noopener noreferrer">Scarica a mano{% if g.nome_file %} ({{ g.nome_file }}){% endif %}</a>{% endif %}{% if g.download_url and g.riavvio_automatico %} · {% endif %}{% if g.riavvio_automatico %}può riavviare il PC da sola{% endif %}</p>{% endif %}
+        <form class="ai-ask wgp-ai" method="post" action="{% url 'security:watchguard_patch_ai' %}" hx-post="{% url 'security:watchguard_patch_ai' %}" hx-target="#wgp-ai-{{ forloop.counter }}">
+          {% csrf_token %}<input type="hidden" name="nome" value="{{ g.nome }}"><input type="hidden" name="programma" value="{{ g.programma }}">
+          <button class="sec-btn-link" type="submit" data-busy-label="Sto chiedendo all'AI locale…">Spiega con l'AI</button>{% include "security/partials/ai_casella_web.html" %}
+        </form>
+        <div class="ai-panel wgp-ai-body" id="wgp-ai-{{ forloop.counter }}"></div>
         <ul class="wgp-pcs">
           {% for p in g.pc %}
             <li>{% if p.hub_asset %}<a href="{% url 'assets:asset_view' p.hub_asset.pk %}">{{ p.host_display|default:p.host }}</a>{% else %}{{ p.host_display|default:p.host }}{% endif %}

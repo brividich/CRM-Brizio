@@ -105,12 +105,15 @@ Cosa fare: **coda ferma** → riavviare il servizio qcluster sul server; **lettu
 
 ## L'AI nel SOC
 
-Il SOC usa l'**AI aziendale**, installata sui server dell'azienda: nessun dato esce dalla rete. L'AI non decide e non cambia nulla da sola: propone, e decide sempre una persona.
+Il SOC usa l'**AI aziendale**, installata sui server dell'azienda: i dati del SOC non escono dalla rete. L'unica uscita, facoltativa, è la **ricerca sul web** (sotto), che manda solo codici pubblici. L'AI non decide e non cambia nulla da sola: propone, e decide sempre una persona.
 
 | Dove | Pulsante | Cosa fa |
 | --- | --- | --- |
 | Panoramica | Chiedi all'AI | Riassume i punti da guardare adesso e dice da dove partire |
 | Scheda alert | Spiega con l'AI | Cosa è successo, perché è scattato, quanto è urgente, cosa fare |
+| Scheda alert | Proponi la soluzione | Causa probabile, passi per risolvere, come verificare; il modulo di chiusura arriva compilato (esito e motivo) e chiude solo se confermi |
+| Pannello CVE | Spiega con l'AI | Cos'è, se ci riguarda, come si corregge, cosa fare se non si può correggere subito |
+| Patch e protezione | Spiega con l'AI (aprendo una patch) | Cosa corregge, quanto è urgente, cosa sapere prima di installare, come procedere |
 | Scheda evento | Chiedi all'AI («È un allarme?») | Propone se l'evento giudicato a posto è in realtà un allarme |
 | Ticket | Proponi con l'AI | Suggerisce i prossimi passi; scegli tu quali diventano attività |
 | Ticket | Scrivi l'esito con l'AI | Prepara una bozza dell'esito da rivedere prima di chiudere |
@@ -121,6 +124,16 @@ Il SOC usa l'**AI aziendale**, installata sui server dell'azienda: nessun dato e
 ### Cosa legge
 
 L'AI riceve solo quello che serve per la domanda: l'alert o il ticket, lo storico collegato (accessi, backup, precedenti, alert chiusi o scartati), le procedure del SOC. Per spiegare gli alert non riceve mai il testo delle mail originali, che è contenuto di terzi e può contenere dati personali. L'unica eccezione è la **lettura assistita** (sotto), se la accendi: riceve l'oggetto e l'inizio del report (al massimo 3000 caratteri), con gli indirizzi email mascherati.
+
+### Ricerca sul web
+
+Con la casella **Cerca anche sul web** (accanto ai pulsanti «Proponi la soluzione», «Proponi con l'AI» del ticket e «Spiega con l'AI» di CVE e patch) l'AI legge anche le pagine ufficiali: avvisi dei produttori, articolo Microsoft di una KB con i **problemi noti**, CISA, CSIRT Italia. Le fonti lette compaiono sotto la risposta con il link («Fonti dal web»).
+
+- **Si accende** in **Impostazioni › Ricerca sul web per l'AI** (spenta di serie: senza, la casella non compare). Serve l'accesso a internet in uscita dal server del portale verso i siti ammessi.
+- **Cosa esce**: solo codici pubblici trovati nell'alert, nel ticket, nella CVE o nella patch: codici CVE, numeri KB, codici d'errore come 0x80070005, «Event ID» e il nome del produttore. Mai nomi di PC, utenti, indirizzi IP, job di backup o testi delle mail. Se non c'è nessun codice pubblico il web non viene consultato e la risposta lo dice.
+- **Cosa entra**: solo pagine https di nvd.nist.gov, cisa.gov, csirt.gov.it, acn.gov.it, first.org, dei siti Microsoft ufficiali (support, learn, msrc), di watchguard.com, veeam.com e synology.com, più i siti aggiunti in **Altri siti ammessi**. Mai forum o community, anche dentro questi siti. Al massimo 3 pagine per risposta, 20 secondi in tutto; ogni pagina resta in memoria un giorno.
+- **Dove cerca**: per una CVE legge i riferimenti dell'NVD (prima avvisi del produttore, mitigazioni e patch; mai le pagine con codice di attacco, di cui dice solo che esistono); per una KB l'articolo Microsoft dal paragrafo «Known issues». Per i codici d'errore e gli Event ID serve un **motore di ricerca interno** (SearXNG aziendale, campo facoltativo in Impostazioni): senza, quei codici non vengono cercati.
+- Il testo delle pagine arriva all'AI come informazione di terzi, con l'istruzione di non eseguire quello che contiene; se una fonte contraddice i dati del portale valgono i dati del portale. Ogni ricerca e ogni pagina letta resta nel registro AI del SOC (azioni «web_ricerca» e «web_pagina», con il codice cercato o il sito).
 
 ### Sintesi del giorno già pronta
 

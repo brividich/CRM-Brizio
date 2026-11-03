@@ -64,6 +64,7 @@ La **Coda alert** è l'elenco di ciò che il motore ha giudicato un problema. Fi
 La scheda dell'alert risponde a quattro domande:
 
 - **In parole semplici**: premi **Spiega con l'AI** per avere cosa è successo, perché è scattato, quanto è urgente e cosa fare. L'AI tiene conto dello storico mostrato nella pagina.
+- **Come risolverlo**: **Proponi la soluzione** dà la causa probabile, i passi per risolvere (dalla procedura standard e da come sono stati chiusi gli alert simili) e come verificare. Sotto arriva il modulo di chiusura già compilato con l'esito proposto (Risolto, Non rilevante, Rischio accettato o Falso positivo) e il motivo: correggilo se serve e chiudi solo dopo aver fatto i passi. Con **Cerca anche sul web** l'AI legge anche gli avvisi ufficiali sui codici CVE, KB o d'errore dell'alert (capitolo «Impostazioni e AI»).
 - **Perché è stato generato**: la regola che è scattata e i valori che l'hanno fatta scattare.
 - **Cosa sappiamo dagli altri dati del portale**: gli stessi indirizzi, utenti, PC o job incrociati con lo storico (accessi VPN, backup, asset), i precedenti e gli alert simili già chiusi o scartati.
 - **Come rispondere**: la procedura consigliata per quel tipo di alert. **Apri ticket con questi passi** crea il ticket con i passi già come attività.
@@ -108,7 +109,7 @@ Il **ticket** è il caso su cui si lavora: raccoglie uno o più alert e porta re
 
 - **Come nasce**: da solo per le CVE critiche (raggruppate per prodotto) e per i backup falliti; a mano dalla scheda di un alert («Apri ticket») o dalla coda alert selezionando più alert.
 - **Responsabile**: **Prendo io** oppure scegli una persona e **Assegna**. Assegnare un responsabile o aggiungere un'attività porta il ticket in lavorazione.
-- **Attività**: i passi da fare per chiudere il ticket, da spuntare man mano. Se c'è una procedura consigliata per quel tipo di problema, la aggiungi con un clic. **Proponi con l'AI** in «Prossimi passi» suggerisce cosa fare dopo; scegli tu quali passi diventano attività.
+- **Attività**: i passi da fare per chiudere il ticket, da spuntare man mano. Se c'è una procedura consigliata per quel tipo di problema, la aggiungi con un clic. **Proponi con l'AI** in «Prossimi passi» suggerisce cosa fare dopo (con **Cerca anche sul web** anche dagli avvisi ufficiali su CVE, KB e codici d'errore del ticket); scegli tu quali passi diventano attività.
 - **Note di lavoro**: tutto quello che serve a chi verrà dopo. Finisce nella timeline insieme alle azioni sugli alert collegati.
 - **Chiusura**: in **Cambia stato** scegli l'esito (Risolto, Chiuso, Falso positivo) e scrivi il motivo; con la spunta chiudi insieme gli alert ancora aperti. **Scrivi l'esito con l'AI** prepara una bozza da rivedere.
 - **Chiusura automatica**: quando tutti gli alert del ticket rientrano da soli, il ticket si chiude come Risolto, a meno che abbia attività ancora da fare.
