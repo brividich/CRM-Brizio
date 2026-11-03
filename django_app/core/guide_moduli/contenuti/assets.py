@@ -295,6 +295,15 @@ GUIDA = {
                     "controlla e salva. I reparti servono anche alla mappa di calore degli incidenti.",
                     "«Togli dalla mappa» toglie una pianta doppia o non usata dalla mappa officina senza cancellarla (resta bozza).",
                     "Ogni collocazione o spostamento finisce nella timeline della macchina (etichetta PLANIMETRIA) con data e autore.",
+                    "«Leggi planimetria» (in alto nell'editor): legge le sigle scritte sulla pianta e propone dove collocare gli asset. "
+                    "Abbina numero interno («-233-» = «Int.233»), tag, matricola e la sigla nel nome («DM7»); i nomi dei reparti "
+                    "(«CN5») non contano. Meglio caricare il PDF stampato dal disegno (anche dal DWG): testi veri e posizioni esatte. "
+                    "Senza PDF legge l'immagine con il riconoscimento del testo.",
+                    "Nelle proposte: «Da collocare», «Sposta (ora altrove)», «Già qui» (entro il 3%). Sono spuntate solo quelle sicure; "
+                    "quelle dell'«AI locale», le sigle lette in più punti e gli spostamenti molto lunghi vanno controllati. "
+                    "«Colloca i selezionati» scrive le posizioni; «Usa questa pagina come immagine della planimetria» crea invece una "
+                    "nuova versione non attiva (reparti e macchine copiati) da pubblicare con «Pubblica come attiva».",
+                    "Le sigle lette ma non abbinate sono elencate in fondo: se una è il numero interno di un asset, scrivilo nella sua scheda e rileggi.",
                     "Verifiche di legge sulla mappa: collega le macchine (es. i carroponti) al piano in Manutenzione → Verifiche periodiche, "
                     "campo «Asset coinvolti»; senza collegamento la mappa non le vede.",
                 ]),

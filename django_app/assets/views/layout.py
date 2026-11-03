@@ -406,6 +406,11 @@ def _record_plant_position_changes(request: HttpRequest, layout: PlantLayout, ch
 
 @login_required
 def plant_layout_editor(request: HttpRequest) -> HttpResponse:
+    if request.GET.get("leggi") == "1":
+        # «Leggi planimetria»: stessa rotta, quindi stesso permesso dell'editor
+        from .layout_leggi import leggi_planimetria
+
+        return leggi_planimetria(request)
     all_layouts = list(
         _plant_layout_queryset().all().order_by("category", "-is_active", "-updated_at", "name", "id")
     )
