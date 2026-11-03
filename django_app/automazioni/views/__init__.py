@@ -165,6 +165,7 @@ from .coda import (
     queue_stop_view,
     run_log_detail_page,
     run_log_list_page,
+    mail_inviate_page,
 )
 from .configurazione import (
     event_notifications_page,

@@ -2638,6 +2638,25 @@ def _blocco_certificato_assenze(action, payload_context) -> tuple[str, str]:
         return "", ""
 
 
+def _registra_mail(action, run_log, payload_context, *, origine, to, cc=(), subject="", errore="") -> None:
+    """Riga nel registro «Mail inviate» (best-effort)."""
+    from .mail_inviate import registra
+
+    rule = getattr(action, "rule", None)
+    payload_id = payload_context.get("id") if isinstance(payload_context, dict) else None
+    registra(
+        origine=origine,
+        destinatari=to,
+        copia=cc,
+        oggetto=subject,
+        sorgente=getattr(rule, "source_code", "") or "",
+        record_id=payload_id,
+        errore=errore,
+        regola=rule,
+        run_log=run_log,
+    )
+
+
 def _inserisci_in_testa_html(body_html: str, blocco: str) -> str:
     """Mette ``blocco`` all'inizio del contenuto: dopo ``<body>`` se il corpo è un documento completo."""
     import re
@@ -4327,6 +4346,8 @@ def execute_action(
             try:
                 sent_count = message.send(fail_silently=fail_silently)
             except Exception as smtp_exc:
+                _registra_mail(action, run_log, payload_context, origine="automazione", to=to, cc=cc + bcc,
+                               subject=subject, errore=f"{type(smtp_exc).__name__}: {smtp_exc}")
                 import smtplib
                 exc_type = type(smtp_exc).__name__
                 if isinstance(smtp_exc, smtplib.SMTPServerDisconnected):
@@ -4345,7 +4366,10 @@ def execute_action(
                     ) from smtp_exc
                 raise
             if sent_count < 1:
+                _registra_mail(action, run_log, payload_context, origine="automazione", to=to, cc=cc + bcc,
+                               subject=subject, errore="Il backend email non ha confermato l'invio del messaggio.")
                 raise ValueError("Il backend email non ha confermato l'invio del messaggio.")
+            _registra_mail(action, run_log, payload_context, origine="automazione", to=to, cc=cc + bcc, subject=subject)
 
             recipients = ", ".join(to + cc + bcc)
             result_message = f"Email inviata a [{recipients}] con subject='{subject[:120]}'."
@@ -4513,20 +4537,28 @@ def execute_action(
                     for approver_email in email_approver_emails:
                         approve_url, reject_url = _personal_links(approver_email)
                         tpl_subject, html_override, text_override = _render_with_template(approve_url, reject_url)
-                        _send_approval_email(
-                            approver_emails=[approver_email],
-                            subject=tpl_subject or subject,
-                            message_body=message_body,
-                            approve_url=approve_url,
-                            reject_url=reject_url,
-                            approve_label=approve_label,
-                            reject_label=reject_label,
-                            expires_at=approval.expires_at,
-                            html_body_override=html_override,
-                            text_body_override=text_override,
-                            calendar_event=calendar_event,
-                            calendar_opt_in=calendar_opt_in,
-                        )
+                        try:
+                            _send_approval_email(
+                                approver_emails=[approver_email],
+                                subject=tpl_subject or subject,
+                                message_body=message_body,
+                                approve_url=approve_url,
+                                reject_url=reject_url,
+                                approve_label=approve_label,
+                                reject_label=reject_label,
+                                expires_at=approval.expires_at,
+                                html_body_override=html_override,
+                                text_body_override=text_override,
+                                calendar_event=calendar_event,
+                                calendar_opt_in=calendar_opt_in,
+                            )
+                        except Exception as send_exc:
+                            _registra_mail(action, run_log, payload_context, origine="approvazione",
+                                           to=[approver_email], subject=tpl_subject or subject,
+                                           errore=f"{type(send_exc).__name__}: {send_exc}")
+                            raise
+                        _registra_mail(action, run_log, payload_context, origine="approvazione",
+                                       to=[approver_email], subject=tpl_subject or subject)
                     result_message_parts.append(
                         f"Email approvazione inviata a {', '.join(email_approver_emails)}."
                     )

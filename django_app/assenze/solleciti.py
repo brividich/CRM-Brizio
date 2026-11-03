@@ -174,19 +174,26 @@ def invia_solleciti(now=None) -> dict:
     inviate = 0
     richieste = 0
     errori = 0
+    from automazioni.mail_inviate import registra
+
     for email, elenco in per_capo.items():
         html, testo = _corpo_mail(elenco)
+        oggetto = f"Promemoria: {len(elenco)} richieste di assenza in attesa"
+        ids = ", ".join(str(r["id"]) for r in elenco)
         try:
             msg = EmailMultiAlternatives(
-                subject=f"Promemoria: {len(elenco)} richieste di assenza in attesa",
+                subject=oggetto,
                 body=testo, from_email=from_email, to=[email],
             )
             msg.attach_alternative(html, "text/html")
             msg.send(fail_silently=False)
-        except Exception:
+        except Exception as exc:
             errori += 1
             logger.warning("assenze.solleciti: invio a %s non riuscito", email, exc_info=True)
+            registra(origine="assenze_sollecito", destinatari=[email], oggetto=oggetto, sorgente="assenze",
+                     record_id=ids, errore=f"{type(exc).__name__}: {exc}")
             continue
+        registra(origine="assenze_sollecito", destinatari=[email], oggetto=oggetto, sorgente="assenze", record_id=ids)
         inviate += 1
         for r in elenco:
             richieste += 1
