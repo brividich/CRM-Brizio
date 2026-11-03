@@ -1952,6 +1952,35 @@ def _chiave_persona(richiesta: RichiestaDPI) -> str:
     return "n" + "".join(c for c in (richiesta.richiedente_nome or "").casefold() if c.isalnum())[:40]
 
 
+def _banco_persone(qs, giac: dict) -> list[dict]:
+    """Richieste del banco raggruppate per persona (pagina Banco e pannello della home)."""
+    gruppi: dict[str, dict] = {}
+    for r in qs.order_by("richiedente_nome", "created_at"):
+        chiave = _chiave_persona(r)
+        g = gruppi.setdefault(chiave, {
+            "chiave": chiave, "nome": r.richiedente_nome, "reparto": r.richiedente_reparto,
+            "righe": [], "n_pronte": 0, "n_da_preparare": 0, "n_mancanti": 0,
+        })
+        g_mod = giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id else None
+        manca = g_mod is not None and g_mod < r.quantita
+        g["righe"].append({"r": r, "giacenza": g_mod, "manca": manca})
+        g["n_pronte" if r.pronta_ritiro_il else "n_da_preparare"] += 1
+        g["n_mancanti"] += int(manca)
+    return sorted(gruppi.values(), key=lambda g: (g["nome"] or "").casefold())
+
+
+def _banco_conferme_qs(request):
+    """Conferme di ricevuta nel perimetro di chi gestisce."""
+    from .models import ConfermaConsegnaDPI
+
+    qs = ConfermaConsegnaDPI.objects.prefetch_related("consegne__richiesta")
+    if sistema_ruoli_attivo():
+        ids_gestire = _anagrafiche_visibili(request, "gestire")
+        if ids_gestire is not None:
+            qs = qs.filter(richiedente_legacy_id__in=list(ids_gestire))
+    return qs
+
+
 def _banco_selezionate(request) -> list[RichiestaDPI]:
     ids = [i for i in (_int_or_none(v) for v in request.POST.getlist("ids")) if i]
     if not ids:
@@ -2063,20 +2092,7 @@ def banco(request):
     if not tutte:
         qs = qs.filter(categoria__consegna_magazzino=True)
     giac = magazzino.giacenze()
-
-    gruppi: dict[str, dict] = {}
-    for r in qs.order_by("richiedente_nome", "created_at"):
-        chiave = _chiave_persona(r)
-        g = gruppi.setdefault(chiave, {
-            "chiave": chiave, "nome": r.richiedente_nome, "reparto": r.richiedente_reparto,
-            "righe": [], "n_pronte": 0, "n_da_preparare": 0, "n_mancanti": 0,
-        })
-        g_mod = giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id else None
-        manca = g_mod is not None and g_mod < r.quantita
-        g["righe"].append({"r": r, "giacenza": g_mod, "manca": manca})
-        g["n_pronte" if r.pronta_ritiro_il else "n_da_preparare"] += 1
-        g["n_mancanti"] += int(manca)
-    persone = sorted(gruppi.values(), key=lambda g: (g["nome"] or "").casefold())
+    persone = _banco_persone(qs, giac)
 
     modelli_diretti = list(
         ModelloDPI.objects.filter(
@@ -2091,11 +2107,7 @@ def banco(request):
 
     from .models import ConfermaConsegnaDPI
 
-    conferme_qs = ConfermaConsegnaDPI.objects.prefetch_related("consegne__richiesta")
-    if sistema_ruoli_attivo():
-        ids_gestire = _anagrafiche_visibili(request, "gestire")
-        if ids_gestire is not None:
-            conferme_qs = conferme_qs.filter(richiedente_legacy_id__in=list(ids_gestire))
+    conferme_qs = _banco_conferme_qs(request)
     conferme_attesa = list(conferme_qs.filter(stato=ConfermaConsegnaDPI.Stato.IN_ATTESA).order_by("created_at")[:30])
     conferme_contestate = list(conferme_qs.filter(
         stato=ConfermaConsegnaDPI.Stato.CONTESTATA, decisa_il__gte=timezone.now() - timedelta(days=30)
@@ -2114,6 +2126,7 @@ def banco(request):
         "n_mancanti": sum(g["n_mancanti"] for g in persone),
         "n_altre": n_altre,
         "tutte": tutte,
+        "cerca": request.GET.get("cerca", "").strip()[:80],
         "oggi": timezone.localdate(),
         "avviso_all_approvazione": DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione,
         "modelli_diretti": modelli_diretti,

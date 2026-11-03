@@ -148,7 +148,7 @@ GUIDA = {
                 ("p", "La home ti mostra cosa devi fare oggi (richieste da approvare, scadenze, letture), i documenti utili e i collegamenti ai moduli. "
                       "La guida completa della home è nel collegamento qui sopra."),
                 ("ul", [
-                    "«⚙ Personalizza»: stanza di apertura, riquadri da mostrare (Azioni rapide, Il tuo brief di oggi, News aziendali) e «Rifai il tour».",
+                    "«⚙ Personalizza»: stanza di apertura, riquadri da mostrare (Azioni rapide, Il tuo brief di oggi, News aziendali e, per chi gestisce le consegne DPI, Banco consegne DPI) e «Rifai il tour».",
                     "Preferiti: nella stanza «Moduli» tocca ☆ su una tessera; il modulo compare in «I miei preferiti» nella colonna di sinistra (massimo 12).",
                     "Azioni rapide: compaiono solo quelle che i tuoi permessi ti fanno usare (Le mie attività e Scadenzario sempre; poi anomalie, ticket, assenze, near miss, diario, task, DPI, assistente), al massimo 6.",
                     "La prima volta che entri parte un giro di benvenuto: barra di ricerca, notifiche, assistente, guida, stanze e preferiti.",

@@ -60,7 +60,8 @@ SEZIONI: list[dict] = [
             ("def", [
                 ("Stanza di apertura", "«L'ultima che ho aperto» (comportamento normale) oppure sempre Oggi, Sapere, "
                  "Persone & sicurezza o Moduli. Un indirizzo con #stanza vince comunque."),
-                ("Riquadri da mostrare", "togli la spunta ad Azioni rapide, Il tuo brief di oggi o News aziendali per nasconderli. "
+                ("Riquadri da mostrare", "togli la spunta ad Azioni rapide, Il tuo brief di oggi, News aziendali o (solo per chi "
+                 "gestisce le consegne DPI) Banco consegne DPI per nasconderli. "
                  "Emergenza e Priorità restano sempre visibili."),
                 ("Preferiti", "nella stanza «Moduli» tocca ☆ su una tessera: diventa ★ e il modulo compare in «I miei preferiti». "
                  "Tocca ★ per toglierlo. Un modulo che non puoi più aprire sparisce dai preferiti da solo."),
@@ -74,6 +75,9 @@ SEZIONI: list[dict] = [
         "titolo": "Stanza «Oggi»",
         "blocchi": [
             ("ul", [
+                "«Banco consegne DPI» (in cima, solo per chi gestisce le consegne DPI, per esempio il Magazzino): numeri del banco, "
+                "le prime 6 persone da servire con «Consegna», la ricerca «Chi è al banco?» e «Consegna diretta». "
+                "Tutto porta alla pagina DPI → Banco consegne.",
                 "«Le mie attività» raccoglie le cose che aspettano una tua azione: approvazioni assenze, ticket aperti, "
                 "anomalie aperte, non conformità, procedure da leggere, richieste DPI in corso, corsi e-learning da "
                 "completare e refresh abilitazioni macchina. Per ogni gruppo si vedono le prime 5; «Apri →» porta al modulo, "

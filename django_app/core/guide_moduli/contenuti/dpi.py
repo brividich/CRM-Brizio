@@ -88,6 +88,14 @@ GUIDA = {
                 ("p", "«Consegna diretta al banco» (solo se qualche categoria ha la spunta «Consegna diretta dal banco»): scegli "
                       "dipendente, DPI, taglia e quantità e clicca «Aggiungi al banco». La richiesta nasce già approvata, senza "
                       "passare dal responsabile, e si apre subito la sua scheda per la firma."),
+                ("p", "In home, stanza «Oggi», chi gestisce le consegne trova il riquadro «Banco consegne DPI»: i numeri del banco "
+                      "(persone in attesa, da preparare, pronti al ritiro, giacenza insufficiente, conferme in attesa e contestate), "
+                      "le prime 6 persone con il pulsante «Consegna» che apre direttamente la loro consegna, la casella «Chi è al banco?» "
+                      "(se il nome trova una sola persona si apre subito la sua consegna) e «Consegna diretta». "
+                      "Si nasconde da «⚙ Personalizza» togliendo la spunta «Banco consegne DPI»."),
+                ("p", "Il PDF del modulo di consegna riporta numero della richiesta, DPI, modello con codice, taglia, quantità e "
+                      "scadenza; nel riquadro «Ricevuta» la firma del banco, oppure l'esito della conferma via mail (chi ha "
+                      "confermato e quando). La riga per la firma su carta compare solo se non c'è né firma né conferma."),
                 ("nota", "Il banco mostra solo le categorie con «La consegna la fa il magazzino». Le altre (per esempio le scarpe) "
                          "si vedono con «Mostra anche gli altri DPI»."),
             ],
@@ -131,7 +139,9 @@ GUIDA = {
                     "anche ai «Responsabili» e alle «Email notifiche aggiuntive» delle Impostazioni.",
                     "Richiesta di un CAR o di un preposto (per sé o per un suo dipendente): approvata da sola, nessuna mail «da approvare».",
                     "Richiesta approvata: mail «Da consegnare» al Magazzino; per le categorie senza «La consegna la fa il "
-                    "magazzino» (per esempio le scarpe) va invece ai referenti DPI («Responsabili» + «Email notifiche aggiuntive»).",
+                    "magazzino» (per esempio le scarpe) va invece ai referenti DPI («Responsabili» + «Email notifiche aggiuntive»). "
+                    "Il pulsante «Apri il Banco consegne» della mail apre il banco sulla scheda della persona (con l'accesso "
+                    "Windows attivo, dai PC del dominio si entra senza password).",
                     "Consegna diretta al banco: nessuna mail di approvazione né «Da consegnare»; alla consegna parte il report come sempre.",
                     "Consegna registrata senza firma né ricevuta su carta: mail «Conferma la ricevuta dei DPI» al dipendente (mail "
                     "aziendale) o al caporeparto; «Non li ho ricevuti» → mail «Consegna contestata» al Magazzino; dopo 3 giorni "
