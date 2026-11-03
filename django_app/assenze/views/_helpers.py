@@ -1077,6 +1077,51 @@ def _flessibilita_abilitata_per(anagrafica_id: int | None) -> bool:
     return int(anagrafica_id) in _flessibilita_abilitati_ids()
 
 
+def _malattia_abilitati_ids() -> set[int]:
+    from ..models import MalattiaAbilitato
+
+    try:
+        return {
+            int(v)
+            for v in MalattiaAbilitato.objects.values_list("legacy_anagrafica_id", flat=True)
+            if v is not None
+        }
+    except Exception:
+        logger.warning("[assenze] elenco abilitati malattia non leggibile", exc_info=True)
+        return set()
+
+
+def _malattia_permessi(request) -> dict:
+    """Chi vede il pulsante «Malattia» e per chi puo' inserirla.
+
+    - ``elenco_attivo``: in Impostazioni c'e' almeno un abilitato;
+    - ``visibile``: il pulsante compare (elenco vuoto = tutti, regola storica);
+    - ``per_tutti``: puo' inserirla per qualunque dipendente attivo (solo gli
+      abilitati in elenco; senza elenco vale l'inserimento per altri del ruolo).
+
+    Fail-closed con elenco attivo: senza un id anagrafica risolvibile il pulsante
+    non compare.
+    """
+    cached = getattr(request, "_assenze_malattia_cache", None)
+    if isinstance(cached, dict):
+        return cached
+    abilitati = _malattia_abilitati_ids()
+    if not abilitati:
+        esito = {"elenco_attivo": False, "visibile": True, "per_tutti": False}
+    else:
+        name, email, legacy_id = _legacy_identity(request)
+        mio_id = _resolve_anagrafica_employee_id_for_user(
+            legacy_user_id=legacy_id,
+            email=email,
+            username=request.user.get_username(),
+            name=name,
+        )
+        abilitato = mio_id is not None and int(mio_id) in abilitati
+        esito = {"elenco_attivo": True, "visibile": abilitato, "per_tutti": abilitato}
+    setattr(request, "_assenze_malattia_cache", esito)
+    return esito
+
+
 def _autocorreggi_fine(dt_start: datetime | None, dt_end: datetime | None) -> tuple[datetime | None, str]:
     """Riallinea la fine quando non e' successiva all'inizio.
 

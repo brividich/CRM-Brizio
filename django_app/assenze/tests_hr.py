@@ -443,7 +443,11 @@ class PermessoRipetutoTests(TestCase):
         with patch("assenze.views.richieste._insert_assenza", side_effect=[101, 102, 103]) as ins, \
                 patch("assenze.hr.avvisi_richiesta", return_value=[]):
             resp = self._invia(ripeti_fino_al="2026-11-02")
-        self.assertContains(resp, "3 permessi registrati")
+        # Dopo l'invio si torna alla pagina con la conferma (Post/Redirect/Get).
+        self.assertEqual(resp.status_code, 302)
+        conferma = self.client.session["assenze_conferma_invio"]
+        self.assertEqual(conferma["numero"], 3)
+        self.assertTrue(conferma["ripetuto"])
         giorni = [(c.args[0]["data_inizio"], c.args[0]["data_fine"]) for c in ins.call_args_list]
         self.assertEqual(giorni, [
             (datetime(2026, 10, 29, 8), datetime(2026, 10, 29, 10)),
