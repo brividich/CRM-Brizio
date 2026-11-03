@@ -2630,6 +2630,7 @@ class PlantLayoutForm(forms.ModelForm):
                 height = round(100.0 - y, 2)
             if width <= 0 or height <= 0:
                 raise forms.ValidationError(f"Reparto {index}: area fuori dai limiti della planimetria.")
+            punti = self._area_points(row.get("punti"), index)
             area_rows.append(
                 {
                     "id": area_id or None,
@@ -2641,6 +2642,7 @@ class PlantLayoutForm(forms.ModelForm):
                     "y_percent": y,
                     "width_percent": width,
                     "height_percent": height,
+                    "punti": punti,
                     "sort_order": self._to_int(row.get("sort_order"), default=index * 10),
                 }
             )
@@ -2674,6 +2676,24 @@ class PlantLayoutForm(forms.ModelForm):
         self.marker_rows_input = marker_rows
         return cleaned_data
 
+    def _area_points(self, raw, index: int) -> list[list[float]]:
+        """Vertici di un reparto a forma libera; lista vuota = rettangolo."""
+        if not raw:
+            return []
+        if not isinstance(raw, list) or not (PlantLayoutArea.MIN_PUNTI <= len(raw) <= PlantLayoutArea.MAX_PUNTI):
+            raise forms.ValidationError(
+                f"Reparto {index}: la forma libera vuole da {PlantLayoutArea.MIN_PUNTI} a {PlantLayoutArea.MAX_PUNTI} punti."
+            )
+        punti = []
+        for coppia in raw:
+            if not isinstance(coppia, (list, tuple)) or len(coppia) != 2:
+                raise forms.ValidationError(f"Reparto {index}: punto della forma non valido.")
+            punti.append([
+                self._to_percent(coppia[0], label=f"Reparto {index} - punto X"),
+                self._to_percent(coppia[1], label=f"Reparto {index} - punto Y"),
+            ])
+        return punti
+
     @transaction.atomic
     def save(self, commit: bool = True):
         layout: PlantLayout = super().save(commit=commit)
@@ -2692,6 +2712,10 @@ class PlantLayoutForm(forms.ModelForm):
             area.y_percent = row["y_percent"]
             area.width_percent = row["width_percent"]
             area.height_percent = row["height_percent"]
+            # forma libera: i vertici comandano e il riquadro si ricalcola da loro
+            area.punti = []
+            if row.get("punti"):
+                area.imposta_punti(row["punti"])
             area.sort_order = row["sort_order"] or index * 10
             area.save()
             keep_area_ids.append(area.id)

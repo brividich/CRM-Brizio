@@ -39,14 +39,8 @@ def reset_marker_position(marker) -> None:
 
 def area_at_point(areas, x_percent, y_percent):
     """Il reparto disegnato che contiene il punto (il più piccolo, se si sovrappongono)."""
-    x = float(x_percent)
-    y = float(y_percent)
-    hits = [
-        area for area in areas
-        if float(area.x_percent) <= x <= float(area.x_percent) + float(area.width_percent)
-        and float(area.y_percent) <= y <= float(area.y_percent) + float(area.height_percent)
-    ]
-    hits.sort(key=lambda a: float(a.width_percent) * float(a.height_percent))
+    hits = [area for area in areas if area.contiene(x_percent, y_percent)]
+    hits.sort(key=lambda a: a.superficie())
     return hits[0] if hits else None
 
 
@@ -132,7 +126,9 @@ def rotate_layout(layout, *, clockwise: bool) -> TransformResult:
             nx, ny = y, 100 - (x + w)
         area.x_percent, area.y_percent = _d(_clamp(nx)), _d(_clamp(ny))
         area.width_percent, area.height_percent = _d(h), _d(w)
-        area.save(update_fields=["x_percent", "y_percent", "width_percent", "height_percent", "updated_at"])
+        if area.e_poligono:
+            area.imposta_punti([(100 - py, px) if clockwise else (py, 100 - px) for px, py in area.poligono()])
+        area.save(update_fields=["x_percent", "y_percent", "width_percent", "height_percent", "punti", "updated_at"])
     for marker in PlantLayoutMarker.objects.filter(layout=layout):
         if marker_is_unplaced(marker):
             continue
@@ -182,7 +178,9 @@ def crop_layout(layout, *, x_percent: float, y_percent: float, width_percent: fl
             continue
         area.x_percent, area.y_percent = _d(x0), _d(y0)
         area.width_percent, area.height_percent = _d(x1 - x0), _d(y1 - y0)
-        area.save(update_fields=["x_percent", "y_percent", "width_percent", "height_percent", "updated_at"])
+        if area.e_poligono:
+            area.imposta_punti([(_clamp(remap_x(px)), _clamp(remap_y(py))) for px, py in area.poligono()])
+        area.save(update_fields=["x_percent", "y_percent", "width_percent", "height_percent", "punti", "updated_at"])
 
     outside = 0
     for marker in PlantLayoutMarker.objects.filter(layout=layout):
@@ -224,6 +222,7 @@ def copy_layout_content(source, target) -> tuple[int, int]:
             y_percent=area.y_percent,
             width_percent=area.width_percent,
             height_percent=area.height_percent,
+            punti=list(area.punti or []),
             sort_order=area.sort_order,
         )
         areas += 1
