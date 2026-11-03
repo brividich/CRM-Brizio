@@ -39,6 +39,14 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)): 
 
 Consegna senza firma né «Ricevuta firmata su carta» (banco o scheda) → `conferme.richiedi(consegne)`: una `ConfermaConsegnaDPI` per le consegne fatte insieme alla persona, una mail con link personale (`LinkConfermaDPI`, solo hash) al dipendente se la sua `email_notifica` è di `DPIImpostazioni.domini_email_aziendali` (vuoto = qualunque), altrimenti a `flusso.email_preposti`, in mancanza ai referenti DPI. Pagina pubblica `/approval-actions/dpi/<segreto>/<conferma|contesta>/` (`views_conferma.conferma_ricevuta`, `@risposta_pubblica_con_form`, CSRF esente come i link di approvazione: GET mostra, POST decide una volta). Contestata → mail a `flusso.destinatari_consegna`. `conferme.sollecita()` dal task `run_dpi_expiry_reminders`: un promemoria dopo 3 giorni, link rigenerati. URL pubblica nuova ma sotto un prefisso già in `MIDDLEWARE_EXEMPT_PREFIXES`; con token inesistente risponde 404 (nessuna voce in `PUBLIC_VIEWS`).
 
+## Banco in home, link nella mail, PDF di consegna (03/11/2026)
+
+- Home (`home_portale`, stanza «Oggi»): riquadro «Banco consegne DPI» da `dpi/pannello_home.riepilogo_banco(request)`, solo se `_is_gestore` (stesso gate e perimetro del banco, stesse funzioni `_banco_queryset`/`_banco_persone`/`_banco_conferme_qs`). Riquadro `banco_dpi` in `HOME_RIQUADRI`, proposto in «Personalizza» solo a chi gestisce (`_riquadri_offerti`); chi non lo vede non ne cambia lo stato salvando. Link per persona `/dpi/banco/#apri-<chiave>` (apre la consegna), ricerca `GET /dpi/banco/?cerca=` (filtra e, con un solo risultato, apre la consegna), `#diretta`, `#conferme`.
+- Mail «Da consegnare» (`flusso.notifica_approvata`): pulsante «Apri il Banco consegne» (`flusso.link_banco`, via `core.accounts.portal_links.portal_link`: `SITE_URL` + accesso Windows) sulla scheda della persona; `?tutte=1` per le categorie non del magazzino. Senza `SITE_URL` niente pulsante.
+- PDF (`dpi/pdf.py`): celle che vanno a capo, colonne Richiesta/DPI/Modello (con codice)/Taglia/Q.tà/Scadenza, dati in tabelle etichetta-valore, motivazione e note, riquadro «Ricevuta» (firma, esito della conferma via mail o riga per la firma su carta solo se non c'è né l'una né l'altra). Testo utente escapato.
+
+Nessuna migrazione, nessun permesso nuovo (la home è già aperta a tutti, il riquadro dipende da «gestire» DPI).
+
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 «In scadenza» e «Scadute» della dashboard sulle consegne delle richieste visibili.

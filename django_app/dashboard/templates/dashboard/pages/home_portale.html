@@ -15,7 +15,7 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'core/css/home_portale.css' %}">
-<link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=6">
 {% endblock %}
 
 {% block content %}
@@ -116,6 +116,50 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
 
     {# ── OGGI ── #}
     <section class="hs-room" id="hs-room-oggi" role="tabpanel" aria-labelledby="hs-tab-oggi">
+      {% if banco_dpi %}
+      <div class="hp-card hs-banco" data-hp-section="card-banco-dpi">
+        <header class="hp-card-h">
+          <div>
+            <h3 class="hp-card-t">Banco consegne DPI</h3>
+            <p class="hp-card-s">I DPI approvati da preparare e consegnare, persona per persona</p>
+          </div>
+          <a href="{{ banco_dpi.url }}" class="hp-card-link">Apri il banco →</a>
+        </header>
+        <div class="hs-pad">
+          <div class="hs-banco-kpi">
+            <a href="{{ banco_dpi.url }}" class="hs-banco-k"><b>{{ banco_dpi.n_persone }}</b> persone in attesa</a>
+            <a href="{{ banco_dpi.url }}" class="hs-banco-k"><b>{{ banco_dpi.n_da_preparare }}</b> da preparare</a>
+            <a href="{{ banco_dpi.url }}" class="hs-banco-k"><b>{{ banco_dpi.n_pronte }}</b> pronti al ritiro</a>
+            {% if banco_dpi.n_mancanti %}<a href="{{ banco_dpi.url }}" class="hs-banco-k hp-tone-warning"><b>{{ banco_dpi.n_mancanti }}</b> giacenza insufficiente</a>{% endif %}
+            <a href="{{ banco_dpi.url }}#conferme" class="hs-banco-k"><b>{{ banco_dpi.n_conferme_attesa }}</b> conferme in attesa</a>
+            {% if banco_dpi.n_contestate %}<a href="{{ banco_dpi.url }}#conferme" class="hs-banco-k hp-tone-danger"><b>{{ banco_dpi.n_contestate }}</b> contestate</a>{% endif %}
+          </div>
+          <form class="hs-banco-cerca" method="get" action="{{ banco_dpi.url }}">
+            <input type="search" name="cerca" class="input" placeholder="Chi è al banco? Nome o reparto…" aria-label="Cerca la persona al banco" autocomplete="off">
+            <button type="submit" class="btn btn-primary btn-sm">Cerca</button>
+            {% if banco_dpi.consegna_diretta %}<a href="{{ banco_dpi.url }}#diretta" class="btn btn-secondary btn-sm">Consegna diretta</a>{% endif %}
+          </form>
+          {% if banco_dpi.persone %}
+          <ul class="hp-list">
+            {% for p in banco_dpi.persone %}
+              <li>
+                <a href="{{ p.url }}">
+                  <span class="hp-list-body">
+                    <span class="hp-list-t">{{ p.nome }}</span>
+                    <span class="hp-list-m">{% if p.reparto %}{{ p.reparto }} · {% endif %}{{ p.n_dpi }} DPI{% if p.n_pronte %} · {{ p.n_pronte }} pronti{% endif %}{% if p.n_mancanti %} · manca giacenza{% endif %}</span>
+                  </span>
+                  <span class="hp-badge hp-tone-{% if p.n_mancanti %}warning{% elif p.n_da_preparare %}info{% else %}success{% endif %}">Consegna</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+          {% if banco_dpi.persone_altre %}<a class="hp-card-link hs-banco-altre" href="{{ banco_dpi.url }}">+{{ banco_dpi.persone_altre }} altre persone →</a>{% endif %}
+          {% else %}
+          <ul class="hp-list"><li class="hp-empty">Nessun DPI da consegnare. ✓</li></ul>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
       <div class="hs-oggi">
         <div class="hp-card" data-hp-section="card-cose-da-gestire">
           <header class="hp-card-h">

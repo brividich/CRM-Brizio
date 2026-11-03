@@ -7,21 +7,15 @@ con storage privato fuori webroot.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    # Solo per le annotazioni di tipo (nessun import a runtime).
-    from reportlab.platypus import Table
-
 import base64
 import io
 import logging
 from typing import Iterable, Sequence
 
 from django.utils import timezone
-from reportlab.lib.styles import ParagraphStyle
+from django.utils.html import escape
 from reportlab.lib.units import mm
-from reportlab.platypus import Image, Paragraph, Spacer
+from reportlab.platypus import Image, Paragraph, Spacer, Table, TableStyle
 
 from core.pdf import PdfTheme, build_styles, data_table, header_footer_callback, make_document
 
@@ -53,87 +47,121 @@ def _decode_firma_data_uri(data_uri: str) -> bytes | None:
         return None
 
 
-def _articoli_row(consegna: ConsegnaDPI) -> list[str]:
+def _e(value) -> str:
+    """Testo utente sicuro dentro un Paragraph (che interpreta il markup)."""
+    return escape(str(value if value not in (None, "") else "—"))
+
+
+def _articoli_row(consegna: ConsegnaDPI, styles: dict) -> list:
     r = consegna.richiesta
-    categoria = r.categoria.nome if r.categoria_id else "—"
-    tipo = r.tipo_dpi.nome if r.tipo_dpi_id else "—"
-    modello = r.modello_dpi.nome if r.modello_dpi_id else "—"
-    taglia = r.taglia_dpi.valore if r.taglia_dpi_id else "—"
-    scadenza = (
-        consegna.data_scadenza_stimata.strftime("%d-%m-%Y")
-        if consegna.data_scadenza_stimata else "—"
-    )
-    return [categoria, tipo, modello, taglia, str(r.quantita or 0), scadenza]
-
-
-def _articoli_table(consegne: Sequence[ConsegnaDPI], theme: PdfTheme) -> Table:
-    header = [
-        "Categoria",
-        "Tipo",
-        "Modello",
-        "Taglia",
-        "Q.tà",
-        "Scadenza stimata",
+    cell, right = styles["cell"], styles["cell_right"]
+    dpi = f"<b>{_e(r.categoria.nome if r.categoria_id else None)}</b>"
+    if r.tipo_dpi_id:
+        dpi += f"<br/>{_e(r.tipo_dpi.nome)}"
+    modello = "—"
+    if r.modello_dpi_id:
+        modello = _e(r.modello_dpi.nome)
+        if r.modello_dpi.codice:
+            modello += f'<br/><font color="#64748b">Cod. {_e(r.modello_dpi.codice)}</font>'
+    scadenza = consegna.data_scadenza_stimata.strftime("%d-%m-%Y") if consegna.data_scadenza_stimata else "—"
+    return [
+        Paragraph(_e(r.numero), cell),
+        Paragraph(dpi, cell),
+        Paragraph(modello, cell),
+        Paragraph(_e(r.taglia_dpi.valore if r.taglia_dpi_id else None), cell),
+        Paragraph(str(r.quantita or 0), right),
+        Paragraph(scadenza, cell),
     ]
-    rows = [header] + [_articoli_row(c) for c in consegne]
-    return data_table(
-        rows,
-        theme,
-        col_widths=[36 * mm, 32 * mm, 38 * mm, 18 * mm, 14 * mm, 32 * mm],
-        extra_style=[("ALIGN", (4, 1), (4, -1), "CENTER")],
-    )
 
 
-def _info_dipendente_paragraphs(
-    consegna: ConsegnaDPI, body_style: ParagraphStyle
-) -> list[Paragraph]:
+def _articoli_table(consegne: Sequence[ConsegnaDPI], theme: PdfTheme, styles: dict) -> Table:
+    head = styles["table_header"]
+    header = [Paragraph(t, head) for t in ("Richiesta", "DPI", "Modello", "Taglia", "Q.tà", "Scadenza stimata")]
+    rows = [header] + [_articoli_row(c, styles) for c in consegne]
+    # 170 mm = la riga utile della pagina (A4, margini e padding del frame): il testo va a capo.
+    table = data_table(rows, theme, col_widths=[24 * mm, 44 * mm, 50 * mm, 16 * mm, 12 * mm, 24 * mm])
+    table.hAlign = "LEFT"
+    return table
+
+
+def _kv_table(rows: Sequence[tuple[str, str]], theme: PdfTheme, styles: dict) -> Table:
+    """Etichetta -> valore su due colonne, compatto (i valori sono gia' sicuri)."""
+    label, value = styles["cell"], styles["body"]
+    data = [[Paragraph(f'<font color="#64748b">{k}</font>', label), Paragraph(v, value)] for k, v in rows]
+    table = Table(data, colWidths=[36 * mm, 134 * mm], hAlign="LEFT")
+    table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LINEBELOW", (0, 0), (-1, -1), 0.3, theme.c_border()),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    return table
+
+
+def _righe_dipendente(consegna: ConsegnaDPI) -> list[tuple[str, str]]:
     r = consegna.richiesta
-    rows = [
-        ("Nome", (r.richiedente_nome or "").upper() or "—"),
-        ("ID anagrafica", str(r.richiedente_legacy_id or "—")),
-        ("Reparto", r.richiedente_reparto or "—"),
-        ("Email", r.richiedente_email or "—"),
+    return [
+        ("Nome", f"<b>{_e((r.richiedente_nome or '').upper() or None)}</b>"),
+        ("Reparto", _e(r.richiedente_reparto)),
+        ("Email", _e(r.richiedente_email)),
+        ("ID anagrafica", _e(r.richiedente_legacy_id)),
     ]
-    return [Paragraph(f"<b>{k}:</b> {v}", body_style) for k, v in rows]
 
 
-def _info_consegna_paragraphs(
-    consegna: ConsegnaDPI, body_style: ParagraphStyle
-) -> list[Paragraph]:
+def _righe_consegna(consegne: Sequence[ConsegnaDPI]) -> list[tuple[str, str]]:
+    c0 = consegne[0]
     rows = [
-        ("Data consegna", consegna.data_consegna.strftime("%d-%m-%Y") if consegna.data_consegna else "—"),
-        ("Consegnato da", (consegna.consegnato_da_nome or "").upper() or "—"),
-        ("Firma ricevuta", "Sì" if consegna.firmato_ricevuta else "No"),
+        ("Data consegna", c0.data_consegna.strftime("%d-%m-%Y") if c0.data_consegna else "—"),
+        ("Consegnato da", _e((c0.consegnato_da_nome or "").upper() or None)),
     ]
-    conferma = getattr(consegna, "conferma", None)
-    if conferma is not None:
-        if conferma.decisa_il:
-            quando = timezone.localtime(conferma.decisa_il).strftime("%d-%m-%Y %H:%M")
-            rows.append(("Conferma via mail", f"{conferma.get_stato_display()} il {quando} da {conferma.decisa_da_email}"))
-        else:
-            rows.append(("Conferma via mail", f"{conferma.get_stato_display()} ({conferma.get_destinatario_tipo_display().lower()})"))
-    items = [Paragraph(f"<b>{k}:</b> {v}", body_style) for k, v in rows]
-    if consegna.note_consegna:
-        items.append(Paragraph(f"<b>Note:</b> {consegna.note_consegna}", body_style))
-    return items
+    if len(consegne) > 1:
+        rows.append(("Articoli", str(len(consegne))))
+    motivi = sorted({c.richiesta.motivazione.strip() for c in consegne if (c.richiesta.motivazione or "").strip()})
+    if motivi:
+        rows.append(("Motivazione", "<br/>".join(_e(m) for m in motivi)))
+    note = sorted({c.note_consegna.strip() for c in consegne if (c.note_consegna or "").strip()})
+    if note:
+        rows.append(("Note", "<br/>".join(_e(n) for n in note)))
+    return rows
 
 
-def _firma_flowables(
-    firma_data_uri: str, body_style: ParagraphStyle
-) -> list:
-    flow: list = [Paragraph("<b>Firma del ricevente</b>", body_style)]
-    png_bytes = _decode_firma_data_uri(firma_data_uri)
+def _ricevuta_flowables(consegna: ConsegnaDPI, theme: PdfTheme, styles: dict) -> list:
+    """Come il dipendente ha confermato di aver ricevuto i DPI: firma al banco,
+    conferma via mail (dipendente o responsabile) o firma su carta di questo modulo."""
+    body = styles["body"]
+    flow: list = [Paragraph("Ricevuta", styles["section"])]
+    png_bytes = _decode_firma_data_uri(consegna.firma_immagine or "")
     if png_bytes:
         try:
+            flow.append(Paragraph("Firmata al banco dal ricevente:", body))
             img = Image(io.BytesIO(png_bytes), width=60 * mm, height=22 * mm)
             img.hAlign = "LEFT"
             flow.append(img)
             return flow
         except Exception:
             logger.warning("Impossibile inserire la firma nel PDF", exc_info=True)
-    # placeholder se manca o non decodifica
-    flow.append(Spacer(1, 6 * mm))
-    flow.append(Paragraph("________________________________________", body_style))
+    conferma = getattr(consegna, "conferma", None)
+    if conferma is not None:
+        chi = conferma.get_destinatario_tipo_display().lower()
+        if conferma.decisa_il:
+            quando = timezone.localtime(conferma.decisa_il).strftime("%d-%m-%Y alle %H:%M")
+            esito = "confermata" if conferma.stato == conferma.Stato.CONFERMATA else "CONTESTATA"
+            testo = f"Ricevuta <b>{esito}</b> via mail il {quando} da {_e(conferma.decisa_da_email)} ({_e(chi)})."
+            if conferma.nota:
+                testo += f"<br/>Nota: {_e(conferma.nota)}"
+        else:
+            testo = f"Conferma di ricevuta richiesta via mail ({_e(chi)}): <b>in attesa</b>."
+        flow.append(_kv_table([("Conferma via mail", testo)], theme, styles))
+        if conferma.decisa_il:
+            return flow
+    elif consegna.firmato_ricevuta:
+        flow.append(Paragraph("Ricevuta firmata su carta al momento della consegna.", body))
+        return flow
+    flow.append(Spacer(1, 4 * mm))
+    flow.append(Paragraph("Firma del ricevente (se il modulo viene firmato su carta)", body))
+    flow.append(Spacer(1, 10 * mm))
+    flow.append(Paragraph("________________________________________", body))
     return flow
 
 
@@ -164,36 +192,23 @@ def render_modulo_consegna_dpi_multipla(consegne: Iterable[ConsegnaDPI]) -> byte
     theme = PdfTheme.from_branding()
     styles = build_styles(theme)
     section_style = styles["section"]
-    body_style = styles["body"]
 
     buf = io.BytesIO()
     doc = make_document(buf, title="Modulo consegna DPI")
     flow: list = []
 
     flow.append(Paragraph("Dipendente", section_style))
-    flow.extend(_info_dipendente_paragraphs(consegne_list[0], body_style))
+    flow.append(_kv_table(_righe_dipendente(consegne_list[0]), theme, styles))
 
     flow.append(Paragraph("Articoli consegnati", section_style))
-    flow.append(_articoli_table(consegne_list, theme))
+    flow.append(_articoli_table(consegne_list, theme, styles))
 
     flow.append(Paragraph("Dettagli consegna", section_style))
-    if len(consegne_list) == 1:
-        flow.extend(_info_consegna_paragraphs(consegne_list[0], body_style))
-    else:
-        # Cumulativo: i singoli dettagli sono già in tabella;
-        # mostra solo data e operatore (presi dalla prima consegna).
-        c0 = consegne_list[0]
-        rows = [
-            ("Data consegna", c0.data_consegna.strftime("%d-%m-%Y") if c0.data_consegna else "—"),
-            ("Consegnato da", (c0.consegnato_da_nome or "").upper() or "—"),
-            ("Numero articoli", str(len(consegne_list))),
-        ]
-        flow.extend([Paragraph(f"<b>{k}:</b> {v}", body_style) for k, v in rows])
+    flow.append(_kv_table(_righe_consegna(consegne_list), theme, styles))
 
-    flow.append(Spacer(1, 6 * mm))
-    # La firma viene presa dalla prima consegna; nei moduli cumulativi
-    # (consegne iniziali) la firma è normalmente differita e quindi vuota.
-    flow.extend(_firma_flowables(consegne_list[0].firma_immagine or "", body_style))
+    # Firma e conferma sono della prima consegna: al banco le consegne della stessa
+    # persona condividono firma e conferma via mail.
+    flow.extend(_ricevuta_flowables(consegne_list[0], theme, styles))
 
     draw = header_footer_callback(theme, title="MODULO DI CONSEGNA DPI")
     doc.build(flow, onFirstPage=draw, onLaterPages=draw)

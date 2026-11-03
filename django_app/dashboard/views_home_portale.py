@@ -939,8 +939,27 @@ def _module_launcher(groups: list[dict]) -> list[dict]:
 # accessibile sparisce dai preferiti senza bisogno di pulizia.
 
 HOME_STANZE = (("oggi", "Oggi"), ("sapere", "Sapere"), ("persone", "Persone & sicurezza"), ("moduli", "Moduli"))
-HOME_RIQUADRI = (("azioni", "Azioni rapide"), ("brief", "Il tuo brief di oggi"), ("news", "News aziendali"))
+HOME_RIQUADRI = (
+    ("azioni", "Azioni rapide"), ("brief", "Il tuo brief di oggi"), ("news", "News aziendali"),
+    ("banco_dpi", "Banco consegne DPI"),
+)
 PREFERITI_MAX = 12
+
+
+def _gestisce_consegne_dpi(request) -> bool:
+    try:
+        from dpi.views import _is_gestore
+
+        return _is_gestore(request)
+    except Exception:
+        logger.exception("Home: permesso consegne DPI non verificato")
+        return False
+
+
+def _riquadri_offerti(request) -> list[tuple[str, str]]:
+    """Riquadri proposti in «Personalizza»: il banco DPI solo a chi gestisce le consegne."""
+    dpi = _gestisce_consegne_dpi(request)
+    return [(k, label) for k, label in HOME_RIQUADRI if k != "banco_dpi" or dpi]
 
 
 def _pulisci_home_prefs(raw: Any) -> dict:
@@ -992,7 +1011,12 @@ def _salva_home_prefs(request: HttpRequest) -> HttpResponse:
     elif azione == "personalizza":
         prefs["stanza"] = request.POST.get("stanza") or ""
         mostra = set(request.POST.getlist("mostra"))
-        prefs["nascosti"] = [k for k, _ in HOME_RIQUADRI if k not in mostra]
+        offerti = {k for k, _ in _riquadri_offerti(request)}
+        # I riquadri non proposti a questa persona (es. banco DPI) restano com'erano.
+        prefs["nascosti"] = [
+            k for k, _ in HOME_RIQUADRI
+            if (k not in mostra if k in offerti else k in prefs["nascosti"])
+        ]
     elif azione == "tour_visto":
         prefs["tour_visto"] = True
     else:
@@ -1060,6 +1084,12 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         sapere_cataloghi = []
     sicurezza = _sicurezza(legacy_user)
     home_prefs = _home_prefs(request.user)
+    riquadri = _riquadri_offerti(request)
+    banco_dpi = None
+    if "banco_dpi" not in home_prefs["nascosti"] and any(k == "banco_dpi" for k, _ in riquadri):
+        from dpi.pannello_home import riepilogo_banco
+
+        banco_dpi = riepilogo_banco(request)
 
     context: dict[str, Any] = {
         "home_prefs":         home_prefs,
@@ -1067,7 +1097,8 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         "home_preferiti_ids": home_prefs["preferiti"],
         "home_nascosti":      home_prefs["nascosti"],
         "home_stanze":        HOME_STANZE,
-        "home_riquadri":      HOME_RIQUADRI,
+        "home_riquadri":      riquadri,
+        "banco_dpi":          banco_dpi,
         "home_star":          True,
         "greeting":           _greeting(now),
         "greeting_name":      display_name,

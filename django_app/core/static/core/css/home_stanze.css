@@ -127,6 +127,18 @@ button.hs-guide{ background:none; cursor:pointer; font-family:inherit; line-heig
 .hs-oggi{ display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:14px; align-items:start }
 .hs-col{ display:flex; flex-direction:column; gap:14px; min-width:0 }
 
+/* Banco consegne DPI (solo per chi gestisce le consegne). */
+.hs-banco-kpi{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px }
+.hs-banco-k{ display:inline-flex; align-items:baseline; gap:5px; padding:6px 10px; border-radius:8px;
+             border:1px solid var(--border); background:var(--tone-bg, var(--bg)); color:var(--tone-fg, var(--text));
+             font-size:13px; text-decoration:none }
+.hs-banco-k b{ font-size:16px }
+.hs-banco-k:hover{ border-color:var(--tone-solid, var(--text-light)) }
+.hs-banco-cerca{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:6px }
+.hs-banco-cerca .input{ flex:1 1 220px; min-width:0 }
+.hs-banco-altre{ display:inline-block; margin-top:8px }
+.hs-banco .hp-list a{ grid-template-columns:minmax(0,1fr) auto; padding-left:0; padding-right:0 }
+
 /* ── Sapere ───────────────────────────────────────────────────────── */
 .hs-chips{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end }
 .hs-chip{ font:inherit; font-size:12px; font-weight:600; padding:4px 11px; border-radius:999px; cursor:pointer;

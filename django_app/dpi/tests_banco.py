@@ -153,3 +153,88 @@ class DestinatariConsegnaTests(TestCase):
         scarpe = CategoriaDPI.objects.create(nome="Calzature", consegna_magazzino=False)
         self.assertEqual(flusso.destinatari_consegna(RichiestaDPI(categoria=guanti)), ["magazzino@example.test"])
         self.assertEqual(flusso.destinatari_consegna(RichiestaDPI(categoria=scarpe)), ["rspp@example.test"])
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    SITE_URL="https://hub.example.local", LDAP_ENABLED=False,
+)
+class MailMagazzinoLinkTests(TestCase):
+    def test_avviso_di_consegna_porta_al_banco_sulla_persona(self):
+        from django.core import mail
+
+        impost = DPIImpostazioni.get_singleton()
+        impost.magazzino_emails = "magazzino@example.test"
+        impost.notifica_email_extra = "rspp@example.test"
+        impost.save()
+        guanti = CategoriaDPI.objects.create(nome="Mani")
+        scarpe = CategoriaDPI.objects.create(nome="Calzature", consegna_magazzino=False)
+        for cat in (guanti, scarpe):
+            flusso.notifica_approvata(RichiestaDPI.objects.create(
+                categoria=cat, stato=StatoRichiesta.APPROVATA, richiedente_nome="Mario Rossi", richiedente_legacy_id=101,
+            ))
+        magazzino_mail, referenti_mail = mail.outbox
+        self.assertIn("https://hub.example.local/dpi/banco/#p101", magazzino_mail.body)
+        html = magazzino_mail.alternatives[0][0]
+        self.assertIn('href="https://hub.example.local/dpi/banco/#p101"', html)
+        self.assertIn("Apri il Banco consegne", html)
+        self.assertIn("https://hub.example.local/dpi/banco/?tutte=1#p101", referenti_mail.body)
+
+    @override_settings(SITE_URL="")
+    def test_senza_indirizzo_del_portale_niente_link(self):
+        from django.core import mail
+
+        impost = DPIImpostazioni.get_singleton()
+        impost.magazzino_emails = "magazzino@example.test"
+        impost.save()
+        flusso.notifica_approvata(RichiestaDPI.objects.create(
+            categoria=CategoriaDPI.objects.create(nome="Mani"), stato=StatoRichiesta.APPROVATA, richiedente_nome="X",
+        ))
+        self.assertNotIn("Apri il Banco consegne", mail.outbox[0].body)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class PannelloHomeBancoTests(TestCase):
+    def setUp(self):
+        from core.models import UserOnboarding
+
+        self.utente = User.objects.create_user(username="dpi-mag", password="x")
+        UserOnboarding.objects.update_or_create(user=self.utente, defaults={"completed": True})
+        self.client.force_login(self.utente)
+        cat = CategoriaDPI.objects.create(nome="Mani")
+        self.modello = ModelloDPI.objects.create(tipo=TipoDPI.objects.create(categoria=cat, nome="Guanti"), codice="G", nome="G")
+        RichiestaDPI.objects.create(
+            categoria=cat, tipo_dpi=self.modello.tipo, modello_dpi=self.modello, quantita=1,
+            stato=StatoRichiesta.APPROVATA, richiedente_nome="Mario Rossi", richiedente_legacy_id=101,
+        )
+
+    def _home(self, gestore: bool):
+        with mock.patch("dpi.views._is_gestore", return_value=gestore):
+            return self.client.get(reverse("home_portale:index"))
+
+    def test_chi_gestisce_le_consegne_vede_il_banco_in_home(self):
+        resp = self._home(True)
+        self.assertEqual(resp.status_code, 200)
+        banco = resp.context["banco_dpi"]
+        self.assertEqual((banco["n_persone"], banco["n_da_preparare"]), (1, 1))
+        self.assertContains(resp, "Banco consegne DPI")
+        self.assertContains(resp, reverse("dpi:banco") + "#apri-p101")
+
+    def test_gli_altri_non_lo_vedono_ne_lo_trovano_in_personalizza(self):
+        resp = self._home(False)
+        self.assertIsNone(resp.context["banco_dpi"])
+        self.assertNotIn("banco_dpi", [k for k, _ in resp.context["home_riquadri"]])
+
+    def test_si_puo_nascondere_e_resta_nascosto(self):
+        with mock.patch("dpi.views._is_gestore", return_value=True):
+            self.client.post(reverse("home_portale:index"), {"azione": "personalizza", "mostra": ["news"]})
+        self.assertIsNone(self._home(True).context["banco_dpi"])
+        # Chi non lo vede in Personalizza non lo cambia salvando.
+        with mock.patch("dpi.views._is_gestore", return_value=False):
+            self.client.post(reverse("home_portale:index"), {"azione": "personalizza", "mostra": ["news", "azioni"]})
+        self.assertIsNone(self._home(True).context["banco_dpi"])
+
+    def test_ricerca_dalla_home_arriva_nel_banco(self):
+        with mock.patch("dpi.views._is_gestore", return_value=True):
+            resp = self.client.get(reverse("dpi:banco") + "?cerca=Rossi")
+        self.assertContains(resp, 'value="Rossi"')
