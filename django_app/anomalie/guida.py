@@ -374,7 +374,9 @@ SEZIONI: list[dict] = [
                   "aziendali entri in automatico con l'utente Windows; da telefono o fuori rete si apre il login e, dopo "
                   "l'accesso, arrivi comunque all'OP. Il pulsante non contiene credenziali: inoltrare la mail non dà "
                   "accesso a nessuno."),
-            ("p", "Le mail inviate dal modulo sono registrate e si possono rispedire dalla configurazione (Log attività)."),
+            ("p", "Le mail inviate dal modulo sono registrate e si possono rispedire dalla configurazione (Log attività). "
+                  "Compaiono anche in Automazioni → «Mail inviate» (tipo «Anomalie · …», richiesta «OP #…»), insieme alle "
+                  "altre mail del portale."),
         ],
     },
     {
