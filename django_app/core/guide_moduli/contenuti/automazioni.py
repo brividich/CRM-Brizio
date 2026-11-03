@@ -60,9 +60,14 @@ GUIDA = {
                 ]),
                 ("p", "Ci sono le mail delle regole (avvisi e richieste di approvazione, una riga per approvatore) e quelle "
                       "delle assenze che non passano dalle regole: «Richiesta modificata», eliminazione di una richiesta "
-                      "approvata, solleciti ai capi. «Errore» indica una mail non partita, con il motivo."),
+                      "approvata, solleciti ai capi. Ci sono anche tutte le mail del modulo Anomalie (link di decisione "
+                      "al capocommessa, conferma aggiornamenti, resoconto escalation, P/N ricorrente, digest, OP "
+                      "completato): «Tipo di mail» comincia con «Anomalie ·» e «Richiesta» mostra «OP #…». "
+                      "«Errore» indica una mail non partita, con il motivo."),
                 ("p", "Il testo della mail non si salva, solo destinatari e oggetto. Il registro parte dall'installazione della "
-                      "pagina e le righe si cancellano da sole dopo gli stessi giorni dei run log (Impostazioni, default 90)."),
+                      "pagina e le righe si cancellano da sole dopo gli stessi giorni dei run log (Impostazioni, default 90). "
+                      "Le mail Anomalie partite prima si possono recuperare dal loro Log attività: lo fa l'amministratore "
+                      "del server con il comando «recupera_mail_inviate_anomalie»."),
             ],
         },
         {

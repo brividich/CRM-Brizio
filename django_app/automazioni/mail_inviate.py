@@ -1,7 +1,8 @@
 """Registro «Mail inviate»: una riga per ogni mail partita, con esito.
 
 Lo chiamano le azioni delle automazioni (avvisi e richieste di approvazione) e
-le mail dirette delle assenze (modifica, eliminazione, solleciti). Best-effort:
+le mail dirette delle assenze (modifica, eliminazione, solleciti) e tutte le mail
+del modulo Anomalie (``anomalie.mail_action_service.send_and_log_email``). Best-effort:
 un errore di scrittura viene solo loggato, l'invio non ne risente.
 """
 from __future__ import annotations
@@ -21,6 +22,15 @@ ORIGINI = {
     "assenze_sollecito": "Assenze · sollecito al capo",
     "assenze_esito": "Assenze · esito al dipendente",
     "assenze_certificato": "Assenze · certificato medico mancante",
+    # Modulo Anomalie: "anomalie_" + AnomalieEmailLog.Kind.
+    "anomalie_mail_action": "Anomalie · link di decisione al capocommessa",
+    "anomalie_conferma_aggiornamenti": "Anomalie · conferma aggiornamenti",
+    "anomalie_escalation_resoconto": "Anomalie · resoconto escalation",
+    "anomalie_ricorrenza_pn": "Anomalie · difetto ricorrente per P/N",
+    "anomalie_digest_settimanale": "Anomalie · digest settimanale",
+    "anomalie_op_completato": "Anomalie · OP completato",
+    "anomalie_alert_admin": "Anomalie · avviso invio non riuscito",
+    "anomalie_altro": "Anomalie · altre mail",
 }
 
 
