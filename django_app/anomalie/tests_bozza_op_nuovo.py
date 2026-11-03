@@ -179,6 +179,26 @@ class PromemoriaBozzaTests(TestCase):
             promemoria_bozza_at=timezone.now() - timedelta(minutes=40), bozza_at=timezone.now() - timedelta(minutes=20))
         self.assertEqual(cs.promemoria_bozze(timezone.now(), 15), 1)
 
+    def test_mail_html_a_tema_hub(self):
+        AnomaliaControllo.objects.filter(pk=self.controllo.pk).update(
+            bozza={"voci": ["LCN00054"], "anomalie": [{"testo": "Ø <131.330>", "allegati": 1}, {"testo": "Dentatura OT"}],
+                   "coda": [{"seriali": ["LCN00010"], "anomalie": [{"testo": "Graffio"}]}]})
+        self.assertEqual(cs.promemoria_bozze(timezone.now(), 15), 1)
+        html = self.mail[0]["body_html"]
+        self.assertIn("NOVICROM HUB", html)
+        self.assertIn("Anomalie non ancora salvate", html)
+        self.assertIn("Riprendi il controllo", html)
+        self.assertIn(f"controllo={self.controllo.pk}", html)
+        self.assertIn("S/N LCN00054", html)
+        self.assertIn("Dentatura OT", html)
+        self.assertIn("Da copiare ancora", html)
+        self.assertIn("(+1 allegati da ricaricare)", html)
+        # Il testo della bozza arriva dal browser: sempre escapato.
+        self.assertIn("&lt;131.330&gt;", html)
+        self.assertNotIn("<131.330>", html)
+        # Resta anche il testo semplice per i client senza HTML.
+        self.assertIn("Dentatura OT", self.mail[0]["body_text"])
+
     def test_bozza_recente_o_con_anomalie_da_inviare(self):
         AnomaliaControllo.objects.filter(pk=self.controllo.pk).update(bozza_at=timezone.now())
         self.assertEqual(cs.promemoria_bozze(timezone.now(), 15), 0)
