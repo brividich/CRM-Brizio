@@ -1902,15 +1902,127 @@ class PlantLayoutArea(models.Model):
     y_percent = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     width_percent = models.DecimalField(max_digits=6, decimal_places=2, default=10)
     height_percent = models.DecimalField(max_digits=6, decimal_places=2, default=10)
+    # Forma libera (reparto a «L» o irregolare): vertici [[x, y], ...] in % della pianta.
+    # Vuoto = rettangolo. Con i punti, x/y/larghezza/altezza restano il riquadro che li
+    # contiene, così chi legge solo il rettangolo (centro, ordinamento) continua a funzionare.
+    punti = models.JSONField(default=list, blank=True)
     sort_order = models.PositiveIntegerField(default=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    MIN_PUNTI = 3
+    MAX_PUNTI = 80
 
     class Meta:
         ordering = ["sort_order", "name", "id"]
 
     def __str__(self) -> str:
         return f"{self.layout.name} - {self.name}"
+
+    @property
+    def e_poligono(self) -> bool:
+        return len(self.punti or []) >= self.MIN_PUNTI
+
+    def poligono(self) -> list[tuple[float, float]]:
+        """I vertici della forma: quelli disegnati o gli angoli del rettangolo."""
+        if self.e_poligono:
+            return [(float(x), float(y)) for x, y in self.punti]
+        x, y = float(self.x_percent), float(self.y_percent)
+        w, h = float(self.width_percent), float(self.height_percent)
+        return [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+
+    def contiene(self, x, y) -> bool:
+        """Il punto (in %) sta dentro la forma? Bordo compreso."""
+        x, y = float(x), float(y)
+        pts = self.poligono()
+        dentro = False
+        j = len(pts) - 1
+        for i, (xi, yi) in enumerate(pts):
+            xj, yj = pts[j]
+            if min(xi, xj) <= x <= max(xi, xj) and min(yi, yj) <= y <= max(yi, yj):
+                # sul lato
+                if abs((xj - xi) * (y - yi) - (yj - yi) * (x - xi)) < 1e-9:
+                    return True
+            if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+                dentro = not dentro
+            j = i
+        return dentro
+
+    def superficie(self) -> float:
+        pts = self.poligono()
+        return abs(sum(pts[i][0] * pts[i - 1][1] - pts[i - 1][0] * pts[i][1] for i in range(len(pts)))) / 2
+
+    def centro(self) -> tuple[float, float]:
+        """Baricentro della forma (per una «L» può cadere nell'angolo vuoto: è un'etichetta, non un test)."""
+        pts = self.poligono()
+        a = cx = cy = 0.0
+        for i in range(len(pts)):
+            x0, y0 = pts[i - 1]
+            x1, y1 = pts[i]
+            f = x0 * y1 - x1 * y0
+            a += f
+            cx += (x0 + x1) * f
+            cy += (y0 + y1) * f
+        if abs(a) < 1e-9:
+            return (float(self.x_percent) + float(self.width_percent) / 2,
+                    float(self.y_percent) + float(self.height_percent) / 2)
+        return (cx / (3 * a), cy / (3 * a))
+
+    def punto_interno(self) -> tuple[float, float]:
+        """Un punto sicuramente dentro la forma, vicino al baricentro (per una «L» il baricentro può stare fuori)."""
+        cx, cy = self.centro()
+        if self.contiene(cx, cy):
+            return (cx, cy)
+        x, y = float(self.x_percent), float(self.y_percent)
+        w, h = float(self.width_percent), float(self.height_percent)
+        migliore = None
+        for i in range(1, 20):
+            for j in range(1, 20):
+                px, py = x + w * i / 20, y + h * j / 20
+                if self.contiene(px, py):
+                    d = (px - cx) ** 2 + (py - cy) ** 2
+                    if migliore is None or d < migliore[0]:
+                        migliore = (d, px, py)
+        return (migliore[1], migliore[2]) if migliore else (cx, cy)
+
+    def imposta_punti(self, punti) -> None:
+        """Salva i vertici (arrotondati, dentro la pianta) e riallinea il riquadro che li contiene."""
+        from decimal import Decimal
+
+        def _d(v):
+            return Decimal(str(round(min(100.0, max(0.0, float(v))), 2)))
+
+        pts = [(_d(x), _d(y)) for x, y in (punti or [])]
+        if len(pts) < self.MIN_PUNTI:
+            self.punti = []
+            return
+        self.punti = [[float(x), float(y)] for x, y in pts]
+        xs = [x for x, _ in pts]
+        ys = [y for _, y in pts]
+        self.x_percent, self.y_percent = min(xs), min(ys)
+        self.width_percent = max(max(xs) - min(xs), Decimal("0.5"))
+        self.height_percent = max(max(ys) - min(ys), Decimal("0.5"))
+
+    def clip_path(self) -> str:
+        """``clip-path: polygon(...)`` in % del riquadro: il pulsante del reparto si clicca solo dentro la forma."""
+        x, y = float(self.x_percent), float(self.y_percent)
+        w, h = max(float(self.width_percent), 0.01), max(float(self.height_percent), 0.01)
+        return "polygon(" + ", ".join(
+            f"{(px - x) / w * 100:.2f}% {(py - y) / h * 100:.2f}%" for px, py in self.poligono()
+        ) + ")"
+
+    def etichetta_relativa(self) -> tuple[float, float]:
+        """Dove mettere il nome del reparto, in % del riquadro: un punto dentro la forma."""
+        px, py = self.punto_interno()
+        x, y = float(self.x_percent), float(self.y_percent)
+        w, h = max(float(self.width_percent), 0.01), max(float(self.height_percent), 0.01)
+        return (round((px - x) / w * 100, 2), round((py - y) / h * 100, 2))
+
+    def punti_relativi(self) -> str:
+        """I vertici in % del riquadro, per ``clip-path``/SVG nelle pagine («x,y x,y …»)."""
+        x, y = float(self.x_percent), float(self.y_percent)
+        w, h = max(float(self.width_percent), 0.01), max(float(self.height_percent), 0.01)
+        return " ".join(f"{(px - x) / w * 100:.2f},{(py - y) / h * 100:.2f}" for px, py in self.poligono())
 
 
 class PlantLayoutMarker(models.Model):

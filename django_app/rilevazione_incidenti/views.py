@@ -1273,10 +1273,8 @@ def heatmap_points(layout, rilevazioni) -> tuple[list[dict], Counter]:
         return str(value or "").strip().casefold()
 
     areas = list(PlantLayoutArea.objects.filter(layout=layout))
-    area_center = {
-        a.id: (float(a.x_percent) + float(a.width_percent) / 2, float(a.y_percent) + float(a.height_percent) / 2)
-        for a in areas
-    }
+    # punto dentro la forma: per un reparto a «L» il centro del riquadro può cadere fuori
+    area_center = {a.id: a.punto_interno() for a in areas}
     area_by_reparto: dict[str, tuple[float, float]] = {}
     for a in areas:
         for key in (norm(a.reparto_code), norm(a.name)):

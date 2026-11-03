@@ -52,6 +52,14 @@ body.theme-dark{--pl-alarm:#fb7185;--pl-ticket:#f87171;--pl-legal:#fda4af;--pl-o
 .pl-area{position:absolute;padding:0;border:2px solid var(--area-color,#2563EB);background:var(--area-bg,rgba(37,99,235,.18));border-radius:10px;cursor:pointer;transition:background .14s ease,box-shadow .14s ease}
 .pl-area:hover,.pl-area.is-active{background:var(--area-bg-active,rgba(37,99,235,.36))}
 .pl-area.is-active{border-style:dashed}
+/* reparto a forma libera: il pulsante è ritagliato sulla forma, bordo e fondo li disegna l'SVG */
+.pl-area.is-poly{border:0;border-radius:0;background:transparent}
+.pl-area-label.is-free{transform:translate(-50%,-50%) scale(calc(1 / var(--pl-z)));transform-origin:50% 50%;max-width:none;z-index:1}
+.pl-view.hide-areas .pl-area-label.is-free{display:none}
+.pl-area-shape{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.pl-area-shape polygon{fill:var(--area-bg,rgba(37,99,235,.18));stroke:var(--area-color,#2563EB);stroke-width:2.5;vector-effect:non-scaling-stroke;stroke-linejoin:round;transition:fill .14s ease}
+.pl-area.is-poly:hover .pl-area-shape polygon,.pl-area.is-poly.is-active .pl-area-shape polygon{fill:var(--area-bg-active,rgba(37,99,235,.36))}
+.pl-area.is-poly.is-active .pl-area-shape polygon{stroke-dasharray:6 4}
 .pl-area-label{position:absolute;left:6px;top:6px;display:flex;gap:4px;align-items:center;pointer-events:none;transform:scale(calc(1 / var(--pl-z)));transform-origin:0 0;max-width:calc(100% - 12px)}
 .pl-area-name{background:rgba(15,23,42,.8);color:#fff;border-radius:999px;padding:3px 9px;font-size:var(--fs-xs);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl-area-alert{background:var(--pl-ticket);color:#fff;border-radius:999px;padding:3px 7px;font-size:var(--fs-2xs);font-weight:900}
@@ -307,11 +315,13 @@ body.theme-dark .pl-back{color:#93c5fd}
             <img src="{{ layout.image.url }}" alt="{{ layout.name }}" draggable="false">
             <div class="pl-overlay">
               {% for area in plant_layout_payload.areas %}
-              <button type="button" class="pl-area" data-area-id="{{ area.id }}"
-                style="left:{{ area.x_percent }}%;top:{{ area.y_percent }}%;width:{{ area.width_percent }}%;height:{{ area.height_percent }}%;--area-color:{{ area.color }};--area-bg:{{ area.bg_color }};--area-bg-active:{{ area.active_bg_color }};"
+              <button type="button" class="pl-area{% if area.clip %} is-poly{% endif %}" data-area-id="{{ area.id }}"
+                style="left:{{ area.x_percent }}%;top:{{ area.y_percent }}%;width:{{ area.width_percent }}%;height:{{ area.height_percent }}%;--area-color:{{ area.color }};--area-bg:{{ area.bg_color }};--area-bg-active:{{ area.active_bg_color }};{% if area.clip %}clip-path:{{ area.clip }};{% endif %}"
                 aria-label="Reparto {{ area.name }}, {{ area.machine_count }} macchine{% if area.alert_count %}, {{ area.alert_count }} da guardare{% endif %}">
-                <span class="pl-area-label"><span class="pl-area-name">{{ area.name }}</span>{% if area.alert_count %}<span class="pl-area-alert">{{ area.alert_count }}</span>{% endif %}</span>
+                {% if area.clip %}<svg class="pl-area-shape" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><polygon points="{{ area.punti_relativi }}"/></svg>{% endif %}
+                {% if not area.clip %}<span class="pl-area-label"><span class="pl-area-name">{{ area.name }}</span>{% if area.alert_count %}<span class="pl-area-alert">{{ area.alert_count }}</span>{% endif %}</span>{% endif %}
               </button>
+              {% if area.clip %}<span class="pl-area-label is-free" data-area-label="{{ area.id }}" style="left:{{ area.centro.0 }}%;top:{{ area.centro.1 }}%;"><span class="pl-area-name">{{ area.name }}</span>{% if area.alert_count %}<span class="pl-area-alert">{{ area.alert_count }}</span>{% endif %}</span>{% endif %}
               {% endfor %}
               {% for altro in plant_layout_payload.altrui %}
               <span class="pl-pin-altrui" style="left:{{ altro.x_percent }}%;top:{{ altro.y_percent }}%;" title="{{ altro.label }} · non di tua competenza" aria-hidden="true"></span>
@@ -647,7 +657,10 @@ body.theme-dark .pl-back{color:#93c5fd}
     }
     var ids = markers.filter(function (m) { return (m.area_ids || []).indexOf(area.id) !== -1; }).map(function (m) { return m.id; });
     highlight(ids, [area.id]);
-    if (center) centerOn(area.x_percent + area.width_percent / 2, area.y_percent + area.height_percent / 2, 1);
+    if (center) {
+      if (area.centro) centerOn(area.centro[0], area.centro[1], 1);
+      else centerOn(area.x_percent + area.width_percent / 2, area.y_percent + area.height_percent / 2, 1);
+    }
   }
 
   /* pannello operatore della CNC: torretta luminosa, display, linea del giorno, allarmi */

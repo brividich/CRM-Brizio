@@ -96,7 +96,7 @@ def testo_reparto(asset: Asset) -> str:
 
 
 def _dentro(area: dict, x: float, y: float) -> bool:
-    return area["x"] <= x <= area["x"] + area["w"] and area["y"] <= y <= area["y"] + area["h"]
+    return area["_area"].contiene(x, y)
 
 
 def mappe(
@@ -138,7 +138,9 @@ def mappe(
                 "y": float(area.y_percent),
                 "w": float(area.width_percent),
                 "h": float(area.height_percent),
+                "punti": area.punti if area.e_poligono else [],
                 "mia": stesso_reparto(area.reparto_code, mie, indice),
+                "_area": area,
             })
         da_aree = modalita == MODALITA_AREE and bool(aree)
         markers = []
@@ -175,7 +177,7 @@ def mappe(
             "categoria": layout.category,
             "nome": layout.name,
             "immagine": layout.image.url,
-            "aree": aree if da_aree else [],
+            "aree": [{k: v for k, v in a.items() if k != "_area"} for a in aree] if da_aree else [],
             "da_aree": da_aree,
             "markers": markers,
             "mie": sum(1 for m in markers if m["mio"]),

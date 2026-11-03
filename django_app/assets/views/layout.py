@@ -73,6 +73,7 @@ def _plant_layout_editor_area_rows(layout: PlantLayout | None) -> list[dict[str,
             "y_percent": float(area.y_percent),
             "width_percent": float(area.width_percent),
             "height_percent": float(area.height_percent),
+            "punti": area.punti if area.e_poligono else [],
             "sort_order": area.sort_order,
         }
         for area in layout.areas.all().order_by("sort_order", "id")

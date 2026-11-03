@@ -106,6 +106,24 @@
       livello.innerHTML = "";
       tela.style.width = (ZOOM[stato.zoom] * 100) + "%";
       (m.aree || []).forEach(function (a) {
+        if (a.punti && a.punti.length >= 3) {
+          // reparto a forma libera: poligono in SVG sulla pianta intera
+          var ns = "http://www.w3.org/2000/svg";
+          var svg = document.createElementNS(ns, "svg");
+          svg.setAttribute("class", "tmap-area-svg");
+          svg.setAttribute("viewBox", "0 0 100 100");
+          svg.setAttribute("preserveAspectRatio", "none");
+          var poly = document.createElementNS(ns, "polygon");
+          poly.setAttribute("points", a.punti.map(function (p) { return p[0] + "," + p[1]; }).join(" "));
+          poly.setAttribute("class", a.mia ? "tmap-area-mia" : "");
+          poly.style.stroke = a.colore;
+          var t = document.createElementNS(ns, "title");
+          t.textContent = a.nome;
+          poly.appendChild(t);
+          svg.appendChild(poly);
+          livello.appendChild(svg);
+          return;
+        }
         var r = el("div", "tmap-area" + (a.mia ? " tmap-area-mia" : ""));
         r.style.left = a.x + "%";
         r.style.top = a.y + "%";

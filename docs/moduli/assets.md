@@ -298,3 +298,10 @@ Unica definizione di OdL in ritardo: `maintenance.q_odl_in_ritardo` / `odl_in_ri
 - Esiti: nuovo / sposta / invariato (≤3%); non preselezionati AI, sigle in più punti, spostamenti >10%. «Colloca i selezionati» = `PlantLayoutMarker` + timeline PLANIMETRIA. PDF come immagine = nuova versione non attiva (`copy_layout_content`), anteprima temporanea in `media/planimetrie_lettura/` cancellata dopo un giorno.
 - Prova in sola lettura su produzione (03/11): Officina Imm.1 13 macchine riconosciute dall'OCR, tutte entro ~1% dalla posizione messa a mano; Condizionatori 5.
 
+## Reparti a forma libera sulla planimetria (03/11/2026)
+
+- `PlantLayoutArea.punti` (JSON `[[x, y], ...]` in %, migration `assets 0160`): vuoto = rettangolo come prima; con i punti `x/y/width/height` restano il riquadro che li contiene (calcolato da `imposta_punti`), così chi usa solo il rettangolo non si rompe.
+- Metodi del modello: `poligono()`, `contiene(x, y)` (anche bordo), `superficie()`, `centro()`, `punto_interno()` (per la «L» il baricentro può cadere fuori), `clip_path()`, `punti_relativi()`.
+- Editor: modalità «Reparto a punti» (vertici a clic, chiusura sul primo punto/Invio), vertici trascinabili, «+» a metà lato, Canc sul punto selezionato, «Forma libera» / «Torna rettangolo». Payload `punti` validato in `PlantLayoutForm._area_points` (3-80 punti dentro 0-100).
+- Mappa officina: pulsante con `clip-path` + SVG per bordo e fondo, nome fuori dal ritaglio sul punto interno. `area_at_point` (reparto della macchina nella scheda), mappa dei ticket in modalità «aree», mappa di calore incidenti (`punto_interno`), ruota/ritaglia e copia versione portano i vertici.
+

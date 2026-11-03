@@ -29,6 +29,9 @@
 .tmap-livello.tmap-puntabile { pointer-events:auto; cursor:crosshair; }
 .tmap-area { position:absolute; border:2px dashed; border-radius:6px; pointer-events:none; opacity:.55; }
 .tmap-area-mia { opacity:1; background:rgba(14,116,144,.08); }
+.tmap-area-svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+.tmap-area-svg polygon { fill:none; stroke-width:2; stroke-dasharray:6 4; vector-effect:non-scaling-stroke; opacity:.55; }
+.tmap-area-svg polygon.tmap-area-mia { fill:rgba(14,116,144,.08); opacity:1; }
 .tmap-pin {
   position:absolute; width:14px; height:14px; margin:-7px 0 0 -7px; padding:0; border-radius:50%;
   border:2px solid #fff; box-shadow:0 1px 3px rgba(15,23,42,.45); cursor:pointer; pointer-events:auto;
