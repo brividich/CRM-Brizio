@@ -1740,6 +1740,11 @@ class WatchGuardPatch(models.Model):
     di_sistema = models.BooleanField(default=False)
     disponibilita = models.PositiveSmallIntegerField(null=True, blank=True)
     cve = models.TextField(blank=True, default="", help_text="CVE della patch come «|CVE-1|CVE-2|» (ricerca con contains).")
+    kb = models.CharField(max_length=12, blank=True, default="", db_index=True,
+                          help_text="Articolo Microsoft (es. KB5134133) ricavato da nome o file: services/patch_kb.py.")
+    download_url = models.CharField(max_length=1000, blank=True, default="")
+    nome_file = models.CharField(max_length=255, blank=True, default="")
+    riavvio_automatico = models.BooleanField(null=True, blank=True)
     esito = models.PositiveSmallIntegerField(null=True, blank=True)
     esito_il = models.DateTimeField(null=True, blank=True)
     presente = models.BooleanField(default=True, db_index=True)
@@ -1772,6 +1777,35 @@ class WatchGuardPatch(models.Model):
     @property
     def cve_lista(self):
         return [c for c in self.cve.split("|") if c]
+
+
+class MicrosoftKbSostituzione(models.Model):
+    """«La KB ``kb`` sostituisce ``sostituita``» dal Security Update Guide di Microsoft (API CVRF, campo Supercedence).
+
+    Letta da ``services/patch_kb.py``: dice quando una patch mancante è già compresa in una più recente.
+    """
+
+    kb = models.CharField(max_length=12, db_index=True)
+    sostituita = models.CharField(max_length=12, db_index=True)
+    mese = models.CharField(max_length=12, help_text="Documento CVRF da cui viene (es. 2026-Oct).")
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["kb", "sostituita"], name="sec_ms_kb_sost_uniq")]
+
+    def __str__(self):
+        return f"{self.kb} sostituisce {self.sostituita}"
+
+
+class MicrosoftCvrfMese(models.Model):
+    """Documenti mensili CVRF già letti: si riscaricano solo quando Microsoft li aggiorna."""
+
+    mese = models.CharField(max_length=12, unique=True)
+    aggiornato_il = models.DateTimeField(null=True, blank=True, help_text="CurrentReleaseDate di Microsoft.")
+    letto_il = models.DateTimeField(null=True, blank=True)
+    sostituzioni = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return self.mese
 
 
 class WatchGuardPatchGiorno(models.Model):

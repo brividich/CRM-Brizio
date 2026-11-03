@@ -25,14 +25,22 @@
 {% if ferme.patch %}<p class="sec-callout sec-callout-warning sec-small"><strong>{{ ferme.patch }} patch ferm{{ ferme.patch|pluralize:"a,e" }}</strong> su {{ ferme.pc }} PC: {{ ferme.scadute }} oltre il termine di installazione, {{ ferme.errori }} con installazione fallita. <a href="{% url 'security:watchguard_patch_tempi' %}#patch-ferme">Vedi i tempi delle patch</a></p>{% endif %}
 
 <section class="sec-panel">
-  <div class="sec-section-head"><h2>Patch mancanti</h2><span class="sec-muted sec-small">prima quelle che correggono CVE sfruttate, poi per criticità e numero di PC</span></div>
+  <div class="sec-section-head"><h2>Patch mancanti</h2><span class="sec-muted sec-small">prima quelle che correggono CVE sfruttate, poi per criticità e numero di PC; in fondo quelle già comprese in una più recente</span></div>
+  <form class="sec-filter-bar" method="get">
+    <label>Cerca <input type="search" name="q" value="{{ q }}" placeholder="KB, CVE, patch, programma o PC"></label>
+    <button class="sec-button-primary" type="submit">Cerca</button>
+    {% if q %}<a class="sec-button" href="{% url 'security:watchguard_pc' %}">Reimposta</a><span class="sec-muted sec-small">{{ trovate }} patch su {{ patch_totale }}</span>{% endif %}
+  </form>
+  {% if comprese_totale %}<p class="sec-muted sec-small">{{ comprese_totale }} patch mancant{{ comprese_totale|pluralize:"e,i" }} sui PC {% if comprese_totale == 1 %}è già compresa{% else %}sono già comprese{% endif %} in un aggiornamento più recente che manca sullo stesso PC: installando quello si chiudono anche queste, con le loro CVE.</p>{% endif %}
   {% if patch %}
   <div class="wgp-list">
     {% for g in patch %}
-      <details class="wgp-item{% if g.kev %} is-kev{% endif %}">
+      <details class="wgp-item{% if g.kev %} is-kev{% endif %}{% if g.tutta_compresa %} is-compresa{% endif %}"{% if q %} open{% endif %}>
         <summary>
-          <span class="wgp-name"><strong>{{ g.nome }}</strong><small>{% if g.programma %}{{ g.programma }}{% endif %}{% if g.di_sistema %} · sistema operativo{% endif %}{% if g.rilasciata_il %} · pubblicata il {{ g.rilasciata_il|date:"d/m/Y" }}{% endif %}</small></span>
+          <span class="wgp-name"><strong>{{ g.nome }}</strong><small>{% if g.kb %}{{ g.kb }}{% if g.programma %} · {% endif %}{% endif %}{% if g.programma %}{{ g.programma }}{% endif %}{% if g.di_sistema %} · sistema operativo{% endif %}{% if g.rilasciata_il %} · pubblicata il {{ g.rilasciata_il|date:"d/m/Y" }}{% endif %}</small></span>
           <span class="wgp-tags">
+            {% if g.compresa_in %}<span class="sec-badge muted" title="Installando la patch più recente si chiude anche questa">Compresa in {{ g.compresa_in.0.0 }}{% if not g.tutta_compresa %} su {{ g.compresa_in.0.1 }} PC{% endif %}</span>{% endif %}
+            {% if g.chiude_anche %}<span class="sec-badge medium" title="CVE delle patch precedenti che questa comprende">+{{ g.chiude_anche|length }} CVE delle precedenti</span>{% endif %}
             {% if g.kev %}<span class="sec-badge critical" title="{{ g.kev|join:', ' }}">CVE sfruttata</span>{% endif %}
             {% if g.criticita_label %}<span class="sec-badge {% if g.criticita == 201 %}high{% elif g.criticita == 202 %}medium{% else %}muted{% endif %}">{{ g.criticita_label }}</span>{% endif %}
             {% if g.errori %}<span class="sec-badge high">{{ g.errori }} installazion{{ g.errori|pluralize:"e,i" }} fallit{{ g.errori|pluralize:"a,e" }}</span>{% endif %}
@@ -40,18 +48,21 @@
           </span>
         </summary>
         {% if g.cve %}<p class="wgp-cve">Corregge: {% for c in g.cve|slice:":12" %}<a href="{% url 'security:cve_detail' c %}" data-preview="{% url 'security:cve_pannello_cve' c %}">{{ c }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% if g.cve|length > 12 %} e altre {{ g.cve|length|add:"-12" }}{% endif %}</p>{% endif %}
+        {% if g.comprende %}<p class="wgp-cve">Comprende anche: {% for kb, n in g.comprende %}<a href="?q={{ kb|urlencode }}">{{ kb }}</a> ({{ n }} PC){% if not forloop.last %}, {% endif %}{% endfor %}{% if g.chiude_anche %} · chiude altre {{ g.chiude_anche|length }} CVE{% endif %}.</p>{% endif %}
+        {% if g.compresa_in %}<p class="wgp-cve">Già compresa in {% for kb, n in g.compresa_in %}<a href="?q={{ kb|urlencode }}">{{ kb }}</a> ({{ n }} PC){% if not forloop.last %}, {% endif %}{% endfor %}: installa quella, questa si chiude da sola.</p>{% endif %}
+        {% if g.download_url or g.riavvio_automatico %}<p class="wgp-cve sec-small">{% if g.download_url %}<a href="{{ g.download_url }}" target="_blank" rel="noopener noreferrer">Scarica a mano{% if g.nome_file %} ({{ g.nome_file }}){% endif %}</a>{% endif %}{% if g.download_url and g.riavvio_automatico %} · {% endif %}{% if g.riavvio_automatico %}può riavviare il PC da sola{% endif %}</p>{% endif %}
         <ul class="wgp-pcs">
           {% for p in g.pc %}
             <li>{% if p.hub_asset %}<a href="{% url 'assets:asset_view' p.hub_asset.pk %}">{{ p.host_display|default:p.host }}</a>{% else %}{{ p.host_display|default:p.host }}{% endif %}
-              <small>{% if p.esito %}<span class="{% if p.esito_errore %}wgp-ko{% endif %}">{{ p.esito_label }}{% if p.esito_il %} il {{ p.esito_il|date:"d/m" }}{% endif %}</span>{% else %}{{ p.disponibilita_label|default:"da installare" }}{% endif %}{% if p.versione %} · versione {{ p.versione }}{% endif %}</small></li>
+              <small>{% if p.esito %}<span class="{% if p.esito_errore %}wgp-ko{% endif %}">{{ p.esito_label }}{% if p.esito_il %} il {{ p.esito_il|date:"d/m" }}{% endif %}</span>{% else %}{{ p.disponibilita_label|default:"da installare" }}{% endif %}{% if p.versione %} · versione {{ p.versione }}{% endif %}{% if p.compresa %} · <span title="{{ p.compresa.perche }}">compresa in {{ p.compresa.in.kb|default:p.compresa.in.nome }}</span>{% endif %}</small></li>
           {% endfor %}
         </ul>
       </details>
     {% endfor %}
   </div>
-  {% if patch_totale > patch|length %}<p class="sec-muted sec-small">E altre {{ patch_totale|add:"-150" }} patch meno urgenti.</p>{% endif %}
+  {% if trovate > patch|length %}<p class="sec-muted sec-small">E altre {{ trovate|add:"-150" }} patch meno urgenti.</p>{% endif %}
   {% else %}
-    <p class="sec-empty">{% if attivi.patch %}Nessuna patch mancante secondo WatchGuard.{% else %}La lettura delle patch è spenta.{% endif %}</p>
+    <p class="sec-empty">{% if q %}Nessuna patch mancante per «{{ q }}».{% elif attivi.patch %}Nessuna patch mancante secondo WatchGuard.{% else %}La lettura delle patch è spenta.{% endif %}</p>
   {% endif %}
 </section>
 

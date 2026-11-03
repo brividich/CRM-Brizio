@@ -79,7 +79,8 @@ LETTURE = (
             "Abbonamenti, posti usati e scadenze nel modulo Licenze software.",
             "ogni mattina alle 06:40", "assets.tasks:_m365_licenze_sync", requisito="graph"),
     Lettura("watchguard", "WatchGuard Endpoint Security", "WatchGuard",
-            "PC con lo stato della protezione, dispositivi in rete senza agente, software dei PC e patch mancanti.",
+            "PC con lo stato della protezione, dispositivi in rete senza agente, software dei PC e patch mancanti; "
+            "se acceso, quali KB Microsoft ne sostituiscono altre (Security Update Guide).",
             "alle 06:10 e alle 13:10", "security.services.watchguard_api:run",
             ("watchguard.api.dispositivi", "watchguard.api.software", "watchguard.api.patch"), "watchguard",
             "security:watchguard_pc", "Patch e protezione", lunga=True),

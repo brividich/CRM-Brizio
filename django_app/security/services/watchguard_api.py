@@ -11,7 +11,9 @@ Tre letture, ognuna con il suo interruttore (sezione «WatchGuard Endpoint Secur
 * **Software dei PC** (``softwareinventory``) → inventario del SOC come fonte WatchGuard, con la stessa
   procedura dell'export caricato a mano (``software_inventory.run_import``): sostituisce l'export.
 * **Patch** (``patchavailability`` + task di tipo 6 ``tasks/…/jobs/…/results``) → ``WatchGuardPatch``:
-  patch mancanti per PC con le CVE che correggono, esito delle installazioni.
+  patch mancanti per PC con le CVE che correggono, KB, link di download, esito delle installazioni.
+  Con ``watchguard.api.msrc`` anche le sostituzioni fra KB dal Security Update Guide di Microsoft
+  (``services/patch_kb.py``): quale patch mancante è già compresa in una più recente.
 
 L'API non documenta la creazione dei task di installazione: le patch si installano dalla console WatchGuard.
 """
@@ -36,6 +38,7 @@ from security.models import (
     WatchGuardPatch,
 )
 from security.services import secret_box, soc_settings
+from security.services.patch_kb import kb_da_testo
 
 logger = logging.getLogger(__name__)
 
@@ -359,6 +362,12 @@ def _cve_testo(ids) -> str:
     return ("|" + "|".join(puliti) + "|") if puliti else ""
 
 
+def _url_download(valore) -> str:
+    """Link di download manuale della patch: solo https, mai javascript: o altro nella pagina."""
+    url = str(valore or "").strip()
+    return url[:1000] if url.lower().startswith("https://") else ""
+
+
 def sincronizza_patch(now=None, *, righe: list[dict] | None = None) -> dict:
     now = now or timezone.now()
     if righe is None:
@@ -377,6 +386,9 @@ def sincronizza_patch(now=None, *, righe: list[dict] | None = None) -> dict:
             "produttore": str(r.get("vendor_name") or "")[:255], "rilasciata_il": _giorno(r.get("patch_release_date")),
             "criticita": r.get("patch_criticality"), "di_sistema": r.get("patch_type") == 1,
             "disponibilita": r.get("patch_installation_availability"), "cve": _cve_testo(r.get("patch_cve_ids")),
+            "kb": kb_da_testo(r.get("patch_name"), r.get("local_filename")),
+            "download_url": _url_download(r.get("download_url")), "nome_file": str(r.get("local_filename") or "")[:255],
+            "riavvio_automatico": r.get("automatic_reboot") if isinstance(r.get("automatic_reboot"), bool) else None,
             "presente": True, "vista_il": now, "chiusa_il": None,
         })
         visti.add(obj.pk)
@@ -434,10 +446,18 @@ def patch_aperte_per_cve(cve_ids, hosts=None) -> dict:
     if hosts is not None:
         qs = qs.filter(host__in=list(hosts)[:500])
     out = {}
-    for p in qs.only("host", "nome", "cve", "disponibilita", "esito", "criticita", "rilasciata_il"):
+    campi = ("host", "nome", "cve", "disponibilita", "esito", "criticita", "rilasciata_il", "kb", "presente")
+    for p in qs.only(*campi):
         for c in p.cve_lista:
             if c in ids:
                 out.setdefault((c, p.host), p)
+    if out:
+        # la patch che corregge la CVE può essere già compresa in una più recente (anche senza CVE, es. fuori ciclo)
+        from security.services.patch_kb import comprese
+
+        incluse = comprese(WatchGuardPatch.objects.filter(presente=True, host__in=list({h for _, h in out})[:500]).only(*campi))
+        for p in out.values():
+            p.compresa = incluse.get(p.pk)
     return out
 
 
@@ -452,8 +472,11 @@ def run() -> dict:
         return {"ok": False, "motivo": "credenziali API WatchGuard non configurate"}
     now = timezone.now()
     out = {"ok": True}
+    from security.services.patch_kb import sincronizza_msrc
+
+    attivi["msrc"] = attivi["patch"] and soc_settings.value("watchguard.api.msrc")
     passi = (("dispositivi", sincronizza_dispositivi), ("software", sincronizza_software),
-             ("patch", sincronizza_patch), ("task", sincronizza_task))
+             ("patch", sincronizza_patch), ("task", sincronizza_task), ("msrc", sincronizza_msrc))
     for nome, passo in passi:
         if not attivi["patch" if nome == "task" else nome]:
             continue

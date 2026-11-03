@@ -368,6 +368,10 @@ SECTIONS = [
             Option("watchguard.api.patch", False, "Leggi le patch mancanti",
                    "Patch pubblicate e non installate per PC, con le CVE che correggono, e l'esito dei task di installazione: "
                    "il pannello CVE dice dove la patch è pronta."),
+            Option("watchguard.api.msrc", False, "Cerca le patch comprese in una più recente (Microsoft)",
+                   "Legge dal Security Update Guide di Microsoft (api.msrc.microsoft.com, pubblico) quale KB sostituisce quale: "
+                   "le patch mancanti già comprese in un aggiornamento più recente lo dicono. Serve «Leggi le patch mancanti» "
+                   "e l'accesso a internet verso api.msrc.microsoft.com. I cumulativi di Windows si riconoscono anche senza, dal build."),
         ],
     },
     {

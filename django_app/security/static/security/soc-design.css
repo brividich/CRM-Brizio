@@ -236,6 +236,7 @@ body.theme-dark .soc-module .soc-kind.kind-incident { color: #fca5a5; }
 .soc-module .wgp-list { display: grid; gap: 6px; }
 .soc-module .wgp-item { border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
 .soc-module .wgp-item.is-kev { border-left: 4px solid var(--danger); }
+.soc-module .wgp-item.is-compresa { opacity: .75; }
 .soc-module .wgp-item > summary { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; cursor: pointer; list-style: none; }
 .soc-module .wgp-item > summary::-webkit-details-marker { display: none; }
 .soc-module .wgp-name { display: grid; gap: 2px; min-width: 0; flex: 1 1 320px; }
