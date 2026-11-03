@@ -14,6 +14,8 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 
 from .mail_delete_service import _dedup_recipients, _hr_mailbox, _humanize_dt
+from .mail_certificato import ETICHETTA as ETICHETTA_CERTIFICATO
+from .mail_certificato import certificato_arrivato, etichetta_si_no
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,18 @@ ASSENZE_MAILBOX_DEFAULT = "assenza@costruzioninovicrom.it"
 
 def _assenze_mailbox() -> str:
     return _hr_mailbox() or ASSENZE_MAILBOX_DEFAULT
+
+
+def _certificato_dopo_modifica(record: dict, modifiche: list[dict]) -> bool | None:
+    """Certificato arrivato dopo la modifica (None se la richiesta non è una Malattia)."""
+    tipo = record.get("tipo_assenza")
+    certificato = record.get("certificato_medico")
+    for m in modifiche:
+        if m.get("campo") == "Tipo":
+            tipo = m.get("dopo")
+        elif m.get("campo") == ETICHETTA_CERTIFICATO:
+            certificato = m.get("dopo")
+    return certificato_arrivato(tipo, certificato)
 
 
 def send_assenza_modificata_notification(
@@ -48,6 +62,9 @@ def send_assenza_modificata_notification(
         ("Periodo (prima della modifica)", periodo),
         ("Modificata da", modificata_da or "n/d"),
     ]
+    arrivato = _certificato_dopo_modifica(record, modifiche)
+    if arrivato is not None:
+        facts.insert(2, (ETICHETTA_CERTIFICATO, etichetta_si_no(arrivato)))
     if motivo:
         facts.append(("Motivo della modifica", motivo))
 

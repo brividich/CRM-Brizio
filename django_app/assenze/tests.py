@@ -1363,6 +1363,45 @@ class MiaAssenzaUpdateTests(TestCase):
         self.assertIn("Certificato arrivato: — -> Arrivato", msg.body)
 
 
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class CertificatoArrivatoMailTests(SimpleTestCase):
+    def test_riga_solo_per_malattia(self):
+        from assenze.mail_certificato import blocco_mail
+        testo, html_blocco = blocco_mail("assenze", {"tipo_assenza": "Malattia", "certificato_medico": "Arrivato"})
+        self.assertEqual(testo, "Certificato arrivato: Sì\n\n")
+        self.assertIn("Certificato arrivato: Sì", html_blocco)
+        testo, _ = blocco_mail("assenze", {"tipo_assenza": "malattia", "certificato_medico": ""})
+        self.assertEqual(testo, "Certificato arrivato: No\n\n")
+        self.assertEqual(blocco_mail("assenze", {"tipo_assenza": "Ferie", "certificato_medico": "Arrivato"}), ("", ""))
+        self.assertEqual(blocco_mail("tasks", {"tipo_assenza": "Malattia", "certificato_medico": "Arrivato"}), ("", ""))
+
+    @patch("assenze.views._helpers._get_assenza", return_value={"tipo_assenza": "Malattia", "certificato_medico": "CERT-1"})
+    def test_senza_certificato_nel_payload_legge_la_richiesta(self, mock_get):
+        from assenze.mail_certificato import blocco_mail
+        testo, _ = blocco_mail("assenze", {"id": "7", "tipo_assenza": "Malattia"})
+        self.assertEqual(testo, "Certificato arrivato: Sì\n\n")
+        mock_get.assert_called_once_with(7)
+
+    def test_mail_modifica_mostra_certificato_dopo_la_modifica(self):
+        from assenze.mail_modifica_service import send_assenza_modificata_notification
+        record = {"id": 1, "copia_nome": "Mario Test", "tipo_assenza": "Malattia", "certificato_medico": ""}
+        send_assenza_modificata_notification(
+            record, modifiche=[{"campo": "Certificato arrivato", "prima": "", "dopo": "Arrivato"}], tipo_display="Malattia",
+        )
+        self.assertIn("Certificato arrivato: Sì", mail.outbox[-1].body)
+        send_assenza_modificata_notification(
+            dict(record, tipo_assenza="Ferie"), modifiche=[{"campo": "Inizio", "prima": "a", "dopo": "b"}], tipo_display="Ferie",
+        )
+        self.assertNotIn("Certificato arrivato", mail.outbox[-1].body)
+
+    def test_mail_eliminazione_mostra_certificato(self):
+        from assenze.mail_delete_service import send_assenza_deleted_notification
+        record = {"id": 1, "copia_nome": "Mario Test", "email_esterna": "dip@example.com",
+                  "tipo_assenza": "Malattia", "certificato_medico": ""}
+        self.assertTrue(send_assenza_deleted_notification(record, tipo_display="Malattia"))
+        self.assertIn("Certificato arrivato: No", mail.outbox[-1].body)
+
+
 class CertificatoArrivatoTests(SimpleTestCase):
     def test_spunta_solo_per_malattia(self):
         from assenze.views._helpers import _certificato_medico_for_tipo as cert

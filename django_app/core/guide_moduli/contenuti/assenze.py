@@ -33,7 +33,8 @@ GUIDA = {
                      "decidere a parte da «Assenze del reparto»."),
                     ("Ferie di più giorni", "contano a giornata intera."),
                     ("Malattia", "spunta «Certificato arrivato» se il certificato medico è già arrivato. Il numero del certificato non si scrive. "
-                     "Se arriva dopo, apri la richiesta con «Modifica» e spunta la casella."),
+                     "Se arriva dopo, apri la richiesta con «Modifica» e spunta la casella. "
+                     "Le mail della malattia (al capo, ad assenza@, modifiche ed eliminazione) riportano «Certificato arrivato: Sì» o «No»."),
                     ("Flessibilità", "solo per chi è abilitato, solo negli orari fissati dall'Amministrazione, massimo 2 a settimana."),
                     ("Capo reparto", "è proposto in automatico dall'organigramma. Puoi sceglierne un altro dall'elenco: "
                      "in quel caso la richiesta la vede e la approva solo il capo che hai scelto. Se il capo del "
