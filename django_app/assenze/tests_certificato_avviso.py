@@ -61,6 +61,44 @@ class EsitoDipendenteTests(TestCase):
         self.assertEqual(msg.subject, "Richiesta Ferie approvata")
         self.assertIn("Decisa da: Capo Test", msg.body)
 
+    @patch("assenze.views._helpers._sp_enqueue_upsert", return_value={"ok": True})
+    @patch("assenze.views._helpers._update_assenza", return_value=True)
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Capo Test", "capo@example.com", 9))
+    def test_decisione_dal_portale_chiude_il_link_della_mail(self, *_):
+        from automazioni.approval_links import create_link, decide_with_link
+        from automazioni.models import AutomationApproval, AutomationRunLog
+
+        from .views._helpers import _applica_moderazione
+
+        def _approval(record_id):
+            run_log = AutomationRunLog.objects.create(
+                source_code="assenze", operation_type="INSERT", status="waiting_approval",
+                payload_json={"id": record_id},
+            )
+            return AutomationApproval.objects.create(
+                run_log=run_log, approver_emails=["capo@example.com"], subject="Approva",
+                resume_payload={"id": record_id}, approved_actions=[{"action_type": "send_email", "config_json": {}}],
+            )
+
+        mia = _approval(501)
+        altra = _approval(502)
+        raw = create_link(mia, "capo@example.com")
+
+        request = RequestFactory().post("/")
+        request.user = User.objects.create_user(username="capo.test", password="x")
+        _applica_moderazione(request, 501, _malattia(), "Approvato", "")
+
+        mia.refresh_from_db()
+        self.assertEqual(mia.status, "approved")
+        self.assertEqual(mia.decided_by_email, "capo@example.com")
+        self.assertEqual(mia.run_log.status, "success")
+        self.assertEqual(AutomationApproval.objects.get(pk=altra.pk).status, "pending")
+
+        inviate = len(mail.outbox)
+        esito = decide_with_link(raw, "approved")
+        self.assertEqual(esito["code"], "already_decided")
+        self.assertEqual(len(mail.outbox), inviate)
+
 
 @MAIL
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
