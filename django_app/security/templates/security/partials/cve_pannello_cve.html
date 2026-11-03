@@ -52,6 +52,12 @@
     <ul class="cvp-ranges">{% for t in d.ranges %}<li>{{ t }}</li>{% endfor %}</ul>
   </details>
 {% endif %}
+<section class="cvp-ai ai-panel">
+  <form class="ai-ask" method="post" action="{% url 'security:cve_ai' rec.cve_id %}" data-drawer-form data-drawer-target="#cvp-ai-body">
+    {% csrf_token %}<button class="cvp-btn" type="submit" data-busy-label="Sto chiedendo all'AI locale…">Spiega con l'AI</button>{% include "security/partials/ai_casella_web.html" %}
+  </form>
+  <div id="cvp-ai-body"></div>
+</section>
 <footer class="pv-foot">
   <a class="cvp-btn cvp-btn--primary" href="{% url 'security:cve_detail' rec.cve_id %}">Scheda completa</a>
   <a class="cvp-btn" href="{{ d.nvd_url }}" target="_blank" rel="noopener noreferrer">Apri su NVD &#8599;</a>
