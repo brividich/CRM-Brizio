@@ -492,7 +492,7 @@ class AssenzeSubmitTokenTests(TestCase):
             },
         )
 
-        self.assertEqual(response_ok.status_code, 200)
+        self.assertEqual(response_ok.status_code, 302)  # redirect alla conferma
         mock_insert.assert_called_once()
 
         response_missing_csrf = csrf_client.post(
@@ -555,7 +555,7 @@ class AssenzeSubmitTokenTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)  # redirect alla conferma
         payload = mock_insert.call_args.args[0]
         self.assertEqual(payload["tipo_assenza"], "Malattia")
         self.assertEqual(payload["certificato_medico"], "Arrivato")
@@ -653,7 +653,7 @@ class AssenzeSubmitTokenTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)  # redirect alla conferma
         payload = mock_insert.call_args.args[0]
         self.assertEqual(payload["data_inizio"].strftime("%H:%M"), "00:00")
         self.assertEqual(payload["data_fine"].strftime("%H:%M"), "23:59")
@@ -758,7 +758,7 @@ class AssenzeLegacyTipoSubmitMappingTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)  # redirect alla conferma
         payload = mock_insert.call_args.args[0]
         self.assertEqual(payload["tipo_assenza"], "Flessibilità")
         self.assertEqual(payload["motivazione_richiesta"], "Recupero ore")
@@ -806,7 +806,7 @@ class AssenzeLegacyTipoSubmitMappingTests(TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)  # redirect alla conferma
         payload = mock_insert.call_args.args[0]
         self.assertEqual(payload["tipo_assenza"], "Certifica presenza")
         self.assertEqual(payload["motivazione_richiesta"], "Turno mattina")

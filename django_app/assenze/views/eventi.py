@@ -409,12 +409,15 @@ def _load_events(
 @require_http_methods(["GET"])
 def api_dipendente_default_capo(request):
     perms = _helpers._assenze_permissions(request)
-    if not perms.get("can_insert_for_others"):
+    # Gli abilitati alla malattia (Impostazioni) la inseriscono per tutti i
+    # dipendenti: serve loro il capo proposto del dipendente scelto.
+    malattia_per_tutti = _helpers._malattia_permessi(request)["per_tutti"]
+    if not perms.get("can_insert_for_others") and not malattia_per_tutti:
         return _helpers._json_error("Permessi insufficienti.", status=403)
     dipendente_id = _helpers._as_int(request.GET.get("dipendente_id"))
     if not dipendente_id:
         return JsonResponse({"ok": True, "capo_value": ""})
-    if not _helpers._can_insert_for_dipendente(request, dipendente_id):
+    if not malattia_per_tutti and not _helpers._can_insert_for_dipendente(request, dipendente_id):
         return _helpers._json_error("Dipendente fuori dal tuo reparto.", status=403)
     identity = _helpers._resolve_employee_identity_from_anagrafica(dipendente_id)
     if not identity:

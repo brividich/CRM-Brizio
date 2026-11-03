@@ -14,6 +14,7 @@ from django.core.cache import cache
 from django.core import signing
 from django.db import transaction
 from django.http import HttpResponseForbidden, JsonResponse
+from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
@@ -37,6 +38,11 @@ RIPETI_MAX_GIORNI = 31
 logger = logging.getLogger(__name__)
 
 _FORM_TOKEN_SALT = "assenze.form_submit"
+
+# Riepilogo dell'ultima richiesta inviata: lo legge una sola volta la pagina
+# «Nuova richiesta» dopo il redirect (Post/Redirect/Get), cosi' chi invia vede
+# una conferma chiara e ricaricando non reinvia il form.
+_CONFERMA_SESSION_KEY = "assenze_conferma_invio"
 
 
 def _certificazione_presenza_dipendenti_attivi() -> list[str]:
@@ -415,6 +421,44 @@ def _build_sharepoint_sync_diagnostics(item_ids: list[int], limit: int = 12) -> 
             result["warn_count"] += 1
 
     return result
+
+
+def _richiesta_gia_inviata(*, nominativo: str, tipo: str, inizio: datetime, fine: datetime) -> dict | None:
+    """Richiesta identica (stessa persona, tipo, inizio e fine) non rifiutata.
+
+    Chi non era sicuro dell'invio ripremeva «Conferma invio» e il capo riceveva
+    due richieste uguali: il doppione si blocca e si indica quella gia' presente.
+    """
+    nome_key = _helpers._sync_name_key(nominativo)
+    if not nome_key:
+        return None
+    try:
+        rows = _helpers._fetch_all_dict(
+            "SELECT id, copia_nome, tipo_assenza, consenso, created_datetime FROM assenze "
+            "WHERE data_inizio = %s AND data_fine = %s",
+            [inizio, fine],
+        )
+    except Exception:
+        logger.debug("_richiesta_gia_inviata: lettura non riuscita", exc_info=True)
+        return None
+    tipo_ui = _helpers._norm_tipo(tipo)
+    for row in rows:
+        if _helpers._sync_name_key(row.get("copia_nome")) != nome_key:
+            continue
+        if _helpers._norm_tipo(row.get("tipo_assenza")) != tipo_ui:
+            continue
+        if _absence_status_bucket(row.get("consenso")) == "rejected":
+            continue
+        return row
+    return None
+
+
+def _testo_stato_iniziale(*, salta_approvazione: bool, capo_nome: str) -> str:
+    if salta_approvazione:
+        return "Registrata senza approvazione del capo."
+    if capo_nome:
+        return f"In attesa di approvazione da {capo_nome}."
+    return "In attesa di approvazione del capo reparto."
 
 
 def _motivazioni_options() -> list[str]:
@@ -914,8 +958,15 @@ def _richiedi_calendario_capo(request, item_id: int) -> None:
         logger.warning("Calendario Outlook non richiesto per %s", item_id, exc_info=True)
 
 
-def _render_richiesta(request, success: str = "", error: str = "", form_data: dict | None = None):
+def _render_richiesta(
+    request,
+    success: str = "",
+    error: str = "",
+    form_data: dict | None = None,
+    conferma: dict | None = None,
+):
     perms = _helpers._assenze_permissions(request)
+    malattia = _helpers._malattia_permessi(request)
     name, email, _legacy_id = _helpers._legacy_identity(request)
     display_name = _resolve_request_display_name(
         legacy_user_id=_legacy_id,
@@ -930,6 +981,11 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
 
     can_insert_for_others = perms.get("can_insert_for_others", False)
     dipendenti = _insertable_dipendenti_for_request(request) if can_insert_for_others else []
+    # Abilitato alla malattia per tutti: la scelta del dipendente compare solo
+    # quando si sceglie «Malattia» (per gli altri tipi resta la propria richiesta).
+    malattia_per_tutti_solo = bool(malattia["per_tutti"]) and not can_insert_for_others
+    if malattia["per_tutti"] and not dipendenti:
+        dipendenti = _helpers._load_dipendenti_attivi_list()
 
     # Flessibilita: orari da Impostazioni e elenco degli abilitati. Il form li usa
     # per proporre le sole combinazioni ammesse; la verifica resta lato server.
@@ -988,6 +1044,9 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
             "prefill": prefill,
             "form_success": success,
             "form_error": error,
+            "conferma": conferma,
+            "malattia_visibile": malattia["visibile"],
+            "malattia_per_tutti_solo": malattia_per_tutti_solo,
             "form_data": merged_form,
             "submit_token": _build_submit_token(request, "assenze_invio"),
             "form_salta_approvazione": bool(_helpers._as_bool(merged_form.get("salta_approvazione"))),
@@ -1008,7 +1067,8 @@ def _render_richiesta(request, success: str = "", error: str = "", form_data: di
 def richiesta_assenze(request):
     if not _helpers._assenze_permissions(request).get("can_insert"):
         return HttpResponseForbidden("Permessi insufficienti: inserimento richieste non consentito.")
-    return _render_richiesta(request)
+    conferma = request.session.pop(_CONFERMA_SESSION_KEY, None)
+    return _render_richiesta(request, conferma=conferma if isinstance(conferma, dict) else None)
 
 
 @login_required
@@ -1289,6 +1349,15 @@ def api_mia_assenza_update(request, item_id: int):
         or _helpers._tipo_for_display(current.get("tipo_assenza"), current.get("motivazione_richiesta"))
     )
     tipo = _helpers._tipo_for_storage(requested_tipo)
+    # Trasformarla in malattia vale come inserirla: serve l'abilitazione di Impostazioni.
+    if (
+        _helpers._norm_tipo(tipo) == "Malattia"
+        and _helpers._norm_tipo(current.get("tipo_assenza")) != "Malattia"
+        and not _helpers._malattia_permessi(request)["visibile"]
+    ):
+        return _helpers._json_error(
+            "Non sei abilitato a inserire la malattia: comunicala all'ufficio del personale.", status=403,
+        )
     inizio_raw = (payload.get("inizio") if payload else None) or request.POST.get("inizio")
     fine_raw = (payload.get("fine") if payload else None) or request.POST.get("fine")
     motivazione = (payload.get("motivazione") if payload else None)
@@ -1369,6 +1438,15 @@ def invio_placeholder(request):
         time_start = "00:00"
         time_end = "23:59"
 
+    malattia = _helpers._malattia_permessi(request)
+    if tipo_ui == "Malattia" and not malattia["visibile"]:
+        return _render_richiesta(
+            request,
+            error="Non sei abilitato a inserire la malattia: comunicala all'ufficio del personale.",
+            form_data=request.POST.dict(),
+        )
+    malattia_per_tutti = tipo_ui == "Malattia" and malattia["per_tutti"]
+
     if not date_start or not date_end:
         return _render_richiesta(request, error="Compila data inizio e data fine.", form_data=request.POST.dict())
 
@@ -1392,11 +1470,11 @@ def invio_placeholder(request):
     inserting_for_other = False
     dipendente_id_raw = str(request.POST.get("dipendente_id") or "").strip()
 
-    if perms.get("can_insert_for_others") and dipendente_id_raw:
+    if (perms.get("can_insert_for_others") or malattia_per_tutti) and dipendente_id_raw:
         ana_id = _helpers._as_int(dipendente_id_raw)
         if not ana_id:
             return _render_richiesta(request, error="ID dipendente non valido.", form_data=request.POST.dict())
-        if not _helpers._can_insert_for_dipendente(request, ana_id):
+        if not malattia_per_tutti and not _helpers._can_insert_for_dipendente(request, ana_id):
             return _render_richiesta(
                 request,
                 error="Non sei autorizzato a inserire richieste per un altro dipendente.",
@@ -1473,7 +1551,25 @@ def invio_placeholder(request):
         for testo in [warn_msg, *avvisi_hr]:
             if testo and testo not in avvisi:
                 avvisi.append(testo)
-    warn_msg = " ".join(avvisi)
+    for occ_start, occ_end in occorrenze:
+        doppione = _richiesta_gia_inviata(nominativo=display_name, tipo=tipo, inizio=occ_start, fine=occ_end)
+        if doppione:
+            quando = doppione.get("created_datetime")
+            quando_txt = ""
+            if isinstance(quando, datetime):
+                if timezone.is_aware(quando):
+                    quando = timezone.localtime(quando)
+                quando_txt = f" il {quando:%d/%m/%Y alle %H:%M}"
+            stato = doppione.get("consenso") or "In attesa"
+            return _render_richiesta(
+                request,
+                error=(
+                    f"Questa richiesta è già stata inviata{quando_txt} "
+                    f"({tipo_ui}, {occ_start:%d/%m/%Y %H:%M} - {occ_end:%d/%m/%Y %H:%M}, stato: {stato}). "
+                    "Non serve inviarla di nuovo: la trovi in «Le mie richieste»."
+                ),
+                form_data=request.POST.dict(),
+            )
 
     # Caporeparto AUTORITATIVO lato server: quello assegnato al dipendente (il
     # campo del form è bloccato). Se quel caporeparto è assente nel giorno della
@@ -1620,20 +1716,29 @@ def invio_placeholder(request):
             {"local_ids": local_ids, "giorni": len(local_ids), "for_dipendente": display_name},
         )
 
-    sync_msg = "Arriverà su SharePoint entro pochi minuti." if accodate else "Sincronizzazione SharePoint non configurata."
-    warn_suffix = f" {warn_msg}" if warn_msg else ""
-    proxy_note = f" (inserito per conto di {display_name})" if inserting_for_other else ""
+    capo_primo = _helpers._find_capo_dict_for_option(capi_giorno[0][0], capi_options) if capi_giorno[0][0] else None
+    capo_nome = str((capo_primo or {}).get("Value") or "").strip()
     if ripetuto:
-        elenco = ", ".join(f"{g:%d/%m}" for g in giorni)
-        return _render_richiesta(
-            request,
-            success=(
-                f"{len(local_ids)} permessi registrati su DB locale{proxy_note}, "
-                f"dalle {dt_start:%H:%M} alle {dt_end:%H:%M} nei giorni {elenco}. "
-                f"Il capo riceve una sola mail per tutti i giorni. {sync_msg}{warn_suffix}"
-            ),
-        )
-    return _render_richiesta(request, success=f"Richiesta registrata su DB locale{proxy_note}. {sync_msg}{warn_suffix}")
+        periodo = f"dalle {dt_start:%H:%M} alle {dt_end:%H:%M} nei giorni " + ", ".join(f"{g:%d/%m}" for g in giorni)
+    elif dt_start.date() == dt_end.date():
+        periodo = f"{dt_start:%d/%m/%Y} dalle {dt_start:%H:%M} alle {dt_end:%H:%M}"
+    else:
+        periodo = f"dal {dt_start:%d/%m/%Y} al {dt_end:%d/%m/%Y}"
+    request.session[_CONFERMA_SESSION_KEY] = {
+        "numero": len(local_ids),
+        "riferimenti": [int(i) for i in local_ids],
+        "tipo": tipo_ui,
+        "dipendente": display_name,
+        "per_conto": inserting_for_other,
+        "periodo": periodo,
+        "stato": _testo_stato_iniziale(salta_approvazione=salta_approvazione, capo_nome=capo_nome),
+        "salta_approvazione": salta_approvazione,
+        "ripetuto": ripetuto,
+        "avvisi": [a for a in avvisi if a],
+        "inviata_alle": timezone.localtime().strftime("%d/%m/%Y %H:%M"),
+        "sharepoint": bool(accodate),
+    }
+    return redirect("assenze_richiesta")
 
 
 @login_required
