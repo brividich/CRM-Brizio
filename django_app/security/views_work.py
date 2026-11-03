@@ -398,6 +398,18 @@ def _patch_cerca(g: dict, q: str) -> bool:
     return any(q in (p.host_display or p.host).upper() for p in g["pc"])
 
 
+@require_POST
+def watchguard_patch_ai(request):
+    """Spiegazione di una patch mancante dall'AI locale (con i problemi noti dal web se chiesti)."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from .services.ai_risoluzione import spiega_patch
+
+    nome, programma = request.POST.get("nome", "")[:500], request.POST.get("programma", "")[:255]
+    ai = spiega_patch(nome, programma, user=request.user, web=request.POST.get("web") == "1", refresh=request.POST.get("refresh") == "1")
+    return render(request, "security/partials/ai_explanation.html", {"ai": ai})
+
+
 def watchguard_pc(request):
     """Patch e protezione: quello che l'API WatchGuard dice dei PC (patch mancanti, agenti, dispositivi senza agente)."""
     if not can_view_security_center(request.user):

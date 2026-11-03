@@ -20,3 +20,14 @@ def cve_impact_panel(context, cve_id):
         return {"record": None}
     impacts = list(record.impacts.exclude(outcome=SecurityCveImpact.NOT_IMPACTED).order_by("outcome", "host")[:10])
     return {"record": record, "summary": summary(record), "impacts": impacts}
+
+
+@register.simple_tag
+def soc_ai_web():
+    """True se in Impostazioni è permesso all'AI di consultare le fonti web: mostra la casella «Cerca anche sul web»."""
+    from security.services import ricerca_web
+
+    try:
+        return ricerca_web.attiva()
+    except Exception:  # noqa: BLE001 - impostazioni non leggibili: casella nascosta
+        return False

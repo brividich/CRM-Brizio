@@ -178,7 +178,7 @@ def case_ai_steps(request, pk):
     if not _ai_allowed(request):
         return HttpResponseForbidden("Accesso negato")
     case = get_object_or_404(SecurityRemediationTicket, pk=pk)
-    ai = propose_case_steps(case, user=request.user, refresh=request.POST.get("refresh") == "1")
+    ai = propose_case_steps(case, user=request.user, refresh=request.POST.get("refresh") == "1", web=request.POST.get("web") == "1")
     return render(request, "security/partials/case_ai_steps.html", {"ai": ai, "case": case})
 
 

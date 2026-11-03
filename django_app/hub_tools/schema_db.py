@@ -130,6 +130,13 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "controllo": "SOC › Impostazioni › Letture automatiche › WatchGuard (voce «msrc»); manage.py soc_api_sync --solo watchguard.",
     },
     {
+        "nome": "Fonti web per l'AI del SOC (siti ufficiali)",
+        "cosa": "A richiesta (casella «Cerca anche sul web») il SOC legge pagine https di nvd.nist.gov, cisa.gov, csirt.gov.it, acn.gov.it, first.org, support/learn/msrc.microsoft.com, watchguard.com, veeam.com, synology.com (mai forum) e, se configurato, interroga un SearXNG interno. Escono solo codici pubblici: CVE, KB, codici d'errore, Event ID, nome del produttore.",
+        "chi": "Security Center → scheda alert («Proponi la soluzione»), ticket («Proponi con l'AI»), pannello CVE e Patch e protezione («Spiega con l'AI»). Cache in security_securityexternalfeedcache (feed «web», 24 h), registro security_securityaiinteractionlog (web_ricerca, web_pagina). Codice security.services.ricerca_web.",
+        "config": "Impostazioni › «Ricerca sul web per l'AI» in /soc/impostazioni/ (interruttore spento di serie, altri siti ammessi, indirizzo SearXNG); accesso HTTPS in uscita dal server del portale verso i siti ammessi.",
+        "controllo": "SOC › Configurazione › registro AI (azioni web_ricerca e web_pagina con esito ed errore).",
+    },
+    {
         "nome": "Active Directory (LDAP)",
         "cosa": "Login con utente e password del PC, import degli utenti, gruppi.",
         "chi": "Accesso al portale, Amministrazione → Utenti.",

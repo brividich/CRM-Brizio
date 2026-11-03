@@ -111,11 +111,11 @@
     <div class="sec-panel ai-panel">
       <div class="sec-section-head">
         <h2>Prossimi passi</h2>
-        <form method="post" action="{% url 'security:case_ai_steps' case.pk %}" hx-post="{% url 'security:case_ai_steps' case.pk %}" hx-target="#case-ai-steps">
-          {% csrf_token %}<button class="sec-button-primary" type="submit" data-busy-label="L'AI sta ragionando…">Proponi con l'AI</button>
+        <form class="ai-ask" method="post" action="{% url 'security:case_ai_steps' case.pk %}" hx-post="{% url 'security:case_ai_steps' case.pk %}" hx-target="#case-ai-steps">
+          {% csrf_token %}{% include "security/partials/ai_casella_web.html" %}<button class="sec-button-primary" type="submit" data-busy-label="L'AI sta ragionando…">Proponi con l'AI</button>
         </form>
       </div>
-      <div id="case-ai-steps"><p class="sec-muted">L'AI locale legge il ticket (alert, attività fatte, note, precedenti e alert chiusi o scartati in passato) e propone cosa fare dopo. Scegli tu quali passi diventano attività.</p></div>
+      <div id="case-ai-steps"><p class="sec-muted">L'AI locale legge il ticket (alert, attività fatte, note, precedenti e alert chiusi o scartati in passato) e propone cosa fare dopo; con «Cerca anche sul web» legge anche gli avvisi ufficiali su CVE, KB e codici d'errore del ticket. Scegli tu quali passi diventano attività.</p></div>
     </div>
     <div class="sec-panel" style="margin-top: 12px;">
       <div class="sec-section-head"><h2>Nota di lavoro</h2></div>
