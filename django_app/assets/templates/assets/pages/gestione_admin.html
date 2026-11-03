@@ -1018,6 +1018,10 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
             <label>Descrizione</label>
             <textarea class="input" name="description" rows="2" placeholder="Nota interna per l'uso della categoria."></textarea>
           </div>
+          <div class="field full">
+            <label>Sinonimi per la ricerca</label>
+            <input class="input" type="text" name="sinonimi" maxlength="255" placeholder="Es. condizionatore, clima, split">
+          </div>
           <div class="field">
             <label>Titolo specifiche</label>
             <input class="input" type="text" name="detail_specs_title" placeholder="Es. Dati impianto">
@@ -1114,6 +1118,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
                   {% if row.category.detail_timeline_title %}<span class="chip-soft blue">Timeline: {{ row.category.detail_timeline_title }}</span>{% endif %}
                   {% if row.category.detail_maintenance_title %}<span class="chip-soft blue">Manutenzione: {{ row.category.detail_maintenance_title }}</span>{% endif %}
                   {% if not row.category.detail_timeline_manual_enabled %}<span class="chip-soft">Timeline manuale: off</span>{% endif %}
+                  {% if row.category.sinonimi %}<span class="chip-soft">Sinonimi: {{ row.category.sinonimi }}</span>{% endif %}
                   {% if not row.category.detail_specs_title and not row.category.detail_profile_title and not row.category.detail_assignment_title and not row.category.detail_timeline_title and not row.category.detail_maintenance_title %}
                     <span class="chip-soft slate">Titoli dettaglio standard</span>
                   {% endif %}
@@ -1216,6 +1221,11 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
               <div class="field full">
                 <label>Descrizione</label>
                 <textarea class="input" name="description" rows="2">{{ row.category.description }}</textarea>
+              </div>
+              <div class="field full">
+                <label>Sinonimi per la ricerca</label>
+                <input class="input" type="text" name="sinonimi" maxlength="255" value="{{ row.category.sinonimi }}" placeholder="Es. condizionatore, clima, split">
+                <span class="muted-note">Parole comuni, separate da virgola: chi apre un ticket trova l'asset anche scrivendo queste.</span>
               </div>
               <div class="field"><label>Titolo specifiche</label><input class="input" type="text" name="detail_specs_title" value="{{ row.category.detail_specs_title }}"></div>
               <div class="field"><label>Titolo profilo</label><input class="input" type="text" name="detail_profile_title" value="{{ row.category.detail_profile_title }}"></div>

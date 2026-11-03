@@ -39,3 +39,11 @@ Con il sistema dei ruoli attivo ([PERMESSI_RUOLI.md](../ai/PERMESSI_RUOLI.md)) T
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 KPI della gestione ticket sui soli tipi gestiti dall'utente.
+
+## Mappa degli asset nei ticket di manutenzione (03/11/2026)
+
+- **Nuovo ticket MAN**: pulsante «Sulla mappa» (e chip «Cercalo sulla mappa») con le planimetrie attive (`assets.PlantLayout`) e gli asset non IT collocati; quelli del reparto di chi apre sono colorati, gli altri grigi («Solo il mio reparto», zoom). Clic su un punto = asset scelto. Scelta dalla lista = la pianta si apre con l'asset evidenziato («È questo?»). Clic su un punto libero = `Ticket.mappa_layout/mappa_x/mappa_y` e descrizione «Punto indicato sulla …». I ticket IT non hanno la mappa.
+- **Dettaglio e gestione**: riquadro «Dove si trova» (asset o punto); in gestione un clic sceglie un altro asset da salvare con «Salva», link «Apri la mappa completa» (`assets:plant_layout_map?asset=`).
+- **«Tuo reparto»** (`assets/services/mappa_ticket.py`): testo del reparto sull'asset riconosciuto per nome di reparto/area o tramite `RepartoAssetCollegato` (Impostazioni asset › Reparti e capi), più i reparti/aree di cui la persona è capo o co-capo; chi sta in un'area ha solo quell'area. In alternativa le aree disegnate sulla pianta (`PlantLayoutArea.reparto_code`). Scelta in `/tickets/impostazioni/` («Mappa asset nei ticket di manutenzione», `TicketImpostazioni.mappa_reparto_da`), con la planimetria da aprire per categoria (`CategoriaTicket.planimetria`). Lo stesso riconoscimento vale per i chip «Asset reparto» del form (prima confronto esatto del testo).
+- **Ricerca con sinonimi**: `AssetCategory.sinonimi` (Impostazioni asset → categoria, «Sinonimi per la ricerca»); la migration `assets 0159` propone i sinonimi per Chiller, Bruciatori, Caldaia, carroponti, carrelli ecc. solo dove vuoti.
+- Migration `assets 0159`, `tickets 0015`; file statici nuovi `tickets/css/mappa_asset.css`, `tickets/js/mappa_asset.js` (collectstatic). Su SQLite le migration sospendono e ripristinano le viste `bi_*` (`dati_bi.viste.sospendi_viste_sqlite`/`ripristina_viste_sqlite`).

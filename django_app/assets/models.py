@@ -419,6 +419,9 @@ class AssetCategory(models.Model):
     )
     base_asset_type = models.CharField(max_length=20, choices=Asset.TYPE_CHOICES, default=Asset.TYPE_OTHER, db_index=True)
     description = models.TextField(blank=True, default="")
+    # Parole comuni con cui la gente cerca gli asset della categoria (es. «Chiller»
+    # → «condizionatore, clima»): le usa la ricerca asset del ticket.
+    sinonimi = models.CharField(max_length=255, blank=True, default="")
     detail_specs_title = models.CharField(max_length=120, blank=True, default="")
     detail_profile_title = models.CharField(max_length=120, blank=True, default="")
     detail_assignment_title = models.CharField(max_length=120, blank=True, default="")

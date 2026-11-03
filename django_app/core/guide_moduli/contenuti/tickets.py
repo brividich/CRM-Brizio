@@ -3,7 +3,7 @@ GUIDA = {
     "titolo": "Ticket IT e manutenzione",
     "area": "Produzione e operations",
     "sintesi": "Per segnalare un guasto o chiedere aiuto all'IT o alla manutenzione, e seguire la risposta.",
-    "parole": "ticket guasto pc stampante rete manutenzione macchina rotta assistenza",
+    "parole": "ticket guasto pc stampante rete manutenzione macchina rotta assistenza mappa planimetria condizionatore",
     "url": "tickets:dashboard",
     "prefissi": ("/tickets/",),
     "uso": [
@@ -16,7 +16,14 @@ GUIDA = {
                     "«+ Ticket MAN» (macchine, impianti, attrezzature).",
                     "Scrivi il «Titolo / oggetto» in poche parole, per esempio «Stampante ufficio tecnico non stampa».",
                     "Scegli la categoria «Da catalogo», oppure «Libera» se non trovi quella giusta.",
-                    "Se riguarda una macchina o un PC, scegli l'«Asset coinvolto»: «Da catalogo» cerca anche per n. interno o reparto e mostra n. interno, tag e reparto di ogni asset.",
+                    "Se riguarda una macchina o un PC, scegli l'«Asset coinvolto»: «Da catalogo» cerca anche per n. interno o reparto e mostra n. interno, tag e reparto di ogni asset. "
+                    "Cerca anche con le parole di tutti i giorni (per esempio «condizionatore» trova i «Chiller»).",
+                    "Ticket di manutenzione: se non riconosci l'asset dal nome, clicca «Sulla mappa» (o «Cercalo sulla mappa»). "
+                    "Scegli la planimetria in alto: i punti colorati sono gli asset del tuo reparto, quelli grigi degli altri reparti. "
+                    "Tocca il punto giusto per sceglierlo; «Solo il mio reparto» nasconde gli altri, «+» e «−» ingrandiscono.",
+                    "Se scegli l'asset dalla lista, sotto compare la pianta con il punto rosso: «È questo?». Controlla che sia quello giusto.",
+                    "Se l'asset non è sulla pianta, tocca il punto in cui si trova: il ticket parte con «Punto indicato sulla …» "
+                    "e chi lo gestisce collega l'asset giusto.",
                     "Scegli la «Priorita» e descrivi il problema in «Descrizione»: cosa succede, da quando, cosa hai già provato.",
                     "Clicca «Invia richiesta».",
                 ]),
@@ -60,6 +67,9 @@ GUIDA = {
                     "Per un lavoro di manutenzione programmato usa «+ Apri OdL» (ordine di lavoro nel modulo Asset).",
                     "Gli allegati caricati dal QR della macchina vanno controllati: «Valida» oppure «Rifiuta» con motivo.",
                     "Per cambiare l'asset del ticket (riquadro «Asset collegato» → «Da catalogo») scrivi nome, n. interno, tag, modello o reparto: ogni risultato mostra n. interno, tag e il badge «Reparto …» per distinguere asset con lo stesso nome.",
+                    "Ticket di manutenzione, scheda «Asset e KPI»: il riquadro «Dove si trova» mostra l'asset sulla planimetria "
+                    "(o il punto indicato dal richiedente). Tocca un altro punto per scegliere un asset diverso e premi «Salva»; "
+                    "«Apri la mappa completa» porta alla mappa officina.",
                 ]),
             ],
         },
@@ -80,6 +90,11 @@ GUIDA = {
                     "«Data chiusura ticket» / «Data fine lavori». Per correggere ticket già importati come aperti, "
                     "reimporta lo stesso file con «Aggiorna ticket esistenti» spuntato (serve la colonna «ID»).",
                     "Escalation dei ticket urgenti: accesa o spenta, soglia in ore (predefinita 4) e ora del resoconto (predefinita 8). «Salva escalation».",
+                    "«Mappa asset nei ticket di manutenzione»: scegli come si riconosce il «tuo reparto» sulla pianta — "
+                    "«Reparto scritto sull'asset» (predefinito, usa anche i collegamenti di Impostazioni asset → «Reparti e capi») "
+                    "oppure «Aree dei reparti disegnate sulla planimetria» (una pianta senza aree usa comunque il reparto scritto). "
+                    "Per ogni categoria di manutenzione puoi fissare la planimetria che si apre; «Automatica» apre quella con più asset del reparto. «Salva mappa».",
+                    "Le parole comuni per la ricerca si scrivono in Impostazioni asset, sulla categoria: «Sinonimi per la ricerca».",
                 ]),
             ],
         },
@@ -142,6 +157,21 @@ GUIDA = {
             "sintomo": 'I numeri in testa alla gestione ticket comprendono tipi che non gestisco',
             "fare": [
                 'Ora contano solo i tipi che gestisci (IT, manutenzione o entrambi), come le liste sotto.',
+            ],
+        },
+        {
+            "sintomo": "Un asset non compare sulla mappa del ticket",
+            "perche": "sulla mappa ci sono solo gli asset non IT collocati su una planimetria attiva, in servizio e non dismessi.",
+            "fare": [
+                "Apri la mappa officina (Asset → mappa) e collocalo dall'editor sulla planimetria giusta.",
+                "I PC, le stampanti e gli altri apparati IT non vanno sulla mappa dei ticket.",
+            ],
+        },
+        {
+            "sintomo": "Sulla mappa gli asset del mio reparto sono grigi",
+            "fare": [
+                "Il reparto scritto sull'asset non è riconosciuto: collegalo in Impostazioni asset → «Reparti e capi».",
+                "Se in Impostazioni ticket hai scelto «Aree dei reparti», controlla che le aree siano disegnate e abbiano il reparto.",
             ],
         },
         {

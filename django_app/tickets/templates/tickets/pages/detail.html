@@ -1,8 +1,10 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}{{ ticket.numero_ticket }} | Ticket | Portale Applicativo{% endblock %}
 
 {% block extra_head %}
+{% if mappe_ticket %}<link rel="stylesheet" href="{% static 'tickets/css/mappa_asset.css' %}">{% endif %}
 <style>
 #tkt-root { display:flex; flex-direction:column; gap:20px; }
 
@@ -174,6 +176,12 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
           <span>{{ ticket.asset_descrizione_libera }}</span>
         </div>
         {% endif %}
+        {% if mappe_ticket %}
+        <div style="margin-top:14px;">
+          <div class="tmap-pannello-titolo">Dove si trova</div>
+          <div id="tkt-mappa"></div>
+        </div>
+        {% endif %}
       </div>
 
       <!-- Allegati: elenco, stato di validazione e caricamento -->
@@ -268,6 +276,20 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
   </div>
 </div>
 
+{% if mappe_ticket %}
+{{ mappe_ticket|json_script:"mappe-ticket-data" }}
+<script src="{% static 'tickets/js/mappa_asset.js' %}"></script>
+<script>
+(function () {
+  const radice = document.getElementById("tkt-mappa");
+  if (!radice || !window.TicketMappa) return;
+  let dati = [];
+  try { dati = JSON.parse(document.getElementById("mappe-ticket-data").textContent) || []; } catch (e) {}
+  const mappa = TicketMappa.monta(radice, { mappe: dati, selezionabile: false });
+  {% if ticket.asset_id %}mappa.mostraAsset({{ ticket.asset_id }});{% elif ticket.mappa_layout_id %}mappa.mostraPunto({{ ticket.mappa_layout_id }}, {{ ticket.mappa_x|stringformat:"s" }}, {{ ticket.mappa_y|stringformat:"s" }});{% endif %}
+})();
+</script>
+{% endif %}
 <script>
 const TICKET_ID = {{ ticket.pk }};
 const API_COMM  = "{% url 'tickets:api_commento' %}";
