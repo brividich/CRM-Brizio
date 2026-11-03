@@ -1,7 +1,7 @@
 """Letture del SOC dalle API esterne, a mano: WatchGuard Cloud, vulnerabilità Defender, tabella MAC degli switch.
 
     python manage.py soc_api_sync --prova                    # prova WatchGuard e Defender senza salvare nulla
-    python manage.py soc_api_sync --solo watchguard          # PC, software e patch da WatchGuard (anche a interruttori spenti)
+    python manage.py soc_api_sync --solo watchguard          # PC, software, patch e sostituzioni KB Microsoft (anche a interruttori spenti)
     python manage.py soc_api_sync --solo defender            # CVE viste da Defender
     python manage.py soc_api_sync --solo switch              # tabella MAC degli switch «Rete»
     python manage.py soc_api_sync                            # tutto
@@ -55,13 +55,15 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"Defender: {exc}"))
 
     def _watchguard(self):
+        from security.services import patch_kb
         from security.services import watchguard_api as wg
 
         if not wg.configurato():
             self.stdout.write(self.style.WARNING("WatchGuard: credenziali API non configurate."))
             return
         for nome, passo in (("PC", wg.sincronizza_dispositivi), ("software", wg.sincronizza_software),
-                            ("patch", wg.sincronizza_patch), ("task", wg.sincronizza_task)):
+                            ("patch", wg.sincronizza_patch), ("task", wg.sincronizza_task),
+                            ("sostituzioni KB Microsoft", patch_kb.sincronizza_msrc)):
             try:
                 self.stdout.write(f"WatchGuard {nome}: {passo()}")
             except Exception as exc:  # noqa: BLE001

@@ -294,8 +294,13 @@ def andamento(settimane=SETTIMANE, oggi=None) -> dict:
 def per_asset(asset, oggi=None, giorni_storico=365) -> dict:
     """Patch di un PC: mancanti con il termine, installate nell'ultimo anno con le CVE corrette."""
     oggi = oggi or timezone.localdate()
-    aperte = sorted(mancanti(oggi, WatchGuardPatch.objects.filter(hub_asset=asset, presente=True)),
-                    key=lambda v: (not v["errore"], not v["scaduta"], CLASSI.index(v["classe"]), v["p"].nome))
+    from security.services.patch_kb import comprese
+
+    aperte = mancanti(oggi, WatchGuardPatch.objects.filter(hub_asset=asset, presente=True))
+    incluse = comprese([v["p"] for v in aperte])
+    for v in aperte:
+        v["compresa"] = incluse.get(v["p"].pk)
+    aperte.sort(key=lambda v: (bool(v["compresa"]), not v["errore"], not v["scaduta"], CLASSI.index(v["classe"]), v["p"].nome))
     presenti = set(WatchGuardDispositivo.objects.filter(presente=True).values_list("device_id", flat=True))
     chiuse = list(WatchGuardPatch.objects.filter(hub_asset=asset, presente=False, chiusa_il__gte=timezone.now() - timedelta(days=giorni_storico))
                   .order_by("-chiusa_il", "nome"))

@@ -123,6 +123,13 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "controllo": "SOC › Impostazioni › Letture automatiche › «Librerie Python del portale (OSV)»; Battito del SOC.",
     },
     {
+        "nome": "Microsoft Security Update Guide (API CVRF)",
+        "cosa": "Alle 06:10 e alle 13:10, nel giro WatchGuard, il SOC legge da https://api.msrc.microsoft.com/cvrf/v3.0 (pubblica, senza chiave) i documenti mensili dell'ultimo anno, solo se Microsoft li ha aggiornati e al massimo una volta al giorno: quale KB sostituisce quale. Non manda dati.",
+        "chi": "Security Center → Patch e protezione («Compresa in KB…»), riquadro «Patch» della scheda asset, pannello CVE. Tabelle security_microsoftkbsostituzione e security_microsoftcvrfmese (security.services.patch_kb).",
+        "config": "Interruttore «Cerca le patch comprese in una più recente (Microsoft)» in /soc/impostazioni/ › «WatchGuard Endpoint Security (API)» (serve anche «Leggi le patch mancanti»); accesso HTTPS in uscita verso api.msrc.microsoft.com.",
+        "controllo": "SOC › Impostazioni › Letture automatiche › WatchGuard (voce «msrc»); manage.py soc_api_sync --solo watchguard.",
+    },
+    {
         "nome": "Active Directory (LDAP)",
         "cosa": "Login con utente e password del PC, import degli utenti, gruppi.",
         "chi": "Accesso al portale, Amministrazione → Utenti.",

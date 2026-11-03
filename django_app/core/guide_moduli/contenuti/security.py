@@ -88,6 +88,10 @@ GUIDA = {
                 ("p", "Dispositivi › «Patch e protezione»: patch mancanti per PC lette da WatchGuard (prima quelle che correggono CVE "
                       "sfruttate), installazioni non riuscite, PC con la protezione da sistemare e dispositivi in rete senza agente. "
                       "Le patch si installano dalla console WatchGuard; il pannello CVE dice su quali PC la patch è pronta."),
+                ("p", "In «Patch e protezione» si cerca per KB, CVE, patch, programma o PC. Una patch Microsoft già compresa in un "
+                      "aggiornamento più recente che manca sullo stesso PC dice «Compresa in KB…» e va in fondo; quella più recente "
+                      "dice «Comprende anche» e quante CVE in più chiude. Si riconosce dal build di Windows nel nome e, con "
+                      "l'interruttore «Cerca le patch comprese in una più recente (Microsoft)», dal Security Update Guide di Microsoft."),
                 ("p", "Dispositivi › «Patch installate»: lo storico delle patch chiuse, con PC, CVE corrette e motivo "
                       "(«Installata» se lo dice un task WatchGuard, «Non più segnalata da WatchGuard», «PC non più in WatchGuard»). "
                       "Filtri per periodo, motivo e testo; «Scarica CSV» esporta tutte le righe del filtro."),
@@ -292,6 +296,14 @@ GUIDA = {
             "fare": [
                 "Il controllo guarda le librerie installate, non il file: in produzione pip install -r requirements.txt nel venv del portale, poi riavvio di sito e qcluster.",
                 "Al controllo successivo (06:50 o «Esegui ora») la vulnerabilità passa fra le risolte e l'alert si chiude.",
+            ],
+        },
+        {
+            "sintomo": "Patch e protezione: una patch .NET, SQL Server o Office non dice «Compresa in» anche se ce n'è una più recente",
+            "fare": [
+                "Per queste serve il Security Update Guide di Microsoft: Impostazioni › «WatchGuard Endpoint Security (API)», interruttore «Cerca le patch comprese in una più recente (Microsoft)» acceso.",
+                "Il server deve poter uscire su HTTPS verso api.msrc.microsoft.com; l'esito è in «Letture automatiche» › WatchGuard (voce «msrc»).",
+                "La KB nel nome arriva alla lettura delle patch successiva (06:10 e 13:10). Gli aggiornamenti fuori ciclo non di sicurezza non sono nel Security Update Guide: per Windows vale il build nel nome.",
             ],
         },
         {

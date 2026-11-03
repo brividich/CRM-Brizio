@@ -297,11 +297,18 @@ Pagina **Dispositivi › Patch e protezione**. Legge l'API di WatchGuard Cloud (
 
 1. In WatchGuard Cloud › Amministrazione › **Managed Access** abilitare l'accesso API; copiare URL API (dipende dalla regione, per esempio `https://api.deu.cloud.watchguard.com`), **Access ID** e **password** (meglio quelli di sola lettura) e l'**API Key**. L'ID account (ACC-… o WGC-…) è in **My Account**.
 2. Incollarli nel riquadro **Credenziali API WatchGuard** e **Salva le credenziali** (password e API Key restano cifrate e non si rivedono), poi **Prova la connessione**: dice quanti PC vede l'account.
-3. Accendere le letture nel riquadro **WatchGuard Endpoint Security (API)**: PC e protezione, software dei PC, patch mancanti. Girano alle 06:10 e alle 13:10.
+3. Accendere le letture nel riquadro **WatchGuard Endpoint Security (API)**: PC e protezione, software dei PC, patch mancanti e, se serve, «Cerca le patch comprese in una più recente (Microsoft)». Girano alle 06:10 e alle 13:10. La lettura Microsoft scarica un documento al mese dall'API pubblica `api.msrc.microsoft.com` (decine di MB ciascuno) solo quando Microsoft lo aggiorna, al massimo una volta al giorno: il server del portale deve poter uscire su HTTPS verso quell'indirizzo.
 
 Cosa c'è nella pagina:
 
 - **Patch mancanti**: una riga per patch con i PC che ne hanno bisogno. In cima le patch che correggono una CVE sfruttata (CISA KEV), poi per criticità WatchGuard (Critica, Importante…) e per numero di PC. Aprendo la riga: le CVE che corregge (clic = scheda breve) e i PC con lo stato. Una patch esce dall'elenco quando WatchGuard non la segnala più: installata o non più necessaria; il ricalcolo CVE poi registra la risoluzione con la versione nuova.
+- **Cerca**: per KB (es. KB5134133), CVE, nome della patch, programma o PC. Cercando una CVE escono la patch che la corregge e quella più recente che la comprende.
+- **KB e download**: accanto al nome c'è la KB Microsoft (presa dal nome o dal file della patch); aprendo la riga, «Scarica a mano» porta al file della patch quando WatchGuard lo dà, e «può riavviare il PC da sola» avvisa delle patch con riavvio automatico.
+- **Patch comprese in una più recente**: WatchGuard elenca le patch Microsoft una per una, anche quando un aggiornamento cumulativo comprende quelli prima. Il SOC lo riconosce in due modi:
+  - **dal build di Windows nel nome**: «KB5134133 (OS Builds 26200.9725 and 26100.9725)» comprende «KB5127648 (OS Builds 26200.9711 and 26100.9711)», perché stesso ramo (26100) e revisione più alta (9725 > 9711). Vale anche per i fuori ciclo; le anteprime («Preview», facoltative) non vengono mai proposte al posto di un'altra patch;
+  - **dal Security Update Guide di Microsoft**, con l'interruttore «Cerca le patch comprese in una più recente (Microsoft)»: Microsoft dice quale KB sostituisce quale, anche a catena; serve per .NET, SQL Server e Office, dove il nome non porta il build. Contiene solo gli aggiornamenti di sicurezza.
+
+  Una patch è «compresa» solo se quella più recente manca **sullo stesso PC**. La patch compresa ha l'etichetta «Compresa in KB…» e va in fondo all'elenco; quella più recente dice «Comprende anche: KB… (N PC)» e «+N CVE delle precedenti», e prende la priorità delle CVE che chiude (una CVE sfruttata della vecchia la porta in cima). Lo stesso si vede nel riquadro «Patch» della scheda asset e nel pannello CVE («si chiude con KB…»).
 - **Installazioni non riuscite**: l'esito dei task di installazione WatchGuard degli ultimi 14 giorni (errore di download, di installazione…).
 - **Protezione da sistemare**: PC con l'agente ma protezione spenta, in errore, non aggiornata, con riavvio richiesto o non connessi da più di 7 giorni.
 - **In rete senza agente**: dispositivi che le sonde WatchGuard hanno trovato in rete senza agente. Stampanti e apparati sono normali; un PC qui non è protetto.

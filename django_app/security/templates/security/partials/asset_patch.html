@@ -15,7 +15,7 @@
       <tbody>
       {% for v in aperte|slice:":10" %}
         <tr>
-          <td><strong>{{ v.p.nome }}</strong>{% if v.p.programma %}<br><span class="af-note">{{ v.p.programma }}</span>{% endif %}{% if v.errore %} <span class="af-pill af-pill--danger" title="{{ v.p.esito_label }}">Installazione fallita</span>{% endif %}</td>
+          <td><strong>{{ v.p.nome }}</strong>{% if v.p.programma or v.p.kb %}<br><span class="af-note">{% if v.p.kb %}{{ v.p.kb }}{% if v.p.programma %} · {% endif %}{% endif %}{{ v.p.programma }}</span>{% endif %}{% if v.compresa %}<br><span class="af-pill" title="{{ v.compresa.perche }}">Compresa in {{ v.compresa.in.kb|default:v.compresa.in.nome }}: si chiude installando quella</span>{% endif %}{% if v.errore %} <span class="af-pill af-pill--danger" title="{{ v.p.esito_label }}">Installazione fallita</span>{% endif %}</td>
           <td>{{ v.etichetta }}{% if v.kev %} <span class="af-pill af-pill--danger" title="{{ v.kev|join:', ' }}">CVE sfruttata</span>{% endif %}</td>
           <td>{{ v.p.rilasciata_il|date:"d/m/Y"|default:"—" }}</td>
           <td>{% if not v.scadenza %}—{% elif v.scaduta %}<span class="af-pill af-pill--danger">scaduto da {{ v.giorni_ritardo }} gg</span>{% else %}<span class="af-pill af-pill--ok">entro il {{ v.scadenza|date:"d/m/Y" }}</span>{% endif %}</td>
