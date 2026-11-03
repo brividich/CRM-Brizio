@@ -744,6 +744,84 @@ def righe_bozza(bozza) -> list[str]:
     return out
 
 
+def html_bozza(controllo, *, op_txt: str, link: str, nuovo: bool) -> str:
+    """Corpo HTML della mail promemoria bozza nel layout NOVICROM HUB.
+
+    Stessi contenuti del testo semplice: dati del controllo, una card per blocco
+    di seriali con le anomalie scritte, blocchi copiati ancora da caricare e il
+    pulsante che riapre il controllo. I testi della bozza sono sempre escapati.
+    """
+    import html as _html
+
+    from core.email_utils import email_badge, email_cta, email_facts_table, render_hub_email_html
+
+    bozza = controllo.bozza if isinstance(controllo.bozza, dict) else {}
+
+    def _p(testo_html: str, *, colore: str = "#475569", margine: str = "0 0 16px") -> str:
+        return (f'<p style="margin:{margine};color:{colore};font-size:15px;line-height:1.6;">'
+                f"{testo_html}</p>")
+
+    def _card(seriali, anomalie, *, accento: str, etichetta: str, tono: str) -> str:
+        titolo = "S/N " + (", ".join(str(v) for v in seriali if str(v).strip()) or "—")
+        righe = []
+        for a in anomalie:
+            testo = str(a.get("testo") or "").strip() or "(senza descrizione)"
+            allegati = int(a.get("allegati") or 0)
+            extra = (f' <span style="color:#92400e;">(+{allegati} allegati da ricaricare)</span>'
+                     if allegati else "")
+            righe.append(
+                '<div style="margin-top:6px;font-size:14px;color:#334155;line-height:1.5;">'
+                f"&bull; {_html.escape(testo)}{extra}</div>"
+            )
+        return (
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            'style="width:100%;border-collapse:collapse;margin:0 0 10px;background:#f8fafc;'
+            'border:1px solid #e2e8f0;border-radius:10px;">'
+            f'<tr><td style="width:6px;background:{accento};border-radius:10px 0 0 10px;">&nbsp;</td>'
+            '<td style="padding:14px 16px;">'
+            f'<div style="font-size:15px;color:#182232;font-weight:700;">{_html.escape(titolo)} '
+            f"{email_badge(etichetta, tono)}</div>"
+            + "".join(righe)
+            + "</td></tr></table>"
+        )
+
+    card = []
+    voci = [str(v) for v in (bozza.get("voci") or []) if str(v).strip()]
+    anomalie = [a for a in (bozza.get("anomalie") or []) if isinstance(a, dict)]
+    if voci or anomalie:
+        card.append(_card(voci, anomalie, accento="#d97706", etichetta="Da salvare", tono="warning"))
+    for b in bozza.get("coda") or []:
+        if isinstance(b, dict):
+            card.append(_card(
+                b.get("seriali") or [], [a for a in (b.get("anomalie") or []) if isinstance(a, dict)],
+                accento="#64748b", etichetta="Da copiare ancora", tono="neutral",
+            ))
+
+    conseguenza = " e l'OP non viene creato" if nuovo else ""
+    corpo = "".join([
+        _p("Nel controllo ci sono anomalie <strong>scritte ma non ancora salvate</strong>: finché non premi "
+           f"«Salva blocco» non arrivano al capocommessa{conseguenza}."),
+        email_facts_table([
+            ("OP", str(controllo.op_id) + (" (nuovo, non ancora creato)" if nuovo else "")),
+            ("Fase", str(controllo.fase or "—")),
+        ]),
+        _p("Quello che hai scritto (salvato in automatico):", colore="#182232", margine="22px 0 10px"),
+        "".join(card) or _p("—"),
+        _p("Gli allegati non si salvano in bozza: vanno ricaricati.", colore="#64748b", margine="6px 0 0"),
+    ])
+    return render_hub_email_html(
+        corpo,
+        title="Anomalie non ancora salvate",
+        email_type="Anomalie · Promemoria",
+        badge=str(controllo.op_id or ""),
+        section_label=f"Controllo · fase {controllo.fase}" if controllo.fase else "Controllo",
+        cta_buttons=email_cta("Riprendi il controllo", link,
+                              note="Poi premi «Salva blocco» e «Termina controllo». Link diretto: " + link),
+        footer_note="Messaggio automatico generato da NOVICROM HUB. Non rispondere a questa email.",
+        preheader=f"{op_txt}: anomalie scritte ma non salvate. Riprendi il controllo e premi «Salva blocco».",
+    )
+
+
 def invia_promemoria_bozza(controllo) -> bool:
     """Notifica nel portale e mail al controllore con il contenuto della bozza e il
     link che riapre il controllo. ``promemoria_bozza_at`` evita di ripeterlo finché
@@ -791,10 +869,16 @@ def invia_promemoria_bozza(controllo) -> bool:
                 f"Riprendi da qui e premi «Salva blocco», poi «Termina controllo»: {link}",
                 "Gli allegati non si salvano in bozza: vanno ricaricati.",
             ])
+            try:
+                body_html = html_bozza(controllo, op_txt=op_txt, link=link, nuovo=nuovo)
+            except Exception:
+                logger.warning("controllo %s: HTML promemoria bozza non generato", controllo.pk, exc_info=True)
+                body_html = ""
             ok, _log = send_and_log_email(
                 kind="promemoria_bozza_controllo",
                 subject=f"[Novicrom Hub] {op_txt}: anomalie non ancora salvate",
                 body_text=body,
+                body_html=body_html,
                 to=[email],
                 op_id=controllo.op_id,
                 context={"controllo_id": controllo.pk, "op_nuovo": nuovo},
