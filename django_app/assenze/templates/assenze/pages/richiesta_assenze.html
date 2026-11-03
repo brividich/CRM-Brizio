@@ -30,6 +30,49 @@
       pointer-events: none;
       z-index: -1;
     }
+    /* Conferma dopo l'invio: solo token del tema, vale in chiaro e in scuro. */
+    .abs-confirm {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 18px;
+      padding: 22px 24px;
+      border: 1px solid var(--border);
+      border-left: 6px solid var(--success, #16a34a);
+      border-radius: 16px;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+    }
+    .abs-confirm-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--success, #16a34a);
+      color: var(--surface, #fff);
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .abs-confirm h2 { margin: 0 0 4px; font-size: 22px; }
+    .abs-confirm-lead { margin: 0 0 14px; color: var(--text-mid); }
+    .abs-confirm-dati {
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr);
+      gap: 6px 16px;
+      margin: 0 0 14px;
+    }
+    .abs-confirm-dati dt { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--text-light); padding-top: 2px; }
+    .abs-confirm-dati dd { margin: 0; font-weight: 600; }
+    .abs-confirm-avvisi { margin: 0 0 14px; display: grid; gap: 6px; }
+    .abs-confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .abs-request-layout[hidden], .abs-field[hidden] { display: none !important; }
+    @media (max-width: 640px) {
+      .abs-confirm { grid-template-columns: 1fr; padding: 18px 16px; }
+      .abs-confirm-dati { grid-template-columns: 1fr; gap: 2px; }
+      .abs-confirm-dati dd { margin-bottom: 8px; }
+    }
     .abs-request-layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 330px;
@@ -636,6 +679,32 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
       </div>
     </section>
 
+    {% if conferma %}
+      {# Conferma dopo l'invio (Post/Redirect/Get): ricaricare la pagina non reinvia la richiesta. #}
+      <section class="abs-confirm" id="abs-conferma" role="status" aria-live="polite" tabindex="-1">
+        <div class="abs-confirm-icon" aria-hidden="true">&#10003;</div>
+        <div>
+          <h2>{% if conferma.numero > 1 %}{{ conferma.numero }} richieste inviate{% else %}Richiesta inviata{% endif %}</h2>
+          <p class="abs-confirm-lead">Salvata il {{ conferma.inviata_alle }}. Non serve inviarla di nuovo: la trovi in «Le mie richieste».</p>
+          <dl class="abs-confirm-dati">
+            <dt>Dipendente</dt><dd>{{ conferma.dipendente }}{% if conferma.per_conto %} (inserita da te per suo conto){% endif %}</dd>
+            <dt>Tipo</dt><dd>{{ conferma.tipo }}</dd>
+            <dt>Periodo</dt><dd>{{ conferma.periodo }}</dd>
+            <dt>Stato</dt><dd>{{ conferma.stato }}</dd>
+            <dt>Riferimento</dt><dd>{% for rif in conferma.riferimenti %}n. {{ rif }}{% if not forloop.last %}, {% endif %}{% endfor %}</dd>
+          </dl>
+          {% if conferma.avvisi %}
+            <div class="abs-confirm-avvisi">
+              {% for avviso in conferma.avvisi %}<div class="abs-alert abs-alert-warn" role="note">{{ avviso }}</div>{% endfor %}
+            </div>
+          {% endif %}
+          <div class="abs-confirm-actions">
+            <a href="{% url 'assenze_gestione' %}" class="btn">Vai a «Le mie richieste»</a>
+            <a href="{% url 'assenze_richiesta' %}" class="btn btn-secondary">Nuova richiesta</a>
+          </div>
+        </div>
+      </section>
+    {% endif %}
     {% if form_success %}
       <div class="abs-alert abs-alert-success">{{ form_success }}</div>
     {% endif %}
@@ -646,7 +715,7 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
       <div class="abs-note-box">Form precompilato da richiesta duplicata (`copy_from={{ copy_from }}`). Verifica capo reparto, date e motivazione prima dell'invio.</div>
     {% endif %}
 
-    <div class="abs-request-layout">
+    <div class="abs-request-layout"{% if conferma %} hidden{% endif %}>
       <div class="abs-request-main">
         <div class="abs-flow-strip" aria-label="Avanzamento compilazione richiesta">
           <div class="abs-flow-step is-current" data-flow-step="tipo">
@@ -702,6 +771,22 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
                       {% endfor %}
                     </select>
                     <div class="abs-field-hint">Seleziona un altro dipendente per inserire la richiesta a suo nome.</div>
+                  {% elif malattia_per_tutti_solo %}
+                    {# Abilitato alla malattia per tutti: la scelta compare solo con «Malattia», per gli altri tipi la richiesta resta sua. #}
+                    <div data-dip-proprio>
+                      <label for="dipendente_readonly">Dipendente</label>
+                      <input id="dipendente_readonly" type="text" class="abs-input abs-input-readonly" value="{{ nome }}" readonly>
+                    </div>
+                    <div data-dip-malattia hidden>
+                      <label for="dipendente_id">Dipendente in malattia</label>
+                      <select id="dipendente_id" name="dipendente_id" class="abs-select" disabled>
+                        <option value="">{{ nome|upper }} (tu)</option>
+                        {% for d in dipendenti %}
+                          <option value="{{ d.id }}"{% if form_data.dipendente_id == d.id|stringformat:"s" %} selected{% endif %}>{{ d.full_name }}</option>
+                        {% endfor %}
+                      </select>
+                      <div class="abs-field-hint">Puoi inserire la malattia per qualunque dipendente attivo.</div>
+                    </div>
                   {% else %}
                     <label for="dipendente_readonly">Dipendente</label>
                     <input id="dipendente_readonly" type="text" class="abs-input abs-input-readonly" value="{{ nome }}" readonly>
@@ -740,11 +825,14 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
                       <span class="abs-type-card-title">Ferie / Permesso</span>
                       <span class="abs-type-card-text">Un giorno: permesso a ore. Più giorni: ferie a giornata intera.</span>
                     </button>
+                    {% if malattia_visibile %}
+                    {# Chi vede «Malattia» si sceglie in Impostazioni > Inserimento malattia (elenco vuoto = tutti). #}
                     <button type="button" class="abs-type-card abs-type-malattia" data-type-card="Malattia">
                       <span class="abs-type-card-icon"><svg aria-hidden="true"><use href="#abs-i-file-text"></use></svg></span>
                       <span class="abs-type-card-title">Malattia</span>
-                      <span class="abs-type-card-text">Con spunta «Certificato arrivato».</span>
+                      <span class="abs-type-card-text">{% if malattia_per_tutti_solo %}Per qualunque dipendente, con spunta «Certificato arrivato».{% else %}Con spunta «Certificato arrivato».{% endif %}</span>
                     </button>
+                    {% endif %}
                     <button type="button" class="abs-type-card abs-type-flessibilita" data-type-card="Flessibilita">
                       <span class="abs-type-card-icon"><svg aria-hidden="true"><use href="#abs-i-sync"></use></svg></span>
                       <span class="abs-type-card-title">Flessibilita</span>
@@ -1756,7 +1844,59 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
     });
   })();
 
-  {% if assenze_can_insert_for_others %}
+  // ── Conferma dopo l'invio + niente doppio invio ─────────────────────────
+  (function() {
+    "use strict";
+    var conferma = document.getElementById("abs-conferma");
+    if (conferma) {
+      conferma.scrollIntoView({ block: "start" });
+      try { conferma.focus({ preventScroll: true }); } catch (e) { conferma.focus(); }
+    }
+    var form = document.getElementById("richiestaForm");
+    if (!form) return;
+    // In bubbling, dopo i controlli del form: se nessuno ha bloccato l'invio il
+    // pulsante si disattiva, cosi' un secondo clic non spedisce un doppione.
+    form.addEventListener("submit", function(evt) {
+      if (evt.defaultPrevented) return;
+      var btn = form.querySelector('button[type="submit"]');
+      if (!btn) return;
+      setTimeout(function() {
+        btn.disabled = true;
+        btn.textContent = "Invio in corso…";
+      }, 0);
+    });
+    window.addEventListener("pageshow", function(evt) {
+      if (!evt.persisted) return;
+      var btn = form.querySelector('button[type="submit"]');
+      if (btn) { btn.disabled = false; btn.textContent = "Conferma invio"; }
+    });
+  })();
+
+  {% if malattia_per_tutti_solo %}
+  // ── Malattia per tutti: la scelta del dipendente vale solo per «Malattia» ─
+  (function() {
+    "use strict";
+    var tipoSel = document.getElementById("tipoassenza");
+    var proprio = document.querySelector("[data-dip-proprio]");
+    var scelta = document.querySelector("[data-dip-malattia]");
+    var dipSel = document.getElementById("dipendente_id");
+    if (!tipoSel || !proprio || !scelta || !dipSel) return;
+    function sync() {
+      var malattia = String(tipoSel.value || "").trim().toLowerCase() === "malattia";
+      scelta.hidden = !malattia;
+      proprio.hidden = malattia;
+      dipSel.disabled = !malattia;
+      if (!malattia && dipSel.value) {
+        dipSel.value = "";
+        dipSel.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+    tipoSel.addEventListener("change", sync);
+    sync();
+  })();
+  {% endif %}
+
+  {% if assenze_can_insert_for_others or malattia_per_tutti_solo %}
   // ── Cambio dipendente → aggiorna auto caporeparto ──────────────────────
   (function() {
     "use strict";

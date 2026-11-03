@@ -448,9 +448,17 @@ def api_verifica_richiesta(request):
     if not perms.get("can_insert"):
         return _helpers._json_error("Permessi insufficienti.", status=403)
     dip_id = _helpers._as_int(request.GET.get("dipendente_id"))
+    solo_malattia = False
     if dip_id is not None:
-        if not perms.get("can_insert_for_others") or not _helpers._can_insert_for_dipendente(request, dip_id):
-            return _helpers._json_error("Permessi insufficienti per questo dipendente.", status=403)
+        per_altri = perms.get("can_insert_for_others") and _helpers._can_insert_for_dipendente(request, dip_id)
+        if not per_altri:
+            # Abilitato alla sola malattia per tutti: niente saldi altrui.
+            if not (
+                _helpers._malattia_permessi(request)["per_tutti"]
+                and _helpers._norm_tipo(request.GET.get("tipo")) == "Malattia"
+            ):
+                return _helpers._json_error("Permessi insufficienti per questo dipendente.", status=403)
+            solo_malattia = True
         anagrafica_id = dip_id
     else:
         name, email, legacy_id = _helpers._legacy_identity(request)
@@ -466,4 +474,5 @@ def api_verifica_richiesta(request):
             anagrafica_id=anagrafica_id, tipo=tipo, motivazione=request.GET.get("motivazione") or "",
             inizio=inizio, fine=fine,
         )
-    return JsonResponse({"ok": True, "saldo": calcoli.riepilogo_saldo(anagrafica_id), "avvisi": avvisi})
+    saldo = None if solo_malattia else calcoli.riepilogo_saldo(anagrafica_id)
+    return JsonResponse({"ok": True, "saldo": saldo, "avvisi": avvisi})

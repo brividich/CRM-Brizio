@@ -21,7 +21,10 @@ GUIDA = {
                     "«Mezza mattina (08:00-12:00)»). Se ti serve un orario diverso scegli «Personalizzato» e scrivi "
                     "«Ora inizio» e «Ora fine».",
                     "Controlla il riquadro «Bozza live» a destra: è il riassunto di quello che stai inviando, con il nome del dipendente per cui fai la richiesta.",
-                    "Clicca «Conferma invio». La richiesta arriva al tuo capo, che riceve una mail.",
+                    "Clicca «Conferma invio» una volta sola: il pulsante diventa «Invio in corso…».",
+                    "Si apre il riquadro verde «Richiesta inviata» con dipendente, tipo, periodo, stato (per esempio "
+                    "«In attesa di approvazione da …») e numero di riferimento: se lo vedi la richiesta è salvata e "
+                    "il capo riceve la mail. Da lì vai a «Le mie richieste» oppure fai una «Nuova richiesta».",
                 ]),
                 ("def", [
                     ("Permesso", "almeno 30 minuti, senza un massimo di ore, sempre nello stesso giorno (anche con turni lunghi, es. 8-18)."),
@@ -32,7 +35,9 @@ GUIDA = {
                      "assenza@ arriva una volta sola, con le date. Un singolo giorno si può ancora cambiare o "
                      "decidere a parte da «Assenze del reparto»."),
                     ("Ferie di più giorni", "contano a giornata intera."),
-                    ("Malattia", "spunta «Certificato arrivato» se il certificato medico è già arrivato. Il numero del certificato non si scrive. "
+                    ("Malattia", "il pulsante «Malattia» lo vede chi è abilitato in Impostazioni (se l'elenco è vuoto lo vedono tutti); "
+                     "chi è abilitato può scegliere qualunque dipendente in «Dipendente in malattia». "
+                     "Spunta «Certificato arrivato» se il certificato medico è già arrivato. Il numero del certificato non si scrive. "
                      "Se arriva dopo, apri la richiesta con «Modifica» e spunta la casella. "
                      "Le mail della malattia (al capo, ad assenza@, modifiche ed eliminazione) riportano «Certificato arrivato: Sì» o «No»."),
                     ("Flessibilità", "solo per chi è abilitato, solo negli orari fissati dall'Amministrazione, massimo 2 a settimana."),
@@ -41,6 +46,8 @@ GUIDA = {
                      "tuo reparto sei tu, ti viene proposto chi ti sta sopra (es. l'Operations Manager)."),
                 ]),
                 ("nota", "Se l'ora di fine è prima dell'ora di inizio il portale la corregge da solo a inizio + 30 minuti e te lo dice: controlla prima di inviare."),
+                ("nota", "Una richiesta identica a una già inviata (stessa persona, tipo, inizio e fine, non rifiutata) non parte due volte: "
+                         "il portale dice «Questa richiesta è già stata inviata il …» e rimanda a «Le mie richieste»."),
             ],
         },
         {
@@ -170,6 +177,10 @@ GUIDA = {
                 ("def", [
                     ("Chi vede le assenze altrui", "riepilogo in sola lettura di chi vede tutta l'azienda, solo il reparto o solo le proprie richieste."),
                     ("Flessibilità", "elenco delle persone abilitate e orari ammessi di entrata e uscita (predefiniti 07:00/08:00/09:00 e 16:00/17:00/18:00). Si salva con «Salva flessibilità»."),
+                    ("Inserimento malattia", "chi vede il pulsante «Malattia» nella nuova richiesta: le persone spuntate la "
+                     "inseriscono per qualunque dipendente attivo, gli altri non la vedono e, se provano a inviarla o a "
+                     "trasformare una loro richiesta in malattia, ricevono un errore. Elenco vuoto = tutti la vedono come prima "
+                     "(per sé; per gli altri solo chi inserisce già per conto altrui). Si salva con «Salva inserimento malattia»."),
                     ("Gestione admin · Tutte le assenze", "tutte le richieste con filtri, ordinamento, approvazione o rifiuto in blocco (fino a 200 alla volta, nota obbligatoria) ed «Export CSV»."),
                     ("Sincronizzazione SharePoint", "coda delle modifiche da mandare alla lista SharePoint, eventuali errori e pulsante «Sincronizza ora»."),
                 ]),
@@ -265,6 +276,23 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Non so se la mia richiesta è partita",
+            "perche": "dopo «Conferma invio» compare il riquadro verde «Richiesta inviata» con il numero di riferimento; "
+                      "se invece resta il form con un riquadro rosso, la richiesta non è partita e il motivo è scritto lì.",
+            "fare": [
+                "Apri «Le mie richieste»: ogni richiesta inviata è lì con il suo stato.",
+                "Non reinviarla: una richiesta identica viene comunque fermata con «Questa richiesta è già stata inviata».",
+            ],
+        },
+        {
+            "sintomo": "Non vedo il pulsante «Malattia»",
+            "perche": "in Impostazioni → «Inserimento malattia» c'è un elenco di persone abilitate e tu non ci sei.",
+            "fare": [
+                "Comunica la malattia all'ufficio del personale, che la inserisce per te.",
+                "Chi amministra il modulo può aggiungerti in Impostazioni → «Inserimento malattia» (serve un utente collegato all'anagrafica).",
+            ],
+        },
         {
             "sintomo": "Un capo vede «Tutta l'azienda» e può approvare le richieste di tutti",
             "perche": "nella matrice dei permessi il suo ruolo ha «Vedere» o «Approvare» di Assenze con ambito «tutti».",

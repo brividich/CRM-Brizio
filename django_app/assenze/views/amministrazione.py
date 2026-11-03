@@ -12,6 +12,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.db import transaction
 from django.http import HttpResponseForbidden, JsonResponse
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
@@ -128,6 +129,8 @@ def impostazioni_admin(request):
     if request.method == "POST":
         if str(request.POST.get("form") or "").strip() == "flessibilita":
             return _salva_impostazioni_flessibilita(request)
+        if str(request.POST.get("form") or "").strip() == "malattia":
+            return _salva_impostazioni_malattia(request)
 
         branding_response = handle_module_branding_post(
             request,
@@ -179,6 +182,7 @@ def impostazioni_admin(request):
             "admin_can_delete": perms.get("can_delete_any", False),
             **_visibilita_overview(),
             **_flessibilita_admin_context(),
+            **_malattia_admin_context(),
             **get_module_branding_context("assenze", fallback_label="Assenze"),
             **_helpers._template_perm_context(request),
         },
@@ -220,6 +224,91 @@ def _flessibilita_admin_context() -> dict:
         "flessibilita_dipendenti": elenco,
         "flessibilita_abilitati_count": len(abilitati_ids),
     }
+
+
+def _malattia_admin_context() -> dict:
+    """Dati della sezione «Inserimento malattia» di Impostazioni."""
+    from ..models import MalattiaAbilitato
+
+    abilitati_ids = _helpers._malattia_abilitati_ids()
+    elenco = [
+        {
+            "id": _helpers._as_int(d.get("id")),
+            "full_name": d.get("full_name") or "",
+            "abilitato": _helpers._as_int(d.get("id")) in abilitati_ids,
+        }
+        for d in _helpers._load_dipendenti_attivi_list()
+        if _helpers._as_int(d.get("id")) is not None
+    ]
+    # Abilitato ma non piu' fra gli attivi: resta visibile, altrimenti non si toglie.
+    noti = {row["id"] for row in elenco}
+    for orfano in MalattiaAbilitato.objects.exclude(legacy_anagrafica_id__in=noti):
+        elenco.append(
+            {
+                "id": orfano.legacy_anagrafica_id,
+                "full_name": orfano.nominativo or f"#{orfano.legacy_anagrafica_id}",
+                "abilitato": True,
+                "fuori_elenco": True,
+            }
+        )
+    elenco.sort(key=lambda row: str(row.get("full_name") or "").casefold())
+    return {
+        "malattia_dipendenti": elenco,
+        "malattia_abilitati_count": len(abilitati_ids),
+    }
+
+
+def _salva_impostazioni_malattia(request):
+    """Salva chi vede «Malattia» nella nuova richiesta (e la inserisce per tutti)."""
+    from django.contrib import messages
+    from django.shortcuts import redirect
+
+    from ..models import MalattiaAbilitato
+
+    selezionati: set[int] = set()
+    for raw in request.POST.getlist("malattia_abilitati"):
+        value = _helpers._as_int(raw)
+        if value is not None and value > 0:
+            selezionati.add(value)
+
+    nomi = {
+        _helpers._as_int(d.get("id")): str(d.get("full_name") or "")
+        for d in _helpers._load_dipendenti_attivi_list()
+    }
+    precedenti = _helpers._malattia_abilitati_ids()
+    with transaction.atomic():
+        MalattiaAbilitato.objects.exclude(legacy_anagrafica_id__in=selezionati).delete()
+        for ana_id in sorted(selezionati - precedenti):
+            MalattiaAbilitato.objects.update_or_create(
+                legacy_anagrafica_id=ana_id,
+                defaults={
+                    "nominativo": (nomi.get(ana_id) or "")[:200],
+                    "created_by": (request.user.get_username() or "")[:200],
+                },
+            )
+
+    _helpers.log_action(
+        request,
+        "impostazioni_malattia_salvate",
+        "assenze",
+        {
+            "abilitati": len(selezionati),
+            "aggiunti": sorted(selezionati - precedenti),
+            "rimossi": sorted(precedenti - selezionati),
+        },
+    )
+    if selezionati:
+        messages.success(
+            request,
+            f"Inserimento malattia aggiornato: solo {len(selezionati)} persone vedono «Malattia» "
+            "e possono inserirla per tutti i dipendenti.",
+        )
+    else:
+        messages.success(
+            request,
+            "Inserimento malattia aggiornato: elenco vuoto, tutti vedono «Malattia» come prima.",
+        )
+    return redirect(f"{reverse('assenze_impostazioni')}#malattia")
 
 
 def _salva_impostazioni_flessibilita(request):

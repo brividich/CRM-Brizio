@@ -274,6 +274,35 @@ class FlessibilitaAbilitato(models.Model):
         return self.nominativo or f"anagrafica {self.legacy_anagrafica_id}"
 
 
+class MalattiaAbilitato(models.Model):
+    """Chi vede il pulsante «Malattia» nella nuova richiesta e la inserisce per tutti.
+
+    Elenco vuoto = regola storica: tutti vedono «Malattia» e la inseriscono per
+    se' (e per gli altri solo chi gia' inserisce per conto altrui). Con almeno un
+    nome in elenco solo queste persone vedono il pulsante e possono scegliere
+    qualunque dipendente attivo. Identificato per ``legacy_anagrafica_id`` di chi
+    inserisce, come ``FlessibilitaAbilitato``.
+    """
+
+    legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
+    nominativo = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Copia del nominativo al momento dell'abilitazione, per leggibilità dello storico.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        ordering = ["nominativo", "legacy_anagrafica_id"]
+        verbose_name = "Abilitato all'inserimento malattia"
+        verbose_name_plural = "Abilitati all'inserimento malattia"
+
+    def __str__(self):
+        return self.nominativo or f"anagrafica {self.legacy_anagrafica_id}"
+
+
 # ─── HR: impostazioni, calendario aziendale, saldi, contatori, copertura ─────
 
 
