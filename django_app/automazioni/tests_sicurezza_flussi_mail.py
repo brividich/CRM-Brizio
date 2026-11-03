@@ -73,10 +73,10 @@ class SegnalazioneSicurezzaApprovazioniTests(TestCase):
     def _approvazione(self, n):
         return AutomationApproval.objects.order_by("id")[n]
 
-    def test_informativa_solo_preposti_senza_dati_personali_poi_rls(self):
+    def test_informativa_preposti_e_rls_senza_dati_personali_poi_rls(self):
         run_rule(self.regola, self.payload)
         avviso, richiesta_rls = mail.outbox[0], mail.outbox[1]
-        self.assertEqual(_destinatari(avviso), {"preposti@costruzioninovicrom.it"})
+        self.assertEqual(_destinatari(avviso), {"preposti@costruzioninovicrom.it", "rls@costruzioninovicrom.it"})
         self.assertNotIn("Dipendente Sintetico", avviso.body)
         self.assertNotIn("Caduta di un attrezzo", avviso.body)
         self.assertIn("solo informativa", avviso.body)
