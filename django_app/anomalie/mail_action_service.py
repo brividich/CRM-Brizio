@@ -104,7 +104,15 @@ def _log_email_row(
     *, kind, sent, subject, from_email, to_list, cc_list, body_text, body_html,
     op_id, context, created_by, error_text, resend_of,
 ):
-    """Scrive la riga di log. Non solleva mai: il log non blocca l'invio."""
+    """Scrive la riga di log. Non solleva mai: il log non blocca l'invio.
+
+    Oltre al log del modulo (corpo completo, «Reinvia») scrive la riga nel
+    registro trasversale Automazioni → «Mail inviate» (solo destinatari/oggetto/esito).
+    """
+    _registra_mail_inviate(
+        kind=kind, subject=subject, to_list=to_list, cc_list=cc_list, op_id=op_id,
+        error_text="" if sent else (error_text or "Invio non riuscito"),
+    )
     try:
         from .mail_log_models import AnomalieEmailLog
 
@@ -126,6 +134,24 @@ def _log_email_row(
     except Exception:
         logger.warning("anomalie: registrazione log email fallita", exc_info=True)
         return None
+
+
+def _registra_mail_inviate(*, kind, subject, to_list, cc_list, op_id, error_text=""):
+    """Riga nel registro Automazioni → «Mail inviate». Non solleva mai."""
+    try:
+        from automazioni.mail_inviate import registra
+
+        registra(
+            origine=f"anomalie_{kind or 'altro'}",
+            destinatari=to_list,
+            copia=cc_list,
+            oggetto=subject,
+            sorgente="OP" if op_id else "",
+            record_id=op_id or None,
+            errore=error_text or "",
+        )
+    except Exception:
+        logger.warning("anomalie: riga «Mail inviate» non scritta", exc_info=True)
 
 
 def resend_logged_email(log_row, *, user=None):
@@ -170,8 +196,12 @@ def _alert_admins_send_failure(*, context: str, op_id: str = "", detail: str = "
             "Verificare la configurazione SMTP e i destinatari. "
             "Questo è un avviso automatico di sistema; non rispondere a questa email."
         )
-        EmailMultiAlternatives(subject=subject, body=body, from_email=_from, to=recipients).send(
+        inviate = EmailMultiAlternatives(subject=subject, body=body, from_email=_from, to=recipients).send(
             fail_silently=True
+        )
+        _registra_mail_inviate(
+            kind="alert_admin", subject=subject, to_list=recipients, cc_list=[], op_id=op_id,
+            error_text="" if inviate else "Invio non riuscito (SMTP)",
         )
     except Exception:
         logger.warning("_alert_admins_send_failure: invio avviso supervisori fallito", exc_info=True)

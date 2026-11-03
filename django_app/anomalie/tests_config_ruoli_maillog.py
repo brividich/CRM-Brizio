@@ -186,6 +186,85 @@ class EmailLogTests(TestCase):
         self.assertEqual(row.status, AnomalieEmailLog.Status.FAILED)
         self.assertIn("smtp ko", row.error)
 
+    def test_invio_scrive_anche_registro_mail_inviate(self):
+        from automazioni.mail_inviate import ORIGINI
+        from automazioni.models import EmailInviata
+
+        send_and_log_email(
+            kind=AnomalieEmailLog.Kind.MAIL_ACTION,
+            subject="Anomalie OP 456",
+            body_text="corpo",
+            to=["Capo@Example.com"],
+            cc=["car@example.com"],
+            op_id="456",
+        )
+        riga = EmailInviata.objects.get()
+        self.assertEqual(riga.origine, "anomalie_mail_action")
+        self.assertIn(riga.origine, ORIGINI)
+        self.assertEqual(riga.destinatari, "capo@example.com")
+        self.assertEqual(riga.copia, "car@example.com")
+        self.assertEqual((riga.sorgente, riga.record_id), ("OP", "456"))
+        self.assertEqual(riga.esito, EmailInviata.ESITO_INVIATA)
+
+    def test_invio_fallito_registro_mail_inviate_con_errore(self):
+        from automazioni.models import EmailInviata
+
+        with patch("django.core.mail.EmailMultiAlternatives.send", side_effect=OSError("smtp ko")):
+            send_and_log_email(
+                kind=AnomalieEmailLog.Kind.ESCALATION, subject="Resoconto", body_text="corpo",
+                to=["sup@example.com"], fail_silently=True,
+            )
+        riga = EmailInviata.objects.get()
+        self.assertEqual(riga.esito, EmailInviata.ESITO_ERRORE)
+        self.assertIn("smtp ko", riga.errore)
+
+    def test_recupero_copia_le_mail_precedenti_una_volta_sola(self):
+        from datetime import timedelta
+        from io import StringIO
+
+        from django.core.management import call_command
+        from django.utils import timezone
+
+        from automazioni.models import EmailInviata
+
+        vecchia = AnomalieEmailLog.objects.create(
+            kind=AnomalieEmailLog.Kind.CONFERMA_AGGIORNAMENTI, subject="Aggiornamenti OP 9",
+            to_emails=["a@example.com"], cc_emails=["b@example.com"], op_id="9",
+        )
+        fallita = AnomalieEmailLog.objects.create(
+            kind=AnomalieEmailLog.Kind.ESCALATION, status=AnomalieEmailLog.Status.FAILED,
+            subject="Resoconto", to_emails=["s@example.com"], error="SMTP ko",
+        )
+        fuori = AnomalieEmailLog.objects.create(kind="altro", subject="Troppo vecchia", to_emails=["x@example.com"])
+        AnomalieEmailLog.objects.filter(pk=fuori.pk).update(created_at=timezone.now() - timedelta(days=400))
+        # Prima riga scritta dal portale: quelle dopo non vanno ricopiate.
+        EmailInviata.objects.create(origine="anomalie_mail_action", destinatari="c@example.com",
+                                    oggetto="Live", inviata_il=timezone.now() + timedelta(seconds=5))
+        dopo = AnomalieEmailLog.objects.create(kind="mail_action", subject="Dopo", to_emails=["c@example.com"])
+        AnomalieEmailLog.objects.filter(pk=dopo.pk).update(created_at=timezone.now() + timedelta(seconds=10))
+
+        call_command("recupera_mail_inviate_anomalie", stdout=StringIO())
+        self.assertEqual(EmailInviata.objects.count(), 1)  # dry-run
+
+        call_command("recupera_mail_inviate_anomalie", "--apply", stdout=StringIO())
+        call_command("recupera_mail_inviate_anomalie", "--apply", stdout=StringIO())
+        copiate = EmailInviata.objects.exclude(oggetto="Live")
+        self.assertEqual(set(copiate.values_list("oggetto", flat=True)), {"Aggiornamenti OP 9", "Resoconto"})
+        riga = copiate.get(oggetto="Aggiornamenti OP 9")
+        vecchia.refresh_from_db()
+        self.assertEqual(riga.inviata_il, vecchia.created_at)
+        self.assertEqual((riga.origine, riga.sorgente, riga.record_id), ("anomalie_conferma_aggiornamenti", "OP", "9"))
+        self.assertEqual(riga.copia, "b@example.com")
+        errore = copiate.get(oggetto="Resoconto")
+        self.assertEqual((errore.esito, errore.errore), (EmailInviata.ESITO_ERRORE, "SMTP ko"))
+        self.assertTrue(fallita.pk)
+
+    def test_ogni_kind_ha_etichetta_nel_registro(self):
+        from automazioni.mail_inviate import ORIGINI
+
+        for kind in AnomalieEmailLog.Kind.values:
+            self.assertIn(f"anomalie_{kind}", ORIGINI)
+
     def test_fail_silently_non_rilancia_e_logga(self):
         with patch(
             "django.core.mail.EmailMultiAlternatives.send", side_effect=OSError("smtp ko")
