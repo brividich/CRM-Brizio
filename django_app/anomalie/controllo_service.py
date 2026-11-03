@@ -220,6 +220,7 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
         "fase": controllo.fase,
         "mail_mode": controllo.mail_mode,
         "operatore": controllo.operatore_display,
+        "passaggi": controllo.passaggi if isinstance(controllo.passaggi, list) else [],
         "created_at": controllo.created_at.isoformat() if controllo.created_at else "",
         "terminato": controllo.terminato_at is not None,
         "da_notificare": len(controllo.da_notificare or []),
@@ -235,6 +236,128 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
         ],
         "blocchi": blocchi,
     }
+
+
+# ─── Gruppo qualità: controlli condivisi fra colleghi ────────────────────────
+# Chi ha uno di questi ruoli (preset di «Ruoli e permessi») vede i controlli
+# aperti dei colleghi dello stesso gruppo e può prenderli in carico: una
+# segnalazione corposa iniziata a fine turno la finisce il collega dopo.
+PRESET_GRUPPO_QUALITA = frozenset({"controllo-qualita", "qualita"})
+GIORNI_CONTROLLI_SOSPESI = 14
+
+
+def _legacy_id_utente(user) -> int | None:
+    try:
+        return int(user.profile.legacy_user_id)
+    except Exception:
+        return None
+
+
+def nel_gruppo_qualita(user, _memo: dict | None = None) -> bool:
+    """True se l'utente ha il ruolo Controllo qualità o Qualità (anche da organigramma)."""
+    if user is None or not getattr(user, "pk", None):
+        return False
+    if _memo is not None and user.pk in _memo:
+        return _memo[user.pk]
+    esito = False
+    legacy_id = _legacy_id_utente(user)
+    if legacy_id:
+        try:
+            from core.permessi.motore import ruoli_della_persona
+
+            esito = any(
+                getattr(g, "preset", "") in PRESET_GRUPPO_QUALITA
+                for g in ruoli_della_persona(legacy_id, includi_base=False)
+            )
+        except Exception:
+            logger.warning("gruppo qualita': ruoli non leggibili per %s", user.pk, exc_info=True)
+    if _memo is not None:
+        _memo[user.pk] = esito
+    return esito
+
+
+def colleghi_del_gruppo(user, controllo, _memo: dict | None = None) -> bool:
+    """Il controllo è di un collega del gruppo qualità dell'utente (e non dell'utente)."""
+    if controllo.operatore_id == getattr(user, "pk", None) or controllo.operatore is None:
+        return False
+    return nel_gruppo_qualita(user, _memo) and nel_gruppo_qualita(controllo.operatore, _memo)
+
+
+def in_sospeso(controllo) -> bool:
+    """Qualcosa da finire: blocco scritto e non salvato, blocchi copiati da caricare
+    o anomalie salvate non ancora comunicate al capocommessa."""
+    return bool(bozza_piena(controllo.bozza) or controllo.da_notificare)
+
+
+def riassunto_sospeso(controllo, user) -> dict:
+    """Riga per l'elenco dei controlli in sospeso (pagina «Apertura segnalazione»)."""
+    bozza = controllo.bozza if isinstance(controllo.bozza, dict) else {}
+    in_bozza = len([a for a in (bozza.get("anomalie") or []) if isinstance(a, dict)])
+    coda = [b for b in (bozza.get("coda") or []) if isinstance(b, dict)]
+    ultimo = max([d for d in (controllo.bozza_at, controllo.ultimo_salvataggio_at, controllo.created_at) if d])
+    return {
+        "id": controllo.pk,
+        "op_id": controllo.op_id,
+        "op_nuovo": bool(controllo.op_nuovo),
+        "fase": controllo.fase,
+        "operatore": controllo.operatore_display,
+        "mio": controllo.operatore_id == getattr(user, "pk", None),
+        "anomalie_in_bozza": in_bozza,
+        "blocchi_da_copiare": len(coda),
+        "da_notificare": len(controllo.da_notificare or []),
+        "ultimo_at": ultimo.isoformat() if ultimo else "",
+        "passaggi": controllo.passaggi if isinstance(controllo.passaggi, list) else [],
+    }
+
+
+def controlli_sospesi(user, *, op_id: str = "", limite: int = 30) -> list:
+    """Controlli aperti con qualcosa in sospeso visibili all'utente: i suoi e, se è
+    nel gruppo qualità, quelli dei colleghi del gruppo. Dal più recente."""
+    from .quality_models import AnomaliaControllo
+
+    qs = AnomaliaControllo.objects.filter(
+        terminato_at__isnull=True,
+        created_at__gte=timezone.now() - timedelta(days=GIORNI_CONTROLLI_SOSPESI),
+    ).select_related("operatore")
+    if op_id:
+        qs = qs.filter(op_id__iexact=op_id)
+    memo: dict = {}
+    gruppo = nel_gruppo_qualita(user, memo)
+    out = []
+    for c in qs.order_by("-id")[:300]:
+        if c.operatore_id != user.pk and not (gruppo and colleghi_del_gruppo(user, c, memo)):
+            continue
+        out.append(c)
+    return out[:limite]
+
+
+def prendi_in_carico(controllo, user, nome: str) -> dict:
+    """Passa il controllo al collega: da qui in avanti bozza, blocchi, promemoria e
+    «Termina» sono suoi. Il passaggio resta in ``passaggi``; chi lo aveva viene avvisato."""
+    da_nome = controllo.operatore_display or ""
+    da_user = controllo.operatore
+    passaggio = {"da": da_nome, "a": nome, "at": timezone.now().isoformat()}
+    controllo.passaggi = [*(controllo.passaggi if isinstance(controllo.passaggi, list) else []), passaggio]
+    controllo.operatore = user
+    controllo.operatore_display = nome[:200]
+    # Il promemoria della bozza riparte per il nuovo titolare.
+    controllo.promemoria_bozza_at = None
+    controllo.save(update_fields=["passaggi", "operatore", "operatore_display", "promemoria_bozza_at", "updated_at"])
+    legacy_da = _legacy_id_utente(da_user) if da_user is not None else None
+    if legacy_da:
+        try:
+            from core.models import Notifica
+
+            Notifica.objects.create(
+                legacy_user_id=legacy_da,
+                tipo=TIPO_NOTIFICA_PROMEMORIA,
+                messaggio=(f"{nome} ha preso in carico il tuo controllo su OP {controllo.op_id} "
+                           f"(fase {controllo.fase}) e lo prosegue.")[:500],
+                url_azione=url_controllo(controllo),
+            )
+        except Exception:
+            logger.warning("controllo %s: notifica passaggio non creata", controllo.pk, exc_info=True)
+    return passaggio
 
 
 def seriali_anomalia(seriale_riga: str, blocco) -> dict:
