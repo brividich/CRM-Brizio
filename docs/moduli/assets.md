@@ -288,3 +288,13 @@ Comando operativo (no UI): `python manage.py riallinea_asset_da_excel --file <xl
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 Unica definizione di OdL in ritardo: `maintenance.q_odl_in_ritardo` / `odl_in_ritardo` (scadenza superata o aperto da oltre la soglia) in dashboard, Centro manutenzione, Panoramica, macchine, report e inventario; report, conformità, KPI IT e chip dell'inventario con l'ambito del ruolo.
+
+## «Leggi planimetria»: proposte di posizione dalle sigle della pianta (03/11/2026)
+
+- Pulsante «Leggi planimetria» nell'editor (`assets:plant_layout_editor?leggi=1`, stesso permesso `assets.wm_map.edit`, nessuna rotta nuova). Servizio `assets/services/planimetria_lettura.py`, vista `assets/views/layout_leggi.py`, template `planimetria_lettura.html`.
+- Testo con posizione da PDF vettoriale (PyMuPDF `get_text("words")`, es. PDF stampato dal DWG) oppure OCR dell'immagine (Tesseract TSV, `--psm 11`, stessa installazione dei referti: `TESSERACT_CMD`/`TESSDATA_PREFIX`).
+- Abbinamento su asset non IT non dismessi: numero interno (prefisso «Int.» e zeri iniziali tolti), tag, matricola, sigla dentro nome/tag («DM7 - DMG Mori» → DM7), nome; tolleranza OCR I/L→1, O→0 nelle sigle con cifre; sigle di più asset scartate; sigle uguali a nomi di reparto/area/testi reparto escluse. Letture dello stesso asset entro il 6% = un punto.
+- AI locale facoltativa (`ai_assistant.services.chat_with_ollama`) per le sigle rimaste: accettate solo sigle davvero lette e asset dell'elenco, mai preselezionate.
+- Esiti: nuovo / sposta / invariato (≤3%); non preselezionati AI, sigle in più punti, spostamenti >10%. «Colloca i selezionati» = `PlantLayoutMarker` + timeline PLANIMETRIA. PDF come immagine = nuova versione non attiva (`copy_layout_content`), anteprima temporanea in `media/planimetrie_lettura/` cancellata dopo un giorno.
+- Prova in sola lettura su produzione (03/11): Officina Imm.1 13 macchine riconosciute dall'OCR, tutte entro ~1% dalla posizione messa a mano; Condizionatori 5.
+

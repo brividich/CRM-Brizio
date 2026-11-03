@@ -109,6 +109,7 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
 <p>Carica la pianta (anche da PDF), raddrizzala e ritagliala, poi disegna i reparti e colloca le macchine.</p>
 {% endblock %}
 {% block assets_shell_toolbar %}
+<a class="btn" href="{% url 'assets:plant_layout_editor' %}?leggi=1{% if selected_layout and not create_new %}&layout={{ selected_layout.id }}{% endif %}" title="Legge le sigle sulla pianta e propone dove collocare gli asset">Leggi planimetria</a>
 <a class="btn" href="{% url 'assets:plant_layout_map' %}{% if current_layout_category %}?category={{ current_layout_category|urlencode }}{% endif %}">Apri vista utenti</a>
 <a class="btn btn-secondary" href="{% url 'assets:work_machine_dashboard' %}">Dashboard officina</a>
 <a class="btn btn-secondary" href="{% url 'assets:guida' %}#planimetrie" title="Guida">? Guida</a>
