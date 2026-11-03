@@ -652,6 +652,8 @@ def api_evento_update(request, item_id: int | None = None):
             motivo=motivo,
         )
         _helpers._notify_assenza_modificata(request, current, modifiche, motivo=motivo)
+        if nuovo_stato in ("Approvato", "Rifiutato"):
+            _helpers._notify_esito_dipendente(request, {**current, **updates}, nuovo_stato, motivo)
 
     sync_result = _helpers._sp_enqueue_upsert(target_id)
 

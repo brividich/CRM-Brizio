@@ -326,7 +326,7 @@
       <div class="abs-panel-head">
         <div class="abs-panel-title-wrap">
           <h2 class="abs-panel-title"><svg aria-hidden="true"><use href="#abs-i-settings"></use></svg>Orario, patrono e solleciti</h2>
-          <p class="abs-panel-subtitle">Le ore di una giornata servono a convertire le ferie in ore per i saldi. I solleciti partono ogni mattina feriale alle 08:15: una mail per capo con le richieste ancora in attesa.</p>
+          <p class="abs-panel-subtitle">Le ore di una giornata servono a convertire le ferie in ore per i saldi. I solleciti partono ogni mattina feriale alle 08:15: una mail per capo con le richieste ancora in attesa. L’avviso sul certificato medico parte alle 08:30 verso assenza@.</p>
         </div>
       </div>
       <div class="abs-panel-body">
@@ -365,6 +365,19 @@
           <div class="abs-field">
             <label for="imp-sr">Ripeti il sollecito ogni (giorni)</label>
             <input id="imp-sr" class="abs-input" type="number" min="1" max="60" name="sollecito_ripeti_giorni" value="{{ imp.sollecito_ripeti_giorni }}" required>
+          </div>
+          <div class="abs-field full">
+            <div style="display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;">
+              <label style="display:flex;gap:8px;align-items:center;font-weight:600;">
+                <input type="checkbox" name="certificato_avviso_attivo" value="1"{% if imp.certificato_avviso_attivo %} checked{% endif %}> Avviso certificato medico mancante
+              </label>
+              <label for="imp-cg" style="display:flex;gap:8px;align-items:center;">
+                dopo
+                <input id="imp-cg" class="abs-input" type="number" min="1" max="30" name="certificato_avviso_giorni" value="{{ imp.certificato_avviso_giorni }}" required style="width:84px;">
+                giorni dall'inizio della malattia
+              </label>
+            </div>
+            <div class="abs-field-hint">Ogni mattina feriale alle 08:30 parte una mail ad assenza@ con le malattie ancora senza «Certificato arrivato»; ognuna compare una volta sola.</div>
           </div>
           <label class="abs-field full" style="display:flex;flex-direction:row;gap:8px;align-items:flex-start;">
             <input type="checkbox" name="outlook_capo_attivo" value="1"{% if imp.outlook_capo_attivo %} checked{% endif %} style="margin-top:3px;">
