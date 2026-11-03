@@ -180,8 +180,8 @@ body.theme-dark #ga-modal-error{color:#fca5a5}
       tutto lo storico, perche' e' una WHERE e non un filtro sul DOM.
       {% endcomment %}
       <form method="get" action="" class="ga-filters" id="ga-filters">
-        {# Cambiare un filtro riparte da pagina 1: restare alla 7 di un altro
-           risultato mostrerebbe una pagina vuota senza spiegare perche'. #}
+        {% comment %}Cambiare un filtro riparte da pagina 1: restare alla 7 di un altro
+           risultato mostrerebbe una pagina vuota senza spiegare perche'.{% endcomment %}
         <input type="hidden" name="page" id="ga-page" value="1">
         <input type="hidden" name="ordina" id="ga-ordina" value="{{ admin_filtri.ordina }}">
         <input type="hidden" name="verso" id="ga-verso" value="{{ admin_filtri.verso }}">
