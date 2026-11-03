@@ -222,3 +222,33 @@ class PagineSapereTests(TestCase):
 
         self.assertTrue(NavigationItem.objects.filter(code="admin-sapere-cataloghi",
                                                       route_name="admin_portale:sapere_cataloghi").exists())
+
+
+class GuidaHomeSezioniAdminTests(TestCase):
+    """La sezione «Per chi gestisce i contenuti» della «? Guida» home è solo per gli amministratori."""
+
+    def _pagina(self, user):
+        from core.models import UserOnboarding
+
+        UserOnboarding.objects.create(user=user, completed=True)
+        self.client.force_login(user)
+        resp = self.client.get(reverse("home_portale:guida"))
+        self.assertEqual(resp.status_code, 200)
+        return resp.content.decode()
+
+    def test_utente_normale_non_vede_la_sezione_gestione(self):
+        user = get_user_model().objects.create_user(username="op-guida", password="x")
+        html = self._pagina(user)
+        self.assertNotIn("Per chi gestisce i contenuti", html)
+        self.assertNotIn("Cataloghi Sapere", html)
+
+    def test_amministratore_vede_la_sezione_gestione(self):
+        user = get_user_model().objects.create_superuser(username="adm-guida", email="g@g.it", password="x")
+        self.assertIn("Per chi gestisce i contenuti", self._pagina(user))
+
+    def test_assistente_ai_non_indicizza_la_sezione_gestione(self):
+        from ai_assistant.guide_portale import _testo_home
+
+        testo = _testo_home()
+        self.assertNotIn("Per chi gestisce i contenuti", testo)
+        self.assertIn("Sapere", testo)
