@@ -8,7 +8,7 @@ from __future__ import annotations
 from django.contrib import admin
 
 from .models import (
-    SuggestionCorner, SuggestionCornerAllegato, SuggestionCornerConfig,
+    SuggestionCorner, SuggestionCornerAllegato, SuggestionCornerConfig, SuggestionCornerLocandina,
     SuggestionCornerProcessoMapping, SuggestionCornerStorico,
 )
 
@@ -62,3 +62,9 @@ class SuggestionCornerProcessoMappingAdmin(admin.ModelAdmin):
     list_display = ("valore_libero", "processo", "is_default")
     list_editable = ("processo", "is_default")
     search_fields = ("valore_libero",)
+
+
+@admin.register(SuggestionCornerLocandina)
+class SuggestionCornerLocandinaAdmin(admin.ModelAdmin):
+    list_display = ("nome", "titolo", "tema", "formato", "predefinita", "updated_at")
+    search_fields = ("nome", "titolo")
