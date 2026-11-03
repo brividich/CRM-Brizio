@@ -32,6 +32,8 @@ class FormPubblicoTest(TestCase):
         resp = self.client.post(self.url, {
             "reparto_provenienza": self.reparto.pk,
             "opportunity": "Migliorare l'illuminazione.",
+            "modo": "identificato",
+            "segnalante_nome": "Mario Prova",
         })
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(SuggestionCorner.objects.count(), 1)
@@ -39,17 +41,20 @@ class FormPubblicoTest(TestCase):
         self.assertEqual(seg.stato, "DA_CLASSIFICARE")
         self.assertTrue(seg.da_portale)
         self.assertFalse(seg.anonima)
-        self.assertIsNone(seg.created_by)
+        self.assertIsNone(seg.created_by)  # senza login: resta il nome dichiarato
+        self.assertEqual(seg.segnalante_nome, "Mario Prova")
 
     def test_anonima_flag(self):
         self.client.post(self.url, {
             "reparto_provenienza": self.reparto.pk,
             "opportunity": "Segnalazione anonima.",
-            "anonima": "on",
+            "modo": "anonimo",
+            "segnalante_nome": "Nome scritto per sbaglio",
         })
         seg = SuggestionCorner.objects.get()
         self.assertTrue(seg.anonima)
         self.assertIsNone(seg.created_by)
+        self.assertEqual(seg.segnalante_nome, "")  # anonima: il nome non si salva
 
     def test_honeypot_scarta_silenziosamente(self):
         resp = self.client.post(self.url, {
@@ -64,6 +69,7 @@ class FormPubblicoTest(TestCase):
         resp = self.client.post(self.url, {
             "area_provenienza": self.area.pk,
             "opportunity": "Segnalazione da area IT.",
+            "modo": "anonimo",
         })
         self.assertEqual(resp.status_code, 200)
         seg = SuggestionCorner.objects.get()
@@ -77,12 +83,12 @@ class FormPubblicoTest(TestCase):
 
     def test_post_senza_provenienza_non_crea(self):
         # Né reparto né area → form invalido (regola "almeno uno").
-        resp = self.client.post(self.url, {"opportunity": "Manca la provenienza."})
+        resp = self.client.post(self.url, {"opportunity": "Manca la provenienza.", "modo": "anonimo"})
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(SuggestionCorner.objects.count(), 0)
 
     def test_rate_limit_per_ip(self):
-        payload = {"reparto_provenienza": self.reparto.pk, "opportunity": "x"}
+        payload = {"reparto_provenienza": self.reparto.pk, "opportunity": "x", "modo": "anonimo"}
         # IP non di loopback: da 127.0.0.1 (richieste via IIS senza proxy fidato)
         # vale solo il limite globale, non quello per IP.
         for _ in range(5):

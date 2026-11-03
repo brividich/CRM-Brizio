@@ -1,0 +1,133 @@
+{% extends "core/base.html" %}
+{% block title %}Locandine QR — Suggestion Corner{% endblock %}
+{% block extra_head %}{% include "suggestion_corner/partials/_sc_styles.html" %}
+<style>
+  .sc-loc{display:grid;grid-template-columns:minmax(320px,440px) 1fr;gap:var(--space-4);align-items:start}
+  @media (max-width:980px){.sc-loc{grid-template-columns:1fr}}
+  .sc-presets{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:var(--space-3)}
+  .sc-preset{display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .75rem;border:1px solid var(--border);
+    border-radius:999px;text-decoration:none;color:var(--text);font-size:.88rem;background:var(--surface)}
+  .sc-preset:hover{border-color:var(--primary-mid,#2f5f89)}
+  .sc-preset.is-active{border-color:var(--accent,#ff6b00);background:color-mix(in srgb,var(--accent,#ff6b00) 12%,transparent);font-weight:600}
+  .sc-preset .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .sc-preset .sw[data-tema="hub"]{background:linear-gradient(135deg,#002b5c 50%,#ff6b00 50%)}
+  .sc-preset .sw[data-tema="verde"]{background:linear-gradient(135deg,#14532d 50%,#16a34a 50%)}
+  .sc-preset .sw[data-tema="rosso"]{background:linear-gradient(135deg,#7f1d1d 50%,#dc2626 50%)}
+  .sc-preset .sw[data-tema="grigio"]{background:linear-gradient(135deg,#1f2937 50%,#9ca3af 50%)}
+  .sc-loc-form{display:grid;gap:var(--space-3)}
+  .sc-loc-2{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
+  .sc-check{display:flex;align-items:center;gap:.5rem;font-size:.9rem}
+  .sc-check input{width:18px;height:18px}
+  .sc-azioni{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+  .sc-nuovo{display:flex;gap:.5rem;align-items:flex-start}
+  .sc-nuovo input{flex:1}
+  .sc-anteprima{width:100%;height:calc(82 * var(--vh, 1vh));min-height:520px;border:1px solid var(--border);
+    border-radius:12px;background:#525659}
+  .sc-url{font-family:ui-monospace,Consolas,monospace;font-size:.85rem;word-break:break-all}
+  .sc-nota-qr{font-size:.85rem;color:var(--text-mid,#4a5568);margin:.3rem 0 0}
+</style>
+{% endblock %}
+{% block content %}
+<div class="content">
+  <div class="sc-page-head">
+    <div>
+      <span class="sc-eyebrow"><span class="dot"></span>
+        <a href="{% url 'suggestion_corner:gestione' %}" style="text-decoration:none;color:inherit">← Gestione modulo</a>
+      </span>
+      <h1>Locandine QR</h1>
+      <p class="sc-sub">Locandine da stampare e appendere nelle bacheche: il QR al centro apre il modulo per inviare una segnalazione dal telefono.</p>
+    </div>
+    <div class="sc-azioni">
+      <a href="{% url 'guida_modulo' 'suggestion_corner' %}#locandine" class="hub-btn">? Guida</a>
+      {% if scelto %}<a href="{% url 'suggestion_corner:locandina_pdf' %}?preset={{ scelto.pk }}&amp;scarica=1" class="hub-btn hub-btn-primary">Scarica PDF</a>{% endif %}
+    </div>
+  </div>
+
+  <div class="sc-loc">
+    <div style="display:grid;gap:var(--space-4)">
+      <div class="sc-card">
+        <div class="sc-card-head">Preset</div>
+        <div class="sc-card-body">
+          <div class="sc-presets">
+            {% for p in presets %}
+              <a href="?preset={{ p.pk }}" class="sc-preset{% if scelto and p.pk == scelto.pk %} is-active{% endif %}">
+                <span class="sw" data-tema="{{ p.tema }}"></span>{{ p.nome }}{% if p.predefinita %} ★{% endif %}
+              </a>
+            {% endfor %}
+          </div>
+
+          <form method="post" class="sc-loc-form" id="sc-loc-form"
+                action="{% url 'suggestion_corner:locandine' %}">
+            {% csrf_token %}
+            <input type="hidden" name="preset" value="{{ scelto.pk|default:'' }}">
+            {% for e in form.non_field_errors %}<div class="hub-alert hub-alert-error">{{ e }}</div>{% endfor %}
+            {% include "suggestion_corner/partials/_sc_field.html" with field=form.nome only %}
+            {% include "suggestion_corner/partials/_sc_field.html" with field=form.titolo only %}
+            {% include "suggestion_corner/partials/_sc_field.html" with field=form.sottotitolo only %}
+            {% include "suggestion_corner/partials/_sc_field.html" with field=form.invito only %}
+            {% include "suggestion_corner/partials/_sc_field.html" with field=form.passi only %}
+            {% include "suggestion_corner/partials/_sc_field.html" with field=form.nota only %}
+            {% include "suggestion_corner/partials/_sc_field.html" with field=form.piede only %}
+            <div class="sc-loc-2">
+              {% include "suggestion_corner/partials/_sc_field.html" with field=form.tema only %}
+              {% include "suggestion_corner/partials/_sc_field.html" with field=form.formato only %}
+            </div>
+            <label class="sc-check">{{ form.mostra_indirizzo }} {{ form.mostra_indirizzo.label }}</label>
+            <label class="sc-check">{{ form.predefinita }} {{ form.predefinita.label }}</label>
+
+            <div class="sc-azioni">
+              <button type="submit" class="hub-btn" formaction="{% url 'suggestion_corner:locandina_pdf' %}"
+                      formtarget="sc-anteprima" id="sc-aggiorna">Aggiorna anteprima</button>
+              {% if scelto %}<button type="submit" name="azione" value="salva" class="hub-btn hub-btn-primary">Salva preset</button>{% endif %}
+            </div>
+            <div class="sc-nuovo">
+              <input type="text" name="nome_nuovo" maxlength="80" placeholder="Nome del nuovo preset" aria-label="Nome del nuovo preset">
+              <button type="submit" name="azione" value="nuovo" class="hub-btn">Salva come nuovo</button>
+            </div>
+            {% if scelto and presets|length > 1 %}
+              <div><button type="submit" name="azione" value="elimina" class="hub-btn hub-btn-sm"
+                      data-hub-confirm="Eliminare il preset «{{ scelto.nome }}»?">Elimina preset</button></div>
+            {% endif %}
+          </form>
+        </div>
+      </div>
+
+      <div class="sc-card">
+        <div class="sc-card-head">Dove porta il QR</div>
+        <div class="sc-card-body">
+          <p class="sc-url">{{ url_qr }}</p>
+          <form method="post" class="sc-loc-form" action="{% url 'suggestion_corner:locandine' %}">
+            {% csrf_token %}
+            <input type="hidden" name="preset" value="{{ scelto.pk|default:'' }}">
+            <input type="hidden" name="azione" value="url">
+            {% include "suggestion_corner/partials/_sc_field.html" with field=form_url.url_pubblico_form only %}
+            <p class="sc-nota-qr">Lascia vuoto per usare l'indirizzo del portale. Cambialo solo se il modulo si apre da fuori con un altro indirizzo; le locandine già stampate continuano a puntare al vecchio.</p>
+            <div><button type="submit" class="hub-btn">Salva indirizzo</button></div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-card">
+      <div class="sc-card-head">Anteprima</div>
+      <div class="sc-card-body">
+        <iframe name="sc-anteprima" class="sc-anteprima" title="Anteprima della locandina"
+                {% if scelto %}src="{% url 'suggestion_corner:locandina_pdf' %}?preset={{ scelto.pk }}"{% endif %}></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // L'anteprima si aggiorna da sola mentre si scrive (attesa breve fra un tasto e l'altro).
+  (function () {
+    var form = document.getElementById("sc-loc-form");
+    var bottone = document.getElementById("sc-aggiorna");
+    if (!form || !bottone) return;
+    var timer = null;
+    function aggiorna() { clearTimeout(timer); timer = setTimeout(function () { bottone.click(); }, 700); }
+    form.addEventListener("input", function (e) { if (e.target.name !== "nome_nuovo") aggiorna(); });
+    form.addEventListener("change", aggiorna);
+  })();
+</script>
+{% endblock %}

@@ -37,6 +37,7 @@
         <dl class="sc-facts">
           <dt>Classificazione</dt><dd><span class="sc-chip" data-sms="{{ seg.stato_sms }}">{{ seg.get_stato_sms_display }}</span></dd>
           <dt>Data</dt><dd>{{ seg.data_segnalazione|date:"d/m/Y" }}</dd>
+          <dt>Segnalata da</dt><dd>{{ seg.segnalante_display }}{% if not seg.anonima and not seg.created_by_id and seg.segnalante_nome %} <span class="sc-chip">nome dichiarato</span>{% endif %}</dd>
           <dt>Provenienza</dt><dd>{{ seg.provenienza_display }}</dd>
           <dt>Destinazione</dt><dd>{{ seg.destinazione_display }}</dd>
           <dt>Processo</dt><dd>{{ seg.processo|default:seg.processo_libero|default:"—" }}</dd>
@@ -51,6 +52,19 @@
       <div class="sc-card-body sc-prose">
         <h3>Opportunità</h3>
         <p>{{ seg.opportunity|linebreaksbr }}</p>
+        {% if allegati %}
+        <div class="sc-foto">
+          {% for a in allegati %}
+            {% if a.file %}
+              <a href="{% url 'suggestion_corner:allegato' a.pk %}" target="_blank" rel="noopener">
+                {% if a.is_immagine %}<img src="{% url 'suggestion_corner:allegato' a.pk %}" alt="Foto allegata alla segnalazione" loading="lazy">{% else %}📎 {{ a }}{% endif %}
+              </a>
+            {% elif a.link_esterno %}
+              <a href="{{ a.link_esterno }}" target="_blank" rel="noopener noreferrer">🔗 Link allegato</a>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
         {% if seg.plan_testo %}<h3>Plan</h3><p>{{ seg.plan_testo|linebreaksbr }}</p>{% endif %}
         {% if seg.do_testo %}<h3>Do</h3><p>{{ seg.do_testo|linebreaksbr }}</p>{% endif %}
         {% if seg.check_testo %}<h3>Check</h3><p>{{ seg.check_testo|linebreaksbr }}</p>{% endif %}

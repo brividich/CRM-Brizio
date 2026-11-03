@@ -10,7 +10,7 @@
       <h1>Suggestion Corner</h1>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-      {% if is_team %}<a href="{% url 'suggestion_corner:gestione' %}" class="hub-btn">⚙ Gestione</a>{% endif %}
+      {% if is_team %}<a href="{% url 'suggestion_corner:locandine' %}" class="hub-btn">Locandine QR</a><a href="{% url 'suggestion_corner:gestione' %}" class="hub-btn">⚙ Gestione</a>{% endif %}
       <a href="{% url 'suggestion_corner:nuova' %}" class="hub-btn hub-btn-primary">+ Nuova segnalazione</a>
     </div>
   </div>
