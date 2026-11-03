@@ -3797,6 +3797,30 @@ class AutomationEmailExecutorTests(TestCase):
         email_message.send.assert_called_once_with(fail_silently=False)
 
     @patch("automazioni.services.EmailMultiAlternatives")
+    def test_send_email_malattia_aggiunge_certificato_arrivato(self, mock_email_class):
+        email_message = MagicMock()
+        email_message.send.return_value = 1
+        mock_email_class.return_value = email_message
+        action = AutomationAction.objects.create(
+            rule=self.rule,
+            order=1,
+            action_type=AutomationActionType.SEND_EMAIL,
+            config_json={
+                "to": "hr@test.local",
+                "subject_template": "Assenza #{id}",
+                "body_text_template": "Richiesta {id}",
+                "body_html_template": "<p>Richiesta {id}</p>",
+            },
+        )
+        payload = {**self.payload, "tipo_assenza": "Malattia", "certificato_medico": ""}
+
+        result = execute_action(action, payload, run_log=self.run_log)
+
+        self.assertEqual(result["status"], AutomationActionLogStatus.SUCCESS)
+        self.assertEqual(mock_email_class.call_args.kwargs["body"], "Certificato arrivato: No\n\nRichiesta 99")
+        self.assertIn("Certificato arrivato: No", email_message.attach_alternative.call_args[0][0])
+
+    @patch("automazioni.services.EmailMultiAlternatives")
     def test_send_email_accepts_recipient_lists(self, mock_email_class):
         email_message = MagicMock()
         email_message.send.return_value = 1

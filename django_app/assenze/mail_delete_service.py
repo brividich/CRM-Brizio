@@ -129,6 +129,11 @@ def send_assenza_deleted_notification(
         ("Tipo richiesta", tipo_display or "—"),
         ("Periodo", periodo),
     ]
+    from .mail_certificato import ETICHETTA, certificato_arrivato, etichetta_si_no
+
+    arrivato = certificato_arrivato(record.get("tipo_assenza"), record.get("certificato_medico"))
+    if arrivato is not None:
+        facts.append((ETICHETTA, etichetta_si_no(arrivato)))
     if motivazione:
         facts.append(("Motivazione", motivazione))
     facts.append(("Eliminata da", eseguita_da))

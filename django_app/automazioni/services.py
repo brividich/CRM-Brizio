@@ -2627,6 +2627,17 @@ def _blocco_serie_assenze(action, payload_context, *, approvazione: bool = False
         return "", "", None
 
 
+def _blocco_certificato_assenze(action, payload_context) -> tuple[str, str]:
+    """Riga «Certificato arrivato: Sì/No» per le mail delle richieste di Malattia. Best-effort."""
+    try:
+        from assenze.mail_certificato import blocco_mail
+
+        return blocco_mail(getattr(action.rule, "source_code", ""), payload_context)
+    except Exception:
+        logger.warning("automazioni: riga del certificato medico non costruita", exc_info=True)
+        return "", ""
+
+
 def _inserisci_in_testa_html(body_html: str, blocco: str) -> str:
     """Mette ``blocco`` all'inizio del contenuto: dopo ``<body>`` se il corpo è un documento completo."""
     import re
@@ -4263,6 +4274,13 @@ def execute_action(
                     body_text = f"{serie_text}{body_text}"
                 if body_html:
                     body_html = _inserisci_in_testa_html(body_html, serie_html)
+            # Assenze, Malattia: «Certificato arrivato: Sì/No» in testa al corpo.
+            cert_text, cert_html = _blocco_certificato_assenze(action, payload_context)
+            if cert_text:
+                if body_text:
+                    body_text = f"{cert_text}{body_text}"
+                if body_html:
+                    body_html = _inserisci_in_testa_html(body_html, cert_html)
             # Assenze: «Aggiungi al calendario Outlook» solo se la mail va al caporeparto, best-effort.
             calendar_event = None
             try:
@@ -4400,6 +4418,9 @@ def execute_action(
                 message_body = f"{serie_text}{message_body}"
                 # L'evento Outlook coprirebbe solo il primo giorno della serie.
                 calendar_event = None
+            cert_text, cert_html = _blocco_certificato_assenze(action, payload_context)
+            if cert_text:
+                message_body = f"{cert_text}{message_body}"
 
             approval = _create_approval_record(
                 action=action,
@@ -4454,8 +4475,8 @@ def execute_action(
                         reject_url=reject_url,
                         extra_cta_html=extra_html,
                         extra_cta_text=extra_text,
-                        extra_body_html=serie_html,
-                        extra_body_text=serie_text,
+                        extra_body_html=f"{serie_html}{cert_html}",
+                        extra_body_text=f"{serie_text}{cert_text}",
                     )
                     # Usa il subject del template solo se non è stato esplicitamente
                     # configurato nella regola (config ha subject_template vuoto/default)
