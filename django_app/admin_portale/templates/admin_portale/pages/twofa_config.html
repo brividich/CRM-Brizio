@@ -65,7 +65,7 @@ body.theme-dark .method-badge.email{background:rgba(56,161,105,.18);color:#86efa
 
             <div class="field">
               <label>Reti interne (una per riga, notazione CIDR)</label>
-              <textarea class="input" name="internal_networks" rows="4" placeholder="192.168.0.0/16&#10;10.0.0.0/8">{{ policy.internal_networks|join:"\n" }}</textarea>
+              <textarea class="input" name="internal_networks" rows="4" placeholder="192.168.0.0/16&#10;10.0.0.0/8">{% for net in policy.internal_networks %}{{ net }}{% if not forloop.last %}&#10;{% endif %}{% endfor %}</textarea>
               <div style="font-size:.82rem;color:var(--text-muted);margin-top:2px;">
                 Usato con "Solo da rete esterna" e "Da rete esterna e da dispositivi nuovi". Accessi da questi range non richiedono 2FA.
               </div>
