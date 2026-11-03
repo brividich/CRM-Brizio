@@ -33,6 +33,9 @@
   .gi-cer { font-family: ui-monospace, monospace; font-weight:700; color:#1e3a5f; }
   .gi-peric { display:inline-block; padding:1px 7px; border-radius:999px; font-size:.68rem; font-weight:800; background:#fee2e2; color:#b91c1c; }
   .gi-giac { font-weight:800; }
+  .gi-scarica { display:inline-block; padding:3px 10px; border-radius:8px; font-size:.78rem; font-weight:700; text-decoration:none; color:#9a3412; background:#fff4ec; border:1px solid #fed7aa; white-space:nowrap; }
+  .gi-scarica:hover { background:#ffedd5; }
+  body.theme-dark .gi-scarica { color:#fdba74; background:rgba(232,153,108,.16); border-color:rgba(232,153,108,.4); }
   .gi-badge { display:inline-block; padding:2px 10px; border-radius:999px; font-size:.74rem; font-weight:800; white-space:nowrap; }
   .gi-badge.rosso { background:#fee2e2; color:#b91c1c; }
   .gi-badge.giallo { background:#ffedd5; color:#9a3412; }
@@ -124,6 +127,7 @@ body.theme-dark .gi-empty{color:#86efac}
           <th class="num">Entrate</th><th class="num">Uscite</th>
           <th class="num">Giacenza</th><th>Unità</th>
           <th>Primo carico</th><th class="num">Giorni dep.</th><th>Stato</th>
+          {% if can_manage %}<th></th>{% endif %}
         </tr>
       </thead>
       <tbody>
@@ -149,6 +153,7 @@ body.theme-dark .gi-empty{color:#86efac}
             {% elif tono == 'verde' %}<span class="gi-badge verde">Regolare</span>
             {% else %}<span class="gi-badge chiuso">Azzerata</span>{% endif %}
           </td>
+          {% if can_manage %}<td>{% if g.aperta %}<a class="gi-scarica" href="{% url 'rentri_scarico_originale' %}?codice={{ g.codice|urlencode }}" title="Apre lo scarico originale con questo codice">Scarica</a>{% endif %}</td>{% endif %}
         </tr>
         {% endfor %}
       </tbody>

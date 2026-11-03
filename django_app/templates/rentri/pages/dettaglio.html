@@ -55,7 +55,9 @@
       </p>
     </div>
     <div class="sc-actions">
-      {% if can_manage and not registro.bloccato %}<a class="sc-btn sc-btn-primary" href="{% url 'rentri_modifica' registro.pk %}">✎ Modifica</a>{% endif %}
+      {% if can_manage and prossimo %}<a class="sc-btn sc-btn-primary" href="{{ prossimo.url }}">{{ prossimo.etichetta }}</a>{% endif %}
+      {% if can_manage and not registro.bloccato %}<a class="sc-btn{% if not prossimo %} sc-btn-primary{% endif %}" href="{% url 'rentri_modifica' registro.pk %}">✎ Modifica</a>{% endif %}
+      {% if can_manage and not registro.annullato %}<a class="sc-btn" href="{{ duplica_url }}" title="Nuovo movimento dello stesso tipo, con codice e unità già compilati">Duplica</a>{% endif %}
       <a class="sc-btn" href="{% url 'rentri_elenco' %}">Elenco registrazioni</a>
     </div>
   </div>
