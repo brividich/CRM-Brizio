@@ -115,16 +115,23 @@ def send_assenza_modificata_notification(
         "",
         "Messaggio automatico generato da NOVICROM HUB.",
     ])
+    from automazioni.mail_inviate import registra
+
+    subject = f"Richiesta modificata: {dipendente} · {tipo_display or 'assenza'}"
     try:
         msg = EmailMultiAlternatives(
-            subject=f"Richiesta modificata: {dipendente} · {tipo_display or 'assenza'}",
+            subject=subject,
             body=text_body,
             from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None) or None,
             to=to_list,
         )
         msg.attach_alternative(html_body, "text/html")
         msg.send(fail_silently=False)
-    except Exception:
+    except Exception as exc:
         logger.warning("send_assenza_modificata_notification: invio fallito per assenza id=%s", record.get("id"), exc_info=True)
+        registra(origine="assenze_modifica", destinatari=to_list, oggetto=subject, sorgente="assenze",
+                 record_id=record.get("id"), errore=f"{type(exc).__name__}: {exc}")
         return False
+    registra(origine="assenze_modifica", destinatari=to_list, oggetto=subject, sorgente="assenze",
+             record_id=record.get("id"))
     return True

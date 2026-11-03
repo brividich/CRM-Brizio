@@ -274,7 +274,8 @@ body.theme-dark .ms-checkbox{color:var(--text)}
               <p class="ms-card-subtitle">
                 I log delle esecuzioni automazioni possono contenere dati personali presi dal record
                 che ha innescato la regola. Per il principio di <strong>limitazione della conservazione</strong>
-                (GDPR art. 5.1.e) vengono cancellati automaticamente oltre la finestra impostata.
+                (GDPR art. 5.1.e) vengono cancellati automaticamente oltre la finestra impostata, insieme
+                al registro «Mail inviate».
                 Pulizia automatica: <strong>ogni notte alle 03:30</strong>.
                 {% if runlog_total_count is not None %}<br>Log attualmente in archivio: <strong>{{ runlog_total_count }}</strong>.{% endif %}
               </p>

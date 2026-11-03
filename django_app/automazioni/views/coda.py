@@ -517,6 +517,60 @@ def run_log_list_page(request):
     return render(request, "automazioni/pages/run_log_list.html", context)
 
 
+@legacy_admin_or_acl_required("automazioni", "mail_inviate_page")
+@require_GET
+def mail_inviate_page(request):
+    """Registro delle mail partite (automazioni e mail dirette delle assenze)."""
+    from django.core.paginator import Paginator
+    from django.db.models import Q
+
+    from ..mail_inviate import ORIGINI
+    from ..models import EmailInviata
+
+    filtri = {
+        k: _helpers._get_filter_value(request, k)
+        for k in ("q", "richiesta", "origine", "sorgente", "esito", "dal", "al")
+    }
+    qs = EmailInviata.objects.select_related("regola").order_by("-inviata_il", "-id")
+    if filtri["q"]:
+        qs = qs.filter(
+            Q(destinatari__icontains=filtri["q"]) | Q(copia__icontains=filtri["q"]) | Q(oggetto__icontains=filtri["q"])
+        )
+    if filtri["richiesta"]:
+        qs = qs.filter(record_id__icontains=filtri["richiesta"])
+    if filtri["origine"]:
+        qs = qs.filter(origine=filtri["origine"])
+    if filtri["sorgente"]:
+        qs = qs.filter(sorgente=filtri["sorgente"])
+    if filtri["esito"]:
+        qs = qs.filter(esito=filtri["esito"])
+    for chiave, lookup in (("dal", "inviata_il__date__gte"), ("al", "inviata_il__date__lte")):
+        try:
+            qs = qs.filter(**{lookup: datetime.strptime(filtri[chiave], "%Y-%m-%d").date()}) if filtri[chiave] else qs
+        except ValueError:
+            filtri[chiave] = ""
+
+    pagina = Paginator(qs, 100).get_page(request.GET.get("page"))
+    for riga in pagina:
+        riga.origine_label = ORIGINI.get(riga.origine, riga.origine)
+    query_senza_pagina = request.GET.copy()
+    query_senza_pagina.pop("page", None)
+    context = {
+        **_helpers._base_context(),
+        "pagina": pagina,
+        "filtri": filtri,
+        "query_senza_pagina": query_senza_pagina.urlencode(),
+        "origini": list(ORIGINI.items()),
+        "sorgenti": list(
+            EmailInviata.objects.exclude(sorgente="").values_list("sorgente", flat=True).distinct().order_by("sorgente")
+        ),
+        "errori_7gg": EmailInviata.objects.filter(
+            esito=EmailInviata.ESITO_ERRORE, inviata_il__gte=timezone.now() - timedelta(days=7)
+        ).count(),
+    }
+    return render(request, "automazioni/pages/mail_inviate.html", context)
+
+
 def _run_log_source_choices() -> list[tuple[str, str]]:
     """Opzioni del filtro 'Sorgente' del Run-log: sorgenti registrate + job di sistema.
 
