@@ -244,6 +244,9 @@ class AnomaliaControllo(models.Model):
     # OP nuovo non ancora creato (dati del modulo «+ Nuovo OP»): l'OP si crea al primo
     # «Salva blocco» e il campo torna vuoto. Finché è pieno, ``op_id`` è il titolo previsto.
     op_nuovo = models.JSONField(default=dict, blank=True)
+    # Passaggi di mano fra colleghi del gruppo qualità («Prendi in carico»):
+    # [{"da": nome, "a": nome, "at": iso}] — chi ha iniziato resta tracciato.
+    passaggi = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

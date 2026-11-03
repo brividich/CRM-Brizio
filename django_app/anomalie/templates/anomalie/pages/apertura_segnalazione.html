@@ -172,6 +172,12 @@
     .btn-sm { padding: 6px 12px; font-size: var(--fs-sm); }
     .resume-box { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-light); }
     .resume-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); }
+    /* Controlli in sospeso (propri e dei colleghi del gruppo qualità), al passo 1. */
+    .sospesi-card { margin-bottom: 16px; }
+    .sospesi-card .resume-box { border-radius: 0; border: 0; border-bottom: 1px solid var(--border); }
+    .sospesi-meta { font-size: var(--fs-sm); color: var(--text-mid); margin-top: 2px; }
+    .sospesi-chi { font-weight: 700; color: var(--text); }
+    .prendi-box { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-light); }
     .mail-mode { border: 0; display: grid; gap: 8px; }
     .dest-mail { display: grid; gap: 8px; padding: 10px 14px; border: 1px solid var(--border); border-left: 4px solid var(--primary-mid); border-radius: 10px; background: var(--surface); font-size: var(--fs-sm); color: var(--text); }
     .dest-mail--compact { padding: 8px 12px; flex: 1 1 100%; }
@@ -380,6 +386,8 @@
       copilota: "{% url 'api_anomalie_copilota' %}",
       controlli: "{% url 'api_anomalie_controlli' %}",
       controllo_apri: "{% url 'api_anomalie_controllo_apri' %}",
+      controlli_sospesi: "{% url 'api_anomalie_controlli_sospesi' %}",
+      controllo_prendi: "{% url 'api_anomalie_controllo_prendi' 0 %}",
       controllo_dettaglio: "{% url 'api_anomalie_controllo_dettaglio' 0 %}",
       controllo_impostazioni: "{% url 'api_anomalie_controllo_impostazioni' 0 %}",
       controllo_blocco: "{% url 'api_anomalie_controllo_blocco' 0 %}",
@@ -404,6 +412,8 @@
     copilota: '/api/anomalie/copilota',
     controlli: '/api/anomalie/controlli',
     controllo_apri: '/api/anomalie/controlli/apri',
+    controlli_sospesi: '/api/anomalie/controlli/sospesi',
+    controllo_prendi: '/api/anomalie/controlli/0/prendi',
     controllo_dettaglio: '/api/anomalie/controlli/0',
     controllo_impostazioni: '/api/anomalie/controlli/0/impostazioni',
     controllo_blocco: '/api/anomalie/controlli/0/blocco',
@@ -1412,6 +1422,46 @@
     })),
   });
 
+  /* Controlli aperti con qualcosa in sospeso: i propri e, per il gruppo qualità
+     (Controllo qualità / Qualità), quelli dei colleghi. Un controllo lungo iniziato a
+     fine turno lo prosegue il collega dopo con «Prendi in carico». */
+  const ControlliSospesi = () => {
+    const [righe, setRighe] = useState([]);
+    const [gruppo, setGruppo] = useState(false);
+    useEffect(() => {
+      getJson(API.controlli_sospesi, 'Controlli in sospeso')
+        .then(j => { setRighe(j.controlli || []); setGruppo(!!j.gruppo); })
+        .catch(() => {});
+    }, []);
+    if (!righe.length) return null;
+    const quando = (iso) => iso ? new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    const cosa = (r) => [
+      r.anomalie_in_bozza ? `${r.anomalie_in_bozza} anomali${r.anomalie_in_bozza === 1 ? 'a' : 'e'} scritt${r.anomalie_in_bozza === 1 ? 'a' : 'e'} da salvare` : '',
+      r.blocchi_da_copiare ? `${r.blocchi_da_copiare} blocch${r.blocchi_da_copiare === 1 ? 'o' : 'i'} da copiare` : '',
+      r.da_notificare ? `${r.da_notificare} anomali${r.da_notificare === 1 ? 'a' : 'e'} non ancora comunicat${r.da_notificare === 1 ? 'a' : 'e'}` : '',
+    ].filter(Boolean).join(' · ') || 'blocco in scrittura';
+    return (
+      <div className="step-card sospesi-card">
+        <div className="resume-box">
+          <div className="field-label">{gruppo ? 'Controlli in sospeso del gruppo qualità' : 'I tuoi controlli in sospeso'}</div>
+          {gruppo && <div className="field-hint">Li vedono tutti i colleghi con ruolo Controllo qualità o Qualità: chi riprende il controllo di un altro lo prende in carico e lo porta a termine.</div>}
+          {righe.map(r => (
+            <div key={r.id} className="resume-row">
+              <div>
+                <strong>OP {r.op_id}</strong>{r.op_nuovo ? ' (nuovo, non ancora creato)' : ''} · fase {r.fase}
+                <div className="sospesi-meta">
+                  <span className="sospesi-chi">{r.mio ? 'Tuo' : r.operatore}</span> · {cosa(r)} · ultimo aggiornamento {quando(r.ultimo_at)}
+                  {r.passaggi && r.passaggi.length > 0 && ` · iniziato da ${r.passaggi[0].da}`}
+                </div>
+              </div>
+              <a className="btn-outline" href={`${window.location.pathname}?controllo=${r.id}`}>{r.mio ? 'Riprendi' : 'Apri'}</a>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const Step2Controllo = ({ op, onBack, onDone, clona, onOpCreato, riprendiId }) => {
     // OP nuovo non ancora creato: nasce con il primo «Salva blocco»; uscendo prima non resta niente.
     const opRef = useRef(op);
@@ -1419,6 +1469,9 @@
     const [loading, setLoading] = useState(true);
     const [controllo, setControllo] = useState(null);
     const [riprendibili, setRiprendibili] = useState([]);
+    // Controllo di un collega del gruppo qualità aperto in lettura: si prosegue solo
+    // dopo «Prendi in carico» (mai in automatico: il link del promemoria non lo ruba).
+    const [daPrendere, setDaPrendere] = useState(null);
     const [fasiNote, setFasiNote] = useState([]);
     const [fase, setFase] = useState(clona ? (clona.fase || '') : '');
     // Blocchi copiati non ancora caricati nell'editor (in ordine).
@@ -1576,6 +1629,26 @@
       setSaving(true); setError('');
       try {
         const j = await getJson(urlFor(API.controllo_dettaglio, c.id), 'Ripresa controllo');
+        if (j.mio === false) { setDaPrendere(j.controllo); return; }
+        applicaRipresa(j);
+      } catch (e) { setError(e.message); }
+      finally { setSaving(false); }
+    };
+
+    const prendiInCarico = async () => {
+      if (!daPrendere) return;
+      setSaving(true); setError('');
+      try {
+        const j = await postJson(urlFor(API.controllo_prendi, daPrendere.id), {}, 'Presa in carico');
+        setDaPrendere(null);
+        applicaRipresa(j);
+        setNotice(prev => `Hai preso in carico il controllo di ${daPrendere.operatore}: da qui in avanti è tuo. ${prev || ''}`.trim());
+      } catch (e) { setError(e.message); }
+      finally { setSaving(false); }
+    };
+
+    const applicaRipresa = (j) => {
+      {
         setControllo(j.controllo);
         setDestinatari(j.destinatari || null);
         setFase(j.controllo.fase);
@@ -1588,14 +1661,13 @@
           bozzaRef.current.salvata = true;
           setBozzaAt(j.controllo.bozza_at || '');
           const allegati = (bz.anomalie || []).reduce((n, a) => n + (a.allegati || 0), 0);
-          setNotice('Ripristinato il blocco che stavi scrivendo (salvato in automatico).'
+          setNotice('Ripristinato il blocco in scrittura (salvato in automatico).'
             + (allegati ? ` Gli allegati non si salvano in bozza: ricarica ${allegati === 1 ? 'il file' : `i ${allegati} file`}.` : ''));
         } else {
           setEditor(editorDopo(codaBozza || coda));
           if (codaBozza && codaBozza.length) setNotice(`Ripresi i blocchi copiati: ${codaBozza.length === 1 ? 'ne resta 1' : `ne restano ${codaBozza.length}`} da caricare.`);
         }
-      } catch (e) { setError(e.message); }
-      finally { setSaving(false); }
+      }
     };
 
     // Salvataggio automatico del blocco in scrittura: 1,5 s dopo l'ultima modifica.
@@ -1955,16 +2027,31 @@
                 Conferma la fase{clona.fasi && clona.fasi.length > 1 ? ` (sull’OP di origine: ${clona.fasi.join(', ')})` : ''} e premi «Inizia controllo»: i blocchi copiati si caricano uno alla volta, pronti da salvare.
               </ClonaBanner>
             )}
+            {daPrendere && (
+              <div className="prendi-box" role="alert">
+                <div className="field-label">Controllo in carico a {daPrendere.operatore}</div>
+                <div>
+                  Fase {daPrendere.fase} · {daPrendere.blocchi.length} blocch{daPrendere.blocchi.length === 1 ? 'o' : 'i'} salvat{daPrendere.blocchi.length === 1 ? 'o' : 'i'}
+                  {bozzaPiena(daPrendere.bozza) ? ` · ${(daPrendere.bozza.anomalie || []).length} anomalie scritte da salvare` : ''}
+                  {daPrendere.da_notificare ? ` · ${daPrendere.da_notificare} non ancora comunicate` : ''}
+                </div>
+                <div className="field-hint">Prendendolo in carico prosegui tu da dove è rimasto: blocco in scrittura, salvataggi, mail e «Termina controllo» diventano tuoi. {daPrendere.operatore} riceve un avviso nel portale e il passaggio resta registrato.</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button className="btn-primary" onClick={prendiInCarico} disabled={saving}>{saving ? 'Presa in carico…' : 'Prendi in carico e prosegui'}</button>
+                  <button className="btn-secondary" onClick={() => setDaPrendere(null)} disabled={saving}>Annulla</button>
+                </div>
+              </div>
+            )}
             {riprendibili.length > 0 && (
               <div className="resume-box">
-                <div className="field-label">Hai un controllo ancora aperto su questo OP</div>
+                <div className="field-label">{riprendibili.some(c => c.mio === false) ? 'Controlli ancora aperti su questo OP' : 'Hai un controllo ancora aperto su questo OP'}</div>
                 {riprendibili.map(c => (
                   <div key={c.id} className="resume-row">
                     <div>
-                      <strong>Fase {c.fase}</strong> · {new Date(c.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      <strong>Fase {c.fase}</strong>{c.mio === false ? ` · di ${c.operatore}` : ''} · {new Date(c.created_at).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       <div className="field-hint">{c.blocchi.length} blocch{c.blocchi.length === 1 ? 'o' : 'i'} salvat{c.blocchi.length === 1 ? 'o' : 'i'}{c.da_notificare ? ` · ${c.da_notificare} anomalie non ancora comunicate` : ''}</div>
                     </div>
-                    <button className="btn-outline" onClick={() => riprendi(c)} disabled={saving}>Riprendi</button>
+                    <button className="btn-outline" onClick={() => riprendi(c)} disabled={saving}>{c.mio === false ? 'Prendi in carico' : 'Riprendi'}</button>
                   </div>
                 ))}
               </div>
@@ -2418,6 +2505,7 @@
           ) : step === 1 ? (
             <>
               {clonaStato && <div className="error-msg" style={{ marginBottom: 16 }}>{clonaStato}</div>}
+              {!clona && <ControlliSospesi />}
               <Step1SelectOP onSelect={handleSelectOp} clona={clona} />
             </>
           ) : (
