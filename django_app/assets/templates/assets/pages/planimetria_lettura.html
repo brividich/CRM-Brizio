@@ -1,0 +1,163 @@
+{% extends "assets/base_shell.html" %}
+{% load l10n %}
+
+{% block title %}Leggi planimetria{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.pll-page{display:grid;gap:14px}
+.pll-card{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:14px 16px}
+.pll-card h2{margin:0 0 4px;font-size:var(--fs-lg);color:var(--text)}
+.pll-nota{color:var(--text-mid);font-size:var(--fs-sm);margin:0 0 10px}
+.pll-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;align-items:end}
+.pll-form label{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);color:var(--text-mid)}
+.pll-form label.pll-check{flex-direction:row;align-items:center;gap:8px;color:var(--text)}
+.pll-stato{display:flex;flex-wrap:wrap;gap:8px;font-size:var(--fs-sm);margin-top:10px}
+.pll-chip{padding:3px 10px;border-radius:999px;border:1px solid var(--border);color:var(--text-mid)}
+.pll-chip.ok{border-color:#86efac;color:#15803d}
+.pll-chip.no{border-color:#fca5a5;color:#b91c1c}
+.pll-avviso{border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:10px;padding:8px 12px;font-size:var(--fs-sm)}
+.pll-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(320px,2fr);gap:14px;align-items:start}
+@media (max-width:1100px){.pll-grid{grid-template-columns:1fr}}
+.pll-finestra{overflow:auto;max-height:640px;border:1px solid var(--border);border-radius:12px;background:#fff}
+.pll-tela{position:relative;width:100%}
+.pll-tela img{display:block;width:100%;height:auto}
+.pll-pt{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:2px solid #fff;
+  box-shadow:0 1px 3px rgba(15,23,42,.5);background:#0e7490;color:#fff;font-size:9px;font-weight:800;line-height:12px;text-align:center}
+.pll-pt.ai{background:#7c3aed}
+.pll-pt.sposta{background:#d97706}
+.pll-pt.invariato{background:#94a3b8}
+.pll-pt.evid{transform:scale(1.6);z-index:3;outline:2px solid #dc2626}
+.pll-tabella{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.pll-tabella th,.pll-tabella td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;color:var(--text)}
+.pll-tabella th{color:var(--text-mid);font-weight:700}
+.pll-tabella tr:hover td{background:var(--surface-alt,rgba(148,163,184,.08))}
+.pll-fonte{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid var(--border);white-space:nowrap}
+.pll-fonte.ai{border-color:#c4b5fd;color:#6d28d9}
+.pll-sub{color:var(--text-mid);font-size:11px}
+.pll-azioni{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.pll-nonric{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.pll-nonric span{font-size:11px;padding:1px 6px;border:1px solid var(--border);border-radius:6px;color:var(--text-mid)}
+body.theme-dark .pll-avviso{background:rgba(217,119,6,.15);border-color:rgba(252,211,77,.4);color:#fcd34d}
+body.theme-dark .pll-chip.ok{color:#86efac}
+body.theme-dark .pll-chip.no{color:#fca5a5}
+body.theme-dark .pll-fonte.ai{color:#c4b5fd}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Leggi planimetria{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Legge le sigle sulla pianta (n. interno, tag, matricola, nome) e propone dove collocare gli asset. Niente cambia finché non confermi.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+<a class="btn btn-secondary" href="{% url 'assets:plant_layout_editor' %}{% if layout %}?layout={{ layout.id }}{% endif %}">Torna all'editor</a>
+<a class="btn btn-secondary" href="{% url 'assets:guida' %}#planimetrie" title="Guida">? Guida</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="pll-page">
+  <article class="pll-card">
+    <h2>Cosa leggere</h2>
+    <p class="pll-nota">Il PDF stampato dal disegno (anche dal DWG) è la fonte migliore: i testi sono veri e le posizioni esatte. Senza PDF si legge l'immagine già caricata con il riconoscimento del testo.</p>
+    <form method="post" enctype="multipart/form-data" action="{% url 'assets:plant_layout_editor' %}?leggi=1" class="pll-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="leggi_planimetria">
+      <label>Planimetria
+        <select name="layout_id" class="input">
+          {% for l in layouts %}<option value="{{ l.id }}"{% if layout and l.id == layout.id %} selected{% endif %}>{{ l.category }} · {{ l.name }}{% if not l.is_active %} (bozza){% endif %}</option>{% endfor %}
+        </select>
+      </label>
+      <label>PDF della pianta (facoltativo)
+        <input type="file" name="pdf" accept="application/pdf,.pdf" class="input">
+      </label>
+      <label>Pagina del PDF
+        <input type="number" name="pagina" min="1" value="1" class="input" style="max-width:120px">
+      </label>
+      <label class="pll-check"><input type="checkbox" name="usa_pdf_immagine" value="1"> Usa questa pagina come immagine della planimetria (nasce una nuova versione, non attiva)</label>
+      <label class="pll-check"><input type="checkbox" name="usa_ai" value="1"{% if usa_ai %} checked{% endif %}{% if not ai_disponibile %} disabled{% endif %}> Chiedi all'AI locale le sigle non riconosciute</label>
+      <div><button class="btn btn-primary" type="submit">Leggi e proponi</button></div>
+    </form>
+    <div class="pll-stato">
+      <span class="pll-chip {% if ocr_disponibile %}ok{% else %}no{% endif %}">Riconoscimento del testo sull'immagine: {% if ocr_disponibile %}disponibile{% else %}non installato (serve il PDF){% endif %}</span>
+      <span class="pll-chip {% if ai_disponibile %}ok{% else %}no{% endif %}">AI locale: {% if ai_disponibile %}disponibile{% else %}non disponibile{% endif %}</span>
+    </div>
+  </article>
+
+  {% if risultato %}
+  <article class="pll-card">
+    <h2>Proposte per «{{ layout.name }}»</h2>
+    <p class="pll-nota">{{ risultato.fonte_testo }}: {{ risultato.parole_lette }} parole lette, {{ risultato.proposte|length }} asset riconosciuti. Sono preselezionate solo le proposte sicure; quelle dell'AI e le sigle lette in più punti vanno controllate.</p>
+    {% for a in risultato.avvisi %}<div class="pll-avviso">{{ a }}</div>{% endfor %}
+
+    {% if risultato.proposte %}
+    <form method="post" action="{% url 'assets:plant_layout_editor' %}?leggi=1">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="applica_proposte">
+      <input type="hidden" name="layout_id" value="{{ layout.id }}">
+      <input type="hidden" name="token_immagine" value="{{ token_immagine }}">
+      <div class="pll-grid" style="margin-top:10px;">
+        <div class="pll-finestra">
+          <div class="pll-tela">
+            {% if anteprima_url %}<img src="{{ anteprima_url }}" alt="Anteprima della planimetria">{% endif %}
+            {% localize off %}
+            {% for p in risultato.proposte %}
+            <span class="pll-pt {% if p.fonte == 'AI locale' %}ai{% elif p.stato == 'sposta' %}sposta{% elif p.stato == 'invariato' %}invariato{% endif %}" id="pt-{{ forloop.counter }}" style="left:{{ p.x }}%;top:{{ p.y }}%" title="{{ p.nome }} · letto «{{ p.testo_letto }}»">{{ forloop.counter }}</span>
+            {% endfor %}
+            {% endlocalize %}
+          </div>
+        </div>
+        <div style="overflow:auto;max-height:640px;">
+          <table class="pll-tabella">
+            <thead><tr><th><input type="checkbox" id="pll-tutte" aria-label="Seleziona tutte"></th><th>#</th><th>Asset</th><th>Letto</th><th>Da</th><th>Esito</th></tr></thead>
+            <tbody>
+            {% for p in risultato.proposte %}
+            <tr data-pt="pt-{{ forloop.counter }}">
+              <td>{% localize off %}<input type="checkbox" name="sel" value="{{ p.asset_id }}:{{ p.x }}:{{ p.y }}"{% if p.preselezionata %} checked{% endif %} aria-label="Colloca {{ p.nome }}">{% endlocalize %}</td>
+              <td>{{ forloop.counter }}</td>
+              <td><strong>{{ p.nome }}</strong><div class="pll-sub">{% if p.numero_interno %}{{ p.numero_interno }} · {% endif %}{{ p.tag }}{% if p.categoria %} · {{ p.categoria }}{% endif %}{% if p.reparto %} · {{ p.reparto }}{% endif %}</div></td>
+              <td>«{{ p.testo_letto }}»{% if p.altri_punti %}<div class="pll-sub">letto anche in altri {{ p.altri_punti }} punti</div>{% endif %}</td>
+              <td><span class="pll-fonte {% if p.fonte == 'AI locale' %}ai{% endif %}">{{ p.fonte }}</span></td>
+              <td>{% if p.stato == "nuovo" %}Da collocare{% elif p.stato == "sposta" %}Sposta (ora altrove){% if p.spostamento_grande %}<div class="pll-sub">molto lontano dalla posizione attuale: controlla, può essere una legenda</div>{% endif %}{% else %}Già qui{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="pll-azioni">
+        <button class="btn btn-primary" type="submit">Colloca i selezionati</button>
+        <span class="pll-nota" style="margin:0;">Ogni collocazione finisce nella timeline dell'asset. Dopo puoi rifinire trascinando nell'editor.</span>
+      </div>
+    </form>
+    {% else %}
+    <p class="pll-nota">Nessun asset riconosciuto. Prova con il PDF stampato dal disegno o con l'AI locale.</p>
+    {% endif %}
+
+    {% if risultato.non_riconosciute %}
+    <details style="margin-top:12px;">
+      <summary class="pll-nota" style="cursor:pointer;">Sigle lette ma non abbinate ({{ risultato.non_riconosciute|length }})</summary>
+      <div class="pll-nonric">{% for t in risultato.non_riconosciute %}<span>{{ t }}</span>{% endfor %}</div>
+      <p class="pll-nota" style="margin-top:6px;">Se una di queste è il numero interno di un asset, scrivilo nella scheda dell'asset e rileggi.</p>
+    </details>
+    {% endif %}
+  </article>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  const tutte = document.getElementById("pll-tutte");
+  if (tutte) tutte.addEventListener("change", () => {
+    document.querySelectorAll('input[name="sel"]').forEach(c => { c.checked = tutte.checked; });
+  });
+  document.querySelectorAll("tr[data-pt]").forEach(tr => {
+    const pt = document.getElementById(tr.dataset.pt);
+    if (!pt) return;
+    tr.addEventListener("mouseenter", () => pt.classList.add("evid"));
+    tr.addEventListener("mouseleave", () => pt.classList.remove("evid"));
+  });
+})();
+</script>
+{% endblock %}
