@@ -19,6 +19,8 @@ ORIGINI = {
     "assenze_modifica": "Assenze · richiesta modificata",
     "assenze_eliminazione": "Assenze · richiesta eliminata",
     "assenze_sollecito": "Assenze · sollecito al capo",
+    "assenze_esito": "Assenze · esito al dipendente",
+    "assenze_certificato": "Assenze · certificato medico mancante",
 }
 
 

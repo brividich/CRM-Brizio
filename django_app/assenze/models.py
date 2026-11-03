@@ -330,6 +330,12 @@ class AssenzeImpostazioniHR(models.Model):
     sollecito_ripeti_giorni = models.PositiveSmallIntegerField(
         default=2, verbose_name="Ripeti il sollecito ogni (giorni)",
     )
+    certificato_avviso_attivo = models.BooleanField(
+        default=True, verbose_name="Avviso certificato medico mancante",
+    )
+    certificato_avviso_giorni = models.PositiveSmallIntegerField(
+        default=2, verbose_name="Avvisa se il certificato manca dopo (giorni dall'inizio della malattia)",
+    )
     outlook_capo_attivo = models.BooleanField(
         default=False, verbose_name="Assenze approvate nel calendario Outlook del capo",
         help_text="Serve il permesso applicativo Calendars.ReadWrite di Microsoft Graph.",
@@ -520,6 +526,21 @@ class AssenzaSollecito(models.Model):
 
     def __str__(self):
         return f"assenza {self.assenza_id}: {self.invii} solleciti"
+
+
+class AssenzaAvvisoCertificato(models.Model):
+    """Avviso ad assenza@ per una malattia ancora senza certificato: uno per richiesta."""
+
+    assenza_id = models.IntegerField(unique=True)
+    inviato_il = models.DateTimeField()
+    destinatari = models.CharField(max_length=300, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Avviso certificato medico mancante"
+        verbose_name_plural = "Avvisi certificato medico mancante"
+
+    def __str__(self):
+        return f"assenza {self.assenza_id}: avviso certificato del {self.inviato_il:%d/%m/%Y}"
 
 
 class AssenzaOutlook(models.Model):

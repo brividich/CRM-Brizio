@@ -39,7 +39,10 @@ GUIDA = {
                      "chi è abilitato può scegliere qualunque dipendente in «Dipendente in malattia». "
                      "Spunta «Certificato arrivato» se il certificato medico è già arrivato. Il numero del certificato non si scrive. "
                      "Se arriva dopo, apri la richiesta con «Modifica» e spunta la casella. "
-                     "Le mail della malattia (al capo, ad assenza@, modifiche ed eliminazione) riportano «Certificato arrivato: Sì» o «No»."),
+                     "Se la malattia è già approvata, in «Le mie richieste» c'è il pulsante «Certificato arrivato»: vale come modifica "
+                     "e avvisa assenza@ e il capo reparto. "
+                     "Le mail della malattia (al capo, ad assenza@, esito, modifiche ed eliminazione) riportano «Certificato arrivato: Sì» o «No». "
+                     "Se dopo 2 giorni dall'inizio il certificato non risulta arrivato, l'ufficio assenze riceve un avviso."),
                     ("Flessibilità", "solo per chi è abilitato, solo negli orari fissati dall'Amministrazione, massimo 2 a settimana."),
                     ("Capo reparto", "è proposto in automatico dall'organigramma. Puoi sceglierne un altro dall'elenco: "
                      "in quel caso la richiesta la vede e la approva solo il capo che hai scelto. Se il capo del "
@@ -77,7 +80,9 @@ GUIDA = {
                     "Ogni modifica (date, tipo, motivazione, «Certificato arrivato») manda una mail «Richiesta modificata» "
                     "ad assenza@ e al capo reparto, con cosa è cambiato prima e dopo.",
                 ]),
-                ("p", "Quando il capo decide ricevi una notifica (campanella in alto; sul telefono «Notifiche» nella barra in basso) e, se attiva, una mail."),
+                ("p", "Quando il capo decide ricevi una notifica (campanella in alto; sul telefono «Notifiche» nella barra in basso) "
+                      "e una mail «Richiesta … approvata» o «Richiesta … rifiutata» all'indirizzo della richiesta, sia se decide dal "
+                      "link nella mail sia se decide nel portale (con l'eventuale nota del rifiuto)."),
                 ("nota", "Le richieste con l'etichetta «Gestita su SharePoint» sono nate nella vecchia app SharePoint: "
                          "si vedono qui ma si modificano solo là."),
             ],
@@ -244,6 +249,10 @@ GUIDA = {
                     ("Orario, patrono e solleciti", "ore di una giornata (predefinite 8), sabato lavorativo, patrono e solleciti ai "
                                                     "capi: «Sollecita dopo» (predefinito 2 giorni) e «Ripeti il sollecito ogni» "
                                                     "(predefinito 2 giorni). Il lavoro «assenze_solleciti» gira nei giorni feriali alle 08:15."),
+                    ("Avviso certificato medico mancante", "acceso, ogni mattina feriale alle 08:30 (lavoro «assenze_certificato_avviso») "
+                                                    "parte una mail ad assenza@ con le malattie iniziate da almeno «Avvisa se il certificato "
+                                                    "manca dopo» giorni (predefinito 2) senza «Certificato arrivato». Ogni malattia compare in "
+                                                    "un solo avviso; restano fuori le rifiutate e quelle iniziate da più di 30 giorni."),
                 ]),
                 ("p", "Come si conta: una richiesta a giornata intera vale i giorni lavorativi × le ore di una giornata; una "
                       "parziale vale le sue ore (al massimo una giornata). Contano le richieste non rifiutate che iniziano dopo "

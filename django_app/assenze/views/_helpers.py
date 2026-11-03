@@ -3544,7 +3544,25 @@ def _applica_moderazione(request, item_id: int, current: dict, consenso: str, no
     except Exception:
         logger.exception("Assenze: notifica al richiedente non creata")
 
+    _notify_esito_dipendente(request, current, consenso, note_gestione)
     return _sp_enqueue_upsert(item_id)
+
+
+def _notify_esito_dipendente(request, record: dict, consenso: str, note: str = "") -> None:
+    """Mail al dipendente per una decisione presa dal portale (best-effort)."""
+    from ..mail_esito_service import send_esito_dipendente
+
+    try:
+        nome, email, _ = _legacy_identity(request)
+        send_esito_dipendente(
+            record,
+            consenso=consenso,
+            tipo_display=_tipo_for_display(record.get("tipo_assenza"), record.get("motivazione_richiesta")),
+            note=note,
+            deciso_da=nome or email or request.user.get_username(),
+        )
+    except Exception:
+        logger.warning("Assenze: mail di esito al dipendente non inviata (id=%s)", record.get("id"), exc_info=True)
 
 
 def _e_propria_assenza(request, current: dict) -> bool:
