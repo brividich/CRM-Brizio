@@ -9,8 +9,11 @@ urlpatterns = [
     path("gestione/", views.gestione, name="gestione"),  # console admin del modulo (SMS_TEAM)
     path("gestione/team/aggiungi/", views.gestione_team_add, name="gestione_team_add"),
     path("gestione/team/rimuovi/", views.gestione_team_remove, name="gestione_team_remove"),
+    path("gestione/locandine/", views.locandine, name="locandine"),  # preset locandine QR (SMS_TEAM)
+    path("gestione/locandine/pdf/", views.locandina_pdf, name="locandina_pdf"),
     path("nuova/", views.nuova, name="nuova"),  # form pubblico (no login, esente ACL)
     path("<int:pk>/", views.dettaglio, name="dettaglio"),
+    path("allegato/<int:pk>/", views.allegato, name="allegato"),
     path("<int:pk>/modifica/", views.modifica, name="modifica"),  # gestione (SMS_TEAM)
     # Azioni FSM (sessione 3b) — POST
     path("<int:pk>/classifica/", views.azione_classifica, name="classifica"),

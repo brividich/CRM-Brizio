@@ -24,12 +24,18 @@ def _aree_qs():
 
 
 class SegnalazionePubblicaForm(forms.Form):
-    """Form pubblico anonimo (§5) — sostituisce Microsoft Forms.
+    """Form pubblico (§5) — sostituisce Microsoft Forms, raggiunto dal QR in bacheca.
 
     Provenienza = Reparto oppure Area (un'Area è sotto-articolazione di un
-    Reparto): selettore a cascata, almeno uno dei due richiesto. Opzione anonima.
-    Campo honeypot `website` nascosto via CSS: se compilato la request è bot.
+    Reparto): selettore a cascata, almeno uno dei due richiesto. Scelta
+    esplicita fra «Anonimo» e «Mi identifico»: chi si identifica senza login
+    scrive nome e cognome, chi ha il login invia col proprio account. Foto
+    facoltativa, ricodificata senza metadati (foto.py). Campo honeypot
+    `website` nascosto via CSS: se compilato la request è bot.
     """
+    MODO_ANONIMO = "anonimo"
+    MODO_IDENTIFICATO = "identificato"
+
     reparto_provenienza = forms.ModelChoiceField(
         queryset=_reparti_qs(), required=False, empty_label="Reparto…",
         label="Reparto di provenienza",
@@ -42,18 +48,52 @@ class SegnalazionePubblicaForm(forms.Form):
         label="Opportunità di miglioramento", widget=forms.Textarea,
         max_length=5000,
     )
-    anonima = forms.BooleanField(label="Invia in forma anonima", required=False)
+    modo = forms.ChoiceField(
+        label="Come vuoi inviarla?",
+        choices=[(MODO_ANONIMO, "Anonimo"), (MODO_IDENTIFICATO, "Mi identifico")],
+        error_messages={"required": "Scegli «Anonimo» oppure «Mi identifico»."},
+    )
+    segnalante_nome = forms.CharField(label="Nome e cognome", max_length=150, required=False)
+    foto = forms.FileField(label="Foto (facoltativa)", required=False)
     # Honeypot: gli utenti veri non lo vedono (nascosto via CSS), i bot sì.
     website = forms.CharField(required=False, widget=forms.TextInput(
         attrs={"autocomplete": "off", "tabindex": "-1"}))
 
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user if getattr(user, "is_authenticated", False) else None
+
     def is_bot(self) -> bool:
         return bool(self.data.get("website"))
+
+    @property
+    def anonima(self) -> bool:
+        return self.cleaned_data.get("modo") == self.MODO_ANONIMO
+
+    def clean_foto(self):
+        from .foto import FotoNonValida, prepara_foto
+
+        upload = self.cleaned_data.get("foto")
+        if not upload:
+            return None
+        try:
+            return prepara_foto(upload)
+        except FotoNonValida as exc:
+            raise forms.ValidationError(str(exc)) from exc
 
     def clean(self):
         cleaned = super().clean()
         if not (cleaned.get("reparto_provenienza") or cleaned.get("area_provenienza")):
             raise forms.ValidationError("Indicare un reparto o un'area di provenienza.")
+        nome = (cleaned.get("segnalante_nome") or "").strip()
+        if cleaned.get("modo") == self.MODO_IDENTIFICATO:
+            if self.user is not None:
+                nome = user_display_label(self.user)
+            elif not nome:
+                self.add_error("segnalante_nome", "Scrivi nome e cognome, oppure scegli «Anonimo».")
+        else:
+            nome = ""  # anonima: il nome eventualmente scritto non si salva
+        cleaned["segnalante_nome"] = nome
         return cleaned
 
 
@@ -149,6 +189,58 @@ class ConfigForm(forms.ModelForm):
             "email_responsabile_escalation": "Email responsabile (escalation)",
             "sms_team_group_name": "Gruppo team SMS",
         }
+
+
+class LocandinaForm(forms.ModelForm):
+    """Preset della locandina QR (testi, tema, formato). Il QR non si sposta:
+    i limiti di lunghezza tengono i testi dentro le loro fasce (locandina.py)."""
+
+    PASSI_MAX = 3
+    PASSO_MAX_CARATTERI = 60
+
+    class Meta:
+        from .models import SuggestionCornerLocandina
+        model = SuggestionCornerLocandina
+        fields = [
+            "nome", "titolo", "sottotitolo", "invito", "passi", "nota", "piede",
+            "tema", "formato", "mostra_indirizzo", "predefinita",
+        ]
+        labels = {
+            "nome": "Nome del preset",
+            "titolo": "Titolo",
+            "sottotitolo": "Sottotitolo",
+            "invito": "Testo sopra il QR",
+            "passi": "Passi (uno per riga, massimo 3)",
+            "nota": "Riquadro in basso",
+            "piede": "Piè di pagina",
+            "tema": "Colori",
+            "formato": "Formato di stampa",
+            "mostra_indirizzo": "Stampa l'indirizzo sotto il QR",
+            "predefinita": "Preset predefinito",
+        }
+        widgets = {"passi": forms.Textarea(attrs={"rows": 3})}
+        help_texts = {"passi": ""}
+
+    def clean_passi(self):
+        righe = [r.strip() for r in (self.cleaned_data.get("passi") or "").splitlines() if r.strip()]
+        if len(righe) > self.PASSI_MAX:
+            raise forms.ValidationError(f"Al massimo {self.PASSI_MAX} passi.")
+        for riga in righe:
+            if len(riga) > self.PASSO_MAX_CARATTERI:
+                raise forms.ValidationError(
+                    f"Ogni passo al massimo {self.PASSO_MAX_CARATTERI} caratteri: «{riga[:30]}…» è troppo lungo."
+                )
+        return "\n".join(righe)
+
+
+class LocandinaUrlForm(forms.ModelForm):
+    """Indirizzo codificato nel QR (vuoto = indirizzo del portale)."""
+
+    class Meta:
+        from .models import SuggestionCornerConfig
+        model = SuggestionCornerConfig
+        fields = ["url_pubblico_form"]
+        labels = {"url_pubblico_form": "Indirizzo nel QR"}
 
 
 class ComunicazioneClienteForm(forms.Form):

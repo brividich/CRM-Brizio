@@ -17,7 +17,21 @@ GUIDA = {
                     "Descrivi il problema o l'idea con parole semplici. Se vuoi, allega una foto.",
                     "Invia. Il team miglioramento riceve una mail.",
                 ]),
-                ("p", "Si può segnalare anche senza account, dal modulo pubblico (per esempio da un QR in reparto)."),
+                ("p", "Si può segnalare anche senza account, dal modulo pubblico: basta inquadrare il QR della locandina in bacheca."),
+            ],
+        },
+        {
+            "id": "qr",
+            "titolo": "Dal QR in bacheca, con il telefono",
+            "blocchi": [
+                ("passi", [
+                    "Inquadra il QR con la fotocamera del telefono e apri il link.",
+                    "Scegli il reparto (e, se serve, l'area) e scrivi l'idea o il problema.",
+                    "Se vuoi, aggiungi una foto: «Foto — facoltativa» (JPG, PNG o WEBP, massimo 15 MB).",
+                    "Scegli «Anonimo» oppure «Mi identifico». Con «Mi identifico» scrivi «Nome e cognome»; se sei già entrato nel portale, invii col tuo nome («Invierai come …»).",
+                    "«Invia segnalazione».",
+                ]),
+                ("nota", "Con «Anonimo» non si registra chi sei: né l'account né il nome. Dalla foto vengono tolti posizione e dati del telefono."),
             ],
         },
         {
@@ -31,6 +45,21 @@ GUIDA = {
                     ("CHECK", "si controlla se ha funzionato («Check positivo», «Check negativo (riapre DO)» o «Rinvia check»)."),
                     ("ACT", "si rende stabile la soluzione («Inserisci ACT»), poi «Chiudi»."),
                 ]),
+            ],
+        },
+        {
+            "id": "locandine",
+            "titolo": "Locandine QR per le bacheche",
+            "blocchi": [
+                ("p", "«Locandine QR» (in elenco e in «⚙ Gestione», per il team miglioramento) prepara il foglio da stampare. Il QR è sempre al centro e porta al modulo pubblico."),
+                ("passi", [
+                    "Scegli un preset in alto: «Standard», «Sicurezza», «Idee per migliorare», «Essenziale» o uno salvato da voi (★ = predefinito).",
+                    "Cambia i testi: «Titolo», «Sottotitolo», «Testo sopra il QR», «Passi (uno per riga, massimo 3)», «Riquadro in basso», «Piè di pagina»; poi «Colori» e «Formato di stampa» (A4 o A3). L'anteprima a destra si aggiorna da sola.",
+                    "«Salva preset» aggiorna quello scelto; per tenerlo a parte scrivi un nome e «Salva come nuovo».",
+                    "«Scarica PDF» e stampa. «Elimina preset» toglie quello scelto (l'ultimo rimasto non si elimina).",
+                ]),
+                ("p", "«Dove porta il QR» mostra l'indirizzo codificato. «Indirizzo nel QR» vuoto = indirizzo del portale; cambialo solo se da fuori il modulo si apre con un altro indirizzo. Le locandine già stampate restano col vecchio indirizzo."),
+                ("p", "Nel dettaglio di ogni segnalazione «Segnalata da» dice «Anonima», il nome dell'account o il nome scritto («nome dichiarato», non verificato). La foto si apre cliccandola."),
             ],
         },
     ],
@@ -58,6 +87,19 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Il QR della locandina non apre la pagina dal telefono",
+            "perche": "il telefono non raggiunge l'indirizzo stampato, oppure l'indirizzo è cambiato dopo la stampa.",
+            "fare": [
+                "«Locandine QR» → «Dove porta il QR»: controlla l'indirizzo e aprilo dal telefono fuori dalla rete aziendale.",
+                "Se va corretto, salva il nuovo «Indirizzo nel QR» e ristampa le locandine.",
+            ],
+        },
+        {
+            "sintomo": "La foto non viene accettata",
+            "perche": "formato diverso da JPG, PNG o WEBP, oltre 15 MB o file non leggibile come immagine.",
+            "fare": ["Scatta di nuovo dalla fotocamera o invia senza foto."],
+        },
         {
             "sintomo": "Il modulo pubblico risponde «Troppe richieste»",
             "perche": "c'è un limite di invii per indirizzo e un limite generale di 50 invii all'ora contro lo spam.",

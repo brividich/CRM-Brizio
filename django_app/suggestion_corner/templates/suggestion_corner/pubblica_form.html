@@ -70,11 +70,24 @@
     .sc-cascade{display:grid; grid-template-columns:1fr 1fr; gap:.6rem}
     @media (max-width:480px){.sc-cascade{grid-template-columns:1fr}}
     .sc-sub{font-size:.78rem; color:var(--text-light); margin:.3rem 0 0}
-    /* Anonima come toggle */
-    .sc-toggle{display:flex; align-items:center; gap:.6rem; cursor:pointer;
-      padding:.7rem .85rem; border:1px solid var(--border); border-radius:10px;
-      background:color-mix(in srgb,var(--bg) 60%,transparent); font-size:.9rem}
-    .sc-toggle input{width:18px; height:18px; min-height:0; accent-color:var(--accent)}
+    /* Scelta Anonimo / Mi identifico */
+    fieldset.sc-modo{border:0; padding:0; margin:0 0 1.4rem; min-width:0}
+    fieldset.sc-modo legend{padding:0}
+    .sc-modo-scelte{display:grid; grid-template-columns:1fr 1fr; gap:.6rem}
+    .sc-modo-btn{position:relative; display:flex; flex-direction:column; gap:.15rem; cursor:pointer;
+      padding:.8rem .9rem; border:2px solid var(--border); border-radius:12px; background:var(--surface);
+      transition:border-color .15s, background .15s}
+    .sc-modo-btn input{position:absolute; opacity:0; pointer-events:none}
+    .sc-modo-btn .t{font-weight:700; font-size:1rem}
+    .sc-modo-btn .d{font-size:.8rem; color:var(--text-mid)}
+    .sc-modo-btn:has(input:checked){border-color:var(--accent); background:var(--accent-light)}
+    .sc-modo-btn:has(input:focus-visible){outline:2px solid var(--accent); outline-offset:2px}
+    .sc-nome{margin-top:.8rem; display:none}
+    .sc-modo:has(input[value="identificato"]:checked) .sc-nome{display:block}
+    .sc-nome label{display:block; font-weight:600; font-size:.92rem; margin-bottom:.4rem}
+    .sc-come{margin:0; font-size:.9rem; color:var(--text-mid)}
+    .sc-file{width:100%; font:inherit; color:var(--text-mid); padding:.5rem; border:1px dashed var(--border);
+      border-radius:10px; background:color-mix(in srgb,var(--bg) 60%,transparent)}
     /* Bottone */
     .sc-submit{width:100%; min-height:48px; margin-top:.4rem; border:none; cursor:pointer;
       background:var(--accent); color:#fff; font-weight:600; font-size:1rem; border-radius:10px;
@@ -100,7 +113,7 @@
     </header>
 
     <div class="sc-body">
-      <form method="post" novalidate>
+      <form method="post" enctype="multipart/form-data" novalidate>
         {% csrf_token %}
         {% if form.non_field_errors %}
           <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
@@ -134,10 +147,38 @@
         </div>
 
         <div class="sc-group">
-          <label class="sc-toggle">
-            <input type="checkbox" name="anonima" id="id_anonima"> Invia in forma anonima
-          </label>
+          <label for="id_foto">Foto <span class="sc-hint">— facoltativa</span></label>
+          <input type="file" name="foto" id="id_foto" accept="image/jpeg,image/png,image/webp" class="sc-file">
+          <p class="sc-sub">Scatta una foto o sceglila dalla galleria (JPG, PNG o WEBP, massimo {{ foto_max_mb }} MB). Posizione e dati del telefono vengono tolti.</p>
+          {{ form.foto.errors }}
         </div>
+
+        <fieldset class="sc-group sc-modo">
+          <legend class="sc-legend">Come vuoi inviarla?</legend>
+          <div class="sc-modo-scelte">
+            <label class="sc-modo-btn">
+              <input type="radio" name="modo" value="anonimo" {% if form.modo.value == "anonimo" %}checked{% endif %}>
+              <span class="t">Anonimo</span>
+              <span class="d">Non registriamo chi sei.</span>
+            </label>
+            <label class="sc-modo-btn">
+              <input type="radio" name="modo" value="identificato" {% if form.modo.value == "identificato" %}checked{% endif %}>
+              <span class="t">Mi identifico</span>
+              <span class="d">Il team potrà ricontattarti.</span>
+            </label>
+          </div>
+          {{ form.modo.errors }}
+          <div class="sc-nome" id="sc-nome">
+            {% if utente %}
+              <p class="sc-sub sc-come">Invierai come <strong>{{ utente_nome }}</strong>.</p>
+            {% else %}
+              <label for="id_segnalante_nome">Nome e cognome</label>
+              <input type="text" name="segnalante_nome" id="id_segnalante_nome" maxlength="150" autocomplete="name"
+                     value="{{ form.segnalante_nome.value|default:'' }}">
+              {{ form.segnalante_nome.errors }}
+            {% endif %}
+          </div>
+        </fieldset>
 
         {# Honeypot: nascosto agli utenti, visibile ai bot #}
         <div class="sc-hp" aria-hidden="true">
