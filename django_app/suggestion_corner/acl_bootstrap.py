@@ -16,7 +16,7 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "suggestion_corner"
-_BOOTSTRAP_CACHE_KEY = "suggestion_corner_acl_bootstrap_v7"
+_BOOTSTRAP_CACHE_KEY = "suggestion_corner_acl_bootstrap_v8"
 
 PERM_VIEW = "suggestion_corner.segnalazione.view"
 
@@ -34,7 +34,10 @@ _ROUTE_BINDINGS = {
     "suggestion_corner:gestione": PERM_VIEW,  # gate PERM_VIEW; console riservata SMS_TEAM in-view
     "suggestion_corner:gestione_team_add": PERM_VIEW,  # gestione membri, SMS_TEAM in-view
     "suggestion_corner:gestione_team_remove": PERM_VIEW,  # gestione membri, SMS_TEAM in-view
+    "suggestion_corner:locandine": PERM_VIEW,  # preset locandine QR, SMS_TEAM in-view
+    "suggestion_corner:locandina_pdf": PERM_VIEW,  # PDF locandina, SMS_TEAM in-view
     "suggestion_corner:dettaglio": PERM_VIEW,
+    "suggestion_corner:allegato": PERM_VIEW,  # foto/file, visibilità della segnalazione in-view
     "suggestion_corner:modifica": PERM_VIEW,  # gate PERM_VIEW; edit riservato SMS_TEAM in-view
     "suggestion_corner:classifica": PERM_VIEW,
     "suggestion_corner:comunica_cliente": PERM_VIEW,  # invio riservato SMS_TEAM in-view

@@ -20,8 +20,8 @@
   <p>La tua segnalazione è stata inviata al team SMS e verrà presa in carico.</p>
 
   <div class="sc-actions">
-    <a class="sc-btn sc-btn-primary" href="{% url 'suggestion_corner:home' %}">Torna alla dashboard</a>
-    <a class="sc-btn sc-btn-secondary" href="{% url 'suggestion_corner:nuova' %}">Invia un'altra segnalazione</a>
+    {% if user.is_authenticated %}<a class="sc-btn sc-btn-primary" href="{% url 'suggestion_corner:home' %}">Torna alla dashboard</a>{% endif %}
+    <a class="sc-btn {% if user.is_authenticated %}sc-btn-secondary{% else %}sc-btn-primary{% endif %}" href="{% url 'suggestion_corner:nuova' %}">Invia un'altra segnalazione</a>
   </div>
 </body>
 </html>
