@@ -25,5 +25,7 @@ urlpatterns = [
     path("rentri/api/sync/pull", views.api_sync_pull, name="rentri_api_sync_pull"),
     path("rentri/api/codici/", views.api_codici_cer, name="rentri_api_codici"),
     path("rentri/api/candidati-rif-op/", views.api_candidati_rif_op, name="rentri_api_candidati_rif_op"),
+    path("rentri/api/cer-info/", views.api_cer_info, name="rentri_api_cer_info"),
+    path("rentri/api/leggi-fir/", views.api_leggi_fir, name="rentri_api_leggi_fir"),
     path("rentri/impostazioni/", views.impostazioni, name="rentri_impostazioni"),
 ]

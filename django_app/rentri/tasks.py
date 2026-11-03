@@ -25,3 +25,14 @@ def run_rentri_scadenze_check() -> dict:
     except Exception:
         logger.exception("run_rentri_scadenze_check: eccezione inattesa")
         raise
+
+
+def run_rentri_promemoria_scarico_effettivo() -> dict:
+    """Avviso in-app per gli scarichi originali ancora senza scarico effettivo (vedi ``rentri.promemoria``)."""
+    from .promemoria import invia_promemoria
+
+    try:
+        return {"ok": True, **invia_promemoria()}
+    except Exception:
+        logger.exception("run_rentri_promemoria_scarico_effettivo: eccezione inattesa")
+        raise
