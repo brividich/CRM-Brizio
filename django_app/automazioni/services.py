@@ -5631,6 +5631,54 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
     }
 
 
+def chiudi_approvazioni_pendenti(source_code: str, record_id, decision: str, decided_by: str = "") -> int:
+    """Chiude le richieste di approvazione in attesa di un record deciso fuori dalla mail.
+
+    Quando la decisione arriva dal portale, il link nella mail non deve piu' poter
+    decidere (e rimandare le mail del ramo): la richiesta passa allo stato deciso
+    con chi ha deciso, senza eseguire le azioni del ramo. Ritorna quante ne chiude.
+    """
+    from .models import AutomationApproval, AutomationRunLogStatus
+
+    if decision not in ("approved", "rejected") or record_id in (None, ""):
+        return 0
+    chiave = str(record_id)
+    now = timezone.now()
+    chiuse = 0
+    with transaction.atomic():
+        pendenti = (
+            AutomationApproval.objects.select_for_update()
+            .select_related("run_log")
+            .filter(status=AutomationApproval.Status.PENDING, run_log__source_code=source_code)
+        )
+        for approval in pendenti:
+            payload = approval.resume_payload if isinstance(approval.resume_payload, dict) else {}
+            if str(payload.get("id") or "") != chiave:
+                continue
+            approval.status = decision
+            approval.decided_by_email = (decided_by or "")[:255]
+            approval.decided_at = now
+            approval.branch_status = AutomationApproval.BranchStatus.DONE
+            approval.branch_updated_at = now
+            approval.save(update_fields=[
+                "status", "decided_by_email", "decided_at", "branch_status", "branch_updated_at",
+            ])
+            chiuse += 1
+            run_log = approval.run_log
+            if run_log.status == AutomationRunLogStatus.WAITING_APPROVAL and not run_log.approvals.filter(
+                status=AutomationApproval.Status.PENDING
+            ).exists():
+                run_log.status = (
+                    AutomationRunLogStatus.SUCCESS if decision == "approved" else AutomationRunLogStatus.SKIPPED
+                )
+                run_log.result_message = (
+                    f"Decisa dal portale: {decision} da '{decided_by or 'N/D'}' il "
+                    f"{timezone.localtime(now).strftime('%d-%m-%Y %H:%M')}; link della mail chiuso."
+                )
+                run_log.save(update_fields=["status", "result_message"])
+    return chiuse
+
+
 def run_approval_branch(approval) -> dict[str, int]:
     """Esegue (o riprende) le azioni del ramo deciso, salvando il progresso dopo ognuna.
 

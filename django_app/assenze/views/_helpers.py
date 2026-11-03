@@ -3549,11 +3549,26 @@ def _applica_moderazione(request, item_id: int, current: dict, consenso: str, no
 
 
 def _notify_esito_dipendente(request, record: dict, consenso: str, note: str = "") -> None:
-    """Mail al dipendente per una decisione presa dal portale (best-effort)."""
+    """Decisione presa dal portale: chiude il link della mail e avvisa il dipendente (best-effort)."""
+    from automazioni.services import chiudi_approvazioni_pendenti
+
     from ..mail_esito_service import send_esito_dipendente
 
     try:
         nome, email, _ = _legacy_identity(request)
+    except Exception:
+        nome, email = "", ""
+    try:
+        chiudi_approvazioni_pendenti(
+            "assenze",
+            record.get("id"),
+            "approved" if consenso == "Approvato" else "rejected",
+            decided_by=email or nome or request.user.get_username(),
+        )
+    except Exception:
+        logger.warning("Assenze: richiesta di approvazione via mail non chiusa (id=%s)", record.get("id"), exc_info=True)
+
+    try:
         send_esito_dipendente(
             record,
             consenso=consenso,

@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 96
+**Totale automazioni disponibili:** 97
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -203,6 +203,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Cosa fa:** DPI — promemoria DPI scaduti / in scadenza (+ notifica in-app). Destinatari da impostazioni DPI/SiteConfig con fallback ADMINS/superuser (non no-op puro): disattivabile dalla Centrale di comando.
 
 ## RENTRI · Ambiente
+
+### `rentri_promemoria_scarico_effettivo`
+
+- **Quando gira:** ogni giorno, alle 07:25
+- **Task eseguito:** `rentri.tasks.run_rentri_promemoria_scarico_effettivo`
+- **Cosa fa:** RENTRI — promemoria in-app: scarico originale senza scarico effettivo oltre soglia (SiteConfig rentri_promemoria_m_giorni, di serie 60).
 
 ### `rentri_scadenze_check`
 
