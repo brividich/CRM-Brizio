@@ -274,3 +274,53 @@ class NewDevicePolicyTests(TestCase):
         disp.non_riconosciuto = True
         disp.save()
         self.assertTrue(should_require_2fa(self._richiesta(cookie=cookie), self.su))
+
+
+class InternalNetworksFieldTests(TestCase):
+    """Reti interne: una per riga in pagina, e il salvataggio non le fonde mai in una riga sola."""
+
+    def setUp(self):
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.backends.db import SessionStore
+
+        self.su = get_user_model().objects.create_superuser(username="nets-root", password="pass12345", email="")
+        self._messages = FallbackStorage
+        self._session = SessionStore
+
+    def _richiesta(self, method, path, data=None):
+        rf = RequestFactory()
+        req = rf.post(path, data or {}) if method == "post" else rf.get(path)
+        req.user = self.su
+        req.session = self._session()
+        req._messages = self._messages(req)
+        req.legacy_user = None
+        return req
+
+    def _salva(self, testo):
+        from admin_portale.views.configurazione import api_twofa_policy_save
+        from twofa.models import TwoFactorPolicy
+
+        req = self._richiesta("post", "/x/", {"enabled": "1", "when_required": "external_only", "internal_networks": testo})
+        req._dont_enforce_csrf_checks = True
+        api_twofa_policy_save(req)
+        return TwoFactorPolicy.get().internal_networks
+
+    def test_righe_separate(self):
+        self.assertEqual(self._salva("10.0.0.0/24\r\n192.168.113.0/24\r\n"), ["10.0.0.0/24", "192.168.113.0/24"])
+
+    def test_recupera_backslash_n_letterale_e_virgole(self):
+        self.assertEqual(
+            self._salva("10.0.0.0/24\n192.168.113.0/24, 172.16.0.0/12"),
+            ["10.0.0.0/24", "192.168.113.0/24", "172.16.0.0/12"],
+        )
+
+    def test_pagina_mostra_una_rete_per_riga(self):
+        from admin_portale.views.configurazione import twofa_config
+        from twofa.models import TwoFactorPolicy
+
+        policy = TwoFactorPolicy.get()
+        policy.internal_networks = ["10.0.0.0/24", "192.168.113.0/24"]
+        policy.save()
+        html = twofa_config(self._richiesta("get", "/x/")).content.decode()
+        self.assertIn("10.0.0.0/24&#10;192.168.113.0/24</textarea>", html)
+        self.assertNotIn("10.0.0.0/24\n", html)
