@@ -206,6 +206,12 @@ def _salva_impostazioni(request) -> None:
     if dopo is None or ripeti is None or not (1 <= dopo <= 60) or not (1 <= ripeti <= 60):
         messages.error(request, "I giorni dei solleciti devono stare fra 1 e 60.")
         return
+    giorni_cert = _helpers._as_int(request.POST.get("certificato_avviso_giorni"))
+    if giorni_cert is None:
+        giorni_cert = imp.certificato_avviso_giorni
+    if not (1 <= giorni_cert <= 30):
+        messages.error(request, "I giorni dell'avviso certificato devono stare fra 1 e 30.")
+        return
     imp.ore_giornata = ore
     imp.sabato_lavorativo = request.POST.get("sabato_lavorativo") == "1"
     imp.patrono_giorno = giorno or None
@@ -214,6 +220,8 @@ def _salva_impostazioni(request) -> None:
     imp.sollecito_attivo = request.POST.get("sollecito_attivo") == "1"
     imp.sollecito_dopo_giorni = dopo
     imp.sollecito_ripeti_giorni = ripeti
+    imp.certificato_avviso_attivo = request.POST.get("certificato_avviso_attivo") == "1"
+    imp.certificato_avviso_giorni = giorni_cert
     imp.outlook_capo_attivo = request.POST.get("outlook_capo_attivo") == "1"
     if request.POST.get("outlook_capo_modo") in ("richiesta", "tutte"):
         imp.outlook_capo_modo = request.POST["outlook_capo_modo"]
@@ -223,6 +231,7 @@ def _salva_impostazioni(request) -> None:
         "ore_giornata": str(ore), "sabato_lavorativo": imp.sabato_lavorativo,
         "patrono": f"{giorno}/{mese}" if giorno else "", "sollecito_attivo": imp.sollecito_attivo,
         "sollecito_dopo_giorni": dopo, "sollecito_ripeti_giorni": ripeti,
+        "certificato_avviso_attivo": imp.certificato_avviso_attivo, "certificato_avviso_giorni": giorni_cert,
         "outlook_capo_attivo": imp.outlook_capo_attivo, "outlook_capo_modo": imp.outlook_capo_modo,
     })
     messages.success(request, "Impostazioni salvate.")

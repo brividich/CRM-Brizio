@@ -909,6 +909,14 @@ body.theme-dark #modal-error{color:#fca5a5}
                             >
                               Modifica
                             </button>
+                          {% elif 'approv' in stato_l and r.tipo_raw == 'Malattia' and not r.certificato_medico %}
+                            <button
+                              class="btn btn-sm btn-cert-arrivato"
+                              data-id="{{ r.id }}"
+                              title="Segna che il certificato medico è arrivato"
+                            >
+                              Certificato arrivato
+                            </button>
                           {% endif %}
                           <button
                             class="btn btn-secondary btn-sm btn-elimina"
@@ -1098,6 +1106,26 @@ body.theme-dark #modal-error{color:#fca5a5}
             window.location.reload();
           } catch (err) {
             alert("Errore eliminazione: " + err.message);
+            btn.disabled = false;
+            btn.textContent = originalText;
+          }
+        });
+      });
+
+      document.querySelectorAll(".btn-cert-arrivato").forEach(function (btn) {
+        btn.addEventListener("click", async function () {
+          if (!(await hubConfirm("Il certificato medico è arrivato? La modifica viene comunicata all'ufficio assenze e al capo reparto."))) return;
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = "Salvataggio...";
+          try {
+            const result = await postJsonWithCsrfRetry("/assenze/api/mia/" + btn.dataset.id + "/update", { certificato_medico: "Arrivato" });
+            if (!result.res.ok || !result.data.ok) {
+              throw new Error(result.data.error || ("HTTP " + result.res.status));
+            }
+            window.location.reload();
+          } catch (err) {
+            alert("Errore: " + err.message);
             btn.disabled = false;
             btn.textContent = originalText;
           }

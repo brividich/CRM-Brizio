@@ -1310,6 +1310,30 @@ def api_car_aggiorna_consenso(request, item_id: int):
     return JsonResponse({"ok": True, "item_id": item_id, "consenso": consenso, "note_gestione": note_gestione, "sync": sync_result})
 
 
+def _certificato_arrivato_su_approvata(request, item_id: int, current: dict, payload: dict | None):
+    """Spunta «Certificato arrivato» su una propria malattia già approvata: unico cambio ammesso."""
+    if _helpers._norm_tipo(current.get("tipo_assenza")) != "Malattia":
+        return _helpers._json_error("La richiesta non è più modificabile (non è in stato 'In attesa').", status=400)
+    if str(current.get("certificato_medico") or "").strip():
+        return _helpers._json_error("Il certificato risulta già arrivato.", status=400)
+    richiesto = (payload.get("certificato_medico") if payload else None) or request.POST.get("certificato_medico")
+    if not _helpers._certificato_medico_for_tipo("Malattia", richiesto):
+        return _helpers._json_error(
+            "Sulla malattia già approvata si può solo spuntare «Certificato arrivato».", status=400,
+        )
+    managed_error = _helpers._sharepoint_managed_error(item_id)
+    if managed_error:
+        return managed_error
+    updates = {"certificato_medico": _helpers.CERTIFICATO_ARRIVATO, "modified_datetime": timezone.now()}
+    if not _helpers._update_assenza(item_id, updates):
+        return _helpers._json_error("Aggiornamento non eseguito", status=500)
+    motivo = _helpers.CERTIFICATO_ARRIVATO_MOTIVO
+    calcoli_hr.registra(item_id, "modificata", utente=request.user.get_username(), prima=current, dopo=updates, motivo=motivo)
+    _helpers._notify_assenza_modificata(request, current, calcoli_hr.differenze(current, updates), motivo=motivo)
+    sync_result = _helpers._sp_enqueue_upsert(item_id)
+    return JsonResponse({"ok": True, "item_id": item_id, "sync": sync_result})
+
+
 @login_required
 @require_http_methods(["POST"])
 def api_mia_assenza_update(request, item_id: int):
@@ -1336,13 +1360,17 @@ def api_mia_assenza_update(request, item_id: int):
     mod_status = _helpers._as_int(current.get("moderation_status"))
     if mod_status is None:
         mod_status = _helpers._CONSENSO_TO_MOD.get(_helpers._norm_consenso(current.get("consenso")), 2)
+    payload = _helpers._request_json(request)
+    if mod_status == 0:
+        # Malattia già approvata: si può solo spuntare «Certificato arrivato», che
+        # vale come modifica (motivo «Certificato medico arrivato»).
+        return _certificato_arrivato_su_approvata(request, item_id, current, payload)
     if mod_status != 2:
         return _helpers._json_error("La richiesta non è più modificabile (non è in stato 'In attesa').", status=400)
     managed_error = _helpers._sharepoint_managed_error(item_id)
     if managed_error:
         return managed_error
 
-    payload = _helpers._request_json(request)
     requested_tipo = (
         (payload.get("tipo") if payload else None)
         or request.POST.get("tipo")

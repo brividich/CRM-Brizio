@@ -1011,6 +1011,17 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # ASSENZE — avviso ad assenza@ per le malattie senza certificato medico
+        # dopo N giorni (una mail con l'elenco, ogni malattia una volta sola).
+        # Soglia e interruttore in Assenze → HR → Impostazioni.
+        "name": "assenze_certificato_avviso",
+        "func": "assenze.tasks.run_assenze_certificato_avviso",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 8 * * 1-5",     # ogni mattina feriale alle 08:30
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # SUGGESTION CORNER — solleciti DO/CHECK + escalation (§3)
         "name": "suggestion_corner_reminders",
         "func": "suggestion_corner.tasks.run_suggestion_corner_reminders",

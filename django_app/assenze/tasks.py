@@ -52,6 +52,14 @@ def run_assenze_solleciti() -> dict:
     return invia_solleciti()
 
 
+@system_job_run("assenze_certificato_avviso")
+def run_assenze_certificato_avviso() -> dict:
+    """Avviso mattutino ad assenza@ per le malattie ancora senza certificato medico."""
+    from assenze.certificato_avviso import invia_avvisi
+
+    return invia_avvisi()
+
+
 @system_job_run("assenze_outlook_sync")
 def run_assenze_outlook_sync() -> dict:
     """Assenze approvate nel calendario Outlook del capo (Graph). No-op se spento."""

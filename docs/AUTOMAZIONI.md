@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 93
+**Totale automazioni disponibili:** 96
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -224,6 +224,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Task eseguito:** `tickets.tasks.run_tickets_escalation`
 - **Cosa fa:** Promemoria dashboard (sempre) + resoconto email "ticket urgenti non assegnati". Cadenza oraria: il task aggiorna i promemoria a ogni run e invia il resoconto solo nei giorni lavorativi all'ora configurata (default 08:00), se l'escalation è attivata da Impostazioni ticket.
 
+### `tickets_man_sharepoint_sync`
+
+- **Quando gira:** ogni 5 minuti
+- **Task eseguito:** `tickets.tasks.run_ticket_man_sharepoint_sync`
+- **Cosa fa:** TICKETS — ticket MAN <-> lista SharePoint «Ticket» (CNManutenzioni): invia la coda delle modifiche locali e legge solo gli elementi cambiati (delta query). No-op finche' l'interruttore in Impostazioni e' spento.
+
 ### `tickets_sla_reminders`
 
 - **Quando gira:** ogni giorno, alle 08:30
@@ -432,6 +438,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ## Altro
 
+### `assenze_certificato_avviso`
+
+- **Quando gira:** da lun a ven, alle 08:30
+- **Task eseguito:** `assenze.tasks.run_assenze_certificato_avviso`
+- **Cosa fa:** ASSENZE — avviso ad assenza@ per le malattie senza certificato medico dopo N giorni (una mail con l'elenco, ogni malattia una volta sola). Soglia e interruttore in Assenze → HR → Impostazioni.
+
 ### `assenze_outlook_sync`
 
 - **Quando gira:** ogni 10 minuti
@@ -563,6 +575,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 15 minuti
 - **Task eseguito:** `security.tasks.run_security_cycle_task`
 - **Cosa fa:** SECURITY CENTER — legge le caselle mail dei report (Graph), parser, regole, heartbeat sorgenti e KPI. Senza questo schedule il SOC non riceve dati.
+
+### `security_dipendenze_portale`
+
+- **Quando gira:** ogni giorno, alle 06:50
+- **Task eseguito:** `security.tasks.dipendenze_portale_task`
+- **Cosa fa:** SOC — librerie Python del portale contro il database pubblico OSV (lo stesso di pip-audit): vulnerabilità nuove e risolte in Dispositivi › Librerie del portale, alert per libreria e versione. Spegnibile da /soc/impostazioni/; si vede in Letture automatiche e nel Battito del SOC.
 
 ### `security_pacchetto_iso`
 
