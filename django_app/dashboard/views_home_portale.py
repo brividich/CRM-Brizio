@@ -1139,9 +1139,11 @@ def home_portale(request: HttpRequest) -> HttpResponse:
 @require_GET
 def home_guida(request: HttpRequest) -> HttpResponse:
     """Guida d'uso della home (pulsante «? Guida»)."""
-    from dashboard.guida import DOC_TITOLO, SEZIONI
+    from core.guide_moduli import puo_vedere_admin
+    from dashboard.guida import DOC_TITOLO, sezioni_per
 
-    return render(request, "dashboard/pages/home_guida.html", {"doc_titolo": DOC_TITOLO, "sezioni": SEZIONI})
+    sezioni = sezioni_per(puo_vedere_admin(request))
+    return render(request, "dashboard/pages/home_guida.html", {"doc_titolo": DOC_TITOLO, "sezioni": sezioni})
 
 
 # ── HTMX endpoints ────────────────────────────────────────────────────────────

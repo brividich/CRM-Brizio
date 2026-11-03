@@ -211,7 +211,8 @@ def _testo_ofi() -> str:
 def _testo_home() -> str:
     from dashboard import guida
 
-    return sezioni_in_markdown(guida.SEZIONI)
+    # Le sezioni ``solo_admin`` restano fuori: la guida della home è per tutti.
+    return sezioni_in_markdown(guida.sezioni_per(admin=False))
 
 
 def _testo_assistente() -> str:
