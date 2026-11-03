@@ -40,7 +40,7 @@
 .plx-status-actions{display:flex;gap:6px}
 .plx-view{position:relative;overflow:hidden;height:calc(72 * var(--vh, 1vh));min-height:420px;background:color-mix(in srgb,var(--text-light) 12%,var(--surface));touch-action:none;user-select:none}
 .plx-view.is-pan{cursor:grab}.plx-view.is-panning{cursor:grabbing}
-.plx-view.is-draw,.plx-view.is-place,.plx-view.is-crop{cursor:crosshair}
+.plx-view.is-draw,.plx-view.is-poly,.plx-view.is-place,.plx-view.is-crop{cursor:crosshair}
 .plx-stage{--z:1;position:absolute;left:0;top:0;transform-origin:0 0;box-shadow:0 4px 18px rgba(15,23,42,.18);background:#fff}
 .plx-stage img{display:block;width:100%;height:100%;pointer-events:none}
 .plx-overlay{position:absolute;inset:0}
@@ -56,6 +56,20 @@
 .plx-pin.is-dim{opacity:.25}
 .plx-pin-label{position:absolute;left:18px;top:50%;transform:translateY(-50%);background:#fff;color:#0f172a;border-radius:4px;padding:0 4px;font-size:10px;font-weight:800;line-height:14px;white-space:nowrap;box-shadow:0 0 0 1px rgba(15,23,42,.2);pointer-events:none}
 .plx-view.hide-labels .plx-pin:not(.is-selected) .plx-pin-label{display:none}
+/* reparto a forma libera: pulsante ritagliato sulla forma, bordo e fondo dall'SVG */
+.plx-area.is-poly{border:0;border-radius:0;background:transparent}
+.plx-area-label.is-free{transform:translate(-50%,-50%) scale(calc(1 / var(--z)));transform-origin:50% 50%;z-index:1}
+.plx-view.hide-areas .plx-area-label.is-free{display:none}
+.plx-area-shape{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.plx-area-shape polygon{fill:var(--area-bg,rgba(37,99,235,.18));stroke:var(--area-color,#2563EB);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.plx-area.is-poly.is-selected .plx-area-shape polygon{fill:var(--area-bg-active,rgba(37,99,235,.32));stroke-dasharray:6 4}
+.plx-vertex,.plx-mid{position:absolute;padding:0;transform:translate(-50%,-50%) scale(calc(1 / var(--z)));z-index:5}
+.plx-vertex{width:13px;height:13px;border:2px solid var(--area-color,#2563EB);background:#fff;border-radius:50%;cursor:move}
+.plx-vertex.is-selected{background:var(--area-color,#2563EB);box-shadow:0 0 0 3px #fff}
+.plx-vertex.is-first{width:17px;height:17px;border-color:#16a34a;cursor:pointer}
+.plx-mid{width:9px;height:9px;border:1.5px solid var(--area-color,#2563EB);background:rgba(255,255,255,.85);border-radius:2px;cursor:copy;opacity:.8}
+.plx-poly-draft{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:4}
+.plx-poly-draft polyline{fill:color-mix(in srgb,var(--primary-mid) 14%,transparent);stroke:var(--primary-mid);stroke-width:2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}
 .plx-draft{position:absolute;border:2px dashed var(--primary-mid);background:color-mix(in srgb,var(--primary-mid) 14%,transparent);border-radius:6px;pointer-events:none}
 .plx-crop{position:absolute;border:2px dashed #f59e0b;box-shadow:0 0 0 99999px rgba(15,23,42,.45);pointer-events:none;z-index:6}
 .plx-ghost{position:absolute;width:16px;height:16px;border-radius:50%;background:#dc2626;opacity:.6;transform:translate(-50%,-50%) scale(calc(1 / var(--z)));pointer-events:none;display:none;z-index:5}
@@ -216,6 +230,7 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
           <span class="plx-group-label">Modalità</span>
           <button type="button" class="plx-tool" data-mode="select" aria-pressed="true" title="Seleziona, trascina macchine e reparti (Esc)">Seleziona</button>
           <button type="button" class="plx-tool" data-mode="draw" aria-pressed="false" title="Trascina sulla pianta per disegnare un reparto">Disegna reparto</button>
+          <button type="button" class="plx-tool" data-mode="poly" aria-pressed="false" title="Clicca i vertici: reparto a «L» o di forma libera">Reparto a punti</button>
         </div>
         <div class="plx-group" role="group" aria-label="Immagine">
           <span class="plx-group-label">Immagine</span>
@@ -367,14 +382,18 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
     areas: (payload.areas || []).map(function (r, i) {
       return { cid: cid("a", r), id: r.id || null, name: r.name || ("Reparto " + (i + 1)), reparto_code: r.reparto_code || "",
         color: r.color || "#2563EB", notes: r.notes || "", x: num(r.x_percent, 0), y: num(r.y_percent, 0),
-        w: num(r.width_percent, 10), h: num(r.height_percent, 10), sort_order: num(r.sort_order, (i + 1) * 10) };
+        w: num(r.width_percent, 10), h: num(r.height_percent, 10), sort_order: num(r.sort_order, (i + 1) * 10),
+        pts: Array.isArray(r.punti) && r.punti.length >= 3 ? r.punti.map(function (q) { return [num(q[0], 0), num(q[1], 0)]; }) : null };
     }),
+    poly: [],                // vertici del reparto a punti in disegno
+    selVertex: null,         // vertice selezionato del reparto a forma libera
     markers: (payload.markers || []).map(function (r, i) {
       return { cid: cid("m", r), id: r.id || null, asset_id: num(r.asset_id, 0), label: r.label || "",
         x: num(r.x_percent, 50), y: num(r.y_percent, 50), unplaced: !!r.unplaced, sort_order: num(r.sort_order, (i + 1) * 10) };
     })
   };
   function markerFor(assetId) { return state.markers.find(function (m) { return Number(m.asset_id) === Number(assetId); }) || null; }
+  var SVGNS = "http://www.w3.org/2000/svg";
   function byCid(list, id) { return list.find(function (r) { return r.cid === id; }) || null; }
   function selectedObj() {
     if (!state.selected) return null;
@@ -384,16 +403,53 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
     var machine = machineById[m.asset_id];
     return m.label || (machine && (machine.asset_tag || machine.name)) || "Macchina";
   }
+  /* forma libera: vertici in % della pianta, il riquadro x/y/w/h li contiene */
+  function inPoly(pts, x, y) {
+    var inside = false;
+    for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      var xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+      if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  function areaContains(a, x, y) {
+    if (a.pts) return inPoly(a.pts, x, y);
+    return x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h;
+  }
+  function areaSurface(a) {
+    if (!a.pts) return a.w * a.h;
+    var s2 = 0;
+    for (var i = 0, j = a.pts.length - 1; i < a.pts.length; j = i++) s2 += a.pts[j][0] * a.pts[i][1] - a.pts[i][0] * a.pts[j][1];
+    return Math.abs(s2) / 2;
+  }
+  function bboxFromPts(a) {
+    var xs = a.pts.map(function (q) { return q[0]; }), ys = a.pts.map(function (q) { return q[1]; });
+    a.x = r2(Math.min.apply(null, xs)); a.y = r2(Math.min.apply(null, ys));
+    a.w = r2(Math.max(.5, Math.max.apply(null, xs) - a.x)); a.h = r2(Math.max(.5, Math.max.apply(null, ys) - a.y));
+  }
+  function relPoint(a, q) { return [(q[0] - a.x) / a.w * 100, (q[1] - a.y) / a.h * 100]; }
+  function interiorPoint(a) {
+    var cx = 0, cy = 0;
+    a.pts.forEach(function (q) { cx += q[0]; cy += q[1]; });
+    cx /= a.pts.length; cy /= a.pts.length;
+    if (inPoly(a.pts, cx, cy)) return [cx, cy];
+    for (var i = 1; i < 20; i++) for (var j = 1; j < 20; j++) {
+      var px = a.x + a.w * i / 20, py = a.y + a.h * j / 20;
+      if (inPoly(a.pts, px, py)) return [px, py];
+    }
+    return a.pts[0];
+  }
   function areaAt(x, y) {
-    var hits = state.areas.filter(function (a) { return x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h; });
-    hits.sort(function (a, b) { return a.w * a.h - b.w * b.h; });
+    var hits = state.areas.filter(function (a) { return areaContains(a, x, y); });
+    hits.sort(function (a, b) { return areaSurface(a) - areaSurface(b); });
     return hits[0] || null;
   }
 
   function sync() {
     areasInput.value = JSON.stringify(state.areas.map(function (a, i) {
       return { id: a.id, name: a.name, reparto_code: a.reparto_code, color: a.color, notes: a.notes,
-        x_percent: r2(a.x), y_percent: r2(a.y), width_percent: r2(a.w), height_percent: r2(a.h), sort_order: a.sort_order || (i + 1) * 10 };
+        x_percent: r2(a.x), y_percent: r2(a.y), width_percent: r2(a.w), height_percent: r2(a.h), sort_order: a.sort_order || (i + 1) * 10,
+        punti: a.pts ? a.pts.map(function (q) { return [r2(q[0]), r2(q[1])]; }) : [] };
     }));
     markersInput.value = JSON.stringify(state.markers.map(function (m, i) {
       return { id: m.id, asset_id: m.asset_id, label: m.label, x_percent: r2(m.unplaced ? 50 : m.x), y_percent: r2(m.unplaced ? 50 : m.y),
@@ -457,9 +513,12 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
     if (mode !== "crop") state.crop = null;
     document.querySelectorAll("[data-mode]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-mode") === mode)); });
     view.classList.toggle("is-draw", mode === "draw");
+    view.classList.toggle("is-poly", mode === "poly");
+    if (mode !== "poly") state.poly = [];
     view.classList.toggle("is-place", mode === "place");
     view.classList.toggle("is-crop", mode === "crop");
     if (mode === "draw") setStatus("Trascina sulla pianta il rettangolo del reparto.", [{ label: "Annulla", run: function () { setMode("select"); } }], true);
+    else if (mode === "poly") polyStatus();
     else if (mode === "place") {
       var m = machineById[state.placing];
       var also = m && (m.elsewhere || []).length ? " È già su " + m.elsewhere.join(", ") + ": comparirà anche su questa pianta." : "";
@@ -468,6 +527,24 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
       setStatus("Trascina il riquadro da tenere: il resto della pianta verrà tagliato.", cropActions(), true);
     } else setStatus("Seleziona una macchina nell'elenco per collocarla, oppure trascina quelle già sulla pianta.", [], false);
     renderOverlay(); renderMachines();
+  }
+  function polyStatus() {
+    var n = state.poly.length;
+    var acts = [{ label: "Annulla", run: function () { setMode("select"); } }];
+    if (n) acts.unshift({ label: "Togli ultimo punto", run: function () { state.poly.pop(); renderOverlay(); polyStatus(); } });
+    if (n >= 3) acts.unshift({ label: "Chiudi reparto", primary: true, run: closePoly });
+    setStatus(n ? (n + " punti. Continua a cliccare i vertici; per chiudere clicca il primo punto (verde), premi Invio o «Chiudi reparto».")
+      : "Clicca sulla pianta i vertici del reparto, uno dopo l'altro (per una «L» bastano 6 punti).", acts, true);
+  }
+  function closePoly() {
+    if (state.poly.length < 3) return;
+    var a = { cid: cid("a", null), id: null, name: "Nuovo reparto", reparto_code: "", color: "#2563EB", notes: "",
+      x: 0, y: 0, w: 1, h: 1, pts: state.poly.map(function (q) { return [r2(q[0]), r2(q[1])]; }), sort_order: (state.areas.length + 1) * 10 };
+    bboxFromPts(a);
+    state.areas.push(a); touch();
+    state.selected = { kind: "area", id: a.cid }; state.selVertex = null;
+    setMode("select"); renderAll();
+    var first = selectionNode.querySelector("input"); if (first) { first.focus(); first.select(); }
   }
   function cropActions() {
     var acts = [{ label: "Annulla", run: function () { setMode("select"); } }];
@@ -481,18 +558,65 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
     overlay.innerHTML = "";
     var sel = state.selected;
     state.areas.forEach(function (a) {
-      var b = el("button", "plx-area" + (sel && sel.kind === "area" && sel.id === a.cid ? " is-selected" : ""));
+      var isSel = sel && sel.kind === "area" && sel.id === a.cid;
+      var b = el("button", "plx-area" + (isSel ? " is-selected" : "") + (a.pts ? " is-poly" : ""));
       b.type = "button";
       b.style.cssText = "left:" + a.x + "%;top:" + a.y + "%;width:" + a.w + "%;height:" + a.h + "%;--area-color:" + a.color +
         ";--area-bg:" + rgba(a.color, .16) + ";--area-bg-active:" + rgba(a.color, .3);
       b.setAttribute("aria-label", "Reparto " + a.name);
       b.dataset.area = a.cid;
-      b.appendChild(el("span", "plx-area-label", a.name || "Reparto"));
-      if (sel && sel.kind === "area" && sel.id === a.cid) {
+      var label = el("span", "plx-area-label", a.name || "Reparto");
+      if (a.pts) {
+        var rel = a.pts.map(function (q) { return relPoint(a, q); });
+        b.style.clipPath = "polygon(" + rel.map(function (q) { return q[0].toFixed(2) + "% " + q[1].toFixed(2) + "%"; }).join(", ") + ")";
+        var svg = document.createElementNS(SVGNS, "svg");
+        svg.setAttribute("class", "plx-area-shape"); svg.setAttribute("viewBox", "0 0 100 100"); svg.setAttribute("preserveAspectRatio", "none");
+        var pg = document.createElementNS(SVGNS, "polygon");
+        pg.setAttribute("points", rel.map(function (q) { return q[0].toFixed(2) + "," + q[1].toFixed(2); }).join(" "));
+        svg.appendChild(pg); b.appendChild(svg);
+        var ip = interiorPoint(a);
+        label.className = "plx-area-label is-free";
+        label.style.left = ip[0] + "%"; label.style.top = ip[1] + "%";
+      } else {
+        b.appendChild(label);
+      }
+      if (isSel && !a.pts) {
         var h = el("span", "plx-handle"); h.dataset.handle = a.cid; b.appendChild(h);
       }
       overlay.appendChild(b);
+      if (a.pts) overlay.appendChild(label);
+      if (isSel && a.pts) {
+        // maniglie fuori dal pulsante (che è ritagliato): vertici trascinabili e «+» a metà lato per aggiungerne
+        a.pts.forEach(function (q, i) {
+          var nx = a.pts[(i + 1) % a.pts.length];
+          var mid = el("button", "plx-mid"); mid.type = "button";
+          mid.style.left = (q[0] + nx[0]) / 2 + "%"; mid.style.top = (q[1] + nx[1]) / 2 + "%";
+          mid.dataset.mid = a.cid + "|" + i; mid.title = "Trascina per aggiungere un punto";
+          mid.setAttribute("aria-label", "Aggiungi un punto");
+          overlay.appendChild(mid);
+        });
+        a.pts.forEach(function (q, i) {
+          var v = el("button", "plx-vertex" + (state.selVertex === i ? " is-selected" : "")); v.type = "button";
+          v.style.left = q[0] + "%"; v.style.top = q[1] + "%"; v.style.setProperty("--area-color", a.color);
+          v.dataset.vertex = a.cid + "|" + i; v.title = "Trascina per spostare; selezionato, Canc lo toglie";
+          v.setAttribute("aria-label", "Punto " + (i + 1));
+          overlay.appendChild(v);
+        });
+      }
     });
+    if (state.mode === "poly" && state.poly.length) {
+      var dsvg = document.createElementNS(SVGNS, "svg");
+      dsvg.setAttribute("class", "plx-poly-draft"); dsvg.setAttribute("viewBox", "0 0 100 100"); dsvg.setAttribute("preserveAspectRatio", "none");
+      var pl = document.createElementNS(SVGNS, "polyline");
+      pl.setAttribute("points", state.poly.map(function (q) { return q[0] + "," + q[1]; }).join(" "));
+      dsvg.appendChild(pl); overlay.appendChild(dsvg);
+      state.poly.forEach(function (q, i) {
+        var v = el("span", "plx-vertex" + (i === 0 && state.poly.length >= 3 ? " is-first" : ""));
+        v.style.left = q[0] + "%"; v.style.top = q[1] + "%";
+        if (i === 0) v.dataset.polyFirst = "1";
+        overlay.appendChild(v);
+      });
+    }
     state.markers.forEach(function (m) {
       if (m.unplaced) return;
       var p = el("button", "plx-pin" + (sel && sel.kind === "marker" && sel.id === m.cid ? " is-selected" : "") +
@@ -671,18 +795,41 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
       wrap.appendChild(two);
       wrap.appendChild(field("Colore", input("color", obj.color, function (v) { obj.color = v.toUpperCase(); touch(); renderOverlay(); renderAreas(); })));
       wrap.appendChild(field("Note", input("text", obj.notes, function (v) { obj.notes = v.slice(0, 255); touch(); }, { maxlength: "255" })));
-      var four = el("div", "plx-four");
-      [["x", "X %"], ["y", "Y %"], ["w", "Largh. %"], ["h", "Alt. %"]].forEach(function (k) {
-        four.appendChild(field(k[1], input("number", r2(obj[k[0]]), function (v) { obj[k[0]] = num(v, obj[k[0]]); fixArea(obj); touch(); renderOverlay(); }, { step: "0.1", min: "0", max: "100" })));
-      });
-      wrap.appendChild(four);
       var acts2 = el("div", "plx-actions");
+      if (obj.pts) {
+        wrap.appendChild(el("p", "plx-sel-sub", "Forma libera, " + obj.pts.length + " punti. Trascina i punti bianchi per spostarli, il quadratino a metà lato per aggiungerne uno; un punto selezionato si toglie con Canc."));
+        var toRect = el("button", "plx-tool", "Torna rettangolo"); toRect.type = "button";
+        toRect.addEventListener("click", function () { obj.pts = null; state.selVertex = null; fixArea(obj); touch(); renderAll(); });
+        acts2.appendChild(toRect);
+        if (state.selVertex !== null && obj.pts.length > 3) {
+          var rmV = el("button", "plx-tool", "Togli il punto selezionato"); rmV.type = "button";
+          rmV.addEventListener("click", removeSelectedVertex);
+          acts2.appendChild(rmV);
+        }
+      } else {
+        var four = el("div", "plx-four");
+        [["x", "X %"], ["y", "Y %"], ["w", "Largh. %"], ["h", "Alt. %"]].forEach(function (k) {
+          four.appendChild(field(k[1], input("number", r2(obj[k[0]]), function (v) { obj[k[0]] = num(v, obj[k[0]]); fixArea(obj); touch(); renderOverlay(); }, { step: "0.1", min: "0", max: "100" })));
+        });
+        wrap.appendChild(four);
+        var toPoly = el("button", "plx-tool", "Forma libera"); toPoly.type = "button";
+        toPoly.title = "Trasforma il rettangolo in punti modificabili (es. per fare una «L»)";
+        toPoly.addEventListener("click", function () {
+          obj.pts = [[obj.x, obj.y], [obj.x + obj.w, obj.y], [obj.x + obj.w, obj.y + obj.h], [obj.x, obj.y + obj.h]];
+          bboxFromPts(obj); touch(); renderAll();
+        });
+        acts2.appendChild(toPoly);
+      }
       var del = el("button", "plx-tool", "Elimina reparto"); del.type = "button"; del.addEventListener("click", removeSelected);
       acts2.appendChild(del); wrap.appendChild(acts2);
     }
     selectionNode.appendChild(wrap);
   }
   function fixArea(a) {
+    if (a.pts) {
+      a.pts = a.pts.map(function (q) { return [clamp(r2(q[0]), 0, 100), clamp(r2(q[1]), 0, 100)]; });
+      bboxFromPts(a); return;
+    }
     a.x = clamp(r2(a.x), 0, 99.5); a.y = clamp(r2(a.y), 0, 99.5);
     a.w = clamp(r2(a.w), .5, 100 - a.x); a.h = clamp(r2(a.h), .5, 100 - a.y);
   }
@@ -690,6 +837,7 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
 
   /* ---------- azioni ---------- */
   function select(kind, id, center) {
+    if (!state.selected || state.selected.id !== id) state.selVertex = null;
     state.selected = id ? { kind: kind, id: id } : null;
     if (state.mode !== "select") setMode("select");
     renderAll();
@@ -719,6 +867,11 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
     state.selected = { kind: "marker", id: mk.cid };
     setMode("select");
     renderAll();
+  }
+  function removeSelectedVertex() {
+    var a = selectedObj();
+    if (!a || !a.pts || state.selVertex === null || a.pts.length <= 3) return;
+    a.pts.splice(state.selVertex, 1); state.selVertex = null; bboxFromPts(a); touch(); renderAll();
   }
   function removeSelected() {
     if (!state.selected) return;
@@ -780,14 +933,20 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
       if (e.button !== 0 && e.button !== 1) return;
       var t = e.target, p = toPct(e);
       drag = { sx: e.clientX, sy: e.clientY, tx: tx, ty: ty, start: p, moved: false, kind: "pan", target: t };
-      if (e.button === 0 && (state.mode === "draw" || state.mode === "crop")) {
+      if (e.button === 0 && state.mode === "poly") {
+        drag.kind = "poly-click";
+      } else if (e.button === 0 && state.mode === "select" && t.dataset && (t.dataset.vertex || t.dataset.mid)) {
+        var parts = (t.dataset.vertex || t.dataset.mid).split("|"), av = byCid(state.areas, parts[0]), vi = Number(parts[1]);
+        if (t.dataset.mid) { av.pts.splice(vi + 1, 0, [p.x, p.y]); vi += 1; }
+        drag.kind = "vertex"; drag.obj = av; drag.vi = vi; drag.inserted = !!t.dataset.mid;
+      } else if (e.button === 0 && (state.mode === "draw" || state.mode === "crop")) {
         drag.kind = state.mode; drag.box = el("div", state.mode === "crop" ? "plx-crop" : "plx-draft"); overlay.appendChild(drag.box);
       } else if (e.button === 0 && state.mode === "select" && t.dataset && t.dataset.handle) {
         var ar = byCid(state.areas, t.dataset.handle); drag.kind = "resize"; drag.obj = ar; drag.orig = { w: ar.w, h: ar.h };
       } else if (e.button === 0 && state.mode === "select" && t.dataset && t.dataset.marker) {
         drag.kind = "marker"; drag.obj = byCid(state.markers, t.dataset.marker);
       } else if (e.button === 0 && state.mode === "select" && t.dataset && t.dataset.area && state.selected && state.selected.id === t.dataset.area) {
-        var a2 = byCid(state.areas, t.dataset.area); drag.kind = "move-area"; drag.obj = a2; drag.orig = { x: a2.x, y: a2.y };
+        var a2 = byCid(state.areas, t.dataset.area); drag.kind = "move-area"; drag.obj = a2; drag.orig = { x: a2.x, y: a2.y, pts: a2.pts ? a2.pts.map(function (q) { return q.slice(); }) : null };
       } else if (e.button === 0 && state.mode === "select" && t.dataset && t.dataset.area) {
         drag.kind = "area-click"; drag.obj = byCid(state.areas, t.dataset.area);
       }
@@ -802,7 +961,10 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
       if (!drag.moved && Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) > 4) drag.moved = true;
       if (!drag.moved) return;
       var p = toPct(e);
-      if (drag.kind === "pan" || drag.kind === "area-click") {
+      if (drag.kind === "vertex") {
+        drag.obj.pts[drag.vi] = [p.x, p.y]; bboxFromPts(drag.obj); renderOverlay(); return;
+      }
+      if (drag.kind === "pan" || drag.kind === "area-click" || drag.kind === "poly-click") {
         drag.kind = "pan"; view.classList.add("is-panning");
         tx = drag.tx + (e.clientX - drag.sx); ty = drag.ty + (e.clientY - drag.sy); apply();
       } else if (drag.kind === "draw" || drag.kind === "crop") {
@@ -814,8 +976,13 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
         var pin = overlay.querySelector('[data-marker="' + drag.obj.cid + '"]');
         if (pin) { pin.style.left = p.x + "%"; pin.style.top = p.y + "%"; }
       } else if (drag.kind === "move-area") {
-        drag.obj.x = clamp(drag.orig.x + p.x - drag.start.x, 0, 100 - drag.obj.w);
-        drag.obj.y = clamp(drag.orig.y + p.y - drag.start.y, 0, 100 - drag.obj.h);
+        var nx0 = clamp(drag.orig.x + p.x - drag.start.x, 0, 100 - drag.obj.w);
+        var ny0 = clamp(drag.orig.y + p.y - drag.start.y, 0, 100 - drag.obj.h);
+        if (drag.orig.pts) {
+          var dx = nx0 - drag.orig.x, dy = ny0 - drag.orig.y;
+          drag.obj.pts = drag.orig.pts.map(function (q) { return [q[0] + dx, q[1] + dy]; });
+        }
+        drag.obj.x = nx0; drag.obj.y = ny0;
         renderOverlay();
       } else if (drag.kind === "resize") {
         drag.obj.w = clamp(drag.orig.w + p.x - drag.start.x, .5, 100 - drag.obj.x);
@@ -827,6 +994,19 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
       if (!drag) return;
       var d = drag; drag = null; view.classList.remove("is-panning");
       var t = d.target;
+      if (d.kind === "poly-click") {
+        if (d.moved) return;
+        var q = toPct(e);
+        // chiude cliccando il primo punto, anche se sotto c'è una macchina o un altro reparto
+        var f0 = state.poly[0], vicino = f0 && Math.abs(q.x - f0[0]) < 1.2 / z && Math.abs(q.y - f0[1]) < 1.2 / z;
+        if (state.poly.length >= 3 && ((t && t.dataset && t.dataset.polyFirst) || vicino)) { closePoly(); return; }
+        state.poly.push([q.x, q.y]); renderOverlay(); polyStatus();
+        return;
+      }
+      if (d.kind === "vertex") {
+        if (d.moved || d.inserted) { fixArea(d.obj); touch(); }
+        state.selVertex = d.vi; renderAll(); return;
+      }
       if (d.kind === "draw") {
         if (d.box && d.box.parentNode) d.box.parentNode.removeChild(d.box);
         if (d.rect && d.rect.w >= .5 && d.rect.h >= .5) {
@@ -890,7 +1070,7 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
   });
   var autoBtn = document.querySelector("[data-auto-crop]");
   if (autoBtn) { autoBtn.disabled = !hasImage; autoBtn.addEventListener("click", autoCrop); }
-  document.querySelectorAll("[data-mode='draw'],[data-mode='crop']").forEach(function (b) { b.disabled = !hasImage; });
+  document.querySelectorAll("[data-mode='draw'],[data-mode='poly'],[data-mode='crop']").forEach(function (b) { b.disabled = !hasImage; });
   document.querySelectorAll("[data-tab]").forEach(function (b) {
     b.addEventListener("click", function () {
       var tab = b.getAttribute("data-tab");
@@ -908,8 +1088,17 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
   searchNode.addEventListener("input", renderMachines);
   document.addEventListener("keydown", function (e) {
     var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || "");
-    if (e.key === "Escape") { if (state.mode !== "select") setMode("select"); else if (!typing) { state.selected = null; renderAll(); } }
-    if ((e.key === "Delete" || e.key === "Backspace") && !typing && state.selected) { e.preventDefault(); removeSelected(); }
+    if (state.mode === "poly" && !typing) {
+      if (e.key === "Enter") { e.preventDefault(); closePoly(); return; }
+      if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); state.poly.pop(); renderOverlay(); polyStatus(); return; }
+    }
+    if (e.key === "Escape") { if (state.mode !== "select") setMode("select"); else if (!typing) { state.selected = null; state.selVertex = null; renderAll(); } }
+    if ((e.key === "Delete" || e.key === "Backspace") && !typing && state.selected) {
+      e.preventDefault();
+      var so = selectedObj();
+      if (state.selected.kind === "area" && so && so.pts && state.selVertex !== null) removeSelectedVertex();
+      else removeSelected();
+    }
   });
   form.addEventListener("submit", function () { submitting = true; sync(); });
   window.addEventListener("beforeunload", function (e) { if (state.dirty && !submitting) { e.preventDefault(); e.returnValue = ""; } });

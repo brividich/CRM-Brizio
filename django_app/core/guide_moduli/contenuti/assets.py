@@ -286,6 +286,11 @@ GUIDA = {
                     "«Ruota» raddrizza una pianta di traverso; «Ritaglia» e «Margini automatici» tolgono i bordi inutili. "
                     "Reparti e macchine seguono la pianta; le macchine fuori dal ritaglio tornano «da collocare».",
                     "Disegna i reparti e scrivi il codice reparto uguale al campo reparto delle macchine.",
+                    "Reparto a «L» o di forma irregolare: «Reparto a punti», poi clicca i vertici uno dopo l'altro e chiudi cliccando "
+                    "il primo punto (verde), con Invio o con «Chiudi reparto» (Backspace toglie l'ultimo punto, Esc annulla). "
+                    "Un reparto selezionato mostra i punti bianchi da trascinare e un quadratino a metà di ogni lato per aggiungere un punto; "
+                    "un punto selezionato si toglie con Canc o «Togli il punto selezionato». «Forma libera» trasforma un rettangolo in punti, "
+                    "«Torna rettangolo» fa il contrario.",
                     "Una sola planimetria per categoria è «Attiva»: le altre restano bozze finché non le pubblichi.",
                     "Nuova versione della stessa pianta: «+ Nuova planimetria» con la stessa categoria e la casella "
                     "«Copia reparti e macchine da …» per non ricollocare tutto.",
