@@ -13,6 +13,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -89,7 +90,7 @@ def _validate_rentri_allegato(uploaded_file):
         return str(exc)
     return None
 
-from .models import RegistroRifiuti, RentriImpostazioni
+from .models import CatalogoEER, RegistroRifiuti, RentriImpostazioni
 from core.permessi.impostazioni import impostazioni_o
 
 # ── Request parsing helpers ───────────────────────────────────────────────────
@@ -191,10 +192,12 @@ _split_rif_op = split_rif_op
 
 def _codici_esistenti(q: str = "") -> list[str]:
     """Codici CER già usati in almeno una registrazione (per lo step di ricerca)."""
-    qs = RegistroRifiuti.objects.attivi().exclude(codice="")
+    codici = set(RegistroRifiuti.objects.attivi().exclude(codice="").values_list("codice", flat=True))
     if q:
-        qs = qs.filter(codice__icontains=q)
-    return sorted(set(qs.values_list("codice", flat=True)))[:50]
+        # «1501» trova «15 01 06»: il confronto ignora spazi e maiuscole.
+        ago = "".join(q.split()).lower()
+        codici = {c for c in codici if ago in "".join(c.split()).lower()}
+    return sorted(codici)[:50]
 
 
 def _candidati_rif_op(tipo: str, codice: str) -> list[dict]:
@@ -231,6 +234,7 @@ def _candidati_rif_op(tipo: str, codice: str) -> list[dict]:
                 "id_registrazione": r.id_registrazione,
                 "data": r.data.strftime("%d/%m/%Y") if r.data else "",
                 "quantita": float(r.quantita) if r.quantita is not None else None,
+                "unita": r.unita,
                 "rif_op": r.id_registrazione,
                 "carichi": [r.id_registrazione],
             }
@@ -254,6 +258,7 @@ def _candidati_rif_op(tipo: str, codice: str) -> list[dict]:
             "id_registrazione": r.id_registrazione,
             "data": r.data.strftime("%d/%m/%Y") if r.data else "",
             "quantita": float(r.quantita) if r.quantita is not None else None,
+            "unita": r.unita,
             "rif_op": r.rif_op,
             "carichi": split_rif_op(r.rif_op),
         }
@@ -263,8 +268,51 @@ def _candidati_rif_op(tipo: str, codice: str) -> list[dict]:
 
 @login_required
 def api_codici_cer(request):
+    from .catalogo import cerca
+
     q = request.GET.get("q", "").strip()
-    return JsonResponse({"ok": True, "codici": _codici_esistenti(q)})
+    usati = _codici_esistenti(q)
+    # Dal catalogo EER solo le voci non già tra i codici usati (per nome o per cifre).
+    gia = {" ".join(c.split()) for c in usati}
+    catalogo = [c for c in cerca(q) if c["codice"] not in gia]
+    return JsonResponse({"ok": True, "codici": usati, "catalogo": catalogo})
+
+
+@login_required
+def api_cer_info(request):
+    """Cosa si sa di un codice: confronto col catalogo EER, giacenza, valori dell'ultimo movimento."""
+    from .catalogo import confronta
+    from .giacenze import chiave_codice, giacenza_di
+
+    codice = " ".join(request.GET.get("codice", "").split())
+    if not codice:
+        return JsonResponse({"ok": True, "catalogo": {"stato": "vuoto"}})
+    chiave = chiave_codice(codice)
+    ultimo = next(
+        (r for r in RegistroRifiuti.objects.attivi().exclude(codice="").order_by("-data", "-id")
+         .only("codice", "unita", "pericolosita", "tipo")[:500]
+         if chiave_codice(r.codice) == chiave),
+        None,
+    )
+    unita = ""
+    pericolosita = ""
+    if ultimo is not None:
+        unita = ultimo.unita
+        carico = next(
+            (r for r in RegistroRifiuti.objects.attivi().filter(tipo="C").exclude(pericolosita="")
+             .order_by("-data", "-id").only("codice", "pericolosita")[:500]
+             if chiave_codice(r.codice) == chiave),
+            None,
+        )
+        pericolosita = carico.pericolosita if carico else ""
+    return JsonResponse({
+        "ok": True,
+        "catalogo": confronta(codice),
+        "usato": ultimo is not None,
+        "unita": unita,
+        "pericolosita": pericolosita,
+        "giacenza": format(giacenza_di(codice), "f") if ultimo is not None else None,
+    })
 
 
 @login_required
@@ -272,6 +320,32 @@ def api_candidati_rif_op(request):
     tipo = request.GET.get("tipo", "")
     codice = request.GET.get("codice", "")
     return JsonResponse({"ok": True, "candidati": _candidati_rif_op(tipo, codice)})
+
+
+@login_required
+@require_POST
+def api_leggi_fir(request):
+    """Legge il formulario caricato e propone i campi dello scarico. Non salva il file."""
+    from core.lettura_documenti import DocumentoNonLeggibile
+
+    from .lettura_fir import leggi_fir
+
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
+    f = request.FILES.get("file")
+    if not f:
+        return JsonResponse({"ok": False, "error": "Scegli il file del formulario."}, status=400)
+    errore = _validate_rentri_allegato(f)
+    if errore:
+        return JsonResponse({"ok": False, "error": errore}, status=400)
+    f.seek(0)
+    tipo = request.POST.get("tipo", "O") if request.POST.get("tipo") in ("O", "M") else "O"
+    try:
+        esito = leggi_fir(f.read(), tipo=tipo)
+    except DocumentoNonLeggibile as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+    return JsonResponse({"ok": True, **esito})
 
 
 # ── Views ─────────────────────────────────────────────────────────────────────
@@ -357,13 +431,66 @@ _FORM_TIPO = {
 }
 
 
+# Da quale tipo nasce ciascun movimento (catena C → O → M → R).
+_TIPO_GENITORE = {"O": "C", "M": "O", "R": "M"}
+
+
+def _num(v) -> str:
+    return "" if v is None else format(v, "f")
+
+
+def _valori_iniziali(request, tipo: str, registro=None) -> tuple[dict, str]:
+    """Valori del modulo e, per i nuovi, da dove arrivano (testo per l'utente).
+
+    - modifica: i dati del movimento;
+    - ``?da=<pk>``: il movimento da cui nasce (Scarica / Registra effettivo /
+      Rettifica dalla scheda): codice, unità, collegamento e quantità;
+    - ``?duplica=<pk>``: stesso tipo, stesso codice, unità e pericolosità;
+    - ``?codice=``: solo il codice (dalle Giacenze).
+    """
+    oggi = timezone.localdate().isoformat()
+    if registro is not None:
+        return {
+            "data": registro.data.isoformat() if registro.data else "",
+            "codice": registro.codice, "quantita": _num(registro.quantita), "unita": registro.unita,
+            "rettifica": _num(registro.rettifica_scarico), "pericolosita": registro.pericolosita,
+            "arrivo_fir": registro.arrivo_fir, "note_rentri": registro.note_rentri,
+            "rentri_si_no": registro.rentri_si_no, "rif_op": split_rif_op(registro.rif_op),
+            "allegato": bool(registro.allegato),
+        }, ""
+    v = {"data": oggi, "codice": "", "quantita": "", "unita": "", "rettifica": "", "pericolosita": "",
+         "arrivo_fir": "", "note_rentri": "", "rentri_si_no": False, "rif_op": [], "allegato": False}
+    origine = ""
+    attivi = RegistroRifiuti.objects.attivi()
+    da, dup = request.GET.get("da", ""), request.GET.get("duplica", "")
+    if da.isdigit():
+        g = attivi.filter(pk=int(da), tipo=_TIPO_GENITORE.get(tipo, "")).first()
+        if g is not None:
+            v.update(codice=g.codice, unita=g.unita, rif_op=[g.id_registrazione])
+            if tipo in ("O", "M") and g.quantita is not None:
+                v["quantita"] = _num(g.quantita)
+            origine = f"Compilato da {g.get_tipo_display()} {g.id_registrazione}: controlla quantità e data."
+    elif dup.isdigit():
+        g = attivi.filter(pk=int(dup), tipo=tipo).first()
+        if g is not None:
+            v.update(codice=g.codice, unita=g.unita, pericolosita=g.pericolosita)
+            origine = f"Copia di {g.id_registrazione}: stesso codice e unità, data di oggi."
+    elif request.GET.get("codice", "").strip():
+        v["codice"] = " ".join(request.GET["codice"].split())[:100]
+    return v, origine
+
+
 def _render_form(request, tipo: str, registro=None):
+    valori, origine = _valori_iniziali(request, tipo, registro)
     return render(request, "rentri/pages/movimento_form.html", {
         "tipo": tipo,
         "cfg": _FORM_TIPO[tipo],
         "registro": registro,
         "edit_mode": registro is not None,
+        "v": valori,
+        "origine": origine,
         "unita_choices": RegistroRifiuti.UNITA_CHOICES,
+        "fir_leggibile": tipo in ("O", "M") and _can_manage_rentri(request),
     })
 
 
@@ -377,6 +504,8 @@ def _handle_form(request, tipo: str):
         return denied
     registro = RegistroRifiuti()
     registro.inserito_da = _get_username(request)
+    legacy = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    registro.inserito_da_legacy_id = getattr(legacy, "id", None)
     registro.origine = "portale"
     return _salva_da_richiesta(request, registro, tipo, prima=None)
 
@@ -844,6 +973,28 @@ def modifica(request, pk: int):
     return _salva_da_richiesta(request, registro, registro.tipo, prima=fotografia(registro))
 
 
+# Il passo successivo della catena dalla scheda: (tipo del figlio, tipi che lo «chiudono», etichetta).
+_PROSSIMO = {
+    "C": ("O", ("O", "M", "R"), "Scarica (O)", "rentri_scarico_originale"),
+    "O": ("M", ("M", "R"), "Registra scarico effettivo (M)", "rentri_scarico_effettivo"),
+    "M": ("R", ("R",), "Rettifica (R)", "rentri_rettifica_scarico"),
+}
+
+
+def _prossimo_movimento(registro: RegistroRifiuti, figli: list) -> dict | None:
+    """Pulsante «passo successivo» se il movimento non ha ancora il suo seguito."""
+    voce = _PROSSIMO.get(registro.tipo)
+    if registro.annullato or voce is None:
+        return None
+    _, chiudono, etichetta, url_name = voce
+    if any(f.tipo in chiudono for f in figli):
+        return None
+    return {"etichetta": etichetta, "url": reverse(url_name) + f"?da={registro.pk}"}
+
+
+_URL_TIPO = {"C": "rentri_carico", "O": "rentri_scarico_originale", "M": "rentri_scarico_effettivo", "R": "rentri_rettifica_scarico"}
+
+
 @login_required
 def dettaglio(request, pk: int):
     """Scheda di un movimento: dati, collegamenti, storico, azioni."""
@@ -854,10 +1005,13 @@ def dettaglio(request, pk: int):
         RegistroRifiuti.objects.filter(id_registrazione__in=split_rif_op(registro.rif_op)).order_by("data", "id")
     )
     voci = storico_oggetto(registro)
+    figli = figli_attivi(registro)
     return render(request, "rentri/pages/dettaglio.html", {
         "registro": registro,
         "genitori": genitori,
-        "figli": figli_attivi(registro),
+        "figli": figli,
+        "prossimo": _prossimo_movimento(registro, figli),
+        "duplica_url": reverse(_URL_TIPO.get(registro.tipo, "rentri_carico")) + f"?duplica={registro.pk}",
         "storico": storico_leggibile(voci),
         "can_manage": _can_manage_rentri(request),
     })
@@ -1277,6 +1431,9 @@ def impostazioni(request):
 
     cfg = RentriImpostazioni.get_singleton()
 
+    if request.method == "POST" and request.POST.get("azione") == "catalogo_eer":
+        return _carica_catalogo_eer(request)
+
     if request.method == "POST":
         branding_response = handle_module_branding_post(
             request,
@@ -1310,6 +1467,37 @@ def impostazioni(request):
                 fallback_name=cfg.responsabile_nome,
                 fallback_email=cfg.responsabile_email,
             ),
+            "catalogo_voci": CatalogoEER.objects.count(),
+            "catalogo_pericolosi": CatalogoEER.objects.filter(pericoloso=True).count(),
             **get_module_branding_context("rentri", fallback_label="RENTRI"),
         },
     )
+
+
+_CATALOGO_MAX_BYTES = 15 * 1024 * 1024
+
+
+def _carica_catalogo_eer(request):
+    """Sostituisce il catalogo EER col file caricato (HTML/PDF EUR-Lex o CSV)."""
+    from .catalogo import leggi_file, sostituisci
+    from .management.commands.rentri_catalogo_eer import MIN_VOCI
+
+    f = request.FILES.get("file_catalogo")
+    if not f:
+        messages.error(request, "Scegli il file del catalogo.")
+        return redirect("rentri_impostazioni")
+    nome = (f.name or "").lower()
+    if not nome.endswith((".html", ".htm", ".pdf", ".csv", ".txt")) or f.size > _CATALOGO_MAX_BYTES:
+        messages.error(request, "Il file deve essere HTML, PDF, CSV o TXT e stare sotto i 15 MB.")
+        return redirect("rentri_impostazioni")
+    voci = leggi_file(nome, f.read())
+    if len(voci) < MIN_VOCI:
+        messages.error(
+            request,
+            f"Nel file ho trovato solo {len(voci)} codici: non sembra l'elenco completo (sono circa 840). Catalogo non modificato.",
+        )
+        return redirect("rentri_impostazioni")
+    n = sostituisci(voci)
+    log_action(request, "modifica", "rentri", f"Catalogo EER caricato: {n} voci da {f.name}")
+    messages.success(request, f"Catalogo EER aggiornato: {n} codici.")
+    return redirect("rentri_impostazioni")

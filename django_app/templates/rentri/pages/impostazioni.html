@@ -54,6 +54,30 @@
         </div>
       </section>
 
+      <section class="ms-card">
+        <div class="ms-card-head">
+          <div class="ms-card-title-wrap">
+            <h2 class="ms-card-title">Catalogo EER</h2>
+            <p class="ms-card-subtitle">L'elenco europeo dei rifiuti serve solo per il confronto: nei moduli di registrazione mostra il nome ufficiale del codice e avvisa se il codice non esiste o se manca l'asterisco. Non blocca il salvataggio.</p>
+          </div>
+        </div>
+        <div class="ms-card-body">
+          <p style="margin:0 0 12px;">{% if catalogo_voci %}Caricati <strong>{{ catalogo_voci }}</strong> codici, di cui {{ catalogo_pericolosi }} pericolosi.{% else %}<strong>Catalogo non caricato</strong>: nei moduli il confronto col nome ufficiale non compare.{% endif %}</p>
+          <form method="post" enctype="multipart/form-data" class="ms-field-grid">
+            {% csrf_token %}
+            <input type="hidden" name="azione" value="catalogo_eer">
+            <div class="ms-field">
+              <label for="file_catalogo">File dell'elenco</label>
+              <input id="file_catalogo" type="file" name="file_catalogo" accept=".html,.htm,.pdf,.csv,.txt" required>
+              <span class="ms-field-help">Apri su EUR-Lex la Decisione 2000/532/CE nel testo consolidato in italiano e salvala dal browser (File → Salva pagina, formato HTML) oppure scarica il PDF. Va bene anche un CSV <code>codice;descrizione</code>, con l'asterisco nei codici pericolosi. Il caricamento sostituisce il catalogo precedente.</span>
+            </div>
+            <div class="ms-form-actions">
+              <button type="submit" class="btn btn-primary">Carica catalogo</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
       {% include "core/components/module_branding_card.html" %}
     </div>
   </div>

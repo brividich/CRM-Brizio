@@ -949,6 +949,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # RENTRI — promemoria in-app: scarico originale senza scarico effettivo
+        # oltre soglia (SiteConfig rentri_promemoria_m_giorni, di serie 60).
+        "name": "rentri_promemoria_scarico_effettivo",
+        "func": "rentri.tasks.run_rentri_promemoria_scarico_effettivo",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "25 7 * * *",       # ogni mattina alle 07:25
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # TICKETS — promemoria SLA scaduto all'ASSEGNATARIO (complementare a
         # tickets_escalation, che copre gli urgenti non assegnati).
         "name": "tickets_sla_reminders",

@@ -22,6 +22,8 @@
 .rnf-card { background:var(--surface,#fff); border:1px solid var(--hub-line); border-radius:14px; padding:20px 22px; }
 .rnf-card + .rnf-card { margin-top:0; }
 
+.rnf-card { counter-reset:rnf-sez; }
+.rnf-num::before { counter-increment:rnf-sez; content:counter(rnf-sez); }
 .rnf-num { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:var(--rnf-soft); color:var(--rnf-text); font-size:10px; font-weight:900; font-family:inherit; letter-spacing:0; }
 .rnf .hub-fsec-h { color:var(--rnf-text); }
 .rnf .hub-field input:focus, .rnf .hub-field select:focus, .rnf .hub-field textarea:focus { border-color:var(--rnf-accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--rnf-accent) 18%, transparent); }
@@ -33,7 +35,8 @@
 .rnf-cer { position:relative; }
 .rnf-cer-dd { display:none; position:absolute; z-index:30; top:calc(100% + 4px); left:0; right:0; background:var(--surface,#fff); border:1px solid var(--hub-line); border-radius:10px; box-shadow:0 12px 30px rgba(8,20,45,.12); max-height:240px; overflow-y:auto; }
 .rnf-cer-dd.open { display:block; }
-.rnf-cer-opt { padding:9px 12px; font-size:13px; cursor:pointer; font-family:var(--hub-mono); color:var(--hub-ink); }
+.rnf-cer-opt { padding:9px 12px; font-size:13px; cursor:pointer; color:var(--hub-ink); }
+.rnf-cer-code { font-family:var(--hub-mono); }
 .rnf-cer-opt:hover, .rnf-cer-opt.hi { background:var(--rnf-soft); }
 .rnf-cer-new { font-family:inherit; color:var(--rnf-text); font-weight:700; }
 
@@ -76,6 +79,28 @@
 .rnf-alert.err { background:var(--hub-bad-bg); color:var(--hub-bad-fg); border-color:var(--hub-bad-bd); }
 .rnf-alert.ok { background:var(--hub-ok-bg); color:var(--hub-ok-fg); border-color:var(--hub-ok-bd); }
 
+.rnf-alert.info { background:var(--hub-blue-bg); color:var(--hub-blue-fg); border-color:var(--hub-blue-bd); }
+.rnf-cer-desc { display:block; font-size:11.5px; color:var(--hub-muted); white-space:normal; }
+.rnf-cer-sep { padding:6px 12px 4px; font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--hub-muted-2); border-top:1px solid var(--hub-line-soft); }
+.rnf-info { font-size:12px; line-height:1.45; padding:7px 10px; border-radius:8px; border:1px solid var(--hub-line); background:var(--hub-wash); color:var(--hub-ink); }
+.rnf-info[hidden] { display:none; }
+.rnf-info.ok { background:var(--hub-ok-bg); border-color:var(--hub-ok-bd); color:var(--hub-ok-fg); }
+.rnf-info.warn { background:var(--hub-warn-bg); border-color:var(--hub-warn-bd); color:var(--hub-warn-fg); }
+.rnf-info b { font-weight:800; }
+.rnf-proposto { font-size:11px; color:var(--rnf-text); font-weight:700; }
+.rnf-proposto[hidden] { display:none; }
+.rnf-fir-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.rnf-fir-row input[type=file] { flex:1; min-width:220px; }
+.rnf-fir-out { border:1px solid var(--hub-line); border-radius:10px; padding:12px 14px; display:grid; gap:8px; }
+.rnf-fir-out[hidden] { display:none; }
+.rnf-fir-h { font-size:12.5px; font-weight:800; color:var(--hub-navy); }
+.rnf-fir-list { display:grid; gap:6px; }
+.rnf-fir-item { display:flex; align-items:baseline; gap:8px; font-size:13px; }
+.rnf-fir-item input { accent-color:var(--rnf-accent); width:auto; margin:0; flex:0 0 auto; align-self:center; }
+.rnf-fir-out > .hub-btn { justify-self:start; }
+.rnf-fir-k { color:var(--hub-muted); min-width:110px; }
+.rnf-fir-v { font-weight:700; color:var(--hub-ink); }
+.rnf-fir-ai { font-size:10px; font-weight:800; padding:1px 6px; border-radius:999px; background:var(--hub-warn-bg); color:var(--hub-warn-fg); border:1px solid var(--hub-warn-bd); }
 .rnf .hub-modal { align-items:center; }
 .rnf .hub-modal-card { width:440px; }
 
@@ -87,6 +112,8 @@
 
 body.theme-dark .rnf { --rnf-soft:color-mix(in srgb, var(--rnf-accent) 18%, transparent); --rnf-text:color-mix(in srgb, var(--rnf-accent) 55%, #fff); }
 body.theme-dark .rnf-card, body.theme-dark .rnf-cand-item, body.theme-dark .rnf-cer-dd { background:var(--surface); border-color:var(--border); }
+body.theme-dark .rnf-info:not(.ok):not(.warn), body.theme-dark .rnf-fir-out { background:var(--surface); border-color:var(--border); }
+body.theme-dark .rnf-fir-h { color:var(--text); }
 body.theme-dark .rnf-cand-item.sel { border-color:var(--rnf-accent); background:var(--rnf-soft); }
 body.theme-dark .rnf .hub-btn-outline, body.theme-dark .rnf .hub-btn-ghost { background:var(--surface); border-color:var(--border); color:var(--text); }
 body.theme-dark .rnf .hub-btn-outline:hover, body.theme-dark .rnf .hub-btn-ghost:hover { background:var(--border); }
@@ -114,17 +141,37 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
   </div>
 
   <div class="rnf-alert" id="rnf-alert" role="alert" hidden></div>
+  {% if origine %}<div class="rnf-alert info">{{ origine }}</div>{% endif %}
 
   <form class="rnf-layout" id="rnf-form" novalidate>
     <div class="rnf-card">
 
+      {% if tipo == 'O' or tipo == 'M' %}
       <section class="hub-fsec">
-        <div class="hub-fsec-h"><span class="rnf-num">1</span> Movimento</div>
+        <div class="hub-fsec-h"><span class="rnf-num"></span> Formulario (FIR)</div>
+        <div class="hub-field">
+          <label for="f-allegato">Scansione o PDF del formulario</label>
+          <div class="rnf-fir-row">
+            <input type="file" id="f-allegato" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx">
+            {% if fir_leggibile %}<button type="button" class="hub-btn hub-btn-outline hub-btn-sm" id="btn-fir" disabled>Leggi i dati dal FIR</button>{% endif %}
+          </div>
+          {% if v.allegato %}
+            <div class="rnf-file-now">Allegato già presente: caricane uno nuovo solo per sostituirlo.</div>
+          {% else %}
+            <div class="hub-help">Facoltativo. {% if fir_leggibile %}Con un PDF o una foto il portale propone codice, quantità, numero e data: scegli tu cosa usare.{% endif %}</div>
+          {% endif %}
+        </div>
+        <div class="rnf-fir-out" id="fir-out" hidden aria-live="polite"></div>
+      </section>
+      {% endif %}
+
+      <section class="hub-fsec">
+        <div class="hub-fsec-h"><span class="rnf-num"></span> Movimento</div>
         <div class="hub-form-grid">
           <div class="hub-field" id="fld-data">
             <label for="f-data">Data<i class="hub-req">*</i></label>
             <input type="date" id="f-data" required max="{% now 'Y-m-d' %}"
-              value="{% if edit_mode %}{{ registro.data|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}">
+              value="{{ v.data }}">
             <div class="hub-err" id="err-data"></div>
           </div>
           <div class="hub-field" id="fld-codice">
@@ -132,20 +179,22 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
             <div class="rnf-cer">
               <input type="text" id="f-codice" required autocomplete="off"
                 placeholder="{% if tipo == 'C' %}Cerca o scrivi un codice nuovo{% else %}Cerca tra i codici già usati{% endif %}"
-                value="{% if edit_mode %}{{ registro.codice }}{% endif %}">
+                value="{{ v.codice }}">
               <div class="rnf-cer-dd" id="cer-dd" role="listbox"></div>
             </div>
             <div class="hub-err" id="err-codice"></div>
-            <div class="hub-help">Sei cifre, per esempio 15 01 06. L'asterisco * indica un rifiuto pericoloso.</div>
+            <div class="hub-help">Sei cifre, per esempio 15 01 06. L'asterisco * indica un rifiuto pericoloso. Puoi cercare anche per nome.</div>
+            <div class="rnf-info" id="cer-info" hidden></div>
           </div>
         </div>
       </section>
 
       {% if cfg.rif_tipo %}
       <section class="hub-fsec" id="sec-rifop">
-        <div class="hub-fsec-h"><span class="rnf-num">2</span> Collegato a</div>
+        <div class="hub-fsec-h"><span class="rnf-num"></span> Collegato a</div>
         <div class="rnf-cand-bar">
           <div class="hub-help">{{ cfg.rif_help }}</div>
+          <button type="button" class="hub-btn hub-btn-ghost hub-btn-sm" id="btn-rifop-all">Seleziona tutti</button>
           <button type="button" class="hub-btn hub-btn-ghost hub-btn-sm" id="btn-rifop-reload">Aggiorna elenco</button>
         </div>
         <div class="hub-field" id="fld-rifop">
@@ -156,20 +205,20 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
       {% endif %}
 
       <section class="hub-fsec">
-        <div class="hub-fsec-h"><span class="rnf-num">{% if cfg.rif_tipo %}3{% else %}2{% endif %}</span> Quantità</div>
+        <div class="hub-fsec-h"><span class="rnf-num"></span> Quantità</div>
         <div class="hub-form-grid">
           {% if tipo == 'R' %}
           <div class="hub-field">
             <label for="f-rettifica">Rettifica scarico</label>
             <input type="number" id="f-rettifica" step="0.001" placeholder="0,000" inputmode="decimal"
-              value="{% if edit_mode and registro.rettifica_scarico is not None %}{{ registro.rettifica_scarico|stringformat:'s' }}{% endif %}">
+              value="{{ v.rettifica }}">
             <div class="hub-help">Positiva se lo scarico era sottostimato, negativa se sovrastimato.</div>
           </div>
           {% else %}
           <div class="hub-field">
             <label for="f-quantita">Quantità</label>
             <input type="number" id="f-quantita" step="0.001" placeholder="0,000" inputmode="decimal"
-              value="{% if edit_mode and registro.quantita is not None %}{{ registro.quantita|stringformat:'s' }}{% endif %}">
+              value="{{ v.quantita }}">
             {% if tipo == 'C' %}<div class="hub-help">Il carico è sempre positivo.</div>{% endif %}
           </div>
           {% endif %}
@@ -177,15 +226,16 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
             <label for="f-unita">Unità di misura<i class="hub-req">*</i></label>
             <select id="f-unita" required>
               <option value="">— scegli —</option>
-              {% for val, label in unita_choices %}<option value="{{ val }}"{% if edit_mode and registro.unita == val %} selected{% endif %}>{{ label }}</option>{% endfor %}
+              {% for val, label in unita_choices %}<option value="{{ val }}"{% if v.unita == val %} selected{% endif %}>{{ label }}</option>{% endfor %}
             </select>
             <div class="hub-err" id="err-unita"></div>
+            <div class="rnf-proposto" id="unita-proposta" hidden>Proposta dall'ultimo movimento con questo codice.</div>
           </div>
           {% if tipo == 'M' %}
           <div class="hub-field">
             <label for="f-rettifica">Rettifica scarico</label>
             <input type="number" id="f-rettifica" step="0.001" placeholder="0,000" inputmode="decimal"
-              value="{% if edit_mode and registro.rettifica_scarico is not None %}{{ registro.rettifica_scarico|stringformat:'s' }}{% endif %}">
+              value="{{ v.rettifica }}">
           </div>
           {% endif %}
           <div class="hub-help hub-col-full">Usa sempre la stessa unità per lo stesso codice CER: le giacenze sommano solo quantità omogenee. Con m³ o litri il portale controlla anche il limite in volume del deposito.</div>
@@ -193,28 +243,29 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
       </section>
 
       <section class="hub-fsec">
-        <div class="hub-fsec-h"><span class="rnf-num">{% if cfg.rif_tipo %}4{% else %}3{% endif %}</span> Documenti e invio</div>
+        <div class="hub-fsec-h"><span class="rnf-num"></span> Documenti e invio</div>
         <div class="hub-form-grid">
           {% if tipo == 'C' %}
           <div class="hub-field" id="fld-pericolosita">
             <label for="f-pericolosita">Pericolosità (HP)</label>
             <input type="text" id="f-pericolosita" placeholder="Per esempio HP4, HP14"
-              value="{% if edit_mode %}{{ registro.pericolosita }}{% endif %}">
+              value="{{ v.pericolosita }}">
             <div class="hub-help" id="help-pericolosita">Da indicare per i codici pericolosi (con l'asterisco *).</div>
+            <div class="rnf-proposto" id="peric-proposta" hidden>Proposta dall'ultimo carico con questo codice.</div>
           </div>
           {% endif %}
           {% if tipo == 'M' or tipo == 'R' %}
           <div class="hub-field">
             <label for="f-arrivo-fir">Arrivo FIR</label>
             <input type="text" id="f-arrivo-fir" placeholder="Numero del FIR di ritorno"
-              value="{% if edit_mode %}{{ registro.arrivo_fir }}{% endif %}">
+              value="{{ v.arrivo_fir }}">
           </div>
           {% endif %}
-          {% if tipo != 'R' %}
-          <div class="hub-field{% if tipo == 'O' %} hub-col-full{% endif %}">
-            <label for="f-allegato">{% if tipo == 'C' %}Allegato{% else %}Formulario (FIR) – allegato{% endif %}</label>
+          {% if tipo == 'C' %}
+          <div class="hub-field">
+            <label for="f-allegato">Allegato</label>
             <input type="file" id="f-allegato" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp">
-            {% if edit_mode and registro.allegato %}
+            {% if v.allegato %}
               <div class="rnf-file-now">Allegato già presente: caricane uno nuovo solo per sostituirlo.</div>
             {% else %}
               <div class="hub-help">Facoltativo: puoi aggiungerlo anche dopo, riaprendo la registrazione.</div>
@@ -223,11 +274,11 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
           {% endif %}
           <div class="hub-field hub-col-full">
             <label for="f-note-rentri">Note RENTRI</label>
-            <textarea id="f-note-rentri" placeholder="Note aggiuntive per RENTRI…">{% if edit_mode %}{{ registro.note_rentri }}{% endif %}</textarea>
+            <textarea id="f-note-rentri" placeholder="Note aggiuntive per RENTRI…">{{ v.note_rentri }}</textarea>
           </div>
           <div class="hub-col-full">
             <label class="hub-check rnf-check">
-              <input type="checkbox" id="f-rentri-si-no"{% if edit_mode and registro.rentri_si_no %} checked{% endif %}>
+              <input type="checkbox" id="f-rentri-si-no"{% if v.rentri_si_no %} checked{% endif %}>
               Scheda da inviare al RENTRI
             </label>
           </div>
@@ -279,6 +330,7 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
 
 </div>
 
+{{ v.rif_op|json_script:"rnf-rifop-iniziali" }}
 <script>
 (function () {
   var TIPO = '{{ tipo|escapejs }}';
@@ -287,13 +339,15 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
   var URL_NUOVO = '{{ request.path|escapejs }}';
   var URL_CODICI = '{% url "rentri_api_codici" %}';
   var URL_CANDIDATI = '{% url "rentri_api_candidati_rif_op" %}';
+  var URL_CER_INFO = '{% url "rentri_api_cer_info" %}';
+  var URL_FIR = '{% url "rentri_api_leggi_fir" %}';
   var savedPk = {% if edit_mode %}{{ registro.pk }}{% else %}null{% endif %};
   var savedId = '{% if edit_mode %}{{ registro.id_registrazione|escapejs }}{% endif %}';
   var isEdit = savedPk !== null;
 
   var $ = function (id) { return document.getElementById(id); };
   var form = $('rnf-form'), alertEl = $('rnf-alert'), modal = $('rnf-modal'), btnSave = $('btn-save');
-  var selected = new Set({% if edit_mode and registro.rif_op %}'{{ registro.rif_op|escapejs }}'.split(',').map(function (s) { return s.trim(); }).filter(Boolean){% else %}[]{% endif %});
+  var selected = new Set(JSON.parse(document.getElementById('rnf-rifop-iniziali').textContent));
 
   function csrf() {
     var c = document.cookie.split(';').find(function (s) { return s.trim().startsWith('csrftoken='); });
@@ -312,24 +366,49 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
   }
 
   /* ── Codice CER: suggerimenti tra i codici già usati ── */
-  var cerInput = $('f-codice'), cerDd = $('cer-dd'), cerItems = [], cerHi = -1;
+  var cerInput = $('f-codice'), cerDd = $('cer-dd'), cerItems = [], cerCatalogo = [], cerHi = -1;
   function cerRender(q) {
     cerDd.innerHTML = '';
     var exact = cerItems.some(function (c) { return c.toLowerCase() === q.toLowerCase(); });
-    if (q && !exact && TIPO === 'C') {
+    // «Usa il nuovo codice» solo per un codice scritto in cifre, non per una ricerca per nome.
+    if (q && !exact && TIPO === 'C' && /^[\d\s.*]+$/.test(q)) {
       var add = document.createElement('div');
       add.className = 'rnf-cer-opt rnf-cer-new';
       add.textContent = '+ Usa il nuovo codice «' + q + '»';
       add.dataset.v = q;
       cerDd.appendChild(add);
     }
+    function codiceEl(testo) {
+      var span = document.createElement('span');
+      span.className = 'rnf-cer-code';
+      span.textContent = testo;
+      return span;
+    }
     cerItems.forEach(function (c) {
       var el = document.createElement('div');
       el.className = 'rnf-cer-opt';
-      el.textContent = c;
+      el.appendChild(codiceEl(c));
       el.dataset.v = c;
       cerDd.appendChild(el);
     });
+    // Dal catalogo EER (ricerca anche per nome): solo nel carico, dove nasce un codice nuovo.
+    if (TIPO === 'C' && cerCatalogo.length) {
+      var sep = document.createElement('div');
+      sep.className = 'rnf-cer-sep';
+      sep.textContent = 'Dall’elenco europeo dei rifiuti';
+      cerDd.appendChild(sep);
+      cerCatalogo.forEach(function (c) {
+        var el = document.createElement('div');
+        el.className = 'rnf-cer-opt';
+        el.dataset.v = c.codice;
+        el.appendChild(codiceEl(c.codice));
+        var d = document.createElement('span');
+        d.className = 'rnf-cer-desc';
+        d.textContent = c.descrizione;
+        el.appendChild(d);
+        cerDd.appendChild(el);
+      });
+    }
     cerHi = -1;
     cerDd.classList.toggle('open', cerDd.children.length > 0 && document.activeElement === cerInput);
   }
@@ -342,8 +421,8 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
     var q = cerInput.value.trim();
     fetch(URL_CODICI + '?q=' + encodeURIComponent(q), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.json(); })
-      .then(function (res) { cerItems = (res && res.codici) || []; cerRender(q); })
-      .catch(function () { cerItems = []; cerRender(q); });
+      .then(function (res) { cerItems = (res && res.codici) || []; cerCatalogo = (res && res.catalogo) || []; cerRender(q); })
+      .catch(function () { cerItems = []; cerCatalogo = []; cerRender(q); });
   }, 200);
   cerInput.addEventListener('input', cerFetch);
   cerInput.addEventListener('focus', cerFetch);
@@ -371,14 +450,67 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
   });
   cerInput.addEventListener('change', onCodiceChange);
 
-  var lastCodice = null;
+  var lastCodice = null, lastInfo = null;
   function onCodiceChange() {
     var codice = cerInput.value.trim();
     var help = $('help-pericolosita');
     if (help) help.classList.toggle('hub-err', codice.indexOf('*') !== -1);
     if (RIF_TIPO && codice !== lastCodice) loadCandidati();
+    if (codice !== lastInfo) loadCerInfo();
     refresh();
   }
+
+  /* ── Cosa si sa del codice: nome ufficiale EER, giacenza, valori dell'ultimo movimento ── */
+  var UNITA_LABEL = { kg: 'kg', t: 't', l: 'litri', m3: 'm³' };
+  function infoRiga(box, testo, forte) {
+    var div = document.createElement('div');
+    if (forte) {
+      var b = document.createElement('b');
+      b.textContent = forte;
+      div.appendChild(b);
+      div.appendChild(document.createTextNode(' '));
+    }
+    div.appendChild(document.createTextNode(testo));
+    box.appendChild(div);
+  }
+  function loadCerInfo() {
+    var codice = cerInput.value.trim(), box = $('cer-info');
+    lastInfo = codice;
+    box.hidden = true;
+    box.innerHTML = '';
+    if (!codice) return;
+    fetch(URL_CER_INFO + '?codice=' + encodeURIComponent(codice), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (cerInput.value.trim() !== codice) return;
+        var cat = res.catalogo || {}, tono = '';
+        if (cat.stato === 'ok') {
+          infoRiga(box, cat.descrizione, '✓ ' + cat.codice);
+          tono = 'ok';
+        } else if (cat.messaggio) {
+          infoRiga(box, cat.messaggio, '⚠');
+          if (cat.descrizione) infoRiga(box, cat.descrizione, cat.codice);
+          tono = 'warn';
+        }
+        if (res.giacenza !== null && res.giacenza !== undefined && TIPO !== 'C') {
+          infoRiga(box, String(res.giacenza).replace('.', ',') + (res.unita ? ' ' + (UNITA_LABEL[res.unita] || res.unita) : ''), 'In deposito:');
+        }
+        if (!isEdit) {
+          var u = $('f-unita');
+          if (res.unita && !u.value) { u.value = res.unita; $('unita-proposta').hidden = false; }
+          var p = $('f-pericolosita');
+          if (p && res.pericolosita && !p.value) { p.value = res.pericolosita; $('peric-proposta').hidden = false; }
+        }
+        if (box.children.length) {
+          box.className = 'rnf-info' + (tono ? ' ' + tono : '');
+          box.hidden = false;
+        }
+        refresh();
+      })
+      .catch(function () {});
+  }
+  $('f-unita').addEventListener('change', function () { $('unita-proposta').hidden = true; });
+  if ($('f-pericolosita')) $('f-pericolosita').addEventListener('input', function () { $('peric-proposta').hidden = true; });
 
   /* ── Movimenti collegabili (Rif.Op): si ricaricano a ogni cambio di codice CER ── */
   function emptyBox(listEl, msg) {
@@ -406,7 +538,30 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
       })
       .catch(function () { emptyBox(listEl, 'Elenco non disponibile: riprova con «Aggiorna elenco».'); });
   }
+  var candById = {}, lastAutoQta = null;
+  // Quantità proposta = somma dei collegati spuntati, finché la persona non la cambia a mano.
+  function proponiQuantita() {
+    var q = $('f-quantita');
+    if (!q || (q.value && q.value !== lastAutoQta)) return;
+    var tot = 0, unita = '', ok = selected.size > 0;
+    selected.forEach(function (id) {
+      var c = candById[id];
+      if (!c || c.quantita === null || c.quantita === undefined) { ok = false; return; }
+      if (unita && c.unita && c.unita !== unita) ok = false;
+      unita = unita || c.unita || '';
+      tot += Number(c.quantita);
+    });
+    if (!ok) {
+      if (lastAutoQta !== null && q.value === lastAutoQta) { q.value = ''; lastAutoQta = null; }
+      return;
+    }
+    q.value = String(Math.round(tot * 1000) / 1000);
+    lastAutoQta = q.value;
+    if (unita && !$('f-unita').value) $('f-unita').value = unita;
+  }
   function renderCandidati(listEl, cand) {
+    candById = {};
+    cand.forEach(function (c) { candById[c.id_registrazione] = c; });
     if (!cand.length) { emptyBox(listEl, 'Nessun movimento collegabile per questo codice CER.'); refresh(); return; }
     listEl.innerHTML = '';
     cand.forEach(function (c) {
@@ -430,13 +585,126 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
       cb.addEventListener('change', function () {
         if (cb.checked) selected.add(c.id_registrazione); else selected.delete(c.id_registrazione);
         row.classList.toggle('sel', cb.checked);
+        proponiQuantita();
         refresh();
       });
       listEl.appendChild(row);
     });
     refresh();
   }
-  if (RIF_TIPO) $('btn-rifop-reload').addEventListener('click', loadCandidati);
+  if (RIF_TIPO) {
+    $('btn-rifop-reload').addEventListener('click', loadCandidati);
+    $('btn-rifop-all').addEventListener('click', function () {
+      $('rifop-list').querySelectorAll('.rnf-cand-item input').forEach(function (cb) {
+        if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
+      });
+    });
+  }
+
+  /* ── Lettura del formulario: propone, la persona sceglie cosa usare ── */
+  var firBtn = $('btn-fir'), firOut = $('fir-out');
+  var FIR_CAMPI = [
+    ['numero_fir', 'Numero FIR'], ['data', 'Data'], ['codice', 'Codice EER'],
+    ['quantita', 'Quantità'], ['unita', 'Unità'], ['destinatario', 'Destinatario'],
+  ];
+  if (firBtn) {
+    $('f-allegato').addEventListener('change', function () {
+      var f = this.files[0];
+      firBtn.disabled = !(f && /\.(pdf|jpe?g|png|webp)$/i.test(f.name));
+    });
+    firBtn.addEventListener('click', function () {
+      var f = $('f-allegato').files[0];
+      if (!f) return;
+      var fd = new FormData();
+      fd.append('file', f);
+      fd.append('tipo', TIPO);
+      firBtn.disabled = true;
+      firOut.hidden = false;
+      firOut.textContent = 'Lettura del formulario in corso… con una scansione può servire qualche secondo.';
+      post(URL_FIR, fd).then(function (res) {
+        firBtn.disabled = false;
+        mostraFir(res);
+      }).catch(function () {
+        firBtn.disabled = false;
+        firOut.textContent = 'Lettura non riuscita: compila i campi a mano.';
+      });
+    });
+  }
+  function fmtCampo(k, v) {
+    if (k === 'data') return fmtData(v);
+    if (k === 'unita') return UNITA_LABEL[v] || v;
+    if (k === 'quantita') return String(v).replace('.', ',');
+    return v;
+  }
+  function mostraFir(res) {
+    firOut.innerHTML = '';
+    if (!res || !res.ok) { firOut.textContent = (res && res.error) || 'Lettura non riuscita.'; return; }
+    var campi = res.campi || {};
+    var chiavi = FIR_CAMPI.filter(function (c) { return campi[c[0]]; });
+    var h = document.createElement('div');
+    h.className = 'rnf-fir-h';
+    h.textContent = chiavi.length ? 'Dal formulario ho letto (spunta cosa usare):' : 'Nel formulario non ho trovato dati da proporre.';
+    firOut.appendChild(h);
+    (res.avvisi || []).forEach(function (a) {
+      var p = document.createElement('div');
+      p.className = 'hub-help';
+      p.textContent = a;
+      firOut.appendChild(p);
+    });
+    if (!chiavi.length) return;
+    var list = document.createElement('div');
+    list.className = 'rnf-fir-list';
+    chiavi.forEach(function (c) {
+      var campo = campi[c[0]], row = document.createElement('label');
+      row.className = 'rnf-fir-item';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.dataset.k = c[0];
+      // I valori letti dall'AI e il destinatario (solo nelle note) partono non spuntati.
+      cb.checked = campo.fonte !== 'ai' && c[0] !== 'destinatario';
+      var k = document.createElement('span');
+      k.className = 'rnf-fir-k';
+      k.textContent = c[1];
+      var v = document.createElement('span');
+      v.className = 'rnf-fir-v';
+      v.textContent = fmtCampo(c[0], campo.valore);
+      row.appendChild(cb);
+      row.appendChild(k);
+      row.appendChild(v);
+      if (campo.fonte === 'ai') {
+        var t = document.createElement('span');
+        t.className = 'rnf-fir-ai';
+        t.textContent = 'letto dall’AI: controlla';
+        row.appendChild(t);
+      }
+      if (campo.contesto) row.title = campo.contesto;
+      list.appendChild(row);
+    });
+    firOut.appendChild(list);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'hub-btn hub-btn-primary hub-btn-sm';
+    btn.textContent = 'Usa i dati spuntati';
+    btn.addEventListener('click', function () {
+      list.querySelectorAll('input:checked').forEach(function (cb) { applicaFir(cb.dataset.k, campi[cb.dataset.k].valore); });
+      firOut.hidden = true;
+      onCodiceChange();
+      refresh();
+    });
+    firOut.appendChild(btn);
+  }
+  function aggiungiNota(testo) {
+    var n = $('f-note-rentri');
+    if (n.value.indexOf(testo) === -1) n.value = n.value ? n.value + '\n' + testo : testo;
+  }
+  function applicaFir(k, v) {
+    if (k === 'data') $('f-data').value = v;
+    else if (k === 'codice') cerInput.value = v;
+    else if (k === 'quantita') { $('f-quantita').value = v; lastAutoQta = null; }
+    else if (k === 'unita') { $('f-unita').value = v; $('unita-proposta').hidden = true; }
+    else if (k === 'numero_fir') { if (TIPO === 'M') $('f-arrivo-fir').value = v; else aggiungiNota('FIR n. ' + v); }
+    else if (k === 'destinatario') aggiungiNota('Destinatario: ' + v);
+  }
 
   /* ── Riepilogo e campi obbligatori ── */
   function setSum(id, text) {
@@ -567,6 +835,13 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
       cerInput.value = '';
       selected.clear();
       lastCodice = null;
+      lastInfo = null;
+      lastAutoQta = null;
+      $('cer-info').hidden = true;
+      $('unita-proposta').hidden = true;
+      if ($('peric-proposta')) $('peric-proposta').hidden = true;
+      if (firOut) firOut.hidden = true;
+      if (firBtn) firBtn.disabled = true;
       if (RIF_TIPO) emptyBox($('rifop-list'), 'Scegli prima il codice CER: qui compaiono i movimenti collegabili.');
       form.querySelectorAll('[id^="err-"]').forEach(function (el) { el.textContent = ''; });
       form.querySelectorAll('.hub-field-err').forEach(function (el) { el.classList.remove('hub-field-err'); });

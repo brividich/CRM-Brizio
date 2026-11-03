@@ -34,7 +34,8 @@ GUIDA = {
                     "Il carico è sempre positivo; negli scarichi il segno meno è ammesso (lo scarico effettivo M "
                     "può avere il valore in «Rettifica scarico», la rettifica R lo stesso valore positivo).",
                     "Per un codice pericoloso (con l'asterisco *) nel carico va indicata la «Pericolosità» (HP).",
-                    "Negli scarichi O e M puoi allegare il formulario (FIR).",
+                    "Negli scarichi O e M la prima sezione è «Formulario (FIR)»: scegli il PDF o la foto e clicca "
+                    "«Leggi i dati dal FIR» per farti proporre i dati (vedi sotto).",
                     "Clicca «Salva registrazione» nel riquadro «Riepilogo». Il numero di registrazione (anno/progressivo) "
                     "lo assegna il portale e non cambia più. Se non hai spuntato «Scheda da inviare al RENTRI», il portale "
                     "chiede se segnarla da inviare.",
@@ -44,6 +45,46 @@ GUIDA = {
                 ("nota", "Il portale rifiuta uno scarico che porta fuori più di quanto c'è in giacenza per quel codice, "
                          "uno scarico datato prima del movimento a cui si collega e un carico già scaricato. "
                          "Il messaggio dice cosa correggere."),
+            ],
+        },
+        {
+            "id": "scorciatoie",
+            "titolo": "Compilare più in fretta",
+            "blocchi": [
+                ("def", [
+                    ("Dati proposti dal codice", "scelto il codice, il modulo propone l'«Unità di misura» (e nel carico la "
+                     "«Pericolosità») dell'ultimo movimento con quel codice, con la scritta «Proposta dall'ultimo movimento». "
+                     "Negli scarichi sotto il codice compare anche «In deposito:» con la giacenza attuale."),
+                    ("Nome ufficiale del codice", "se il catalogo EER è caricato, sotto il codice compare il nome ufficiale "
+                     "con ✓, oppure ⚠ se il codice non esiste nell'elenco europeo o se l'asterisco non corrisponde. "
+                     "È solo un confronto: il salvataggio non si blocca. Nel carico la ricerca trova anche per nome "
+                     "(per esempio «imballaggi»)."),
+                    ("Dalla scheda", "nella scheda di un movimento il pulsante del passo dopo apre il modulo già compilato: "
+                     "«Scarica (O)» da un carico, «Registra scarico effettivo (M)» da uno scarico originale, «Rettifica (R)» da "
+                     "uno scarico effettivo. Il pulsante sparisce quando il seguito è già registrato."),
+                    ("Duplica", "nella scheda apre un nuovo movimento dello stesso tipo con lo stesso codice e la stessa unità, "
+                     "con la data di oggi."),
+                    ("Dalle Giacenze", "«Scarica» sulla riga di un codice apre lo scarico originale con quel codice."),
+                    ("Seleziona tutti", "nella sezione «Collegato a» spunta tutti i movimenti collegabili; la «Quantità» "
+                     "viene proposta come somma dei movimenti spuntati finché non la cambi a mano."),
+                ]),
+            ],
+        },
+        {
+            "id": "fir",
+            "titolo": "Leggere i dati dal formulario (FIR)",
+            "blocchi": [
+                ("passi", [
+                    "Nello scarico originale o effettivo, sezione «Formulario (FIR)», scegli il PDF o la foto del formulario.",
+                    "Clicca «Leggi i dati dal FIR». Con una scansione può servire qualche secondo.",
+                    "Il portale elenca cosa ha letto: numero FIR, data, codice EER, quantità, unità e destinatario. "
+                    "Spunta i dati che vuoi usare e clicca «Usa i dati spuntati».",
+                    "Controlla i campi e salva come sempre: il file resta allegato allo scarico.",
+                ]),
+                ("p", "Nello scarico effettivo la quantità proposta è il peso verificato a destino, se il formulario lo riporta; "
+                      "il numero FIR va in «Arrivo FIR». Nello scarico originale numero FIR e destinatario finiscono nelle note."),
+                ("nota", "I valori con l'etichetta «letto dall'AI: controlla» li ha trovati l'assistente AI del portale quando le "
+                         "regole non bastavano: partono non spuntati, vanno verificati sul formulario. Il documento non esce dal server."),
             ],
         },
         {
@@ -115,6 +156,35 @@ GUIDA = {
             ],
         },
         {
+            "id": "catalogo-eer",
+            "titolo": "Catalogo EER",
+            "blocchi": [
+                ("passi", [
+                    "Apri su EUR-Lex la Decisione 2000/532/CE (elenco dei rifiuti) nel testo consolidato in italiano.",
+                    "Salvala dal browser (File → Salva pagina, formato HTML) oppure scarica il PDF.",
+                    "RENTRI → «Impostazioni» → riquadro «Catalogo EER» → scegli il file → «Carica catalogo».",
+                ]),
+                ("p", "Il riquadro mostra quanti codici sono caricati e quanti pericolosi. Il caricamento sostituisce il catalogo precedente; "
+                      "un file con meno di 500 codici viene rifiutato perché non è l'elenco completo (sono circa 840). "
+                      "Va bene anche un CSV «codice;descrizione» con l'asterisco nei pericolosi. Da terminale: rentri_catalogo_eer <file> "
+                      "(con --dry-run conta senza salvare)."),
+            ],
+        },
+        {
+            "id": "promemoria",
+            "titolo": "Promemoria dello scarico effettivo",
+            "blocchi": [
+                ("p", "Ogni mattina alle 7:25 il portale cerca gli scarichi originali (O) senza scarico effettivo da più di "
+                      "60 giorni e manda una notifica a chi li ha inseriti e ai «Referenti operativi» (quelli con un utente del portale "
+                      "collegato alla stessa email). La notifica dice quanti giorni mancano ai 90 della quarta copia e apre lo "
+                      "scarico effettivo già compilato. Per lo stesso scarico si ripete al massimo una volta a settimana."),
+                ("p", "La soglia è nella configurazione del portale (SiteConfig): rentri_promemoria_m_giorni (60, al massimo 90). "
+                      "Schedule: rentri_promemoria_scarico_effettivo. Prova da terminale: rentri_promemoria --dry-run."),
+                ("nota", "Gli scarichi inseriti prima di questa versione, importati o arrivati da SharePoint non hanno l'autore "
+                         "collegato: per quelli la notifica va solo ai referenti."),
+            ],
+        },
+        {
             "id": "import",
             "titolo": "Importare lo storico",
             "blocchi": [
@@ -172,6 +242,20 @@ GUIDA = {
             "fare": [
                 "Lancia rentri_id_duplicati --solo-anomalie dal terminale del Setup Wizard, oppure apri «Verifica».",
                 "I numeri non si riciclano: un movimento annullato tiene il suo numero, ed è corretto così.",
+            ],
+        },
+        {
+            "sintomo": "«Leggi i dati dal FIR» non trova niente",
+            "fare": [
+                "Con una scansione sbiadita o storta il testo non si legge: rifai la foto dritta e con buona luce, o usa il PDF.",
+                "Il pulsante si attiva solo con PDF o immagini (JPG, PNG, WEBP), non con Word o Excel.",
+                "Sul server serve Tesseract per le scansioni; senza, il messaggio lo dice. Compila i campi a mano.",
+            ],
+        },
+        {
+            "sintomo": "Sotto il codice non compare il nome ufficiale",
+            "fare": [
+                "Il catalogo EER non è caricato: un amministratore lo carica da RENTRI → «Impostazioni» → «Catalogo EER».",
             ],
         },
     ],
