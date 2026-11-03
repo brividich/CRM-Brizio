@@ -137,6 +137,23 @@ SEZIONI: list[dict] = [
                   "quello che avevi scritto (seriali, descrizioni, blocchi copiati ancora da caricare) e il link che "
                   "riapre il controllo dove eri rimasto, anche su un OP nuovo. Un promemoria per ogni pausa: se riprendi "
                   "a scrivere e ti fermi di nuovo, arriva di nuovo. La bozza non parte mai da sola: va salvata."),
+            ("p", "Controlli del gruppo qualità: chi ha il ruolo «Controllo qualità» o «Qualità» vede, in cima ad "
+                  "«Apertura segnalazione», il riquadro «Controlli in sospeso del gruppo qualità»: i controlli aperti "
+                  "suoi e dei colleghi del gruppo con anomalie scritte da salvare, blocchi copiati da caricare o "
+                  "anomalie non ancora comunicate (ultimi 14 giorni). Una segnalazione lunga iniziata a fine turno la "
+                  "prosegue il collega del turno dopo o del giorno successivo."),
+            ("passi", [
+                "Nel riquadro premi «Apri» accanto al controllo del collega (oppure, entrando nell'OP, «Prendi in carico» "
+                "in «Controlli ancora aperti su questo OP»).",
+                "Compare «Controllo in carico a …» con fase, blocchi salvati e anomalie da salvare: premi «Prendi in "
+                "carico e prosegui».",
+                "Da qui il controllo è tuo: ritrovi il blocco in scrittura, salvi, ricevi i promemoria e premi «Termina "
+                "controllo». Il collega riceve un avviso nel portale e il passaggio resta registrato (nel riquadro: "
+                "«iniziato da …»).",
+            ]),
+            ("p", "Finché non lo prendi in carico il controllo del collega si guarda soltanto. Dopo il passaggio chi lo "
+                  "aveva non può più modificarlo (gli compare «Il controllo è in carico a …»): così due persone non "
+                  "scrivono sulla stessa bozza. Chi non ha questi ruoli vede solo i propri controlli."),
         ],
     },
     {

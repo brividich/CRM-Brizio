@@ -51,14 +51,21 @@ def _mail_mode(value) -> str:
     return AnomaliaControllo.MailMode.FINE
 
 
-def _get_controllo(request, pk: int):
-    """Il controllo è dell'operatore che l'ha aperto (o di un superuser)."""
-    controllo = AnomaliaControllo.objects.filter(pk=pk).first()
+def _get_controllo(request, pk: int, *, lettura: bool = False):
+    """Il controllo si modifica solo da chi lo ha in carico (o da un superuser).
+
+    In lettura (``lettura=True``) lo vedono anche i colleghi del gruppo qualità, che
+    possono poi prenderlo in carico con ``api_controllo_prendi``.
+    """
+    controllo = AnomaliaControllo.objects.select_related("operatore").filter(pk=pk).first()
     if controllo is None:
         return None, _err("Controllo non trovato", 404)
-    if controllo.operatore_id != request.user.pk and not request.user.is_superuser:
-        return None, _err("Permesso negato: il controllo è di un altro operatore", 403)
-    return controllo, None
+    if controllo.operatore_id == request.user.pk or request.user.is_superuser:
+        return controllo, None
+    if lettura and cs.colleghi_del_gruppo(request.user, controllo):
+        return controllo, None
+    chi = controllo.operatore_display or "un altro operatore"
+    return None, _err(f"Il controllo è in carico a {chi}: per proseguirlo usa «Prendi in carico».", 403)
 
 
 def _op_esiste(op_id: str) -> bool:
@@ -140,27 +147,68 @@ def api_controlli(request):
     if not _can_create_anomalie_for_op(request, op_id) and not _op_ancora_da_creare(op_id):
         return _err("Permesso negato: non autorizzato ad aprire segnalazioni su questo OP", 403)
     recenti = timezone.now() - timedelta(days=7)
-    aperti = AnomaliaControllo.objects.filter(
+    propri = list(AnomaliaControllo.objects.filter(
         op_id__iexact=op_id, operatore=request.user, terminato_at__isnull=True, created_at__gte=recenti,
-    ).order_by("-id")[:5]
+    ).order_by("-id")[:5])
+    # Colleghi del gruppo qualità: i loro controlli con qualcosa in sospeso su questo OP.
+    colleghi = [c for c in cs.controlli_sospesi(request.user, op_id=op_id, limite=5) if c.operatore_id != request.user.pk]
     fasi = list(dict.fromkeys(
         AnomaliaControllo.objects.filter(op_id__iexact=op_id).order_by("-id").values_list("fase", flat=True)[:30]
     ))
+    controlli = []
+    for c in propri + colleghi:
+        dati = cs.serializza_controllo(c, con_allegati=False)
+        dati["mio"] = c.operatore_id == request.user.pk
+        controlli.append(dati)
+    return JsonResponse({"success": True, "controlli": controlli, "fasi": fasi})
+
+
+@login_required
+@require_GET
+def api_controlli_sospesi(request):
+    """Controlli aperti con qualcosa in sospeso: i propri e quelli dei colleghi del
+    gruppo qualità (Controllo qualità / Qualità), su tutti gli OP."""
+    righe = [cs.riassunto_sospeso(c, request.user) for c in cs.controlli_sospesi(request.user) if cs.in_sospeso(c)]
+    return JsonResponse({"success": True, "controlli": righe, "gruppo": cs.nel_gruppo_qualita(request.user)})
+
+
+@login_required
+@require_POST
+def api_controllo_prendi(request, pk: int):
+    """«Prendi in carico»: il controllo di un collega del gruppo qualità passa a chi lo
+    riprende (bozza compresa). Tracciato nel controllo e nell'audit."""
+    from .views import _current_user_identity
+
+    controllo, error = _get_controllo(request, pk, lettura=True)
+    if error:
+        return error
+    if controllo.terminato_at:
+        return _err("Il controllo è già terminato", 409)
+    if controllo.operatore_id == request.user.pk:
+        return JsonResponse({"success": True, "controllo": cs.serializza_controllo(controllo)})
+    identity = _current_user_identity(request)
+    nome = _txt(identity.get("name") or request.user.get_full_name() or request.user.username, 200)
+    da = controllo.operatore_display
+    passaggio = cs.prendi_in_carico(controllo, request.user, nome)
+    log_action(request, "anomalie_controllo_preso_in_carico", "anomalie", {
+        "controllo_id": controllo.pk, "op_id": controllo.op_id, "da": da, "a": nome, "at": passaggio["at"],
+    })
     return JsonResponse({
         "success": True,
-        "controlli": [cs.serializza_controllo(c, con_allegati=False) for c in aperti],
-        "fasi": fasi,
+        "controllo": cs.serializza_controllo(controllo),
+        "destinatari": cs.destinatari_display(controllo.op_id, controllo.destinatari_extra),
     })
 
 
 @login_required
 @require_GET
 def api_controllo_dettaglio(request, pk: int):
-    controllo, error = _get_controllo(request, pk)
+    controllo, error = _get_controllo(request, pk, lettura=True)
     if error:
         return error
     return JsonResponse({
         "success": True,
+        "mio": controllo.operatore_id == request.user.pk or request.user.is_superuser,
         "controllo": cs.serializza_controllo(controllo),
         "destinatari": cs.destinatari_display(controllo.op_id, controllo.destinatari_extra),
     })
