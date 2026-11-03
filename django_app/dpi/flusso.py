@@ -271,11 +271,33 @@ def _riga_dpi(richiesta) -> str:
     return " - ".join(parti) + f" (x{richiesta.quantita})"
 
 
-def _mail(subject: str, body: str, recipients: list[str], *, title: str, attachments=None) -> int:
+def link_banco(richiesta) -> str:
+    """Link «Apri nel portale» al Banco consegne, sulla scheda della persona; "" senza SITE_URL.
+
+    Le categorie che il magazzino non consegna (es. scarpe) stanno nella vista «tutte»."""
+    from django.urls import reverse
+
+    from core.accounts.portal_links import portal_link
+
+    from .views import _chiave_persona
+
+    path = reverse("dpi:banco")
+    if not getattr(richiesta.categoria, "consegna_magazzino", True):
+        path += "?tutte=1"
+    return portal_link(f"{path}#{_chiave_persona(richiesta)}")
+
+
+def _mail(subject: str, body: str, recipients: list[str], *, title: str, attachments=None,
+          cta: tuple[str, str] | None = None) -> int:
+    """``cta`` = (etichetta, url): pulsante in fondo alla mail e riga col link nel testo semplice."""
     if not recipients:
         return 0
-    from core.email_utils import send_hub_mail
+    from core.email_utils import email_cta, send_hub_mail, text_to_html
 
+    fragment = ""
+    if cta and cta[1]:
+        fragment = text_to_html(body) + email_cta(cta[0], cta[1])
+        body = f"{body}\n\n{cta[0]}: {cta[1]}"
     return send_hub_mail(
         subject=subject,
         body_text=body,
@@ -283,6 +305,7 @@ def _mail(subject: str, body: str, recipients: list[str], *, title: str, attachm
         title=title,
         email_type="DPI",
         section_label="Richieste DPI",
+        body_html_fragment=fragment,
         attachments=attachments,
         fail_silently=True,
     )
@@ -327,13 +350,14 @@ def notifica_approvata(richiesta) -> None:
         passo = "il dipendente e' gia' stato avvisato di passare a ritirarlo: consegnalo e registra la consegna"
     else:
         passo = ("preparalo, poi in DPI > Banco consegne premi «Pronto per il ritiro» (avvisa il dipendente) "
-                 "e alla consegna registra la consegna con la firma")
+                 "e alla consegna registrala: la conferma di ricevuta arriva via mail, la firma è facoltativa")
     try:
         _mail(
             f"[DPI] Da consegnare {richiesta.numero} - {richiesta.richiedente_nome}",
             _dettaglio_richiesta(richiesta) + f"\n\nLa richiesta e' stata approvata: {passo}.",
             destinatari_consegna(richiesta),
             title="DPI da consegnare",
+            cta=("Apri il Banco consegne", link_banco(richiesta)),
         )
     except Exception:
         logger.warning("Avviso di consegna DPI fallito (%s)", getattr(richiesta, "numero", "?"), exc_info=True)

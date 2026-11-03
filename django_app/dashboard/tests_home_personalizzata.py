@@ -63,7 +63,8 @@ class HomePrefsViewTests(TestCase):
         self.assertEqual(r.status_code, 200)
         p = self._prefs()
         self.assertEqual(p["stanza"], "moduli")
-        self.assertEqual(p["nascosti"], ["brief", "news"])
+        # Il superuser gestisce le consegne DPI: anche il banco gli è proposto, e qui non è spuntato.
+        self.assertEqual(p["nascosti"], ["brief", "news", "banco_dpi"])
         resp = self.client.get(self.url)
         self.assertContains(resp, 'data-hs-stanza="moduli"')
         self.assertNotContains(resp, "News aziendali</h3>")

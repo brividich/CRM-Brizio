@@ -387,6 +387,17 @@ def rete_indirizzi(request):
     })
 
 
+def _patch_cerca(g: dict, q: str) -> bool:
+    """Ricerca nelle patch mancanti: KB, nome, programma, CVE corrette (anche tramite le patch comprese) o PC."""
+    if q in g["nome"].upper() or q in (g["programma"] or "").upper() or (g["kb"] and q in g["kb"]):
+        return True
+    if any(q in c for c in g["cve"]) or any(q in c for c in g["chiude_anche"]):
+        return True
+    if any(q in kb.upper() for kb, _ in g["comprende"]) or any(q in kb.upper() for kb, _ in g["compresa_in"]):
+        return True
+    return any(q in (p.host_display or p.host).upper() for p in g["pc"])
+
+
 def watchguard_pc(request):
     """Patch e protezione: quello che l'API WatchGuard dice dei PC (patch mancanti, agenti, dispositivi senza agente)."""
     if not can_view_security_center(request.user):
@@ -405,23 +416,49 @@ def watchguard_pc(request):
         key=lambda d: (d.protetto, not d.riavvio_richiesto, d.host))
     senza_agente = sorted((d for d in dispositivi if not d.gestito), key=lambda d: (d.hub_asset_id is None, d.host))
 
+    from .services import patch_kb
+
+    aperte = list(WatchGuardPatch.objects.filter(presente=True).select_related("hub_asset").order_by("host"))
+    comprese = patch_kb.comprese(aperte)
     gruppi = {}
-    for p in WatchGuardPatch.objects.filter(presente=True).select_related("hub_asset").order_by("host"):
+    for p in aperte:
         g = gruppi.setdefault((p.nome, p.programma), {"nome": p.nome, "programma": p.programma, "criticita": p.criticita,
                                                      "criticita_label": p.criticita_label, "rilasciata_il": p.rilasciata_il,
-                                                     "cve": set(), "pc": [], "errori": 0, "di_sistema": p.di_sistema})
+                                                     "cve": set(), "pc": [], "errori": 0, "di_sistema": p.di_sistema,
+                                                     "kb": p.kb, "download_url": p.download_url, "nome_file": p.nome_file,
+                                                     "riavvio_automatico": p.riavvio_automatico,
+                                                     "compresa_in": {}, "chiude_anche": set(), "comprende": {}})
         g["cve"].update(p.cve_lista)
         g["pc"].append(p)
         g["errori"] += int(p.esito_errore)
+        p.compresa = comprese.get(p.pk)
+    for p in aperte:
+        if not p.compresa:
+            continue
+        sopra = p.compresa["in"]
+        etichetta = sopra.kb or sopra.nome
+        g, gs = gruppi[(p.nome, p.programma)], gruppi[(sopra.nome, sopra.programma)]
+        g["compresa_in"][etichetta] = g["compresa_in"].get(etichetta, 0) + 1
+        gs["chiude_anche"].update(set(p.cve_lista) - gs["cve"])
+        gs["comprende"][p.kb or p.nome] = gs["comprende"].get(p.kb or p.nome, 0) + 1
     from .models import SecurityCveRecord
 
-    kev = set(SecurityCveRecord.objects.filter(kev=True, cve_id__in=list({c for g in gruppi.values() for c in g["cve"]})[:2000])
-              .values_list("cve_id", flat=True))
+    tutte_cve = {c for g in gruppi.values() for c in g["cve"] | g["chiude_anche"]}
+    kev = set(SecurityCveRecord.objects.filter(kev=True, cve_id__in=list(tutte_cve)[:2000]).values_list("cve_id", flat=True))
     ordine = {201: 0, 202: 1, 203: 2, 204: 3}
-    patch = sorted(gruppi.values(), key=lambda g: (not (g["cve"] & kev), ordine.get(g["criticita"], 4), -len(g["pc"]), g["nome"]))
+    for g in gruppi.values():
+        # compresa su tutti i suoi PC: si chiude installando l'altra, quindi va in fondo
+        g["tutta_compresa"] = sum(g["compresa_in"].values()) == len(g["pc"])
+    patch = sorted(gruppi.values(), key=lambda g: (g["tutta_compresa"], not ((g["cve"] | g["chiude_anche"]) & kev),
+                                                   ordine.get(g["criticita"], 4), -len(g["pc"]), g["nome"]))
     for g in patch:
-        g["kev"] = sorted(g["cve"] & kev)
+        g["kev"] = sorted((g["cve"] | g["chiude_anche"]) & kev)
         g["cve"] = sorted(g["cve"])
+        g["chiude_anche"] = sorted(g["chiude_anche"])
+        g["compresa_in"] = sorted(g["compresa_in"].items(), key=lambda x: -x[1])
+        g["comprende"] = sorted(g["comprende"].items(), key=lambda x: -x[1])
+    q = (request.GET.get("q") or "").strip()[:100]
+    trovate = [g for g in patch if _patch_cerca(g, q.upper())] if q else patch
     errori = list(WatchGuardPatch.objects.filter(esito__in=WatchGuardPatch.ESITI_ERRORE, esito_il__gte=now - timedelta(days=14))
                   .select_related("hub_asset").order_by("-esito_il")[:50])
     from .services import patch_storico
@@ -435,8 +472,9 @@ def watchguard_pc(request):
     return render(request, "security/watchguard_pc.html", {
         "configurato": wg.configurato(), "attivi": attivi, "ultima": ultima,
         "gestiti": len(gestiti), "protezione": protezione, "senza_agente": senza_agente,
-        "patch": patch[:150], "patch_totale": len(patch), "pc_con_patch": len({p.host for g in patch for p in g["pc"]}),
-        "kev_totale": sum(1 for g in patch if g["kev"]), "errori": errori, "chiuse": chiuse, "ferme": ferme,
+        "patch": trovate[:150], "trovate": len(trovate), "patch_totale": len(patch), "pc_con_patch": len({p.host for g in patch for p in g["pc"]}),
+        "kev_totale": sum(1 for g in patch if g["kev"]), "errori": errori,
+        "comprese_totale": len(comprese), "q": q, "chiuse": chiuse, "ferme": ferme,
         "can_edit": can_manage_security_config(request.user),
     })
 

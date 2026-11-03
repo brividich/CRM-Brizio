@@ -136,7 +136,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
   </div>
 
   {% if modelli_diretti %}
-  <div class="dpi-card">
+  <div class="dpi-card" id="diretta">
     <div class="dpi-card-title">Consegna diretta al banco</div>
     <p class="dpi-hint">Per i consumabili (categorie con «Consegna diretta dal banco»): niente richiesta da approvare. Scegli persona e DPI, poi registra la consegna nella sua scheda qui sotto.</p>
     <form method="post" class="dpi-diretta-grid">
@@ -183,7 +183,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
   {% endif %}
 
   <div class="dpi-toolbar">
-    <input type="search" class="dpi-search" id="banco-cerca" placeholder="Cerca la persona al banco (nome o reparto)…" autocomplete="off">
+    <input type="search" class="dpi-search" id="banco-cerca" value="{{ cerca }}" placeholder="Cerca la persona al banco (nome o reparto)…" autocomplete="off">
     {% if tutte %}
     <a href="{% url 'dpi:banco' %}" class="dpi-toggle">Solo i DPI del magazzino</a>
     {% elif n_altre %}
@@ -310,6 +310,14 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
       });
       if (nessuno) nessuno.hidden = visibili > 0 || !persone.length;
     });
+    // Arrivo dalla ricerca della home (?cerca=): filtra e, se resta una sola persona, apre la consegna.
+    if (cerca.value.trim()) {
+      cerca.dispatchEvent(new Event('input'));
+      var trovate = persone.filter(function (el) { return !el.hidden; });
+      var unico = trovate.length === 1 && trovate[0].querySelector('[data-apri-consegna]');
+      // Dopo che lo script ha collegato i pulsanti «Consegna…» (piu' sotto).
+      if (unico) setTimeout(function () { unico.click(); }, 0);
+    }
   }
 
   // Taglie del DPI scelto nella consegna diretta.
