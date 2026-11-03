@@ -5,6 +5,10 @@ l'assistente AI lo indicizza da qui (``ai_assistant.guide_portale``).
 
 Blocchi di una sezione: ("p", testo) paragrafo, ("ul", [voci]) elenco,
 ("nota", testo) riquadro di attenzione, ("def", [(termine, spiegazione)]).
+Una sezione con ``"solo_admin": True`` si vede solo agli amministratori del
+portale (``core.guide_moduli.puo_vedere_admin``): ``sezioni_per`` la toglie agli
+altri, e l'assistente AI non la indicizza nel testo della home (la stessa
+materia è nel capitolo admin del Centro guide, già riservato).
 Le etichette citate sono quelle visibili nella home: se ne cambia una, va
 aggiornata anche qui.
 """
@@ -146,6 +150,7 @@ SEZIONI: list[dict] = [
     {
         "id": "gestione",
         "titolo": "Per chi gestisce i contenuti",
+        "solo_admin": True,
         "blocchi": [
             ("def", [
                 ("Risorse self-help e documenti", "Admin portale → Documenti & Collegamenti. Ogni categoria ha una "
@@ -163,3 +168,8 @@ SEZIONI: list[dict] = [
         ],
     },
 ]
+
+
+def sezioni_per(admin: bool) -> list[dict]:
+    """Le sezioni visibili: quelle ``solo_admin`` solo agli amministratori."""
+    return [sez for sez in SEZIONI if admin or not sez.get("solo_admin")]
