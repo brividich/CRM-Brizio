@@ -83,6 +83,8 @@ class CategoriaTicket(models.Model):
         null=True, blank=True,
         help_text="SLA risoluzione (ore). Vuoto = nessuno SLA.",
     )
+    # Planimetria (``PlantLayout.category``) che il form apre per questa categoria.
+    planimetria = models.CharField(max_length=80, blank=True, default="")
 
     class Meta:
         ordering = ["tipo", "ordine", "etichetta"]
@@ -193,6 +195,15 @@ class Ticket(models.Model):
         related_name="tickets",
     )
     asset_descrizione_libera = models.CharField(max_length=300, blank=True)
+    # Punto indicato sulla planimetria quando l'asset non si trova (percentuali 0-100).
+    mappa_layout = models.ForeignKey(
+        "assets.PlantLayout",
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    mappa_x = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    mappa_y = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
 
     # Richiedente (denormalizzato + FK utente portale)
     richiedente_nome            = models.CharField(max_length=200)
@@ -483,6 +494,15 @@ class TicketImpostazioni(models.Model):
     acl_apertura        = models.JSONField(default=list)
     # Lista di username/email autorizzati a gestire. Vuota = solo admin.
     acl_gestione        = models.JSONField(default=list)
+    # Come la planimetria del ticket decide il «tuo reparto» (solo MAN).
+    MAPPA_REPARTO_TESTO = "testo"
+    MAPPA_REPARTO_AREE = "aree"
+    MAPPA_REPARTO_CHOICES = [
+        (MAPPA_REPARTO_TESTO, "Reparto scritto sull'asset (con i collegamenti di «Reparti e capi»)"),
+        (MAPPA_REPARTO_AREE, "Aree dei reparti disegnate sulla planimetria"),
+    ]
+    mappa_reparto_da    = models.CharField(max_length=10, choices=MAPPA_REPARTO_CHOICES,
+                                           default=MAPPA_REPARTO_TESTO)
     updated_at          = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -244,3 +244,26 @@ def elimina_viste(connection) -> None:
     with connection.cursor() as cursor:
         for stmt in statements_elimina(connection.vendor):
             cursor.execute(stmt)
+
+
+# SQLite aggiunge una colonna rifacendo la tabella e rifiuta il cambio di nome se
+# una vista bi_* la legge («error in view bi_asset»). Le migrazioni che toccano
+# tabelle lette dalle viste mettono queste due funzioni prima e dopo l'AddField:
+#   migrations.RunPython(sospendi_viste_sqlite, ripristina_viste_sqlite),
+#   ...operazioni...,
+#   migrations.RunPython(ripristina_viste_sqlite, sospendi_viste_sqlite),
+# Su SQL Server non fanno niente (ALTER TABLE ADD non tocca le viste).
+
+def sospendi_viste_sqlite(apps, schema_editor) -> None:
+    if schema_editor.connection.vendor == "sqlite":
+        elimina_viste(schema_editor.connection)
+
+
+def ripristina_viste_sqlite(apps, schema_editor) -> None:
+    from django.db.migrations.recorder import MigrationRecorder
+
+    connection = schema_editor.connection
+    if connection.vendor != "sqlite":
+        return
+    if ("dati_bi", "0002_viste_bi") in MigrationRecorder(connection).applied_migrations():
+        crea_viste(connection)

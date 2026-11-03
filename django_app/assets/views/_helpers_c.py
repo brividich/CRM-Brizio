@@ -1161,6 +1161,7 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
             parent=parent,
             base_asset_type=base_asset_type,
             description=_clean_string(request.POST.get("description")),
+            sinonimi=_clean_string(request.POST.get("sinonimi"))[:255],
             detail_specs_title=_clean_string(request.POST.get("detail_specs_title"))[:120],
             detail_profile_title=_clean_string(request.POST.get("detail_profile_title"))[:120],
             detail_assignment_title=_clean_string(request.POST.get("detail_assignment_title"))[:120],
@@ -1191,6 +1192,7 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
         category.parent = parent
         category.base_asset_type = base_asset_type
         category.description = _clean_string(request.POST.get("description"))
+        category.sinonimi = _clean_string(request.POST.get("sinonimi"))[:255]
         category.detail_specs_title = _clean_string(request.POST.get("detail_specs_title"))[:120]
         category.detail_profile_title = _clean_string(request.POST.get("detail_profile_title"))[:120]
         category.detail_assignment_title = _clean_string(request.POST.get("detail_assignment_title"))[:120]
@@ -1205,6 +1207,7 @@ def _handle_asset_category_request(request: HttpRequest) -> tuple[bool, str]:
                 "parent",
                 "base_asset_type",
                 "description",
+                "sinonimi",
                 "detail_specs_title",
                 "detail_profile_title",
                 "detail_assignment_title",

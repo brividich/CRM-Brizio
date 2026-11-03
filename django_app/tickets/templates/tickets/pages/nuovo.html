@@ -1,8 +1,10 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}Nuovo ticket | Portale Applicativo{% endblock %}
 
 {% block extra_head %}
+{% if mappe_ticket %}<link rel="stylesheet" href="{% static 'tickets/css/mappa_asset.css' %}">{% endif %}
 <style>
 #tkt-root { display:flex; flex-direction:column; gap:20px; }
 
@@ -366,6 +368,7 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
                   <button type="button" class="tkt-my-asset-chip" id="my-asset-none"
                     style="background:#f1f5f9;color:#94a3b8;border-color:#e2e8f0;"
                     data-id="" data-name="">Altro…</button>
+                  {% if mappe_ticket %}<button type="button" class="tkt-my-asset-chip" id="my-asset-mappa" data-id="" data-name="">Cercalo sulla mappa</button>{% endif %}
                 </div>
               </div>
               {% endif %}
@@ -375,6 +378,7 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
                 <div style="display:flex;gap:6px;margin-bottom:6px;">
                   <button type="button" class="tkt-asset-tog-btn active" id="tog-catalogo" style="font-size:11px;padding:4px 10px;">Da catalogo</button>
                   <button type="button" class="tkt-asset-tog-btn" id="tog-libero" style="font-size:11px;padding:4px 10px;">Libera</button>
+                  {% if mappe_ticket %}<button type="button" class="tkt-asset-tog-btn" id="tog-mappa" style="font-size:11px;padding:4px 10px;">Sulla mappa</button>{% endif %}
                   {% if my_assets_list %}
                   <button type="button" class="tkt-asset-tog-btn" id="tog-mine" style="font-size:11px;padding:4px 10px;background:#0e7490;color:#fff;border-color:#0e7490;" onclick="showMyAssets()">← {{ my_assets_label }}</button>
                   {% endif %}
@@ -392,6 +396,9 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
               </div>
 
               <input type="hidden" name="asset_id" id="asset-id-hidden" value="{{ form_data.asset_id|default:'' }}">
+              <input type="hidden" name="mappa_layout_id" id="mappa-layout-hidden" value="{{ form_data.mappa_layout_id|default:'' }}">
+              <input type="hidden" name="mappa_x" id="mappa-x-hidden" value="{{ form_data.mappa_x|default:'' }}">
+              <input type="hidden" name="mappa_y" id="mappa-y-hidden" value="{{ form_data.mappa_y|default:'' }}">
               <div id="asset-selected-label" style="font-size:12px;color:#0e7490;margin-top:4px;font-weight:600;"></div>
               <div class="tkt-field-hint">Lascia vuoto se non applicabile.</div>
             </div>
@@ -402,6 +409,13 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
                 value="{{ form_data.titolo|default:'' }}">
             </div>
           </div>
+
+          {% if mappe_ticket %}
+          <div class="tmap-pannello" id="tkt-mappa-pannello" hidden>
+            <div class="tmap-pannello-titolo">Dov'è? Scegli l'asset sulla planimetria</div>
+            <div id="tkt-mappa"></div>
+          </div>
+          {% endif %}
 
           <div class="tkt-field">
             <label>Descrizione <span class="req">*</span></label>
@@ -433,6 +447,11 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
 </div>
 
 {{ assets_list|json_script:"assets-list-data" }}
+{% if mappe_ticket %}
+{{ mappe_ticket|json_script:"mappe-ticket-data" }}
+{{ mappa_preferite|json_script:"mappa-preferite-data" }}
+<script src="{% static 'tickets/js/mappa_asset.js' %}"></script>
+{% endif %}
 <script>
 const ASSETS = (function () {
   try { return JSON.parse(document.getElementById("assets-list-data").textContent) || []; }
@@ -520,8 +539,31 @@ const assetExtended = document.getElementById('asset-extended');
 const myAssetsSection = document.getElementById('my-assets-section');
 const assetSelectedLabel = document.getElementById('asset-selected-label');
 
-function _setAssetLabel(name) {
+let tktMappa = null;
+const mappaPannello = document.getElementById('tkt-mappa-pannello');
+
+function _clearPuntoMappa() {
+  ['mappa-layout-hidden', 'mappa-x-hidden', 'mappa-y-hidden'].forEach(id => {
+    const f = document.getElementById(id);
+    if (f) f.value = '';
+  });
+}
+
+function _setAssetLabel(name, daMappa) {
   if (assetSelectedLabel) assetSelectedLabel.textContent = name ? `✓ Selezionato: ${name}` : '';
+  const hid = document.getElementById('asset-id-hidden');
+  if (name) _clearPuntoMappa();
+  // Scelto dalla lista: la pianta mostra dov'è, per controllare che sia quello giusto
+  if (tktMappa && !daMappa && hid && hid.value && tktMappa.haAsset(hid.value)) {
+    if (mappaPannello) mappaPannello.hidden = false;
+    tktMappa.mostraAsset(hid.value, { conferma: true });
+  }
+}
+
+function apriMappa() {
+  if (!mappaPannello) return;
+  mappaPannello.hidden = false;
+  mappaPannello.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function showMyAssets() {
@@ -559,7 +601,10 @@ if (togCat && togLib) {
 }
 
 // Gestione chip "Miei asset"
-document.querySelectorAll('.tkt-my-asset-chip').forEach(chip => {
+document.getElementById('my-asset-mappa')?.addEventListener('click', e => { e.stopImmediatePropagation(); apriMappa(); });
+document.getElementById('tog-mappa')?.addEventListener('click', apriMappa);
+
+document.querySelectorAll('.tkt-my-asset-chip:not(#my-asset-mappa)').forEach(chip => {
   chip.addEventListener('click', function() {
     const id   = this.dataset.id;
     const name = this.dataset.name;
@@ -644,6 +689,7 @@ function scoreAssetMatch(asset, query) {
     asset.model,
     asset.serial_number,
     asset.reparto,
+    asset.sinonimi,
   ];
   const normalizedFields = fields.map(normalizeSearchValue).filter(Boolean);
   let bestScore = -1;
@@ -681,6 +727,7 @@ if (catSelect) {
   catSelect.addEventListener('change', function() {
     const cat = this.value;
     _catFilter = CAT_ASSET_TYPE_MAP[cat] || null;
+    if (tktMappa) tktMappa.apriPreferita(cat);
     // Mostra suggerimenti filtrati se non c'è testo in ricerca
     if (assetSearch) {
       const q = normalizeSearchValue(assetSearch.value);
@@ -780,6 +827,45 @@ if (assetSearch) {
     }
   });
 }
+
+(function montaMappa() {
+  const radice = document.getElementById('tkt-mappa');
+  if (!radice || !window.TicketMappa) return;
+  const leggi = id => { try { return JSON.parse(document.getElementById(id).textContent); } catch (e) { return null; } };
+  tktMappa = TicketMappa.monta(radice, {
+    mappe: leggi('mappe-ticket-data') || [],
+    preferite: leggi('mappa-preferite-data') || {},
+    selezionabile: true,
+    permettiPunto: true,
+    onAsset: m => {
+      const name = `${m.nome} [${m.tag}]`;
+      assetHidden.value = String(m.asset_id);
+      if (assetSearch) assetSearch.value = name;
+      if (assetFreeInput) assetFreeInput.value = '';
+      document.querySelectorAll('.tkt-my-asset-chip').forEach(c => c.classList.remove('selected'));
+      _setAssetLabel(name, true);
+    },
+    onPunto: p => {
+      assetHidden.value = '';
+      if (assetSearch) assetSearch.value = '';
+      document.getElementById('mappa-layout-hidden').value = p.layout;
+      document.getElementById('mappa-x-hidden').value = p.x;
+      document.getElementById('mappa-y-hidden').value = p.y;
+      document.querySelectorAll('.tkt-my-asset-chip').forEach(c => c.classList.remove('selected'));
+      if (assetSelectedLabel) assetSelectedLabel.textContent = `✓ Punto indicato sulla ${p.nome}`;
+    },
+  });
+  const lay = document.getElementById('mappa-layout-hidden').value;
+  if (assetHidden.value && tktMappa.haAsset(assetHidden.value)) {
+    mappaPannello.hidden = false;
+    tktMappa.mostraAsset(assetHidden.value, { conferma: true });
+  } else if (lay) {
+    mappaPannello.hidden = false;
+    tktMappa.mostraPunto(lay, document.getElementById('mappa-x-hidden').value, document.getElementById('mappa-y-hidden').value);
+    if (assetSelectedLabel) assetSelectedLabel.textContent = '✓ Punto indicato sulla planimetria';
+  }
+  if (catSelect && catSelect.value) tktMappa.apriPreferita(catSelect.value);
+})();
 
 const dropzone = document.getElementById('tkt-dropzone');
 const filesInput = document.getElementById('tkt-files');
