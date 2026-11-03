@@ -1,0 +1,172 @@
+{% extends "core/base.html" %}
+
+{% block title %}Automazioni - Mail inviate | Admin Portale{% endblock %}
+
+{% block extra_head %}
+<style>
+  .auto-grid { display:grid; gap:16px; }
+  .auto-filters { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); align-items:end; }
+  .auto-field { display:grid; gap:6px; }
+  .auto-field label { font-size:12px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.04em; }
+  .auto-field input, .auto-field select { width:100%; padding:9px 10px; border:1px solid #cbd5e1; border-radius:10px; background:#fff; }
+  .auto-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .auto-table-wrap { overflow:auto; }
+  .auto-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .auto-table th, .auto-table td { padding:10px 12px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; }
+  .auto-table th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#f8fafc; }
+  .auto-table tbody tr:hover { background:#f0f7ff; }
+  .mail-dest { word-break:break-word; min-width:200px; }
+  .mail-cc { display:block; margin-top:3px; color:#64748b; font-size:12px; }
+  .mail-err { display:block; margin-top:4px; color:#b91c1c; font-size:12px; word-break:break-word; }
+  .mail-muted { color:#94a3b8; }
+  .mail-nowrap { white-space:nowrap; }
+  .auto-status-pill { display:inline-flex; align-items:center; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+  .auto-status-pill.is-ok { background:#dcfce7; color:#166534; }
+  .auto-status-pill.is-fail { background:#fee2e2; color:#991b1b; }
+  .mail-note { margin:12px 0 0; color:#64748b; font-size:13px; line-height:1.55; }
+  .mail-pager { display:flex; gap:8px; align-items:center; justify-content:flex-end; padding:12px 0 0; flex-wrap:wrap; }
+
+  body.theme-dark .auto-field label { color:var(--text-mid); }
+  body.theme-dark .auto-field input, body.theme-dark .auto-field select { border-color:var(--border); background:var(--surface); color:var(--text); }
+  body.theme-dark .auto-table th, body.theme-dark .auto-table td { border-color:var(--border); }
+  body.theme-dark .auto-table th { color:var(--text-light); background:var(--surface-alt,#0f1b2d); }
+  body.theme-dark .auto-table tbody tr:hover { background:rgba(59,130,246,.1); }
+  body.theme-dark .mail-cc, body.theme-dark .mail-note { color:var(--text-light); }
+  body.theme-dark .mail-err { color:#fca5a5; }
+  body.theme-dark .auto-status-pill.is-ok { background:rgba(56,161,105,.18); color:#86efac; }
+  body.theme-dark .auto-status-pill.is-fail { background:rgba(229,62,62,.16); color:#fca5a5; }
+</style>
+{% endblock %}
+
+{% block subnav %}
+  {% include "admin_portale/components/admin_subnav.html" %}
+{% endblock %}
+
+{% block content %}
+  {% include "admin_portale/components/page_header.html" with page_title="Automazioni - Mail inviate" page_subtitle="Ogni mail partita dalle automazioni e dalle assenze: destinatari, oggetto ed esito." %}
+  {% include "automazioni/components/toasts.html" %}
+  {% include "automazioni/components/subnav.html" %}
+
+  {% url 'admin_portale:automazioni_mail_inviate' as base_url %}
+  <div class="auto-grid">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Cerca</div>
+        <a class="btn btn-light btn-sm" href="{% url 'guida_modulo' 'automazioni' %}?vista=admin#mail-inviate">? Guida</a>
+      </div>
+      <div class="card-body">
+        <form method="get" class="auto-filters">
+          <div class="auto-field">
+            <label for="id_q">Destinatario o oggetto</label>
+            <input id="id_q" name="q" value="{{ filtri.q }}" placeholder="es. nome@azienda.it">
+          </div>
+          <div class="auto-field">
+            <label for="id_richiesta">N. richiesta</label>
+            <input id="id_richiesta" name="richiesta" value="{{ filtri.richiesta }}" inputmode="numeric">
+          </div>
+          <div class="auto-field">
+            <label for="id_origine">Tipo di mail</label>
+            <select id="id_origine" name="origine">
+              <option value="">Tutte</option>
+              {% for codice, etichetta in origini %}
+                <option value="{{ codice }}"{% if filtri.origine == codice %} selected{% endif %}>{{ etichetta }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_sorgente">Sorgente</label>
+            <select id="id_sorgente" name="sorgente">
+              <option value="">Tutte</option>
+              {% for s in sorgenti %}
+                <option value="{{ s }}"{% if filtri.sorgente == s %} selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_esito">Esito</label>
+            <select id="id_esito" name="esito">
+              <option value="">Tutti</option>
+              <option value="inviata"{% if filtri.esito == 'inviata' %} selected{% endif %}>Inviata</option>
+              <option value="errore"{% if filtri.esito == 'errore' %} selected{% endif %}>Errore</option>
+            </select>
+          </div>
+          <div class="auto-field">
+            <label for="id_dal">Dal</label>
+            <input id="id_dal" type="date" name="dal" value="{{ filtri.dal }}">
+          </div>
+          <div class="auto-field">
+            <label for="id_al">Al</label>
+            <input id="id_al" type="date" name="al" value="{{ filtri.al }}">
+          </div>
+          <div class="auto-actions">
+            <button class="btn" type="submit">Cerca</button>
+            <a class="btn btn-light" href="{{ base_url }}">Azzera</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Mail ({{ pagina.paginator.count }})</div>
+        {% if errori_7gg %}
+          <a class="btn btn-light btn-sm" href="{{ base_url }}?esito=errore">{{ errori_7gg }} non partit{{ errori_7gg|pluralize:"a,e" }} negli ultimi 7 giorni</a>
+        {% endif %}
+      </div>
+      <div class="card-body auto-table-wrap">
+        {% if pagina.object_list %}
+          <table class="auto-table">
+            <thead>
+              <tr>
+                <th>Quando</th>
+                <th>Destinatari</th>
+                <th>Oggetto</th>
+                <th>Tipo di mail</th>
+                <th>Richiesta</th>
+                <th>Esito</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in pagina %}
+                <tr>
+                  <td class="mail-nowrap">{{ m.inviata_il|date:"d/m/Y H:i" }}</td>
+                  <td class="mail-dest">
+                    {{ m.destinatari|default:"—" }}
+                    {% if m.copia %}<span class="mail-cc">Copia: {{ m.copia }}</span>{% endif %}
+                  </td>
+                  <td>{{ m.oggetto|default:"—" }}</td>
+                  <td>
+                    {{ m.origine_label }}
+                    {% if m.regola %}<span class="mail-cc">{{ m.regola.name }}</span>{% endif %}
+                  </td>
+                  <td class="mail-nowrap">
+                    {% if m.record_id %}{% if m.sorgente %}{{ m.sorgente }} {% endif %}#{{ m.record_id }}{% else %}<span class="mail-muted">—</span>{% endif %}
+                    {% if m.run_log_id %}<span class="mail-cc"><a href="{% url 'admin_portale:automazioni_run_log_detail' m.run_log_id %}">Run log #{{ m.run_log_id }}</a></span>{% endif %}
+                  </td>
+                  <td>
+                    {% if m.esito == 'errore' %}
+                      <span class="auto-status-pill is-fail">Errore</span>
+                      {% if m.errore %}<span class="mail-err">{{ m.errore|truncatechars:240 }}</span>{% endif %}
+                    {% else %}
+                      <span class="auto-status-pill is-ok">Inviata</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if pagina.has_other_pages %}
+            <div class="mail-pager">
+              {% if pagina.has_previous %}<a class="btn btn-light btn-sm" href="?{{ query_senza_pagina }}{% if query_senza_pagina %}&amp;{% endif %}page={{ pagina.previous_page_number }}">← Più recenti</a>{% endif %}
+              <span class="mail-muted">Pagina {{ pagina.number }} di {{ pagina.paginator.num_pages }}</span>
+              {% if pagina.has_next %}<a class="btn btn-light btn-sm" href="?{{ query_senza_pagina }}{% if query_senza_pagina %}&amp;{% endif %}page={{ pagina.next_page_number }}">Meno recenti →</a>{% endif %}
+            </div>
+          {% endif %}
+        {% else %}
+          <p class="mail-muted" style="padding:24px 0;text-align:center;">Nessuna mail con questi filtri.</p>
+        {% endif %}
+        <p class="mail-note">Il registro parte dall'installazione di questa pagina: le mail precedenti restano solo nel Run log. Del messaggio si salvano destinatari, oggetto ed esito, non il testo.</p>
+      </div>
+    </div>
+  </div>
+{% endblock %}

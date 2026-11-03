@@ -1042,3 +1042,40 @@ class ClusterWatchdogState(models.Model):
     unhealthy = models.BooleanField(default=False)
     notified_at = models.DateTimeField(null=True)
     recovery_pending = models.BooleanField(default=False)
+
+
+class EmailInviata(models.Model):
+    """Registro delle mail partite: automazioni e mail dirette delle assenze.
+
+    Solo destinatari, oggetto ed esito, non il testo. Scritto da
+    ``automazioni.mail_inviate.registra`` (best-effort: un errore qui non
+    blocca mai l'invio).
+    """
+
+    ESITO_INVIATA = "inviata"
+    ESITO_ERRORE = "errore"
+    ESITO_CHOICES = [(ESITO_INVIATA, "Inviata"), (ESITO_ERRORE, "Errore")]
+
+    inviata_il = models.DateTimeField(default=timezone.now, db_index=True)
+    origine = models.CharField(max_length=40, db_index=True)
+    sorgente = models.CharField(max_length=60, blank=True, default="", db_index=True)
+    record_id = models.CharField(max_length=60, blank=True, default="", db_index=True)
+    destinatari = models.TextField(blank=True, default="")
+    copia = models.TextField(blank=True, default="")
+    oggetto = models.CharField(max_length=255, blank=True, default="")
+    esito = models.CharField(max_length=10, choices=ESITO_CHOICES, default=ESITO_INVIATA, db_index=True)
+    errore = models.TextField(blank=True, default="")
+    regola = models.ForeignKey(
+        AutomationRule, on_delete=models.SET_NULL, null=True, blank=True, related_name="email_inviate"
+    )
+    run_log = models.ForeignKey(
+        AutomationRunLog, on_delete=models.SET_NULL, null=True, blank=True, related_name="email_inviate"
+    )
+
+    class Meta:
+        ordering = ["-inviata_il", "-id"]
+        verbose_name = "Mail inviata"
+        verbose_name_plural = "Mail inviate"
+
+    def __str__(self) -> str:
+        return f"EmailInviata<{self.origine}:{self.esito}:{self.id or 'new'}>"

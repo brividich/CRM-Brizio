@@ -48,6 +48,24 @@ GUIDA = {
             ],
         },
         {
+            "id": "mail-inviate",
+            "titolo": "Mail inviate",
+            "blocchi": [
+                ("passi", [
+                    "Apri Automazioni → «Mail inviate».",
+                    "Cerca per «Destinatario o oggetto» (es. l'indirizzo della persona) o per «N. richiesta».",
+                    "Restringi con «Tipo di mail», «Sorgente», «Esito» e le date «Dal» / «Al».",
+                    "Ogni riga mostra quando è partita, a chi (e chi era in copia), l'oggetto, la regola e l'esito; "
+                    "«Run log #…» apre l'esecuzione della regola.",
+                ]),
+                ("p", "Ci sono le mail delle regole (avvisi e richieste di approvazione, una riga per approvatore) e quelle "
+                      "delle assenze che non passano dalle regole: «Richiesta modificata», eliminazione di una richiesta "
+                      "approvata, solleciti ai capi. «Errore» indica una mail non partita, con il motivo."),
+                ("p", "Il testo della mail non si salva, solo destinatari e oggetto. Il registro parte dall'installazione della "
+                      "pagina e le righe si cancellano da sole dopo gli stessi giorni dei run log (Impostazioni, default 90)."),
+            ],
+        },
+        {
             "id": "pianificati",
             "titolo": "Lavori pianificati",
             "blocchi": [
