@@ -185,7 +185,7 @@ def _querystring_without(request, key):
 
 
 @ensure_csrf_cookie
-def alert_detail(request, pk, ai=None):
+def alert_detail(request, pk, ai=None, ai_risoluzione=None):
     alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event"), pk=pk)
     alert.short_dedup_hash = alert.dedup_hash[:12] if alert.dedup_hash else ""
     ticket = _alert_case(alert)
@@ -196,6 +196,7 @@ def alert_detail(request, pk, ai=None):
     context = {
         "alert": alert,
         "ai": ai,
+        "ai_risoluzione": ai_risoluzione,
         "ticket": ticket,
         "open_cases": _open_cases(),
         "evidence": evidence,
@@ -311,6 +312,20 @@ def alert_explain(request, pk):
     if request.headers.get("HX-Request"):
         return render(request, "security/partials/ai_explanation.html", {"ai": ai})
     return alert_detail(request, pk, ai=ai)
+
+
+@require_POST
+def alert_resolve(request, pk):
+    """Come risolvere e chiudere l'alert, dall'AI locale (con le fonti web se chieste): propone, non chiude."""
+    from security.services.ai_risoluzione import risolvi_alert
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event", "event__report"), pk=pk)
+    ai = risolvi_alert(alert, user=request.user, web=request.POST.get("web") == "1", refresh=request.POST.get("refresh") == "1")
+    if request.headers.get("HX-Request"):
+        return render(request, "security/partials/alert_ai_risoluzione.html", {"ai": ai, "alert": alert, **_alert_lifecycle_context(alert)})
+    return alert_detail(request, pk, ai_risoluzione=ai)
 
 
 @require_POST

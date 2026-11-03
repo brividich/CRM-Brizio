@@ -1,5 +1,6 @@
 {% load security_i18n %}{% if ai.ok %}
   <div class="ai-text">{{ ai.text|ai_markdown }}</div>
+  {% include "security/partials/ai_fonti_web.html" %}
   <p class="ai-foot">{{ ai.disclaimer }}{% if ai.model %} · modello {{ ai.model }}{% endif %}{% if ai.generated_at %} · preparata alle {{ ai.generated_at }}{% endif %}{% if ai.cached %} · risposta già pronta{% endif %}</p>
 {% else %}
   <p class="sec-action-result sec-error"><strong>L'AI locale non ha risposto.</strong> {{ ai.error|default:"Riprova tra poco." }}</p>

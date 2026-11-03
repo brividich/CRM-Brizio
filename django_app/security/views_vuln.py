@@ -933,3 +933,18 @@ def cve_pannello_cve(request, cve_id):
     if dati is None:
         raise Http404
     return render(request, "security/partials/cve_pannello_cve.html", {"d": dati, "ritorno": _ritorno(request)})
+
+
+@require_POST
+def cve_ai(request, cve_id):
+    """Spiegazione della CVE dall'AI locale (con le fonti web se chieste), nel riquadro del pannello."""
+    if not can_view_security_center(request.user):
+        return _pannello_negato()
+    from .services.ai_risoluzione import spiega_cve
+
+    cve_id = cve_id.upper()
+    if not CVE_RE.match(cve_id):
+        raise Http404
+    record = get_object_or_404(SecurityCveRecord, cve_id=cve_id)
+    ai = spiega_cve(record, user=request.user, web=request.POST.get("web") == "1", refresh=request.POST.get("refresh") == "1")
+    return render(request, "security/partials/ai_explanation.html", {"ai": ai})

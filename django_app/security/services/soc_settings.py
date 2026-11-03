@@ -418,6 +418,26 @@ SECTIONS = [
         ],
     },
     {
+        "code": "ai_web",
+        "title": "Ricerca sul web per l'AI",
+        "intro": "Con la casella «Cerca anche sul web» l'AI locale legge anche le pagine ufficiali (avvisi dei produttori, "
+                 "articoli Microsoft con i problemi noti di una KB, CSIRT Italia, CISA) quando spiega una CVE o una patch e quando "
+                 "propone come risolvere un alert o un ticket. Escono solo codici pubblici (CVE, KB, codici d'errore, Event ID, "
+                 "nome del produttore): mai nomi di PC, utenti, indirizzi o testi delle mail. Si leggono solo siti dell'elenco, "
+                 "mai forum. Serve l'accesso a internet in uscita dal server del portale verso quei siti; ogni ricerca resta nel "
+                 "registro AI del SOC.",
+        "channels_optional": True,
+        "options": [
+            Option("ai.web.attivo", False, "Permetti all'AI di consultare le fonti ufficiali sul web"),
+            Option("ai.web.domini", "", "Altri siti ammessi",
+                   "Domini in più oltre a quelli già ammessi (nvd.nist.gov, cisa.gov, csirt.gov.it, acn.gov.it, siti Microsoft "
+                   "ufficiali, watchguard.com, veeam.com, synology.com), separati da virgola. Vale anche per i sottodomini.", "text"),
+            Option("ai.web.searxng_url", "", "Motore di ricerca interno (facoltativo)",
+                   "Indirizzo di un SearXNG aziendale (es. http://10.0.0.34:8888) con il formato JSON attivo: serve per cercare "
+                   "codici d'errore ed Event ID. Senza, l'AI legge solo i riferimenti NVD delle CVE e gli articoli delle KB.", "text"),
+        ],
+    },
+    {
         "code": "iso",
         "title": "Conformità ISO 27001",
         "intro": "La pagina Report › Conformità ISO 27001 verifica da sola i controlli dell'Annex A coperti dal SOC e il giorno 1 "

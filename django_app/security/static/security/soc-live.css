@@ -217,3 +217,11 @@ body.theme-dark .cvp-card-stat.is-ok strong { color: #86efac; }
 .soc-drawer .cvp-btn--primary:hover { background: var(--primary, #1d4ed8); }
 body.theme-dark .soc-drawer a.cvp-btn:not(.cvp-btn--primary) { color: var(--text); }
 @media (max-width: 520px) { .cvp-card-stats { grid-template-columns: 1fr 1fr; } }
+/* Pannello CVE: spiegazione dell'AI (anche fuori dal SOC, negli Asset) */
+.soc-drawer .cvp-ai { margin: 12px 0 0; }
+.soc-drawer .cvp-ai .ai-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.soc-drawer .cvp-ai .ai-web-check { font-size: var(--fs-sm, 13px); color: var(--text-light); }
+.soc-drawer #cvp-ai-body:not(:empty) { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.soc-drawer .ai-fonti { margin-top: 8px; font-size: var(--fs-sm, 13px); }
+.soc-drawer .ai-fonti ol { margin: 4px 0 0 18px; padding: 0; }
+.soc-drawer .ai-fonti small { color: var(--text-light); }

@@ -1,0 +1,24 @@
+{# Proposta dell'AI per risolvere e chiudere l'alert: il modulo è precompilato ma chiude solo se la persona conferma. #}
+{% include "security/partials/ai_explanation.html" %}
+{% if ai.ok and ai.proposta and can_act %}
+  {% if ai.proposta.esito == "false_positive" %}
+    {% if can_mark_false_positive %}
+    <form class="sec-grid ai-chiusura" method="post" action="{% url 'security:alert_action' alert.pk 'false_positive' %}" hx-post="{% url 'security:alert_action' alert.pk 'false_positive' %}" hx-target="#alert-lifecycle-panel" hx-swap="outerHTML">
+      {% csrf_token %}
+      <p class="sec-small"><strong>Proposta dell'AI: falso positivo.</strong> Rileggi il motivo e conferma solo se i fatti lo confermano.</p>
+      <label>Motivo <input type="text" name="reason" required maxlength="255" value="{{ ai.proposta.motivo }}"></label>
+      <button type="submit">Segna come falso positivo</button>
+    </form>
+    {% endif %}
+  {% elif can_close %}
+    <form class="sec-grid ai-chiusura" method="post" action="{% url 'security:alert_action' alert.pk 'close' %}" hx-post="{% url 'security:alert_action' alert.pk 'close' %}" hx-target="#alert-lifecycle-panel" hx-swap="outerHTML">
+      {% csrf_token %}
+      <p class="sec-small"><strong>Proposta dell'AI per la chiusura.</strong> Chiudi solo dopo aver fatto i passi e verificato: puoi cambiare esito e motivo.</p>
+      <label>Esito
+        <select name="outcome">{% for value, label in close_outcomes.items %}<option value="{{ value }}"{% if value == ai.proposta.esito %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+      </label>
+      <label>Motivo <input type="text" name="reason" maxlength="255" value="{{ ai.proposta.motivo }}"></label>
+      <button type="submit">Chiudi l'alert</button>
+    </form>
+  {% endif %}
+{% endif %}

@@ -1,0 +1,10 @@
+{# Fonti lette sul web per questa risposta: solo siti ammessi da ricerca_web, link esterni senza referrer. #}
+{% if ai.fonti or ai.note_web %}
+  <div class="ai-fonti">
+    {% if ai.fonti %}
+      <strong>Fonti dal web</strong>
+      <ol>{% for f in ai.fonti %}<li><a href="{{ f.url }}" target="_blank" rel="noopener noreferrer">{{ f.titolo|default:f.dominio|truncatechars:90 }}</a> <small>{{ f.dominio }}{% if f.nota %} · {{ f.nota }}{% endif %}</small></li>{% endfor %}</ol>
+    {% endif %}
+    {% for n in ai.note_web %}<p class="sec-muted sec-small">{{ n }}</p>{% endfor %}
+  </div>
+{% endif %}
