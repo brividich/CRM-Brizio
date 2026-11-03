@@ -187,3 +187,19 @@ class ImpostazioniMalattiaTests(_Base):
     def test_senza_permesso_impostazioni_non_salva(self, *_m):
         self.client.post(reverse("assenze_impostazioni"), {"form": "malattia", "malattia_abilitati": ["42"]})
         self.assertFalse(MalattiaAbilitato.objects.exists())
+
+
+class TemplateCommentiMonorigaTests(TestCase):
+    """«{# #}» vale solo su una riga: su due righe il commento finisce a video."""
+
+    def test_nessun_commento_cancelletto_su_piu_righe(self):
+        from pathlib import Path
+
+        cartella = Path(__file__).resolve().parent / "templates"
+        fughe = [
+            f"{f.relative_to(cartella)}:{n}"
+            for f in cartella.rglob("*.html")
+            for n, riga in enumerate(f.read_text(encoding="utf-8").splitlines(), 1)
+            if riga.count("{#") > riga.count("#}")
+        ]
+        self.assertEqual(fughe, [])
