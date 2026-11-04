@@ -285,13 +285,15 @@ SEZIONI: list[dict] = [
                 "Nella «Decisione del capocommessa» scegli i flag: «Aprire RDC», «Segnalare al cliente», «Segnala a "
                 "terzista», «Segnala a CAR», «Pezzi precedenti al benestare». Spuntando «Segnalare al cliente» si spunta "
                 "anche «Aprire RDC» (puoi toglierla); con «Aprire RDC» la segnalazione al cliente resta facoltativa.",
-                "Con «Segnala a CAR» scegli in «A quale CAR?» uno o più capi reparto (di serie il CAR dell'OP; le altre "
-                "scelte vengono dai capi reparto di Configurazione). Al salvataggio ognuno dei CAR appena scelti riceve "
-                "una mail con l'anomalia, la decisione e il link, più una notifica nel portale; chi l'ha già ricevuta non "
-                "la riceve di nuovo.",
+                "Con «Segnala a CAR» scegli in «A quale CAR?» uno o più capi reparto: nessuno è scelto di serie (il CAR "
+                "dell'OP è indicato con «· CAR dell'OP» e riceve comunque il riepilogo delle modifiche; le altre scelte "
+                "vengono dai capi reparto di Configurazione). Al salvataggio solo i CAR appena scelti ricevono la mail "
+                "«Segnala a CAR» con l'anomalia, la decisione e il link, più una notifica nel portale; chi l'ha già "
+                "ricevuta non la riceve di nuovo.",
                 "Con «Segnalare al cliente» o «Segnala a terzista» salvati compare la spunta «Segnalato al cliente» / "
                 "«Segnalato al terzista»: spuntala quando li hai avvisati. Si registra subito con data e nome (anche ad "
-                "anomalia chiusa) e non manda nessuna mail di aggiornamento; resta nella cronologia.",
+                "anomalia chiusa) e non manda nessuna mail; resta nella cronologia e compare nel primo riepilogo delle "
+                "modifiche successivo, insieme a «Segnalare al terzista» e ai CAR segnalati.",
                 "Se servono, carica documenti o foto in «Allegati della decisione» (trascina o «sfoglia»), per esempio "
                 "la comunicazione al cliente o al terzista: si possono caricare anche ad anomalia chiusa e restano "
                 "separati dagli allegati della segnalazione. Il riquadro «Dal controllore» mostra «Dove sono i pezzi?», "

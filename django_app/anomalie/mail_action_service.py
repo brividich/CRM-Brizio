@@ -541,6 +541,27 @@ def _resolve_lista_rdc_segnalazione() -> list[str]:
     return _resolve_lista_config("rdc_segnalazione")
 
 
+def righe_extra_decisione(u: dict) -> list[str]:
+    """Righe della mail di riepilogo per terzista, CAR segnalati e «Segnalato».
+
+    «Segnalato» non manda mail da solo: compare nel primo riepilogo successivo.
+    """
+    def _fatto(s):
+        if not isinstance(s, dict) or not s.get("il"):
+            return ""
+        return f" — segnalato il {s['il']}" + (f" da {s['da']}" if s.get("da") else "")
+
+    out = []
+    if u.get("segnalare") and u.get("segnalato_cliente"):
+        out.append("Segnalare al cliente" + _fatto(u.get("segnalato_cliente")))
+    if u.get("segnala_terzista"):
+        out.append("Segnalare al terzista" + _fatto(u.get("segnalato_terzista")))
+    car = [str(c).strip() for c in (u.get("car_segnalati") or []) if str(c).strip()]
+    if car:
+        out.append("Segnalata ai CAR: " + ", ".join(car))
+    return out
+
+
 def send_anomalie_update_confirmation(
     *,
     op_id: str,
@@ -565,6 +586,7 @@ def send_anomalie_update_confirmation(
     from automazioni.services import _resolve_op_recipients
 
     anomalie_ids = [r.get("id") for r in anomalie_rows if r.get("id") is not None]
+    updates_summary = [{**u, "extra_decisione": righe_extra_decisione(u)} for u in updates_summary]
 
     # Anomalie con risalto, divise per tipo di azione richiesta.
     # Vanno in cima alla mail e attivano l'invio alla lista dedicata.
@@ -657,6 +679,9 @@ def send_anomalie_update_confirmation(
             out.append(f"      N° RDC: {u['numero_rdc']}")
         if u.get("pezzi_recuperato"):
             out.append("      Pezzo recuperato: sì")
+        if u.get("dove_pezzi"):
+            out.append(f"      Dove sono i pezzi: {u['dove_pezzi']}")
+        out += [f"      {r}" for r in u.get("extra_decisione") or []]
         if u.get("note"):
             out.append(f"      Note: {str(u['note'])[:200]}")
         return out
