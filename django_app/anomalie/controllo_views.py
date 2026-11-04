@@ -64,6 +64,13 @@ def _get_controllo(request, pk: int, *, lettura: bool = False):
         return controllo, None
     if lettura and cs.colleghi_del_gruppo(request.user, controllo):
         return controllo, None
+    if lettura:
+        # Chi può aprire segnalazioni sull'OP vede (e può prendere in carico) i controlli
+        # non terminati di altri sullo stesso OP: evita controlli doppi.
+        from .views import _can_create_anomalie_for_op
+
+        if controllo.terminato_at is None and _can_create_anomalie_for_op(request, controllo.op_id):
+            return controllo, None
     chi = controllo.operatore_display or "un altro operatore"
     return None, _err(f"Il controllo è in carico a {chi}: per proseguirlo usa «Prendi in carico».", 403)
 
@@ -150,8 +157,11 @@ def api_controlli(request):
     propri = list(AnomaliaControllo.objects.filter(
         op_id__iexact=op_id, operatore=request.user, terminato_at__isnull=True, created_at__gte=recenti,
     ).order_by("-id")[:5])
-    # Colleghi del gruppo qualità: i loro controlli con qualcosa in sospeso su questo OP.
-    colleghi = [c for c in cs.controlli_sospesi(request.user, op_id=op_id, limite=5) if c.operatore_id != request.user.pk]
+    # Controlli non terminati di altri su questo OP (chiunque): si propone di
+    # prenderli in carico invece di aprirne uno doppio.
+    colleghi = list(AnomaliaControllo.objects.filter(
+        op_id__iexact=op_id, terminato_at__isnull=True, created_at__gte=recenti,
+    ).exclude(operatore=request.user).order_by("-id")[:5])
     fasi = list(dict.fromkeys(
         AnomaliaControllo.objects.filter(op_id__iexact=op_id).order_by("-id").values_list("fase", flat=True)[:30]
     ))
@@ -333,6 +343,8 @@ def api_controllo_blocco(request, pk: int):
         return _err("Inserisci almeno un seriale")
     label = etichetta_blocco(voci)
     stati = [s for s in (_txt(v, 60) for v in (data.get("stato_superficie") or [])) if s][:10]
+    # «Dove sono i pezzi?»: vale per tutto il blocco (stessi pezzi), finisce nella scheda di ogni anomalia.
+    dove_pezzi = _txt(data.get("dove_pezzi"), 200) if "dove_pezzi" in data else None
     anomalie_in = data.get("anomalie") if isinstance(data.get("anomalie"), list) else []
     anomalie = []
     for item in anomalie_in[:MAX_ANOMALIE_PER_BLOCCO]:
@@ -345,7 +357,8 @@ def api_controllo_blocco(request, pk: int):
             # Flag «su tutti i seriali del blocco» (default sì); se spento, i S/N scelti.
             tutti = item.get("tutti", True) is not False
             scelti = item.get("seriali") if isinstance(item.get("seriali"), list) else []
-            anomalie.append({"local_id": local_id, "testo": testo, "tutti": tutti, "seriali": scelti})
+            anomalie.append({"local_id": local_id, "testo": testo, "tutti": tutti, "seriali": scelti,
+                             "dettaglio": item.get("dettaglio"), "tipo_difetto_id": item.get("tipo_difetto_id")})
     if not any(a["testo"] for a in anomalie):
         return _err("Descrivi almeno un'anomalia")
     if any(not a["testo"] for a in anomalie):
@@ -459,6 +472,8 @@ def api_controllo_blocco(request, pk: int):
                 str(prima.get("descrizione") or "").strip() == descrizione and str(prima.get("seriale") or "") == a["sn"]
             ):
                 AnomaliaSegnalazioneMeta.objects.filter(anomalia_id=a["local_id"]).update(ordine_nel_blocco=ordine)
+                if not cs.riga_gestita(prima):
+                    salva_dettaglio(a["local_id"], a["dettaglio"], a["tipo_difetto_id"], a["testo"], dove_pezzi)
                 risultati.append({"local_id": a["local_id"], "ok": True, "invariata": True})
                 continue
         esito = _salva_riga_anomalia(request, {
@@ -493,6 +508,7 @@ def api_controllo_blocco(request, pk: int):
             },
         )
         _sync_scheda(local_id)
+        salva_dettaglio(local_id, a["dettaglio"], a["tipo_difetto_id"], a["testo"], dove_pezzi)
         da_notificare.append(local_id)
         risultati.append({"local_id": local_id, "ok": True, "creata": bool(esito.get("created"))})
 
@@ -530,6 +546,13 @@ def api_controllo_bozza(request, pk: int):
     if not cs.salva_bozza(controllo, _body(request).get("bozza")):
         return _err("Bozza troppo grande", 413)
     return JsonResponse({"success": True, "bozza_at": controllo.bozza_at.isoformat() if controllo.bozza_at else ""})
+
+
+def salva_dettaglio(local_id, dettaglio, tipo_difetto_id, testo, dove_pezzi=None) -> None:
+    """Dati strutturati del controllore e «Dove sono i pezzi?» nella scheda qualità (mai bloccante)."""
+    from .dettaglio_controllo import salva_su_scheda
+
+    salva_su_scheda(int(local_id), dettaglio, tipo_difetto_id, testo, dove_pezzi=dove_pezzi)
 
 
 def _sync_scheda(local_id: int) -> None:

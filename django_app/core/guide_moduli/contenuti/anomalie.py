@@ -60,7 +60,13 @@ GUIDA = {
                       "«Aprire RDC» (si può togliere): l'anomalia resta aperta finché il capocommessa non sceglie lo "
                       "stato definitivo dopo la risposta del cliente. Con «Aprire RDC» la segnalazione al cliente resta "
                       "facoltativa."),
-                ("p", "Nella decisione ci sono anche «Segnala a terzista», «Dove sono i pezzi?», gli «Allegati della "
+                ("p", "Il controllore, per ogni blocco, indica «Dove sono i pezzi?» e, per ogni anomalia, può scegliere "
+                      "«Che cosa hai trovato?» (misura fuori tolleranza, difetto sul pezzo, marcatura/documenti): si "
+                      "aprono solo i campi di quel caso, con l'esito della misura calcolato subito, i pulsanti dei "
+                      "simboli e il riferimento a disegno, sezione e fase. Il capocommessa li vede nella mail e nel "
+                      "riquadro «Dal controllore». Se sull'OP c'è già un controllo aperto il portale propone di "
+                      "riprenderlo; i controlli vuoti si chiudono da soli dopo 24 ore."),
+                ("p", "Nella decisione ci sono anche «Segnala a terzista», gli «Allegati della "
                       "decisione» e «Segnala a CAR»: scelti uno o più CAR in «A quale CAR?», al salvataggio ricevono "
                       "una mail con l'anomalia e il link (Configurazione → Notifiche → «Segnala a CAR»)."),
                 ("p", "Un'anomalia chiusa la riapre chi ne è incaricato (capocommessa, CAR, controllore che l'ha "

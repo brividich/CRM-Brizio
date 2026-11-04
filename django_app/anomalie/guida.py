@@ -115,8 +115,10 @@ SEZIONI: list[dict] = [
             ("p", "Si possono aggiungere solo persone dell'anagrafica con un'email di notifica (al massimo 10): ricevono la "
                   "stessa mail con il link di decisione, quindi non si accettano indirizzi esterni. I destinatari si "
                   "cambiano anche durante il controllo, dalla barra in alto, e valgono per le mail successive."),
-            ("p", "Se sull'OP hai già un controllo lasciato aperto, compare «Hai un controllo ancora aperto su questo OP»: "
-                  "con «Riprendi» continui da dove eri rimasto."),
+            ("p", "Se sull'OP c'è già un controllo non terminato (tuo o di un collega), compare l'elenco dei controlli "
+                  "aperti con fase, ora e blocchi salvati: con «Riprendi» continui il tuo, con «Prendi in carico» "
+                  "prosegui quello del collega (che riceve un avviso). Per un controllo nuovo scrivi comunque la fase. "
+                  "I controlli rimasti vuoti (nessun blocco salvato e nessuna bozza) si chiudono da soli dopo 24 ore."),
             ("def", [
                 ("Quando parte la mail", "una sola volta, quando premi «Termina controllo»."),
                 ("Promemoria (15 minuti)", "se 15 minuti dopo l'ultimo blocco salvato la mail non è ancora partita, "
@@ -164,7 +166,22 @@ SEZIONI: list[dict] = [
                 "In «Seriali» scrivi un seriale, un range (LCN00005-LCN00010) o più seriali separati da virgola e premi "
                 "Invio. Sotto compare il totale dei pezzi.",
                 "Se richiesto, scegli lo «Stato superficie del blocco»: vale per tutti i pezzi del blocco.",
-                "Descrivi l'anomalia: cosa hai rilevato, dove si trova sul pezzo, misura rilevata e tolleranza.",
+                "Scrivi «Dove sono i pezzi?» (es. area pezzi non conformi, reparto, carrello del collaudo): vale per "
+                "tutti i pezzi del blocco e il capocommessa lo trova nella mail, nella pagina della mail e in Gestione "
+                "anomalie.",
+                "Descrivi l'anomalia: cosa hai rilevato, dove si trova sul pezzo, misura rilevata e tolleranza. Sopra la "
+                "descrizione i pulsanti «Simboli» (Ø ± ° ⊥ ∥ ◎ ⌖ …) scrivono il simbolo dove si trova il cursore, anche "
+                "nei campi delle misure; il controllo ortografico è quello del browser, in italiano.",
+                "Se serve, in «Che cosa hai trovato?» scegli il caso (facoltativo): si aprono solo i campi di quel caso. "
+                "«Misura fuori tolleranza»: una riga per misura con caratteristica, tolleranza (min/max, ± sul nominale "
+                "o max per le tolleranze geometriche), rilevato e dove; il portale dice subito «Fuori tolleranza −0.015» "
+                "e scrive la frase uniforme. «Difetto sul pezzo»: che difetto (bava, testimone di fusione, graffio…), "
+                "dove e dimensioni. «Marcatura / documenti»: cosa c'è sul pezzo, cosa era atteso e i documenti coinvolti. "
+                "Toccando di nuovo il caso scelto lo togli.",
+                "«+ Riferimento» aggiunge disegno/revisione, sezione/vista e fase del ciclo/F.OP. Con un caso scelto "
+                "compare anche il «Tipo di difetto» proposto dal portale (cambialo se non è giusto).",
+                "«↓ Copia nella descrizione» porta le frasi delle misure nel testo; se lasci vuota la descrizione, al "
+                "salvataggio si usano quelle frasi.",
                 "Con più pezzi nel blocco, sotto la descrizione c'è la casella «Presente su tutti i N seriali del blocco», "
                 "già spuntata. Se l'anomalia è solo su alcuni pezzi toglila e tocca i seriali interessati: un range "
                 "compare pezzo per pezzo. Per sceglierne più di fila tieni premuto su un seriale e trascina sugli altri "
@@ -265,9 +282,9 @@ SEZIONI: list[dict] = [
                 "scelte vengono dai capi reparto di Configurazione). Al salvataggio ognuno dei CAR appena scelti riceve "
                 "una mail con l'anomalia, la decisione e il link, più una notifica nel portale; chi l'ha già ricevuta non "
                 "la riceve di nuovo.",
-                "Scrivi «Dove sono i pezzi?» (es. area pezzi non conformi, reparto, presso il terzista) e, se servono, "
-                "carica documenti o foto in «Allegati della decisione» (trascina o «sfoglia»): restano separati dagli "
-                "allegati della segnalazione.",
+                "Se servono, carica documenti o foto in «Allegati della decisione» (trascina o «sfoglia»): restano "
+                "separati dagli allegati della segnalazione. Il riquadro «Dal controllore» mostra «Dove sono i pezzi?», "
+                "le misure e i riferimenti scritti dal controllore (in sola lettura).",
                 "Scegli l'«Avanzamento». Con «Aprire RDC» indica anche il «Numero RDC».",
                 "Scrivi la «Risposta / note per il reparto»: decisione, istruzioni di rilavorazione, riferimenti.",
                 "Premi «Salva» (Ctrl+S) oppure «Salva e prossima» per passare subito alla successiva.",
