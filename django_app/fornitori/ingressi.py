@@ -128,10 +128,74 @@ class CollegamentoNonValido(Exception):
     pass
 
 
-def collega(iv: Intervento, visita_id: int, *, utente, modo: str) -> IngressoIntervento:
+def fornitore_da_accesso(accesso: gp.Accesso, preferito=None):
+    """Fornitore HUB di un ingresso: abbinamento della ditta GuestPortal, altrimenti
+    azienda scritta al chiosco uguale alla ragione sociale (prima ``preferito``,
+    poi tutti i fornitori attivi). None se non si riconosce."""
+    from anagrafica.models import Fornitore
+
+    if accesso.ditta_gp_id:
+        abbinata = DittaGuestPortal.objects.filter(ditta_gp_id=accesso.ditta_gp_id).select_related("fornitore").first()
+        if abbinata:
+            return abbinata.fornitore
+    nome = (accesso.azienda or "").strip().lower()
+    if not nome:
+        return None
+    if preferito is not None and (preferito.ragione_sociale or "").strip().lower() == nome:
+        return preferito
+    for f in Fornitore.objects.filter(is_active=True, ragione_sociale__iexact=accesso.azienda.strip()).order_by("pk")[:1]:
+        return f
+    return None
+
+
+def _imposta_ditta(iv: Intervento, fornitore, *, utente, autore: tuple[str, str] | None) -> str:
+    """Se l'intervento non ha ancora una ditta, imposta quella dell'ingresso e lo
+    scrive nello storico del ticket/OdL. Ritorna una frase per l'utente ("" se niente)."""
+    if fornitore is None or iv.fornitore is not None:
+        return ""
+    o = iv.oggetto
+    nota = (f"Ditta impostata a «{fornitore.ragione_sociale}» collegando l'ingresso "
+            "dal GuestPortal (Presenze in azienda).")
+    if iv.tipo == TIPO_TICKET:
+        from tickets.models import TicketCommento
+
+        o.delegato_fornitore = fornitore
+        o.save(update_fields=["delegato_fornitore", "updated_at"])
+        nome, email = autore or ("", "")
+        TicketCommento.objects.create(
+            ticket=o, autore_nome=(nome or getattr(utente, "get_username", lambda: "")() or "HUB")[:200],
+            autore_email=(email or "")[:200], testo=nota, is_interno=True,
+        )
+        return f"Il ticket ora è delegato a «{fornitore.ragione_sociale}»."
+    from assets.models import WorkOrderLog
+
+    campi = ["supplier"]
+    o.supplier = fornitore
+    if o.execution_mode != o.EXECUTION_EXTERNAL:
+        o.execution_mode = o.EXECUTION_EXTERNAL
+        campi.append("execution_mode")
+        nota += " Esecuzione passata a Esterna."
+    o.save(update_fields=campi)
+    WorkOrderLog.objects.create(
+        work_order=o, note=nota, author=utente if getattr(utente, "is_authenticated", False) else None,
+    )
+    return f"L'OdL ora è eseguito da «{fornitore.ragione_sociale}» (Esterna)."
+
+
+def collega(
+    iv: Intervento,
+    visita_id: int,
+    *,
+    utente,
+    modo: str,
+    imposta_ditta: bool = True,
+    autore: tuple[str, str] | None = None,
+) -> IngressoIntervento:
     """Collega una visita all'intervento salvando la fotografia dell'ingresso.
 
-    La visita si rilegge dal GuestPortal: non ci si fida dei dati del form.
+    La visita si rilegge dal GuestPortal: non ci si fida dei dati del form. Se
+    l'intervento non ha ancora una ditta e quella dell'ingresso si riconosce, la
+    imposta (``link.nota_ditta`` dice cosa è cambiato).
     """
     if iv.chiuso:
         raise CollegamentoNonValido("L'intervento è chiuso: non si possono più collegare ingressi.")
@@ -140,13 +204,7 @@ def collega(iv: Intervento, visita_id: int, *, utente, modo: str) -> IngressoInt
         raise CollegamentoNonValido("Ingresso non trovato nel GuestPortal (forse già cancellato).")
     if accesso.nome == "Ospite anonimizzato":
         raise CollegamentoNonValido("Ingresso già anonimizzato nel GuestPortal: non si può collegare.")
-    fornitore = None
-    if accesso.ditta_gp_id:
-        abbinata = DittaGuestPortal.objects.filter(ditta_gp_id=accesso.ditta_gp_id).select_related("fornitore").first()
-        fornitore = abbinata.fornitore if abbinata else None
-    if fornitore is None and iv.fornitore is not None and \
-            accesso.azienda.strip().lower() == (iv.fornitore.ragione_sociale or "").strip().lower():
-        fornitore = iv.fornitore
+    fornitore = fornitore_da_accesso(accesso, preferito=iv.fornitore)
     dati = {
         "visita_gp_id": accesso.visita_id,
         "fornitore": fornitore,
@@ -164,9 +222,66 @@ def collega(iv: Intervento, visita_id: int, *, utente, modo: str) -> IngressoInt
         dati["work_order"] = iv.oggetto
     try:
         with transaction.atomic():
-            return IngressoIntervento.objects.create(**dati)
+            link = IngressoIntervento.objects.create(**dati)
+            link.nota_ditta = _imposta_ditta(iv, fornitore, utente=utente, autore=autore) if imposta_ditta else ""
+            return link
     except IntegrityError as exc:
         raise CollegamentoNonValido("Ingresso già collegato a questo intervento.") from exc
+
+
+ODL_MAX_ELENCO = 300
+
+
+def interventi_aperti(request, *, testo: str = "", fornitore=None) -> list[Intervento]:
+    """Ticket MAN e OdL aperti a cui l'utente può collegare un ingresso, per il
+    collegamento partendo dall'ingresso. Prima quelli della stessa ditta."""
+    from django.db.models import Q
+
+    from assets.models import WorkOrder
+    from tickets.models import StatoTicket, Ticket, TipoTicket
+
+    testo = (testo or "").strip()
+    esito: list[Intervento] = []
+
+    tickets = Ticket.objects.filter(tipo=TipoTicket.MAN).exclude(
+        stato__in=[StatoTicket.CHIUSO, StatoTicket.ANNULLATO]
+    ).select_related("delegato_fornitore")
+    if testo:
+        tickets = tickets.filter(Q(numero_ticket__icontains=testo) | Q(titolo__icontains=testo))
+    from tickets.services.accesso import utente_puo_gestire_ticket
+
+    for t in tickets.order_by("-created_at")[:200]:
+        if utente_puo_gestire_ticket(request, t):
+            esito.append(Intervento(TIPO_TICKET, t))
+
+    if puo_collegare_odl(request):
+        odl = WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN).select_related("asset", "supplier")
+        if testo:
+            filtro = Q(title__icontains=testo) | Q(asset__name__icontains=testo) | Q(asset__asset_tag__icontains=testo)
+            if testo.isdigit():
+                filtro |= Q(pk=int(testo))
+            odl = odl.filter(filtro)
+        esito.extend(Intervento(TIPO_ODL, w) for w in odl.order_by("-opened_at")[:ODL_MAX_ELENCO])
+
+    if fornitore is not None:
+        esito.sort(key=lambda iv: 0 if (iv.fornitore and iv.fornitore.pk == fornitore.pk) else 1)
+    return esito
+
+
+def puo_collegare_odl(request) -> bool:
+    """Stessa regola del riquadro nell'OdL: apre le schede OdL ed esegue le manutenzioni."""
+    from django.urls import reverse
+
+    from assets.views_maintenance import can_execute_maintenance
+    from core.middleware import acl_allows_path
+
+    try:
+        percorso = reverse("assets:wo_view", args=[0])
+    except Exception:
+        return False
+    vede = acl_allows_path(percorso, django_user=request.user,
+                           legacy_user=getattr(request, "legacy_user", None), request=request)
+    return bool(vede and can_execute_maintenance(request))
 
 
 def aggiorna_uscite(iv: Intervento) -> int:

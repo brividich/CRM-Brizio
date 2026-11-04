@@ -120,6 +120,13 @@ _PULSANTI_DEFINITIONS = [
     },
     {
         "modulo": "fornitori",
+        "codice": "ingresso_collega",
+        "label": "Fornitori - Collega ingresso esterno a ticket/OdL",
+        "url": "route:fornitori:ingresso_collega",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
         "codice": "guestportal_ditte",
         "label": "Fornitori - Ditte GuestPortal (abbinamento)",
         "url": "route:fornitori:guestportal_ditte",

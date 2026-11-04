@@ -148,9 +148,10 @@ GUIDA = {
                     "cercare fra i fornitori; se non c'è, «＋ Nuova ditta» la crea in anagrafica al salvataggio). La "
                     "risoluzione si scrive solo in «Chiudi intervento». Un intervento aperto si corregge con «✎ Modifica» "
                     "(ogni modifica finisce nel registro dell'intervento).",
-                    "Intervento Esterno: nella scheda dell'OdL il riquadro «Presenze in azienda della ditta» propone gli "
+                    "Ditte esterne: in ogni OdL aperto il riquadro «Presenze in azienda della ditta» propone gli "
                     "ingressi della ditta registrati al chiosco della reception; «Collega» li lega all'OdL come prova "
-                    "dell'intervento (guida Fornitori, «Collegare l'ingresso della ditta»).",
+                    "dell'intervento. Se l'OdL era Interno e la ditta si riconosce, passa a Esterno con quella ditta "
+                    "(guida Fornitori, «Collegare l'ingresso della ditta»).",
                     "«Scheda di lavoro» stampa macchina, dati dell'intervento, note, checklist dell'intervento e, se chiuso, "
                     "esito e «Cosa è stato fatto». Nello Scadenzario la colonna Asset mostra in grande il nome della macchina.",
                     "«Chiudi intervento» è uguale per asset IT e di produzione: «Com'è andata?» (Risolto già scelto, "

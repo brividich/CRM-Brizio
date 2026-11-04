@@ -33,6 +33,7 @@ from core.audit import log_action
 
 from . import guestportal as gp
 from . import ingressi as ing
+from .models import IngressoIntervento
 from .forms import (
     FornitoreAssetForm,
     FornitoreDocumentoForm,
@@ -549,6 +550,23 @@ def _intervento_o_404(tipo: str, pk: int):
     return iv
 
 
+def _autore(request) -> tuple[str, str]:
+    """Nome ed email con cui firmare il commento interno del ticket."""
+    try:
+        from tickets.services.accesso import identita_utente
+
+        return identita_utente(request)
+    except Exception:
+        return (request.user.get_username(), getattr(request.user, "email", "") or "")
+
+
+def _frase_collegato(link) -> str:
+    frase = (f"Ingresso del {timezone.localtime(link.ingresso):%d/%m/%Y %H:%M} collegato."
+             if link.ingresso else "Ingresso collegato.")
+    nota = getattr(link, "nota_ditta", "")
+    return f"{frase} {nota}".strip()
+
+
 @login_required
 def presenze_intervento(request, tipo, pk):
     iv = _intervento_o_404(tipo, pk)
@@ -570,14 +588,15 @@ def presenze_collega(request, tipo, pk):
     if not visita_id:
         return _render_presenze(request, iv, errore="Ingresso non indicato.", status=400)
     try:
-        link = ing.collega(iv, visita_id, utente=request.user, modo=request.POST.get("modo", ""))
+        link = ing.collega(iv, visita_id, utente=request.user, modo=request.POST.get("modo", ""),
+                           autore=_autore(request))
     except ing.CollegamentoNonValido as exc:
         return _render_presenze(request, iv, errore=str(exc))
     except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
         return _render_presenze(request, iv, errore="Il GuestPortal non risponde: riprova tra poco.")
     log_action(request, "ingresso_esterno_collegato", "fornitori",
                {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id, "modo": link.modo})
-    return _render_presenze(request, iv, esito=f"Ingresso del {timezone.localtime(link.ingresso):%d/%m/%Y %H:%M} collegato." if link.ingresso else "Ingresso collegato.")
+    return _render_presenze(request, iv, esito=_frase_collegato(link))
 
 
 @login_required
@@ -593,6 +612,65 @@ def presenze_scollega(request, link_id):
                {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id})
     link.delete()
     return _render_presenze(request, iv, esito="Collegamento tolto.")
+
+
+# ---------------------------------------------------------------------------
+# Collegamento partendo dall'ingresso (pagina Accessi esterni → «Collega»)
+# ---------------------------------------------------------------------------
+
+@login_required
+def ingresso_collega(request, visita_id):
+    """Sceglie il ticket MAN o l'OdL aperto a cui collegare un ingresso del GuestPortal.
+    Se l'intervento non ha ancora una ditta, prende quella dell'ingresso."""
+    try:
+        accesso = gp.visita(visita_id)
+    except gp.GuestPortalNonConfigurato:
+        messages.error(request, "Collegamento al database del GuestPortal non configurato.")
+        return redirect("fornitori:accessi_esterni")
+    except gp.GuestPortalNonRaggiungibile:
+        messages.error(request, "Il database del GuestPortal non risponde: riprova tra poco.")
+        return redirect("fornitori:accessi_esterni")
+    if accesso is None:
+        messages.error(request, "Ingresso non trovato nel GuestPortal (forse già cancellato).")
+        return redirect("fornitori:accessi_esterni")
+
+    if request.method == "POST":
+        pk_txt = request.POST.get("pk", "")
+        iv = ing.intervento(request.POST.get("tipo", ""), int(pk_txt)) if pk_txt.isdigit() else None
+        if iv is None:
+            messages.error(request, "Ticket o OdL non trovato.")
+        elif not _puo_presenze(request, iv, modifica=True):
+            return HttpResponseForbidden("Permesso negato")
+        else:
+            try:
+                link = ing.collega(iv, accesso.visita_id, utente=request.user,
+                                   modo=IngressoIntervento.MODO_MANUALE, autore=_autore(request))
+            except ing.CollegamentoNonValido as exc:
+                messages.error(request, str(exc))
+            except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+                messages.error(request, "Il GuestPortal non risponde: riprova tra poco.")
+            else:
+                log_action(request, "ingresso_esterno_collegato", "fornitori",
+                           {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id, "modo": "DA_INGRESSO"})
+                messages.success(request, f"{_frase_collegato(link)} → {iv.etichetta}")
+                return redirect("fornitori:ingresso_collega", visita_id=accesso.visita_id)
+        return redirect(request.get_full_path())
+
+    fornitore = ing.fornitore_da_accesso(accesso)
+    testo = request.GET.get("q", "").strip()[:80]
+    interventi = ing.interventi_aperti(request, testo=testo, fornitore=fornitore)
+    collegati = list(IngressoIntervento.objects.filter(visita_gp_id=accesso.visita_id)
+                     .select_related("ticket", "work_order", "collegato_da"))
+    gia = {(("ticket", c.ticket_id) if c.ticket_id else ("odl", c.work_order_id)) for c in collegati}
+    righe = [iv for iv in interventi if (iv.tipo, iv.pk) not in gia]
+    return render(request, "fornitori/pages/ingresso_collega.html", {
+        "a": accesso,
+        "fornitore": fornitore,
+        "righe": righe,
+        "collegati": collegati,
+        "q": testo,
+        "puo_odl": ing.puo_collegare_odl(request),
+    })
 
 
 # ---------------------------------------------------------------------------
