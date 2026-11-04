@@ -86,7 +86,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
         "nome": "Timbrature Solari (SQL Server)",
         "cosa": "Database del sistema presenze Solari (anagrafico + timbrature). L'HUB legge in sola lettura, al massimo una volta al minuto per tutto il server (cache condivisa), chi è in azienda (ultima timbratura di oggi = entrata) e le giornate con entrata senza uscita. Nessuna copia delle timbrature nel database del portale.",
         "chi": "Presenti in azienda (lista live, appello di evacuazione, uscite non timbrate, PDF CN-PRESENZE su SharePoint); pallino «In azienda» in elenco e scheda dipendente. Aggancio all'anagrafica per codice fiscale.",
-        "config": "SOLARI_DB_SERVER, SOLARI_DB_USER, SOLARI_DB_PASSWORD (login con solo db_datareader), SOLARI_DB_DRIVER, SOLARI_DB_ANAGRAFICO, SOLARI_DB_TIMBRATURE, SOLARI_TURNO_NORMALE_ELEM; pubblicazione PDF e avvisi in Presenti › Impostazioni.",
+        "config": "SOLARI_DB_SERVER, SOLARI_DB_USER, SOLARI_DB_PASSWORD (login con solo db_datareader), SOLARI_DB_DRIVER, SOLARI_DB_ENCRYPT, SOLARI_DB_TRUST_CERT (con ODBC Driver 18: 1 e 1, certificato autofirmato), SOLARI_DB_ANAGRAFICO, SOLARI_DB_TIMBRATURE, SOLARI_TURNO_NORMALE_ELEM; pubblicazione PDF e avvisi in Presenti › Impostazioni.",
         "controllo": "Pagina Presenti in azienda (rosso = non configurato o DB non risponde); raggiungibilità dell'istanza SQL Solari dal server HUB; Impostazioni › «Ultima pubblicazione» per l'upload su SharePoint.",
     },
     {

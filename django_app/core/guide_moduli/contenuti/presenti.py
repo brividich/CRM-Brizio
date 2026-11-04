@@ -56,7 +56,8 @@ GUIDA = {
             "titolo": "Configurazione",
             "blocchi": [
                 ("def", [
-                    ("Collegamento Solari", "chiavi SOLARI_DB_* nel .env del server (login con sola lettura); riavvio del portale."),
+                    ("Collegamento Solari", "chiavi SOLARI_DB_* nel .env del server (login con sola lettura); con ODBC Driver 18 "
+                     "anche SOLARI_DB_ENCRYPT=1 e SOLARI_DB_TRUST_CERT=1; riavvio del portale."),
                     ("Permessi", "lista, appello e uscite della squadra a tutti i ruoli; «Uscite non timbrate (tutti)» e "
                      "«Impostazioni» solo admin (Accessi › permessi del modulo Presenti in azienda)."),
                     ("PDF su SharePoint", "Presenti › Impostazioni: ogni 30 minuti, raccolta e nome file configurabili; "

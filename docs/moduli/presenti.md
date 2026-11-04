@@ -52,11 +52,15 @@ Anagrafica: elenco dipendenti e scheda dipendente.
 SOLARI_DB_SERVER=<host\istanza>
 SOLARI_DB_USER=<login sola lettura>
 SOLARI_DB_PASSWORD=<...>
-SOLARI_DB_DRIVER={ODBC Driver 17 for SQL Server}
+SOLARI_DB_DRIVER={ODBC Driver 18 for SQL Server}
+SOLARI_DB_ENCRYPT=1
+SOLARI_DB_TRUST_CERT=1
 SOLARI_DB_ANAGRAFICO=dbstartPRV
 SOLARI_DB_TIMBRATURE=dbstartBIZ
 SOLARI_TURNO_NORMALE_ELEM=34013
 ```
+
+Con ODBC Driver 18 servono `SOLARI_DB_ENCRYPT=1` e `SOLARI_DB_TRUST_CERT=1`: l'istanza Solari ha un certificato autofirmato (verificato il 04/11/2026, senza dà «Catena di certificati emessa da una autorità non attendibile»). Con Driver 17 le due chiavi si possono lasciare vuote.
 
 Login consigliato sul SQL Solari: utente dedicato con solo `db_datareader` sui due database (lo script usava `sa`).
 
