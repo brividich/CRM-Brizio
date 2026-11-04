@@ -113,6 +113,11 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "ai_assistant:guida",
     # Guida della home: aperta a chiunque vede la home, nessun dato personale.
     "home_portale:guida",
+    # Apertura del GuestPortal con accesso automatico: emette solo un token col nome
+    # dell'utente collegato; chi entra nel pannello lo decide il GuestPortal
+    # (tabella AdminUsers). Prima il link puntava direttamente al GuestPortal,
+    # visibile a tutti: stesso perimetro.
+    "fornitori:guestportal_apri",
     "assets:api_dashboard_save_config",
     "legacy_modifica_capo",
     "legacy_modifica_info_completa",

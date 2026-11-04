@@ -104,6 +104,20 @@ _PULSANTI_DEFINITIONS = [
         "url": "route:fornitori:fornitore_asset_remove",
         "visible_topbar": False,
     },
+    {
+        "modulo": "fornitori",
+        "codice": "accessi_esterni",
+        "label": "Fornitori - Accessi esterni (GuestPortal)",
+        "url": "route:fornitori:accessi_esterni",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "guestportal_apri",
+        "label": "Fornitori - Apri GuestPortal (accesso automatico)",
+        "url": "route:fornitori:guestportal_apri",
+        "visible_topbar": False,
+    },
 ]
 
 

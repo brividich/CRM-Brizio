@@ -31,4 +31,8 @@ urlpatterns = [
     # Asset assegnati
     path("<int:fornitore_id>/asset/add", views.fornitore_asset_add, name="fornitore_asset_add"),
     path("<int:fornitore_id>/asset/<int:fa_id>/remove", views.fornitore_asset_remove, name="fornitore_asset_remove"),
+
+    # Accessi esterni dal GuestPortal (sola lettura) e apertura pannello con SSO
+    path("accessi-esterni/", views.accessi_esterni, name="accessi_esterni"),
+    path("guestportal/apri/", views.guestportal_apri, name="guestportal_apri"),
 ]

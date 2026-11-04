@@ -126,6 +126,16 @@ LDAP_SERVICE_PASSWORD = env("LDAP_SERVICE_PASSWORD", "")
 LDAP_BASE_DN = env("LDAP_BASE_DN", "")
 LDAP_USER_FILTER = env("LDAP_USER_FILTER", "(&(objectCategory=person)(objectClass=user))")
 LDAP_GROUP_ALLOWLIST = env_list("LDAP_GROUP_ALLOWLIST", [])
+# GuestPortal (portale accessi visitatori, app separata PHP+MySQL): vedi fornitori/guestportal.py.
+# Senza GUESTPORTAL_SSO_SECRET il link apre il login normale del pannello.
+GUESTPORTAL_ADMIN_URL = env("GUESTPORTAL_ADMIN_URL", "http://10.0.0.8/guestportal/public/admin/index.php")
+GUESTPORTAL_SSO_URL = env("GUESTPORTAL_SSO_URL", "http://10.0.0.8/guestportal/public/admin/sso.php")
+GUESTPORTAL_SSO_SECRET = env("GUESTPORTAL_SSO_SECRET", "")
+GUESTPORTAL_DB_HOST = env("GUESTPORTAL_DB_HOST", "")
+GUESTPORTAL_DB_PORT = env("GUESTPORTAL_DB_PORT", "3306")
+GUESTPORTAL_DB_NAME = env("GUESTPORTAL_DB_NAME", "GuestManagement")
+GUESTPORTAL_DB_USER = env("GUESTPORTAL_DB_USER", "")
+GUESTPORTAL_DB_PASSWORD = env("GUESTPORTAL_DB_PASSWORD", "")
 # Audit M2: la allowlist vale anche al login LDAP e all'SSO Windows (0 = solo sync).
 LDAP_GROUP_ALLOWLIST_ON_LOGIN = env_bool("LDAP_GROUP_ALLOWLIST_ON_LOGIN", True)
 # Audit A10/S7: CA per verificare il certificato del DC su ldaps:// e timeout di lettura.

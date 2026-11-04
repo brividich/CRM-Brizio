@@ -68,6 +68,7 @@ defusedxml>=0.7,<1             # parsing sicuro della fattura elettronica (Fattu
 asyncua>=2.0,<3                 # collector OPC UA delle CNC integrato nel portale (manage.py collector_cnc), sola lettura
 pyLSV2>=1.8,<2                  # collector CNC: Heidenhain LSV2 (iTNC 530, TNC 640), sola lettura dietro whitelist
 pyvmomi>=8.0.3,<9              # Registro accessi: stato di ESXi/vCenter in sola lettura (registro_log/infra.py)
+PyMySQL>=1.1,<2                 # Accessi esterni: lettura in sola lettura del DB MySQL del GuestPortal (fornitori/guestportal.py); pure-python
 
 # --- API REST (modulo security / Security Center AI) ---
 djangorestframework>=3.18,<4   # APIView/permissions dell'app security (SC-AI)

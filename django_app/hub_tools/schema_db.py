@@ -81,6 +81,13 @@ AREE = ("Piattaforma", "Persone e HR", "Operations", "Sicurezza sul lavoro", "Qu
 
 CONNESSIONI_ESTERNE: list[dict] = [
     {
+        "nome": "GuestPortal (accessi visitatori, MySQL)",
+        "cosa": "Applicazione separata (PHP + MySQL su IIS) del chiosco della reception: check-in/out di visitatori, fornitori e consulenti. L'HUB legge in sola lettura Visits/Guests/Suppliers (nessuna copia: la pulizia GDPR del GuestPortal resta valida) e apre il suo pannello con un token firmato a uso singolo (public/admin/sso.php).",
+        "chi": "Fornitori → Accessi esterni; voce di menu «Accessi azienda».",
+        "config": "GUESTPORTAL_DB_HOST, GUESTPORTAL_DB_PORT, GUESTPORTAL_DB_NAME, GUESTPORTAL_DB_USER, GUESTPORTAL_DB_PASSWORD (utente MySQL con solo SELECT); GUESTPORTAL_ADMIN_URL, GUESTPORTAL_SSO_URL, GUESTPORTAL_SSO_SECRET (= GP_SSO_SECRET in config/sso.php del GuestPortal).",
+        "controllo": "Pagina Accessi esterni (avviso giallo = non configurato, rosso = DB non risponde); porta 3306 aperta dal server HUB; righe «[SSO] accesso rifiutato: …» in C:\\Windows\\Temp\\guestportal.log del server GuestPortal.",
+    },
+    {
         "nome": "Collector letture contatori (OPC UA)",
         "cosa": "Script esterni (es. il collector OPC UA delle CNC) che inviano le ore/km/cicli delle macchine a POST /api/assets/contatori/ingest/. Le letture finiscono in assets_assetmeter e assets_assetmeterhistory e alimentano i piani di manutenzione a contatore.",
         "chi": "Asset → contatori e scadenze a contatore.",
