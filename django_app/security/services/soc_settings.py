@@ -418,6 +418,33 @@ SECTIONS = [
         ],
     },
     {
+        "code": "ai_proposte",
+        "title": "Proposte di chiusura dell'AI",
+        "intro": "Ogni 15 minuti l'AI locale controlla gli alert aperti contro i report arrivati dopo (stesso PC, utente, IP, job "
+                 "di backup) e contro le decisioni passate su alert dello stesso tipo, e propone come chiuderli in Segnalazioni › "
+                 "Proposte AI. Ogni conferma, correzione o riapertura le insegna: quando per un tipo di alert e un esito le ultime "
+                 "proposte sono state tutte confermate, le successive chiudono l'alert da sole (mai alert critici, minacce, CVE "
+                 "sfruttate o tipi esclusi dalla soppressione appresa). Riaprire un alert chiuso dall'AI le toglie la fiducia su "
+                 "quel tipo. Gira dalla lettura «ai_proposte» (Letture automatiche).",
+        "options": [
+            Option("ai.proposte.attivo", True, "Fai proporre all'AI come chiudere gli alert aperti"),
+            Option("ai.proposte.chiusura_auto", True, "Lascia chiudere all'AI i tipi di alert che ha imparato",
+                   "Spento: l'AI propone soltanto, chiude sempre una persona."),
+            Option("ai.proposte.soglia", 5, "Conferme per chiudere da sola",
+                   "Quante proposte di fila, con lo stesso tipo di alert e lo stesso esito, una persona deve aver confermato.",
+                   "int", min_value=2, max_value=50, unit="conferme"),
+            Option("ai.proposte.confidenza_auto", 80, "Confidenza minima per chiudere da sola",
+                   "Sotto questa confidenza la proposta resta da confermare anche per i tipi già imparati.",
+                   "int", min_value=50, max_value=100, unit="%"),
+            Option("ai.proposte.attesa_ore", 2, "Attesa prima di proporre",
+                   "Ore dall'apertura dell'alert: prima lasciano lavorare le regole di rientro e arrivano i report successivi.",
+                   "int", min_value=0, max_value=72, unit="ore"),
+            Option("ai.proposte.max_per_giro", 4, "Massimo per giro",
+                   "Alert esaminati a ogni esecuzione: in produzione ogni risposta impegna l'AI per 15-40 secondi.",
+                   "int", min_value=1, max_value=20, unit="alert"),
+        ],
+    },
+    {
         "code": "ai_web",
         "title": "Ricerca sul web per l'AI",
         "intro": "Con la casella «Cerca anche sul web» l'AI locale legge anche le pagine ufficiali (avvisi dei produttori, "

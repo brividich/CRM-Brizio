@@ -24,6 +24,9 @@ GUIDA = {
                     "Guarda «Da guardare adesso»: le cose più gravi sono in cima.",
                     "Apri un allarme: «Spiega con l'AI» lo spiega in parole semplici, «Cosa sappiamo» mostra lo storico.",
                     "«Proponi la soluzione» dà causa probabile, passi e verifica, e prepara il modulo di chiusura con esito e motivo: chiudi tu, dopo aver controllato.",
+                    "Apri Segnalazioni › «Proposte AI»: ogni 15 minuti l'AI confronta gli alert aperti con i report arrivati dopo e con le vostre decisioni, "
+                    "e propone come chiuderli. «Conferma e chiudi» o «Scarta» (scrivendo perché): ogni decisione le insegna, e i tipi di alert "
+                    "con 5 conferme di fila li chiude da sola (mai critici, minacce o CVE sfruttate). Se ne chiude uno per sbaglio, «Riapri».",
                     "Decidi: prendi in carico, chiudi come risolto o scarta come falso allarme (scrivendo il perché).",
                 ]),
                 ("p", "La guida completa del Security Center ha un capitolo per ogni pagina: i collegamenti sono in cima."),
@@ -309,6 +312,14 @@ GUIDA = {
                 "Per queste serve il Security Update Guide di Microsoft: Impostazioni › «WatchGuard Endpoint Security (API)», interruttore «Cerca le patch comprese in una più recente (Microsoft)» acceso.",
                 "Il server deve poter uscire su HTTPS verso api.msrc.microsoft.com; l'esito è in «Letture automatiche» › WatchGuard (voce «msrc»).",
                 "La KB nel nome arriva alla lettura delle patch successiva (06:10 e 13:10). Gli aggiornamenti fuori ciclo non di sicurezza non sono nel Security Update Guide: per Windows vale il build nel nome.",
+            ],
+        },
+        {
+            "sintomo": "«Proposte AI» è vuota, oppure l'AI non chiude mai da sola un tipo di alert",
+            "fare": [
+                "Le proposte arrivano per gli alert aperti da almeno 2 ore (impostazione «Attesa prima di proporre»); un alert si riesamina solo quando arriva un report nuovo o una decisione nuova.",
+                "In Impostazioni › Letture automatiche › «Proposte di chiusura dell'AI» c'è l'esito di ogni giro: «AI locale non raggiungibile» vuol dire Ollama spento o modello non caricato.",
+                "Chiude da sola solo dopo 5 conferme di fila per quel tipo di alert ed esito (tabella «Cosa ha imparato»), con confidenza almeno 80%, mai per alert critici, minacce o CVE sfruttate. Una proposta scartata o un alert riaperto azzerano il conteggio.",
             ],
         },
         {

@@ -9,7 +9,7 @@ In cima a ogni pagina c'è l'intestazione blu con il nome della pagina, la casel
 | Voce | Pagine |
 | --- | --- |
 | **Da fare** | Panoramica (pagina di partenza), Tutto ciò che è aperto |
-| **Segnalazioni** | Tutte, Alert, Ticket, Incidenti, Eventi |
+| **Segnalazioni** | Tutte, Alert, Proposte AI, Ticket, Incidenti, Eventi |
 | **Dispositivi** | Elenco (fonti, backup, CVE e asset di ogni dispositivo), Backup, Patch e protezione, Vulnerabilità, Accessi VPN |
 | **Report** | Report, Storico, KPI |
 | **Impostazioni** | Panoramica, Avvisi e automatismi, Letture automatiche, Soppressioni, Guida |
@@ -64,7 +64,7 @@ La **Coda alert** è l'elenco di ciò che il motore ha giudicato un problema. Fi
 La scheda dell'alert risponde a quattro domande:
 
 - **In parole semplici**: premi **Spiega con l'AI** per avere cosa è successo, perché è scattato, quanto è urgente e cosa fare. L'AI tiene conto dello storico mostrato nella pagina.
-- **Come risolverlo**: **Proponi la soluzione** dà la causa probabile, i passi per risolvere (dalla procedura standard e da come sono stati chiusi gli alert simili) e come verificare. Sotto arriva il modulo di chiusura già compilato con l'esito proposto (Risolto, Non rilevante, Rischio accettato o Falso positivo) e il motivo: correggilo se serve e chiudi solo dopo aver fatto i passi. Con **Cerca anche sul web** l'AI legge anche gli avvisi ufficiali sui codici CVE, KB o d'errore dell'alert (capitolo «Impostazioni e AI»).
+- **Come risolverlo**: se l'AI ha già esaminato l'alert in automatico, in cima c'è la sua **Proposta automatica** (esito, motivo, prove) con **Conferma e chiudi** e **Scarta** (sezione «Proposte di chiusura dell'AI» qui sotto). **Proponi la soluzione** dà la causa probabile, i passi per risolvere (dalla procedura standard e da come sono stati chiusi gli alert simili) e come verificare. Sotto arriva il modulo di chiusura già compilato con l'esito proposto (Risolto, Non rilevante, Rischio accettato o Falso positivo) e il motivo: correggilo se serve e chiudi solo dopo aver fatto i passi. Con **Cerca anche sul web** l'AI legge anche gli avvisi ufficiali sui codici CVE, KB o d'errore dell'alert (capitolo «Impostazioni e AI»).
 - **Perché è stato generato**: la regola che è scattata e i valori che l'hanno fatta scattare.
 - **Cosa sappiamo dagli altri dati del portale**: gli stessi indirizzi, utenti, PC o job incrociati con lo storico (accessi VPN, backup, asset), i precedenti e gli alert simili già chiusi o scartati.
 - **Come rispondere**: la procedura consigliata per quel tipo di alert. **Apri ticket con questi passi** crea il ticket con i passi già come attività.
@@ -84,6 +84,36 @@ Più in basso: il ticket collegato, la timeline di tutto ciò che è successo al
 | Riapri | Un alert chiuso va ripreso in mano |
 
 Falso positivo, «Non rilevante», «Rischio accettato» e Silenzia chiedono un motivo e contano per la **soppressione appresa**: dopo tre volte lo stesso alert non viene più aperto. Vedi il capitolo [Automatismi e vulnerabilità](/soc/docs/12-automatismi-e-vulnerabilita/#soppressione-appresa). Le differenze tra gli stati sono spiegate in [Ciclo di vita degli alert](/soc/docs/07-alert-lifecycle/).
+
+## Proposte di chiusura dell'AI
+
+**Segnalazioni › Proposte AI** è il lavoro che l'AI locale fa da sola sugli alert aperti. Ogni 15 minuti (lettura «ai_proposte»), per gli alert aperti da almeno 2 ore e non più vecchi di 60 giorni:
+
+1. il portale raccoglie le **prove** dai report arrivati dopo l'alert: se lo stesso evento si è ripetuto o no, l'ultima esecuzione del job di backup, gli altri report sullo stesso PC, utente o IP;
+2. aggiunge le **decisioni passate** su alert dello stesso tipo (stessa sorgente e stesso tipo di evento, prima quelli sullo stesso PC/job/utente): come li avete chiusi o riaperti e con quale motivo, e le proposte che avete scartato con la vostra nota;
+3. l'AI propone l'esito (Risolto, Non rilevante, Rischio accettato, Falso positivo o «Lasciare aperto»), la confidenza, il motivo e le prove che lo dimostrano. Se non cita nessuna prova vera, la proposta diventa «Lasciare aperto».
+
+Un alert viene riesaminato solo quando cambia qualcosa: un report nuovo, una decisione nuova sullo stesso soggetto, l'evento che non si ripete da 1, 3, 7, 14 o 30 giorni.
+
+| Azione | Cosa succede |
+| --- | --- |
+| **Conferma e chiudi** | L'alert si chiude a tuo nome con l'esito proposto e il motivo (che puoi correggere). Conta come conferma |
+| Chiudere l'alert in un altro modo | Dalla scheda dell'alert, con un altro esito: la proposta risulta «chiusa con un altro esito» e conta come errore |
+| **Scarta** | L'alert resta aperto. Scrivi perché: la nota entra nelle decisioni passate dei prossimi alert dello stesso tipo |
+| **Riapri** (tra i chiusi dall'AI) | L'alert torna aperto; anche la riapertura dalla scheda dell'alert vale. Conta come errore grave |
+
+### Quando chiude da sola
+
+Per ogni tipo di alert ed esito la tabella **Cosa ha imparato** conta le conferme di fila. Quando le ultime **5** (impostazione «Conferme per chiudere da sola») sono tutte conferme, le proposte successive con quell'esito chiudono l'alert da sole: nella timeline compare «Chiuso dall'AI (appreso da N conferme di fila)» con il motivo e le prove, attore `system:ai`. Non succede mai se:
+
+- la confidenza è sotto l'**80%** (impostazione «Confidenza minima per chiudere da sola»);
+- l'alert è critico, parla di minacce o malware, riguarda una CVE sfruttata attivamente (KEV) o un tipo escluso dalla soppressione appresa;
+- l'AI non cita prove;
+- la chiusura automatica è spenta.
+
+Una correzione, una proposta scartata o un alert riaperto azzerano le conferme di quel tipo ed esito: l'AI torna a proporre soltanto finché non le riguadagna. Le chiusure fatte dall'AI non contano per la soppressione appresa. Le proposte di alert chiusi dalle regole di rientro, posticipati o silenziati diventano «superate».
+
+Si regola in **Impostazioni › Avvisi e automatismi › Proposte di chiusura dell'AI**; tempi ed errori di ogni giro sono in **Letture automatiche** («Esegui ora» fa un giro più lungo subito).
 
 ## Eventi
 
