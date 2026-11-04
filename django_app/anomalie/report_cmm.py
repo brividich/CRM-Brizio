@@ -101,8 +101,8 @@ def leggi_riga(testo: str) -> dict | None:
     for k in range(len(numeri) - 4):
         (ia, a), (_in, n), (_ip, p), (_im, m), (_id, d) = numeri[k:k + 5]
         if abs((a - n) - d) <= max(0.0011, abs(d) * 0.002):
-            return {"nome": _nome(token[:ia]), "tipo": "", "misurato": a, "nominale": n, "tol_sup": p,
-                    "tol_inf": m, "scostamento": d, "da_verificare": False}
+            return {"nome": _nome(token[:ia]), "tipo": _tipo_in_riga(token[:ia]), "simbolo": _simbolo_in_riga(token[:ia]),
+                    "misurato": a, "nominale": n, "tol_sup": p, "tol_inf": m, "scostamento": d, "da_verificare": False}
     # Scostamento letto male: con il nome della caratteristica davanti si prendono i primi
     # quattro valori dopo il nome e lo scostamento si ricalcola (riga da controllare).
     inizio = next((i for i, t in enumerate(token) if _NOME.match(t)), None)
@@ -110,9 +110,23 @@ def leggi_riga(testo: str) -> dict | None:
         dopo = [(i, v) for i, v in numeri if i > inizio]
         if len(dopo) >= 4:
             (ia, a), (_in, n), (_ip, p), (_im, m) = dopo[:4]
-            return {"nome": _nome(token[:ia]), "tipo": "", "misurato": a, "nominale": n, "tol_sup": p,
-                    "tol_inf": m, "scostamento": round(a - n, 4), "da_verificare": True}
+            return {"nome": _nome(token[:ia]), "tipo": _tipo_in_riga(token[:ia]), "simbolo": _simbolo_in_riga(token[:ia]),
+                    "misurato": a, "nominale": n, "tol_sup": p, "tol_inf": m, "scostamento": round(a - n, 4),
+                    "da_verificare": True}
     return None
+
+
+def _tipo_in_riga(prima: list[str]) -> str:
+    """Etichetta del tipo finita sulla riga dei valori (es. «Length» accanto al nome)."""
+    for t in prima:
+        if not _NOME.match(t) and len(t) >= 4 and _tipo(t):
+            return _tipo(t)
+    return ""
+
+
+def _simbolo_in_riga(prima: list[str]) -> str:
+    """Tipo dal simbolo letto come testo subito prima dei valori («Y» = ⊕ posizione…)."""
+    return _tipo_da_simbolo(prima[-1]) if prima and not _NOME.match(prima[-1]) else ""
 
 
 # Abbreviazioni nel nome della caratteristica («163,01 Dia G», «172,00 Pos C»).
@@ -127,6 +141,26 @@ def _tipo_da_nome(nome: str) -> str:
         for abbr, tipo in _ABBREVIAZIONI:
             if p.startswith(abbr):
                 return tipo
+    return ""
+
+
+# Simboli del protocollo letti dall'OCR come testo -> tipo (ultima risorsa, dopo etichetta e nome).
+_SIMBOLI_TIPO = (
+    # ricavate da letture vere di Tesseract sui protocolli (⊕ -> «Q», «Q}»; lunghezza -> «?», «L:%»…)
+    (re.compile(r"^[QO][}\])]?[.,]?$|^(Y|\+|®|@|\$|&|©|⊕|\(\+\))$"), "position"),
+    (re.compile(r"^\?$|^L[:;]|^9\?$|^(of|ol|o\]|q)$"), "length"),
+    (re.compile(r"//|/'|^(J/|/l|ll|II|f/|1/)$"), "parallelism"),
+    (re.compile(r"^(1|L|_L|⊥|J_|_l_)$"), "perpendicularity"),
+    (re.compile(r"^(%\)|\(%\)\}?|\(%\)|%|Ø|ø|0\)|\(\)|\(o\))$"), "diameter"),
+    (re.compile(r"^(/|7|f)$"), "runout"),
+    (re.compile(r"^(\[|\(@\)|@\)|◎)$"), "concentricity"),
+)
+
+
+def _tipo_da_simbolo(token: str) -> str:
+    for regex, tipo in _SIMBOLI_TIPO:
+        if regex.match(token or ""):
+            return tipo
     return ""
 
 
@@ -164,16 +198,18 @@ def righe_da_testo(linee: list[str]) -> list[dict]:
             continue
         if riga is None:
             parole = testo.split()
-            tipo = _tipo(parole[0]) if parole else ""
+            # etichetta del tipo, anche spezzata dall'OCR («T engh e» -> length)
+            tipo = (_tipo(parole[0]) or _tipo("".join(parole))) if parole and len(parole) <= 4 else ""
             lettere = [c for c in testo if c.isalpha()]
             maiuscole = sum(1 for c in lettere if c.isupper())
-            if tipo and len(parole) <= 3:
+            if tipo and len(parole) <= 4:
                 tipo_sospeso = tipo
             elif (len(lettere) >= 5 and maiuscole / len(lettere) >= 0.85 and re.search(r"[A-Z]{3}", testo)
                   and not re.search(r"\b(NAME|ACTUAL|NOMINAL)\b", testo.upper())):
                 sezione = testo.title()
             continue
-        riga["tipo"] = _tipo_da_nome(riga["nome"]) or tipo_sospeso
+        # Priorità: abbreviazione nel nome («Dia», «Pos»), etichetta sulla riga o sopra, simbolo letto come testo.
+        riga["tipo"] = _tipo_da_nome(riga["nome"]) or riga.get("tipo") or tipo_sospeso or riga.get("simbolo") or ""
         tipo_sospeso = ""
         riga["sezione"] = sezione
         out.append(riga)
@@ -251,15 +287,40 @@ def _ocr_linee(contenuto: bytes, timeout: int = 60, *, netto: bool = False) -> l
             except Exception as exc:
                 raise ErroreReport("Il riconoscimento del testo è fallito su questa immagine.") from exc
         tsv = uscita.with_suffix(".tsv").read_text(encoding="utf-8", errors="replace")
-    righe: dict[tuple, list[tuple[int, str]]] = {}
+    parole = []
     for r in csv.DictReader(io.StringIO(tsv), delimiter="\t", quoting=csv.QUOTE_NONE):
         testo = (r.get("text") or "").strip()
         if not testo:
             continue
-        chiave = (r.get("block_num"), r.get("par_num"), r.get("line_num"))
-        righe.setdefault(chiave, []).append((int(r.get("left") or 0), testo))
-    ordinate = sorted(righe.items(), key=lambda kv: (int(kv[0][0] or 0), int(kv[0][1] or 0), int(kv[0][2] or 0)))
-    return [" ".join(t for _x, t in sorted(parole)) for _k, parole in ordinate]
+        try:
+            sx, top, alt = int(r.get("left") or 0), int(r.get("top") or 0), int(r.get("height") or 0)
+        except ValueError:
+            continue
+        parole.append((top + alt / 2, alt, sx, testo))
+    return righe_da_parole(parole)
+
+
+def righe_da_parole(parole: list[tuple[float, int, int, str]]) -> list[str]:
+    """Righe di testo dalle parole ``(centro_y, altezza, x, testo)``.
+
+    Non ci si fida delle righe di Tesseract: con righe del protocollo fitte ne unisce
+    due in una (e si leggeva solo la prima). Le parole con il centro alla stessa
+    altezza (entro mezza altezza tipica) formano una riga, ordinata da sinistra.
+    """
+    if not parole:
+        return []
+    altezze = sorted(a for _c, a, _x, _t in parole if a > 0)
+    tipica = altezze[len(altezze) // 2] if altezze else 10
+    soglia = max(3.0, tipica * 0.5)
+    linee: list[list[tuple[float, int, int, str]]] = []
+    for p in sorted(parole):
+        if linee:
+            centro = sum(q[0] for q in linee[-1]) / len(linee[-1])
+            if abs(p[0] - centro) <= soglia:
+                linee[-1].append(p)
+                continue
+        linee.append([p])
+    return [" ".join(t for _c, _a, _x, t in sorted(linea, key=lambda q: q[2])) for linea in linee]
 
 
 def leggi_screenshot(contenuto: bytes) -> dict:
@@ -292,6 +353,11 @@ def unisci_letture(*letture: list[dict]) -> list[dict]:
     for lettura in letture:
         for riga in lettura:
             chiave = (riga.get("nome") or "").split(" ")[0]
+            # stessa riga letta con un nome diverso (178,00 / 176,00): stessi valori = stessa riga
+            gemella = next((k for k, v in scelte.items() if k != chiave and v["misurato"] == riga["misurato"]
+                            and v["nominale"] == riga["nominale"] and v["tol_sup"] == riga["tol_sup"]), None)
+            if gemella:
+                chiave = gemella
             if not chiave:
                 if lettura is letture[0]:
                     anonime.append(riga)
@@ -299,7 +365,11 @@ def unisci_letture(*letture: list[dict]) -> list[dict]:
             if chiave not in scelte:
                 scelte[chiave] = riga
                 ordine.append(chiave)
+            elif not scelte[chiave].get("tipo") and riga.get("tipo") and _affidabilita(riga) >= _affidabilita(scelte[chiave]) - 1:
+                scelte[chiave] = {**scelte[chiave], "tipo": riga["tipo"]}
             elif _affidabilita(riga) > _affidabilita(scelte[chiave]):
+                if gemella:
+                    riga = {**riga, "nome": scelte[chiave]["nome"]}
                 if not riga.get("tipo") and scelte[chiave].get("tipo"):
                     riga = {**riga, "tipo": scelte[chiave]["tipo"]}
                 if not riga.get("sezione"):
