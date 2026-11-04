@@ -118,7 +118,11 @@
       '<span class="gs-item-icon" aria-hidden="true">' + (ICONS[it.kind] || ICONS.page) + "</span>" +
       '<span class="gs-item-body">' +
         (it.module ? '<span class="gs-item-module">' + esc(it.module) + "</span>" : "") +
-        '<span class="gs-item-label">' + esc(it.label) + "</span>" +
+        '<span class="gs-item-label">' + esc(it.label) +
+          (it.presenza === true || it.presenza === false
+            ? ' <span class="gs-presenza ' + (it.presenza ? "is-dentro" : "is-fuori") + '"><i></i>' +
+              (it.presenza ? "In azienda" : "Fuori") + "</span>"
+            : "") + "</span>" +
         (it.sub ? '<span class="gs-item-sub">' + esc(it.sub) + "</span>" : "") +
         (it.preview ? '<span class="gs-item-preview">' + esc(it.preview) + "</span>" : "") +
       "</span>" +
@@ -164,7 +168,7 @@
         order.forEach(function (tipo) {
           html += sectionHtml(LABELS[tipo] || tipo);
           groups[tipo].forEach(function (r) {
-            html += itemHtml({ kind: r.tipo, label: r.label, sub: r.sub, preview: r.preview, module: r.module, url: r.url });
+            html += itemHtml({ kind: r.tipo, label: r.label, sub: r.sub, preview: r.preview, module: r.module, url: r.url, presenza: r.presenza });
           });
         });
       }

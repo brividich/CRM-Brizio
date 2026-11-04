@@ -9,13 +9,14 @@ Porta nel portale lo script `report_presenze.py` (diskstation, `UTLIC_ReportPres
 
 | Pagina | URL | Cosa fa |
 |---|---|---|
-| Presenti adesso | `/presenti/` | Lista live (HTMX ogni 30 s): turno, matricola, nome, reparto, ora di entrata, incarichi di sicurezza; contatori per incarico; ricerca e filtri; PDF |
+| Presenti adesso | `/presenti/` | Lista live (HTMX ogni 30 s): turno, matricola, nome, reparto, ora di entrata, incarichi di sicurezza; contatori per incarico; ricerca e filtri; PDF (senza ora di entrata) |
 | Appello di evacuazione | `/presenti/appello/` | Fotografia dei presenti all'avvio; spunte «contato» condivise fra più persone (aggiornamento ogni 3 s); chiusura; PDF con colonna CONTATO; storico |
 | Uscite non timbrate | `/presenti/uscite/` | Giornate con ultima timbratura in entrata; il capo vede la sua squadra, chi ha «tutti» l'azienda |
 | Impostazioni | `/presenti/impostazioni/` | Pubblicazione PDF su SharePoint, avviso mattutino delle uscite |
 
 Pallino **«In azienda»** (`{% load presenti_tags %}{% pallino_presenza <legacy_id> %}`) accanto al nome in
-Anagrafica: elenco dipendenti e scheda dipendente.
+Anagrafica: elenco dipendenti e scheda dipendente. Anche nella ricerca globale (Ctrl+K): `api/search/` aggiunge
+`presenza` (true/false; null se Solari non risponde o `/presenti/` non è visibile) ai risultati «dipendente».
 
 ## Dati
 

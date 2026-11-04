@@ -1,7 +1,7 @@
 """PDF «Personale presente in azienda» (sostituisce CN-PRESENZE.pdf dello script Solari).
 
 Stesso impianto del vecchio report: logo, titolo, ora di aggiornamento, tabella
-TURNO · MATRICOLA · COGNOME · NOME · INCARICO SICUREZZA, totale in fondo. In più
+TURNO · MATRICOLA · COGNOME · NOME · INCARICO SICUREZZA, totale in fondo. Senza
 l'ora di entrata. Usato dal pulsante «PDF» della lista, dalla stampa dell'appello
 e dal task che pubblica il file su SharePoint.
 """
@@ -60,16 +60,16 @@ def genera_pdf(presenti: list[dict], aggiornato_il, *, titolo: str = TITOLO, sot
     storia.append(Spacer(1, 3 * mm))
 
     if presenti:
-        intestazione = ["TURNO", "MATRICOLA", "COGNOME", "NOME", "ENTRATA", "INCARICO SICUREZZA"]
-        larghezze = [13 * mm, 20 * mm, 45 * mm, 37 * mm, 17 * mm, 48 * mm]
+        intestazione = ["TURNO", "MATRICOLA", "COGNOME", "NOME", "INCARICO SICUREZZA"]
+        larghezze = [13 * mm, 20 * mm, 50 * mm, 42 * mm, 55 * mm]
         if contati is not None:
             intestazione.append("CONTATO")
-            larghezze = [11 * mm, 18 * mm, 42 * mm, 34 * mm, 15 * mm, 42 * mm, 18 * mm]
+            larghezze = [14 * mm, 21 * mm, 44 * mm, 36 * mm, 47 * mm, 18 * mm]
         dati = [intestazione]
         for p in presenti:
             incarichi = ", ".join(i["nome"] for i in p.get("incarichi", []))
             riga = [p.get("turno", ""), p.get("matricola", ""), p.get("cognome", "").upper(), p.get("nome", ""),
-                    p.get("entrata", ""), Paragraph(escape(incarichi), st_inc) if incarichi else ""]
+                    Paragraph(escape(incarichi), st_inc) if incarichi else ""]
             if contati is not None:
                 riga.append("SÌ" if p.get("solari_id") in contati else "")
             dati.append(riga)
@@ -87,14 +87,13 @@ def genera_pdf(presenti: list[dict], aggiornato_il, *, titolo: str = TITOLO, sot
             ("TOPPADDING", (0, 1), (-1, -1), 3),
             ("BOTTOMPADDING", (0, 1), (-1, -1), 3),
             ("ALIGN", (0, 1), (1, -1), "CENTER"),
-            ("ALIGN", (4, 1), (4, -1), "CENTER"),
             ("LINEBELOW", (0, 0), (-1, 0), 1, primario),
             ("LINEBELOW", (0, -1), (-1, -1), 0.5, primario),
             ("LINEAFTER", (0, 0), (-2, -1), 0.25, griglia),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ]
         if contati is not None:
-            stile += [("ALIGN", (6, 1), (6, -1), "CENTER"), ("FONTNAME", (6, 1), (6, -1), "Helvetica-Bold")]
+            stile += [("ALIGN", (5, 1), (5, -1), "CENTER"), ("FONTNAME", (5, 1), (5, -1), "Helvetica-Bold")]
         for i in range(2, len(dati), 2):
             stile.append(("BACKGROUND", (0, i), (-1, i), riga_alt))
         tabella.setStyle(TableStyle(stile))
