@@ -283,3 +283,57 @@ class VistePresenzeTests(BaseIngressi):
             self.assertIn(nome, middleware._ACL_SHARED_ROUTE_NAMES)
         resp = self.client.get(reverse("assets:wo_view", args=[self.odl.pk]))
         self.assertContains(resp, reverse("fornitori:presenze_intervento", args=["odl", self.odl.pk]))
+
+
+class DittaDopoIlCollegamentoTests(BaseIngressi):
+    """OdL/ticket collegato quando la ditta non era ancora in anagrafica fornitori."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = patch("tickets.services.accesso.utente_puo_gestire_ticket", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.odl.supplier = None
+        self.odl.execution_mode = WorkOrder.EXECUTION_INTERNAL
+        self.odl.save()
+        self.link = IngressoIntervento.objects.create(
+            visita_gp_id=11, work_order=self.odl, ingresso=timezone.now(),
+            tecnico_nome="Tecnico Esempio", azienda="Nuova Ditta Snc",
+        )
+        self.url = reverse("fornitori:presenze_intervento", args=["odl", self.odl.pk])
+
+    def test_ditta_sconosciuta_avvisa_di_crearla(self):
+        with patch.object(gp, "visita", return_value=None):
+            resp = self.client.get(self.url)
+        self.assertContains(resp, "non è tra i fornitori dell'HUB")
+        self.assertContains(resp, "Nuova Ditta Snc")
+
+    def test_fornitore_creato_dopo_si_imposta_dal_riquadro(self):
+        nuovo = Fornitore.objects.create(ragione_sociale="NUOVA DITTA S.N.C.")
+        with patch.object(gp, "visita", return_value=None):
+            resp = self.client.get(self.url)
+            self.assertContains(resp, "Imposta come ditta dell")
+            resp = self.client.post(reverse("fornitori:presenze_imposta_ditta", args=["odl", self.odl.pk]),
+                                    {"link_id": str(self.link.pk)})
+        self.assertEqual(resp.status_code, 200)
+        self.odl.refresh_from_db()
+        self.link.refresh_from_db()
+        self.assertEqual(self.odl.supplier, nuovo)
+        self.assertEqual(self.odl.execution_mode, WorkOrder.EXECUTION_EXTERNAL)
+        self.assertEqual(self.link.fornitore, nuovo)
+        self.assertContains(resp, "Esterna")
+
+    def test_abbinamento_fatto_dopo_si_legge_dalla_visita(self):
+        altro = Fornitore.objects.create(ragione_sociale="Ragione Diversa Spa")
+        DittaGuestPortal.objects.create(ditta_gp_id=5, ditta_gp_nome="Nuova Ditta", fornitore=altro)
+        iv = ing.intervento(ing.TIPO_ODL, self.odl.pk)
+        with patch.object(gp, "visita", return_value=_accesso(azienda="Nuova Ditta Snc")):
+            self.assertEqual(ing.ditta_dai_collegamenti(iv, list(iv.collegamenti()))[0], altro)
+
+    def test_link_di_altro_intervento_rifiutato(self):
+        altro = IngressoIntervento.objects.create(visita_gp_id=12, ticket=self.ticket, azienda="Nuova Ditta Snc")
+        resp = self.client.post(reverse("fornitori:presenze_imposta_ditta", args=["odl", self.odl.pk]),
+                                {"link_id": str(altro.pk)})
+        self.assertEqual(resp.status_code, 400)
+        self.odl.refresh_from_db()
+        self.assertIsNone(self.odl.supplier)

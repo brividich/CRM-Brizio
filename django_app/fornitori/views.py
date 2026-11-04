@@ -485,6 +485,12 @@ def guestportal_apri(request):
 # ---------------------------------------------------------------------------
 
 def _puo_presenze(request, iv, *, modifica: bool) -> bool:
+    if iv.formazione:
+        from anagrafica.views import _helpers
+
+        if modifica:
+            return bool(_helpers._can_edit_formazione(request))
+        return bool(_helpers._can_view_formazione(request))
     if iv.tipo == ing.TIPO_TICKET:
         from tickets.services.accesso import utente_puo_gestire_ticket
 
@@ -525,6 +531,14 @@ def _render_presenze(request, iv, *, esito: str = "", errore: str = "", status: 
             errore_gp = "Il GuestPortal non risponde: proposte non disponibili, i collegamenti già fatti restano."
     collegamenti = list(iv.collegamenti())
     confronto = ing.confronto_ore(iv, collegamenti)
+    # Intervento senza ditta con ingressi già collegati: la ditta si può impostare
+    # anche dopo (fornitore creato o ditta abbinata in un secondo momento).
+    ditta_proposta = None
+    aziende_sconosciute: list[str] = []
+    if puo_modificare and collegamenti and iv.tipo in ing.TIPI and iv.fornitore is None:
+        ditta_proposta = ing.ditta_dai_collegamenti(iv, collegamenti)
+        if ditta_proposta is None:
+            aziende_sconosciute = sorted({c.azienda for c in collegamenti if c.azienda})
     return render(request, "fornitori/components/presenze_intervento.html", {
         "iv": iv,
         "collegamenti": collegamenti,
@@ -540,6 +554,8 @@ def _render_presenze(request, iv, *, esito: str = "", errore: str = "", status: 
         "esito": esito,
         "errore": errore,
         "dal_al": iv.finestra(),
+        "ditta_proposta": ditta_proposta,
+        "aziende_sconosciute": aziende_sconosciute,
     }, status=status)
 
 
@@ -607,13 +623,36 @@ def presenze_scollega(request, link_id):
     from .models import IngressoIntervento
 
     link = get_object_or_404(IngressoIntervento, pk=link_id)
-    iv = ing.Intervento(ing.TIPO_TICKET, link.ticket) if link.ticket_id else ing.Intervento(ing.TIPO_ODL, link.work_order)
+    iv = ing.intervento_del_link(link)
     if not _puo_presenze(request, iv, modifica=True) or iv.chiuso:
         return HttpResponseForbidden("Permesso negato")
     log_action(request, "ingresso_esterno_scollegato", "fornitori",
                {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id})
     link.delete()
     return _render_presenze(request, iv, esito="Collegamento tolto.")
+
+
+@login_required
+@require_POST
+def presenze_imposta_ditta(request, tipo, pk):
+    """Imposta sul ticket/OdL senza ditta quella di un ingresso già collegato."""
+    from .models import IngressoIntervento as _Link
+
+    iv = _intervento_o_404(tipo, pk)
+    if iv.tipo not in ing.TIPI or not _puo_presenze(request, iv, modifica=True):
+        return HttpResponseForbidden("Permesso negato")
+    link_txt = request.POST.get("link_id", "")
+    link = iv.collegamenti().filter(pk=int(link_txt)).first() if link_txt.isdigit() else None
+    if link is None:
+        return _render_presenze(request, iv, errore="Ingresso collegato non trovato.", status=400)
+    try:
+        frase = ing.imposta_ditta_da_collegamento(iv, link, utente=request.user, autore=_autore(request))
+    except ing.CollegamentoNonValido as exc:
+        return _render_presenze(request, iv, errore=str(exc))
+    log_action(request, "ingresso_esterno_ditta_impostata", "fornitori",
+               {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id})
+    iv = _intervento_o_404(tipo, pk)
+    return _render_presenze(request, iv, esito=frase or "Ditta impostata.")
 
 
 # ---------------------------------------------------------------------------
@@ -660,10 +699,13 @@ def ingresso_collega(request, visita_id):
 
     fornitore = ing.fornitore_da_accesso(accesso)
     testo = request.GET.get("q", "").strip()[:80]
-    interventi = ing.interventi_aperti(request, testo=testo, fornitore=fornitore)
+    interventi = ing.interventi_aperti(request, testo=testo, fornitore=fornitore, accesso=accesso)
     collegati = list(IngressoIntervento.objects.filter(visita_gp_id=accesso.visita_id)
-                     .select_related("ticket", "work_order", "collegato_da"))
-    gia = {(("ticket", c.ticket_id) if c.ticket_id else ("odl", c.work_order_id)) for c in collegati}
+                     .select_related("ticket", "work_order", "work_order__asset", "sessione_formazione",
+                                     "sessione_formazione__corso", "collegato_da"))
+    for c in collegati:
+        c.iv = ing.intervento_del_link(c)
+    gia = {(c.iv.tipo, c.iv.pk) for c in collegati}
     righe = [iv for iv in interventi if (iv.tipo, iv.pk) not in gia]
     return render(request, "fornitori/pages/ingresso_collega.html", {
         "a": accesso,
@@ -672,6 +714,7 @@ def ingresso_collega(request, visita_id):
         "collegati": collegati,
         "q": testo,
         "puo_odl": ing.puo_collegare_odl(request),
+        "puo_formazione": ing.puo_collegare_formazione(request),
     })
 
 
