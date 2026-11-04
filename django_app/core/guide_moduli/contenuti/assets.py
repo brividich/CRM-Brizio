@@ -350,8 +350,8 @@ GUIDA = {
                 ("ul", [
                     "Asset → «Impostazioni»: categorie, menu laterale, piani di manutenzione.",
                     "Impostazioni → Configurazione → «Squadra manutenzione»: il ruolo del portale con i manutentori "
-                    "interni (persone messe a mano nel ruolo o ricevute dall'organigramma) e il manutentore predefinito "
-                    "degli interventi «Interno». Senza ruolo, «Assegnato a» elenca tutti gli utenti attivi.",
+                    "interni (di serie «Manutenzione»; persone messe a mano nel ruolo o ricevute dall'organigramma) e il "
+                    "manutentore predefinito degli interventi «Interno». Con «Nessuno», «Assegnato a» elenca tutti gli utenti attivi.",
                     "Impostazioni → «Codici guasto»: problema, causa e rimedio per la chiusura degli interventi "
                     "(senza categoria = validi per tutti). Un codice usato non si elimina: si disattiva.",
                     "Impostazioni → «Studio inventario»: campi personalizzati, valori delle liste, pulsanti della scheda, "

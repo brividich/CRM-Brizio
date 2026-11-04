@@ -8,7 +8,8 @@ Due impostazioni (SiteConfig, da Assets > Impostazioni > Configurazione):
 - ``assets_straordinaria_assegnatario``: username del manutentore proposto
   come «Assegnato a» quando l'intervento e' interno.
 
-Senza gruppo configurato (o con un gruppo vuoto) l'elenco resta quello di
+Finche' l'impostazione non e' salvata vale il ruolo ``manutenzione``.
+Senza gruppo (scelto «Nessuno», ruolo inesistente o vuoto) l'elenco resta quello di
 sempre: tutti gli utenti attivi. Nessun nome di persona sta nel codice.
 """
 from __future__ import annotations
@@ -24,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 CHIAVE_GRUPPO = "assets_squadra_manutenzione_gruppo"
 CHIAVE_ASSEGNATARIO = "assets_straordinaria_assegnatario"
+# Ruolo usato finche' nessuno sceglie altro (il ruolo «Manutenzione» del portale).
+# Scegliere «Nessuno» nelle impostazioni salva il valore vuoto e lo disattiva.
+GRUPPO_PREDEFINITO = "manutenzione"
 DESCRIZIONE_GRUPPO = "Ruolo del portale con i manutentori interni (interventi «Interno»)"
 DESCRIZIONE_ASSEGNATARIO = "Username del manutentore proposto negli interventi interni"
 
@@ -31,7 +35,7 @@ DESCRIZIONE_ASSEGNATARIO = "Username del manutentore proposto negli interventi i
 def impostazioni() -> dict[str, str]:
     from core.models import SiteConfig
 
-    valori = SiteConfig.get_many({CHIAVE_GRUPPO: "", CHIAVE_ASSEGNATARIO: ""})
+    valori = SiteConfig.get_many({CHIAVE_GRUPPO: GRUPPO_PREDEFINITO, CHIAVE_ASSEGNATARIO: ""})
     return {
         "gruppo": (valori.get(CHIAVE_GRUPPO) or "").strip().lower(),
         "assegnatario": (valori.get(CHIAVE_ASSEGNATARIO) or "").strip(),

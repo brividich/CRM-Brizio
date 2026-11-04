@@ -71,6 +71,19 @@ class SquadraManutenzioneTests(_Base):
         self.assertContains(response, "Squadra manutenzione")
 
 
+class SquadraPredefinitaTests(_Base):
+    def test_senza_impostazione_vale_il_ruolo_manutenzione(self):
+        manut = User.objects.create_user(username="syn.def.manut")
+        altro = User.objects.create_user(username="syn.def.altro")
+        Profile.objects.create(user=manut, legacy_user_id=990101)
+        gruppo, _ = AccessGroup.objects.get_or_create(code="manutenzione", defaults={"label": "Manutenzione"})
+        AccessGroupMembership.objects.create(group=gruppo, legacy_user_id=990101)
+        response = self.client.get(reverse("assets:wo_create", args=[self.asset.id]))
+        ids = set(response.context["form"].fields["assigned_to"].queryset.values_list("pk", flat=True))
+        self.assertIn(manut.pk, ids)
+        self.assertNotIn(altro.pk, ids)
+
+
 class StraordinariaEsternaTests(_Base):
     def test_ditta_nuova_creata_e_collegata(self):
         response = self._post_create(execution_mode="EXTERNAL", supplier_name="  Ditta   Sintetica Nuova  ")
