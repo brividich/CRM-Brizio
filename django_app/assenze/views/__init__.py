@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 
 from .amministrazione import (
     api_admin_assenza_delete,
+    api_admin_bulk_certificato,
     api_admin_bulk_consenso,
     export_gestione_assenze_csv,
     gestione_admin,
