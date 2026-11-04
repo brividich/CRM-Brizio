@@ -60,7 +60,9 @@ GUIDA = {
                       "della gestione) e in ogni ordine di lavoro aperto."),
                 ("p", "Se il ticket o l'OdL non ha ancora una ditta e quella dell'ingresso si riconosce, collegando la si "
                       "imposta: il ticket diventa «Delegato a fornitore» (con un commento interno), l'OdL passa a esecuzione "
-                      "«Esterna» con quella ditta (scritto nel registro dell'OdL). Una ditta già impostata non viene cambiata."),
+                      "«Esterna» con quella ditta (scritto nel registro dell'OdL). Una ditta già impostata non viene cambiata. "
+                      "Se la ditta non era ancora tra i fornitori dell'HUB il riquadro lo dice: crea il fornitore (o abbina la ditta in «Ditte GuestPortal»), "
+                      "riapri il ticket/OdL e clicca «Imposta come ditta» nel riquadro, senza ricollegare l'ingresso."),
                 ("passi", [
                     "Imposta la ditta: «Delegato a fornitore» nel ticket, il fornitore nell'OdL.",
                     "Il riquadro propone gli ingressi della ditta dal giorno prima dell'apertura fino alla chiusura (al massimo 90 giorni): sotto «Ingressi della ditta da collegare» clicca «Collega» su quelli giusti.",

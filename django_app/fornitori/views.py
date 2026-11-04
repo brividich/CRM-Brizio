@@ -525,6 +525,14 @@ def _render_presenze(request, iv, *, esito: str = "", errore: str = "", status: 
             errore_gp = "Il GuestPortal non risponde: proposte non disponibili, i collegamenti già fatti restano."
     collegamenti = list(iv.collegamenti())
     confronto = ing.confronto_ore(iv, collegamenti)
+    # Intervento senza ditta con ingressi già collegati: la ditta si può impostare
+    # anche dopo (fornitore creato o ditta abbinata in un secondo momento).
+    ditta_proposta = None
+    aziende_sconosciute: list[str] = []
+    if puo_modificare and collegamenti and iv.tipo in ing.TIPI and iv.fornitore is None:
+        ditta_proposta = ing.ditta_dai_collegamenti(iv, collegamenti)
+        if ditta_proposta is None:
+            aziende_sconosciute = sorted({c.azienda for c in collegamenti if c.azienda})
     return render(request, "fornitori/components/presenze_intervento.html", {
         "iv": iv,
         "collegamenti": collegamenti,
@@ -540,6 +548,8 @@ def _render_presenze(request, iv, *, esito: str = "", errore: str = "", status: 
         "esito": esito,
         "errore": errore,
         "dal_al": iv.finestra(),
+        "ditta_proposta": ditta_proposta,
+        "aziende_sconosciute": aziende_sconosciute,
     }, status=status)
 
 
@@ -614,6 +624,29 @@ def presenze_scollega(request, link_id):
                {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id})
     link.delete()
     return _render_presenze(request, iv, esito="Collegamento tolto.")
+
+
+@login_required
+@require_POST
+def presenze_imposta_ditta(request, tipo, pk):
+    """Imposta sul ticket/OdL senza ditta quella di un ingresso già collegato."""
+    from .models import IngressoIntervento as _Link
+
+    iv = _intervento_o_404(tipo, pk)
+    if iv.tipo not in ing.TIPI or not _puo_presenze(request, iv, modifica=True):
+        return HttpResponseForbidden("Permesso negato")
+    link_txt = request.POST.get("link_id", "")
+    link = iv.collegamenti().filter(pk=int(link_txt)).first() if link_txt.isdigit() else None
+    if link is None:
+        return _render_presenze(request, iv, errore="Ingresso collegato non trovato.", status=400)
+    try:
+        frase = ing.imposta_ditta_da_collegamento(iv, link, utente=request.user, autore=_autore(request))
+    except ing.CollegamentoNonValido as exc:
+        return _render_presenze(request, iv, errore=str(exc))
+    log_action(request, "ingresso_esterno_ditta_impostata", "fornitori",
+               {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id})
+    iv = _intervento_o_404(tipo, pk)
+    return _render_presenze(request, iv, esito=frase or "Ditta impostata.")
 
 
 # ---------------------------------------------------------------------------

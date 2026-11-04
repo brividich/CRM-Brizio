@@ -68,6 +68,16 @@ body.theme-dark .pz-warn { background:rgba(133,77,14,.2); color:#fde68a; }
   {% endif %}
 
   {% if puo_modificare %}
+      {% if ditta_proposta %}
+        <div class="pz-msg pz-warn">
+          L'ingresso collegato di {{ ditta_proposta.1.tecnico_nome|default:"—" }} ({{ ditta_proposta.1.azienda|default:"—" }}) corrisponde al fornitore «{{ ditta_proposta.0.ragione_sociale }}».
+          <button type="button" class="pz-btn pz-btn-primary" hx-post="{% url 'fornitori:presenze_imposta_ditta' iv.tipo iv.pk %}" hx-vals='{"link_id": "{{ ditta_proposta.1.pk }}"}' hx-target="#presenze-{{ iv.tipo }}-{{ iv.pk }}" hx-swap="outerHTML">Imposta come ditta {% if iv.tipo == "ticket" %}delegata{% else %}dell'OdL{% endif %}</button>
+        </div>
+      {% elif aziende_sconosciute %}
+        <div class="pz-msg pz-warn">
+          La ditta degli ingressi collegati ({{ aziende_sconosciute|join:", " }}) non è tra i fornitori dell'HUB: creala in Fornitori oppure abbinala in Fornitori → «Ditte GuestPortal», poi torna qui per impostarla {% if iv.tipo == "ticket" %}sul ticket{% else %}sull'OdL{% endif %}.
+        </div>
+      {% endif %}
     {% if not configurato %}
       <div class="pz-msg pz-warn">Collegamento al GuestPortal non configurato: le proposte non sono disponibili (vedi la guida, parte amministratori).</div>
     {% else %}

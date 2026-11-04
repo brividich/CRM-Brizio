@@ -240,6 +240,54 @@ def collega(
         raise CollegamentoNonValido("Ingresso già collegato a questo intervento.") from exc
 
 
+def fornitore_del_collegamento(link: IngressoIntervento, preferito=None):
+    """Fornitore HUB riconosciuto oggi per un ingresso già collegato: rilegge la
+    visita (abbinamento della ditta GuestPortal fatto dopo il collegamento), se il
+    GuestPortal non la ha più o non risponde usa l'azienda fotografata."""
+    if link.fornitore_id:
+        return link.fornitore
+    accesso = None
+    try:
+        accesso = gp.visita(link.visita_gp_id)
+    except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+        accesso = None
+    if accesso is None or accesso.nome == "Ospite anonimizzato":
+        accesso = gp.Accesso(
+            visita_id=link.visita_gp_id, stato="", tipo="", nome=link.tecnico_nome, azienda=link.azienda,
+            referente="", motivo="", badge=link.badge, ingresso=None, uscita=None,
+        )
+    return fornitore_da_accesso(accesso, preferito=preferito)
+
+
+def ditta_dai_collegamenti(iv: Intervento, collegamenti: list[IngressoIntervento]):
+    """Per un intervento senza ditta: ``(fornitore, link)`` del primo ingresso
+    collegato la cui ditta oggi si riconosce, altrimenti None."""
+    if iv.fornitore is not None:
+        return None
+    for link in collegamenti:
+        fornitore = fornitore_del_collegamento(link)
+        if fornitore is not None:
+            return fornitore, link
+    return None
+
+
+def imposta_ditta_da_collegamento(iv: Intervento, link: IngressoIntervento, *, utente, autore=None) -> str:
+    """Imposta sull'intervento la ditta di un ingresso già collegato (abbinamento o
+    fornitore creati dopo il collegamento). Ritorna la frase per l'utente."""
+    if iv.chiuso:
+        raise CollegamentoNonValido("L'intervento è chiuso.")
+    if iv.fornitore is not None:
+        raise CollegamentoNonValido("L'intervento ha già una ditta.")
+    fornitore = fornitore_del_collegamento(link)
+    if fornitore is None:
+        raise CollegamentoNonValido("La ditta dell'ingresso non corrisponde a nessun fornitore dell'HUB.")
+    with transaction.atomic():
+        if not link.fornitore_id:
+            link.fornitore = fornitore
+            link.save(update_fields=["fornitore", "aggiornato_il"])
+        return _imposta_ditta(iv, fornitore, utente=utente, autore=autore)
+
+
 ODL_MAX_ELENCO = 300
 
 
