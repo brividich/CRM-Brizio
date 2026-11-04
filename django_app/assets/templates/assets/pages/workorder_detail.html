@@ -75,6 +75,7 @@ body.theme-dark .wod-cl-skip-details summary{color:#fcd34d}
 {% block assets_shell_subtitle %}<p>{{ workorder.title }} · {{ workorder.asset.asset_tag }} - {{ workorder.asset.name }}</p>{% endblock %}
 {% block assets_shell_toolbar %}
   <a class="btn btn-secondary" href="{{ workorder_asset_url }}">Apri asset</a>
+  {% if workorder_map_url %}<a class="btn btn-secondary" href="{{ workorder_map_url }}" title="Dove si trova sulla planimetria">Dov'è?</a>{% endif %}
   {% if workorder_rule_url %}<a class="btn btn-secondary" href="{{ workorder_rule_url }}">Piano / regola</a>{% endif %}
   {% if workorder_contract_url %}<a class="btn btn-secondary" href="{{ workorder_contract_url }}">{{ workorder_contract_label }}</a>{% endif %}
   <a class="btn btn-secondary" href="{% url 'assets:workorder_worksheet' workorder.id %}" target="_blank" rel="noopener">&#128424; Scheda di lavoro</a>

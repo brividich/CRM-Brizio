@@ -306,3 +306,12 @@ Unica definizione di OdL in ritardo: `maintenance.q_odl_in_ritardo` / `odl_in_ri
 - Editor: modalità «Reparto a punti» (vertici a clic, chiusura sul primo punto/Invio), vertici trascinabili, «+» a metà lato, Canc sul punto selezionato, «Forma libera» / «Torna rettangolo». Payload `punti` validato in `PlantLayoutForm._area_points` (3-80 punti dentro 0-100).
 - Mappa officina: pulsante con `clip-path` + SVG per bordo e fondo, nome fuori dal ritaglio sul punto interno. `area_at_point` (reparto della macchina nella scheda), mappa dei ticket in modalità «aree», mappa di calore incidenti (`punto_interno`), ruota/ritaglia e copia versione portano i vertici.
 
+## Planimetrie: legenda, asset da creare, pianta base + livelli, scala (04/11/2026)
+
+- Lettura pagina in `assets/services/planimetria_pagina.py`: parole raddrizzate se la pagina è ruotata, simboli colorati, riquadri di legenda/cartiglio (parole fuori dalle posizioni), legenda interpretata (colore → tipo, sigle → costruttore con colonna «Costruttore», sigla → descrizione), OCR in tre rotazioni e sulle sigle dentro i simboli per i PDF senza testo.
+- `planimetria_lettura.abbina(layout, pagina=...)`: numeri interni di due caratteri («Int.C1»), sigla breve a inizio nome («T1 CAM»), dispositivi IT solo per sigle con lettere, categorie limitate (`categorie_ammesse`: scelte → tipi in legenda → marker), avvisi tipo/costruttore, `da_creare` (sigle senza asset) e `reparti` (nomi di reparto sul contorno disegnato).
+- «Applica le scelte» (`layout_leggi.py`) crea anche gli asset (`Int.<sigla>`, niente doppioni) e i reparti.
+- Migration `assets 0162`: `PlantLayout.base` (FK su sé stessa, `livelli`), `allineamento` (matrice affine in %, punti, immagine base, `da_verificare`), `colore`, `asset_categories` (M2M), `scala` (punti, metri, rapporto). Servizio `planimetria_livelli.py` (matrice da due coppie di punti in pixel, livelli sulla base, copertura, `url_mappa_asset`); pagina `?livello=<id>` dell'editor (`views/layout_livello.py`, `planimetria_livello.html`).
+- Mappa: payload `livelli` e `scala`, area `m2`; chip dei livelli (scelta in localStorage), filtro categoria, ricerca su matricola/marca/modello/categoria, «Misura»; stampa `?stampa=1&livelli=<id>[&solo=1]` con legenda. Nuova versione attiva della base → i livelli passano alla nuova con `da_verificare`; ruota/ritaglia riallinea punti e scala.
+- «Dov'è?»: scheda intervento, pagina QR (solo con login), card mappa della scheda asset (livello → base con il livello acceso).
+

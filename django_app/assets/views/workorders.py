@@ -1216,6 +1216,7 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
         {
             "page_title": f"Intervento #{workorder.display_number}",
             "workorder": workorder,
+            "workorder_map_url": _workorder_map_url(workorder),
             "batch_rows": _workorder_batch_rows(workorder),
             **_workorder_suggestions(request, workorder),
             "logs": logs,
@@ -1802,3 +1803,14 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             "assets_section_nav": None,
         },
     )
+
+
+def _workorder_map_url(workorder) -> str:
+    """«Dov'è?» dalla scheda intervento: la macchina sulla planimetria, se è collocata."""
+    from ..services.planimetria_livelli import url_mappa_asset
+
+    try:
+        return url_mappa_asset(workorder.asset)
+    except Exception:  # la mappa è un di più: la scheda dell'intervento si apre comunque
+        return ""
+

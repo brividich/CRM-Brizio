@@ -124,6 +124,7 @@ body.theme-dark .plx-chip .plx-count.is-warn{color:#fcd34d}
 {% endblock %}
 {% block assets_shell_toolbar %}
 <a class="btn" href="{% url 'assets:plant_layout_editor' %}?leggi=1{% if selected_layout and not create_new %}&layout={{ selected_layout.id }}{% endif %}" title="Legge le sigle sulla pianta e propone dove collocare gli asset">Leggi planimetria</a>
+{% if selected_layout and not create_new %}<a class="btn" href="{% url 'assets:plant_layout_editor' %}?livello={{ selected_layout.id }}" title="Livello di una pianta base, allineamento con due punti, categorie, copertura e scala reale">Livello e scala</a>{% endif %}
 <a class="btn" href="{% url 'assets:plant_layout_map' %}{% if current_layout_category %}?category={{ current_layout_category|urlencode }}{% endif %}">Apri vista utenti</a>
 <a class="btn btn-secondary" href="{% url 'assets:work_machine_dashboard' %}">Dashboard officina</a>
 <a class="btn btn-secondary" href="{% url 'assets:guida' %}#planimetrie" title="Guida">? Guida</a>

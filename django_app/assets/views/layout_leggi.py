@@ -5,6 +5,10 @@ permesso «Editor mappa officina». Legge (PDF vettoriale o OCR dell'immagine,
 eventualmente AI locale), mostra le proposte e scrive i marker solo per le
 righe confermate. Se il PDF diventa l'immagine della pianta nasce una **nuova
 versione** non attiva, con reparti e macchine copiati: la pianta attuale non si tocca.
+
+Dalla stessa lettura si possono anche **creare gli asset** che sulla pianta ci
+sono ma in anagrafica no (sigla, categoria, descrizione e costruttore dalla
+legenda) e **disegnare i reparti** scritti sulla pianta.
 """
 from __future__ import annotations
 
@@ -20,7 +24,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
-from ..models import Asset, PlantLayout, PlantLayoutMarker
+from ..models import Asset, AssetCategory, PlantLayout, PlantLayoutArea, PlantLayoutMarker
 from ..services import planimetria_lettura as lettura
 
 _CARTELLA_TEMP = "planimetrie_lettura"
@@ -105,11 +109,11 @@ def leggi_planimetria(request: HttpRequest) -> HttpResponse:
                 pagina = max(0, int(request.POST.get("pagina") or 1) - 1)
             except ValueError:
                 pagina = 0
-            parole, _dim = lettura.parole_da_pdf(contenuto, pagina)
-            fonte = f"Testo del PDF «{file_pdf.name}», pagina {pagina + 1}"
-            if not parole:
+            pag = lettura.leggi_pagina_pdf(contenuto, pagina)
+            fonte = f"{'Riconoscimento del testo sul' if pag.ocr else 'Testo del'} PDF «{file_pdf.name}», pagina {pagina + 1}"
+            if not pag.parole and not any(sim.testo for sim in pag.simboli):
                 raise lettura.ErroreLettura(
-                    "Il PDF non contiene testo (è una scansione): stampalo su PDF dal disegno, oppure togli il PDF e "
+                    "Sul PDF non si legge nessuna scritta: stampalo su PDF dal disegno, oppure togli il PDF e "
                     "usa la lettura dell'immagine."
                 )
             if request.POST.get("usa_pdf_immagine") == "1":
@@ -119,13 +123,13 @@ def leggi_planimetria(request: HttpRequest) -> HttpResponse:
         else:
             if not layout.image:
                 raise lettura.ErroreLettura("La planimetria non ha un'immagine da leggere.")
-            parole = lettura.parole_da_immagine(layout.image.path)
+            pag = lettura.leggi_pagina_immagine(layout.image.path)
             fonte = "Riconoscimento del testo sull'immagine della planimetria"
     except lettura.ErroreLettura as exc:
         messages.error(request, str(exc))
         return render(request, "assets/pages/planimetria_lettura.html", contesto)
 
-    risultato = lettura.abbina(layout, parole, usa_ai=usa_ai, fonte_testo=fonte)
+    risultato = lettura.abbina(layout, usa_ai=usa_ai, fonte_testo=fonte, pagina=pag)
     if file_pdf and not token:
         risultato.avvisi.append(
             "Le posizioni sono calcolate sulla pagina del PDF: combaciano solo se l'immagine della planimetria è la "
@@ -138,6 +142,8 @@ def leggi_planimetria(request: HttpRequest) -> HttpResponse:
             layout.image.url if layout.image else ""
         ),
         "usa_ai": usa_ai,
+        "categorie": list(AssetCategory.objects.filter(is_active=True).only("id", "label").order_by("label")),
+        "tipi_legenda": [{"colore": c, "testo": t} for c, t in (risultato.legenda.tipi if risultato.legenda else [])],
     })
     return render(request, "assets/pages/planimetria_lettura.html", contesto)
 
@@ -153,6 +159,8 @@ def _coordinata(valore) -> Decimal | None:
 def _applica(request: HttpRequest, layout: PlantLayout) -> HttpResponse:
     from .layout import _record_plant_position_changes
 
+    nuovi = _righe_da_creare(request)
+    reparti = _righe_reparti(request)
     scelte = []
     for voce in request.POST.getlist("sel"):
         try:
@@ -163,7 +171,7 @@ def _applica(request: HttpRequest, layout: PlantLayout) -> HttpResponse:
         x, y = _coordinata(x), _coordinata(y)
         if x is not None and y is not None:
             scelte.append((asset_id, x, y))
-    if not scelte:
+    if not scelte and not nuovi and not reparti:
         messages.warning(request, "Nessuna proposta selezionata: niente è cambiato.")
         return redirect(f"{reverse('assets:plant_layout_editor')}?leggi=1&layout={layout.id}")
 
@@ -195,13 +203,99 @@ def _applica(request: HttpRequest, layout: PlantLayout) -> HttpResponse:
             marker.x_percent, marker.y_percent, marker.is_visible = x, y, True
             marker.save(update_fields=["x_percent", "y_percent", "is_visible", "updated_at"])
         cambi.append((asset_id, "collocata" if creato else "spostata"))
+    creati = _crea_asset(request, destinazione, nuovi)
+    cambi += [(a.id, "collocata") for a in creati]
     _record_plant_position_changes(request, destinazione, cambi)
+    disegnati = _crea_reparti(destinazione, reparti)
+    extra = []
+    if creati:
+        extra.append(f"creati {len(creati)} asset nuovi")
+    if disegnati:
+        extra.append(f"disegnati {disegnati} reparti")
+    coda = (" (" + ", ".join(extra) + ")") if extra else ""
     if destinazione is layout:
-        messages.success(request, f"Collocati o spostati {len(cambi)} asset sulla planimetria «{layout.name}».")
+        messages.success(request, f"Collocati o spostati {len(cambi)} asset sulla planimetria «{layout.name}»{coda}.")
     else:
         messages.success(
             request,
-            f"Creata la nuova versione «{destinazione.name}» (non ancora attiva) con {len(cambi)} asset dalla lettura: "
+            f"Creata la nuova versione «{destinazione.name}» (non ancora attiva) con {len(cambi)} asset dalla lettura{coda}: "
             "controllala e usa «Pubblica come attiva».",
         )
     return redirect(_url_editor(destinazione))
+
+
+def _righe_da_creare(request: HttpRequest) -> list[dict]:
+    """Righe «Crea asset» spuntate: sigla, nome, categoria, posizione, descrizione e costruttore dalla legenda."""
+    righe = []
+    for indice in request.POST.getlist("crea"):
+        if not str(indice).isdigit():
+            continue
+        dato = lambda k: (request.POST.get(f"crea_{k}_{indice}") or "").strip()  # noqa: E731
+        sigla, nome = dato("sigla")[:60], dato("nome")[:255]
+        x, y = _coordinata(dato("x")), _coordinata(dato("y"))
+        categoria = AssetCategory.objects.filter(pk=dato("categoria"), is_active=True).first() if dato("categoria").isdigit() else None
+        if not sigla or not nome or x is None or y is None or categoria is None:
+            continue
+        righe.append({"sigla": sigla, "nome": nome, "categoria": categoria, "x": x, "y": y,
+                      "descrizione": dato("descrizione")[:255], "costruttore": dato("costruttore")[:120]})
+    return righe[:500]
+
+
+def _numero_interno(sigla: str) -> str:
+    # come gli altri asset in anagrafica: «Int.C5», «Int.233»
+    return sigla if sigla.lower().startswith("int") else f"Int.{sigla}"
+
+
+def _crea_asset(request: HttpRequest, layout: PlantLayout, righe: list[dict]) -> list[Asset]:
+    # la collocazione finisce nella timeline con le altre (_record_plant_position_changes)
+    creati = []
+    for r in righe:
+        numero = _numero_interno(r["sigla"])
+        # niente doppioni: una sigla che nel frattempo esiste già non si ricrea
+        if Asset.objects.filter(internal_number__iexact=numero).exclude(status=Asset.STATUS_RETIRED).exists():
+            continue
+        asset = Asset(
+            name=r["nome"], internal_number=numero, asset_category=r["categoria"],
+            asset_type=r["categoria"].base_asset_type or Asset.TYPE_OTHER,
+            manufacturer=r["costruttore"] or None, assignment_location=r["descrizione"][:200],
+            notes=f"Creato da «Leggi planimetria» sulla pianta «{layout.name}».",
+        )
+        asset.save()
+        PlantLayoutMarker.objects.get_or_create(
+            layout=layout, asset=asset, defaults={"x_percent": r["x"], "y_percent": r["y"], "is_visible": True},
+        )
+        creati.append(asset)
+    return creati
+
+
+def _righe_reparti(request: HttpRequest) -> list[dict]:
+    righe = []
+    for indice in request.POST.getlist("reparto"):
+        if not str(indice).isdigit():
+            continue
+        dato = lambda k: (request.POST.get(f"rep_{k}_{indice}") or "").strip()  # noqa: E731
+        nome = dato("nome")[:120]
+        valori = [_coordinata(dato(k)) for k in ("x", "y", "w", "h")]
+        if not nome or any(v is None for v in valori) or valori[2] < Decimal("0.5") or valori[3] < Decimal("0.5"):
+            continue
+        righe.append({"nome": nome, "x": valori[0], "y": valori[1], "w": valori[2], "h": valori[3]})
+    return righe[:100]
+
+
+_COLORI_REPARTI = ["#2563EB", "#16A34A", "#D97706", "#9333EA", "#DC2626", "#0891B2", "#65A30D", "#DB2777"]
+
+
+def _crea_reparti(layout: PlantLayout, righe: list[dict]) -> int:
+    esistenti = {n.casefold() for n in layout.areas.values_list("name", flat=True)}
+    fatti = 0
+    for i, r in enumerate(righe):
+        if r["nome"].casefold() in esistenti:
+            continue
+        PlantLayoutArea.objects.create(
+            layout=layout, name=r["nome"], reparto_code=r["nome"], color=_COLORI_REPARTI[i % len(_COLORI_REPARTI)],
+            x_percent=r["x"], y_percent=r["y"], width_percent=min(r["w"], Decimal("100") - r["x"]),
+            height_percent=min(r["h"], Decimal("100") - r["y"]),
+        )
+        esistenti.add(r["nome"].casefold())
+        fatti += 1
+    return fatti

@@ -138,6 +138,9 @@ def rotate_layout(layout, *, clockwise: bool) -> TransformResult:
         marker.save(update_fields=["x_percent", "y_percent", "updated_at"])
 
     _store_layout_image(layout, image, fmt, "ruotata")
+    from .planimetria_livelli import rimappa_riferimenti
+
+    rimappa_riferimenti(layout, (lambda x, y: (100 - y, x)) if clockwise else (lambda x, y: (y, 100 - x)))
     verso = "a destra" if clockwise else "a sinistra"
     return TransformResult(True, f"Planimetria ruotata {verso}: reparti e macchine seguono la pianta.")
 
@@ -195,6 +198,9 @@ def crop_layout(layout, *, x_percent: float, y_percent: float, width_percent: fl
         marker.save(update_fields=["x_percent", "y_percent", "updated_at"])
 
     _store_layout_image(layout, image, fmt, "ritagliata")
+    from .planimetria_livelli import rimappa_riferimenti
+
+    rimappa_riferimenti(layout, lambda x, y: (remap_x(x), remap_y(y)))
     bits = ["Planimetria ritagliata."]
     if outside:
         bits.append(f"{outside} macchin{'a' if outside == 1 else 'e'} fuori dal riquadro: ora da posizionare.")
@@ -239,4 +245,20 @@ def copy_layout_content(source, target) -> tuple[int, int]:
             sort_order=marker.sort_order,
         )
         markers += 1
+    # livello, colore, categorie e scala seguono la nuova versione; l'allineamento va ricontrollato
+    campi = []
+    if source.base_id and not target.base_id and source.base_id != target.pk:
+        target.base_id = source.base_id
+        target.allineamento = {**(source.allineamento or {}), "da_verificare": True} if source.matrice else {}
+        campi += ["base", "allineamento"]
+    if source.colore and not target.colore:
+        target.colore = source.colore
+        campi.append("colore")
+    if source.scala and not target.scala:
+        target.scala = dict(source.scala)
+        campi.append("scala")
+    if campi:
+        target.save(update_fields=[*campi, "updated_at"])
+    if not target.asset_categories.exists():
+        target.asset_categories.set(source.asset_categories.all())
     return areas, markers

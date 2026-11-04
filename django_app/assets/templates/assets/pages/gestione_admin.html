@@ -526,7 +526,7 @@ body.theme-dark .btn-clear:hover{background:rgba(214,158,46,.16)}
     <div class="card-body" style="display:grid;gap:12px;">
       <div class="muted-note">
         Quando un intervento è <strong>Interno</strong>, «Assegnato a» elenca solo le persone del ruolo scelto (messe a mano nel ruolo o ricevute dall'organigramma)
-        e propone il manutentore predefinito. Senza ruolo l'elenco resta quello di tutti gli utenti attivi.
+        e propone il manutentore predefinito; lo stesso elenco vale per «Referente interno» negli interventi esterni. Di serie il ruolo è «Manutenzione»; con «Nessuno» l'elenco resta quello di tutti gli utenti attivi.
       </div>
       <form method="post" style="display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:end;">
         {% csrf_token %}
