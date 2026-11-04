@@ -72,7 +72,9 @@ GUIDA = {
                       "decisione» e «Segnala a CAR»: scelti uno o più CAR in «A quale CAR?», al salvataggio ricevono "
                       "una mail con l'anomalia e il link (Configurazione → Notifiche → «Segnala a CAR»). Con "
                       "«Segnalare al cliente» o «Segnala a terzista» salvati compare «Segnalato al cliente» / "
-                      "«Segnalato al terzista»: registra data e nome subito, senza mail di aggiornamento. Gli "
+                      "«Segnalato al terzista»: registra data e nome subito, senza mail di aggiornamento (lo "
+                      "riporta il riepilogo successivo). In «A quale CAR?» nessun CAR è scelto di serie: la mail va "
+                      "solo a quelli spuntati, il CAR dell'OP riceve già il riepilogo. Gli "
                       "allegati della decisione si caricano anche ad anomalia chiusa."),
                 ("p", "Un'anomalia chiusa la riapre chi ne è incaricato (capocommessa, CAR, controllore che l'ha "
                       "segnalata, chi può modificare l'OP) con «Riapri anomalia»: torna «In attesa». Accanto al "

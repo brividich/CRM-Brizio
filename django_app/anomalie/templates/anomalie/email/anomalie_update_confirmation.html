@@ -110,7 +110,7 @@
                           {% if u.segnalare %}<span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;margin-right:5px;">Segnalare a cliente</span>{% endif %}
                           {% if u.chiudere %}<span style="display:inline-block;background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;margin-right:5px;">Chiusa</span>{% endif %}
                         </div>
-                        {% if u.dove_pezzi %}<div style="margin-top:6px;font-size:13px;color:#475569;">&#128230; Dove sono i pezzi: <strong>{{ u.dove_pezzi }}</strong></div>{% endif %}
+                        {% if u.dove_pezzi %}<div style="margin-top:6px;font-size:13px;color:#475569;">&#128230; Dove sono i pezzi: <strong>{{ u.dove_pezzi }}</strong></div>{% endif %}{% if u.extra_decisione %}<div style="margin-top:6px;font-size:13px;color:#475569;">{% for e in u.extra_decisione %}&#9656; {{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
                         {% if u.note %}<div style="margin-top:8px;font-size:13px;color:#475569;font-style:italic;">Note: {{ u.note }}</div>{% endif %}
                       </td>
                     </tr>
@@ -163,7 +163,7 @@
                           <span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:11px;font-weight:800;border-radius:999px;padding:3px 9px;margin-right:5px;">Segnalare a cliente</span>
                           {% if u.chiudere %}<span style="display:inline-block;background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;margin-right:5px;">Chiusa</span>{% endif %}
                         </div>
-                        {% if u.dove_pezzi %}<div style="margin-top:6px;font-size:13px;color:#475569;">&#128230; Dove sono i pezzi: <strong>{{ u.dove_pezzi }}</strong></div>{% endif %}
+                        {% if u.dove_pezzi %}<div style="margin-top:6px;font-size:13px;color:#475569;">&#128230; Dove sono i pezzi: <strong>{{ u.dove_pezzi }}</strong></div>{% endif %}{% if u.extra_decisione %}<div style="margin-top:6px;font-size:13px;color:#475569;">{% for e in u.extra_decisione %}&#9656; {{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
                         {% if u.note %}<div style="margin-top:8px;font-size:13px;color:#475569;font-style:italic;">Note: {{ u.note }}</div>{% endif %}
                       </td>
                     </tr>
@@ -202,7 +202,7 @@
                   <div style="margin-top:6px;">
                     {% if u.chiudere %}<span style="display:inline-block;background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;margin-right:5px;">Chiusa</span>{% endif %}
                   </div>
-                  {% if u.dove_pezzi %}<div style="margin-top:6px;font-size:13px;color:#475569;">&#128230; Dove sono i pezzi: <strong>{{ u.dove_pezzi }}</strong></div>{% endif %}
+                  {% if u.dove_pezzi %}<div style="margin-top:6px;font-size:13px;color:#475569;">&#128230; Dove sono i pezzi: <strong>{{ u.dove_pezzi }}</strong></div>{% endif %}{% if u.extra_decisione %}<div style="margin-top:6px;font-size:13px;color:#475569;">{% for e in u.extra_decisione %}&#9656; {{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}
                         {% if u.note %}<div style="margin-top:8px;font-size:13px;color:#475569;font-style:italic;">Note: {{ u.note }}</div>{% endif %}
                 </td>
               </tr>

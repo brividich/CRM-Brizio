@@ -2073,6 +2073,37 @@ def _programma_mail_segnala_car(request, scheda, data: dict, car: list[str]) -> 
     transaction.on_commit(_invia)
 
 
+def _extra_decisione_per_mail(local_id, data: dict) -> dict:
+    """Terzista, CAR segnalati e «Segnalato» per la mail di riepilogo.
+
+    La scheda si aggiorna dopo che il salvataggio ha accodato la mail: i valori
+    appena scelti si prendono dal payload, il resto (e «Segnalato») dalla scheda.
+    """
+    out = {"segnala_terzista": False, "car_segnalati": [], "segnalato_cliente": None, "segnalato_terzista": None}
+    try:
+        from anomalie.automazioni_service import separa_car_scelti
+        from anomalie.quality_models import AnomaliaSchedaQualita
+
+        scheda = AnomaliaSchedaQualita.objects.filter(anomalia_id=int(local_id)).first() if local_id else None
+        if scheda is not None:
+            out["segnala_terzista"] = bool(scheda.segnala_terzista)
+            out["car_segnalati"] = separa_car_scelti(scheda.car_segnalati) if scheda.segnala_car else []
+            out["segnalato_cliente"] = _segnalato_payload(scheda.segnalato_cliente_il, scheda.segnalato_cliente_da)
+            out["segnalato_terzista"] = _segnalato_payload(scheda.segnalato_terzista_il, scheda.segnalato_terzista_da)
+        if "segnala_terzista" in data:
+            out["segnala_terzista"] = bool(_as_bool_int(data.get("segnala_terzista")))
+        if "segnala_car" in data:
+            out["car_segnalati"] = (separa_car_scelti(data.get("car_segnalati"))
+                                    if _as_bool_int(data.get("segnala_car")) else [])
+        if not _as_bool_int(data.get("segnalare")):
+            out["segnalato_cliente"] = None
+        if not out["segnala_terzista"]:
+            out["segnalato_terzista"] = None
+    except Exception:
+        logger.warning("anomalie: dati decisione per la mail non letti id=%s", local_id, exc_info=True)
+    return out
+
+
 def _segnalato_payload(il, da: str) -> dict | None:
     """«Segnalato» per la pagina: ``None`` se non spuntato, altrimenti quando e chi."""
     if not il:
@@ -4422,6 +4453,7 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
                 "numero_rdc": _safe_text(data.get("numero_rdc"), 100) or "",
                 "pezzi_recuperato": bool(_as_bool_int(data.get("pezzi_prec"))),
                 "dove_pezzi": _dove_pezzi_di(local_id),
+                **_extra_decisione_per_mail(local_id, data),
                 "note": _safe_text(data.get("note")) or "",
                 "aprire_rdc": bool(payload_map.get("aprire_rdc")),
                 "segnalare": bool(segnalare_val),
