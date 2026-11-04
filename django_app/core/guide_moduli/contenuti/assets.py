@@ -309,6 +309,28 @@ GUIDA = {
                     "«Colloca i selezionati» scrive le posizioni; «Usa questa pagina come immagine della planimetria» crea invece una "
                     "nuova versione non attiva (reparti e macchine copiati) da pubblicare con «Pubblica come attiva».",
                     "Le sigle lette ma non abbinate sono elencate in fondo: se una è il numero interno di un asset, scrivilo nella sua scheda e rileggi.",
+                    "Legenda: il riquadro con «LEGENDA», il cartiglio e gli elenchi «sigla descrizione» non contano come posizioni. "
+                    "Dalla legenda la lettura prende il tipo dal colore del simbolo («rosso = bruciatori»), il costruttore delle sigle "
+                    "(colonna «Costruttore») e la descrizione («T1 Piazzale uffici»): se il costruttore o il tipo non corrispondono alla "
+                    "scheda la proposta ha un avviso rosso e non è spuntata. Funziona anche sui PDF senza testo (scritte convertite in linee) "
+                    "e sulle pagine ruotate.",
+                    "La lettura cerca solo le categorie della pianta: quelle scelte in «Livello e scala», altrimenti quelle dei tipi in legenda, "
+                    "altrimenti quelle delle macchine già collocate. Così il «10» di un differenziale non diventa la macchina Int.10.",
+                    "«Sulla pianta ma non in anagrafica»: le sigle senza asset si possono creare da qui (n. interno «Int.» + sigla, nome e "
+                    "categoria modificabili, costruttore e descrizione dalla legenda), già collocate in quel punto. "
+                    "«Reparti scritti sulla pianta»: i nomi di reparto letti diventano riquadri da rifinire; sono spuntati solo quelli con un "
+                    "contorno disegnato tutto loro. «Applica le scelte» fa tutto insieme.",
+                    "«Livello e scala» (in alto nell'editor): una pianta di servizio (condizionatori, differenziali, telecamere...) diventa un "
+                    "livello di una pianta base. Scegli la pianta base, poi clicca lo stesso punto sulle due piante e un secondo punto lontano "
+                    "(punto 1 sul livello, 1 sulla base, 2 sul livello, 2 sulla base): anche piante ruotate o in scala diversa tornano allineate. "
+                    "L'anteprima sovrappone il livello trasparente alla base.",
+                    "Sulla mappa della pianta base i livelli sono pulsanti colorati sotto «Livelli»: si accendono e spengono, la scelta resta "
+                    "sul tuo browser; «Stampa A3» stampa i livelli accesi con la legenda (con «&solo=1» nel link solo il servizio). "
+                    "Una nuova versione della pianta base si porta dietro i livelli con l'avviso «allineamento da verificare».",
+                    "Scala reale (sempre in «Livello e scala»): clicca i due estremi di una quota nota e scrivi i metri. Sulla mappa compare "
+                    "«Misura» (due clic = distanza) e la scheda del reparto mostra i metri quadri.",
+                    "Copertura: con le categorie scelte, «Livello e scala» mostra quanti asset in servizio di quelle categorie sono collocati "
+                    "e l'elenco dei mancanti.",
                     "Verifiche di legge sulla mappa: collega le macchine (es. i carroponti) al piano in Manutenzione → Verifiche periodiche, "
                     "campo «Asset coinvolti»; senza collegamento la mappa non le vede.",
                 ]),

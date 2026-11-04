@@ -483,7 +483,7 @@ def _plant_layout_machine_queryset():
         Asset.objects.exclude(asset_type__in=IT_DEVICE_TYPES)
         .exclude(asset_type=Asset.TYPE_CHEMICAL)
         .exclude(asset_category_id__in=excluded_category_ids)
-        .select_related("work_machine")
+        .select_related("work_machine", "asset_category")
         .order_by("reparto", "name", "asset_tag", "id")
     )
 
@@ -505,6 +505,8 @@ def _plant_layout_machine_catalog(machines=None) -> list[dict[str, object]]:
                 "location": _clean_string(asset.assignment_location),
                 "manufacturer": _clean_string(asset.manufacturer),
                 "model": _clean_string(asset.model),
+                "serial_number": _clean_string(asset.serial_number),
+                "category": asset.asset_category.label if asset.asset_category_id else "",
                 "detail_url": reverse("assets:asset_view", kwargs={"id": asset.id}),
                 "next_maintenance_date": (
                     machine.next_maintenance_date.strftime("%d-%m-%Y")
@@ -758,6 +760,7 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
                 "clip": area.clip_path() if area.e_poligono else "",
                 "etichetta": area.etichetta_relativa() if area.e_poligono else None,
                 "centro": area.punto_interno(),
+                "m2": round(layout.metri_quadri(area.superficie()), 1) if layout.ha_scala else None,
                 "machine_count": len(rows),
                 "alert_count": sum(1 for r in rows if r["alert"] != "ok"),
                 "machines": sorted(rows, key=lambda r: _PLANT_ALERT_LEVELS.index(r["alert"])),
@@ -811,7 +814,19 @@ def _plant_layout_public_payload(layout: PlantLayout | None) -> dict[str, object
         "reparti": _plant_layout_reparto_summary(marker_payload),
         "cnc": _plant_layout_cnc_summary(marker_payload),
         "elsewhere": _plant_layout_elsewhere_index(layout),
+        "livelli": _payload_livelli(layout, machines_by_id, ticket_map),
+        "scala": layout.scala if layout.ha_scala else None,
     }
+
+
+def _payload_livelli(layout, machines_by_id, ticket_map) -> list[dict[str, object]]:
+    from ..services.planimetria_livelli import payload_livelli
+
+    righe = payload_livelli(layout, machines_by_id, ticket_map)
+    for livello in righe:
+        for m in livello["markers"]:
+            m["alert_label"] = _PLANT_ALERT_LABELS.get(m["alert"], "")
+    return righe
 
 
 def _plant_layout_ambito(payload: dict[str, object], visibili: set[int] | None) -> dict[str, object]:
@@ -835,10 +850,15 @@ def _plant_layout_ambito(payload: dict[str, object], visibili: set[int] | None) 
         rows = [r for r in area["machines"] if r["id"] in visibili]
         areas.append({**area, "machines": rows, "machine_count": len(rows),
                       "alert_count": sum(1 for r in rows if r["alert"] != "ok")})
+    livelli = [
+        {**liv, "markers": [m for m in liv["markers"] if m["asset_id"] in visibili]}
+        for liv in payload.get("livelli") or []
+    ]
     return {
         **payload,
         "areas": areas,
         "markers": markers,
+        "livelli": livelli,
         "altrui": altrui,
         "markers_with_tickets": sum(1 for m in markers if m["open_tickets"]),
         "alert_counts": alert_counts,
@@ -895,8 +915,9 @@ def _plant_layout_elsewhere_index(layout: PlantLayout) -> list[dict[str, object]
     for marker in (
         PlantLayoutMarker.objects.filter(layout__is_active=True)
         .exclude(layout=layout)
+        .exclude(layout__base=layout)  # i livelli di questa pianta sono già sulla mappa
         .exclude(asset__status=Asset.STATUS_RETIRED)
-        .select_related("layout", "asset")
+        .select_related("layout", "asset", "asset__asset_category")
         .order_by("layout__category", "asset__name")
     ):
         if marker_is_unplaced(marker):
@@ -908,6 +929,10 @@ def _plant_layout_elsewhere_index(layout: PlantLayout) -> list[dict[str, object]
             "asset_tag": asset.asset_tag,
             "internal_number": _clean_string(asset.internal_number),
             "reparto": _clean_string(asset.reparto),
+            "serial_number": _clean_string(asset.serial_number),
+            "manufacturer": _clean_string(asset.manufacturer),
+            "model": _clean_string(asset.model),
+            "category": asset.asset_category.label if asset.asset_category_id else "",
             "layout": marker.layout.category,
             "url": f"{base_url}?{urlencode({'category': marker.layout.category, 'asset': asset.id})}",
         })

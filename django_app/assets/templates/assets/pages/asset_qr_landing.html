@@ -576,6 +576,10 @@ body.theme-dark .qrl-tkt{border-color:var(--border)}
         <span class="qrl-btn-icon">&#128196;</span>
         Scheda completa
       </a>
+      {% if qr_map_url %}<a href="{{ qr_map_url }}" class="qrl-btn qrl-btn--detail">
+        <span class="qrl-btn-icon">&#128205;</span>
+        Dov'è sulla mappa
+      </a>{% endif %}
     {% else %}
       <p class="qrl-empty" style="text-align:center;">
         Consultazione in sola lettura. L'apertura di una segnalazione richiede l'accesso al portale.

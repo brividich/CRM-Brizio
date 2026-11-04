@@ -1,0 +1,250 @@
+{% extends "assets/base_shell.html" %}
+{% load l10n %}
+
+{% block title %}Livello, allineamento e scala{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.plv-page{display:grid;gap:14px}
+.plv-card{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:14px 16px}
+.plv-card h2{margin:0 0 4px;font-size:var(--fs-lg);color:var(--text)}
+.plv-nota{color:var(--text-mid);font-size:var(--fs-sm);margin:0 0 10px}
+.plv-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;align-items:start}
+.plv-form label{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);color:var(--text-mid)}
+.plv-cats{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:6px 10px;display:grid;gap:2px}
+.plv-cats label{flex-direction:row;align-items:center;gap:8px;color:var(--text)}
+.plv-cats label.figlia{padding-left:18px;color:var(--text-mid)}
+.plv-due{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:900px){.plv-due{grid-template-columns:1fr}}
+.plv-finestra{border:1px solid var(--border);border-radius:12px;background:#fff;overflow:auto;max-height:560px}
+.plv-tela{position:relative;width:100%;cursor:crosshair;user-select:none}
+.plv-tela img{display:block;width:100%;height:auto;pointer-events:none}
+.plv-pt{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:#dc2626;color:#fff;border:2px solid #fff;
+  box-shadow:0 1px 4px rgba(15,23,42,.5);font-size:11px;font-weight:800;line-height:18px;text-align:center;pointer-events:none}
+.plv-pt.b{background:#2563eb}
+.plv-titolo{font-size:var(--fs-sm);font-weight:700;color:var(--text);margin:0 0 6px;display:flex;justify-content:space-between;gap:8px}
+.plv-passo{font-size:var(--fs-sm);padding:8px 12px;border-radius:10px;background:var(--surface-alt,rgba(148,163,184,.12));color:var(--text);margin:8px 0}
+.plv-anteprima{position:relative;overflow:hidden;border:1px solid var(--border);border-radius:12px;background:#fff;margin-top:10px}
+.plv-anteprima img.base{display:block;width:100%;height:auto}
+.plv-anteprima img.liv{position:absolute;left:0;top:0;transform-origin:0 0;opacity:.5;mix-blend-mode:multiply;max-width:none}
+.plv-azioni{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.plv-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);font-size:var(--fs-sm);color:var(--text)}
+.plv-chip i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.plv-avviso{border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:10px;padding:8px 12px;font-size:var(--fs-sm)}
+.plv-barra{height:10px;border-radius:999px;background:var(--surface-alt,rgba(148,163,184,.2));overflow:hidden;margin:6px 0}
+.plv-barra span{display:block;height:100%;background:#16a34a}
+.plv-lista{columns:3 220px;font-size:var(--fs-sm);margin:6px 0 0;padding-left:18px;color:var(--text)}
+body.theme-dark .plv-avviso{background:rgba(217,119,6,.15);border-color:rgba(252,211,77,.4);color:#fcd34d}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Livello, allineamento e scala{% endblock %}
+{% block assets_shell_subtitle %}
+<p>«{{ layout.name }}» ({{ layout.category }}). Un servizio disegnato sullo stesso edificio diventa un livello della pianta base: si allinea con due punti e i suoi asset compaiono sulla base, da accendere e spegnere.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+<a class="btn btn-secondary" href="{% url 'assets:plant_layout_editor' %}?layout={{ layout.id }}">Torna all'editor</a>
+<a class="btn btn-secondary" href="{% url 'assets:guida' %}#planimetrie" title="Guida">? Guida</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="plv-page">
+  <article class="plv-card">
+    <h2>Impostazioni</h2>
+    <p class="plv-nota">Le categorie dicono cosa sta su questa pianta: «Leggi planimetria» cerca solo quelle e la copertura conta quanti asset sono già collocati.</p>
+    <form method="post" class="plv-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="salva_impostazioni">
+      <input type="hidden" name="layout_id" value="{{ layout.id }}">
+      <div style="display:grid;gap:12px;">
+        <label>Pianta base (lascia vuoto se questa è una pianta a sé)
+          <select name="base" class="input"{% if livelli_qui %} disabled{% endif %}>
+            <option value="">— Nessuna: è una pianta a sé —</option>
+            {% for b in basi %}<option value="{{ b.id }}"{% if layout.base_id == b.id %} selected{% endif %}>{{ b.category }} · {{ b.name }}{% if not b.is_active %} (bozza){% endif %}</option>{% endfor %}
+          </select>
+        </label>
+        {% if livelli_qui %}<p class="plv-nota" style="margin:0;">Questa è una pianta base con {{ livelli_qui|length }} livell{{ livelli_qui|length|pluralize:"o,i" }} sopra: non può diventare a sua volta un livello.</p>{% endif %}
+        <label>Colore del livello sulla pianta base
+          <input type="color" name="colore" value="{{ layout.colore|default:'#0EA5E9' }}" class="input" style="max-width:120px;height:38px;padding:2px;">
+        </label>
+      </div>
+      <label>Categorie di asset su questa pianta
+        <div class="plv-cats">
+          {% for c in categorie %}<label class="{% if c.figlia %}figlia{% endif %}"><input type="checkbox" name="categorie" value="{{ c.id }}"{% if c.scelta %} checked{% endif %}> {{ c.label }}</label>{% endfor %}
+        </div>
+      </label>
+      <div><button class="btn btn-primary" type="submit">Salva impostazioni</button></div>
+    </form>
+    {% if livelli_qui %}
+    <div class="plv-azioni">
+      <span class="plv-nota" style="margin:0;">Livelli su questa pianta:</span>
+      {% for l in livelli_qui %}<a class="plv-chip" href="{% url 'assets:plant_layout_editor' %}?livello={{ l.id }}"><i style="background:{{ l.colore|default:'#0EA5E9' }}"></i>{{ l.category }}{% if not l.matrice %} · da allineare{% elif l.allineamento.da_verificare %} · da verificare{% endif %}{% if not l.is_active %} · bozza{% endif %}</a>{% endfor %}
+    </div>
+    {% endif %}
+  </article>
+
+  {% if layout.base %}
+  <article class="plv-card">
+    <h2>Allineamento sulla pianta base «{{ layout.base.name }}»</h2>
+    {% if layout.allineamento.da_verificare %}<div class="plv-avviso">La pianta base ha una nuova versione: controlla l'anteprima qui sotto e, se non combacia, riprendi i due punti.</div>{% endif %}
+    <p class="plv-nota">Clicca lo stesso punto sulle due piante (es. un angolo del capannone), poi un secondo punto lontano dal primo (l'angolo opposto). Anche piante ruotate o in scala diversa tornano allineate.{% if descrizione %} Ora: scala {{ descrizione.scala }}, rotazione {{ descrizione.rotazione }}°.{% endif %}</p>
+    <form method="post" id="plv-allinea">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="salva_allineamento">
+      <input type="hidden" name="layout_id" value="{{ layout.id }}">
+      <input type="hidden" name="p1x"><input type="hidden" name="p1y"><input type="hidden" name="p1bx"><input type="hidden" name="p1by">
+      <input type="hidden" name="p2x"><input type="hidden" name="p2y"><input type="hidden" name="p2bx"><input type="hidden" name="p2by">
+      <div class="plv-passo" data-plv-passo>Passo 1 di 4: clicca il punto 1 sul livello (a sinistra).</div>
+      <div class="plv-due">
+        <div>
+          <p class="plv-titolo"><span>Livello: {{ layout.name }}</span></p>
+          <div class="plv-finestra"><div class="plv-tela" data-plv-tela="liv"><img src="{{ layout.image.url }}" alt="Livello" data-plv-img-liv></div></div>
+        </div>
+        <div>
+          <p class="plv-titolo"><span>Pianta base: {{ layout.base.name }}</span></p>
+          <div class="plv-finestra"><div class="plv-tela" data-plv-tela="base"><img src="{{ layout.base.image.url }}" alt="Pianta base" data-plv-img-base></div></div>
+        </div>
+      </div>
+      <div class="plv-azioni">
+        <button class="btn btn-primary" type="submit" data-plv-salva disabled>Salva allineamento</button>
+        <button class="btn btn-secondary" type="button" data-plv-ricomincia>Ricomincia i punti</button>
+        <span class="plv-nota" style="margin:0;">L'anteprima sovrappone il livello trasparente alla base: le linee dei muri devono combaciare.</span>
+      </div>
+      <div class="plv-anteprima" data-plv-anteprima hidden>
+        <img class="base" src="{{ layout.base.image.url }}" alt="Anteprima pianta base">
+        <img class="liv" src="{{ layout.image.url }}" alt="Anteprima livello" data-plv-liv-ant>
+      </div>
+    </form>
+    <form method="post" style="margin-top:10px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="togli_livello">
+      <input type="hidden" name="layout_id" value="{{ layout.id }}">
+      <button class="btn btn-secondary btn-sm" type="submit">Non è più un livello</button>
+    </form>
+  </article>
+  {% endif %}
+
+  <article class="plv-card">
+    <h2>Scala reale</h2>
+    <p class="plv-nota">Clicca i due estremi di una quota nota (es. un lato del capannone) e scrivi quanti metri è lunga. Sulla mappa potrai misurare distanze e vedere i metri quadri dei reparti.{% if layout.ha_scala %} Ora: {{ layout.scala.metri }} m tra i due punti segnati.{% endif %}</p>
+    <form method="post" id="plv-scala">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="salva_scala">
+      <input type="hidden" name="layout_id" value="{{ layout.id }}">
+      <input type="hidden" name="s1x"><input type="hidden" name="s1y"><input type="hidden" name="s2x"><input type="hidden" name="s2y">
+      <div class="plv-finestra" style="max-width:900px;"><div class="plv-tela" data-plv-tela="scala"><img src="{{ layout.image.url }}" alt="Planimetria"></div></div>
+      <div class="plv-azioni">
+        <label class="plv-nota" style="margin:0;display:flex;align-items:center;gap:6px;">Lunghezza in metri <input type="number" name="metri" step="0.01" min="0.1" class="input" style="max-width:120px;" value="{{ layout.scala.metri|default:''|unlocalize }}"></label>
+        <button class="btn btn-primary" type="submit">Salva scala</button>
+        <button class="btn btn-secondary" type="button" data-plv-scala-reset>Ricomincia</button>
+      </div>
+    </form>
+    {% if layout.ha_scala %}
+    <form method="post" style="margin-top:8px;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="togli_scala">
+      <input type="hidden" name="layout_id" value="{{ layout.id }}">
+      <button class="btn btn-secondary btn-sm" type="submit">Togli la scala</button>
+    </form>
+    {% endif %}
+  </article>
+
+  {% if copertura %}
+  <article class="plv-card">
+    <h2>Copertura: {{ copertura.collocati }} su {{ copertura.totale }} collocati ({{ copertura.percentuale }}%)</h2>
+    <p class="plv-nota">Asset in servizio delle categorie {{ copertura.categorie|join:", " }}.</p>
+    <div class="plv-barra"><span style="width:{{ copertura.percentuale|unlocalize }}%"></span></div>
+    {% if copertura.mancanti %}
+    <details{% if copertura.mancanti|length <= 15 %} open{% endif %}>
+      <summary class="plv-nota" style="cursor:pointer;">Da collocare ({{ copertura.mancanti|length }})</summary>
+      <ul class="plv-lista">{% for a in copertura.mancanti %}<li><a href="{% url 'assets:asset_view' a.id %}">{{ a.name }}</a>{% if a.internal_number %} · {{ a.internal_number }}{% endif %}</li>{% endfor %}</ul>
+      <div class="plv-azioni"><a class="btn btn-secondary btn-sm" href="{% url 'assets:plant_layout_editor' %}?layout={{ layout.id }}">Collocali nell'editor</a><a class="btn btn-secondary btn-sm" href="{% url 'assets:plant_layout_editor' %}?leggi=1&layout={{ layout.id }}">Leggi planimetria</a></div>
+    </details>
+    {% endif %}
+  </article>
+  {% endif %}
+</section>
+{{ plv_dati|json_script:"plv-dati" }}
+{% endblock %}
+
+{% block assets_shell_scripts %}
+<script>
+(function () {
+  var dati = {};
+  try { dati = JSON.parse(document.getElementById("plv-dati").textContent || "{}"); } catch (e) { dati = {}; }
+  function pct(e, tela) {
+    var r = tela.getBoundingClientRect();
+    return [Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)), Math.max(0, Math.min(100, (e.clientY - r.top) / r.height * 100))];
+  }
+  function punto(tela, p, testo, cls) {
+    var s = document.createElement("span");
+    s.className = "plv-pt " + (cls || "");
+    s.style.left = p[0] + "%"; s.style.top = p[1] + "%"; s.textContent = testo;
+    tela.appendChild(s);
+  }
+  function pulisci(tela) { tela.querySelectorAll(".plv-pt").forEach(function (n) { n.remove(); }); }
+
+  /* allineamento: 1 livello, 1 base, 2 livello, 2 base */
+  var form = document.getElementById("plv-allinea");
+  if (form) {
+    var tLiv = form.querySelector('[data-plv-tela="liv"]'), tBase = form.querySelector('[data-plv-tela="base"]');
+    var passo = form.querySelector("[data-plv-passo]"), salva = form.querySelector("[data-plv-salva]");
+    var ant = form.querySelector("[data-plv-anteprima]"), imgAnt = form.querySelector("[data-plv-liv-ant]");
+    var TESTI = ["Passo 1 di 4: clicca il punto 1 sul livello (a sinistra).", "Passo 2 di 4: clicca lo stesso punto 1 sulla pianta base (a destra).",
+      "Passo 3 di 4: clicca il punto 2 sul livello, lontano dal primo.", "Passo 4 di 4: clicca lo stesso punto 2 sulla pianta base.",
+      "Fatto: controlla l'anteprima e salva."];
+    var pts = [];
+    function campo(n, v) { form.querySelector('[name="' + n + '"]').value = v === null ? "" : v.toFixed(2); }
+    function aggiorna() {
+      pulisci(tLiv); pulisci(tBase);
+      pts.forEach(function (p, i) { punto(i % 2 ? tBase : tLiv, p, String(Math.floor(i / 2) + 1), i % 2 ? "b" : ""); });
+      passo.textContent = TESTI[Math.min(pts.length, 4)];
+      ["p1x", "p1y", "p1bx", "p1by", "p2x", "p2y", "p2bx", "p2by"].forEach(function (n, i) {
+        var p = pts[Math.floor(i / 2)]; campo(n, p ? p[i % 2] : null);
+      });
+      salva.disabled = pts.length < 4;
+      anteprima();
+    }
+    function anteprima() {
+      if (pts.length < 4 || !dati.dim[0] || !dati.dimBase[0]) { ant.hidden = pts.length < 4; return; }
+      ant.hidden = false;
+      var wl = dati.dim[0], hl = dati.dim[1], wb = dati.dimBase[0], hb = dati.dimBase[1];
+      var l1 = [pts[0][0] * wl / 100, pts[0][1] * hl / 100], b1 = [pts[1][0] * wb / 100, pts[1][1] * hb / 100];
+      var l2 = [pts[2][0] * wl / 100, pts[2][1] * hl / 100], b2 = [pts[3][0] * wb / 100, pts[3][1] * hb / 100];
+      var dl = [l2[0] - l1[0], l2[1] - l1[1]], db = [b2[0] - b1[0], b2[1] - b1[1]];
+      var den = dl[0] * dl[0] + dl[1] * dl[1];
+      if (!den) return;
+      var sr = (db[0] * dl[0] + db[1] * dl[1]) / den, si = (db[1] * dl[0] - db[0] * dl[1]) / den;
+      var tx = b1[0] - (sr * l1[0] - si * l1[1]), ty = b1[1] - (si * l1[0] + sr * l1[1]);
+      var k = ant.clientWidth / wb;
+      imgAnt.style.width = (wl * k) + "px";
+      imgAnt.style.transform = "matrix(" + sr + "," + si + "," + (-si) + "," + sr + "," + (tx * k) + "," + (ty * k) + ")";
+    }
+    tLiv.addEventListener("click", function (e) { if (pts.length % 2 === 0 && pts.length < 4) { pts.push(pct(e, tLiv)); aggiorna(); } });
+    tBase.addEventListener("click", function (e) { if (pts.length % 2 === 1) { pts.push(pct(e, tBase)); aggiorna(); } });
+    form.querySelector("[data-plv-ricomincia]").addEventListener("click", function () { pts = []; aggiorna(); });
+    window.addEventListener("resize", anteprima);
+    (dati.punti || []).forEach(function (p) { pts.push([p[0], p[1]]); pts.push([p[2], p[3]]); });
+    if (pts.length === 4) { aggiorna(); salva.disabled = true; passo.textContent = "Allineamento salvato. Per cambiarlo usa «Ricomincia i punti»."; }
+    else { pts = []; aggiorna(); }
+    var imgB = ant.querySelector("img.base");
+    if (imgB) imgB.addEventListener("load", anteprima);
+  }
+
+  /* scala: due estremi della quota */
+  var fs = document.getElementById("plv-scala");
+  if (fs) {
+    var tela = fs.querySelector('[data-plv-tela="scala"]');
+    var sp = (dati.scala || []).map(function (p) { return [p[0], p[1]]; });
+    function disegna() {
+      pulisci(tela);
+      sp.forEach(function (p, i) { punto(tela, p, String(i + 1), "b"); });
+      ["s1x", "s1y", "s2x", "s2y"].forEach(function (n, i) { var p = sp[Math.floor(i / 2)]; fs.querySelector('[name="' + n + '"]').value = p ? p[i % 2].toFixed(2) : ""; });
+    }
+    tela.addEventListener("click", function (e) { if (sp.length >= 2) sp = []; sp.push(pct(e, tela)); disegna(); });
+    fs.querySelector("[data-plv-scala-reset]").addEventListener("click", function () { sp = []; disegna(); });
+    disegna();
+  }
+})();
+</script>
+{% endblock %}

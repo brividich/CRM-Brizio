@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import calendar
 import logging
+import math
 import re
 import uuid
 from datetime import timedelta
@@ -1860,6 +1861,21 @@ class PlantLayout(models.Model):
     description = models.CharField(max_length=255, blank=True, default="")
     image = models.ImageField(upload_to=_plant_layout_image_upload_to)
     is_active = models.BooleanField(default=False, db_index=True)
+    # Pianta base + livelli: un servizio (condizionatori, differenziali...) disegnato sullo
+    # stesso edificio è un livello della pianta base, allineato con due punti.
+    base = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="livelli",
+        verbose_name="Pianta base",
+    )
+    # {"matrice": [a, b, c, d, e, f], "punti": [[x, y, xb, yb], ...], "base_immagine": "...", "da_verificare": bool}
+    # x_base = a*x + b*y + c ; y_base = d*x + e*y + f (tutto in % delle immagini)
+    allineamento = models.JSONField(default=dict, blank=True)
+    colore = models.CharField(max_length=7, blank=True, default="")
+    asset_categories = models.ManyToManyField(
+        "AssetCategory", blank=True, related_name="plant_layouts", verbose_name="Categorie su questa planimetria",
+    )
+    # {"punti": [[x1, y1], [x2, y2]], "metri": 12.5, "rapporto": altezza/larghezza dell'immagine}
+    scala = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1868,6 +1884,65 @@ class PlantLayout(models.Model):
 
     def __str__(self) -> str:
         return f"{self.category} - {self.name}"
+
+    # --- livelli -----------------------------------------------------------
+    @property
+    def matrice(self) -> list[float] | None:
+        m = (self.allineamento or {}).get("matrice")
+        if isinstance(m, list) and len(m) == 6:
+            try:
+                return [float(v) for v in m]
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    @property
+    def e_livello(self) -> bool:
+        return bool(self.base_id)
+
+    @property
+    def allineato(self) -> bool:
+        return bool(self.base_id and self.matrice)
+
+    def su_base(self, x, y) -> tuple[float, float] | None:
+        """Punto di questo livello (in %) sulla pianta base (in %)."""
+        m = self.matrice
+        if not m:
+            return None
+        x, y = float(x), float(y)
+        return round(m[0] * x + m[1] * y + m[2], 2), round(m[3] * x + m[4] * y + m[5], 2)
+
+    # --- scala reale ---------------------------------------------------------
+    @property
+    def ha_scala(self) -> bool:
+        s = self.scala or {}
+        return bool(s.get("punti") and s.get("metri") and s.get("rapporto"))
+
+    def _unita(self, x1, y1, x2, y2) -> float:
+        rapporto = float((self.scala or {}).get("rapporto") or 1)
+        return math.hypot(float(x2) - float(x1), (float(y2) - float(y1)) * rapporto)
+
+    def metri_tra(self, x1, y1, x2, y2) -> float | None:
+        """Distanza reale fra due punti (in %) secondo la quota tarata."""
+        if not self.ha_scala:
+            return None
+        (a, b), (c, d) = self.scala["punti"][:2]
+        rif = self._unita(a, b, c, d)
+        if rif <= 0:
+            return None
+        return self._unita(x1, y1, x2, y2) / rif * float(self.scala["metri"])
+
+    def metri_quadri(self, superficie_percentuale: float) -> float | None:
+        """Superficie reale di un'area espressa in «% × %» della pianta."""
+        if not self.ha_scala:
+            return None
+        (a, b), (c, d) = self.scala["punti"][:2]
+        rif = self._unita(a, b, c, d)
+        if rif <= 0:
+            return None
+        metri_per_unita = float(self.scala["metri"]) / rif  # unità = 1% della larghezza
+        rapporto = float(self.scala.get("rapporto") or 1)
+        return float(superficie_percentuale) * rapporto * metri_per_unita ** 2
 
     def save(self, *args, **kwargs):
         previous_name = ""
@@ -1880,7 +1955,18 @@ class PlantLayout(models.Model):
                 previous_storage = previous.image.storage
         super().save(*args, **kwargs)
         if self.is_active:
+            vecchie = list(
+                PlantLayout.objects.exclude(pk=self.pk).filter(is_active=True, category__iexact=self.category)
+            )
             PlantLayout.objects.exclude(pk=self.pk).filter(is_active=True, category__iexact=self.category).update(is_active=False)
+            # i livelli della versione precedente passano a questa: l'allineamento resta, ma va controllato
+            for livello in PlantLayout.objects.filter(base__in=vecchie).exclude(pk=self.pk):
+                livello.base = self
+                dati = dict(livello.allineamento or {})
+                if dati.get("matrice"):
+                    dati["da_verificare"] = dati.get("base_immagine") != (self.image.name if self.image else "")
+                livello.allineamento = dati
+                livello.save(update_fields=["base", "allineamento", "updated_at"])
         if previous_storage and previous_name and previous_storage.exists(previous_name):
             previous_storage.delete(previous_name)
 

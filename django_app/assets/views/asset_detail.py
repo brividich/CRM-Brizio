@@ -1571,6 +1571,10 @@ def _asset_plant_map_card(request, asset, marker, resolved_layout, *, any_layout
     width, height = _plant_layout_image_size(layout)
     placed = not marker_is_unplaced(marker)
     area = area_at_point(list(layout.areas.all()), marker.x_percent, marker.y_percent) if placed else None
+    if placed and area is None and layout.allineato and layout.base is not None:
+        # livello di servizio: il reparto è disegnato sulla pianta base
+        punto = layout.su_base(marker.x_percent, marker.y_percent)
+        area = area_at_point(list(layout.base.areas.all()), punto[0], punto[1]) if punto else None
     bg_x, bg_y = _map_card_background_position(float(marker.x_percent), float(marker.y_percent), width, height)
     return {
         "layout": layout,
@@ -1583,6 +1587,13 @@ def _asset_plant_map_card(request, asset, marker, resolved_layout, *, any_layout
         "zoom_size": f"{_MAP_CARD_ZOOM * 100:g}%",
         "bg_x": f"{bg_x:g}%",
         "bg_y": f"{bg_y:g}%",
-        "map_url": reverse("assets:plant_layout_map") + f"?asset={asset.id}&category={quote(layout.category)}",
+        "map_url": _url_mappa_marker(marker) if placed else reverse("assets:plant_layout_map") + f"?asset={asset.id}&category={quote(layout.category)}",
         "editor_url": f"{editor_base}?layout={layout.id}&asset={asset.id}" if can_manage else "",
     }
+
+
+def _url_mappa_marker(marker) -> str:
+    from ..services.planimetria_livelli import url_mappa_marker
+
+    return url_mappa_marker(marker)
+
