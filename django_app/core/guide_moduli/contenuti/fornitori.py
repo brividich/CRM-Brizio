@@ -39,7 +39,7 @@ GUIDA = {
                 ("def", [
                     ("Presenti ora", "chi ha fatto il check-in e non ancora il check-out, dal più vecchio: con badge, referente e da quanto tempo è in azienda."),
                     ("Storico", "le visite con ingresso nel periodo «Dal» / «Al» (di base gli ultimi 7 giorni), filtrabili per «Tipo» e con «Cerca» su nome, azienda, referente e motivo. Si vedono al massimo 500 visite: se sono di più la pagina lo dice e va ristretto il periodo."),
-                    ("Azienda in blu", "la ragione sociale coincide con un fornitore attivo dell'HUB: il link apre la sua scheda."),
+                    ("Azienda in blu", "la ditta è abbinata, oppure ha lo stesso nome di un fornitore attivo dell'HUB a meno di maiuscole, punteggiatura e forma giuridica (S.r.l., S.p.A., Snc…): il link apre la sua scheda."),
                     ("Ospite anonimizzato", "il GuestPortal ha già anonimizzato l'ospite per il GDPR: nome e azienda non si vedono più."),
                 ]),
                 ("p", "«Apri GuestPortal ↗» (e la voce di menu «Accessi azienda») apre il pannello del GuestPortal già "
@@ -100,7 +100,7 @@ GUIDA = {
                     "Database: sul MySQL del GuestPortal crea un utente con solo SELECT su Visits, Guests e Suppliers e metti host, nome database, utente e password in GUESTPORTAL_DB_* del .env dell'HUB (vedi docs/integrazioni/guestportal/README.md). Dal server HUB deve essere aperta la porta 3306.",
                     "Accesso automatico: GUESTPORTAL_SSO_SECRET nel .env dell'HUB deve essere uguale a GP_SSO_SECRET in config/sso.php del GuestPortal. Senza segreto il link apre il login normale del pannello.",
                     "Dopo aver cambiato il .env riavvia il portale (sito IIS).",
-                    "Ditte: in Fornitori → «Ditte GuestPortal» scegli per ogni fornitore del GuestPortal il fornitore dell'HUB e clicca «Salva» (con nome uguale è già proposto). Senza abbinamento l'ingresso si riconosce solo se l'azienda scritta al chiosco è uguale alla ragione sociale. La pagina usa il permesso di «Modifica fornitore».",
+                    "Ditte: in Fornitori → «Ditte GuestPortal» scegli per ogni fornitore del GuestPortal il fornitore dell'HUB e clicca «Salva» (con lo stesso nome a meno di maiuscole, punteggiatura e forma giuridica è già proposto: «Rossi Impianti» = «ROSSI IMPIANTI S.R.L.»). Senza abbinamento l'ingresso si riconosce solo con lo stesso nome a meno di quelle differenze, e solo se un unico fornitore HUB ha quel nome; con nomi davvero diversi (sigle, nomi commerciali) serve l'abbinamento. La pagina usa il permesso di «Modifica fornitore».",
                 ]),
             ],
         },
