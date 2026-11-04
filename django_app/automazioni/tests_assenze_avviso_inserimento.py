@@ -116,3 +116,30 @@ class AvvisoSaltaApprovazioneTests(TestCase):
         payload = {"capo_email": "capo@example.com"}
         self.assertIs(_enrich_assenze_payload({**payload, "id": 987660})["inserito_dal_capo"], True)
         self.assertIs(_enrich_assenze_payload({**payload, "id": 987661})["inserito_dal_capo"], False)
+
+
+class AvvisoMalattiaCapoDoppioTests(TestCase):
+    """0036: con l'approvazione unificata il capo non riceve anche «Inserimento malattia»."""
+
+    def _regola(self, code, attiva=True):
+        return AutomationRule.objects.create(code=code, name=code, source_code="assenze", operation_type="insert",
+                                             trigger_scope="all_inserts", is_active=attiva)
+
+    def _migra(self):
+        import_module("automazioni.migrations.0036_assenze_malattia_avviso_capo_doppio").applica(global_apps, None)
+
+    def test_disattiva_avviso_malattia_se_c_e_approvazione_unificata(self):
+        self._regola("assenze-approvazione-unificata")
+        avviso = self._regola("assenze-pa-malattia-avviso-capo")
+        self._migra()
+        self._migra()
+        avviso.refresh_from_db()
+        self.assertFalse(avviso.is_active)
+        self.assertTrue(AutomationRule.objects.get(code="assenze-approvazione-unificata").is_active)
+
+    def test_fail_closed_senza_approvazione_unificata(self):
+        self._regola("assenze-approvazione-unificata", attiva=False)
+        avviso = self._regola("assenze-pa-malattia-avviso-capo")
+        self._migra()
+        avviso.refresh_from_db()
+        self.assertTrue(avviso.is_active)

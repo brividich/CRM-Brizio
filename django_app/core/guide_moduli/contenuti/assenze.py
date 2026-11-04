@@ -376,6 +376,16 @@ GUIDA = {
             ],
         },
         {
+            "sintomo": "Per una malattia il caporeparto riceve due mail (da approvare e «Inserimento malattia»)",
+            "perche": "la malattia passa dall'approvazione del caporeparto: deve arrivargli solo «Richiesta di Malattia da "
+                      "approvare». La vecchia regola importata da Power Automate avvisava a ogni inserimento.",
+            "fare": [
+                "Apri Automazioni → Regole, sorgente Assenze: «PA import - Avviso malattia al responsabile» deve essere "
+                "disattivata (lo fa l'aggiornamento del 04/11/2026). Resta attiva «Assenze — approvazione unificata».",
+                "Con «Salta approvazione» il caporeparto è avvisato in copia dalla mail «Inserimento …» ad assenza@.",
+            ],
+        },
+        {
             "sintomo": "Un capo non vede le richieste dei suoi dipendenti",
             "fare": [
                 "Controlla in Anagrafica che sia il capo del dipendente (Reparti, aree e capi → Capo di ogni persona).",
