@@ -14,6 +14,16 @@ GUIDA = {
                 ("p", "Menu in alto «Scadenzario» (indirizzo /scadenze): le scadute e le scadenze dei prossimi 90 giorni di "
                       "personale, asset, verifiche impianti, DPI, RENTRI, azioni CAPA e scadenze generiche, le più urgenti in cima. "
                       "Filtri, CSV e calendario come descritto nella guida della Home («Lo Scadenzario globale»)."),
+                ("def", [
+                    ("Sistema di gestione", "sorveglianza e scadenza dei certificati (attivi), audit esterni pianificati e risposta all'ente, audit interni pianificati o con piano approvato, analisi (1 mese) e chiusura (3 mesi o proroga) delle CAR aperte, prossima verifica di efficacia, qualifica degli auditor attivi, azioni della SoA e scenari di rischio OT della revisione in vigore."),
+                    ("Qualifiche di processo", "scadenza e revisione dei processi MOD.128 attivi, requisiti con scadenza, certificazioni individuali attive, revisione delle abilitazioni macchina della skill matrix."),
+                    ("Formazione (enti e verifiche)", "documenti di enti e docenti con scadenza (accreditamento, contratto, assicurazione…), «verifica assenza NC a 6 mesi» delle edizioni approvate senza esito."),
+                    ("SOC / NIS2", "azioni correttive degli incidenti non fatte, accettazioni del rischio non revocate."),
+                    ("GDPR", "verifica periodica dell'operato degli amministratori di sistema non revocati."),
+                    ("Presa visione procedure", "prese visione aperte con scadenza (ognuno vede le proprie, chi gestisce le campagne tutte) e campagne pubblicate."),
+                ]),
+                ("p", "Ogni voce compare a chi può aprire la pagina dove si gestisce (la tua CAR e la tua presa visione le vedi sempre). "
+                      "Il nome nella colonna Soggetto porta a quella pagina."),
                 ("p", "Cosa vedi lo decidono i permessi del modulo di origine più le regole del pannello «Gestione»: "
                       "una regola può farti vedere scadenze di un modulo che non apri, oppure toglierne alcune a tutti."),
             ],

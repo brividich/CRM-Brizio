@@ -34,6 +34,24 @@ Ogni voce ha il percorso `fonte` → `fonte|tipo` → `fonte|tipo|elemento` (`Sc
 
 Albero dinamico: tipi noti per fonte + voci presenti oggi (scadute e 90 giorni, raccolta di sistema) + tutte le categorie/attività generiche + chiavi già configurate («nessuna voce ora»).
 
+## Fonti dagli altri moduli (`scadenzario/fonti_moduli.py`)
+
+Registrate in `PROVIDERS` (prima di `generiche`) da `dashboard.scadenze_providers._registra_fonti_moduli`. Permesso di partenza = `acl_allows_path` della pagina di gestione (cache per richiesta), saltato con `ctx.sistema`.
+
+| Fonte | Tipi | Pagina che fa da permesso |
+|---|---|---|
+| `sgi` | sorveglianza, certificato, audit_esterno, risposta_ente (`Certificazione`, `AuditEsterno`) | `sistema_gestione:esterni_elenco` |
+| `sgi` | audit_interno, efficacia, auditor, car_analisi, car_chiusura (`Audit`, `AuditVerificaEfficacia`, `Auditor`, `AzioneCorrettivaAudit`) | `sistema_gestione:audit_calendario` (la propria CAR sempre) |
+| `sgi` | soa, rischio_ot (revisione `APPROVATA`) | `sistema_gestione:soa` |
+| `qualifiche` | processo, processo_revisione, requisito, certificazione_individuale (`models_mpq`) | `anagrafica:mpq_cruscotto` |
+| `qualifiche` | abilitazione_macchina (`AbilitazioneMacchina.prossima_revisione`) | `anagrafica:skm_scadenzario` |
+| `formazione` | documento_ente, verifica_nc (`TrainingProviderDocument`, `TrainingSession.verifica_nc_dovuta_dal`) | `anagrafica:formazione_sessioni_list` |
+| `soc` | azione_correttiva, accettazione_rischio | `security:incidents`, `security:accettazioni_rischio` |
+| `gdpr` | ads_revisione (`AmministratoreSistema`) | `security:registro_log_ads` |
+| `procedure` | assegnazione (le proprie sempre), campagna | `procedure_refresh:campaign_list` |
+
+Ogni raccolta è isolata (`_sicuro`): un modulo rotto non svuota le altre.
+
 ## Scadenze generiche
 
 Modelli: `CategoriaScadenza` (email riepilogo, preavviso/ripetizione predefiniti, `avvisa_dopo_scadenza`), `ScadenzaGenerica` (ultimo controllo + validità → scadenza; responsabile, asset, fornitore facoltativi; `legacy_id`), `RinnovoScadenza` (allegato in `PrivateAttachmentStorage`, cifrato, download `rinnovo_allegato`), `AvvisoInviato`.
