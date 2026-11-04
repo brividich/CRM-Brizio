@@ -648,6 +648,7 @@ def _build_scadenzario_voci(
     filtro_reparto: str = "",
     dip_map: dict | None = None,
     periodo: tuple | None = None,
+    tutte_le_fonti: bool = False,
 ) -> list[dict]:
     """Voci dello scadenzario unificato, ordinate per urgenza.
 
@@ -672,9 +673,11 @@ def _build_scadenzario_voci(
     # in NESSUNA sorgente: il filtro va applicato a monte, non solo ai contratti.
     cessati = _cessati_legacy_ids()
 
-    can_view_visite = _can_view_visite_mediche(request)
-    can_view_formazione = _can_view_formazione(request)
-    can_view_contratti = _check_hr_permission(request)
+    # ``tutte_le_fonti``: raccolta senza permessi per lo scadenzario generale, che
+    # poi decide da sé chi vede cosa (scadenzario/visibilita.py).
+    can_view_visite = tutte_le_fonti or _can_view_visite_mediche(request)
+    can_view_formazione = tutte_le_fonti or _can_view_formazione(request)
+    can_view_contratti = tutte_le_fonti or _check_hr_permission(request)
 
     if dip_map is None:
         dip_rows = fetch_anagrafica_rows(deduplicate=True)
@@ -867,7 +870,7 @@ def _build_scadenzario_voci(
     # Ambito del ruolo (propri / team / tutti), come l'elenco dipendenti: un capo
     # con ambito team vede le scadenze delle sue persone, non di tutta l'azienda.
     # Vale per pagina, «Cose da gestire» e badge della subnav (stessa funzione).
-    if _ruoli_attivi():
+    if _ruoli_attivi() and not tutte_le_fonti:
         from .dipendenti import _schede_visibili
 
         visibili = _schede_visibili(request)

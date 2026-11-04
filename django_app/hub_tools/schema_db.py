@@ -35,6 +35,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "presenti": ("Persone e HR", "#16a34a", "Presenti in azienda dalle timbrature Solari (lette, non copiate): "
                  "appelli di evacuazione con le persone contate, avvisi delle uscite non timbrate"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
+    "scadenzario": ("Altri moduli", "#2563eb", "Scadenzario generale: scadenze generiche (ex scadenzario sul NAS), rinnovi, avvisi, regole di visibilità per voce"),
     "fornitori": ("Operations", "#16a34a", "Fornitori (anagrafica nelle tabelle di anagrafica); ingressi del GuestPortal collegati a ticket e OdL, abbinamento ditte GuestPortal"),
     "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software, indirizzi IP (DHCP/DNS), rack e switch di rete, macchine collegate (MTConnect)"),
     "attrezzature": ("Operations", "#14b8a6", "Attrezzature per P/N"),
@@ -82,6 +83,13 @@ AREE = ("Piattaforma", "Persone e HR", "Operations", "Sicurezza sul lavoro", "Qu
         "Sicurezza informatica", "Automazioni", "Altri moduli", "Framework e librerie")
 
 CONNESSIONI_ESTERNE: list[dict] = [
+    {
+        "nome": "Vecchio scadenzario (Flask + MySQL sul NAS)",
+        "cosa": "App Flask sul NAS (10.0.0.222:8080) con database MySQL scadenziario su 10.0.0.7: categorie, attività con scadenza e registro degli avvisi. L'HUB lo legge in sola lettura solo con il comando di import, che copia i dati nelle scadenze generiche; dopo il passaggio il vecchio va spento.",
+        "chi": "Scadenzario → Scadenze generiche (scadenzario_categoriascadenza, scadenzario_scadenzagenerica, scadenzario_avvisoinviato importati con legacy_id).",
+        "config": "Comando importa_scadenzario (--host, --port, --database, --user); password solo dalla variabile d'ambiente SCADENZARIO_DB_PASSWORD; utente MySQL con solo SELECT su scadenziario.*.",
+        "controllo": "importa_scadenzario senza --apply conta categorie e attività senza scrivere.",
+    },
     {
         "nome": "Timbrature Solari (SQL Server)",
         "cosa": "Database del sistema presenze Solari (anagrafico + timbrature). L'HUB legge in sola lettura, al massimo una volta al minuto per tutto il server (cache condivisa), chi è in azienda (ultima timbratura di oggi = entrata) e le giornate con entrata senza uscita. Nessuna copia delle timbrature nel database del portale.",

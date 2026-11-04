@@ -1,0 +1,47 @@
+{% extends "core/base.html" %}
+
+{% block title %}Categorie | Scadenzario{% endblock %}
+
+{% block extra_head %}{% include "scadenzario/components/stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="sz-page">
+  <div class="sz-top">
+    <div>
+      <h1 class="sz-title">Categorie delle scadenze generiche</h1>
+      <div class="sz-sub">Ogni categoria ha i destinatari del riepilogo mensile, il preavviso e la ripetizione predefiniti per le sue attività e la scelta se avvisare anche dopo la scadenza. Chi vede e chi gestisce la categoria si decide in «Gestione».</div>
+    </div>
+    {% include "scadenzario/components/nav.html" with attiva="categorie" %}
+  </div>
+
+  <div class="sz-card sz-wrap">
+    <table class="sz-table">
+      <thead><tr><th>Categoria</th><th>Attività</th><th>Riepilogo a</th><th>Preavviso</th><th>Ripeti</th><th>Dopo la scadenza</th><th></th></tr></thead>
+      <tbody>
+      {% for c in categorie %}
+        <tr>
+          <td><strong>{{ c.nome }}</strong>{% if not c.is_active %} <span class="sz-pill sz-off">non attiva</span>{% endif %}{% if c.descrizione %}<div class="sz-help">{{ c.descrizione|truncatechars:80 }}</div>{% endif %}</td>
+          <td><a href="{% url 'scadenzario:elenco' %}?categoria={{ c.pk }}">{{ c.scadenze.count }}</a></td>
+          <td>{{ c.destinatari|join:", "|default:"—" }}</td>
+          <td>{% if c.preavviso_giorni %}{{ c.preavviso_giorni }} gg{% else %}<span class="sz-muted">generale</span>{% endif %}</td>
+          <td>{% if c.ripeti_ogni_giorni %}{{ c.ripeti_ogni_giorni }} gg{% else %}<span class="sz-muted">generale</span>{% endif %}</td>
+          <td>{% if c.avvisa_dopo_scadenza %}Sì{% else %}No{% endif %}</td>
+          <td><a class="sz-btn sz-btn-ghost" href="{% url 'scadenzario:categoria_modifica' c.pk %}">Modifica</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="sz-muted">Nessuna categoria.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if puo_pannello %}
+  <form method="post" class="sz-card">
+    {% csrf_token %}
+    <h2>Nuova categoria</h2>
+    {% include "scadenzario/components/campi.html" %}
+    <div style="margin-top:12px"><button class="sz-btn sz-btn-primary" type="submit">Crea</button></div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "core/base.html" %}
+{% load scadenzario_tags %}
+
+{% block title %}{{ s.titolo }} | Scadenzario{% endblock %}
+
+{% block extra_head %}{% include "scadenzario/components/stile.html" %}{% endblock %}
+
+{% block content %}
+{% with st=giorni|stato_giorni %}
+<div class="sz-page">
+  <div class="sz-top">
+    <div>
+      <div class="sz-sub"><a href="{% url 'scadenzario:elenco' %}?categoria={{ s.categoria_id }}">{{ s.categoria.nome }}</a></div>
+      <h1 class="sz-title">{{ s.titolo }} <span class="sz-pill {{ st.0 }}" style="vertical-align:middle">{{ st.1 }}</span>{% if not s.is_active %} <span class="sz-pill sz-off">sospesa</span>{% endif %}</h1>
+    </div>
+    {% include "scadenzario/components/nav.html" with attiva="elenco" %}
+  </div>
+
+  <div class="sz-card">
+    <table class="sz-table">
+      <tr><th>Scadenza</th><td>{{ s.data_scadenza|date:"d/m/Y"|default:"—" }}</td><th>Ultimo controllo</th><td>{{ s.ultimo_controllo|date:"d/m/Y"|default:"—" }}</td></tr>
+      <tr><th>Validità</th><td>{% if s.validita_mesi %}{{ s.validita_mesi }} mesi{% else %}—{% endif %}</td><th>Ubicazione</th><td>{{ s.ubicazione|default:"—" }}</td></tr>
+      <tr><th>Preavviso</th><td>{{ s.preavviso_giorni|default:"come la categoria" }}{% if s.preavviso_giorni %} giorni{% endif %}</td><th>Ripeti ogni</th><td>{{ s.ripeti_ogni_giorni|default:"come la categoria" }}{% if s.ripeti_ogni_giorni %} giorni{% endif %}</td></tr>
+      <tr><th>Avvisi a</th><td colspan="3">{{ s.destinatari|join:", "|default:"nessuno (solo riepilogo della categoria)" }}</td></tr>
+      <tr><th>Responsabile</th><td>{% if s.responsabile %}{{ s.responsabile.get_full_name|default:s.responsabile.username }}{% else %}—{% endif %}</td>
+          <th>Collegata a</th><td>{% if s.asset %}Asset: <a href="{% url 'assets:asset_view' s.asset_id %}">{{ s.asset.name }}</a>{% endif %}{% if s.fornitore %}{% if s.asset %} · {% endif %}Fornitore: <a href="{% url 'fornitori:fornitore_detail' s.fornitore_id %}">{{ s.fornitore.ragione_sociale }}</a>{% endif %}{% if not s.asset and not s.fornitore %}—{% endif %}</td></tr>
+      {% if s.descrizione %}<tr><th>Descrizione</th><td colspan="3">{{ s.descrizione|linebreaksbr }}</td></tr>{% endif %}
+    </table>
+    {% if gestisce %}<div style="margin-top:10px"><a class="sz-btn sz-btn-ghost" href="{% url 'scadenzario:scadenza_modifica' s.pk %}">Modifica</a></div>{% endif %}
+  </div>
+
+  {% if gestisce %}
+  <form method="post" action="{% url 'scadenzario:scadenza_rinnovo' s.pk %}" enctype="multipart/form-data" class="sz-card">
+    {% csrf_token %}
+    <h2>Registra controllo / rinnovo</h2>
+    <div class="sz-help" style="margin-bottom:8px">Aggiorna l'ultimo controllo e porta la scadenza alla successiva{% if s.validita_mesi %} (data del controllo + {{ s.validita_mesi }} mesi){% endif %}. Gli avvisi ripartono dalla nuova data.</div>
+    {% with form=rinnovo_form %}{% include "scadenzario/components/campi.html" %}{% endwith %}
+    <div style="margin-top:12px"><button class="sz-btn sz-btn-primary" type="submit">Registra</button></div>
+  </form>
+  {% endif %}
+
+  <div class="sz-card sz-wrap">
+    <h2>Storico dei rinnovi</h2>
+    <table class="sz-table">
+      <thead><tr><th>Eseguito il</th><th>Scadenza precedente</th><th>Nuova scadenza</th><th>Note</th><th>Allegato</th><th>Registrato da</th></tr></thead>
+      <tbody>
+      {% for r in rinnovi %}
+        <tr>
+          <td>{{ r.eseguito_il|date:"d/m/Y" }}</td>
+          <td>{{ r.scadenza_precedente|date:"d/m/Y"|default:"—" }}</td>
+          <td>{{ r.nuova_scadenza|date:"d/m/Y"|default:"—" }}</td>
+          <td>{{ r.note|default:"—" }}</td>
+          <td>{% if r.allegato %}<a href="{% url 'scadenzario:rinnovo_allegato' r.pk %}">{{ r.allegato_nome|default:"scarica" }}</a>{% else %}—{% endif %}</td>
+          <td class="sz-muted">{% if r.registrato_da %}{{ r.registrato_da.get_username }}{% endif %} · {{ r.registrato_il|date:"d/m/Y H:i" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="sz-muted">Nessun rinnovo registrato.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sz-card sz-wrap">
+    <h2>Ultimi avvisi inviati</h2>
+    <table class="sz-table">
+      <tbody>
+      {% for a in avvisi %}
+        <tr><td style="white-space:nowrap">{{ a.inviato_il|date:"d/m/Y H:i" }}</td><td>{% if a.riuscito %}<span class="sz-pill sz-ok">inviato</span>{% else %}<span class="sz-pill sz-scaduta">non inviato</span>{% endif %}{% if a.importato %} <span class="sz-pill sz-off">vecchio scadenzario</span>{% endif %}</td><td>{{ a.destinatari }}</td><td class="sz-muted">{{ a.esito }}</td></tr>
+      {% empty %}
+        <tr><td class="sz-muted">Nessun avviso.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endwith %}
+{% endblock %}

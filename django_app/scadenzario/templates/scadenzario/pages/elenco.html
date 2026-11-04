@@ -1,0 +1,70 @@
+{% extends "core/base.html" %}
+{% load scadenzario_tags %}
+
+{% block title %}Scadenze generiche | Scadenzario{% endblock %}
+
+{% block extra_head %}{% include "scadenzario/components/stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="sz-page">
+  <div class="sz-top">
+    <div>
+      <h1 class="sz-title">Scadenze generiche</h1>
+      <div class="sz-sub">Attività con scadenza che non appartengono a un altro modulo (certificati, contratti, verifiche…). Compaiono anche nello Scadenzario insieme alle scadenze degli altri moduli.</div>
+    </div>
+    {% include "scadenzario/components/nav.html" with attiva="elenco" %}
+  </div>
+
+  <div class="sz-kpis">
+    <div class="sz-kpi"><b>{{ righe|length }}</b><span>attività</span></div>
+    <div class="sz-kpi"><b style="color:#b91c1c">{{ n_scadute }}</b><span>scadute</span></div>
+    <div class="sz-kpi"><b style="color:#b45309">{{ n_30 }}</b><span>entro 30 giorni</span></div>
+  </div>
+
+  <form method="get" class="sz-card sz-filters">
+    <label>Categoria
+      <select name="categoria" class="sz-input">
+        <option value="">Tutte</option>
+        {% for c in categorie %}<option value="{{ c.pk }}" {% if filtro_categoria == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Stato
+      <select name="stato" class="sz-input">
+        <option value="">Tutte</option>
+        <option value="scadute" {% if stato == "scadute" %}selected{% endif %}>Scadute</option>
+        <option value="30" {% if stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
+        <option value="60" {% if stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
+        <option value="90" {% if stato == "90" %}selected{% endif %}>Entro 90 giorni</option>
+      </select>
+    </label>
+    <label>Cerca <input class="sz-input" type="text" name="q" value="{{ q }}" maxlength="80" placeholder="Attività, descrizione, ubicazione"></label>
+    <label style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" name="sospese" value="1" {% if mostra_sospese %}checked{% endif %}> anche le sospese</label>
+    <button class="sz-btn sz-btn-primary" type="submit">Filtra</button>
+    <a class="sz-btn sz-btn-ghost" href="{% url 'scadenzario:elenco' %}">Azzera</a>
+    <button class="sz-btn sz-btn-ghost" type="submit" name="format" value="xlsx">Excel</button>
+    {% if puo_inserire %}<a class="sz-btn sz-btn-primary" href="{% url 'scadenzario:scadenza_nuova' %}{% if filtro_categoria %}?categoria={{ filtro_categoria }}{% endif %}">+ Nuova attività</a>{% endif %}
+  </form>
+
+  <div class="sz-card sz-wrap">
+    <table class="sz-table">
+      <thead><tr><th>Scadenza</th><th>Attività</th><th>Categoria</th><th>Ubicazione</th><th>Ultimo controllo</th><th>Stato</th></tr></thead>
+      <tbody>
+      {% for s in righe %}
+        {% with st=s.giorni|stato_giorni %}
+        <tr>
+          <td style="white-space:nowrap">{{ s.data_scadenza|date:"d/m/Y"|default:"—" }}</td>
+          <td><a href="{% url 'scadenzario:scadenza_dettaglio' s.pk %}">{{ s.titolo }}</a>{% if not s.is_active %} <span class="sz-pill sz-off">sospesa</span>{% endif %}{% if s.descrizione %}<div class="sz-help">{{ s.descrizione|truncatechars:90 }}</div>{% endif %}</td>
+          <td>{{ s.categoria.nome }}</td>
+          <td>{{ s.ubicazione|default:"—" }}</td>
+          <td>{{ s.ultimo_controllo|date:"d/m/Y"|default:"—" }}</td>
+          <td><span class="sz-pill {{ st.0 }}">{{ st.1 }}</span></td>
+        </tr>
+        {% endwith %}
+      {% empty %}
+        <tr><td colspan="6" class="sz-muted" style="text-align:center;padding:24px">Nessuna attività{% if q or filtro_categoria or stato %} con questi filtri{% endif %}.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
