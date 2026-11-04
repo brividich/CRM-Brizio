@@ -40,7 +40,9 @@ GUIDA = {
                       "manda al controllore una mail con il contenuto e il link per riprendere."),
                 ("p", "Gestione anomalie mostra solo gli OP che ti riguardano: quelli di cui sei capocommessa o CAR, "
                       "quelli dove hai aperto un'anomalia e quelli che il tuo ruolo ti fa vedere (team o tutti). Di "
-                      "partenza il filtro è «Con aperte»; «In carico a me» tiene gli OP di cui sei capocommessa o CAR, "
+                      "partenza il filtro è «Con aperte»; «In carico a me» tiene gli OP di cui sei capocommessa o CAR "
+                      "(e, per i referenti RDC di Configurazione, quelli con anomalie aperte da aprire RDC o da "
+                      "segnalare al cliente), "
                       "«Tutti» mostra anche quelli con sole anomalie chiuse."),
                 ("p", "Se scrivi una nota nella decisione, l'avanzamento non può restare «In attesa»: va scelto uno "
                       "stato diverso, nel portale come nella pagina della mail."),
@@ -53,8 +55,13 @@ GUIDA = {
                 ("p", "Le decisioni prese nel portale partono in un'unica mail di riepilogo dopo 5 minuti senza "
                       "salvataggi sull'OP (Configurazione → Notifiche); la barra «N decisioni in attesa di invio» in "
                       "Gestione anomalie permette di mandarle subito con «Invia ora»."),
-                ("p", "«Segnalare al cliente» porta l'avanzamento su «In attesa risposta cliente»: l'anomalia resta "
-                      "aperta finché il capocommessa non sceglie lo stato definitivo dopo la risposta del cliente."),
+                ("p", "«Segnalare al cliente» porta l'avanzamento su «In attesa risposta cliente» e spunta anche "
+                      "«Aprire RDC» (si può togliere): l'anomalia resta aperta finché il capocommessa non sceglie lo "
+                      "stato definitivo dopo la risposta del cliente. Con «Aprire RDC» la segnalazione al cliente resta "
+                      "facoltativa."),
+                ("p", "Nella decisione ci sono anche «Segnala a terzista», «Dove sono i pezzi?», gli «Allegati della "
+                      "decisione» e «Segnala a CAR»: scelti uno o più CAR in «A quale CAR?», al salvataggio ricevono "
+                      "una mail con l'anomalia e il link (Configurazione → Notifiche → «Segnala a CAR»)."),
                 ("p", "Un'anomalia chiusa la riapre chi ne è incaricato (capocommessa, CAR, controllore che l'ha "
                       "segnalata, chi può modificare l'OP) con «Riapri anomalia»: torna «In attesa». Accanto al "
                       "numero dell'OP, in cima al dettaglio, c'è il P/N."),
@@ -71,6 +78,11 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Chi è capocommessa e chi riceve le mail si decide con i ruoli del modulo e in Anagrafica.",
+                    "«Referenti RDC / segnalazione cliente» (Configurazione, un nome o email per riga, con «Aggiungi» "
+                    "dall'anagrafica): queste persone vedono in «In carico a me» gli OP con anomalie aperte da aprire "
+                    "RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati).",
+                    "La mail «Segnala a CAR» va al CAR solo se il nominativo corrisponde a un solo utente e ha l'email "
+                    "di notifica in anagrafica; si spegne in Configurazione → Notifiche.",
                     "Con «Ruoli e permessi» acceso l'ambito delle celle anomalie decide chi vede e modifica: «Tutti» "
                     "ogni OP, «Team» gli OP del team (capocommessa, CAR o autori delle anomalie nel team), «Propri» "
                     "solo i suoi. Capocommessa e CAR modificano sempre i propri OP (regole CC/CAR del modulo). Di "

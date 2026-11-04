@@ -1,4 +1,4 @@
-﻿{% load static %}
+{% load static %}
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -117,6 +117,7 @@
     .ga-pill--chiuso { background: var(--success-bg); color: var(--success); border-color: color-mix(in srgb, var(--success) 30%, transparent); }
     .ga-pill--rdc { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
     .ga-pill--cli { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+    .ga-pill--ter { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
     .ga-pill--ben { background: #dcfce7; color: #166534; border-color: #86efac; }
     .ga-pill--muted { background: var(--bg); color: var(--text-mid); border-color: var(--border); }
     .ga-pill--sup { background: #fff1e6; color: #9a3412; border-color: #fdba74; }
@@ -187,6 +188,7 @@
     .ga-esito-form__acts { display: flex; justify-content: flex-end; gap: 8px; }
     .ga-esito-apri { justify-self: start; }
     .ga-att--esito { padding: 8px 10px; }
+    .ga-att--dec { padding: 8px 10px; }
     /* Percorso dell'anomalia (al posto del vecchio stepper a stati fissi) */
     .ga-percorso { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
     .ga-percorso__passo { position: relative; display: grid; justify-items: center; text-align: center; gap: 2px; padding: 0 4px; min-width: 0; }
@@ -305,6 +307,7 @@
     body.theme-dark .ga-pill--aperto { background: rgba(59,130,246,.14); color: #93c5fd; border-color: rgba(96,165,250,.4); }
     body.theme-dark .ga-pill--rdc { background: rgba(239,68,68,.14); color: #fca5a5; border-color: rgba(248,113,113,.4); }
     body.theme-dark .ga-pill--cli { background: rgba(139,92,246,.16); color: #c4b5fd; border-color: rgba(167,139,250,.4); }
+    body.theme-dark .ga-pill--ter { background: rgba(249,115,22,.16); color: #fdba74; border-color: rgba(251,146,60,.4); }
     body.theme-dark .ga-pill--ben { background: rgba(34,197,94,.14); color: #86efac; border-color: rgba(74,222,128,.4); }
     body.theme-dark .ga-pill--sup { background: rgba(249,115,22,.12); color: #fdba74; border-color: rgba(249,115,22,.4); }
     body.theme-dark .ga-blk__todo, body.theme-dark .ga-det__state.is-dirty { color: #fdba74; }

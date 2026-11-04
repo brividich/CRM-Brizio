@@ -35,7 +35,7 @@ LISTE_LABEL = {k: label for k, label, _u in LISTE}
 # Interruttori modificabili: chiave del pannello → chiave di get_escalation_config().
 TOGGLE_KEYS = (
     "attivo", "ricorrenza_attivo", "rdc_attivo", "digest_attivo",
-    "op_completato_attivo", "decisioni_operatore_attivo",
+    "op_completato_attivo", "decisioni_operatore_attivo", "segnala_car_attivo",
 )
 PARAM_KEYS = ("soglia_ore", "ora_invio", "ricorrenza_n", "ricorrenza_giorni", "rdc_giorni",
               "controllo_promemoria_minuti", "controllo_invio_auto_minuti",
@@ -161,6 +161,14 @@ def stato_pannello() -> dict:
             "log": "decisioni_operatore", "motore": "anomalie_pending_notifications",
         },
         {
+            "code": "segnala_car", "titolo": "Segnala a CAR",
+            "quando": "Al salvataggio della decisione con «Segnala a CAR» spuntato (di nuovo solo se cambiano "
+                      "i CAR scelti).",
+            "auto": "I CAR scelti dal capocommessa (email di notifica della scheda anagrafica) e notifica nel portale.",
+            "liste": [], "toggle": "segnala_car_attivo", "attiva": cfg["segnala_car_attivo"],
+            "log": "segnala_car", "motore": "",
+        },
+        {
             "code": "op_completato", "titolo": "OP completato",
             "quando": "Circa 5 minuti dopo la chiusura dell'ultima anomalia aperta dell'OP.",
             "auto": "Capocommessa e CAR dell'OP.", "liste": [],
@@ -200,6 +208,7 @@ def stato_pannello() -> dict:
     ]
 
     invii = _ultimi_invii({"mail_action", "promemoria_controllo", "conferma_aggiornamenti", "decisioni_operatore",
+                           "segnala_car",
                            "op_completato", "escalation_resoconto", "ricorrenza_pn",
                            "digest_settimanale"})
     motori = _motori()

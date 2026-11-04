@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import logging
+import re
 from collections import defaultdict
 from urllib.parse import quote
 
@@ -668,3 +669,92 @@ def invia_decisioni_operatore(op_id: str, piano: list[dict], *, deciso_da: str =
                  op_id=op_id, context={"n": n, "deciso_da": chi}):
             sent += 1
     return sent
+
+
+# ── «Segnala a CAR» (decisione del capocommessa) ───────────────────────────
+
+TIPO_NOTIFICA_SEGNALA_CAR = "anomalia_da_gestire"
+
+
+def separa_car_scelti(raw) -> list[str]:
+    """Nominativi dei CAR scelti (lista o testo separato da «;»/«,»/a capo), senza doppioni."""
+    if isinstance(raw, (list, tuple)):
+        voci = [str(v or "") for v in raw]
+    else:
+        voci = re.split(r"[;,\n]+", str(raw or ""))
+    out, visti = [], set()
+    for v in voci:
+        nome = " ".join(v.split())[:120]
+        if nome and nome.lower() not in visti:
+            visti.add(nome.lower())
+            out.append(nome)
+    return out[:10]
+
+
+def invia_segnalazione_car(*, anomalia_id: int, op_id: str, car: list[str], seriale: str = "",
+                           descrizione: str = "", decisione: str = "", note: str = "",
+                           dove_pezzi: str = "", deciso_da: str = "") -> dict:
+    """Mail (email di notifica dell'anagrafica) e notifica in-app ai CAR scelti.
+
+    Ritorna ``{"inviate": n, "senza_email": [...], "non_trovati": [...]}``. Mai bloccante.
+    Un nominativo che non corrisponde a un solo utente non riceve nulla (meglio
+    nessuna mail che una alla persona sbagliata) e torna in ``non_trovati``.
+    """
+    from core.models import Notifica
+    from anomalie.escalation_config import get_escalation_config
+    from anomalie.mail_action_service import _fetch_pn_for_ops, find_legacy_user_by_name
+
+    esito = {"inviate": 0, "senza_email": [], "non_trovati": []}
+    if not car or not get_escalation_config().get("segnala_car_attivo"):
+        return esito
+    pn = ""
+    try:
+        pn = _fetch_pn_for_ops([op_id]).get(str(op_id).strip().lower(), "")
+    except Exception:
+        logger.warning("segnala CAR: P/N non letto op=%s", op_id, exc_info=True)
+    link = op_portal_link(op_id)
+    chi = deciso_da or "Il capocommessa"
+    riga = [seriale or "—", (descrizione or "—")[:160], decisione or "—", (note or "—")[:300]]
+    for nome in car:
+        try:
+            utente = find_legacy_user_by_name(nome)
+        except Exception:
+            utente = None
+        if utente is None:
+            esito["non_trovati"].append(nome)
+            continue
+        email, nome_anag = contatto_operatore(utente.id)
+        try:
+            Notifica.objects.create(
+                legacy_user_id=utente.id, tipo=TIPO_NOTIFICA_SEGNALA_CAR,
+                messaggio=f"OP {op_id}: {chi} ti segnala l'anomalia S/N {seriale or '—'}."[:500],
+                url_azione=op_url(op_id),
+            )
+        except Exception:
+            logger.warning("segnala CAR: notifica fallita op=%s uid=%s", op_id, utente.id, exc_info=True)
+        if not email:
+            esito["senza_email"].append(nome)
+            continue
+        subject = f"[Novicrom Hub] {f'P/N {pn} · ' if pn else ''}OP {op_id} — anomalia segnalata al CAR"
+        lines = [f"{chi} ti segnala un'anomalia dell'OP {op_id}{f' (P/N {pn})' if pn else ''}.", "",
+                 f"  • S/N {riga[0]} · {riga[2]}", f"      {riga[1]}"]
+        if note:
+            lines.append(f"  Note: {riga[3]}")
+        if dove_pezzi:
+            lines.append(f"  Dove sono i pezzi: {dove_pezzi}")
+        if link:
+            lines += ["", f"Gestione anomalie: {link}"]
+        intro = (f"{'Buongiorno ' + (nome_anag or nome) + ', ' if (nome_anag or nome) else ''}"
+                 f"{chi} ti segnala questa anomalia nella sua decisione.")
+        if dove_pezzi:
+            intro += f" Dove sono i pezzi: {dove_pezzi}."
+        html = _render_mail(
+            badge="Segnalazione al CAR", eyebrow=f"OP {op_id}{f' · P/N {pn}' if pn else ''}",
+            title="Anomalia segnalata al CAR", intro=intro,
+            columns=["S/N", "Anomalia", "Decisione", "Note del capocommessa"], rows=[riga],
+            cta_url=link, cta_label="Apri in Gestione anomalie",
+        )
+        if _send(kind="segnala_car", subject=subject, lines=lines, html=html, to=[email], op_id=op_id,
+                 context={"anomalia_id": anomalia_id, "car": nome, "deciso_da": chi}):
+            esito["inviate"] += 1
+    return esito
