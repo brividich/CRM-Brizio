@@ -378,6 +378,7 @@
         <div class="gruppo-overline">{% if gruppo.nuovo and ha_nuove %}Da decidere · {% endif %}Seriali</div>
         <div class="gruppo-sn">{{ gruppo.titolo|default:"(S/N non indicato)" }}</div>
         {% if gruppo.sottotitolo %}<div class="gruppo-sub">{{ gruppo.sottotitolo }}</div>{% endif %}
+        {% if gruppo.dove_pezzi %}<div class="gruppo-sub">&#128230; Dove sono i pezzi: <strong>{{ gruppo.dove_pezzi }}</strong></div>{% endif %}
       </div>
       <div class="gruppo-count">{{ gruppo.righe|length }} anomali{{ gruppo.righe|length|pluralize:"a,e" }}</div>
     </div>
@@ -420,6 +421,7 @@
             {% else %}
             <div class="body-desc-full">{{ a.testo|default:a.descrizione|default:"(nessuna descrizione)"|linebreaksbr }}</div>
             {% endif %}
+            {% if a.dettaglio_righe %}<div class="body-desc-full" style="font-family:Consolas,monospace;font-size:13px;">{% for r in a.dettaglio_righe %}{{ r }}<br>{% endfor %}</div>{% endif %}
 
             {% if a.immagini %}
             <div class="anomalia-images">

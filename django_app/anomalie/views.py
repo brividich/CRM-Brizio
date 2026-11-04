@@ -1865,6 +1865,17 @@ def _is_controllore_anomalia(request, local_id: int) -> bool:
     ).exists()
 
 
+def _dove_pezzi_di(local_id) -> str:
+    """«Dove sono i pezzi?» indicato dal controllore (scheda qualità), "" se non c'è."""
+    from anomalie.quality_models import AnomaliaSchedaQualita
+
+    try:
+        return AnomaliaSchedaQualita.objects.filter(anomalia_id=int(local_id)).values_list(
+            "dove_pezzi", flat=True).first() or ""
+    except Exception:
+        return ""
+
+
 def _salva_dove_pezzi_terzista(request, scheda, data: dict) -> None:
     """«Dove sono i pezzi?», «Segnala a terzista» e «Segnala a CAR» della decisione
     (scheda qualità). I CAR aggiunti ricevono la mail dopo il commit.
@@ -1957,6 +1968,8 @@ def _segna_dove_pezzi_terzista(rows: list[dict]) -> None:
         r["segnala_terzista"] = False
         r["segnala_car"] = False
         r["car_segnalati"] = []
+        r["dettaglio_righe"] = []
+        r["tipo_difetto"] = ""
         if r.get("local_id"):
             try:
                 per_id[int(r["local_id"])] = r
@@ -1966,15 +1979,19 @@ def _segna_dove_pezzi_terzista(rows: list[dict]) -> None:
         return
     try:
         schede = AnomaliaSchedaQualita.objects.filter(anomalia_id__in=list(per_id)).values_list(
-            "anomalia_id", "dove_pezzi", "segnala_terzista", "segnala_car", "car_segnalati"
+            "anomalia_id", "dove_pezzi", "segnala_terzista", "segnala_car", "car_segnalati",
+            "dettaglio_controllo", "tipo_difetto__nome",
         )
         from anomalie.automazioni_service import separa_car_scelti
+        from anomalie.dettaglio_controllo import frasi
 
-        for aid, dove, terzista, car, car_nomi in schede:
+        for aid, dove, terzista, car, car_nomi, dettaglio, difetto in schede:
             per_id[aid]["dove_pezzi"] = dove or ""
             per_id[aid]["segnala_terzista"] = bool(terzista)
             per_id[aid]["segnala_car"] = bool(car)
             per_id[aid]["car_segnalati"] = separa_car_scelti(car_nomi) if car else []
+            per_id[aid]["dettaglio_righe"] = frasi(dettaglio or {})
+            per_id[aid]["tipo_difetto"] = difetto or ""
     except Exception:
         logger.warning("anomalie: dove sono i pezzi / terzista non letti", exc_info=True)
 
@@ -4207,6 +4224,7 @@ def _salva_riga_anomalia(request, data: dict, *, notifica_debounce: bool = True,
                 "descrizione": _safe_text(data.get("desc")) or "",
                 "numero_rdc": _safe_text(data.get("numero_rdc"), 100) or "",
                 "pezzi_recuperato": bool(_as_bool_int(data.get("pezzi_prec"))),
+                "dove_pezzi": _dove_pezzi_di(local_id),
                 "note": _safe_text(data.get("note")) or "",
                 "aprire_rdc": bool(payload_map.get("aprire_rdc")),
                 "segnalare": bool(segnalare_val),
@@ -5206,6 +5224,8 @@ def api_anomalie_config_logo_reset(request):
 @ensure_csrf_cookie
 @con_guida
 def apertura_segnalazione_page(request):
+    from .dettaglio_controllo import catalogo_per_pagina
+
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     display_name = (
         (legacy_user.nome if legacy_user else None)
@@ -5223,6 +5243,7 @@ def apertura_segnalazione_page(request):
         "can_manage_config": _can_manage_anomalie_config(request),
         "config_lists_json": json.dumps(_load_anomalie_lists(), ensure_ascii=False),
         "controllo_tempi": tempi_controllo(),
+        "dettaglio_catalogo_json": json.dumps(catalogo_per_pagina(), ensure_ascii=False),
     }
     return render(request, "anomalie/pages/apertura_segnalazione.html", context)
 

@@ -176,6 +176,11 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
         .order_by("blocco_id", "ordine_nel_blocco", "id")
     )
     righe = carica_righe([m.anomalia_id for m in metas])
+    from .quality_models import AnomaliaSchedaQualita
+
+    schede = {s["anomalia_id"]: s for s in AnomaliaSchedaQualita.objects.filter(
+        anomalia_id__in=[m.anomalia_id for m in metas],
+    ).values("anomalia_id", "dettaglio_controllo", "tipo_difetto_id", "dove_pezzi")} if metas else {}
     per_blocco: dict[int, list] = {}
     for meta in metas:
         row = righe.get(meta.anomalia_id)
@@ -191,6 +196,9 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
             "segnalare": bool(row.get("segnalare_cliente")),
             "note_capocommessa": str(row.get("note_capocommessa") or ""),
             "gestita": riga_gestita(row),
+            "dettaglio": (schede.get(meta.anomalia_id) or {}).get("dettaglio_controllo") or {},
+            "tipo_difetto_id": (schede.get(meta.anomalia_id) or {}).get("tipo_difetto_id"),
+            "dove_pezzi": (schede.get(meta.anomalia_id) or {}).get("dove_pezzi") or "",
             "allegati": _allegati(meta.anomalia_id) if con_allegati else [],
             "_seriale": str(row.get("seriale") or ""),
         })
@@ -209,6 +217,7 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
             "seriale_label": blocco.seriale_label,
             "stato_superficie": blocco.stato_superficie if isinstance(blocco.stato_superficie, list) else [],
             "anomalie": anomalie,
+            "dove_pezzi": next((a["dove_pezzi"] for a in anomalie if a.get("dove_pezzi")), ""),
             # S/N del blocco senza nessuna anomalia (salvati con conferma dell'operatore).
             "seriali_scoperti": scoperti,
             "bloccato": any(a["gestita"] for a in anomalie),
@@ -411,6 +420,15 @@ def gruppi_per_blocco(anomalie_rows: list[dict]) -> list[dict]:
         m.anomalia_id: m
         for m in AnomaliaSegnalazioneMeta.objects.filter(anomalia_id__in=ids).select_related("blocco", "controllo")
     }
+    from .dettaglio_controllo import frasi
+    from .quality_models import AnomaliaSchedaQualita
+
+    try:
+        schede = {s["anomalia_id"]: s for s in AnomaliaSchedaQualita.objects.filter(anomalia_id__in=ids).values(
+            "anomalia_id", "dove_pezzi", "dettaglio_controllo")}
+    except Exception:
+        logger.warning("controllo: schede qualita' non lette per le mail", exc_info=True)
+        schede = {}
     gruppi: list[dict] = []
     per_chiave: dict[str, dict] = {}
     for row in anomalie_rows:
@@ -436,6 +454,12 @@ def gruppi_per_blocco(anomalie_rows: list[dict]) -> list[dict]:
             titolo = row.get("seriale") or ""
             sottotitolo = f"Fase {row['fase']}" if row.get("fase") else ""
         row["blocco_id"] = meta.blocco_id if meta else None
+        try:
+            scheda = schede.get(int(row.get("id"))) or {}
+        except (TypeError, ValueError):
+            scheda = {}
+        row["dove_pezzi"] = scheda.get("dove_pezzi") or ""
+        row["dettaglio_righe"] = frasi(scheda.get("dettaglio_controllo") or {})
         # Anomalia presente solo su una parte dei seriali del blocco.
         row["seriali_parziali"] = ""
         if meta and meta.blocco_id:
@@ -444,10 +468,12 @@ def gruppi_per_blocco(anomalie_rows: list[dict]) -> list[dict]:
                 row["seriali_parziali"] = info["seriale_label"]
         gruppo = per_chiave.get(chiave)
         if gruppo is None:
-            gruppo = {"chiave": chiave, "titolo": titolo, "sottotitolo": sottotitolo, "righe": []}
+            gruppo = {"chiave": chiave, "titolo": titolo, "sottotitolo": sottotitolo, "righe": [], "dove_pezzi": ""}
             per_chiave[chiave] = gruppo
             gruppi.append(gruppo)
         gruppo["righe"].append(row)
+        if row["dove_pezzi"] and not gruppo["dove_pezzi"]:
+            gruppo["dove_pezzi"] = row["dove_pezzi"]
     return gruppi
 
 
@@ -817,7 +843,32 @@ def flush_controlli() -> dict:
         ):
             promemoria += 1
     return {"controlli_inviati": inviati, "controlli_promemoria": promemoria,
-            "bozze_promemoria": promemoria_bozze(now, tempi["promemoria"])}
+            "bozze_promemoria": promemoria_bozze(now, tempi["promemoria"]),
+            "controlli_vuoti_chiusi": chiudi_controlli_vuoti(now)}
+
+
+ORE_CHIUSURA_CONTROLLI_VUOTI = 24
+
+
+def chiudi_controlli_vuoti(now=None) -> int:
+    """Termina i controlli rimasti vuoti (nessun blocco, nessuna bozza, niente da
+    comunicare) da più di 24 ore: non restano a proporsi come «da riprendere»."""
+    from .quality_models import AnomaliaControllo
+
+    now = now or timezone.now()
+    soglia = now - timedelta(hours=ORE_CHIUSURA_CONTROLLI_VUOTI)
+    chiusi = 0
+    for controllo in AnomaliaControllo.objects.filter(
+        terminato_at__isnull=True, created_at__lte=soglia, created_at__gte=now - timedelta(days=60),
+    ):
+        ultimo = max(d for d in (controllo.created_at, controllo.bozza_at, controllo.ultimo_salvataggio_at) if d)
+        if ultimo > soglia or controllo.da_notificare or bozza_piena(controllo.bozza) or controllo.blocchi.exists():
+            continue
+        controllo.terminato_at = now
+        controllo.save(update_fields=["terminato_at", "updated_at"])
+        logger.info("controllo %s vuoto chiuso in automatico (op=%s)", controllo.pk, controllo.op_id)
+        chiusi += 1
+    return chiusi
 
 
 def promemoria_bozze(now, minuti: int) -> int:
