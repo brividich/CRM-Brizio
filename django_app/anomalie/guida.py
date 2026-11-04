@@ -479,7 +479,9 @@ SEZIONI: list[dict] = [
                 ("Campi del blocco del controllore", "in cima alla scheda Configurazione: per ogni parte nuova di "
                  "«Apertura segnalazione» («Dove sono i pezzi?», simboli, «Che cosa hai trovato?» e i tre casi, riquadro "
                  "«Dal report ZEISS», riferimento, tipo di difetto, «Copia nella descrizione») scegli «Visibile: Sempre», "
-                 "«Mai» o «Solo se…». Con «Solo se…» compili una o più condizioni: persone, ruoli operativi, parole "
+                 "«Mai» o «Solo se…». In cima, «Chi fa cosa: gruppi di controllori» (di serie «Controllo CMM» e «Controllo "
+                 "visivo», se ne aggiungono altri) mette ogni controllore nel suo gruppo. Con «Solo se…» compili una o più "
+                 "condizioni: gruppi di controllori, persone, ruoli operativi, parole "
                  "contenute nella fase del controllo (es. CMM), tipo di difetto dell'anomalia (scelto o proposto). Devono "
                  "valere tutte quelle compilate; dentro ognuna basta una voce. «Salva campi» vale subito: il controllore "
                  "ricarica la pagina. Nascondere una parte non cancella i dati già inseriti."),

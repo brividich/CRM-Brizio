@@ -120,8 +120,9 @@
   <style>
     #card-campi-controllo .cc-cond { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
     #card-campi-controllo .cc-cond[hidden] { display: none; }
-    #card-campi-controllo .cc-ruoli input, #card-campi-controllo .cc-tipi input { width: 14px; height: 14px; min-height: 0; margin: 0 4px 0 0; vertical-align: -2px; }
+    #card-campi-controllo .cc-ruoli input, #card-campi-controllo .cc-tipi input, #card-campi-controllo .cc-gruppi-sel input { width: 14px; height: 14px; min-height: 0; margin: 0 4px 0 0; vertical-align: -2px; }
   </style>
+  {{ gruppi_controllori|json_script:"cc-gruppi-dati" }}
   <div class="card" id="card-campi-controllo">
     <div class="card-head">
       <div>
@@ -130,6 +131,11 @@
       </div>
     </div>
     <div class="card-body" style="display:grid;gap:10px;">
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:grid;gap:8px;background:var(--bg);">
+        <div><strong>Chi fa cosa: gruppi di controllori</strong><br><small style="color:var(--text-mid);">Metti ogni controllore nel suo gruppo (es. chi fa il controllo CMM e chi il controllo visivo). Nelle regole «Solo se…» scegli poi i gruppi che vedono una parte.</small></div>
+        <div id="cc-gruppi" style="display:grid;gap:8px;"></div>
+        <div><button type="button" class="btn btn-secondary btn-sm" id="cc-gruppo-add">+ Aggiungi gruppo</button></div>
+      </div>
       {% for campo in campi_controllo %}
       <div class="cc-row" data-campo="{{ campo.chiave }}" style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:grid;gap:8px;">
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
@@ -147,6 +153,9 @@
             <textarea class="input cc-persone" rows="2" spellcheck="false">{{ campo.regola.persone|join:", " }}</textarea>
             <select class="input cc-persone-pick"><option value="">— aggiungi una persona —</option></select>
           </label>
+          <div style="display:grid;gap:3px;"><small><strong>Gruppi di controllori</strong></small>
+            <div class="cc-gruppi-sel" data-scelti="{{ campo.regola.gruppi|join:',' }}" style="display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;"></div>
+          </div>
           <div style="display:grid;gap:3px;"><small><strong>Ruoli operativi</strong></small>
             <div class="cc-ruoli" data-scelti="{{ campo.regola.ruoli|join:',' }}" style="display:flex;flex-wrap:wrap;gap:4px 10px;max-height:110px;overflow:auto;font-size:12px;"></div>
           </div>
@@ -179,6 +188,52 @@
       const esc = (v) => String(v == null ? "" : v).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
       const righe = (v) => String(v || "").split(/\r?\n|,/).map(t => t.trim()).filter(Boolean);
       const nomi = Array.isArray(window._CFG_ANAGRAFICA_NAMES) ? window._CFG_ANAGRAFICA_NAMES : [];
+      // Gruppi di controllori: elenco modificabile; le regole li scelgono per codice.
+      let gruppi = JSON.parse(document.getElementById("cc-gruppi-dati").textContent || "[]");
+      const boxGruppi = document.getElementById("cc-gruppi");
+      const codice = (n) => String(n || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+      const opzioniNomi = nomi.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+      const leggiGruppi = () => Array.from(boxGruppi.querySelectorAll(".cc-gruppo")).map(el => ({
+        codice: el.dataset.codice || codice(el.querySelector(".cc-g-nome").value),
+        nome: el.querySelector(".cc-g-nome").value.trim(),
+        persone: righe(el.querySelector(".cc-g-persone").value),
+      })).filter(g => g.nome);
+      const disegnaSelezioni = () => {
+        const attuali = leggiGruppi();
+        document.querySelectorAll(".cc-gruppi-sel").forEach(sel => {
+          const scelti = new Set(Array.from(sel.querySelectorAll("input:checked")).map(i => i.value).concat((sel.dataset.scelti || "").split(",").filter(Boolean)));
+          sel.dataset.scelti = "";
+          sel.innerHTML = attuali.length ? attuali.map(g => `<label><input type="checkbox" value="${esc(g.codice)}"${scelti.has(g.codice) ? " checked" : ""}> ${esc(g.nome)}</label>`).join("") : "<small>Nessun gruppo</small>";
+        });
+      };
+      const disegnaGruppi = () => {
+        boxGruppi.innerHTML = gruppi.map(g => `
+          <div class="cc-gruppo" data-codice="${esc(g.codice || "")}" style="display:grid;gap:6px;grid-template-columns:minmax(160px,220px) 1fr auto;align-items:start;">
+            <input class="input cc-g-nome" value="${esc(g.nome)}" placeholder="Nome del gruppo">
+            <div style="display:grid;gap:4px;">
+              <textarea class="input cc-g-persone" rows="2" spellcheck="false" placeholder="Persone, separate da virgola">${esc((g.persone || []).join(", "))}</textarea>
+              <select class="input cc-g-pick"><option value="">— aggiungi una persona —</option>${opzioniNomi}</select>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm cc-g-del" title="Togli il gruppo">×</button>
+          </div>`).join("");
+        boxGruppi.querySelectorAll(".cc-gruppo").forEach(el => {
+          const area = el.querySelector(".cc-g-persone");
+          el.querySelector(".cc-g-pick").addEventListener("change", (ev) => {
+            const n = ev.target.value; if (!n) return;
+            const att = righe(area.value);
+            if (!att.some(x => x.toLowerCase() === n.toLowerCase())) att.push(n);
+            area.value = att.join(", "); ev.target.value = "";
+          });
+          el.querySelector(".cc-g-nome").addEventListener("change", () => { gruppi = leggiGruppi(); disegnaSelezioni(); });
+          el.querySelector(".cc-g-del").addEventListener("click", () => { el.remove(); gruppi = leggiGruppi(); disegnaSelezioni(); });
+        });
+      };
+      document.getElementById("cc-gruppo-add").addEventListener("click", () => {
+        gruppi = leggiGruppi().concat([{ codice: "", nome: "Nuovo gruppo", persone: [] }]);
+        disegnaGruppi(); disegnaSelezioni();
+      });
+      disegnaGruppi();
+      disegnaSelezioni();
       const ruoli = Array.isArray(window._CFG_RUOLI_OPERATIVI) ? window._CFG_RUOLI_OPERATIVI : [];
       document.querySelectorAll(".cc-row").forEach(row => {
         const modo = row.querySelector(".cc-modo");
@@ -206,6 +261,7 @@
             ruoli: Array.from(row.querySelectorAll(".cc-ruoli input:checked")).map(el => Number(el.value)),
             fasi: righe(row.querySelector(".cc-fasi").value),
             tipi: Array.from(row.querySelectorAll(".cc-tipi input:checked")).map(el => el.value),
+            gruppi: Array.from(row.querySelectorAll(".cc-gruppi-sel input:checked")).map(el => el.value),
           };
         });
         btn.disabled = true;
@@ -213,7 +269,7 @@
           const r = await fetch("{% url 'api_anomalie_config_campi_controllo' %}", {
             method: "POST", credentials: "same-origin",
             headers: { "Content-Type": "application/json", "X-CSRFToken": csrf() },
-            body: JSON.stringify({ campi }),
+            body: JSON.stringify({ campi, gruppi: leggiGruppi() }),
           });
           const j = await r.json();
           if (!r.ok || !j.success) throw new Error(j.error || "Salvataggio non riuscito");
