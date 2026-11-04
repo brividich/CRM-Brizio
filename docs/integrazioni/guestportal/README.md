@@ -48,3 +48,26 @@ Poi nel `.env` persistente dell'HUB: `GUESTPORTAL_DB_HOST`, `GUESTPORTAL_DB_PORT
 L'HUB non copia i dati delle visite per la pagina Accessi esterni: legge a ogni apertura.
 
 Eccezione voluta (decisione 04/11/2026): quando un ingresso viene **collegato a un ticket o a un OdL** l'HUB salva `VisitID`, giorno, entrata, uscita, nominativo del tecnico, azienda e badge (`fornitori_ingressointervento`), come prova dell'intervento e per il confronto con le ore fatturate. Questi dati seguono la conservazione del ticket/OdL, non la pulizia del GuestPortal.
+
+## Messa in sicurezza (04/11/2026)
+
+Fatto sul server; copia dei file originali in `C:\inetpub\guestportal_backup_20261104\`, fuori dalla webroot:
+
+- `web.config` di root ([copia](web.config)): `hiddenSegments` per `scripts`, `sql`, `config`, `logs`, `storage`, `src` e blocco delle estensioni `.sql .py .ps1 .env .log .bak .lock`. Prima `scripts/config.json` (segreto Azure, password DB e SMTP) era scaricabile senza login.
+- Spostati in backup (`copie_rimosse_dalla_webroot\`): `public/admin/dashboard - Copia.php`, `public/kiosk/No Responsive/`, `public/kiosk/Tema Scuro/`, `scripts/prereg_worker - Copia.py`, `Thumbs.db` e i doppioni rotti e senza login `public/api/admin/prereg_lookup.php` / `prereg_checkin.php` (puntavano a un bootstrap inesistente e nessuno li chiamava: il chiosco usa `public/api/prereg_*`).
+- `public/api/admin/gdpr_purge.php`: «Reset completo» solo per l'account master (`AdminAuth::requireMaster()`); al browser un errore generico, il dettaglio resta in `C:\Windows\Temp\guestportal.log`.
+
+Verificato dopo le modifiche: chiosco (index, checkin, checkout, prereg), API pubbliche, immagini, login admin, SSO dall'HUB, dashboard e logout come prima; cartelle riservate, copie e doppioni rispondono 404.
+
+Ripristino: ricopiare i file da `C:\inetpub\guestportal_backup_20261104\` nella stessa posizione.
+
+### Da fare (competenza IT)
+
+1. Ruotare i segreti già esposti: client secret dell'app Entra, password dell'utente MySQL dell'app, password della casella SMTP.
+2. Cambiare la password di root MySQL e togliere la riga con la password da `sql/01_schema_mysql.sql`.
+3. HTTPS con certificato della CA interna e redirect da HTTP (oggi le credenziali AD del login admin viaggiano in chiaro); poi `https://` in `GUESTPORTAL_ADMIN_URL` e `GUESTPORTAL_SSO_URL` dell'HUB.
+4. LDAP: `ldaps://` (porta 636) al posto di `ldap://` in `src/AdminAuth.php`.
+5. `php.ini`: `session.cookie_httponly = 1`, `session.cookie_samesite = Lax`, `session.use_strict_mode = 1`; `session.cookie_secure = 1` dopo l'HTTPS.
+6. IIS «Restrizioni IP e dominio» su `public/api/` e `public/kiosk/` per i soli IP dei chioschi (gli endpoint del chiosco non hanno login per scelta).
+7. Limite ai tentativi di login falliti nel pannello admin.
+8. Rotazione di `scripts/prereg_worker.log` (55 MB).
