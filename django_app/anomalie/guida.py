@@ -483,7 +483,10 @@ SEZIONI: list[dict] = [
                  "visivo», se ne aggiungono altri) mette ogni controllore nel suo gruppo. Con «Solo se…» compili una o più "
                  "condizioni: gruppi di controllori, persone, ruoli operativi, parole "
                  "contenute nella fase del controllo (es. CMM), tipo di difetto dell'anomalia (scelto o proposto). Devono "
-                 "valere tutte quelle compilate; dentro ognuna basta una voce. «Salva campi» vale subito: il controllore "
+                 "valere tutte quelle compilate; dentro ognuna basta una voce. A destra l'«Anteprima dal vivo» mostra la scheda "
+                 "come la vedrebbe un controllore («Vedi come»: persona, fase del controllo, tipo di difetto) mentre cambi "
+                 "le regole, anche prima di salvarle; passando su una regola si evidenzia la sua parte e sotto c'è "
+                 "l'elenco delle parti nascoste. «Salva campi» vale subito: il controllore "
                  "ricarica la pagina. Nascondere una parte non cancella i dati già inseriti."),
                 ("Qualità", "catalogo dei tipi difetto e chi può chiudere le non conformità."),
                 ("Permessi", "ruoli operativi (sola lettura, dall'Anagrafica) e regole di accesso per ruolo e per "
