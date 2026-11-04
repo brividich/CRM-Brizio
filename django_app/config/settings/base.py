@@ -565,6 +565,7 @@ INSTALLED_APPS = [
     "notizie.apps.NotizieConfig",
     "anagrafica.apps.AnagraficaConfig",
     "fornitori.apps.FornitoriConfig",
+    "scadenzario.apps.ScadenzarioConfig",
     "timbri.apps.TimbriConfig",
     "planimetria.apps.PlanimetriaConfig",
     "tickets.apps.TicketsConfig",

@@ -939,6 +939,25 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SCADENZARIO — avvisi delle scadenze generiche alle email delle attività
+        # (preavviso, ripetizione ogni N giorni, anche dopo la scadenza se la categoria lo vuole).
+        "name": "scadenzario_avvisi_attivita",
+        "func": "scadenzario.tasks.run_avvisi_attivita",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "15 7 * * *",       # ogni giorno alle 07:15
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # SCADENZARIO — riepilogo mensile per categoria alle email della categoria.
+        "name": "scadenzario_riepilogo_mensile",
+        "func": "scadenzario.tasks.run_riepiloghi_categorie",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "0 8 1 * *",        # il 1° del mese alle 08:00
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CHECKLIST OPERATIVA — promemoria in-app ai responsabili con task non
         # confermati per le chiusure aziendali in arrivo (soglie 7/3/1/0 giorni).
         "name": "checklist_chiusura_reminders",
