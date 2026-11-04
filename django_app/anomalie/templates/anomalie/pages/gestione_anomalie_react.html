@@ -190,6 +190,8 @@
     .ga-att--esito { padding: 8px 10px; }
     .ga-att--dec { padding: 8px 10px; }
     .ga-ctrl { display: grid; gap: 4px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-size: 13px; }
+    .ga-segnalati { display: grid; gap: 6px; padding: 8px 12px; border: 1px dashed var(--border); border-radius: 10px; }
+    .ga-segnalato { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
     .ga-ctrl__t { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text-mid); }
     .ga-ctrl__r { font-family: ui-monospace, Consolas, monospace; }
     /* Percorso dell'anomalia (al posto del vecchio stepper a stati fissi) */
@@ -332,6 +334,7 @@
       anomalie: "{% url 'api_anomalie_anomalie' %}",
       salva: "{% url 'api_anomalie_salva' %}",
       riapri: "{% url 'api_anomalie_riapri' %}",
+      segnalato: "{% url 'api_anomalie_segnalato' %}",
       esiti: "{% url 'api_anomalie_esiti' %}",
       decisioni_coda: "{% url 'api_anomalie_decisioni_coda' %}",
       esito: "{% url 'api_anomalie_esito' %}",

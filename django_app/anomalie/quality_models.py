@@ -189,6 +189,12 @@ class AnomaliaSchedaQualita(models.Model):
     segnala_car = models.BooleanField(default=False)
     car_segnalati = models.CharField(max_length=500, blank=True, default="")
     car_segnalati_il = models.DateTimeField(null=True, blank=True)
+    # «Segnalato»: il capocommessa registra di aver già avvisato cliente / terzista
+    # (a mano, fuori dal portale). Solo registro: nessuna mail di aggiornamento.
+    segnalato_cliente_il = models.DateTimeField(null=True, blank=True)
+    segnalato_cliente_da = models.CharField(max_length=200, blank=True, default="")
+    segnalato_terzista_il = models.DateTimeField(null=True, blank=True)
+    segnalato_terzista_da = models.CharField(max_length=200, blank=True, default="")
     # Dati strutturati scritti dal controllore (misure, difetto, documenti, riferimento):
     # vedi anomalie/dettaglio_controllo.py. Facoltativi: la descrizione libera resta.
     dettaglio_controllo = models.JSONField(default=dict, blank=True)

@@ -2073,6 +2073,83 @@ def _programma_mail_segnala_car(request, scheda, data: dict, car: list[str]) -> 
     transaction.on_commit(_invia)
 
 
+def _segnalato_payload(il, da: str) -> dict | None:
+    """«Segnalato» per la pagina: ``None`` se non spuntato, altrimenti quando e chi."""
+    if not il:
+        return None
+    return {"il": dj_tz.localtime(il).strftime("%d/%m/%Y %H:%M"), "da": da or ""}
+
+
+SEGNALATO_A = {"cliente": "al cliente", "terzista": "al terzista"}
+
+
+@login_required
+def api_segnalato(request):
+    """Spunta «Segnalato» (cliente o terzista) della decisione.
+
+    Registra solo quando e chi: nessuna mail di aggiornamento, nessun passaggio
+    dalla coda delle conferme (per questo non passa da ``api_salva``). Si spunta
+    solo se la decisione salvata chiede di segnalare a quel destinatario; vale
+    anche su un'anomalia già chiusa (la segnalazione può arrivare dopo).
+    """
+    if request.method != "POST":
+        return _json_error("Metodo non consentito", status=405)
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+        local_id = int(data.get("local_id"))
+    except Exception:
+        return _json_error("local_id non valido", status=400)
+    chi = str(data.get("chi") or "").strip()
+    if chi not in SEGNALATO_A:
+        return _json_error("Destinatario non valido", status=400)
+    acceso = bool(_as_bool_int(data.get("segnalato")))
+    rows = _fetch_all_dict("SELECT TOP 1 * FROM anomalie WHERE id = %s", [local_id]) if _has_table("anomalie") else []
+    if not rows:
+        return _json_error("Anomalia non trovata", status=404)
+    op_id = str(rows[0].get("ex_op_nominativo") or "").strip()
+    if not _can_edit_anomalie_for_op(request, op_id):
+        return _json_error("Permesso negato", status=403)
+
+    from anomalie.qualita_service import sync_da_anomalia
+
+    with transaction.atomic():
+        scheda = sync_da_anomalia(local_id)
+        if scheda is None:
+            return _json_error("Scheda dell'anomalia non disponibile", status=500)
+        richiesto = bool(rows[0].get("segnalare_cliente")) if chi == "cliente" else scheda.segnala_terzista
+        if acceso and not richiesto:
+            etichetta = "Segnalare al cliente" if chi == "cliente" else "Segnala a terzista"
+            return _json_error(f"Prima spunta «{etichetta}» e salva la decisione", status=400)
+        identity = _current_user_identity(request)
+        chi_utente = _safe_text(identity.get("name") or request.user.get_full_name() or request.user.username, 200) or ""
+        setattr(scheda, f"segnalato_{chi}_il", dj_tz.now() if acceso else None)
+        setattr(scheda, f"segnalato_{chi}_da", chi_utente if acceso else "")
+        scheda.save(update_fields=[f"segnalato_{chi}_il", f"segnalato_{chi}_da", "updated_at"])
+
+    nota = f"Segnalato {SEGNALATO_A[chi]}" if acceso else f"Tolta la spunta «Segnalato {SEGNALATO_A[chi]}»"
+    try:
+        log_action(request, "anomalia_segnalato", "anomalie",
+                   {"local_id": local_id, "op_id": op_id, "chi": chi, "segnalato": acceso})
+    except Exception:
+        pass
+    try:
+        from anomalie.mail_action_service import log_anomalia_portal_action
+
+        legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+        log_anomalia_portal_action(
+            anomalia_id=local_id, op_id=op_id, action="segnalato", user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=chi_utente, note=nota,
+            ip_address=_client_ip(request), user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        )
+    except Exception:
+        logger.warning("api_segnalato: timeline log fallita id=%s", local_id, exc_info=True)
+    return JsonResponse({
+        "success": True,
+        "segnalato": _segnalato_payload(getattr(scheda, f"segnalato_{chi}_il"), getattr(scheda, f"segnalato_{chi}_da")),
+    })
+
+
 def _segna_dove_pezzi_terzista(rows: list[dict]) -> None:
     """``dove_pezzi`` e ``segnala_terzista`` dalla scheda qualità di ogni riga."""
     from anomalie.quality_models import AnomaliaSchedaQualita
@@ -2085,6 +2162,8 @@ def _segna_dove_pezzi_terzista(rows: list[dict]) -> None:
         r["car_segnalati"] = []
         r["dettaglio_righe"] = []
         r["tipo_difetto"] = ""
+        r["segnalato_cliente"] = None
+        r["segnalato_terzista"] = None
         if r.get("local_id"):
             try:
                 per_id[int(r["local_id"])] = r
@@ -2096,11 +2175,14 @@ def _segna_dove_pezzi_terzista(rows: list[dict]) -> None:
         schede = AnomaliaSchedaQualita.objects.filter(anomalia_id__in=list(per_id)).values_list(
             "anomalia_id", "dove_pezzi", "segnala_terzista", "segnala_car", "car_segnalati",
             "dettaglio_controllo", "tipo_difetto__nome",
+            "segnalato_cliente_il", "segnalato_cliente_da", "segnalato_terzista_il", "segnalato_terzista_da",
         )
         from anomalie.automazioni_service import separa_car_scelti
         from anomalie.dettaglio_controllo import frasi
 
-        for aid, dove, terzista, car, car_nomi, dettaglio, difetto in schede:
+        for aid, dove, terzista, car, car_nomi, dettaglio, difetto, cli_il, cli_da, ter_il, ter_da in schede:
+            per_id[aid]["segnalato_cliente"] = _segnalato_payload(cli_il, cli_da)
+            per_id[aid]["segnalato_terzista"] = _segnalato_payload(ter_il, ter_da)
             per_id[aid]["dove_pezzi"] = dove or ""
             per_id[aid]["segnala_terzista"] = bool(terzista)
             per_id[aid]["segnala_car"] = bool(car)
@@ -4373,6 +4455,7 @@ _TIMELINE_ACTION_LABELS = {
     "aggiorna": "Anomalia aggiornata",
     "chiudi": "Anomalia chiusa",
     "riapri": "Anomalia riaperta",
+    "segnalato": "Segnalato (senza mail)",
     "risposta_cliente": "Risposta del cliente registrata",
     "azione": "Azione effettuata",
     "prendi_in_carico": "Presa in carico",

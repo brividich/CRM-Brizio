@@ -70,7 +70,10 @@ GUIDA = {
                       "riprenderlo; i controlli vuoti si chiudono da soli dopo 24 ore."),
                 ("p", "Nella decisione ci sono anche «Segnala a terzista», gli «Allegati della "
                       "decisione» e «Segnala a CAR»: scelti uno o più CAR in «A quale CAR?», al salvataggio ricevono "
-                      "una mail con l'anomalia e il link (Configurazione → Notifiche → «Segnala a CAR»)."),
+                      "una mail con l'anomalia e il link (Configurazione → Notifiche → «Segnala a CAR»). Con "
+                      "«Segnalare al cliente» o «Segnala a terzista» salvati compare «Segnalato al cliente» / "
+                      "«Segnalato al terzista»: registra data e nome subito, senza mail di aggiornamento. Gli "
+                      "allegati della decisione si caricano anche ad anomalia chiusa."),
                 ("p", "Un'anomalia chiusa la riapre chi ne è incaricato (capocommessa, CAR, controllore che l'ha "
                       "segnalata, chi può modificare l'OP) con «Riapri anomalia»: torna «In attesa». Accanto al "
                       "numero dell'OP, in cima al dettaglio, c'è il P/N."),
