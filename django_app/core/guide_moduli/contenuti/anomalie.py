@@ -90,7 +90,8 @@ GUIDA = {
                     "«Campi del blocco del controllore» (Configurazione, in cima): per ogni parte nuova di Apertura "
                     "segnalazione «Visibile: Sempre / Mai / Solo se…» con gruppi di controllori («Chi fa cosa»: CMM, visivo…), "
                     "persone, ruoli operativi, parole della fase "
-                    "(es. CMM) e tipo di difetto dell'anomalia; vale subito, senza rilasci.",
+                    "(es. CMM) e tipo di difetto dell'anomalia; l'«Anteprima dal vivo» mostra la scheda come la vedrebbe un "
+                    "controllore scelto in «Vedi come»; vale subito, senza rilasci.",
                     "«Referenti RDC / segnalazione cliente» (Configurazione, un nome o email per riga, con «Aggiungi» "
                     "dall'anagrafica): queste persone vedono in «In carico a me» gli OP con anomalie aperte da aprire "
                     "RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati).",

@@ -5112,6 +5112,14 @@ def anomalie_configurazione_page(request):
 
         config_tab_context["tipi_difetto_cfg"] = catalogo_per_pagina()["tipi_difetto"]
         config_tab_context["gruppi_controllori"] = gruppi_controllori()
+        # Anteprima «Vedi come»: chi ricopre ciascun ruolo operativo.
+        membri = {}
+        for r in get_active_roles():
+            try:
+                membri[r.id] = _names_for_ruoli_operativi([r.id])
+            except Exception:
+                membri[r.id] = []
+        config_tab_context["ruoli_membri"] = membri
         config_tab_context["gruppi_controllori_json"] = json.dumps(gruppi_controllori(), ensure_ascii=False)
 
     context = {

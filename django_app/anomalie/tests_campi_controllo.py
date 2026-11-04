@@ -95,3 +95,6 @@ class EndpointTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Campi del blocco del controllore")
         self.assertContains(r, 'data-campo="report_zeiss"')
+        self.assertContains(r, "Anteprima dal vivo")
+        self.assertContains(r, 'data-parte="report_zeiss"')
+        self.assertContains(r, 'id="cc-ruoli-membri"')
