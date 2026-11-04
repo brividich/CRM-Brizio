@@ -9,13 +9,17 @@ dall'anagrafica HR dei dipendenti.
 """
 from __future__ import annotations
 
+from datetime import date, timedelta
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
+from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from anagrafica.models import (
@@ -27,6 +31,7 @@ from anagrafica.models import (
 )
 from core.audit import log_action
 
+from . import guestportal as gp
 from .forms import (
     FornitoreAssetForm,
     FornitoreDocumentoForm,
@@ -373,3 +378,91 @@ def fornitore_asset_remove(request, fornitore_id, fa_id):
     log_action(request, "fornitore_asset_rimosso", "fornitori", {"fornitore_id": fornitore_id, "fa_id": fa_id, "asset": nome})
     messages.success(request, f'Asset "{nome}" rimosso dal fornitore.')
     return redirect("fornitori:fornitore_detail", fornitore_id=fornitore_id)
+
+
+# ---------------------------------------------------------------------------
+# Accessi esterni (GuestPortal, sola lettura) e apertura pannello con SSO
+# ---------------------------------------------------------------------------
+
+def _data_param(valore, default: date) -> date:
+    try:
+        return date.fromisoformat((valore or "").strip())
+    except ValueError:
+        return default
+
+
+@login_required
+def accessi_esterni(request):
+    """Visitatori, fornitori e consulenti registrati al GuestPortal: chi è presente
+    ora e lo storico del periodo. Lettura diretta, nessuna copia nell'HUB."""
+    oggi = timezone.localdate()
+    dal = _data_param(request.GET.get("dal"), oggi - timedelta(days=6))
+    al = _data_param(request.GET.get("al"), oggi)
+    if al < dal:
+        dal, al = al, dal
+    testo = request.GET.get("q", "").strip()[:80]
+    tipo = request.GET.get("tipo", "").strip()
+    if tipo not in gp.TIPI:
+        tipo = ""
+
+    configurato = gp.db_configurato()
+    presenti: list = []
+    righe: list = []
+    troncato = False
+    errore = ""
+    if configurato:
+        try:
+            presenti = gp.presenti_ora()
+            righe, troncato = gp.storico(dal=dal, al=al, testo=testo, tipo=tipo)
+        except gp.GuestPortalNonConfigurato:
+            configurato = False
+        except gp.GuestPortalNonRaggiungibile:
+            errore = "Il database del GuestPortal non risponde: riprova tra poco o avvisa l'IT."
+
+    # Collega l'azienda dell'esterno alla scheda fornitore se la ragione sociale coincide.
+    nomi = {a.azienda.strip().lower() for a in presenti + righe if a.azienda}
+    fornitori_per_nome: dict[str, int] = {}
+    if nomi:
+        for pk, rs in Fornitore.objects.filter(is_active=True).values_list("pk", "ragione_sociale"):
+            chiave = (rs or "").strip().lower()
+            if chiave in nomi:
+                fornitori_per_nome.setdefault(chiave, pk)
+    for accesso in presenti + righe:
+        accesso.fornitore_id = fornitori_per_nome.get(accesso.azienda.strip().lower())
+
+    return render(request, "fornitori/pages/accessi_esterni.html", {
+        "dal": dal,
+        "al": al,
+        "q": testo,
+        "tipo": tipo,
+        "tipi": list(gp.TIPI.items()),
+        "configurato": configurato,
+        "presenti": presenti,
+        "storico": righe,
+        "troncato": troncato,
+        "limite": gp.STORICO_MAX_RIGHE,
+        "errore": errore,
+        "sso_attivo": gp.sso_configurato(),
+    })
+
+
+@login_required
+def guestportal_apri(request):
+    """Apre il pannello admin del GuestPortal già autenticato (token firmato, 60 s,
+    uso singolo). Senza SSO configurato porta al login normale del pannello."""
+    if gp.sso_configurato():
+        try:
+            token = gp.firma_token(request.user.get_username())
+        except (gp.GuestPortalNonConfigurato, ValueError):
+            token = ""
+        if token:
+            log_action(request, "guestportal_sso", "fornitori", {"esito": "token_emesso"})
+            risposta = HttpResponseRedirect(f"{gp.sso_url()}?{urlencode({'t': token})}")
+            risposta["Cache-Control"] = "no-store"
+            risposta["Referrer-Policy"] = "no-referrer"
+            return risposta
+    url = gp.admin_url()
+    if not url:
+        messages.error(request, "Indirizzo del GuestPortal non configurato (GUESTPORTAL_ADMIN_URL).")
+        return redirect("fornitori:accessi_esterni")
+    return HttpResponseRedirect(url)

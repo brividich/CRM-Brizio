@@ -1,0 +1,170 @@
+{% extends "core/base.html" %}
+
+{% block title %}Accessi esterni | Fornitori{% endblock %}
+
+{% block extra_head %}
+<style>
+.ae-page { display:flex; flex-direction:column; gap:20px; }
+.ae-top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.ae-title { font-size:26px; font-weight:800; color:var(--text,#0f172a); letter-spacing:-.02em; }
+.ae-sub { font-size:13px; color:var(--text-light,#64748b); margin-top:2px; }
+.ae-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.ae-btn { display:inline-flex; align-items:center; gap:6px; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:600; text-decoration:none; border:1px solid transparent; cursor:pointer; }
+.ae-btn-primary { background:#1d4ed8; color:#fff; }
+.ae-btn-primary:hover { background:#1e40af; }
+.ae-btn-ghost { background:var(--surface-alt,#f1f5f9); color:var(--text-mid,#334155); border-color:var(--border,#e2e8f0); }
+.ae-card { background:var(--surface,#fff); border:1px solid var(--border,#e2e8f0); border-radius:14px; overflow:hidden; }
+.ae-card-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:14px 20px; border-bottom:1px solid var(--border,#f1f5f9); }
+.ae-card-title { font-size:15px; font-weight:700; color:var(--text,#1e293b); }
+.ae-count { font-size:12px; color:var(--text-light,#64748b); }
+.ae-wrap { overflow-x:auto; }
+.ae-table { width:100%; border-collapse:collapse; font-size:13px; }
+.ae-table th { padding:10px 16px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-light,#64748b); background:var(--thead-bg,#f8fafc); border-bottom:1px solid var(--border,#e2e8f0); white-space:nowrap; }
+.ae-table td { padding:11px 16px; border-bottom:1px solid var(--border,#f1f5f9); color:var(--text-mid,#334155); vertical-align:middle; }
+.ae-table tr:last-child td { border-bottom:none; }
+.ae-nome { font-weight:700; color:var(--text,#0f172a); }
+.ae-muted { color:var(--text-light,#94a3b8); }
+.ae-pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
+.ae-pill-in { background:#dcfce7; color:#166534; }
+.ae-pill-out { background:#f1f5f9; color:#475569; }
+.ae-pill-pre { background:#dbeafe; color:#1e40af; }
+.ae-pill-sup { background:#ffedd5; color:#9a3412; }
+.ae-empty { text-align:center; padding:32px; color:var(--text-light,#94a3b8); font-size:14px; }
+.ae-filtri { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; padding:16px 20px; }
+.ae-field { display:flex; flex-direction:column; gap:4px; min-width:140px; flex:1; }
+.ae-field label { font-size:11px; font-weight:700; color:var(--text-light,#64748b); text-transform:uppercase; letter-spacing:.05em; }
+.ae-input { border:1px solid var(--border,#e2e8f0); border-radius:8px; padding:8px 12px; font-size:13px; color:var(--text,#0f172a); background:var(--surface-alt,#f8fafc); width:100%; box-sizing:border-box; }
+.ae-banner { border-radius:12px; padding:12px 16px; font-size:13px; line-height:1.5; }
+.ae-banner-warn { background:#fef9c3; color:#854d0e; border:1px solid #fde68a; }
+.ae-banner-err { background:#fee2e2; color:#991b1b; border:1px solid #fecaca; }
+.ae-banner code { font-size:12px; }
+body.theme-dark .ae-pill-in { background:rgba(56,161,105,.18); color:#86efac; }
+body.theme-dark .ae-pill-out { background:rgba(255,255,255,.08); color:var(--text-mid); }
+body.theme-dark .ae-pill-pre { background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .ae-pill-sup { background:rgba(154,52,18,.2); color:#fdba74; }
+body.theme-dark .ae-banner-warn { background:rgba(133,77,14,.2); color:#fde68a; border-color:rgba(253,230,138,.25); }
+body.theme-dark .ae-banner-err { background:rgba(229,62,62,.16); color:#fca5a5; border-color:rgba(252,165,165,.25); }
+@media (max-width:700px) { .ae-field { min-width:100%; } }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "fornitori/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="ae-page">
+
+  <div class="ae-top">
+    <div>
+      <div class="ae-title">Accessi esterni</div>
+      <div class="ae-sub">Visitatori, fornitori e consulenti registrati al chiosco della reception (GuestPortal)</div>
+    </div>
+    <div class="ae-actions">
+      <a class="ae-btn ae-btn-ghost" href="{% url 'guida_modulo' 'fornitori' %}#accessi-esterni">? Guida</a>
+      <a class="ae-btn ae-btn-primary" href="{% url 'fornitori:guestportal_apri' %}" target="_blank" rel="noopener noreferrer">Apri GuestPortal ↗</a>
+    </div>
+  </div>
+
+  {% include "fornitori/components/flash_messages.html" %}
+
+  {% if not configurato %}
+    <div class="ae-banner ae-banner-warn">
+      Collegamento al database del GuestPortal non configurato. L'amministratore deve impostare
+      <code>GUESTPORTAL_DB_HOST</code>, <code>GUESTPORTAL_DB_USER</code> e <code>GUESTPORTAL_DB_PASSWORD</code> nel file <code>.env</code>
+      (utente MySQL in sola lettura: vedi la guida, parte amministratori).
+    </div>
+  {% elif errore %}
+    <div class="ae-banner ae-banner-err">{{ errore }}</div>
+  {% endif %}
+
+  {% if configurato and not errore %}
+  <div class="ae-card">
+    <div class="ae-card-head">
+      <div class="ae-card-title">Presenti ora</div>
+      <div class="ae-count">{{ presenti|length }} esterni in azienda</div>
+    </div>
+    <div class="ae-wrap">
+      <table class="ae-table">
+        <thead><tr><th>Nome</th><th>Azienda</th><th>Tipo</th><th>Referente</th><th>Motivo</th><th>Badge</th><th>Entrato</th><th>Da</th></tr></thead>
+        <tbody>
+        {% for a in presenti %}
+          <tr>
+            <td class="ae-nome">{{ a.nome }}</td>
+            <td>{% if a.fornitore_id %}<a href="{% url 'fornitori:fornitore_detail' a.fornitore_id %}">{{ a.azienda }}</a>{% else %}{{ a.azienda|default:"—" }}{% endif %}</td>
+            <td><span class="ae-pill {% if a.tipo == 'SUPPLIER' %}ae-pill-sup{% elif a.tipo == 'PREREG' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.tipo_label }}</span></td>
+            <td>{{ a.referente|default:"—" }}</td>
+            <td>{{ a.motivo|default:"—" }}</td>
+            <td>{{ a.badge|default:"—" }}</td>
+            <td>{{ a.ingresso|date:"d/m H:i"|default:"—" }}</td>
+            <td>{{ a.durata_label }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="8" class="ae-empty">Nessun esterno presente in questo momento.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if configurato %}
+  <div class="ae-card">
+    <form method="get" class="ae-filtri">
+      <div class="ae-field" style="max-width:170px;">
+        <label for="ae-dal">Dal</label>
+        <input class="ae-input" id="ae-dal" type="date" name="dal" value="{{ dal|date:'Y-m-d' }}">
+      </div>
+      <div class="ae-field" style="max-width:170px;">
+        <label for="ae-al">Al</label>
+        <input class="ae-input" id="ae-al" type="date" name="al" value="{{ al|date:'Y-m-d' }}">
+      </div>
+      <div class="ae-field" style="max-width:220px;">
+        <label for="ae-tipo">Tipo</label>
+        <select class="ae-input" id="ae-tipo" name="tipo">
+          <option value="">Tutti</option>
+          {% for val, label in tipi %}<option value="{{ val }}"{% if val == tipo %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="ae-field">
+        <label for="ae-q">Cerca</label>
+        <input class="ae-input" id="ae-q" type="text" name="q" value="{{ q }}" maxlength="80" placeholder="Nome, azienda, referente, motivo…">
+      </div>
+      <div class="ae-actions">
+        <button class="ae-btn ae-btn-primary" type="submit">Filtra</button>
+        <a class="ae-btn ae-btn-ghost" href="{% url 'fornitori:accessi_esterni' %}">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  {% if not errore %}
+  <div class="ae-card">
+    <div class="ae-card-head">
+      <div class="ae-card-title">Storico dal {{ dal|date:"d/m/Y" }} al {{ al|date:"d/m/Y" }}</div>
+      <div class="ae-count">{{ storico|length }} visite{% if troncato %} — mostrate le {{ limite }} più recenti: restringi il periodo per vederle tutte{% endif %}</div>
+    </div>
+    <div class="ae-wrap">
+      <table class="ae-table">
+        <thead><tr><th>Nome</th><th>Azienda</th><th>Tipo</th><th>Referente</th><th>Motivo</th><th>Ingresso</th><th>Uscita</th><th>Stato</th></tr></thead>
+        <tbody>
+        {% for a in storico %}
+          <tr>
+            <td class="ae-nome">{{ a.nome }}</td>
+            <td>{% if a.fornitore_id %}<a href="{% url 'fornitori:fornitore_detail' a.fornitore_id %}">{{ a.azienda }}</a>{% else %}{{ a.azienda|default:"—" }}{% endif %}</td>
+            <td><span class="ae-pill {% if a.tipo == 'SUPPLIER' %}ae-pill-sup{% elif a.tipo == 'PREREG' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.tipo_label }}</span></td>
+            <td>{{ a.referente|default:"—" }}</td>
+            <td>{{ a.motivo|default:"—" }}</td>
+            <td>{{ a.ingresso|date:"d/m/Y H:i"|default:"—" }}</td>
+            <td>{% if a.uscita %}{{ a.uscita|date:"d/m/Y H:i" }}{% else %}<span class="ae-muted">—</span>{% endif %}</td>
+            <td><span class="ae-pill {% if a.presente %}ae-pill-in{% elif a.stato == 'PREREGISTERED' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.stato_label }}</span></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="8" class="ae-empty">Nessuna visita nel periodo scelto.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+
+</div>
+{% endblock %}
