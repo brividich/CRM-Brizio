@@ -4,7 +4,7 @@
 -r requirements.in
 
 # --- Gestione dipendenze ---
-pip-tools>=7.0
+pip-tools>=7.6.2
 
 # --- Testing ---
 pytest-django>=4.14.0
