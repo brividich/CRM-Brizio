@@ -182,7 +182,8 @@ SEZIONI: list[dict] = [
                 "clicca nel riquadro «Dal report ZEISS» e premi Ctrl+V (o «scegli l'immagine»). Il portale legge le righe e "
                 "le propone con l'esito: quelle fuori tolleranza sono già spuntate, «da verificare» segnala un valore letto "
                 "male. «Aggiungi N misure» le mette fra le misure, dove restano modificabili. L'immagine non viene allegata. "
-                "Per una lettura migliore ingrandisci il PDF (almeno 125%) prima di catturare.",
+                "Per una lettura migliore ingrandisci il PDF (almeno 125%) prima di catturare. Sotto le proposte, «Testo letto "
+                "dall'immagine» mostra cosa ha letto il portale: se mancano righe, ricattura più grande o a pezzi.",
                 "«+ Riferimento» aggiunge disegno/revisione, sezione/vista e fase del ciclo/F.OP. Con un caso scelto "
                 "compare anche il «Tipo di difetto» proposto dal portale (cambialo se non è giusto).",
                 "«↓ Copia nella descrizione» porta le frasi delle misure nel testo; se lasci vuota la descrizione, al "

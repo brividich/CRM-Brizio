@@ -65,6 +65,34 @@ class LetturaRigheTests(SimpleTestCase):
         self.assertEqual(self.righe["170,00"]["sezione"], "Fori O 8.050-8.070 Lato Piano N")
 
 
+class RigheDaParoleTests(SimpleTestCase):
+    def test_righe_vicine_non_si_uniscono(self):
+        # (centro_y, altezza, x, testo): due righe del protocollo a 20 px, etichetta piccola in mezzo
+        parole = [(10, 14, 10, "178,00"), (11, 14, 300, "4,0539"), (10, 14, 400, "4,0000"),
+                  (21, 6, 200, "Position"),
+                  (30, 14, 10, "175,00"), (31, 14, 300, "0,3025"), (29, 14, 400, "0,0000")]
+        self.assertEqual(rc.righe_da_parole(parole), ["178,00 4,0539 4,0000", "Position", "175,00 0,3025 0,0000"])
+
+    def test_tipo_dal_simbolo_letto_come_testo(self):
+        righe = rc.righe_da_testo([
+            "m 175,00 Q 0,3025 0,0000 0,2500 0,0000 0,3025 '",
+            "m 178,00 ? 4,0539 4,0000 0,1000 0,0000 0,0539",
+            "m 178,01 L:If 4,0499 4,0000 0,1000 0,0000 0,0499",
+            "m 176,00 // 0,0057 0,0000 0,1000 0,0000 0,0057",
+        ])
+        self.assertEqual([r["tipo"] for r in righe], ["position", "length", "length", "parallelism"])
+
+    def test_etichetta_spezzata(self):
+        righe = rc.righe_da_testo(["T engh e", "m 178,03 9 4,0554 4,0000 0,1000 0,0000 0,0554"])
+        self.assertEqual(righe[0]["tipo"], "length")
+
+    def test_doppioni_fra_le_due_letture(self):
+        a = {"nome": "178,00", "tipo": "length", "misurato": 4.0539, "nominale": 4.0, "tol_sup": 0.1, "tol_inf": 0.0,
+             "scostamento": 0.0539, "da_verificare": False}
+        b = {**a, "nome": "176,00"}  # stesso valore, nome letto male nella seconda lettura
+        self.assertEqual(len(rc.unisci_letture([a], [b])), 1)
+
+
 class PropostaMisuraTests(SimpleTestCase):
     def test_minmax_e_fuori(self):
         p = rc.proposta_misura({"nome": "163,01 Dia G", "tipo": "diameter", "misurato": 69.057, "nominale": 69.0,

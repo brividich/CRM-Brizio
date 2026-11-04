@@ -1183,6 +1183,7 @@
   const LetturaReport = ({ opId, disabled, onAggiungi }) => {
     const [stato, setStato] = useState('');  // '' | 'lettura' | errore
     const [proposte, setProposte] = useState(null);
+    const [testoLetto, setTestoLetto] = useState([]);
     const [scelte, setScelte] = useState({});
     const [over, setOver] = useState(false);
     const fileRef = useRef(null);
@@ -1198,6 +1199,7 @@
         const j = await parseJsonStrict(r, 'Lettura del report');
         if (!r.ok || !j.success) throw new Error(j.error || `HTTP ${r.status}`);
         const righe = j.righe || [];
+        setTestoLetto(j.testo || []);
         if (!righe.length) { setStato('Nessuna riga di misura riconosciuta: cattura le righe con valori (Actual, Nominal, tolleranze) e riprova, magari ingrandendo il PDF.'); return; }
         setProposte(righe);
         setScelte(Object.fromEntries(righe.map((x, i) => [i, !!x.fuori])));
@@ -1244,6 +1246,11 @@
                 );
               })}
             </div>
+            <details className="field-hint">
+              <summary>Lette {proposte.length} righe. Ne manca qualcuna? Testo letto dall’immagine</summary>
+              <pre style={{ whiteSpace: 'pre-wrap', margin: '6px 0 0', fontSize: 11 }}>{testoLetto.join('\n')}</pre>
+              <div>Se mancano righe o i valori sono sbagliati: ingrandisci il PDF (almeno 125%) e cattura di nuovo, anche a pezzi.</div>
+            </details>
             <div className="dett-actions">
               <button type="button" className="btn-outline" disabled={!nScelte}
                 onClick={() => { onAggiungi(proposte.filter((_, i) => scelte[i])); setProposte(null); }}>
