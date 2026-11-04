@@ -222,7 +222,9 @@ SEZIONI: list[dict] = [
                   "Da telefono le tre colonne diventano le schede Ordini, Anomalie e Dettaglio in basso."),
             ("ul", [
                 "Ordini: i filtri «Con aperte» (quello di partenza: gli OP con anomalie ancora aperte), «In carico a me» "
-                "(OP con anomalie aperte di cui sei capocommessa o CAR) e «Tutti» (anche gli OP con sole anomalie "
+                "(OP con anomalie aperte di cui sei capocommessa o CAR; per i «Referenti RDC / segnalazione cliente» di "
+                "Configurazione anche gli OP con anomalie aperte da aprire RDC o da segnalare al cliente, che possono "
+                "anche modificare) e «Tutti» (anche gli OP con sole anomalie "
                 "chiuse), con i conteggi; la ricerca trova OP, P/N, capocommessa e CAR. Il numero arancione su un OP "
                 "indica le anomalie aperte ancora da decidere.",
                 "Anomalie: raggruppate per blocco di seriali, con fase, operatore e data. «Da decidere» mostra solo quelle "
@@ -256,8 +258,16 @@ SEZIONI: list[dict] = [
                 "In cima alla «Decisione del capocommessa» il percorso dell'anomalia mostra i passi con la loro data: "
                 "Segnalata, Decisa (con la decisione presa), Risposta del cliente se è stata segnalata, Azione "
                 "effettuata con «Azione di recupero», Chiusa; il passo arancione è quello in corso.",
-                "Nella «Decisione del capocommessa» scegli i flag: «Aprire RDC», «Segnalare al cliente», «Pezzi precedenti "
-                "al benestare».",
+                "Nella «Decisione del capocommessa» scegli i flag: «Aprire RDC», «Segnalare al cliente», «Segnala a "
+                "terzista», «Segnala a CAR», «Pezzi precedenti al benestare». Spuntando «Segnalare al cliente» si spunta "
+                "anche «Aprire RDC» (puoi toglierla); con «Aprire RDC» la segnalazione al cliente resta facoltativa.",
+                "Con «Segnala a CAR» scegli in «A quale CAR?» uno o più capi reparto (di serie il CAR dell'OP; le altre "
+                "scelte vengono dai capi reparto di Configurazione). Al salvataggio ognuno dei CAR appena scelti riceve "
+                "una mail con l'anomalia, la decisione e il link, più una notifica nel portale; chi l'ha già ricevuta non "
+                "la riceve di nuovo.",
+                "Scrivi «Dove sono i pezzi?» (es. area pezzi non conformi, reparto, presso il terzista) e, se servono, "
+                "carica documenti o foto in «Allegati della decisione» (trascina o «sfoglia»): restano separati dagli "
+                "allegati della segnalazione.",
                 "Scegli l'«Avanzamento». Con «Aprire RDC» indica anche il «Numero RDC».",
                 "Scrivi la «Risposta / note per il reparto»: decisione, istruzioni di rilavorazione, riferimenti.",
                 "Premi «Salva» (Ctrl+S) oppure «Salva e prossima» per passare subito alla successiva.",
@@ -339,7 +349,9 @@ SEZIONI: list[dict] = [
                 "Apri il link: in cima le anomalie della mail («Da decidere»), sotto le altre ancora aperte sull'OP.",
                 "Espandi un'anomalia per vedere descrizione, foto e allegati. «Espandi tutte» le apre tutte.",
                 "Nella «Decisione su questa anomalia» scegli «Aprire RDC?», «Segnalare a cliente?», il «Nuovo avanzamento» "
-                "e scrivi la risposta. «Chiudere? (automatico)» si calcola da solo.",
+                "e scrivi la risposta. «Segnalare a cliente?» spunta anche «Aprire RDC?» (si può togliere). «Chiudere? "
+                "(automatico)» si calcola da solo. Terzista, CAR, dove sono i pezzi e allegati della decisione si "
+                "indicano in Gestione anomalie.",
                 "Per dare la stessa decisione ad altre anomalie scegli in «Applica la stessa decisione anche a» lo stesso "
                 "blocco, tutte le aperte della pagina o quelle scelte a mano, poi «Salva»: un riepilogo le mostra tutte "
                 "prima di confermare; avanzamento, RDC, cliente e note vengono copiati, come in Gestione anomalie.",

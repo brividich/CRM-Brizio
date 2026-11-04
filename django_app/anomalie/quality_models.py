@@ -179,6 +179,17 @@ class AnomaliaSchedaQualita(models.Model):
     azione_effettuata_il = models.DateTimeField(null=True, blank=True)
     chiusa_il = models.DateTimeField(null=True, blank=True)
 
+    # Decisione del capocommessa (Gestione anomalie): dove si trovano fisicamente i
+    # pezzi e se la non conformità va segnalata al terzista. Stanno qui e non nella
+    # tabella legacy ``anomalie`` (non gestita da Django).
+    dove_pezzi = models.CharField(max_length=200, blank=True, default="")
+    segnala_terzista = models.BooleanField(default=False)
+    # «Segnala a CAR»: i capi reparto scelti dal capocommessa (nominativi separati da
+    # «; ») ricevono una mail dedicata; ``car_segnalati_il`` = ultimo invio.
+    segnala_car = models.BooleanField(default=False)
+    car_segnalati = models.CharField(max_length=500, blank=True, default="")
+    car_segnalati_il = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(

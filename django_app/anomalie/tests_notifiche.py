@@ -57,7 +57,7 @@ class StatoPannelloTests(_ListeTmpMixin, TestCase):
         stato = notifiche.stato_pannello()
         codes = [r["code"] for r in stato["righe"]]
         self.assertEqual(codes, ["controllo", "promemoria_controllo", "nuova_anomalia", "riepilogo", "decisioni_operatore",
-                                 "op_completato", "resoconto", "rdc", "ricorrenza", "digest"])
+                                 "segnala_car", "op_completato", "resoconto", "rdc", "ricorrenza", "digest"])
         liste = {l["key"]: l["valori"] for l in stato["liste"]}
         self.assertEqual(liste["conferma_aggiornamenti"], ["vecchio@example.test"])
         self.assertEqual(stato["nuova_anomalia"]["to"], "it@example.test")
