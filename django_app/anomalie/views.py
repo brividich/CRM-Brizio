@@ -886,6 +886,87 @@ def _read_anomalie_config() -> dict:
     return {}
 
 
+# Parti del blocco del controllore (Apertura segnalazione) accendibili da Configurazione:
+# servono a provarle con i controllori senza rilasci. Tutte accese di serie.
+CAMPI_CONTROLLO = (
+    ("dove_pezzi", "«Dove sono i pezzi?»", "Campo del blocco: vale per tutti i pezzi, esce nelle mail e in Gestione."),
+    ("simboli", "Pulsanti dei simboli", "Ø ± ° ⊥ ∥ ◎ ⌖ … sopra la descrizione: scrivono dove c'è il cursore."),
+    ("caso", "«Che cosa hai trovato?»", "Scelta facoltativa del caso per ogni anomalia: spento, nasconde anche i tre casi."),
+    ("caso_misura", "Caso «Misura fuori tolleranza»", "Righe di misura con esito e frase calcolati."),
+    ("report_zeiss", "Riquadro «Dal report ZEISS»", "Screenshot del protocollo incollato → misure proposte (dentro il caso misura)."),
+    ("caso_difetto", "Caso «Difetto sul pezzo»", "Genere del difetto, dove, dimensioni."),
+    ("caso_documenti", "Caso «Marcatura / documenti»", "Sul pezzo / atteso / documenti coinvolti."),
+    ("riferimento", "«+ Riferimento»", "Disegno/revisione, sezione/vista, fase del ciclo."),
+    ("tipo_difetto", "«Tipo di difetto» proposto", "Compare con un caso scelto; il portale lo propone, il controllore lo cambia."),
+    ("copia_testo", "«↓ Copia nella descrizione»", "Porta le frasi delle misure nel testo dell'anomalia."),
+)
+CAMPI_CONTROLLO_KEY = "campi_controllo"
+
+
+# Parti a livello di blocco: la condizione sul tipo di difetto (che è dell'anomalia) non si applica.
+CAMPI_CONTROLLO_DI_BLOCCO = frozenset({"dove_pezzi"})
+MODI_VISIBILITA = ("sempre", "mai", "se")
+
+
+def _regola_campo(raw) -> dict:
+    """Regola «Visibile se» di una parte: sempre / mai / se (persone, ruoli, fasi, tipi difetto)."""
+    if isinstance(raw, bool):  # formato del primo rilascio: acceso / spento
+        raw = {"modo": "sempre" if raw else "mai"}
+    raw = raw if isinstance(raw, dict) else {}
+    pulisci = lambda v, n=120: [" ".join(str(x).split())[:n] for x in (v or []) if str(x).strip()][:50]  # noqa: E731
+    ruoli = []
+    for x in raw.get("ruoli") or []:
+        try:
+            ruoli.append(int(x))
+        except (TypeError, ValueError):
+            continue
+    return {
+        "modo": raw.get("modo") if raw.get("modo") in MODI_VISIBILITA else "sempre",
+        "persone": pulisci(raw.get("persone")),
+        "ruoli": ruoli[:50],
+        "fasi": pulisci(raw.get("fasi"), 60),
+        "tipi": pulisci(raw.get("tipi"), 40),
+    }
+
+
+def campi_controllo() -> dict[str, dict]:
+    """Regole «Visibile se» delle parti del blocco del controllore (di serie: sempre)."""
+    salvati = (_read_anomalie_config() or {}).get(CAMPI_CONTROLLO_KEY)
+    salvati = salvati if isinstance(salvati, dict) else {}
+    return {k: _regola_campo(salvati.get(k, True)) for k, _l, _h in CAMPI_CONTROLLO}
+
+
+def campi_controllo_per(request) -> dict[str, dict]:
+    """Per la pagina del controllore: ``{campo: {"visibile", "fasi", "tipi"}}``.
+
+    Persone e ruoli si valutano qui (sulla persona collegata); fase del controllo e
+    tipo di difetto dell'anomalia li valuta la pagina, perché cambiano mentre si scrive.
+    """
+    mie = {_chiave_persona(n) for n in _request_name_norms(request)}
+    email = _current_user_identity(request).get("email_norm") or ""
+    if email:
+        mie.add(_chiave_persona(email))
+    mie.discard("")
+    out = {}
+    for chiave, regola in campi_controllo().items():
+        visibile = regola["modo"] != "mai"
+        if regola["modo"] == "se" and (regola["persone"] or regola["ruoli"]):
+            ammessi = {_chiave_persona(n) for n in regola["persone"]}
+            if regola["ruoli"]:
+                try:
+                    ammessi |= {_chiave_persona(n) for n in _names_for_ruoli_operativi(regola["ruoli"])}
+                except Exception:
+                    logger.warning("anomalie: persone dei ruoli operativi non lette", exc_info=True)
+            visibile = bool(mie & ammessi)
+        se = regola["modo"] == "se"
+        out[chiave] = {
+            "visibile": visibile,
+            "fasi": regola["fasi"] if se else [],
+            "tipi": regola["tipi"] if se and chiave not in CAMPI_CONTROLLO_DI_BLOCCO else [],
+        }
+    return out
+
+
 def _write_anomalie_config(payload: dict) -> None:
     from core.models import SiteConfig
 
@@ -4987,6 +5068,15 @@ def anomalie_configurazione_page(request):
                 _anomalie_anagrafica_name_choices(), ensure_ascii=False
             ),
         }
+        regole = campi_controllo()
+        config_tab_context["campi_controllo"] = [
+            {"chiave": k, "etichetta": etichetta, "aiuto": aiuto, "regola": regole[k],
+             "di_blocco": k in CAMPI_CONTROLLO_DI_BLOCCO}
+            for k, etichetta, aiuto in CAMPI_CONTROLLO
+        ]
+        from .dettaglio_controllo import catalogo_per_pagina
+
+        config_tab_context["tipi_difetto_cfg"] = catalogo_per_pagina()["tipi_difetto"]
 
     context = {
         "page_title": "Gestione Anomalie",
@@ -5209,6 +5299,31 @@ def api_anomalie_config_logo(request):
 @login_required
 @csrf_protect
 @require_POST
+def api_anomalie_config_campi_controllo(request):
+    """Accende/spegne le parti del blocco del controllore (``{"campi": {chiave: bool}}``)."""
+    if not _can_manage_anomalie_config(request):
+        return JsonResponse({"success": False, "error": "Permesso negato"}, status=403)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return JsonResponse({"success": False, "error": "Body JSON non valido"}, status=400)
+    richiesti = payload.get("campi") if isinstance(payload, dict) else None
+    if not isinstance(richiesti, dict):
+        return JsonResponse({"success": False, "error": "Campi mancanti"}, status=400)
+    attuali = campi_controllo()
+    nuovi = {k: _regola_campo(richiesti[k]) if k in richiesti else attuali[k] for k in attuali}
+    existing = _read_anomalie_config()
+    existing[CAMPI_CONTROLLO_KEY] = nuovi
+    _write_anomalie_config(existing)
+    log_action(request, "anomalie_config_campi_controllo", "anomalie", {
+        "regole": {k: v["modo"] for k, v in nuovi.items()},
+    })
+    return JsonResponse({"success": True, "campi": nuovi})
+
+
+@login_required
+@csrf_protect
+@require_POST
 def api_anomalie_config_logo_reset(request):
     """Rimuove il logo personalizzato e ripristina quello di default."""
     if not _can_manage_anomalie_config(request):
@@ -5244,6 +5359,7 @@ def apertura_segnalazione_page(request):
         "config_lists_json": json.dumps(_load_anomalie_lists(), ensure_ascii=False),
         "controllo_tempi": tempi_controllo(),
         "dettaglio_catalogo_json": json.dumps(catalogo_per_pagina(), ensure_ascii=False),
+        "campi_controllo_json": json.dumps(campi_controllo_per(request)),
     }
     return render(request, "anomalie/pages/apertura_segnalazione.html", context)
 

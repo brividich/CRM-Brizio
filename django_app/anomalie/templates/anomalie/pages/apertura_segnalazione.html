@@ -432,6 +432,7 @@
     window._AP_TEMPI = { promemoria: Number("{{ controllo_tempi.promemoria|default:15 }}") || 15, invio_auto: Number("{{ controllo_tempi.invio_auto|default:60 }}") || 60 };
     window._AP_CONFIG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
     window._AP_DETTAGLIO = JSON.parse("{{ dettaglio_catalogo_json|default:'{}'|escapejs }}");
+    window._AP_CAMPI = JSON.parse("{{ campi_controllo_json|default:'{}'|escapejs }}");
     window._AP_API = {
       db_ordini: "{% url 'api_anomalie_db_ordini' %}",
       db_ordini_crea: "{% url 'api_anomalie_db_ordini_crea' %}",
@@ -1029,7 +1030,26 @@
   const GENERI_BY = Object.fromEntries(GENERI.map(g => [g.codice, g]));
   const DOC_LIST = DETT.documenti || [];
   const TIPI_DIFETTO = DETT.tipi_difetto || [];
-  const DETT_TIPI = [['misura', 'Misura fuori tolleranza'], ['difetto', 'Difetto sul pezzo'], ['documenti', 'Marcatura / documenti']];
+  // Parti accese da Configurazione → «Campi del blocco del controllore» (di serie tutte).
+  // Regole «Visibile se» (Configurazione → «Campi del blocco del controllore»): persone e ruoli
+  // li valuta il server; fase del controllo e tipo di difetto dell'anomalia si valutano qui.
+  const CAMPI = window._AP_CAMPI || {};
+  const campoVisibile = (chiave, ctx = {}) => {
+    const r = CAMPI[chiave];
+    if (!r) return true;
+    if (!r.visibile) return false;
+    const fase = String(ctx.fase || '').toLowerCase();
+    if ((r.fasi || []).length && !r.fasi.some(f => fase.includes(String(f).toLowerCase()))) return false;
+    if ((r.tipi || []).length && !r.tipi.includes(ctx.tipo || '')) return false;
+    return true;
+  };
+  const TUTTI_I_CASI = [['misura', 'Misura fuori tolleranza'], ['difetto', 'Difetto sul pezzo'], ['documenti', 'Marcatura / documenti']];
+  const casiVisibili = (ctx) => (campoVisibile('caso', ctx) ? TUTTI_I_CASI.filter(([k]) => campoVisibile(`caso_${k}`, ctx)) : []);
+  // Tipo di difetto dell'anomalia per le regole: quello scelto, altrimenti quello proposto.
+  const codiceTipoAnomalia = (d, testo) => {
+    const scelto = d && d.tipoDifettoId ? TIPI_DIFETTO.find(t => t.id === d.tipoDifettoId) : null;
+    return scelto ? scelto.codice : codiceSuggerito(d, testo);
+  };
   const SIMBOLI = ['Ø', '±', '°', '⊥', '∥', '◎', '⌖', '⌯', '⏥', '○', '⌒', '↗', '≤', '≥', 'µm', 'Ra'];
   const emptyMisura = () => ({ key: uid(), car: 'diametro', nome: '', modo: 'minmax', nom: '', a: '', b: '', ril: '', dove: '' });
   const emptyDett = () => ({ tipo: '', misure: [], difetto: {}, documenti: { docs: [] }, rif: {}, rifAperto: false, tipoDifettoId: null });
@@ -1239,7 +1259,7 @@
   };
 
   /* «Che cosa hai trovato?»: una scelta facoltativa apre solo i campi di quel caso. */
-  const DettaglioAnomalia = ({ dett, testo, disabled, onChange, onCopiaNelTesto, opId }) => {
+  const DettaglioAnomalia = ({ dett, testo, disabled, onChange, onCopiaNelTesto, opId, fase }) => {
     const d = dett || emptyDett();
     const upd = (patch) => onChange({ ...d, ...patch });
     const scegli = (tipo) => {
@@ -1253,6 +1273,10 @@
     const doc = d.documenti || { docs: [] };
     const rif = d.rif || {};
     const frasi = frasiDett(d);
+    const ctx = { fase, tipo: codiceTipoAnomalia(d, testo) };
+    const DETT_TIPI = casiVisibili(ctx);
+    const casoAcceso = (tipo) => DETT_TIPI.some(([k]) => k === tipo);
+    const vede = (chiave) => campoVisibile(chiave, ctx);
     const suggerito = codiceSuggerito(d, testo);
     const tipoSugg = TIPI_DIFETTO.find(t => t.codice === suggerito);
     const tipoSel = d.tipoDifettoId ? TIPI_DIFETTO.find(t => t.id === d.tipoDifettoId) : null;
@@ -1263,7 +1287,7 @@
     );
     return (
       <div className="dett">
-        <div className="dett-ask">
+        {DETT_TIPI.length > 0 && <div className="dett-ask">
           <strong>Che cosa hai trovato?</strong><span>(facoltativo: apre i campi giusti)</span>
           <div className="sup-chips">
             {DETT_TIPI.map(([k, l]) => (
@@ -1271,9 +1295,9 @@
                 disabled={disabled} onClick={() => scegli(k)}>{d.tipo === k ? '✓ ' : ''}{l}</button>
             ))}
           </div>
-        </div>
+        </div>}
 
-        {d.tipo === 'misura' && (
+        {d.tipo === 'misura' && casoAcceso('misura') && (
           <div className="dett-panel">
             <div className="dett-panel__head">📏 Misure fuori tolleranza <small>— una riga per misura</small></div>
             {(d.misure || []).map((m, mi) => {
@@ -1332,7 +1356,7 @@
             <div className="dett-actions">
               <button type="button" className="link-btn" disabled={disabled} onClick={() => upd({ misure: [...(d.misure || []), emptyMisura()] })}>+ Aggiungi misura</button>
             </div>
-            {!disabled && (
+            {!disabled && vede('report_zeiss') && (
               <LetturaReport opId={opId} disabled={disabled} onAggiungi={righe => {
                 const nuove = righe.map(({ car, nome, modo, nom, a, b, ril, dove }) => ({ ...emptyMisura(), car, nome, modo, nom, a, b, ril, dove }));
                 const tenute = (d.misure || []).filter(misuraUtile);
@@ -1342,7 +1366,7 @@
           </div>
         )}
 
-        {d.tipo === 'difetto' && (
+        {d.tipo === 'difetto' && casoAcceso('difetto') && (
           <div className="dett-panel">
             <div className="dett-panel__head">🔎 Difetto sul pezzo</div>
             <div className="dett-grid dett-grid--dif">
@@ -1363,7 +1387,7 @@
           </div>
         )}
 
-        {d.tipo === 'documenti' && (
+        {d.tipo === 'documenti' && casoAcceso('documenti') && (
           <div className="dett-panel">
             <div className="dett-panel__head">🏷️ Marcatura / documenti che non coincidono</div>
             <div className="dett-grid dett-grid--doc">
@@ -1383,7 +1407,7 @@
           </div>
         )}
 
-        {(d.rifAperto || rif.disegno || rif.sezione || rif.fase) ? (
+        {!vede('riferimento') ? null : (d.rifAperto || rif.disegno || rif.sezione || rif.fase) ? (
           <div className="dett-grid dett-grid--rif">
             {f('Disegno / revisione', rif.disegno, v => upd({ rif: { ...rif, disegno: v } }))}
             {f('Sezione / vista', rif.sezione, v => upd({ rif: { ...rif, sezione: v } }))}
@@ -1393,7 +1417,7 @@
           !disabled && <div><button type="button" className="link-btn" onClick={() => upd({ rifAperto: true })}>+ Riferimento (disegno, sezione, fase del ciclo)</button></div>
         )}
 
-        {d.tipo && TIPI_DIFETTO.length > 0 && (
+        {vede('tipo_difetto') && d.tipo && casoAcceso(d.tipo) && TIPI_DIFETTO.length > 0 && (
           <div className="dett-tipo">
             <span className="field-label">Tipo di difetto</span>
             <select className="text-input" disabled={disabled} value={d.tipoDifettoId || (tipoSugg ? tipoSugg.id : '')}
@@ -1405,7 +1429,7 @@
           </div>
         )}
 
-        {frasi.length > 0 && !disabled && (
+        {vede('copia_testo') && frasi.length > 0 && !disabled && (
           <div className="dett-actions">
             <button type="button" className="link-btn" onClick={() => onCopiaNelTesto(frasi)}>↓ Copia nella descrizione</button>
             <span className="field-hint">Se lasci vuota la descrizione, al salvataggio si usano queste righe.</span>
@@ -2232,7 +2256,7 @@
           blocco_id: ed.bloccoId,
           seriali: ed.voci,
           stato_superficie: ed.stati,
-          dove_pezzi: (ed.dovePezzi || '').trim(),
+          ...(campoVisibile('dove_pezzi', { fase: controllo && controllo.fase }) ? { dove_pezzi: (ed.dovePezzi || '').trim() } : {}),
           conferma_seriali_ripetuti: !!ed.confermaRipetuti,
           conferma_seriali_scoperti: scoperti.length > 0 && scopertiOk,
           anomalie: anomalie.map(a => {
@@ -2608,13 +2632,13 @@
           </div>
         )}
 
-        <div className="field-group">
+        {campoVisibile('dove_pezzi', { fase: controllo && controllo.fase }) && <div className="field-group">
           <label className="field-label" htmlFor="dove-pezzi">Dove sono i pezzi?</label>
           <input id="dove-pezzi" className="text-input" maxLength={200} spellCheck lang="it" value={editor.dovePezzi || ''}
             placeholder="Es. area pezzi non conformi, reparto rettifica, carrello del collaudo…"
             onChange={e => { const v = e.target.value; setEditor(prev => ({ ...prev, dovePezzi: v })); }} />
           <div className="field-hint">Vale per tutti i pezzi del blocco; il capocommessa lo trova nella mail e in Gestione anomalie.</div>
-        </div>
+        </div>}
 
         <div className="field-group">
           <div className="field-label">Anomalie su questi seriali <span className="req">*</span></div>
@@ -2648,13 +2672,13 @@
                     )}
                     <button type="button" className="link-btn" onClick={() => setEditor(prev => ({ ...prev, attiva: -1 }))}>Comprimi</button>
                   </div>
-                  <BarraSimboli disabled={a.gestita} fallbackRef={testoRef} />
+                  {campoVisibile('simboli', { fase: controllo && controllo.fase, tipo: codiceTipoAnomalia(a.dett, a.testo) }) && <BarraSimboli disabled={a.gestita} fallbackRef={testoRef} />}
                   <textarea ref={testoRef} className="textarea-input" rows={4} autoFocus={!a.gestita} disabled={a.gestita}
                     spellCheck lang="it"
                     aria-label={`Descrizione anomalia ${i + 1}`}
                     placeholder="Cosa hai rilevato, dove si trova sul pezzo, misura rilevata e tolleranza…"
                     value={a.testo} onChange={e => updAnomalia(i, { testo: e.target.value })} />
-                  <DettaglioAnomalia dett={a.dett} testo={a.testo} disabled={a.gestita} opId={controllo ? controllo.op_id : ''}
+                  <DettaglioAnomalia dett={a.dett} testo={a.testo} disabled={a.gestita} opId={controllo ? controllo.op_id : ''} fase={controllo ? controllo.fase : ''}
                     onChange={dett => updAnomalia(i, { dett })}
                     onCopiaNelTesto={righe => updAnomalia(i, { testo: [a.testo.trim(), ...righe].filter(Boolean).join('\n') })} />
                   {tokens.length > 1 && (() => {

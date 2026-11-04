@@ -476,6 +476,13 @@ SEZIONI: list[dict] = [
                  "obiettivi dei tempi: «Tempi: obiettivo prima decisione» (di serie 2 giorni lavorativi) e «Tempi: "
                  "obiettivo chiusura» (di serie 10), più l'orario di lavoro con cui si contano le ore: «Tempi: "
                  "orario di lavoro, dalle ore» (di serie 8) e «alle ore» (di serie 18)."),
+                ("Campi del blocco del controllore", "in cima alla scheda Configurazione: per ogni parte nuova di "
+                 "«Apertura segnalazione» («Dove sono i pezzi?», simboli, «Che cosa hai trovato?» e i tre casi, riquadro "
+                 "«Dal report ZEISS», riferimento, tipo di difetto, «Copia nella descrizione») scegli «Visibile: Sempre», "
+                 "«Mai» o «Solo se…». Con «Solo se…» compili una o più condizioni: persone, ruoli operativi, parole "
+                 "contenute nella fase del controllo (es. CMM), tipo di difetto dell'anomalia (scelto o proposto). Devono "
+                 "valere tutte quelle compilate; dentro ognuna basta una voce. «Salva campi» vale subito: il controllore "
+                 "ricarica la pagina. Nascondere una parte non cancella i dati già inseriti."),
                 ("Qualità", "catalogo dei tipi difetto e chi può chiudere le non conformità."),
                 ("Permessi", "ruoli operativi (sola lettura, dall'Anagrafica) e regole di accesso per ruolo e per "
                  "singolo utente."),

@@ -87,6 +87,9 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Chi è capocommessa e chi riceve le mail si decide con i ruoli del modulo e in Anagrafica.",
+                    "«Campi del blocco del controllore» (Configurazione, in cima): per ogni parte nuova di Apertura "
+                    "segnalazione «Visibile: Sempre / Mai / Solo se…» con persone, ruoli operativi, parole della fase "
+                    "(es. CMM) e tipo di difetto dell'anomalia; vale subito, senza rilasci.",
                     "«Referenti RDC / segnalazione cliente» (Configurazione, un nome o email per riga, con «Aggiungi» "
                     "dall'anagrafica): queste persone vedono in «In carico a me» gli OP con anomalie aperte da aprire "
                     "RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati).",
