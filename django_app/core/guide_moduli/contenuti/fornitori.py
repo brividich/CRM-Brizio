@@ -46,6 +46,29 @@ GUIDA = {
                       "collegato con il tuo utente, senza ridigitare la password, se sei abilitato nel pannello."),
                 ("nota", "I dati si leggono dal GuestPortal ogni volta che apri la pagina e non vengono copiati nell'HUB: "
                          "quando il GuestPortal cancella le visite vecchie (pulizia GDPR) spariscono anche qui."),
+                ("p", "La colonna «Incaricato per» mostra i ticket e gli ordini di lavoro a cui l'ingresso è stato collegato."),
+            ],
+        },
+        {
+            "id": "presenze-interventi",
+            "titolo": "Collegare l'ingresso della ditta al ticket o all'OdL",
+            "blocchi": [
+                ("p", "Nei ticket di manutenzione (scheda «Interventi» della gestione) e negli ordini di lavoro eseguiti da una "
+                      "ditta esterna c'è il riquadro «Presenze in azienda della ditta»."),
+                ("passi", [
+                    "Imposta la ditta: «Delegato a fornitore» nel ticket, il fornitore nell'OdL.",
+                    "Il riquadro propone gli ingressi della ditta dal giorno prima dell'apertura fino alla chiusura (al massimo 90 giorni): sotto «Ingressi della ditta da collegare» clicca «Collega» su quelli giusti.",
+                    "Se la ditta non compare (azienda scritta in modo diverso al chiosco), usa «Collega a mano un ingresso del giorno»: scegli il giorno, «Mostra ingressi», poi «Collega».",
+                    "«Togli» annulla un collegamento sbagliato finché l'intervento è aperto.",
+                ]),
+                ("def", [
+                    ("Totale in azienda", "somma del tempo tra entrata e uscita degli ingressi collegati."),
+                    ("Avviso giallo sulle ore", "nei ticket: le ore registrate negli interventi superano di oltre 15 minuti la presenza in azienda. Controlla il rapportino prima di approvare la fattura."),
+                    ("Ancora dentro", "il tecnico non ha ancora fatto il check-out: l'uscita si completa da sola alla prossima apertura del riquadro."),
+                ]),
+                ("nota", "Al collegamento l'HUB salva giorno, entrata, uscita e nome del tecnico: restano nel ticket/OdL come prova "
+                         "dell'intervento anche dopo la pulizia GDPR del GuestPortal. Il riquadro lo usano i gestori del ticket e chi "
+                         "esegue le manutenzioni; un intervento chiuso non si modifica più."),
             ],
         },
     ],
@@ -71,6 +94,7 @@ GUIDA = {
                     "Database: sul MySQL del GuestPortal crea un utente con solo SELECT su Visits, Guests e Suppliers e metti host, nome database, utente e password in GUESTPORTAL_DB_* del .env dell'HUB (vedi docs/integrazioni/guestportal/README.md). Dal server HUB deve essere aperta la porta 3306.",
                     "Accesso automatico: GUESTPORTAL_SSO_SECRET nel .env dell'HUB deve essere uguale a GP_SSO_SECRET in config/sso.php del GuestPortal. Senza segreto il link apre il login normale del pannello.",
                     "Dopo aver cambiato il .env riavvia il portale (sito IIS).",
+                    "Ditte: in Fornitori → «Ditte GuestPortal» scegli per ogni fornitore del GuestPortal il fornitore dell'HUB e clicca «Salva» (con nome uguale è già proposto). Senza abbinamento l'ingresso si riconosce solo se l'azienda scritta al chiosco è uguale alla ragione sociale. La pagina usa il permesso di «Modifica fornitore».",
                 ]),
             ],
         },
@@ -91,6 +115,15 @@ GUIDA = {
             "fare": [
                 "Dal server HUB prova la porta: Test-NetConnection <host MySQL> -Port 3306.",
                 "Controlla che l'utente MySQL esista e abbia SELECT su Visits, Guests, Suppliers.",
+            ],
+        },
+        {
+            "sintomo": "Il riquadro «Presenze in azienda» non propone gli ingressi della ditta",
+            "perche": "Ditta non impostata nel ticket/OdL, fornitore del GuestPortal non abbinato e azienda scritta diversamente al chiosco, oppure ingresso fuori dal periodo dell'intervento.",
+            "fare": [
+                "Imposta «Delegato a fornitore» (ticket) o il fornitore (OdL).",
+                "Abbina la ditta in Fornitori → «Ditte GuestPortal».",
+                "In alternativa usa «Collega a mano un ingresso del giorno».",
             ],
         },
         {

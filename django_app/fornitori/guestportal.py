@@ -30,7 +30,7 @@ import json
 import logging
 import secrets
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
 from django.conf import settings
@@ -147,7 +147,9 @@ class Accesso:
     badge: str
     ingresso: datetime | None
     uscita: datetime | None
-    fornitore_id: int | None = None  # scheda fornitore HUB con la stessa ragione sociale
+    ditta_gp_id: int | None = None  # Suppliers.SupplierID del GuestPortal (solo visite fornitore)
+    fornitore_id: int | None = None  # scheda fornitore HUB (abbinamento ditta o stessa ragione sociale)
+    interventi: list = field(default_factory=list)  # [(etichetta, url)] ticket/OdL collegati nell'HUB
 
     @property
     def stato_label(self) -> str:
@@ -214,7 +216,7 @@ def _connessione():
 
 _SELECT = """
     SELECT v.VisitID, v.Status, v.VisitType, v.BadgeNumber, v.HostEmployee, v.Purpose,
-           v.CheckInTime, v.CheckOutTime,
+           v.CheckInTime, v.CheckOutTime, v.SupplierID,
            g.FirstName, g.LastName, g.Company, g.IsAnonymized,
            s.CompanyName AS SupplierName
     FROM Visits v
@@ -240,6 +242,7 @@ def _riga_in_accesso(r: dict) -> Accesso:
         badge=(r.get("BadgeNumber") or "").strip(),
         ingresso=r.get("CheckInTime"),
         uscita=r.get("CheckOutTime"),
+        ditta_gp_id=int(r["SupplierID"]) if r.get("SupplierID") else None,
     )
 
 
@@ -299,3 +302,57 @@ def storico(
     righe = [_riga_in_accesso(r) for r in _esegui(sql, params)]
     troncato = len(righe) > limite
     return righe[:limite], troncato
+
+
+def visita(visita_id: int) -> Accesso | None:
+    """Una visita per numero (VisitID), o None se non esiste più (pulizia GDPR)."""
+    righe = _esegui(_SELECT + " WHERE v.VisitID = %s", [int(visita_id)])
+    return _riga_in_accesso(righe[0]) if righe else None
+
+
+def ditte_guestportal() -> list[tuple[int, str]]:
+    """Anagrafica fornitori/consulenti del GuestPortal: ``[(SupplierID, CompanyName)]``."""
+    righe = _esegui(
+        "SELECT SupplierID, CompanyName FROM Suppliers WHERE IsActive = 1 ORDER BY CompanyName", []
+    )
+    return [(int(r["SupplierID"]), (r.get("CompanyName") or "").strip()) for r in righe]
+
+
+def ingressi_ditta(
+    *,
+    ditte_gp: list[int],
+    nomi: list[str],
+    dal: date,
+    al: date,
+    limite: int = 200,
+) -> list[Accesso]:
+    """Ingressi di una ditta tra ``dal`` e ``al`` (compresi), dal più recente.
+
+    La ditta si riconosce dal fornitore del GuestPortal (``ditte_gp``, abbinamento
+    fatto in Fornitori → Ditte GuestPortal) oppure dall'azienda scritta dal
+    visitatore uguale a una delle ragioni sociali ``nomi`` (maiuscole ignorate).
+    """
+    ditte_gp = [int(x) for x in ditte_gp if x]
+    nomi = sorted({(n or "").strip().lower() for n in nomi if (n or "").strip()})
+    if not ditte_gp and not nomi:
+        return []
+    condizioni = []
+    params: list = [datetime.combine(dal, datetime.min.time()),
+                    datetime.combine(al + timedelta(days=1), datetime.min.time())]
+    if ditte_gp:
+        condizioni.append("v.SupplierID IN (" + ",".join(["%s"] * len(ditte_gp)) + ")")
+        params.extend(ditte_gp)
+    if nomi:
+        segnaposti = ",".join(["%s"] * len(nomi))
+        condizioni.append(f"LOWER(TRIM(s.CompanyName)) IN ({segnaposti})")
+        condizioni.append(f"(g.IsAnonymized = 0 AND LOWER(TRIM(g.Company)) IN ({segnaposti}))")
+        params.extend(nomi)
+        params.extend(nomi)
+    sql = (
+        _SELECT
+        + " WHERE v.CheckInTime >= %s AND v.CheckInTime < %s AND ("
+        + " OR ".join(condizioni)
+        + ") ORDER BY v.CheckInTime DESC LIMIT %s"
+    )
+    params.append(int(limite))
+    return [_riga_in_accesso(r) for r in _esegui(sql, params)]
