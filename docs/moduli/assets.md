@@ -315,3 +315,11 @@ Unica definizione di OdL in ritardo: `maintenance.q_odl_in_ritardo` / `odl_in_ri
 - Mappa: payload `livelli` e `scala`, area `m2`; chip dei livelli (scelta in localStorage), filtro categoria, ricerca su matricola/marca/modello/categoria, «Misura»; stampa `?stampa=1&livelli=<id>[&solo=1]` con legenda. Nuova versione attiva della base → i livelli passano alla nuova con `da_verificare`; ruota/ritaglia riallinea punti e scala.
 - «Dov'è?»: scheda intervento, pagina QR (solo con login), card mappa della scheda asset (livello → base con il livello acceso).
 
+## Planimetrie: importazione dai PDF e allineamento automatico (04/11/2026)
+
+- «Importa planimetrie» (`?importa=1` dell'editor, `views/layout_importa.py`, `planimetria_importa.html`): più PDF in una volta, inviati uno per richiesta dal browser. `services/planimetria_import.py` crea (o aggiorna, se nata dallo stesso file) la pianta: immagine dalla pagina, `base`, categorie dalla legenda/titolo, PDF salvato in `PlantLayout.sorgente_pdf`, stato in `PlantLayout.importazione` (file, data, utente, punteggio, validata).
+- Allineamento automatico (`services/planimetria_allinea.py`, solo numpy): tratti scuri/grigi delle due immagini senza legenda e cartiglio, ricerca su 4 rotazioni × scale con lo spostamento per correlazione FFT, rifinitura locale, punteggio = media geometrica fra muri del livello sulla base e muri della base sul livello. Sotto 0,50 non si salva (allineamento a mano), sotto 0,70 resta «da verificare».
+- Validazione: «Valida asset» apre «Leggi planimetria» con `&sorgente=1`, che rilegge il PDF salvato; «Valida e colloca» scrive i marker e segna la pianta come validata. «Scarta» cancella una pianta importata non validata (con il PDF).
+- Lettura: sulle piante con categorie ristrette niente «da creare» per nomi di reparto, numeri di macchina «-NNN-» (se fra le categorie non ci sono macchine) e sigle senza simbolo colorato né citazione in legenda; su un livello niente reparti proposti.
+- Migration `assets 0163` (`sorgente_pdf`, `importazione`).
+

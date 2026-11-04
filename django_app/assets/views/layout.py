@@ -434,6 +434,11 @@ def plant_layout_editor(request: HttpRequest) -> HttpResponse:
         from .layout_livello import livello_planimetria
 
         return livello_planimetria(request)
+    if request.GET.get("importa") == "1":
+        # «Importa planimetrie»: più PDF in una volta, stesso permesso dell'editor
+        from .layout_importa import importa_planimetrie
+
+        return importa_planimetrie(request)
     if request.GET.get("leggi") == "1":
         # «Leggi planimetria»: stessa rotta, quindi stesso permesso dell'editor
         from .layout_leggi import leggi_planimetria
