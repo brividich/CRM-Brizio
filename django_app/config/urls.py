@@ -52,6 +52,8 @@ urlpatterns = [
     path("gestione-specifiche/", include(("gestione_specifiche.urls", "gestione_specifiche"), namespace="gestione_specifiche")),
     # Registro OFI/NC (MOD.174) — modulo dedicato (app registro_ofi), al top-level.
     path("ofi-registro/", include(("registro_ofi.urls", "registro_ofi"), namespace="registro_ofi")),
+    # Presenti in azienda (timbrature Solari): lista live, appello di evacuazione, uscite non timbrate.
+    path("presenti/", include(("presenti.urls", "presenti"), namespace="presenti")),
     path("suggestion-corner/", include(("suggestion_corner.urls", "suggestion_corner"), namespace="suggestion_corner")),
     path("notizie/", include("notizie.urls")),
     path(

@@ -32,6 +32,8 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
                 "saldi, calendario aziendale, contatori, copertura reparti, storico richieste, solleciti, "
                 "permessi ripetuti (serie di richieste con una sola approvazione)"),
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
+    "presenti": ("Persone e HR", "#16a34a", "Presenti in azienda dalle timbrature Solari (lette, non copiate): "
+                 "appelli di evacuazione con le persone contate, avvisi delle uscite non timbrate"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
     "fornitori": ("Operations", "#16a34a", "Fornitori (anagrafica nelle tabelle di anagrafica); ingressi del GuestPortal collegati a ticket e OdL, abbinamento ditte GuestPortal"),
     "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software, indirizzi IP (DHCP/DNS), rack e switch di rete, macchine collegate (MTConnect)"),
@@ -80,6 +82,13 @@ AREE = ("Piattaforma", "Persone e HR", "Operations", "Sicurezza sul lavoro", "Qu
         "Sicurezza informatica", "Automazioni", "Altri moduli", "Framework e librerie")
 
 CONNESSIONI_ESTERNE: list[dict] = [
+    {
+        "nome": "Timbrature Solari (SQL Server)",
+        "cosa": "Database del sistema presenze Solari (anagrafico + timbrature). L'HUB legge in sola lettura, al massimo una volta al minuto per tutto il server (cache condivisa), chi è in azienda (ultima timbratura di oggi = entrata) e le giornate con entrata senza uscita. Nessuna copia delle timbrature nel database del portale.",
+        "chi": "Presenti in azienda (lista live, appello di evacuazione, uscite non timbrate, PDF CN-PRESENZE su SharePoint); pallino «In azienda» in elenco e scheda dipendente. Aggancio all'anagrafica per codice fiscale.",
+        "config": "SOLARI_DB_SERVER, SOLARI_DB_USER, SOLARI_DB_PASSWORD (login con solo db_datareader), SOLARI_DB_DRIVER, SOLARI_DB_ANAGRAFICO, SOLARI_DB_TIMBRATURE, SOLARI_TURNO_NORMALE_ELEM; pubblicazione PDF e avvisi in Presenti › Impostazioni.",
+        "controllo": "Pagina Presenti in azienda (rosso = non configurato o DB non risponde); raggiungibilità dell'istanza SQL Solari dal server HUB; Impostazioni › «Ultima pubblicazione» per l'upload su SharePoint.",
+    },
     {
         "nome": "GuestPortal (accessi visitatori, MySQL)",
         "cosa": "Applicazione separata (PHP + MySQL su IIS) del chiosco della reception: check-in/out di visitatori, fornitori e consulenti. L'HUB legge in sola lettura Visits/Guests/Suppliers (nessuna copia: la pulizia GDPR del GuestPortal resta valida) e apre il suo pannello con un token firmato a uso singolo (public/admin/sso.php).",

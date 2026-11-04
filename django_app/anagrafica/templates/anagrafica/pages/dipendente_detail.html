@@ -1,6 +1,7 @@
 {% extends "core/base.html" %}
 {% load safe_json %}
 {% load anagrafica_extras %}
+{% load presenti_tags %}
 {% load dpi_extras %}
 
 {% block title %}{% nominativo dip %} | Scheda dipendente{% endblock %}
@@ -742,7 +743,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       {% if civile_foto_url %}<img class="dp-avatar-img" src="{{ civile_foto_url }}" alt="">{% endif %}
     </div>
     <div class="dp-hero-info">
-      <div class="dp-hero-name">{% nominativo dip %}</div>
+      <div class="dp-hero-name">{% nominativo dip %}{% pallino_presenza dip.id True %}</div>
       <div class="dp-hero-meta">
         {% if dip.mansione %}{{ dip.mansione }}{% endif %}
         {% if dip.reparto %} &middot; <span class="dp-pill dp-pill-blue">{{ dip.reparto }}</span>{% endif %}

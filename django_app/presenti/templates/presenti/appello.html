@@ -1,0 +1,68 @@
+{% extends "core/base.html" %}
+
+{% block title %}Appello di evacuazione · Presenti in azienda{% endblock %}
+
+{% block extra_head %}{% include "presenti/_stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="pres">
+  <div class="pres-head">
+    <div>
+      <h1>Appello di evacuazione</h1>
+      <p>Al punto di raccolta: tocca ogni persona trovata. Più persone possono contare insieme, ognuno vede le spunte degli altri.</p>
+    </div>
+    {% if appello %}
+    <div class="pres-azioni">
+      <a class="pres-btn" href="{% url 'presenti:appello_stampa' appello.pk %}" target="_blank" rel="noopener">Stampa</a>
+      <form method="post" action="{% url 'presenti:appello_chiudi' appello.pk %}" data-hub-confirm="Chiudere l'appello? Le spunte restano nello storico.">
+        {% csrf_token %}<button class="pres-btn pres-btn-primary" type="submit">Chiudi appello</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+
+  {% include "presenti/_nav.html" %}
+
+  {% if appello %}
+    <div id="pres-appello" hx-get="{% url 'presenti:appello_parziale' appello.pk %}" hx-trigger="every {{ aggiorna_ogni }}s" hx-swap="innerHTML">
+      {% include "presenti/_appello_lista.html" %}
+    </div>
+  {% else %}
+    <div class="pres-card" style="max-width:640px;">
+      <h2 style="margin:0 0 6px; font-size:18px;">Avvia un appello</h2>
+      <p style="margin:0 0 12px; color:var(--text-mid); font-size:13.5px;">
+        L'elenco dell'appello è la fotografia di chi risulta in azienda in questo momento (timbrature di oggi).
+        Chi entra dopo l'avvio non compare.
+      </p>
+      {% if not solari_ok %}<div class="pres-avviso is-err">Il database delle timbrature non è configurato: l'appello partirebbe vuoto.</div>{% endif %}
+      <form method="post" action="{% url 'presenti:appello_avvia' %}" class="pres-form">
+        {% csrf_token %}
+        <label class="pres-check-row" style="font-weight:600;"><input type="checkbox" name="esercitazione" value="1"> È un'esercitazione (prova di evacuazione)</label>
+        <label>Nota <small>(facoltativa: motivo, zona, chi coordina)</small><input type="text" name="nota" maxlength="300"></label>
+        <div><button class="pres-btn pres-btn-danger pres-btn-big" type="submit">Avvia appello adesso</button></div>
+      </form>
+    </div>
+  {% endif %}
+
+  {% if storico %}
+  <h2 class="pres-gruppo">Appelli conclusi</h2>
+  <div class="pres-card" style="padding:0; overflow-x:auto;">
+    <table class="pres-tab">
+      <thead><tr><th>Avviato</th><th>Tipo</th><th class="pres-hide-sm">Avviato da</th><th>Chiuso</th><th class="pres-c">Persone</th><th></th></tr></thead>
+      <tbody>
+        {% for a in storico %}
+        <tr>
+          <td class="pres-mono">{{ a.aperto_il|date:"d-m-Y H:i" }}</td>
+          <td>{% if a.esercitazione %}Esercitazione{% else %}Emergenza{% endif %}{% if a.nota %}<span class="pres-sub">{{ a.nota }}</span>{% endif %}</td>
+          <td class="pres-hide-sm">{{ a.aperto_da.get_full_name|default:a.aperto_da.username|default:"—" }}</td>
+          <td class="pres-mono">{{ a.chiuso_il|date:"H:i" }}</td>
+          <td class="pres-c">{{ a.persone|length }}</td>
+          <td><a href="{% url 'presenti:appello_stampa' a.pk %}" target="_blank" rel="noopener">PDF</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
