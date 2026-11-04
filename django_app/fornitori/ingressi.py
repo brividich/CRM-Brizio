@@ -8,7 +8,8 @@ GuestPortal cancella le visite vecchie.
 
 La ditta di un ingresso si riconosce dall'abbinamento ``DittaGuestPortal``
 (fornitore del GuestPortal → fornitore HUB) oppure dall'azienda scritta dal
-visitatore uguale alla ragione sociale del fornitore HUB.
+visitatore uguale alla ragione sociale del fornitore HUB a meno di maiuscole,
+punteggiatura e forma giuridica (``fornitori/nomi.py``).
 """
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ from django.utils import timezone
 
 from . import guestportal as gp
 from .models import DittaGuestPortal, IngressoIntervento
+from .nomi import chiave_ditta, unico
 
 TIPO_TICKET = "ticket"
 TIPO_ODL = "odl"
@@ -102,9 +104,18 @@ def proposte(iv: Intervento) -> list[gp.Accesso]:
     if fornitore is None:
         return []
     dal, al = iv.finestra()
-    righe = gp.ingressi_ditta(
-        ditte_gp=ditte_gp_del_fornitore(fornitore), nomi=[fornitore.ragione_sociale], dal=dal, al=al,
-    )
+    ditte = set(ditte_gp_del_fornitore(fornitore))
+    nomi = {fornitore.ragione_sociale}
+    # Ditte del GuestPortal con lo stesso nome a meno di forma giuridica e
+    # punteggiatura («Rossi Impianti» = «ROSSI IMPIANTI S.R.L.»), se non abbinate
+    # a un altro fornitore.
+    chiave = chiave_ditta(fornitore.ragione_sociale)
+    abbinate_altrove = set(DittaGuestPortal.objects.exclude(fornitore=fornitore).values_list("ditta_gp_id", flat=True))
+    for ditta_id, nome in gp.ditte_guestportal():
+        if ditta_id not in abbinate_altrove and chiave and chiave_ditta(nome) == chiave:
+            ditte.add(ditta_id)
+            nomi.add(nome)
+    righe = gp.ingressi_ditta(ditte_gp=sorted(ditte), nomi=sorted(nomi), dal=dal, al=al)
     gia = set(iv.collegamenti().values_list("visita_gp_id", flat=True))
     return [a for a in righe if a.visita_id not in gia]
 
@@ -130,22 +141,22 @@ class CollegamentoNonValido(Exception):
 
 def fornitore_da_accesso(accesso: gp.Accesso, preferito=None):
     """Fornitore HUB di un ingresso: abbinamento della ditta GuestPortal, altrimenti
-    azienda scritta al chiosco uguale alla ragione sociale (prima ``preferito``,
-    poi tutti i fornitori attivi). None se non si riconosce."""
+    azienda dell'ingresso con lo stesso nome della ragione sociale a meno di
+    maiuscole, punteggiatura e forma giuridica (prima ``preferito``, poi l'unico
+    fornitore attivo con quel nome). None se non si riconosce o è ambiguo."""
     from anagrafica.models import Fornitore
 
     if accesso.ditta_gp_id:
         abbinata = DittaGuestPortal.objects.filter(ditta_gp_id=accesso.ditta_gp_id).select_related("fornitore").first()
         if abbinata:
             return abbinata.fornitore
-    nome = (accesso.azienda or "").strip().lower()
-    if not nome:
+    chiave = chiave_ditta(accesso.azienda)
+    if not chiave:
         return None
-    if preferito is not None and (preferito.ragione_sociale or "").strip().lower() == nome:
+    if preferito is not None and chiave_ditta(preferito.ragione_sociale) == chiave:
         return preferito
-    for f in Fornitore.objects.filter(is_active=True, ragione_sociale__iexact=accesso.azienda.strip()).order_by("pk")[:1]:
-        return f
-    return None
+    pk = unico(chiave, Fornitore.objects.filter(is_active=True).values_list("pk", "ragione_sociale"))
+    return Fornitore.objects.filter(pk=pk).first() if pk else None
 
 
 def _imposta_ditta(iv: Intervento, fornitore, *, utente, autore: tuple[str, str] | None) -> str:

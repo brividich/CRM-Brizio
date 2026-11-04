@@ -31,6 +31,10 @@ def _accesso(visita_id=11, ingresso=datetime(2026, 11, 4, 8, 0), uscita=datetime
 
 class BaseIngressi(TestCase):
     def setUp(self):
+        # Anagrafica ditte del GuestPortal vuota di base (i test la sovrascrivono).
+        patcher = patch.object(gp, "ditte_guestportal", return_value=[])
+        self.ditte_gp_mock = patcher.start()
+        self.addCleanup(patcher.stop)
         self.admin = get_user_model().objects.create_superuser("gp.admin", "gp.admin@example.com", "pwd12345")
         self.client.force_login(self.admin)
         self.fornitore = Fornitore.objects.create(ragione_sociale="Ditta Manutenzioni Srl")
@@ -117,6 +121,24 @@ class CollegamentoTests(BaseIngressi):
         self.assertEqual(kwargs["ditte_gp"], [5])
         self.assertEqual(kwargs["nomi"], ["Ditta Manutenzioni Srl"])
         self.assertLessEqual((kwargs["al"] - kwargs["dal"]).days, ing.FINESTRA_MAX_GIORNI)
+
+    def test_proposte_includono_ditta_gp_con_nome_simile_non_abbinata(self):
+        altro = Fornitore.objects.create(ragione_sociale="Altra Ditta Spa")
+        DittaGuestPortal.objects.create(ditta_gp_id=7, ditta_gp_nome="Ditta Manutenzioni", fornitore=altro)
+        self.ditte_gp_mock.return_value = [(9, "DITTA MANUTENZIONI S.R.L."), (7, "Ditta Manutenzioni"), (3, "Altra")]
+        iv = ing.intervento(ing.TIPO_TICKET, self.ticket.pk)
+        with patch.object(gp, "ingressi_ditta", return_value=[]) as m:
+            ing.proposte(iv)
+        self.assertEqual(m.call_args.kwargs["ditte_gp"], [9])  # 7 è abbinata a un altro fornitore
+        self.assertIn("DITTA MANUTENZIONI S.R.L.", m.call_args.kwargs["nomi"])
+
+    def test_ditta_riconosciuta_a_meno_di_forma_giuridica(self):
+        self.ticket.delegato_fornitore = None
+        self.ticket.save()
+        acc = _accesso(ditta_gp_id=None, azienda="ditta manutenzioni s.r.l.")
+        self.assertEqual(ing.fornitore_da_accesso(acc), self.fornitore)
+        Fornitore.objects.create(ragione_sociale="DITTA MANUTENZIONI SPA")  # ora ambiguo
+        self.assertIsNone(ing.fornitore_da_accesso(acc))
 
     def test_senza_ditta_delegata_nessuna_proposta(self):
         self.ticket.delegato_fornitore = None
