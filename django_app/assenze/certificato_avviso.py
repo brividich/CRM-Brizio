@@ -59,40 +59,50 @@ def malattie_senza_certificato(now=None, imp=None) -> list[dict]:
     return [r for r in rows if int(r["id"]) not in gia]
 
 
-def _corpo_mail(righe: list[dict], giorni: int) -> tuple[str, str]:
-    from core.accounts.portal_links import portal_link
-
+def _data_breve(value) -> str:
+    """«05/10» (giorno/mese): le malattie vanno a giorni interi, l'ora non serve."""
     from .views import _helpers
 
-    link = portal_link("/assenze/calendario") or "/assenze/calendario"
-    voci = [
-        (
-            str(r.get("copia_nome") or "").upper() or "Dipendente",
-            f"{_helpers._dt_label(r.get('data_inizio'))} - {_helpers._dt_label(r.get('data_fine'))}",
-            f"#{r.get('id')}",
-        )
-        for r in righe
-    ]
+    label = _helpers._dt_label(value)  # «dd-mm-YYYY HH:MM» in ora locale
+    return label[:5].replace("-", "/") if label else "?"
+
+
+def _periodo_breve(r: dict) -> str:
+    dal, al = _data_breve(r.get("data_inizio")), _data_breve(r.get("data_fine"))
+    return dal if dal == al else f"{dal}–{al}"
+
+
+def _raggruppa(righe: list[dict]) -> list[tuple[str, list[tuple[str, str]]]]:
+    """[(DIPENDENTE, [(periodo, «#id»), ...]), ...] in ordine alfabetico."""
+    gruppi: dict[str, list[tuple[str, str]]] = {}
+    for r in sorted(righe, key=lambda x: (str(x.get("copia_nome") or "").upper(), str(x.get("data_inizio") or ""))):
+        nome = str(r.get("copia_nome") or "").strip().upper() or "Dipendente"
+        gruppi.setdefault(nome, []).append((_periodo_breve(r), f"#{r.get('id')}"))
+    return list(gruppi.items())
+
+
+def _corpo_mail(righe: list[dict], giorni: int) -> tuple[str, str]:
+    """Mail compatta: una riga per dipendente, periodi in giorno/mese."""
+    from core.accounts.portal_links import portal_link
+
+    percorso = "/assenze/impostazioni/?stato=tutti&certificato=mancante#admin-assenze-panel"
+    link = portal_link(percorso) or percorso
+    gruppi = _raggruppa(righe)
     righe_html = "".join(
         "<tr>"
-        f'<td style="padding:6px 10px 6px 0;color:#0f172a;font-weight:600;">{escape(nome)}</td>'
-        f'<td style="padding:6px 10px;color:#334155;">{escape(periodo)}</td>'
-        f'<td style="padding:6px 0 6px 10px;color:#64748b;">{escape(rid)}</td>'
-        "</tr>"
-        for nome, periodo, rid in voci
+        f'<td style="padding:3px 12px 3px 0;color:#0f172a;font-weight:600;white-space:nowrap;vertical-align:top;">{escape(nome)}</td>'
+        '<td style="padding:3px 0;color:#334155;">'
+        + " &middot; ".join(f'{escape(periodo)} <span style="color:#94a3b8;">{escape(rid)}</span>' for periodo, rid in periodi)
+        + "</td></tr>"
+        for nome, periodi in gruppi
     )
     body_content = (
-        '<p style="color:#334155;line-height:1.6;margin:0 0 14px;">'
-        f"Per queste malattie, iniziate da almeno <strong>{giorni} giorni</strong>, "
-        "il certificato medico <strong>non risulta arrivato</strong>:</p>"
-        '<table style="border-collapse:collapse;width:100%;margin:4px 0 14px;">'
-        '<tr><th align="left" style="padding:0 10px 6px 0;color:#64748b;">Dipendente</th>'
-        '<th align="left" style="padding:0 10px 6px;color:#64748b;">Periodo</th>'
-        '<th align="left" style="padding:0 0 6px 10px;color:#64748b;">Richiesta</th></tr>'
-        f"{righe_html}</table>"
-        '<p style="color:#334155;line-height:1.6;margin:0 0 10px;">Quando arriva, apri la richiesta con '
-        "«Modifica» e spunta «Certificato arrivato».</p>"
-        f'<p style="margin:0;"><a href="{escape(link)}" style="color:#0f766e;font-weight:700;">Apri il calendario assenze</a></p>'
+        '<p style="color:#334155;line-height:1.5;margin:0 0 10px;">'
+        f"Malattie iniziate da almeno {giorni} giorni <strong>senza certificato</strong>:</p>"
+        f'<table style="border-collapse:collapse;width:100%;font-size:13px;line-height:1.4;margin:0 0 12px;">{righe_html}</table>'
+        '<p style="color:#64748b;font-size:13px;line-height:1.5;margin:0;">'
+        f'<a href="{escape(link)}" style="color:#0f766e;font-weight:700;">Segna i certificati arrivati</a>'
+        " (anche più insieme, senza mail).</p>"
     )
     html = render_to_string(
         "core/email/base_email.html",
@@ -102,15 +112,14 @@ def _corpo_mail(righe: list[dict], giorni: int) -> tuple[str, str]:
             "section_label": "Assenze e permessi",
             "title": "Certificato medico non arrivato",
             "body_content": body_content,
-            "preheader": f"{len(voci)} malattie senza certificato medico dopo {giorni} giorni.",
+            "preheader": f"{len(righe)} malattie senza certificato medico dopo {giorni} giorni.",
             "footer_note": "Messaggio automatico generato da NOVICROM HUB. Ogni malattia compare in un solo avviso.",
         },
     )
     testo = "\n".join(
-        [f"Malattie iniziate da almeno {giorni} giorni senza certificato medico arrivato:", ""]
-        + [f"- {nome} | {periodo} | richiesta {rid}" for nome, periodo, rid in voci]
-        + ["", "Quando arriva, apri la richiesta con «Modifica» e spunta «Certificato arrivato».",
-           f"Apri: {link}", "", "Messaggio automatico generato da NOVICROM HUB."]
+        [f"Malattie iniziate da almeno {giorni} giorni senza certificato:", ""]
+        + [f"- {nome}: " + ", ".join(f"{periodo} {rid}" for periodo, rid in periodi) for nome, periodi in gruppi]
+        + ["", f"Segna i certificati arrivati: {link}", "", "Messaggio automatico generato da NOVICROM HUB."]
     )
     return html, testo
 

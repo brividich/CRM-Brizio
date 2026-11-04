@@ -182,3 +182,69 @@ class AvvisoCertificatoTests(TestCase):
         imp.save()
         self.assertIn("skipped", invia_avvisi())
         self.assertEqual(mail.outbox, [])
+
+    def test_mail_compatta_una_riga_per_dipendente(self, *_):
+        from .certificato_avviso import _corpo_mail
+
+        righe = [
+            _malattia(id=701, copia_nome="Rossi Test", data_inizio=datetime(2026, 10, 5), data_fine=datetime(2026, 10, 12, 23, 59)),
+            _malattia(id=702, copia_nome="Bianchi Test", data_inizio=datetime(2026, 10, 14), data_fine=datetime(2026, 10, 14, 23, 59)),
+            _malattia(id=703, copia_nome="Rossi Test", data_inizio=datetime(2026, 10, 13), data_fine=datetime(2026, 10, 14, 23, 59)),
+        ]
+        html, testo = _corpo_mail(righe, 2)
+        self.assertIn("- BIANCHI TEST: 14/10 #702", testo)
+        self.assertIn("- ROSSI TEST: 05/10\u201312/10 #701, 13/10\u201314/10 #703", testo)
+        self.assertNotIn("23:59", testo)
+        self.assertIn("certificato=mancante", testo)
+        self.assertEqual(html.count("ROSSI TEST"), 1)
+
+
+@MAIL
+@patch("assenze.views._helpers.log_action")
+@patch("assenze.views._helpers._can_manage_record", return_value=True)
+@patch("assenze.views._helpers._has_assenze_column", return_value=True)
+class CertificatoInBloccoTests(TestCase):
+    """«Certificato arrivato» su piu' malattie dalle Impostazioni: nessuna mail."""
+
+    def setUp(self):
+        from core.models import UserOnboarding
+
+        self.user = User.objects.create_superuser("hr.test", "hr@example.com", "pw12345678")
+        UserOnboarding.objects.update_or_create(user=self.user, defaults={"completed": True, "completed_at": timezone.now()})
+        self.client.force_login(self.user)
+        self.righe = {
+            1: _malattia(id=1, moderation_status=0),
+            2: _malattia(id=2, certificato_medico="Arrivato"),
+            3: _malattia(id=3, tipo_assenza="Ferie"),
+        }
+
+    def _post(self, ids, perms=None):
+        import json
+
+        with patch("assenze.views._helpers._assenze_permissions", return_value=perms or {"can_update_any": True}), patch(
+            "assenze.views._helpers._get_assenza", side_effect=lambda i: self.righe.get(i)
+        ), patch("assenze.views._helpers._update_assenza", return_value=True) as upd:
+            response = self.client.post(
+                reverse("assenze_api_admin_bulk_certificato"), data=json.dumps({"ids": ids}), content_type="application/json",
+            )
+        return response, upd
+
+    def test_segna_solo_le_malattie_senza_certificato_e_niente_mail(self, *_):
+        from .models import AssenzaModifica
+
+        response, upd = self._post([1, 2, 3, 99])
+        self.assertEqual(response.status_code, 200)
+        dati = response.json()
+        self.assertEqual(dati["ids_applicati"], [1])
+        self.assertEqual({s["id"]: s["motivo"] for s in dati["scartate"]}, {
+            2: "certificato già arrivato", 3: "non è una malattia", 99: "record non trovato",
+        })
+        upd.assert_called_once_with(1, {"certificato_medico": "Arrivato"})
+        self.assertEqual(mail.outbox, [])
+        storico = AssenzaModifica.objects.get(assenza_id=1)
+        self.assertIn("senza mail", storico.motivo)
+
+    def test_permessi_insufficienti(self, *_):
+        response, upd = self._post([1], perms={"can_update_any": False, "can_update_owned": True})
+        self.assertEqual(response.status_code, 403)
+        upd.assert_not_called()
