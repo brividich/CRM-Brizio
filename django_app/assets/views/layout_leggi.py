@@ -90,7 +90,13 @@ def leggi_planimetria(request: HttpRequest) -> HttpResponse:
         "ai_disponibile": _ai_disponibile(),
         "risultato": None,
     }
-    if request.method != "POST" or layout is None:
+    # pianta nata da «Importa planimetrie»: si rilegge il suo PDF, senza ricaricarlo
+    da_sorgente = bool(layout is not None and layout.sorgente_pdf and (
+        (request.method == "GET" and request.GET.get("sorgente") == "1")
+        or (request.method == "POST" and not request.FILES.get("pdf") and request.POST.get("action") != "applica_proposte")
+    ))
+    contesto["ha_sorgente"] = bool(layout is not None and layout.sorgente_pdf)
+    if (request.method != "POST" and not da_sorgente) or layout is None:
         return render(request, "assets/pages/planimetria_lettura.html", contesto)
 
     action = (request.POST.get("action") or "").strip()
@@ -101,7 +107,16 @@ def leggi_planimetria(request: HttpRequest) -> HttpResponse:
     usa_ai = request.POST.get("usa_ai") == "1"
     token = ""
     try:
-        if file_pdf:
+        if da_sorgente:
+            try:
+                with layout.sorgente_pdf.open("rb") as f:
+                    contenuto = f.read()
+            except OSError as exc:
+                raise lettura.ErroreLettura("Il PDF della pianta non si trova più: caricalo di nuovo.") from exc
+            pag = lettura.leggi_pagina_pdf(contenuto, 0)
+            nome_pdf = (layout.importazione or {}).get("file") or layout.sorgente_pdf.name
+            fonte = f"{'Riconoscimento del testo sul' if pag.ocr else 'Testo del'} PDF «{nome_pdf}» da cui è nata la pianta"
+        elif file_pdf:
             if file_pdf.size > _MAX_PDF:
                 raise lettura.ErroreLettura("Il PDF è troppo grande (massimo 60 MB).")
             contenuto = file_pdf.read()
@@ -130,7 +145,7 @@ def leggi_planimetria(request: HttpRequest) -> HttpResponse:
         return render(request, "assets/pages/planimetria_lettura.html", contesto)
 
     risultato = lettura.abbina(layout, usa_ai=usa_ai, fonte_testo=fonte, pagina=pag)
-    if file_pdf and not token:
+    if file_pdf and not token and not da_sorgente:
         risultato.avvisi.append(
             "Le posizioni sono calcolate sulla pagina del PDF: combaciano solo se l'immagine della planimetria è la "
             "stessa pagina intera. Altrimenti spunta «Usa questa pagina come immagine della planimetria»."
@@ -214,6 +229,13 @@ def _applica(request: HttpRequest, layout: PlantLayout) -> HttpResponse:
         extra.append(f"disegnati {disegnati} reparti")
     coda = (" (" + ", ".join(extra) + ")") if extra else ""
     if destinazione is layout:
+        if (layout.importazione or {}).get("file"):
+            from ..services.planimetria_import import segna_validata
+            from .layout_importa import _utente
+
+            segna_validata(layout, _utente(request))
+            messages.success(request, f"Validata «{layout.name}»: collocati {len(cambi)} asset{coda}.")
+            return redirect(f"{reverse('assets:plant_layout_editor')}?importa=1")
         messages.success(request, f"Collocati o spostati {len(cambi)} asset sulla planimetria «{layout.name}»{coda}.")
     else:
         messages.success(

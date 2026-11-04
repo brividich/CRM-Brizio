@@ -331,6 +331,15 @@ GUIDA = {
                     "categoria modificabili, costruttore e descrizione dalla legenda), già collocate in quel punto. "
                     "«Reparti scritti sulla pianta»: i nomi di reparto letti diventano riquadri da rifinire; sono spuntati solo quelli con un "
                     "contorno disegnato tutto loro. «Applica le scelte» fa tutto insieme.",
+                    "«Importa planimetrie» (in alto nell'editor): scegli la pianta base e carica insieme tutti i PDF "
+                    "delle piante di servizio. Ogni PDF diventa una pianta, livello della base, allineata da sola sui muri "
+                    "(verde = combacia, giallo = da controllare, rosso = da allineare a mano in «Livello e scala»), con le "
+                    "categorie lette dalla legenda. Poi «Valida asset» rilegge il PDF salvato e mostra gli asset riconosciuti: "
+                    "togli la spunta a quelli sbagliati e premi «Valida e colloca». Ricaricare lo stesso file aggiorna la "
+                    "pianta che ne era nata; «Scarta» cancella una pianta importata non ancora validata.",
+                    "Sulle piante di servizio la lettura propone da creare solo le sigle con il simbolo colorato o citate "
+                    "in legenda: i nomi di reparto («CN5») e i numeri delle macchine del disegno di fondo («-233-») no. "
+                    "Su un livello non propone reparti: si disegnano sulla pianta base.",
                     "«Livello e scala» (in alto nell'editor): una pianta di servizio (condizionatori, differenziali, telecamere...) diventa un "
                     "livello di una pianta base. Scegli la pianta base, poi clicca lo stesso punto sulle due piante e un secondo punto lontano "
                     "(punto 1 sul livello, 1 sulla base, 2 sul livello, 2 sulla base): anche piante ruotate o in scala diversa tornano allineate. "

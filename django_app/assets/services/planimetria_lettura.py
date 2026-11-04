@@ -493,8 +493,9 @@ def abbina(layout: PlantLayout, parole: list[Parola] | None = None, *, usa_ai: b
         if _sembra_sigla(p.testo) and normalizza(p.testo) not in usate
     })
     if pagina is not None:
-        risultato.da_creare = _da_creare(parole, usate, pagina, layout, categorie, indice_tutti)
-        risultato.reparti = _reparti_proposti(layout, pagina)
+        risultato.da_creare = _da_creare(parole, usate, pagina, layout, categorie, indice_tutti, reparti)
+        # su un livello i reparti non si disegnano: stanno sulla pianta base
+        risultato.reparti = [] if layout.base_id else _reparti_proposti(layout, pagina)
         gia = {normalizza(d.sigla) for d in risultato.da_creare}
         da_ai = [t for t in da_ai if normalizza(t) not in gia]
     if usa_ai and da_ai:
@@ -554,13 +555,15 @@ def _sembra_codice(testo: str, tipo: str) -> bool:
 _SERVIZI_GENERICI = {"", "GENERALE", "AZIENDA", "AZIENDALE", "STABILIMENTO", "EDIFICIO", "PIANO", "EMERGENZA"}
 
 
-def _da_creare(parole, usate, pagina: Pagina, layout, categorie, indice_tutti) -> list[DaCreare]:
+def _da_creare(parole, usate, pagina: Pagina, layout, categorie, indice_tutti, reparti=frozenset()) -> list[DaCreare]:
     leg = pagina.legenda
     categoria_pianta = None
+    macchine_ammesse = True
     if categorie:
-        cats = list(AssetCategory.objects.filter(id__in=categorie).only("id", "label", "parent_id"))
+        cats = list(AssetCategory.objects.filter(id__in=categorie).only("id", "label", "parent_id", "base_asset_type"))
         if len(cats) == 1:
             categoria_pianta = cats[0]
+        macchine_ammesse = any(c.base_asset_type == Asset.TYPE_WORK_MACHINE for c in cats)
     servizio_cat = None
     if leg.servizio:
         trovate = categorie_per_testo(leg.servizio)
@@ -582,6 +585,13 @@ def _da_creare(parole, usate, pagina: Pagina, layout, categorie, indice_tutti) -
         tipo = leg.tipo_di_colore(simbolo.colore) if simbolo is not None else ""
         if not _sembra_codice(p.testo, tipo):
             continue
+        if chiave in reparti:
+            continue  # «CN5»: nome di reparto, non un oggetto
+        numero_macchina = bool(re.match(r"^-\d{1,4}-?$", p.testo.strip()))
+        if categorie is not None and numero_macchina and not macchine_ammesse:
+            continue  # «-233-»: numero di una macchina del disegno di fondo, non di questo servizio
+        if categorie is not None and not tipo and chiave not in leg.sigle and not numero_macchina:
+            continue  # pianta di un servizio: solo sigle col simbolo colorato o citate in legenda («AGV1», «P145» no)
         if chiave in indice_tutti and not tipo:
             continue  # è un asset di un'altra categoria: non lo si crea due volte
         if chiave in per_chiave:

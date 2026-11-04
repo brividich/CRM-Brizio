@@ -1876,6 +1876,10 @@ class PlantLayout(models.Model):
     )
     # {"punti": [[x1, y1], [x2, y2]], "metri": 12.5, "rapporto": altezza/larghezza dell'immagine}
     scala = models.JSONField(default=dict, blank=True)
+    # «Importa planimetrie»: il PDF da cui è nata la pianta (la lettura degli asset lo rilegge)
+    # e lo stato: {"file", "il", "da", "punteggio", "validata", "validata_il", "validata_da"}
+    sorgente_pdf = models.FileField(upload_to="planimetrie_sorgenti/", max_length=200, blank=True, default="")
+    importazione = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1973,9 +1977,13 @@ class PlantLayout(models.Model):
     def delete(self, *args, **kwargs):
         storage = self.image.storage if self.image else None
         file_name = self.image.name if self.image else ""
+        sorgente = self.sorgente_pdf.name if self.sorgente_pdf else ""
+        sorgente_storage = self.sorgente_pdf.storage if self.sorgente_pdf else None
         super().delete(*args, **kwargs)
         if storage and file_name and storage.exists(file_name):
             storage.delete(file_name)
+        if sorgente_storage and sorgente and sorgente_storage.exists(sorgente):
+            sorgente_storage.delete(sorgente)
 
 
 class PlantLayoutArea(models.Model):
