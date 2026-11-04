@@ -426,3 +426,23 @@ body.theme-dark .soc-module .iso-pill.is-attenzione, body.theme-dark .soc-module
 .soc-module .cfg-recent ul { margin: 8px 0; padding-left: 18px; color: var(--text-mid); }
 body.theme-dark .soc-module .cfg-todo li a { background: var(--surface); }
 @media (max-width: 520px) { .soc-module .cfg-grid { grid-template-columns: 1fr; } }
+
+/* Segnalazioni > Proposte AI (ai_proposte): schede di proposta e barra della fiducia */
+.soc-module .prop-list { display: grid; gap: 10px; }
+.soc-module .prop-card { padding: 12px 14px; border: 1px solid var(--border); border-left: 4px solid var(--success); border-radius: 12px; background: var(--surface); min-width: 0; }
+.soc-module .prop-card.is-aperto { border-left-color: #94a3b8; }
+.soc-module .prop-card.is-false_positive, .soc-module .prop-card.is-not_relevant, .soc-module .prop-card.is-accepted_risk { border-left-color: #d97706; }
+.soc-module .prop-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.soc-module .prop-alert { font-weight: 600; overflow-wrap: anywhere; }
+.soc-module .prop-esito { background: var(--success-bg); color: var(--success); }
+.soc-module .prop-esito-warn { background: var(--warning-bg); color: #b45309; }
+.soc-module .prop-tipo { margin: 4px 0 0; }
+.soc-module .prop-motivo { margin: 8px 0 0; }
+.soc-module .prop-prove { margin: 6px 0 0 18px; padding: 0; color: var(--text-mid); }
+.soc-module .prop-azioni { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; }
+.soc-module .prop-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1 1 280px; min-width: 0; }
+.soc-module .prop-form input[type="text"] { flex: 1 1 180px; min-width: 0; }
+.soc-module .prop-meter { display: inline-block; width: 70px; height: 6px; border-radius: 999px; background: var(--border); vertical-align: middle; overflow: hidden; }
+.soc-module .prop-meter span { display: block; height: 100%; background: var(--success); }
+body.theme-dark .soc-module .prop-esito { color: #86efac; }
+body.theme-dark .soc-module .prop-esito-warn { color: #fcd34d; }

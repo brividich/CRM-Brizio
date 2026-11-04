@@ -211,6 +211,9 @@ def alert_detail(request, pk, ai=None, ai_risoluzione=None):
         },
     }
     context.update(_alert_lifecycle_context(alert))
+    from security.services.ai_proposte import proposta_aperta
+
+    context["proposta_ai"] = proposta_aperta(alert)
     from security.services.investigation import playbook, precedents, related_facts
 
     context.update({"facts": related_facts(alert), "history": precedents(alert), "book": playbook(alert)})
@@ -326,6 +329,47 @@ def alert_resolve(request, pk):
     if request.headers.get("HX-Request"):
         return render(request, "security/partials/alert_ai_risoluzione.html", {"ai": ai, "alert": alert, **_alert_lifecycle_context(alert)})
     return alert_detail(request, pk, ai_risoluzione=ai)
+
+
+def alert_proposte(request):
+    """Proposte di chiusura dell'AI: da confermare, chiuse da sola, cosa ha imparato per tipo di alert."""
+    from security.services import ai_proposte
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    return render(request, "security/alert_proposte.html", ai_proposte.pagina())
+
+
+@require_POST
+def alert_proposta_azione(request, pk, azione):
+    """Conferma (chiude con l'esito proposto), scarta (resta aperto) o riapri (chiusura automatica sbagliata)."""
+    from security.models import SecurityAlertProposta
+    from security.services import ai_proposte
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    proposta = get_object_or_404(SecurityAlertProposta.objects.select_related("alert"), pk=pk)
+    testo = request.POST.get("nota", "").strip()
+    if azione == "conferma" and proposta.stato == SecurityAlertProposta.APERTA:
+        if proposta.esito == "aperto":
+            messages.error(request, "L'AI propone di lasciarlo aperto: non c'è niente da confermare.")
+        elif proposta.esito != "resolved" and not (testo or proposta.motivo):
+            messages.error(request, "Scrivi il motivo: serve a chi rilegge l'alert e alla soppressione appresa.")
+        else:
+            ai_proposte.conferma(proposta, request.user, testo)
+            messages.success(request, f"Alert #{proposta.alert_id} chiuso come «{proposta.esito_label}».")
+    elif azione == "scarta" and proposta.stato == SecurityAlertProposta.APERTA:
+        ai_proposte.scarta(proposta, request.user, testo)
+        messages.success(request, f"Proposta per l'alert #{proposta.alert_id} scartata: l'alert resta aperto.")
+    elif azione == "riapri" and proposta.stato == SecurityAlertProposta.CHIUSA_AUTO:
+        ai_proposte.riapri(proposta, request.user, testo)
+        messages.success(request, f"Alert #{proposta.alert_id} riaperto: l'AI non chiuderà più da sola questo tipo finché non riguadagna la fiducia.")
+    else:
+        messages.error(request, "Questa proposta è già stata decisa.")
+    back = request.POST.get("next", "")
+    if back.startswith("/soc/") and "//" not in back:
+        return redirect(back)
+    return redirect("security:alert_proposte")
 
 
 @require_POST

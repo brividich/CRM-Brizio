@@ -1,0 +1,26 @@
+{# Una proposta di chiusura dell'AI (pagina Proposte AI e scheda alert). Conferma = chiude a nome della persona; scarta = resta aperto e insegna. #}
+<article class="prop-card is-{{ p.esito }}">
+  <header class="prop-head">
+    <span class="sec-badge{% if p.esito == 'aperto' %} sec-badge-muted{% elif p.esito == 'resolved' %} prop-esito{% else %} prop-esito-warn{% endif %}">{{ p.esito_label }}</span>
+    <span class="sec-small sec-muted">confidenza {{ p.confidenza }}%</span>
+    {% if mostra_alert %}<a class="prop-alert" href="{% url 'security:alert_detail' p.alert_id %}">#{{ p.alert_id }} {{ p.alert.title|truncatechars:90 }}</a>{% endif %}
+  </header>
+  <p class="sec-small sec-muted prop-tipo">{{ p.schema_label }} · proposta del {{ p.creata_il|date:"d/m/Y H:i" }}</p>
+  {% if p.motivo %}<p class="prop-motivo">{{ p.motivo }}</p>{% endif %}
+  {% if p.prove %}<ul class="prop-prove sec-small">{% for prova in p.prove %}<li>{{ prova }}</li>{% endfor %}</ul>{% endif %}
+  {% if p.blocco and p.esito != 'aperto' %}<p class="sec-small sec-muted">Non chiude da sola: {{ p.blocco }}.</p>{% endif %}
+  <div class="prop-azioni">
+    {% if p.esito != 'aperto' %}
+    <form method="post" action="{% url 'security:alert_proposta_azione' p.pk 'conferma' %}" class="prop-form">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+      <input type="text" name="nota" maxlength="255" value="{{ p.motivo }}" aria-label="Motivo di chiusura">
+      <button type="submit" class="sec-button-primary">Conferma e chiudi</button>
+    </form>
+    {% endif %}
+    <form method="post" action="{% url 'security:alert_proposta_azione' p.pk 'scarta' %}" class="prop-form">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+      <input type="text" name="nota" maxlength="500" placeholder="Perché no? (l'AI lo terrà a mente)" aria-label="Perché scarti la proposta">
+      <button type="submit" class="sec-button">Scarta</button>
+    </form>
+  </div>
+</article>

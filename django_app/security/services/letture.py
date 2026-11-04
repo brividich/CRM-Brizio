@@ -96,6 +96,11 @@ LETTURE = (
             "L'AI locale esamina i casi «da verificare» del calcolo CVE: propone il CPE fra quelli delle CVE note o l'esito per PC. Solo proposte, da accettare o rifiutare.",
             "ogni 6 ore", "security.services.cpe_ai:giro_lettura", ("ai.cpe.attivo",), "ollama",
             dati_url="security:software_mapping", dati_label="Software e CPE", manuale="security.services.cpe_ai:giro_manuale"),
+    Lettura("ai_proposte", "Proposte di chiusura dell'AI", "Motore del SOC",
+            "L'AI locale controlla gli alert aperti contro i report arrivati dopo e le decisioni passate, propone come chiuderli "
+            "e chiude da sola solo i tipi di alert che ha imparato dalle conferme.",
+            "ogni 15 minuti", "security.services.ai_proposte:giro_lettura", ("ai.proposte.attivo",), "ollama",
+            dati_url="security:alert_proposte", dati_label="Proposte AI", manuale="security.services.ai_proposte:giro_manuale"),
     Lettura("dipendenze_portale", "Librerie Python del portale (OSV)", "Vulnerabilità",
             "Le librerie installate nel portale confrontate con il database pubblico OSV (lo stesso di pip-audit): "
             "vulnerabilità nuove, risolte dopo un aggiornamento, alert per libreria. Serve l'accesso a api.osv.dev.",

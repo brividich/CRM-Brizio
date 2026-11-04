@@ -44,6 +44,8 @@ urlpatterns = [
     path("panoramica/", _guard(views.dashboard), name="security_dashboard"),
     # B2 — Alert / Ticket / KPI
     path("alerts/", _guard(views.alerts_list), name="alerts_list"),
+    path("alerts/proposte/", _guard(views.alert_proposte), name="alert_proposte"),
+    path("alerts/proposte/<int:pk>/<slug:azione>/", _guard(views.alert_proposta_azione), name="alert_proposta_azione"),
     path("alerts/<int:pk>/", _guard(views.alert_detail), name="alert_detail"),
     path("alerts/<int:pk>/actions/<slug:action>/", _guard(views.alert_action), name="alert_action"),
     path("alerts/<int:pk>/spiega/", views.alert_explain, name="alert_explain"),

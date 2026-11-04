@@ -29,6 +29,7 @@
       {% csrf_token %}{% include "security/partials/ai_casella_web.html" %}<button class="sec-button-primary" type="submit" data-busy-label="L'AI sta cercando la soluzione…">Proponi la soluzione</button>
     </form>
   </div>
+  {% if proposta_ai %}<p class="sec-small"><strong>Proposta automatica dell'AI</strong> (dai report arrivati dopo l'alert e dalle decisioni passate) · <a href="{% url 'security:alert_proposte' %}">tutte le proposte</a></p>{% include "security/partials/alert_proposta.html" with p=proposta_ai mostra_alert=False %}{% endif %}
   <div id="ai-risolvi-body">
     {% if ai_risoluzione %}{% with ai=ai_risoluzione %}{% include "security/partials/alert_ai_risoluzione.html" %}{% endwith %}{% else %}<p class="sec-muted">L'AI locale propone la causa probabile, i passi per risolvere, come verificare e l'esito di chiusura, partendo dalla procedura standard e da come sono stati chiusi gli alert simili. Il modulo di chiusura arriva già compilato: chiude solo quando confermi.</p>{% endif %}
   </div>
