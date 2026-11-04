@@ -34,6 +34,7 @@ from core.audit import log_action
 from . import guestportal as gp
 from . import ingressi as ing
 from .models import IngressoIntervento
+from .nomi import chiave_ditta
 from .forms import (
     FornitoreAssetForm,
     FornitoreDocumentoForm,
@@ -426,16 +427,17 @@ def accessi_esterni(request):
     from .models import DittaGuestPortal
 
     per_ditta = dict(DittaGuestPortal.objects.values_list("ditta_gp_id", "fornitore_id"))
-    nomi = {a.azienda.strip().lower() for a in presenti + righe if a.azienda}
-    fornitori_per_nome: dict[str, int] = {}
-    if nomi:
+    # Stesso nome a meno di maiuscole, punteggiatura e forma giuridica; una chiave
+    # che corrisponde a più fornitori non collega nessuno (fornitori/nomi.py).
+    fornitori_per_chiave: dict[str, int | None] = {}
+    if any(a.azienda for a in presenti + righe):
         for pk, rs in Fornitore.objects.filter(is_active=True).values_list("pk", "ragione_sociale"):
-            chiave = (rs or "").strip().lower()
-            if chiave in nomi:
-                fornitori_per_nome.setdefault(chiave, pk)
+            chiave = chiave_ditta(rs)
+            if chiave:
+                fornitori_per_chiave[chiave] = None if chiave in fornitori_per_chiave else pk
     collegati = ing.interventi_per_visite([a.visita_id for a in presenti + righe])
     for accesso in presenti + righe:
-        accesso.fornitore_id = per_ditta.get(accesso.ditta_gp_id) or fornitori_per_nome.get(accesso.azienda.strip().lower())
+        accesso.fornitore_id = per_ditta.get(accesso.ditta_gp_id) or fornitori_per_chiave.get(chiave_ditta(accesso.azienda))
         accesso.interventi = collegati.get(accesso.visita_id, [])
 
     return render(request, "fornitori/pages/accessi_esterni.html", {
@@ -716,7 +718,11 @@ def guestportal_ditte(request):
             errore = "Il database del GuestPortal non risponde: riprova tra poco o avvisa l'IT."
     abbinate = {d.ditta_gp_id: d for d in DittaGuestPortal.objects.select_related("fornitore")}
     fornitori = list(Fornitore.objects.filter(is_active=True).order_by("ragione_sociale").values_list("pk", "ragione_sociale"))
-    per_nome = {(rs or "").strip().lower(): pk for pk, rs in fornitori}
+    per_chiave: dict[str, int | None] = {}
+    for pk, rs in fornitori:
+        chiave = chiave_ditta(rs)
+        if chiave:
+            per_chiave[chiave] = None if chiave in per_chiave else pk  # ambigua = nessuna proposta
     righe = []
     for ditta_id, nome in ditte:
         abb = abbinate.get(ditta_id)
@@ -724,7 +730,7 @@ def guestportal_ditte(request):
             "id": ditta_id,
             "nome": nome,
             "abbinata": abb,
-            "suggerito": None if abb else per_nome.get(nome.strip().lower()),
+            "suggerito": None if abb else per_chiave.get(chiave_ditta(nome)),
         })
     return render(request, "fornitori/pages/guestportal_ditte.html", {
         "configurato": configurato,
