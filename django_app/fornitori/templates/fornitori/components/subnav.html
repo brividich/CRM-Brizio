@@ -4,6 +4,8 @@
   <div class="sub-sep"></div>
   <a class="sub-a{% if current == 'fornitori:fornitori_list' or current == 'fornitori:fornitore_detail' or current == 'fornitori:fornitore_edit' %} active{% endif %}" href="{% url 'fornitori:fornitori_list' %}">Elenco</a>
   <a class="sub-a{% if current == 'fornitori:fornitore_create' %} active{% endif %}" href="{% url 'fornitori:fornitore_create' %}">+ Nuovo</a>
+  <div class="sub-sep"></div>
+  <a class="sub-a{% if current == 'fornitori:accessi_esterni' %} active{% endif %}" href="{% url 'fornitori:accessi_esterni' %}">Accessi esterni</a>
 </div>
 <div class="notice" style="margin-top: 10px;">
   {% if current == 'fornitori:index' %}
@@ -14,6 +16,8 @@
     <strong>Scheda fornitore:</strong> anagrafica, documenti, ordini, valutazioni qualità e asset assegnati.
   {% elif current == 'fornitori:fornitore_create' %}
     <strong>Nuovo fornitore:</strong> ragione sociale obbligatoria; documenti, ordini e valutazioni si aggiungono dalla scheda.
+  {% elif current == 'fornitori:accessi_esterni' %}
+    <strong>Accessi esterni:</strong> visitatori, fornitori e consulenti registrati al GuestPortal (chiosco in reception). Dati letti dal GuestPortal, non copiati.
   {% elif current == 'fornitori:fornitore_edit' %}
     <strong>Modifica fornitore:</strong> aggiorna i dati anagrafici.
   {% else %}
