@@ -279,8 +279,11 @@ class VistePresenzeTests(BaseIngressi):
     def test_pagine_ticket_e_odl_includono_il_riquadro(self):
         from core import middleware
 
-        for nome in ("fornitori:presenze_intervento", "fornitori:presenze_collega", "fornitori:presenze_scollega"):
-            self.assertIn(nome, middleware._ACL_SHARED_ROUTE_NAMES)
+        for url in (reverse("fornitori:presenze_intervento", args=["ticket", 1]),
+                    reverse("fornitori:presenze_collega", args=["odl", 1]),
+                    reverse("fornitori:presenze_scollega", args=[1]),
+                    reverse("fornitori:presenze_imposta_ditta", args=["odl", 1])):
+            self.assertTrue(middleware.is_acl_shared_path(url), url)
         resp = self.client.get(reverse("assets:wo_view", args=[self.odl.pk]))
         self.assertContains(resp, reverse("fornitori:presenze_intervento", args=["odl", self.odl.pk]))
 

@@ -49,6 +49,9 @@ APP_SENZA_MODULO = {
                "(dati_bi.ApiClient) e permessi SQL concessi dal DBA.",
     "registro_log": "Registro accessi: pagine dentro il SOC (/soc/registro-log/, rotte security:registro_log*), "
                     "governate dai permessi del modulo security (lettura del SOC, configurazione del SOC).",
+    "scadenzario": "Scadenzario generale: rotte condivise, chi vede cosa lo decidono le regole del suo pannello "
+                   "(ruolo del portale, ruolo aziendale, persona: scadenzario/visibilita.py); le voci dei moduli "
+                   "restano soggette ai permessi del modulo di origine.",
 }
 
 
