@@ -79,6 +79,21 @@ GUIDA = {
                          "esegue le manutenzioni; un intervento chiuso non si modifica più."),
             ],
         },
+        {
+            "id": "presenze-docenti",
+            "titolo": "Collegare l'ingresso del docente esterno alla sessione formativa",
+            "blocchi": [
+                ("p", "Lo stesso collegamento vale per la formazione: nel dettaglio di un'edizione (Anagrafica → Formazione → "
+                      "sessione) il riquadro «Presenze in azienda del docente» propone gli ingressi con il nome del docente "
+                      "(anche in ordine inverso) o con l'azienda dell'ente di formazione, dal giorno prima dell'inizio alla fine. "
+                      "Da Accessi esterni, «Collega…» elenca anche le sessioni in corso il giorno dell'ingresso, prima quelle del docente."),
+                ("def", [
+                    ("Anche dopo", "si collega anche a edizione completata o approvata; non a un'edizione annullata."),
+                    ("Ore in aula a registro", "somma delle giornate dell'edizione con la pausa: se superano di oltre 15 minuti la presenza in azienda compare l'avviso giallo."),
+                    ("Chi lo usa", "chi può modificare la formazione; nessuna ditta viene impostata."),
+                ]),
+            ],
+        },
     ],
     "admin": [
         {

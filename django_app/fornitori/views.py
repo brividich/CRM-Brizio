@@ -485,6 +485,12 @@ def guestportal_apri(request):
 # ---------------------------------------------------------------------------
 
 def _puo_presenze(request, iv, *, modifica: bool) -> bool:
+    if iv.formazione:
+        from anagrafica.views import _helpers
+
+        if modifica:
+            return bool(_helpers._can_edit_formazione(request))
+        return bool(_helpers._can_view_formazione(request))
     if iv.tipo == ing.TIPO_TICKET:
         from tickets.services.accesso import utente_puo_gestire_ticket
 
@@ -617,7 +623,7 @@ def presenze_scollega(request, link_id):
     from .models import IngressoIntervento
 
     link = get_object_or_404(IngressoIntervento, pk=link_id)
-    iv = ing.Intervento(ing.TIPO_TICKET, link.ticket) if link.ticket_id else ing.Intervento(ing.TIPO_ODL, link.work_order)
+    iv = ing.intervento_del_link(link)
     if not _puo_presenze(request, iv, modifica=True) or iv.chiuso:
         return HttpResponseForbidden("Permesso negato")
     log_action(request, "ingresso_esterno_scollegato", "fornitori",
@@ -693,10 +699,13 @@ def ingresso_collega(request, visita_id):
 
     fornitore = ing.fornitore_da_accesso(accesso)
     testo = request.GET.get("q", "").strip()[:80]
-    interventi = ing.interventi_aperti(request, testo=testo, fornitore=fornitore)
+    interventi = ing.interventi_aperti(request, testo=testo, fornitore=fornitore, accesso=accesso)
     collegati = list(IngressoIntervento.objects.filter(visita_gp_id=accesso.visita_id)
-                     .select_related("ticket", "work_order", "collegato_da"))
-    gia = {(("ticket", c.ticket_id) if c.ticket_id else ("odl", c.work_order_id)) for c in collegati}
+                     .select_related("ticket", "work_order", "work_order__asset", "sessione_formazione",
+                                     "sessione_formazione__corso", "collegato_da"))
+    for c in collegati:
+        c.iv = ing.intervento_del_link(c)
+    gia = {(c.iv.tipo, c.iv.pk) for c in collegati}
     righe = [iv for iv in interventi if (iv.tipo, iv.pk) not in gia]
     return render(request, "fornitori/pages/ingresso_collega.html", {
         "a": accesso,
@@ -705,6 +714,7 @@ def ingresso_collega(request, visita_id):
         "collegati": collegati,
         "q": testo,
         "puo_odl": ing.puo_collegare_odl(request),
+        "puo_formazione": ing.puo_collegare_formazione(request),
     })
 
 

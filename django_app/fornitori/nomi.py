@@ -38,3 +38,13 @@ def unico(chiave: str, coppie) -> object | None:
         return None
     trovati = {valore for valore, nome in coppie if chiave_ditta(nome) == chiave}
     return trovati.pop() if len(trovati) == 1 else None
+
+
+def chiave_persona(nome: str | None) -> str:
+    """Chiave di un nominativo: maiuscole, accenti e punteggiatura ignorati, parole
+    in ordine alfabetico («ROSSI Mario» = «Mario Rossi»). Vuota sotto le due parole:
+    un solo nome o cognome non basta a riconoscere una persona."""
+    testo = unicodedata.normalize("NFKD", nome or "")
+    testo = "".join(c for c in testo if not unicodedata.combining(c)).lower()
+    parole = re.sub(r"[^\w\s]", " ", testo).split()
+    return " ".join(sorted(parole)) if len(parole) >= 2 else ""

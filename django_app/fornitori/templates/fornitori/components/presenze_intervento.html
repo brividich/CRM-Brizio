@@ -24,8 +24,8 @@ body.theme-dark .pz-warn { background:rgba(133,77,14,.2); color:#fde68a; }
 </style>
   <div class="pz-head">
     <div>
-      <div class="pz-title">Presenze in azienda della ditta</div>
-      <div class="pz-sub">Ingressi dal chiosco della reception (GuestPortal) collegati a {{ iv.etichetta }}{% if iv.fornitore %} · ditta: {{ iv.fornitore.ragione_sociale }}{% endif %}</div>
+      <div class="pz-title">{% if iv.formazione %}Presenze in azienda del docente{% else %}Presenze in azienda della ditta{% endif %}</div>
+      <div class="pz-sub">Ingressi dal chiosco della reception (GuestPortal) collegati a {{ iv.etichetta }}{% if iv.fornitore %} · ditta: {{ iv.fornitore.ragione_sociale }}{% elif iv.formazione and iv.chi %} · docente: {{ iv.chi }}{% endif %}</div>
     </div>
     <a class="pz-btn pz-btn-ghost" href="{% url 'guida_modulo' 'fornitori' %}#presenze-interventi" target="_blank" rel="noopener">? Guida</a>
   </div>
@@ -36,7 +36,7 @@ body.theme-dark .pz-warn { background:rgba(133,77,14,.2); color:#fde68a; }
 
   {% if collegamenti %}
   <table class="pz-table">
-    <thead><tr><th>Giorno</th><th>Entrata</th><th>Uscita</th><th>In azienda</th><th>Tecnico</th><th>Azienda</th><th>Collegato da</th>{% if puo_modificare %}<th></th>{% endif %}</tr></thead>
+    <thead><tr><th>Giorno</th><th>Entrata</th><th>Uscita</th><th>In azienda</th><th>{% if iv.formazione %}Nome{% else %}Tecnico{% endif %}</th><th>Azienda</th><th>Collegato da</th>{% if puo_modificare %}<th></th>{% endif %}</tr></thead>
     <tbody>
     {% for c in collegamenti %}
       <tr>
@@ -55,7 +55,7 @@ body.theme-dark .pz-warn { background:rgba(133,77,14,.2); color:#fde68a; }
     </tbody>
   </table>
   <div class="pz-sub">
-    Totale in azienda: <strong>{{ presenza_label }}</strong>{% if confronto.ingressi_aperti %} (più {{ confronto.ingressi_aperti }} ingresso ancora aperto){% endif %}{% if dichiarate_label %} · ore registrate negli interventi: <strong>{{ dichiarate_label }}</strong>{% endif %}
+    Totale in azienda: <strong>{{ presenza_label }}</strong>{% if confronto.ingressi_aperti %} (più {{ confronto.ingressi_aperti }} ingresso ancora aperto){% endif %}{% if dichiarate_label %} · {% if iv.formazione %}ore in aula a registro (pausa compresa){% else %}ore registrate negli interventi{% endif %}: <strong>{{ dichiarate_label }}</strong>{% endif %}
   </div>
   {% else %}
     <div class="pz-muted">Nessun ingresso collegato.</div>
@@ -63,7 +63,7 @@ body.theme-dark .pz-warn { background:rgba(133,77,14,.2); color:#fde68a; }
 
   {% if confronto.dichiarate_minuti is not None and collegamenti %}
     {% if confronto.da_controllare %}
-      <div class="pz-msg pz-warn">Ore registrate negli interventi più alte della presenza in azienda: controlla il rapportino prima della fattura.</div>
+      <div class="pz-msg pz-warn">{% if iv.formazione %}Ore in aula a registro più alte della presenza in azienda del docente: controlla il registro della sessione e la fattura dell'ente.{% else %}Ore registrate negli interventi più alte della presenza in azienda: controlla il rapportino prima della fattura.{% endif %}</div>
     {% endif %}
   {% endif %}
 
@@ -81,13 +81,15 @@ body.theme-dark .pz-warn { background:rgba(133,77,14,.2); color:#fde68a; }
     {% if not configurato %}
       <div class="pz-msg pz-warn">Collegamento al GuestPortal non configurato: le proposte non sono disponibili (vedi la guida, parte amministratori).</div>
     {% else %}
-      {% if not iv.fornitore %}
+      {% if iv.formazione %}
+        {% if not proposte %}<div class="pz-sub" style="margin-top:8px">Nessun ingresso con il nome del docente o l'azienda dell'ente di formazione tra il {{ dal_al.0|date:"d/m" }} e il {{ dal_al.1|date:"d/m/Y" }}: se il docente ha scritto il nome in modo diverso al chiosco, collegalo a mano dal giorno.</div>{% endif %}
+      {% elif not iv.fornitore %}
         <div class="pz-sub" style="margin-top:8px">Nessuna ditta {% if iv.tipo == "ticket" %}delegata{% else %}sull'OdL{% endif %}: collega a mano un ingresso del giorno (se la ditta si riconosce viene impostata {% if iv.tipo == "ticket" %}sul ticket{% else %}sull'OdL, che diventa «Esterna»{% endif %}), oppure parti da Fornitori → Accessi esterni → «Collega…».</div>
       {% endif %}
       {% if proposte %}
-        <div class="pz-sez">Ingressi della ditta da collegare ({{ dal_al.0|date:"d/m" }} – {{ dal_al.1|date:"d/m/Y" }})</div>
+        <div class="pz-sez">{% if iv.formazione %}Ingressi del docente o dell'ente da collegare{% else %}Ingressi della ditta da collegare{% endif %} ({{ dal_al.0|date:"d/m" }} – {{ dal_al.1|date:"d/m/Y" }})</div>
         <table class="pz-table">
-          <thead><tr><th>Giorno</th><th>Entrata</th><th>Uscita</th><th>Tecnico</th><th>Motivo</th><th></th></tr></thead>
+          <thead><tr><th>Giorno</th><th>Entrata</th><th>Uscita</th><th>{% if iv.formazione %}Nome{% else %}Tecnico{% endif %}</th><th>Motivo</th><th></th></tr></thead>
           <tbody>
           {% for a in proposte %}
             <tr>
@@ -101,7 +103,7 @@ body.theme-dark .pz-warn { background:rgba(133,77,14,.2); color:#fde68a; }
           {% endfor %}
           </tbody>
         </table>
-      {% elif iv.fornitore %}
+      {% elif iv.fornitore and not iv.formazione %}
         <div class="pz-sub" style="margin-top:8px">Nessun altro ingresso della ditta tra il {{ dal_al.0|date:"d/m" }} e il {{ dal_al.1|date:"d/m/Y" }}.</div>
       {% endif %}
 

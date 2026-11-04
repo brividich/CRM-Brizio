@@ -24,6 +24,8 @@
 .ic-pill-man { background:#dbeafe; color:#1e40af; }
 .ic-pill-odl { background:#ffedd5; color:#9a3412; }
 .ic-pill-ok { background:#dcfce7; color:#166534; }
+.ic-pill-for { background:#ede9fe; color:#5b21b6; }
+body.theme-dark .ic-pill-for { background:rgba(124,58,237,.2); color:#c4b5fd; }
 .ic-muted { color:var(--text-light,#94a3b8); }
 .ic-search { display:flex; gap:8px; flex-wrap:wrap; }
 .ic-input { border:1px solid var(--border,#e2e8f0); border-radius:8px; padding:7px 12px; font-size:13px; background:var(--surface-alt,#f8fafc); color:var(--text,#0f172a); min-width:220px; }
@@ -75,7 +77,7 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
         <tbody>
         {% for c in collegati %}
           <tr>
-            <td>{% if c.ticket_id %}<span class="ic-pill ic-pill-man">Ticket</span> <a href="{% url 'tickets:gestione_detail' c.ticket_id %}">{{ c.ticket.numero_ticket|default:c.ticket_id }}</a> {{ c.ticket.titolo }}{% else %}<span class="ic-pill ic-pill-odl">OdL</span> <a href="{% url 'assets:wo_view' c.work_order_id %}">#{{ c.work_order.display_number }}</a> {{ c.work_order.title }}{% endif %}</td>
+            <td><span class="ic-pill {% if c.iv.tipo == 'ticket' %}ic-pill-man{% elif c.iv.tipo == 'odl' %}ic-pill-odl{% else %}ic-pill-for{% endif %}">{{ c.iv.tipo_label }}</span> <a href="{{ c.iv.url }}">{{ c.iv.etichetta }}</a> {{ c.iv.titolo }}</td>
             <td class="ic-muted">{{ c.get_modo_display }}{% if c.collegato_da %} · {{ c.collegato_da.get_username }}{% endif %} · {{ c.collegato_il|date:"d/m/Y H:i" }}</td>
           </tr>
         {% endfor %}
@@ -87,23 +89,23 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
 
   <div class="ic-card">
     <div class="ic-card-head">
-      <span>Ticket MAN e OdL aperti</span>
+      <span>Ticket MAN e OdL aperti{% if puo_formazione %}, sessioni formative del giorno{% endif %}</span>
       <form method="get" class="ic-search">
-        <input class="ic-input" type="text" name="q" value="{{ q }}" maxlength="80" placeholder="Numero, titolo, macchina…" aria-label="Cerca intervento">
+        <input class="ic-input" type="text" name="q" value="{{ q }}" maxlength="80" placeholder="Numero, titolo, macchina, corso…" aria-label="Cerca intervento">
         <button class="ic-btn ic-btn-ghost" type="submit">Cerca</button>
       </form>
     </div>
     {% if not puo_odl %}<div class="ic-note">Gli ordini di lavoro non sono elencati: per collegarli serve il permesso di eseguire le manutenzioni.</div>{% endif %}
     <div class="ic-wrap">
       <table class="ic-table">
-        <thead><tr><th>Intervento</th><th>Titolo / macchina</th><th>Ditta</th><th>Aperto il</th><th></th></tr></thead>
+        <thead><tr><th>Intervento</th><th>Titolo / macchina / corso</th><th>Ditta / docente</th><th>Aperto il</th><th></th></tr></thead>
         <tbody>
         {% for iv in righe %}
           <tr>
-            <td>{% if iv.tipo == "ticket" %}<span class="ic-pill ic-pill-man">Ticket</span> <a href="{% url 'tickets:gestione_detail' iv.pk %}">{{ iv.etichetta }}</a>{% else %}<span class="ic-pill ic-pill-odl">OdL</span> <a href="{% url 'assets:wo_view' iv.pk %}">{{ iv.etichetta }}</a>{% endif %}</td>
-            <td>{% if iv.tipo == "ticket" %}{{ iv.oggetto.titolo }}{% else %}{{ iv.oggetto.title }}{% if iv.oggetto.asset %} <span class="ic-muted">· {{ iv.oggetto.asset.name }}</span>{% endif %}{% endif %}</td>
-            <td>{% if iv.fornitore %}{% if fornitore and iv.fornitore.pk == fornitore.pk %}<span class="ic-pill ic-pill-ok">{{ iv.fornitore.ragione_sociale }}</span>{% else %}{{ iv.fornitore.ragione_sociale }}{% endif %}{% else %}<span class="ic-muted">—</span>{% endif %}</td>
-            <td>{% if iv.tipo == "ticket" %}{{ iv.oggetto.created_at|date:"d/m/Y" }}{% else %}{{ iv.oggetto.opened_at|date:"d/m/Y" }}{% endif %}</td>
+            <td><span class="ic-pill {% if iv.tipo == 'ticket' %}ic-pill-man{% elif iv.tipo == 'odl' %}ic-pill-odl{% else %}ic-pill-for{% endif %}">{{ iv.tipo_label }}</span> <a href="{{ iv.url }}">{{ iv.etichetta }}</a></td>
+            <td>{{ iv.titolo }}</td>
+            <td>{% if iv.fornitore and fornitore and iv.fornitore.pk == fornitore.pk %}<span class="ic-pill ic-pill-ok">{{ iv.chi }}</span>{% else %}{{ iv.chi|default:"—" }}{% endif %}</td>
+            <td>{{ iv.aperto_il|date:"d/m/Y" }}</td>
             <td>
               <form method="post">
                 {% csrf_token %}
@@ -114,7 +116,7 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="ic-empty">Nessun ticket MAN o OdL aperto{% if q %} per «{{ q }}»{% endif %}.</td></tr>
+          <tr><td colspan="5" class="ic-empty">Nessun ticket MAN, OdL aperto o sessione formativa del giorno{% if q %} per «{{ q }}»{% endif %}.</td></tr>
         {% endfor %}
         </tbody>
       </table>

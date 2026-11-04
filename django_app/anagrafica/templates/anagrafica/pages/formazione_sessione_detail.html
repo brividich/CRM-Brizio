@@ -489,6 +489,11 @@ body.theme-dark .fm-static-sm{ background:var(--surface-alt,#17222f); border-col
     {% endif %}
   </div>
 
+  {# ── Ingressi del docente esterno dal chiosco della reception (GuestPortal) #}
+  {% if sessione.modalita != "REMOTO" and sessione.docente.tipo != "INTERNO" or sessione.ingressi_esterni.exists %}
+  <div hx-get="{% url 'fornitori:presenze_intervento' 'formazione' sessione.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="muted" style="font-size:12px;">Caricamento presenze in azienda del docente…</p></div>
+  {% endif %}
+
   {# ── Allegati dell'edizione: registro firmato + materiale ──────────────── #}
   <div class="hr-card fm-section">
     <div class="fm-section-head">
