@@ -154,6 +154,7 @@ def impostazioni_admin(request):
         per_page=request.GET.get("per_page") or ADMIN_PER_PAGE_DEFAULT,
         ordina=request.GET.get("ordina") or _helpers.ADMIN_ORDINAMENTO_DEFAULT,
         verso=request.GET.get("verso") or "desc",
+        certificato=request.GET.get("certificato") or "",
     )
     admin_audit_entries = list(
         AuditLog.objects.filter(modulo="assenze").order_by("-created_at")[:100]
@@ -176,6 +177,7 @@ def impostazioni_admin(request):
             "admin_tipi_disponibili": admin_overview.get("tipi_disponibili"),
             "admin_mostra_creata": admin_overview.get("mostra_creata"),
             "admin_stati_disponibili": admin_overview.get("stati_disponibili"),
+            "admin_certificato_scelte": admin_overview.get("certificato_scelte"),
             "admin_per_page_scelte": admin_overview.get("per_page_scelte"),
             "admin_audit_entries": admin_audit_entries,
             "admin_can_moderate": perms.get("can_update_any", False),
@@ -521,6 +523,82 @@ def api_admin_bulk_consenso(request):
     })
 
 
+CERTIFICATO_BLOCCO_MOTIVO = "Certificato medico arrivato (registrato in blocco, senza mail)"
+
+
+def _certificato_arrivato(tipo, valore):
+    """True/False per la Malattia, None per gli altri tipi (regola unica in mail_certificato)."""
+    from ..mail_certificato import certificato_arrivato
+
+    return certificato_arrivato(tipo, valore)
+
+
+@login_required
+@require_http_methods(["POST"])
+def api_admin_bulk_certificato(request):
+    """Spunta «Certificato arrivato» su piu' malattie, **senza mandare mail**.
+
+    Serve per lo storico (es. malattie nate sul vecchio SharePoint, che il
+    certificato non lo registrava): la modifica singola avvisa assenza@ e il capo,
+    qui no. Resta tracciata nello storico della richiesta e nel log attivita'.
+    Vale anche sulle richieste nate su SharePoint: il certificato e' un dato solo
+    del portale, SharePoint non lo riceve e non lo sovrascrive.
+    """
+    perms = _helpers._assenze_permissions(request)
+    if not perms.get("can_update_any"):
+        return _helpers._json_error("Permessi insufficienti per modificare le assenze.", status=403)
+    if not _helpers._has_assenze_column("certificato_medico"):
+        return _helpers._json_error("La colonna del certificato medico non esiste nel database.", status=400)
+
+    payload = _helpers._request_json(request) or {}
+    ids_raw = payload.get("ids")
+    if ids_raw is None:
+        ids_raw = request.POST.getlist("ids")
+    ids: list[int] = []
+    for raw in ids_raw or []:
+        value = _helpers._as_int(raw)
+        if value is not None and value > 0 and value not in ids:
+            ids.append(value)
+    if not ids:
+        return _helpers._json_error("Nessuna assenza selezionata.", status=400)
+    if len(ids) > BULK_MAX:
+        return _helpers._json_error(f"Troppe assenze selezionate: massimo {BULK_MAX} per volta.", status=400)
+
+    utente = request.user.get_username()
+    fatte: list[int] = []
+    scartate: list[dict] = []
+    for item_id in ids:
+        current = _helpers._get_assenza(item_id)
+        if not current:
+            scartate.append({"id": item_id, "motivo": "record non trovato"})
+            continue
+        arrivato = _certificato_arrivato(current.get("tipo_assenza"), current.get("certificato_medico"))
+        if arrivato is None:
+            scartate.append({"id": item_id, "motivo": "non è una malattia"})
+            continue
+        if arrivato:
+            scartate.append({"id": item_id, "motivo": "certificato già arrivato"})
+            continue
+        if not _helpers._can_manage_record(request, current, require_delete=False):
+            scartate.append({"id": item_id, "motivo": "fuori dal tuo ambito"})
+            continue
+        updates = {"certificato_medico": _helpers.CERTIFICATO_ARRIVATO}
+        if not _helpers._update_assenza(item_id, updates):
+            scartate.append({"id": item_id, "motivo": "aggiornamento non eseguito"})
+            continue
+        calcoli_hr.registra(item_id, "modificata", utente=utente, prima=current, dopo=updates,
+                            motivo=CERTIFICATO_BLOCCO_MOTIVO)
+        fatte.append(item_id)
+
+    _helpers.log_action(request, "assenze_certificato_in_blocco", "assenze", {
+        "richieste": len(ids),
+        "applicate": len(fatte),
+        "ids_applicati": fatte,
+        "scartate": len(scartate),
+    })
+    return JsonResponse({"ok": True, "applicate": len(fatte), "ids_applicati": fatte, "scartate": scartate})
+
+
 @login_required
 @require_http_methods(["POST"])
 def api_admin_assenza_delete(request, item_id: int):
@@ -626,6 +704,8 @@ ADMIN_PER_PAGE_DEFAULT = 25
 # per vedere l'intero storico.
 ADMIN_STATO_DEFAULT = "in_attesa"
 ADMIN_STATO_TUTTI = "tutti"
+# Filtro «Certificato» (solo Malattia): chiave -> etichetta del menu.
+ADMIN_CERTIFICATO_SCELTE = {"mancante": "Malattie senza certificato", "arrivato": "Malattie con certificato"}
 
 
 def _admin_assenze_overview(
@@ -639,6 +719,7 @@ def _admin_assenze_overview(
     per_page: int = ADMIN_PER_PAGE_DEFAULT,
     ordina: str = _helpers.ADMIN_ORDINAMENTO_DEFAULT,
     verso: str = "desc",
+    certificato: str = "",
 ) -> dict:
     """Panoramica admin del modulo assenze.
 
@@ -671,6 +752,10 @@ def _admin_assenze_overview(
     elif stato not in ADMIN_STATI:
         stato = ADMIN_STATO_DEFAULT
     tipo = str(tipo or "").strip()
+    certificato = str(certificato or "").strip().lower()
+    ha_col_certificato = tabella_ok and _helpers._has_assenze_column("certificato_medico")
+    if certificato not in ADMIN_CERTIFICATO_SCELTE or not ha_col_certificato:
+        certificato = ""
     ordina = str(ordina or "").strip().lower()
     if ordina not in _helpers.ADMIN_ORDINAMENTI:
         ordina = _helpers.ADMIN_ORDINAMENTO_DEFAULT
@@ -706,12 +791,16 @@ def _admin_assenze_overview(
             "per_page": per_page,
             "ordina": ordina,
             "verso": verso,
-            "attivi": bool(q or tipo or da or a) or stato != ADMIN_STATO_DEFAULT,
+            "certificato": certificato,
+            "attivi": bool(q or tipo or da or a or certificato) or stato != ADMIN_STATO_DEFAULT,
             "solo_in_attesa": stato == ADMIN_STATO_DEFAULT,
         },
         "tipi_disponibili": [],
         "mostra_creata": False,
         "stati_disponibili": [{"key": k, "label": v[0]} for k, v in ADMIN_STATI.items()],
+        "certificato_scelte": (
+            [{"key": k, "label": v} for k, v in ADMIN_CERTIFICATO_SCELTE.items()] if ha_col_certificato else []
+        ),
         "per_page_scelte": list(ADMIN_PER_PAGE_SCELTE),
         "paginazione": {
             "page": 1, "pages": 1, "per_page": per_page, "total": 0,
@@ -769,6 +858,12 @@ def _admin_assenze_overview(
             " OR UPPER(COALESCE(motivazione_richiesta,'')) LIKE UPPER(%s))"
         )
         params.extend([tipo, f"%{tipo}%"])
+    if certificato:
+        where_parts.append(
+            "UPPER(LTRIM(RTRIM(COALESCE(tipo_assenza,'')))) = 'MALATTIA'"
+            + (" AND LTRIM(RTRIM(COALESCE(certificato_medico,''))) = ''" if certificato == "mancante"
+               else " AND LTRIM(RTRIM(COALESCE(certificato_medico,''))) <> ''")
+        )
     if da_dt is not None:
         # Periodi che si intersecano: una richiesta iniziata prima della finestra
         # ma ancora in corso dentro la finestra va mostrata.
@@ -785,11 +880,12 @@ def _admin_assenze_overview(
     offset = (page - 1) * per_page
 
     creata_col = ", created_datetime" if _helpers._has_assenze_column("created_datetime") else ""
+    cert_col = ", certificato_medico" if ha_col_certificato else ""
     base_sql = f"""
         SELECT
             id, copia_nome AS dipendente, tipo_assenza,
             data_inizio, data_fine, consenso,
-            moderation_status, motivazione_richiesta{creata_col}{_helpers._col_utente_id("")}
+            moderation_status, motivazione_richiesta{creata_col}{cert_col}{_helpers._col_utente_id("")}
         FROM assenze
         {where_clause}
     """
@@ -816,6 +912,11 @@ def _admin_assenze_overview(
             "fine_label": _helpers._dt_label(row.get("data_fine")),
             "motivo": _helpers._strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta")),
             "creata_label": _helpers._dt_label(row.get("created_datetime")) if creata_col else "",
+            # True/False solo per la Malattia (None per gli altri tipi).
+            "certificato": (
+                _certificato_arrivato(row.get("tipo_assenza"), row.get("certificato_medico"))
+                if cert_col else None
+            ),
         })
     _helpers._mark_sharepoint_managed(assenze)
 
