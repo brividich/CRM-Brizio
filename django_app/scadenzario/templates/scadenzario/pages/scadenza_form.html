@@ -1,0 +1,25 @@
+{% extends "core/base.html" %}
+
+{% block title %}{% if nuova %}Nuova attività{% else %}Modifica attività{% endif %} | Scadenzario{% endblock %}
+
+{% block extra_head %}{% include "scadenzario/components/stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="sz-page">
+  <div class="sz-top">
+    <div>
+      <h1 class="sz-title">{% if nuova %}Nuova attività con scadenza{% else %}{{ s.titolo }}{% endif %}</h1>
+      <div class="sz-sub">Con «Ultimo controllo» e «Validità» la scadenza si calcola da sola; al rinnovo si ricalcola la successiva. Gli avvisi partono alle email dell'attività; il riepilogo mensile va alle email della categoria.</div>
+    </div>
+    {% include "scadenzario/components/nav.html" with attiva="elenco" %}
+  </div>
+  <form method="post" class="sz-card">
+    {% csrf_token %}
+    {% include "scadenzario/components/campi.html" %}
+    <div style="margin-top:14px;display:flex;gap:8px">
+      <button class="sz-btn sz-btn-primary" type="submit">Salva</button>
+      <a class="sz-btn sz-btn-ghost" href="{% if s %}{% url 'scadenzario:scadenza_dettaglio' s.pk %}{% else %}{% url 'scadenzario:elenco' %}{% endif %}">Annulla</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -94,8 +94,28 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
         "filtro_sorgente": filtro_sorgente,
         "filtro_stato": filtro_stato,
         "filtro_reparto": filtro_reparto,
+        "puo_pannello": _puo_pannello(request),
+        "puo_generiche": _puo_generiche(request),
     }
     return render(request, "dashboard/pages/scadenze_globali.html", context)
+
+
+def _puo_pannello(request) -> bool:
+    try:
+        from scadenzario.visibilita import puo_gestire_pannello
+
+        return puo_gestire_pannello(request)
+    except Exception:
+        return False
+
+
+def _puo_generiche(request) -> bool:
+    try:
+        from scadenzario.permessi import puo_usare_modulo
+
+        return puo_usare_modulo(request)
+    except Exception:
+        return False
 
 
 def _export_csv(voci) -> HttpResponse:

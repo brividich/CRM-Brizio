@@ -1,0 +1,22 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ cat.nome }} | Scadenzario{% endblock %}
+
+{% block extra_head %}{% include "scadenzario/components/stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="sz-page">
+  <div class="sz-top">
+    <h1 class="sz-title">{{ cat.nome }}</h1>
+    {% include "scadenzario/components/nav.html" with attiva="categorie" %}
+  </div>
+  <form method="post" class="sz-card">
+    {% csrf_token %}
+    {% include "scadenzario/components/campi.html" %}
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="sz-btn sz-btn-primary" type="submit">Salva</button>
+      <a class="sz-btn sz-btn-ghost" href="{% url 'scadenzario:categorie' %}">Annulla</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

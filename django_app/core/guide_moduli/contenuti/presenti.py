@@ -23,8 +23,9 @@ GUIDA = {
                 ("ul", [
                     "Contatori in alto: presenti e, per incarico di sicurezza, quanti sono in azienda.",
                     "Ricerca per nome, matricola o reparto; filtri per reparto e incarico.",
-                    "«PDF»: la lista nel formato del vecchio CN-PRESENZE.",
-                    "Pallino verde «In azienda» accanto al nome in Anagrafica (elenco dipendenti e scheda).",
+                    "«PDF»: la lista nel formato del vecchio CN-PRESENZE, senza ora di entrata.",
+                    "Pallino verde «In azienda» accanto al nome in Anagrafica (elenco dipendenti e scheda) "
+                    "e fra i dipendenti trovati con la ricerca in alto (Ctrl+K).",
                 ]),
             ],
         },

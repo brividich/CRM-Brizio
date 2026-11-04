@@ -24,7 +24,8 @@ SEZIONI: list[dict] = [
                 ("Presenti adesso", "la lista live con turno, matricola, nome, reparto, ora di entrata e incarichi di sicurezza."),
                 ("Appello di evacuazione", "l'elenco per contare le persone al punto di raccolta, condiviso fra chi conta."),
                 ("Uscite non timbrate", "le giornate chiuse con un'entrata e senza uscita."),
-                ("Pallino «In azienda»", "il pallino verde accanto al nome nell'elenco dipendenti e nella scheda dipendente; "
+                ("Pallino «In azienda»", "il pallino verde accanto al nome nell'elenco dipendenti, nella scheda dipendente e "
+                 "fra i dipendenti trovati con la ricerca in alto (Ctrl+K); "
                  "grigio quando la persona non è in azienda."),
             ]),
         ],

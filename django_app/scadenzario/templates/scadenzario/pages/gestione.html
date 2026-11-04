@@ -1,0 +1,130 @@
+{% extends "core/base.html" %}
+
+{% block title %}Gestione scadenzario | NOVICROM HUB{% endblock %}
+
+{% block extra_head %}
+{% include "scadenzario/components/stile.html" %}
+<style>
+.gz-grid { display:grid; grid-template-columns:minmax(280px, 420px) 1fr; gap:16px; align-items:start; }
+.gz-albero ul { list-style:none; margin:0; padding-left:16px; }
+.gz-albero > ul { padding-left:0; }
+.gz-nodo { margin:3px 0; font-size:13px; }
+.gz-nodo summary { cursor:pointer; }
+.gz-link { color:var(--text,#0f172a); text-decoration:none; font-weight:600; }
+.gz-link.on { color:#1d4ed8; text-decoration:underline; }
+.gz-assente .gz-link { color:var(--text-light,#94a3b8); font-weight:500; }
+.gz-sez { font-size:12px; font-weight:700; color:var(--text,#1e293b); margin:14px 0 6px; text-transform:uppercase; letter-spacing:.04em; }
+.gz-percorso { font-size:12px; color:var(--text-light,#64748b); }
+.gz-righe { display:flex; flex-direction:column; gap:6px; }
+.gz-regola { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--border,#e2e8f0); border-radius:8px; font-size:13px; }
+.gz-form { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; }
+.gz-form label { display:flex; flex-direction:column; gap:3px; font-size:11px; font-weight:600; color:var(--text-mid,#475569); }
+.gz-form label[hidden] { display:none; }
+@media (max-width:900px) { .gz-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz-page">
+  <div class="sz-top">
+    <div>
+      <h1 class="sz-title">Gestione scadenzario</h1>
+      <div class="sz-sub">Decidi quali scadenze compaiono nello Scadenzario e chi le vede. Ogni voce vale per tutto ciò che sta sotto: fonte → tipo → singolo elemento. Senza impostazioni una voce compare a chi ha già il permesso del suo modulo.</div>
+    </div>
+    {% include "scadenzario/components/nav.html" with attiva="gestione" %}
+  </div>
+
+  <div class="gz-grid">
+    <div class="sz-card gz-albero">
+      <h2>Voci</h2>
+      <div class="sz-help" style="margin-bottom:8px">Il numero è quante scadenze ci sono oggi (scadute e prossimi 90 giorni). Gli elementi compaiono da soli quando un modulo ne crea di nuovi.</div>
+      <ul>
+        <li class="gz-nodo"><a href="?chiave={{ chiave_pannello|urlencode }}" class="gz-link{% if selezione and selezione.pannello %} on{% endif %}">Chi gestisce questo pannello</a>
+          {% if n_regole_pannello %}<span class="sz-pill sz-blu">{{ n_regole_pannello }}</span>{% endif %}</li>
+        {% for nodo in radici %}{% include "scadenzario/components/nodo.html" %}{% endfor %}
+      </ul>
+    </div>
+
+    <div class="sz-card">
+      {% if not selezione %}
+        <h2>Scegli una voce</h2>
+        <p class="sz-muted">Clicca una fonte, un tipo o un singolo elemento a sinistra per decidere se compare e chi lo vede.</p>
+        <ul class="sz-sub">
+          <li><strong>Compare nello scadenzario</strong>: «No» la toglie a tutti; si eredita verso il basso, un elemento può riaccendersi da solo.</li>
+          <li><strong>Chi la vede</strong>: «Chi ha il permesso del modulo, più le regole» (predefinito) oppure «Solo chi è nelle regole».</li>
+          <li><strong>Regole</strong>: ruoli del portale, ruoli aziendali dell'organigramma e persone aggiunte a mano.</li>
+        </ul>
+      {% else %}
+        {% if selezione.pannello %}
+          <h2>Chi gestisce questo pannello</h2>
+          <div class="sz-sub">Gli amministratori del portale lo gestiscono sempre. Qui aggiungi altri ruoli o persone (per esempio la Qualità).</div>
+        {% else %}
+          <div class="gz-percorso">{% for c, etichetta in selezione.percorso %}{% if not forloop.first %} › {% endif %}<a href="?chiave={{ c|urlencode }}">{{ etichetta }}</a>{% endfor %}</div>
+          <h2 style="margin-top:4px">{{ selezione.nodo.etichetta|default:selezione.chiave }}</h2>
+          {% if selezione.nodo and not selezione.nodo.presente %}<div class="sz-banner">Oggi non ci sono scadenze per questa voce: l'impostazione resta e vale quando torneranno.</div>{% endif %}
+
+          <div class="gz-sez">Impostazione</div>
+          <form method="post" action="{% url 'scadenzario:gestione_voce' %}" class="gz-form">
+            {% csrf_token %}
+            <input type="hidden" name="chiave" value="{{ selezione.chiave }}">
+            <input type="hidden" name="etichetta" value="{{ selezione.nodo.etichetta|default:'' }}">
+            <label>{{ selezione.voce_form.attiva.label }} {{ selezione.voce_form.attiva }}</label>
+            <label>{{ selezione.voce_form.modalita.label }} {{ selezione.voce_form.modalita }}</label>
+            <button class="sz-btn sz-btn-primary" type="submit">Salva</button>
+          </form>
+          {% if selezione.cfg %}<div class="sz-help" style="margin-top:4px">Ultima modifica {{ selezione.cfg.aggiornato_il|date:"d/m/Y H:i" }}{% if selezione.cfg.aggiornato_da %} · {{ selezione.cfg.aggiornato_da.get_username }}{% endif %}</div>{% endif %}
+        {% endif %}
+
+        <div class="gz-sez">Regole su questa voce</div>
+        <div class="gz-righe">
+          {% for r in selezione.regole %}
+            <div class="gz-regola">
+              <span>{{ r.destinatario_label }} · <span class="sz-pill {% if r.livello == 'GESTISCE' %}sz-vicina{% else %}sz-blu{% endif %}">{{ r.get_livello_display }}</span></span>
+              <form method="post" action="{% url 'scadenzario:gestione_regola_togli' r.pk %}" data-hub-confirm="Togliere questa regola?">
+                {% csrf_token %}<button class="sz-btn sz-btn-danger" type="submit">Togli</button>
+              </form>
+            </div>
+          {% empty %}
+            <div class="sz-muted">Nessuna regola su questa voce.</div>
+          {% endfor %}
+        </div>
+
+        {% if selezione.regole_ereditate %}
+          <div class="gz-sez">Regole che arrivano dalle voci superiori</div>
+          <div class="gz-righe">
+            {% for etichetta, regole in selezione.regole_ereditate %}
+              {% for r in regole %}<div class="gz-regola"><span>{{ r.destinatario_label }} · <span class="sz-muted">da «{{ etichetta }}»</span></span><span class="sz-pill sz-off">{{ r.get_livello_display }}</span></div>{% endfor %}
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <div class="gz-sez">Aggiungi una regola</div>
+        <form method="post" action="{% url 'scadenzario:gestione_regola_aggiungi' %}" class="gz-form" id="gz-regola">
+          {% csrf_token %}
+          <input type="hidden" name="chiave" value="{{ selezione.chiave }}">
+          <label>{{ selezione.regola_form.tipo.label }} {{ selezione.regola_form.tipo }}</label>
+          <label data-tipo="ruolo_portale">{{ selezione.regola_form.ruolo_portale.label }} {{ selezione.regola_form.ruolo_portale }}</label>
+          <label data-tipo="ruolo_aziendale" hidden>{{ selezione.regola_form.ruolo_aziendale.label }} {{ selezione.regola_form.ruolo_aziendale }}</label>
+          <label data-tipo="persona" hidden>{{ selezione.regola_form.persona.label }} {{ selezione.regola_form.persona }}</label>
+          {% if selezione.generiche %}<label>{{ selezione.regola_form.livello.label }} {{ selezione.regola_form.livello }}</label>{% else %}<input type="hidden" name="livello" value="VEDE">{% endif %}
+          <button class="sz-btn sz-btn-primary" type="submit">Aggiungi</button>
+        </form>
+        {% if selezione.generiche %}<div class="sz-help" style="margin-top:4px">«Vede e gestisce»: inserisce, modifica e rinnova le attività della categoria.</div>{% endif %}
+        {% if not selezione.pannello and selezione.chiave|slice:":2" == "hr" %}<div class="sz-banner" style="margin-top:10px">Le visite mediche sono dati sanitari: concedile solo a chi ne ha bisogno (medico competente, RSPP, HR).</div>{% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var form = document.getElementById("gz-regola");
+  if (!form) return;
+  var tipo = form.querySelector("[name=tipo]");
+  function aggiorna() {
+    form.querySelectorAll("[data-tipo]").forEach(function (el) { el.hidden = el.getAttribute("data-tipo") !== tipo.value; });
+  }
+  tipo.addEventListener("change", aggiorna);
+  aggiorna();
+})();
+</script>
+{% endblock %}

@@ -212,9 +212,10 @@ GUIDA = {
                     ("DPI", "i DPI consegnati e non ancora sostituiti, alla data di fine vita utile."),
                     ("RENTRI", "FIR mancanti e depositi temporanei vicini al limite."),
                     ("Azioni CAPA", "le azioni aperte con una scadenza; chi non gestisce le CAPA vede solo le proprie."),
+                    ("Scadenze generiche", "certificati, contratti e altre attività fuori dagli altri moduli, con avvisi per mail e rinnovi (guida «Scadenzario»)."),
                 ]),
                 ("ul", [
-                    "Vedi solo le fonti che puoi aprire: se non hai accesso alle visite mediche, le visite non compaiono.",
+                    "Vedi le fonti che puoi aprire più quello che il pannello «⚙ Gestione» ti concede (per ruolo, ruolo aziendale o persona); il pannello può anche togliere voci a tutti.",
                     "Filtri: Sorgente, Stato (Scadute, Entro 30, 60 o 90 giorni) e Reparto; «⬇ CSV» scarica le righe filtrate.",
                     "«⬇ Calendario (.ics)» scarica le stesse righe come file di calendario: aprilo con Outlook (o un altro calendario) "
                     "e ogni scadenza diventa un evento di un giorno con promemoria il giorno prima alle 9. È una copia: non si aggiorna da sola.",

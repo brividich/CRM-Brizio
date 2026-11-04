@@ -1642,6 +1642,16 @@ def api_global_search(request):
             | Q(mansione__icontains=q)
             | Q(reparto__icontains=q)
         ).order_by("cognome", "nome")[:5]
+        # Pallino «In azienda»: fotografia condivisa di presenti (max una query a Solari al minuto).
+        # None = Solari non configurato/non risponde o modulo non visibile: nessun pallino.
+        presenti_ids = None
+        if dips and _global_search_module_allowed(request, "/presenti/"):
+            try:
+                from presenti.services import ids_presenti
+
+                presenti_ids = ids_presenti()
+            except Exception:
+                presenti_ids = None
         for d in dips:
             try:
                 url = reverse("anagrafica:dipendente_detail", args=[d.id])
@@ -1652,6 +1662,7 @@ def api_global_search(request):
                 "label": naming.nome_completo(d.nome, d.cognome),
                 "sub": d.mansione or d.reparto or "",
                 "url": url,
+                "presenza": None if presenti_ids is None else (d.id in presenti_ids),
             })
     except Exception:
         pass

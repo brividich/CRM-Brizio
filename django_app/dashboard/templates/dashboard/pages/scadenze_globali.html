@@ -91,9 +91,13 @@ body.theme-dark .sg-when.soon{color:#fdba74}
   <div class="sg-head">
     <div>
       <h1 class="sg-title">📅 Scadenzario globale</h1>
-      <p class="sg-sub">Le scadenze che puoi vedere (personale, asset, verifiche impianti, DPI, RENTRI, azioni CAPA): le scadute e quelle dei prossimi {{ orizzonte_giorni }} giorni, in un'unica vista.</p>
+      <p class="sg-sub">Le scadenze che puoi vedere (personale, asset, verifiche impianti, DPI, RENTRI, azioni CAPA, scadenze generiche): le scadute e quelle dei prossimi {{ orizzonte_giorni }} giorni, in un'unica vista.</p>
     </div>
-    <a class="sg-btn ghost" href="{% url 'guida_modulo' 'home' %}#scadenzario">? Guida</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      {% if puo_generiche %}<a class="sg-btn ghost" href="{% url 'scadenzario:elenco' %}">Scadenze generiche</a>{% endif %}
+      {% if puo_pannello %}<a class="sg-btn ghost" href="{% url 'scadenzario:gestione' %}">⚙ Gestione</a>{% endif %}
+      <a class="sg-btn ghost" href="{% url 'guida_modulo' 'scadenzario' %}">? Guida</a>
+    </div>
   </div>
 
   <div class="sg-kpis">
