@@ -60,7 +60,15 @@ GUIDA = {
                       "«Aprire RDC» (si può togliere): l'anomalia resta aperta finché il capocommessa non sceglie lo "
                       "stato definitivo dopo la risposta del cliente. Con «Aprire RDC» la segnalazione al cliente resta "
                       "facoltativa."),
-                ("p", "Nella decisione ci sono anche «Segnala a terzista», «Dove sono i pezzi?», gli «Allegati della "
+                ("p", "Il controllore, per ogni blocco, indica «Dove sono i pezzi?» e, per ogni anomalia, può scegliere "
+                      "«Che cosa hai trovato?» (misura fuori tolleranza, difetto sul pezzo, marcatura/documenti): si "
+                      "aprono solo i campi di quel caso, con l'esito della misura calcolato subito, i pulsanti dei "
+                      "simboli e il riferimento a disegno, sezione e fase. Le misure si possono anche "
+                      "proporre da uno screenshot delle righe del protocollo ZEISS incollato con Ctrl+V nel riquadro "
+                      "«Dal report ZEISS» (l'immagine non viene allegata; le righe proposte si confermano a mano). Il capocommessa li vede nella mail e nel "
+                      "riquadro «Dal controllore». Se sull'OP c'è già un controllo aperto il portale propone di "
+                      "riprenderlo; i controlli vuoti si chiudono da soli dopo 24 ore."),
+                ("p", "Nella decisione ci sono anche «Segnala a terzista», gli «Allegati della "
                       "decisione» e «Segnala a CAR»: scelti uno o più CAR in «A quale CAR?», al salvataggio ricevono "
                       "una mail con l'anomalia e il link (Configurazione → Notifiche → «Segnala a CAR»)."),
                 ("p", "Un'anomalia chiusa la riapre chi ne è incaricato (capocommessa, CAR, controllore che l'ha "
@@ -79,6 +87,9 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Chi è capocommessa e chi riceve le mail si decide con i ruoli del modulo e in Anagrafica.",
+                    "«Campi del blocco del controllore» (Configurazione, in cima): per ogni parte nuova di Apertura "
+                    "segnalazione «Visibile: Sempre / Mai / Solo se…» con persone, ruoli operativi, parole della fase "
+                    "(es. CMM) e tipo di difetto dell'anomalia; vale subito, senza rilasci.",
                     "«Referenti RDC / segnalazione cliente» (Configurazione, un nome o email per riga, con «Aggiungi» "
                     "dall'anagrafica): queste persone vedono in «In carico a me» gli OP con anomalie aperte da aprire "
                     "RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati).",

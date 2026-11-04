@@ -126,3 +126,15 @@ class ClonaOpTests(LegacyTableMixin, TestCase):
         a = self._riga_libera("LCN00009", "Graffio", op="OP/2026/0100")
         with patch("anomalie.views._can_attach_anomalia", return_value=False):
             self.assertEqual(self.post("api_anomalie_allegati_copia", {"da": da, "a": a}).status_code, 403)
+
+    def test_copia_anche_le_misure(self):
+        from anomalie.quality_models import AnomaliaSchedaQualita
+
+        ids = self._blocco()
+        dettaglio = {"tipo": "misura", "misure": [{"car": "diametro", "modo": "minmax", "a": "1", "b": "2", "ril": "2.1"}]}
+        AnomaliaSchedaQualita.objects.update_or_create(anomalia_id=ids[0], defaults={
+            "op_titolo": OP, "dettaglio_controllo": dettaglio, "dove_pezzi": "Area NC"})
+        primo = self._dati(ids).json()["blocchi"][0]
+        self.assertEqual(primo["anomalie"][0]["dettaglio"], dettaglio)
+        self.assertEqual(primo["anomalie"][1]["dettaglio"], {})
+        self.assertNotIn("dove_pezzi", primo)  # i pezzi del nuovo OP sono altri

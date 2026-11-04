@@ -1211,7 +1211,7 @@
       const dirty = !!sn.item_id && canEditSelected && (
         desc !== baseline.desc || note !== baseline.note || pezziPrec !== baseline.pezziPrec
         || aprireRdc !== baseline.aprireRdc || segnalare !== baseline.segnalare
-        || terzista !== baseline.terzista || dovePezzi.trim() !== baseline.dovePezzi.trim()
+        || terzista !== baseline.terzista
         || segnalaCar !== baseline.segnalaCar
         || (segnalaCar && carScelti.join("|") !== baseline.carScelti.join("|"))
         || (aprireRdc && rdcNum !== baseline.rdcNum)
@@ -1393,7 +1393,7 @@
               item_id: currentItemId, op_id: op.id, sn: sn.sn || "", desc,
               descrizioni_risposte: descrizioneAnswers, note, pezzi_prec: pezziPrec,
               aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare,
-              segnala_terzista: terzista, dove_pezzi: dovePezzi.trim(),
+              segnala_terzista: terzista,
               segnala_car: segnalaCar, car_segnalati: segnalaCar ? carScelti : [],
               chiudere: chiudereAuto, avanzamento,
             }),
@@ -1404,7 +1404,7 @@
           ok = true;
           const aggiornato = {
             desc, note, pezzi_prec: pezziPrec, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "",
-            segnalare, segnala_terzista: terzista, dove_pezzi: dovePezzi.trim(),
+            segnalare, segnala_terzista: terzista,
             segnala_car: segnalaCar && carScelti.length > 0, car_segnalati: segnalaCar ? carScelti : [],
             chiudere: chiudereAuto, avanzamento,
             descrizioni: (sn.descrizioni || []).map((d) => ({ ...d, risposta: descrizioneAnswers[String(d.id)] || "" })),
@@ -1423,7 +1423,7 @@
                   body: JSON.stringify({
                     item_id: f.item_id, op_id: op.id, sn: f.sn || "", desc: f.desc || "",
                     note, pezzi_prec: !!f.pezzi_prec, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "",
-                    segnalare, segnala_terzista: terzista, dove_pezzi: dovePezzi.trim(), chiudere: chiudeF, avanzamento,
+                    segnalare, segnala_terzista: terzista, chiudere: chiudeF, avanzamento,
                   }),
                   credentials: "same-origin",
                 });
@@ -1432,7 +1432,7 @@
                 n += 1;
                 setAnomalie((prev) => prev.map((a) => (a.item_id === f.item_id ? {
                   ...a, note, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare,
-                  segnala_terzista: terzista, dove_pezzi: dovePezzi.trim(), chiudere: chiudeF, avanzamento,
+                  segnala_terzista: terzista, chiudere: chiudeF, avanzamento,
                 } : a)));
               } catch (err) {
                 errori.push(`#${f.local_id}: ${err.message}`);
@@ -1894,11 +1894,14 @@
                             : "Scegli almeno un CAR: senza scelta la segnalazione non parte."}</div>
                         </div>
                       )}
-                      <div>
-                        <FieldLabel>Dove sono i pezzi?</FieldLabel>
-                        <input className="ga-input" maxLength={200} value={dovePezzi} onChange={(e) => setDovePezzi(e.target.value)} disabled={!canEditSelected}
-                          placeholder="Es. area pezzi non conformi, reparto, presso il terzista…" />
-                      </div>
+                      {(sn.dove_pezzi || (sn.dettaglio_righe || []).length > 0 || sn.tipo_difetto) && (
+                        <div className="ga-ctrl">
+                          <div className="ga-ctrl__t">Dal controllore</div>
+                          {sn.dove_pezzi && <div>📦 Dove sono i pezzi: <b>{sn.dove_pezzi}</b></div>}
+                          {(sn.dettaglio_righe || []).map((r, ri) => <div key={ri} className="ga-ctrl__r">{r}</div>)}
+                          {sn.tipo_difetto && <div className="ga-hint">Tipo di difetto: {sn.tipo_difetto}</div>}
+                        </div>
+                      )}
                       <div className="ga-att ga-att--dec"
                         onDragOver={(e) => { if (canEditSelected && sn.local_id) e.preventDefault(); }}
                         onDrop={(e) => { e.preventDefault(); if (canEditSelected) uploadFiles(Array.from(e.dataTransfer.files || []), "decisione"); }}>
@@ -2033,7 +2036,6 @@
                   {segnalare && <span><b>Segnalata al cliente</b></span>}
                   {terzista && <span><b>Segnalata al terzista</b></span>}
                   {segnalaCar && carScelti.length > 0 && <span><b>Segnalata al CAR</b> {carScelti.join(", ")}</span>}
-                  {dovePezzi.trim() && <span>Pezzi: <b>{dovePezzi.trim()}</b></span>}
                   {note.trim() && <span className="ga-riep__nota"><b>Note</b> {note.trim()}</span>}
                 </div>
                 <div className="ga-riep__list">

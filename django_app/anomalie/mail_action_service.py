@@ -431,10 +431,14 @@ def _build_plain_text(
     for gruppo in gruppi:
         titolo = gruppo.get("titolo") or "(S/N non indicato)"
         lines.append(f"S/N {titolo}" + (f" — {gruppo['sottotitolo']}" if gruppo.get("sottotitolo") else ""))
+        if gruppo.get("dove_pezzi"):
+            lines.append(f"  Dove sono i pezzi: {gruppo['dove_pezzi']}")
         for a in gruppo.get("righe") or []:
             stato = a.get("avanzamento") or ""
             testo = a.get("testo") or a.get("descrizione") or "(nessuna descrizione)"
             lines.append(f"  • #{a.get('id', '?')}" + (f" [{stato}]" if stato else "") + f": {str(testo)[:500]}")
+            for riga in a.get("dettaglio_righe") or []:
+                lines.append(f"    {riga}")
             if a.get("stato_superficie"):
                 lines.append(f"    Stato superficie: {a['stato_superficie']}")
             for index, detail in enumerate(a.get("descrizioni") or [], start=1):

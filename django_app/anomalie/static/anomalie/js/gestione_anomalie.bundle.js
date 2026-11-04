@@ -1906,7 +1906,7 @@ function GestioneAnomalie() {
     resetAmbito();
     setEditDesc(false);
   }, [sn.item_id]);
-  const dirty = !!sn.item_id && canEditSelected && (desc !== baseline.desc || note !== baseline.note || pezziPrec !== baseline.pezziPrec || aprireRdc !== baseline.aprireRdc || segnalare !== baseline.segnalare || terzista !== baseline.terzista || dovePezzi.trim() !== baseline.dovePezzi.trim() || segnalaCar !== baseline.segnalaCar || segnalaCar && carScelti.join("|") !== baseline.carScelti.join("|") || aprireRdc && rdcNum !== baseline.rdcNum || normalizeChoice(avanzamento).toLowerCase() !== normalizeChoice(baseline.avanzamento).toLowerCase() || Object.keys(descrizioneAnswers).some(k => (descrizioneAnswers[k] || "") !== (baseline.risposte[k] || "")));
+  const dirty = !!sn.item_id && canEditSelected && (desc !== baseline.desc || note !== baseline.note || pezziPrec !== baseline.pezziPrec || aprireRdc !== baseline.aprireRdc || segnalare !== baseline.segnalare || terzista !== baseline.terzista || segnalaCar !== baseline.segnalaCar || segnalaCar && carScelti.join("|") !== baseline.carScelti.join("|") || aprireRdc && rdcNum !== baseline.rdcNum || normalizeChoice(avanzamento).toLowerCase() !== normalizeChoice(baseline.avanzamento).toLowerCase() || Object.keys(descrizioneAnswers).some(k => (descrizioneAnswers[k] || "") !== (baseline.risposte[k] || "")));
 
   // Cambio di anomalia/OP con modifiche non salvate: si chiede cosa fare.
   const guard = action => {
@@ -2198,7 +2198,6 @@ function GestioneAnomalie() {
           numero_rdc: aprireRdc ? rdcNum : "",
           segnalare,
           segnala_terzista: terzista,
-          dove_pezzi: dovePezzi.trim(),
           segnala_car: segnalaCar,
           car_segnalati: segnalaCar ? carScelti : [],
           chiudere: chiudereAuto,
@@ -2217,7 +2216,6 @@ function GestioneAnomalie() {
         numero_rdc: aprireRdc ? rdcNum : "",
         segnalare,
         segnala_terzista: terzista,
-        dove_pezzi: dovePezzi.trim(),
         segnala_car: segnalaCar && carScelti.length > 0,
         car_segnalati: segnalaCar ? carScelti : [],
         chiudere: chiudereAuto,
@@ -2255,7 +2253,6 @@ function GestioneAnomalie() {
                 numero_rdc: aprireRdc ? rdcNum : "",
                 segnalare,
                 segnala_terzista: terzista,
-                dove_pezzi: dovePezzi.trim(),
                 chiudere: chiudeF,
                 avanzamento
               }),
@@ -2271,7 +2268,6 @@ function GestioneAnomalie() {
               numero_rdc: aprireRdc ? rdcNum : "",
               segnalare,
               segnala_terzista: terzista,
-              dove_pezzi: dovePezzi.trim(),
               chiudere: chiudeF,
               avanzamento
             } : a));
@@ -2910,14 +2906,16 @@ function GestioneAnomalie() {
     onClick: () => canEditSelected && toggleCarScelto(nome)
   }, nome))), /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
-  }, carScelti.length ? "Al salvataggio parte una mail ai CAR appena scelti (chi l'ha già ricevuta non la riceve di nuovo)." : "Scegli almeno un CAR: senza scelta la segnalazione non parte.")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "Dove sono i pezzi?"), /*#__PURE__*/React.createElement("input", {
-    className: "ga-input",
-    maxLength: 200,
-    value: dovePezzi,
-    onChange: e => setDovePezzi(e.target.value),
-    disabled: !canEditSelected,
-    placeholder: "Es. area pezzi non conformi, reparto, presso il terzista\u2026"
-  })), /*#__PURE__*/React.createElement("div", {
+  }, carScelti.length ? "Al salvataggio parte una mail ai CAR appena scelti (chi l'ha già ricevuta non la riceve di nuovo)." : "Scegli almeno un CAR: senza scelta la segnalazione non parte.")), (sn.dove_pezzi || (sn.dettaglio_righe || []).length > 0 || sn.tipo_difetto) && /*#__PURE__*/React.createElement("div", {
+    className: "ga-ctrl"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-ctrl__t"
+  }, "Dal controllore"), sn.dove_pezzi && /*#__PURE__*/React.createElement("div", null, "\uD83D\uDCE6 Dove sono i pezzi: ", /*#__PURE__*/React.createElement("b", null, sn.dove_pezzi)), (sn.dettaglio_righe || []).map((r, ri) => /*#__PURE__*/React.createElement("div", {
+    key: ri,
+    className: "ga-ctrl__r"
+  }, r)), sn.tipo_difetto && /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Tipo di difetto: ", sn.tipo_difetto)), /*#__PURE__*/React.createElement("div", {
     className: "ga-att ga-att--dec",
     onDragOver: e => {
       if (canEditSelected && sn.local_id) e.preventDefault();
@@ -3093,7 +3091,7 @@ function GestioneAnomalie() {
     id: "ga-riep-t"
   }, "Applica la decisione a ", bersagli.length + 1, " anomalie"), /*#__PURE__*/React.createElement("div", {
     className: "ga-riep__dec"
-  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Avanzamento"), " ", avanzamento), aprireRdc && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "RDC"), " ", rdcNum || "da aprire"), segnalare && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata al cliente")), terzista && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata al terzista")), segnalaCar && carScelti.length > 0 && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata al CAR"), " ", carScelti.join(", ")), dovePezzi.trim() && /*#__PURE__*/React.createElement("span", null, "Pezzi: ", /*#__PURE__*/React.createElement("b", null, dovePezzi.trim())), note.trim() && /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Avanzamento"), " ", avanzamento), aprireRdc && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "RDC"), " ", rdcNum || "da aprire"), segnalare && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata al cliente")), terzista && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata al terzista")), segnalaCar && carScelti.length > 0 && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("b", null, "Segnalata al CAR"), " ", carScelti.join(", ")), note.trim() && /*#__PURE__*/React.createElement("span", {
     className: "ga-riep__nota"
   }, /*#__PURE__*/React.createElement("b", null, "Note"), " ", note.trim())), /*#__PURE__*/React.createElement("div", {
     className: "ga-riep__list"

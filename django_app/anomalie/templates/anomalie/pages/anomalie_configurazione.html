@@ -117,6 +117,113 @@
 {# ========== TAB CONFIG ========== #}
 {% if tab == 'config' or not tab %}
 
+  <style>
+    #card-campi-controllo .cc-cond { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    #card-campi-controllo .cc-cond[hidden] { display: none; }
+    #card-campi-controllo .cc-ruoli input, #card-campi-controllo .cc-tipi input { width: 14px; height: 14px; min-height: 0; margin: 0 4px 0 0; vertical-align: -2px; }
+  </style>
+  <div class="card" id="card-campi-controllo">
+    <div class="card-head">
+      <div>
+        <div class="card-title">Campi del blocco del controllore</div>
+        <div class="page-sub" style="margin-top:4px;">Decidi chi vede ogni parte di «Apertura segnalazione», per provarle con i controllori senza rilasci. «Solo se…»: la parte si vede quando valgono tutte le condizioni compilate (dentro ognuna basta una delle voci). Nascondere una parte non cancella i dati già inseriti.</div>
+      </div>
+    </div>
+    <div class="card-body" style="display:grid;gap:10px;">
+      {% for campo in campi_controllo %}
+      <div class="cc-row" data-campo="{{ campo.chiave }}" style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:grid;gap:8px;">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <span style="flex:1;min-width:220px;"><strong>{{ campo.etichetta }}</strong><br><small style="color:var(--text-mid);">{{ campo.aiuto }}</small></span>
+          <label style="display:flex;gap:6px;align-items:center;">Visibile
+            <select class="input cc-modo" style="width:auto;">
+              <option value="sempre"{% if campo.regola.modo == 'sempre' %} selected{% endif %}>Sempre</option>
+              <option value="se"{% if campo.regola.modo == 'se' %} selected{% endif %}>Solo se…</option>
+              <option value="mai"{% if campo.regola.modo == 'mai' %} selected{% endif %}>Mai</option>
+            </select>
+          </label>
+        </div>
+        <div class="cc-cond" {% if campo.regola.modo != 'se' %}hidden{% endif %}>
+          <label style="display:grid;gap:3px;"><small><strong>Persone</strong> (separate da virgola; «aggiungi» dall'anagrafica)</small>
+            <textarea class="input cc-persone" rows="2" spellcheck="false">{{ campo.regola.persone|join:", " }}</textarea>
+            <select class="input cc-persone-pick"><option value="">— aggiungi una persona —</option></select>
+          </label>
+          <div style="display:grid;gap:3px;"><small><strong>Ruoli operativi</strong></small>
+            <div class="cc-ruoli" data-scelti="{{ campo.regola.ruoli|join:',' }}" style="display:flex;flex-wrap:wrap;gap:4px 10px;max-height:110px;overflow:auto;font-size:12px;"></div>
+          </div>
+          <label style="display:grid;gap:3px;"><small><strong>Fase del controllo contiene</strong> (parole separate da virgola, es. CMM)</small>
+            <textarea class="input cc-fasi" rows="2" spellcheck="false">{{ campo.regola.fasi|join:", " }}</textarea>
+          </label>
+          {% if not campo.di_blocco %}
+          <div style="display:grid;gap:3px;"><small><strong>Tipo di difetto dell'anomalia</strong> (scelto o proposto)</small>
+            <div class="cc-tipi" style="display:flex;flex-wrap:wrap;gap:4px 10px;max-height:110px;overflow:auto;font-size:12px;">
+              {% for t in tipi_difetto_cfg %}<label><input type="checkbox" value="{{ t.codice }}"{% if t.codice in campo.regola.tipi %} checked{% endif %}> {{ t.nome }}</label>{% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;">
+        <span id="campi-controllo-status" class="status"></span>
+        <button id="btn-campi-controllo" class="btn" type="button">Salva campi</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Parte a pagina caricata: persone e ruoli (window._CFG_*) sono definiti più in basso.
+    document.addEventListener("DOMContentLoaded", function () {
+      const btn = document.getElementById("btn-campi-controllo");
+      if (!btn) return;
+      const st = document.getElementById("campi-controllo-status");
+      const csrf = () => (document.cookie.split(";").find(c => c.trim().startsWith("csrftoken=")) || "").split("=")[1] || "";
+      const esc = (v) => String(v == null ? "" : v).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+      const righe = (v) => String(v || "").split(/\r?\n|,/).map(t => t.trim()).filter(Boolean);
+      const nomi = Array.isArray(window._CFG_ANAGRAFICA_NAMES) ? window._CFG_ANAGRAFICA_NAMES : [];
+      const ruoli = Array.isArray(window._CFG_RUOLI_OPERATIVI) ? window._CFG_RUOLI_OPERATIVI : [];
+      document.querySelectorAll(".cc-row").forEach(row => {
+        const modo = row.querySelector(".cc-modo");
+        const cond = row.querySelector(".cc-cond");
+        modo.addEventListener("change", () => { cond.hidden = modo.value !== "se"; });
+        const box = row.querySelector(".cc-ruoli");
+        const scelti = (box.dataset.scelti || "").split(",").filter(Boolean).map(Number);
+        box.innerHTML = ruoli.length ? ruoli.map(r => `<label><input type="checkbox" value="${r.id}"${scelti.includes(r.id) ? " checked" : ""}> ${esc(r.nome)}</label>`).join("") : "<small>Nessun ruolo operativo</small>";
+        const pick = row.querySelector(".cc-persone-pick");
+        const area = row.querySelector(".cc-persone");
+        pick.innerHTML += nomi.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+        pick.addEventListener("change", () => {
+          const n = pick.value; if (!n) return;
+          const att = righe(area.value);
+          if (!att.some(x => x.toLowerCase() === n.toLowerCase())) att.push(n);
+          area.value = att.join(", "); pick.value = "";
+        });
+      });
+      btn.addEventListener("click", async () => {
+        const campi = {};
+        document.querySelectorAll(".cc-row").forEach(row => {
+          campi[row.dataset.campo] = {
+            modo: row.querySelector(".cc-modo").value,
+            persone: righe(row.querySelector(".cc-persone").value),
+            ruoli: Array.from(row.querySelectorAll(".cc-ruoli input:checked")).map(el => Number(el.value)),
+            fasi: righe(row.querySelector(".cc-fasi").value),
+            tipi: Array.from(row.querySelectorAll(".cc-tipi input:checked")).map(el => el.value),
+          };
+        });
+        btn.disabled = true;
+        try {
+          const r = await fetch("{% url 'api_anomalie_config_campi_controllo' %}", {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": csrf() },
+            body: JSON.stringify({ campi }),
+          });
+          const j = await r.json();
+          if (!r.ok || !j.success) throw new Error(j.error || "Salvataggio non riuscito");
+          st.className = "status ok"; st.textContent = "Salvato: vale subito (i controllori ricaricano la pagina).";
+        } catch (e) { st.className = "status err"; st.textContent = e.message; }
+        btn.disabled = false;
+      });
+    });
+  </script>
+
   <div class="card" id="card-logo">
     <div class="card-head">
       <div>
