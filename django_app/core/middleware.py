@@ -118,6 +118,11 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     # (tabella AdminUsers). Prima il link puntava direttamente al GuestPortal,
     # visibile a tutti: stesso perimetro.
     "fornitori:guestportal_apri",
+    # Riquadro «Presenze in azienda» dentro ticket e OdL: la view applica la regola
+    # della pagina che lo ospita (gestore del ticket / chi apre e chi esegue l'OdL).
+    "fornitori:presenze_intervento",
+    "fornitori:presenze_collega",
+    "fornitori:presenze_scollega",
     "assets:api_dashboard_save_config",
     "legacy_modifica_capo",
     "legacy_modifica_info_completa",

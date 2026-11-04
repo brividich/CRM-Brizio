@@ -304,6 +304,9 @@ body.theme-dark .tkt-meta-val a{color:#93c5fd}
           <div style="margin-top:10px;font-size:12px;color:#64748b;text-align:right;">Totale ore registrate: <span id="interv-ore-totali" style="font-weight:800;color:#0f172a;">-</span></div>
           {% else %}<div id="interv-empty" class="tkt-empty">Nessun intervento registrato.</div>{% endif %}
         </div>
+        {% if ticket.tipo == "MAN" or ticket.delegato_fornitore_id %}
+        <div hx-get="{% url 'fornitori:presenze_intervento' 'ticket' ticket.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="tkt-empty">Caricamento presenze in azienda della ditta…</p></div>
+        {% endif %}
       </section>
 
       <section class="tkt-tab-panel" data-panel="asset">

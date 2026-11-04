@@ -17,7 +17,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseForbidden, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -32,6 +32,7 @@ from anagrafica.models import (
 from core.audit import log_action
 
 from . import guestportal as gp
+from . import ingressi as ing
 from .forms import (
     FornitoreAssetForm,
     FornitoreDocumentoForm,
@@ -419,7 +420,11 @@ def accessi_esterni(request):
         except gp.GuestPortalNonRaggiungibile:
             errore = "Il database del GuestPortal non risponde: riprova tra poco o avvisa l'IT."
 
-    # Collega l'azienda dell'esterno alla scheda fornitore se la ragione sociale coincide.
+    # Collega l'azienda dell'esterno alla scheda fornitore: abbinamento ditta
+    # GuestPortal → fornitore HUB, altrimenti stessa ragione sociale.
+    from .models import DittaGuestPortal
+
+    per_ditta = dict(DittaGuestPortal.objects.values_list("ditta_gp_id", "fornitore_id"))
     nomi = {a.azienda.strip().lower() for a in presenti + righe if a.azienda}
     fornitori_per_nome: dict[str, int] = {}
     if nomi:
@@ -427,8 +432,10 @@ def accessi_esterni(request):
             chiave = (rs or "").strip().lower()
             if chiave in nomi:
                 fornitori_per_nome.setdefault(chiave, pk)
+    collegati = ing.interventi_per_visite([a.visita_id for a in presenti + righe])
     for accesso in presenti + righe:
-        accesso.fornitore_id = fornitori_per_nome.get(accesso.azienda.strip().lower())
+        accesso.fornitore_id = per_ditta.get(accesso.ditta_gp_id) or fornitori_per_nome.get(accesso.azienda.strip().lower())
+        accesso.interventi = collegati.get(accesso.visita_id, [])
 
     return render(request, "fornitori/pages/accessi_esterni.html", {
         "dal": dal,
@@ -466,3 +473,185 @@ def guestportal_apri(request):
         messages.error(request, "Indirizzo del GuestPortal non configurato (GUESTPORTAL_ADMIN_URL).")
         return redirect("fornitori:accessi_esterni")
     return HttpResponseRedirect(url)
+
+
+# ---------------------------------------------------------------------------
+# Presenze in azienda: ingressi GuestPortal collegati a ticket e OdL
+# (riquadro HTMX nelle pagine ticket/OdL; il permesso si verifica qui, sulla
+# regola della pagina che lo ospita)
+# ---------------------------------------------------------------------------
+
+def _puo_presenze(request, iv, *, modifica: bool) -> bool:
+    if iv.tipo == ing.TIPO_TICKET:
+        from tickets.services.accesso import utente_puo_gestire_ticket
+
+        return utente_puo_gestire_ticket(request, iv.oggetto)
+    from django.urls import reverse
+
+    from core.middleware import acl_allows_path
+
+    vede = acl_allows_path(
+        reverse("assets:wo_view", args=[iv.pk]), django_user=request.user,
+        legacy_user=getattr(request, "legacy_user", None), request=request,
+    )
+    if not vede or not modifica:
+        return vede
+    from assets.views_maintenance import can_execute_maintenance
+
+    return bool(can_execute_maintenance(request))
+
+
+def _render_presenze(request, iv, *, esito: str = "", errore: str = "", status: int = 200):
+    giorno_txt = (request.POST.get("giorno") or request.GET.get("giorno") or "").strip()
+    giorno = _data_param(giorno_txt, None) if giorno_txt else None
+    puo_modificare = _puo_presenze(request, iv, modifica=True) and not iv.chiuso
+    configurato = gp.db_configurato()
+    proposte: list = []
+    del_giorno: list = []
+    errore_gp = ""
+    if configurato:
+        try:
+            ing.aggiorna_uscite(iv)
+            if puo_modificare:
+                proposte = ing.proposte(iv)
+                if giorno:
+                    del_giorno = ing.ingressi_del_giorno(iv, giorno)
+        except gp.GuestPortalNonConfigurato:
+            configurato = False
+        except gp.GuestPortalNonRaggiungibile:
+            errore_gp = "Il GuestPortal non risponde: proposte non disponibili, i collegamenti già fatti restano."
+    collegamenti = list(iv.collegamenti())
+    confronto = ing.confronto_ore(iv, collegamenti)
+    return render(request, "fornitori/components/presenze_intervento.html", {
+        "iv": iv,
+        "collegamenti": collegamenti,
+        "confronto": confronto,
+        "presenza_label": ing.ore_label(confronto.presenza_minuti),
+        "dichiarate_label": ing.ore_label(confronto.dichiarate_minuti) if confronto.dichiarate_minuti is not None else "",
+        "proposte": proposte,
+        "del_giorno": del_giorno,
+        "giorno": giorno,
+        "configurato": configurato,
+        "puo_modificare": puo_modificare,
+        "errore_gp": errore_gp,
+        "esito": esito,
+        "errore": errore,
+        "dal_al": iv.finestra(),
+    }, status=status)
+
+
+def _intervento_o_404(tipo: str, pk: int):
+    from django.http import Http404
+
+    iv = ing.intervento(tipo, pk)
+    if iv is None:
+        raise Http404("Intervento non trovato")
+    return iv
+
+
+@login_required
+def presenze_intervento(request, tipo, pk):
+    iv = _intervento_o_404(tipo, pk)
+    if not _puo_presenze(request, iv, modifica=False):
+        return HttpResponseForbidden("Permesso negato")
+    return _render_presenze(request, iv)
+
+
+@login_required
+@require_POST
+def presenze_collega(request, tipo, pk):
+    iv = _intervento_o_404(tipo, pk)
+    if not _puo_presenze(request, iv, modifica=True):
+        return HttpResponseForbidden("Permesso negato")
+    try:
+        visita_id = int(request.POST.get("visita_id") or 0)
+    except ValueError:
+        visita_id = 0
+    if not visita_id:
+        return _render_presenze(request, iv, errore="Ingresso non indicato.", status=400)
+    try:
+        link = ing.collega(iv, visita_id, utente=request.user, modo=request.POST.get("modo", ""))
+    except ing.CollegamentoNonValido as exc:
+        return _render_presenze(request, iv, errore=str(exc))
+    except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+        return _render_presenze(request, iv, errore="Il GuestPortal non risponde: riprova tra poco.")
+    log_action(request, "ingresso_esterno_collegato", "fornitori",
+               {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id, "modo": link.modo})
+    return _render_presenze(request, iv, esito=f"Ingresso del {timezone.localtime(link.ingresso):%d/%m/%Y %H:%M} collegato." if link.ingresso else "Ingresso collegato.")
+
+
+@login_required
+@require_POST
+def presenze_scollega(request, link_id):
+    from .models import IngressoIntervento
+
+    link = get_object_or_404(IngressoIntervento, pk=link_id)
+    iv = ing.Intervento(ing.TIPO_TICKET, link.ticket) if link.ticket_id else ing.Intervento(ing.TIPO_ODL, link.work_order)
+    if not _puo_presenze(request, iv, modifica=True) or iv.chiuso:
+        return HttpResponseForbidden("Permesso negato")
+    log_action(request, "ingresso_esterno_scollegato", "fornitori",
+               {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id})
+    link.delete()
+    return _render_presenze(request, iv, esito="Collegamento tolto.")
+
+
+# ---------------------------------------------------------------------------
+# Ditte GuestPortal ↔ fornitori HUB (abbinamento una tantum)
+# ---------------------------------------------------------------------------
+
+@login_required
+def guestportal_ditte(request):
+    from .models import DittaGuestPortal
+
+    if request.method == "POST":
+        try:
+            ditta_gp_id = int(request.POST.get("ditta_gp_id") or 0)
+        except ValueError:
+            ditta_gp_id = 0
+        fornitore_id = (request.POST.get("fornitore_id") or "").strip()
+        nome_gp = (request.POST.get("ditta_gp_nome") or "").strip()[:200]
+        if ditta_gp_id:
+            if fornitore_id:
+                fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+                DittaGuestPortal.objects.update_or_create(
+                    ditta_gp_id=ditta_gp_id,
+                    defaults={"fornitore": fornitore, "ditta_gp_nome": nome_gp or str(ditta_gp_id),
+                              "creato_da": request.user},
+                )
+                messages.success(request, f"«{nome_gp}» abbinata a «{fornitore.ragione_sociale}».")
+            else:
+                DittaGuestPortal.objects.filter(ditta_gp_id=ditta_gp_id).delete()
+                messages.success(request, f"Abbinamento di «{nome_gp}» tolto.")
+            log_action(request, "guestportal_ditta_abbinata", "fornitori",
+                       {"ditta_gp_id": ditta_gp_id, "fornitore_id": fornitore_id or None})
+        return redirect("fornitori:guestportal_ditte")
+
+    configurato = gp.db_configurato()
+    ditte: list = []
+    errore = ""
+    if configurato:
+        try:
+            ditte = gp.ditte_guestportal()
+        except gp.GuestPortalNonConfigurato:
+            configurato = False
+        except gp.GuestPortalNonRaggiungibile:
+            errore = "Il database del GuestPortal non risponde: riprova tra poco o avvisa l'IT."
+    abbinate = {d.ditta_gp_id: d for d in DittaGuestPortal.objects.select_related("fornitore")}
+    fornitori = list(Fornitore.objects.filter(is_active=True).order_by("ragione_sociale").values_list("pk", "ragione_sociale"))
+    per_nome = {(rs or "").strip().lower(): pk for pk, rs in fornitori}
+    righe = []
+    for ditta_id, nome in ditte:
+        abb = abbinate.get(ditta_id)
+        righe.append({
+            "id": ditta_id,
+            "nome": nome,
+            "abbinata": abb,
+            "suggerito": None if abb else per_nome.get(nome.strip().lower()),
+        })
+    return render(request, "fornitori/pages/guestportal_ditte.html", {
+        "configurato": configurato,
+        "errore": errore,
+        "righe": righe,
+        "fornitori": fornitori,
+        "n_abbinate": sum(1 for r in righe if r["abbinata"]),
+    })

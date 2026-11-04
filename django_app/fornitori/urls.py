@@ -35,4 +35,11 @@ urlpatterns = [
     # Accessi esterni dal GuestPortal (sola lettura) e apertura pannello con SSO
     path("accessi-esterni/", views.accessi_esterni, name="accessi_esterni"),
     path("guestportal/apri/", views.guestportal_apri, name="guestportal_apri"),
+    path("guestportal/ditte/", views.guestportal_ditte, name="guestportal_ditte"),
+
+    # Presenze in azienda: ingressi GuestPortal collegati a ticket/OdL (riquadro HTMX)
+    # «scollega» prima della rotta con <tipo>, che altrimenti la cattura.
+    path("presenze/scollega/<int:link_id>/", views.presenze_scollega, name="presenze_scollega"),
+    path("presenze/<str:tipo>/<int:pk>/", views.presenze_intervento, name="presenze_intervento"),
+    path("presenze/<str:tipo>/<int:pk>/collega/", views.presenze_collega, name="presenze_collega"),
 ]
