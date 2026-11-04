@@ -25,6 +25,15 @@ TIPI_NOTI: dict[str, dict[str, str]] = {
 }
 
 
+def _tipi_moduli() -> None:
+    from .fonti_moduli import TIPI
+
+    TIPI_NOTI.update(TIPI)
+
+
+_tipi_moduli()
+
+
 @dataclass
 class Nodo:
     chiave: str

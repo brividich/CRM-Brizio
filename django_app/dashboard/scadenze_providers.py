@@ -507,6 +507,21 @@ PROVIDERS: dict[str, Callable[[ScadenzeContext], list[ScadenzaItem]]] = {
 }
 
 
+# Fonti dagli altri moduli (sistema di gestione, qualifiche, formazione, SOC, GDPR,
+# presa visione): vivono in scadenzario/fonti_moduli.py, prima delle generiche.
+def _registra_fonti_moduli() -> None:
+    from scadenzario import fonti_moduli
+
+    generiche = PROVIDERS.pop(SOURCE_GENERICHE)
+    for code, provider in fonti_moduli.PROVIDERS.items():
+        PROVIDERS[code] = provider
+        SOURCE_LABELS[code] = fonti_moduli.SOURCE_LABELS[code]
+    PROVIDERS[SOURCE_GENERICHE] = generiche
+
+
+_registra_fonti_moduli()
+
+
 def _collect_generiche(ctx: ScadenzeContext) -> list[ScadenzaItem]:
     from scadenzario.fonte import collect_generiche
 
