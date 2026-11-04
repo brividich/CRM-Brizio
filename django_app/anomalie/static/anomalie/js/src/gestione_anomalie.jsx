@@ -20,6 +20,7 @@
       allegati_upload: "/api/anomalie/allegati/upload",
       allegati_delete: "/api/anomalie/allegati/delete",
       allegati_file: "/api/anomalie/allegati/file",
+      segnalato: "/api/anomalie/segnalato",
     };
     const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica)
       ? CONFIG_LISTS.autorizzati_modifica
@@ -1482,6 +1483,47 @@
         setAvanzamento(baseline.avanzamento); setDescrizioneAnswers(baseline.risposte); setEditDesc(false);
       };
 
+      // «Segnalato» (cliente/terzista): si registra subito, senza mail di aggiornamento.
+      const [segnalatoInCorso, setSegnalatoInCorso] = useState("");
+      const toggleSegnalato = async (chi) => {
+        if (!sn.local_id || !API.segnalato || segnalatoInCorso) return;
+        const campo = `segnalato_${chi}`;
+        const acceso = !sn[campo];
+        setSegnalatoInCorso(chi);
+        try {
+          const r = await fetch(API.segnalato, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+            body: JSON.stringify({ local_id: sn.local_id, chi, segnalato: acceso }),
+            credentials: "same-origin",
+          });
+          const data = await readJsonOrThrow(r, "Segnalato");
+          if (!data.success) throw new Error(data.error || "risposta non valida");
+          setAnomalie((prev) => prev.map((a) => (a.item_id === sn.item_id ? { ...a, [campo]: data.segnalato || null } : a)));
+          flash({ ok: true, text: acceso ? `Segnalato ${chi === "cliente" ? "al cliente" : "al terzista"} · registrato, nessuna mail inviata` : "Spunta «Segnalato» tolta" });
+        } catch (e) {
+          flash({ ok: false, text: "Errore: " + e.message }, 7000);
+        }
+        setSegnalatoInCorso("");
+      };
+      const rigaSegnalato = (chi, richiesto, salvato) => {
+        if (!richiesto) return null;
+        const campo = `segnalato_${chi}`;
+        const fatto = sn[campo];
+        const label = `Segnalato ${chi === "cliente" ? "al cliente" : "al terzista"}`;
+        if (!salvato) {
+          return <div key={chi} className="ga-hint">Salva la decisione per poter spuntare «{label}».</div>;
+        }
+        return (
+          <div key={chi} className="ga-segnalato">
+            <FlagToggle label={segnalatoInCorso === chi ? "Salvataggio…" : label}
+              hint="Registra che l'hai già avvisato: non parte nessuna mail"
+              checked={!!fatto} disabled={!canEditCurrentOp || !!segnalatoInCorso} onChange={() => toggleSegnalato(chi)} />
+            <span className="ga-hint">{fatto ? `il ${fatto.il}${fatto.da ? ` da ${fatto.da}` : ""} · nessuna mail inviata` : "Si registra subito, senza mail."}</span>
+          </div>
+        );
+      };
+
       // Riapertura: capocommessa, CAR, controllore o chi modifica l'OP (deciso dal server).
       const riapri = async () => {
         if (!sn.local_id || !API.riapri) return;
@@ -1876,6 +1918,12 @@
                         <FlagToggle label="Segnala a CAR" hint="I CAR scelti ricevono una mail con questa anomalia" checked={segnalaCar} disabled={!canEditSelected} onChange={toggleSegnalaCar} />
                         <FlagToggle label="Pezzi precedenti al benestare" checked={pezziPrec} disabled={!canEditSelected} onChange={() => setPezziPrec(!pezziPrec)} />
                       </div>
+                      {(segnalare || terzista) && (
+                        <div className="ga-segnalati">
+                          {rigaSegnalato("cliente", segnalare, baseline.segnalare)}
+                          {rigaSegnalato("terzista", terzista, baseline.terzista)}
+                        </div>
+                      )}
                       {segnalaCar && (
                         <div>
                           <FieldLabel>A quale CAR?</FieldLabel>
@@ -1903,13 +1951,13 @@
                         </div>
                       )}
                       <div className="ga-att ga-att--dec"
-                        onDragOver={(e) => { if (canEditSelected && sn.local_id) e.preventDefault(); }}
-                        onDrop={(e) => { e.preventDefault(); if (canEditSelected) uploadFiles(Array.from(e.dataTransfer.files || []), "decisione"); }}>
+                        onDragOver={(e) => { if (canEditCurrentOp && sn.local_id) e.preventDefault(); }}
+                        onDrop={(e) => { e.preventDefault(); if (canEditCurrentOp && sn.local_id) uploadFiles(Array.from(e.dataTransfer.files || []), "decisione"); }}>
                         <input ref={fileInputDecRef} type="file" multiple hidden accept={ALLEGATI_ACCEPT}
                           onChange={(e) => { const f = Array.from(e.target.files || []); e.target.value = ""; uploadFiles(f, "decisione"); }} />
                         <div className="ga-att__head">
                           <span className="ga-card__sub">{Ico.clip} Allegati della decisione {attDecisione.length ? `(${attDecisione.length})` : ""}</span>
-                          {canEditSelected && (
+                          {canEditCurrentOp && sn.local_id && (
                             <span className="ga-hint">
                               {uploadingAttachments ? "Caricamento…" : <>Trascina qui o <button type="button" className="ga-link" onClick={() => fileInputDecRef.current && fileInputDecRef.current.click()}>sfoglia</button></>}
                             </span>

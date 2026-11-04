@@ -289,7 +289,11 @@ SEZIONI: list[dict] = [
                 "scelte vengono dai capi reparto di Configurazione). Al salvataggio ognuno dei CAR appena scelti riceve "
                 "una mail con l'anomalia, la decisione e il link, più una notifica nel portale; chi l'ha già ricevuta non "
                 "la riceve di nuovo.",
-                "Se servono, carica documenti o foto in «Allegati della decisione» (trascina o «sfoglia»): restano "
+                "Con «Segnalare al cliente» o «Segnala a terzista» salvati compare la spunta «Segnalato al cliente» / "
+                "«Segnalato al terzista»: spuntala quando li hai avvisati. Si registra subito con data e nome (anche ad "
+                "anomalia chiusa) e non manda nessuna mail di aggiornamento; resta nella cronologia.",
+                "Se servono, carica documenti o foto in «Allegati della decisione» (trascina o «sfoglia»), per esempio "
+                "la comunicazione al cliente o al terzista: si possono caricare anche ad anomalia chiusa e restano "
                 "separati dagli allegati della segnalazione. Il riquadro «Dal controllore» mostra «Dove sono i pezzi?», "
                 "le misure e i riferimenti scritti dal controllore (in sola lettura).",
                 "Scegli l'«Avanzamento». Con «Aprire RDC» indica anche il «Numero RDC».",

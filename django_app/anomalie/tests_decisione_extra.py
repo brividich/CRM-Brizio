@@ -157,3 +157,72 @@ class InviaSegnalazioneCarTests(TestCase):
             esito = aus.invia_segnalazione_car(anomalia_id=1, op_id=OP, car=["Anna Verdi"])
         self.assertEqual(esito["inviate"], 0)
         send.assert_not_called()
+
+
+class SegnalatoTests(TestCase):
+    """Spunta «Segnalato»: registra quando e chi, nessuna mail di aggiornamento."""
+
+    def setUp(self):
+        self.scheda = AnomaliaSchedaQualita.objects.create(anomalia_id=502, op_titolo=OP)
+
+    def _post(self, body, *, riga=None, puo=True):
+        import json
+
+        r = RequestFactory().post("/api/anomalie/segnalato", data=json.dumps(body), content_type="application/json")
+        r.user = _req().user
+        riga = riga if riga is not None else {"id": 502, "ex_op_nominativo": OP, "segnalare_cliente": 1}
+        with patch.object(av, "_has_table", return_value=True), \
+                patch.object(av, "_fetch_all_dict", return_value=[riga]), \
+                patch.object(av, "_can_edit_anomalie_for_op", return_value=puo), \
+                patch("anomalie.qualita_service.sync_da_anomalia", return_value=self.scheda), \
+                patch.object(av, "_current_user_identity", return_value={"name": "Mario Prova"}), \
+                patch.object(av, "get_legacy_user", return_value=None), \
+                patch.object(av, "log_action"), \
+                patch("anomalie.mail_action_service.log_anomalia_portal_action") as timeline, \
+                patch("anomalie.mail_action_service.register_pending_update") as coda, \
+                patch.object(av, "_programma_mail_segnala_car") as car:
+            resp = av.api_segnalato.__wrapped__(r)
+        coda.assert_not_called()
+        car.assert_not_called()
+        self.scheda.refresh_from_db()
+        return resp, timeline
+
+    def test_segnalato_cliente_registra_senza_mail(self):
+        resp, timeline = self._post({"local_id": 502, "chi": "cliente", "segnalato": True})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(self.scheda.segnalato_cliente_il)
+        self.assertEqual(self.scheda.segnalato_cliente_da, "Mario Prova")
+        self.assertEqual(timeline.call_args.kwargs["action"], "segnalato")
+
+    def test_togliere_la_spunta(self):
+        self._post({"local_id": 502, "chi": "cliente", "segnalato": True})
+        self._post({"local_id": 502, "chi": "cliente", "segnalato": False})
+        self.assertIsNone(self.scheda.segnalato_cliente_il)
+        self.assertEqual(self.scheda.segnalato_cliente_da, "")
+
+    def test_terzista_solo_se_richiesto(self):
+        resp, _t = self._post({"local_id": 502, "chi": "terzista", "segnalato": True})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIsNone(self.scheda.segnalato_terzista_il)
+        self.scheda.segnala_terzista = True
+        self.scheda.save()
+        resp, _t = self._post({"local_id": 502, "chi": "terzista", "segnalato": True})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(self.scheda.segnalato_terzista_il)
+
+    def test_cliente_non_richiesto(self):
+        resp, _t = self._post({"local_id": 502, "chi": "cliente", "segnalato": True},
+                              riga={"id": 502, "ex_op_nominativo": OP, "segnalare_cliente": 0})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_senza_permesso(self):
+        resp, _t = self._post({"local_id": 502, "chi": "cliente", "segnalato": True}, puo=False)
+        self.assertEqual(resp.status_code, 403)
+        self.assertIsNone(self.scheda.segnalato_cliente_il)
+
+    def test_payload_lista(self):
+        self._post({"local_id": 502, "chi": "cliente", "segnalato": True})
+        rows = [{"local_id": 502}]
+        av._segna_dove_pezzi_terzista(rows)
+        self.assertEqual(rows[0]["segnalato_cliente"]["da"], "Mario Prova")
+        self.assertIsNone(rows[0]["segnalato_terzista"])

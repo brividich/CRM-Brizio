@@ -22,7 +22,8 @@ const API = window.ANOMALIE_API || {
   allegati_list: "/api/anomalie/allegati",
   allegati_upload: "/api/anomalie/allegati/upload",
   allegati_delete: "/api/anomalie/allegati/delete",
-  allegati_file: "/api/anomalie/allegati/file"
+  allegati_file: "/api/anomalie/allegati/file",
+  segnalato: "/api/anomalie/segnalato"
 };
 const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica) ? CONFIG_LISTS.autorizzati_modifica : [];
 const ACCESS_CONTEXT = window.ANOMALIE_ACCESS || {};
@@ -2335,6 +2336,70 @@ function GestioneAnomalie() {
     setEditDesc(false);
   };
 
+  // «Segnalato» (cliente/terzista): si registra subito, senza mail di aggiornamento.
+  const [segnalatoInCorso, setSegnalatoInCorso] = useState("");
+  const toggleSegnalato = async chi => {
+    if (!sn.local_id || !API.segnalato || segnalatoInCorso) return;
+    const campo = `segnalato_${chi}`;
+    const acceso = !sn[campo];
+    setSegnalatoInCorso(chi);
+    try {
+      const r = await fetch(API.segnalato, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCsrfToken()
+        },
+        body: JSON.stringify({
+          local_id: sn.local_id,
+          chi,
+          segnalato: acceso
+        }),
+        credentials: "same-origin"
+      });
+      const data = await readJsonOrThrow(r, "Segnalato");
+      if (!data.success) throw new Error(data.error || "risposta non valida");
+      setAnomalie(prev => prev.map(a => a.item_id === sn.item_id ? {
+        ...a,
+        [campo]: data.segnalato || null
+      } : a));
+      flash({
+        ok: true,
+        text: acceso ? `Segnalato ${chi === "cliente" ? "al cliente" : "al terzista"} · registrato, nessuna mail inviata` : "Spunta «Segnalato» tolta"
+      });
+    } catch (e) {
+      flash({
+        ok: false,
+        text: "Errore: " + e.message
+      }, 7000);
+    }
+    setSegnalatoInCorso("");
+  };
+  const rigaSegnalato = (chi, richiesto, salvato) => {
+    if (!richiesto) return null;
+    const campo = `segnalato_${chi}`;
+    const fatto = sn[campo];
+    const label = `Segnalato ${chi === "cliente" ? "al cliente" : "al terzista"}`;
+    if (!salvato) {
+      return /*#__PURE__*/React.createElement("div", {
+        key: chi,
+        className: "ga-hint"
+      }, "Salva la decisione per poter spuntare \xAB", label, "\xBB.");
+    }
+    return /*#__PURE__*/React.createElement("div", {
+      key: chi,
+      className: "ga-segnalato"
+    }, /*#__PURE__*/React.createElement(FlagToggle, {
+      label: segnalatoInCorso === chi ? "Salvataggio…" : label,
+      hint: "Registra che l'hai gi\xE0 avvisato: non parte nessuna mail",
+      checked: !!fatto,
+      disabled: !canEditCurrentOp || !!segnalatoInCorso,
+      onChange: () => toggleSegnalato(chi)
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "ga-hint"
+    }, fatto ? `il ${fatto.il}${fatto.da ? ` da ${fatto.da}` : ""} · nessuna mail inviata` : "Si registra subito, senza mail."));
+  };
+
   // Riapertura: capocommessa, CAR, controllore o chi modifica l'OP (deciso dal server).
   const riapri = async () => {
     if (!sn.local_id || !API.riapri) return;
@@ -2896,7 +2961,9 @@ function GestioneAnomalie() {
     checked: pezziPrec,
     disabled: !canEditSelected,
     onChange: () => setPezziPrec(!pezziPrec)
-  })), segnalaCar && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "A quale CAR?"), carOpzioni.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  })), (segnalare || terzista) && /*#__PURE__*/React.createElement("div", {
+    className: "ga-segnalati"
+  }, rigaSegnalato("cliente", segnalare, baseline.segnalare), rigaSegnalato("terzista", terzista, baseline.terzista)), segnalaCar && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(FieldLabel, null, "A quale CAR?"), carOpzioni.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
   }, "Nessun CAR sull'OP e nessun capo reparto in Configurazione.") : /*#__PURE__*/React.createElement("div", {
     className: "ga-chips"
@@ -2918,11 +2985,11 @@ function GestioneAnomalie() {
   }, "Tipo di difetto: ", sn.tipo_difetto)), /*#__PURE__*/React.createElement("div", {
     className: "ga-att ga-att--dec",
     onDragOver: e => {
-      if (canEditSelected && sn.local_id) e.preventDefault();
+      if (canEditCurrentOp && sn.local_id) e.preventDefault();
     },
     onDrop: e => {
       e.preventDefault();
-      if (canEditSelected) uploadFiles(Array.from(e.dataTransfer.files || []), "decisione");
+      if (canEditCurrentOp && sn.local_id) uploadFiles(Array.from(e.dataTransfer.files || []), "decisione");
     }
   }, /*#__PURE__*/React.createElement("input", {
     ref: fileInputDecRef,
@@ -2939,7 +3006,7 @@ function GestioneAnomalie() {
     className: "ga-att__head"
   }, /*#__PURE__*/React.createElement("span", {
     className: "ga-card__sub"
-  }, Ico.clip, " Allegati della decisione ", attDecisione.length ? `(${attDecisione.length})` : ""), canEditSelected && /*#__PURE__*/React.createElement("span", {
+  }, Ico.clip, " Allegati della decisione ", attDecisione.length ? `(${attDecisione.length})` : ""), canEditCurrentOp && sn.local_id && /*#__PURE__*/React.createElement("span", {
     className: "ga-hint"
   }, uploadingAttachments ? "Caricamento…" : /*#__PURE__*/React.createElement(React.Fragment, null, "Trascina qui o ", /*#__PURE__*/React.createElement("button", {
     type: "button",
