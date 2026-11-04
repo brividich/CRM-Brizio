@@ -34,6 +34,7 @@ _MODULI = (
     "anagrafica",
     "assenze",
     "timbri",
+    "presenti",
     "notizie",
     "tickets",
     "tasks",

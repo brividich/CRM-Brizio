@@ -578,6 +578,7 @@ INSTALLED_APPS = [
     "report_conformita.apps.ReportConformitaConfig",
     "sistema_gestione.apps.SistemaGestioneConfig",
     "registro_ofi.apps.RegistroOfiConfig",
+    "presenti.apps.PresentiConfig",
     "glossario_tecnico.apps.GlossarioTecnicoConfig",
     "contatori.apps.ContatoriConfig",
     "security.apps.SecurityConfig",

@@ -1,0 +1,48 @@
+{% if stato.errore %}
+<div class="pres-avviso{% if not stato.configurato %} is-err{% endif %}">{{ stato.errore }}</div>
+{% endif %}
+
+<div class="pres-kpi">
+  <div class="pres-card"><b>{{ riepilogo.totale }}</b><span>Presenti adesso</span></div>
+  {% for inc in riepilogo.incarichi %}
+  <div class="pres-card"><b>{{ inc.n }}</b><span><i style="background:{{ inc.colore }}"></i>{{ inc.nome }}</span></div>
+  {% endfor %}
+</div>
+
+<div class="pres-card" style="padding:0; overflow-x:auto;">
+  {# Niente barra fm-table: la pagina ha già ricerca e filtri, e la tabella viene sostituita ogni 30 s. #}
+  <table class="pres-tab" data-fm-table-skip="1">
+    <thead>
+      <tr>
+        <th class="pres-c">Turno</th>
+        <th class="pres-hide-sm">Matricola</th>
+        <th>Dipendente</th>
+        <th class="pres-hide-sm">Reparto</th>
+        <th class="pres-c">Entrata</th>
+        <th>Incarico sicurezza</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in righe %}
+      <tr>
+        <td class="pres-c">{% if p.turno %}<span class="pres-turno" title="Turno normale">{{ p.turno }}</span>{% endif %}</td>
+        <td class="pres-mono pres-hide-sm">{{ p.matricola }}</td>
+        <td class="pres-nome">
+          {% if p.legacy_id %}<a href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}">{{ p.cognome|upper }} {{ p.nome }}</a>{% else %}{{ p.cognome|upper }} {{ p.nome }}{% endif %}
+          {% if p.mansione %}<span class="pres-sub">{{ p.mansione }}</span>{% endif %}
+        </td>
+        <td class="pres-hide-sm">{{ p.reparto|default:"—" }}</td>
+        <td class="pres-c pres-mono">{{ p.entrata }}</td>
+        <td>{% for inc in p.incarichi %}<span class="pres-inc" style="background:{{ inc.colore }}">{{ inc.nome }}</span>{% empty %}<span style="color:var(--text-light)">—</span>{% endfor %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="pres-vuoto">{% if filtrato %}Nessun presente corrisponde ai filtri.{% elif not stato.errore %}Nessun dipendente risulta presente al momento.{% else %}Elenco non disponibile.{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="pres-piede">
+  <span class="pres-live">Si aggiorna da sola ogni {{ aggiorna_ogni }} secondi · timbrature lette alle {{ stato.aggiornato_il|time:"H:i:s" }}</span>
+  <span>{% if filtrato %}{{ righe|length }} su {{ riepilogo.totale }} · {% endif %}{% if riepilogo.non_collegati %}{{ riepilogo.non_collegati }} non collegat{{ riepilogo.non_collegati|pluralize:"o,i" }} all'anagrafica del portale{% endif %}</span>
+</div>

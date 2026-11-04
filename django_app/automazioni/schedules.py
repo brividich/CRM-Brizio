@@ -1070,6 +1070,25 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {},
     },
+    {
+        # PRESENTI IN AZIENDA — PDF dei presenti su SharePoint (CN-PRESENZE.pdf), al posto dello
+        # script ReportPresenze del diskstation. No-op se disattivato nelle Impostazioni del modulo.
+        "name": "presenti_pubblica_pdf",
+        "func": "presenti.tasks.run_pubblica_pdf_presenti",
+        "schedule_type": "I",
+        "minutes": 30,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
+        # PRESENTI IN AZIENDA — uscite non timbrate degli ultimi 3 giorni: notifica e mail al capo.
+        "name": "presenti_avvisi_uscite",
+        "func": "presenti.tasks.run_avvisi_uscite_mancanti",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "30 7 * * 1-6",     # lunedì-sabato alle 07:30
+        "repeats": -1,
+        "kwargs": {},
+    },
 ]
 
 

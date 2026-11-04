@@ -1,0 +1,40 @@
+{% extends "core/base.html" %}
+
+{% block title %}Guida · Presenti in azienda{% endblock %}
+
+{% block extra_head %}{% include "presenti/_stile.html" %}
+<style>
+.pres-guida-sec{ margin-bottom:12px; }
+.pres-guida-sec h2{ margin:0 0 8px; font-size:17px; }
+.pres-guida-sec p, .pres-guida-sec li, .pres-guida-sec dd{ font-size:14px; line-height:1.6; }
+.pres-guida-sec dl{ display:grid; grid-template-columns:minmax(150px,240px) minmax(0,1fr); gap:6px 16px; margin:0; }
+.pres-guida-sec dt{ font-weight:700; }
+.pres-guida-sec dd{ margin:0; }
+@media (max-width:720px){ .pres-guida-sec dl{ grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pres">
+  <div class="pres-head">
+    <div><h1>Guida · {{ titolo }}</h1><p>{{ sottotitolo }}</p></div>
+    <div class="pres-azioni"><a class="pres-btn" href="{% url 'presenti:guida' %}?formato=pdf">Scarica PDF</a></div>
+  </div>
+
+  {% include "presenti/_nav.html" %}
+
+  {% for sez in sezioni %}
+  <section class="pres-card pres-guida-sec" id="{{ sez.id }}">
+    <h2>{{ forloop.counter }}. {{ sez.titolo }}</h2>
+    {% for tipo, contenuto in sez.blocchi %}
+      {% if tipo == "p" %}<p>{{ contenuto }}</p>
+      {% elif tipo == "ul" %}<ul>{% for v in contenuto %}<li>{{ v }}</li>{% endfor %}</ul>
+      {% elif tipo == "passi" %}<ol>{% for v in contenuto %}<li>{{ v }}</li>{% endfor %}</ol>
+      {% elif tipo == "nota" %}<div class="pres-avviso">{{ contenuto }}</div>
+      {% elif tipo == "def" %}<dl>{% for t, d in contenuto %}<dt>{{ t }}</dt><dd>{{ d }}</dd>{% endfor %}</dl>
+      {% endif %}
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}
