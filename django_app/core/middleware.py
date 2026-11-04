@@ -39,6 +39,8 @@ API_ACL_GATE_PATHS = {
     # per ogni record; senza mappatura, con ACL_STRICT_CANONICAL una route nuova
     # e senza binding canonico verrebbe negata.
     "/assenze/api/admin/bulk-consenso": "/assenze/gestione-admin/",
+    # «Certificato arrivato» in blocco (senza mail): stesso gate, stessa pagina.
+    "/assenze/api/admin/bulk-certificato": "/assenze/gestione-admin/",
     # Area HR delle assenze (saldi, calendario aziendale, contatori, copertura):
     # stesso gate delle Impostazioni; la view verifica comunque «admin_assenze».
     "/assenze/hr/": "/assenze/gestione-admin/",

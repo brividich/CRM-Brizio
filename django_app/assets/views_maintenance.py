@@ -3031,18 +3031,37 @@ def workorder_worksheet(request: HttpRequest, workorder_id: int) -> HttpResponse
     """Scheda di lavoro stampabile (A4) dell'intervento: da portare alla macchina,
     una sezione per ogni manutenzione raccolta con checklist da spuntare a penna."""
     work_order = get_object_or_404(
-        WorkOrder.objects.select_related("asset", "asset__asset_category", "assigned_to", "supplier"),
+        WorkOrder.objects.select_related(
+            "asset",
+            "asset__asset_category",
+            "assigned_to",
+            "executed_by",
+            "supplier",
+            "assistance_contract",
+            "periodic_verification",
+            "maintenance_rule",
+            "maintenance_rule__intervention_template",
+            "ticket",
+            "failure_problem",
+            "failure_cause_code",
+            "failure_remedy",
+        ),
         pk=workorder_id,
     )
     occurrences = work_order.occurrences.select_related("plan", "asset", "asset__asset_category").exclude(
         status=MaintenanceOccurrence.STATUS_CANCELED
     )
+    # La scheda deve riportare tutto cio' che e' stato scritto sull'OdL: anche
+    # la checklist propria dell'intervento (straordinarie, regole del vecchio
+    # motore), non solo quella dei piani delle manutenzioni raccolte.
+    checklist = list(work_order.checklist_items.select_related("done_by").order_by("step_number", "id"))
     return render(
         request,
         "assets/pages/work_sheet.html",
         {
             "page_title": f"Scheda di lavoro — OdL {work_order.display_number}",
             "work_order": work_order,
+            "wo_checklist": checklist,
             "items": _worksheet_items(occurrences),
             "today": timezone.localdate(),
             "back_url": reverse("assets:wo_view", kwargs={"id": work_order.pk}),

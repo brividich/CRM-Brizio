@@ -189,6 +189,11 @@ GUIDA = {
                      "trasformare una loro richiesta in malattia, ricevono un errore. Elenco vuoto = tutti la vedono come prima "
                      "(per sé; per gli altri solo chi inserisce già per conto altrui). Si salva con «Salva inserimento malattia»."),
                     ("Gestione admin · Tutte le assenze", "tutte le richieste con filtri, ordinamento, approvazione o rifiuto in blocco (fino a 200 alla volta, nota obbligatoria) ed «Export CSV»."),
+                    ("Certificati arrivati in blocco", "filtro «Certificato» = «Malattie senza certificato» (con «Tutti gli stati»), "
+                                                       "seleziona le righe e premi «Certificato arrivato (senza mail)». Non parte nessuna mail; "
+                                                       "nello storico della richiesta resta «Certificato medico arrivato (registrato in blocco, "
+                                                       "senza mail)». Vale anche per le malattie nate sul vecchio SharePoint, che il certificato "
+                                                       "non lo registravano. Le righe che non sono malattie o hanno già il certificato vengono saltate."),
                     ("Sincronizzazione SharePoint", "coda delle modifiche da mandare alla lista SharePoint, eventuali errori e pulsante «Sincronizza ora»."),
                 ]),
             ],
@@ -254,7 +259,9 @@ GUIDA = {
                     ("Avviso certificato medico mancante", "acceso, ogni mattina feriale alle 08:30 (lavoro «assenze_certificato_avviso») "
                                                     "parte una mail ad assenza@ con le malattie iniziate da almeno «Avvisa se il certificato "
                                                     "manca dopo» giorni (predefinito 2) senza «Certificato arrivato». Ogni malattia compare in "
-                                                    "un solo avviso; restano fuori le rifiutate e quelle iniziate da più di 30 giorni."),
+                                                    "un solo avviso; restano fuori le rifiutate e quelle iniziate da più di 30 giorni. La mail ha una riga "
+                                                    "per dipendente con i periodi (giorno/mese) e il link «Segna i certificati arrivati», che apre "
+                                                    "Gestione admin già filtrata sulle malattie senza certificato."),
                 ]),
                 ("p", "Come si conta: una richiesta a giornata intera vale i giorni lavorativi × le ore di una giornata; una "
                       "parziale vale le sue ore (al massimo una giornata). Contano le richieste non rifiutate che iniziano dopo "

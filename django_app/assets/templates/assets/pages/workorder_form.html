@@ -1,9 +1,9 @@
 {% extends "assets/base_shell.html" %}
 {% load safe_json %}
 
-{% block title %}Nuovo intervento{% endblock %}
+{% block title %}{% if is_edit %}Modifica intervento{% else %}Nuovo intervento{% endif %}{% endblock %}
 
-{% block assets_shell_title %}Nuovo intervento{% endblock %}
+{% block assets_shell_title %}{% if is_edit %}Modifica intervento #{{ workorder.display_number }}{% else %}Nuovo intervento{% endif %}{% endblock %}
 {% block assets_shell_subtitle %}
 <p>{{ asset.asset_tag }} - {{ asset.name }}</p>
 {% endblock %}
@@ -324,7 +324,17 @@ body.theme-dark .wof-sibling-item { color: var(--text); }
   font-size:var(--fs-base);
 }
 .wof-field textarea { min-height:108px; }
-.wof-field--resolution textarea { min-height:88px; }
+.wof-field[hidden], .wof-new-supplier[hidden] { display:none !important; }
+.wof-mode { display:flex; gap:8px; flex-wrap:wrap; }
+.wof-mode ul, .wof-mode > div { display:flex; gap:8px; flex-wrap:wrap; list-style:none; margin:0; padding:0; }
+.wof-mode label {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:9px 16px; border:1px solid #d6e1ee; border-radius:10px;
+  background:#fdfefe; cursor:pointer; font-weight:800; color:#223756;
+}
+.wof-mode input[type="radio"] { width:auto; min-height:0; accent-color:#1d4ed8; margin:0; }
+.wof-mode label:has(input:checked) { border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; }
+.wof-new-supplier { display:inline-flex; align-items:center; gap:6px; width:fit-content; padding:3px 8px; border-radius:999px; background:#fef3c7; color:#92400e; font-size:var(--fs-xs); font-weight:800; }
 .wof-required { color:#b91c1c; font-weight:900; }
 .wof-optional { color:#64748b; font-weight:600; font-size:var(--fs-xs); }
 .wof-advanced {
@@ -422,6 +432,9 @@ body.theme-dark .wof-advanced summary { color:var(--text); }
 body.theme-dark .wof-advanced summary:before { background:rgba(29,78,216,.2); color:#93c5fd; }
 body.theme-dark .wof-advanced-summary small { color:var(--text-light); }
 body.theme-dark .wof-advanced-body { border-color:var(--border); }
+body.theme-dark .wof-mode label { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .wof-mode label:has(input:checked) { border-color:#3b82f6; background:rgba(29,78,216,.2); color:#93c5fd; }
+body.theme-dark .wof-new-supplier { background:rgba(245,158,11,.18); color:#fcd34d; }
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .wof-actions{border-color:var(--border)}
@@ -439,7 +452,7 @@ body.theme-dark .wof-optional{color:var(--text-light)}
         <strong>{{ asset.asset_tag }} · {{ asset.name }}</strong>
         <span class="wof-source">{{ workorder_prefill.source_label }}</span>
       </div>
-      <span class="wof-context-meta">Stai aprendo un intervento su questo asset. Controlla che sia quello corretto prima di salvare.</span>
+      <span class="wof-context-meta">{% if is_edit %}Stai modificando un intervento aperto. Stato e chiusura restano in «Registra intervento».{% else %}Stai aprendo un intervento su questo asset. Controlla che sia quello corretto prima di salvare.{% endif %}</span>
     </div>
     <div class="wof-context-chips">
       <span class="wof-chip">{{ asset.get_asset_type_display }}</span>
@@ -454,7 +467,8 @@ body.theme-dark .wof-optional{color:var(--text-light)}
 
   <form method="post" enctype="multipart/form-data" class="wof-form">
     {% csrf_token %}
-    {{ form.status }}
+    {% if form.status %}{{ form.status }}{% endif %}
+    {{ form.supplier }}
     {% if form.non_field_errors %}
       <div class="wof-alert">
         {{ form.non_field_errors }}
@@ -482,10 +496,27 @@ body.theme-dark .wof-optional{color:var(--text-light)}
             </div>
 
             <div class="wof-field">
-              <label for="{{ form.assigned_to.id_for_label }}">Assegnato a <span class="wof-optional">opzionale</span></label>
+              <label>Chi lo esegue</label>
+              <div class="wof-mode" id="wofExecutionMode">{{ form.execution_mode }}</div>
+              <div class="wof-helper">Interno: squadra manutenzione. Esterno: ditta terza.</div>
+              {% if form.execution_mode.errors %}<div class="wof-error">{{ form.execution_mode.errors }}</div>{% endif %}
+            </div>
+
+            <div class="wof-field" id="wofAssigneeField">
+              <label for="{{ form.assigned_to.id_for_label }}"><span id="wofAssigneeLabel">Assegnato a</span> <span class="wof-optional">opzionale</span></label>
               {{ form.assigned_to }}
-              <div class="wof-helper">Puoi assegnarlo ora oppure lasciarlo da prendere in carico.</div>
+              <div class="wof-helper" id="wofAssigneeHelp">{% if form.uses_maintenance_team %}Squadra manutenzione interna{% if default_assignee %}: proposto {{ default_assignee.get_full_name|default:default_assignee.username }}{% endif %}.{% else %}Puoi assegnarlo ora oppure lasciarlo da prendere in carico.{% endif %}</div>
               {% if form.assigned_to.errors %}<div class="wof-error">{{ form.assigned_to.errors }}</div>{% endif %}
+            </div>
+
+            <div class="wof-field wof-field--full" id="supplierField">
+              <label for="{{ form.supplier_name.id_for_label }}">Ditta esterna <span class="wof-required" aria-label="obbligatorio">*</span></label>
+              {{ form.supplier_name }}
+              <datalist id="wofSupplierOptions">{% for name in supplier_name_options %}<option value="{{ name }}">{% endfor %}</datalist>
+              <span class="wof-new-supplier" id="wofNewSupplier" hidden>＋ Nuova ditta: verrà creata in anagrafica fornitori al salvataggio</span>
+              <div class="wof-helper" id="supplierSuggestion">{{ form.supplier_name.help_text }}</div>
+              {% if form.supplier_name.errors %}<div class="wof-error">{{ form.supplier_name.errors }}</div>{% endif %}
+              {% if form.supplier.errors %}<div class="wof-error">{{ form.supplier.errors }}</div>{% endif %}
             </div>
 
             <div class="wof-field">
@@ -518,13 +549,6 @@ body.theme-dark .wof-optional{color:var(--text-light)}
                 {% if workorder_prefill.description %}Descrizione proposta dal piano manutentivo.{% else %}Descrivi il problema, l'attivita richiesta o i controlli da eseguire.{% endif %}
               </div>
               {% if form.description.errors %}<div class="wof-error">{{ form.description.errors }}</div>{% endif %}
-            </div>
-
-            <div class="wof-field wof-field--full wof-field--resolution">
-              <label for="{{ form.resolution.id_for_label }}">Risoluzione gia applicata <span class="wof-optional">opzionale</span></label>
-              {{ form.resolution }}
-              <div class="wof-helper">Compilala subito se il problema e gia stato risolto; potrai aggiornarla anche in seguito.</div>
-              {% if form.resolution.errors %}<div class="wof-error">{{ form.resolution.errors }}</div>{% endif %}
             </div>
           </div>
         </section>
@@ -573,11 +597,11 @@ body.theme-dark .wof-optional{color:var(--text-light)}
           </div>
         </section>
 
-        <details class="wof-advanced" id="maintenanceAdvanced"{% if selected_rule_id or initial_contract or form.periodic_verification.value or form.supplier.value or form.maintenance_rule.errors or form.periodic_verification.errors or form.supplier.errors or form.assistance_contract.errors %} open{% endif %}>
+        <details class="wof-advanced" id="maintenanceAdvanced"{% if selected_rule_id or initial_contract or form.periodic_verification.value or form.maintenance_rule.errors or form.periodic_verification.errors or form.assistance_contract.errors %} open{% endif %}>
           <summary>
             <span class="wof-advanced-summary">
               Pianificazione e copertura
-              <small>Regola, piano periodico, fornitore e contratto</small>
+              <small>Regola, piano periodico e contratto</small>
             </span>
           </summary>
           <div class="wof-advanced-body">
@@ -595,13 +619,6 @@ body.theme-dark .wof-optional{color:var(--text-light)}
                 {% if workorder_prefill.maintenance_template %}Template suggerito: {{ workorder_prefill.maintenance_template.label }}{% else %}{{ form.maintenance_rule.help_text }}{% endif %}
               </div>
               {% if form.maintenance_rule.errors %}<div class="wof-error">{{ form.maintenance_rule.errors }}</div>{% endif %}
-            </div>
-
-            <div class="wof-field" id="supplierField">
-              <label for="{{ form.supplier.id_for_label }}">{{ form.supplier.label }}</label>
-              {{ form.supplier }}
-              <div class="wof-helper" id="supplierSuggestion">{{ form.supplier.help_text }}</div>
-              {% if form.supplier.errors %}<div class="wof-error">{{ form.supplier.errors }}</div>{% endif %}
             </div>
 
             <div class="wof-field">
@@ -634,8 +651,12 @@ body.theme-dark .wof-optional{color:var(--text-light)}
       <div class="wof-actions-copy"><span class="wof-required">*</span> Campi obbligatori. Gli altri dati possono essere aggiunti anche dopo la creazione.</div>
       <div class="wof-actions-cta">
         <a class="btn" href="{{ workorder_back_url }}">Annulla</a>
+        {% if is_edit %}
+        <button type="submit" class="btn btn-primary" name="submit_action" value="save">Salva modifiche</button>
+        {% else %}
         <button type="submit" class="btn" name="submit_action" value="close">Crea e vai alla chiusura</button>
         <button type="submit" class="btn btn-primary" name="submit_action" value="open">Crea intervento</button>
+        {% endif %}
       </div>
     </div>
   </form>
@@ -655,7 +676,17 @@ body.theme-dark .wof-optional{color:var(--text-light)}
   const ruleEl = document.getElementById("id_maintenance_rule");
   const contractEl = document.getElementById("id_assistance_contract");
   const coveredByContractEl = document.getElementById("id_covered_by_contract");
-  const supplierEl = document.getElementById("id_supplier");
+  const supplierEl = document.getElementById("id_supplier_name");
+  const newSupplierEl = document.getElementById("wofNewSupplier");
+  const assigneeEl = document.getElementById("id_assigned_to");
+  const assigneeLabelEl = document.getElementById("wofAssigneeLabel");
+  const modeInputs = Array.prototype.slice.call(document.querySelectorAll('input[name="execution_mode"]'));
+  const supplierOptions = new Set(
+    Array.prototype.map.call(document.querySelectorAll("#wofSupplierOptions option"), function (o) {
+      return String(o.value || "").trim().toLowerCase();
+    })
+  );
+  const defaultAssigneeId = "{% if default_assignee and not is_edit %}{{ default_assignee.pk }}{% endif %}";
   const suggestionEl = document.getElementById("supplierSuggestion");
   const ruleSuggestionEl = document.getElementById("maintenanceRuleSuggestion");
   const contractSuggestionEl = document.getElementById("contractSuggestion");
@@ -789,18 +820,47 @@ body.theme-dark .wof-optional{color:var(--text-light)}
     }
   }
 
+  function currentMode() {
+    const checked = modeInputs.filter(function (el) { return el.checked; })[0];
+    return checked ? checked.value : "INTERNAL";
+  }
+
+  function setMode(value) {
+    modeInputs.forEach(function (el) { el.checked = el.value === value; });
+    syncExecutionMode();
+  }
+
+  function syncNewSupplierHint() {
+    if (!newSupplierEl || !supplierEl) return;
+    const value = String(supplierEl.value || "").trim().toLowerCase();
+    newSupplierEl.hidden = currentMode() !== "EXTERNAL" || !value || supplierOptions.has(value);
+  }
+
+  function syncExecutionMode() {
+    const external = currentMode() === "EXTERNAL";
+    if (supplierField) supplierField.hidden = !external;
+    if (supplierEl) supplierEl.required = external;
+    if (assigneeLabelEl) assigneeLabelEl.textContent = external ? "Referente interno" : "Assegnato a";
+    if (contractEl) contractEl.disabled = !external;
+    if (coveredByContractEl && !external) coveredByContractEl.disabled = true;
+    if (!external && assigneeEl && defaultAssigneeId && !assigneeEl.value) {
+      assigneeEl.value = defaultAssigneeId;
+    }
+    syncNewSupplierHint();
+  }
+
   function syncSuggestedSupplier() {
-    if (!verificationEl || !supplierEl || !suggestionEl) return;
+    if (!suggestionEl || !supplierEl) return;
     const contractPayload = contractMap[String(contractEl ? contractEl.value : "")] || null;
     if (contractPayload && contractPayload.supplier_id) {
-      setAutoValue(supplierEl, contractPayload.supplier_id);
+      setAutoValue(supplierEl, contractPayload.supplier_label);
       suggestionEl.textContent = "Fornitore proposto dal contratto: " + contractPayload.supplier_label;
       suggestionEl.classList.add("is-highlight");
       return;
     }
-    const payload = supplierMap[String(verificationEl.value || "")] || null;
+    const payload = verificationEl ? (supplierMap[String(verificationEl.value || "")] || null) : null;
     if (payload && payload.supplier_id) {
-      setAutoValue(supplierEl, payload.supplier_id);
+      setAutoValue(supplierEl, payload.supplier_label);
       suggestionEl.textContent = "Fornitore proposto dalla manutenzione periodica collegata: " + payload.supplier_label;
       suggestionEl.classList.add("is-highlight");
       return;
@@ -833,10 +893,10 @@ body.theme-dark .wof-optional{color:var(--text-light)}
     }
     const contractPayload = contractMap[String(contractEl ? contractEl.value : "")] || null;
     const verificationPayload = supplierMap[String(verificationEl ? verificationEl.value : "")] || null;
-    const suggestedSupplierId = String(
-      (contractPayload && contractPayload.supplier_id) || (verificationPayload && verificationPayload.supplier_id) || ""
+    const suggestedSupplierName = String(
+      (contractPayload && contractPayload.supplier_label) || (verificationPayload && verificationPayload.supplier_label) || ""
     );
-    if (supplierEl && suggestedSupplierId && String(supplierEl.value || "") === suggestedSupplierId) {
+    if (supplierEl && suggestedSupplierName && String(supplierEl.value || "") === suggestedSupplierName) {
       supplierEl.dataset.autofilled = "1";
     }
   }
@@ -859,8 +919,12 @@ body.theme-dark .wof-optional{color:var(--text-light)}
       syncSiblingAssets();
     });
   }
+  modeInputs.forEach(function (el) {
+    el.addEventListener("change", syncExecutionMode);
+  });
   if (contractEl) {
     contractEl.addEventListener("change", function () {
+      if (contractEl.value) setMode("EXTERNAL");
       syncContractSuggestion();
       syncCoverageAvailability();
       syncSuggestedSupplier();
@@ -877,8 +941,11 @@ body.theme-dark .wof-optional{color:var(--text-light)}
     });
   }
   if (supplierEl) {
-    supplierEl.addEventListener("change", function () {
+    supplierEl.addEventListener("input", function () {
       supplierEl.dataset.autofilled = "0";
+      const hiddenSupplier = document.getElementById("id_supplier");
+      if (hiddenSupplier) hiddenSupplier.value = "";
+      syncNewSupplierHint();
     });
   }
   if (attachmentsEl) {
@@ -893,6 +960,7 @@ body.theme-dark .wof-optional{color:var(--text-light)}
   syncSuggestedSupplier();
   syncAttachmentCount();
   syncSiblingAssets();
+  syncExecutionMode();
 })();
 </script>
 {% endblock %}

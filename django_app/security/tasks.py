@@ -151,6 +151,17 @@ def ai_cpe_proposte_task():
     return letture.esegui("cpe_ai")
 
 
+def ai_proposte_task():
+    """Proposte di chiusura dell'AI sugli alert aperti (schedule `security_ai_proposte`, lettura `ai_proposte`).
+
+    Ogni 15 minuti: prove dai report successivi + decisioni passate → proposta; i tipi di alert che l'AI ha
+    imparato dalle conferme si chiudono da soli. Al massimo «Massimo per giro» alert, nessuna richiesta dopo 60 s.
+    """
+    from security.services import letture
+
+    return letture.esegui("ai_proposte")
+
+
 def pacchetto_iso_task():
     """Pacchetto mensile di evidenze ISO/IEC 27001 (schedule `security_pacchetto_iso`, lettura `pacchetto_iso`).
 

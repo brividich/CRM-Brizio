@@ -2968,6 +2968,15 @@ def _validate_workorder_relations(
 
 
 class WorkOrderForm(forms.ModelForm):
+    # Ditta esterna scritta a mano con suggerimenti dall'anagrafica fornitori:
+    # se non esiste viene creata al salvataggio e resta per lo storico.
+    supplier_name = forms.CharField(
+        required=False,
+        max_length=200,
+        label="Ditta esterna",
+        widget=forms.TextInput(attrs={"list": "wofSupplierOptions", "autocomplete": "off"}),
+    )
+
     class Meta:
         model = WorkOrder
         fields = [
@@ -2976,13 +2985,13 @@ class WorkOrderForm(forms.ModelForm):
             "supplier",
             "assistance_contract",
             "covered_by_contract",
+            "execution_mode",
             "kind",
             "priority",
             "due_at",
             "status",
             "title",
             "description",
-            "resolution",
             "downtime_minutes",
             "assigned_to",
         ]
@@ -2992,24 +3001,23 @@ class WorkOrderForm(forms.ModelForm):
             "supplier": "Fornitore",
             "assistance_contract": "Contratto assistenza",
             "covered_by_contract": "Copertura da contratto",
+            "execution_mode": "Chi lo esegue",
             "kind": "Tipo intervento",
             "priority": "Priorità",
             "due_at": "Scadenza entro cui completare",
             "status": "Stato",
             "title": "Titolo",
             "description": "Descrizione",
-            "resolution": "Risoluzione",
             "downtime_minutes": "Fermo impianto (minuti)",
             "assigned_to": "Assegnato a",
         }
         widgets = {
             "periodic_verification": forms.Select(),
             "maintenance_rule": forms.Select(),
-            "supplier": forms.Select(),
+            "supplier": forms.HiddenInput(),
             "assistance_contract": forms.Select(),
             "assigned_to": forms.Select(),
             "description": forms.Textarea(attrs={"rows": 4}),
-            "resolution": forms.Textarea(attrs={"rows": 3}),
             "due_at": forms.DateTimeInput(
                 format="%Y-%m-%dT%H:%M",
                 attrs={"type": "datetime-local"},
@@ -3019,7 +3027,9 @@ class WorkOrderForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.asset = kwargs.pop("asset", None)
         self.prefill_payload = kwargs.pop("prefill_payload", None)
+        self.is_edit = bool(kwargs.pop("is_edit", False))
         super().__init__(*args, **kwargs)
+        self.pending_supplier_name = ""
         if self.prefill_payload is None:
             base_rule_id = 0
             raw_rule_value = self.initial.get("maintenance_rule") or getattr(self.instance, "maintenance_rule_id", None)
@@ -3037,11 +3047,28 @@ class WorkOrderForm(forms.ModelForm):
             "id",
         )
         self.fields["supplier"].required = False
-        self.fields["supplier"].help_text = "Se colleghi una manutenzione periodica il fornitore viene proposto automaticamente."
-        self.fields["status"].required = False
-        self.fields["status"].widget = forms.HiddenInput()
-        self.fields["status"].initial = WorkOrder.STATUS_OPEN
-        self.initial["status"] = WorkOrder.STATUS_OPEN
+        self.fields["supplier_name"].help_text = (
+            "Scrivi per cercare fra i fornitori. Se la ditta non c'è, viene creata in anagrafica al salvataggio."
+        )
+        mode_field = self.fields["execution_mode"]
+        mode_field.required = False
+        mode_field.choices = [
+            (WorkOrder.EXECUTION_INTERNAL, "Interno"),
+            (WorkOrder.EXECUTION_EXTERNAL, "Esterno"),
+        ]
+        mode_field.widget = forms.RadioSelect(choices=mode_field.choices)
+        if self.instance.pk:
+            self.initial["execution_mode"] = self.instance.effective_execution_mode
+        else:
+            self.initial.setdefault("execution_mode", WorkOrder.EXECUTION_INTERNAL)
+        if self.is_edit:
+            # In modifica lo stato non si tocca: lo cambiano presa in carico e chiusura.
+            del self.fields["status"]
+        else:
+            self.fields["status"].required = False
+            self.fields["status"].widget = forms.HiddenInput()
+            self.fields["status"].initial = WorkOrder.STATUS_OPEN
+            self.initial["status"] = WorkOrder.STATUS_OPEN
         self.fields["priority"].required = False
         self.fields["due_at"].required = False
         self.fields["due_at"].input_formats = ["%Y-%m-%dT%H:%M"]
@@ -3106,16 +3133,82 @@ class WorkOrderForm(forms.ModelForm):
                     self.initial.setdefault("supplier", verification.supplier_id)
             self._apply_prefill_defaults()
         from django.contrib.auth import get_user_model
+
+        from .services import squadra_manutenzione
+
         User = get_user_model()
         current_assigned_id = getattr(self.instance, "assigned_to_id", None)
         self.fields["assigned_to"].required = False
-        self.fields["assigned_to"].queryset = User.objects.filter(
-            Q(is_active=True) | Q(pk=current_assigned_id)
-        ).order_by("first_name", "last_name", "username")
+        squadra = squadra_manutenzione.membri_squadra()
+        self.uses_maintenance_team = squadra is not None
+        if squadra is not None:
+            assigned_qs = User.objects.filter(Q(pk__in=squadra.values("pk")) | Q(pk=current_assigned_id))
+        else:
+            assigned_qs = User.objects.filter(Q(is_active=True) | Q(pk=current_assigned_id))
+        self.fields["assigned_to"].queryset = assigned_qs.order_by("first_name", "last_name", "username")
         self.fields["assigned_to"].label_from_instance = user_display_label
-        self.fields["assigned_to"].help_text = "Opzionale: assegna l'intervento a un manutentore."
+        self.fields["assigned_to"].help_text = (
+            "Squadra manutenzione interna." if squadra is not None else "Opzionale: assegna l'intervento a un manutentore."
+        )
+        self.default_assignee = squadra_manutenzione.assegnatario_predefinito()
+        if (
+            self.default_assignee is not None
+            and squadra is not None
+            and not squadra.filter(pk=self.default_assignee.pk).exists()
+        ):
+            # Il predefinito deve stare nella squadra, altrimenti non sarebbe selezionabile.
+            self.default_assignee = None
+        if not self.is_bound:
+            initial_supplier_id = self.initial.get("supplier") or getattr(self.instance, "supplier_id", None)
+            if initial_supplier_id:
+                supplier_obj = Fornitore.objects.filter(pk=initial_supplier_id).first()
+                if supplier_obj is not None:
+                    self.initial.setdefault("supplier_name", supplier_obj.ragione_sociale)
+            if not self.instance.pk:
+                # Un piano periodico o una regola con ditta propongono l'esecuzione
+                # esterna; il solo contratto applicabile all'asset no: la
+                # straordinaria parte interna e la ditta si sceglie se serve.
+                payload = self.prefill_payload or {}
+                verification_id = self.initial.get("periodic_verification")
+                verification_supplier = None
+                if verification_id:
+                    verification_supplier = (
+                        PeriodicVerification.objects.filter(pk=verification_id).values_list("supplier_id", flat=True).first()
+                    )
+                if payload.get("supplier") is not None or verification_supplier:
+                    self.initial["execution_mode"] = WorkOrder.EXECUTION_EXTERNAL
+            if (
+                not self.instance.pk
+                and self.default_assignee is not None
+                and self.initial.get("execution_mode") == WorkOrder.EXECUTION_INTERNAL
+            ):
+                self.initial.setdefault("assigned_to", self.default_assignee.pk)
         _attach_input_css(self)
         self.fields["covered_by_contract"].widget.attrs["class"] = ""
+        self.fields["execution_mode"].widget.attrs["class"] = ""
+
+    @property
+    def supplier_name_options(self) -> list[str]:
+        return list(
+            Fornitore.objects.filter(is_active=True)
+            .order_by("ragione_sociale")
+            .values_list("ragione_sociale", flat=True)
+            .distinct()
+        )
+
+    def create_pending_supplier(self):
+        """Crea la ditta scritta a mano che non era in anagrafica (dopo la validazione)."""
+        name = (self.pending_supplier_name or "").strip()
+        if not name:
+            return None
+        existing = Fornitore.objects.filter(ragione_sociale__iexact=name).order_by("-is_active", "id").first()
+        if existing is not None:
+            return existing
+        return Fornitore.objects.create(
+            ragione_sociale=name[:200],
+            categoria=Fornitore.CATEGORIA_MANUTENZIONE,
+            note="Creato da un intervento di manutenzione.",
+        )
 
     def _apply_prefill_defaults(self) -> None:
         payload = self.prefill_payload or {}
@@ -3186,10 +3279,42 @@ class WorkOrderForm(forms.ModelForm):
         cleaned_data = super().clean()
         verification = cleaned_data.get("periodic_verification")
         maintenance_rule = cleaned_data.get("maintenance_rule")
-        supplier = cleaned_data.get("supplier")
         assistance_contract = cleaned_data.get("assistance_contract")
+        supplier_name = " ".join((cleaned_data.get("supplier_name") or "").split())
+        # Ditta gia' scelta per id (campo nascosto proposto da piano o contratto,
+        # oppure client che non conoscono ancora la ditta per nome).
+        supplier_by_id = cleaned_data.get("supplier")
+        mode = cleaned_data.get("execution_mode")
+        if not mode:
+            # Chi non manda la scelta Interno/Esterno: la si deduce dai dati.
+            external_hint = bool(
+                supplier_name
+                or supplier_by_id
+                or assistance_contract
+                or (verification is not None and verification.supplier_id)
+            )
+            mode = WorkOrder.EXECUTION_EXTERNAL if external_hint else WorkOrder.EXECUTION_INTERNAL
+        cleaned_data["execution_mode"] = mode
+        supplier = None
+        self.pending_supplier_name = ""
         if cleaned_data.get("covered_by_contract") and assistance_contract is None:
             self.add_error("covered_by_contract", "Seleziona un contratto per indicare la copertura.")
+        if mode == WorkOrder.EXECUTION_INTERNAL:
+            # Interno: niente ditta terza né contratto di assistenza.
+            assistance_contract = None
+            cleaned_data["assistance_contract"] = None
+            cleaned_data["covered_by_contract"] = False
+        elif not supplier_name:
+            supplier = supplier_by_id
+        else:
+            supplier = (
+                Fornitore.objects.filter(ragione_sociale__iexact=supplier_name).order_by("-is_active", "id").first()
+            )
+            if supplier is None:
+                if assistance_contract is not None:
+                    self.add_error("supplier_name", "Il contratto selezionato appartiene a un'altra ditta.")
+                else:
+                    self.pending_supplier_name = supplier_name
         supplier, covered_by_contract = _validate_workorder_relations(
             asset=self.asset,
             verification=verification,
@@ -3199,11 +3324,17 @@ class WorkOrderForm(forms.ModelForm):
             add_error=self.add_error,
             keep_existing_coverage=bool(cleaned_data.get("covered_by_contract")),
         )
+        if mode == WorkOrder.EXECUTION_INTERNAL:
+            supplier = None
+            covered_by_contract = False
+        elif supplier is None and not self.pending_supplier_name:
+            self.add_error("supplier_name", "Indica la ditta esterna che esegue l'intervento.")
         cleaned_data["supplier"] = supplier
         cleaned_data["covered_by_contract"] = covered_by_contract
         # In creazione il workorder parte sempre aperto, anche se il client
         # prova a forzare uno stato finale via POST.
-        cleaned_data["status"] = WorkOrder.STATUS_OPEN
+        if not self.is_edit:
+            cleaned_data["status"] = WorkOrder.STATUS_OPEN
         return cleaned_data
 
 

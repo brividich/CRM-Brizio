@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import acl_v2_views, api, views, views_accessi_bloccati, views_accessi_negati, views_bacheca, views_centro_report, views_postazioni, views_ruoli, views_sapere
+from . import acl_v2_views, api, views, views_accessi_bloccati, views_accessi_negati, views_azioni_rapide, views_bacheca, views_centro_report, views_postazioni, views_ruoli, views_sapere
 from .views import menu_portale
 
 
@@ -181,6 +181,7 @@ urlpatterns = [
     path("api/bacheca/reorder", views_bacheca.api_hub_reorder, name="api_hub_reorder"),
     path("api/bacheca/link/copertina", views_bacheca.api_hub_link_copertina, name="api_hub_link_copertina"),
     # Cataloghi della stanza «Sapere»
+    path("home/azioni-rapide/", views_azioni_rapide.home_azioni_rapide, name="home_azioni_rapide"),
     path("sapere/cataloghi/", views_sapere.sapere_cataloghi, name="sapere_cataloghi"),
     path("sapere/cataloghi/<int:pk>/", views_sapere.sapere_catalogo, name="sapere_catalogo"),
 ]

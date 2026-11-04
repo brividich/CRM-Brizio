@@ -81,6 +81,12 @@ def _norm(value):
     return str(value if value is not None else "").strip().casefold()
 
 
+def is_system_actor(actor):
+    """Sistema, regole automatiche o AI («system:ai»): non sono decisioni di una persona."""
+    actor = _norm(actor)
+    return actor in SYSTEM_ACTORS or actor.startswith("system:")
+
+
 def event_fingerprint(event):
     """Impronta stabile dell'evento, o None se il payload non ha campi identificativi."""
     if event is None:
@@ -228,7 +234,7 @@ def record_dismissal(alert, *, kind, actor, reason, batch="", user=None):
 
     Ritorna la regola creata o None. Non solleva: l'azione sull'alert è già avvenuta e non va
     annullata per un errore dell'apprendimento."""
-    if _norm(actor) in SYSTEM_ACTORS or not (reason or "").strip():
+    if is_system_actor(actor) or not (reason or "").strip():
         return None
     try:
         fingerprint = alert_fingerprint(alert)
@@ -350,7 +356,7 @@ def reset_fingerprint(fingerprint_hash, *, user=None, actor="", reason=""):
 
 
 def on_manual_reopen(alert, *, actor, reason="", user=None):
-    if _norm(actor) in SYSTEM_ACTORS:
+    if is_system_actor(actor):
         return 0
     fingerprint = alert_fingerprint(alert)
     if fingerprint is None:

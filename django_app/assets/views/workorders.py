@@ -784,6 +784,9 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
                 _add_form_validation_errors(form, exc)
             else:
                 with transaction.atomic():
+                    new_supplier = form.create_pending_supplier()
+                    if new_supplier is not None:
+                        workorder.supplier = new_supplier
                     workorder.save()
                     _prepopulate_workorder_checklist_from_template(workorder)
                     created_attachments = _save_workorder_attachments(
@@ -792,6 +795,8 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
                         user=request.user,
                     )
                     log_note = "Intervento creato."
+                    if new_supplier is not None:
+                        log_note = f"{log_note} Ditta esterna aggiunta all'anagrafica fornitori: {new_supplier.ragione_sociale}."
                     if created_attachments:
                         log_note = f"{log_note} Allegati caricati: {len(created_attachments)}."
                     WorkOrderLog.objects.create(
@@ -829,6 +834,28 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
         if kind_param in {c[0] for c in WorkOrder.KIND_CHOICES}:
             initial["kind"] = kind_param
         form = WorkOrderForm(initial=initial, **form_kwargs)
+    return _render_workorder_form(
+        request,
+        asset=asset,
+        form=form,
+        workorder_back_url=workorder_back_url,
+        workorder_back_label=workorder_back_label,
+        selected_rule_id=selected_rule_id,
+        prefill_payload=prefill_payload,
+    )
+
+
+def _render_workorder_form(
+    request: HttpRequest,
+    *,
+    asset: Asset,
+    form: WorkOrderForm,
+    workorder_back_url: str,
+    workorder_back_label: str,
+    selected_rule_id: int = 0,
+    prefill_payload: dict | None = None,
+    workorder: WorkOrder | None = None,
+) -> HttpResponse:
     periodic_verification_supplier_map = {
         str(verification.id): {
             "supplier_id": str(verification.supplier_id or ""),
@@ -863,15 +890,23 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
         request,
         "assets/pages/workorder_form.html",
         {
-            "page_title": f"Nuovo intervento - {asset.asset_tag}",
+            "page_title": (
+                f"Modifica intervento {workorder.display_number} - {asset.asset_tag}"
+                if workorder is not None
+                else f"Nuovo intervento - {asset.asset_tag}"
+            ),
             "asset": asset,
             "form": form,
+            "workorder": workorder,
+            "is_edit": workorder is not None,
+            "supplier_name_options": form.supplier_name_options,
+            "default_assignee": form.default_assignee,
             "workorder_back_url": workorder_back_url,
             "workorder_back_label": workorder_back_label,
             "selected_rule_id": selected_rule_id,
             "initial_rule": initial_rule,
             "initial_contract": initial_contract,
-            "workorder_prefill": prefill_payload,
+            "workorder_prefill": prefill_payload or {},
             "available_contract_count": form.fields["assistance_contract"].queryset.count(),
             "attachment_accept": _workorder_attachment_accept_attr(),
             "attachment_max_mb": int(ASSET_DOCUMENT_MAX_BYTES / (1024 * 1024)),
@@ -884,6 +919,100 @@ def workorder_create(request: HttpRequest, id: int | None = None) -> HttpRespons
             # duplicate mentre l'utente sta compilando l'intervento.
             "assets_section_nav": None,
         },
+    )
+
+
+# Campi che la modifica confronta per il registro dell'intervento.
+_WORKORDER_EDIT_TRACKED = (
+    ("execution_mode", "Chi lo esegue"),
+    ("kind", "Tipo"),
+    ("priority", "Priorità"),
+    ("due_at", "Scadenza"),
+    ("title", "Titolo"),
+    ("description", "Descrizione"),
+    ("downtime_minutes", "Fermo impianto"),
+    ("assigned_to_id", "Assegnato a"),
+    ("supplier_id", "Ditta esterna"),
+    ("periodic_verification_id", "Manutenzione periodica"),
+    ("maintenance_rule_id", "Regola"),
+    ("assistance_contract_id", "Contratto"),
+    ("covered_by_contract", "Copertura contratto"),
+)
+
+
+@login_required
+def workorder_edit(request: HttpRequest, workorder_id: int) -> HttpResponse:
+    """Modifica di un intervento aperto con lo stesso form della creazione.
+
+    Stato, chiusura e risoluzione restano fuori: li gestiscono presa in carico e
+    «Registra intervento». Ogni modifica lascia una riga nel registro dell'OdL.
+    """
+    workorder = get_object_or_404(WorkOrder.objects.select_related("asset", "supplier", "assigned_to"), pk=workorder_id)
+    detail_url = reverse("assets:wo_view", kwargs={"id": workorder.id})
+    if workorder.status != WorkOrder.STATUS_OPEN:
+        messages.error(request, "Si possono modificare solo gli interventi aperti.")
+        return redirect(detail_url)
+    asset = workorder.asset
+    form_kwargs = {"asset": asset, "instance": workorder, "is_edit": True}
+    if request.method == "POST":
+        before = {field: getattr(workorder, field) for field, _label in _WORKORDER_EDIT_TRACKED}
+        previous_assignee_id = workorder.assigned_to_id
+        form = WorkOrderForm(request.POST, **form_kwargs)
+        uploads, upload_errors = _validate_workorder_attachment_uploads(request)
+        form_is_valid = form.is_valid()
+        for error in upload_errors:
+            form.add_error(None, error)
+        if form_is_valid and not upload_errors:
+            updated = form.save(commit=False)
+            try:
+                updated.full_clean()
+            except ValidationError as exc:
+                _add_form_validation_errors(form, exc)
+            else:
+                with transaction.atomic():
+                    new_supplier = form.create_pending_supplier()
+                    if new_supplier is not None:
+                        updated.supplier = new_supplier
+                    updated.save()
+                    created_attachments = _save_workorder_attachments(
+                        workorder=updated,
+                        uploads=uploads,
+                        user=request.user,
+                    )
+                    changed = [
+                        label for field, label in _WORKORDER_EDIT_TRACKED if getattr(updated, field) != before[field]
+                    ]
+                    parts = []
+                    if changed:
+                        parts.append("Intervento modificato: " + ", ".join(changed) + ".")
+                    if new_supplier is not None:
+                        parts.append(f"Ditta esterna aggiunta all'anagrafica fornitori: {new_supplier.ragione_sociale}.")
+                    if created_attachments:
+                        parts.append(f"Allegati caricati: {len(created_attachments)}.")
+                    if parts:
+                        WorkOrderLog.objects.create(
+                            work_order=updated,
+                            note=" ".join(parts),
+                            author=request.user if request.user.is_authenticated else None,
+                        )
+                if updated.assigned_to_id and updated.assigned_to_id != previous_assignee_id:
+                    notify_workorder_assigned(
+                        updated,
+                        actor=request.user if request.user.is_authenticated else None,
+                    )
+                messages.success(request, "Intervento aggiornato.")
+                return redirect(detail_url)
+    else:
+        form = WorkOrderForm(**form_kwargs)
+    return _render_workorder_form(
+        request,
+        asset=asset,
+        form=form,
+        workorder_back_url=detail_url,
+        workorder_back_label="Torna all'intervento",
+        selected_rule_id=workorder.maintenance_rule_id or 0,
+        prefill_payload={"source_label": "Modifica"},
+        workorder=workorder,
     )
 
 

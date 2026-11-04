@@ -8,7 +8,7 @@ from dati_bi.viste import ripristina_viste_sqlite, sospendi_viste_sqlite
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('assets', '0160_reparti_poligono'),
+        ('assets', '0161_workorder_execution_mode'),
     ]
 
     operations = [

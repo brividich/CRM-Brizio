@@ -14,6 +14,7 @@ aggiornata anche qui.
 """
 from __future__ import annotations
 
+from dashboard.azioni_rapide import AZIONI_MAX
 from dashboard.views_home_portale import SAPERE_CATALOGHI_HOME, SELF_HELP_NUOVA_GIORNI
 
 DOC_TITOLO = "Home del portale"
@@ -49,9 +50,11 @@ SEZIONI: list[dict] = [
                  "Un clic apre il modulo."),
                 ("I miei preferiti", "i moduli che hai segnato con ☆ nella stanza «Moduli», nell'ordine in cui li hai scelti. "
                  "Al massimo 12."),
-                ("Azioni rapide", "scorciatoie scelte in base ai tuoi permessi: Le mie attività e Scadenzario ci sono sempre; "
-                 "poi, se puoi farlo, Segnala anomalia, Nuovo ticket, Richiedi permesso, Segnala near miss, "
-                 "Nuova voce di diario, Nuovo task, Richiedi DPI e Chiedi all'assistente. Al massimo 6, in quest'ordine."),
+                ("Azioni rapide", "scorciatoie verso le pagine che usi di più. Se nessuno le ha scelte vedi lo standard: "
+                 "Le mie attività e Scadenzario, poi, se puoi farlo, Segnala anomalia, Nuovo ticket, Richiedi permesso, "
+                 "Segnala near miss, Nuova voce di diario, Nuovo task, Richiedi DPI e Chiedi all'assistente (al massimo 6). "
+                 "L'amministratore può impostarle per tutti, per il tuo ruolo o solo per te; tu puoi cambiarle da «⚙ Personalizza». "
+                 "Compaiono sempre e solo le pagine che i tuoi permessi ti fanno aprire."),
                 ("Emergenza", "il numero unico 112 e chi coordina le emergenze, preso dall'organigramma della sicurezza."),
             ]),
         ],
@@ -67,6 +70,11 @@ SEZIONI: list[dict] = [
                 ("Riquadri da mostrare", "togli la spunta ad Azioni rapide, Il tuo brief di oggi, News aziendali o (solo per chi "
                  "gestisce le consegne DPI) Banco consegne DPI per nasconderli. "
                  "Emergenza e Priorità restano sempre visibili."),
+                ("Azioni rapide", f"in fondo al pannello vedi la tua lista e da dove arriva (Scelte da te, Impostate "
+                 f"dall'amministratore, Predefinite del tuo ruolo, Predefinite del portale o Standard del portale). "
+                 f"«+ Aggiungi…» propone le azioni (es. Segnala anomalia) e i moduli («Apri un modulo») che puoi aprire; "
+                 f"↑ e ↓ cambiano l'ordine, ✕ toglie la voce. Al massimo {AZIONI_MAX}. «Salva» la rende la tua lista; "
+                 f"«Torna alle predefinite» la cancella e torni a quella del ruolo o del portale."),
                 ("Preferiti", "nella stanza «Moduli» tocca ☆ su una tessera: diventa ★ e il modulo compare in «I miei preferiti». "
                  "Tocca ★ per toglierlo. Un modulo che non puoi più aprire sparisce dai preferiti da solo."),
                 ("Rifai il tour", "rivede il giro di benvenuto della barra in alto e della home."),
@@ -163,6 +171,8 @@ SEZIONI: list[dict] = [
                  "con copertina, colore e ruoli che lo vedono. Un catalogo senza voci visibili non compare."),
                 ("Figure della sicurezza", "Anagrafica → Ruoli: i ruoli dell'ambito «Sicurezza ISO 45001» e le persone "
                  "assegnate. La descrizione del ruolo diventa il testo della tessera «Responsabilità»."),
+                ("Azioni rapide", "Admin portale → Azioni rapide della home: liste per tutti, per ruolo e per persona "
+                 "(anche molte persone insieme). Vince la più specifica: persona → ruolo → tutti → standard."),
                 ("News", "modulo Notizie aziendali."),
             ]),
         ],

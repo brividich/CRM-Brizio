@@ -143,6 +143,13 @@ GUIDA = {
                     "fresca la lettura. Un valore non può scendere: per un azzeramento serve la nota. I piani «a "
                     "contatore» chiedono il valore letto quando si registra la manutenzione.",
                     "Un ordine di lavoro (OdL) si registra e si chiude dalla sua scheda; si possono chiudere più OdL insieme.",
+                    "Nuovo intervento («+ Straordinaria»): «Chi lo esegue» Interno (già scelto: «Assegnato a» propone la "
+                    "squadra manutenzione e il manutentore predefinito) o Esterno («Ditta esterna» obbligatoria: scrivi per "
+                    "cercare fra i fornitori; se non c'è, «＋ Nuova ditta» la crea in anagrafica al salvataggio). La "
+                    "risoluzione si scrive solo in «Chiudi intervento». Un intervento aperto si corregge con «✎ Modifica» "
+                    "(ogni modifica finisce nel registro dell'intervento).",
+                    "«Scheda di lavoro» stampa macchina, dati dell'intervento, note, checklist dell'intervento e, se chiuso, "
+                    "esito e «Cosa è stato fatto». Nello Scadenzario la colonna Asset mostra in grande il nome della macchina.",
                     "«Chiudi intervento» è uguale per asset IT e di produzione: «Com'è andata?» (Risolto già scelto, "
                     "Risolto temporaneamente, Non risolto, Non eseguito - annulla), poi Esecuzione (data e ora, "
                     "eseguito da, tempo impiegato, fermo macchina, «Cosa è stato fatto» obbligatorio) e rapportino. "
@@ -342,6 +349,9 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Asset → «Impostazioni»: categorie, menu laterale, piani di manutenzione.",
+                    "Impostazioni → Configurazione → «Squadra manutenzione»: il ruolo del portale con i manutentori "
+                    "interni (persone messe a mano nel ruolo o ricevute dall'organigramma) e il manutentore predefinito "
+                    "degli interventi «Interno». Senza ruolo, «Assegnato a» elenca tutti gli utenti attivi.",
                     "Impostazioni → «Codici guasto»: problema, causa e rimedio per la chiusura degli interventi "
                     "(senza categoria = validi per tutti). Un codice usato non si elimina: si disattiva.",
                     "Impostazioni → «Studio inventario»: campi personalizzati, valori delle liste, pulsanti della scheda, "
@@ -535,6 +545,14 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Nel nuovo intervento «Assegnato a» non elenca il manutentore che cerco, o non propone nessuno",
+            "fare": [
+                "Con l'intervento «Interno» l'elenco è la squadra manutenzione: la persona deve stare nel ruolo scelto in "
+                "Impostazioni › Configurazione › «Squadra manutenzione» (a mano o dall'organigramma) e avere un utente attivo.",
+                "Il manutentore predefinito si propone solo se fa parte della squadra; con «Esterno» non si propone nessuno.",
+            ],
+        },
         {
             "sintomo": "Nel riquadro delle voci gemelle («Stesso piano su altre macchine», «Rinnova anche», «Crea anche su…») manca un asset",
             "fare": [
