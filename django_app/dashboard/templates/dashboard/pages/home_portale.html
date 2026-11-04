@@ -15,7 +15,7 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'core/css/home_portale.css' %}">
-<link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=6">
+<link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=7">
 {% endblock %}
 
 {% block content %}
@@ -105,7 +105,36 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
               <label class="hs-pers-c"><input type="checkbox" name="mostra" value="{{ k }}"{% if k not in home_nascosti %} checked{% endif %}> {{ label }}</label>
             {% endfor %}
           </fieldset>
-          <p class="hs-pers-n">I preferiti si scelgono con ☆ sulle tessere della stanza «Moduli».</p>
+          <fieldset class="hs-pers-f hs-az" data-hs-az data-hs-az-max="{{ home_azioni_max }}">
+            <legend>Azioni rapide <small class="hs-az-fonte">· {{ home_azioni.fonte_label }}</small></legend>
+            <input type="hidden" name="azioni_modificate" value="0" data-hs-az-mod>
+            <ol class="hs-az-list" data-hs-az-list>
+              {% for v in home_azioni.scelte %}
+                <li class="hs-az-i" data-key="{{ v.key }}">
+                  <input type="hidden" name="voce" value="{{ v.key }}">
+                  <span class="hs-az-l">{{ v.label }}</span>
+                  <button type="button" class="hs-az-b" data-hs-az-su aria-label="Sposta su {{ v.label }}" title="Sposta su">↑</button>
+                  <button type="button" class="hs-az-b" data-hs-az-giu aria-label="Sposta giù {{ v.label }}" title="Sposta giù">↓</button>
+                  <button type="button" class="hs-az-b" data-hs-az-togli aria-label="Togli {{ v.label }}" title="Togli">✕</button>
+                </li>
+              {% endfor %}
+            </ol>
+            <p class="hs-az-vuoto" data-hs-az-vuoto{% if home_azioni.scelte %} hidden{% endif %}>Nessuna azione rapida: aggiungine una qui sotto.</p>
+            <select class="input" data-hs-az-add aria-label="Aggiungi un'azione rapida">
+              <option value="">+ Aggiungi…</option>
+              <optgroup label="Azioni">
+                {% for v in home_azioni.offerte %}{% if v.gruppo == "Azioni" %}<option value="{{ v.key }}">{{ v.label }}</option>{% endif %}{% endfor %}
+              </optgroup>
+              <optgroup label="Apri un modulo">
+                {% for v in home_azioni.offerte %}{% if v.gruppo == "Moduli" %}<option value="{{ v.key }}">{{ v.label }}</option>{% endif %}{% endfor %}
+              </optgroup>
+            </select>
+            {% if home_azioni.fonte == "utente" or home_azioni.fonte == "admin" %}
+              <button type="button" class="btn btn-secondary btn-sm" data-hs-az-ripristina>Torna alle predefinite</button>
+            {% endif %}
+            {% if home_is_admin %}<a class="hs-az-admin" href="{% url 'admin_portale:home_azioni_rapide' %}">Imposta per tutti, per ruolo o per persona →</a>{% endif %}
+          </fieldset>
+          <p class="hs-pers-n">I preferiti si scelgono con ☆ sulle tessere della stanza «Moduli». Nelle azioni rapide trovi solo le pagine che puoi aprire, al massimo {{ home_azioni_max }}.</p>
           <div class="hs-pers-a">
             <button type="submit" class="btn btn-primary btn-sm">Salva</button>
             <button type="button" class="btn btn-secondary btn-sm" data-hs-tour-start>Rifai il tour</button>
@@ -530,6 +559,67 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
       else alert(res.data.error || 'Preferenze non salvate.');
     });
   });
+
+  /* Azioni rapide nel pannello: aggiungi, togli, riordina (si salvano con «Salva»). */
+  var az = pan.querySelector('[data-hs-az]');
+  if (az) {
+    var azList = az.querySelector('[data-hs-az-list]');
+    var azAdd = az.querySelector('[data-hs-az-add]');
+    var azMax = parseInt(az.getAttribute('data-hs-az-max'), 10) || 12;
+    var azMod = az.querySelector('[data-hs-az-mod]');
+    var azVuoto = az.querySelector('[data-hs-az-vuoto]');
+    function azAggiorna(){
+      azMod.value = '1';
+      var chiavi = {};
+      azList.querySelectorAll('li[data-key]').forEach(function(li){ chiavi[li.getAttribute('data-key')] = 1; });
+      Array.prototype.forEach.call(azAdd.options, function(o){ if (o.value) o.hidden = o.disabled = !!chiavi[o.value]; });
+      azVuoto.hidden = Object.keys(chiavi).length > 0;
+    }
+    function azBtn(attr, testo, titolo, nome){
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'hs-az-b'; b.setAttribute(attr, '');
+      b.textContent = testo; b.title = titolo; b.setAttribute('aria-label', titolo + ' ' + nome);
+      return b;
+    }
+    azAdd.addEventListener('change', function(){
+      var o = azAdd.options[azAdd.selectedIndex];
+      if (!o || !o.value) return;
+      if (azList.children.length >= azMax) { alert('Puoi avere al massimo ' + azMax + ' azioni rapide.'); azAdd.value = ''; return; }
+      var li = document.createElement('li');
+      li.className = 'hs-az-i'; li.setAttribute('data-key', o.value);
+      var inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'voce'; inp.value = o.value;
+      var sp = document.createElement('span'); sp.className = 'hs-az-l'; sp.textContent = o.textContent;
+      li.appendChild(inp); li.appendChild(sp);
+      li.appendChild(azBtn('data-hs-az-su', '↑', 'Sposta su', o.textContent));
+      li.appendChild(azBtn('data-hs-az-giu', '↓', 'Sposta giù', o.textContent));
+      li.appendChild(azBtn('data-hs-az-togli', '✕', 'Togli', o.textContent));
+      azList.appendChild(li);
+      azAdd.value = '';
+      azAggiorna();
+    });
+    az.addEventListener('click', function(e){
+      var b = e.target.closest('button');
+      if (!b) return;
+      if (b.hasAttribute('data-hs-az-ripristina')) {
+        post(form({azione: 'azioni_ripristina'})).then(function(res){
+          if (res.ok) location.href = location.pathname;
+          else alert(res.data.error || 'Preferenze non salvate.');
+        });
+        return;
+      }
+      var li = b.closest('li[data-key]');
+      if (!li) return;
+      if (b.hasAttribute('data-hs-az-su') && li.previousElementSibling) azList.insertBefore(li, li.previousElementSibling);
+      else if (b.hasAttribute('data-hs-az-giu') && li.nextElementSibling) azList.insertBefore(li.nextElementSibling, li);
+      else if (b.hasAttribute('data-hs-az-togli')) li.remove();
+      else return;
+      azAggiorna();
+      azMod.value = '1';
+    });
+    Array.prototype.forEach.call(azAdd.options, function(o){
+      if (o.value && azList.querySelector('li[data-key="' + o.value + '"]')) o.hidden = o.disabled = true;
+    });
+  }
 
   var favList = root.querySelector('[data-hs-fav-list]');
   function setStar(s, on){
