@@ -84,6 +84,15 @@ TEMPI_RISPOSTA_MIN, TEMPI_RISPOSTA_MAX = 1, 60
 DEFAULT_TEMPI_RISOLUZIONE_GG = 10
 TEMPI_RISOLUZIONE_MIN, TEMPI_RISOLUZIONE_MAX = 1, 250
 
+# Orario di lavoro con cui si contano le ore dei tempi (solo giorni lavorativi):
+# un giorno lavorativo vale (fine - inizio) ore, quindi gli obiettivi in giorni restano validi.
+KEY_TEMPI_ORA_INIZIO = "anomalie_tempi_ora_inizio"
+KEY_TEMPI_ORA_FINE = "anomalie_tempi_ora_fine"
+DEFAULT_TEMPI_ORA_INIZIO = 8
+DEFAULT_TEMPI_ORA_FINE = 18
+TEMPI_ORA_INIZIO_MIN, TEMPI_ORA_INIZIO_MAX = 0, 23
+TEMPI_ORA_FINE_MIN, TEMPI_ORA_FINE_MAX = 1, 24
+
 
 def _parse_bool(raw: str, default: bool) -> bool:
     if raw is None or raw == "":
@@ -157,7 +166,19 @@ def get_escalation_config() -> dict:
             SiteConfig.get(KEY_TEMPI_RISOLUZIONE_GG, "") or DEFAULT_TEMPI_RISOLUZIONE_GG,
             DEFAULT_TEMPI_RISOLUZIONE_GG, TEMPI_RISOLUZIONE_MIN, TEMPI_RISOLUZIONE_MAX,
         ),
+        **orario_tempi(SiteConfig.get(KEY_TEMPI_ORA_INIZIO, ""), SiteConfig.get(KEY_TEMPI_ORA_FINE, "")),
     }
+
+
+def orario_tempi(raw_inizio, raw_fine) -> dict:
+    """Ore di inizio e fine dell'orario di lavoro dei tempi; fine sempre dopo l'inizio."""
+    inizio = _clamp_int(raw_inizio if raw_inizio not in (None, "") else DEFAULT_TEMPI_ORA_INIZIO,
+                        DEFAULT_TEMPI_ORA_INIZIO, TEMPI_ORA_INIZIO_MIN, TEMPI_ORA_INIZIO_MAX)
+    fine = _clamp_int(raw_fine if raw_fine not in (None, "") else DEFAULT_TEMPI_ORA_FINE,
+                      DEFAULT_TEMPI_ORA_FINE, TEMPI_ORA_FINE_MIN, TEMPI_ORA_FINE_MAX)
+    if fine <= inizio:
+        inizio, fine = DEFAULT_TEMPI_ORA_INIZIO, DEFAULT_TEMPI_ORA_FINE
+    return {"tempi_ora_inizio": inizio, "tempi_ora_fine": fine}
 
 
 def riepilogo_decisioni_minuti() -> int:
@@ -231,6 +252,12 @@ def save_automazioni_config(payload: dict) -> bool:
         "tempi_risoluzione_gg": (
             KEY_TEMPI_RISOLUZIONE_GG, DEFAULT_TEMPI_RISOLUZIONE_GG, TEMPI_RISOLUZIONE_MIN, TEMPI_RISOLUZIONE_MAX,
             "Anomalie: obiettivo in giorni lavorativi per la chiusura dell'anomalia."),
+        "tempi_ora_inizio": (
+            KEY_TEMPI_ORA_INIZIO, DEFAULT_TEMPI_ORA_INIZIO, TEMPI_ORA_INIZIO_MIN, TEMPI_ORA_INIZIO_MAX,
+            "Anomalie: ora di inizio dell'orario di lavoro con cui si contano le ore dei tempi."),
+        "tempi_ora_fine": (
+            KEY_TEMPI_ORA_FINE, DEFAULT_TEMPI_ORA_FINE, TEMPI_ORA_FINE_MIN, TEMPI_ORA_FINE_MAX,
+            "Anomalie: ora di fine dell'orario di lavoro con cui si contano le ore dei tempi."),
     }
     for field, (key, default, lo, hi, desc) in numbers.items():
         if field in payload:

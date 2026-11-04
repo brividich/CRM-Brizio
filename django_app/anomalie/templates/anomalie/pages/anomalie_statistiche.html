@@ -188,7 +188,7 @@ body.theme-dark .pill-seg{background:rgba(139,92,246,.2)}
   <div class="card" style="margin-bottom:16px;">
     <div class="card-head">
       <div class="card-title">Tempi di risposta e risoluzione</div>
-      <div class="card-sub" id="tempi-sub" style="font-size:12px;color:var(--text-mid);">giorni lavorativi</div>
+      <div class="card-sub" id="tempi-sub" style="font-size:12px;color:var(--text-mid);">ore lavorate</div>
     </div>
     <div class="card-body" style="overflow-x:auto;">
       <div id="tbl-tempi-wrap"><div class="loading">Caricamento...</div></div>
@@ -330,12 +330,12 @@ body.theme-dark .pill-seg{background:rgba(139,92,246,.2)}
     if (!w) return;
     if (!t) { w.innerHTML = '<div class="empty-msg">Tempi non disponibili.</div>'; return; }
     const s = t.soglie || {};
-    $('tempi-sub').textContent = `giorni lavorativi · obiettivi: prima decisione ${s.risposta} gg, chiusura ${s.risoluzione} gg`;
+    $('tempi-sub').textContent = `${t.unita || 'ore lavorate'} (1 gg = ${t.ore_giorno || 10} h) · obiettivi: prima decisione ${s.risposta} gg, chiusura ${s.risoluzione} gg`;
     const righe = Object.keys(t.metriche).map(k => {
       const m = t.metriche[k];
       const entro = m.entro_soglia_pct == null ? '—' : m.entro_soglia_pct + '%';
       const oltre = m.oltre_soglia_aperti == null ? '—' : (m.oltre_soglia_aperti ? `<b style="color:var(--danger,#dc2626)">${m.oltre_soglia_aperti}</b>` : '0');
-      return `<tr><td>${esc(m.label)}</td><td style="text-align:right;font-weight:700">${gg(m.mediana)}</td><td style="text-align:right">${gg(m.media)}</td>`
+      return `<tr><td>${esc(m.label)}</td><td style="text-align:right;font-weight:700">${esc(m.mediana_testo || gg(m.mediana))}</td><td style="text-align:right">${esc(m.media_testo || gg(m.media))}</td>`
         + `<td style="text-align:right">${m.conclusi}</td><td style="text-align:right">${m.in_corso}</td><td style="text-align:right">${entro}</td><td style="text-align:right">${oltre}</td></tr>`;
     }).join('');
     let html = '<table class="admin-table"><thead><tr><th>Tempo</th><th style="text-align:right">Mediana</th><th style="text-align:right">Media</th>'
@@ -344,7 +344,7 @@ body.theme-dark .pill-seg{background:rgba(139,92,246,.2)}
     if ((t.per_capocommessa || []).length) {
       html += '<div style="margin-top:14px;font-weight:700;font-size:13px">Per capocommessa (mediane)</div>'
         + '<table class="admin-table"><thead><tr><th>Capocommessa</th><th style="text-align:right">Anomalie</th><th style="text-align:right">Prima decisione</th><th style="text-align:right">Risoluzione</th></tr></thead><tbody>'
-        + t.per_capocommessa.map(r => `<tr><td>${esc(r.nome)}</td><td style="text-align:right">${r.anomalie}</td><td style="text-align:right">${gg(r.risposta)}</td><td style="text-align:right">${gg(r.risoluzione)}</td></tr>`).join('')
+        + t.per_capocommessa.map(r => `<tr><td>${esc(r.nome)}</td><td style="text-align:right">${r.anomalie}</td><td style="text-align:right">${esc(r.risposta_testo || gg(r.risposta))}</td><td style="text-align:right">${esc(r.risoluzione_testo || gg(r.risoluzione))}</td></tr>`).join('')
         + '</tbody></table>';
     }
     w.innerHTML = html;

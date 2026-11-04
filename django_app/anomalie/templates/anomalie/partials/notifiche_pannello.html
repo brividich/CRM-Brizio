@@ -121,6 +121,12 @@ Notifiche e in Automazioni → Notifiche di sistema: stessi dati, stesso salvata
       <label class="field">Tempi: obiettivo chiusura (giorni lavorativi)
         <input type="number" min="1" max="250" class="input" data-ntf-param="tempi_risoluzione_gg" value="{{ notifiche.parametri.tempi_risoluzione_gg }}"{% if not notifiche_modificabile %} readonly{% endif %}>
       </label>
+      <label class="field">Tempi: orario di lavoro, dalle ore
+        <input type="number" min="0" max="23" class="input" data-ntf-param="tempi_ora_inizio" value="{{ notifiche.parametri.tempi_ora_inizio }}"{% if not notifiche_modificabile %} readonly{% endif %}>
+      </label>
+      <label class="field">Tempi: orario di lavoro, alle ore
+        <input type="number" min="1" max="24" class="input" data-ntf-param="tempi_ora_fine" value="{{ notifiche.parametri.tempi_ora_fine }}"{% if not notifiche_modificabile %} readonly{% endif %}>
+      </label>
     </div>
   </div>
 
