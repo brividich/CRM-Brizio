@@ -6,6 +6,7 @@
   <a class="sub-a{% if current == 'fornitori:fornitore_create' %} active{% endif %}" href="{% url 'fornitori:fornitore_create' %}">+ Nuovo</a>
   <div class="sub-sep"></div>
   <a class="sub-a{% if current == 'fornitori:accessi_esterni' %} active{% endif %}" href="{% url 'fornitori:accessi_esterni' %}">Accessi esterni</a>
+  <a class="sub-a{% if current == 'fornitori:guestportal_ditte' %} active{% endif %}" href="{% url 'fornitori:guestportal_ditte' %}">Ditte GuestPortal</a>
 </div>
 <div class="notice" style="margin-top: 10px;">
   {% if current == 'fornitori:index' %}
@@ -18,6 +19,8 @@
     <strong>Nuovo fornitore:</strong> ragione sociale obbligatoria; documenti, ordini e valutazioni si aggiungono dalla scheda.
   {% elif current == 'fornitori:accessi_esterni' %}
     <strong>Accessi esterni:</strong> visitatori, fornitori e consulenti registrati al GuestPortal (chiosco in reception). Dati letti dal GuestPortal, non copiati.
+  {% elif current == 'fornitori:guestportal_ditte' %}
+    <strong>Ditte GuestPortal:</strong> abbinamento dei fornitori del GuestPortal con quelli dell'HUB, per collegare gli ingressi a ticket e ordini di lavoro.
   {% elif current == 'fornitori:fornitore_edit' %}
     <strong>Modifica fornitore:</strong> aggiorna i dati anagrafici.
   {% else %}

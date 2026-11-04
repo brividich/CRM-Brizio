@@ -84,7 +84,7 @@ body.theme-dark .ae-banner-err { background:rgba(229,62,62,.16); color:#fca5a5; 
     </div>
     <div class="ae-wrap">
       <table class="ae-table">
-        <thead><tr><th>Nome</th><th>Azienda</th><th>Tipo</th><th>Referente</th><th>Motivo</th><th>Badge</th><th>Entrato</th><th>Da</th></tr></thead>
+        <thead><tr><th>Nome</th><th>Azienda</th><th>Tipo</th><th>Referente</th><th>Motivo</th><th>Incaricato per</th><th>Badge</th><th>Entrato</th><th>Da</th></tr></thead>
         <tbody>
         {% for a in presenti %}
           <tr>
@@ -93,12 +93,13 @@ body.theme-dark .ae-banner-err { background:rgba(229,62,62,.16); color:#fca5a5; 
             <td><span class="ae-pill {% if a.tipo == 'SUPPLIER' %}ae-pill-sup{% elif a.tipo == 'PREREG' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.tipo_label }}</span></td>
             <td>{{ a.referente|default:"—" }}</td>
             <td>{{ a.motivo|default:"—" }}</td>
+            <td>{% for etichetta, url in a.interventi %}<a href="{{ url }}">{{ etichetta }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="ae-muted">—</span>{% endfor %}</td>
             <td>{{ a.badge|default:"—" }}</td>
             <td>{{ a.ingresso|date:"d/m H:i"|default:"—" }}</td>
             <td>{{ a.durata_label }}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="8" class="ae-empty">Nessun esterno presente in questo momento.</td></tr>
+          <tr><td colspan="9" class="ae-empty">Nessun esterno presente in questo momento.</td></tr>
         {% endfor %}
         </tbody>
       </table>
@@ -143,7 +144,7 @@ body.theme-dark .ae-banner-err { background:rgba(229,62,62,.16); color:#fca5a5; 
     </div>
     <div class="ae-wrap">
       <table class="ae-table">
-        <thead><tr><th>Nome</th><th>Azienda</th><th>Tipo</th><th>Referente</th><th>Motivo</th><th>Ingresso</th><th>Uscita</th><th>Stato</th></tr></thead>
+        <thead><tr><th>Nome</th><th>Azienda</th><th>Tipo</th><th>Referente</th><th>Motivo</th><th>Incaricato per</th><th>Ingresso</th><th>Uscita</th><th>Stato</th></tr></thead>
         <tbody>
         {% for a in storico %}
           <tr>
@@ -152,12 +153,13 @@ body.theme-dark .ae-banner-err { background:rgba(229,62,62,.16); color:#fca5a5; 
             <td><span class="ae-pill {% if a.tipo == 'SUPPLIER' %}ae-pill-sup{% elif a.tipo == 'PREREG' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.tipo_label }}</span></td>
             <td>{{ a.referente|default:"—" }}</td>
             <td>{{ a.motivo|default:"—" }}</td>
+            <td>{% for etichetta, url in a.interventi %}<a href="{{ url }}">{{ etichetta }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="ae-muted">—</span>{% endfor %}</td>
             <td>{{ a.ingresso|date:"d/m/Y H:i"|default:"—" }}</td>
             <td>{% if a.uscita %}{{ a.uscita|date:"d/m/Y H:i" }}{% else %}<span class="ae-muted">—</span>{% endif %}</td>
             <td><span class="ae-pill {% if a.presente %}ae-pill-in{% elif a.stato == 'PREREGISTERED' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.stato_label }}</span></td>
           </tr>
         {% empty %}
-          <tr><td colspan="8" class="ae-empty">Nessuna visita nel periodo scelto.</td></tr>
+          <tr><td colspan="9" class="ae-empty">Nessuna visita nel periodo scelto.</td></tr>
         {% endfor %}
         </tbody>
       </table>

@@ -118,6 +118,13 @@ _PULSANTI_DEFINITIONS = [
         "url": "route:fornitori:guestportal_apri",
         "visible_topbar": False,
     },
+    {
+        "modulo": "fornitori",
+        "codice": "guestportal_ditte",
+        "label": "Fornitori - Ditte GuestPortal (abbinamento)",
+        "url": "route:fornitori:guestportal_ditte",
+        "visible_topbar": False,
+    },
 ]
 
 

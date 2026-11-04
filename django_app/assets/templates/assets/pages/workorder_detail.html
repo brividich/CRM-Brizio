@@ -234,6 +234,10 @@ body.theme-dark .wod-cl-skip-details summary{color:#fcd34d}
 
       <div hx-get="{% url 'assets:workorder_spare_parts' workorder.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="woc-note" style="padding:12px 16px">Caricamento ricambi…</p></div>
 
+      {% if workorder.effective_execution_mode == "EXTERNAL" %}
+      <div hx-get="{% url 'fornitori:presenze_intervento' 'odl' workorder.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="woc-note" style="padding:12px 16px">Caricamento presenze in azienda della ditta…</p></div>
+      {% endif %}
+
       <article class="ux-card">
         <header class="ux-card-head"><div><h3>Note operative</h3><p>Ogni nota resta associata a data, ora e autore.</p></div></header>
         <div class="ux-card-body">

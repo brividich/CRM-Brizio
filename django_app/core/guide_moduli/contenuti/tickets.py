@@ -64,6 +64,7 @@ GUIDA = {
                     "A lavoro finito clicca «Segna come risolto», poi «Chiudi ticket».",
                 ]),
                 ("ul", [
+                    "Ticket di manutenzione fatto da una ditta esterna: nella scheda «Interventi» il riquadro «Presenze in azienda della ditta» propone gli ingressi della ditta delegata registrati al chiosco della reception; «Collega» li lega al ticket e confronta le ore registrate con la presenza in azienda (guida Fornitori, «Collegare l'ingresso della ditta»).",
                     "Per un lavoro di manutenzione programmato usa «+ Apri OdL» (ordine di lavoro nel modulo Asset).",
                     "Gli allegati caricati dal QR della macchina vanno controllati: «Valida» oppure «Rifiuta» con motivo.",
                     "Per cambiare l'asset del ticket (riquadro «Asset collegato» → «Da catalogo») scrivi nome, n. interno, tag, modello o reparto: ogni risultato mostra n. interno, tag e il badge «Reparto …» per distinguere asset con lo stesso nome.",
