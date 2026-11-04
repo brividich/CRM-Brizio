@@ -236,6 +236,31 @@ GUIDA = {
             ],
         },
         {
+            "id": "home-azioni-rapide",
+            "titolo": "Azioni rapide della home",
+            "blocchi": [
+                ("p", "Amministrazione → «Azioni rapide della home» (anche dal link in «⚙ Personalizza» della home). Le azioni rapide "
+                      "sono le scorciatoie della colonna di sinistra della home: azioni (es. «Segnala anomalia», «Nuovo ticket») e "
+                      "moduli da aprire («Apri un modulo»). Al massimo 12 per lista."),
+                ("def", [
+                    ("Predefinite per tutti", "la lista di chi non ha una lista del ruolo né personale. «Torna allo standard» "
+                                              "rimette lo standard del portale: Le mie attività, Scadenzario e le altre azioni, al massimo 6."),
+                    ("Predefinite per ruolo", "scegli il ruolo, componi la lista e «Salva per il ruolo». «Usa le predefinite per tutti» "
+                                              "la toglie. Sotto, l'elenco dei ruoli con una lista propria."),
+                    ("Per persona", "a sinistra componi la lista, a destra scegli le persone: cerca per nome, filtra per ruolo, "
+                                    "«Seleziona le visibili» per sceglierle in blocco. «Imposta la lista alle selezionate» la dà a tutte; "
+                                    "«Riporta alle predefinite» toglie la loro lista personale. Nella tabella «Persone con una lista "
+                                    "personale», «Modifica» riapre la lista di quella persona."),
+                ]),
+                ("ul", [
+                    "Vince la lista più specifica: persona → ruolo → tutti → standard.",
+                    "Ognuno vede solo le voci che i suoi permessi gli fanno aprire, qualunque lista le contenga: la lista non dà permessi.",
+                    "La persona può sempre cambiare la sua lista da «⚙ Personalizza»: in quel caso la lista diventa «Scelte da te».",
+                    "Ogni salvataggio finisce nell'audit log (modulo «home_azioni_rapide»).",
+                ]),
+            ],
+        },
+        {
             "id": "centro-report",
             "titolo": "Report: catalogo, registro e layout",
             "blocchi": [
