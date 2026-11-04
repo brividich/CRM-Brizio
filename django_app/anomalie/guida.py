@@ -178,6 +178,11 @@ SEZIONI: list[dict] = [
                 "e scrive la frase uniforme. «Difetto sul pezzo»: che difetto (bava, testimone di fusione, graffio…), "
                 "dove e dimensioni. «Marcatura / documenti»: cosa c'è sul pezzo, cosa era atteso e i documenti coinvolti. "
                 "Toccando di nuovo il caso scelto lo togli.",
+                "Dal report ZEISS: nel riquadro «Misura fuori tolleranza» cattura le righe del protocollo (Win+Maiusc+S), "
+                "clicca nel riquadro «Dal report ZEISS» e premi Ctrl+V (o «scegli l'immagine»). Il portale legge le righe e "
+                "le propone con l'esito: quelle fuori tolleranza sono già spuntate, «da verificare» segnala un valore letto "
+                "male. «Aggiungi N misure» le mette fra le misure, dove restano modificabili. L'immagine non viene allegata. "
+                "Per una lettura migliore ingrandisci il PDF (almeno 125%) prima di catturare.",
                 "«+ Riferimento» aggiunge disegno/revisione, sezione/vista e fase del ciclo/F.OP. Con un caso scelto "
                 "compare anche il «Tipo di difetto» proposto dal portale (cambialo se non è giusto).",
                 "«↓ Copia nella descrizione» porta le frasi delle misure nel testo; se lasci vuota la descrizione, al "

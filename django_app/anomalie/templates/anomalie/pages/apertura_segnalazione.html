@@ -282,6 +282,16 @@
     .sym-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-light); }
     .pill-auto { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 999px; padding: 2px 9px; font-size: var(--fs-xs); font-weight: 700; }
     body.theme-dark .pill-auto { background: rgba(59,130,246,.14); color: #93c5fd; border-color: rgba(96,165,250,.4); }
+    .cmm-box { display: grid; gap: 8px; padding: 10px 12px; border: 2px dashed var(--border); border-radius: 10px; background: var(--surface); outline: none; cursor: pointer; }
+    .cmm-box:focus, .cmm-box.is-over { border-color: var(--accent); background: var(--accent-light); }
+    .cmm-box__hint { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--fs-sm); color: var(--text-mid); }
+    .cmm-box__hint kbd { font-family: inherit; font-size: var(--fs-xs); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--surface); }
+    .cmm-prop { display: grid; gap: 4px; }
+    .cmm-prop label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--fs-sm); padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+    .cmm-prop label:hover { background: var(--bg); }
+    .cmm-prop input[type="checkbox"] { width: 16px; height: 16px; min-height: 0; accent-color: var(--accent); }
+    .pill-verifica { background: #fffbeb; color: #92400e; border: 1px solid #fcd34d; border-radius: 999px; padding: 1px 8px; font-size: var(--fs-2xs); font-weight: 700; }
+    body.theme-dark .pill-verifica { background: rgba(245,158,11,.10); color: #fcd34d; border-color: rgba(245,158,11,.45); }
     .dett-tipo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--fs-sm); }
     .dett-tipo select { width: auto; max-width: 100%; padding: 5px 9px; }
     .dett-grid--mis > .dett-f { align-self: start; }
@@ -443,6 +453,7 @@
       controllo_persone: "{% url 'api_anomalie_controllo_persone' %}",
       clona: "{% url 'api_anomalie_clona' %}",
       allegati_copia: "{% url 'api_anomalie_allegati_copia' %}",
+      report_cmm: "{% url 'api_anomalie_report_cmm_leggi' %}",
     };
   </script>
 
@@ -469,6 +480,7 @@
     controllo_persone: '/api/anomalie/controlli/persone',
     clona: '/api/anomalie/clona',
     allegati_copia: '/api/anomalie/allegati/copia',
+    report_cmm: '/api/anomalie/report-cmm/leggi',
   };
 
   /* Clonazione da Gestione anomalie: ?clona_da=<OP>&anomalie=<id,id,…> */
@@ -1146,8 +1158,88 @@
     </div>
   );
 
+  /* «Incolla dal report ZEISS»: screenshot di righe del protocollo -> misure proposte da confermare.
+     L'immagine va solo alla lettura (OCR sul server) e non diventa un allegato. */
+  const LetturaReport = ({ opId, disabled, onAggiungi }) => {
+    const [stato, setStato] = useState('');  // '' | 'lettura' | errore
+    const [proposte, setProposte] = useState(null);
+    const [scelte, setScelte] = useState({});
+    const [over, setOver] = useState(false);
+    const fileRef = useRef(null);
+    const leggi = async (file) => {
+      if (!file || disabled) return;
+      if (!/^image\//.test(file.type || '')) { setStato('Serve un\'immagine: cattura le righe del report e incollale qui.'); return; }
+      setStato('lettura'); setProposte(null);
+      try {
+        const form = new FormData();
+        form.append('op_id', opId || '');
+        form.append('immagine', file, file.name || 'report.png');
+        const r = await fetch(API.report_cmm, { method: 'POST', headers: { 'X-CSRFToken': getCsrf() }, body: form, credentials: 'same-origin' });
+        const j = await parseJsonStrict(r, 'Lettura del report');
+        if (!r.ok || !j.success) throw new Error(j.error || `HTTP ${r.status}`);
+        const righe = j.righe || [];
+        if (!righe.length) { setStato('Nessuna riga di misura riconosciuta: cattura le righe con valori (Actual, Nominal, tolleranze) e riprova, magari ingrandendo il PDF.'); return; }
+        setProposte(righe);
+        setScelte(Object.fromEntries(righe.map((x, i) => [i, !!x.fuori])));
+        setStato('');
+      } catch (e) { setStato(e.message); }
+    };
+    const onPaste = (e) => {
+      const items = Array.from((e.clipboardData && e.clipboardData.items) || []);
+      const file = items.filter(it => it.kind === 'file').map(it => it.getAsFile()).find(Boolean);
+      if (!file) return;
+      e.preventDefault(); e.stopPropagation();
+      leggi(file);
+    };
+    const nScelte = proposte ? proposte.filter((_, i) => scelte[i]).length : 0;
+    return (
+      <div className="dett">
+        <div className={`cmm-box${over ? ' is-over' : ''}`} tabIndex={disabled ? -1 : 0} onPaste={onPaste}
+          onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+          onDrop={e => { e.preventDefault(); e.stopPropagation(); setOver(false); leggi((e.dataTransfer.files || [])[0]); }}
+          onClick={e => e.currentTarget.focus()} aria-label="Incolla qui lo screenshot del report ZEISS">
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={e => { const f = (e.target.files || [])[0]; e.target.value = ''; leggi(f); }} />
+          <div className="cmm-box__hint">
+            📋 <strong>Dal report ZEISS:</strong> cattura le righe del protocollo (Win+Maiusc+S), clicca qui e premi <kbd>Ctrl</kbd>+<kbd>V</kbd>
+            {' '}oppure <button type="button" className="link-btn" disabled={disabled} onClick={e => { e.stopPropagation(); fileRef.current && fileRef.current.click(); }}>scegli l’immagine</button>.
+            <span>L’immagine non viene allegata: serve solo a proporre le misure.</span>
+          </div>
+          {stato === 'lettura' && <div className="field-hint">Lettura del report in corso…</div>}
+          {stato && stato !== 'lettura' && <div className="error-msg">{stato}</div>}
+        </div>
+        {proposte && (
+          <div className="dett-panel">
+            <div className="dett-panel__head">Righe lette dal report <small>— spunta quelle da aggiungere (già spuntate le fuori tolleranza)</small></div>
+            <div className="cmm-prop">
+              {proposte.map((p, i) => {
+                const e = esitoMisura(p);
+                return (
+                  <label key={i}>
+                    <input type="checkbox" checked={!!scelte[i]} onChange={ev => setScelte(prev => ({ ...prev, [i]: ev.target.checked }))} />
+                    {e.fuori === true ? <span className="mis-esito is-ko">Fuori {e.scarto > 0 ? '+' : '−'}{fmtNum(Math.abs(e.scarto))}</span>
+                      : e.fuori === false ? <span className="mis-esito is-ok">Dentro</span> : null}
+                    <span className="mis-frase">{fraseMisura(p)}</span>
+                    {p.da_verificare && <span className="pill-verifica" title="Lo scostamento letto non tornava con misurato − nominale: controlla i valori">da verificare</span>}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="dett-actions">
+              <button type="button" className="btn-outline" disabled={!nScelte}
+                onClick={() => { onAggiungi(proposte.filter((_, i) => scelte[i])); setProposte(null); }}>
+                Aggiungi {nScelte} misur{nScelte === 1 ? 'a' : 'e'}
+              </button>
+              <button type="button" className="link-btn" onClick={() => setProposte(null)}>Annulla</button>
+              <span className="field-hint">I valori restano modificabili nelle righe qui sopra: controllali sul report.</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   /* «Che cosa hai trovato?»: una scelta facoltativa apre solo i campi di quel caso. */
-  const DettaglioAnomalia = ({ dett, testo, disabled, onChange, onCopiaNelTesto }) => {
+  const DettaglioAnomalia = ({ dett, testo, disabled, onChange, onCopiaNelTesto, opId }) => {
     const d = dett || emptyDett();
     const upd = (patch) => onChange({ ...d, ...patch });
     const scegli = (tipo) => {
@@ -1240,6 +1332,13 @@
             <div className="dett-actions">
               <button type="button" className="link-btn" disabled={disabled} onClick={() => upd({ misure: [...(d.misure || []), emptyMisura()] })}>+ Aggiungi misura</button>
             </div>
+            {!disabled && (
+              <LetturaReport opId={opId} disabled={disabled} onAggiungi={righe => {
+                const nuove = righe.map(({ car, nome, modo, nom, a, b, ril, dove }) => ({ ...emptyMisura(), car, nome, modo, nom, a, b, ril, dove }));
+                const tenute = (d.misure || []).filter(misuraUtile);
+                upd({ misure: [...tenute, ...nuove] });
+              }} />
+            )}
           </div>
         )}
 
@@ -1957,6 +2056,7 @@
     useEffect(() => {
       if (!controllo) return undefined;
       const onPaste = (e) => {
+        if (e.defaultPrevented) return;  // già gestito (es. riquadro «Incolla dal report»)
         const items = Array.from((e.clipboardData && e.clipboardData.items) || []);
         const files = items.filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean);
         if (!files.length) return;
@@ -2554,7 +2654,7 @@
                     aria-label={`Descrizione anomalia ${i + 1}`}
                     placeholder="Cosa hai rilevato, dove si trova sul pezzo, misura rilevata e tolleranza…"
                     value={a.testo} onChange={e => updAnomalia(i, { testo: e.target.value })} />
-                  <DettaglioAnomalia dett={a.dett} testo={a.testo} disabled={a.gestita}
+                  <DettaglioAnomalia dett={a.dett} testo={a.testo} disabled={a.gestita} opId={controllo ? controllo.op_id : ''}
                     onChange={dett => updAnomalia(i, { dett })}
                     onCopiaNelTesto={righe => updAnomalia(i, { testo: [a.testo.trim(), ...righe].filter(Boolean).join('\n') })} />
                   {tokens.length > 1 && (() => {

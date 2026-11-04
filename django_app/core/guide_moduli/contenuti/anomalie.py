@@ -63,7 +63,9 @@ GUIDA = {
                 ("p", "Il controllore, per ogni blocco, indica «Dove sono i pezzi?» e, per ogni anomalia, può scegliere "
                       "«Che cosa hai trovato?» (misura fuori tolleranza, difetto sul pezzo, marcatura/documenti): si "
                       "aprono solo i campi di quel caso, con l'esito della misura calcolato subito, i pulsanti dei "
-                      "simboli e il riferimento a disegno, sezione e fase. Il capocommessa li vede nella mail e nel "
+                      "simboli e il riferimento a disegno, sezione e fase. Le misure si possono anche "
+                      "proporre da uno screenshot delle righe del protocollo ZEISS incollato con Ctrl+V nel riquadro "
+                      "«Dal report ZEISS» (l'immagine non viene allegata; le righe proposte si confermano a mano). Il capocommessa li vede nella mail e nel "
                       "riquadro «Dal controllore». Se sull'OP c'è già un controllo aperto il portale propone di "
                       "riprenderlo; i controlli vuoti si chiudono da soli dopo 24 ore."),
                 ("p", "Nella decisione ci sono anche «Segnala a terzista», gli «Allegati della "

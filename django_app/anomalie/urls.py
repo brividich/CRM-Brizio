@@ -50,6 +50,7 @@ urlpatterns = [
     path("api/anomalie/seriali-op", views.api_seriali_op, name="api_anomalie_seriali_op"),
     path("api/anomalie/controlli", controllo_views.api_controlli, name="api_anomalie_controlli"),
     path("api/anomalie/clona", controllo_views.api_clona_dati, name="api_anomalie_clona"),
+    path("api/anomalie/report-cmm/leggi", controllo_views.api_report_cmm_leggi, name="api_anomalie_report_cmm_leggi"),
     path("api/anomalie/controlli/destinatari", controllo_views.api_destinatari_op, name="api_anomalie_controllo_destinatari"),
     path("api/anomalie/controlli/persone", controllo_views.api_persone, name="api_anomalie_controllo_persone"),
     path("api/anomalie/controlli/apri", controllo_views.api_controllo_apri, name="api_anomalie_controllo_apri"),
