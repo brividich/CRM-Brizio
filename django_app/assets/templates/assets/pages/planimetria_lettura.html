@@ -73,7 +73,11 @@ body.theme-dark .pll-fonte.ai{color:#c4b5fd}
 <section class="pll-page">
   <article class="pll-card">
     <h2>Cosa leggere</h2>
+    {% if ha_sorgente %}
+    <p class="pll-avviso">Questa pianta è nata da «Importa planimetrie» con il PDF «{{ layout.importazione.file|default:"" }}»: la lettura usa già quel PDF, non serve caricarlo. Controlla le proposte, togli la spunta a quelle sbagliate e premi «Valida e colloca».</p>
+    {% else %}
     <p class="pll-nota">Il PDF stampato dal disegno (anche dal DWG) è la fonte migliore: i testi sono veri e le posizioni esatte. Senza PDF si legge l'immagine già caricata con il riconoscimento del testo.</p>
+    {% endif %}
     <form method="post" enctype="multipart/form-data" action="{% url 'assets:plant_layout_editor' %}?leggi=1" class="pll-form">
       {% csrf_token %}
       <input type="hidden" name="action" value="leggi_planimetria">
@@ -82,7 +86,7 @@ body.theme-dark .pll-fonte.ai{color:#c4b5fd}
           {% for l in layouts %}<option value="{{ l.id }}"{% if layout and l.id == layout.id %} selected{% endif %}>{{ l.category }} · {{ l.name }}{% if not l.is_active %} (bozza){% endif %}</option>{% endfor %}
         </select>
       </label>
-      <label>PDF della pianta (facoltativo)
+      <label>{% if ha_sorgente %}Un altro PDF (facoltativo){% else %}PDF della pianta (facoltativo){% endif %}
         <input type="file" name="pdf" accept="application/pdf,.pdf" class="input">
       </label>
       <label>Pagina del PDF
@@ -201,7 +205,8 @@ body.theme-dark .pll-fonte.ai{color:#c4b5fd}
         </div>
       </div>
       <div class="pll-azioni">
-        <button class="btn btn-primary" type="submit">Applica le scelte</button>
+        <button class="btn btn-primary" type="submit">{% if ha_sorgente %}Valida e colloca{% else %}Applica le scelte{% endif %}</button>
+        {% if ha_sorgente %}<a class="btn btn-secondary" href="{% url 'assets:plant_layout_editor' %}?importa=1">Torna alle piante importate</a>{% endif %}
         <span class="pll-nota" style="margin:0;">Ogni collocazione finisce nella timeline dell'asset. Dopo puoi rifinire trascinando nell'editor.</span>
       </div>
     </form>

@@ -123,6 +123,7 @@ _ACL_SHARED_ROUTE_NAMES = _ACL_ONBOARDING_SHARED_ROUTE_NAMES + (
     "fornitori:presenze_intervento",
     "fornitori:presenze_collega",
     "fornitori:presenze_scollega",
+    "fornitori:presenze_imposta_ditta",
     "assets:api_dashboard_save_config",
     "legacy_modifica_capo",
     "legacy_modifica_info_completa",

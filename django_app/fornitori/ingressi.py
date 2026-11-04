@@ -10,6 +10,11 @@ La ditta di un ingresso si riconosce dall'abbinamento ``DittaGuestPortal``
 (fornitore del GuestPortal → fornitore HUB) oppure dall'azienda scritta dal
 visitatore uguale alla ragione sociale del fornitore HUB a meno di maiuscole,
 punteggiatura e forma giuridica (``fornitori/nomi.py``).
+
+Le sessioni formative (``anagrafica.TrainingSession``) usano lo stesso
+collegamento per l'ingresso del docente esterno: le proposte sono gli ingressi
+nel periodo della sessione con il nome del docente o l'azienda dell'ente di
+formazione; non c'è nessuna ditta da impostare.
 """
 from __future__ import annotations
 
@@ -21,11 +26,13 @@ from django.utils import timezone
 
 from . import guestportal as gp
 from .models import DittaGuestPortal, IngressoIntervento
-from .nomi import chiave_ditta, unico
+from .nomi import chiave_ditta, chiave_persona, unico
 
 TIPO_TICKET = "ticket"
 TIPO_ODL = "odl"
-TIPI = (TIPO_TICKET, TIPO_ODL)
+TIPO_FORMAZIONE = "formazione"
+TIPI = (TIPO_TICKET, TIPO_ODL)  # interventi con una ditta (fornitore)
+TIPI_TUTTI = (*TIPI, TIPO_FORMAZIONE)
 FINESTRA_MAX_GIORNI = 90
 TOLLERANZA_MINUTI = 15
 
@@ -42,30 +49,88 @@ class Intervento:
         return self.oggetto.pk
 
     @property
+    def formazione(self) -> bool:
+        return self.tipo == TIPO_FORMAZIONE
+
+    @property
     def fornitore(self):
         if self.tipo == TIPO_TICKET:
             return self.oggetto.delegato_fornitore
-        return self.oggetto.supplier
+        if self.tipo == TIPO_ODL:
+            return self.oggetto.supplier
+        return None
 
     @property
     def etichetta(self) -> str:
         if self.tipo == TIPO_TICKET:
             return self.oggetto.numero_ticket or f"Ticket #{self.oggetto.pk}"
-        return f"OdL #{self.oggetto.display_number}"
+        if self.tipo == TIPO_ODL:
+            return f"OdL #{self.oggetto.display_number}"
+        return f"Sessione {self.oggetto.codice_sessione}"
+
+    @property
+    def tipo_label(self) -> str:
+        return {TIPO_TICKET: "Ticket", TIPO_ODL: "OdL", TIPO_FORMAZIONE: "Formazione"}[self.tipo]
+
+    @property
+    def titolo(self) -> str:
+        o = self.oggetto
+        if self.tipo == TIPO_TICKET:
+            return o.titolo
+        if self.tipo == TIPO_ODL:
+            return f"{o.title} · {o.asset.name}" if o.asset_id else o.title
+        return o.corso.titolo
+
+    @property
+    def aperto_il(self):
+        o = self.oggetto
+        if self.tipo == TIPO_TICKET:
+            return o.created_at
+        if self.tipo == TIPO_ODL:
+            return o.opened_at
+        return o.data_inizio
+
+    @property
+    def url(self) -> str:
+        from django.urls import reverse
+
+        if self.tipo == TIPO_TICKET:
+            return reverse("tickets:gestione_detail", args=[self.pk])
+        if self.tipo == TIPO_ODL:
+            return reverse("assets:wo_view", args=[self.pk])
+        return reverse("anagrafica:formazione_sessione_detail", args=[self.pk])
+
+    @property
+    def chi(self) -> str:
+        """Ditta (ticket/OdL) o docente/ente (sessione) per gli elenchi."""
+        if self.formazione:
+            return self.oggetto.erogatore_display or ""
+        return self.fornitore.ragione_sociale if self.fornitore else ""
 
     @property
     def chiuso(self) -> bool:
         if self.tipo == TIPO_TICKET:
             return bool(self.oggetto.is_chiuso)
-        return self.oggetto.status != self.oggetto.STATUS_OPEN
+        if self.tipo == TIPO_ODL:
+            return self.oggetto.status != self.oggetto.STATUS_OPEN
+        # Sessione: l'ingresso del docente si collega anche a edizione chiusa o
+        # approvata (è una prova di presenza, non tocca il registro); non se annullata.
+        return self.oggetto.stato == "ANNULLATA"
 
     def finestra(self) -> tuple[date, date]:
         """Periodo in cui cercare gli ingressi: dall'apertura (un giorno prima) alla
-        chiusura o a oggi, al massimo 90 giorni."""
+        chiusura o a oggi, al massimo 90 giorni. Sessione: dal giorno prima
+        dell'inizio alla fine (o a oggi)."""
         o = self.oggetto
+        oggi = timezone.localdate()
+        if self.formazione:
+            al = min(o.data_fine, oggi)
+            dal = min(o.data_inizio - timedelta(days=1), al)
+            if (al - dal).days > FINESTRA_MAX_GIORNI:
+                dal = al - timedelta(days=FINESTRA_MAX_GIORNI)
+            return dal, al
         inizio = o.created_at if self.tipo == TIPO_TICKET else o.opened_at
         fine = o.closed_at
-        oggi = timezone.localdate()
         al = timezone.localtime(fine).date() if fine else oggi
         al = min(al, oggi)
         dal = (timezone.localtime(inizio).date() if inizio else al) - timedelta(days=1)
@@ -74,7 +139,8 @@ class Intervento:
         return dal, al
 
     def collegamenti(self):
-        filtro = {"ticket": self.oggetto} if self.tipo == TIPO_TICKET else {"work_order": self.oggetto}
+        campo = {TIPO_TICKET: "ticket", TIPO_ODL: "work_order", TIPO_FORMAZIONE: "sessione_formazione"}[self.tipo]
+        filtro = {campo: self.oggetto}
         return IngressoIntervento.objects.filter(**filtro).select_related("collegato_da")
 
 
@@ -87,9 +153,67 @@ def intervento(tipo: str, pk: int) -> Intervento | None:
         from assets.models import WorkOrder
 
         oggetto = WorkOrder.objects.select_related("supplier").filter(pk=pk).first()
+    elif tipo == TIPO_FORMAZIONE:
+        from anagrafica.models import TrainingSession
+
+        oggetto = TrainingSession.objects.select_related(
+            "corso", "corso__ente_formativo", "docente", "docente__azienda", "docente_ente",
+        ).filter(pk=pk).first()
     else:
         return None
     return Intervento(tipo, oggetto) if oggetto else None
+
+
+def intervento_del_link(link: IngressoIntervento) -> Intervento:
+    if link.ticket_id:
+        return Intervento(TIPO_TICKET, link.ticket)
+    if link.work_order_id:
+        return Intervento(TIPO_ODL, link.work_order)
+    return Intervento(TIPO_FORMAZIONE, link.sessione_formazione)
+
+
+def chiavi_docente(sessione) -> tuple[set[str], set[str]]:
+    """Nominativi dei docenti (sessione e lezioni) e nomi degli enti di formazione
+    di una sessione, come chiavi di confronto con gli ingressi."""
+    persone: set[str] = set()
+    enti: set[str] = set()
+
+    def _docente(docente, nome_snapshot, ente_docente):
+        for nome in (nome_snapshot, getattr(docente, "nome", "")):
+            if chiave_persona(nome):
+                persone.add(chiave_persona(nome))
+        if docente is not None and docente.ente:
+            enti.add(chiave_ditta(docente.ente))
+        if ente_docente is not None:
+            enti.add(chiave_ditta(ente_docente.nome))
+
+    _docente(sessione.docente, sessione.docente_nome, sessione.docente_ente)
+    for lz in sessione.lezioni.select_related("docente", "docente__azienda", "docente_ente"):
+        _docente(lz.docente, lz.docente_nome, lz.docente_ente)
+    if sessione.corso_id and sessione.corso.ente_formativo_id:
+        enti.add(chiave_ditta(sessione.corso.ente_formativo.nome))
+    enti.discard("")
+    return persone, enti
+
+
+def accesso_del_docente(accesso: gp.Accesso, persone: set[str], enti: set[str]) -> bool:
+    if accesso.nome == "Ospite anonimizzato":
+        return False
+    if chiave_persona(accesso.nome) in persone:
+        return True
+    return bool(accesso.azienda) and chiave_ditta(accesso.azienda) in enti
+
+
+def proposte_formazione(iv: Intervento) -> list[gp.Accesso]:
+    """Ingressi del docente (stesso nominativo) o dell'ente di formazione (stessa
+    azienda) nel periodo della sessione, non ancora collegati."""
+    persone, enti = chiavi_docente(iv.oggetto)
+    if not persone and not enti:
+        return []
+    dal, al = iv.finestra()
+    righe, _ = gp.storico(dal=dal, al=al)
+    gia = set(iv.collegamenti().values_list("visita_gp_id", flat=True))
+    return [a for a in righe if a.visita_id not in gia and accesso_del_docente(a, persone, enti)]
 
 
 def ditte_gp_del_fornitore(fornitore) -> list[int]:
@@ -100,6 +224,8 @@ def ditte_gp_del_fornitore(fornitore) -> list[int]:
 
 def proposte(iv: Intervento) -> list[gp.Accesso]:
     """Ingressi della ditta delegata nel periodo dell'intervento, non ancora collegati."""
+    if iv.formazione:
+        return proposte_formazione(iv)
     fornitore = iv.fornitore
     if fornitore is None:
         return []
@@ -215,7 +341,7 @@ def collega(
         raise CollegamentoNonValido("Ingresso non trovato nel GuestPortal (forse già cancellato).")
     if accesso.nome == "Ospite anonimizzato":
         raise CollegamentoNonValido("Ingresso già anonimizzato nel GuestPortal: non si può collegare.")
-    fornitore = fornitore_da_accesso(accesso, preferito=iv.fornitore)
+    fornitore = None if iv.formazione else fornitore_da_accesso(accesso, preferito=iv.fornitore)
     dati = {
         "visita_gp_id": accesso.visita_id,
         "fornitore": fornitore,
@@ -229,8 +355,11 @@ def collega(
     }
     if iv.tipo == TIPO_TICKET:
         dati["ticket"] = iv.oggetto
-    else:
+    elif iv.tipo == TIPO_ODL:
         dati["work_order"] = iv.oggetto
+    else:
+        dati["sessione_formazione"] = iv.oggetto
+        imposta_ditta = False
     try:
         with transaction.atomic():
             link = IngressoIntervento.objects.create(**dati)
@@ -240,12 +369,63 @@ def collega(
         raise CollegamentoNonValido("Ingresso già collegato a questo intervento.") from exc
 
 
+def fornitore_del_collegamento(link: IngressoIntervento, preferito=None):
+    """Fornitore HUB riconosciuto oggi per un ingresso già collegato: rilegge la
+    visita (abbinamento della ditta GuestPortal fatto dopo il collegamento), se il
+    GuestPortal non la ha più o non risponde usa l'azienda fotografata."""
+    if link.fornitore_id:
+        return link.fornitore
+    accesso = None
+    try:
+        accesso = gp.visita(link.visita_gp_id)
+    except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+        accesso = None
+    if accesso is None or accesso.nome == "Ospite anonimizzato":
+        accesso = gp.Accesso(
+            visita_id=link.visita_gp_id, stato="", tipo="", nome=link.tecnico_nome, azienda=link.azienda,
+            referente="", motivo="", badge=link.badge, ingresso=None, uscita=None,
+        )
+    return fornitore_da_accesso(accesso, preferito=preferito)
+
+
+def ditta_dai_collegamenti(iv: Intervento, collegamenti: list[IngressoIntervento]):
+    """Per un intervento senza ditta: ``(fornitore, link)`` del primo ingresso
+    collegato la cui ditta oggi si riconosce, altrimenti None."""
+    if iv.fornitore is not None:
+        return None
+    for link in collegamenti:
+        fornitore = fornitore_del_collegamento(link)
+        if fornitore is not None:
+            return fornitore, link
+    return None
+
+
+def imposta_ditta_da_collegamento(iv: Intervento, link: IngressoIntervento, *, utente, autore=None) -> str:
+    """Imposta sull'intervento la ditta di un ingresso già collegato (abbinamento o
+    fornitore creati dopo il collegamento). Ritorna la frase per l'utente."""
+    if iv.chiuso:
+        raise CollegamentoNonValido("L'intervento è chiuso.")
+    if iv.fornitore is not None:
+        raise CollegamentoNonValido("L'intervento ha già una ditta.")
+    fornitore = fornitore_del_collegamento(link)
+    if fornitore is None:
+        raise CollegamentoNonValido("La ditta dell'ingresso non corrisponde a nessun fornitore dell'HUB.")
+    with transaction.atomic():
+        if not link.fornitore_id:
+            link.fornitore = fornitore
+            link.save(update_fields=["fornitore", "aggiornato_il"])
+        return _imposta_ditta(iv, fornitore, utente=utente, autore=autore)
+
+
 ODL_MAX_ELENCO = 300
 
 
-def interventi_aperti(request, *, testo: str = "", fornitore=None) -> list[Intervento]:
+def interventi_aperti(
+    request, *, testo: str = "", fornitore=None, accesso: gp.Accesso | None = None,
+) -> list[Intervento]:
     """Ticket MAN e OdL aperti a cui l'utente può collegare un ingresso, per il
-    collegamento partendo dall'ingresso. Prima quelli della stessa ditta."""
+    collegamento partendo dall'ingresso, più le sessioni formative in corso il
+    giorno dell'ingresso. Prima quelli della stessa ditta o con quel docente."""
     from django.db.models import Q
 
     from assets.models import WorkOrder
@@ -274,9 +454,45 @@ def interventi_aperti(request, *, testo: str = "", fornitore=None) -> list[Inter
             odl = odl.filter(filtro)
         esito.extend(Intervento(TIPO_ODL, w) for w in odl.order_by("-opened_at")[:ODL_MAX_ELENCO])
 
-    if fornitore is not None:
-        esito.sort(key=lambda iv: 0 if (iv.fornitore and iv.fornitore.pk == fornitore.pk) else 1)
+    docente_di: set[int] = set()
+    if accesso is not None and accesso.ingresso and puo_collegare_formazione(request):
+        giorno = timezone.localtime(_aware(accesso.ingresso)).date()
+        sessioni = sessioni_del_giorno(giorno, testo=testo)
+        for iv in sessioni:
+            if accesso_del_docente(accesso, *chiavi_docente(iv.oggetto)):
+                docente_di.add(iv.pk)
+        esito.extend(sessioni)
+
+    def _ordine(iv: Intervento) -> int:
+        if iv.formazione:
+            return 0 if iv.pk in docente_di else 1
+        stessa_ditta = fornitore is not None and iv.fornitore and iv.fornitore.pk == fornitore.pk
+        return 0 if stessa_ditta else 1
+
+    esito.sort(key=_ordine)
     return esito
+
+
+def sessioni_del_giorno(giorno: date, *, testo: str = "") -> list[Intervento]:
+    """Sessioni formative non annullate in corso in quel giorno."""
+    from django.db.models import Q
+
+    from anagrafica.models import TrainingSession
+
+    qs = TrainingSession.objects.filter(data_inizio__lte=giorno, data_fine__gte=giorno).exclude(
+        stato="ANNULLATA"
+    ).select_related("corso", "corso__ente_formativo", "docente", "docente__azienda", "docente_ente")
+    if testo:
+        qs = qs.filter(Q(codice_sessione__icontains=testo) | Q(corso__titolo__icontains=testo)
+                       | Q(docente_nome__icontains=testo))
+    return [Intervento(TIPO_FORMAZIONE, s) for s in qs.order_by("data_inizio", "pk")[:100]]
+
+
+def puo_collegare_formazione(request) -> bool:
+    """Chi modifica la formazione (stessa regola delle sessioni)."""
+    from anagrafica.views import _helpers
+
+    return bool(_helpers._can_edit_formazione(request))
 
 
 def puo_collegare_odl(request) -> bool:
@@ -340,7 +556,12 @@ def confronto_ore(iv: Intervento, collegamenti: list[IngressoIntervento]) -> Con
     presenza = sum(c.durata_minuti or 0 for c in collegamenti)
     aperti = sum(1 for c in collegamenti if c.ingresso and not c.uscita)
     dichiarate = None
-    if iv.tipo == TIPO_TICKET:
+    if iv.formazione:
+        # Ore in aula a registro (pausa compresa: il docente resta in azienda).
+        ore = [lz.durata_ore_lorde for lz in iv.oggetto.lezioni.all()]
+        if ore:
+            dichiarate = int(round(sum(ore) * 60))
+    elif iv.tipo == TIPO_TICKET:
         ore = [i.durata_ore for i in iv.oggetto.interventi.all()]
         ore = [o for o in ore if o is not None]
         if ore:
@@ -355,13 +576,18 @@ def interventi_per_visite(visita_ids: list[int]) -> dict[int, list[tuple[str, st
     esito: dict[int, list[tuple[str, str]]] = {}
     if not visita_ids:
         return esito
-    righe = IngressoIntervento.objects.filter(visita_gp_id__in=visita_ids).select_related("ticket", "work_order")
+    righe = IngressoIntervento.objects.filter(visita_gp_id__in=visita_ids).select_related(
+        "ticket", "work_order", "sessione_formazione",
+    )
     for link in righe:
         if link.ticket_id:
             voce = (link.ticket.numero_ticket or f"Ticket #{link.ticket_id}",
                     reverse("tickets:gestione_detail", args=[link.ticket_id]))
-        else:
+        elif link.work_order_id:
             voce = (f"OdL #{link.work_order.display_number}", reverse("assets:wo_view", args=[link.work_order_id]))
+        else:
+            voce = (f"Formazione {link.sessione_formazione.codice_sessione}",
+                    reverse("anagrafica:formazione_sessione_detail", args=[link.sessione_formazione_id]))
         esito.setdefault(link.visita_gp_id, []).append(voce)
     return esito
 

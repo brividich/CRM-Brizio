@@ -60,7 +60,9 @@ GUIDA = {
                       "della gestione) e in ogni ordine di lavoro aperto."),
                 ("p", "Se il ticket o l'OdL non ha ancora una ditta e quella dell'ingresso si riconosce, collegando la si "
                       "imposta: il ticket diventa «Delegato a fornitore» (con un commento interno), l'OdL passa a esecuzione "
-                      "«Esterna» con quella ditta (scritto nel registro dell'OdL). Una ditta già impostata non viene cambiata."),
+                      "«Esterna» con quella ditta (scritto nel registro dell'OdL). Una ditta già impostata non viene cambiata. "
+                      "Se la ditta non era ancora tra i fornitori dell'HUB il riquadro lo dice: crea il fornitore (o abbina la ditta in «Ditte GuestPortal»), "
+                      "riapri il ticket/OdL e clicca «Imposta come ditta» nel riquadro, senza ricollegare l'ingresso."),
                 ("passi", [
                     "Imposta la ditta: «Delegato a fornitore» nel ticket, il fornitore nell'OdL.",
                     "Il riquadro propone gli ingressi della ditta dal giorno prima dell'apertura fino alla chiusura (al massimo 90 giorni): sotto «Ingressi della ditta da collegare» clicca «Collega» su quelli giusti.",
@@ -75,6 +77,21 @@ GUIDA = {
                 ("nota", "Al collegamento l'HUB salva giorno, entrata, uscita e nome del tecnico: restano nel ticket/OdL come prova "
                          "dell'intervento anche dopo la pulizia GDPR del GuestPortal. Il riquadro lo usano i gestori del ticket e chi "
                          "esegue le manutenzioni; un intervento chiuso non si modifica più."),
+            ],
+        },
+        {
+            "id": "presenze-docenti",
+            "titolo": "Collegare l'ingresso del docente esterno alla sessione formativa",
+            "blocchi": [
+                ("p", "Lo stesso collegamento vale per la formazione: nel dettaglio di un'edizione (Anagrafica → Formazione → "
+                      "sessione) il riquadro «Presenze in azienda del docente» propone gli ingressi con il nome del docente "
+                      "(anche in ordine inverso) o con l'azienda dell'ente di formazione, dal giorno prima dell'inizio alla fine. "
+                      "Da Accessi esterni, «Collega…» elenca anche le sessioni in corso il giorno dell'ingresso, prima quelle del docente."),
+                ("def", [
+                    ("Anche dopo", "si collega anche a edizione completata o approvata; non a un'edizione annullata."),
+                    ("Ore in aula a registro", "somma delle giornate dell'edizione con la pausa: se superano di oltre 15 minuti la presenza in azienda compare l'avviso giallo."),
+                    ("Chi lo usa", "chi può modificare la formazione; nessuna ditta viene impostata."),
+                ]),
             ],
         },
     ],

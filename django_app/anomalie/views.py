@@ -901,6 +901,36 @@ CAMPI_CONTROLLO = (
     ("copia_testo", "«↓ Copia nella descrizione»", "Porta le frasi delle misure nel testo dell'anomalia."),
 )
 CAMPI_CONTROLLO_KEY = "campi_controllo"
+# «Chi fa cosa»: gruppi di controllori del modulo (i ruoli operativi sono generici).
+GRUPPI_CONTROLLORI_KEY = "gruppi_controllori"
+GRUPPI_CONTROLLORI_DEFAULT = (("cmm", "Controllo CMM"), ("visivo", "Controllo visivo"))
+
+
+def _codice_gruppo(nome: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", naming.chiave_testo(nome).lower()).strip("-")[:40]
+
+
+def gruppi_controllori() -> list[dict]:
+    """Gruppi di controllori ``[{codice, nome, persone}]`` (di serie CMM e visivo, vuoti)."""
+    salvati = (_read_anomalie_config() or {}).get(GRUPPI_CONTROLLORI_KEY)
+    if not isinstance(salvati, list):
+        return [{"codice": c, "nome": n, "persone": []} for c, n in GRUPPI_CONTROLLORI_DEFAULT]
+    return _pulisci_gruppi(salvati)
+
+
+def _pulisci_gruppi(raw) -> list[dict]:
+    out, visti = [], set()
+    for g in (raw or [])[:20]:
+        if not isinstance(g, dict):
+            continue
+        nome = " ".join(str(g.get("nome") or "").split())[:60]
+        codice = _codice_gruppo(g.get("codice") or nome)
+        if not nome or not codice or codice in visti:
+            continue
+        visti.add(codice)
+        persone = [" ".join(str(x).split())[:120] for x in (g.get("persone") or []) if str(x).strip()][:100]
+        out.append({"codice": codice, "nome": nome, "persone": persone})
+    return out
 
 
 # Parti a livello di blocco: la condizione sul tipo di difetto (che è dell'anomalia) non si applica.
@@ -926,6 +956,7 @@ def _regola_campo(raw) -> dict:
         "ruoli": ruoli[:50],
         "fasi": pulisci(raw.get("fasi"), 60),
         "tipi": pulisci(raw.get("tipi"), 40),
+        "gruppi": [_codice_gruppo(x) for x in pulisci(raw.get("gruppi"), 40)],
     }
 
 
@@ -948,10 +979,13 @@ def campi_controllo_per(request) -> dict[str, dict]:
         mie.add(_chiave_persona(email))
     mie.discard("")
     out = {}
+    persone_gruppo = {g["codice"]: g["persone"] for g in gruppi_controllori()}
     for chiave, regola in campi_controllo().items():
         visibile = regola["modo"] != "mai"
-        if regola["modo"] == "se" and (regola["persone"] or regola["ruoli"]):
+        if regola["modo"] == "se" and (regola["persone"] or regola["ruoli"] or regola["gruppi"]):
             ammessi = {_chiave_persona(n) for n in regola["persone"]}
+            for codice in regola["gruppi"]:
+                ammessi |= {_chiave_persona(n) for n in persone_gruppo.get(codice, [])}
             if regola["ruoli"]:
                 try:
                     ammessi |= {_chiave_persona(n) for n in _names_for_ruoli_operativi(regola["ruoli"])}
@@ -5077,6 +5111,16 @@ def anomalie_configurazione_page(request):
         from .dettaglio_controllo import catalogo_per_pagina
 
         config_tab_context["tipi_difetto_cfg"] = catalogo_per_pagina()["tipi_difetto"]
+        config_tab_context["gruppi_controllori"] = gruppi_controllori()
+        # Anteprima «Vedi come»: chi ricopre ciascun ruolo operativo.
+        membri = {}
+        for r in get_active_roles():
+            try:
+                membri[r.id] = _names_for_ruoli_operativi([r.id])
+            except Exception:
+                membri[r.id] = []
+        config_tab_context["ruoli_membri"] = membri
+        config_tab_context["gruppi_controllori_json"] = json.dumps(gruppi_controllori(), ensure_ascii=False)
 
     context = {
         "page_title": "Gestione Anomalie",
@@ -5314,6 +5358,8 @@ def api_anomalie_config_campi_controllo(request):
     nuovi = {k: _regola_campo(richiesti[k]) if k in richiesti else attuali[k] for k in attuali}
     existing = _read_anomalie_config()
     existing[CAMPI_CONTROLLO_KEY] = nuovi
+    if isinstance(payload.get("gruppi"), list):
+        existing[GRUPPI_CONTROLLORI_KEY] = _pulisci_gruppi(payload["gruppi"])
     _write_anomalie_config(existing)
     log_action(request, "anomalie_config_campi_controllo", "anomalie", {
         "regole": {k: v["modo"] for k, v in nuovi.items()},

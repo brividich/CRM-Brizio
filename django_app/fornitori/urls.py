@@ -43,4 +43,5 @@ urlpatterns = [
     path("presenze/scollega/<int:link_id>/", views.presenze_scollega, name="presenze_scollega"),
     path("presenze/<str:tipo>/<int:pk>/", views.presenze_intervento, name="presenze_intervento"),
     path("presenze/<str:tipo>/<int:pk>/collega/", views.presenze_collega, name="presenze_collega"),
+    path("presenze/<str:tipo>/<int:pk>/ditta/", views.presenze_imposta_ditta, name="presenze_imposta_ditta"),
 ]

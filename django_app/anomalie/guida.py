@@ -182,7 +182,8 @@ SEZIONI: list[dict] = [
                 "clicca nel riquadro «Dal report ZEISS» e premi Ctrl+V (o «scegli l'immagine»). Il portale legge le righe e "
                 "le propone con l'esito: quelle fuori tolleranza sono già spuntate, «da verificare» segnala un valore letto "
                 "male. «Aggiungi N misure» le mette fra le misure, dove restano modificabili. L'immagine non viene allegata. "
-                "Per una lettura migliore ingrandisci il PDF (almeno 125%) prima di catturare.",
+                "Per una lettura migliore ingrandisci il PDF (almeno 125%) prima di catturare. Sotto le proposte, «Testo letto "
+                "dall'immagine» mostra cosa ha letto il portale: se mancano righe, ricattura più grande o a pezzi.",
                 "«+ Riferimento» aggiunge disegno/revisione, sezione/vista e fase del ciclo/F.OP. Con un caso scelto "
                 "compare anche il «Tipo di difetto» proposto dal portale (cambialo se non è giusto).",
                 "«↓ Copia nella descrizione» porta le frasi delle misure nel testo; se lasci vuota la descrizione, al "
@@ -479,9 +480,14 @@ SEZIONI: list[dict] = [
                 ("Campi del blocco del controllore", "in cima alla scheda Configurazione: per ogni parte nuova di "
                  "«Apertura segnalazione» («Dove sono i pezzi?», simboli, «Che cosa hai trovato?» e i tre casi, riquadro "
                  "«Dal report ZEISS», riferimento, tipo di difetto, «Copia nella descrizione») scegli «Visibile: Sempre», "
-                 "«Mai» o «Solo se…». Con «Solo se…» compili una o più condizioni: persone, ruoli operativi, parole "
+                 "«Mai» o «Solo se…». In cima, «Chi fa cosa: gruppi di controllori» (di serie «Controllo CMM» e «Controllo "
+                 "visivo», se ne aggiungono altri) mette ogni controllore nel suo gruppo. Con «Solo se…» compili una o più "
+                 "condizioni: gruppi di controllori, persone, ruoli operativi, parole "
                  "contenute nella fase del controllo (es. CMM), tipo di difetto dell'anomalia (scelto o proposto). Devono "
-                 "valere tutte quelle compilate; dentro ognuna basta una voce. «Salva campi» vale subito: il controllore "
+                 "valere tutte quelle compilate; dentro ognuna basta una voce. A destra l'«Anteprima dal vivo» mostra la scheda "
+                 "come la vedrebbe un controllore («Vedi come»: persona, fase del controllo, tipo di difetto) mentre cambi "
+                 "le regole, anche prima di salvarle; passando su una regola si evidenzia la sua parte e sotto c'è "
+                 "l'elenco delle parti nascoste. «Salva campi» vale subito: il controllore "
                  "ricarica la pagina. Nascondere una parte non cancella i dati già inseriti."),
                 ("Qualità", "catalogo dei tipi difetto e chi può chiudere le non conformità."),
                 ("Permessi", "ruoli operativi (sola lettura, dall'Anagrafica) e regole di accesso per ruolo e per "

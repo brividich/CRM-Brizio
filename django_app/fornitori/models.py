@@ -6,7 +6,7 @@ solo le tabelle del collegamento con il GuestPortal (applicazione separata):
 - ``DittaGuestPortal``: abbinamento una tantum tra un fornitore dell'anagrafica
   del GuestPortal (``Suppliers.SupplierID``) e il fornitore dell'HUB;
 - ``IngressoIntervento``: un ingresso (visita del GuestPortal) collegato a un
-  ticket o a un ordine di lavoro. Al collegamento si salvano giorno, entrata,
+  ticket, a un ordine di lavoro o a una sessione formativa (docente esterno). Al collegamento si salvano giorno, entrata,
   uscita e nominativo del tecnico: restano come prova dell'intervento anche
   dopo la pulizia GDPR del GuestPortal, con la conservazione del ticket/OdL.
 """
@@ -52,6 +52,10 @@ class IngressoIntervento(models.Model):
     work_order = models.ForeignKey(
         "assets.WorkOrder", null=True, blank=True, on_delete=models.CASCADE, related_name="ingressi_esterni",
     )
+    sessione_formazione = models.ForeignKey(
+        "anagrafica.TrainingSession", null=True, blank=True, on_delete=models.CASCADE,
+        related_name="ingressi_esterni", help_text="Sessione formativa: ingresso del docente esterno",
+    )
     fornitore = models.ForeignKey(
         "anagrafica.Fornitore", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
@@ -74,9 +78,10 @@ class IngressoIntervento(models.Model):
         verbose_name_plural = "Ingressi esterni collegati"
         constraints = [
             models.CheckConstraint(
-                condition=(Q(ticket__isnull=False, work_order__isnull=True)
-                           | Q(ticket__isnull=True, work_order__isnull=False)),
-                name="fornitori_ingresso_un_solo_intervento",
+                condition=(Q(ticket__isnull=False, work_order__isnull=True, sessione_formazione__isnull=True)
+                           | Q(ticket__isnull=True, work_order__isnull=False, sessione_formazione__isnull=True)
+                           | Q(ticket__isnull=True, work_order__isnull=True, sessione_formazione__isnull=False)),
+                name="fornitori_ingresso_un_solo_intervento_v2",
             ),
             models.UniqueConstraint(
                 fields=["visita_gp_id", "ticket"], condition=Q(ticket__isnull=False),
@@ -86,10 +91,14 @@ class IngressoIntervento(models.Model):
                 fields=["visita_gp_id", "work_order"], condition=Q(work_order__isnull=False),
                 name="fornitori_ingresso_unico_per_odl",
             ),
+            models.UniqueConstraint(
+                fields=["visita_gp_id", "sessione_formazione"], condition=Q(sessione_formazione__isnull=False),
+                name="fornitori_ingresso_unico_per_sessione",
+            ),
         ]
 
     def __str__(self) -> str:
-        return f"Visita {self.visita_gp_id} → {self.ticket or self.work_order}"
+        return f"Visita {self.visita_gp_id} → {self.ticket or self.work_order or self.sessione_formazione}"
 
     @property
     def durata_minuti(self) -> int | None:

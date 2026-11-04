@@ -42,6 +42,21 @@ class RegoleTests(TestCase):
         self.assertFalse(out2["report_zeiss"]["visibile"])
         self.assertTrue(out2["caso_misura"]["visibile"])
 
+    def test_gruppi_di_controllori(self):
+        regole = {"report_zeiss": {"modo": "se", "gruppi": ["cmm"]}}
+        gruppi = [{"codice": "cmm", "nome": "Controllo CMM", "persone": ["Paolo Rossi"]},
+                  {"codice": "visivo", "nome": "Controllo visivo", "persone": ["Anna Verdi"]}]
+        r = RequestFactory().get("/")
+        r.user = User(username="x")
+        for nomi, atteso in (({"ROSSI PAOLO"}, True), ({"ANNA VERDI"}, False)):
+            with patch.object(av, "_read_anomalie_config",
+                              return_value={"campi_controllo": regole, "gruppi_controllori": gruppi}),                     patch.object(av, "_request_name_norms", return_value=nomi),                     patch.object(av, "_current_user_identity", return_value={"email_norm": ""}):
+                self.assertIs(av.campi_controllo_per(r)["report_zeiss"]["visibile"], atteso)
+
+    def test_gruppi_di_serie(self):
+        with patch.object(av, "_read_anomalie_config", return_value={}):
+            self.assertEqual([g["codice"] for g in av.gruppi_controllori()], ["cmm", "visivo"])
+
     def test_fasi_e_tipi_passano_alla_pagina(self):
         out = self._per({"report_zeiss": {"modo": "se", "fasi": ["CMM"], "tipi": ["fuori-tolleranza"]},
                          "dove_pezzi": {"modo": "se", "tipi": ["bave-spigoli"]}})
@@ -63,13 +78,16 @@ class EndpointTests(TestCase):
                 "simboli": {"modo": "mai"},
                 "report_zeiss": {"modo": "se", "fasi": [" CMM "], "ruoli": ["3", "x"], "persone": ["", "Paolo Rossi"]},
                 "inventato": {"modo": "mai"},
-            }}), content_type="application/json")
+            }, "gruppi": [{"nome": "Controllo CMM", "persone": ["Paolo Rossi", ""]}, {"nome": "  "}]}),
+                content_type="application/json")
         self.assertEqual(r.status_code, 200, r.content)
         regole = self.salvato["campi_controllo"]
         self.assertNotIn("inventato", regole)
         self.assertEqual(regole["simboli"]["modo"], "mai")
         self.assertEqual(regole["report_zeiss"], {"modo": "se", "persone": ["Paolo Rossi"], "ruoli": [3],
-                                                  "fasi": ["CMM"], "tipi": []})
+                                                  "fasi": ["CMM"], "tipi": [], "gruppi": []})
+        self.assertEqual(self.salvato["gruppi_controllori"],
+                         [{"codice": "controllo-cmm", "nome": "Controllo CMM", "persone": ["Paolo Rossi"]}])
         self.assertEqual(regole["caso"]["modo"], "sempre")
 
     def test_pagina_configurazione_mostra_il_riquadro(self):
@@ -77,3 +95,6 @@ class EndpointTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "Campi del blocco del controllore")
         self.assertContains(r, 'data-campo="report_zeiss"')
+        self.assertContains(r, "Anteprima dal vivo")
+        self.assertContains(r, 'data-parte="report_zeiss"')
+        self.assertContains(r, 'id="cc-ruoli-membri"')
