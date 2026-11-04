@@ -1642,14 +1642,14 @@ def api_global_search(request):
             | Q(mansione__icontains=q)
             | Q(reparto__icontains=q)
         ).order_by("cognome", "nome")[:5]
-        # Pallino «In azienda»: fotografia condivisa di presenti (max una query a Solari al minuto).
+        # Pallino «In azienda»: solo la fotografia già in cache, la ricerca non aspetta mai Solari.
         # None = Solari non configurato/non risponde o modulo non visibile: nessun pallino.
         presenti_ids = None
         if dips and _global_search_module_allowed(request, "/presenti/"):
             try:
                 from presenti.services import ids_presenti
 
-                presenti_ids = ids_presenti()
+                presenti_ids = ids_presenti(attendi=False)
             except Exception:
                 presenti_ids = None
         for d in dips:

@@ -11,6 +11,7 @@ utenti collegati.
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import date
 
 from django.core.cache import cache
@@ -134,9 +135,41 @@ def stato(*, forza: bool = False) -> dict:
     return valore
 
 
-def ids_presenti() -> set[int] | None:
-    """Legacy id delle persone in azienda; ``None`` se lo stato non è disponibile."""
-    s = stato()
+_aggiornamento_in_corso = threading.Lock()
+
+
+def _aggiorna_in_background() -> None:
+    """Ricalcola lo stato in un thread: chi chiama non aspetta Solari (fino a 10 s se non risponde)."""
+    if not _aggiornamento_in_corso.acquire(blocking=False):
+        return
+
+    def _lavoro():
+        try:
+            stato(forza=True)
+        except Exception:
+            logger.exception("Aggiornamento presenze in background fallito")
+        finally:
+            from django.db import connections
+
+            connections.close_all()
+            _aggiornamento_in_corso.release()
+
+    threading.Thread(target=_lavoro, name="presenti-aggiorna", daemon=True).start()
+
+
+def ids_presenti(*, attendi: bool = True) -> set[int] | None:
+    """Legacy id delle persone in azienda; ``None`` se lo stato non è disponibile.
+
+    ``attendi=False`` (ricerca Ctrl+K): usa solo la fotografia in cache; se è scaduta la
+    ricalcola in background e intanto restituisce ``None`` (nessun pallino, ricerca veloce).
+    """
+    if attendi:
+        s = stato()
+    else:
+        s = cache.get(_CHIAVE)
+        if s is None:
+            _aggiorna_in_background()
+            return None
     if s["errore"]:
         return None
     return {p["legacy_id"] for p in s["presenti"] if p.get("legacy_id")}

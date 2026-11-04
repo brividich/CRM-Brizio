@@ -57,6 +57,10 @@
 
   var timer = null, seq = 0, sel = -1, nodes = [];
   var lastPages = [], lastData = null, lastDocs = null;
+  // Risposte già ricevute in questa apertura: tornando indietro con Backspace o riscrivendo
+  // la stessa parola il risultato è immediato, senza richiesta al server.
+  var apiCache = {}, docsCache = {}, apiCtrl = null, docsCtrl = null;
+  function abortable() { return typeof AbortController === "function" ? new AbortController() : null; }
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -210,26 +214,37 @@
   function search(q) {
     if (!API_URL || q.length < 2) { lastData = { results: [] }; render(q); return; }
     var my = ++seq;
-    fetch(API_URL + "?q=" + encodeURIComponent(q), { headers: { "X-Requested-With": "XMLHttpRequest" } })
+    searchDocs(q, my);
+    if (apiCache[q]) { lastData = apiCache[q]; render(q); return; }
+    if (apiCtrl) apiCtrl.abort();
+    apiCtrl = abortable();
+    fetch(API_URL + "?q=" + encodeURIComponent(q), { headers: { "X-Requested-With": "XMLHttpRequest" }, signal: apiCtrl ? apiCtrl.signal : undefined })
       .then(function (r) { return r.ok ? r.json() : { results: [] }; })
       .then(function (data) {
+        apiCache[q] = data || { results: [] };
         if (my !== seq || input.value.trim() !== q) return;
-        lastData = data || { results: [] };
+        lastData = apiCache[q];
         var keep = sel >= 0 && nodes[sel] ? nodes[sel].getAttribute("href") : null;
         render(q);
         if (keep) nodes.forEach(function (n, i) { if (n.getAttribute("href") === keep) setSelected(i); });
       })
-      .catch(function () { if (my === seq) { lastData = { results: [] }; render(q); } });
-    searchDocs(q, my);
+      .catch(function (err) {
+        if (err && err.name === "AbortError") return;
+        if (my === seq) { lastData = { results: [] }; render(q); }
+      });
   }
 
   function searchDocs(q, my) {
     if (!DOCS_URL || q.length < 3) { lastDocs = null; return; }
-    fetch(DOCS_URL + "?q=" + encodeURIComponent(q), { headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" } })
+    if (q in docsCache) { lastDocs = docsCache[q]; return; }
+    if (docsCtrl) docsCtrl.abort();
+    docsCtrl = abortable();
+    fetch(DOCS_URL + "?q=" + encodeURIComponent(q), { headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" }, signal: docsCtrl ? docsCtrl.signal : undefined })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
+        docsCache[q] = data && data.results ? data : null;
         if (my !== seq || input.value.trim() !== q) return;
-        lastDocs = data && data.results ? data : null;
+        lastDocs = docsCache[q];
         var keep = sel >= 0 && nodes[sel] ? nodes[sel].getAttribute("href") : null;
         render(q);
         if (keep) nodes.forEach(function (n, i) { if (n.getAttribute("href") === keep) setSelected(i); });
@@ -253,7 +268,7 @@
     lastFocus = document.activeElement;
     overlay.classList.add("gs-open");
     input.value = "";
-    seq++; lastPages = []; lastData = null; lastDocs = null;
+    seq++; lastPages = []; lastData = null; lastDocs = null; apiCache = {}; docsCache = {};
     render("");
     input.focus();
   }
@@ -273,10 +288,12 @@
     seq++;
     if (!q) { render(""); return; }
     lastPages = matchPages(q);
-    lastData = null;
-    lastDocs = null;
+    // Come Spotlight: i risultati della parola precedente restano a video finché arrivano
+    // i nuovi (niente lampeggio «Ricerca in corso…» a ogni lettera); già in memoria = subito.
+    if (apiCache[q]) { search(q); return; }
+    if (q.length < 3) lastDocs = null;
     render(q);
-    timer = setTimeout(function () { search(q); }, 200);
+    timer = setTimeout(function () { search(q); }, 120);
   });
 
   input.addEventListener("keydown", function (e) {
