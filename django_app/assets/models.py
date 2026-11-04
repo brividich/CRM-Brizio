@@ -2709,6 +2709,22 @@ class WorkOrder(models.Model):
         blank=True,
         related_name="asset_workorders",
     )
+    # Chi esegue: personale interno (squadra manutenzione) o ditta esterna.
+    # Vuoto = intervento registrato prima della scelta esplicita: si deduce
+    # dalla ditta (vedi ``effective_execution_mode``).
+    EXECUTION_INTERNAL = "INTERNAL"
+    EXECUTION_EXTERNAL = "EXTERNAL"
+    EXECUTION_MODE_CHOICES = [
+        (EXECUTION_INTERNAL, "Interna"),
+        (EXECUTION_EXTERNAL, "Esterna (ditta terza)"),
+    ]
+    execution_mode = models.CharField(
+        max_length=20,
+        choices=EXECUTION_MODE_CHOICES,
+        blank=True,
+        default="",
+        help_text="Interna (squadra manutenzione) o esterna (ditta terza).",
+    )
     maintenance_rule = models.ForeignKey(
         "MaintenanceRule",
         on_delete=models.SET_NULL,
@@ -3083,6 +3099,17 @@ class WorkOrder(models.Model):
         cls.objects.filter(pk__in=[wo.pk for wo in workorders]).update(reference_batch=reference_batch)
         for wo in workorders:
             wo.reference_batch = reference_batch
+
+    @property
+    def effective_execution_mode(self) -> str:
+        """Modalita' dichiarata, oppure dedotta dalla ditta per gli interventi storici."""
+        if self.execution_mode:
+            return self.execution_mode
+        return self.EXECUTION_EXTERNAL if self.supplier_id else self.EXECUTION_INTERNAL
+
+    @property
+    def effective_execution_label(self) -> str:
+        return dict(self.EXECUTION_MODE_CHOICES).get(self.effective_execution_mode, "")
 
     @property
     def display_number(self) -> str:

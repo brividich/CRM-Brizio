@@ -789,6 +789,25 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
                 messages.error(request, "Seleziona un file o inserisci un URL.")
             return config_redirect
 
+        if action == "save_squadra_manutenzione":
+            from ..services import squadra_manutenzione as squadra
+
+            gruppo = (request.POST.get("squadra_gruppo") or "").strip().lower()
+            assegnatario = (request.POST.get("squadra_assegnatario") or "").strip()
+            codici_validi = {g.code for g in squadra.ruoli_disponibili()}
+            if gruppo and gruppo not in codici_validi:
+                messages.error(request, "Ruolo non valido.")
+                return config_redirect
+            squadra.salva_impostazioni(gruppo=gruppo, assegnatario=assegnatario)
+            log_action(
+                request,
+                "save_squadra_manutenzione",
+                "assets",
+                {"gruppo": gruppo, "assegnatario": assegnatario},
+            )
+            messages.success(request, "Squadra manutenzione salvata.")
+            return config_redirect
+
         if action == "remove_assets_logo":
             SiteConfig.set("assets_logo_image", "", "Logo personalizzato modulo Inventario Assets")
             log_action(request, "remove_assets_logo", "assets", {})
@@ -902,6 +921,7 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
     # --- Log ---
     audit_entries = AuditLog.objects.filter(modulo="assets").order_by("-created_at")[:100]
     studio_context = _inventory_studio_context(request) if tab == "studio" else {}
+    squadra_context = _squadra_manutenzione_context() if tab == "config" else {}
     failure_code_context = _failure_code_admin_context(request) if tab == "guasti" else {}
 
     return render(
@@ -915,6 +935,7 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             ),
             "page_title": "Impostazioni Assets",
             "tab": tab,
+            **squadra_context,
             "reparti_righe": reparti_righe,
             "reparti_senza": reparti_senza,
             "reparti_unita": reparti_unita,
@@ -973,3 +994,22 @@ def gestione_admin(request: HttpRequest) -> HttpResponse:
             **_assets_shell_context(request),
         },
     )
+
+
+def _squadra_manutenzione_context() -> dict:
+    """Riquadro «Squadra manutenzione»: ruolo dei manutentori e predefinito degli interventi interni."""
+    from django.contrib.auth import get_user_model
+
+    from ..services import squadra_manutenzione as squadra
+
+    valori = squadra.impostazioni()
+    membri = squadra.membri_squadra()
+    candidati = membri if membri is not None else get_user_model().objects.filter(is_active=True)
+    return {
+        "squadra_gruppo": valori["gruppo"],
+        "squadra_assegnatario": valori["assegnatario"],
+        "squadra_ruoli": squadra.ruoli_disponibili(),
+        "squadra_membri_count": membri.count() if membri is not None else None,
+        "squadra_candidati": list(candidati.order_by("first_name", "last_name", "username")[:500]),
+        "squadra_predefinito": squadra.assegnatario_predefinito(),
+    }

@@ -146,6 +146,7 @@ from .workorders import (  # noqa: F401
     workorder_close,
     workorder_create,
     workorder_detail,
+    workorder_edit,
     workorder_list,
     workorder_set_state,
 )
