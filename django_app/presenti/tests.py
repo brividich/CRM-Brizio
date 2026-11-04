@@ -112,6 +112,17 @@ class ServiziTests(TestCase):
             with self.assertRaises(solari.SolariNonConfigurato):
                 solari.configurazione()
 
+    def test_connessione_driver_18(self):
+        env = {"SOLARI_DB_SERVER": r"srv\SOLARI", "SOLARI_DB_USER": "u", "SOLARI_DB_PASSWORD": "p",
+               "SOLARI_DB_DRIVER": "{ODBC Driver 18 for SQL Server}", "SOLARI_DB_ENCRYPT": "1", "SOLARI_DB_TRUST_CERT": "1"}
+        with patch.dict("os.environ", env):
+            cs = solari.configurazione().connection_string()
+        self.assertIn("Encrypt=yes;", cs)
+        self.assertIn("TrustServerCertificate=yes;", cs)
+        with patch.dict("os.environ", {**env, "SOLARI_DB_ENCRYPT": "", "SOLARI_DB_TRUST_CERT": ""}):
+            cs = solari.configurazione().connection_string()
+        self.assertNotIn("Encrypt", cs)
+
     def test_pallino(self):
         with patch.object(services, "ids_presenti", return_value={501}):
             html = Template("{% load presenti_tags %}{% pallino_presenza 501 %}|{% pallino_presenza 999 True %}"

@@ -7,7 +7,7 @@ con l'elemento ``SOLARI_TURNO_NORMALE_ELEM`` (34013 sul gestionale Novicrom).
 
 Connessione da ``.env``: ``SOLARI_DB_SERVER``, ``SOLARI_DB_USER``,
 ``SOLARI_DB_PASSWORD``, ``SOLARI_DB_DRIVER``, ``SOLARI_DB_ANAGRAFICO``,
-``SOLARI_DB_TIMBRATURE``. Usare un login con il solo ``db_datareader``: il portale
+``SOLARI_DB_TIMBRATURE``, ``SOLARI_DB_ENCRYPT``, ``SOLARI_DB_TRUST_CERT``. Usare un login con il solo ``db_datareader``: il portale
 non scrive mai su Solari. Il server è SQL Server 2016: niente ``STRING_AGG``.
 """
 from __future__ import annotations
@@ -33,13 +33,22 @@ class Configurazione:
     db_anagrafico: str
     db_timbrature: str
     turno_elem: int
+    encrypt: str = ""
+    trust_cert: str = ""
 
     def connection_string(self) -> str:
         if self.user:
             auth = f"UID={self.user};PWD={self.password};"
         else:
             auth = "Trusted_Connection=yes;"
-        return f"DRIVER={self.driver};SERVER={self.server};{auth}"
+        # ODBC Driver 18 cifra per default e rifiuta i certificati autofirmati dei server
+        # SQL più vecchi: SOLARI_DB_ENCRYPT / SOLARI_DB_TRUST_CERT lo regolano.
+        extra = ""
+        if self.encrypt:
+            extra += f"Encrypt={self.encrypt};"
+        if self.trust_cert:
+            extra += f"TrustServerCertificate={self.trust_cert};"
+        return f"DRIVER={self.driver};SERVER={self.server};{auth}{extra}"
 
 
 def configurazione() -> Configurazione:
@@ -66,7 +75,19 @@ def configurazione() -> Configurazione:
         db_anagrafico=db_ana,
         db_timbrature=db_tim,
         turno_elem=turno,
+        encrypt=_si_no(get_first_env_value("SOLARI_DB_ENCRYPT")),
+        trust_cert=_si_no(get_first_env_value("SOLARI_DB_TRUST_CERT")),
     )
+
+
+def _si_no(valore: str) -> str:
+    """'1/true/yes/si' -> 'yes', '0/false/no' -> 'no', vuoto -> '' (default del driver)."""
+    v = (valore or "").strip().lower()
+    if v in {"1", "true", "yes", "si", "sì", "on"}:
+        return "yes"
+    if v in {"0", "false", "no", "off"}:
+        return "no"
+    return ""
 
 
 def configurato() -> bool:

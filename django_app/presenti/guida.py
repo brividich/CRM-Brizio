@@ -99,7 +99,8 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Il collegamento al database Solari sta nel file .env del server, chiavi SOLARI_DB_SERVER, "
                   "SOLARI_DB_USER, SOLARI_DB_PASSWORD (login con la sola lettura), SOLARI_DB_DRIVER, "
-                  "SOLARI_DB_ANAGRAFICO, SOLARI_DB_TIMBRATURE e SOLARI_TURNO_NORMALE_ELEM. Dopo la modifica va "
+                  "SOLARI_DB_ANAGRAFICO, SOLARI_DB_TIMBRATURE, SOLARI_TURNO_NORMALE_ELEM e, con ODBC Driver 18, "
+                  "SOLARI_DB_ENCRYPT=1 e SOLARI_DB_TRUST_CERT=1 (il server Solari ha un certificato autofirmato). Dopo la modifica va "
                   "riavviato il portale."),
             ("p", "In «Impostazioni» si attiva la pubblicazione del PDF su SharePoint (ogni 30 minuti, stesso file "
                   "CN-PRESENZE.pdf della raccolta «CN Documentazione») e l'avviso mattutino delle uscite non timbrate. "
