@@ -1,0 +1,182 @@
+{% extends "assets/base_shell.html" %}
+
+{% block title %}Importa planimetrie{% endblock %}
+
+{% block assets_shell_head %}
+<style>
+.pim-page{display:grid;gap:14px}
+.pim-card{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:14px 16px}
+.pim-card h2{margin:0 0 4px;font-size:var(--fs-lg);color:var(--text)}
+.pim-nota{color:var(--text-mid);font-size:var(--fs-sm);margin:0 0 10px}
+.pim-passi{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:0 0 4px;padding:0;list-style:none}
+.pim-passi li{border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-size:var(--fs-sm);color:var(--text-mid)}
+.pim-passi b{display:block;color:var(--text);margin-bottom:2px}
+.pim-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;align-items:end}
+.pim-form label{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-sm);color:var(--text-mid)}
+.pim-avanzamento{display:grid;gap:6px;margin-top:12px}
+.pim-av{display:flex;gap:10px;align-items:center;font-size:var(--fs-sm);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:6px 10px}
+.pim-av .stato{margin-left:auto;color:var(--text-mid);white-space:nowrap}
+.pim-av.ok .stato{color:#15803d}
+.pim-av.errore .stato{color:#b91c1c}
+.pim-tabella{width:100%;border-collapse:collapse;font-size:var(--fs-sm)}
+.pim-tabella th,.pim-tabella td{padding:8px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;color:var(--text)}
+.pim-tabella th{color:var(--text-mid);font-weight:700}
+.pim-sub{color:var(--text-mid);font-size:11px}
+.pim-chip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;border:1px solid var(--border);font-size:12px;white-space:nowrap}
+.pim-chip i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.pim-chip.verde{border-color:#86efac;color:#15803d}.pim-chip.verde i{background:#16a34a}
+.pim-chip.giallo{border-color:#fcd34d;color:#92400e}.pim-chip.giallo i{background:#d97706}
+.pim-chip.rosso{border-color:#fca5a5;color:#b91c1c}.pim-chip.rosso i{background:#dc2626}
+.pim-azioni{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pim-azioni form{margin:0}
+body.theme-dark .pim-chip.verde{color:#86efac}
+body.theme-dark .pim-chip.giallo{color:#fcd34d}
+body.theme-dark .pim-chip.rosso,body.theme-dark .pim-av.errore .stato{color:#fca5a5}
+body.theme-dark .pim-av.ok .stato{color:#86efac}
+@media (max-width:760px){
+  .pim-tabella thead{display:none}
+  .pim-tabella tr{display:block;border-bottom:1px solid var(--border);padding:6px 0}
+  .pim-tabella td{display:block;border:0;padding:3px 0}
+}
+</style>
+{% endblock %}
+
+{% block assets_shell_title %}Importa planimetrie{% endblock %}
+{% block assets_shell_subtitle %}
+<p>Carica insieme i PDF delle piante di servizio (condizionatori, carroponti, telecamere...): ognuno diventa una pianta, allineata da sola sulla pianta base. Poi validi gli asset proposti, pianta per pianta.</p>
+{% endblock %}
+{% block assets_shell_toolbar %}
+<a class="btn btn-secondary" href="{% url 'assets:plant_layout_editor' %}">Torna all'editor</a>
+<a class="btn btn-secondary" href="{% url 'assets:guida' %}#planimetrie" title="Guida">? Guida</a>
+{% endblock %}
+
+{% block assets_shell_content %}
+<section class="pim-page">
+  <article class="pim-card">
+    <ol class="pim-passi">
+      <li><b>1. Importa</b>Scegli la pianta base e seleziona tutti i PDF. Ogni PDF diventa una pianta, livello della base, con le categorie lette dalla legenda.</li>
+      <li><b>2. Controlla l'allineamento</b>Verde: i muri combaciano. Giallo: combaciano ma conviene un'occhiata. Rosso: va allineata a mano con due punti.</li>
+      <li><b>3. Valida gli asset</b>«Valida asset» mostra gli asset riconosciuti sul PDF: togli la spunta a quelli sbagliati e premi «Valida e colloca».</li>
+    </ol>
+  </article>
+
+  <article class="pim-card">
+    <h2>Carica i PDF</h2>
+    {% if not basi %}
+    <p class="pim-nota">Serve prima una pianta base attiva con l'immagine (es. «solo muri e paratie»): creala nell'editor.</p>
+    {% else %}
+    <p class="pim-nota">Ricaricare lo stesso file aggiorna la pianta che ne era nata, non ne crea un'altra. Un PDF richiede qualche secondo.</p>
+    <form class="pim-form" data-pim-form>
+      {% csrf_token %}
+      <label>Pianta base
+        <select name="base_id" class="input" data-pim-base>
+          {% for b in basi %}<option value="{{ b.id }}"{% if base and b.id == base.id %} selected{% endif %}>{{ b.category }} · {{ b.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>PDF delle piante (anche tutti insieme)
+        <input type="file" name="pdf" accept="application/pdf,.pdf" multiple class="input" data-pim-file>
+      </label>
+      <div><button class="btn btn-primary" type="submit" data-pim-via>Importa</button></div>
+    </form>
+    <div class="pim-avanzamento" data-pim-avanzamento aria-live="polite"></div>
+    {% endif %}
+  </article>
+
+  <article class="pim-card">
+    <h2>Piante importate{% if da_validare %} · {{ da_validare }} da validare{% endif %}</h2>
+    {% if importate %}
+    <table class="pim-tabella">
+      <thead><tr><th>Pianta</th><th>Categorie</th><th>Allineamento</th><th>Asset</th><th></th></tr></thead>
+      <tbody>
+      {% for r in importate %}
+        <tr>
+          <td><strong>{{ r.nome }}</strong>{% if not r.attiva %} <span class="pim-sub">(non attiva: c'è già una pianta «{{ r.categoria }}»)</span>{% endif %}<div class="pim-sub">{{ r.file }}</div></td>
+          <td>{% if r.categorie %}{{ r.categorie|join:", " }}{% else %}<span class="pim-sub">tutte (nessuna dalla legenda)</span>{% endif %}</td>
+          <td><span class="pim-chip {{ r.allineamento_livello }}"><i></i>{{ r.allineamento }}</span></td>
+          <td>{% if r.validata %}<span class="pim-chip verde"><i></i>Validata, {{ r.asset }} collocati</span>{% else %}<span class="pim-chip giallo"><i></i>Da validare</span>{% endif %}</td>
+          <td>
+            <div class="pim-azioni">
+              <a class="btn {% if r.validata %}btn-secondary{% else %}btn-primary{% endif %} btn-sm" href="{{ r.url_valida }}">{% if r.validata %}Rileggi{% else %}Valida asset{% endif %}</a>
+              <a class="btn btn-secondary btn-sm" href="{{ r.url_allineamento }}">{% if r.allineamento_livello == "verde" %}Allineamento{% else %}Controlla allineamento{% endif %}</a>
+              {% if not r.validata %}
+              <form method="post" action="{% url 'assets:plant_layout_editor' %}?importa=1" data-hub-confirm="Scartare la pianta «{{ r.nome }}»? Si cancella con il suo PDF.">
+                {% csrf_token %}<input type="hidden" name="action" value="scarta"><input type="hidden" name="layout_id" value="{{ r.id }}">
+                <button class="btn btn-secondary btn-sm" type="submit">Scarta</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="pim-nota">Ancora nessuna pianta importata.</p>
+    {% endif %}
+  </article>
+</section>
+
+<script>
+(function () {
+  var form = document.querySelector("[data-pim-form]");
+  if (!form) return;
+  var lista = document.querySelector("[data-pim-avanzamento]");
+  var url = "{% url 'assets:plant_layout_editor' %}?importa=1";
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var files = Array.prototype.slice.call(form.querySelector("[data-pim-file]").files || []);
+    if (!files.length) return;
+    var via = form.querySelector("[data-pim-via]");
+    via.disabled = true;
+    lista.innerHTML = "";
+    var righe = files.map(function (f) {
+      var div = document.createElement("div");
+      div.className = "pim-av";
+      var nome = document.createElement("span");
+      nome.textContent = f.name;
+      var stato = document.createElement("span");
+      stato.className = "stato";
+      stato.textContent = "in coda";
+      div.appendChild(nome);
+      div.appendChild(stato);
+      lista.appendChild(div);
+      return {div: div, stato: stato};
+    });
+    var token = form.querySelector("input[name=csrfmiddlewaretoken]").value;
+    var base = form.querySelector("[data-pim-base]").value;
+    var i = 0, errori = 0;
+    function prossimo() {
+      if (i >= files.length) {
+        var fine = document.createElement("div");
+        fine.className = "pim-av ok";
+        fine.innerHTML = "<span>Fatto" + (errori ? " (" + errori + " con errori)" : "") + ": aggiorno l'elenco…</span>";
+        lista.appendChild(fine);
+        setTimeout(function () { window.location.href = url + "&base=" + encodeURIComponent(base); }, errori ? 2500 : 800);
+        return;
+      }
+      var r = righe[i];
+      r.stato.textContent = "importo e allineo…";
+      var dati = new FormData();
+      dati.append("action", "importa_uno");
+      dati.append("base_id", base);
+      dati.append("pdf", files[i]);
+      fetch(url, {method: "POST", body: dati, headers: {"X-CSRFToken": token}, credentials: "same-origin"})
+        .then(function (resp) { return resp.json().catch(function () { return {ok: false, errore: "Risposta non valida (" + resp.status + ")"}; }); })
+        .then(function (j) {
+          if (j.ok) {
+            r.div.classList.add("ok");
+            r.stato.textContent = j.nome + " · " + j.allineamento;
+          } else {
+            errori++;
+            r.div.classList.add("errore");
+            r.stato.textContent = j.errore || "Errore";
+          }
+        })
+        .catch(function () { errori++; r.div.classList.add("errore"); r.stato.textContent = "Errore di rete"; })
+        .then(function () { i++; prossimo(); });
+    }
+    prossimo();
+  });
+})();
+</script>
+{% endblock %}
