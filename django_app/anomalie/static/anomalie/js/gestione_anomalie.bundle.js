@@ -1795,12 +1795,10 @@ function GestioneAnomalie() {
     });
     return out;
   }, [op.car, carScelti]);
-  const toggleSegnalaCar = () => {
-    const on = !segnalaCar;
-    setSegnalaCar(on);
-    // Di serie il CAR dell'OP, se c'è.
-    if (on && !carScelti.length) setCarScelti(carDellOp.slice(0, 1));
-  };
+  // Nessun CAR scelto di serie: il CAR dell'OP riceve già il riepilogo delle modifiche,
+  // la mail «Segnala a CAR» va solo a chi scegli tu.
+  const toggleSegnalaCar = () => setSegnalaCar(!segnalaCar);
+  const isCarDellOp = nome => carDellOp.some(n => n.toLowerCase() === String(nome).toLowerCase());
   const toggleCarScelto = nome => setCarScelti(prev => prev.some(n => n.toLowerCase() === nome.toLowerCase()) ? prev.filter(n => n.toLowerCase() !== nome.toLowerCase()) : [...prev, nome]);
 
   // Preselezione da ?op= (promemoria in dashboard, mail).
@@ -2971,9 +2969,9 @@ function GestioneAnomalie() {
     key: nome,
     active: carScelti.some(n => n.toLowerCase() === nome.toLowerCase()),
     onClick: () => canEditSelected && toggleCarScelto(nome)
-  }, nome))), /*#__PURE__*/React.createElement("div", {
+  }, nome, isCarDellOp(nome) ? " · CAR dell'OP" : ""))), /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
-  }, carScelti.length ? "Al salvataggio parte una mail ai CAR appena scelti (chi l'ha già ricevuta non la riceve di nuovo)." : "Scegli almeno un CAR: senza scelta la segnalazione non parte.")), (sn.dove_pezzi || (sn.dettaglio_righe || []).length > 0 || sn.tipo_difetto) && /*#__PURE__*/React.createElement("div", {
+  }, carScelti.length ? `Al salvataggio la mail «Segnala a CAR» va solo a: ${carScelti.join(", ")} (chi l'ha già ricevuta non la riceve di nuovo).` : "Scegli almeno un CAR: senza scelta la segnalazione non parte.", " ", "Il CAR dell'OP riceve comunque il riepilogo delle modifiche, come sempre.")), (sn.dove_pezzi || (sn.dettaglio_righe || []).length > 0 || sn.tipo_difetto) && /*#__PURE__*/React.createElement("div", {
     className: "ga-ctrl"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-ctrl__t"

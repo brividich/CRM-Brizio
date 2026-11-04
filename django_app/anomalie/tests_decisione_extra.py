@@ -226,3 +226,27 @@ class SegnalatoTests(TestCase):
         av._segna_dove_pezzi_terzista(rows)
         self.assertEqual(rows[0]["segnalato_cliente"]["da"], "Mario Prova")
         self.assertIsNone(rows[0]["segnalato_terzista"])
+
+
+class RigheExtraDecisioneTests(SimpleTestCase):
+    def test_terzista_car_e_segnalato(self):
+        from anomalie.mail_action_service import righe_extra_decisione
+
+        righe = righe_extra_decisione({
+            "segnalare": True, "segnalato_cliente": {"il": "04/11/2026 10:00", "da": "Mario Prova"},
+            "segnala_terzista": True, "segnalato_terzista": None, "car_segnalati": ["Anna Verdi"],
+        })
+        self.assertEqual(righe, ["Segnalare al cliente — segnalato il 04/11/2026 10:00 da Mario Prova",
+                                 "Segnalare al terzista", "Segnalata ai CAR: Anna Verdi"])
+        self.assertEqual(righe_extra_decisione({"segnalare": True}), [])
+
+
+class ExtraDecisionePerMailTests(TestCase):
+    def test_payload_prevale_sulla_scheda(self):
+        AnomaliaSchedaQualita.objects.create(anomalia_id=503, op_titolo=OP, segnala_terzista=True,
+                                             segnala_car=True, car_segnalati="Anna Verdi")
+        out = av._extra_decisione_per_mail(503, {"segnala_terzista": False, "segnala_car": True,
+                                                 "car_segnalati": ["Bruno Neri"], "segnalare": False})
+        self.assertFalse(out["segnala_terzista"])
+        self.assertEqual(out["car_segnalati"], ["Bruno Neri"])
+        self.assertIsNone(out["segnalato_cliente"])
