@@ -254,7 +254,8 @@ SEZIONI: list[dict] = [
                 "(proposta quella dell'OP di origine), i blocchi copiati si caricano uno alla volta con seriali, stato "
                 "superficie e testi: cambia quello che serve e «Salva blocco» passa al successivo; «Salta questo blocco» "
                 "lo scarta, «Carica ora» nell'elenco «Da copiare ancora» ne anticipa uno. Gli allegati dell'anomalia di "
-                "origine si copiano solo spuntando «Copia anche … allegati».",
+                "origine si copiano solo spuntando «Copia anche … allegati». Con i testi si copiano anche misure, difetto, "
+                "documenti e riferimento scritti dal controllore; «Dove sono i pezzi?» no (i pezzi del nuovo OP sono altri).",
                 "Dettaglio: in alto OP, fase e se è un «Collaudo di benestare»; le frecce (o Alt+↑ / Alt+↓) "
                 "passano all'anomalia precedente o successiva.",
                 "Sotto il titolo, la fascia «Pezzi interessati» mostra i seriali dell'anomalia uno per chip (un "

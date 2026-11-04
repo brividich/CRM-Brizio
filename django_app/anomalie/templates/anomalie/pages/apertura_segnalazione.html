@@ -1770,6 +1770,7 @@
       origineId: a.origine_id,
       allegatiOrigine: a.allegati || 0,
       copiaAllegati: false,
+      dett: dettDaServer(a.dettaglio, a.tipo_difetto_id),
     })),
     attiva: -1,
     daClona: true,
@@ -1780,6 +1781,7 @@
     stato_superficie: ed.stati,
     anomalie: ed.anomalie.filter(a => a.testo.trim() || a.origineId).map(a => ({
       origine_id: a.origineId, testo: a.testo, tutti: a.tutti, seriali: a.sel, allegati: a.allegatiOrigine || 0,
+      dettaglio: dettPayload(a.dett), tipo_difetto_id: a.dett ? a.dett.tipoDifettoId : null,
     })),
   });
 

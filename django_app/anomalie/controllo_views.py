@@ -626,6 +626,12 @@ def api_clona_dati(request):
         m.anomalia_id: m
         for m in AnomaliaSegnalazioneMeta.objects.filter(anomalia_id__in=list(righe)).select_related("blocco")
     }
+    # Dati strutturati del controllore (misure, difetto, documenti, riferimento): si copiano
+    # con l'anomalia. «Dove sono i pezzi?» no: i pezzi del nuovo OP sono altri.
+    from .quality_models import AnomaliaSchedaQualita
+
+    schede = {s["anomalia_id"]: s for s in AnomaliaSchedaQualita.objects.filter(anomalia_id__in=list(righe)).values(
+        "anomalia_id", "dettaglio_controllo", "tipo_difetto_id")}
     blocchi: list[dict] = []
     per_chiave: dict[str, dict] = {}
     fasi: Counter = Counter()
@@ -656,6 +662,8 @@ def api_clona_dati(request):
         blocco["anomalie"].append({
             "origine_id": i,
             "testo": testo,
+            "dettaglio": (schede.get(i) or {}).get("dettaglio_controllo") or {},
+            "tipo_difetto_id": (schede.get(i) or {}).get("tipo_difetto_id"),
             **copertura,
             "allegati": len(_list_attachments_for_local(i)),
         })
