@@ -285,6 +285,15 @@
         <textarea id="autorizzati_modifica" class="input" spellcheck="false"></textarea>
       </div>
       <div class="field" style="grid-column:1/-1;">
+        <label for="referenti_rdc">Referenti RDC / segnalazione cliente</label>
+        <small>Un nome o email per riga. In Gestione anomalie, sotto «In carico a me», vedono gli OP con anomalie aperte da aprire RDC o da segnalare al cliente (in sola lettura, se non hanno anche il permesso di modifica sull'OP).</small>
+        <div style="display:flex;gap:8px;margin:4px 0 6px;flex-wrap:wrap;">
+          <select id="referenti_rdc_picker" class="input" style="max-width:320px;"></select>
+          <button id="referenti_rdc_add" class="btn btn-secondary btn-sm" type="button">Aggiungi</button>
+        </div>
+        <textarea id="referenti_rdc" class="input" spellcheck="false"></textarea>
+      </div>
+      <div class="field" style="grid-column:1/-1;">
         <label>Indirizzi email delle notifiche</label>
         <small>Destinatari fissi, interruttori e orari di tutte le mail del modulo sono nella scheda <a href="?tab=notifiche"><strong>Notifiche</strong></a> (la stessa vista compare in Automazioni &rarr; Notifiche di sistema).</small>
       </div>
@@ -970,6 +979,7 @@
       rdc_segnalazione: [],
       escalation_supervisori: [],
       azioni_effettuate: ["Rilavorato", "Riparato", "Scartato", "Reso al fornitore", "Accettato in deroga"],
+      referenti_rdc: [],
       attachments_dir: "media\\anomalie_allegati",
     };
 
@@ -979,6 +989,7 @@
       "avanzamenti",
       "azioni_effettuate",
       "autorizzati_modifica",
+      "referenti_rdc",
     ];
     const fields = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
     // Liste derivate: la composizione (ruoli + override persona) e' modificabile,
@@ -996,6 +1007,23 @@
     const esc = (v) => String(v == null ? "" : v).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
     const ruoliOperativi = Array.isArray(window._CFG_RUOLI_OPERATIVI) ? window._CFG_RUOLI_OPERATIVI : [];
     const anagraficaNames = Array.isArray(window._CFG_ANAGRAFICA_NAMES) ? window._CFG_ANAGRAFICA_NAMES : [];
+    // Referenti RDC: scelta rapida dall'anagrafica (si può anche scrivere a mano).
+    (function () {
+      const picker = document.getElementById("referenti_rdc_picker");
+      const addBtn = document.getElementById("referenti_rdc_add");
+      const area = document.getElementById("referenti_rdc");
+      if (!picker || !addBtn || !area) return;
+      picker.innerHTML = "<option value=''>— scegli una persona —</option>" +
+        anagraficaNames.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+      addBtn.addEventListener("click", () => {
+        const name = picker.value;
+        if (!name) return;
+        const current = area.value.split(/\r?\n/).map((t) => t.trim()).filter(Boolean);
+        if (!current.some((n) => n.toLowerCase() === name.toLowerCase())) current.push(name);
+        area.value = current.join("\n");
+        picker.value = "";
+      });
+    })();
     const derivedBlocks = {};
     document.querySelectorAll(".derived-block").forEach((block) => {
       const key = block.dataset.derivedKey;

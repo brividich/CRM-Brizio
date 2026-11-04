@@ -647,6 +647,9 @@
   function onSegnalareChange(id) {
     var seg = document.getElementById('seg-' + id);
     var av  = document.getElementById('av-' + id);
+    // «Segnalare al cliente» spunta anche «Aprire RDC» (si può togliere).
+    var rdcBox = document.getElementById('rdc-' + id);
+    if (seg && seg.checked && rdcBox) rdcBox.checked = true;
     rebuildSelect(id);
     if (av && seg && seg.checked) av.value = AVANZAMENTO_RISPOSTA_CLIENTE;
     else if (av && av.value === AVANZAMENTO_RISPOSTA_CLIENTE) av.value = '';

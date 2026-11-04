@@ -50,6 +50,8 @@ KEY_OP_COMPLETATO_ATTIVO = "anomalie_auto_op_completato_attivo"
 # Eccezione: accesa di default. Non gira nel task orario ma quando il capocommessa
 # decide (pagina della mail o Gestione anomalie): riporta la decisione all'operatore.
 KEY_DECISIONI_OPERATORE_ATTIVO = "anomalie_auto_decisioni_operatore_attivo"
+# Accesa di default: mail ai CAR scelti con «Segnala a CAR» nella decisione.
+KEY_SEGNALA_CAR_ATTIVO = "anomalie_auto_segnala_car_attivo"
 
 DEFAULT_RICORRENZA_N = 3
 RICORRENZA_N_MIN, RICORRENZA_N_MAX = 2, 50
@@ -134,6 +136,7 @@ def get_escalation_config() -> dict:
         "digest_attivo": _parse_bool(SiteConfig.get(KEY_DIGEST_ATTIVO, ""), default=False),
         "op_completato_attivo": _parse_bool(SiteConfig.get(KEY_OP_COMPLETATO_ATTIVO, ""), default=False),
         "decisioni_operatore_attivo": _parse_bool(SiteConfig.get(KEY_DECISIONI_OPERATORE_ATTIVO, ""), default=True),
+        "segnala_car_attivo": _parse_bool(SiteConfig.get(KEY_SEGNALA_CAR_ATTIVO, ""), default=True),
         "controllo_promemoria_minuti": _clamp_int(
             SiteConfig.get(KEY_CTRL_PROMEMORIA_MIN, "") or DEFAULT_CTRL_PROMEMORIA_MIN,
             DEFAULT_CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MIN, CTRL_PROMEMORIA_MAX,
@@ -200,6 +203,8 @@ def save_automazioni_config(payload: dict) -> bool:
         "op_completato_attivo": (KEY_OP_COMPLETATO_ATTIVO, "Anomalie: mail a CC/CAR quando un OP ha tutte le anomalie chiuse."),
         "decisioni_operatore_attivo": (KEY_DECISIONI_OPERATORE_ATTIVO,
                                        "Anomalie: mail e notifica all'operatore con le decisioni del capocommessa."),
+        "segnala_car_attivo": (KEY_SEGNALA_CAR_ATTIVO,
+                               "Anomalie: mail ai CAR scelti con «Segnala a CAR» nella decisione del capocommessa."),
     }
     for field, (key, desc) in flags.items():
         if field in payload:

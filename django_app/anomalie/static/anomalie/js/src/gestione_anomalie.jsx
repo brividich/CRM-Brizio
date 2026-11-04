@@ -899,6 +899,7 @@
       const [loadingAttachments, setLoadingAttachments] = useState(false);
       const [uploadingAttachments, setUploadingAttachments] = useState(false);
       const fileInputRef = useRef(null);
+      const fileInputDecRef = useRef(null);
 
       // ── Selezione, ricerca, filtri ──
       const [selectedOpKey, setSelectedOpKey] = useState("");
@@ -937,6 +938,10 @@
       const [pezziPrec, setPezziPrec] = useState(false);
       const [aprireRdc, setAprireRdc] = useState(false);
       const [segnalare, setSegnalare] = useState(false);
+      const [terzista, setTerzista] = useState(false);
+      const [segnalaCar, setSegnalaCar] = useState(false);
+      const [carScelti, setCarScelti] = useState([]);
+      const [dovePezzi, setDovePezzi] = useState("");
       const [avanzamento, setAvanzamento] = useState(DEFAULT_AVANZAMENTO);
       const [rdcNum, setRdcNum] = useState("");
       // «Applica la stessa decisione anche a…»: perimetro (solo questa, stesso blocco,
@@ -979,18 +984,42 @@
       const resetAmbito = () => { setAmbito("solo"); setScelteMano([]); setIncludiDecise(false); };
 
       const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc), [aprireRdc]);
+      // «Segnala a CAR»: si sceglie fra il CAR dell'OP e i capi reparto di Configurazione.
+      const carDellOp = splitPeopleTokens(op.car === "—" ? "" : op.car);
+      const carOpzioni = useMemo(() => {
+        const visti = new Set();
+        const out = [];
+        [...carDellOp,
+         ...(Array.isArray(CONFIG_LISTS.capi_reparto) ? CONFIG_LISTS.capi_reparto : []),
+         ...carScelti].forEach((n) => {
+          const nome = String(n || "").trim();
+          if (nome && !visti.has(nome.toLowerCase())) { visti.add(nome.toLowerCase()); out.push(nome); }
+        });
+        return out;
+      }, [op.car, carScelti]);
+      const toggleSegnalaCar = () => {
+        const on = !segnalaCar;
+        setSegnalaCar(on);
+        // Di serie il CAR dell'OP, se c'è.
+        if (on && !carScelti.length) setCarScelti(carDellOp.slice(0, 1));
+      };
+      const toggleCarScelto = (nome) => setCarScelti((prev) => (
+        prev.some((n) => n.toLowerCase() === nome.toLowerCase())
+          ? prev.filter((n) => n.toLowerCase() !== nome.toLowerCase()) : [...prev, nome]));
       const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento);
       // Tempi ed esiti dell'anomalia aperta: «serve_azione» blocca la chiusura senza azione effettuata.
       const [esitiInfo, setEsitiInfo] = useState(null);
       // Una risposta scritta nelle note non può lasciare l'anomalia «In attesa».
       const notaSenzaStato = !!note.trim() && ["", "in attesa"].includes(normalizeChoice(avanzamento).toLowerCase());
 
-      // Spuntare «Segnalare al cliente» porta lo stato su «In attesa risposta cliente»;
-      // togliere la spunta riporta lo stato di partenza.
+      // Spuntare «Segnalare al cliente» porta lo stato su «In attesa risposta cliente»
+      // e spunta anche «Aprire RDC» (si può togliere); togliere la spunta riporta lo
+      // stato di partenza e lascia «Aprire RDC» com'è. Con «Aprire RDC» la segnalazione
+      // al cliente resta facoltativa.
       const toggleSegnalare = () => {
         const on = !segnalare;
         setSegnalare(on);
-        if (on) setAvanzamento(AVANZAMENTO_RISPOSTA_CLIENTE);
+        if (on) { setAvanzamento(AVANZAMENTO_RISPOSTA_CLIENTE); setAprireRdc(true); }
         else if (avanzamento === AVANZAMENTO_RISPOSTA_CLIENTE) {
           const base = baseline.avanzamento;  // dichiarato più sotto: letto solo al clic
           setAvanzamento(base && base !== AVANZAMENTO_RISPOSTA_CLIENTE ? base : "In attesa");
@@ -1006,7 +1035,8 @@
         setDesc(""); setNote("");
         setDescrizioneAnswers({});
         setPezziPrec(false); setAprireRdc(false);
-        setSegnalare(false);
+        setSegnalare(false); setTerzista(false); setDovePezzi("");
+        setSegnalaCar(false); setCarScelti([]);
         setAvanzamento(DEFAULT_AVANZAMENTO); setRdcNum("");
         setCurrentItemId(null);
         setCurrentLocalId(null);
@@ -1042,7 +1072,8 @@
       const daDecidereDi = (o) => Number(o?.anomalie_da_decidere_count ?? 0);
       const orderMatches = (o, filtro) => {
         if (filtro === "aperte") return apertiDi(o) > 0;
-        // «In carico a me» = sono capocommessa o CAR dell'OP (lo dice il server);
+        // «In carico a me» = sono capocommessa o CAR dell'OP, oppure referente RDC e
+        // l'OP ha anomalie aperte RDC / da segnalare al cliente (lo dice il server);
         // poter modificare l'OP non basta.
         if (filtro === "in_carico") return apertiDi(o) > 0 && (o?.in_carico !== undefined
           ? Boolean(o.in_carico) : (peopleMatchCurrentUser(o?.capo) || peopleMatchCurrentUser(o?.car)));
@@ -1150,10 +1181,12 @@
         return {
           desc: sn.desc || "", note: sn.note || "", pezziPrec: !!sn.pezzi_prec, aprireRdc: !!sn.aprire_rdc,
           rdcNum: sn.numero_rdc || "", segnalare: !!sn.segnalare,
+          terzista: !!sn.segnala_terzista, dovePezzi: sn.dove_pezzi || "",
+          segnalaCar: !!sn.segnala_car, carScelti: Array.isArray(sn.car_segnalati) ? sn.car_segnalati : [],
           avanzamento: opts.some((o) => o.toLowerCase() === av.toLowerCase()) ? av : (opts[0] || DEFAULT_AVANZAMENTO),
           risposte: Object.fromEntries((sn.descrizioni || []).map((d) => [String(d.id), d.risposta || ""])),
         };
-      }, [sn.item_id, sn.desc, sn.note, sn.pezzi_prec, sn.aprire_rdc, sn.numero_rdc, sn.segnalare, sn.avanzamento, sn.descrizioni]);
+      }, [sn.item_id, sn.desc, sn.note, sn.pezzi_prec, sn.aprire_rdc, sn.numero_rdc, sn.segnalare, sn.segnala_terzista, sn.dove_pezzi, sn.segnala_car, sn.car_segnalati, sn.avanzamento, sn.descrizioni]);
 
       useEffect(() => {
         if (!sn.item_id) { clearForm(); return; }
@@ -1166,6 +1199,10 @@
         setAprireRdc(baseline.aprireRdc);
         setRdcNum(baseline.rdcNum);
         setSegnalare(baseline.segnalare);
+        setTerzista(baseline.terzista);
+        setDovePezzi(baseline.dovePezzi);
+        setSegnalaCar(baseline.segnalaCar);
+        setCarScelti(baseline.carScelti);
         setAvanzamento(baseline.avanzamento);
         resetAmbito();
         setEditDesc(false);
@@ -1174,6 +1211,9 @@
       const dirty = !!sn.item_id && canEditSelected && (
         desc !== baseline.desc || note !== baseline.note || pezziPrec !== baseline.pezziPrec
         || aprireRdc !== baseline.aprireRdc || segnalare !== baseline.segnalare
+        || terzista !== baseline.terzista || dovePezzi.trim() !== baseline.dovePezzi.trim()
+        || segnalaCar !== baseline.segnalaCar
+        || (segnalaCar && carScelti.join("|") !== baseline.carScelti.join("|"))
         || (aprireRdc && rdcNum !== baseline.rdcNum)
         || normalizeChoice(avanzamento).toLowerCase() !== normalizeChoice(baseline.avanzamento).toLowerCase()
         || Object.keys(descrizioneAnswers).some((k) => (descrizioneAnswers[k] || "") !== (baseline.risposte[k] || ""))
@@ -1262,7 +1302,7 @@
       };
       useEffect(() => { loadAttachments(currentLocalId); }, [currentLocalId]);
 
-      const uploadFiles = async (files) => {
+      const uploadFiles = async (files, ambito = "") => {
         if (!files.length) return;
         if (!canEditCurrentOp) { flash({ ok: false, text: "Permesso negato: non puoi caricare allegati su questo OP" }); return; }
         if (!currentLocalId) { flash({ ok: false, text: "Seleziona un'anomalia salvata per caricare allegati." }); return; }
@@ -1271,6 +1311,7 @@
           const form = new FormData();
           form.append("local_id", String(currentLocalId));
           files.forEach((f) => form.append("files", f));
+          if (ambito) form.append("ambito", ambito);
           const r = await fetch(API.allegati_upload, { method: "POST", headers: { "X-CSRFToken": getCsrfToken() }, body: form, credentials: "same-origin" });
           const d = await readJsonOrThrow(r, "Upload allegati");
           if (Array.isArray(d.attachments)) setAttachments(d.attachments);
@@ -1304,6 +1345,33 @@
       const getAttachmentUrl = (fileId, forceDownload = false) =>
         `${API.allegati_file}?local_id=${encodeURIComponent(currentLocalId)}&file_id=${encodeURIComponent(fileId)}${forceDownload ? "&download=1" : ""}`;
       const immagini = attachments.filter((f) => f.is_image);
+      // Gli allegati della decisione del capocommessa stanno nel suo riquadro.
+      const attAnomalia = attachments.filter((f) => !f.decisione);
+      const attDecisione = attachments.filter((f) => f.decisione);
+      const renderAttGrid = (list) => (
+        <div className="ga-att__grid">
+          {list.map((file) => (
+                                <div key={file.file_id} className="ga-att__item" title={`${file.name} · ${formatBytes(file.size)}`}>
+                                  {file.is_image ? (
+                                    <button type="button" className="ga-att__thumb" onClick={() => setLightbox(file.file_id)}>
+                                      <img src={getAttachmentUrl(file.file_id)} alt={file.name} loading="lazy" />
+                                    </button>
+                                  ) : (
+                                    <a className="ga-att__thumb ga-att__thumb--file" href={getAttachmentUrl(file.file_id)} target="_blank" rel="noopener">
+                                      {(fileExt(file.name).replace(".", "").toUpperCase() || "FILE").slice(0, 4)}
+                                    </a>
+                                  )}
+                                  <div className="ga-att__name">{file.name}</div>
+                                  <div className="ga-att__acts">
+                                    <a href={getAttachmentUrl(file.file_id, true)} title="Scarica">Scarica</a>
+                                    {canEditCurrentOp && (confirmDelete === file.file_id
+                                      ? <button type="button" className="is-danger" onClick={() => handleDeleteAttachment(file.file_id)}>Conferma</button>
+                                      : <button type="button" onClick={() => setConfirmDelete(file.file_id)}>Elimina</button>)}
+                                  </div>
+                                </div>
+                              ))}
+        </div>
+      );
       const lightboxIdx = immagini.findIndex((f) => f.file_id === lightbox);
 
       // ── Salvataggio ──
@@ -1325,6 +1393,8 @@
               item_id: currentItemId, op_id: op.id, sn: sn.sn || "", desc,
               descrizioni_risposte: descrizioneAnswers, note, pezzi_prec: pezziPrec,
               aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare,
+              segnala_terzista: terzista, dove_pezzi: dovePezzi.trim(),
+              segnala_car: segnalaCar, car_segnalati: segnalaCar ? carScelti : [],
               chiudere: chiudereAuto, avanzamento,
             }),
             credentials: "same-origin",
@@ -1334,7 +1404,9 @@
           ok = true;
           const aggiornato = {
             desc, note, pezzi_prec: pezziPrec, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "",
-            segnalare, chiudere: chiudereAuto, avanzamento,
+            segnalare, segnala_terzista: terzista, dove_pezzi: dovePezzi.trim(),
+            segnala_car: segnalaCar && carScelti.length > 0, car_segnalati: segnalaCar ? carScelti : [],
+            chiudere: chiudereAuto, avanzamento,
             descrizioni: (sn.descrizioni || []).map((d) => ({ ...d, risposta: descrizioneAnswers[String(d.id)] || "" })),
           };
           setAnomalie((prev) => prev.map((a) => (a.item_id === currentItemId ? { ...a, ...aggiornato } : a)));
@@ -1351,7 +1423,7 @@
                   body: JSON.stringify({
                     item_id: f.item_id, op_id: op.id, sn: f.sn || "", desc: f.desc || "",
                     note, pezzi_prec: !!f.pezzi_prec, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "",
-                    segnalare, chiudere: chiudeF, avanzamento,
+                    segnalare, segnala_terzista: terzista, dove_pezzi: dovePezzi.trim(), chiudere: chiudeF, avanzamento,
                   }),
                   credentials: "same-origin",
                 });
@@ -1359,7 +1431,8 @@
                 if (!df.success) throw new Error(df.error || "errore");
                 n += 1;
                 setAnomalie((prev) => prev.map((a) => (a.item_id === f.item_id ? {
-                  ...a, note, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare, chiudere: chiudeF, avanzamento,
+                  ...a, note, aprire_rdc: aprireRdc, numero_rdc: aprireRdc ? rdcNum : "", segnalare,
+                  segnala_terzista: terzista, dove_pezzi: dovePezzi.trim(), chiudere: chiudeF, avanzamento,
                 } : a)));
               } catch (err) {
                 errori.push(`#${f.local_id}: ${err.message}`);
@@ -1404,6 +1477,8 @@
       const annullaModifiche = () => {
         setDesc(baseline.desc); setNote(baseline.note); setPezziPrec(baseline.pezziPrec);
         setAprireRdc(baseline.aprireRdc); setRdcNum(baseline.rdcNum); setSegnalare(baseline.segnalare);
+        setTerzista(baseline.terzista); setDovePezzi(baseline.dovePezzi);
+        setSegnalaCar(baseline.segnalaCar); setCarScelti(baseline.carScelti);
         setAvanzamento(baseline.avanzamento); setDescrizioneAnswers(baseline.risposte); setEditDesc(false);
       };
 
@@ -1492,6 +1567,7 @@
                 <span className={`ga-pill ga-pill--${st.variant}`}>{st.text}</span>
                 {a.aprire_rdc && <span className="ga-pill ga-pill--rdc">RDC{a.numero_rdc ? ` ${a.numero_rdc}` : ""}</span>}
                 {a.segnalare && <span className="ga-pill ga-pill--cli">Cliente</span>}
+                {a.segnala_terzista && <span className="ga-pill ga-pill--ter">Terzista</span>}
                 {a.seriali_parziali && <span className="ga-pill ga-pill--muted" title={`Solo sui S/N: ${a.seriali_parziali}`}>Solo {a.seriali_parziali}</span>}
                 {!a.blocco_id && (a.testo || a.desc) && <span className="ga-an__sub">{a.testo || a.desc}</span>}
                 <span className="ga-an__id">#{a.local_id}</span>
@@ -1774,7 +1850,7 @@
                         <input ref={fileInputRef} type="file" multiple hidden accept={ALLEGATI_ACCEPT}
                           onChange={(e) => { const f = Array.from(e.target.files || []); e.target.value = ""; uploadFiles(f); }} />
                         <div className="ga-att__head">
-                          <span className="ga-card__sub">{Ico.clip} Allegati {attachments.length ? `(${attachments.length})` : ""}</span>
+                          <span className="ga-card__sub">{Ico.clip} Allegati {attAnomalia.length ? `(${attAnomalia.length})` : ""}</span>
                           {canEditCurrentOp && (
                             <span className="ga-hint">
                               {uploadingAttachments ? "Caricamento…" : <>Trascina qui, <button type="button" className="ga-link" onClick={() => fileInputRef.current && fileInputRef.current.click()}>sfoglia</button> o clicca e premi Ctrl+V</>}
@@ -1782,31 +1858,8 @@
                           )}
                         </div>
                         {loadingAttachments ? <div className="ga-hint">Caricamento allegati…</div>
-                          : attachments.length === 0 ? <div className="ga-hint">Nessun allegato.</div>
-                          : (
-                            <div className="ga-att__grid">
-                              {attachments.map((file) => (
-                                <div key={file.file_id} className="ga-att__item" title={`${file.name} · ${formatBytes(file.size)}`}>
-                                  {file.is_image ? (
-                                    <button type="button" className="ga-att__thumb" onClick={() => setLightbox(file.file_id)}>
-                                      <img src={getAttachmentUrl(file.file_id)} alt={file.name} loading="lazy" />
-                                    </button>
-                                  ) : (
-                                    <a className="ga-att__thumb ga-att__thumb--file" href={getAttachmentUrl(file.file_id)} target="_blank" rel="noopener">
-                                      {(fileExt(file.name).replace(".", "").toUpperCase() || "FILE").slice(0, 4)}
-                                    </a>
-                                  )}
-                                  <div className="ga-att__name">{file.name}</div>
-                                  <div className="ga-att__acts">
-                                    <a href={getAttachmentUrl(file.file_id, true)} title="Scarica">Scarica</a>
-                                    {canEditCurrentOp && (confirmDelete === file.file_id
-                                      ? <button type="button" className="is-danger" onClick={() => handleDeleteAttachment(file.file_id)}>Conferma</button>
-                                      : <button type="button" onClick={() => setConfirmDelete(file.file_id)}>Elimina</button>)}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                          : attAnomalia.length === 0 ? <div className="ga-hint">Nessun allegato.</div>
+                          : renderAttGrid(attAnomalia)}
                       </div>
                     </div>
 
@@ -1819,7 +1872,49 @@
                       <div className="ga-flags">
                         <FlagToggle label="Aprire RDC" checked={aprireRdc} disabled={!canEditSelected} onChange={() => setAprireRdc(!aprireRdc)} />
                         <FlagToggle label="Segnalare al cliente" checked={segnalare} disabled={!canEditSelected} onChange={toggleSegnalare} />
+                        <FlagToggle label="Segnala a terzista" checked={terzista} disabled={!canEditSelected} onChange={() => setTerzista(!terzista)} />
+                        <FlagToggle label="Segnala a CAR" hint="I CAR scelti ricevono una mail con questa anomalia" checked={segnalaCar} disabled={!canEditSelected} onChange={toggleSegnalaCar} />
                         <FlagToggle label="Pezzi precedenti al benestare" checked={pezziPrec} disabled={!canEditSelected} onChange={() => setPezziPrec(!pezziPrec)} />
+                      </div>
+                      {segnalaCar && (
+                        <div>
+                          <FieldLabel>A quale CAR?</FieldLabel>
+                          {carOpzioni.length === 0
+                            ? <div className="ga-hint">Nessun CAR sull'OP e nessun capo reparto in Configurazione.</div>
+                            : (
+                              <div className="ga-chips">
+                                {carOpzioni.map((nome) => (
+                                  <Chip key={nome} active={carScelti.some((n) => n.toLowerCase() === nome.toLowerCase())}
+                                    onClick={() => canEditSelected && toggleCarScelto(nome)}>{nome}</Chip>
+                                ))}
+                              </div>
+                            )}
+                          <div className="ga-hint">{carScelti.length
+                            ? "Al salvataggio parte una mail ai CAR appena scelti (chi l'ha già ricevuta non la riceve di nuovo)."
+                            : "Scegli almeno un CAR: senza scelta la segnalazione non parte."}</div>
+                        </div>
+                      )}
+                      <div>
+                        <FieldLabel>Dove sono i pezzi?</FieldLabel>
+                        <input className="ga-input" maxLength={200} value={dovePezzi} onChange={(e) => setDovePezzi(e.target.value)} disabled={!canEditSelected}
+                          placeholder="Es. area pezzi non conformi, reparto, presso il terzista…" />
+                      </div>
+                      <div className="ga-att ga-att--dec"
+                        onDragOver={(e) => { if (canEditSelected && sn.local_id) e.preventDefault(); }}
+                        onDrop={(e) => { e.preventDefault(); if (canEditSelected) uploadFiles(Array.from(e.dataTransfer.files || []), "decisione"); }}>
+                        <input ref={fileInputDecRef} type="file" multiple hidden accept={ALLEGATI_ACCEPT}
+                          onChange={(e) => { const f = Array.from(e.target.files || []); e.target.value = ""; uploadFiles(f, "decisione"); }} />
+                        <div className="ga-att__head">
+                          <span className="ga-card__sub">{Ico.clip} Allegati della decisione {attDecisione.length ? `(${attDecisione.length})` : ""}</span>
+                          {canEditSelected && (
+                            <span className="ga-hint">
+                              {uploadingAttachments ? "Caricamento…" : <>Trascina qui o <button type="button" className="ga-link" onClick={() => fileInputDecRef.current && fileInputDecRef.current.click()}>sfoglia</button></>}
+                            </span>
+                          )}
+                        </div>
+                        {attDecisione.length === 0
+                          ? <div className="ga-hint">Nessun allegato alla decisione.</div>
+                          : renderAttGrid(attDecisione)}
                       </div>
                       <div className="ga-grid2">
                         <div>
@@ -1936,6 +2031,9 @@
                   <span><b>Avanzamento</b> {avanzamento}</span>
                   {aprireRdc && <span><b>RDC</b> {rdcNum || "da aprire"}</span>}
                   {segnalare && <span><b>Segnalata al cliente</b></span>}
+                  {terzista && <span><b>Segnalata al terzista</b></span>}
+                  {segnalaCar && carScelti.length > 0 && <span><b>Segnalata al CAR</b> {carScelti.join(", ")}</span>}
+                  {dovePezzi.trim() && <span>Pezzi: <b>{dovePezzi.trim()}</b></span>}
                   {note.trim() && <span className="ga-riep__nota"><b>Note</b> {note.trim()}</span>}
                 </div>
                 <div className="ga-riep__list">
