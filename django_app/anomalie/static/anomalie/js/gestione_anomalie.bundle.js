@@ -1666,27 +1666,6 @@ function GestioneAnomalie() {
     setIncludiDecise(false);
   };
   const avanzamentoOptions = useMemo(() => buildAvanzamentoOptions(aprireRdc), [aprireRdc]);
-  // «Segnala a CAR»: si sceglie fra il CAR dell'OP e i capi reparto di Configurazione.
-  const carDellOp = splitPeopleTokens(op.car === "—" ? "" : op.car);
-  const carOpzioni = useMemo(() => {
-    const visti = new Set();
-    const out = [];
-    [...carDellOp, ...(Array.isArray(CONFIG_LISTS.capi_reparto) ? CONFIG_LISTS.capi_reparto : []), ...carScelti].forEach(n => {
-      const nome = String(n || "").trim();
-      if (nome && !visti.has(nome.toLowerCase())) {
-        visti.add(nome.toLowerCase());
-        out.push(nome);
-      }
-    });
-    return out;
-  }, [op.car, carScelti]);
-  const toggleSegnalaCar = () => {
-    const on = !segnalaCar;
-    setSegnalaCar(on);
-    // Di serie il CAR dell'OP, se c'è.
-    if (on && !carScelti.length) setCarScelti(carDellOp.slice(0, 1));
-  };
-  const toggleCarScelto = nome => setCarScelti(prev => prev.some(n => n.toLowerCase() === nome.toLowerCase()) ? prev.filter(n => n.toLowerCase() !== nome.toLowerCase()) : [...prev, nome]);
   const chiudereAuto = shouldAutoClose(aprireRdc, avanzamento);
   // Tempi ed esiti dell'anomalia aperta: «serve_azione» blocca la chiusura senza azione effettuata.
   const [esitiInfo, setEsitiInfo] = useState(null);
@@ -1801,6 +1780,27 @@ function GestioneAnomalie() {
     if (coda && new Date(coda.partenza).getTime() + 70000 < adesso) caricaCoda();
   }, [adesso]);
   const nuovaAnomaliaUrl = op.id && op.id !== "—" ? `/gestione-anomalie/nuova-segnalazione?op_id=${encodeURIComponent(op.id)}` : "/gestione-anomalie/nuova-segnalazione";
+  // «Segnala a CAR»: si sceglie fra il CAR dell'OP e i capi reparto di Configurazione.
+  const carDellOp = splitPeopleTokens(op.car === "—" ? "" : op.car);
+  const carOpzioni = useMemo(() => {
+    const visti = new Set();
+    const out = [];
+    [...carDellOp, ...(Array.isArray(CONFIG_LISTS.capi_reparto) ? CONFIG_LISTS.capi_reparto : []), ...carScelti].forEach(n => {
+      const nome = String(n || "").trim();
+      if (nome && !visti.has(nome.toLowerCase())) {
+        visti.add(nome.toLowerCase());
+        out.push(nome);
+      }
+    });
+    return out;
+  }, [op.car, carScelti]);
+  const toggleSegnalaCar = () => {
+    const on = !segnalaCar;
+    setSegnalaCar(on);
+    // Di serie il CAR dell'OP, se c'è.
+    if (on && !carScelti.length) setCarScelti(carDellOp.slice(0, 1));
+  };
+  const toggleCarScelto = nome => setCarScelti(prev => prev.some(n => n.toLowerCase() === nome.toLowerCase()) ? prev.filter(n => n.toLowerCase() !== nome.toLowerCase()) : [...prev, nome]);
 
   // Preselezione da ?op= (promemoria in dashboard, mail).
   const initialOpApplied = useRef(false);
