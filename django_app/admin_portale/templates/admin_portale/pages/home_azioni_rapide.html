@@ -1,0 +1,276 @@
+{% extends "core/base.html" %}
+
+{% comment %}
+Gestione admin delle «Azioni rapide» della home (admin_portale/views_azioni_rapide.py).
+Tre livelli: predefinite per tutti, per ruolo, per persona (anche in blocco).
+{% endcomment %}
+
+{% block title %}Azioni rapide della home | Admin Portale{% endblock %}
+
+{% block extra_head %}
+{% include "admin_portale/pages/_sapere_stile.html" %}
+<style>
+  .ar-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap:16px }
+  .ar-ed{ display:flex; flex-direction:column; gap:8px }
+  .ar-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px; counter-reset:ar }
+  .ar-i{ display:flex; align-items:center; gap:6px; padding:5px 6px 5px 10px; border:1px solid var(--border); border-radius:8px; background:var(--bg); counter-increment:ar; font-size:var(--fs-sm) }
+  .ar-i::before{ content:counter(ar); font-weight:800; font-size:var(--fs-2xs); color:var(--text-light); min-width:16px }
+  .ar-l{ flex:1; min-width:0; font-weight:600; overflow-wrap:anywhere }
+  .ar-b{ flex:none; width:30px; height:30px; border:1px solid var(--border); border-radius:6px; background:var(--surface); color:var(--text); cursor:pointer }
+  .ar-b:hover{ border-color:var(--accent); color:var(--accent) }
+  .ar-add, .ar-sel{ min-height:36px; padding:6px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font-size:16px; max-width:100% }
+  .ar-acts{ display:flex; gap:8px; flex-wrap:wrap; align-items:center }
+  .ar-acts form{ margin:0 }
+  .ar-people-tools{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px }
+  .ar-people-tools input[type=search]{ flex:1 1 200px; min-height:36px; padding:6px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); font-size:16px }
+  .ar-people{ max-height:340px; overflow-y:auto; border:1px solid var(--border); border-radius:8px }
+  .ar-p{ display:flex; align-items:center; gap:8px; padding:6px 10px; font-size:var(--fs-sm); cursor:pointer }
+  .ar-p + .ar-p{ border-top:1px solid var(--border) }
+  .ar-p:hover{ background:var(--bg) }
+  .ar-p input[type=checkbox]{ flex:none; width:16px; height:16px; min-height:0; margin:0 }
+  .ar-p-n{ flex:1; min-width:0; font-weight:600; overflow-wrap:anywhere }
+  .ar-p-m{ font-size:var(--fs-xs); color:var(--text-light) }
+  .ar-p[hidden]{ display:none }
+  .ar-count{ font-size:var(--fs-xs); color:var(--text-light) }
+  .ar-tab{ width:100%; border-collapse:collapse; font-size:var(--fs-sm) }
+  .ar-tab th, .ar-tab td{ text-align:left; padding:7px 8px; border-top:1px solid var(--border); vertical-align:top }
+  .ar-tab th{ font-size:var(--fs-2xs); text-transform:uppercase; letter-spacing:.03em; color:var(--text-light); border-top:0 }
+  .ar-tab td.v{ color:var(--text-mid); overflow-wrap:anywhere }
+  @media (max-width: 640px){ .ar-tab .hide-sm{ display:none } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hp-wrap">
+  <div class="page-header">
+    <div class="page-header-main">
+      <h1 class="page-h">Azioni rapide della home</h1>
+      <p class="page-sub">Scegli le scorciatoie della colonna di sinistra della home: per tutti, per ruolo o per singole persone. Vince la scelta più specifica (persona → ruolo → tutti → standard). Ognuno vede comunque solo le voci che i suoi permessi gli fanno aprire, e può cambiarle da «⚙ Personalizza» nella home. Al massimo {{ azioni_max }} voci.</p>
+    </div>
+    <div class="page-header-actions">
+      <a class="btn btn-secondary btn-sm" href="{% url 'home_portale:index' %}">Apri la home</a>
+      <a class="btn btn-secondary btn-sm" href="{% url 'guida_modulo' 'amministrazione' %}?vista=admin#home-azioni-rapide">? Guida</a>
+    </div>
+  </div>
+
+  <div class="sc-wrap">
+    <div class="ar-grid">
+      {# ── Per tutti ── #}
+      <div class="sc-card">
+        <div class="sc-card-h"><h3>Predefinite per tutti</h3><span class="sp"></span>
+          {% if predefinite_personalizzate %}<span class="sc-chip all">Personalizzate</span>{% else %}<span class="sc-chip">Standard del portale</span>{% endif %}
+        </div>
+        <div class="sc-body">
+          <form method="post" class="ar-ed-form">
+            {% csrf_token %}
+            <input type="hidden" name="azione" value="predefinite_salva">
+            {% include "admin_portale/pages/_azioni_editor.html" with lista=predefinite %}
+            <p class="sc-hint">Valgono per chi non ha una lista del suo ruolo né una lista personale.</p>
+            <div class="ar-acts">
+              <button type="submit" class="btn btn-primary btn-sm">Salva per tutti</button>
+            </div>
+          </form>
+          {% if predefinite_personalizzate %}
+          <form method="post" class="ar-acts" style="margin-top:8px">
+            {% csrf_token %}
+            <input type="hidden" name="azione" value="predefinite_standard">
+            <button type="submit" class="btn btn-secondary btn-sm" data-hub-confirm="Tornare alle azioni rapide standard del portale?">Torna allo standard</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+
+      {# ── Per ruolo ── #}
+      <div class="sc-card">
+        <div class="sc-card-h"><h3>Predefinite per ruolo</h3></div>
+        <div class="sc-body">
+          <form method="get" class="ar-acts" style="margin-bottom:10px">
+            <select name="ruolo" class="ar-sel" aria-label="Ruolo" onchange="this.form.submit()">
+              <option value="">Scegli un ruolo…</option>
+              {% for r in ruoli %}<option value="{{ r.id }}"{% if r.id == ruolo_sel %} selected{% endif %}>{{ r.nome }}</option>{% endfor %}
+            </select>
+            <noscript><button type="submit" class="btn btn-secondary btn-sm">Apri</button></noscript>
+          </form>
+          {% if ruolo_sel %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="azione" value="ruolo_salva">
+              <input type="hidden" name="ruolo" value="{{ ruolo_sel }}">
+              {% include "admin_portale/pages/_azioni_editor.html" with lista=ruolo_lista %}
+              <p class="sc-hint">{% if ruolo_personalizzato %}Lista propria del ruolo «{{ ruolo_sel_nome }}».{% else %}Il ruolo «{{ ruolo_sel_nome }}» oggi usa le predefinite per tutti: parti da queste e salva.{% endif %}</p>
+              <div class="ar-acts"><button type="submit" class="btn btn-primary btn-sm">Salva per il ruolo</button></div>
+            </form>
+            {% if ruolo_personalizzato %}
+            <form method="post" class="ar-acts" style="margin-top:8px">
+              {% csrf_token %}
+              <input type="hidden" name="azione" value="ruolo_togli">
+              <input type="hidden" name="ruolo" value="{{ ruolo_sel }}">
+              <button type="submit" class="btn btn-secondary btn-sm">Usa le predefinite per tutti</button>
+            </form>
+            {% endif %}
+          {% endif %}
+          {% if ruoli_personalizzati %}
+            <div class="sc-lbl" style="margin-top:12px">Ruoli con una lista propria</div>
+            {% for r in ruoli_personalizzati %}
+              <div class="sc-row">
+                <div class="sc-row-bd">
+                  <div class="sc-row-t"><a href="?ruolo={{ r.id }}">{{ r.nome }}</a></div>
+                  <div class="sc-row-m">{% for v in r.voci %}{{ v.label }}{% if not forloop.last %} · {% endif %}{% empty %}nessuna voce{% endfor %}</div>
+                </div>
+              </div>
+            {% endfor %}
+          {% elif not ruolo_sel %}
+            <p class="sc-hint">Nessun ruolo ha una lista propria.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ── Per persona, anche in blocco ── #}
+    <div class="sc-card">
+      <div class="sc-card-h"><h3>Per persona</h3><span class="sp"></span>
+        {% if persona_sel %}<span class="sc-chip">Partendo dalla lista di {{ persona_sel.nome }}</span>{% endif %}
+      </div>
+      <form method="post" class="sc-body ar-grid" data-ar-persone>
+        {% csrf_token %}
+        <input type="hidden" name="utente_sel" value="{{ persona_sel.id|default:'' }}">
+        <div>
+          <div class="sc-lbl" style="margin-bottom:6px">1 · Lista da impostare</div>
+          {% include "admin_portale/pages/_azioni_editor.html" with lista=persone_lista %}
+        </div>
+        <div>
+          <div class="sc-lbl" style="margin-bottom:6px">2 · Persone</div>
+          <div class="ar-people-tools">
+            <input type="search" placeholder="Cerca nome o utente…" aria-label="Cerca persona" data-ar-cerca>
+            <select class="ar-sel" aria-label="Filtra per ruolo" data-ar-ruolo>
+              <option value="">Tutti i ruoli</option>
+              {% for r in ruoli %}<option value="{{ r.id }}">{{ r.nome }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="ar-people-tools">
+            <button type="button" class="btn btn-secondary btn-sm" data-ar-tutti>Seleziona le visibili</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-ar-nessuno>Deseleziona tutte</button>
+            <span class="ar-count" data-ar-count>0 selezionate</span>
+          </div>
+          <div class="ar-people">
+            {% for p in persone %}
+              <label class="ar-p" data-ruolo="{{ p.ruolo_id|default:'' }}" data-testo="{{ p.nome|lower }} {{ p.username|lower }}">
+                <input type="checkbox" name="utenti" value="{{ p.id }}"{% if persona_sel and persona_sel.id == p.id %} checked{% endif %}>
+                <span class="ar-p-n">{{ p.nome }}</span>
+                <span class="ar-p-m">{{ p.ruolo|default:"—" }}</span>
+                {% if p.personali is not None %}<span class="sc-chip">{% if p.fonte == "admin" %}da admin{% else %}sua{% endif %}</span>{% endif %}
+              </label>
+            {% empty %}
+              <div class="sc-empty">Nessuna persona attiva.</div>
+            {% endfor %}
+          </div>
+          <div class="ar-acts" style="margin-top:10px">
+            <button type="submit" name="azione" value="persone_applica" class="btn btn-primary btn-sm">Imposta la lista alle selezionate</button>
+            <button type="submit" name="azione" value="persone_ripristina" class="btn btn-secondary btn-sm" data-hub-confirm="Riportare le persone selezionate alle azioni predefinite? Perdono la loro lista personale.">Riporta alle predefinite</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="sc-card">
+      <div class="sc-card-h"><h3>Persone con una lista personale</h3><span class="sp"></span><span class="sc-chip">{{ persone_personalizzate|length }}</span></div>
+      <div class="sc-body">
+        {% if persone_personalizzate %}
+        <table class="ar-tab">
+          <thead><tr><th>Persona</th><th class="hide-sm">Scelta da</th><th class="hide-sm">Voci</th><th></th></tr></thead>
+          <tbody>
+            {% for p in persone_personalizzate %}
+              <tr>
+                <td><b>{{ p.nome }}</b><div class="sc-row-m">{{ p.ruolo|default:"—" }}</div></td>
+                <td class="hide-sm">{% if p.fonte == "admin" %}Amministratore{% else %}La persona{% endif %}</td>
+                <td class="v hide-sm">{{ p.voci_label|default:"nessuna voce" }}</td>
+                <td><a class="btn btn-secondary btn-sm" href="?utente={{ p.id }}">Modifica</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          <p class="sc-empty">Nessuno ha una lista personale: tutti usano le predefinite (del ruolo o per tutti).</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  document.querySelectorAll('[data-ar-ed]').forEach(function(ed){
+    var list = ed.querySelector('[data-ar-list]');
+    var add = ed.querySelector('[data-ar-add]');
+    var vuoto = ed.querySelector('[data-ar-vuoto]');
+    var max = parseInt(ed.getAttribute('data-ar-max'), 10) || 12;
+    function sync(){
+      var chiavi = {};
+      list.querySelectorAll('li[data-key]').forEach(function(li){ chiavi[li.getAttribute('data-key')] = 1; });
+      Array.prototype.forEach.call(add.options, function(o){ if (o.value) o.hidden = o.disabled = !!chiavi[o.value]; });
+      vuoto.hidden = Object.keys(chiavi).length > 0;
+    }
+    function btn(attr, testo, titolo, nome){
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'ar-b'; b.setAttribute(attr, '');
+      b.textContent = testo; b.title = titolo; b.setAttribute('aria-label', titolo + ' ' + nome);
+      return b;
+    }
+    add.addEventListener('change', function(){
+      var o = add.options[add.selectedIndex];
+      if (!o || !o.value) return;
+      if (list.children.length >= max) { alert('Al massimo ' + max + ' voci.'); add.value = ''; return; }
+      var li = document.createElement('li');
+      li.className = 'ar-i'; li.setAttribute('data-key', o.value);
+      var inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'voce'; inp.value = o.value;
+      var l = document.createElement('span'); l.className = 'ar-l'; l.textContent = o.textContent;
+      var c = document.createElement('span'); c.className = 'sc-chip'; c.textContent = o.getAttribute('data-gruppo') || '';
+      li.appendChild(inp); li.appendChild(l); li.appendChild(c);
+      li.appendChild(btn('data-ar-su', '↑', 'Sposta su', o.textContent));
+      li.appendChild(btn('data-ar-giu', '↓', 'Sposta giù', o.textContent));
+      li.appendChild(btn('data-ar-togli', '✕', 'Togli', o.textContent));
+      list.appendChild(li);
+      add.value = '';
+      sync();
+    });
+    ed.addEventListener('click', function(e){
+      var b = e.target.closest('button');
+      var li = b && b.closest('li[data-key]');
+      if (!li) return;
+      if (b.hasAttribute('data-ar-su') && li.previousElementSibling) list.insertBefore(li, li.previousElementSibling);
+      else if (b.hasAttribute('data-ar-giu') && li.nextElementSibling) list.insertBefore(li.nextElementSibling, li);
+      else if (b.hasAttribute('data-ar-togli')) li.remove();
+      sync();
+    });
+    sync();
+  });
+
+  var form = document.querySelector('[data-ar-persone]');
+  if (!form) return;
+  var cerca = form.querySelector('[data-ar-cerca]');
+  var ruolo = form.querySelector('[data-ar-ruolo]');
+  var righe = Array.prototype.slice.call(form.querySelectorAll('.ar-p'));
+  var count = form.querySelector('[data-ar-count]');
+  function conta(){ count.textContent = form.querySelectorAll('input[name=utenti]:checked').length + ' selezionate'; }
+  function filtra(){
+    var q = (cerca.value || '').trim().toLowerCase();
+    var r = ruolo.value;
+    righe.forEach(function(row){
+      row.hidden = !((!q || row.getAttribute('data-testo').indexOf(q) !== -1) && (!r || row.getAttribute('data-ruolo') === r));
+    });
+  }
+  cerca.addEventListener('input', filtra);
+  ruolo.addEventListener('change', filtra);
+  form.querySelector('[data-ar-tutti]').addEventListener('click', function(){
+    righe.forEach(function(row){ if (!row.hidden) row.querySelector('input').checked = true; });
+    conta();
+  });
+  form.querySelector('[data-ar-nessuno]').addEventListener('click', function(){
+    righe.forEach(function(row){ row.querySelector('input').checked = false; });
+    conta();
+  });
+  form.addEventListener('change', function(e){ if (e.target.name === 'utenti') conta(); });
+  conta();
+})();
+</script>
+{% endblock %}
