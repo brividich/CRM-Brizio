@@ -34,6 +34,7 @@ urlpatterns = [
 
     # Accessi esterni dal GuestPortal (sola lettura) e apertura pannello con SSO
     path("accessi-esterni/", views.accessi_esterni, name="accessi_esterni"),
+    path("accessi-esterni/<int:visita_id>/collega/", views.ingresso_collega, name="ingresso_collega"),
     path("guestportal/apri/", views.guestportal_apri, name="guestportal_apri"),
     path("guestportal/ditte/", views.guestportal_ditte, name="guestportal_ditte"),
 

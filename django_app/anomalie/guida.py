@@ -306,9 +306,11 @@ SEZIONI: list[dict] = [
         "titolo": "Tempi ed esiti: risposta del cliente e azione effettuata",
         "blocchi": [
             ("p", "Nel dettaglio dell'anomalia, sotto la decisione, il riquadro «Tempi ed esiti» mostra da quanto "
-                  "tempo è aperta e quanto hanno richiesto le fasi, sempre in giorni lavorativi (sabati, domeniche e "
-                  "festivi nazionali non contano; sotto il giorno si vede in ore). Un tempo «in corso» è ancora aperto; "
-                  "in rosso se ha superato l'obiettivo."),
+                  "tempo è aperta e quanto hanno richiesto le fasi, in ore lavorate: contano solo le ore dentro "
+                  "l'orario di lavoro (di serie 08:00–18:00) dei giorni lavorativi; sabati, domeniche, festivi "
+                  "nazionali, notti e ore fuori orario non contano. Da un giorno in su si vedono anche i giorni "
+                  "lavorativi (1 giorno = 10 ore con l'orario di serie), per esempio «24 h · 2,4 gg». Un tempo «in "
+                  "corso» è ancora aperto; in rosso se ha superato l'obiettivo."),
             ("def", [
                 ("Risposta del capocommessa", "dalla mail del controllo (o dalla creazione, se l'anomalia è nata fuori "
                  "da un controllo) alla prima decisione."),
@@ -428,7 +430,8 @@ SEZIONI: list[dict] = [
                 "rispetta i filtri ed è registrato.",
                 "«Tempi di risposta e risoluzione»: mediana e media dei tempi conclusi, quanti sono ancora in corso, "
                 "la percentuale entro l'obiettivo e le anomalie aperte oltre l'obiettivo, più le mediane per "
-                "capocommessa. Tutto in giorni lavorativi e con gli stessi filtri della pagina.",
+                "capocommessa. Tutto in ore lavorate (con i giorni lavorativi accanto) e con gli stessi filtri "
+                "della pagina.",
             ]),
         ],
     },
@@ -448,7 +451,8 @@ SEZIONI: list[dict] = [
                  "cambi in una pagina lo trovi già cambiato nell'altra. In «Orari e soglie» ci sono anche «Riepilogo "
                  "decisioni: invio dopo minuti di pausa» (di serie 5) e gli "
                  "obiettivi dei tempi: «Tempi: obiettivo prima decisione» (di serie 2 giorni lavorativi) e «Tempi: "
-                 "obiettivo chiusura» (di serie 10)."),
+                 "obiettivo chiusura» (di serie 10), più l'orario di lavoro con cui si contano le ore: «Tempi: "
+                 "orario di lavoro, dalle ore» (di serie 8) e «alle ore» (di serie 18)."),
                 ("Qualità", "catalogo dei tipi difetto e chi può chiudere le non conformità."),
                 ("Permessi", "ruoli operativi (sola lettura, dall'Anagrafica) e regole di accesso per ruolo e per "
                  "singolo utente."),

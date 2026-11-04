@@ -175,8 +175,8 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
                 "Con «Azione di recupero» l'anomalia si chiude solo registrando l'azione effettuata (la registri tu, il "
                 "CAR o il controllore): rilavorato o riparato chiede «Pezzo riverificato conforme».",
             ]),
-            ("img", (_IMG + "e2_cliente.jpg", "Tempi in giorni lavorativi e risposta del cliente con la mail allegata")),
-            ("p", "I tempi sono in giorni lavorativi; in rosso quelli oltre l'obiettivo. In Statistiche trovi i tempi di "
+            ("img", (_IMG + "e2_cliente.jpg", "Tempi in ore lavorate e risposta del cliente con la mail allegata")),
+            ("p", "I tempi sono in ore lavorate (08:00–18:00 dei giorni lavorativi); in rosso quelli oltre l'obiettivo. In Statistiche trovi i tempi di "
                   "risposta e risoluzione per capocommessa."),
         ],
     },

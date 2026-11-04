@@ -185,7 +185,7 @@ def _tempi_nc(nc, righe: list[dict]) -> dict | None:
     Aggiunge a ogni riga ``t_risposta`` / ``t_risoluzione`` gia' in etichetta."""
     from django.utils import timezone
 
-    from .tempi_service import etichetta_durata, giorni_lavorativi, riepilogo, tempi_per_anomalie
+    from .tempi_service import etichetta_durata, etichetta_orario, giorni_lavorativi, riepilogo, tempi_per_anomalie
 
     try:
         tempi = tempi_per_anomalie([{"id": r["anomalia_id"], "created_datetime": r.get("creata_il")}
@@ -201,6 +201,7 @@ def _tempi_nc(nc, righe: list[dict]) -> dict | None:
             "risoluzione": etichetta_durata(kpi["risoluzione"]["mediana"]),
             "nc_aperta": etichetta_durata(giorni_lavorativi(nc.created_at, nc.chiusa_il or timezone.now())),
             "nc_chiusa": bool(nc.chiusa_il),
+            "unita": etichetta_orario(),
         }
     except Exception:
         logger.warning("NC %s: tempi non calcolati", nc.pk, exc_info=True)

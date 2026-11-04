@@ -72,7 +72,7 @@ body.theme-dark .pz-warn { background:rgba(133,77,14,.2); color:#fde68a; }
       <div class="pz-msg pz-warn">Collegamento al GuestPortal non configurato: le proposte non sono disponibili (vedi la guida, parte amministratori).</div>
     {% else %}
       {% if not iv.fornitore %}
-        <div class="pz-sub" style="margin-top:8px">Nessuna ditta delegata: per avere le proposte imposta la ditta {% if iv.tipo == "ticket" %}in «Delegato a fornitore»{% else %}nel fornitore dell'OdL{% endif %}, oppure collega a mano un ingresso del giorno.</div>
+        <div class="pz-sub" style="margin-top:8px">Nessuna ditta {% if iv.tipo == "ticket" %}delegata{% else %}sull'OdL{% endif %}: collega a mano un ingresso del giorno (se la ditta si riconosce viene impostata {% if iv.tipo == "ticket" %}sul ticket{% else %}sull'OdL, che diventa «Esterna»{% endif %}), oppure parti da Fornitori → Accessi esterni → «Collega…».</div>
       {% endif %}
       {% if proposte %}
         <div class="pz-sez">Ingressi della ditta da collegare ({{ dal_al.0|date:"d/m" }} – {{ dal_al.1|date:"d/m/Y" }})</div>

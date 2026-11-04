@@ -80,6 +80,31 @@ class CollegamentoTests(BaseIngressi):
                 self.assertRaises(ing.CollegamentoNonValido):
             ing.collega(iv, 11, utente=self.admin, modo="PROPOSTA")
 
+    def test_ticket_senza_ditta_la_prende_dall_ingresso_con_commento_interno(self):
+        from tickets.models import TicketCommento
+
+        self.ticket.delegato_fornitore = None
+        self.ticket.save()
+        iv = ing.intervento(ing.TIPO_TICKET, self.ticket.pk)
+        with patch.object(gp, "visita", return_value=_accesso(ditta_gp_id=None)):  # riconosciuta per ragione sociale
+            link = ing.collega(iv, 11, utente=self.admin, modo="MANUALE", autore=("Gestore Test", "g@example.com"))
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.delegato_fornitore, self.fornitore)
+        self.assertIn("delegato", link.nota_ditta)
+        c = TicketCommento.objects.get(ticket=self.ticket)
+        self.assertTrue(c.is_interno)
+        self.assertEqual(c.autore_nome, "Gestore Test")
+
+    def test_ditta_gia_presente_non_viene_cambiata(self):
+        altro = Fornitore.objects.create(ragione_sociale="Altra Ditta Spa")
+        DittaGuestPortal.objects.create(ditta_gp_id=5, ditta_gp_nome="Ditta GP", fornitore=altro)
+        iv = ing.intervento(ing.TIPO_TICKET, self.ticket.pk)
+        with patch.object(gp, "visita", return_value=_accesso()):
+            link = ing.collega(iv, 11, utente=self.admin, modo="PROPOSTA")
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.delegato_fornitore, self.fornitore)
+        self.assertEqual(link.nota_ditta, "")
+
     def test_proposte_usano_abbinamento_e_ragione_sociale_ed_escludono_collegati(self):
         DittaGuestPortal.objects.create(ditta_gp_id=5, ditta_gp_nome="Ditta GP", fornitore=self.fornitore)
         iv = ing.intervento(ing.TIPO_TICKET, self.ticket.pk)
@@ -191,6 +216,43 @@ class VistePresenzeTests(BaseIngressi):
             resp = self.client.get(reverse("fornitori:accessi_esterni"))
         self.assertContains(resp, "Incaricato per")
         self.assertContains(resp, reverse("tickets:gestione_detail", args=[self.ticket.pk]))
+
+    def test_collega_da_ingresso_elenca_e_collega_impostando_la_ditta(self):
+        from assets.models import WorkOrderLog
+
+        self.odl.supplier = None
+        self.odl.execution_mode = WorkOrder.EXECUTION_INTERNAL
+        self.odl.save()
+        DittaGuestPortal.objects.create(ditta_gp_id=5, ditta_gp_nome="Ditta GP", fornitore=self.fornitore)
+        url = reverse("fornitori:ingresso_collega", args=[11])
+        with patch.object(gp, "visita", return_value=_accesso()), \
+                patch("fornitori.ingressi.puo_collegare_odl", return_value=True):
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, 200)
+            self.assertContains(resp, "Pressa ferma")
+            self.assertContains(resp, "Revisione pressa")
+            with patch("fornitori.views.log_action"), \
+                    patch("fornitori.views._puo_presenze", return_value=True):
+                resp = self.client.post(url, {"tipo": "odl", "pk": str(self.odl.pk)})
+        self.assertEqual(resp.status_code, 302)
+        self.odl.refresh_from_db()
+        self.assertEqual(self.odl.supplier, self.fornitore)
+        self.assertEqual(self.odl.execution_mode, WorkOrder.EXECUTION_EXTERNAL)
+        self.assertTrue(WorkOrderLog.objects.filter(work_order=self.odl, note__icontains="GuestPortal").exists())
+        self.assertTrue(IngressoIntervento.objects.filter(work_order=self.odl, visita_gp_id=11).exists())
+
+    def test_collega_da_ingresso_pk_non_valido(self):
+        with patch.object(gp, "visita", return_value=_accesso()):
+            resp = self.client.post(reverse("fornitori:ingresso_collega", args=[11]), {"tipo": "odl", "pk": "x"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(IngressoIntervento.objects.exists())
+
+    def test_odl_interno_aperto_mostra_il_riquadro(self):
+        self.odl.supplier = None
+        self.odl.execution_mode = WorkOrder.EXECUTION_INTERNAL
+        self.odl.save()
+        resp = self.client.get(reverse("assets:wo_view", args=[self.odl.pk]))
+        self.assertContains(resp, reverse("fornitori:presenze_intervento", args=["odl", self.odl.pk]))
 
     def test_pagine_ticket_e_odl_includono_il_riquadro(self):
         from core import middleware

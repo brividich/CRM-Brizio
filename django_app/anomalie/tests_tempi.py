@@ -32,24 +32,35 @@ def _utc(*args):
     return datetime(*args, tzinfo=dt_timezone.utc)
 
 
+@patch("anomalie.tempi_service.orario", return_value=(8, 18))
 class GiorniLavorativiTests(SimpleTestCase):
-    def test_weekend_non_conta(self):
-        # Venerdi 06/11/2026 18:00 (ora di Roma = UTC+1) → lunedi 09/11 09:00: 6 h + 9 h.
-        self.assertEqual(ts.giorni_lavorativi(_utc(2026, 11, 6, 17), _utc(2026, 11, 9, 8)), 0.62)
+    """Ore lavorate con l'orario 08:00-18:00 (1 giorno lavorativo = 10 h)."""
 
-    def test_festivo_non_conta(self):
-        # Gio 24/12 12:00 → lun 28/12 12:00: 12 h del 24, Natale e Santo Stefano esclusi, 12 h del 28.
+    def test_weekend_e_fuori_orario_non_contano(self, _o):
+        # Venerdi 06/11/2026 18:00 (ora di Roma = UTC+1) → lunedi 09/11 09:00: solo 08-09 di lunedi.
+        self.assertEqual(ts.ore_lavorate(_utc(2026, 11, 6, 17), _utc(2026, 11, 9, 8)), 1.0)
+        self.assertEqual(ts.giorni_lavorativi(_utc(2026, 11, 6, 17), _utc(2026, 11, 9, 8)), 0.1)
+
+    def test_notte_non_conta(self, _o):
+        # Lunedi 20:00 → martedi 10:00: 2 h (08-10 di martedi).
+        self.assertEqual(ts.ore_lavorate(_utc(2026, 11, 9, 19), _utc(2026, 11, 10, 9)), 2.0)
+
+    def test_festivo_non_conta(self, _o):
+        # Gio 24/12 12:00 → lun 28/12 12:00: 6 h del 24, Natale e Santo Stefano esclusi, 4 h del 28.
+        self.assertEqual(ts.ore_lavorate(_utc(2026, 12, 24, 11), _utc(2026, 12, 28, 11)), 10.0)
         self.assertEqual(ts.giorni_lavorativi(_utc(2026, 12, 24, 11), _utc(2026, 12, 28, 11)), 1.0)
 
-    def test_estremi(self):
+    def test_estremi(self, _o):
         self.assertIsNone(ts.giorni_lavorativi(None, _utc(2026, 11, 9, 8)))
         self.assertEqual(ts.giorni_lavorativi(_utc(2026, 11, 9, 8), _utc(2026, 11, 9, 7)), 0.0)
 
-    def test_etichette(self):
+    def test_etichette(self, _o):
         self.assertEqual(ts.etichetta_durata(None), "—")
-        self.assertEqual(ts.etichetta_durata(0.125), "3 h")
-        self.assertEqual(ts.etichetta_durata(1.5), "1,5 gg")
-        self.assertEqual(ts.etichetta_durata(10.0), "10 gg")
+        self.assertEqual(ts.etichetta_durata(0.05), "meno di 1 h")
+        self.assertEqual(ts.etichetta_durata(0.35), "3,5 h")
+        self.assertEqual(ts.etichetta_durata(1.5), "15 h · 1,5 gg")
+        self.assertEqual(ts.etichetta_durata(10.0), "100 h · 10 gg")
+        self.assertEqual(ts.etichetta_orario(), "ore lavorate 08:00–18:00, giorni lavorativi")
 
 
 class AggiornaTempiTests(TestCase):
@@ -94,17 +105,20 @@ class AggiornaTempiTests(TestCase):
         self.scheda.prima_decisione_il = _utc(2026, 11, 10, 8)
         self.scheda.chiusa_il = _utc(2026, 11, 13, 8)
         self.scheda.save()
-        tempi = ts.tempi_anomalia(creata_il=_utc(2026, 11, 9, 8), scheda=self.scheda, adesso=_utc(2026, 11, 20, 8))
-        self.assertEqual(tempi["risposta"], {"giorni": 1.0, "in_corso": False})
-        self.assertEqual(tempi["risoluzione"], {"giorni": 4.0, "in_corso": False})
+        with patch("anomalie.tempi_service.orario", return_value=(8, 18)):
+            tempi = ts.tempi_anomalia(creata_il=_utc(2026, 11, 9, 8), scheda=self.scheda, adesso=_utc(2026, 11, 20, 8))
+            aperta = ts.tempi_anomalia(creata_il=_utc(2026, 11, 2, 8), scheda=None, adesso=_utc(2026, 11, 20, 8))
+        # Lun 09:00 → mar 09:00 = 9 h + 1 h; lun 09:00 → ven 09:00 = 9 + 10 + 10 + 10 + 1.
+        self.assertEqual(tempi["risposta"], {"ore": 10.0, "giorni": 1.0, "in_corso": False})
+        self.assertEqual(tempi["risoluzione"], {"ore": 40.0, "giorni": 4.0, "in_corso": False})
         self.assertIsNone(tempi["attesa_cliente"])
-        aperta = ts.tempi_anomalia(creata_il=_utc(2026, 11, 2, 8), scheda=None, adesso=_utc(2026, 11, 20, 8))
-        with patch("anomalie.tempi_service.soglie", return_value={"risposta": 2, "risoluzione": 10}):
+        with patch("anomalie.tempi_service.soglie", return_value={"risposta": 2, "risoluzione": 10}),                 patch("anomalie.tempi_service.orario", return_value=(8, 18)):
             kpi = ts.riepilogo({1: tempi, 2: aperta}, gruppi={1: "MARIO ROSSI", 2: "MARIO ROSSI"})
         ris = kpi["metriche"]["risoluzione"]
         self.assertEqual((ris["conclusi"], ris["in_corso"], ris["mediana"], ris["entro_soglia_pct"]), (1, 1, 4.0, 100))
         self.assertEqual(ris["oltre_soglia_aperti"], 1)  # 14 gg lavorativi > 10
         self.assertEqual(kpi["per_capocommessa"][0]["anomalie"], 2)
+        self.assertEqual(ris["mediana_testo"], "40 h · 4 gg")
 
 
 def _fetch_sqlite(sql, params=None):
@@ -228,4 +242,5 @@ class EsitiApiTests(TestCase):
         with patch("anomalie.views._capocommessa_per_op", return_value={OP.lower(): "MARIO ROSSI"}):
             t = av._tempi_statistiche([{"id": self.aid, "created_datetime": "2026-11-09 08:00:00", "ex_op_nominativo": OP}])
         self.assertEqual(t["per_capocommessa"][0]["nome"], "MARIO ROSSI")
-        self.assertEqual(t["unita"], "giorni lavorativi")
+        self.assertEqual(t["unita"], "ore lavorate 08:00–18:00, giorni lavorativi")
+        self.assertEqual(t["ore_giorno"], 10)

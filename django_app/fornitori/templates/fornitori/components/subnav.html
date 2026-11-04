@@ -5,7 +5,7 @@
   <a class="sub-a{% if current == 'fornitori:fornitori_list' or current == 'fornitori:fornitore_detail' or current == 'fornitori:fornitore_edit' %} active{% endif %}" href="{% url 'fornitori:fornitori_list' %}">Elenco</a>
   <a class="sub-a{% if current == 'fornitori:fornitore_create' %} active{% endif %}" href="{% url 'fornitori:fornitore_create' %}">+ Nuovo</a>
   <div class="sub-sep"></div>
-  <a class="sub-a{% if current == 'fornitori:accessi_esterni' %} active{% endif %}" href="{% url 'fornitori:accessi_esterni' %}">Accessi esterni</a>
+  <a class="sub-a{% if current == 'fornitori:accessi_esterni' or current == 'fornitori:ingresso_collega' %} active{% endif %}" href="{% url 'fornitori:accessi_esterni' %}">Accessi esterni</a>
   <a class="sub-a{% if current == 'fornitori:guestportal_ditte' %} active{% endif %}" href="{% url 'fornitori:guestportal_ditte' %}">Ditte GuestPortal</a>
 </div>
 <div class="notice" style="margin-top: 10px;">
@@ -19,6 +19,8 @@
     <strong>Nuovo fornitore:</strong> ragione sociale obbligatoria; documenti, ordini e valutazioni si aggiungono dalla scheda.
   {% elif current == 'fornitori:accessi_esterni' %}
     <strong>Accessi esterni:</strong> visitatori, fornitori e consulenti registrati al GuestPortal (chiosco in reception). Dati letti dal GuestPortal, non copiati.
+  {% elif current == 'fornitori:ingresso_collega' %}
+    <strong>Collega ingresso:</strong> lega l'ingresso di un esterno al ticket di manutenzione o all'ordine di lavoro per cui è entrato.
   {% elif current == 'fornitori:guestportal_ditte' %}
     <strong>Ditte GuestPortal:</strong> abbinamento dei fornitori del GuestPortal con quelli dell'HUB, per collegare gli ingressi a ticket e ordini di lavoro.
   {% elif current == 'fornitori:fornitore_edit' %}

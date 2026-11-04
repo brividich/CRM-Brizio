@@ -5,9 +5,11 @@ Le date degli eventi stanno nella scheda qualita' (``AnomaliaSchedaQualita``) e 
 scrive :func:`aggiorna_tempi`, chiamata a ogni salvataggio dell'anomalia (portale,
 controllo, link della mail, riapertura) tramite ``qualita_service.sync_da_anomalia``.
 
-Si contano solo i **giorni lavorativi** (lunedi'-venerdi', festivi nazionali esclusi,
-``core.calendario_it``): un giorno lavorativo pieno vale 1, una parte di giorno la sua
-frazione. Sabati, domeniche e festivi valgono 0.
+Si contano solo le **ore lavorate**: le ore dentro l'orario di lavoro (di serie 08:00-18:00,
+Configurazione → Notifiche → «Orari e soglie») dei giorni lavorativi (lunedi'-venerdi',
+festivi nazionali esclusi, ``core.calendario_it``). Sabati, domeniche, festivi, notti e
+ore fuori orario valgono 0. Un giorno lavorativo vale le ore dell'orario (10 di serie):
+gli obiettivi restano in giorni lavorativi.
 
 Inizio di ogni tempo:
 
@@ -58,8 +60,25 @@ def _locale(dt) -> datetime:
     return timezone.localtime(dt)
 
 
-def giorni_lavorativi(inizio, fine) -> float | None:
-    """Giorni lavorativi fra due istanti (frazioni comprese); None se manca un estremo."""
+def orario() -> tuple[int, int]:
+    """(ora di inizio, ora di fine) dell'orario di lavoro dei tempi."""
+    from .escalation_config import DEFAULT_TEMPI_ORA_FINE, DEFAULT_TEMPI_ORA_INIZIO, get_escalation_config
+
+    try:
+        cfg = get_escalation_config()
+        return int(cfg["tempi_ora_inizio"]), int(cfg["tempi_ora_fine"])
+    except Exception:
+        return DEFAULT_TEMPI_ORA_INIZIO, DEFAULT_TEMPI_ORA_FINE
+
+
+def ore_giorno() -> int:
+    """Ore di un giorno lavorativo (fine - inizio dell'orario)."""
+    inizio, fine = orario()
+    return fine - inizio
+
+
+def ore_lavorate(inizio, fine, *, fascia: tuple[int, int] | None = None) -> float | None:
+    """Ore dentro l'orario di lavoro dei giorni lavorativi fra due istanti; None se manca un estremo."""
     from core.calendario_it import festivi_tra, is_lavorativo
 
     if not inizio or not fine:
@@ -67,26 +86,51 @@ def giorni_lavorativi(inizio, fine) -> float | None:
     a, b = _locale(inizio), _locale(fine)
     if b <= a:
         return 0.0
+    ora_da, ora_a = fascia or orario()
     festivi = festivi_tra(a.date(), b.date())
-    totale = 0.0
+    secondi = 0.0
     giorno: date = a.date()
     while giorno <= b.date():
         if is_lavorativo(giorno, festivi):
-            da = a if giorno == a.date() else datetime.combine(giorno, time.min, tzinfo=a.tzinfo)
-            fino = b if giorno == b.date() else datetime.combine(giorno + timedelta(days=1), time.min, tzinfo=a.tzinfo)
-            totale += max(0.0, (fino - da).total_seconds()) / 86400
+            apre = datetime.combine(giorno, time(ora_da), tzinfo=a.tzinfo)
+            chiude = (datetime.combine(giorno + timedelta(days=1), time.min, tzinfo=a.tzinfo) if ora_a >= 24
+                      else datetime.combine(giorno, time(ora_a), tzinfo=a.tzinfo))
+            secondi += max(0.0, (min(b, chiude) - max(a, apre)).total_seconds())
         giorno += timedelta(days=1)
-    return round(totale, 2)
+    return round(secondi / 3600, 2)
+
+
+def giorni_lavorativi(inizio, fine) -> float | None:
+    """Giorni lavorativi fra due istanti = ore lavorate / ore di un giorno (frazioni comprese)."""
+    fascia = orario()
+    ore = ore_lavorate(inizio, fine, fascia=fascia)
+    if ore is None:
+        return None
+    return round(ore / (fascia[1] - fascia[0]), 2)
+
+
+def _num(valore: float) -> str:
+    return f"{valore:.1f}".replace(".", ",").replace(",0", "")
 
 
 def etichetta_durata(giorni: float | None) -> str:
-    """«3 h» sotto il giorno, «1,5 gg» sopra; «—» se non c'e'."""
+    """Ore lavorate: «meno di 1 h», «3,5 h»; da un giorno in su anche i giorni («24 h · 2,4 gg»)."""
     if giorni is None:
         return "—"
-    if giorni < 1:
-        ore = round(giorni * 24)
-        return "meno di 1 h" if ore < 1 else f"{ore} h"
-    return f"{giorni:.1f}".replace(".", ",").replace(",0", "") + " gg"
+    per_giorno = ore_giorno()
+    ore = giorni * per_giorno
+    if ore < 1:
+        return "meno di 1 h"
+    testo = f"{_num(ore) if ore < 10 else round(ore)} h"
+    if giorni >= 1:
+        testo += f" · {_num(giorni)} gg"
+    return testo
+
+
+def etichetta_orario() -> str:
+    """«ore lavorate 08:00–18:00» per le intestazioni."""
+    inizio, fine = orario()
+    return f"ore lavorate {inizio:02d}:00–{fine:02d}:00, giorni lavorativi"
 
 
 # ── Registrazione degli eventi ─────────────────────────────────────────────
@@ -169,12 +213,16 @@ def tempi_anomalia(*, creata_il, scheda, notificata_il=None, adesso=None) -> dic
     adesso = adesso or timezone.now()
     out: dict = {}
 
+    fascia = orario()
+
     def _metrica(chiave, inizio, fine):
         if not inizio:
             out[chiave] = None
             return
+        ore = ore_lavorate(inizio, fine or adesso, fascia=fascia)
         out[chiave] = {
-            "giorni": giorni_lavorativi(inizio, fine or adesso),
+            "ore": ore,
+            "giorni": round(ore / (fascia[1] - fascia[0]), 2),
             "in_corso": fine is None,
         }
 
@@ -231,11 +279,15 @@ def riepilogo(tempi: dict[int, dict], *, gruppi: dict[int, str] | None = None) -
         conclusi = [v["giorni"] for v in valori if v and not v["in_corso"] and v["giorni"] is not None]
         in_corso = [v["giorni"] for v in valori if v and v["in_corso"] and v["giorni"] is not None]
         soglia = obiettivi.get(chiave)
+        mediana = round(median(conclusi), 2) if conclusi else None
+        media = round(sum(conclusi) / len(conclusi), 2) if conclusi else None
         out = {
             "conclusi": len(conclusi),
             "in_corso": len(in_corso),
-            "mediana": round(median(conclusi), 1) if conclusi else None,
-            "media": round(sum(conclusi) / len(conclusi), 1) if conclusi else None,
+            "mediana": mediana,
+            "media": media,
+            "mediana_testo": etichetta_durata(mediana),
+            "media_testo": etichetta_durata(media),
             "soglia": soglia,
             "entro_soglia_pct": None,
             "oltre_soglia_aperti": None,
@@ -259,6 +311,9 @@ def riepilogo(tempi: dict[int, dict], *, gruppi: dict[int, str] | None = None) -
         for nome, ids in sorted(nomi.items(), key=lambda kv: (-len(kv[1]), kv[0])):
             riga = {"nome": nome, "anomalie": len(ids)}
             for chiave in ("risposta", "risoluzione"):
-                riga[chiave] = _kpi([tempi[i].get(chiave) for i in ids], chiave)["mediana"]
+                kpi = _kpi([tempi[i].get(chiave) for i in ids], chiave)
+                riga[chiave] = kpi["mediana"]
+                riga[f"{chiave}_testo"] = kpi["mediana_testo"]
             per_gruppo.append(riga)
-    return {"metriche": metriche, "per_capocommessa": per_gruppo, "soglie": obiettivi, "unita": "giorni lavorativi"}
+    return {"metriche": metriche, "per_capocommessa": per_gruppo, "soglie": obiettivi,
+            "unita": etichetta_orario(), "ore_giorno": ore_giorno()}

@@ -459,7 +459,7 @@ const EsitiAnomalia = ({
     className: "ga-card__title"
   }, "Tempi ed esiti"), /*#__PURE__*/React.createElement("span", {
     className: "ga-hint"
-  }, "giorni lavorativi")), data.tempi && data.tempi.length > 0 && /*#__PURE__*/React.createElement("div", {
+  }, data.unita || "ore lavorate, giorni lavorativi")), data.tempi && data.tempi.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "ga-tempi"
   }, data.tempi.map(t => /*#__PURE__*/React.createElement("span", {
     key: t.chiave,

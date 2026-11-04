@@ -39,10 +39,12 @@ TOGGLE_KEYS = (
 )
 PARAM_KEYS = ("soglia_ore", "ora_invio", "ricorrenza_n", "ricorrenza_giorni", "rdc_giorni",
               "controllo_promemoria_minuti", "controllo_invio_auto_minuti",
-              "tempi_risposta_gg", "tempi_risoluzione_gg", "riepilogo_decisioni_minuti")
+              "tempi_risposta_gg", "tempi_risoluzione_gg", "riepilogo_decisioni_minuti",
+              "tempi_ora_inizio", "tempi_ora_fine")
 AUTO_PARAM_KEYS = ("ricorrenza_n", "ricorrenza_giorni", "rdc_giorni",
                    "controllo_promemoria_minuti", "controllo_invio_auto_minuti",
-                   "tempi_risposta_gg", "tempi_risoluzione_gg", "riepilogo_decisioni_minuti")
+                   "tempi_risposta_gg", "tempi_risoluzione_gg", "riepilogo_decisioni_minuti",
+                   "tempi_ora_inizio", "tempi_ora_fine")
 
 # Flussi pianificati che spediscono le mail (Automazioni → processi del modulo).
 MOTORI = (

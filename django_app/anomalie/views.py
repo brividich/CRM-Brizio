@@ -3623,7 +3623,9 @@ def _serializza_esito(e) -> dict:
 
 def _tempi_payload(local_id: int, created) -> dict:
     from anomalie.quality_models import AnomaliaSchedaQualita
-    from anomalie.tempi_service import METRICHE, etichetta_durata, notifiche_il, soglie, tempi_anomalia
+    from anomalie.tempi_service import (
+        METRICHE, etichetta_durata, etichetta_orario, notifiche_il, soglie, tempi_anomalia,
+    )
 
     scheda = AnomaliaSchedaQualita.objects.filter(anomalia_id=local_id).first()
     tempi = tempi_anomalia(creata_il=created, scheda=scheda, notificata_il=notifiche_il([local_id]).get(local_id))
@@ -3631,9 +3633,9 @@ def _tempi_payload(local_id: int, created) -> dict:
     for chiave, label in METRICHE:
         t = tempi.get(chiave)
         if t:
-            out.append({"chiave": chiave, "label": label, "giorni": t["giorni"], "in_corso": t["in_corso"],
-                        "testo": etichetta_durata(t["giorni"])})
-    return {"tempi": out, "soglie": soglie(), "scheda": scheda}
+            out.append({"chiave": chiave, "label": label, "giorni": t["giorni"], "ore": t.get("ore"),
+                        "in_corso": t["in_corso"], "testo": etichetta_durata(t["giorni"])})
+    return {"tempi": out, "soglie": soglie(), "scheda": scheda, "unita": etichetta_orario()}
 
 
 def _iso(valore) -> str:

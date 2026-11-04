@@ -343,7 +343,7 @@
         <div className="ga-card ga-card--esiti">
           <div className="ga-card__head">
             <span className="ga-card__title">Tempi ed esiti</span>
-            <span className="ga-hint">giorni lavorativi</span>
+            <span className="ga-hint">{data.unita || "ore lavorate, giorni lavorativi"}</span>
           </div>
           {data.tempi && data.tempi.length > 0 && (
             <div className="ga-tempi">
