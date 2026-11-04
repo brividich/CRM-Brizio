@@ -34,6 +34,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
     <a href="#contatori">Contatori e piani a contatore</a>
     <a href="#codici-guasto">Codici guasto e guasti più frequenti</a>
     <a href="#ricambi">Ricambi</a>
+    <a href="#straordinaria">Nuovo intervento (straordinaria) e modifica</a>
     <a href="#chiusura">Chiudere un intervento</a>
     <a href="#ticket">Interventi nati da una segnalazione</a>
     <a href="#stato">Stato dell'asset</a>
@@ -163,6 +164,20 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li>In chiusura, se non scrivi il costo dei materiali, il portale lo calcola dai ricambi usati.</li>
       </ol>
       <p class="ag-note">Carichi (arrivo merce) e rettifiche di inventario si registrano dalla scheda del ricambio e sono riservati agli amministratori del modulo. Non si può scaricare più di quanto c'è a magazzino: se il conteggio reale è diverso, va fatta una rettifica.</p>
+    </section>
+
+    <section class="ag-sec" id="straordinaria">
+      <h2>Nuovo intervento (straordinaria) e modifica</h2>
+      <p>Dalla scheda asset <span class="ag-btn">+ Straordinaria</span> (o da Interventi <span class="ag-btn">+ Nuovo intervento</span>) si apre il modulo dell'intervento.</p>
+      <ul>
+        <li><strong>«Chi lo esegue»</strong>: <strong>Interno</strong> (già scelto) o <strong>Esterno</strong>.</li>
+        <li><strong>Interno</strong>: «Assegnato a» elenca la squadra manutenzione e propone il manutentore predefinito. Squadra e predefinito si impostano in Impostazioni › Configurazione › <strong>«Squadra manutenzione»</strong> (amministratori del modulo); senza squadra l'elenco è quello di tutti gli utenti attivi.</li>
+        <li><strong>Esterno</strong>: compare <strong>«Ditta esterna»</strong> (obbligatoria). Scrivendo, il campo suggerisce i fornitori in anagrafica; se la ditta non c'è compare «＋ Nuova ditta» e al salvataggio viene creata nell'anagrafica fornitori (categoria Manutenzione), così resta nello storico. «Assegnato a» diventa «Referente interno», facoltativo. Scegliere un contratto di assistenza passa da solo a Esterno.</li>
+        <li>La risoluzione non si scrive più all'apertura: si registra in <strong>«Chiudi intervento»</strong> («Cosa è stato fatto»).</li>
+        <li>Dalla pagina dell'intervento aperto, <span class="ag-btn">✎ Modifica</span> riapre lo stesso modulo: tipo, chi lo esegue, assegnato, ditta, priorità, scadenza, titolo, descrizione, fermo, piano e contratto, più nuovi allegati. Stato e chiusura restano in «Registra intervento». Ogni modifica lascia una riga nel registro dell'intervento con i campi cambiati. Un intervento chiuso o annullato non si modifica.</li>
+        <li><span class="ag-btn">🖨 Scheda di lavoro</span> stampa tutto quello che c'è sull'intervento: macchina (nome, codice, reparto, famiglia, costruttore, matricola), tipo, priorità, stato, origine, date, esecuzione, assegnato, ditta, contratto, piano, ticket, fermo, descrizione, note, la checklist dell'intervento e — se è chiuso — esito, chi l'ha eseguito, durata, codici guasto, costo e «Cosa è stato fatto».</li>
+      </ul>
+      <p class="ag-note">Nello Scadenzario e in «Da fare» la colonna Asset mostra in grande il <strong>nome della macchina</strong>; il codice asset e il reparto stanno sotto, in piccolo.</p>
     </section>
 
     <section class="ag-sec" id="chiusura">

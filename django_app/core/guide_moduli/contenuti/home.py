@@ -3,7 +3,7 @@ GUIDA = {
     "titolo": "Primi passi nel portale",
     "area": "Per tutti",
     "sintesi": "Come entrare, muoversi tra i moduli, trovare le cose e chiedere aiuto.",
-    "parole": "errore campi svuotati dati persi bozza accesso login password home menu notifiche push telefono conferma elimina annulla cerca profilo scadenzario calendario outlook ics preferiti personalizza tour cataloghi sapere copertine guide tabelle viste colonne filtri schede scorrere lato",
+    "parole": "errore campi svuotati dati persi bozza accesso login password home menu notifiche push telefono conferma elimina annulla cerca profilo scadenzario calendario outlook ics preferiti personalizza azioni rapide scorciatoie tour cataloghi sapere copertine guide tabelle viste colonne filtri schede scorrere lato",
     "url": "dashboard_home",
     "prefissi": ("/dashboard", "/hub/home/", "/profilo", "/notifiche/", "/bacheca/", "/sapere/", "/scadenze", "/report/"),
     "dettaglio": [("Guida della home a stanze", "home_portale:guida"), ("Guida I miei report", "miei_report", "?guida=1")],
@@ -150,7 +150,7 @@ GUIDA = {
                 ("ul", [
                     "«⚙ Personalizza»: stanza di apertura, riquadri da mostrare (Azioni rapide, Il tuo brief di oggi, News aziendali e, per chi gestisce le consegne DPI, Banco consegne DPI) e «Rifai il tour».",
                     "Preferiti: nella stanza «Moduli» tocca ☆ su una tessera; il modulo compare in «I miei preferiti» nella colonna di sinistra (massimo 12).",
-                    "Azioni rapide: compaiono solo quelle che i tuoi permessi ti fanno usare (Le mie attività e Scadenzario sempre; poi anomalie, ticket, assenze, near miss, diario, task, DPI, assistente), al massimo 6.",
+                    "Azioni rapide: in «⚙ Personalizza» scegli le tue (azioni come Segnala anomalia o moduli da aprire), le riordini con ↑ ↓ e le togli con ✕, fino a 12; «Torna alle predefinite» rimette quelle del tuo ruolo o del portale. Compaiono solo le pagine che i tuoi permessi ti fanno aprire. Senza scelte vedi lo standard: Le mie attività, Scadenzario e poi anomalie, ticket, assenze, near miss, diario, task, DPI, assistente (al massimo 6).",
                     "La prima volta che entri parte un giro di benvenuto: barra di ricerca, notifiche, assistente, guida, stanze e preferiti.",
                     "Stanza «Sapere»: in alto i «Cataloghi», raccolte di guide, documenti e collegamenti per argomento; «Tutti i cataloghi →» apre la pagina Cataloghi. Vedi solo i cataloghi e le voci aperti al tuo ruolo.",
                 ]),
@@ -246,6 +246,11 @@ GUIDA = {
                 ("ul", [
                     "Moduli visibili: Amministrazione → Hub → «Moduli» (accendi o spegni un modulo per tutti).",
                     "Voci del menu: Amministrazione → «Navigation Builder».",
+                    "Azioni rapide della home: Amministrazione → «Azioni rapide della home». Imposti la lista «Predefinite per tutti», "
+                    "una lista per ruolo («Predefinite per ruolo») e la lista di singole persone o di tante insieme («Per persona»: "
+                    "cerca o filtra per ruolo, «Seleziona le visibili», poi «Imposta la lista alle selezionate»). Vince la più "
+                    "specifica: persona → ruolo → tutti → standard. «Riporta alle predefinite» toglie la lista personale. "
+                    "Ognuno vede solo le voci che i suoi permessi gli fanno aprire e può sempre cambiarle da «⚙ Personalizza».",
                     "Logo, nomi e colori: Amministrazione → «Branding portale».",
                     "Cosa vede ogni persona dipende dai permessi: vedi la guida «Amministrazione del portale».",
                 ]),
@@ -275,6 +280,15 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Un'azione rapida impostata dall'amministratore non compare nella mia home",
+            "fare": [
+                "Le azioni rapide mostrano solo le pagine che i tuoi permessi ti fanno aprire: se non hai il permesso, la voce resta nascosta.",
+                "Se hai scelto tu le tue azioni rapide (in «⚙ Personalizza» c'è scritto «Scelte da te»), le liste dell'amministratore "
+                "non ti toccano: «Torna alle predefinite» ti rimette quelle del ruolo o del portale.",
+                "Controlla che il riquadro «Azioni rapide» sia spuntato in «Riquadri da mostrare».",
+            ],
+        },
         {
             "sintomo": "Ho salvato un modulo, è comparso un errore e i campi si sono svuotati",
             "fare": [

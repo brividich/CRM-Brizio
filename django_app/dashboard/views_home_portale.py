@@ -768,16 +768,16 @@ def _active_unit(legacy_user_id) -> str | None:
 # ruoli (basta uno). Senza tessera/permessi = sempre visibile (pagine personali).
 # Si mostrano le prime HOME_AZIONI_MAX che la persona può davvero usare.
 _AZIONI_RAPIDE: list[dict] = [
-    {"label": "Le mie attività",       "url_name": "mie_attivita"},
-    {"label": "Scadenzario",           "url_name": "scadenze_globali"},
-    {"label": "Segnala anomalia",      "url_name": "apertura_segnalazione",     "mod": "anomalie",   "perm": (("anomalie", "creare"),)},
-    {"label": "Nuovo ticket",          "url_name": "tickets:nuovo",             "mod": "ticket",     "perm": (("ticket_it", "creare"), ("ticket_manutenzione", "creare"))},
-    {"label": "Richiedi permesso",     "url_name": "assenze_richiesta",         "mod": "assenze",    "perm": (("assenze", "creare"),)},
-    {"label": "Segnala near miss",     "url_name": "rilevazione_incidenti:nuovo", "mod": "incidenti", "perm": (("rilevazione_incidenti", "creare"),)},
-    {"label": "Nuova voce di diario",  "url_name": "diario_preposto:nuovo",     "mod": "diario",     "perm": (("diario_preposto", "creare"),)},
-    {"label": "Nuovo task",            "url_name": "tasks:create",              "mod": "task",       "perm": (("kickoff", "creare"),)},
-    {"label": "Richiedi DPI",          "url_name": "dpi:nuova",                 "mod": "dpi",        "perm": (("dpi", "creare"),)},
-    {"label": "Chiedi all'assistente", "url_name": "ai_assistant:chat",         "mod": "ai",         "perm": (("assistente_ai", "vedere"),)},
+    {"code": "mie_attivita", "label": "Le mie attività",       "url_name": "mie_attivita"},
+    {"code": "scadenzario", "label": "Scadenzario",           "url_name": "scadenze_globali"},
+    {"code": "anomalia", "label": "Segnala anomalia",      "url_name": "apertura_segnalazione",     "mod": "anomalie",   "perm": (("anomalie", "creare"),)},
+    {"code": "ticket", "label": "Nuovo ticket",          "url_name": "tickets:nuovo",             "mod": "ticket",     "perm": (("ticket_it", "creare"), ("ticket_manutenzione", "creare"))},
+    {"code": "permesso", "label": "Richiedi permesso",     "url_name": "assenze_richiesta",         "mod": "assenze",    "perm": (("assenze", "creare"),)},
+    {"code": "near_miss", "label": "Segnala near miss",     "url_name": "rilevazione_incidenti:nuovo", "mod": "incidenti", "perm": (("rilevazione_incidenti", "creare"),)},
+    {"code": "diario", "label": "Nuova voce di diario",  "url_name": "diario_preposto:nuovo",     "mod": "diario",     "perm": (("diario_preposto", "creare"),)},
+    {"code": "task", "label": "Nuovo task",            "url_name": "tasks:create",              "mod": "task",       "perm": (("kickoff", "creare"),)},
+    {"code": "dpi", "label": "Richiedi DPI",          "url_name": "dpi:nuova",                 "mod": "dpi",        "perm": (("dpi", "creare"),)},
+    {"code": "assistente", "label": "Chiedi all'assistente", "url_name": "ai_assistant:chat",         "mod": "ai",         "perm": (("assistente_ai", "vedere"),)},
 ]
 HOME_AZIONI_MAX = 6
 
@@ -971,12 +971,22 @@ def _pulisci_home_prefs(raw: Any) -> dict:
             preferiti.append(val)
     stanze = {k for k, _ in HOME_STANZE}
     riquadri = {k for k, _ in HOME_RIQUADRI}
-    return {
+    out = {
         "preferiti": preferiti[:PREFERITI_MAX],
         "stanza": raw.get("stanza") if raw.get("stanza") in stanze else "",
         "nascosti": [k for k in (raw.get("nascosti") or []) if k in riquadri],
         "tour_visto": bool(raw.get("tour_visto")),
     }
+    # Azioni rapide personali: assenti = valgono le predefinite (dashboard.azioni_rapide).
+    if isinstance(raw.get("azioni"), list):
+        from dashboard import azioni_rapide
+
+        out["azioni"] = azioni_rapide.pulisci(raw["azioni"])
+        out["azioni_fonte"] = (
+            azioni_rapide.FONTE_ADMIN if raw.get("azioni_fonte") == azioni_rapide.FONTE_ADMIN
+            else azioni_rapide.FONTE_UTENTE
+        )
+    return out
 
 
 def _home_prefs(user) -> dict:
@@ -1017,6 +1027,12 @@ def _salva_home_prefs(request: HttpRequest) -> HttpResponse:
             k for k, _ in HOME_RIQUADRI
             if (k not in mostra if k in offerti else k in prefs["nascosti"])
         ]
+        if request.POST.get("azioni_modificate") == "1":
+            prefs["azioni"] = _azioni_scelte_valide(request, request.POST.getlist("voce"), prefs)
+            prefs["azioni_fonte"] = "utente"
+    elif azione == "azioni_ripristina":
+        prefs.pop("azioni", None)
+        prefs.pop("azioni_fonte", None)
     elif azione == "tour_visto":
         prefs["tour_visto"] = True
     else:
@@ -1026,6 +1042,25 @@ def _salva_home_prefs(request: HttpRequest) -> HttpResponse:
     obj.home_prefs = prefs
     obj.save(update_fields=["home_prefs"])
     return JsonResponse({"ok": True, "prefs": prefs})
+
+
+def _azioni_scelte_valide(request: HttpRequest, voci: list[str], prefs: dict) -> list[str]:
+    """Le voci scelte dalla persona, tenute solo se può aprirle (il resto si scarta).
+
+    Le voci della sua lista attuale che oggi non può aprire restano in coda: se
+    il permesso torna, l'azione ricompare senza doverla rifare.
+    """
+    from dashboard import azioni_rapide
+
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
+    groups = _module_groups(request, _build_accessible_set(request), is_admin, {}, {})
+    consentite = {v["key"] for v in azioni_rapide.voci_consentite(request, is_admin, groups)}
+    scelte = [k for k in azioni_rapide.pulisci(voci) if k in consentite]
+    for k in prefs.get("azioni") or []:
+        if k not in consentite and k not in scelte:
+            scelte.append(k)
+    return azioni_rapide.pulisci(scelte)
 
 
 def _preferiti(groups: list[dict], ids: list[str]) -> list[dict]:
@@ -1091,8 +1126,19 @@ def home_portale(request: HttpRequest) -> HttpResponse:
 
         banco_dpi = riepilogo_banco(request)
 
+    from dashboard import azioni_rapide
+
+    azioni_home = azioni_rapide.azioni_home(
+        home_prefs,
+        getattr(legacy_user, "ruolo_id", None),
+        azioni_rapide.voci_consentite(request, is_admin, groups),
+    )
+
     context: dict[str, Any] = {
         "home_prefs":         home_prefs,
+        "home_azioni":        azioni_home,
+        "home_azioni_max":    azioni_rapide.AZIONI_MAX,
+        "home_is_admin":      is_admin,
         "home_preferiti":     _preferiti(groups, home_prefs["preferiti"]),
         "home_preferiti_ids": home_prefs["preferiti"],
         "home_nascosti":      home_prefs["nascosti"],
@@ -1107,7 +1153,7 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         "time_label":         now.strftime("%H:%M"),
         "active_role":        _active_role(legacy_user),
         "active_unit":        _active_unit(legacy_user_id),
-        "header_actions":     _header_actions(request, is_admin),
+        "header_actions":     azioni_home["azioni"],
         "priority_kpis":      _priority_kpis(request, tile_kpis),
         "module_groups":      groups,
         "module_total":       sum(g["total"] for g in groups),
