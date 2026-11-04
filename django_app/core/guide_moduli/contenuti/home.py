@@ -212,6 +212,7 @@ GUIDA = {
                     ("DPI", "i DPI consegnati e non ancora sostituiti, alla data di fine vita utile."),
                     ("RENTRI", "FIR mancanti e depositi temporanei vicini al limite."),
                     ("Azioni CAPA", "le azioni aperte con una scadenza; chi non gestisce le CAPA vede solo le proprie."),
+                    ("Altre fonti", "sistema di gestione (certificazioni, audit, CAR, efficacia, auditor, SoA, rischi OT), qualifiche di processo MOD.128 e abilitazioni macchina, documenti di enti e docenti e verifica NC a 6 mesi, SOC (azioni correttive, accettazioni del rischio), revisione degli amministratori di sistema, prese visione (guida «Scadenzario»)."),
                     ("Scadenze generiche", "certificati, contratti e altre attività fuori dagli altri moduli, con avvisi per mail e rinnovi (guida «Scadenzario»)."),
                 ]),
                 ("ul", [
