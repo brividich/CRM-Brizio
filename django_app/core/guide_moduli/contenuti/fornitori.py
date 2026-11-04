@@ -46,15 +46,21 @@ GUIDA = {
                       "collegato con il tuo utente, senza ridigitare la password, se sei abilitato nel pannello."),
                 ("nota", "I dati si leggono dal GuestPortal ogni volta che apri la pagina e non vengono copiati nell'HUB: "
                          "quando il GuestPortal cancella le visite vecchie (pulizia GDPR) spariscono anche qui."),
-                ("p", "La colonna «Incaricato per» mostra i ticket e gli ordini di lavoro a cui l'ingresso è stato collegato."),
+                ("p", "La colonna «Incaricato per» mostra i ticket e gli ordini di lavoro a cui l'ingresso è stato collegato; "
+                      "«Collega…» (o «+ altro») apre la scelta dell'intervento."),
             ],
         },
         {
             "id": "presenze-interventi",
             "titolo": "Collegare l'ingresso della ditta al ticket o all'OdL",
             "blocchi": [
-                ("p", "Nei ticket di manutenzione (scheda «Interventi» della gestione) e negli ordini di lavoro eseguiti da una "
-                      "ditta esterna c'è il riquadro «Presenze in azienda della ditta»."),
+                ("p", "Si può partire da due parti: dall'ingresso (Fornitori → «Accessi esterni» → «Collega…» sulla riga "
+                      "dell'esterno: si sceglie il ticket MAN o l'OdL aperto e si clicca «Collega») oppure dall'intervento, "
+                      "con il riquadro «Presenze in azienda della ditta» nei ticket di manutenzione (scheda «Interventi» "
+                      "della gestione) e in ogni ordine di lavoro aperto."),
+                ("p", "Se il ticket o l'OdL non ha ancora una ditta e quella dell'ingresso si riconosce, collegando la si "
+                      "imposta: il ticket diventa «Delegato a fornitore» (con un commento interno), l'OdL passa a esecuzione "
+                      "«Esterna» con quella ditta (scritto nel registro dell'OdL). Una ditta già impostata non viene cambiata."),
                 ("passi", [
                     "Imposta la ditta: «Delegato a fornitore» nel ticket, il fornitore nell'OdL.",
                     "Il riquadro propone gli ingressi della ditta dal giorno prima dell'apertura fino alla chiusura (al massimo 90 giorni): sotto «Ingressi della ditta da collegare» clicca «Collega» su quelli giusti.",

@@ -29,6 +29,7 @@
 .ae-pill-out { background:#f1f5f9; color:#475569; }
 .ae-pill-pre { background:#dbeafe; color:#1e40af; }
 .ae-pill-sup { background:#ffedd5; color:#9a3412; }
+.ae-collega { font-size:12px; font-weight:600; white-space:nowrap; }
 .ae-empty { text-align:center; padding:32px; color:var(--text-light,#94a3b8); font-size:14px; }
 .ae-filtri { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; padding:16px 20px; }
 .ae-field { display:flex; flex-direction:column; gap:4px; min-width:140px; flex:1; }
@@ -93,7 +94,7 @@ body.theme-dark .ae-banner-err { background:rgba(229,62,62,.16); color:#fca5a5; 
             <td><span class="ae-pill {% if a.tipo == 'SUPPLIER' %}ae-pill-sup{% elif a.tipo == 'PREREG' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.tipo_label }}</span></td>
             <td>{{ a.referente|default:"—" }}</td>
             <td>{{ a.motivo|default:"—" }}</td>
-            <td>{% for etichetta, url in a.interventi %}<a href="{{ url }}">{{ etichetta }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="ae-muted">—</span>{% endfor %}</td>
+            <td>{% for etichetta, url in a.interventi %}<a href="{{ url }}">{{ etichetta }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% if a.nome != "Ospite anonimizzato" %}{% if a.interventi %} · {% endif %}<a class="ae-collega" href="{% url 'fornitori:ingresso_collega' a.visita_id %}">{% if a.interventi %}+ altro{% else %}Collega…{% endif %}</a>{% endif %}</td>
             <td>{{ a.badge|default:"—" }}</td>
             <td>{{ a.ingresso|date:"d/m H:i"|default:"—" }}</td>
             <td>{{ a.durata_label }}</td>
@@ -153,7 +154,7 @@ body.theme-dark .ae-banner-err { background:rgba(229,62,62,.16); color:#fca5a5; 
             <td><span class="ae-pill {% if a.tipo == 'SUPPLIER' %}ae-pill-sup{% elif a.tipo == 'PREREG' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.tipo_label }}</span></td>
             <td>{{ a.referente|default:"—" }}</td>
             <td>{{ a.motivo|default:"—" }}</td>
-            <td>{% for etichetta, url in a.interventi %}<a href="{{ url }}">{{ etichetta }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="ae-muted">—</span>{% endfor %}</td>
+            <td>{% for etichetta, url in a.interventi %}<a href="{{ url }}">{{ etichetta }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% if a.nome != "Ospite anonimizzato" %}{% if a.interventi %} · {% endif %}<a class="ae-collega" href="{% url 'fornitori:ingresso_collega' a.visita_id %}">{% if a.interventi %}+ altro{% else %}Collega…{% endif %}</a>{% endif %}</td>
             <td>{{ a.ingresso|date:"d/m/Y H:i"|default:"—" }}</td>
             <td>{% if a.uscita %}{{ a.uscita|date:"d/m/Y H:i" }}{% else %}<span class="ae-muted">—</span>{% endif %}</td>
             <td><span class="ae-pill {% if a.presente %}ae-pill-in{% elif a.stato == 'PREREGISTERED' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.stato_label }}</span></td>
