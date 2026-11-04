@@ -1962,6 +1962,67 @@ class SecurityPropostaAi(models.Model):
         return self.proposta != self.DA_VERIFICARE
 
 
+class SecurityAlertProposta(models.Model):
+    """Proposta di chiusura dell'AI locale per un alert aperto, calcolata in automatico (``services.ai_proposte``).
+
+    Il portale raccoglie le prove dai report arrivati dopo l'alert (stesso PC, utente, IP, job, CVE) e le
+    decisioni passate di chi gestisce il SOC; l'AI propone l'esito citando le prove. La persona conferma,
+    corregge o scarta: ogni decisione insegna. Quando per lo stesso tipo di alert e lo stesso esito le
+    ultime N proposte sono state tutte confermate, le successive chiudono da sole (``chiusa_auto``);
+    riaprire un alert chiuso così (``annullata``) toglie la fiducia a quel tipo finché non la riguadagna.
+    """
+
+    APERTA = "aperta"
+    CONFERMATA = "confermata"
+    CORRETTA = "corretta"
+    SCARTATA = "scartata"
+    CHIUSA_AUTO = "chiusa_auto"
+    ANNULLATA = "annullata"
+    SUPERATA = "superata"
+    STATI = [
+        (APERTA, "Da confermare"), (CONFERMATA, "Confermata"), (CORRETTA, "Chiusa con un altro esito"),
+        (SCARTATA, "Scartata"), (CHIUSA_AUTO, "Chiusa in automatico"), (ANNULLATA, "Chiusura automatica annullata"),
+        (SUPERATA, "Superata"),
+    ]
+    # Esiti come in ``alert_lifecycle``; «aperto» = le prove non bastano per chiudere.
+    ESITI = [
+        ("resolved", "Risolto"), ("not_relevant", "Non rilevante"), ("accepted_risk", "Rischio accettato"),
+        ("false_positive", "Falso positivo"), ("aperto", "Lasciare aperto"),
+    ]
+
+    alert = models.ForeignKey(SecurityAlert, on_delete=models.CASCADE, related_name="proposte_ai")
+    schema = models.CharField(max_length=200, db_index=True)  # «sorgente|tipo di evento»: cosa impara
+    schema_label = models.CharField(max_length=255, blank=True, default="")
+    impronta = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    esito = models.CharField(max_length=16, choices=ESITI)
+    motivo = models.TextField(blank=True, default="")
+    prove = models.JSONField(default=list, blank=True)  # le righe di prova citate dall'AI
+    confidenza = models.PositiveSmallIntegerField(default=0)
+    contesto_hash = models.CharField(max_length=64, blank=True, default="")
+    modello = models.CharField(max_length=160, blank=True, default="")
+    stato = models.CharField(max_length=12, choices=STATI, default=APERTA, db_index=True)
+    esito_deciso = models.CharField(max_length=16, blank=True, default="")
+    nota = models.TextField(blank=True, default="")  # perché è stata scartata, corretta o riaperta
+    decisa_da = models.CharField(max_length=120, blank=True, default="")
+    decisa_il = models.DateTimeField(null=True, blank=True)
+    creata_il = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ["-creata_il"]
+        indexes = [models.Index(fields=["schema", "stato"], name="sec_alert_prop_schema_idx")]
+
+    def __str__(self):
+        return f"Alert #{self.alert_id}: {self.esito} ({self.stato})"
+
+    @property
+    def esito_label(self):
+        return dict(self.ESITI).get(self.esito, self.esito)
+
+    @property
+    def esito_deciso_label(self):
+        return dict(self.ESITI).get(self.esito_deciso, self.esito_deciso)
+
+
 # --- ISO 27001 5.24-5.28 e 8.13: riesame degli incidenti, azioni correttive, prove di ripristino ------
 
 

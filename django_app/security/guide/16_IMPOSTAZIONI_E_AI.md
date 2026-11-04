@@ -154,10 +154,14 @@ Quando un parser legge una mail solo in parte («Da verificare») o nessun parse
 
 La stessa AI può esaminare i casi «da verificare» del calcolo CVE: a quale CPE collegare un software (scelto solo fra quelli delle CVE già nel sistema) e se una CVE riguarda davvero un PC quando la versione non si confronta. **Si accende** in **Impostazioni › Proposte AI su CPE ed esiti da verificare** (spenta di serie), con il massimo di casi per giro (5) e la confidenza minima (60) sotto cui la risposta viene scartata; **gira** con la lettura **cpe_ai** ogni 6 ore e con **Proponi con l'AI ora** in Software e CPE. Riceve solo dati del sistema (nomi dei programmi, versioni, numero di PC, range delle CVE): mai testi di mail. Le proposte si accettano o rifiutano in Software e CPE e nella scheda CVE: i dettagli sono nel capitolo «Automatismi e vulnerabilità».
 
+### Proposte di chiusura degli alert
+
+Ogni 15 minuti l'AI controlla gli alert aperti contro i report arrivati dopo e contro le vostre decisioni passate, e propone come chiuderli in **Segnalazioni › Proposte AI**; i tipi di alert su cui le ultime proposte sono state tutte confermate li chiude da sola. Impostazioni (sezione **Proposte di chiusura dell'AI**, accese di serie): proposte (sì), chiusura automatica (sì), conferme per chiudere da sola (5), confidenza minima (80%), attesa prima di proporre (2 ore), massimo per giro (4 alert). Gira con la lettura **ai_proposte**. Dettagli nel capitolo «Lavoro quotidiano», sezione «Proposte di chiusura dell'AI».
+
 ### Come impara
 
 - Quando promuovi un evento ad alert o confermi che è a posto, la scelta viene ricordata: la volta dopo l'AI tiene conto di come avete deciso su eventi simili.
-- Gli alert chiusi, scartati e i motivi scritti diventano lo storico che l'AI usa per i consigli successivi. Motivi chiari ("job di test spento il 12/03") rendono i consigli migliori.
+- Gli alert chiusi, scartati e i motivi scritti diventano lo storico che l'AI usa per i consigli successivi. Per le proposte di chiusura conta anche ogni conferma, correzione, proposta scartata (con la nota) e riapertura: decidono quando l'AI può chiudere da sola un tipo di alert. Motivi chiari ("job di test spento il 12/03") rendono i consigli migliori.
 
 ### Limiti
 

@@ -1,0 +1,85 @@
+{% extends "security/_base_soc.html" %}
+
+{% block title %}Proposte AI | Security Center AI{% endblock %}
+{% block page_icon %}AI{% endblock %}
+{% block page_marker %}Proposte AI{% endblock %}
+{% block page_title %}Proposte di chiusura dell'AI{% endblock %}
+
+{% block soc_content %}
+<section class="sec-panel">
+  <p class="sec-muted sec-small">
+    Ogni 15 minuti l'AI locale controlla gli alert aperti contro i report arrivati dopo e contro le tue decisioni su alert dello stesso tipo, e propone come chiuderli.
+    Ogni conferma, correzione o riapertura le insegna: quando per un tipo di alert e un esito le ultime {{ soglia }} proposte sono state tutte confermate,
+    {% if chiusura_auto %}le successive chiudono l'alert da sole (con confidenza almeno {{ confidenza_minima }}%, mai alert critici, minacce o CVE sfruttate).{% else %}potrebbero chiudere da sole, ma la chiusura automatica è spenta.{% endif %}
+    <a href="{% url 'security:soc_settings' %}#ai_proposte">Impostazioni</a> ·
+    <a href="{% url 'security:letture' %}">Letture automatiche</a> ·
+    <a href="{% url 'security:doc_detail' '13-lavoro-quotidiano' %}#proposte-di-chiusura-dellai">? Guida</a>
+  </p>
+  {% if not attivo %}<p class="sec-error sec-small">Le proposte automatiche sono spente: si accendono in Impostazioni › Avvisi e automatismi.</p>{% endif %}
+  <div class="sec-kpi-strip sec-small">
+    <span><strong>{{ aperte|length }}</strong> da confermare</span> ·
+    <span><strong>{{ n_auto_7 }}</strong> alert chius{{ n_auto_7|pluralize:"o,i" }} dall'AI negli ultimi 7 giorni</span> ·
+    <span><strong>{{ n_affidabili }}</strong> tip{{ n_affidabili|pluralize:"o,i" }} di alert che chiude da sola</span>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Da confermare</h2></div>
+  <div class="prop-list">
+    {% for p in aperte %}{% include "security/partials/alert_proposta.html" with mostra_alert=True %}
+    {% empty %}<p class="sec-empty">Nessuna proposta da confermare.</p>{% endfor %}
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Cosa ha imparato</h2></div>
+  <p class="sec-muted sec-small">Conferme di fila per tipo di alert ed esito. Una correzione, una proposta scartata o un alert riaperto azzerano il conteggio.</p>
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>Tipo di alert</th><th>Esito</th><th>Conferme di fila</th><th>Stato</th></tr></thead>
+      <tbody>
+      {% for r in imparato %}
+        <tr>
+          <td>{{ r.label }}</td>
+          <td>{{ r.esito }}</td>
+          <td class="sec-nowrap"><span class="prop-meter" aria-hidden="true"><span style="width: {{ r.percento }}%"></span></span> {{ r.conferme }} / {{ r.soglia }}{% if r.errori %} <span class="sec-muted sec-small">({{ r.errori }} errori recenti)</span>{% endif %}</td>
+          <td>{% if r.affidabile and chiusura_auto %}<span class="sec-badge prop-esito">Chiude da sola</span>{% elif r.affidabile %}<span class="sec-badge sec-badge-muted">Pronta (chiusura automatica spenta)</span>{% else %}<span class="sec-badge sec-badge-muted">Sta imparando</span>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="sec-empty">Ancora niente: impara dalle prime proposte che confermi o scarti.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="sec-panel" style="margin-top: 12px;">
+  <div class="sec-section-head"><h2>Chiusi dall'AI (ultimi 30 giorni)</h2></div>
+  <div class="sec-table-wrap">
+    <table class="sec-table sec-table-compact" data-fm-table-skip="1">
+      <thead><tr><th>Quando</th><th>Alert</th><th>Esito</th><th>Motivo</th><th></th></tr></thead>
+      <tbody>
+      {% for p in auto %}
+        <tr>
+          <td class="sec-nowrap">{{ p.decisa_il|date:"d/m/Y H:i" }}</td>
+          <td><a href="{% url 'security:alert_detail' p.alert_id %}">#{{ p.alert_id }} {{ p.alert.title|truncatechars:60 }}</a><br><span class="sec-muted sec-small">{{ p.schema_label }}</span></td>
+          <td>{{ p.esito_label }}</td>
+          <td class="sec-small">{{ p.motivo|truncatechars:160 }}{% if p.stato == 'annullata' %}<br><em>Riaperto da {{ p.decisa_da }}{% if p.nota %}: {{ p.nota|truncatechars:120 }}{% endif %}</em>{% endif %}</td>
+          <td>
+            {% if p.stato == 'chiusa_auto' %}
+            <form method="post" action="{% url 'security:alert_proposta_azione' p.pk 'riapri' %}" class="prop-form">
+              {% csrf_token %}
+              <input type="text" name="nota" maxlength="500" placeholder="Perché è sbagliata?" aria-label="Perché riapri l'alert">
+              <button type="submit" class="sec-button">Riapri</button>
+            </form>
+            {% else %}<span class="sec-badge sec-badge-muted">Annullata</span>{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="sec-empty">L'AI non ha ancora chiuso alert da sola.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

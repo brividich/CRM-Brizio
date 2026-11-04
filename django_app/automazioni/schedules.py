@@ -165,6 +165,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SECURITY CENTER — proposte di chiusura dell'AI locale sugli alert aperti, con apprendimento
+        # dalle decisioni delle persone; chiude da sola solo i tipi di alert imparati. Lettura «ai_proposte».
+        "name": "security_ai_proposte",
+        "func": "security.tasks.ai_proposte_task",
+        "schedule_type": "I",   # Schedule.MINUTES
+        "minutes": 15,
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         "name": "approval_mailbox",
         "func": "automazioni.tasks.run_approval_mailbox",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)

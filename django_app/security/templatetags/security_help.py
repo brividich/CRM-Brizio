@@ -22,6 +22,7 @@ PAGE_HELP = {
     "search": ("13-lavoro-quotidiano", "cercare-qualcosa"),
     "alerts_list": ("13-lavoro-quotidiano", "alert"),
     "alert_detail": ("13-lavoro-quotidiano", "alert"),
+    "alert_proposte": ("13-lavoro-quotidiano", "proposte-di-chiusura-dellai"),
     "events": ("13-lavoro-quotidiano", "eventi"),
     "event_detail": ("13-lavoro-quotidiano", "eventi"),
     "tickets_list": ("13-lavoro-quotidiano", "ticket"),
