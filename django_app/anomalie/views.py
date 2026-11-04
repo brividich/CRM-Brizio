@@ -2114,6 +2114,11 @@ def _can_edit_anomalie_for_op(request, op_id: str) -> bool:
     if _access_level_at_least(global_level, AnomalieAccessLevel.EDIT_ALL):
         return True
 
+    # Referenti RDC / segnalazione cliente (Configurazione): modificano gli OP con
+    # anomalie da aprire RDC o da segnalare al cliente (es. per il numero RDC).
+    if _is_referente_rdc(request) and _op_ha_rdc_o_cliente(_safe_text(op_id, 100)):
+        return True
+
     from core.permessi import sistema_ruoli_attivo
 
     if sistema_ruoli_attivo():
@@ -2637,7 +2642,9 @@ def _ordini_payload(request, *, per_apertura: bool):
             "anomalie_rdc_cliente_count": rdc_cliente,
         }
         if ruoli_attivi:
-            item["can_edit"] = is_super or _modifica_op_ruoli(request, capo, car, creatori)
+            item["can_edit"] = is_super or in_carico_rdc or _modifica_op_ruoli(request, capo, car, creatori)
+        elif in_carico_rdc:
+            item["can_edit"] = True
         result.append(item)
     return result
 

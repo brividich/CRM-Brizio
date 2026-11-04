@@ -55,6 +55,28 @@ class ReferenteRdcTests(SimpleTestCase):
         self.assertFalse(self._check([], {"PAOLO ROSSI"}))
 
 
+class ReferenteRdcModificaTests(SimpleTestCase):
+    def _puo(self, referente, ha_rdc):
+        r = _req()
+        with patch.object(av, "get_legacy_user", return_value=None), \
+                patch.object(av, "_request_anomalie_global_access_level", return_value="NONE"), \
+                patch.object(av, "_is_referente_rdc", return_value=referente), \
+                patch.object(av, "_op_ha_rdc_o_cliente", return_value=ha_rdc), \
+                patch("core.permessi.sistema_ruoli_attivo", return_value=True), \
+                patch.object(av, "_dati_op_per_permessi", return_value=("", "", set())), \
+                patch.object(av, "_modifica_op_ruoli", return_value=False):
+            return av._can_edit_anomalie_for_op(r, OP)
+
+    def test_referente_modifica_op_con_rdc(self):
+        self.assertTrue(self._puo(True, True))
+
+    def test_referente_non_modifica_op_senza_rdc(self):
+        self.assertFalse(self._puo(True, False))
+
+    def test_non_referente_non_modifica(self):
+        self.assertFalse(self._puo(False, True))
+
+
 class SalvaDecisioneExtraTests(TestCase):
     def setUp(self):
         self.scheda = AnomaliaSchedaQualita.objects.create(anomalia_id=501, op_titolo=OP)

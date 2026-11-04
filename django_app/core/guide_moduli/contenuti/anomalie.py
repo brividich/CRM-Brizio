@@ -80,7 +80,7 @@ GUIDA = {
                     "Chi è capocommessa e chi riceve le mail si decide con i ruoli del modulo e in Anagrafica.",
                     "«Referenti RDC / segnalazione cliente» (Configurazione, un nome o email per riga, con «Aggiungi» "
                     "dall'anagrafica): queste persone vedono in «In carico a me» gli OP con anomalie aperte da aprire "
-                    "RDC o da segnalare al cliente, in sola lettura se non hanno anche il permesso di modifica.",
+                    "RDC o da segnalare al cliente e possono modificarne le anomalie (decisione, numero RDC, allegati).",
                     "La mail «Segnala a CAR» va al CAR solo se il nominativo corrisponde a un solo utente e ha l'email "
                     "di notifica in anagrafica; si spegne in Configurazione → Notifiche.",
                     "Con «Ruoli e permessi» acceso l'ambito delle celle anomalie decide chi vede e modifica: «Tutti» "

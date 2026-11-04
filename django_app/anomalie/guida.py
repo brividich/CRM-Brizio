@@ -223,7 +223,8 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "Ordini: i filtri «Con aperte» (quello di partenza: gli OP con anomalie ancora aperte), «In carico a me» "
                 "(OP con anomalie aperte di cui sei capocommessa o CAR; per i «Referenti RDC / segnalazione cliente» di "
-                "Configurazione anche gli OP con anomalie aperte da aprire RDC o da segnalare al cliente) e «Tutti» (anche gli OP con sole anomalie "
+                "Configurazione anche gli OP con anomalie aperte da aprire RDC o da segnalare al cliente, che possono "
+                "anche modificare) e «Tutti» (anche gli OP con sole anomalie "
                 "chiuse), con i conteggi; la ricerca trova OP, P/N, capocommessa e CAR. Il numero arancione su un OP "
                 "indica le anomalie aperte ancora da decidere.",
                 "Anomalie: raggruppate per blocco di seriali, con fase, operatore e data. «Da decidere» mostra solo quelle "
