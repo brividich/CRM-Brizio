@@ -35,9 +35,11 @@ from core.audit import log_action
 from . import collegamenti as col
 from . import guestportal as gp
 from . import ingressi as ing
-from .models import IngressoIntervento
+from .models import IngressoIntervento, TecnicoFornitore
 from .nomi import chiave_ditta
+from . import tecnici as registro_tecnici
 from .forms import (
+    TecnicoFornitoreForm,
     FornitoreAssetForm,
     FornitoreDocumentoForm,
     FornitoreForm,
@@ -162,7 +164,8 @@ def fornitori_list(request):
             Q(ragione_sociale__icontains=q)
             | Q(piva__icontains=q)
             | Q(citta__icontains=q)
-        )
+            | Q(tecnici__nome__icontains=q)
+        ).distinct()
     if categoria:
         qs = qs.filter(categoria=categoria)
     from .requisiti import stati_per_fornitori
@@ -230,6 +233,7 @@ def fornitore_detail(request, fornitore_id):
         "sezioni": sezioni,
         "codici_contatori": codici_contatori,
         "codici_scegliere": codici_scegliere,
+        "n_tecnici": fornitore.tecnici.filter(attivo=True).count(),
         "requisiti": stato_fornitore(fornitore),
         "giorni_preavviso": GIORNI_PREAVVISO,
         "documenti": documenti,
@@ -263,8 +267,104 @@ def fornitore_sezione(request, fornitore_id, sezione):
     elif sezione == col.SEZIONE_SCADENZE:
         dati = col.dati_scadenze(request, fornitore)
     else:
-        dati = col.dati_tecnici(fornitore)
+        dati = {
+            **col.dati_tecnici(fornitore, vede_ingressi=col.vede_ingressi(request)),
+            "puo_modificare": col.apre(request, "fornitori:fornitore_edit", fornitore.pk),
+            "tecnico_form": TecnicoFornitoreForm(fornitore=fornitore),
+        }
     return render(request, f"fornitori/components/sezione_{sezione}.html", {"fornitore": fornitore, **dati})
+
+
+# ---------------------------------------------------------------------------
+# Registro dei tecnici del fornitore
+# ---------------------------------------------------------------------------
+
+def _torna_ai_tecnici(fornitore):
+    return redirect(reverse("fornitori:fornitore_detail", args=[fornitore.pk]) + "#tab-tecnici")
+
+
+def _puo_modificare_tecnici(request, fornitore) -> bool:
+    return col.apre(request, "fornitori:fornitore_edit", fornitore.pk)
+
+
+_NEGATO_TECNICI = "Non puoi modificare i tecnici di questo fornitore."
+
+
+@login_required
+@require_POST
+def tecnico_add(request, fornitore_id):
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    if not _puo_modificare_tecnici(request, fornitore):
+        return HttpResponseForbidden(_NEGATO_TECNICI)
+    dati = request.POST.copy()
+    dati.setdefault("attivo", "on")
+    form = TecnicoFornitoreForm(dati, fornitore=fornitore)
+    if form.is_valid():
+        tecnico = form.save(commit=False)
+        tecnico.fornitore = fornitore
+        tecnico.creato_da = request.user
+        tecnico.save()
+        log_action(request, "fornitore_tecnico_aggiunto", "fornitori", {"fornitore_id": fornitore.pk, "tecnico_id": tecnico.pk})
+        messages.success(request, f"{tecnico.nome} registrato.")
+    else:
+        errori = [e for lista in form.errors.values() for e in lista]
+        messages.error(request, " ".join(errori) or "Controlla i dati del tecnico.")
+    return _torna_ai_tecnici(fornitore)
+
+
+@login_required
+@require_POST
+def tecnico_registra(request, fornitore_id):
+    """Registra chi è entrato dal GuestPortal e non è ancora nel registro: una persona o tutte."""
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    if not (_puo_modificare_tecnici(request, fornitore) and col.vede_ingressi(request)):
+        return HttpResponseForbidden(_NEGATO_TECNICI)
+    if request.POST.get("azione") == "tutti":
+        nomi = [t.nome for t in col.dati_tecnici(fornitore)["da_registrare"]]
+    else:
+        nomi = [request.POST.get("nome") or ""]
+    nuovi = sum(
+        1 for nome in nomi
+        if registro_tecnici.registra(
+            fornitore.pk, nome, origine=TecnicoFornitore.ORIGINE_GUESTPORTAL, utente=request.user,
+        )[1]
+    )
+    log_action(request, "fornitore_tecnici_registrati", "fornitori", {"fornitore_id": fornitore.pk, "nuovi": nuovi})
+    messages.success(request, f"Tecnici registrati: {nuovi}.")
+    return _torna_ai_tecnici(fornitore)
+
+
+@login_required
+def tecnico_edit(request, fornitore_id, tecnico_id):
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    tecnico = get_object_or_404(TecnicoFornitore, pk=tecnico_id, fornitore=fornitore)
+    if not _puo_modificare_tecnici(request, fornitore):
+        return HttpResponseForbidden(_NEGATO_TECNICI)
+    if request.method == "POST":
+        form = TecnicoFornitoreForm(request.POST, instance=tecnico, fornitore=fornitore)
+        if form.is_valid():
+            form.save()
+            log_action(request, "fornitore_tecnico_modificato", "fornitori", {"fornitore_id": fornitore.pk, "tecnico_id": tecnico.pk})
+            messages.success(request, "Tecnico aggiornato.")
+            return _torna_ai_tecnici(fornitore)
+    else:
+        form = TecnicoFornitoreForm(instance=tecnico, fornitore=fornitore)
+    return render(request, "fornitori/pages/tecnico_form.html", {"fornitore": fornitore, "tecnico": tecnico, "form": form})
+
+
+@login_required
+@require_POST
+def tecnico_stato(request, fornitore_id, tecnico_id):
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    tecnico = get_object_or_404(TecnicoFornitore, pk=tecnico_id, fornitore=fornitore)
+    if not _puo_modificare_tecnici(request, fornitore):
+        return HttpResponseForbidden(_NEGATO_TECNICI)
+    if request.POST.get("azione") == "elimina":
+        tecnico_pk = tecnico.pk
+        tecnico.delete()
+        log_action(request, "fornitore_tecnico_eliminato", "fornitori", {"fornitore_id": fornitore.pk, "tecnico_id": tecnico_pk})
+        messages.success(request, "Tecnico eliminato dal registro.")
+    return _torna_ai_tecnici(fornitore)
 
 
 @login_required

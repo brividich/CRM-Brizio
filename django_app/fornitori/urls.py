@@ -20,6 +20,12 @@ urlpatterns = [
     path("<int:fornitore_id>/sezione/<slug:sezione>/", views.fornitore_sezione, name="fornitore_sezione"),
     path("<int:fornitore_id>/contatori/", views.fornitore_collega_contatori, name="fornitore_collega_contatori"),
 
+    # Registro dei tecnici
+    path("<int:fornitore_id>/tecnici/nuovo/", views.tecnico_add, name="tecnico_add"),
+    path("<int:fornitore_id>/tecnici/registra/", views.tecnico_registra, name="tecnico_registra"),
+    path("<int:fornitore_id>/tecnici/<int:tecnico_id>/modifica/", views.tecnico_edit, name="tecnico_edit"),
+    path("<int:fornitore_id>/tecnici/<int:tecnico_id>/stato/", views.tecnico_stato, name="tecnico_stato"),
+
     # Documenti
     path("<int:fornitore_id>/documenti/add", views.fornitore_documento_add, name="fornitore_documento_add"),
     path("<int:fornitore_id>/documenti/<int:doc_id>/download/", views.fornitore_documento_download, name="fornitore_documento_download"),

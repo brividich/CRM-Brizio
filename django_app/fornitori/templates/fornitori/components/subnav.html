@@ -2,7 +2,7 @@
 <div class="subnav">
   <a class="sub-a{% if current == 'fornitori:index' %} active{% endif %}" href="{% url 'fornitori:index' %}">Fornitori</a>
   <div class="sub-sep"></div>
-  <a class="sub-a{% if current == 'fornitori:fornitori_list' or current == 'fornitori:fornitore_detail' or current == 'fornitori:fornitore_edit' %} active{% endif %}" href="{% url 'fornitori:fornitori_list' %}">Elenco</a>
+  <a class="sub-a{% if current == 'fornitori:fornitori_list' or current == 'fornitori:fornitore_detail' or current == 'fornitori:fornitore_edit' or current == 'fornitori:tecnico_edit' %} active{% endif %}" href="{% url 'fornitori:fornitori_list' %}">Elenco</a>
   <a class="sub-a{% if current == 'fornitori:fornitore_create' %} active{% endif %}" href="{% url 'fornitori:fornitore_create' %}">+ Nuovo</a>
   <div class="sub-sep"></div>
   <a class="sub-a{% if current == 'fornitori:accessi_esterni' or current == 'fornitori:ingresso_collega' %} active{% endif %}" href="{% url 'fornitori:accessi_esterni' %}">Accessi esterni</a>
@@ -23,6 +23,8 @@
     <strong>Collega ingresso:</strong> lega l'ingresso di un esterno al ticket di manutenzione o all'ordine di lavoro per cui è entrato.
   {% elif current == 'fornitori:guestportal_ditte' %}
     <strong>Ditte GuestPortal:</strong> abbinamento dei fornitori del GuestPortal con quelli dell'HUB, per collegare gli ingressi a ticket e ordini di lavoro.
+  {% elif current == 'fornitori:tecnico_edit' %}
+    <strong>Tecnico del fornitore:</strong> contatti, qualifica e attestati. Tutti i campi tranne il nome sono facoltativi.
   {% elif current == 'fornitori:fornitore_edit' %}
     <strong>Modifica fornitore:</strong> aggiorna i dati anagrafici.
   {% else %}

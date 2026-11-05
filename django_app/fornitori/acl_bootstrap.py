@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "fornitori_acl_bootstrap_v3"
+_BOOTSTRAP_CACHE_KEY = "fornitori_acl_bootstrap_v4"
 
 _PULSANTI_DEFINITIONS = [
     {
@@ -46,6 +46,34 @@ _PULSANTI_DEFINITIONS = [
         "codice": "fornitore_collega_contatori",
         "label": "Fornitori - Collega al modulo Contatori",
         "url": "route:fornitori:fornitore_collega_contatori",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "tecnico_add",
+        "label": "Fornitori - Aggiungi tecnico",
+        "url": "route:fornitori:tecnico_add",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "tecnico_registra",
+        "label": "Fornitori - Registra tecnico entrato dal GuestPortal",
+        "url": "route:fornitori:tecnico_registra",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "tecnico_edit",
+        "label": "Fornitori - Modifica tecnico",
+        "url": "route:fornitori:tecnico_edit",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "tecnico_stato",
+        "label": "Fornitori - Elimina tecnico",
+        "url": "route:fornitori:tecnico_stato",
         "visible_topbar": False,
     },
     {

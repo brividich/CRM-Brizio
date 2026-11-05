@@ -40,6 +40,11 @@ def unico(chiave: str, coppie) -> object | None:
     return trovati.pop() if len(trovati) == 1 else None
 
 
+def chiave_tecnico(nome: str | None) -> str:
+    """Come ``chiave_persona``, ma non è mai vuota per un nome di una sola parola."""
+    return chiave_persona(nome) or (nome or "").strip().lower()
+
+
 def chiave_persona(nome: str | None) -> str:
     """Chiave di un nominativo: maiuscole, accenti e punteggiatura ignorati, parole
     in ordine alfabetico («ROSSI Mario» = «Mario Rossi»). Vuota sotto le due parole:

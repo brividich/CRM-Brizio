@@ -1,34 +1,88 @@
 <div class="fr-azioni">
   <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'guida_modulo' 'fornitori' %}#scheda-collegamenti" target="_blank" rel="noopener">? Guida</a>
-  <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'fornitori:accessi_esterni' %}?q={{ fornitore.ragione_sociale|urlencode }}">Accessi esterni →</a>
+  {% if vede_ingressi %}<a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'fornitori:accessi_esterni' %}?q={{ fornitore.ragione_sociale|urlencode }}">Accessi esterni →</a>{% endif %}
 </div>
 
+{% if vede_ingressi %}
 {% if errore %}<div class="fr-errore">{{ errore }}</div>{% endif %}
-{% if not configurato %}<div class="fr-avviso">Il GuestPortal non è collegato: si vedono solo gli ingressi già collegati agli interventi.</div>{% endif %}
+{% if not configurato %}<div class="fr-avviso">Il GuestPortal non è collegato: si vedono il registro e gli ingressi già collegati agli interventi.</div>{% endif %}
 {% if configurato and not errore and not abbinata %}
 <div class="fr-avviso">Riconosco questa ditta solo dalla ragione sociale. Se nel GuestPortal ha un altro nome, <a class="fr-link" href="{% url 'fornitori:guestportal_ditte' %}">abbinala in Ditte GuestPortal</a>.</div>
 {% endif %}
-{% if troncato %}<div class="fr-avviso">Elencate le {{ limite }} persone entrate più di recente: ce ne sono altre nel GuestPortal.</div>{% endif %}
+{% if troncato %}<div class="fr-avviso">Lette le {{ limite }} persone entrate più di recente: ce ne sono altre nel GuestPortal.</div>{% endif %}
+{% endif %}
 
-<div class="fr-sez">Tecnici della ditta {% if n_dentro %}<span class="ana-pill ana-pill-green">{{ n_dentro }} in azienda ora</span>{% endif %}</div>
+<div class="fr-sez">Tecnici registrati <small>{{ n_attivi }} attivi{% if n_dentro %} · <span class="ana-pill ana-pill-green">{{ n_dentro }} in azienda ora</span>{% endif %}</small></div>
 {% if tecnici %}
 <div class="ana-table-wrap"><table class="ana-table">
-  <thead><tr><th>Tecnico</th><th>Ingressi</th><th>Ore in azienda</th><th>Ultimo ingresso</th><th>Interventi collegati</th></tr></thead>
+  <thead><tr>
+    <th>Tecnico</th><th>Qualifica</th><th>Telefono</th><th>Email</th><th>Attestati fino al</th>
+    {% if vede_ingressi %}<th>Ingressi</th><th>Ore in azienda</th><th>Ultimo ingresso</th><th>Interventi</th>{% endif %}
+    {% if puo_modificare %}<th></th>{% endif %}
+  </tr></thead>
   <tbody>{% for t in tecnici %}
+    <tr>
+      <td><strong>{{ t.nome }}</strong>{% if t.dentro %} <span class="ana-pill ana-pill-green">In azienda</span>{% endif %}{% if not t.registro.attivo %} <span class="ana-pill ana-pill-gray">Non attivo</span>{% endif %}</td>
+      <td>{{ t.registro.qualifica|default:"—" }}</td>
+      <td>{% if t.registro.telefono %}<a class="fr-link" href="tel:{{ t.registro.telefono }}">{{ t.registro.telefono }}</a>{% else %}—{% endif %}</td>
+      <td>{% if t.registro.email %}<a class="fr-link" href="mailto:{{ t.registro.email }}">{{ t.registro.email }}</a>{% else %}—{% endif %}</td>
+      <td>{% if t.registro.attestati_fino_al %}{{ t.registro.attestati_fino_al|date:"d-m-Y" }}{% if t.attestati_stato and t.attestati_stato != "ok" %} <span class="ana-pill {% if t.attestati_stato == 'scaduta' %}ana-pill-red{% else %}ana-pill-amber{% endif %}">{{ t.attestati_label }}</span>{% endif %}{% else %}—{% endif %}</td>
+      {% if vede_ingressi %}
+      <td>{{ t.ingressi|default:"—" }}</td>
+      <td>{{ t.ore_label }}</td>
+      <td>{{ t.ultimo|date:"d-m-Y H:i"|default:"—" }}</td>
+      <td>{{ t.interventi|length|default:"—" }}</td>
+      {% endif %}
+      {% if puo_modificare %}<td><a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'fornitori:tecnico_edit' fornitore.pk t.registro.pk %}">Modifica</a></td>{% endif %}
+    </tr>{% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<div class="ana-empty">Nessun tecnico registrato. Si registrano da soli quando entrano dal GuestPortal per questa ditta, oppure aggiungili qui.</div>
+{% endif %}
+
+{% if puo_modificare %}
+<details style="margin-top:12px;"><summary class="ana-btn ana-btn-ghost ana-btn-sm" style="cursor:pointer;">+ Nuovo tecnico</summary>
+  <form method="post" action="{% url 'fornitori:tecnico_add' fornitore.pk %}" class="ana-form-grid">
+    {% csrf_token %}
+    <div class="ana-field"><label>Nome e cognome *</label>{{ tecnico_form.nome }}</div>
+    <div class="ana-field"><label>Qualifica</label>{{ tecnico_form.qualifica }}</div>
+    <div class="ana-field"><label>Telefono</label>{{ tecnico_form.telefono }}</div>
+    <div class="ana-field"><label>Email</label>{{ tecnico_form.email }}</div>
+    <div class="ana-field"><label>Attestati validi fino al</label>{{ tecnico_form.attestati_fino_al }}</div>
+    <div class="ana-field"><label>Note</label>{{ tecnico_form.note }}</div>
+    <div class="full"><button class="ana-btn ana-btn-primary" type="submit">Salva tecnico</button></div>
+  </form>
+</details>
+{% endif %}
+
+{% if da_registrare %}
+<div class="fr-sez">Entrati ma non ancora registrati <small>{{ da_registrare|length }}</small></div>
+{% if puo_modificare %}
+<form method="post" action="{% url 'fornitori:tecnico_registra' fornitore.pk %}" class="fr-azioni">{% csrf_token %}
+  <input type="hidden" name="azione" value="tutti">
+  <button class="ana-btn ana-btn-ghost ana-btn-sm" type="submit">Registra tutti</button>
+</form>
+{% endif %}
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Persona</th><th>Ingressi</th><th>Ore in azienda</th><th>Ultimo ingresso</th><th>Interventi</th>{% if puo_modificare %}<th></th>{% endif %}</tr></thead>
+  <tbody>{% for t in da_registrare %}
     <tr>
       <td><strong>{{ t.nome }}</strong>{% if t.dentro %} <span class="ana-pill ana-pill-green">In azienda</span>{% endif %}</td>
       <td>{{ t.ingressi|default:"—" }}</td>
       <td>{{ t.ore_label }}</td>
       <td>{{ t.ultimo|date:"d-m-Y H:i"|default:"—" }}</td>
       <td>{{ t.interventi|length|default:"—" }}</td>
+      {% if puo_modificare %}<td><form method="post" action="{% url 'fornitori:tecnico_registra' fornitore.pk %}">{% csrf_token %}<input type="hidden" name="nome" value="{{ t.nome }}"><button class="ana-btn ana-btn-ghost ana-btn-sm" type="submit">Registra</button></form></td>{% endif %}
     </tr>{% endfor %}
   </tbody>
 </table></div>
-<p class="fr-nota">Ingressi e ore vengono dal GuestPortal e comprendono solo le visite che conserva ancora: dopo la sua pulizia GDPR restano gli ingressi collegati a un intervento. Gli ospiti anonimizzati non si elencano.</p>
-{% else %}
-<div class="ana-empty">Nessun tecnico trovato per questa ditta.</div>
+{% endif %}
+{% if vede_ingressi and tecnici or vede_ingressi and da_registrare %}
+<p class="fr-nota">Ingressi e ore vengono dal GuestPortal e comprendono solo le visite che conserva ancora; il registro resta anche dopo la sua pulizia GDPR, finché non elimini il tecnico.</p>
 {% endif %}
 
+{% if vede_ingressi %}
 {% if interventi %}
 <div class="fr-sez">Ingressi collegati a un intervento <small>{{ interventi|length }} su {{ n_interventi }}</small></div>
 <div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
@@ -62,4 +116,5 @@
     </tr>{% endfor %}
   </tbody>
 </table></div>
+{% endif %}
 {% endif %}

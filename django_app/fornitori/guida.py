@@ -44,16 +44,22 @@ SEZIONI = [
                               "importi in euro non ci sono: il modulo Contatori non li registra."),
                 ("Scadenze", "documenti, contratti, verifiche periodiche e attività dello Scadenzario della ditta, "
                              "in ordine di data. «In scadenza» = entro 30 giorni."),
-                ("Tecnici", "le persone entrate per questa ditta dal GuestPortal, con ingressi, ore in azienda e "
-                            "ultimo ingresso, chi è dentro ora, gli ingressi collegati a un intervento e quelli "
-                            "degli ultimi 90 giorni."),
+                ("Tecnici", "il registro dei tecnici della ditta con qualifica, contatti e attestati. Chi ha il permesso "
+                            "di «Accessi esterni» vede anche ingressi, ore in azienda, ultimo ingresso, chi è dentro "
+                            "ora e gli ingressi degli ultimi 90 giorni."),
             ]),
             ("p", "La scheda «Copie MFC» compare da sola se il fornitore ha lo stesso nome di quello usato in Contatori "
                   "(BASE SPA, Copylab). Altrimenti, nel riquadro «Multifunzioni» a destra, apri «Fattura le copie delle "
                   "multifunzioni?», scegli il fornitore e premi «Collega»; «Togli» annulla il collegamento."),
-            ("nota", "I tecnici sono letti dal GuestPortal a ogni apertura e non vengono copiati nell'HUB: dopo la sua "
-                     "pulizia GDPR restano solo gli ingressi collegati a un ticket o a un OdL. Se il GuestPortal non "
-                     "risponde la scheda lo dice e il resto della pagina funziona."),
+            ("p", "Un tecnico si registra da solo quando entra dal GuestPortal per una ditta riconosciuta (controllo ogni "
+                  "10 minuti) o quando un suo ingresso viene collegato a un intervento. Puoi aggiungerlo con «+ Nuovo "
+                  "tecnico» o con «Registra» / «Registra tutti» in «Entrati ma non ancora registrati». Da «Modifica» "
+                  "compili qualifica, contatti e «Attestati validi fino al» (facoltativi): la data compare in «Scadenze» "
+                  "e nello Scadenzario."),
+            ("nota", "Il registro resta nell'HUB anche dopo la pulizia GDPR del GuestPortal: chi non lavora più per la ditta "
+                     "si disattiva da «Modifica», oppure si cancella con «Elimina dal registro». Ingressi e ore invece si "
+                     "leggono dal GuestPortal a ogni apertura, senza copie. Se non risponde la scheda lo dice e il resto "
+                     "della pagina funziona."),
         ],
     },
     {
@@ -109,7 +115,8 @@ SEZIONI = [
                 ("Fornitori e scheda", "chi ha il modulo Fornitori."),
                 ("Manutenzione, Copie MFC", "chi apre anche le manutenzioni delle ditte in Asset, o le fatture in "
                                             "Contatori; i ticket sono quelli che la persona può gestire."),
-                ("Tecnici", "chi ha il permesso di «Accessi esterni»: sono dati personali."),
+                ("Tecnici", "il registro con la scheda del fornitore; ingressi e ore con il permesso di «Accessi "
+                            "esterni»; aggiungere, modificare ed eliminare con il permesso di modifica del fornitore."),
                 ("Accessi esterni", "chi ha il permesso del portale esterno (in produzione amministratori)."),
                 ("Notifica ingressi non in regola", "chi ricopre i ruoli indicati nella chiave "
                                                      "«fornitori_requisiti_ruoli» (predefinito «RSPP,ASPP»)."),
@@ -123,9 +130,10 @@ SEZIONI = [
             ("def", [
                 ("La ditta entrata non risulta collegata", "il nome nel GuestPortal è diverso dalla ragione sociale: "
                                                            "abbinala in «Ditte GuestPortal»."),
-                ("La scheda «Tecnici» è vuota", "la ditta ha un altro nome nel GuestPortal (abbinala in «Ditte "
-                                                "GuestPortal») oppure le sue visite sono già state cancellate dalla "
-                                                "pulizia GDPR."),
+                ("Un tecnico entrato non è nel registro", "la ditta ha un altro nome nel GuestPortal: abbinala in «Ditte "
+                                                          "GuestPortal». Il controllo gira ogni 10 minuti e vede chi è "
+                                                          "dentro in quel momento: chi è già uscito si registra da «Entrati "
+                                                          "ma non ancora registrati»."),
                 ("Non vedo «Copie MFC»", "il nome non coincide con quello di Contatori: collega il fornitore dal "
                                          "riquadro «Multifunzioni» della scheda. Serve anche il permesso delle "
                                          "fatture di Contatori."),
