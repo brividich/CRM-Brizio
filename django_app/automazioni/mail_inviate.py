@@ -1,8 +1,9 @@
 """Registro «Mail inviate»: una riga per ogni mail partita, con esito.
 
-Lo chiamano le azioni delle automazioni (avvisi e richieste di approvazione) e
-le mail dirette delle assenze (modifica, eliminazione, solleciti) e tutte le mail
-del modulo Anomalie (``anomalie.mail_action_service.send_and_log_email``). Best-effort:
+Lo chiamano le azioni delle automazioni (avvisi e richieste di approvazione), le
+mail dirette delle assenze (modifica, eliminazione, solleciti), tutte le mail del
+modulo Anomalie (``anomalie.mail_action_service.send_and_log_email``) e
+``core.email_utils.send_hub_mail``, quindi i promemoria dei moduli. Best-effort:
 un errore di scrittura viene solo loggato, l'invio non ne risente.
 """
 from __future__ import annotations
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 ORIGINI = {
     "automazione": "Automazione",
+    "hub": "Promemoria e avvisi dei moduli",
     "approvazione": "Richiesta di approvazione",
     "assenze_modifica": "Assenze · richiesta modificata",
     "assenze_eliminazione": "Assenze · richiesta eliminata",

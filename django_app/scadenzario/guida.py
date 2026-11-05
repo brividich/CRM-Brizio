@@ -230,7 +230,8 @@ SEZIONI: list[dict] = [
             ]),
             ("nota", "Attività senza destinatari propri: nessun avviso singolo, solo il riepilogo mensile della categoria. È normale, ma per le attività importanti conviene aggiungere destinatari."),
             ("p", "La pagina «Avvisi» mostra in alto cosa partirà al prossimo invio, senza spedire nulla: le mail in partenza, le attività nel preavviso senza destinatari, quelle già avvisate che ripartiranno più avanti. "
-                  "Sotto, «Già inviati» è il registro delle ultime 300 mail con l'esito; quelle importate sono segnate «vecchio scadenzario»."),
+                  "Sotto, «Già inviati» è il registro delle ultime 300 mail con l'esito; quelle importate sono segnate «vecchio scadenzario». "
+                  "Chi ha accesso alle Automazioni trova le stesse mail, insieme a quelle degli altri moduli, in Automazioni → «Mail inviate»: origine «Promemoria e avvisi dei moduli»."),
             ("img", (_IMG + "avvisi.jpg", "Anteprima del prossimo invio")),
         ],
     },
