@@ -20,7 +20,8 @@ from urllib.parse import quote
 from django.contrib import messages
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.http import HttpRequest, HttpResponse
+from django.db.models import Q
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
@@ -80,7 +81,23 @@ def _layout_da_richiesta(request) -> PlantLayout | None:
     return PlantLayout.objects.filter(pk=layout_id).first() if layout_id else None
 
 
+def _cerca_asset(request: HttpRequest) -> JsonResponse:
+    """Ricerca per l'associazione a mano: nome, n. interno, tag, matricola (asset non dismessi)."""
+    testo = (request.GET.get("cerca") or "").strip()[:60]
+    if len(testo) < 2:
+        return JsonResponse({"risultati": []})
+    filtro = Q()
+    for parola in testo.split()[:4]:
+        filtro &= (Q(name__icontains=parola) | Q(internal_number__icontains=parola) | Q(asset_tag__icontains=parola)
+                   | Q(serial_number__icontains=parola))
+    assets = (Asset.objects.exclude(status=Asset.STATUS_RETIRED).filter(filtro)
+              .select_related("asset_category").order_by("name", "id")[:20])
+    return JsonResponse({"risultati": [lettura._candidato(a) for a in assets]})
+
+
 def leggi_planimetria(request: HttpRequest) -> HttpResponse:
+    if request.method == "GET" and "cerca" in request.GET:
+        return _cerca_asset(request)
     layouts = list(PlantLayout.objects.order_by("category", "-is_active", "name"))
     layout = _layout_da_richiesta(request) or next((x for x in layouts if x.is_active), None)
     contesto = {
@@ -186,6 +203,7 @@ def _applica(request: HttpRequest, layout: PlantLayout) -> HttpResponse:
         x, y = _coordinata(x), _coordinata(y)
         if x is not None and y is not None:
             scelte.append((asset_id, x, y))
+    scelte += _righe_associate(request)
     if not scelte and not nuovi and not reparti:
         messages.warning(request, "Nessuna proposta selezionata: niente è cambiato.")
         return redirect(f"{reverse('assets:plant_layout_editor')}?leggi=1&layout={layout.id}")
@@ -244,6 +262,19 @@ def _applica(request: HttpRequest, layout: PlantLayout) -> HttpResponse:
             "controllala e usa «Pubblica come attiva».",
         )
     return redirect(_url_editor(destinazione))
+
+
+def _righe_associate(request: HttpRequest) -> list[tuple[int, Decimal, Decimal]]:
+    """Sigle associate a mano (o punti aggiunti cliccando sulla pianta): asset scelto e posizione."""
+    righe = []
+    for indice in request.POST.getlist("assoc"):
+        if not str(indice).isdigit():
+            continue
+        dato = lambda k: (request.POST.get(f"assoc_{k}_{indice}") or "").strip()  # noqa: E731
+        x, y = _coordinata(dato("x")), _coordinata(dato("y"))
+        if dato("asset").isdigit() and x is not None and y is not None:
+            righe.append((int(dato("asset")), x, y))
+    return righe[:500]
 
 
 def _righe_da_creare(request: HttpRequest) -> list[dict]:

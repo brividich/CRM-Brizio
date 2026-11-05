@@ -337,6 +337,10 @@ GUIDA = {
                     "categorie lette dalla legenda. Poi «Valida asset» rilegge il PDF salvato e mostra gli asset riconosciuti: "
                     "togli la spunta a quelli sbagliati e premi «Valida e colloca». Ricaricare lo stesso file aggiorna la "
                     "pianta che ne era nata; «Scarta» cancella una pianta importata non ancora validata.",
+                    "«Da associare a mano»: le sigle lette ma non abbinate da sole («?» arancione sulla pianta) dicono perché "
+                    "(più asset con la stessa sigla, asset di un'altra categoria, nessun asset). Scegli l'asset dall'elenco o "
+                    "cercalo per nome, n. interno, tag o matricola: la riga si spunta da sola. Per un asset che sulla pianta non è "
+                    "scritto premi «Aggiungi un asset a mano» e clicca nel suo punto. Tutto si applica con «Valida e colloca».",
                     "Sulle piante di servizio la lettura propone da creare solo le sigle con il simbolo colorato o citate "
                     "in legenda: i nomi di reparto («CN5») e i numeri delle macchine del disegno di fondo («-233-») no. "
                     "Su un livello non propone reparti: si disegnano sulla pianta base.",

@@ -118,6 +118,18 @@ class DaCreare:
 
 
 @dataclass
+class DaAssociare:
+    """Sigla letta sulla pianta che non è diventata una proposta: si associa a mano a un asset."""
+
+    sigla: str
+    x: float
+    y: float
+    motivo: str
+    candidati: list[dict] = field(default_factory=list)  # id, nome, sotto (n. interno, categoria, reparto)
+    altri_punti: int = 0
+
+
+@dataclass
 class ArePropostaReparto:
     nome: str
     x: float
@@ -141,6 +153,7 @@ class Risultato:
     avvisi: list[str] = field(default_factory=list)
     da_creare: list[DaCreare] = field(default_factory=list)
     reparti: list[ArePropostaReparto] = field(default_factory=list)
+    da_associare: list[DaAssociare] = field(default_factory=list)
     legenda: pagina_pdf.Legenda | None = None
     categorie_note: str = ""  # perché la ricerca è limitata ad alcune categorie
     categorie_nomi: list[str] = field(default_factory=list)
@@ -466,9 +479,14 @@ def abbina(layout: PlantLayout, parole: list[Parola] | None = None, *, usa_ai: b
     indice_tutti = _indice_asset(list(assets_candidati()), reparti) if categorie is not None else indice
     trovati: dict[int, list[tuple[Asset, str, str, float, float]]] = {}
     usate: set[str] = set()
+    ambigue: dict[str, tuple[str, float, float, list]] = {}
     for chiave, testo, x, y in _candidati(parole):
         voci = indice.get(chiave)
-        if not voci or len(voci) > 1:  # sigla di più asset: ambigua, meglio non proporla
+        if not voci:
+            continue
+        if len(voci) > 1:  # sigla di più asset: ambigua, non si propone ma si sceglie a mano
+            if _sembra_sigla(testo):
+                ambigue.setdefault(chiave, (testo, x, y, voci))
             continue
         asset, fonte = voci[0]
         trovati.setdefault(asset.pk, []).append((asset, fonte, testo, x, y))
@@ -506,9 +524,70 @@ def abbina(layout: PlantLayout, parole: list[Parola] | None = None, *, usa_ai: b
             risultato.proposte.append(proposta)
             da_ai = [t for t in da_ai if t != proposta.testo_letto]
     risultato.non_riconosciute = da_ai[:200]
+    risultato.da_associare = _da_associare(
+        parole, usate | {normalizza(p.testo_letto) for p in risultato.proposte},
+        {normalizza(d.sigla) for d in risultato.da_creare}, ambigue, indice_tutti, reparti,
+        filtrate=categorie is not None, macchine_ammesse=_macchine_ammesse(categorie),
+    )
     ordine = {"sposta": 0, "nuovo": 1, "invariato": 2}
     risultato.proposte.sort(key=lambda p: (p.fonte == FONTE_AI, ordine[p.stato], p.nome.casefold()))
     return risultato
+
+
+_MAX_DA_ASSOCIARE = 300
+_MISURA = re.compile(r"^\d+([.,]\d+)?\s?(mm|cm|m|mq|m2|kg|t|kw|kva|v|a|bar|l)$", re.I)  # quote e targhe: «1400mm»
+
+
+def _candidato(asset: Asset) -> dict:
+    sotto = " · ".join(x for x in (
+        asset.internal_number or asset.asset_tag or "",
+        asset.asset_category.label if asset.asset_category_id and asset.asset_category else "",
+        asset.reparto or "",
+    ) if x)
+    return {"id": asset.pk, "nome": asset.name or asset.asset_tag or f"Asset {asset.pk}", "sotto": sotto}
+
+
+def _macchine_ammesse(categorie) -> bool:
+    if not categorie:
+        return True
+    return AssetCategory.objects.filter(id__in=categorie, base_asset_type=Asset.TYPE_WORK_MACHINE).exists()
+
+
+def _da_associare(parole, usate, da_creare, ambigue, indice_tutti, reparti, *, filtrate: bool,
+                  macchine_ammesse: bool = True) -> list[DaAssociare]:
+    """Sigle lette e non usate, con la posizione e gli asset che potrebbero essere (se ce ne sono)."""
+    per_chiave: dict[str, DaAssociare] = {}
+
+    def aggiungi(chiave, testo, x, y):
+        if chiave in per_chiave:
+            per_chiave[chiave].altri_punti += 1
+            return
+        voci = ambigue[chiave][3] if chiave in ambigue else []
+        if voci:
+            motivo = f"Corrisponde a {len(voci)} asset: scegli quale"
+        elif filtrate and indice_tutti.get(chiave):
+            voci = indice_tutti[chiave]
+            motivo = "C'è un asset con questa sigla, ma di un'altra categoria"
+        else:
+            motivo = "Nessun asset con questa sigla: cercalo per nome"
+        per_chiave[chiave] = DaAssociare(
+            sigla=testo.strip(" ,;:.()[]"), x=x, y=y, motivo=motivo,
+            candidati=[_candidato(a) for a, _fonte in voci[:12]],
+        )
+
+    for p in parole:
+        chiave = normalizza(p.testo)
+        if (not _sembra_sigla(p.testo) or chiave in usate or chiave in da_creare or chiave in reparti
+                or _NON_CODICE.match(p.testo.strip(" ,;:.()[]")) or _MISURA.match(p.testo.strip())):
+            continue
+        if not macchine_ammesse and chiave not in ambigue and re.match(r"^-\d{1,4}[A-Za-z]?-?$", p.testo.strip()):
+            continue  # «-233-»: numero di una macchina del disegno di fondo, non di questo servizio
+        aggiungi(chiave, p.testo, p.x, p.y)
+    for chiave, (testo, x, y, _voci) in ambigue.items():  # sigle ambigue scritte su più parole («T 12»)
+        if chiave not in per_chiave and chiave not in usate:
+            aggiungi(chiave, testo, x, y)
+    righe = sorted(per_chiave.values(), key=lambda d: (not d.candidati, _ordine_sigla(d.sigla)))
+    return righe[:_MAX_DA_ASSOCIARE]
 
 
 def _controlla_con_legenda(proposta: Proposta, asset: Asset, pagina: Pagina | None, chiave: str) -> None:
