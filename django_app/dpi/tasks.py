@@ -40,3 +40,10 @@ def run_dpi_expiry_reminders() -> dict:
     except Exception:
         logger.exception("run_dpi_expiry_reminders: eccezione inattesa")
         raise
+
+
+def run_dpi_avvisi_consegna() -> dict:
+    """Mail e PDF delle consegne dal banco rimasti in sospeso (browser chiuso, rete caduta)."""
+    from .views import completa_consegne_in_sospeso
+
+    return {"ok": True, "completate": completa_consegne_in_sospeso()}

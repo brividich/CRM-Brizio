@@ -93,10 +93,12 @@ GUIDA = {
                     "Quando la persona arriva scrivi il nome in «Cerca la persona al banco» (vale anche il reparto, il numero della richiesta o il codice del modello). "
                     "Se resta una sola persona la sua scheda si apre da sola; altrimenti cliccala nell'elenco.",
                     "Nella scheda tutti i DPI sono già spuntati: togli la spunta a quelli che non consegni adesso («Tutti» e «Nessuno» fanno prima). "
-                    "Accanto a ogni DPI vedi quanti pezzi ci sono «in magazzino» (in rosso se non bastano).",
+                    "Accanto a ogni DPI vedi quanti pezzi ci sono «in magazzino» (in rosso se non bastano). Se non bastano registra il carico, oppure scrivi "
+                    "il «Motivo della consegna senza giacenza»: senza non si consegna, e il motivo resta nella richiesta e nel movimento di magazzino.",
                     "Se manca quel modello o quella taglia clicca «Cambia» (o «Scegli modello») accanto al DPI: la modifica resta scritta nella richiesta.",
                     "Clicca «Consegna N DPI a…»: il pulsante dice quanti DPI e a chi. Il cursore torna sulla ricerca, pronto per la persona dopo. "
-                    "In basso una barra conta 6 secondi: «Annulla» (o Esc) ferma tutto, «Registra ora» non aspetta. Passato il tempo la consegna è registrata. "
+                    "La consegna è registrata subito. In basso una barra conta 6 secondi prima di mail e PDF: «Annulla» (o Esc) riporta i DPI da consegnare "
+                    "e rimette i pezzi a magazzino, «Invia ora» non aspetta. Se chiudi la pagina la consegna resta salva e gli avvisi partono comunque. "
                     "Non serve la firma: parte da sola la mail di conferma della ricevuta (vedi sotto).",
                     "Se al banco c'è un tablet o hai la ricevuta su carta, apri «Firma sul tablet o ricevuta su carta»: con la firma "
                     "(o la spunta «Ricevuta firmata su carta») la mail di conferma non parte.",
