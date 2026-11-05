@@ -11,7 +11,7 @@ Lo scadenzario del portale: la pagina `/scadenze` (`dashboard.views_scadenze`) r
 
 | URL | Nome | Cosa |
 |---|---|---|
-| `/scadenze` | `scadenze_globali` | Scadenzario globale (app `dashboard`) |
+| `/scadenze` | `scadenze_globali` | Scadenzario globale (app `dashboard`): `?vista=mese` (predefinita, `&mese=AAAA-MM`, ±24 mesi), `agenda`, `elenco`; `?format=csv` / `ics` |
 | `/scadenze/gestione/` | `scadenzario:gestione` | Pannello: albero voci, impostazioni, regole |
 | `/scadenze/generiche/` | `scadenzario:elenco` | Elenco scadenze generiche (+ export Excel `?format=xlsx`) |
 | `/scadenze/generiche/nuova/`, `<id>/`, `<id>/modifica/`, `<id>/rinnovo/` | `scadenza_*` | Attività, scheda, rinnovo con allegato |

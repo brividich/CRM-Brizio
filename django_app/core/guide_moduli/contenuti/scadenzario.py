@@ -13,7 +13,8 @@ GUIDA = {
             "blocchi": [
                 ("p", "Menu in alto «Scadenzario» (indirizzo /scadenze): le scadute e le scadenze dei prossimi 90 giorni di "
                       "personale, asset, verifiche impianti, DPI, RENTRI, azioni CAPA e scadenze generiche, le più urgenti in cima. "
-                      "Filtri, CSV e calendario come descritto nella guida della Home («Lo Scadenzario globale»)."),
+                      "Si apre sul calendario del mese (clic su un giorno per il dettaglio), con le viste Agenda ed Elenco; "
+                      "contatori, filtri, CSV e file per Outlook come descritto nella guida della Home («Lo Scadenzario globale»)."),
                 ("def", [
                     ("Sistema di gestione", "sorveglianza e scadenza dei certificati (attivi), audit esterni pianificati e risposta all'ente, audit interni pianificati o con piano approvato, analisi (1 mese) e chiusura (3 mesi o proroga) delle CAR aperte, prossima verifica di efficacia, qualifica degli auditor attivi, azioni della SoA e scenari di rischio OT della revisione in vigore."),
                     ("Qualifiche di processo", "scadenza e revisione dei processi MOD.128 attivi, requisiti con scadenza, certificazioni individuali attive, revisione delle abilitazioni macchina della skill matrix."),

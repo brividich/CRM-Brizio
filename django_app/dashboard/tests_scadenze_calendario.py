@@ -151,7 +151,7 @@ class PagineTests(TestCase):
 
     def test_pulsante_ics_e_opzione_outlook(self):
         with patch("dashboard.views_scadenze.collect_all", return_value=[]):
-            self.assertContains(self.client.get(reverse("scadenze_globali")), "Calendario (.ics)")
+            self.assertContains(self.client.get(reverse("scadenze_globali")), "Outlook (.ics)")
         with patch("core.m365_graph.configurato", return_value=True):
             resp = self.client.get(reverse("notifiche_impostazioni"))
         self.assertContains(resp, "Metti le mie scadenze nel calendario Outlook")
