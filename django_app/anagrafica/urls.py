@@ -15,6 +15,7 @@ from . import views_coerenza_capi
 from . import views_capi_reparti
 from . import views_centri_costo
 from . import views_esplora
+from . import views_prospetto
 from . import views_mio_team
 from . import views_mia_scheda
 from . import views_retention
@@ -429,6 +430,14 @@ urlpatterns = [
     # Struttura organizzativa (struttura della Qualità): pagina dedicata, revisioni, conferme HSE
     path("struttura/", views_struttura_org.struttura_org, name="struttura_org"),
     path("struttura/esplora/", views_esplora.esplora_struttura, name="esplora_struttura"),
+    path("struttura/prospetto/", views_prospetto.prospetti, name="prospetti"),
+    path("struttura/prospetto/nuovo", views_prospetto.prospetto_crea, name="prospetto_crea"),
+    path("struttura/prospetto/<int:pk>/", views_prospetto.prospetto, name="prospetto"),
+    path("struttura/prospetto/<int:pk>/aggiungi", views_prospetto.prospetto_aggiungi, name="prospetto_aggiungi"),
+    path("struttura/prospetto/<int:pk>/togli/<int:riga_id>", views_prospetto.prospetto_togli, name="prospetto_togli"),
+    path("struttura/prospetto/<int:pk>/soglie", views_prospetto.prospetto_soglie, name="prospetto_soglie"),
+    path("struttura/prospetto/<int:pk>/applica", views_prospetto.prospetto_applica, name="prospetto_applica"),
+    path("struttura/prospetto/<int:pk>/annulla", views_prospetto.prospetto_annulla, name="prospetto_annulla"),
     path("struttura/reparto/<int:reparto_id>/", views_struttura_org.struttura_reparto_salva,
          name="struttura_reparto_salva"),
     path("struttura/area/<int:area_id>/", views_struttura_org.struttura_area_salva, name="struttura_area_salva"),

@@ -51,6 +51,7 @@
       <a class="fmd-data-link" href="#coerenza-capi">Capi, team e spostamenti</a>
       <a class="fmd-data-link" href="#centri-costo">Centri di costo</a>
       <a class="fmd-data-link" href="#esplora-struttura">Esplora la struttura</a>
+      <a class="fmd-data-link" href="#prospetto">Prospetto dei cambiamenti</a>
       <a class="fmd-data-link" href="#ruoli-in-blocco">Ruoli e mansioni in blocco</a>
       <a class="fmd-data-link" href="#coefficienti">Classificazione e coefficienti</a>
       <a class="fmd-data-link" href="#costo-orario">Costo orario</a>
@@ -235,6 +236,35 @@
         <li><strong>Le voci «Senza…»</strong>: «Senza centro di costo», «Senza reparto» e «Senza ruolo» raccolgono quello che non è collegato, così non sparisce nessuno.</li>
       </ul>
       <div class="gpa-nota">Un ruolo compare in un reparto se è previsto dall'elenco aziendale, se lo ricopre una persona del reparto o se una mansione del reparto sta sotto quel ruolo. Il link si può mandare: il punto scelto sta nell'indirizzo.</div>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="prospetto">
+      <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Prospetto dei cambiamenti</h2>
+      <p><strong>Persone → Prospetto dei cambiamenti</strong> mostra che cosa succederebbe <strong>prima</strong> di cambiare: confronta <strong>Oggi</strong> e <strong>Dopo</strong>. Finché non si applica non cambia niente. Lo vede chi vede la Struttura organizzativa; lo prepara e lo applica l'amministrazione dell'anagrafica.</p>
+      <h3>Che cosa si può provare</h3>
+      <ul>
+        <li><strong>Reparto in un altro centro di costo</strong>;</li>
+        <li><strong>Persona in un altro reparto</strong>, scegliendo se lascia o tiene le mansioni del reparto di prima;</li>
+        <li><strong>Ruolo di una persona</strong>: aggiunge, sostituisce o chiude, come in «Ruoli e mansioni in blocco»;</li>
+        <li><strong>Persona su una mansione</strong>: entra a un livello o esce;</li>
+        <li><strong>Mansione in un altro reparto</strong>.</li>
+      </ul>
+      <h3>Che cosa si confronta</h3>
+      <ul>
+        <li><strong>Riepilogo</strong>: persone senza centro e senza capo, mansioni scoperte, con poche persone o con carico concentrato, persone su troppe mansioni e persone chiave, ruoli previsti rimasti senza nessuno.</li>
+        <li><strong>Centri di costo e reparti</strong>: persone, chi entra e chi esce. Con il permesso sui dati HR riservati anche <strong>RML</strong> e <strong>costo orario medio</strong> dell'ultimo mese.</li>
+        <li><strong>Mansioni</strong>: in lista, operativi, <strong>teste equivalenti</strong> (somma dei coefficienti), carico per operativo e stato; con il permesso HR il costo orario medio pesato.</li>
+        <li><strong>Persone toccate</strong>: reparto, centro, ruoli, capo, mansioni tolte e da assegnare, costo. Per chi cambia reparto, i requisiti del confronto cambio mansione: rischi, corsi, visite, DPI e schede di sicurezza.</li>
+      </ul>
+      <h3>Come si leggono i segnali</h3>
+      <ul>
+        <li><strong>Scoperta</strong>: nessun operativo. <strong>Uomo solo</strong>: meno operativi della soglia della skill matrix.</li>
+        <li><strong>Carico concentrato</strong>: in media gli operativi danno a questa mansione almeno la % indicata del loro tempo, quindi hanno poco margine.</li>
+        <li><strong>Su troppe mansioni</strong>: la persona ne ha più di quante indicate nelle soglie del prospetto. <strong>Persona chiave</strong>: è l'unico operativo su almeno una mansione.</li>
+      </ul>
+      <div class="gpa-nota">Il portale non conosce le ore richieste da una mansione: il carico è un segnale dai coefficienti, non una misura di ore. Le soglie le scegli tu nel prospetto. RML e costo seguono la persona: spostarla non cambia quanto costa, cambia dove quel costo finisce.</div>
+      <h3>Confrontare e applicare</h3>
+      <p>«Confronta con» mette accanto un altro prospetto in preparazione. <strong>Esporta</strong> dà il confronto in Excel o PDF. <strong>Applica</strong> chiede la decorrenza e la conferma: ogni riga passa dal percorso normale (spostamento organizzativo, ruoli in blocco, Mansionario) e il suo esito resta nel prospetto; una riga che non riesce non ferma le altre. La decorrenza vale per spostamenti e ruoli; centri di costo e mansioni cambiano subito.</p>
     </section>
 
     <section class="fmd-panel gpa-sec" id="struttura-organizzativa">

@@ -1,0 +1,26 @@
+<div class="pr-scroll">
+<table class="pr-t" data-fm-table-skip="1">
+  <thead><tr><th>Mansione</th><th>Reparto</th><th class="pr-num">In lista</th><th class="pr-num">Operativi</th><th class="pr-num">Teste equiv.</th><th class="pr-num">Carico</th><th>Stato</th>{% if puo_costi %}<th class="pr-num">€/h pesato</th><th class="pr-num">RML ripartita</th>{% endif %}</tr></thead>
+  <tbody>
+    {% for r in righe %}
+    <tr class="{% if r.cambia %}is-cambia{% endif %}">
+      <td><a class="fmd-data-link" href="{% url 'anagrafica:esplora_struttura' %}?mansione={{ r.id }}">{{ r.voce }}</a></td>
+      <td>{{ r.reparto_prima }}{% if r.reparto_prima != r.reparto_dopo %} <span class="pr-freccia">→</span> <strong>{{ r.reparto_dopo }}</strong>{% endif %}</td>
+      <td class="pr-num">{{ r.lista_prima }}{% if r.lista_prima != r.lista_dopo %} <span class="pr-freccia">→</span> <strong>{{ r.lista_dopo }}</strong>{% endif %}</td>
+      <td class="pr-num">{{ r.operativi_prima }}{% if r.operativi_prima != r.operativi_dopo %} <span class="pr-freccia">→</span> <strong>{{ r.operativi_dopo }}</strong>{% endif %}</td>
+      <td class="pr-num">{{ r.fte_prima|floatformat:"2g" }}{% if r.fte_prima != r.fte_dopo %} <span class="pr-freccia">→</span> <strong>{{ r.fte_dopo|floatformat:"2g" }}</strong>{% endif %}</td>
+      <td class="pr-num">{% if r.conc_prima is None %}—{% else %}{{ r.conc_prima }}%{% endif %}{% if r.conc_prima != r.conc_dopo %} <span class="pr-freccia">→</span> <strong>{% if r.conc_dopo is None %}—{% else %}{{ r.conc_dopo }}%{% endif %}</strong>{% endif %}</td>
+      <td>
+        {% if r.stato_prima != r.stato_dopo %}<span class="pr-stato">{{ r.stato_prima }}</span> <span class="pr-freccia">→</span> {% endif %}
+        <span class="pr-stato {% if r.stato_dopo == 'scoperta' or r.stato_dopo == 'nessun titolare' %}is-male{% elif r.stato_dopo == 'uomo solo' %}is-attento{% endif %}">{{ r.stato_dopo }}</span>
+        {% if r.concentrato_dopo %}<span class="pr-stato is-attento">carico concentrato</span>{% endif %}
+      </td>
+      {% if puo_costi %}
+      <td class="pr-num">{{ r.costo_prima|floatformat:"2g"|default:"—" }}{% if r.costo_prima != r.costo_dopo %} <span class="pr-freccia">→</span> <strong>{{ r.costo_dopo|floatformat:"2g"|default:"—" }}</strong>{% endif %}</td>
+      <td class="pr-num">{{ r.rml_prima|floatformat:"2g" }}{% if r.rml_prima != r.rml_dopo %} <span class="pr-freccia">→</span> <strong>{{ r.rml_dopo|floatformat:"2g" }}</strong>{% endif %}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>

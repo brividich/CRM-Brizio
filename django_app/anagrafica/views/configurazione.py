@@ -944,6 +944,7 @@ def impostazioni(request):
         ("anagrafica:aree_list", "Catalogo — reparti"),
         ("anagrafica:centri_costo", "Catalogo — centri di costo"),
         ("anagrafica:esplora_struttura", "Catalogo — esplora la struttura"),
+        ("anagrafica:prospetti", "Catalogo — prospetto dei cambiamenti"),
         ("anagrafica:ruoli_aziendali_list", "Catalogo — ruoli aziendali"),
         ("anagrafica:widget_permissions", "Impostazioni — permessi widget"),
         ("anagrafica:impostazioni", "Impostazioni anagrafica"),
