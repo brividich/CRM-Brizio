@@ -41,8 +41,16 @@ class Command(BaseCommand):
         from anagrafica.models import AmbitoRuolo, DipendenteAnagraficaCivile, DipendenteRuoloOperativo, RuoloOperativo
         from presenti import solari
 
-        cfg = configparser.ConfigParser()
-        if not cfg.read(ini, encoding="utf-8") or not cfg.has_section("incarichi_sicurezza"):
+        # utf-8-sig: il Blocco note salva spesso «UTF-8 con BOM»; strict=False e niente
+        # interpolazione perché le altre sezioni del file non ci riguardano.
+        cfg = configparser.ConfigParser(interpolation=None, strict=False)
+        try:
+            letti = cfg.read(ini, encoding="utf-8-sig")
+        except (configparser.Error, UnicodeDecodeError) as exc:
+            raise CommandError(f"Impossibile leggere {ini}: {exc}") from exc
+        if not letti:
+            raise CommandError(f"File non trovato: {ini}. Controlla percorso ed estensione (es. config.ini.txt).")
+        if not cfg.has_section("incarichi_sicurezza"):
             raise CommandError(f"Sezione [incarichi_sicurezza] non trovata in {ini}.")
 
         ambito = AmbitoRuolo.objects.filter(nome__icontains="45001").first()
