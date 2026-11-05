@@ -15,6 +15,7 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'core/css/home_portale.css' %}">
+<link rel="stylesheet" href="{% static 'core/css/mie_attivita.css' %}?v=20261105c">
 <link rel="stylesheet" href="{% static 'core/css/home_stanze.css' %}?v=7">
 {% endblock %}
 
@@ -190,47 +191,8 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
       </div>
       {% endif %}
       <div class="hs-oggi">
-        <div class="hp-card" data-hp-section="card-cose-da-gestire">
-          <header class="hp-card-h">
-            <div>
-              <h3 class="hp-card-t">Le mie attività</h3>
-              <p class="hp-card-s">Tutto ciò che richiede una tua azione, dai vari moduli</p>
-            </div>
-            <span class="hp-card-h-r">
-              {% if cose_da_gestire_total %}<span class="hp-counter">{{ cose_da_gestire_total }}</span>{% endif %}
-              <a href="{% url 'mie_attivita' %}" class="hp-card-link">Vedi tutte →</a>
-            </span>
-          </header>
-          {% if cose_da_gestire_total %}
-            <div class="hp-cdg-grid hs-pad">
-            {% for s in cose_da_gestire %}
-              {% if s.items %}
-                <div class="hp-cdg-group">
-                  <div class="hp-cdg-group-h">
-                    <span class="hp-badge hp-tone-{{ s.tone }}">{{ s.icon }} {{ s.label }} ({% if s.total %}{{ s.total }}{% else %}{{ s.items|length }}{% endif %})</span>
-                    <a href="{{ s.all_url }}" class="hp-card-link">Apri →</a>
-                  </div>
-                  <ul class="hp-list">
-                    {% for it in s.items|slice:":5" %}
-                      <li>
-                        <a href="{{ it.url }}">
-                          {% if it.code %}<span class="hp-list-code">{{ it.code }}</span>{% endif %}
-                          <span class="hp-list-body">
-                            <span class="hp-list-t">{{ it.title }}</span>
-                            <span class="hp-list-m">{{ it.meta }}</span>
-                          </span>
-                          {% if it.status %}<span class="hp-badge hp-tone-{{ s.tone }}">{{ it.status }}</span>{% endif %}
-                        </a>
-                      </li>
-                    {% endfor %}
-                  </ul>
-                </div>
-              {% endif %}
-            {% endfor %}
-            </div>
-          {% else %}
-            <ul class="hp-list"><li class="hp-empty">Nessuna azione in sospeso. Tutto in ordine. ✓</li></ul>
-          {% endif %}
+        <div class="hs-mie" data-hp-section="card-cose-da-gestire">
+          {% include "dashboard/components/mie_attivita_blocco.html" %}
         </div>
 
         <div class="hs-col">
