@@ -37,15 +37,18 @@ GUIDA = {
                       "verifiche…), divise per categoria. Arrivano dal vecchio scadenzario sul NAS."),
                 ("passi", [
                     "«+ Nuova attività»: scegli la categoria, scrivi l'attività e la scadenza, oppure ultimo controllo e validità in mesi (la scadenza si calcola).",
-                    "«Destinatari dell'avviso»: le email che ricevono il promemoria della singola attività.",
-                    "Quando l'attività è fatta apri la scheda e usa «Registra controllo / rinnovo»: data del controllo, allegato (verbale, certificato) e la nuova scadenza, calcolata dalla validità se la lasci vuota.",
+                    "«Destinatari dell'avviso»: le email che ricevono il promemoria della singola attività. «Usa quelli della categoria» li copia. Vuoto: nessun avviso singolo, l'attività resta nel riepilogo mensile della categoria.",
+                    "Quando l'attività è fatta usa «✓ Rinnovato oggi» nell'elenco o nella scheda: compare se l'attività ha la validità in mesi, da cui si calcola la prossima scadenza.",
+                    "Per un'altra data, le note o un allegato (verbale, certificato) apri nella scheda «Rinnovo con altra data, note o allegato».",
                 ]),
+                ("p", "Più attività insieme: nell'elenco spunta le righe e, nella barra che compare in basso, assegna il responsabile, aggiungi o sostituisci i destinatari, usa quelli della categoria, sospendi o riattiva. "
+                      "Il filtro «Mancano» trova le attività senza responsabile o senza destinatari; i riquadri in alto filtrano scadute ed entro 30 giorni."),
                 ("def", [
                     ("Preavviso", "quanti giorni prima della scadenza parte il primo avviso; vuoto = quello della categoria, poi quello generale (30)."),
                     ("Ripeti l'avviso ogni", "ogni quanti giorni l'avviso si ripete finché non registri il rinnovo; vuoto = categoria, poi generale (7)."),
                     ("Avvisa anche dopo la scadenza", "sulla categoria: le attività scadute e non rinnovate continuano a mandare l'avviso."),
                     ("Riepilogo mensile", "il 1° del mese alle 8 le email della categoria ricevono l'elenco delle attività scadute o in scadenza nei 60 giorni successivi."),
-                    ("Avvisi inviati", "registro di ogni mail, riuscita o no; quelli del vecchio scadenzario sono segnati «vecchio scadenzario»."),
+                    ("Avvisi", "in alto cosa partirà al prossimo invio (anteprima, non spedisce nulla), con le attività nel preavviso senza destinatari e quelle già avvisate; sotto il registro di ogni mail, riuscita o no. Quelle del vecchio scadenzario sono segnate «vecchio scadenzario»."),
                 ]),
             ],
         },
@@ -55,12 +58,14 @@ GUIDA = {
             "id": "gestione",
             "titolo": "Pannello «Gestione»: cosa compare e chi lo vede",
             "blocchi": [
-                ("p", "Scadenzario → «⚙ Gestione». A sinistra l'albero delle voci: fonte (Personale, Asset, Scadenze generiche…) → "
+                ("p", "Per dare una categoria a un ruolo fai prima da «Categorie»: la tabella mostra chi vede ogni categoria; aprila e usa «Aggiungi» (un solo menu con ruoli aziendali, ruoli del portale e persone) scegliendo «Solo vedere» o «Vedere e gestire»."),
+                ("p", "Scadenzario → «Gestione». Appena entri, «Da sistemare» elenca cosa manca alle scadenze generiche, con il link per farlo. A sinistra, con la ricerca e il filtro «Solo le voci già impostate», l'albero delle voci: fonte (Personale, Asset, Scadenze generiche…) → "
                       "tipo (Qualifica, Visita medica, Formazione, categoria…) → singolo elemento (il tipo di qualifica, il corso, "
                       "la verifica, la singola attività). L'albero si aggiorna da solo: un tipo di qualifica o una categoria nuovi "
                       "compaiono appena hanno una scadenza. Il numero accanto è quante scadenze ci sono oggi."),
                 ("def", [
-                    ("Compare nello scadenzario", "«No» toglie la voce e tutto ciò che sta sotto, a tutti; un elemento sotto può riaccendersi con «Sì». Vuoto = come la voce superiore."),
+                    ("Frase in alto", "dice in parole semplici chi vede la voce oggi, contando anche le impostazioni delle voci superiori."),
+                    ("Compare nello scadenzario", "in «Spegnere la voce o limitarla alle sole regole». «No» toglie la voce e tutto ciò che sta sotto, a tutti; un elemento sotto può riaccendersi con «Sì». Vuoto = come la voce superiore."),
                     ("Chi la vede", "«Chi ha il permesso del modulo, più le regole» (predefinito): le regole aggiungono persone. «Solo chi è nelle regole»: la vedono solo le regole e gli amministratori."),
                     ("Regole", "ruolo del portale, ruolo aziendale dell'organigramma (chi lo ricopre oggi) o persona aggiunta a mano. Valgono per la voce e per tutto ciò che sta sotto: le regole che arrivano dalle voci superiori sono elencate a parte."),
                     ("Vede e gestisce", "solo per le scadenze generiche: inserisce, modifica e rinnova le attività della categoria."),
@@ -77,11 +82,12 @@ GUIDA = {
                 ("passi", [
                     "Sul server dell'HUB: variabile d'ambiente SCADENZARIO_DB_PASSWORD con la password dell'utente MySQL in sola lettura.",
                     "Prova: python manage.py importa_scadenzario (conta categorie e attività, non scrive).",
-                    "Import: python manage.py importa_scadenzario --apply --con-avvisi (rilanciabile: aggiorna, non duplica).",
+                    "Import: python manage.py importa_scadenzario --apply --con-avvisi. Si può rilanciare: non duplica e lascia come sono le voci già importate, così non perdi le modifiche fatte nel portale. Solo --aggiorna le riscrive con i dati del vecchio scadenzario.",
                     "Ferma le mail del vecchio scadenzario sul NAS lo stesso giorno, altrimenti arrivano doppie.",
                 ]),
                 ("p", "Santo patrono nel calendario: SiteConfig scadenzario_patrono = «MM-GG Nome» (es. «06-29 San Pietro»). "
                       "Andamento: task «scadenzario_foto_giornaliera» ogni giorno alle 6:45; dopo il deploy python manage.py scadenzario_foto per il primo punto."),
+                ("p", "Anteprima da riga di comando: python manage.py scadenzario_avvisi (facoltativo --giorno AAAA-MM-GG). Non invia nulla."),
                 ("p", "Preavviso, ripetizione e finestra del riepilogo generali: SiteConfig scadenzario_preavviso_giorni (30), "
                       "scadenzario_ripeti_giorni (7), scadenzario_riepilogo_giorni (60). Task: «scadenzario_avvisi_attivita» "
                       "(ogni giorno alle 7:15) e «scadenzario_riepilogo_mensile» (il 1° alle 8)."),
@@ -104,8 +110,8 @@ GUIDA = {
         },
         {
             "sintomo": "Non arrivano gli avvisi di un'attività",
-            "perche": "Nessun destinatario sull'attività, attività o categoria sospesa, fuori preavviso, oppure scaduta in una categoria che non avvisa dopo la scadenza.",
-            "fare": ["Controlla la scheda dell'attività e «Avvisi inviati».", "Controlla che il task «scadenzario_avvisi_attivita» sia attivo nella Centrale di comando."],
+            "perche": "Nessun destinatario sull'attività (in quel caso resta solo il riepilogo mensile della categoria), attività o categoria sospesa, fuori preavviso, oppure scaduta in una categoria che non avvisa dopo la scadenza.",
+            "fare": ["Apri «Avvisi»: l'anteprima mostra se partirà al prossimo invio.", "Controlla la scheda dell'attività.", "Controlla che il task «scadenzario_avvisi_attivita» sia attivo nella Centrale di comando."],
         },
     ],
 }

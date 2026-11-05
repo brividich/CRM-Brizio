@@ -52,6 +52,9 @@ class ScadenzaForm(forms.ModelForm):
         }
         help_texts = {
             "data_scadenza": "Vuota: si calcola da ultimo controllo + validità.",
+            "validita_mesi": "Serve per «Rinnovato oggi»: la prossima scadenza si calcola da qui.",
+            "email_avviso": "Vuoto: nessun avviso singolo, l'attività resta nel riepilogo mensile della categoria.",
+            "responsabile": "La vede anche senza altri permessi e la trova con «Solo le mie».",
             "preavviso_giorni": "Vuoto: quello della categoria.",
             "ripeti_ogni_giorni": "Vuoto: quello della categoria.",
         }
@@ -143,6 +146,20 @@ class RegolaForm(forms.Form):
         if tipo and not dati.get(tipo):
             raise forms.ValidationError("Scegli il ruolo o la persona.")
         return dati
+
+
+def opzioni_chi() -> list[tuple[str, list[tuple[str, str]]]]:
+    """Scelte del menu unico «Aggiungi»: valore ``tipo:id`` raggruppato per tipo."""
+    from anagrafica.models import RuoloOperativo
+    from core.models import AccessGroup
+
+    return [
+        ("Ruoli aziendali", [(f"ruolo_aziendale:{r.pk}", r.nome)
+                             for r in RuoloOperativo.objects.filter(is_active=True).order_by("nome")]),
+        ("Ruoli del portale", [(f"ruolo_portale:{g.pk}", g.label)
+                               for g in AccessGroup.objects.filter(is_active=True).order_by("label")]),
+        ("Persone", [(f"persona:{uid}", nome) for uid, nome in persone_choices()]),
+    ]
 
 
 def persone_choices() -> list[tuple[int, str]]:

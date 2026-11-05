@@ -1,0 +1,37 @@
+{% comment %}Regole di una voce e modulo per aggiungerne. Parametri: regole, chiave, opzioni_chi, torna (facoltativo), con_livello.{% endcomment %}
+<div class="gz-righe">
+  {% for r in regole %}
+    <div class="gz-regola">
+      <span>{{ r.destinatario_label }} · <span class="sz-pill {% if r.livello == 'GESTISCE' %}sz-vicina{% else %}sz-blu{% endif %}">{{ r.get_livello_display }}</span></span>
+      <form method="post" action="{% url 'scadenzario:gestione_regola_togli' r.pk %}" data-hub-confirm="Togliere questa regola?">
+        {% csrf_token %}{% if torna %}<input type="hidden" name="next" value="{{ torna }}">{% endif %}
+        <button class="sz-btn sz-btn-danger" type="submit">Togli</button>
+      </form>
+    </div>
+  {% empty %}
+    <div class="sz-muted">Nessuna regola qui.</div>
+  {% endfor %}
+</div>
+<form method="post" action="{% url 'scadenzario:gestione_regola_aggiungi' %}" class="gz-form" style="margin-top:10px">
+  {% csrf_token %}
+  <input type="hidden" name="chiave" value="{{ chiave }}">
+  {% if torna %}<input type="hidden" name="next" value="{{ torna }}">{% endif %}
+  <label class="gz-chi">Aggiungi
+    <select name="chi" required>
+      <option value="">Scegli ruolo o persona…</option>
+      {% for gruppo, opzioni in opzioni_chi %}
+        <optgroup label="{{ gruppo }}">{% for valore, etichetta in opzioni %}<option value="{{ valore }}">{{ etichetta }}</option>{% endfor %}</optgroup>
+      {% endfor %}
+    </select>
+  </label>
+  {% if con_livello %}
+    <label>Può
+      <select name="livello">
+        <option value="VEDE">Solo vedere</option>
+        <option value="GESTISCE">Vedere e gestire</option>
+      </select>
+    </label>
+  {% else %}<input type="hidden" name="livello" value="VEDE">{% endif %}
+  <button class="sz-btn sz-btn-primary" type="submit">Aggiungi</button>
+</form>
+{% if con_livello %}<div class="sz-help" style="margin-top:4px">«Vedere e gestire»: inserisce, modifica e rinnova le attività.</div>{% endif %}

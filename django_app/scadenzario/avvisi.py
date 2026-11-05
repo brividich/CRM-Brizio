@@ -68,6 +68,10 @@ def _ultimo_avviso_riuscito(scadenza):
             .order_by("-inviato_il").first())
 
 
+MOTIVO_SENZA_DESTINATARI = "nessun destinatario"
+MOTIVO_NON_DOVUTA = "ripetizione non ancora dovuta"
+
+
 def da_avvisare(scadenza, oggi: date, conf: dict) -> tuple[bool, str]:
     if not scadenza.is_active or not scadenza.categoria.is_active or not scadenza.data_scadenza:
         return False, "senza scadenza o sospesa"
@@ -77,10 +81,10 @@ def da_avvisare(scadenza, oggi: date, conf: dict) -> tuple[bool, str]:
     if giorni < 0 and not scadenza.categoria.avvisa_dopo_scadenza:
         return False, "scaduta, la categoria non avvisa dopo la scadenza"
     if not scadenza.destinatari:
-        return False, "nessun destinatario"
+        return False, MOTIVO_SENZA_DESTINATARI
     ultimo = _ultimo_avviso_riuscito(scadenza)
     if ultimo and timezone.localdate(ultimo.inviato_il) > oggi - timedelta(days=scadenza.ripeti_effettivo(conf["ripeti"])):
-        return False, "ripetizione non ancora dovuta"
+        return False, MOTIVO_NON_DOVUTA
     return True, "da inviare"
 
 
@@ -183,3 +187,55 @@ def invia_riepiloghi_categorie(*, oggi: date | None = None, dry_run: bool = Fals
                                          esito=f"Errore: {exc}"[:500])
             errori += 1
     return {"inviati": inviati, "errori": errori}
+
+
+# Come i cron di automazioni/schedules.py (scadenzario_avvisi_attivita, scadenzario_riepilogo_mensile).
+ORA_AVVISI = (7, 15)
+ORA_RIEPILOGO = (8, 0)
+
+
+def prossimo_invio(adesso=None) -> date:
+    adesso = timezone.localtime(adesso or timezone.now())
+    giorno = adesso.date()
+    if (adesso.hour, adesso.minute) >= ORA_AVVISI:
+        giorno += timedelta(days=1)
+    return giorno
+
+
+def prossimo_riepilogo(adesso=None) -> date:
+    adesso = timezone.localtime(adesso or timezone.now())
+    giorno = adesso.date()
+    if giorno.day == 1 and (adesso.hour, adesso.minute) < ORA_RIEPILOGO:
+        return giorno
+    return (giorno.replace(day=1) + timedelta(days=32)).replace(day=1)
+
+
+def anteprima(*, oggi: date | None = None, categorie=None) -> dict:
+    """Cosa farebbe l'invio degli avvisi di quel giorno. Non invia e non scrive nulla.
+
+    Stessa decisione di ``invia_avvisi_attivita`` (``da_avvisare``). ``categorie``
+    limita alle categorie indicate (None = tutte).
+    """
+    from .models import ScadenzaGenerica
+
+    oggi = oggi or prossimo_invio()
+    conf = impostazioni()
+    esito = {"giorno": oggi, "partono": [], "senza": [], "aspettano": []}
+    qs = ScadenzaGenerica.objects.select_related("categoria").filter(
+        is_active=True, categoria__is_active=True, data_scadenza__isnull=False,
+    ).order_by("data_scadenza", "titolo")
+    if categorie is not None:
+        qs = qs.filter(categoria_id__in=categorie)
+    for s in qs:
+        ok, motivo = da_avvisare(s, oggi, conf)
+        riga = {"scadenza": s, "stato": _stato((s.data_scadenza - oggi).days), "destinatari": s.destinatari}
+        if ok:
+            esito["partono"].append(riga)
+        elif motivo == MOTIVO_SENZA_DESTINATARI:
+            esito["senza"].append(riga)
+        elif motivo == MOTIVO_NON_DOVUTA:
+            ultimo = timezone.localdate(_ultimo_avviso_riuscito(s).inviato_il)
+            riga["ultimo"] = ultimo
+            riga["prossimo"] = ultimo + timedelta(days=s.ripeti_effettivo(conf["ripeti"]))
+            esito["aspettano"].append(riga)
+    return esito

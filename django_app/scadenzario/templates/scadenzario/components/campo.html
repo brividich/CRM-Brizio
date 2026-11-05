@@ -1,0 +1,10 @@
+<label class="sz-field{% if wide %} wide{% endif %}">
+  {% if field.field.widget.input_type == "checkbox" %}
+    <span class="sz-check">{{ field }} {{ field.label }}</span>
+  {% else %}
+    {{ field.label }}{% if field.field.required %} *{% endif %}
+    {{ field }}
+  {% endif %}
+  {% if field.help_text %}<span class="sz-help">{{ field.help_text }}</span>{% endif %}
+  {% for e in field.errors %}<span class="sz-err">{{ e }}</span>{% endfor %}
+</label>
