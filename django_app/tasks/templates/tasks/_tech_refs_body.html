@@ -1,0 +1,56 @@
+<div class="tr-head">Programmi e FAI <span class="ts-chip info">{{ tech_open_count }} da fare</span></div>
+{% if tech_show_form %}
+<div class="tr-row" data-tr-form data-default-owner="{{ tech_default_owner }}"{% if not tech_can_add %} hidden{% endif %}>
+  <select class="input" data-tr="kind" aria-label="Tipo">
+    {% for value, label in tech_kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+  </select>
+  <input class="input" type="text" data-tr="code" maxlength="120" placeholder="Codice" aria-label="Codice">
+  <input class="input" type="text" data-tr="path" maxlength="500" placeholder="\\server\cartella o file (facoltativo)" aria-label="Cartella o file di rete">
+  <select class="input" data-tr="owner" aria-label="Responsabile">
+    <option value="">Da assegnare</option>
+    {% with quick_users=tech_users %}{% include "tasks/_quick_user_options.html" %}{% endwith %}
+  </select>
+  <input class="input" type="date" data-tr="due" aria-label="Entro il">
+  <button type="button" class="btn" data-tr="save">Aggiungi</button>
+</div>
+<p class="tr-hint"{% if not tech_can_add %} hidden{% endif %}>Tutto facoltativo: basta il codice, il percorso o il responsabile. Invio per salvare e scriverne un altro.</p>
+<p class="tr-err" data-tr="err" role="alert" hidden></p>
+{% endif %}
+{% if tech_rows %}
+<div class="tl-table-wrap">
+  <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
+    <thead><tr><th>Tipo</th><th>Codice</th><th>Cartella o file</th><th>Responsabile</th><th>Entro il</th><th>Stato</th><th></th></tr></thead>
+    <tbody>
+      {% for row in tech_rows %}
+      {% with ref=row.ref %}
+      <tr class="{% if ref.is_overdue %}status-overdue{% elif not ref.is_open %}status-done{% endif %}" data-tr-ref="{{ ref.id }}"
+          data-kind="{{ ref.kind }}" data-code="{{ ref.code }}" data-path="{{ ref.path }}"
+          data-owner="{{ ref.assigned_to_id|default:'' }}" data-due="{{ ref.due_date|date:'Y-m-d' }}">
+        <td class="tr-kind">{{ ref.kind }}</td>
+        <td>{% if ref.code %}{{ ref.code }}{% else %}<span class="tr-empty">da inserire</span>{% endif %}</td>
+        <td>{% include "tasks/_tech_ref_link.html" %}</td>
+        <td>{% if ref.assigned_to %}{{ ref.assigned_to.get_full_name|default:ref.assigned_to.username }}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
+        <td>{% if ref.due_date %}{{ ref.due_date|date:"d/m/Y" }}{% else %}<span class="tr-empty">-</span>{% endif %}</td>
+        <td>
+          {% if ref.is_overdue %}<span class="ts-chip danger">Scaduta</span>{% elif ref.is_open %}<span class="ts-chip ok">Da fare</span>{% else %}<span class="ts-chip">Fatto</span>{% endif %}
+          {% if ref.source_meeting %}<div class="tl-task-desc">Incontro {{ ref.source_meeting.numero }}</div>{% endif %}
+        </td>
+        <td>
+          <div class="tr-actions">
+            {% if row.can_edit %}
+              {% if ref.is_open %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="done">Fatto</button>
+              {% else %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="reopen">Riapri</button>{% endif %}
+              <button type="button" class="btn btn-secondary btn-sm" data-tr-edit>Modifica</button>
+            {% endif %}
+            {% if row.can_delete %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="delete">Elimina</button>{% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endwith %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="tr-hint">Ancora nessun programma o FAI.</p>
+{% endif %}

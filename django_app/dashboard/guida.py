@@ -93,7 +93,9 @@ SEZIONI: list[dict] = [
                 "«Le mie attività» raccoglie le cose che aspettano una tua azione: approvazioni assenze, ticket aperti, "
                 "anomalie aperte, non conformità, procedure da leggere, richieste DPI in corso, corsi e-learning da "
                 "completare e refresh abilitazioni macchina. Per ogni gruppo si vedono le prime 5; «Apri →» porta al modulo, "
-                "«Vedi tutte →» alla pagina completa.",
+                "«Vedi tutte →» alla pagina completa, che comprende anche il KICK-OFF: attività, azioni, problemi, programmi e FAI assegnati a te. "
+                "Lì i riquadri in alto filtrano Scadute ed Entro 7 giorni, i pulsanti filtrano per modulo, la ricerca cerca nei titoli e «Per urgenza» mette tutte le voci in un unico elenco. "
+                "Azioni, problemi, programmi e FAI si chiudono dalla riga con «Fatto» o «Risolto», e «Annulla» li riapre.",
                 "«Il tuo brief di oggi» è un riepilogo preparato dall'assistente AI. Il pulsante ↻ lo rigenera.",
                 "«News aziendali» mostra le ultime comunicazioni; «Vedi tutte →» apre l'archivio.",
             ]),

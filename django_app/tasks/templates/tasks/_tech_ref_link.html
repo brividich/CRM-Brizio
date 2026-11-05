@@ -1,0 +1,1 @@
+{% if not ref.path %}<span class="tr-empty">-</span>{% elif ref.is_web_path %}<a class="tr-open" href="{{ ref.open_href }}" target="_blank" rel="noopener noreferrer">{{ ref.path }}</a>{% else %}<a class="tr-open" href="{{ ref.open_href }}" data-tr-open="{{ ref.path }}" title="Apri in Esplora risorse">{{ ref.path }}</a>{% endif %}

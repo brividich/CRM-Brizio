@@ -291,6 +291,11 @@ def _project_scope_filter_q(request) -> Q:
         # anche senza task nel progetto (bug: sparivano dalla dashboard).
         | Q(meetings__partecipanti_utenti=user)
         | Q(meetings__created_by=user)
+        # Chi riceve una voce da fare deve poter aprire la commessa: senza queste
+        # righe la voce assegnata non compariva né in «Le mie azioni» né altrove.
+        | Q(meeting_actions__assigned_to=user)
+        | Q(meeting_issues__assigned_to=user)
+        | Q(tech_refs__assigned_to=user)
     )
     role_map = _request_task_role_access_map(request)
     team_codes = _readable_team_codes(role_map)

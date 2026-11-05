@@ -1,0 +1,12 @@
+{% extends "tasks/base_shell.html" %}
+{% load static %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Programmi e FAI</span>{% endblock %}
+{% block tasks_shell_guide_anchor %}#programmi-fai{% endblock %}
+{% block tasks_shell_title %}{{ project.name }}{% endblock %}
+{% block tasks_shell_subtitle %}Codici e percorsi di programmi CAM, programmi CMM e FAI, con il responsabile di ognuno.{% endblock %}
+
+{% block tasks_shell_content %}
+{% include "tasks/_tech_refs.html" %}
+<script src="{% static 'tasks/js/tech_refs.js' %}?v=20261105a" defer></script>
+{% endblock %}

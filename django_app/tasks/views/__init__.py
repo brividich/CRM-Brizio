@@ -259,3 +259,5 @@ from .mie_azioni import (  # noqa: F401
     mia_voce_stato,
     mie_azioni,
 )
+
+from .tech_refs import project_tech_refs, tech_ref_action, tech_ref_save  # noqa: F401,E402

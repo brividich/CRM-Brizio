@@ -64,6 +64,7 @@
 
   {% if can_manage and not meeting.is_annullato %}
     {% include "tasks/_quick_task_bar.html" %}
+    {% include "tasks/_tech_refs.html" %}
   {% endif %}
 
   {% if can_manage and meeting.stato == "PIANIFICATO" %}
@@ -574,6 +575,7 @@
   window.MEETING_TASK_MODAL = { url: "{{ task_from_step_url }}" };
 </script>
 <script src="{% static 'tasks/js/meeting_task_modal.js' %}?v=20261105" defer></script>
+<script src="{% static 'tasks/js/tech_refs.js' %}?v=20261105a" defer></script>
 <script src="{% static 'tasks/js/quick_task_bar.js' %}?v=20261105b" defer></script>
 {% endif %}
 {% endblock %}

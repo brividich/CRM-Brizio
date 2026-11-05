@@ -585,7 +585,7 @@ class CoseDaGestireTests(TestCase):
         keys = [s["key"] for s in data["sections"]]
         self.assertEqual(
             set(keys),
-            {"approvazioni", "ticket", "anomalie", "non_conformita", "procedure", "dpi", "elearning", "skm_refresh"},
+            {"kickoff", "approvazioni", "ticket", "anomalie", "non_conformita", "procedure", "dpi", "elearning", "skm_refresh"},
         )
         self.assertIn("total", data)
 

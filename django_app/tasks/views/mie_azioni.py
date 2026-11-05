@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -18,11 +18,14 @@ from ..models import (
     MeetingActionStatus,
     MeetingIssue,
     MeetingIssueStatus,
+    ProjectTechRef,
+    TechRefStatus,
 )
 from ._shared import _safe_int, _tasks_shell_context
 
 KIND_ACTION = "azione"
 KIND_ISSUE = "problema"
+KIND_TECH = "programma"
 
 
 def _row(item, kind: str, today) -> dict:
@@ -45,6 +48,21 @@ def _row(item, kind: str, today) -> dict:
     }
 
 
+def _tech_row(ref, today) -> dict:
+    return {
+        "kind": KIND_TECH,
+        "obj": ref,
+        "title": ref.label,
+        "description": "",
+        "project": ref.project,
+        "meeting": ref.source_meeting,
+        "due_date": ref.due_date,
+        "is_open": ref.is_open,
+        "is_overdue": bool(ref.is_open and ref.due_date and ref.due_date < today),
+        "linked_task": None,
+    }
+
+
 def mie_voci_aperte_count(request) -> int:
     """Quante azioni e problemi aperti l'utente ha in carico (per i richiami)."""
     user = request.user
@@ -57,6 +75,9 @@ def mie_voci_aperte_count(request) -> int:
         ).count()
         + MeetingIssue.objects.filter(
             assigned_to=user, status=MeetingIssueStatus.OPEN, project_id__in=projects
+        ).count()
+        + ProjectTechRef.objects.filter(
+            assigned_to=user, status=TechRefStatus.OPEN, project_id__in=projects
         ).count()
     )
 
@@ -75,29 +96,37 @@ def mie_azioni(request):
     common = {"assigned_to": request.user, "project_id__in": projects.values("id")}
     actions = MeetingActionItem.objects.filter(**common)
     issues = MeetingIssue.objects.filter(**common)
+    refs = ProjectTechRef.objects.filter(**common)
     if stato == "aperte":
         actions = actions.filter(status=MeetingActionStatus.OPEN)
         issues = issues.filter(status=MeetingIssueStatus.OPEN)
+        refs = refs.filter(status=TechRefStatus.OPEN)
     elif stato == "chiuse":
         actions = actions.exclude(status=MeetingActionStatus.OPEN)
         issues = issues.exclude(status=MeetingIssueStatus.OPEN)
+        refs = refs.exclude(status=TechRefStatus.OPEN)
     if progetto:
         actions = actions.filter(project_id=progetto)
         issues = issues.filter(project_id=progetto)
+        refs = refs.filter(project_id=progetto)
     if scadenza == "scadute":
         actions = actions.filter(due_date__lt=today)
         issues = issues.filter(due_date__lt=today)
+        refs = refs.filter(due_date__lt=today)
     elif scadenza == "settimana":
         window = Q(due_date__gte=today, due_date__lte=today + timedelta(days=7))
         actions = actions.filter(window)
         issues = issues.filter(window)
+        refs = refs.filter(window)
     elif scadenza == "senza":
         actions = actions.filter(due_date__isnull=True)
         issues = issues.filter(due_date__isnull=True)
+        refs = refs.filter(due_date__isnull=True)
     if q_text:
         text = Q(title__icontains=q_text) | Q(description__icontains=q_text) | Q(project__name__icontains=q_text)
         actions = actions.filter(text)
         issues = issues.filter(text)
+        refs = refs.filter(Q(code__icontains=q_text) | Q(path__icontains=q_text) | Q(project__name__icontains=q_text))
 
     related = ("project", "source_meeting", "linked_task")
     rows: list[dict] = []
@@ -105,11 +134,15 @@ def mie_azioni(request):
         rows += [_row(a, KIND_ACTION, today) for a in actions.select_related(*related)]
     if tipo in ("", KIND_ISSUE):
         rows += [_row(i, KIND_ISSUE, today) for i in issues.select_related(*related)]
+    if tipo in ("", KIND_TECH):
+        rows += [_tech_row(r, today) for r in refs.select_related("project", "source_meeting")]
     # Aperte prima, poi per scadenza (le senza data in fondo).
     rows.sort(key=lambda r: (not r["is_open"], r["due_date"] is None, r["due_date"] or today, r["title"].casefold()))
 
     my_projects = projects.filter(
-        Q(meeting_actions__assigned_to=request.user) | Q(meeting_issues__assigned_to=request.user)
+        Q(meeting_actions__assigned_to=request.user)
+        | Q(meeting_issues__assigned_to=request.user)
+        | Q(tech_refs__assigned_to=request.user)
     ).distinct().order_by("name")
     return render(
         request,
@@ -131,7 +164,7 @@ def mie_azioni(request):
 def mia_voce_stato(request, kind: str, pk: int):
     """Il responsabile chiude o riapre la propria azione o il proprio problema."""
     back = redirect("tasks:mie_azioni")
-    model = MeetingActionItem if kind == KIND_ACTION else MeetingIssue if kind == KIND_ISSUE else None
+    model = {KIND_ACTION: MeetingActionItem, KIND_ISSUE: MeetingIssue, KIND_TECH: ProjectTechRef}.get(kind)
     if model is None:
         messages.error(request, "Voce non valida.")
         return back
@@ -141,7 +174,17 @@ def mia_voce_stato(request, kind: str, pk: int):
         return back
 
     verb = (request.POST.get("action") or "").strip()
-    if kind == KIND_ACTION:
+    if kind == KIND_TECH:
+        if verb == "done":
+            item.mark_done(user=request.user)
+        elif verb == "reopen":
+            item.reopen()
+        else:
+            messages.error(request, "Azione non valida.")
+            return back
+        item.save(update_fields=["status", "done_by", "done_at", "updated_at"])
+        etichetta = "Segnato come fatto." if verb == "done" else "Riaperto."
+    elif kind == KIND_ACTION:
         if verb == "done":
             item.mark_done(user=request.user)
         elif verb == "reopen":
@@ -167,6 +210,8 @@ def mia_voce_stato(request, kind: str, pk: int):
     log_action(request, f"kickoff_mia_voce_{verb}", "tasks", {
         "kind": kind, "id": item.pk, "project_id": item.project_id,
     })
+    if "application/json" in request.headers.get("Accept", ""):
+        return JsonResponse({"ok": True, "message": etichetta})
     messages.success(request, etichetta)
     next_url = request.POST.get("next") or ""
     if next_url.startswith("/tasks/") and "//" not in next_url:

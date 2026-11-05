@@ -207,7 +207,7 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
               {% if s.items %}
                 <div class="hp-cdg-group">
                   <div class="hp-cdg-group-h">
-                    <span class="hp-badge hp-tone-{{ s.tone }}">{{ s.icon }} {{ s.label }} ({{ s.items|length }})</span>
+                    <span class="hp-badge hp-tone-{{ s.tone }}">{{ s.icon }} {{ s.label }} ({% if s.total %}{{ s.total }}{% else %}{{ s.items|length }}{% endif %})</span>
                     <a href="{{ s.all_url }}" class="hp-card-link">Apri →</a>
                   </div>
                   <ul class="hp-list">

@@ -146,6 +146,19 @@ SEZIONI_TEAM: list[dict] = [
         ],
     },
     {
+        "id": "t-programmi",
+        "titolo": "Programmi CAM, CMM e FAI assegnati a te",
+        "blocchi": [
+            ("passi", [
+                "Apri «Le mie azioni»: la voce ha l'etichetta CAM, CMM o FAI.",
+                "Cliccala per aprire «Programmi e FAI» della commessa.",
+                "Con «Modifica» scrivi il codice e il percorso di rete, poi premi Invio.",
+                "Premi «Fatto» quando hai finito.",
+            ]),
+            ("p", "Cliccando un percorso il portale lo copia: premi Win+E, poi Ctrl+L, Ctrl+V e Invio."),
+        ],
+    },
+    {
         "id": "t-incontro",
         "titolo": "Partecipare a un incontro",
         "blocchi": [

@@ -15,12 +15,14 @@ in un modulo non rompe l'intera pagina.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import Any
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 from django.urls import NoReverseMatch, reverse
+from django.utils import timezone
 
 from core.legacy_utils import get_legacy_user, is_legacy_admin
 
@@ -79,6 +81,7 @@ def _my_nc(request, legacy_user) -> list[dict]:
                     "title": a.descrizione[:120],
                     "meta": f"Azione · OP {a.nc.op_titolo}" + (f" · scade {a.scadenza:%d/%m/%Y}" if a.scadenza else ""),
                     "status": a.get_stato_display(),
+                    "due": a.scadenza,
                     "url": _safe_url("anomalie_nc_dettaglio", a.nc_id) + "#azioni",
                 })
                 viste.add(a.nc_id)
@@ -99,6 +102,17 @@ def _my_nc(request, legacy_user) -> list[dict]:
     except Exception:
         return out
     return out
+
+
+def _my_kickoff(request) -> dict:
+    """Attività, azioni, problemi, programmi e FAI del KICK-OFF assegnati all'utente."""
+    try:
+        from tasks.services.da_fare import voci_kickoff
+
+        return voci_kickoff(request)
+    except Exception:
+        logger.exception("Voci KICK-OFF non calcolabili")
+        return {"items": [], "total": 0, "overdue": 0, "soon": 0}
 
 
 def _my_tickets(request_user, legacy_user, legacy_user_id) -> list[dict]:
@@ -207,6 +221,7 @@ def _my_elearning(request) -> list[dict]:
             "title": a.corso.titolo,
             "meta": ("Scadenza " + a.due_date.isoformat()) if a.due_date else "Da completare",
             "status": a.get_stato_display(),
+            "due": a.due_date,
             "url": _safe_url("anagrafica:formazione_online_player", a.corso_id),
         })
     return out
@@ -238,6 +253,7 @@ def _my_procedure(request_user) -> list[dict]:
             "title": str(getattr(a.campaign, "name", "") or getattr(a.revision, "file_name", "") or "Procedura"),
             "meta": (a.due_date.strftime("%d-%m-%Y") if a.due_date else "—"),
             "status": status_label,
+            "due": a.due_date,
             "url": url,
         })
     return out
@@ -287,6 +303,7 @@ def _safety_scadenze(request) -> list[dict] | None:
                 "title": q.tipo.nome,
                 "meta": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
                 "status": "Scaduta" if scaduta else "In scadenza",
+                "due": q.data_scadenza,
                 "url": url,
             })
         return out
@@ -316,7 +333,7 @@ def _my_skm_refresh(legacy_user_id) -> list[dict]:
 
 
 def _mie_scadenze(request: HttpRequest) -> list[dict]:
-    """Scadute ed entro 7 giorni che riguardano la persona, da tutte le fonti tranne l'HR
+    """Scadute ed entro 7 giorni che riguardano la persona, dalle fonti senza sezione propria, tranne l'HR
     (dati sanitari: vedi sotto). Il risultato resta in cache 5 minuti: la Home non deve
     interrogare ogni modulo a ogni apertura."""
     from django.core.cache import cache
@@ -324,7 +341,7 @@ def _mie_scadenze(request: HttpRequest) -> list[dict]:
     user_id = getattr(request.user, "id", None)
     if not user_id:
         return []
-    chiave = f"scadenzario:mie:{user_id}"
+    chiave = f"scadenzario:mie:v2:{user_id}"
     salvate = cache.get(chiave)
     if salvate is not None:
         return salvate
@@ -332,8 +349,12 @@ def _mie_scadenze(request: HttpRequest) -> list[dict]:
         from dashboard.scadenze_providers import PROVIDERS, collect_all
         from dashboard.views_scadenze import _azioni
         from scadenzario.calendario import chiavi_persona_di, e_mia
+        from scadenzario.fonti_moduli import SOURCE_ANOMALIE, SOURCE_LAVORO, SOURCE_PROCEDURE
 
-        voci = [v for v in collect_all(request, sources=set(PROVIDERS) - {"hr"}) if v.giorni is not None and v.giorni <= 7]
+        # Attività, azioni, NC e procedure hanno già la loro sezione: qui le stesse voci
+        # verrebbero contate due volte nel totale.
+        escluse = {"hr", SOURCE_LAVORO, SOURCE_ANOMALIE, SOURCE_PROCEDURE}
+        voci = [v for v in collect_all(request, sources=set(PROVIDERS) - escluse) if v.giorni is not None and v.giorni <= 7]
         _azioni(request, voci)
         persona = chiavi_persona_di(request)
         righe = [v for v in voci if e_mia(v, user_id=user_id, chiavi_persona=persona)]
@@ -343,6 +364,7 @@ def _mie_scadenze(request: HttpRequest) -> list[dict]:
             "title": v.titolo or v.soggetto,
             "meta": f"{v.kind_label} · {v.data_scadenza:%d/%m/%Y}" if v.kind_label else f"{v.data_scadenza:%d/%m/%Y}",
             "status": "Scaduta" if v.giorni < 0 else ("Oggi" if v.giorni == 0 else f"Tra {v.giorni} gg"),
+            "due": v.data_scadenza,
             "url": v.url,
         } for v in righe[:10]]
     except Exception:
@@ -350,6 +372,33 @@ def _mie_scadenze(request: HttpRequest) -> list[dict]:
         return []
     cache.set(chiave, esito, 300)
     return esito
+
+
+def _segna_urgenze(sections: list[dict]) -> tuple[int, int]:
+    """Aggiunge a ogni voce l'urgenza e restituisce quante sono scadute ed entro 7 giorni.
+
+    Conta solo le voci con una data vera: ticket e anomalie non ne hanno una.
+    """
+    oggi = timezone.localdate()
+    fra_7 = oggi + timedelta(days=7)
+    scadute = presto = 0
+    for s in sections:
+        for it in s["items"]:
+            due = it.get("due")
+            if isinstance(due, datetime):
+                due = due.date()
+            it["urgenza"] = ""
+            if due:
+                it["urgenza"] = "scaduta" if due < oggi else ("presto" if due <= fra_7 else "")
+            it["rank"] = {"scaduta": 0, "presto": 1}.get(it["urgenza"], 2)
+            it["due_iso"] = due.isoformat() if due else "9999-12-31"
+        s["n_scadute"] = s.get("overdue_total", sum(1 for i in s["items"] if i["urgenza"] == "scaduta"))
+        s["n_presto"] = s.get("soon_total", sum(1 for i in s["items"] if i["urgenza"] == "presto"))
+        s["n_totale"] = s.get("total", len(s["items"]))
+        s["n_altre"] = s["n_totale"] - len(s["items"])
+        scadute += s["n_scadute"]
+        presto += s["n_presto"]
+    return scadute, presto
 
 
 def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
@@ -365,7 +414,20 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
     is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
     legacy_user_id = int(legacy_user.id) if legacy_user else None
 
+    kickoff = _my_kickoff(request)
     sections = [
+        {
+            "key": "kickoff",
+            "label": "KICK-OFF",
+            "tone": "warning",
+            "icon": "🗂",
+            "items": kickoff["items"],
+            "total": kickoff["total"],
+            "overdue_total": kickoff["overdue"],
+            "soon_total": kickoff["soon"],
+            "all_url": _safe_url("tasks:mie_azioni"),
+            "empty": "Niente da fare nelle commesse.",
+        },
         {
             "key": "approvazioni",
             "label": "Approvazioni assenze",
@@ -465,8 +527,9 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "empty": "Nessuna scadenza nei prossimi 7 giorni.",
         })
 
-    total = sum(len(s["items"]) for s in sections)
-    return {"sections": sections, "total": total}
+    total = sum(s.get("total", len(s["items"])) for s in sections)
+    overdue, soon = _segna_urgenze(sections)
+    return {"sections": sections, "total": total, "overdue": overdue, "soon": soon}
 
 
 @login_required
@@ -484,6 +547,11 @@ def mie_attivita(request: HttpRequest) -> HttpResponse:
         "page_title": "Le mie attività",
         "greeting_name": display_name,
         "sections": data["sections"],
+        "sections_piene": [s for s in data["sections"] if s["items"]],
+        "sections_vuote": [s for s in data["sections"] if not s["items"]],
         "total_open": data["total"],
+        "total_overdue": data["overdue"],
+        "total_soon": data["soon"],
+        "oggi": timezone.localdate(),
     }
     return render(request, "dashboard/pages/mie_attivita.html", context)

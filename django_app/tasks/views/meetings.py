@@ -78,6 +78,7 @@ from ..services.meeting_tasks import (
     notify_task_assignment,
     titolo_attivita,
 )
+from .tech_refs import tech_refs_context
 from ..services.notify import (
     notify_user,
 )
@@ -665,6 +666,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             "agenda_toggle_url_base": f"/tasks/projects/{project_id}/incontri/{meeting_id}/agenda-toggle/",
             **_meeting_task_modal_context(project, project_id=project_id, meeting_id=meeting_id),
             **_quick_task_context(project, meeting),
+            **tech_refs_context(request, project, meeting),
         },
     )
 
@@ -805,6 +807,7 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             "active_users": task_active_users_queryset(),
             **_meeting_task_modal_context(project, project_id=project_id, meeting_id=meeting_id),
             **_quick_task_context(project, meeting),
+            **tech_refs_context(request, project, meeting),
         },
     )
 
@@ -1313,6 +1316,7 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
             "planned_minutes": planned_minutes,
             "done_count": sum(1 for item in items if item.get("done")),
             **_quick_task_context(project, meeting),
+            **tech_refs_context(request, project, meeting),
             "decision_impacts": MeetingDecisionImpact.choices,
             "item_update_url": reverse(
                 "tasks:project_meeting_agenda_item_update",

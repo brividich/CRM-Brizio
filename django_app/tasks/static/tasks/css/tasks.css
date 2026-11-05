@@ -4333,6 +4333,19 @@ body.theme-dark .md-convocazione-note.warn { background: rgba(251,146,60,.12); b
 .ts-guide-fig img{display:block;max-width:100%;height:auto;border:1px solid var(--border);border-radius:8px}
 .ts-guide-fig figcaption{font-size:.85rem;color:var(--text-light);margin-top:4px}
 .ts-guide-toc{top:76px;max-height:calc(100 * var(--vh, 1vh) - 92px);overflow-y:auto}
+.tr-block{display:grid;gap:10px;margin:12px 0;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.tr-head{font-weight:700;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tr-hint{margin:0;font-size:12px;color:var(--text-mid)}
+.tr-row{display:grid;grid-template-columns:150px minmax(120px,1fr) minmax(180px,2fr) 190px 150px auto;gap:8px;align-items:center}
+.tr-row>*{min-width:0}
+.tr-row[hidden]{display:none}
+.tr-err{margin:0;font-size:13px;color:var(--danger)}
+.tr-kind{font-weight:700;white-space:nowrap}
+.tr-empty{color:var(--text-light)}
+.tr-open{font-weight:600;word-break:break-all}
+.tr-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.tr-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1000;max-width:min(560px,calc(100vw - 32px));padding:10px 16px;border-radius:10px;background:var(--primary);color:#fff;font-size:13px;box-shadow:var(--shadow)}
+@media (max-width:900px){.tr-row{grid-template-columns:minmax(0,1fr)}}
 @media print{.ts-guide-toc{display:none}.ts-guide-sec{break-inside:auto}}
 
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
