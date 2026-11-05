@@ -30,6 +30,11 @@
 .pll-pt.evid{transform:scale(1.6);z-index:3;outline:2px solid #dc2626}
 .pll-pt.avviso{background:#dc2626}
 .pll-pt.nuovo{background:#16a34a;font-size:12px}
+.pll-pt.assoc{background:#ea580c;font-size:11px}
+.pll-pt.mano{background:#be185d;font-size:10px}
+.pll-tela.pll-clic{cursor:crosshair;outline:3px solid #be185d;outline-offset:-3px}
+.pll-scelto{font-size:11px;color:#15803d;font-weight:600;margin-top:2px}
+body.theme-dark .pll-scelto{color:#86efac}
 .pll-rep{position:absolute;border:2px dashed #2563eb;background:rgba(37,99,235,.08);border-radius:4px;pointer-events:none}
 .pll-rep b{position:absolute;left:2px;top:1px;font-size:10px;color:#1d4ed8;background:rgba(255,255,255,.85);padding:0 3px;border-radius:3px}
 .pll-rep.evid{border-color:#dc2626;background:rgba(220,38,38,.12)}
@@ -118,7 +123,9 @@ body.theme-dark .pll-fonte.ai{color:#c4b5fd}
     </div>
     {% endif %}
 
-    {% if risultato.proposte or risultato.da_creare or risultato.reparti %}
+    {% if not risultato.proposte and not risultato.da_creare and not risultato.reparti and not risultato.da_associare %}
+    <p class="pll-nota">Nessuna sigla riconosciuta. Prova con il PDF stampato dal disegno o con l'AI locale, oppure clicca sulla pianta per collocare gli asset a mano.</p>
+    {% endif %}
     <form method="post" action="{% url 'assets:plant_layout_editor' %}?leggi=1">
       {% csrf_token %}
       <input type="hidden" name="action" value="applica_proposte">
@@ -133,6 +140,7 @@ body.theme-dark .pll-fonte.ai{color:#c4b5fd}
             {% for p in risultato.proposte %}
             <span class="pll-pt {% if p.fonte == 'AI locale' %}ai{% elif p.avvisi %}avviso{% elif p.stato == 'sposta' %}sposta{% elif p.stato == 'invariato' %}invariato{% endif %}" id="pt-{{ forloop.counter }}" style="left:{{ p.x }}%;top:{{ p.y }}%" title="{{ p.nome }} · letto «{{ p.testo_letto }}»">{{ forloop.counter }}</span>
             {% endfor %}
+            {% for d in risultato.da_associare %}<span class="pll-pt assoc" id="as-{{ forloop.counter }}" style="left:{{ d.x }}%;top:{{ d.y }}%" title="{{ d.sigla }}: da associare">?</span>{% endfor %}
             {% for d in risultato.da_creare %}<span class="pll-pt nuovo" id="nc-{{ forloop.counter }}" style="left:{{ d.x }}%;top:{{ d.y }}%" title="{{ d.sigla }}: da creare">+</span>{% endfor %}
             {% endlocalize %}
           </div>
@@ -185,6 +193,39 @@ body.theme-dark .pll-fonte.ai{color:#c4b5fd}
           </table>
           {% endif %}
 
+          <h3 class="pll-h3">Da associare a mano ({{ risultato.da_associare|length }})</h3>
+          <p class="pll-sub" style="margin:0 0 6px;">Sigle lette ma non abbinate da sole (arancioni «?» sulla pianta): scegli l'asset fra quelli proposti o cercalo per nome, n. interno, tag o matricola. Per un asset che sulla pianta non è scritto usa «Aggiungi un asset a mano» e clicca nel punto giusto.</p>
+          <div class="pll-azioni" style="margin:0 0 6px;">
+            <button type="button" class="btn btn-secondary btn-sm" data-pll-aggiungi>Aggiungi un asset a mano</button>
+            <span class="pll-sub" data-pll-aggiungi-nota hidden>Clicca sulla pianta nel punto dell'asset (Esc per annullare).</span>
+          </div>
+          <table class="pll-tabella">
+            <thead><tr><th><input type="checkbox" class="pll-tutte" data-gruppo="assoc" aria-label="Seleziona tutte le associazioni"></th><th>Letto</th><th>Asset</th></tr></thead>
+            <tbody data-pll-assoc-corpo>
+            {% for d in risultato.da_associare %}
+            <tr data-pt="as-{{ forloop.counter }}">
+              <td><input type="checkbox" name="assoc" value="{{ forloop.counter }}" aria-label="Associa {{ d.sigla }}">
+                {% localize off %}<input type="hidden" name="assoc_x_{{ forloop.counter }}" value="{{ d.x }}"><input type="hidden" name="assoc_y_{{ forloop.counter }}" value="{{ d.y }}">{% endlocalize %}
+                <input type="hidden" name="assoc_asset_{{ forloop.counter }}" value="" data-pll-asset></td>
+              <td><strong>«{{ d.sigla }}»</strong><div class="pll-sub">{{ d.motivo }}</div>{% if d.altri_punti %}<div class="pll-sub">letta anche in altri {{ d.altri_punti }} punti</div>{% endif %}</td>
+              <td>{% if d.candidati %}<select class="input pll-in" data-pll-scelta aria-label="Asset per {{ d.sigla }}"><option value="">— scegli —</option>{% for c in d.candidati %}<option value="{{ c.id }}">{{ c.nome }}{% if c.sotto %} · {{ c.sotto }}{% endif %}</option>{% endfor %}</select>{% endif %}
+                <input type="search" class="input pll-in" data-pll-cerca list="pll-lista-asset" autocomplete="off" placeholder="Cerca un asset…" aria-label="Cerca l'asset per {{ d.sigla }}">
+                <div class="pll-scelto" data-pll-scelto></div></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <datalist id="pll-lista-asset"></datalist>
+          <template id="pll-riga-mano">
+            <tr>
+              <td><input type="checkbox" name="assoc" checked aria-label="Colloca l'asset aggiunto a mano">
+                <input type="hidden" data-campo="x"><input type="hidden" data-campo="y"><input type="hidden" data-campo="asset" data-pll-asset></td>
+              <td><strong data-pll-num></strong><div class="pll-sub">Punto scelto a mano</div><button type="button" class="btn btn-secondary btn-sm" data-pll-togli>Togli</button></td>
+              <td><input type="search" class="input pll-in" data-pll-cerca list="pll-lista-asset" autocomplete="off" placeholder="Cerca un asset…" aria-label="Cerca l'asset da collocare">
+                <div class="pll-scelto" data-pll-scelto></div></td>
+            </tr>
+          </template>
+
           {% if risultato.reparti %}
           <h3 class="pll-h3">Reparti scritti sulla pianta ({{ risultato.reparti|length }})</h3>
           <p class="pll-sub" style="margin:0 0 6px;">Diventano riquadri da rifinire nell'editor (anche a forma libera). Preselezionati solo quelli con un contorno disegnato tutto loro.</p>
@@ -210,15 +251,12 @@ body.theme-dark .pll-fonte.ai{color:#c4b5fd}
         <span class="pll-nota" style="margin:0;">Ogni collocazione finisce nella timeline dell'asset. Dopo puoi rifinire trascinando nell'editor.</span>
       </div>
     </form>
-    {% else %}
-    <p class="pll-nota">Nessun asset riconosciuto. Prova con il PDF stampato dal disegno o con l'AI locale.</p>
-    {% endif %}
 
     {% if risultato.non_riconosciute %}
     <details style="margin-top:12px;">
       <summary class="pll-nota" style="cursor:pointer;">Sigle lette ma non abbinate ({{ risultato.non_riconosciute|length }})</summary>
       <div class="pll-nonric">{% for t in risultato.non_riconosciute %}<span>{{ t }}</span>{% endfor %}</div>
-      <p class="pll-nota" style="margin-top:6px;">Se una di queste è il numero interno di un asset, scrivilo nella scheda dell'asset e rileggi.</p>
+      <p class="pll-nota" style="margin-top:6px;">Comprende quelle della tabella «Da associare a mano» e le scritte che non sembrano sigle. Se una di queste è il numero interno di un asset, puoi anche scriverlo nella scheda dell'asset e rileggere.</p>
     </details>
     {% endif %}
   </article>
@@ -239,12 +277,101 @@ body.theme-dark .pll-fonte.ai{color:#c4b5fd}
     if (!catTutte.value) return;
     document.querySelectorAll("[data-pll-cat]").forEach(s => { s.value = catTutte.value; });
   });
-  document.querySelectorAll("tr[data-pt]").forEach(tr => {
+  function evidenzia(tr) {
     const pt = document.getElementById(tr.dataset.pt);
     if (!pt) return;
     tr.addEventListener("mouseenter", () => pt.classList.add("evid"));
     tr.addEventListener("mouseleave", () => pt.classList.remove("evid"));
-  });
+  }
+  document.querySelectorAll("tr[data-pt]").forEach(evidenzia);
+
+  // associazione a mano: scelta fra i candidati o ricerca per nome / n. interno / tag / matricola
+  const urlCerca = "{% url 'assets:plant_layout_editor' %}?leggi=1&cerca=";
+  const lista = document.getElementById("pll-lista-asset");
+  const etichette = new Map();
+  function scegli(tr, id, nome) {
+    tr.querySelector("[data-pll-asset]").value = id || "";
+    tr.querySelector("[data-pll-scelto]").textContent = id ? "Scelto: " + nome : "";
+    const box = tr.querySelector('input[name="assoc"]');
+    if (box) box.checked = !!id;
+  }
+  function collega(tr) {
+    const sel = tr.querySelector("[data-pll-scelta]");
+    if (sel) sel.addEventListener("change", () => scegli(tr, sel.value, sel.selectedOptions[0].textContent));
+    const cerca = tr.querySelector("[data-pll-cerca]");
+    if (!cerca) return;
+    let timer = null;
+    cerca.addEventListener("input", () => {
+      const v = cerca.value.trim();
+      if (etichette.has(v)) {
+        if (sel) sel.value = "";
+        scegli(tr, etichette.get(v), v);
+        return;
+      }
+      clearTimeout(timer);
+      if (v.length < 2) return;
+      timer = setTimeout(() => {
+        fetch(urlCerca + encodeURIComponent(v), {headers: {"X-Requested-With": "XMLHttpRequest"}})
+          .then(r => r.ok ? r.json() : {risultati: []})
+          .then(d => {
+            lista.replaceChildren();
+            (d.risultati || []).forEach(a => {
+              const testo = a.nome + (a.sotto ? " · " + a.sotto : "");
+              etichette.set(testo, String(a.id));
+              const o = document.createElement("option");
+              o.value = testo;
+              lista.appendChild(o);
+            });
+          }).catch(() => {});
+      }, 250);
+    });
+  }
+  document.querySelectorAll("[data-pll-assoc-corpo] tr").forEach(collega);
+
+  // «Aggiungi un asset a mano»: clic sulla pianta, nuova riga con il punto scelto
+  const bottone = document.querySelector("[data-pll-aggiungi]");
+  const nota = document.querySelector("[data-pll-aggiungi-nota]");
+  const tela = document.querySelector(".pll-tela");
+  const corpo = document.querySelector("[data-pll-assoc-corpo]");
+  const modello = document.getElementById("pll-riga-mano");
+  let indice = 1000, attivo = false;
+  function modo(on) {
+    attivo = on;
+    if (tela) tela.classList.toggle("pll-clic", on);
+    if (nota) nota.hidden = !on;
+  }
+  if (bottone && tela && corpo && modello) {
+    bottone.addEventListener("click", () => modo(!attivo));
+    document.addEventListener("keydown", e => { if (e.key === "Escape") modo(false); });
+    tela.addEventListener("click", e => {
+      if (!attivo) return;
+      const r = tela.getBoundingClientRect();
+      const x = Math.min(100, Math.max(0, (e.clientX - r.left) / r.width * 100)).toFixed(2);
+      const y = Math.min(100, Math.max(0, (e.clientY - r.top) / r.height * 100)).toFixed(2);
+      indice += 1;
+      const n = indice - 1000;
+      const pt = document.createElement("span");
+      pt.className = "pll-pt mano";
+      pt.id = "mn-" + n;
+      pt.style.left = x + "%";
+      pt.style.top = y + "%";
+      pt.textContent = "M" + n;
+      tela.appendChild(pt);
+      const tr = modello.content.firstElementChild.cloneNode(true);
+      tr.dataset.pt = pt.id;
+      tr.querySelector('input[name="assoc"]').value = indice;
+      tr.querySelectorAll("[data-campo]").forEach(h => { h.name = "assoc_" + h.dataset.campo + "_" + indice; });
+      tr.querySelector('[data-campo="x"]').value = x;
+      tr.querySelector('[data-campo="y"]').value = y;
+      tr.querySelector("[data-pll-num]").textContent = "M" + n;
+      tr.querySelector("[data-pll-togli]").addEventListener("click", () => { tr.remove(); pt.remove(); });
+      corpo.prepend(tr);
+      evidenzia(tr);
+      collega(tr);
+      modo(false);
+      tr.querySelector("[data-pll-cerca]").focus();
+    });
+  }
 })();
 </script>
 {% endblock %}
