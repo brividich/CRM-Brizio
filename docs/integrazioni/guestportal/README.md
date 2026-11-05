@@ -45,7 +45,7 @@ GRANT SELECT ON GuestManagement.Suppliers TO 'hub_readonly'@'<IP server HUB>';
 
 Poi nel `.env` persistente dell'HUB: `GUESTPORTAL_DB_HOST`, `GUESTPORTAL_DB_PORT` (3306), `GUESTPORTAL_DB_NAME` (`GuestManagement`), `GUESTPORTAL_DB_USER`, `GUESTPORTAL_DB_PASSWORD`. Dal server HUB deve essere aperta la porta 3306 verso il MySQL.
 
-L'HUB non copia i dati delle visite per la pagina Accessi esterni: legge a ogni apertura.
+L'HUB non copia i dati delle visite per le pagine Accessi esterni e scheda fornitore → Tecnici: legge a ogni apertura.
 
 Eccezione voluta (decisione 04/11/2026): quando un ingresso viene **collegato a un ticket o a un OdL** l'HUB salva `VisitID`, giorno, entrata, uscita, nominativo del tecnico, azienda e badge (`fornitori_ingressointervento`), come prova dell'intervento e per il confronto con le ore fatturate. Questi dati seguono la conservazione del ticket/OdL, non la pulizia del GuestPortal.
 

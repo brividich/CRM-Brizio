@@ -116,6 +116,29 @@ class IngressoIntervento(models.Model):
         return f"{minuti // 60} h {minuti % 60:02d} min"
 
 
+class FornitoreContatori(models.Model):
+    """Facoltativo: il fornitore dell'HUB di un codice del modulo Contatori («BASE», «COPYLAB»).
+
+    Serve solo quando il nome non basta a riconoscerlo (vedi ``collegamenti.mappa_codici``)."""
+
+    codice = models.CharField(max_length=10, unique=True, help_text="Macchina.fornitore / Fattura.fornitore")
+    fornitore = models.ForeignKey(
+        "anagrafica.Fornitore", on_delete=models.CASCADE, related_name="codici_contatori",
+    )
+    creato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["codice"]
+        verbose_name = "Fornitore del modulo Contatori"
+        verbose_name_plural = "Fornitori del modulo Contatori"
+
+    def __str__(self) -> str:
+        return f"{self.codice} → {self.fornitore}"
+
+
 class AvvisoIngressoNonInRegola(models.Model):
     """Ingresso dal GuestPortal di una ditta con i documenti di sicurezza non in regola,
     già segnalato con una notifica a RSPP/ASPP (una sola volta per visita, mai mail)."""
