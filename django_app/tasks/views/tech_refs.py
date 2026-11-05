@@ -37,12 +37,15 @@ def tech_refs_context(request, project, meeting=None) -> dict:
             "can_edit": gestisce or ref.assigned_to_id == request.user.pk,
             "can_delete": gestisce,
         }
-        for ref in project.tech_refs.select_related("assigned_to", "source_meeting", "fai_record")
+        for ref in project.tech_refs.select_related("assigned_to", "source_meeting", "fai_record__causale", "fai_record__stato")
     ]
     puo_aggiungere = gestisce or request.user.pk in project.team_user_ids
+    righe_fai = [r for r in righe if r["ref"].kind == TechRefKind.FAI]
     return {
         "project": project,
         "tech_rows": righe,
+        "tech_rows_programmi": [r for r in righe if r["ref"].kind != TechRefKind.FAI],
+        "tech_rows_fai": righe_fai,
         "tech_open_count": sum(1 for r in righe if r["ref"].is_open),
         "tech_can_add": puo_aggiungere,
         "tech_show_form": puo_aggiungere or any(r["can_edit"] for r in righe),
@@ -53,6 +56,8 @@ def tech_refs_context(request, project, meeting=None) -> dict:
         "tech_meeting": meeting,
         "fai_esito": esito_progetto(project),
         "fai_puo_creare": puo_aggiungere,
+        # Il FAI assegnato in riunione si completa, non se ne crea un altro.
+        "fai_ref_libera": next((r["ref"] for r in righe_fai if getattr(r["ref"], "fai_record", None) is None), None),
     }
 
 

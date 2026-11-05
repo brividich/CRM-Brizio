@@ -199,6 +199,7 @@
           <a href="?tab=promemoria" class="admin-tab {% if tab == 'promemoria' %}active{% endif %}">Promemoria</a>
           <a href="?tab=tipi" class="admin-tab {% if tab == 'tipi' %}active{% endif %}">Tipi attivita</a>
           <a href="?tab=modelli" class="admin-tab {% if tab == 'modelli' %}active{% endif %}">Modelli ODG</a>
+          <a href="?tab=fai" class="admin-tab {% if tab == 'fai' %}active{% endif %}">FAI</a>
           <a href="?tab=record" class="admin-tab {% if tab == 'record' %}active{% endif %}">Record</a>
           <a href="?tab=log" class="admin-tab {% if tab == 'log' %}active{% endif %}">Log attivita</a>
         </div>
@@ -232,6 +233,10 @@
 
     {% if tab == "modelli" %}
       {% include "tasks/impostazioni/_tab_modelli.html" %}
+    {% endif %}
+
+    {% if tab == "fai" %}
+      {% include "tasks/impostazioni/_tab_fai.html" %}
     {% endif %}
 
     {% if tab == "tipi" %}

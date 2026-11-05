@@ -82,7 +82,7 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 
 ### Programmi CAM, CMM e FAI (05/11/2026)
 
-Registro `/tasks/fai/` (voce di menu, `core 0109`) e scheda `/tasks/fai/nuovo/`, `/tasks/fai/<id>/`. Modelli `FaiArticolo` (date di decorrenza del P/N) e `FaiRecord`, migrazione `tasks 0053`. Le regole della MT CN 15 stanno in `tasks/fai_regole.py`; situazione e allineamento con `ProjectTechRef` in `tasks/services/fai.py`. Le date si inseriscono a mano finché non c'è l'accesso al gestionale.
+Registro `/tasks/fai/` (voce di menu, `core 0109`) e scheda `/tasks/fai/nuovo/`, `/tasks/fai/<id>/`. Modelli `FaiArticolo` (date di decorrenza del P/N) e `FaiRecord`, migrazione `tasks 0053`. Causali, piani e stati sono righe `FaiOpzione` configurabili in Impostazioni, scheda «FAI», con i valori iniziali della MT CN 15; le soglie sono in `TaskImpostazioni`. I calcoli stanno in `tasks/fai_regole.py`; situazione e allineamento con `ProjectTechRef` in `tasks/services/fai.py`. Le date si inseriscono a mano: il modulo non dipende dal gestionale.
 
 Scheda `/tasks/projects/<id>/programmi/` e stesso blocco nel dettaglio incontro e in «Registra esito». Modello `ProjectTechRef` (tipo, codice, percorso, responsabile, entro il, stato, incontro di origine), migrazione `tasks 0052`. Basta uno tra codice, percorso e responsabile. I percorsi passano da `tasks/tech_paths.py`: solo UNC e http(s). Il clic su un percorso di rete copia il percorso, perché i browser non aprono `file://` da una pagina web. Le voci assegnate compaiono in «Le mie azioni» e, con attività, azioni e problemi, nella sezione KICK-OFF di «Le mie attività» (`tasks/services/da_fare.py`).
 

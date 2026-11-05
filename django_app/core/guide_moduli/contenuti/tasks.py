@@ -86,7 +86,7 @@ GUIDA = {
                     ("Da gestire", "VRF mancanti, commesse non pronte, attività critiche, incontri con problemi aperti. «Le mie» filtra su di te."),
                     ("Calendario / Incontri", "tutti gli incontri del mese o in elenco, con i filtri per commessa, esito/minuta e prossimi 7 giorni."),
                     ("Programmi e FAI", "scheda della commessa con codici e percorsi di rete di programmi CAM, programmi CMM e FAI, ognuno col suo responsabile. Si compila anche dentro l'incontro."),
-                    ("Registro FAI", "una riga per articolo con il FAI più recente: propone FAI completo o Delta FAI secondo la MT CN 15 e segnala gli articoli da ripetere e quelli oltre 18 mesi dall'ultima spedizione."),
+                    ("Registro FAI", "una riga per articolo con il FAI più recente: propone FAI completo o Delta FAI secondo la MT CN 15 e segnala gli articoli da ripetere e quelli da segnalare. Motivi, piani, stati e mesi si configurano in Impostazioni, scheda «FAI»."),
                     ("Le mie azioni", "le azioni, i problemi, i programmi e i FAI assegnati a te: li chiudi da qui. Quando completi l'attività collegata si chiudono da soli."),
                     ("Registro azioni", "dalla commessa: problemi, azioni d'incontro, attività e sotto-attività in un solo elenco, filtrabile per tipo, responsabile e scadenza."),
                     ("Gantt", "le attività come barre: trascina il centro per spostarle, i bordi per allungarle."),

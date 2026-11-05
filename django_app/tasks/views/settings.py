@@ -27,6 +27,11 @@ from ..forms import (
     task_active_users_queryset,
 )
 from ..models import (
+    FaiFase,
+    FaiGruppo,
+    FaiOpzione,
+    FaiRecord,
+    FaiTipo,
     KickoffMeeting,
     MeetingAgendaTemplate,
     Project,
@@ -60,7 +65,7 @@ SYSTEM_TASK_ROLE_DEFINITIONS = (
     (TaskRoleType.CAPO_COMMESSA, "Capocommessa", "Ruolo collegato al campo Capocommessa del kickoff.", 20),
     (TaskRoleType.PROGRAMMER, "Programmatore", "Ruolo collegato al campo Programmatore del kickoff.", 30),
 )
-TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria", "tipi", "modelli")
+TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria", "tipi", "modelli", "fai")
 
 
 def _normalize_tasks_settings_tab(raw_tab: str | None, *, default: str = "config") -> str:
@@ -251,6 +256,9 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
 
     if tab == "modelli":
         context["agenda_templates"] = list(MeetingAgendaTemplate.objects.all())
+
+    if tab == "fai":
+        context.update(_fai_settings_context())
 
     if tab == "ruoli":
         cfg = TaskImpostazioni.get_singleton()
@@ -830,6 +838,111 @@ def _handle_tasks_reminders_post(request):
     return redirect(target_url)
 
 
+def _fai_settings_context() -> dict:
+    testi = {
+        FaiGruppo.CAUSALE: ("Perché serve il FAI", "I motivi della MT CN 15 §5.1. Ognuno propone il tipo; con «Motivo se Delta» chi sceglie il Delta deve spiegarlo."),
+        FaiGruppo.PIANO: ("Tipi di piano FAI", "Modulo e stato OP si mostrano come promemoria nella scheda."),
+        FaiGruppo.STATO: ("Stati del FAI", "Il nome è libero; il significato dice al portale se la voce del responsabile è aperta e se il FAI è concluso."),
+    }
+    in_uso = set()
+    for campo in ("causale_id", "piano_id", "stato_id"):
+        in_uso.update(FaiRecord.objects.values_list(campo, flat=True).distinct())
+    gruppi = []
+    for gruppo, (titolo, aiuto) in testi.items():
+        opzioni = list(FaiOpzione.objects.filter(gruppo=gruppo))
+        for opzione in opzioni:
+            opzione.in_uso = opzione.pk in in_uso
+        gruppi.append({"codice": gruppo.value, "titolo": titolo, "aiuto": aiuto, "opzioni": opzioni})
+    return {"fai_gruppi": gruppi, "fai_tipi": FaiTipo.choices, "fai_fasi": FaiFase.choices}
+
+
+def _fai_applica_campi(opzione: FaiOpzione, post) -> None:
+    opzione.etichetta = (post.get("etichetta") or "").strip()[:120]
+    if opzione.gruppo == FaiGruppo.CAUSALE:
+        opzione.descrizione = (post.get("descrizione") or "").strip()[:255]
+        tipo = post.get("tipo_proposto")
+        opzione.tipo_proposto = tipo if tipo in FaiTipo.values else FaiTipo.COMPLETO
+        opzione.motivo_se_delta = bool(post.get("motivo_se_delta"))
+    elif opzione.gruppo == FaiGruppo.PIANO:
+        opzione.modulo = (post.get("modulo") or "").strip()[:60]
+        opzione.stato_op = (post.get("stato_op") or "").strip()[:20]
+        opzione.numerazione_auto = bool(post.get("numerazione_auto"))
+    else:
+        fase = post.get("fase")
+        opzione.fase = fase if fase in FaiFase.values else FaiFase.IN_CORSO
+
+
+def _fai_ultima_attiva(opzione: FaiOpzione) -> bool:
+    return not FaiOpzione.objects.filter(gruppo=opzione.gruppo, attiva=True).exclude(pk=opzione.pk).exists()
+
+
+def _handle_tasks_fai_post(request):
+    """POST tab FAI: soglie di scadenza e opzioni configurabili."""
+    post = request.POST
+    azione = (post.get("fai_action") or "").strip()
+    base_url = f"{reverse('tasks:impostazioni')}?tab=fai"
+
+    if azione == "soglie":
+        cfg = TaskImpostazioni.get_singleton()
+        cfg.fai_mesi_verifica = min(_coerce_positive_int(post.get("fai_mesi_verifica"), default=18), 240)
+        cfg.fai_mesi_ripetizione = min(_coerce_positive_int(post.get("fai_mesi_ripetizione"), default=24), 240)
+        cfg.save(update_fields=["fai_mesi_verifica", "fai_mesi_ripetizione"])
+        log_action(request, "kickoff_fai_soglie", "tasks", {
+            "verifica": cfg.fai_mesi_verifica, "ripetizione": cfg.fai_mesi_ripetizione,
+        })
+        messages.success(request, "Scadenze salvate.")
+        return redirect(base_url)
+
+    if azione == "crea":
+        gruppo = post.get("gruppo")
+        if gruppo not in FaiGruppo.values:
+            messages.error(request, "Gruppo non valido.")
+            return redirect(base_url)
+        opzione = FaiOpzione(gruppo=gruppo)
+    elif azione in ("aggiorna", "elimina"):
+        opzione = FaiOpzione.objects.filter(pk=_coerce_positive_int(post.get("opzione_id"), default=0)).first()
+        if opzione is None:
+            messages.error(request, "Voce non trovata.")
+            return redirect(base_url)
+    else:
+        messages.error(request, "Azione non valida.")
+        return redirect(base_url)
+
+    if azione == "elimina":
+        usata = FaiRecord.objects.filter(Q(causale=opzione) | Q(piano=opzione) | Q(stato=opzione)).exists()
+        if usata or opzione.codice or _fai_ultima_attiva(opzione):
+            messages.error(request, f"«{opzione.etichetta}» non si può eliminare: disattivala.")
+            return redirect(base_url)
+        nome = opzione.etichetta
+        opzione.delete()
+        log_action(request, "kickoff_fai_opzione_elimina", "tasks", {"nome": nome})
+        messages.success(request, f"«{nome}» eliminata.")
+        return redirect(base_url)
+
+    _fai_applica_campi(opzione, post)
+    if not opzione.etichetta:
+        messages.error(request, "Scrivi il nome.")
+        return redirect(base_url)
+    if azione == "aggiorna":
+        attiva = bool(post.get("attiva"))
+        if not attiva and opzione.attiva and _fai_ultima_attiva(opzione):
+            messages.error(request, f"«{opzione.etichetta}» è l'ultima attiva del gruppo: deve restarne almeno una.")
+            return redirect(base_url)
+        opzione.attiva = attiva
+    testo_ordine = (post.get("ordine") or "").strip()
+    if testo_ordine.isdigit():
+        opzione.ordine = int(testo_ordine)
+    elif azione == "crea":
+        massimo = FaiOpzione.objects.filter(gruppo=opzione.gruppo).aggregate(m=Max("ordine")).get("m") or 0
+        opzione.ordine = massimo + 10
+    opzione.save()
+    log_action(request, f"kickoff_fai_opzione_{azione}", "tasks", {
+        "id": opzione.pk, "gruppo": opzione.gruppo, "nome": opzione.etichetta,
+    })
+    messages.success(request, f"«{opzione.etichetta}» salvata.")
+    return redirect(base_url)
+
+
 def _handle_tasks_agenda_templates_post(request):
     """POST tab modelli: CRUD dei modelli di ordine del giorno."""
     action = (request.POST.get("tpl_action") or "").strip()
@@ -1227,6 +1340,8 @@ def impostazioni(request):
             return _handle_tasks_categories_post(request)
         if posted_tab == "modelli":
             return _handle_tasks_agenda_templates_post(request)
+        if posted_tab == "fai":
+            return _handle_tasks_fai_post(request)
 
         branding_response = handle_module_branding_post(
             request,

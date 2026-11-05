@@ -692,6 +692,15 @@ class TaskImpostazioni(models.Model):
         help_text="Un indirizzo per riga, per chi non e' un utente del portale.",
     )
 
+    fai_mesi_verifica = models.PositiveSmallIntegerField(
+        default=18,
+        verbose_name="Mesi dall'ultima spedizione per segnalare il FAI",
+    )
+    fai_mesi_ripetizione = models.PositiveSmallIntegerField(
+        default=24,
+        verbose_name="Mesi dall'ultima produzione per ripetere il FAI",
+    )
+
     def get_cc_predefiniti(self) -> list[str]:
         """Indirizzi in copia di default (utenti portale + email libere)."""
         emails: list[str] = []
@@ -2217,28 +2226,54 @@ class ProjectTechRef(models.Model):
         self.done_at = None
 
 
-class FaiPiano(models.TextChoices):
-    CLIENTE = "CLIENTE", "Fornito dal cliente"
-    CLIENTE_CN = "CLIENTE_CN", "Richiesto dal cliente, redatto da noi"
-    INTERNO = "INTERNO", "Interno"
-
-
-class FaiStato(models.TextChoices):
-    # Dopo «Da eseguire» ci sono gli stati del file «Situazione FAI-ISIR» (MT CN 15 §5.10).
-    DA_ESEGUIRE = "DA_ESEGUIRE", "Da eseguire"
-    ESEGUITO = "ESEGUITO", "Eseguito"
-    IN_VALUTAZIONE = "VALUTAZIONE", "In valutazione dal cliente"
-    POSITIVO = "POSITIVO", "Completo con esito positivo"
-    NON_COMPLETO = "NON_COMPLETO", "Non completo"
-
-
 class FaiTipo(models.TextChoices):
     COMPLETO = "COMPLETO", "FAI completo"
     DELTA = "DELTA", "Delta FAI"
 
 
+class FaiGruppo(models.TextChoices):
+    CAUSALE = "CAUSALE", "Perché serve"
+    PIANO = "PIANO", "Piano FAI"
+    STATO = "STATO", "Stato"
+
+
+class FaiFase(models.TextChoices):
+    """Cosa significa uno stato per il portale: il nome lo decide chi configura."""
+
+    DA_FARE = "DA_FARE", "Da eseguire: la voce del responsabile resta aperta"
+    IN_CORSO = "IN_CORSO", "Eseguito, in attesa di esito"
+    POSITIVO = "POSITIVO", "Concluso con esito positivo"
+    NON_COMPLETO = "NON_COMPLETO", "Non completo: la voce del responsabile si riapre"
+
+
+class FaiOpzione(models.Model):
+    """Voce configurabile in Impostazioni: perché serve, tipo di piano, stato."""
+
+    gruppo = models.CharField(max_length=10, choices=FaiGruppo.choices, db_index=True)
+    # Solo per le voci che il portale riconosce da solo (causali a e f); non si eliminano.
+    codice = models.CharField(max_length=20, blank=True, default="", editable=False)
+    etichetta = models.CharField(max_length=120, verbose_name="Nome")
+    descrizione = models.CharField(max_length=255, blank=True, default="", verbose_name="Descrizione")
+    ordine = models.PositiveIntegerField(default=0, db_index=True)
+    attiva = models.BooleanField(default=True, db_index=True)
+    tipo_proposto = models.CharField(max_length=8, choices=FaiTipo.choices, default=FaiTipo.COMPLETO)
+    motivo_se_delta = models.BooleanField(default=False, verbose_name="Motivo se Delta")
+    modulo = models.CharField(max_length=60, blank=True, default="")
+    stato_op = models.CharField(max_length=20, blank=True, default="")
+    numerazione_auto = models.BooleanField(default=False, verbose_name="Numero PFCN automatico")
+    fase = models.CharField(max_length=12, choices=FaiFase.choices, default=FaiFase.IN_CORSO)
+
+    class Meta:
+        ordering = ["gruppo", "ordine", "id"]
+        verbose_name = "Opzione FAI"
+        verbose_name_plural = "Opzioni FAI"
+
+    def __str__(self) -> str:
+        return self.etichetta
+
+
 class FaiArticolo(models.Model):
-    """Articolo del registro FAI: le date di decorrenza sono del P/N, non del singolo FAI."""
+    """Articolo del registro FAI: le date di scadenza sono del P/N, non del singolo FAI."""
 
     client_name = models.CharField(max_length=180, blank=True, default="", verbose_name="Cliente")
     part_number = models.CharField(max_length=120, verbose_name="P/N")
@@ -2270,14 +2305,12 @@ class FaiRecord(models.Model):
     tech_ref = models.OneToOneField(
         ProjectTechRef, on_delete=models.SET_NULL, null=True, blank=True, related_name="fai_record"
     )
-    causale = models.CharField(max_length=1, verbose_name="Causale MT CN 15 §5.1")
+    causale = models.ForeignKey(FaiOpzione, on_delete=models.PROTECT, related_name="+", verbose_name="Perché serve")
     tipo = models.CharField(max_length=8, choices=FaiTipo.choices, verbose_name="Tipo")
     motivo = models.CharField(max_length=1000, blank=True, default="", verbose_name="Motivo del Delta FAI")
-    piano_tipo = models.CharField(max_length=10, choices=FaiPiano.choices, default=FaiPiano.CLIENTE, verbose_name="Piano FAI")
+    piano = models.ForeignKey(FaiOpzione, on_delete=models.PROTECT, related_name="+", verbose_name="Piano FAI")
     piano_numero = models.CharField(max_length=160, blank=True, default="", verbose_name="Numero piano")
-    stato = models.CharField(
-        max_length=12, choices=FaiStato.choices, default=FaiStato.DA_ESEGUIRE, db_index=True, verbose_name="Stato"
-    )
+    stato = models.ForeignKey(FaiOpzione, on_delete=models.PROTECT, related_name="+", verbose_name="Stato")
     data_invio = models.DateField(null=True, blank=True, verbose_name="Data invio FAI")
     path = models.CharField(max_length=500, blank=True, default="", verbose_name="Cartella o file")
     responsabile = models.ForeignKey(
@@ -2296,9 +2329,3 @@ class FaiRecord(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_tipo_display()} {self.articolo.part_number}"
-
-    @property
-    def causale_label(self) -> str:
-        from .fai_regole import etichetta_causale
-
-        return etichetta_causale(self.causale)

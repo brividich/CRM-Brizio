@@ -26,7 +26,7 @@
       <a class="btn btn-secondary" href="?vista={{ vista }}&q={{ q|urlencode }}&formato=csv">Esporta CSV</a>
     </form>
     {% if vista == "da_verificare" %}
-      <p class="fai-nota">Controllo trimestrale (MT CN 15 §5.10): articoli con ultima spedizione da oltre 18 mesi, da segnalare a IN1 e MSM.</p>
+      <p class="fai-nota">Controllo trimestrale (MT CN 15 §5.10): articoli con ultima spedizione da oltre {{ mesi_verifica }} mesi, da segnalare a IN1 e MSM.</p>
     {% endif %}
 
     {% if righe %}
@@ -45,7 +45,7 @@
               <div class="tl-task-desc">{{ r.fai.piano_numero|default:"Piano da inserire" }}{% if r.precedenti %} · altri {{ r.precedenti }}{% endif %}</div>
             </td>
             <td>
-              {{ r.fai.get_stato_display }}
+              {{ r.fai.stato.etichetta }}
               {% if r.fai.data_invio %}<div class="tl-task-desc">Inviato il {{ r.fai.data_invio|date:"d/m/Y" }}</div>{% endif %}
             </td>
             <td class="fai-date">
