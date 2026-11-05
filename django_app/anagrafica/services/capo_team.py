@@ -195,14 +195,18 @@ def _capo_organigramma(
     return Capo(None)
 
 
-def mappa_capi(oggi=None, *, usa_mansioni: bool | None = None) -> dict[int, Capo]:
+def mappa_capi(oggi=None, *, usa_mansioni: bool | None = None, varianti=None) -> dict[int, Capo]:
     """``legacy_anagrafica_id`` → :class:`Capo`, per tutte le persone in forza.
 
     ``usa_mansioni``: capo di reparto e area da chi ha la mansione (default:
     se la regola unica è accesa) o dalle persone scelte a mano.
+    ``varianti``: funzione che cambia area, reparto o ruoli delle persone prima del
+    calcolo, senza scrivere niente (prospetto dei cambiamenti).
     """
     oggi = oggi or timezone.localdate()
     persone, aree, reparti = _carica(oggi)
+    if varianti is not None:
+        varianti(persone)
     if usa_mansioni is None:
         usa_mansioni = regola_unica_attiva()
     if usa_mansioni:

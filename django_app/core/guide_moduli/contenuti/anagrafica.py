@@ -423,6 +423,27 @@ GUIDA = {
             ],
         },
         {
+            "id": "prospetto",
+            "titolo": "Prospetto dei cambiamenti",
+            "blocchi": [
+                ("p", "Persone → Prospetto dei cambiamenti: confronta «Oggi» e «Dopo» prima di cambiare la struttura. "
+                      "Finché non premi «Applica» non cambia niente."),
+                ("def", [
+                    ("Si prova", "reparto in un altro centro di costo; persona in un altro reparto (lascia o tiene le "
+                                 "mansioni); ruolo di una persona; persona su una mansione; mansione in un altro reparto."),
+                    ("Si confronta", "persone, RML e costo orario medio per centro e reparto; per mansione in lista, "
+                                     "operativi, teste equivalenti, carico e costo pesato; capi, ruoli scoperti e requisiti "
+                                     "delle persone spostate. RML e costo solo con il permesso sui dati HR riservati."),
+                    ("I segnali", "«Scoperta» = nessun operativo; «Uomo solo» = meno operativi della soglia della skill "
+                                  "matrix; «Carico concentrato» e «Su troppe mansioni» dalle soglie del prospetto; «Persona "
+                                  "chiave» = unico operativo su una mansione."),
+                ]),
+                ("nota", "Il carico è un segnale dai coefficienti, non una misura di ore: il portale non conosce le ore "
+                         "richieste da una mansione. RML e costo seguono la persona: spostarla cambia dove finisce il "
+                         "costo, non quanto vale. «Applica» passa dai percorsi normali e tiene l'esito di ogni riga."),
+            ],
+        },
+        {
             "id": "esplora-struttura",
             "titolo": "Esplora la struttura",
             "blocchi": [
