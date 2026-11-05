@@ -165,13 +165,13 @@ class ProjectChoiceField(forms.ModelChoiceField):
 
 
 class ProjectKickoffForm(forms.ModelForm):
-    """Form dedicato alla creazione di un kickoff (Project) senza task.
+    """Creazione e modifica di un kickoff (Project): anagrafica e team.
 
-    Usato dal flow /tasks/projects/new/: anagrafica kickoff -> redirect al
-    vrf_compile -> redirect al gantt con CTA 'aggiungi prima attivita'.
-    La duplicate-identity logica (stesso P/N + rev + versione) viene
-    intercettata in clean() e restituita via reuse_existing_project per
-    consentire alla view di redirigere al kickoff gia esistente.
+    In creazione (/tasks/projects/new/) stesso P/N + rev + versione di un kickoff
+    esistente viene intercettato in clean() e restituito via
+    reused_existing_project, cosi' la view porta a quello. In modifica
+    (instance salvata) la stessa identita' su un altro kickoff e' un errore.
+    La descrizione e' una sola: alimenta anche la «Descrizione» del file VRF.
     """
 
     # Ogni ruolo ammette piu' persone: checkbox multiple invece della tendina singola.
@@ -210,7 +210,6 @@ class ProjectKickoffForm(forms.ModelForm):
             "control_method",
             "safety_impact",
             "vrf_quote_number",
-            "vrf_description",
             "vrf_esp",
         ]
         widgets = {
@@ -219,11 +218,10 @@ class ProjectKickoffForm(forms.ModelForm):
             "part_number":      forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "P/N"}),
             "revisione":        forms.TextInput(attrs={"class": "input", "maxlength": 60,  "placeholder": "es. A, B, 01"}),
             "versione":         forms.TextInput(attrs={"class": "input", "maxlength": 60,  "placeholder": "es. 1.0, 2.3"}),
-            "description":      forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Descrizione kickoff (opzionale)"}),
+            "description":      forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Cosa si deve fare (opzionale): compare anche nella scheda VRF"}),
             "control_method":   forms.TextInput(attrs={"class": "input", "maxlength": 180, "placeholder": "Metodo di controllo"}),
             "safety_impact":    forms.CheckboxInput(attrs={"class": "input-checkbox"}),
             "vrf_quote_number": forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "Preventivo n."}),
-            "vrf_description":  forms.TextInput(attrs={"class": "input", "maxlength": 500, "placeholder": "Descrizione scheda VRF"}),
             "vrf_esp":          forms.TextInput(attrs={"class": "input", "maxlength": 120, "placeholder": "Esp"}),
         }
 
@@ -239,7 +237,7 @@ class ProjectKickoffForm(forms.ModelForm):
             self.fields[_name].label_from_instance = user_display_label
         for name in ("name", "part_number", "revisione", "versione",
                      "description", "control_method", "vrf_quote_number",
-                     "vrf_description", "vrf_esp"):
+                     "vrf_esp"):
             self.fields[name].required = False
         # Il nome si compone da solo come «Cliente · P/N · KICK-OFF n»: qui resta
         # scrivibile per i casi in cui quella formula non basta.
@@ -247,6 +245,15 @@ class ProjectKickoffForm(forms.ModelForm):
         self.fields["name"].help_text = (
             "Lascia vuoto per il nome proposto: «Cliente · P/N · KICK-OFF n»."
         )
+        if self.instance.pk:
+            for _name in self.TEAM_FIELDS:
+                membri = self.instance.team_members(_name)
+                self.initial[_name] = [u.pk for u in membri]
+                # Chi e' gia' nel team resta selezionabile anche se oggi non ha il ruolo.
+                ids = [u.pk for u in membri]
+                self.fields[_name].queryset = (
+                    self.fields[_name].queryset | User.objects.filter(pk__in=ids)
+                ).distinct()
 
     def clean(self):
         cleaned = super().clean()
@@ -271,6 +278,19 @@ class ProjectKickoffForm(forms.ModelForm):
             )
 
         if part_number:
+            if self.instance.pk:
+                # Tutti i kickoff, non solo quelli visibili: un doppione resta un doppione.
+                doppione = Project.objects.filter(
+                    part_number__iexact=part_number,
+                    revisione__iexact=revisione,
+                    versione__iexact=versione,
+                ).exclude(pk=self.instance.pk).exists()
+                if doppione:
+                    self.add_error(
+                        "part_number",
+                        "Esiste già un altro kickoff con questo P/N, revisione e versione.",
+                    )
+                return cleaned
             match_qs = self.project_queryset.filter(
                 part_number__iexact=part_number,
                 revisione__iexact=revisione,
@@ -285,6 +305,8 @@ class ProjectKickoffForm(forms.ModelForm):
         if self.reused_existing_project is not None:
             return self.reused_existing_project
         project = super().save(commit=False)
+        if "description" in self.changed_data or not project.vrf_description:
+            project.vrf_description = (project.description or "").strip()[:500]
         if commit:
             project.save()
             self.save_team(project)
@@ -361,7 +383,7 @@ class TaskForm(forms.ModelForm):
     )
     project_new_description = forms.CharField(
         required=False,
-        widget=forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Descrizione kickoff (opzionale)"}),
+        widget=forms.Textarea(attrs={"class": "input", "rows": 2, "placeholder": "Cosa si deve fare (opzionale): compare anche nella scheda VRF"}),
         label="Descrizione kickoff",
     )
     project_new_client = forms.CharField(
@@ -553,10 +575,10 @@ class TaskForm(forms.ModelForm):
         self.fields["project_new_versione"].label = "Versione"
         self.fields["project_similar_choice"].label = "Attivita simile (cerca esistente)"
         self.fields["project_similar_new_note"].label = "Attivita simile (inserisci nuova)"
-        self.fields["title"].label = "Titolo attivita kickoff"
-        self.fields["description"].label = "Descrizione attivita"
+        self.fields["title"].label = "Titolo attività"
+        self.fields["description"].label = "Descrizione attività"
         self.fields["tags"].label = "Etichette"
-        self.fields["status"].label = "Stato attivita kickoff"
+        self.fields["status"].label = "Stato attività"
         self.fields["priority"].label = "Priorita"
         self.fields["due_date"].label = "Data fine prevista"
         self.fields["next_step_text"].label = "Prossima azione"
@@ -564,8 +586,8 @@ class TaskForm(forms.ModelForm):
         self.fields["assigned_to"].label = "Operatore incaricato"
         self.fields["subscribers"].label = "Partecipanti in copia"
         self.fields["assignment_conflict_action"].label = "Se l'operatore ha altri impegni nello stesso periodo"
-        self.fields["due_date"].help_text = "Puoi inserire anche una data passata: l'attivita verra segnalata come overdue."
-        self.fields["next_step_due"].help_text = "Data di inizio attivita (di norma il giorno successivo alla fine dell'attivita precedente)."
+        self.fields["due_date"].help_text = "Puoi inserire anche una data passata: l'attività verrà segnalata come scaduta."
+        self.fields["next_step_due"].help_text = "Di norma il giorno dopo la fine dell'attività precedente."
         self.fields["tags"].help_text = "Separare le etichette con virgola. Esempio: produzione, urgente."
         self.fields["assignment_conflict_action"].help_text = (
             "Il sistema controlla eventuali altre attivita kickoff attive assegnate all'operatore nello stesso intervallo date."

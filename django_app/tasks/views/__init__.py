@@ -139,6 +139,7 @@ from ._tooling import (  # noqa: F401
 )
 from .gantt import (  # noqa: F401
     project_gantt,
+    project_quick_task,
     project_gantt_add_dependency,
     project_gantt_clear_baseline,
     project_gantt_fix_baseline,
@@ -195,6 +196,7 @@ from .projects import (  # noqa: F401
     copy_project_with_vrf,
     copy_project_with_vrf_without_pn,
     project_create,
+    project_edit,
     project_list,
     project_set_phase,
 )

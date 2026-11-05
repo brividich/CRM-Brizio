@@ -4295,6 +4295,12 @@ body.theme-dark .md-convocazione-note.warn { background: rgba(251,146,60,.12); b
 .md-convocazione-modifiche { flex-basis: 100%; margin: 0; padding-left: 20px; }
 .md-convocazione-modifiche li { margin: 2px 0; }
 
+/* Form attivita': opzioni meno usate chiuse in fondo */
+.tf-more{display:grid;gap:12px}
+.tf-more > summary{cursor:pointer;padding:12px 16px;font-weight:700;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.tf-more[open] > summary{margin-bottom:12px}
+.tf-more > .tf-panel + .tf-panel{margin-top:12px}
+
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .ts-kpi.blue  .ts-kpi-value{color:#93c5fd}
 body.theme-dark .ts-kpi.teal  .ts-kpi-value{color:#86efac}
