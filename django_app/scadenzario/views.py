@@ -15,7 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db.models import Count, Q
-from django.http import FileResponse, Http404, HttpResponseForbidden
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -26,6 +26,7 @@ from core.audit import log_action
 
 from . import avvisi as servizio_avvisi
 from . import catalogo
+from . import guida as guida_mod
 from .controlli import da_sistemare
 from .fonte import SOURCE, chiave_categoria
 from .forms import CategoriaForm, RegolaForm, RinnovoForm, ScadenzaForm, VoceForm, opzioni_chi
@@ -219,6 +220,24 @@ def _qs_visibili(request):
     ammesse = [s.pk for s in qs.filter(Q(categoria_id__in=visibili) | Q(responsabile_id=user_id))
                if puo_vedere_scadenza(request, s)]
     return qs.filter(pk__in=ammesse)
+
+
+@login_required
+def guida(request):
+    """Guida completa, per tutti: non contiene dati, solo come funziona."""
+    if (request.GET.get("formato") or "") == "pdf":
+        from core.guida_pdf import render_guida_pdf
+
+        contenuto = render_guida_pdf(
+            titolo=guida_mod.TITOLO, sottotitolo=guida_mod.SOTTOTITOLO, sezioni=guida_mod.SEZIONI,
+            generato_da=request.user.get_username(), generato_il=timezone.localdate().strftime("%d-%m-%Y"),
+        )
+        resp = HttpResponse(contenuto, content_type="application/pdf")
+        resp["Content-Disposition"] = 'attachment; filename="Guida_Scadenzario.pdf"'
+        return resp
+    return render(request, "scadenzario/pages/guida.html", {
+        "titolo": guida_mod.TITOLO, "sottotitolo": guida_mod.SOTTOTITOLO, "sezioni": guida_mod.SEZIONI,
+    })
 
 
 @login_required

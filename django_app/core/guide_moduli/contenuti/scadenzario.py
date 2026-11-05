@@ -6,6 +6,7 @@ GUIDA = {
     "parole": "scadenzario scadenze scadenza generiche categoria categorie rinnovo avviso avvisi preavviso riepilogo mensile gestione pannello regole ruolo aziendale persona visibilità certificati contratti",
     "url": "scadenze_globali",
     "prefissi": ("/scadenze",),
+    "dettaglio": [("Guida completa dello Scadenzario", "scadenzario:guida")],
     "uso": [
         {
             "id": "pagina",

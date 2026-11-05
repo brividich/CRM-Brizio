@@ -10,6 +10,7 @@ urlpatterns = [
     path("gestione/regola/", views.gestione_regola_aggiungi, name="gestione_regola_aggiungi"),
     path("gestione/regola/<int:regola_id>/togli/", views.gestione_regola_togli, name="gestione_regola_togli"),
     path("generiche/", views.elenco, name="elenco"),
+    path("generiche/guida/", views.guida, name="guida"),
     path("generiche/nuova/", views.scadenza_nuova, name="scadenza_nuova"),
     path("generiche/massa/", views.scadenze_massa, name="scadenze_massa"),
     path("generiche/<int:pk>/", views.scadenza_dettaglio, name="scadenza_dettaglio"),

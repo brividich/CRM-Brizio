@@ -398,7 +398,7 @@ html.sc-bloccato, html.sc-bloccato body { overflow:hidden; }
       {% if not intero %}
       {% if puo_generiche %}<a class="sc-btn" href="{% url 'scadenzario:elenco' %}">🗂 Scadenze generiche</a>{% endif %}
       {% if puo_pannello %}<a class="sc-btn" href="{% url 'scadenzario:gestione' %}">⚙ Gestione</a>{% endif %}
-      <a class="sc-btn" href="{% url 'guida_modulo' 'scadenzario' %}">? Guida</a>
+      <a class="sc-btn" href="{% url 'scadenzario:guida' %}">? Guida</a>
       {% endif %}
     </div>
   </div>

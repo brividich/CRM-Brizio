@@ -380,6 +380,41 @@ class ImportNonSovrascriveTests(TestCase):
         self.assertEqual(s.categoria.email_avviso, "x@example.com")
 
 
+class GuidaTests(TestCase):
+    """Guida completa: si apre e si scarica, cita ogni fonte, le immagini esistono."""
+
+    def setUp(self):
+        self.user = _utente("guida.admin", is_superuser=True, is_staff=True)
+        self.client.force_login(self.user)
+
+    def test_pagina_e_pdf(self):
+        r = self.client.get(reverse("scadenzario:guida"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'id="collegamenti"')
+        r = self.client.get(reverse("scadenzario:guida"), {"formato": "pdf"})
+        self.assertEqual(r["Content-Type"], "application/pdf")
+
+    def test_ogni_fonte_e_nella_guida(self):
+        from dashboard.scadenze_providers import PROVIDERS, SOURCE_LABELS
+
+        from .guida import SEZIONI
+
+        fonti = next(s for s in SEZIONI if s["id"] == "fonti")
+        nomi = {t for tipo, c in fonti["blocchi"] if tipo == "def" for t, _ in c}
+        for code in PROVIDERS:
+            self.assertIn(SOURCE_LABELS[code], nomi)
+
+    def test_le_immagini_esistono(self):
+        from django.contrib.staticfiles import finders
+
+        from .guida import SEZIONI
+
+        for s in SEZIONI:
+            for tipo, c in s["blocchi"]:
+                if tipo == "img":
+                    self.assertTrue(finders.find(c[0]), c[0])
+
+
 class AnteprimaAvvisiTests(TestCase):
     OGGI = date(2026, 11, 6)
 
