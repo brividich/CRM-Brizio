@@ -7,11 +7,14 @@ riferimento generico. Contatori PDCA e reminder per le voci in scadenza.
 """
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 _OFI_BASE = 1000  # coerente con gestione_specifiche.ofi._OFI_BASE
 
@@ -235,17 +238,19 @@ def invia_reminder_ofi(*, oggi=None, giorni: int = 0, dry_run: bool = False) -> 
             try:
                 from core.email_utils import send_hub_mail
                 send_hub_mail(
-                    subject=f"[HUB] Reminder OFI {v.numero} — {v.processo or 'MOD.174'}",
-                    to=destinatari,
-                    intro=(f"L'OFI {v.numero} ({v.get_tipo_display()}) è in scadenza o scaduto "
-                           f"(richiesta chiusura entro il {v.data_richiesta:%d/%m/%Y})."),
-                    facts=[("Processo", v.processo or "—"), ("Fase", v.get_fase_display()),
-                           ("Priorità", v.get_priorita_display()),
-                           ("Responsabile", _nome_utente(v.responsabile)
-                            or v.owner_processo or v.proprietario or "—")],
+                    f"[HUB] Reminder OFI {v.numero} — {v.processo or 'MOD.174'}",
+                    (f"L'OFI {v.numero} ({v.get_tipo_display()}) è in scadenza o scaduto "
+                     f"(richiesta chiusura entro il {v.data_richiesta:%d/%m/%Y}).\n\n"
+                     f"Processo: {v.processo or '—'}\nFase: {v.get_fase_display()}\n"
+                     f"Priorità: {v.get_priorita_display()}\n"
+                     f"Responsabile: {_nome_utente(v.responsabile) or v.owner_processo or v.proprietario or '—'}"),
+                    destinatari,
+                    title="Reminder OFI", email_type="Registro OFI",
                 )
-            except Exception:  # pragma: no cover - il reminder non deve bloccare
-                pass
+            except Exception:
+                # Non inviata: resta da sollecitare al prossimo giro.
+                logger.exception("Reminder OFI non inviato per %s", v.pk)
+                continue
         v.reminder_inviato = True
         v.save(update_fields=["reminder_inviato", "updated_at"])
         registra_evento(v, "SOLLECITO", nota=", ".join(destinatari) if destinatari else "nessun destinatario")

@@ -13,7 +13,8 @@ import logging
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from core.notifiche import invia_notifica
+from core.notifiche import giorno_di_promemoria, invia_notifica
+from core.permessi.identita import utente_da_anagrafica
 
 from anagrafica.models import DipendenteAnagraficaAziendale, DipendenteRuoloOperativo
 from anagrafica.services.email_digest import digest_fragment, scadenza_badge
@@ -121,9 +122,9 @@ class Command(BaseCommand):
                     f" - scaduta il {scad:%d-%m-%Y}" if scad else
                     f"  dipendente #{legacy_id} - {tipo.nome} - scaduta"
                 )
-                if not dry_run:
+                if not dry_run and scad and giorno_di_promemoria((scad - today).days, days):
                     invia_notifica(
-                        legacy_id,
+                        utente_da_anagrafica(legacy_id),
                         "visita_scadenza",
                         f"Visita medica scaduta: {tipo.nome}"
                         + (f" dal {scad:%d-%m-%Y}." if scad else "."),
@@ -141,9 +142,9 @@ class Command(BaseCommand):
                     f"  [{days_left}gg] dipendente #{legacy_id} - {tipo.nome}"
                     f" - scadenza {scad:%d-%m-%Y}"
                 )
-                if not dry_run:
+                if not dry_run and giorno_di_promemoria(days_left, days):
                     invia_notifica(
-                        legacy_id,
+                        utente_da_anagrafica(legacy_id),
                         "visita_scadenza",
                         f"Visita medica in scadenza tra {days_left} giorni: {tipo.nome}.",
                         "/anagrafica/dipendenti/",

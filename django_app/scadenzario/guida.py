@@ -129,7 +129,7 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("def", [
                 ("Dal modulo allo Scadenzario", "automatico: le scadenze si leggono dal modulo a ogni apertura. Chiudi o rinnovi nel modulo e la voce si aggiorna, non c'è nulla da copiare."),
-                ("Dallo Scadenzario al modulo", "con il clic: porta alla scheda o, per alcune fonti (Personale, RENTRI, certificazioni individuali, abilitazioni macchina, accettazioni del rischio, GDPR), all'elenco del modulo."),
+                ("Dallo Scadenzario al modulo", "con il clic: porta alla scheda o, per alcune fonti (qualifiche della persona, depositi RENTRI, certificazioni individuali, abilitazioni macchina, accettazioni del rischio, GDPR), alla pagina generale del modulo."),
                 ("Modifiche dallo Scadenzario", "solo sulle scadenze generiche. Le altre si cambiano nel loro modulo: lì ci sono controlli, allegati e registro propri."),
                 ("Attività collegata a un asset o a un fornitore", "dalla scheda dell'attività si apre l'asset o il fornitore. Per ora non vale il contrario: la scheda dell'asset o del fornitore non elenca queste attività."),
             ]),

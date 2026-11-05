@@ -882,7 +882,7 @@ class ScadenzeGlobaliTests(TestCase):
         self.assertEqual(item.titolo, "Visita periodica")
         self.assertIn("BIANCHI", item.soggetto)
         self.assertEqual(item.giorni, 12)
-        self.assertTrue(item.url.endswith("?tipo=visita"))
+        self.assertTrue(item.url.endswith("/dipendenti/7/#scheda-visite"), item.url)
 
 
 class CoseDaGestireSafetyTests(TestCase):
