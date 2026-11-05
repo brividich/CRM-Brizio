@@ -9,6 +9,16 @@
 {% include "core/components/_hub_formkit.html" %}
 {% include "anagrafica/components/_rc_stili.html" %}
 <style>
+.cc-nota { margin:0 0 12px; }
+@media (max-width:640px) { .rc-aree .cc-guarda { display:none; } }
+.cc-misure { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:6px; font-size:12px; color:#475569; }
+.cc-misure b { color:#0f172a; }
+.cc-misure .is-grave, .cc-misure .is-grave b { color:#b91c1c; }
+.cc-misure .is-attento, .cc-misure .is-attento b { color:#b45309; }
+body.theme-dark .cc-misure { color:#cbd5e1; }
+body.theme-dark .cc-misure b { color:#f1f5f9; }
+body.theme-dark .cc-misure .is-grave, body.theme-dark .cc-misure .is-grave b { color:#fca5a5; }
+body.theme-dark .cc-misure .is-attento, body.theme-dark .cc-misure .is-attento b { color:#fcd34d; }
 .cc-vai { margin-top:5px; gap:10px; font-size:12px; font-weight:600; }
 .cc-vai a, .cc-link { color:#1f6fb0; text-decoration:none; }
 .cc-vai a:hover, .cc-link:hover { text-decoration:underline; }
@@ -31,17 +41,22 @@ body.theme-dark .cc-vai a, body.theme-dark .cc-link { color:#7cc0f0; }
     <div class="rc-actions">
       {% include "anagrafica/partials/_guida_persone_link.html" with ancora="centri-costo" %}
       <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:esplora_struttura' %}">Esplora la struttura</a>
+      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:prospetti' %}">Prova un cambiamento</a>
+      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:reportistica_index' %}">Report</a>
       <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:aree_list' %}">Reparti, aree e capi</a>
       {% include "anagrafica/partials/_export_buttons.html" with export_key="centri_costo" %}
     </div>
   </div>
 
   <div class="rc-kpis">
+    {% if kpi.da_guardare is not None %}<div class="rc-kpi {% if kpi.da_guardare %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.da_guardare }}</div><div class="rc-kpi-l">Mansioni da guardare</div></div>{% endif %}
     <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.centri }}</div><div class="rc-kpi-l">Centri di costo attivi</div></div>
     <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.reparti }}</div><div class="rc-kpi-l">Reparti collegati</div></div>
     <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.persone }}</div><div class="rc-kpi-l">Persone nei reparti collegati</div></div>
     <div class="rc-kpi {% if kpi.senza_centro %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.senza_centro }}</div><div class="rc-kpi-l">Reparti senza centro ({{ kpi.persone_senza_centro }} persone)</div></div>
   </div>
+
+  {% if carico %}<p class="rc-old cc-nota">Mansioni da guardare: scoperte, con meno di {{ carico.config.soglia_uomo_solo }} operativi o con carico concentrato da {{ carico.config.soglia_concentrazione }}%. Sono segnali dai coefficienti, solo persone in forza.{% if mese_costi %} RML e costo orario: {{ mese_costi|date:"F Y" }}.{% endif %}</p>{% endif %}
 
   {% if senza_centro %}
   <section class="rc-panel rc-panel-warn" id="senza-centro">
@@ -59,6 +74,13 @@ body.theme-dark .cc-vai a, body.theme-dark .cc-link { color:#7cc0f0; }
           <div class="rc-card-name">{{ s.centro.nome }}</div>
           <div class="rc-card-meta">{{ s.righe|length }} repart{{ s.righe|length|pluralize:"o,i" }} · {{ s.persone }} person{{ s.persone|pluralize:"a,e" }}{% if not s.centro.is_active %} · non attivo{% endif %}</div>
           {% if s.centro.descrizione %}<div class="rc-old">{{ s.centro.descrizione }}</div>{% endif %}
+          {% if s.segnali.mansioni or s.costi %}<div class="cc-misure">
+            {% if s.costi %}<span title="Ultimo mese caricato"><b>{{ s.costi.rml|floatformat:"2g" }} €</b> RML</span><span><b>{{ s.costi.costo_medio|floatformat:"2g" }} €/h</b> costo medio</span>{% endif %}
+            {% if s.segnali.mansioni %}<span><b>{{ s.segnali.mansioni }}</b> mansioni</span>
+            {% if s.segnali.scoperte %}<span class="is-grave"><b>{{ s.segnali.scoperte }}</b> scopert{{ s.segnali.scoperte|pluralize:"a,e" }}</span>{% endif %}
+            {% if s.segnali.uomo_solo %}<span class="is-attento"><b>{{ s.segnali.uomo_solo }}</b> uomo solo</span>{% endif %}
+            {% if s.segnali.concentrate %}<span class="is-attento"><b>{{ s.segnali.concentrate }}</b> carico concentrato</span>{% endif %}{% endif %}
+          </div>{% endif %}
           <div class="rc-chips cc-vai">
             <a href="{% url 'anagrafica:esplora_struttura' %}?centro={{ s.centro.pk }}">Esplora</a>
             <a href="{% url 'anagrafica:dipendenti_report' %}?centro_costo={{ s.centro.nome|urlencode:'' }}">Persone</a>

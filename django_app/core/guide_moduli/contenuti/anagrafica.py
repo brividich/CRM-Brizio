@@ -484,6 +484,9 @@ GUIDA = {
                 ("def", [
                     ("Reportistica, filtro", "«Filtri sulle persone» → «Centri di costo» vale per tutte le sezioni del "
                                              "documento."),
+                    ("Report «Carico sulle persone»", "chi è su troppe mansioni, unico operativo o su mansioni a carico "
+                                                      "concentrato, con le soglie di Impostazioni Skill Matrix. "
+                                                      "«Copertura delle mansioni» ora conta solo le persone in forza."),
                     ("Modello pronto", "«Centri di costo: organico e costo orario» (Excel): organico, RML e andamento "
                                        "per centro; le parti sul costo sono solo per chi ha il permesso sui dati HR "
                                        "riservati."),

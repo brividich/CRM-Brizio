@@ -1,10 +1,11 @@
 <table class="rc-aree" data-fm-table-skip="1">
-  <thead><tr><th>Reparto</th><th class="rc-n">Persone</th><th>Ruoli</th>{% if is_admin %}<th></th>{% endif %}</tr></thead>
+  <thead><tr><th>Reparto</th><th class="rc-n">Persone</th><th class="rc-n cc-guarda">Da guardare</th><th>Ruoli</th>{% if is_admin %}<th></th>{% endif %}</tr></thead>
   <tbody>
   {% for r in righe %}
     <tr class="{% if not r.area.is_active %}is-off{% endif %}">
       <td><a class="cc-link" href="{% url 'anagrafica:esplora_struttura' %}?area={{ r.area.pk }}"><strong>{{ r.area.nome }}</strong></a><div class="rc-old">{% if r.area.reparto_id %}in {{ r.area.reparto.nome }}{% else %}senza reparto del portale{% endif %}{% if not r.area.is_active %} · non attiva{% endif %}</div></td>
       <td class="rc-n">{% if r.persone %}<a class="cc-link" href="{% url 'anagrafica:dipendenti_report' %}?area={{ r.area.nome|urlencode:'' }}" title="Le persone di questo reparto">{{ r.persone }}</a>{% else %}0{% endif %}</td>
+      <td class="rc-n cc-guarda">{% if r.segnali.da_guardare %}<a class="cc-link" href="{% url 'anagrafica:esplora_struttura' %}?area={{ r.area.pk }}" title="{{ r.segnali.scoperte }} scoperte, {{ r.segnali.uomo_solo }} uomo solo, {{ r.segnali.concentrate }} carico concentrato">{{ r.segnali.da_guardare }}</a>{% else %}<span class="rc-old">0</span>{% endif %}</td>
       <td>{% if r.ruoli %}<div class="rc-chips">{% for ro in r.ruoli %}<span class="rc-chip solo" title="{{ ro.nome }}">{% if ro.sigla %}{{ ro.sigla }}{% else %}{{ ro.nome }}{% endif %}</span>{% endfor %}</div>{% else %}<span class="rc-none">nessuno</span>{% endif %}</td>
       {% if is_admin %}
       <td class="rc-n"><button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-rep-id="{{ r.area.pk }}" data-rep-nome="{{ r.area.nome }}" data-rep-centro="{{ r.area.centro_di_costo_id|default_if_none:'' }}" data-rep-ruoli="{% for ro in r.ruoli %}{{ ro.pk }}{% if not forloop.last %},{% endif %}{% endfor %}">Modifica</button></td>

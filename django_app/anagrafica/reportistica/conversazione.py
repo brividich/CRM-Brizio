@@ -84,14 +84,15 @@ def catalogo_per_ai(request, scelte_perimetro: dict, *, limite: int = 60, compat
 
     ``compatto``: ripieghi quando il catalogo non entra nella finestra del
     modello. 1 = colonne solo con la chiave e descrizioni di 90 caratteri; 2 =
-    descrizioni di 50 caratteri.
+    descrizioni di 50 caratteri; 3 = solo chiave e titolo.
     """
     sezioni = []
     for s in catalogo.catalogo():
         if not s.in_chat or not s.consentita(request):
             continue
-        voce = {"chiave": s.key, "titolo": s.titolo,
-                "descrizione": s.descrizione[:{0: 160, 1: 90}.get(int(compatto), 50)]}
+        voce = {"chiave": s.key, "titolo": s.titolo}
+        if compatto < 3:
+            voce["descrizione"] = s.descrizione[:{0: 160, 1: 90}.get(int(compatto), 50)]
         if s.colonne and not s.colonne_dinamiche:
             # Con l'etichetta: «voce» o «codice» da sole non dicono all'AI che cosa contengono.
             voce["colonne"] = ([k for k, _v in s.colonne] if compatto
@@ -383,7 +384,7 @@ MAX_CATALOGO_CARATTERI = 24000  # num_ctx di produzione 16384 token: il catalogo
 
 def catalogo_json(request, scelte_perimetro: dict) -> str:
     """Catalogo compatto per l'AI; se cresce troppo si accorciano gli elenchi di scelte."""
-    for limite, compatto in ((60, 0), (25, 0), (10, 0), (10, 1), (10, 2)):
+    for limite, compatto in ((60, 0), (25, 0), (10, 0), (10, 1), (10, 2), (10, 3)):
         testo = json.dumps(catalogo_per_ai(request, scelte_perimetro, limite=limite, compatto=compatto),
                            ensure_ascii=False, separators=(",", ":"))
         if len(testo) <= MAX_CATALOGO_CARATTERI:
@@ -464,6 +465,7 @@ _PAROLE_SEZIONI = (
     (("organico", "turnover", "indicatori del personale", "età media", "anzianità"), "organico_indicatori"),
     (("organigramma", "responsabili di reparto", "responsabili d'area"), "organigramma"),
     (("centri di costo", "per centro di costo"), "centri_costo"),
+    (("sovraccarico", "carico sulle persone", "persone chiave", "persona chiave", "troppe mansioni"), "carico_persone"),
     (("elenco", "lista del personale", "anagrafica", "dipendenti"), "personale_elenco"),
 )
 # Sezioni chiamate con parole generiche: si saltano se c'e' gia' una delle sezioni
