@@ -140,9 +140,14 @@ class PaginaTests(TestCase):
         from scadenzario.fonte import collect_generiche  # noqa: F401  (fonte reale)
 
         with patch("dashboard.views_scadenze.collect_all",
-                   return_value=[_voce(2, extra={"categoria_id": cat.pk, "scadenza_id": s.pk})]):
+                   return_value=[_voce(2, extra={"categoria_id": cat.pk, "scadenza_id": s.pk, "validita_mesi": 12})]):
             resp = self.client.get(reverse("scadenze_globali") + "?vista=agenda")
         self.assertContains(resp, "✓ Rinnovato")
+        # Senza validità il rinnovo non saprebbe la prossima scadenza: niente pulsante rapido.
+        with patch("dashboard.views_scadenze.collect_all",
+                   return_value=[_voce(2, extra={"categoria_id": cat.pk, "scadenza_id": s.pk})]):
+            resp = self.client.get(reverse("scadenze_globali") + "?vista=agenda")
+        self.assertNotContains(resp, "✓ Rinnovato")
 
     def test_andamento_solo_per_chi_gestisce(self):
         oggi = timezone.localdate()

@@ -290,6 +290,14 @@ class RegolaVisibilita(models.Model):
             return f"Ruolo aziendale: {self.ruolo_aziendale.nome}"
         return f"Persona: {self.persona_nome or self.persona_legacy_id}"
 
+    @property
+    def destinatario_breve(self) -> str:
+        if self.ruolo_portale_id:
+            return self.ruolo_portale.label
+        if self.ruolo_aziendale_id:
+            return self.ruolo_aziendale.nome
+        return self.persona_nome or str(self.persona_legacy_id)
+
 
 class PresaInCarico(models.Model):
     """Qualcuno ha detto «me ne occupo io» per una scadenza dello scadenzario globale.

@@ -137,7 +137,7 @@ class PannelloTests(TestCase):
         with patch("dashboard.scadenze_providers.collect_sistema", return_value=[_item()]):
             resp = self.client.get(reverse("scadenzario:gestione") + "?chiave=hr|qualifica")
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Aggiungi una regola")
+        self.assertContains(resp, "Scegli ruolo o persona")
         resp = self.client.post(reverse("scadenzario:gestione_voce"),
                                 {"chiave": "hr|qualifica", "attiva": "0", "modalita": ""})
         self.assertEqual(resp.status_code, 302)
@@ -361,3 +361,157 @@ class PagineTests(TestCase):
         resp = self.client.get(reverse("scadenzario:gestione") + f"?chiave=generiche|cat-{cat.pk}")
         self.assertContains(resp, "Persona: Verdi Luca")
         self.assertContains(self.client.get(reverse("scadenze_globali")), "Assistenza")
+
+
+class ImportNonSovrascriveTests(TestCase):
+    def test_rilancio_tiene_le_modifiche_e_aggiorna_le_riscrive(self):
+        with patch("pymysql.connect", return_value=_Connessione(ImportTests.DATI)):
+            call_command("importa_scadenzario", "--apply")
+            ScadenzaGenerica.objects.update(email_avviso="portale@example.com")
+            CategoriaScadenza.objects.update(email_avviso="cat.portale@example.com")
+            call_command("importa_scadenzario", "--apply", "--con-avvisi")
+            s = ScadenzaGenerica.objects.get()
+            self.assertEqual(s.email_avviso, "portale@example.com")
+            self.assertEqual(s.categoria.email_avviso, "cat.portale@example.com")
+            self.assertEqual(AvvisoInviato.objects.filter(scadenza=s, importato=True).count(), 1)
+            call_command("importa_scadenzario", "--apply", "--aggiorna")
+        s = ScadenzaGenerica.objects.get()
+        self.assertEqual(s.email_avviso, "y@example.com")
+        self.assertEqual(s.categoria.email_avviso, "x@example.com")
+
+
+class AnteprimaAvvisiTests(TestCase):
+    OGGI = date(2026, 11, 6)
+
+    def setUp(self):
+        self.cat = CategoriaScadenza.objects.create(nome="Contratti", email_avviso="c@example.com")
+
+    def _s(self, titolo, giorni, email=""):
+        return ScadenzaGenerica.objects.create(
+            categoria=self.cat, titolo=titolo, data_scadenza=self.OGGI + timedelta(days=giorni), email_avviso=email)
+
+    def test_divide_e_non_scrive_e_coincide_con_il_vero_invio(self):
+        from scadenzario import avvisi as av
+
+        parte = self._s("Parte", 5, "a@example.com")
+        self._s("Senza", 5)
+        self._s("Lontana", 200, "b@example.com")
+        attesa = self._s("Attesa", 5, "d@example.com")
+        AvvisoInviato.objects.create(scadenza=attesa, categoria=self.cat, riuscito=True,
+                                     inviato_il=timezone.make_aware(timezone.datetime(2026, 11, 5, 8, 0)))
+        prima = AvvisoInviato.objects.count()
+        esito = av.anteprima(oggi=self.OGGI)
+        self.assertEqual([r["scadenza"].pk for r in esito["partono"]], [parte.pk])
+        self.assertEqual([r["scadenza"].titolo for r in esito["senza"]], ["Senza"])
+        self.assertEqual([r["scadenza"].pk for r in esito["aspettano"]], [attesa.pk])
+        self.assertEqual(esito["aspettano"][0]["prossimo"], date(2026, 11, 12))
+        self.assertEqual(AvvisoInviato.objects.count(), prima)
+        self.assertEqual(av.invia_avvisi_attivita(oggi=self.OGGI, dry_run=True)["inviati"], len(esito["partono"]))
+
+    def test_categorie_limita_e_prossimi_invii(self):
+        from scadenzario import avvisi as av
+
+        self._s("Parte", 5, "a@example.com")
+        self.assertEqual(av.anteprima(oggi=self.OGGI, categorie=set())["partono"], [])
+        roma = timezone.get_current_timezone()
+        prima = timezone.datetime(2026, 11, 5, 7, 0, tzinfo=roma)
+        dopo = timezone.datetime(2026, 11, 5, 7, 15, tzinfo=roma)
+        self.assertEqual(av.prossimo_invio(prima), date(2026, 11, 5))
+        self.assertEqual(av.prossimo_invio(dopo), date(2026, 11, 6))
+        self.assertEqual(av.prossimo_riepilogo(dopo), date(2026, 12, 1))
+        self.assertEqual(av.prossimo_riepilogo(timezone.datetime(2026, 12, 1, 7, 0, tzinfo=roma)), date(2026, 12, 1))
+
+    def test_comando_non_invia(self):
+        from io import StringIO
+
+        self._s("Parte", 5, "a@example.com")
+        with patch("core.email_utils.send_hub_mail") as invio:
+            out = StringIO()
+            call_command("scadenzario_avvisi", "--giorno", "2026-11-06", stdout=out)
+        invio.assert_not_called()
+        self.assertIn("1 mail", out.getvalue())
+        self.assertFalse(AvvisoInviato.objects.exists())
+
+
+class GestioneSemplificataTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser("sz.g", "sz.g@example.com", "pwd12345")
+        self.client.force_login(self.admin)
+        self.cat = CategoriaScadenza.objects.create(nome="Contratti", email_avviso="c@example.com")
+        self.a = ScadenzaGenerica.objects.create(categoria=self.cat, titolo="Uno", data_scadenza=timezone.localdate(),
+                                                 validita_mesi=12, email_avviso="u@example.com")
+        self.b = ScadenzaGenerica.objects.create(categoria=self.cat, titolo="Due", data_scadenza=timezone.localdate())
+
+    def _massa(self, **dati):
+        return self.client.post(reverse("scadenzario:scadenze_massa"), {"ids": [self.a.pk, self.b.pk], **dati})
+
+    def test_massa_responsabile_e_destinatari(self):
+        self._massa(azione="responsabile", responsabile=self.admin.pk)
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.responsabile_id, self.admin.pk)
+        self._massa(azione="destinatari_aggiungi", email="n@example.com; u@example.com")
+        self.a.refresh_from_db(); self.b.refresh_from_db()
+        self.assertEqual(self.a.destinatari, ["u@example.com", "n@example.com"])
+        self.assertEqual(self.b.destinatari, ["n@example.com", "u@example.com"])
+        self._massa(azione="destinatari_categoria")
+        self.b.refresh_from_db()
+        self.assertEqual(self.b.destinatari, ["c@example.com"])
+        self._massa(azione="sospendi")
+        self.b.refresh_from_db()
+        self.assertFalse(self.b.is_active)
+
+    def test_massa_rifiuta_indirizzo_non_valido(self):
+        self._massa(azione="destinatari_sostituisci", email="non-valido")
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.destinatari, ["u@example.com"])
+
+    def test_massa_tocca_solo_le_categorie_gestite(self):
+        altra = CategoriaScadenza.objects.create(nome="Altra")
+        fuori = ScadenzaGenerica.objects.create(categoria=altra, titolo="Fuori")
+        with patch("scadenzario.views.categorie_gestibili", return_value={self.cat.pk}):
+            self.client.post(reverse("scadenzario:scadenze_massa"),
+                             {"ids": [self.a.pk, fuori.pk], "azione": "sospendi"})
+        self.a.refresh_from_db(); fuori.refresh_from_db()
+        self.assertFalse(self.a.is_active)
+        self.assertTrue(fuori.is_active)
+        with patch("scadenzario.views.categorie_gestibili", return_value=set()):
+            r = self.client.post(reverse("scadenzario:scadenze_massa"), {"ids": [fuori.pk], "azione": "sospendi"})
+        self.assertEqual(r.status_code, 403)
+
+    def test_regola_dal_menu_unico_torna_alla_categoria(self):
+        from core.models import AccessGroup
+
+        gruppo = AccessGroup.objects.create(code="sz_prova", label="Prova")
+        pagina = reverse("scadenzario:categoria_modifica", args=[self.cat.pk])
+        r = self.client.post(reverse("scadenzario:gestione_regola_aggiungi"), {
+            "chiave": f"generiche|cat-{self.cat.pk}", "chi": f"ruolo_portale:{gruppo.pk}",
+            "livello": "GESTISCE", "next": pagina,
+        })
+        self.assertRedirects(r, pagina, fetch_redirect_response=False)
+        regola = RegolaVisibilita.objects.get()
+        self.assertEqual((regola.ruolo_portale_id, regola.livello), (gruppo.pk, "GESTISCE"))
+        self.assertContains(self.client.get(reverse("scadenzario:categorie")), "Prova")
+        self.assertContains(self.client.get(pagina), "Prova")
+
+    def test_next_esterno_ignorato(self):
+        r = self._massa(azione="sospendi", next="https://esempio.invalid/x")
+        self.assertEqual(r.url, reverse("scadenzario:elenco"))
+
+    def test_da_sistemare_e_contatori_stabili(self):
+        from scadenzario.controlli import da_sistemare
+
+        titoli = {v["titolo"] for v in da_sistemare()}
+        self.assertIn("Attività senza responsabile", titoli)
+        self.assertIn("Categorie senza nessuno assegnato", titoli)
+        self.assertContains(self.client.get(reverse("scadenzario:gestione")), "Da sistemare")
+        r = self.client.get(reverse("scadenzario:elenco"), {"stato": "scadute"})
+        self.assertEqual(r.context["n_tutte"], 2)
+        self.assertEqual(len(r.context["righe"]), 0)
+        r = self.client.get(reverse("scadenzario:elenco"), {"senza": "destinatari"})
+        self.assertEqual([s.pk for s in r.context["righe"]], [self.b.pk])
+
+    def test_rinnovato_oggi_solo_con_validita(self):
+        r = self.client.get(reverse("scadenzario:scadenza_dettaglio", args=[self.b.pk]))
+        self.assertNotContains(r, "Rinnovato oggi")
+        r = self.client.get(reverse("scadenzario:scadenza_dettaglio", args=[self.a.pk]))
+        self.assertContains(r, "Rinnovato oggi")

@@ -50,7 +50,7 @@ def collect_generiche(ctx) -> list:
             data_scadenza=s.data_scadenza,
             giorni=(s.data_scadenza - ctx.oggi).days,
             url=reverse("scadenzario:scadenza_dettaglio", args=[s.pk]),
-            extra={"categoria_id": s.categoria_id, "scadenza_id": s.pk, "responsabile_id": s.responsabile_id},
+            extra={"categoria_id": s.categoria_id, "scadenza_id": s.pk, "validita_mesi": s.validita_mesi, "responsabile_id": s.responsabile_id},
             elemento=chiave_attivita(s.pk),
             elemento_label=s.titolo,
         ))

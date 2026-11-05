@@ -7,19 +7,77 @@
 {% block content %}
 <div class="sz-page">
   <div class="sz-top">
-    <div>
-      <h1 class="sz-title">{% if nuova %}Nuova attività con scadenza{% else %}{{ s.titolo }}{% endif %}</h1>
-      <div class="sz-sub">Con «Ultimo controllo» e «Validità» la scadenza si calcola da sola; al rinnovo si ricalcola la successiva. Gli avvisi partono alle email dell'attività; il riepilogo mensile va alle email della categoria.</div>
-    </div>
+    <h1 class="sz-title">{% if nuova %}Nuova attività con scadenza{% else %}{{ s.titolo }}{% endif %}</h1>
     {% include "scadenzario/components/nav.html" with attiva="elenco" %}
   </div>
   <form method="post" class="sz-card">
     {% csrf_token %}
-    {% include "scadenzario/components/campi.html" %}
+    {% if form.non_field_errors %}<div class="sz-banner">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+
+    <div class="sz-form">
+      {% include "scadenzario/components/campo.html" with field=form.titolo %}
+      {% include "scadenzario/components/campo.html" with field=form.categoria %}
+      {% include "scadenzario/components/campo.html" with field=form.responsabile %}
+      {% include "scadenzario/components/campo.html" with field=form.ultimo_controllo %}
+      {% include "scadenzario/components/campo.html" with field=form.validita_mesi %}
+      <div>
+        {% include "scadenzario/components/campo.html" with field=form.data_scadenza %}
+        <div class="sz-help" id="sz-calcolata" hidden></div>
+      </div>
+    </div>
+
+    <h2 class="sz-sez">A chi arrivano gli avvisi</h2>
+    <div class="sz-form">
+      <div class="sz-field wide">
+        {% include "scadenzario/components/campo.html" with field=form.email_avviso %}
+        <button type="button" class="sz-btn sz-btn-ghost" id="sz-copia" style="align-self:flex-start">Usa quelli della categoria</button>
+      </div>
+    </div>
+
+    <details class="sz-altro"{% if form.preavviso_giorni.errors or form.ripeti_ogni_giorni.errors or form.descrizione.errors or form.ubicazione.errors or form.asset.errors or form.fornitore.errors %} open{% endif %}>
+      <summary>Altri dettagli: preavviso, descrizione, ubicazione, collegamenti</summary>
+      <div class="sz-form" style="margin-top:12px">
+        {% include "scadenzario/components/campo.html" with field=form.preavviso_giorni %}
+        {% include "scadenzario/components/campo.html" with field=form.ripeti_ogni_giorni %}
+        {% include "scadenzario/components/campo.html" with field=form.ubicazione %}
+        {% include "scadenzario/components/campo.html" with field=form.descrizione wide=True %}
+        {% include "scadenzario/components/campo.html" with field=form.asset %}
+        {% include "scadenzario/components/campo.html" with field=form.fornitore %}
+        {% include "scadenzario/components/campo.html" with field=form.is_active %}
+      </div>
+    </details>
+
     <div style="margin-top:14px;display:flex;gap:8px">
       <button class="sz-btn sz-btn-primary" type="submit">Salva</button>
       <a class="sz-btn sz-btn-ghost" href="{% if s %}{% url 'scadenzario:scadenza_dettaglio' s.pk %}{% else %}{% url 'scadenzario:elenco' %}{% endif %}">Annulla</a>
     </div>
   </form>
 </div>
+{{ email_categorie|json_script:"sz-email-categorie" }}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var ultimo = document.querySelector("[name=ultimo_controllo]"), validita = document.querySelector("[name=validita_mesi]");
+  var scadenza = document.querySelector("[name=data_scadenza]"), nota = document.getElementById("sz-calcolata");
+  function due(n) { return (n < 10 ? "0" : "") + n; }
+  function calcola() {
+    var mesi = parseInt(validita.value, 10), parti = ultimo.value.split("-");
+    if (scadenza.value || !ultimo.value || !mesi) { nota.hidden = true; return; }
+    var y = +parti[0], m = +parti[1] - 1 + mesi, g = +parti[2];
+    var ultimoGiorno = new Date(y, m + 1, 0);
+    var d = new Date(ultimoGiorno.getFullYear(), ultimoGiorno.getMonth(), Math.min(g, ultimoGiorno.getDate()));
+    nota.textContent = "Sarà calcolata: " + due(d.getDate()) + "/" + due(d.getMonth() + 1) + "/" + d.getFullYear();
+    nota.hidden = false;
+  }
+  [ultimo, validita, scadenza].forEach(function (el) { el.addEventListener("input", calcola); });
+  calcola();
+
+  var mappa = JSON.parse(document.getElementById("sz-email-categorie").textContent);
+  var categoria = document.querySelector("[name=categoria]"), email = document.querySelector("[name=email_avviso]");
+  var copia = document.getElementById("sz-copia");
+  function statoCopia() { copia.disabled = !mappa[categoria.value]; }
+  copia.addEventListener("click", function () { email.value = mappa[categoria.value] || ""; });
+  categoria.addEventListener("change", statoCopia);
+  statoCopia();
+})();
+</script>
 {% endblock %}
