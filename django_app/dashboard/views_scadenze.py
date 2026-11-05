@@ -559,7 +559,26 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
     else:
         context["page_obj"] = Paginator(voci, 50).get_page(request.GET.get("page"))
         context["link_pagina"] = link()
+    context["persone_assegna"] = _persone_assegna() if _puo_assegnare(request, context) else []
     return render(request, "dashboard/pages/scadenze_globali.html", context)
+
+
+def _puo_assegnare(request, context) -> bool:
+    if context.get("vista") == "andamento":
+        return False
+    if context.get("puo_pannello"):
+        return True
+    from scadenzario.models import PresaInCarico
+
+    return PresaInCarico.objects.filter(utente=request.user).exists()
+
+
+def _persone_assegna() -> list[str]:
+    """Elenco di «Assegna»: un nome solo per pagina, non ripetuto a ogni scadenza."""
+    from django.contrib.auth import get_user_model
+
+    utenti = get_user_model().objects.filter(is_active=True).order_by("last_name", "first_name", "username")
+    return [f"{(u.get_full_name() or u.username).strip()} ({u.username})" for u in utenti]
 
 
 def _puo_pannello(request) -> bool:

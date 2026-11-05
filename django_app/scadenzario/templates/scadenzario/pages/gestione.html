@@ -94,6 +94,7 @@
           </div>
         {% endif %}
 
+        {% if selezione.chiave == "manutenzione" %}<div class="sz-banner" style="margin-top:10px">Spenta di serie perché sono tante voci. Per accenderla scegli «Sì» in «Compare nello scadenzario».</div>{% endif %}
         {% if selezione.chiave|slice:":2" == "hr" %}<div class="sz-banner" style="margin-top:10px">Le visite mediche sono dati sanitari: concedile solo a chi ne ha bisogno (medico competente, RSPP, HR).</div>{% endif %}
 
         <details class="sz-altro"{% if selezione.cfg %} open{% endif %}>

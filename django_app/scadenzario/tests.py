@@ -507,6 +507,93 @@ class RiquadroSchedaTests(TestCase):
         self.assertEqual(r.url, reverse("scadenze_globali"))
 
 
+from scadenzario.models import PresaInCarico  # noqa: E402
+
+
+class AssegnazioneTests(TestCase):
+    """Chi riceve o perde una scadenza lo viene a sapere; assegna solo chi può."""
+
+    def setUp(self):
+        self.admin = _utente("ass.admin", is_superuser=True, is_staff=True)
+        self.collega = _utente("ass.collega")
+        self.terzo = _utente("ass.terzo")
+        self.client.force_login(self.admin)
+        self.voce = _item(giorni=3)
+        self.dati = {"chiave": "c" * 40, "data": self.voce.data_scadenza.isoformat()}
+
+    def _post(self, **extra):
+        with patch("scadenzario.views_calendario._scadenza_visibile", return_value=self.voce), \
+                patch("scadenzario.views_calendario.avvisa_utente") as avvisa:
+            r = self.client.post(reverse("scadenzario:presa_in_carico"), {**self.dati, **extra})
+        return r, avvisa
+
+    def test_assegna_notifica_la_persona(self):
+        r, avvisa = self._post(azione="assegna", persona="Collega (ass.collega)")
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(PresaInCarico.objects.get().utente, self.collega)
+        self.assertEqual(avvisa.call_args.args[0], self.collega)
+
+    def test_nome_non_in_elenco_non_assegna(self):
+        self._post(azione="assegna", persona="Qualcuno a caso")
+        self.assertFalse(PresaInCarico.objects.exists())
+
+    def test_chi_non_ha_la_scadenza_non_assegna(self):
+        self.client.force_login(self.terzo)
+        with patch("scadenzario.views_calendario.puo_gestire_pannello", return_value=False):
+            r, _ = self._post(azione="assegna", persona="Collega (ass.collega)")
+        self.assertEqual(r.status_code, 403)
+
+    def test_subentro_avvisa_chi_laveva(self):
+        PresaInCarico.objects.create(chiave=self.dati["chiave"], utente=self.collega, descrizione="x", data_scadenza=self.voce.data_scadenza)
+        _, avvisa = self._post(azione="prendi")
+        self.assertEqual(PresaInCarico.objects.get().utente, self.admin)
+        self.assertEqual(avvisa.call_args.args[0], self.collega)
+
+    def test_responsabile_avvisato_a_scaletta(self):
+        from scadenzario.avvisi import _ricorda_al_responsabile
+
+        conf = {"preavviso": 30}
+        cat = CategoriaScadenza.objects.create(nome="Categoria sintetica")
+        oggi = timezone.localdate()
+        s = ScadenzaGenerica.objects.create(categoria=cat, titolo="Sintetica", responsabile=self.collega, data_scadenza=oggi + timedelta(days=7))
+        with patch("scadenzario.notifiche.avvisa_utente") as avvisa:
+            _ricorda_al_responsabile(s, oggi, conf)
+            self.assertEqual(avvisa.call_count, 1)
+            s.data_scadenza = oggi + timedelta(days=9)
+            _ricorda_al_responsabile(s, oggi, conf)
+            s.data_scadenza = oggi + timedelta(days=60)
+            _ricorda_al_responsabile(s, oggi, conf)
+            self.assertEqual(avvisa.call_count, 1)
+
+    def test_le_mie_scadenze_in_home(self):
+        from django.core.cache import cache
+        from django.test import RequestFactory
+
+        from dashboard.views_mie_attivita import _mie_scadenze
+        from scadenzario.calendario import chiave_scadenza
+
+        cache.clear()
+        mia, altrui, lontana = _item(titolo="Mia", soggetto="X", giorni=2), _item(titolo="Altrui", soggetto="Y", giorni=2), _item(titolo="Lontana", soggetto="Z", giorni=40)
+        for v in (mia, lontana):
+            PresaInCarico.objects.create(chiave=chiave_scadenza(v), utente=self.admin, descrizione="x", data_scadenza=v.data_scadenza)
+        request = RequestFactory().get("/")
+        request.user = self.admin
+        with patch("dashboard.scadenze_providers.collect_all", return_value=[mia, altrui, lontana]) as raccolta:
+            righe = _mie_scadenze(request)
+            _mie_scadenze(request)
+        self.assertEqual([r["title"] for r in righe], ["Mia"])
+        self.assertNotIn("hr", raccolta.call_args.kwargs["sources"])
+        self.assertEqual(raccolta.call_count, 1)
+        cache.clear()
+
+    def test_task_in_errore_risulta_fallito(self):
+        from scadenzario import tasks
+
+        with patch("scadenzario.avvisi.invia_avvisi_attivita", side_effect=RuntimeError("sintetico")):
+            with self.assertRaises(RuntimeError):
+                tasks.run_avvisi_attivita()
+
+
 class GuidaTests(TestCase):
     """Guida completa: si apre e si scarica, cita ogni fonte, le immagini esistono."""
 

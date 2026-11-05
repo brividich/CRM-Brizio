@@ -18,8 +18,9 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from .calendario import chiave_scadenza, descrizione_scadenza, pulisci_parametri
+from .calendario import chiave_scadenza, descrizione_scadenza, nome_utente, pulisci_parametri
 from .models import PresaInCarico, VistaSalvata
+from .notifiche import avvisa_utente
 from .visibilita import puo_gestire_pannello
 
 
@@ -82,6 +83,18 @@ def scheda_riquadro(request):
     })
 
 
+def _persona_scelta(valore):
+    """«Nome Cognome (username)» dall'elenco di «Assegna a»; None se non è una persona attiva."""
+    import re
+
+    from django.contrib.auth import get_user_model
+
+    trovato = re.search(r"\(([^()]+)\)\s*$", valore or "")
+    if not trovato:
+        return None
+    return get_user_model().objects.filter(is_active=True, username=trovato.group(1)).first()
+
+
 @login_required
 @require_POST
 def presa_in_carico(request):
@@ -99,13 +112,30 @@ def presa_in_carico(request):
     if v is None:
         return HttpResponseForbidden("Scadenza non trovata fra quelle che puoi vedere.")
     nota = (request.POST.get("nota") or "").strip()[:300]
-    precedente = esistente.utente_id if esistente else None
+    precedente = esistente.utente if esistente else None
+    incaricato = request.user
+    if azione == "assegna":
+        if not (puo_gestire_pannello(request) or (precedente and precedente.pk == request.user.pk)):
+            return HttpResponseForbidden("Solo chi ha la scadenza o gestisce lo scadenzario può assegnarla.")
+        incaricato = _persona_scelta(request.POST.get("persona"))
+        if incaricato is None:
+            messages.error(request, "Scegli la persona dall'elenco.")
+            return _torna(request)
     PresaInCarico.objects.update_or_create(chiave=chiave, defaults={
-        "utente": request.user, "nota": nota, "descrizione": descrizione_scadenza(v), "data_scadenza": v.data_scadenza,
+        "utente": incaricato, "nota": nota, "descrizione": descrizione_scadenza(v), "data_scadenza": v.data_scadenza,
     })
-    log_action(request, "scadenza_presa_in_carico", "scadenzario",
-               {"scadenza": descrizione_scadenza(v), "nota": nota, "subentra_a": precedente})
-    messages.success(request, "Scadenza presa in carico: compare con il tuo nome a chi la vede.")
+    log_action(request, "scadenza_assegnata" if azione == "assegna" else "scadenza_presa_in_carico", "scadenzario",
+               {"scadenza": descrizione_scadenza(v), "nota": nota, "subentra_a": precedente.pk if precedente else None,
+                "a": incaricato.pk})
+    chi = nome_utente(request.user)
+    if incaricato.pk != request.user.pk:
+        avvisa_utente(incaricato, "scadenza_assegnata", f"{chi} ti ha assegnato la scadenza: {descrizione_scadenza(v)}.", v.url)
+    if precedente and precedente.pk not in {incaricato.pk, request.user.pk}:
+        avvisa_utente(precedente, "scadenza_assegnata", f"Di questa scadenza ora si occupa {nome_utente(incaricato)}: {descrizione_scadenza(v)}.", v.url)
+    if azione == "assegna":
+        messages.success(request, f"Scadenza assegnata a {nome_utente(incaricato)}.")
+    else:
+        messages.success(request, "Scadenza presa in carico: compare con il tuo nome a chi la vede.")
     return _torna(request)
 
 

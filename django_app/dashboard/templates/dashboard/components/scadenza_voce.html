@@ -28,6 +28,12 @@
       <button type="submit" class="sc-mini">✕ Lascia</button>
     </form>
     {% endif %}
+    {% if puo_pannello or v.presa_mia %}
+    <form method="post" action="{% url 'scadenzario:presa_in_carico' %}" class="sc-az">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ torna }}"><input type="hidden" name="chiave" value="{{ v.chiave }}"><input type="hidden" name="data" value="{{ v.data_scadenza|date:'Y-m-d' }}"><input type="hidden" name="azione" value="assegna">
+      <details class="sc-nota"><summary class="sc-mini" title="Affida la scadenza a un collega: riceve una notifica">→ Assegna</summary><input type="text" name="persona" list="sc-persone" required placeholder="Scrivi il nome e sceglilo" aria-label="Persona"><button type="submit" class="sc-mini">Assegna</button></details>
+    </form>
+    {% endif %}
     {% if not v.presa_mia %}
     <form method="post" action="{% url 'scadenzario:presa_in_carico' %}" class="sc-az sc-az-presa">
       {% csrf_token %}<input type="hidden" name="next" value="{{ torna }}"><input type="hidden" name="chiave" value="{{ v.chiave }}"><input type="hidden" name="data" value="{{ v.data_scadenza|date:'Y-m-d' }}">
