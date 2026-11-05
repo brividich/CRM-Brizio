@@ -6,12 +6,11 @@ vuota lo dice senza errori. Le sezioni si caricano all'apertura della scheda rel
 così un GuestPortal che non risponde non rallenta la pagina del fornitore.
 
 Ogni sezione segue il permesso del modulo da cui vengono i dati (``sezioni_visibili``):
-la scheda fornitore non deve diventare una scorciatoia per vederli. In particolare i
-tecnici sono dati personali di esterni e seguono il permesso di «Accessi esterni».
+la scheda fornitore non deve diventare una scorciatoia per vederli.
 
-Tecnici: nessuna copia nell'HUB oltre alla fotografia già salvata quando un ingresso
-viene collegato a un intervento (``IngressoIntervento``): la lista si legge dal
-GuestPortal a ogni apertura e la sua pulizia GDPR resta valida.
+Tecnici: il registro (``TecnicoFornitore``, vedi ``fornitori.tecnici``) sta nell'HUB e si
+vede con la scheda del fornitore. Ingressi, ore e presenze si leggono dal GuestPortal a ogni
+apertura, senza copie, e solo con il permesso di «Accessi esterni».
 """
 from __future__ import annotations
 
@@ -25,8 +24,9 @@ from django.utils import timezone
 from . import guestportal as gp
 from . import ingressi as ing
 from .models import FornitoreContatori, IngressoIntervento
-from .nomi import chiave_ditta, chiave_persona
+from .nomi import chiave_ditta, chiave_tecnico
 from .requisiti import GIORNI_PREAVVISO, documenti_con_scadenza
+from .tecnici import nome_registrabile
 
 SEZIONE_MANUTENZIONE = "manutenzione"
 SEZIONE_COPIE = "copie"
@@ -54,12 +54,17 @@ def apre(request, route: str, *args) -> bool:
     ))
 
 
+def vede_ingressi(request) -> bool:
+    """Ingressi e presenze dei tecnici: dati personali, stesso permesso di «Accessi esterni»."""
+    return apre(request, "fornitori:accessi_esterni")
+
+
 def sezioni_visibili(request) -> dict[str, bool]:
     return {
         SEZIONE_MANUTENZIONE: apre(request, "assets:maintenance_suppliers"),
         SEZIONE_COPIE: apre(request, "contatori:fatture"),
         SEZIONE_SCADENZE: True,  # ogni voce controlla il proprio modulo in dati_scadenze
-        SEZIONE_TECNICI: apre(request, "fornitori:accessi_esterni"),
+        SEZIONE_TECNICI: True,  # il registro segue la scheda; gli ingressi vedi vede_ingressi
     }
 
 
@@ -256,6 +261,9 @@ def dati_scadenze(request, fornitore, oggi=None) -> dict:
 
     from scadenzario.permessi import puo_vedere_scadenza
 
+    for t in fornitore.tecnici.filter(attivo=True, attestati_fino_al__isnull=False):
+        aggiungi(t.attestati_fino_al, "Attestati tecnico", t.nome, f"{dettaglio}#tab-tecnici")
+
     for s in fornitore.scadenze_generiche.filter(is_active=True).select_related("categoria"):
         if puo_vedere_scadenza(request, s):
             aggiungi(s.data_scadenza, "Scadenzario", s.titolo, reverse("scadenzario:scadenza_dettaglio", args=[s.pk]))
@@ -281,14 +289,13 @@ class Tecnico:
     ultimo: datetime | None = None
     dentro: bool = False
     interventi: list = field(default_factory=list)
+    registro: object = None
+    attestati_stato: str = ""
+    attestati_label: str = ""
 
     @property
     def ore_label(self) -> str:
         return ing.ore_label(self.minuti) if self.minuti else "—"
-
-
-def _chiave_tecnico(nome: str) -> str:
-    return chiave_persona(nome) or (nome or "").strip().lower()
 
 
 def _locale(valore: datetime | None) -> datetime | None:
@@ -308,7 +315,8 @@ def collegamenti_del_fornitore(fornitore):
     )
 
 
-def dati_tecnici(fornitore, oggi=None) -> dict:
+def dati_tecnici(fornitore, oggi=None, *, vede_ingressi: bool = True) -> dict:
+    """Registro del fornitore e, con ``vede_ingressi``, ingressi e ore di ciascuno."""
     oggi = oggi or timezone.localdate()
     configurato = gp.db_configurato()
     errore = ""
@@ -317,7 +325,7 @@ def dati_tecnici(fornitore, oggi=None) -> dict:
     ingressi: list = []
     ingressi_troncati = False
     ditte: list[int] = []
-    if configurato:
+    if configurato and vede_ingressi:
         try:
             ditte, nomi = ing.ditte_e_nomi(fornitore)
             righe_gp, troncato = gp.tecnici_ditta(ditte_gp=ditte, nomi=nomi)
@@ -334,14 +342,14 @@ def dati_tecnici(fornitore, oggi=None) -> dict:
 
     per_chiave: dict[str, Tecnico] = {}
     for r in righe_gp:  # il GuestPortal può avere la stessa persona registrata più volte
-        t = per_chiave.setdefault(_chiave_tecnico(r.nome), Tecnico(nome=r.nome))
+        t = per_chiave.setdefault(chiave_tecnico(r.nome), Tecnico(nome=r.nome))
         t.ingressi += r.ingressi
         t.minuti += r.minuti
         t.dentro = t.dentro or r.dentro
         if r.ultimo and (t.ultimo is None or r.ultimo > t.ultimo):
             t.ultimo = r.ultimo
 
-    collegati = list(collegamenti_del_fornitore(fornitore))
+    collegati = list(collegamenti_del_fornitore(fornitore)) if vede_ingressi else []
     interventi = []
     for link in collegati:
         iv = ing.intervento_del_link(link)
@@ -349,20 +357,35 @@ def dati_tecnici(fornitore, oggi=None) -> dict:
         interventi.append(voce)
         if not link.tecnico_nome:
             continue
-        t = per_chiave.setdefault(_chiave_tecnico(link.tecnico_nome), Tecnico(nome=link.tecnico_nome))
+        t = per_chiave.setdefault(chiave_tecnico(link.tecnico_nome), Tecnico(nome=link.tecnico_nome))
         t.interventi.append(voce)
         ingresso = _locale(link.ingresso)
         if ingresso and (t.ultimo is None or ingresso > t.ultimo):
             t.ultimo = ingresso
 
-    tecnici = sorted(per_chiave.values(), key=lambda t: (t.dentro, t.ultimo or datetime.min), reverse=True)
+    # Il registro comanda: nome e dati sono i suoi, ingressi e ore si aggiungono se ci sono.
+    tecnici = []
+    for reg in fornitore.tecnici.all():
+        t = per_chiave.pop(reg.chiave, None) or Tecnico(nome=reg.nome)
+        t.nome, t.registro = reg.nome, reg
+        if reg.attestati_fino_al and reg.attivo:  # chi non è attivo non ha più scadenze
+            t.attestati_stato, t.attestati_label = _stato_data(reg.attestati_fino_al, oggi)
+        tecnici.append(t)
+    tecnici.sort(key=lambda t: (t.registro.attivo, t.dentro, t.ultimo or datetime.min), reverse=True)
+    da_registrare = sorted(
+        (t for t in per_chiave.values() if nome_registrabile(t.nome)),
+        key=lambda t: (t.dentro, t.ultimo or datetime.min), reverse=True,
+    )
     return {
+        "vede_ingressi": vede_ingressi,
+        "da_registrare": da_registrare,
+        "n_attivi": sum(1 for t in tecnici if t.registro.attivo),
         "configurato": configurato,
         "errore": errore,
         "tecnici": tecnici,
         "troncato": troncato,
         "limite": gp.TECNICI_MAX_RIGHE,
-        "n_dentro": sum(1 for t in tecnici if t.dentro),
+        "n_dentro": sum(1 for t in [*tecnici, *da_registrare] if t.dentro),
         "ingressi": ingressi,
         "ingressi_troncati": ingressi_troncati,
         "ingressi_mostrati": INGRESSI_MOSTRATI,

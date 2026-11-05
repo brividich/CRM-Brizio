@@ -53,16 +53,15 @@ class SchedaTests(TestCase):
 
     @patch("fornitori.collegamenti.apre", return_value=False)
     def test_senza_permesso_del_modulo_403_json(self, _apre):
-        for sezione in ("manutenzione", "copie", "tecnici"):
+        for sezione in ("manutenzione", "copie"):
             with self.subTest(sezione=sezione):
                 r = self.client.get(_sezione(self.f, sezione))
                 self.assertEqual(r.status_code, 403)
                 self.assertEqual(r["Content-Type"], "application/json")
 
     @patch("fornitori.collegamenti.apre", return_value=False)
-    def test_senza_permesso_tecnici_non_si_vede_la_scheda(self, _apre):
+    def test_senza_permesso_non_si_vede_la_manutenzione(self, _apre):
         r = self.client.get(reverse("fornitori:fornitore_detail", args=[self.f.pk]))
-        self.assertNotContains(r, "tab-tecnici")
         self.assertNotContains(r, "tab-manutenzione")
 
 
@@ -210,7 +209,7 @@ class TecniciTests(TestCase):
             dati = col.dati_tecnici(self.f)
             r = self.client.get(_sezione(self.f, "tecnici"))
         self.assertFalse(dati["configurato"])
-        self.assertEqual([t.nome for t in dati["tecnici"]], ["ROSSI Mario"])
+        self.assertEqual([t.nome for t in dati["da_registrare"]], ["ROSSI Mario"])
         self.assertContains(r, "ROSSI Mario")
         self.assertContains(r, "non è collegato")
 
@@ -230,8 +229,8 @@ class TecniciTests(TestCase):
                 patch.object(gp, "tecnici_ditta", return_value=([_riga_gp(), _riga_gp(ingressi=1, minuti=10, dentro=1)], False)), \
                 patch.object(gp, "ingressi_ditta", return_value=[]):
             dati = col.dati_tecnici(self.f)
-        self.assertEqual(len(dati["tecnici"]), 1)
-        t = dati["tecnici"][0]
+        self.assertEqual(len(dati["da_registrare"]), 1)
+        t = dati["da_registrare"][0]
         self.assertEqual((t.ingressi, t.minuti, t.dentro, len(t.interventi)), (4, 100, True, 1))
         self.assertEqual(t.ultimo, datetime(2026, 3, 1, 8))
         self.assertEqual(dati["n_dentro"], 1)

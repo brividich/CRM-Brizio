@@ -18,6 +18,8 @@ formazione; non c'è nessuna ditta da impostare.
 """
 from __future__ import annotations
 
+import logging
+
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -25,8 +27,10 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from . import guestportal as gp
-from .models import DittaGuestPortal, IngressoIntervento
+from .models import DittaGuestPortal, IngressoIntervento, TecnicoFornitore
 from .nomi import chiave_ditta, chiave_persona, unico
+
+logger = logging.getLogger(__name__)
 
 TIPO_TICKET = "ticket"
 TIPO_ODL = "odl"
@@ -370,9 +374,16 @@ def collega(
         with transaction.atomic():
             link = IngressoIntervento.objects.create(**dati)
             link.nota_ditta = _imposta_ditta(iv, fornitore, utente=utente, autore=autore) if imposta_ditta else ""
-            return link
     except IntegrityError as exc:
         raise CollegamentoNonValido("Ingresso già collegato a questo intervento.") from exc
+    if fornitore is not None:
+        from . import tecnici
+
+        try:
+            tecnici.registra(fornitore.pk, link.tecnico_nome, origine=TecnicoFornitore.ORIGINE_INTERVENTO, utente=utente)
+        except Exception:  # noqa: BLE001 - il collegamento è già fatto: il registro non lo annulla
+            logger.exception("Registrazione del tecnico dal collegamento fallita")
+    return link
 
 
 def fornitore_del_collegamento(link: IngressoIntervento, preferito=None):

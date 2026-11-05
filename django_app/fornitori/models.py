@@ -16,6 +16,8 @@ from django.conf import settings
 from django.db import models
 from django.db.models import Q
 
+from .nomi import chiave_tecnico
+
 
 class DittaGuestPortal(models.Model):
     ditta_gp_id = models.PositiveIntegerField(unique=True, help_text="Suppliers.SupplierID del GuestPortal")
@@ -137,6 +139,56 @@ class FornitoreContatori(models.Model):
 
     def __str__(self) -> str:
         return f"{self.codice} → {self.fornitore}"
+
+
+class TecnicoFornitore(models.Model):
+    """Registro dei tecnici di una ditta (vedi ``fornitori.tecnici``): resta anche dopo la
+    pulizia GDPR del GuestPortal, finché non viene eliminato dalla scheda."""
+
+    ORIGINE_MANUALE = "MANUALE"
+    ORIGINE_GUESTPORTAL = "GUESTPORTAL"
+    ORIGINE_INTERVENTO = "INTERVENTO"
+    ORIGINE_CHOICES = [
+        (ORIGINE_MANUALE, "Aggiunto a mano"),
+        (ORIGINE_GUESTPORTAL, "Dal GuestPortal"),
+        (ORIGINE_INTERVENTO, "Da un intervento"),
+    ]
+
+    fornitore = models.ForeignKey("anagrafica.Fornitore", on_delete=models.CASCADE, related_name="tecnici")
+    nome = models.CharField("Nome e cognome", max_length=200)
+    chiave = models.CharField(
+        max_length=200, editable=False, help_text="Nome confrontabile: maiuscole e ordine delle parole ignorati",
+    )
+    qualifica = models.CharField("Qualifica", max_length=120, blank=True)
+    telefono = models.CharField("Telefono", max_length=30, blank=True)
+    email = models.EmailField("Email", blank=True)
+    attestati_fino_al = models.DateField(
+        "Attestati validi fino al", null=True, blank=True,
+        help_text="Facoltativo: compare nelle scadenze della ditta e nello Scadenzario.",
+    )
+    note = models.CharField("Note", max_length=255, blank=True)
+    attivo = models.BooleanField("Attivo", default=True)
+    origine = models.CharField(max_length=12, choices=ORIGINE_CHOICES, default=ORIGINE_MANUALE)
+    creato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    creato_il = models.DateTimeField(auto_now_add=True)
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-attivo", "nome", "pk"]
+        verbose_name = "Tecnico del fornitore"
+        verbose_name_plural = "Tecnici dei fornitori"
+        constraints = [
+            models.UniqueConstraint(fields=["fornitore", "chiave"], name="fornitori_tecnico_unico_per_fornitore"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.nome} ({self.fornitore})"
+
+    def save(self, *args, **kwargs):
+        self.chiave = chiave_tecnico(self.nome)
+        super().save(*args, **kwargs)
 
 
 class AvvisoIngressoNonInRegola(models.Model):
