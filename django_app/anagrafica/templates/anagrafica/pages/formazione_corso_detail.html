@@ -15,6 +15,7 @@
 {% include "anagrafica/components/_fm_icons.html" %}
 <div class="fmd hr-shell">
   {% include "anagrafica/components/flash_messages.html" %}
+  {% include "scadenzario/components/riquadro.html" with collegata_tipo="corso" collegata_id=corso.pk nome=corso.titolo %}
 
   {# ── Page header ─────────────────────────────────────────────────────────── #}
   <div class="fmd-pagehead">

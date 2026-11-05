@@ -12,6 +12,7 @@
   <a class="sec-button sec-button-primary" href="{% url 'security:incident_edit' incident.pk %}">Modifica</a>
   <a class="sec-button" href="{% url 'security:incident_pdf' incident.pk %}">Scarica scheda PDF</a>
 </div>
+{% include "scadenzario/components/riquadro.html" with fonti="soc" nome=incident.code %}
 
 <section class="sec-detail-hero" style="align-items: start;">
   <div class="sec-panel">

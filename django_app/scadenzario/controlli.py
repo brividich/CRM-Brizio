@@ -32,7 +32,7 @@ def da_sistemare() -> list[dict]:
         reverse("scadenzario:categorie"), grave=True,
     )
     aggiungi(
-        attive.filter(data_scadenza__lt=oggi).count(),
+        attive.filter(data_scadenza__lt=oggi, unita=False).count(),
         "Attività scadute",
         "Da rinnovare, o da sospendere se non servono più.",
         f"{elenco}?stato=scadute", grave=True,

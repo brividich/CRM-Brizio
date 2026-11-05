@@ -1,0 +1,61 @@
+{% extends "core/base.html" %}
+
+{% block title %}Collega le attività | NOVICROM HUB{% endblock %}
+
+{% block extra_head %}
+{% include "scadenzario/components/stile.html" %}
+<style>
+.sc-riga { display:grid; grid-template-columns:minmax(220px,1fr) minmax(0,2fr); gap:12px; padding:12px 0; border-top:1px solid var(--border,#e2e8f0); }
+.sc-riga:first-of-type { border-top:0; }
+.sc-prop { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:4px 0; font-size:13px; }
+.sc-prop > span { flex:1 1 220px; min-width:0; }
+.sc-prop form { display:inline; }
+@media (max-width:760px) { .sc-riga { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sz-page">
+  <div class="sz-top">
+    <div>
+      <h1 class="sz-title">Collega le attività</h1>
+      <div class="sz-sub">Attività del vecchio scadenzario che somigliano a cose già presenti nel portale. Il confronto è sui testi e può sbagliare: non si collega nulla senza il tuo clic.</div>
+    </div>
+  </div>
+  {% include "scadenzario/components/nav.html" with attiva="collega" %}
+
+  <div class="sz-banner">
+    <strong>Collega</strong>: ogni scheda rimanda all'altra e ognuna tiene la sua data.
+    <strong>Unisci</strong>: resta una voce sola, quella del modulo, che dà anche la data; l'attività tiene storico e destinatari e si può separare.
+  </div>
+  {% if senza_certificazioni %}
+  <div class="sz-banner">Il Sistema di gestione non ha ancora certificazioni. Se un'attività è un certificato, aprila e usa «Crea la certificazione da questa attività».</div>
+  {% endif %}
+
+  <div class="sz-card">
+    <h2>{{ righe|length }} attività con un possibile collegamento <span class="sz-muted">· {{ senza_proposte }} senza proposte · {{ gia_collegate }} già collegate</span></h2>
+    {% for r in righe %}
+    <div class="sc-riga">
+      <div>
+        <a href="{% url 'scadenzario:scadenza_dettaglio' r.s.pk %}"><strong>{{ r.s.titolo }}</strong></a>
+        <div class="sz-help">{{ r.s.categoria.nome }}{% if r.s.data_scadenza %} · {{ r.s.data_scadenza|date:"d/m/Y" }}{% endif %}</div>
+      </div>
+      <div>
+        {% for p in r.proposte %}
+        <div class="sc-prop">
+          <span><span class="sz-pill sz-blu">{{ p.etichetta }}</span> {{ p.testo }}</span>
+          <form method="post" action="{% url 'scadenzario:scadenza_collega' r.s.pk %}">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="tipo" value="{{ p.tipo }}"><input type="hidden" name="oggetto" value="{{ p.id }}">
+            <button class="sz-btn sz-btn-ghost" type="submit">Collega</button>
+            {% if p.si_unisce %}<button class="sz-btn sz-btn-ghost" type="submit" name="unisci" value="1">Unisci</button>{% endif %}
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="sz-muted">Nessuna proposta. Puoi sempre collegare un'attività dalla sua scheda.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -5,6 +5,7 @@
 <div class="rc-wrap">
   <a class="rc-back" href="{% url 'sistema_gestione:esterni_elenco' %}">← Certificazioni e audit esterni</a>
   <div class="page-header"><div class="page-header-main"><div class="page-h">{% if oggetto %}Modifica certificazione{% else %}Nuova certificazione{% endif %}</div><div class="page-sub">Il riepilogo settimanale a RSGI segnala i certificati che scadono entro 90 giorni e le sorveglianze entro 30.</div></div></div>
+  {% if oggetto %}{% include "scadenzario/components/riquadro.html" with fonti="sgi" collegata_tipo="certificazione" collegata_id=oggetto.pk nome=oggetto.ente %}{% endif %}
   <form method="post" class="rc-card sg-form hub-form-stack">{% csrf_token %}
     {% for err in form.non_field_errors %}<div class="hub-err">{{ err }}</div>{% endfor %}
     <div class="sg-form-grid">
