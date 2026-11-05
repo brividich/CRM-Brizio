@@ -727,9 +727,6 @@ class VRFRiskAssessment(models.Model):
     1:1 col Project. Il payload 'data' segue la shape di vrf_catalog.default_scores()
     (schema 2: P per rischio, azioni correttive, firme). Totale Rischio, fascia e
     coinvolgimento CEO sono cache denormalizzata ricalcolata dal catalogo.
-
-    total_p / total_i / total_c / dig_triggered appartengono al modulo
-    precedente a 3 fasi: restano solo per le valutazioni gia' salvate.
     """
 
     project = models.OneToOneField(
@@ -741,10 +738,6 @@ class VRFRiskAssessment(models.Model):
     total_tr = models.FloatField(default=0.0)
     livello = models.CharField(max_length=10, blank=True, default="")
     ceo_required = models.BooleanField(default=False)
-    total_p = models.FloatField(default=0.0)
-    total_i = models.FloatField(default=0.0)
-    total_c = models.FloatField(default=0.0)
-    dig_triggered = models.BooleanField(default=False)
     compiled_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -763,15 +756,8 @@ class VRFRiskAssessment(models.Model):
     def __str__(self) -> str:
         return f"VRF#{self.project_id}"
 
-    @property
-    def is_legacy(self) -> bool:
-        from .vrf_catalog import is_legacy
-        return is_legacy(self.data)
-
     def recompute_totals(self) -> None:
-        from .vrf_catalog import compute_totals, is_legacy
-        if is_legacy(self.data):
-            return
+        from .vrf_catalog import compute_totals
         result = compute_totals(self.data or {})
         self.total_tr = float(result["tr"])
         self.livello = result["level"]["key"]

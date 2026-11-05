@@ -36,9 +36,8 @@ logger = logging.getLogger(__name__)
 def _parse_vrf_excel(file_obj) -> dict:
     """Estrae i campi identificativi da un MOD.073 VRF caricato.
 
-    Riconosce sia il modulo attuale (J2 preventivo, R2 versione, C3 P/N,
-    F3 descrizione, H3 esp, N3 cliente) sia il precedente a 3 fasi (foglio
-    «VRF»): le celle stanno in vrf_catalog. Restituisce stringhe, mai None.
+    Celle in vrf_catalog.HEADER_CELLS (J2 preventivo, R2 versione, C3 P/N,
+    F3 descrizione, H3 esp, N3 cliente). Restituisce stringhe, mai None.
     """
     import io
     import openpyxl
@@ -283,22 +282,9 @@ def project_vrf_compile(request, project_id: int):
     cfg = TaskImpostazioni.get_singleton()
     vrf_detail = _vrf_status_detail(project, cfg)
 
-    if vrf_detail.get("is_blocked"):
-        messages.error(request, "Compilazione VRF bloccata: periodo di blocco superato.")
-        return redirect("tasks:project_gantt", project_id=project_id)
-
     assessment = getattr(project, "vrf_assessment", None)
     prefilled_from_xlsx = False
-    legacy_assessment = None
-    if assessment is not None and assessment.is_legacy:
-        # Valutazione sul modulo precedente (3 fasi): non convertibile, si ricompila.
-        legacy_assessment = {
-            "total_p": assessment.total_p,
-            "total_i": assessment.total_i,
-            "total_c": assessment.total_c,
-            "compiled_at": assessment.compiled_at,
-        }
-    if assessment is None or legacy_assessment:
+    if assessment is None:
         initial_data = vrf_catalog.default_scores()
         if request.method == "GET" and project.vrf_file and project.vrf_file.name:
             try:
@@ -308,10 +294,7 @@ def project_vrf_compile(request, project_id: int):
                 initial_data = parsed
             except Exception:
                 initial_data = vrf_catalog.default_scores()
-        if assessment is None:
-            assessment = VRFRiskAssessment(project=project, data=initial_data)
-        else:
-            assessment.data = initial_data
+        assessment = VRFRiskAssessment(project=project, data=initial_data)
 
     if request.method == "POST":
         if not can_manage_project(request, project):
@@ -423,7 +406,6 @@ def project_vrf_compile(request, project_id: int):
         "vrf_detail": vrf_detail,
         "assessment": assessment,
         "prefilled_from_xlsx": prefilled_from_xlsx,
-        "legacy_assessment": legacy_assessment,
         "risks": risks_view,
         "p_choices": [(str(v), lbl) for v, lbl in vrf_catalog.P_CHOICES],
         "totals": totals,

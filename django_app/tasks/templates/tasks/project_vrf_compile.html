@@ -108,23 +108,13 @@
 {% endblock %}
 {% block tasks_shell_guide_anchor %}#vrf{% endblock %}
 {% block tasks_shell_actions %}
+  <a class="ts-hero-action" href="{% url 'tasks:project_edit' project.id %}">Modifica kickoff</a>
   <a class="ts-hero-action" href="{% url 'tasks:project_vrf_upload' project.id %}">Carica file esistente</a>
   <a class="ts-hero-action" href="{% url 'tasks:project_gantt' project.id %}">Gantt kickoff</a>
 {% endblock %}
 
 {% block tasks_shell_content %}
 <div class="ts-stack">
-
-  {% if legacy_assessment %}
-    <div class="vrfc-note">
-      <div>
-        La valutazione salvata{% if legacy_assessment.compiled_at %} il {{ legacy_assessment.compiled_at|date:"d/m/Y" }}{% endif %}
-        usa il <strong>modulo precedente a 3 fasi</strong> (TR Preventivazione {{ legacy_assessment.total_p|floatformat:1 }} ·
-        Industrializzazione {{ legacy_assessment.total_i|floatformat:1 }} · Produzione {{ legacy_assessment.total_c|floatformat:1 }}).
-        Non si converte: compila la scheda nuova e salvala per sostituirla.
-      </div>
-    </div>
-  {% endif %}
 
   {% if prefilled_from_xlsx %}
     <div class="vrfc-note">
@@ -142,7 +132,7 @@
     <div class="ts-panel-head">
       <div class="ts-panel-title-wrap">
         <h2 class="ts-panel-title">Intestazione documento</h2>
-        <p class="ts-panel-subtitle">I dati identificativi vengono dal kickoff. Per modificarli usa il form di modifica della commessa. La versione si compila solo in assenza di preventivo.</p>
+        <p class="ts-panel-subtitle">I dati identificativi vengono dal kickoff: si cambiano da «Modifica kickoff». La versione si compila solo in assenza di preventivo.</p>
       </div>
     </div>
     <div class="ts-panel-body">
@@ -150,7 +140,7 @@
         <div class="row"><label>Preventivo n°</label><div class="val {% if not project.vrf_quote_number %}empty{% endif %}">{{ project.vrf_quote_number|default:"-" }}</div></div>
         <div class="row"><label>Versione n°</label><div class="val {% if not project.versione %}empty{% endif %}">{{ project.versione|default:"-" }}</div></div>
         <div class="row"><label>P/N</label><div class="val {% if not project.part_number %}empty{% endif %}">{{ project.part_number|default:"-" }}</div></div>
-        <div class="row" style="grid-column: span 2;"><label>Descrizione</label><div class="val {% if not project.vrf_description %}empty{% endif %}">{{ project.vrf_description|default:"-" }}</div></div>
+        <div class="row" style="grid-column: span 2;"><label>Descrizione</label><div class="val {% if not project.vrf_description and not project.description %}empty{% endif %}">{% firstof project.vrf_description project.description "-" %}</div></div>
         <div class="row"><label>Esp.</label><div class="val {% if not project.vrf_esp %}empty{% endif %}">{{ project.vrf_esp|default:"-" }}</div></div>
         <div class="row" style="grid-column: span 3;"><label>Cliente</label><div class="val {% if not project.client_name %}empty{% endif %}">{{ project.client_name|default:"-" }}</div></div>
       </div>
@@ -249,7 +239,7 @@
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
           <h2 class="ts-panel-title">Firme</h2>
-          <p class="ts-panel-subtitle">Nome di chi ha compilato (IN1) e di chi approva (EM), con la data. Vengono riportati nel file.</p>
+          <p class="ts-panel-subtitle">Nome e data di IN1 e EM, come sul modulo. Vengono riportati nel file.</p>
         </div>
       </div>
       <div class="ts-panel-body">

@@ -18,9 +18,6 @@ Struttura del modulo (template `vrf_template/MOD_073_VRF.xlsx`):
 - La checklist a-i di ogni rischio e' la guida per decidere P (pagina 2/2 del
   modulo): non ha un punteggio proprio.
 - Azioni correttive / Risk Action Report (4 righe) e firme IN1 / EM con data.
-
-Il modulo precedente (3 fasi P/I/C, 45 sotto-parametri con K) resta leggibile
-solo per i dati gia' salvati: vedi `is_legacy()` e `LEGACY_HEADER_CELLS`.
 """
 from __future__ import annotations
 
@@ -39,17 +36,6 @@ HEADER_CELLS: dict[str, str] = {
     "vrf_description":  "F3",
     "vrf_esp":          "H3",
     "client_name":      "N3",
-}
-
-# Modulo precedente (foglio «VRF», 3 fasi): solo per leggere/copiare file vecchi.
-LEGACY_SHEET = "VRF"
-LEGACY_HEADER_CELLS: dict[str, str] = {
-    "vrf_quote_number": "O2",
-    "versione":         "P2",
-    "part_number":      "B3",
-    "vrf_description":  "I3",
-    "vrf_esp":          "P3",
-    "client_name":      "B4",
 }
 
 P_COL = "Q"
@@ -177,16 +163,6 @@ RISKS: list[dict[str, Any]] = [
 TR_MAX = 3 * sum(r["d"] for r in RISKS)
 
 
-def is_legacy(data: dict[str, Any] | None) -> bool:
-    """True se `data` e' una valutazione del modulo precedente (3 fasi)."""
-    if not data:
-        return False
-    if data.get("schema") == SCHEMA_VERSION:
-        return False
-    risks = data.get("risks") or {}
-    return any(isinstance(v, dict) and ("subs" in v or "k" in v) for v in risks.values())
-
-
 def default_scores() -> dict[str, Any]:
     """Scheda vuota allineata al catalogo (nessuna P scelta)."""
     return {
@@ -236,7 +212,7 @@ def compute_totals(data: dict[str, Any] | None) -> dict[str, Any]:
     Restituisce: {per_risk: {R1: {p, d, r, level}}, tr, level, ceo_required,
     compiled, missing: [codici senza P]}
     """
-    risks_data = {} if is_legacy(data) else ((data or {}).get("risks") or {})
+    risks_data = (data or {}).get("risks") or {}
     per_risk: dict[str, dict[str, Any]] = {}
     tr = 0
     missing: list[str] = []

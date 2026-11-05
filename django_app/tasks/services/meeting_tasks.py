@@ -105,6 +105,29 @@ def crea_attivita_da_incontro(
     return task
 
 
+def crea_attivita_rapida(*, project, user, title: str, assigned_to=None, start_date=None, due_date=None) -> Task:
+    """Riga rapida del Gantt: stesse regole di titolo, blocco VRF e avviso."""
+    title = titolo_attivita(title)
+    if not title:
+        raise ValueError("title_required")
+    if kickoff_bloccato_vrf(project):
+        raise KickoffBloccatoVRF()
+    if start_date and due_date and due_date < start_date:
+        raise ValueError("date_range")
+    task = Task.objects.create(
+        title=title,
+        project=project,
+        assigned_to=assigned_to,
+        next_step_due=start_date,
+        due_date=due_date,
+        priority=TaskPriority.MEDIUM,
+        status=TaskStatus.TODO,
+        created_by=user,
+    )
+    notify_task_assignment(task, actor=user)
+    return task
+
+
 def _user_pk(user):
     return getattr(user, "pk", None) if getattr(user, "is_authenticated", False) else None
 

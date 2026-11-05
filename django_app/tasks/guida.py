@@ -29,9 +29,10 @@ SEZIONI: list[dict] = [
         "id": "vrf",
         "titolo": "La scheda VRF (MOD.073)",
         "blocchi": [
-            ("p", "La «Scheda valutazione rischi e fornitura» si compila online da «Compila VRF online» oppure si carica "
-                  "come file Excel da «Carica file esistente». Dal file il portale legge preventivo, versione, P/N, "
-                  "descrizione, Esp. e cliente."),
+            ("p", "La «Scheda valutazione rischi e fornitura» si apre dalla scheda VRF della commessa e si compila online; "
+                  "in alternativa «Carica file esistente» prende il file Excel del modulo, da cui il portale legge preventivo, "
+                  "versione, P/N, descrizione, Esp. e cliente. Una bozza salvata è segnalata nel Piano con Totale Rischio e rischi "
+                  "mancanti, e «Riprendi la scheda VRF» la riapre. Anche a kickoff bloccato la scheda resta compilabile: è quello che lo sblocca."),
             ("ul", [
                 "Per ognuno dei 9 rischi (R1-R9) scegli la Probabilità P: 1 Bassa, 2 Media, 3 Alta, oppure N/A se il "
                 "rischio non riguarda la fornitura. La checklist sotto ogni rischio elenca i punti da considerare.",
@@ -43,14 +44,16 @@ SEZIONI: list[dict] = [
                 "«Salva bozza» conserva i valori; «Prosegui e ricordami VRF» salva e torna al Gantt lasciando il VRF da fare; "
                 "«Conferma e genera xlsx» chiede la Probabilità di tutti i 9 rischi e crea il file del modulo.",
             ]),
-            ("nota", "Le valutazioni fatte con il modulo precedente a 3 fasi (Preventivazione, Industrializzazione, Produzione) "
-                     "non si convertono: aprendo «Compila VRF online» il portale mostra i vecchi totali e chiede di compilare la scheda nuova."),
         ],
     },
     {
         "id": "attivita",
         "titolo": "Le attività",
         "blocchi": [
+            ("p", "Il piano si scrive dalla scheda Piano, con la riga in alto sopra il Gantt: titolo, responsabile (prima il team della "
+                  "commessa), Inizio e Fine, poi «Aggiungi». L'inizio proposto è il giorno dopo l'ultima fine già in piano e dopo ogni "
+                  "aggiunta si riparte dal titolo. «+ Attività completa» apre il form con tipo, etichette e «Altre opzioni» "
+                  "(attrezzatura, Outlook e promemoria)."),
             ("ul", [
                 "Gli stati sono Da fare, In corso, Completata e Annullata; le priorità Bassa, Media e Alta.",
                 "Data inizio e data fine possono coincidere: un'attività di una sola giornata è ammessa. "

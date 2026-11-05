@@ -86,13 +86,13 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
 
         workbook = openpyxl.Workbook()
         worksheet = workbook.active
-        worksheet.title = "VRF"
-        worksheet["O2"] = "Q-001"
-        worksheet["P2"] = version
-        worksheet["B3"] = part_number
-        worksheet["I3"] = description
-        worksheet["P3"] = "ESP"
-        worksheet["B4"] = client_name
+        worksheet.title = "Foglio1"
+        worksheet["J2"] = "Q-001"
+        worksheet["R2"] = version
+        worksheet["C3"] = part_number
+        worksheet["F3"] = description
+        worksheet["H3"] = "ESP"
+        worksheet["N3"] = client_name
 
         buffer = io.BytesIO()
         workbook.save(buffer)
@@ -112,7 +112,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         finally:
             project.vrf_file.close()
         try:
-            worksheet = workbook["VRF"] if "VRF" in workbook.sheetnames else workbook.active
+            worksheet = workbook.active
             return str(worksheet[cell_ref].value or "")
         finally:
             workbook.close()
@@ -288,7 +288,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Scheda VRF")
         self.assertNotContains(response, "Contenuto operativo")
-        self.assertContains(response, "Dettaglio attivita")
+        self.assertContains(response, "Dettaglio attività")
 
     def test_create_form_from_kickoff_context_hides_kickoff_selection(self):
         self.client.force_login(self.user)
@@ -302,7 +302,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         response = self.client.get(f"{reverse('tasks:create')}?project={project.id}")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Attivita gia collegata al kickoff corrente")
+        self.assertContains(response, "Attività collegata a questo kickoff")
         self.assertContains(response, project.name)
         self.assertNotContains(response, "Come nasce questa attivita")
         self.assertNotContains(response, "Aggancio e anagrafica kickoff")
@@ -443,8 +443,8 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertEqual(copied_project.versione, "2.0")
         self.assertEqual(copied_project.vrf_status, VRFDocStatus.UPLOADED)
         self.assertEqual(copied_project.vrf_original_name, "source-vrf.xlsx")
-        self.assertEqual(self._read_vrf_cell(source_project, "B3"), "PN-COPY-001")
-        self.assertEqual(self._read_vrf_cell(copied_project, "B3"), "PN-COPY-001")
+        self.assertEqual(self._read_vrf_cell(source_project, "C3"), "PN-COPY-001")
+        self.assertEqual(self._read_vrf_cell(copied_project, "C3"), "PN-COPY-001")
         self.assertEqual(Task.objects.filter(project=copied_project).count(), 0)
         self.assertEqual(ProjectComment.objects.filter(project=copied_project).count(), 0)
         self.assertEqual(TaskAttachment.objects.filter(project=copied_project).count(), 0)
@@ -480,8 +480,8 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertEqual(copied_project.part_number, "")
         self.assertEqual(copied_project.revisione, "B")
         self.assertEqual(copied_project.versione, "3.1")
-        self.assertEqual(self._read_vrf_cell(source_project, "B3"), "PN-COPY-002")
-        self.assertEqual(self._read_vrf_cell(copied_project, "B3"), "")
+        self.assertEqual(self._read_vrf_cell(source_project, "C3"), "PN-COPY-002")
+        self.assertEqual(self._read_vrf_cell(copied_project, "C3"), "")
 
     def test_assignment_conflict_alert_on_create_with_keep_priority(self):
         self.client.force_login(self.user)
@@ -545,7 +545,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         )
         response = self.client.post(f"{reverse('tasks:create')}?project={raise_project.id}", payload, follow=True)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Priorita aggiornata automaticamente a High")
+        self.assertContains(response, "Priorità portata ad Alta in automatico")
         task = Task.objects.get(title="Task nuova con priorita auto")
         self.assertEqual(task.priority, TaskPriority.HIGH)
 
@@ -946,25 +946,6 @@ class VRFCompileOnlineTests(TasksBaseTestCase):
         self.assertEqual(vrf_catalog.tr_level(50)["key"], "alto")
         self.assertEqual(vrf_catalog.TR_MAX, 69)
 
-    def test_legacy_assessment_is_shown_and_replaced(self):
-        from .models import VRFRiskAssessment
-
-        legacy = VRFRiskAssessment.objects.create(
-            project=self.project,
-            data={"risks": {"R1": {"k": {"p": 3, "i": 3, "c": 3}, "subs": {"a": {"p": 3, "i": None, "c": None}}}}},
-            total_p=9.0,
-        )
-        self.assertTrue(legacy.is_legacy)
-        legacy.recompute_totals()
-        self.assertEqual(legacy.total_p, 9.0)
-        self.client.force_login(self.user)
-        response = self.client.get(reverse("tasks:project_vrf_compile", args=[self.project.id]))
-        self.assertContains(response, "modulo precedente a 3 fasi")
-        self._post({"action": "save_draft", "p_R1": "1"})
-        legacy.refresh_from_db()
-        self.assertFalse(legacy.is_legacy)
-        self.assertEqual(legacy.total_tr, 3.0)
-
     def test_upload_reads_header_of_new_module(self):
         from types import SimpleNamespace
 
@@ -997,6 +978,127 @@ class VRFCompileOnlineTests(TasksBaseTestCase):
         ws = openpyxl.load_workbook(io.BytesIO(file_bytes))[vrf_catalog.TEMPLATE_SHEET]
         self.assertIn(ws[vrf_catalog.HEADER_CELLS["part_number"]].value, (None, ""))
         self.assertEqual(ws[vrf_catalog.HEADER_CELLS["client_name"]].value, "Test Client")
+
+
+class KickoffEditAndQuickTaskTests(TasksBaseTestCase):
+    """Modifica del kickoff, riga rapida del Gantt, VRF in bozza. Dati sintetici."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "utente")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="kouser", legacy_user_id=6101, role_id=2, role_name="utente",
+        )
+        self.collega = User.objects.create_user(username="ko-collega", password="x")
+        self.project = make_project(
+            name="Cliente · PN-1 · KICK-OFF 1", client_name="Cliente", part_number="PN-1",
+            description="Vecchia", created_by=self.user,
+        )
+        self.client.force_login(self.user)
+
+    def _payload(self, **extra):
+        data = {
+            "name": self.project.name, "client_name": "Cliente Nuovo", "part_number": "PN-1",
+            "description": "Flangia", "project_managers": [self.user.pk],
+        }
+        data.update(extra)
+        return data
+
+    def test_edit_page_preselects_team(self):
+        self.project.set_team("project_managers", [self.user])
+        response = self.client.get(reverse("tasks:project_edit", args=[self.project.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["form"].initial["project_managers"], [self.user.pk])
+        self.assertContains(response, "Salva modifiche")
+
+    def test_edit_saves_data_team_and_vrf_description(self):
+        response = self.client.post(reverse("tasks:project_edit", args=[self.project.id]), self._payload())
+        self.assertRedirects(response, reverse("tasks:project_overview", args=[self.project.id]))
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.client_name, "Cliente Nuovo")
+        self.assertEqual(self.project.vrf_description, "Flangia")
+        self.assertEqual(self.project.team_members("project_managers"), [self.user])
+
+    def test_edit_rejects_identity_of_other_kickoff(self):
+        make_project(name="Altro", client_name="Cliente", part_number="PN-2", created_by=self.user)
+        response = self.client.post(
+            reverse("tasks:project_edit", args=[self.project.id]), self._payload(part_number="PN-2"),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Esiste già un altro kickoff")
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.part_number, "PN-1")
+
+    def test_edit_forbidden_without_management(self):
+        estraneo = _create_user_with_legacy(
+            username="koaltro", legacy_user_id=6102, role_id=2, role_name="utente",
+        )
+        progetto = make_project(name="Di altri", client_name="C", created_by=self.user)
+        progetto.add_team_member("programmers", estraneo)
+        self.client.force_login(estraneo)
+        response = self.client.post(
+            reverse("tasks:project_edit", args=[progetto.id]), {"client_name": "Hack"},
+        )
+        self.assertIn(response.status_code, (403, 404))
+        progetto.refresh_from_db()
+        self.assertEqual(progetto.client_name, "C")
+
+    def test_quick_task_adds_row_with_dates(self):
+        from datetime import date
+
+        response = self.client.post(reverse("tasks:project_quick_task", args=[self.project.id]), {
+            "title": "Programmazione CAM", "start_date": "2026-11-10", "due_date": "2026-11-12",
+        })
+        self.assertRedirects(
+            response, reverse("tasks:project_gantt", args=[self.project.id]) + "#riga-rapida",
+            fetch_redirect_response=False,
+        )
+        task = self.project.tasks.get()
+        self.assertEqual(task.title, "Programmazione CAM")
+        self.assertEqual(task.next_step_due, date(2026, 11, 10))
+        self.assertEqual(task.due_date, date(2026, 11, 12))
+        self.assertEqual(task.created_by, self.user)
+
+    def test_quick_task_rejects_bad_input(self):
+        url = reverse("tasks:project_quick_task", args=[self.project.id])
+        self.client.post(url, {"title": "  "})
+        self.client.post(url, {"title": "X", "start_date": "2026-11-12", "due_date": "2026-11-10"})
+        self.assertEqual(self.project.tasks.count(), 0)
+
+    def test_quick_task_refused_when_vrf_blocked(self):
+        from unittest.mock import patch
+
+        bloccato = {"status": "blocked", "label": "", "is_blocked": True, "days_pending": 40, "show_upload_cta": True}
+        with patch("tasks.views._shared._vrf_status_detail", return_value=bloccato):
+            self.client.post(reverse("tasks:project_quick_task", args=[self.project.id]), {"title": "X"})
+        self.assertEqual(self.project.tasks.count(), 0)
+
+    def test_quick_task_get_not_allowed(self):
+        response = self.client.get(reverse("tasks:project_quick_task", args=[self.project.id]))
+        self.assertEqual(response.status_code, 405)
+
+    def test_gantt_shows_quick_row_and_draft(self):
+        from . import vrf_catalog
+        from .models import VRFRiskAssessment
+
+        data = vrf_catalog.default_scores()
+        data["risks"]["R1"]["p"] = 3
+        VRFRiskAssessment.objects.create(project=self.project, data=data)
+        response = self.client.get(reverse("tasks:project_gantt", args=[self.project.id]))
+        self.assertContains(response, 'id="riga-rapida"')
+        self.assertContains(response, "Bozza salvata: TR 9")
+        self.assertContains(response, "Riprendi la scheda VRF")
+        self.assertNotContains(response, "Stato kickoff")
+
+    def test_compile_stays_open_when_vrf_blocked(self):
+        from unittest.mock import patch
+
+        bloccato = {"status": "blocked", "label": "Bloccato", "is_blocked": True, "days_pending": 40, "show_upload_cta": True}
+        with patch("tasks.views.vrf._vrf_status_detail", return_value=bloccato):
+            response = self.client.get(reverse("tasks:project_vrf_compile", args=[self.project.id]))
+        self.assertEqual(response.status_code, 200)
 
 
 class ReadinessComputeTests(TestCase):
@@ -1037,7 +1139,7 @@ class ReadinessComputeTests(TestCase):
         assert by["vrf"].action_url and f"/tasks/projects/{p.id}/vrf/" in by["vrf"].action_url
         assert by["meeting"].action_url and f"/tasks/projects/{p.id}/incontri/new/" in by["meeting"].action_url
         assert by["plan"].action_url and f"project={p.id}" in by["plan"].action_url
-        assert by["team"].action_url is None
+        assert by["team"].action_url and f"/tasks/projects/{p.id}/modifica/#team" in by["team"].action_url
 
     def test_two_met_is_partial(self):
         from tasks.models import VRFDocStatus

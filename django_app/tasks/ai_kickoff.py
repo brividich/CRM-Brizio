@@ -31,13 +31,11 @@ def _tokens(testo: str) -> set[str]:
 def _rischi_alti(project) -> list[str]:
     """Rischi VRF piu' pesanti (R = P x D >= 4) della scheda compilata."""
     try:
-        from .vrf_catalog import RISKS, compute_totals, is_legacy
+        from .vrf_catalog import RISKS, compute_totals
 
         dati = project.vrf_assessment.data or {}
     except Exception:  # noqa: BLE001 - commessa senza VRF
         return []
-    if is_legacy(dati):
-        return _rischi_alti_legacy(dati)
     per_risk = compute_totals(dati)["per_risk"]
     alti = []
     for risk in RISKS:
@@ -45,28 +43,6 @@ def _rischi_alti(project) -> list[str]:
         if r is not None and r >= 4:
             titolo = risk["title"].replace("Rischio di ", "").replace("Rischio ", "")
             alti.append((r, f"{risk['code']} {titolo} (R={r})"))
-    return [testo for _, testo in sorted(alti, key=lambda x: -x[0])[:4]]
-
-
-def _rischi_alti_legacy(dati: dict) -> list[str]:
-    """Modulo precedente (3 fasi): sotto-parametri valutati >= 2 in almeno una fase."""
-    from .vrf_catalog import RISKS
-
-    rischi = dati.get("risks") or {}
-    alti = []
-    for risk in RISKS:
-        subs = (rischi.get(risk["code"]) or {}).get("subs") or {}
-        for sub_code, punteggi in subs.items():
-            valori = []
-            for v in (punteggi or {}).values():
-                try:
-                    valori.append(float(v))
-                except (TypeError, ValueError):
-                    continue
-            if valori and max(valori) >= 2:
-                titolo = risk["title"].replace("Rischio di ", "").replace("Rischio ", "")
-                voce = dict(risk["checklist"]).get(sub_code, f"punto {sub_code}")
-                alti.append((max(valori), f"{titolo}: {voce[:90]}"))
     return [testo for _, testo in sorted(alti, key=lambda x: -x[0])[:4]]
 
 

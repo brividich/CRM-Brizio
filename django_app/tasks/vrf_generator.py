@@ -9,7 +9,7 @@ totali mostrati in portale resta VRFRiskAssessment.total_tr (cache server-side).
 API:
     build_vrf_xlsx(project, assessment) -> bytes
     parse_vrf_xlsx(file_obj) -> dict  (shape di vrf_catalog.default_scores())
-    read_header(ws) / header_cells_for(ws)
+    read_header(ws) / select_sheet(wb)
 """
 from __future__ import annotations
 
@@ -27,28 +27,15 @@ _TEMPLATE_PATH = Path(__file__).parent / "vrf_template" / vrf_catalog.TEMPLATE_F
 
 
 def select_sheet(wb):
-    """Foglio della scheda: quello del modulo attuale, poi il vecchio «VRF», poi il primo."""
-    for name in (vrf_catalog.TEMPLATE_SHEET, vrf_catalog.LEGACY_SHEET):
-        if name in wb.sheetnames:
-            return wb[name]
+    """Foglio della scheda: quello del modulo, altrimenti il primo."""
+    if vrf_catalog.TEMPLATE_SHEET in wb.sheetnames:
+        return wb[vrf_catalog.TEMPLATE_SHEET]
     return wb.active
 
 
-def is_legacy_sheet(ws) -> bool:
-    """Il foglio e' del modulo precedente a 3 fasi? (il nuovo ha «Probabilità» in Q6)."""
-    if ws.title == vrf_catalog.LEGACY_SHEET:
-        return True
-    marker = str(ws[f"{vrf_catalog.P_COL}6"].value or "").lower()
-    return "probabilit" not in marker
-
-
-def header_cells_for(ws) -> dict[str, str]:
-    return vrf_catalog.LEGACY_HEADER_CELLS if is_legacy_sheet(ws) else vrf_catalog.HEADER_CELLS
-
-
 def read_header(ws) -> dict[str, str]:
-    """Campi identificativi del file (modulo attuale o precedente), mai None."""
-    return {key: str(ws[cell].value or "").strip() for key, cell in header_cells_for(ws).items()}
+    """Campi identificativi del file, mai None."""
+    return {key: str(ws[cell].value or "").strip() for key, cell in vrf_catalog.HEADER_CELLS.items()}
 
 
 def _firma(label: str, value: str) -> str:
@@ -68,8 +55,8 @@ def build_vrf_xlsx(project, assessment) -> bytes:
     """Ritorna i bytes di un .xlsx compilato per il progetto.
 
     project: tasks.models.Project (legge vrf_quote_number, part_number, ...)
-    assessment: tasks.models.VRFRiskAssessment | None — se None (o modulo
-    precedente) scrive solo l'intestazione.
+    assessment: tasks.models.VRFRiskAssessment | None — se None scrive solo
+    l'intestazione.
     """
     if not _TEMPLATE_PATH.exists():
         raise FileNotFoundError(f"Template VRF non trovato: {_TEMPLATE_PATH}")
@@ -82,11 +69,12 @@ def build_vrf_xlsx(project, assessment) -> bytes:
     # formula viva nel file scaricato (formula injection). Le P sotto restano
     # int/None, quindi non sono iniettabili e conservano le formule del template.
     for key, cell in vrf_catalog.HEADER_CELLS.items():
-        write_cell_at(ws, cell, getattr(project, key, "") or "")
+        valore = getattr(project, key, "") or ""
+        if key == "vrf_description" and not valore:
+            valore = (getattr(project, "description", "") or "")[:500]
+        write_cell_at(ws, cell, valore)
 
     data = (assessment.data if assessment else None) or {}
-    if vrf_catalog.is_legacy(data):
-        data = {}
     risks_data = data.get("risks") or {}
 
     for risk in vrf_catalog.RISKS:
@@ -138,14 +126,11 @@ def parse_vrf_xlsx(file_obj) -> dict[str, Any]:
     compatibile con VRFRiskAssessment.data / vrf_catalog.default_scores().
 
     Usata per pre-popolare la compilazione online a partire dal file gia'
-    caricato dal kickoff. Un file del modulo precedente (3 fasi) non e'
-    convertibile: torna la scheda vuota."""
+    caricato dal kickoff."""
     wb = load_workbook(file_obj, data_only=True)
     try:
         ws = select_sheet(wb)
         data = vrf_catalog.default_scores()
-        if is_legacy_sheet(ws):
-            return data
         for risk in vrf_catalog.RISKS:
             data["risks"][risk["code"]]["p"] = vrf_catalog.clamp_p(ws[f"{vrf_catalog.P_COL}{risk['row']}"].value)
         data["azioni"] = [str(ws[c].value or "").strip() for c in vrf_catalog.AZIONI_CELLS]

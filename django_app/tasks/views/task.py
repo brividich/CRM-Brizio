@@ -723,7 +723,7 @@ def task_create(request):
                     ),
                 )
             if form.auto_raised_priority:
-                messages.warning(request, "Priorita aggiornata automaticamente a High per conflitto impegni.")
+                messages.warning(request, "Priorità portata ad Alta in automatico per conflitto di impegni.")
             if task.is_overdue:
                 messages.warning(request, "Attivita kickoff creata con scadenza gia oltre la data odierna.")
             _add_task_absence_warnings(request, task)
@@ -881,7 +881,7 @@ def task_edit(request, task_id: int):
                     ),
                 )
             if form.auto_raised_priority:
-                messages.warning(request, "Priorita aggiornata automaticamente a High per conflitto impegni.")
+                messages.warning(request, "Priorità portata ad Alta in automatico per conflitto di impegni.")
             if updated_task.is_overdue:
                 messages.warning(request, "Task in stato overdue.")
             _add_task_absence_warnings(request, updated_task)
