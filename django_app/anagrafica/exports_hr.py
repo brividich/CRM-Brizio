@@ -98,7 +98,7 @@ def _aree_rows(request: HttpRequest, scope: str) -> list[dict]:
     from anagrafica.models import AreaAziendale
 
     aree = list(
-        AreaAziendale.objects.select_related("reparto").order_by("reparto__nome", "nome")
+        AreaAziendale.objects.select_related("reparto", "centro_di_costo").order_by("reparto__nome", "nome")
     )
     responsabili = _nomi_legacy({a.responsabile_legacy_id for a in aree if a.responsabile_legacy_id})
 
@@ -107,6 +107,7 @@ def _aree_rows(request: HttpRequest, scope: str) -> list[dict]:
         rows.append({
             "nome": area.nome or "",
             "reparto": area.reparto.nome if area.reparto_id else "",
+            "centro_di_costo": area.centro_di_costo.nome if area.centro_di_costo_id else "",
             "descrizione": area.descrizione or "",
             "responsabile": responsabili.get(area.responsabile_legacy_id or 0, ""),
             "stato": "Attivo" if area.is_active else "Inattivo",
@@ -121,12 +122,51 @@ register(ExportSpec(
     columns=[
         ("Area aziendale", "nome"),
         ("Reparto", "reparto"),
+        ("Centro di costo", "centro_di_costo"),
         ("Descrizione", "descrizione"),
         ("Responsabile", "responsabile"),
         ("Stato", "stato"),
     ],
     dataset=_aree_rows,
     permission=acl_gate("/anagrafica/aree/"),
+))
+
+
+# ── Centri di costo (una riga per reparto, come la pagina) ───────────────────
+
+def _centri_costo_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.models import AreaAziendale
+    from anagrafica.views_centri_costo import persone_per_area
+
+    persone = persone_per_area()
+    aree = AreaAziendale.objects.select_related("reparto", "centro_di_costo").prefetch_related("ruoli_reparto")
+    rows: list[dict] = []
+    for area in aree.order_by("centro_di_costo__nome", "nome"):
+        if not area.is_active and not area.centro_di_costo_id:
+            continue
+        rows.append({
+            "centro": area.centro_di_costo.nome if area.centro_di_costo_id else "",
+            "nome": area.nome or "",
+            "reparto": area.reparto.nome if area.reparto_id else "",
+            "persone": persone.get(area.pk, 0),
+            "ruoli": ", ".join(sorted((r.sigla or r.nome) for r in area.ruoli_reparto.all())),
+        })
+    return rows
+
+
+register(ExportSpec(
+    key="centri_costo",
+    title="Centri di costo",
+    sheet_title="Centri di costo",
+    columns=[
+        ("Centro di costo", "centro"),
+        ("Reparto (area)", "nome"),
+        ("Reparto del portale", "reparto"),
+        ("Persone", "persone"),
+        ("Ruoli", "ruoli"),
+    ],
+    dataset=_centri_costo_rows,
+    permission=acl_gate("/anagrafica/aree/centri-di-costo/"),
 ))
 
 

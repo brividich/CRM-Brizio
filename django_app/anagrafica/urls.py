@@ -13,6 +13,7 @@ from . import views_struttura
 from . import views_struttura_org
 from . import views_coerenza_capi
 from . import views_capi_reparti
+from . import views_centri_costo
 from . import views_mio_team
 from . import views_mia_scheda
 from . import views_retention
@@ -258,6 +259,11 @@ urlpatterns = [
 
     # Aree aziendali + Reparti (gerarchia a due livelli)
     path("aree/", views_capi_reparti.reparti_capi, name="aree_list"),
+    path("aree/centri-di-costo/", views_centri_costo.centri_costo, name="centri_costo"),
+    path("aree/centri-di-costo/nuovo", views_centri_costo.centro_costo_crea, name="centro_costo_crea"),
+    path("aree/centri-di-costo/<int:centro_id>/modifica", views_centri_costo.centro_costo_modifica, name="centro_costo_modifica"),
+    path("aree/centri-di-costo/<int:centro_id>/elimina", views_centri_costo.centro_costo_elimina, name="centro_costo_elimina"),
+    path("aree/centri-di-costo/reparto/<int:area_id>", views_centri_costo.centro_costo_reparto_salva, name="centro_costo_reparto_salva"),
     path("aree/capi/passaggio", views_capi_reparti.capi_passaggio, name="capi_passaggio"),
     path("aree/capi/ruolo-aree", views_capi_reparti.capi_ruolo_aree, name="capi_ruolo_aree"),
     path("aree/capi/<int:mansione_id>/assegna", views_capi_reparti.capo_assegna, name="capo_assegna"),
