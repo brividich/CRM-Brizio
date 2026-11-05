@@ -19,6 +19,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -88,6 +89,15 @@ class SkillMatrixConfig(models.Model):
     soglia_uomo_solo = models.PositiveSmallIntegerField(
         default=2, help_text="Numero minimo di persone U/O per non essere a rischio "
                              "uomo-solo (MT CN 06 §8.2.2).",
+    )
+    # Segnali di sovraccarico: scelte aziendali, il portale non conosce le ore per mansione.
+    soglia_concentrazione = models.PositiveSmallIntegerField(
+        default=80, validators=[MinValueValidator(1), MaxValueValidator(100)],
+        help_text="Da questa % di tempo media degli operativi la mansione è a carico concentrato.",
+    )
+    soglia_mansioni_persona = models.PositiveSmallIntegerField(
+        default=8, validators=[MinValueValidator(1), MaxValueValidator(100)],
+        help_text="Oltre questo numero di mansioni la persona è segnalata.",
     )
     includi_car_come_riserva = models.BooleanField(default=False)
 

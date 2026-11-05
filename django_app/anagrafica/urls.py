@@ -435,7 +435,6 @@ urlpatterns = [
     path("struttura/prospetto/<int:pk>/", views_prospetto.prospetto, name="prospetto"),
     path("struttura/prospetto/<int:pk>/aggiungi", views_prospetto.prospetto_aggiungi, name="prospetto_aggiungi"),
     path("struttura/prospetto/<int:pk>/togli/<int:riga_id>", views_prospetto.prospetto_togli, name="prospetto_togli"),
-    path("struttura/prospetto/<int:pk>/soglie", views_prospetto.prospetto_soglie, name="prospetto_soglie"),
     path("struttura/prospetto/<int:pk>/applica", views_prospetto.prospetto_applica, name="prospetto_applica"),
     path("struttura/prospetto/<int:pk>/annulla", views_prospetto.prospetto_annulla, name="prospetto_annulla"),
     path("struttura/reparto/<int:reparto_id>/", views_struttura_org.struttura_reparto_salva,
