@@ -50,3 +50,12 @@ Nessuna migrazione, nessun permesso nuovo (la home è già aperta a tutti, il ri
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 «In scadenza» e «Scadute» della dashboard sulle consegne delle richieste visibili.
+
+## Dashboard «Da fare» e richiesta guidata (05/11/2026)
+
+- Dashboard: i vecchi contatori sono sostituiti da **«Da fare»** (`views._da_fare`): «In attesa di approvazione» e «DPI scaduti»/«In scadenza (30 gg)» sul perimetro di `_gestione_scope` (lo stesso di `/dpi/gestione/`), «Da consegnare» (come il banco, con la nota «+ N non del magazzino») e «Da riordinare» (`magazzino.da_riordinare`, zero se il magazzino non ha movimenti) solo per chi gestisce. Ogni numero apre la lista che lo mostra uguale; nuovo filtro `/dpi/gestione/?scadenza=scaduti|in_scadenza`.
+- **«La mia dotazione»** (`dpi/dotazione.py`, per chi ha un'anagrafica): DPI previsti dalla mansione e mancanti, richieste in corso con il passo, consegne attive dalla più urgente, con «Richiedi il ricambio» (link alla richiesta compilata) o «Rotto o perso?». Scadenza da `ConsegnaDPI.semaforo_scadenza`; le consegne sostituite non contano.
+- **Nuova richiesta**: ricerca su categoria, tipo, modello e codice (trova anche i DPI fuori profilo, con motivo obbligatorio); stato sulla scheda; i campi compaiono dopo la scelta e solo se hanno opzioni, con compilazione automatica delle scelte uniche; avvisi su richiesta già aperta e DPI ancora valido (non bloccano); «Uguale all'ultima volta»; motivi rapidi. Parametri `?categoria=&tipo=&modello=&taglia=&motivo=scadenza|prima`. Un errore di invio non perde quanto scritto.
+- Corretti: chi gestisce perdeva il menu completo in Nuova richiesta; senza anagrafica collegata «Richiesta per» partiva dal primo dipendente in elenco, a cui finiva la richiesta (ora «Me stesso»).
+
+Nessuna migrazione, nessun permesso nuovo.

@@ -32,6 +32,18 @@ def stato_scorta(qta: int, minima: int) -> str:
     return STATO_OK
 
 
+def da_riordinare() -> int:
+    """Modelli attivi esauriti o sotto scorta (stessi numeri della pagina Magazzino).
+    Zero se il magazzino non e' in uso, cioe' senza alcun movimento registrato."""
+    giac = giacenze()
+    if not giac:
+        return 0
+    return sum(
+        1 for m in ModelloDPI.objects.filter(is_active=True)
+        if stato_scorta(giac.get(m.pk, 0), m.scorta_minima) != STATO_OK
+    )
+
+
 def carica_ddt(modello: ModelloDPI, quantita: int, *, ddt_numero: str = "", data: date | None = None,
                fornitore: str = "", note: str = "", user=None) -> MovimentoMagazzinoDPI:
     if quantita <= 0:

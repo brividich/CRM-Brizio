@@ -28,6 +28,7 @@ from core.permessi.identita import anagrafiche_di_utenti, utente_da_anagrafica
 from core.permessi.negato import risposta_negata
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
+from . import dotazione as dotazione_dpi
 from . import flusso, magazzino
 from .acl_bootstrap import PERM_DPI_MANAGE
 
@@ -478,50 +479,55 @@ def dashboard(request):
             _own_richiesta_filter(request)
         ).select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi")
 
-    n_totale = qs_all.count()
-    n_inviate = qs_all.filter(stato=StatoRichiesta.INVIATA).count()
-    n_approvate = qs_all.filter(stato=StatoRichiesta.APPROVATA).count()
-    n_consegnate = qs_all.filter(stato=StatoRichiesta.CONSEGNATA).count()
-    n_rifiutate = qs_all.filter(stato=StatoRichiesta.RIFIUTATA).count()
-
-    # Scadenze prossime (entro 30 giorni, solo consegnate)
-    oggi = timezone.localdate()
-    fra_30 = oggi + timedelta(days=30)
-    # Stesso perimetro delle richieste sopra: le consegne delle sole richieste visibili.
-    consegne = ConsegnaDPI.objects.filter(richiesta__in=qs_all.values("pk"))
-    n_in_scadenza = consegne.filter(
-        data_scadenza_stimata__isnull=False,
-        data_scadenza_stimata__lte=fra_30,
-        data_scadenza_stimata__gte=oggi,
-        richiesta__stato=StatoRichiesta.CONSEGNATA,
-        sostituita_da__isnull=True,
-    ).count()
-    n_scadute = consegne.filter(
-        data_scadenza_stimata__isnull=False,
-        data_scadenza_stimata__lt=oggi,
-        richiesta__stato=StatoRichiesta.CONSEGNATA,
-        sostituita_da__isnull=True,
-    ).count()
-
     # Lista ultime richieste
     ultime = qs_all.order_by("-created_at")[:20]
 
-    # Categorie attive (per link rapido nuova richiesta)
-    categorie = CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome")
-
+    legacy_id = _legacy_id(request)
     return render(request, "dpi/pages/dashboard.html", {
         "is_gestore": is_gestore,
         "is_approvatore": bool(_scope_approvatore(request)),
-        "n_totale": n_totale,
-        "n_inviate": n_inviate,
-        "n_approvate": n_approvate,
-        "n_consegnate": n_consegnate,
-        "n_rifiutate": n_rifiutate,
-        "n_in_scadenza": n_in_scadenza,
-        "n_scadute": n_scadute,
+        "da_fare": _da_fare(request, is_gestore),
+        "situazione": dotazione_dpi.dotazione(legacy_id) if legacy_id else None,
         "ultime": ultime,
-        "categorie": categorie,
     })
+
+
+def _tessera(etichetta: str, n: int, url: str, tono: str, nota: str = "") -> dict:
+    return {"etichetta": etichetta, "n": n, "url": url, "tono": tono if n else "zero", "nota": nota}
+
+
+def _da_fare(request, is_gestore: bool) -> list[dict]:
+    """Il lavoro in attesa, ogni numero con il link alla lista che lo mostra uguale."""
+    from django.urls import reverse
+
+    consentito, scope = _gestione_scope(request, is_gestore)
+    lista = reverse("dpi:gestione_list")
+    base = RichiestaDPI.objects.all()
+    if scope is not None:
+        base = base.filter(richiedente_legacy_id__in=list(scope))
+    tessere = []
+    if consentito:
+        tessere.append(_tessera(
+            "In attesa di approvazione", base.filter(stato=StatoRichiesta.INVIATA).count(),
+            f"{lista}?stato={StatoRichiesta.INVIATA}", "blu",
+        ))
+    if is_gestore:
+        banco = _banco_queryset(request)
+        n_magazzino = banco.filter(categoria__consegna_magazzino=True).count()
+        altre = banco.count() - n_magazzino
+        tessere.append(_tessera(
+            "Da consegnare", n_magazzino, reverse("dpi:banco") + ("" if n_magazzino or not altre else "?tutte=1"), "arancione",
+            f"+ {altre} non del magazzino" if altre else "",
+        ))
+        tessere.append(_tessera("Da riordinare", magazzino.da_riordinare(), reverse("dpi:magazzino"), "arancione"))
+    if consentito:
+        for chiave, etichetta, tono in (
+            (dotazione_dpi.SCADUTI, "DPI scaduti", "rosso"),
+            (dotazione_dpi.IN_SCADENZA, f"In scadenza ({dotazione_dpi.GIORNI_AVVISO} gg)", "arancione"),
+        ):
+            n = base.filter(dotazione_dpi.filtro_scadenza(chiave)).count()
+            tessere.append(_tessera(etichetta, n, f"{lista}?scadenza={chiave}", tono))
+    return tessere
 
 
 # ---------------------------------------------------------------------------
@@ -555,10 +561,30 @@ def nuova_richiesta(request):
     )
     profilo_ids = {c.pk for c in _profilo["dpi"]}
     profilo_attivo = bool(profilo_ids)  # se vuoto, nessun filtro reale (mostra tutto)
+    situazione = dotazione_dpi.dotazione(_req_legacy) if _req_legacy else None
+    aiuti = dotazione_dpi.aiuti_per_categoria(situazione) if situazione else {}
+    parole: dict[int, list[str]] = {}
+    for tipo in catalog_options["tipi_attivi"]:
+        parole.setdefault(tipo.categoria_id, []).append(tipo.nome)
+    for modello in catalog_options["modelli_attivi"]:
+        parole.setdefault(modello.tipo.categoria_id, []).extend([modello.nome, modello.codice])
     for c in categorie:
         c.in_profilo = c.pk in profilo_ids
+        c.parole_ricerca = " ".join([c.nome, *parole.get(c.pk, [])])
+        c.etichetta_stato = dotazione_dpi.etichetta_categoria(aiuti.get(c.pk))
+
+    dati = request.POST if request.method == "POST" else request.GET
+    scelta = {
+        "categoria": _parse_optional_positive_int(dati.get("categoria_id") or dati.get("categoria")),
+        "tipo": _parse_optional_positive_int(dati.get("tipo_dpi_id") or dati.get("tipo")),
+        "modello": _parse_optional_positive_int(dati.get("modello_dpi_id") or dati.get("modello")),
+        "taglia": _parse_optional_positive_int(dati.get("taglia_dpi_id") or dati.get("taglia")),
+    }
+    motivi_precompilati = {"scadenza": "Sostituzione alla scadenza", "prima": "Prima dotazione"}
+    testo_motivazione = motivi_precompilati.get(request.GET.get("motivo", ""), "")
 
     if request.method == "POST":
+        testo_motivazione = request.POST.get("motivazione", "")
         quantita_raw = request.POST.get("quantita", "1").strip()
         motivazione = request.POST.get("motivazione", "").strip()
         categoria, tipo_dpi, modello_dpi, taglia_dpi, errors = _resolve_richiesta_catalog_selection(request.POST)
@@ -620,6 +646,11 @@ def nuova_richiesta(request):
         "is_approvatore": bool(per_conto_di) or bool(_scope_approvatore(request)),
         "richiedente_scelto": _req_legacy,
         "richiedente_proprio": _own_legacy,
+        "aiuti": {str(k): v for k, v in aiuti.items()},
+        "scelta": scelta,
+        "testo_motivazione": testo_motivazione,
+        "quantita_scelta": request.POST.get("quantita", "1") if request.method == "POST" else "1",
+        "motivi_rapidi": ("Usura", "Rotto", "Perso", "Prima dotazione", "Cambio taglia"),
         **catalog_options,
     })
 
@@ -849,24 +880,29 @@ def report_conformita(request):
 # Gestione — lista
 # ---------------------------------------------------------------------------
 
-@login_required
-def gestione_list(request):
-    is_gestore = _is_gestore(request)
+def _gestione_scope(request, is_gestore: bool) -> tuple[bool, set[int] | None]:
+    """Coda di lavoro: chi gestisce (consegne) e chi approva, ognuno sul suo perimetro.
+    Ritorna (accesso consentito, id dei richiedenti; None = tutti)."""
     if sistema_ruoli_attivo():
-        # Coda di lavoro: chi gestisce (consegne) e chi approva, ognuno sul suo perimetro.
         gestire = _anagrafiche_visibili(request, "gestire") if is_gestore else set()
         approvare = _scope_approvatore(request) if decisione(request, MODULO, "approvare").consentito else set()
         if gestire is None:
-            scope = None
-        else:
-            scope = set(gestire) | set(approvare)
-            if not scope:
-                return risposta_negata(request, pagina="DPI — gestione richieste")
-    else:
-        scope = None if is_gestore else _scope_approvatore(request)
-        if not is_gestore and not scope:
-            messages.error(request, "Accesso non autorizzato.")
-            return redirect("dpi:dashboard")
+            return True, None
+        scope = set(gestire) | set(approvare)
+        return bool(scope), scope
+    scope = None if is_gestore else _scope_approvatore(request)
+    return (is_gestore or bool(scope)), scope
+
+
+@login_required
+def gestione_list(request):
+    is_gestore = _is_gestore(request)
+    consentito, scope = _gestione_scope(request, is_gestore)
+    if not consentito:
+        if sistema_ruoli_attivo():
+            return risposta_negata(request, pagina="DPI — gestione richieste")
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
 
     base_qs = RichiestaDPI.objects.all()
     if scope is not None:
@@ -878,7 +914,12 @@ def gestione_list(request):
     filtro_stato = request.GET.get("stato", "").strip()
     filtro_cat = request.GET.get("categoria", "").strip()
     filtro_q = request.GET.get("q", "").strip()
+    filtro_scadenza = request.GET.get("scadenza", "").strip()
+    if filtro_scadenza not in dict(dotazione_dpi.FILTRI_SCADENZA):
+        filtro_scadenza = ""
 
+    if filtro_scadenza:
+        qs = qs.filter(dotazione_dpi.filtro_scadenza(filtro_scadenza)).order_by("consegna__data_scadenza_stimata")
     if filtro_stato:
         qs = qs.filter(stato=filtro_stato)
     if filtro_cat:
@@ -900,6 +941,8 @@ def gestione_list(request):
         "filtro_stato": filtro_stato,
         "filtro_cat": filtro_cat,
         "filtro_q": filtro_q,
+        "filtro_scadenza": filtro_scadenza,
+        "filtri_scadenza": dotazione_dpi.FILTRI_SCADENZA,
         "n_inviate": n_inviate,
         "is_gestore": is_gestore,
         "is_approvatore": True,

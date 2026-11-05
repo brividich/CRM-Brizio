@@ -95,6 +95,25 @@ body.theme-dark .dpi-cat-card:hover .dpi-cat-card-emoji, body.theme-dark .dpi-ca
 .dpi-btn-back { padding:11px 20px; border-radius:10px; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; font-size:13px; font-weight:600; text-decoration:none; }
 .dpi-btn-back:hover { background:#e2e8f0; }
 
+.dpi-cerca { width:100%; max-width:420px; padding:9px 12px; border:1px solid #d1d5db; border-radius:9px; font-size:14px; background:#fff; margin-bottom:10px; display:block; }
+.dpi-cerca:focus { outline:none; border-color:#16a34a; box-shadow:0 0 0 3px rgba(22,163,74,.08); }
+.dpi-field label.dpi-toggle-profilo { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:400; text-transform:none; letter-spacing:0; color:#64748b; margin:2px 0 12px; }
+.dpi-cat-card:focus-visible { outline:2px solid #16a34a; outline-offset:2px; }
+.dpi-cat-stato { font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px; }
+.dpi-cat-stato-verde { background:#dcfce7; color:#166534; }
+.dpi-cat-stato-arancione { background:#fef3c7; color:#92400e; }
+.dpi-cat-stato-rosso { background:#fee2e2; color:#991b1b; }
+.dpi-cat-stato-blu { background:#dbeafe; color:#1e40af; }
+.dpi-avviso { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:10px 14px; border-radius:10px; font-size:13px; margin-bottom:12px; border:1px solid #e2e8f0; background:#f8fafc; color:#334155; }
+.dpi-avviso-blu { background:#eff6ff; border-color:#bfdbfe; color:#1e40af; }
+.dpi-avviso-arancione { background:#fffbeb; border-color:#fde68a; color:#92400e; }
+.dpi-avviso-btn { padding:6px 12px; border-radius:8px; border:1px solid #16a34a; background:#fff; color:#15803d; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.dpi-avviso-btn:hover { background:#f0fdf4; }
+.dpi-motivi { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+.dpi-motivo { padding:5px 12px; border-radius:99px; border:1px solid #d1d5db; background:#fff; color:#374151; font-size:12px; font-weight:600; cursor:pointer; }
+.dpi-motivo:hover { border-color:#16a34a; background:#f0fdf4; }
+#dpi-root [hidden] { display:none !important; }
+
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
 body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
@@ -115,7 +134,20 @@ body.theme-dark .dpi-qty-um { color:var(--text-light); }
 body.theme-dark .dpi-selected-info { background:rgba(21,128,61,.15); border-color:rgba(21,128,61,.35); color:#86efac; }
 body.theme-dark .dpi-btn-back { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
 body.theme-dark .dpi-btn-back:hover { background:var(--surface); }
-  
+body.theme-dark #dpi-root .ts-control, body.theme-dark #dpi-root .ts-control input, body.theme-dark #dpi-root .ts-dropdown { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dpi-cerca { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .dpi-field label.dpi-toggle-profilo { color:var(--text-light); }
+body.theme-dark .dpi-cat-stato-verde { background:rgba(21,128,61,.25); color:#86efac; }
+body.theme-dark .dpi-cat-stato-arancione { background:rgba(146,64,14,.3); color:#fcd34d; }
+body.theme-dark .dpi-cat-stato-rosso { background:rgba(153,27,27,.3); color:#fca5a5; }
+body.theme-dark .dpi-cat-stato-blu { background:rgba(29,78,216,.25); color:#93c5fd; }
+body.theme-dark .dpi-avviso { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .dpi-avviso-blu { background:rgba(29,78,216,.15); border-color:rgba(96,165,250,.35); color:#93c5fd; }
+body.theme-dark .dpi-avviso-arancione { background:rgba(146,64,14,.2); border-color:rgba(251,191,36,.35); color:#fcd34d; }
+body.theme-dark .dpi-avviso-btn { background:var(--surface); color:#86efac; }
+body.theme-dark .dpi-motivo { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .dpi-motivo:hover { background:rgba(21,128,61,.15); }
+
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .dpi-cat-card.selected::after{color:#86efac}
 body.theme-dark .dpi-cat-profilo{color:#86efac}
@@ -131,11 +163,11 @@ body.theme-dark .dpi-cat-profilo{color:#86efac}
 {% block content %}
 <div id="dpi-root">
   {% include "dpi/components/_dpi_icons.html" %}
-  {% include "dpi/components/subnav.html" with is_gestore=False %}
+  {% include "dpi/components/subnav.html" %}
 
   <div class="dpi-card">
-    <div class="dpi-card-title">Nuova richiesta DPI</div>
-    <div class="dpi-card-sub">Seleziona il tipo di dispositivo di protezione e invia la richiesta al responsabile.</div>
+    <div class="dpi-card-title">Nuova richiesta DPI <a href="{% url 'guida_modulo' 'dpi' %}#chiedere" style="font-size:12px; font-weight:600; margin-left:8px;">? Guida</a></div>
+    <div class="dpi-card-sub">Clicca il DPI che ti serve: il resto si compila man mano, e sotto vedi se ce l'hai già.</div>
 
     <form method="post" id="dpi-form">
       {% csrf_token %}
@@ -143,11 +175,11 @@ body.theme-dark .dpi-cat-profilo{color:#86efac}
       {% if per_conto_di %}
       <div class="dpi-field">
         <label for="richiedente">Richiesta per</label>
-        <select name="richiedente" id="richiedente" onchange="window.location.href='{% url 'dpi:nuova' %}?per=' + this.value">
-          {% if richiedente_proprio %}<option value="{{ richiedente_proprio }}"{% if richiedente_scelto == richiedente_proprio %} selected{% endif %}>Me stesso</option>{% endif %}
+        <select name="richiedente" id="richiedente" class="js-searchable">
+          <option value="{{ richiedente_proprio|default:'' }}"{% if richiedente_scelto == richiedente_proprio %} selected{% endif %}>Me stesso</option>
           {% for d in per_conto_di %}{% if d.id != richiedente_proprio %}<option value="{{ d.id }}"{% if richiedente_scelto == d.id %} selected{% endif %}>{{ d.nome }}</option>{% endif %}{% endfor %}
         </select>
-        <div class="dpi-card-sub" style="margin-top:4px;">Puoi richiedere i DPI per un tuo dipendente: la richiesta sarà a suo nome, con la tua indicazione come inseritore.</div>
+        <div class="dpi-card-sub" style="margin-top:4px; margin-bottom:0;">Puoi richiedere i DPI per un tuo dipendente: la richiesta sarà a suo nome, con la tua indicazione come inseritore.</div>
       </div>
       {% endif %}
 
@@ -155,13 +187,11 @@ body.theme-dark .dpi-cat-profilo{color:#86efac}
       <div class="dpi-field">
         <span class="dpi-picker-label">Tipo di DPI <span class="dpi-picker-required">*</span></span>
 
-        <div id="selected-info" class="dpi-selected-info">
-          DPI selezionato: <span id="selected-nome"></span>
-        </div>
+        <input type="search" id="dpi-cerca" class="dpi-cerca" placeholder="Cerca: guanti, scarpe, codice del modello…" aria-label="Cerca un DPI" autocomplete="off">
 
         {% if profilo_attivo %}
-        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;margin:2px 0 12px;">
-          <input type="checkbox" id="toggle-fuori-profilo" onclick="toggleFuoriProfilo(this)">
+        <label class="dpi-toggle-profilo">
+          <input type="checkbox" id="toggle-fuori-profilo">
           Mostra anche i DPI fuori dal profilo di rischio della mansione (richiede una motivazione)
         </label>
         {% endif %}
@@ -169,18 +199,20 @@ body.theme-dark .dpi-cat-profilo{color:#86efac}
         <div class="dpi-picker-grid" id="dpi-picker">
           {% for cat in categorie %}
           <div class="dpi-cat-card{% if profilo_attivo and not cat.in_profilo %} dpi-cat-hidden fuori-profilo{% endif %}"
+               role="button" tabindex="0"
                data-id="{{ cat.pk }}"
                data-nome="{{ cat.nome }}"
                data-um="{{ cat.unita_misura }}"
                data-vita="{{ cat.vita_utile_giorni|default:'' }}"
-               data-in-profilo="{% if cat.in_profilo %}1{% else %}0{% endif %}"
-               onclick="selectDPI(this)">
+               data-cerca="{{ cat.parole_ricerca }}"
+               data-in-profilo="{% if cat.in_profilo %}1{% else %}0{% endif %}">
             {% if cat.immagine %}
               <img class="dpi-cat-card-img" src="{{ cat.immagine.url }}" alt="{{ cat.nome }}">
             {% else %}
               <div class="dpi-cat-card-emoji"><svg><use href="#i-dpi-{{ cat.icona_emoji|dpi_icon_key }}"/></svg></div>
             {% endif %}
             <div class="dpi-cat-card-name">{{ cat.nome }}</div>
+            {% if cat.etichetta_stato %}<div class="dpi-cat-stato dpi-cat-stato-{{ cat.etichetta_stato.tono }}">{{ cat.etichetta_stato.testo }}</div>{% endif %}
             {% if profilo_attivo and cat.in_profilo %}<div class="dpi-cat-profilo">✓ Profilo mansione</div>{% endif %}
             {% if cat.vita_utile_giorni %}
             <div class="dpi-cat-card-vita">Vita utile: {{ cat.vita_utile_giorni }} gg</div>
@@ -188,53 +220,59 @@ body.theme-dark .dpi-cat-profilo{color:#86efac}
           </div>
           {% endfor %}
         </div>
+        <div id="dpi-nessuno" class="dpi-card-sub" hidden>Nessun DPI trovato. Prova con un'altra parola.</div>
 
         <input type="hidden" name="categoria_id" id="categoria_id" value="">
       </div>
 
-      <div class="dpi-field">
-        <label for="tipo_dpi_id">Tipo DPI</label>
-        <select name="tipo_dpi_id" id="tipo_dpi_id" onchange="onTipoChange()">
-          <option value="">Solo categoria</option>
-          {% for tipo in tipi_attivi %}
-          <option value="{{ tipo.pk }}" data-categoria="{{ tipo.categoria_id }}">{{ tipo.categoria.nome }} - {{ tipo.nome }}</option>
-          {% endfor %}
-        </select>
-      </div>
+      <div id="dpi-dettagli" hidden>
+        <div id="dpi-avvisi"></div>
 
-      <div class="dpi-field">
-        <label for="modello_dpi_id">Modello DPI</label>
-        <select name="modello_dpi_id" id="modello_dpi_id" onchange="onModelloChange()">
-          <option value="">Nessun modello specifico</option>
-          {% for modello in modelli_attivi %}
-          <option value="{{ modello.pk }}" data-categoria="{{ modello.tipo.categoria_id }}" data-tipo="{{ modello.tipo_id }}">{{ modello.tipo.categoria.nome }} - {{ modello.tipo.nome }} - {{ modello.codice }} {{ modello.nome }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="dpi-field">
-        <label for="taglia_dpi_id">Taglia DPI</label>
-        <select name="taglia_dpi_id" id="taglia_dpi_id">
-          <option value="">Nessuna taglia specifica</option>
-          {% for taglia in taglie_attive %}
-          <option value="{{ taglia.pk }}" data-categoria="{{ taglia.modello.tipo.categoria_id }}" data-modello="{{ taglia.modello_id }}">{{ taglia.modello.codice }} {{ taglia.modello.nome }} - {{ taglia.valore }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <!-- Quantità -->
-      <div class="dpi-field">
-        <label for="quantita">Quantità</label>
-        <div class="dpi-qty-row">
-          <input type="number" name="quantita" id="quantita" value="1" min="1" max="999">
-          <span class="dpi-qty-um" id="qty-um">pz</span>
+        <div class="dpi-field" id="campo-tipo">
+          <label for="tipo_dpi_id">Tipo</label>
+          <select name="tipo_dpi_id" id="tipo_dpi_id">
+            <option value="">Non lo so, decide il magazzino</option>
+            {% for tipo in tipi_attivi %}
+            <option value="{{ tipo.pk }}" data-categoria="{{ tipo.categoria_id }}">{{ tipo.nome }}</option>
+            {% endfor %}
+          </select>
         </div>
-      </div>
 
-      <!-- Motivazione -->
-      <div class="dpi-field">
-        <label for="motivazione">Motivazione / Note (facoltativo)</label>
-        <textarea name="motivazione" id="motivazione" placeholder="Es: sostituzione per usura, primo dotazione, ecc."></textarea>
+        <div class="dpi-field" id="campo-modello">
+          <label for="modello_dpi_id">Modello</label>
+          <select name="modello_dpi_id" id="modello_dpi_id">
+            <option value="">Non lo so, decide il magazzino</option>
+            {% for modello in modelli_attivi %}
+            <option value="{{ modello.pk }}" data-categoria="{{ modello.tipo.categoria_id }}" data-tipo="{{ modello.tipo_id }}">{{ modello.codice }} {{ modello.nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="dpi-field" id="campo-taglia">
+          <label for="taglia_dpi_id">Taglia</label>
+          <select name="taglia_dpi_id" id="taglia_dpi_id">
+            <option value="">Da scegliere al ritiro</option>
+            {% for taglia in taglie_attive %}
+            <option value="{{ taglia.pk }}" data-categoria="{{ taglia.modello.tipo.categoria_id }}" data-modello="{{ taglia.modello_id }}">{{ taglia.valore }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="dpi-field">
+          <label for="quantita">Quantità</label>
+          <div class="dpi-qty-row">
+            <input type="number" name="quantita" id="quantita" value="{{ quantita_scelta }}" min="1" max="999">
+            <span class="dpi-qty-um" id="qty-um">pz</span>
+          </div>
+        </div>
+
+        <div class="dpi-field">
+          <label for="motivazione" id="motivazione-label">Motivo (facoltativo)</label>
+          <div class="dpi-motivi">
+            {% for m in motivi_rapidi %}<button type="button" class="dpi-motivo" data-motivo="{{ m }}">{{ m }}</button>{% endfor %}
+          </div>
+          <textarea name="motivazione" id="motivazione" placeholder="Scrivi altro se serve">{{ testo_motivazione }}</textarea>
+        </div>
       </div>
 
       <div class="dpi-submit-row">
@@ -245,64 +283,172 @@ body.theme-dark .dpi-cat-profilo{color:#86efac}
   </div>
 </div>
 
+{{ aiuti|json_script:"dpi-aiuti" }}
+{{ scelta|json_script:"dpi-scelta" }}
 <script>
-function toggleFuoriProfilo(cb) {
-  document.querySelectorAll('.dpi-cat-card.fuori-profilo').forEach(function(el) {
-    el.classList.toggle('dpi-cat-hidden', !cb.checked);
-  });
-}
-function filterOptions(selectEl, filters) {
-  Array.from(selectEl.options).forEach(function(opt) {
-    if (!opt.value) return;
-    let hidden = false;
-    for (const attr in filters) {
-      const value = filters[attr];
-      if (value && opt.dataset[attr] !== value) { hidden = true; break; }
+(function () {
+  const $ = function (id) { return document.getElementById(id); };
+  const aiuti = JSON.parse($('dpi-aiuti').textContent);
+  const scelta = JSON.parse($('dpi-scelta').textContent);
+  const carte = Array.from(document.querySelectorAll('.dpi-cat-card'));
+  const tipo = $('tipo_dpi_id'), modello = $('modello_dpi_id'), taglia = $('taglia_dpi_id');
+  const toggle = $('toggle-fuori-profilo');
+  const normalizza = function (s) { return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); };
+
+  function filtra(select, filtri) {
+    Array.from(select.options).forEach(function (opt) {
+      if (!opt.value) return;
+      opt.hidden = Object.keys(filtri).some(function (k) { return filtri[k] && opt.dataset[k] !== filtri[k]; });
+      opt.disabled = opt.hidden;
+    });
+    if (select.selectedOptions[0] && select.selectedOptions[0].hidden) select.value = '';
+    return Array.from(select.options).filter(function (o) { return o.value && !o.hidden; });
+  }
+
+  function aggiorna(auto) {
+    const cat = $('categoria_id').value;
+    const tipi = filtra(tipo, { categoria: cat });
+    $('campo-tipo').hidden = !tipi.length;
+    if (auto && tipi.length === 1) tipo.value = tipi[0].value;
+
+    let modelli = filtra(modello, { categoria: cat, tipo: tipo.value });
+    if (auto && modelli.length === 1) modello.value = modelli[0].value;
+    if (modello.value && !tipo.value) {
+      tipo.value = modello.selectedOptions[0].dataset.tipo;
+      modelli = filtra(modello, { categoria: cat, tipo: tipo.value });
     }
-    opt.hidden = hidden;
+    $('campo-modello').hidden = !modelli.length;
+
+    // La taglia dipende dal modello: senza modello lo stesso valore direbbe cose diverse.
+    const taglie = modello.value ? filtra(taglia, { modello: modello.value }) : [];
+    if (!modello.value) taglia.value = '';
+    $('campo-taglia').hidden = !taglie.length;
+    if (auto && taglie.length === 1) taglia.value = taglie[0].value;
+  }
+
+  function avviso(tono, testo, azione) {
+    const box = document.createElement('div');
+    box.className = 'dpi-avviso dpi-avviso-' + tono;
+    const span = document.createElement('span');
+    span.textContent = testo;
+    box.appendChild(span);
+    if (azione) box.appendChild(azione);
+    $('dpi-avvisi').appendChild(box);
+  }
+
+  function imposta(valori) {
+    if (valori.tipo && tipo.querySelector('option[value="' + valori.tipo + '"]:not([hidden])')) tipo.value = valori.tipo;
+    aggiorna(false);
+    if (valori.modello && modello.querySelector('option[value="' + valori.modello + '"]:not([hidden])')) modello.value = valori.modello;
+    aggiorna(false);
+    if (valori.taglia && taglia.querySelector('option[value="' + valori.taglia + '"]:not([hidden])')) taglia.value = valori.taglia;
+  }
+
+  function mostraAvvisi(id) {
+    $('dpi-avvisi').textContent = '';
+    const aiuto = aiuti[id];
+    if (!aiuto) return;
+    aiuto.aperte.forEach(function (a) {
+      avviso('blu', 'Già richiesto: ' + a.numero + ' (' + a.stato + '). Serve davvero un\'altra richiesta?');
+    });
+    const u = aiuto.ultima;
+    if (!u) return;
+    let testo = 'Ultima consegna il ' + u.data + (u.etichetta ? ': ' + u.etichetta : '') + '.';
+    let tono = 'neutro';
+    if (u.semaforo === 'rosso') { testo += ' Scaduto il ' + u.scadenza + ': è ora del ricambio.'; tono = 'arancione'; }
+    else if (u.semaforo === 'arancione') { testo += ' Scade il ' + u.scadenza + '.'; tono = 'arancione'; }
+    else if (u.semaforo === 'verde') { testo += ' Ancora valido fino al ' + u.scadenza + ': se lo cambi prima, scrivi il motivo.'; }
+    let azione = null;
+    if (u.etichetta) {
+      azione = document.createElement('button');
+      azione.type = 'button';
+      azione.className = 'dpi-avviso-btn';
+      azione.textContent = 'Uguale all\'ultima volta';
+      azione.addEventListener('click', function () { imposta(u); });
+    }
+    avviso(tono, testo, azione);
+  }
+
+  function obbligoMotivo(carta) {
+    const fuori = carta.classList.contains('fuori-profilo');
+    $('motivazione').required = fuori;
+    $('motivazione-label').textContent = fuori ? 'Motivo (obbligatorio: DPI fuori dal profilo della mansione)' : 'Motivo (facoltativo)';
+  }
+
+  function scegli(carta, auto) {
+    carte.forEach(function (c) { c.classList.remove('selected'); c.setAttribute('aria-pressed', 'false'); });
+    carta.classList.add('selected');
+    carta.setAttribute('aria-pressed', 'true');
+    carta.classList.remove('dpi-cat-hidden');
+    $('categoria_id').value = carta.dataset.id;
+    $('qty-um').textContent = carta.dataset.um || 'pz';
+    $('dpi-dettagli').hidden = false;
+    $('btn-submit').disabled = false;
+    tipo.value = ''; modello.value = ''; taglia.value = '';
+    aggiorna(auto);
+    mostraAvvisi(carta.dataset.id);
+    obbligoMotivo(carta);
+  }
+
+  function visibilita() {
+    const q = normalizza($('dpi-cerca').value.trim());
+    let trovate = 0;
+    carte.forEach(function (c) {
+      // Cercando si vedono anche i DPI fuori profilo: chi cerca sa cosa vuole, resta l'obbligo del motivo.
+      const mostra = q
+        ? normalizza(c.dataset.cerca).indexOf(q) !== -1
+        : (!c.classList.contains('fuori-profilo') || (toggle && toggle.checked) || c.classList.contains('selected'));
+      c.classList.toggle('dpi-cat-hidden', !mostra);
+      if (mostra) trovate += 1;
+    });
+    $('dpi-nessuno').hidden = trovate > 0;
+    return trovate;
+  }
+
+  $('dpi-picker').addEventListener('click', function (e) {
+    const carta = e.target.closest('.dpi-cat-card');
+    if (carta) scegli(carta, true);
   });
-  const current = selectEl.selectedOptions[0];
-  if (current && current.hidden) {
-    selectEl.value = '';
-  }
-}
+  $('dpi-picker').addEventListener('keydown', function (e) {
+    const carta = e.target.closest('.dpi-cat-card');
+    if (carta && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); scegli(carta, true); }
+  });
+  $('dpi-cerca').addEventListener('input', visibilita);
+  $('dpi-cerca').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const viste = carte.filter(function (c) { return !c.classList.contains('dpi-cat-hidden'); });
+    if (viste.length === 1) scegli(viste[0], true);
+  });
+  if (toggle) toggle.addEventListener('change', visibilita);
+  tipo.addEventListener('change', function () { aggiorna(false); });
+  modello.addEventListener('change', function () { aggiorna(false); });
 
-function refreshCascade() {
-  const categoriaId = document.getElementById('categoria_id').value;
-  const modelloSelect = document.getElementById('modello_dpi_id');
-  filterOptions(modelloSelect, { categoria: categoriaId, tipo: document.getElementById('tipo_dpi_id').value });
-  filterOptions(document.getElementById('taglia_dpi_id'), { categoria: categoriaId, modello: modelloSelect.value });
-}
+  document.querySelectorAll('.dpi-motivo').forEach(function (b) {
+    b.addEventListener('click', function () {
+      const area = $('motivazione');
+      area.value = area.value.trim() ? area.value.trim() + ', ' + b.dataset.motivo : b.dataset.motivo;
+    });
+  });
 
-function onTipoChange() {
-  refreshCascade();
-}
-
-function onModelloChange() {
-  refreshCascade();
-}
-
-function selectDPI(el) {
-  document.querySelectorAll('.dpi-cat-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-
-  const id = el.dataset.id;
-  const nome = el.dataset.nome;
-  const um = el.dataset.um || 'pz';
-  const vita = el.dataset.vita;
-
-  document.getElementById('categoria_id').value = id;
-  document.getElementById('selected-nome').textContent = nome;
-  document.getElementById('selected-info').classList.add('visible');
-  document.getElementById('qty-um').textContent = um;
-  document.getElementById('btn-submit').disabled = false;
-
-  if (vita) {
-    document.getElementById('selected-nome').textContent = nome + ' (vita utile: ' + vita + ' gg)';
+  const persona = $('richiedente');
+  if (persona) {
+    persona.addEventListener('change', function () {
+      const cat = $('categoria_id').value;
+      window.location.href = "{% url 'dpi:nuova' %}?per=" + encodeURIComponent(persona.value) + (cat ? '&categoria=' + cat : '');
+    });
   }
 
-  filterOptions(document.getElementById('tipo_dpi_id'), { categoria: id });
-  refreshCascade();
-}
+  // Si arriva con una scelta gia' fatta: link «Richiedi il ricambio» o errore nel modulo.
+  if (scelta.categoria) {
+    const carta = carte.find(function (c) { return c.dataset.id === String(scelta.categoria); });
+    if (carta) {
+      if (toggle && carta.classList.contains('fuori-profilo')) toggle.checked = true;
+      scegli(carta, !(scelta.tipo || scelta.modello || scelta.taglia));
+      imposta(scelta);
+      visibilita();
+    }
+  }
+})();
 </script>
 {% endblock %}

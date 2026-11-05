@@ -14,9 +14,13 @@ GUIDA = {
                 ("passi", [
                     "Apri DPI e clicca «+ Nuova richiesta».",
                     "In «Richiesta per» lascia «Me stesso». Se sei un responsabile puoi scegliere un tuo dipendente.",
-                    "Clicca sulla scheda della categoria (per esempio scarpe, guanti, occhiali).",
-                    "Se lo sai, scegli «Tipo DPI», «Modello DPI» e «Taglia DPI». Se non lo sai lascia «Solo categoria»: ci pensa il magazzino.",
-                    "Indica la «Quantità» e, se serve, il motivo in «Motivazione / Note».",
+                    "Clicca sulla scheda del DPI (per esempio scarpe, guanti, occhiali). Puoi anche scrivere il nome o il codice del modello in «Cerca». "
+                    "Sulla scheda vedi se è «In dotazione», «In scadenza», «Scaduto» o «Già richiesto».",
+                    "Compaiono solo le domande che servono. Se c'è una scelta sola è già compilata. Se non sai il tipo o il modello lascia "
+                    "«Non lo so, decide il magazzino»; la «Taglia» si chiede dopo il modello, altrimenti «Da scegliere al ritiro».",
+                    "Se hai già ricevuto quel DPI, «Uguale all'ultima volta» riprende tipo, modello e taglia.",
+                    "Indica la «Quantità» e il «Motivo»: clicca Usura, Rotto, Perso, Prima dotazione o Cambio taglia, oppure scrivilo. "
+                    "Per un DPI fuori dal profilo della tua mansione il motivo è obbligatorio.",
                     "Clicca «Invia richiesta». Il numero della richiesta ha la forma DPI-anno-numero.",
                 ]),
                 ("p", "La richiesta passa per questi stati: inviata → approvata → pronta al ritiro → consegnata "
@@ -31,6 +35,9 @@ GUIDA = {
             "id": "storico",
             "titolo": "Vedere i DPI che hai in carico",
             "blocchi": [
+                ("p", "«La mia dotazione», nella Dashboard DPI, mette in cima quello che richiede attenzione: i DPI previsti dalla tua mansione "
+                      "e non ancora consegnati («Richiedi»), le richieste in corso con il passo a cui sono, i DPI scaduti o che scadono entro 30 giorni "
+                      "(«Richiedi il ricambio» apre la richiesta già compilata). Per un DPI ancora valido usa «Rotto o perso?»."),
                 ("p", "«Il mio storico» elenca le consegne fatte a te, con la data di scadenza di ogni DPI."),
                 ("ul", [
                     "Il pallino colorato dice se il DPI è in regola, in scadenza o scaduto.",
@@ -43,7 +50,8 @@ GUIDA = {
             "titolo": "Approvare e consegnare (responsabili e magazzino)",
             "blocchi": [
                 ("passi", [
-                    "Apri «Gestione richieste» dalla Dashboard DPI e clicca la richiesta.",
+                    "Nella Dashboard DPI il riquadro «Da fare» mostra «In attesa di approvazione», «Da consegnare», «Da riordinare», «DPI scaduti» e "
+                    "«In scadenza (30 gg)»: ogni numero apre la lista corrispondente. Clicca «In attesa di approvazione» e poi la richiesta.",
                     "Nel riquadro «Prima di decidere» guarda le consegne precedenti della persona e la media del reparto. "
                     "«Proponi con l'AI» suggerisce una decisione: è solo un consiglio.",
                     "Clicca «Approva» oppure «Rifiuta» (scrivi il motivo). Con «Aggiungi nota» lasci un commento.",
@@ -214,9 +222,10 @@ GUIDA = {
     ],
     "problemi": [
         {
-            "sintomo": '«In scadenza» e «Scadute» della dashboard non tornano con le richieste',
+            "sintomo": '«DPI scaduti» e «In scadenza» della dashboard non tornano con le richieste',
             "fare": [
-                'Ora contano le consegne delle sole richieste che vedi (propri, team o tutti), come gli altri numeri della pagina.',
+                'Contano le consegne attive delle richieste della tua coda in «Gestione richieste»: clicca il numero e vedi la stessa lista '
+                '(filtro «Scadenza»). Le consegne già sostituite non contano.',
             ],
         },
         {
