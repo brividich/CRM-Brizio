@@ -12,6 +12,7 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
+from ..services.fai import allinea_da_riga
 from ..access import can_manage_project, scoped_projects_queryset, task_permissions_required
 from ..models import (
     MeetingActionItem,
@@ -183,6 +184,7 @@ def mia_voce_stato(request, kind: str, pk: int):
             messages.error(request, "Azione non valida.")
             return back
         item.save(update_fields=["status", "done_by", "done_at", "updated_at"])
+        allinea_da_riga(item)
         etichetta = "Segnato come fatto." if verb == "done" else "Riaperto."
     elif kind == KIND_ACTION:
         if verb == "done":

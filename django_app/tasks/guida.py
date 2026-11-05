@@ -267,6 +267,27 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "registro-fai",
+        "titolo": "Registro FAI",
+        "blocchi": [
+            ("p", "Il «Registro FAI» del menu tiene una riga per articolo, con il FAI più recente e la situazione rispetto alla MT CN 15. Quello che richiede una decisione sta in alto."),
+            ("passi", [
+                "In «Programmi e FAI» della commessa leggi la riga con cosa prevede la MT CN 15 per quel P/N, poi premi «Apri un FAI». Puoi aprirlo anche con «Scheda FAI» su una riga FAI già presente, senza doppioni.",
+                "Scegli «Perché serve?»: il portale propone FAI completo o Delta FAI.",
+                "Indica il tipo di piano. Per un piano interno, se lasci vuoto il numero, il portale assegna il PFCN successivo.",
+                "Aggiorna «A che punto è» man mano. Le date per la scadenza valgono per tutto l'articolo.",
+            ]),
+            ("ul", [
+                "Se scegli un Delta FAI dove la procedura chiede il completo (articolo nuovo, fermo da oltre 2 anni, cambio di sito) il portale non ti ferma: chiede di scrivere il motivo.",
+                "«Da ripetere»: oltre 2 anni dalla fine dell'ultima produzione, oppure superata la data chiesta dal cliente.",
+                "«Oltre 18 mesi»: ultima spedizione da più di un anno e mezzo. È l'elenco del controllo trimestrale da segnalare a IN1 e MSM; «Esporta CSV» lo scarica.",
+                "«FAI in corso»: il FAI più recente è da eseguire, eseguito o in valutazione. Un FAI positivo con la data di invio fa ripartire il conteggio.",
+                "Il FAI di una commessa ha la sua riga in «Programmi e FAI»: il responsabile lo trova in «Le mie attività». Con «Fatto» il FAI passa a «Eseguito».",
+                "Vedi i FAI delle commesse a cui hai accesso. L'intero registro, compresi gli articoli senza commessa, è per chi gestisce il modulo.",
+            ]),
+        ],
+    },
+    {
         "id": "scheda-attivita",
         "titolo": "La scheda di un'attività",
         "blocchi": [

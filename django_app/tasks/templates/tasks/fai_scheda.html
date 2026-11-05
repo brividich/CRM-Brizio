@@ -1,0 +1,124 @@
+{% extends "tasks/base_shell.html" %}
+{% load static %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Registro FAI</span>{% endblock %}
+{% block tasks_shell_guide_anchor %}#registro-fai{% endblock %}
+{% block tasks_shell_title %}{% if record %}FAI {{ record.articolo.part_number }}{% else %}Nuovo FAI{% endif %}{% endblock %}
+{% block tasks_shell_subtitle %}Scegli perché serve: il tipo lo propone il portale secondo la MT CN 15. Il resto puoi completarlo dopo.{% endblock %}
+{% block tasks_shell_actions %}<a class="ts-hero-action" href="{% url 'tasks:fai_registro' %}">Registro FAI</a>{% endblock %}
+
+{% block tasks_shell_content %}
+<form method="post" class="fai-scheda" data-fai-form>
+  {% csrf_token %}
+  {% if fai_project %}<input type="hidden" name="project" value="{{ fai_project.id }}">{% endif %}
+  {% if fai_ref %}<input type="hidden" name="ref" value="{{ fai_ref.id }}">{% endif %}
+  <fieldset class="fai-campi"{% if not modificabile %} disabled{% endif %}>
+    {% if form.non_field_errors %}<p class="tr-err" role="alert">{{ form.non_field_errors|join:" " }}</p>{% endif %}
+
+    <section class="ts-panel"><div class="ts-panel-body fai-griglia">
+      <label class="fai-campo"><span>P/N</span>
+        <input class="input" name="part_number" maxlength="120" required value="{{ form.part_number.value|default_if_none:'' }}">
+        {% if form.part_number.errors %}<small class="tr-err">{{ form.part_number.errors|join:" " }}</small>{% endif %}
+      </label>
+      <label class="fai-campo"><span>Cliente</span>
+        <input class="input" name="client_name" maxlength="180" value="{{ form.client_name.value|default_if_none:'' }}">
+      </label>
+    </div></section>
+
+    <section class="ts-panel"><div class="ts-panel-body">
+      <h2 class="fai-titolo">Perché serve?</h2>
+      <div class="fai-causali" role="radiogroup" aria-label="Causale">
+        {% for c in causali %}
+        <label class="fai-causale" title="{{ c.esteso }}">
+          <input type="radio" name="causale" value="{{ c.valore }}" data-tipo="{{ c.tipo }}" required{% if form.causale.value == c.valore %} checked{% endif %}>
+          <span><strong>{{ c.breve }}</strong><small>{{ c.esteso }}</small></span>
+        </label>
+        {% endfor %}
+      </div>
+      {% if form.causale.errors %}<p class="tr-err" role="alert">Scegli perché serve il FAI.</p>{% endif %}
+
+      <div class="fai-esito" data-fai-esito>
+        <div class="fai-tipi" role="radiogroup" aria-label="Tipo">
+          <label class="fai-tipo"><input type="radio" name="tipo" value="COMPLETO"{% if form.tipo.value == "COMPLETO" %} checked{% endif %}><span>FAI completo</span></label>
+          <label class="fai-tipo"><input type="radio" name="tipo" value="DELTA"{% if form.tipo.value == "DELTA" %} checked{% endif %}><span>Delta FAI</span></label>
+        </div>
+        <p class="fai-nota" data-fai-regola></p>
+        <label class="fai-campo" data-fai-motivo hidden><span>Perché basta un Delta FAI</span>
+          <input class="input" name="motivo" maxlength="1000" value="{{ form.motivo.value|default_if_none:'' }}" placeholder="Per esempio: stesso processo di un articolo già coperto al 100%">
+          {% if form.motivo.errors %}<small class="tr-err">{{ form.motivo.errors|join:" " }}</small>{% endif %}
+        </label>
+      </div>
+    </div></section>
+
+    <section class="ts-panel"><div class="ts-panel-body">
+      <h2 class="fai-titolo">Piano e responsabile</h2>
+      <div class="fai-griglia">
+        <label class="fai-campo"><span>Piano FAI</span>
+          <select class="input" name="piano_tipo" data-fai-piano>
+            {% for valore, etichetta in piani %}<option value="{{ valore }}"{% if form.piano_tipo.value == valore %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
+          </select>
+          <small class="fai-nota" data-fai-modulo></small>
+        </label>
+        <label class="fai-campo"><span>Numero piano</span>
+          <input class="input" name="piano_numero" maxlength="160" value="{{ form.piano_numero.value|default_if_none:'' }}" data-fai-numero>
+        </label>
+        <label class="fai-campo"><span>Responsabile</span>
+          <select class="input" name="responsabile">
+            <option value="">Da assegnare</option>
+            {% with quick_users=utenti selected=responsabile_scelto %}{% include "tasks/_quick_user_options.html" %}{% endwith %}
+          </select>
+          {% if form.responsabile.errors %}<small class="tr-err">{{ form.responsabile.errors|join:" " }}</small>{% endif %}
+        </label>
+        <label class="fai-campo"><span>Cartella o file di rete</span>
+          <input class="input" name="path" maxlength="500" value="{{ form.path.value|default_if_none:'' }}" placeholder="\\server\cartella">
+          {% if form.path.errors %}<small class="tr-err">{{ form.path.errors|join:" " }}</small>{% endif %}
+        </label>
+      </div>
+    </div></section>
+
+    <section class="ts-panel"><div class="ts-panel-body">
+      <h2 class="fai-titolo">A che punto è</h2>
+      <div class="fai-stati" role="radiogroup" aria-label="Stato">
+        {% for valore, etichetta in stati %}
+        <label class="fai-stato"><input type="radio" name="stato" value="{{ valore }}"{% if form.stato.value == valore %} checked{% endif %}><span>{{ etichetta }}</span></label>
+        {% endfor %}
+      </div>
+      <div class="fai-griglia" data-fai-invio>
+        <label class="fai-campo"><span>Data invio FAI</span><input class="input" type="date" name="data_invio" value="{{ form.data_invio.value|default_if_none:'' }}"></label>
+      </div>
+    </div></section>
+
+    <details class="ts-panel fai-altro"{% if form.errors or form.ultima_produzione.value or form.ultima_spedizione.value %} open{% endif %}>
+      <summary>Date per la scadenza e note</summary>
+      <div class="ts-panel-body">
+        <p class="fai-nota">Valgono per tutto l'articolo. Per ora si inseriscono a mano; con l'accesso al gestionale arriveranno da lì.</p>
+        <div class="fai-griglia">
+          <label class="fai-campo"><span>Fine ultima produzione</span><input class="input" type="date" name="ultima_produzione" value="{{ form.ultima_produzione.value|default_if_none:'' }}"></label>
+          <label class="fai-campo"><span>Ultima spedizione</span><input class="input" type="date" name="ultima_spedizione" value="{{ form.ultima_spedizione.value|default_if_none:'' }}"></label>
+          <label class="fai-campo"><span>Ripetizione chiesta dal cliente entro</span><input class="input" type="date" name="scadenza_cliente" value="{{ form.scadenza_cliente.value|default_if_none:'' }}"></label>
+        </div>
+        <label class="fai-campo"><span>Note</span><textarea class="input" name="note" rows="2" maxlength="4000">{{ form.note.value|default_if_none:'' }}</textarea></label>
+      </div>
+    </details>
+  </fieldset>
+
+  {% if modificabile %}
+  <div class="fai-azioni">
+    <a class="btn btn-secondary" href="{% if fai_project %}{% url 'tasks:project_tech_refs' fai_project.id %}{% else %}{% url 'tasks:fai_registro' %}{% endif %}">Annulla</a>
+    <button type="submit" class="btn">Salva</button>
+  </div>
+  {% endif %}
+</form>
+
+{% if storico %}
+<section class="ts-panel"><div class="ts-panel-body">
+  <h2 class="fai-titolo">Altri FAI di questo articolo</h2>
+  <ul class="fai-storico">
+    {% for f in storico %}
+      <li><a href="{% url 'tasks:fai_scheda' f.id %}">{{ f.get_tipo_display }} · {{ f.piano_numero|default:"senza numero" }}</a> <span class="tl-task-desc">{{ f.causale_label }} · {{ f.get_stato_display }}</span></li>
+    {% endfor %}
+  </ul>
+</div></section>
+{% endif %}
+<script src="{% static 'tasks/js/fai.js' %}?v=20261105b" defer></script>
+{% endblock %}

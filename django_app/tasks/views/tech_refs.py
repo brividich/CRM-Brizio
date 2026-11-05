@@ -13,6 +13,7 @@ from core.audit import log_action
 
 from ..access import can_manage_project, scoped_projects_queryset, task_permissions_required
 from ..models import KickoffMeeting, ProjectTechRef, TechRefKind
+from ..services.fai import allinea_da_riga, esito_progetto
 from ..services.notify import notify_user
 from ..tech_paths import normalizza_percorso
 from ._shared import _tasks_shell_context, _utenti_riga_rapida
@@ -36,7 +37,7 @@ def tech_refs_context(request, project, meeting=None) -> dict:
             "can_edit": gestisce or ref.assigned_to_id == request.user.pk,
             "can_delete": gestisce,
         }
-        for ref in project.tech_refs.select_related("assigned_to", "source_meeting")
+        for ref in project.tech_refs.select_related("assigned_to", "source_meeting", "fai_record")
     ]
     puo_aggiungere = gestisce or request.user.pk in project.team_user_ids
     return {
@@ -50,6 +51,8 @@ def tech_refs_context(request, project, meeting=None) -> dict:
         "tech_users": _utenti_riga_rapida(project),
         "tech_default_owner": _programmatore_id(project),
         "tech_meeting": meeting,
+        "fai_esito": esito_progetto(project),
+        "fai_puo_creare": puo_aggiungere,
     }
 
 
@@ -145,12 +148,16 @@ def tech_ref_save(request, project_id: int):
     if not (code or path or assegnato):
         return _errore("Scrivi il codice, il percorso o il responsabile.")
 
+    if ref is not None and kind != TechRefKind.FAI and getattr(ref, "fai_record", None) is not None:
+        return _errore("Questa riga ha una scheda FAI: resta di tipo FAI.")
+
     prima = ref.assigned_to_id if ref else None
     nuova = ref is None
     if nuova:
         ref = ProjectTechRef(project=project, created_by=request.user, source_meeting=meeting)
     ref.kind, ref.code, ref.path, ref.due_date, ref.assigned_to = kind, code, path, due_date, assegnato
     ref.save()
+    allinea_da_riga(ref)
     log_action(request, "kickoff_tech_ref_salva", "tasks", {
         "id": ref.pk, "project_id": project.pk, "kind": kind, "nuova": nuova,
     })
@@ -183,6 +190,7 @@ def tech_ref_action(request, project_id: int, ref_id: int):
         else:
             ref.reopen()
         ref.save(update_fields=["status", "done_by", "done_at", "updated_at"])
+        allinea_da_riga(ref)
     else:
         return _errore("Azione non valida.")
     log_action(request, f"kickoff_tech_ref_{azione}", "tasks", {"id": ref_id, "project_id": project.pk})

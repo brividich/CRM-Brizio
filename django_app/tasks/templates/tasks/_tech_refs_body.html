@@ -1,4 +1,13 @@
 <div class="tr-head">Programmi e FAI <span class="ts-chip info">{{ tech_open_count }} da fare</span></div>
+{% if fai_esito %}
+<div class="fai-regola fai-regola--{{ fai_esito.classe }}">
+  <div><strong>{{ fai_esito.titolo }}</strong> <span>{{ fai_esito.nota }}</span></div>
+  <div class="tr-actions">
+    {% if fai_puo_creare and fai_esito.titolo != "FAI in corso" %}<a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_nuovo' %}?project={{ project.id }}{% if fai_esito.causale %}&amp;causale={{ fai_esito.causale }}{% endif %}">Apri un FAI</a>{% endif %}
+    <a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_registro' %}?q={{ project.part_number|urlencode }}">Registro</a>
+  </div>
+</div>
+{% endif %}
 {% if tech_show_form %}
 <div class="tr-row" data-tr-form data-default-owner="{{ tech_default_owner }}"{% if not tech_can_add %} hidden{% endif %}>
   <select class="input" data-tr="kind" aria-label="Tipo">
@@ -37,6 +46,10 @@
         </td>
         <td>
           <div class="tr-actions">
+            {% if ref.kind == "FAI" %}
+              {% if ref.fai_record %}<a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_scheda' ref.fai_record.id %}">Scheda FAI</a>
+              {% elif tech_can_add %}<a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_nuovo' %}?project={{ project.id }}&amp;ref={{ ref.id }}">Scheda FAI</a>{% endif %}
+            {% endif %}
             {% if row.can_edit %}
               {% if ref.is_open %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="done">Fatto</button>
               {% else %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="reopen">Riapri</button>{% endif %}

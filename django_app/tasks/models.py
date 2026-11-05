@@ -2215,3 +2215,90 @@ class ProjectTechRef(models.Model):
         self.status = TechRefStatus.OPEN
         self.done_by = None
         self.done_at = None
+
+
+class FaiPiano(models.TextChoices):
+    CLIENTE = "CLIENTE", "Fornito dal cliente"
+    CLIENTE_CN = "CLIENTE_CN", "Richiesto dal cliente, redatto da noi"
+    INTERNO = "INTERNO", "Interno"
+
+
+class FaiStato(models.TextChoices):
+    # Dopo «Da eseguire» ci sono gli stati del file «Situazione FAI-ISIR» (MT CN 15 §5.10).
+    DA_ESEGUIRE = "DA_ESEGUIRE", "Da eseguire"
+    ESEGUITO = "ESEGUITO", "Eseguito"
+    IN_VALUTAZIONE = "VALUTAZIONE", "In valutazione dal cliente"
+    POSITIVO = "POSITIVO", "Completo con esito positivo"
+    NON_COMPLETO = "NON_COMPLETO", "Non completo"
+
+
+class FaiTipo(models.TextChoices):
+    COMPLETO = "COMPLETO", "FAI completo"
+    DELTA = "DELTA", "Delta FAI"
+
+
+class FaiArticolo(models.Model):
+    """Articolo del registro FAI: le date di decorrenza sono del P/N, non del singolo FAI."""
+
+    client_name = models.CharField(max_length=180, blank=True, default="", verbose_name="Cliente")
+    part_number = models.CharField(max_length=120, verbose_name="P/N")
+    ultima_produzione = models.DateField(null=True, blank=True, verbose_name="Fine ultima produzione")
+    ultima_spedizione = models.DateField(null=True, blank=True, verbose_name="Ultima spedizione")
+    scadenza_cliente = models.DateField(null=True, blank=True, verbose_name="Ripetizione chiesta dal cliente entro")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["client_name", "part_number"]
+        verbose_name = "Articolo FAI"
+        verbose_name_plural = "Articoli FAI"
+        constraints = [
+            models.UniqueConstraint(fields=["client_name", "part_number"], name="tasks_fai_articolo_cliente_pn"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.part_number} ({self.client_name})" if self.client_name else self.part_number
+
+
+class FaiRecord(models.Model):
+    """Un FAI di un articolo. Con una commessa ha anche la sua riga in «Programmi e FAI»."""
+
+    articolo = models.ForeignKey(FaiArticolo, on_delete=models.CASCADE, related_name="fai", verbose_name="Articolo")
+    project = models.ForeignKey(
+        Project, on_delete=models.SET_NULL, null=True, blank=True, related_name="fai_records", verbose_name="Kickoff"
+    )
+    tech_ref = models.OneToOneField(
+        ProjectTechRef, on_delete=models.SET_NULL, null=True, blank=True, related_name="fai_record"
+    )
+    causale = models.CharField(max_length=1, verbose_name="Causale MT CN 15 §5.1")
+    tipo = models.CharField(max_length=8, choices=FaiTipo.choices, verbose_name="Tipo")
+    motivo = models.CharField(max_length=1000, blank=True, default="", verbose_name="Motivo del Delta FAI")
+    piano_tipo = models.CharField(max_length=10, choices=FaiPiano.choices, default=FaiPiano.CLIENTE, verbose_name="Piano FAI")
+    piano_numero = models.CharField(max_length=160, blank=True, default="", verbose_name="Numero piano")
+    stato = models.CharField(
+        max_length=12, choices=FaiStato.choices, default=FaiStato.DA_ESEGUIRE, db_index=True, verbose_name="Stato"
+    )
+    data_invio = models.DateField(null=True, blank=True, verbose_name="Data invio FAI")
+    path = models.CharField(max_length=500, blank=True, default="", verbose_name="Cartella o file")
+    responsabile = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="tasks_fai", verbose_name="Responsabile",
+    )
+    note = models.TextField(blank=True, default="", verbose_name="Note")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-id"]
+        verbose_name = "FAI"
+        verbose_name_plural = "Registro FAI"
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} {self.articolo.part_number}"
+
+    @property
+    def causale_label(self) -> str:
+        from .fai_regole import etichetta_causale
+
+        return etichetta_causale(self.causale)
