@@ -27,7 +27,7 @@ def collect_generiche(ctx) -> list:
 
     qs = (
         ScadenzaGenerica.objects.select_related("categoria", "asset", "responsabile")
-        .filter(is_active=True, categoria__is_active=True, data_scadenza__isnull=False,
+        .filter(is_active=True, categoria__is_active=True, unita=False, data_scadenza__isnull=False,
                 data_scadenza__lte=ctx.orizzonte)
         .order_by("data_scadenza", "pk")
     )

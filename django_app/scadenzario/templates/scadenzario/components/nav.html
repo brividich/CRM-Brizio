@@ -3,6 +3,7 @@
   <a href="{% url 'scadenze_globali' %}">Calendario</a>
   <a href="{% url 'scadenzario:elenco' %}" class="{% if attiva == 'elenco' %}on{% endif %}">Scadenze generiche</a>
   {% if sz_p.categorie %}<a href="{% url 'scadenzario:categorie' %}" class="{% if attiva == 'categorie' %}on{% endif %}">Categorie</a>{% endif %}
+  {% if sz_p.categorie %}<a href="{% url 'scadenzario:collega_elenco' %}" class="{% if attiva == 'collega' %}on{% endif %}">Collega</a>{% endif %}
   <a href="{% url 'scadenzario:avvisi' %}" class="{% if attiva == 'avvisi' %}on{% endif %}">Avvisi</a>
   {% if sz_p.pannello %}<a href="{% url 'scadenzario:gestione' %}" class="{% if attiva == 'gestione' %}on{% endif %}">Gestione</a>{% endif %}
   <a href="{% url 'scadenzario:guida' %}" class="{% if attiva == 'guida' %}on{% endif %}">? Guida</a>

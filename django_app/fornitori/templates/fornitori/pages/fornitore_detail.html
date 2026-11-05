@@ -254,6 +254,7 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
         <p style="margin:6px 0 0; font-size:12px; color:var(--text-mid);">Carica i documenti nella scheda «Documenti» scegliendo il tipo e la scadenza. In scadenza = entro {{ giorni_preavviso }} giorni.</p>
       </div>
       {% endif %}
+      {% include "scadenzario/components/riquadro.html" with fonti="fornitori" collegata_tipo="fornitore" collegata_id=fornitore.pk nome=fornitore.ragione_sociale %}
       <div class="ana-card">
         <div class="ana-tabs">
           <button class="ana-tab is-active" data-tab="tab-ordini">Ordini ({{ ordini.count }})</button>

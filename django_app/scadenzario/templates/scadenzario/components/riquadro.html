@@ -1,0 +1,2 @@
+{% comment %}Riquadro «Scadenze di questa scheda» nelle pagine dei moduli. Parametri: fonti, collegata_tipo, collegata_id, nome. Permessi decisi nella vista.{% endcomment %}
+<div hx-get="{% url 'scadenzario:scheda_riquadro' %}?fonti={{ fonti|default:''|urlencode }}&amp;collegata={{ collegata_tipo|default:'' }}:{{ collegata_id|default:0|stringformat:"d" }}&amp;nome={{ nome|default:''|urlencode }}&amp;percorso={{ request.path|urlencode }}" hx-trigger="load" hx-swap="outerHTML"></div>

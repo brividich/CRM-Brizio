@@ -33,6 +33,7 @@
         <p class="fmd-ph-sub">Qualifiche, visite mediche, formazione obbligatoria e contratti scaduti o in scadenza nei prossimi 60 giorni.</p>
       </div>
       <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'scadenze_globali' %}?sorgente=hr" title="Queste scadenze insieme a quelle di tutti gli altri moduli">Scadenzario generale</a>
         <div class="fmd-viewtoggle" style="display:inline-flex;gap:4px;" role="group" aria-label="Vista scadenzario">
           <a class="fmd-btn fmd-btn-ghost{% if layout == 'gruppi' %} fmd-btn-primary{% endif %}"
              href="?{% for k,v in request.GET.items %}{% if k != 'layout' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}layout=gruppi">Gruppi</a>

@@ -98,6 +98,10 @@ class ScadenzaGenerica(models.Model):
     fornitore = models.ForeignKey(
         "anagrafica.Fornitore", null=True, blank=True, on_delete=models.SET_NULL, related_name="scadenze_generiche",
     )
+    # Collegamento alle cose già presenti (scadenzario/collegamenti.py); asset e fornitore hanno le loro colonne.
+    collegata_tipo = models.CharField(max_length=20, blank=True, default="")
+    collegata_id = models.PositiveIntegerField(null=True, blank=True)
+    unita = models.BooleanField(default=False, help_text="Voce unica con quella del modulo collegato, che dà la data.")
     is_active = models.BooleanField(default=True, db_index=True)
     legacy_id = models.PositiveIntegerField(null=True, blank=True, unique=True, help_text="products.id del vecchio scadenzario")
     creato_da = models.ForeignKey(
@@ -108,6 +112,7 @@ class ScadenzaGenerica(models.Model):
 
     class Meta:
         ordering = ["data_scadenza", "titolo", "pk"]
+        indexes = [models.Index(fields=["collegata_tipo", "collegata_id"], name="scad_gen_collegata_idx")]
         verbose_name = "Scadenza generica"
         verbose_name_plural = "Scadenze generiche"
 
