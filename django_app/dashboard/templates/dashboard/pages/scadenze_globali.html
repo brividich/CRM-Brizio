@@ -25,6 +25,8 @@ body.theme-dark .sc { --sc-accent:#60a5fa; --sc-accent-bg:rgba(96,165,250,.14); 
 /* Colore di ogni fonte (pallino, barra laterale, sfondo tenue del chip) */
 .sc .src-hr{--c:#2563eb} .sc .src-asset{--c:#0891b2} .sc .src-impianti{--c:#db2777} .sc .src-dpi{--c:#16a34a}
 .sc .src-rentri{--c:#ca8a04} .sc .src-capa{--c:#7c3aed} .sc .src-sgi{--c:#4f46e5} .sc .src-qualifiche{--c:#0d9488}
+.sc .src-ofi{--c:#be185d} .sc .src-anomalie{--c:#b91c1c} .sc .src-lavoro{--c:#0369a1} .sc .src-suggestion{--c:#65a30d} .sc .src-attrezzature{--c:#92400e} .sc .src-ingressi{--c:#6d28d9} .sc .src-manutenzione{--c:#475569}
+body.theme-dark .sc .src-ofi{--c:#f472b6} body.theme-dark .sc .src-anomalie{--c:#f87171} body.theme-dark .sc .src-lavoro{--c:#38bdf8} body.theme-dark .sc .src-suggestion{--c:#a3e635} body.theme-dark .sc .src-attrezzature{--c:#fbbf24} body.theme-dark .sc .src-ingressi{--c:#c4b5fd} body.theme-dark .sc .src-manutenzione{--c:#94a3b8}
 .sc .src-formazione{--c:#ea580c} .sc .src-soc{--c:#e11d48} .sc .src-gdpr{--c:#65a30d} .sc .src-procedure{--c:#0284c7}
 .sc .src-generiche{--c:#64748b}
 body.theme-dark .sc .src-hr{--c:#60a5fa} body.theme-dark .sc .src-asset{--c:#22d3ee} body.theme-dark .sc .src-impianti{--c:#f472b6}
@@ -403,6 +405,7 @@ html.sc-bloccato, html.sc-bloccato body { overflow:hidden; }
     </div>
   </div>
 
+  <datalist id="sc-persone">{% for p in persone_assegna %}<option value="{{ p }}"></option>{% endfor %}</datalist>
   <div class="sc-kpis" aria-label="Stato: puoi sceglierne più di uno">
     {% for k in kpi %}
       <a class="sc-kpi {{ k.classe }}{% if k.on %} on{% endif %}" href="{{ k.href }}" title="{% if k.on %}Togli questo filtro{% else %}Aggiungi al filtro (puoi sceglierne più di uno){% endif %}"><b>{{ k.n }}</b><span>{{ k.etichetta }}</span></a>

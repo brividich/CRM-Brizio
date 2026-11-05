@@ -31,6 +31,7 @@ from . import guida as guida_mod
 from .controlli import da_sistemare
 from .fonte import SOURCE, chiave_categoria
 from .forms import CategoriaForm, RegolaForm, RinnovoForm, ScadenzaForm, VoceForm, opzioni_chi
+from .notifiche import avvisa_utente
 from .models import (
     AvvisoInviato, CategoriaScadenza, RegolaVisibilita, RinnovoScadenza, ScadenzaGenerica, VoceConfig, _email_pulite,
 )
@@ -334,6 +335,9 @@ def scadenze_massa(request):
         for s in scadenze:
             s.responsabile = responsabile
             s.save(update_fields=["responsabile", "aggiornato_il"])
+            if responsabile and responsabile.pk != request.user.pk:
+                avvisa_utente(responsabile, "scadenza_assegnata", f"Sei responsabile dell'attività: {s.titolo}.",
+                              reverse("scadenzario:scadenza_dettaglio", args=[s.pk]))
     elif azione in ("destinatari_aggiungi", "destinatari_sostituisci"):
         try:
             for indirizzo in email:

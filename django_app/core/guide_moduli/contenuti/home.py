@@ -245,6 +245,7 @@ GUIDA = {
                     "«👤 Me ne occupo io» (sotto la scadenza, nel pannello del giorno e nell'agenda): la scadenza compare a tutti con il tuo nome e la nota (＋ nota); «✕ Lascia» la libera. "
                     "Chi gestisce lo scadenzario può liberare quelle degli altri; «Subentro io» prende il posto di chi l'aveva. Se la scadenza cambia data (rinnovo) la presa in carico decade da sola.",
                     "«✓ Rinnovato oggi» (solo scadenze generiche, per chi gestisce la categoria): registra il rinnovo con la data di oggi e calcola la prossima scadenza; per un'altra data o un allegato si usa la scheda.",
+                    "«→ Assegna» (per chi ha la scadenza o gestisce lo scadenzario): affida la scadenza a un collega, che riceve una notifica. In Home, «Cose da gestire» mostra «Le mie scadenze»: scadute ed entro 7 giorni, senza quelle sanitarie.",
                     "«👤 Solo le mie»: le scadenze col tuo nome, di cui sei responsabile o che hai preso in carico.",
                     "«★ Viste»: salva i filtri e la vista attuali con un nome e li richiami con un clic; con ☆ una vista diventa quella che si apre entrando nello scadenzario (★ = attiva).",
                     "Festivi (nazionali, Pasqua e Pasquetta, santo patrono se impostato) in rosso nel calendario; una scadenza che cade di sabato, domenica o festivo mostra «⚠ domenica», «⚠ Natale»…",

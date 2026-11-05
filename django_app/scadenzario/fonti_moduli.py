@@ -35,6 +35,13 @@ SOURCE_SOC = "soc"
 SOURCE_GDPR = "gdpr"
 SOURCE_PROCEDURE = "procedure"
 SOURCE_FORNITORI = "fornitori"
+SOURCE_OFI = "ofi"
+SOURCE_ANOMALIE = "anomalie"
+SOURCE_LAVORO = "lavoro"
+SOURCE_SUGGESTION = "suggestion"
+SOURCE_ATTREZZATURE = "attrezzature"
+SOURCE_INGRESSI = "ingressi"
+SOURCE_MANUTENZIONE = "manutenzione"
 
 SOURCE_LABELS = {
     SOURCE_SGI: "Sistema di gestione",
@@ -44,6 +51,13 @@ SOURCE_LABELS = {
     SOURCE_GDPR: "GDPR",
     SOURCE_PROCEDURE: "Presa visione procedure",
     SOURCE_FORNITORI: "Fornitori (documenti di sicurezza)",
+    SOURCE_OFI: "Registro OFI",
+    SOURCE_ANOMALIE: "Anomalie e NC",
+    SOURCE_LAVORO: "KICK-OFF e attività",
+    SOURCE_SUGGESTION: "Suggestion Corner",
+    SOURCE_ATTREZZATURE: "Attrezzature",
+    SOURCE_INGRESSI: "Ingressi e cambi mansione",
+    SOURCE_MANUTENZIONE: "Manutenzione programmata",
 }
 
 TIPI = {
@@ -74,10 +88,18 @@ TIPI = {
     SOURCE_SOC: {
         "azione_correttiva": "Azione correttiva incidente",
         "accettazione_rischio": "Accettazione del rischio",
+        "termine_legale": "Termine NIS2 o GDPR",
     },
     SOURCE_GDPR: {"ads_revisione": "Revisione amministratore di sistema"},
     SOURCE_PROCEDURE: {"assegnazione": "Presa visione", "campagna": "Campagna di presa visione"},
     SOURCE_FORNITORI: {"documento": "Documento fornitore"},
+    SOURCE_OFI: {"ofi": "Chiusura OFI"},
+    SOURCE_ANOMALIE: {"azione_nc": "Azione su NC", "verifica_nc": "Verifica di efficacia NC"},
+    SOURCE_LAVORO: {"attivita": "Attività", "azione_incontro": "Azione da incontro"},
+    SOURCE_SUGGESTION: {"esecuzione": "Da eseguire", "controllo": "Da controllare"},
+    SOURCE_ATTREZZATURE: {"task": "Attività su attrezzatura"},
+    SOURCE_INGRESSI: {"onboarding": "Voce di inserimento", "cambio_mansione": "Adempimento cambio mansione", "deroga": "Deroga operativa"},
+    SOURCE_MANUTENZIONE: {"ordinaria": "Manutenzione o taratura"},
 }
 
 
@@ -268,8 +290,9 @@ def _mod128(ctx) -> list:
     items = []
     for p in ProcessoQualificato.objects.filter(stato="ATTIVO"):
         url = _url("anagrafica:mpq_processo_detail", p.pk)
-        if p.data_scadenza and p.data_scadenza <= ctx.orizzonte:
-            items.append(_item(ctx, SOURCE_QUALIFICHE, "processo", p.nome, p.get_regime_display(), p.data_scadenza, url,
+        scadenza = p.scadenza_effettiva
+        if scadenza and scadenza <= ctx.orizzonte:
+            items.append(_item(ctx, SOURCE_QUALIFICHE, "processo", p.nome, p.get_regime_display(), scadenza, url,
                                elemento=p.regime, elemento_label=p.get_regime_display()))
         if p.data_revisione and p.data_revisione <= ctx.orizzonte:
             items.append(_item(ctx, SOURCE_QUALIFICHE, "processo_revisione", p.nome, p.responsabile_qualita,
@@ -341,7 +364,7 @@ def collect_formazione(ctx) -> list:
 def collect_soc(ctx) -> list:
     from security.models import SecurityAccettazioneRischio, SecurityCorrectiveAction
 
-    items = []
+    items = _sicuro(ctx, _termini_soc)
     if _apre(ctx, "security:incidents"):
         for a in SecurityCorrectiveAction.objects.filter(fatta_il__isnull=True, scadenza__isnull=False,
                                                          scadenza__lte=ctx.orizzonte).select_related("incident"):
@@ -439,6 +462,180 @@ def collect_fornitori(ctx) -> list:
     return items
 
 
+# ---------------------------------------------------------------------------
+# Fonti operative: lavoro quotidiano dei moduli
+# ---------------------------------------------------------------------------
+
+def _legacy_id(ctx):
+    from . import visibilita as vis
+
+    try:
+        return vis.identita_di(ctx.request).legacy_user_id
+    except Exception:
+        return None
+
+
+def collect_ofi(ctx) -> list:
+    """Voci aperte del registro MOD.174. Quelle con CAR entrano già dalla fonte Sistema di gestione."""
+    from gestione_specifiche.models import RegistroOFI
+
+    qs = (RegistroOFI.objects.filter(RegistroOFI.q_aperte(), data_richiesta__isnull=False, data_richiesta__lte=ctx.orizzonte,
+                                     car_procedurale__isnull=True).select_related("responsabile"))
+    if not _apre(ctx, "registro_ofi:home"):
+        uid = _utente_id(ctx)
+        if not uid:
+            return []
+        qs = qs.filter(responsabile_id=uid)
+    return [_item(ctx, SOURCE_OFI, "ofi", f"OFI {v.numero} {v.processo or ''}".strip(),
+                  _nome_utente(v.responsabile) or v.owner_processo or v.proprietario or "", v.data_richiesta,
+                  _url("registro_ofi:dettaglio", v.pk), extra={"utente_id": v.responsabile_id}) for v in qs]
+
+
+def collect_anomalie(ctx) -> list:
+    from anomalie.quality_models import AnomaliaNC, AnomaliaNCAzione
+
+    azioni = AnomaliaNCAzione.objects.filter(stato__in=("DA_FARE", "IN_CORSO"), scadenza__isnull=False,
+                                             scadenza__lte=ctx.orizzonte).select_related("nc")
+    tutte = _apre(ctx, "anomalie_nc_lista")
+    if not tutte:
+        legacy = _legacy_id(ctx)
+        if not legacy:
+            return []
+        azioni = azioni.filter(responsabile_legacy_id=legacy)
+    items = [_item(ctx, SOURCE_ANOMALIE, "azione_nc", (a.descrizione or "")[:200], a.responsabile_nome, a.scadenza,
+                   _url("anomalie_nc_dettaglio", a.nc_id), elemento=a.get_tipo_display()) for a in azioni]
+    if tutte:
+        for nc in AnomaliaNC.objects.exclude(stato="CHIUSA").filter(verifica_prevista__isnull=False, verifica_data__isnull=True,
+                                                                    verifica_prevista__lte=ctx.orizzonte):
+            items.append(_item(ctx, SOURCE_ANOMALIE, "verifica_nc", f"Verifica di efficacia {nc}"[:200], "", nc.verifica_prevista,
+                               _url("anomalie_nc_dettaglio", nc.pk)))
+    return items
+
+
+def collect_lavoro(ctx) -> list:
+    """Solo le proprie: attività e azioni degli incontri assegnate a chi guarda."""
+    from tasks.models import MeetingActionItem, Task
+
+    uid = _utente_id(ctx)
+    if not uid:
+        return []
+    items = []
+    for t in Task.objects.filter(assigned_to_id=uid, due_date__isnull=False, due_date__lte=ctx.orizzonte).exclude(
+            status__in=("DONE", "CANCELED")).select_related("project"):
+        items.append(_item(ctx, SOURCE_LAVORO, "attivita", t.title, str(t.project) if t.project_id else "", t.due_date,
+                           _url("tasks:detail", t.pk), extra={"utente_id": uid}))
+    for a in MeetingActionItem.objects.filter(assigned_to_id=uid, status="OPEN", due_date__isnull=False,
+                                              due_date__lte=ctx.orizzonte).select_related("project"):
+        items.append(_item(ctx, SOURCE_LAVORO, "azione_incontro", a.title, str(a.project) if a.project_id else "", a.due_date,
+                           _url("tasks:mie_azioni"), extra={"utente_id": uid}))
+    return items
+
+
+def collect_suggestion(ctx) -> list:
+    from suggestion_corner.models import SuggestionCorner
+    from suggestion_corner.permissions import visible_segnalazioni
+
+    qs = SuggestionCorner.objects.all() if ctx.sistema else visible_segnalazioni(ctx.request.user)
+    qs = qs.exclude(stato=SuggestionCorner.Stato.CHIUSA).select_related("incaricato", "controllore")
+    S = SuggestionCorner.Stato
+    prima_del_do = (S.INSERITA, S.DA_CLASSIFICARE, S.CLASSIFICATA, S.PLAN_DEFINITO, S.DO_IN_CORSO)
+    prima_del_check = prima_del_do + (S.DO_COMPLETATO, S.CHECK_IN_CORSO)
+    items = []
+    for s in qs:
+        url = _url("suggestion_corner:dettaglio", s.pk)
+        if s.stato in prima_del_do and s.data_limite_esecuzione and s.data_limite_esecuzione <= ctx.orizzonte:
+            items.append(_item(ctx, SOURCE_SUGGESTION, "esecuzione", str(s)[:200], _nome_utente(s.incaricato),
+                               s.data_limite_esecuzione, url, extra={"utente_id": s.incaricato_id}))
+        if s.stato in prima_del_check and s.data_limite_controllo and s.data_limite_controllo <= ctx.orizzonte:
+            items.append(_item(ctx, SOURCE_SUGGESTION, "controllo", str(s)[:200], _nome_utente(s.controllore),
+                               s.data_limite_controllo, url, extra={"utente_id": s.controllore_id}))
+    return items
+
+
+def collect_attrezzature(ctx) -> list:
+    if not _apre(ctx, "attrezzature:task_list"):
+        return []
+    from attrezzature.models import AttrezzaturaTask
+
+    return [_item(ctx, SOURCE_ATTREZZATURE, "task", t.titolo, str(t.attrezzatura) if t.attrezzatura_id else "", t.scadenza,
+                  _url("attrezzature:task_detail", t.pk))
+            for t in AttrezzaturaTask.objects.filter(stato__in=("aperta", "in_lavorazione", "bloccata"), scadenza__isnull=False,
+                                                     scadenza__lte=ctx.orizzonte).select_related("attrezzatura")]
+
+
+def collect_ingressi(ctx) -> list:
+    from anagrafica.models import AdempimentoCambioMansione, OnboardingPratica, OnboardingTask
+    from anagrafica.models_mansioni_rischio import DerogaOperativaVisita
+
+    items = []
+    if _apre(ctx, "anagrafica:onboarding_list"):
+        for t in OnboardingTask.objects.filter(stato=OnboardingTask.STATO_DA_FARE, pratica__stato=OnboardingPratica.STATO_IN_CORSO,
+                                               scadenza__isnull=False, scadenza__lte=ctx.orizzonte).select_related("pratica"):
+            items.append(_item(ctx, SOURCE_INGRESSI, "onboarding", t.titolo, t.pratica.dipendente_nome, t.scadenza,
+                               _url("anagrafica:onboarding_detail", t.pratica_id),
+                               extra={"legacy_id": t.pratica.legacy_anagrafica_id}))
+    if _apre(ctx, "anagrafica:scadenzario"):
+        righe = list(AdempimentoCambioMansione.objects.filter(stato=AdempimentoCambioMansione.STATO_APERTO, entro_il__lte=ctx.orizzonte))
+        nomi = _nomi_anagrafica(r.legacy_anagrafica_id for r in righe)
+        for r in righe:
+            nome, reparto = nomi.get(r.legacy_anagrafica_id, ("", ""))
+            items.append(_item(ctx, SOURCE_INGRESSI, "cambio_mansione", r.descrizione, nome, r.entro_il,
+                               _url("anagrafica:dipendente_detail", r.legacy_anagrafica_id), reparto=reparto,
+                               extra={"legacy_id": r.legacy_anagrafica_id}))
+    if _apre(ctx, "anagrafica:visite_mediche_dashboard"):
+        righe = list(DerogaOperativaVisita.objects.filter(attivo=True, valida_fino__lte=ctx.orizzonte))
+        nomi = _nomi_anagrafica(r.legacy_anagrafica_id for r in righe)
+        for r in righe:
+            nome, reparto = nomi.get(r.legacy_anagrafica_id, ("", ""))
+            items.append(_item(ctx, SOURCE_INGRESSI, "deroga", "Deroga operativa in scadenza", nome, r.valida_fino,
+                               _url("anagrafica:dipendente_detail", r.legacy_anagrafica_id) + "#scheda-visite", reparto=reparto,
+                               extra={"legacy_id": r.legacy_anagrafica_id}))
+    return items
+
+
+def collect_manutenzione(ctx) -> list:
+    """Manutenzioni ordinarie e tarature: tante, quindi spente finché il pannello non le accende."""
+    from assets.services import deadline_feed as feed
+    from core.acl import user_can_modulo_action
+
+    from .models import VoceConfig
+
+    if not VoceConfig.objects.filter(chiave=SOURCE_MANUTENZIONE, attiva=True).exists():
+        return []
+    request = ctx.request
+    if not ctx.sistema:
+        if not getattr(request.user, "is_superuser", False) and not user_can_modulo_action(request, "assets", "assets_deadlines"):
+            return []
+        if feed.KIND_ORDINARY not in feed.allowed_kinds(request):
+            return []
+    righe = feed.collect(start=None, end=ctx.orizzonte, filters=feed.FeedFilters(kinds=frozenset({feed.KIND_ORDINARY})), today=ctx.oggi)
+    return [_item(ctx, SOURCE_MANUTENZIONE, "ordinaria", r.title, (r.asset_name or r.asset_tag or r.target_label or "").strip(), r.due_date,
+                  r.detail_url, elemento=r.title or "", reparto=(r.reparto or "").strip(), extra={"asset_tag": r.asset_tag})
+            for r in righe if r.due_date]
+
+
+def _termini_soc(ctx) -> list:
+    """Termini di legge NIS2 e GDPR degli incidenti: l'ora precisa resta nel titolo."""
+    if not _apre(ctx, "security:incidents"):
+        return []
+    from django.db.models import Q
+    from django.utils import timezone
+
+    from security.models import SecurityIncident
+    from security.services.incidents import deadlines
+
+    items = []
+    for inc in SecurityIncident.objects.filter(Q(is_significant=True) | Q(personal_data_breach=True)):
+        for d in deadlines(inc):
+            if d["state"] not in {"overdue", "due_soon", "pending"}:
+                continue
+            quando = timezone.localtime(d["due_at"])
+            if quando.date() <= ctx.orizzonte:
+                items.append(_item(ctx, SOURCE_SOC, "termine_legale", f"{d['label']} entro le {quando:%H:%M}", inc.code, quando.date(),
+                                   _url("security:incident_detail", inc.pk), elemento=d["key"], elemento_label=d["label"]))
+    return items
+
+
 PROVIDERS = {
     SOURCE_SGI: collect_sgi,
     SOURCE_QUALIFICHE: collect_qualifiche,
@@ -447,4 +644,11 @@ PROVIDERS = {
     SOURCE_GDPR: collect_gdpr,
     SOURCE_PROCEDURE: collect_procedure,
     SOURCE_FORNITORI: collect_fornitori,
+    SOURCE_OFI: lambda ctx: _sicuro(ctx, collect_ofi),
+    SOURCE_ANOMALIE: lambda ctx: _sicuro(ctx, collect_anomalie),
+    SOURCE_LAVORO: lambda ctx: _sicuro(ctx, collect_lavoro),
+    SOURCE_SUGGESTION: lambda ctx: _sicuro(ctx, collect_suggestion),
+    SOURCE_ATTREZZATURE: lambda ctx: _sicuro(ctx, collect_attrezzature),
+    SOURCE_INGRESSI: lambda ctx: _sicuro(ctx, collect_ingressi),
+    SOURCE_MANUTENZIONE: lambda ctx: _sicuro(ctx, collect_manutenzione),
 }
