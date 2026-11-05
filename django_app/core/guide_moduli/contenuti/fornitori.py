@@ -2,8 +2,8 @@ GUIDA = {
     "slug": "fornitori",
     "titolo": "Fornitori",
     "area": "Produzione e operations",
-    "sintesi": "Anagrafica fornitori con documenti a scadenza, requisiti di sicurezza per chi lavora in sede, ordini, valutazioni e asset.",
-    "parole": "durc duvri visura idoneità tecnico professionale polizza rct art 26 appalto requisiti fornitore fornitori ordine ordini valutazione albo partita iva accessi esterni visitatori ospiti consulenti guestportal reception badge",
+    "sintesi": "Anagrafica fornitori con documenti a scadenza, requisiti di sicurezza per chi lavora in sede, ordini, valutazioni, asset, e per ogni ditta manutenzione, copie delle multifunzioni, scadenze e tecnici.",
+    "parole": "durc duvri visura idoneità tecnico professionale polizza rct art 26 appalto requisiti fornitore fornitori ordine ordini valutazione albo partita iva accessi esterni visitatori ospiti consulenti guestportal reception badge tecnici tecnico ditta manutenzione odl ticket contratto assistenza ricambi fattura fatture copie mfc multifunzione stampanti scadenze esporta csv",
     "url": "fornitori:index",
     "prefissi": ("/fornitori/",),
     "uso": [
@@ -44,6 +44,31 @@ GUIDA = {
                     ("Ordini", "con stato e importo: la somma è la spesa totale. «Salva ordine»."),
                     ("Valutazioni", "qualità, puntualità e comunicazione da 1 a 5 stelle. «Salva valutazione»."),
                     ("Asset", "macchine o contratti assegnati al fornitore. «Assegna» / «Rimuovi»."),
+                ]),
+            ],
+        },
+        {
+            "id": "scheda-collegamenti",
+            "titolo": "Manutenzione, copie, scadenze e tecnici della ditta",
+            "blocchi": [
+                ("p", "Nella scheda del fornitore queste schede mostrano ciò che esiste già negli altri moduli: non c'è niente da compilare e una scheda vuota lo dice senza errori."),
+                ("def", [
+                    ("Manutenzione", "ordini di lavoro, ticket delegati, contratti di assistenza, verifiche impianti, ricambi e rinnovi di licenze. «Scheda manutenzione completa →» apre la pagina di Asset, con gli stessi numeri."),
+                    ("Copie MFC", "macchine e fatture delle copie, con l'esito della Riconciliazione e i trimestri senza fattura della ditta."),
+                    ("Scadenze", "documenti, contratti, verifiche periodiche e attività dello Scadenzario della ditta, in ordine di data; «In scadenza» = entro 30 giorni."),
+                    ("Tecnici", "chi è entrato per questa ditta dal GuestPortal: ingressi, ore in azienda, ultimo ingresso, chi è dentro ora e gli ingressi collegati a un intervento. Si vede con il permesso di «Accessi esterni»."),
+                ]),
+                ("p", "«Copie MFC» compare da sola se il nome del fornitore è quello di Contatori; altrimenti collega il fornitore dal riquadro «Multifunzioni» della scheda con «Collega»."),
+            ],
+        },
+        {
+            "id": "elenco-filtri",
+            "titolo": "Elenco: documenti ed esportazione",
+            "blocchi": [
+                ("ul", [
+                    "Nell'elenco il filtro «Documenti di sicurezza» mostra le ditte in sede in regola, in scadenza o non in regola.",
+                    "«Esporta CSV» scarica tutte le righe filtrate, non solo la pagina che vedi.",
+                    "Nella pagina iniziale «Da guardare» elenca ditte non in regola, documenti e contratti in scadenza, OdL aperti affidati a una ditta: compare solo se c'è qualcosa.",
                 ]),
             ],
         },
@@ -140,6 +165,20 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "La scheda «Tecnici» è vuota o non elenca tutti",
+            "fare": [
+                "Se nel GuestPortal la ditta ha un altro nome, abbinala in Fornitori → «Ditte GuestPortal».",
+                "Le visite cancellate dalla pulizia GDPR del GuestPortal non si vedono più: restano gli ingressi collegati a un ticket o a un OdL.",
+            ],
+        },
+        {
+            "sintomo": "Non vedo la scheda «Copie MFC» o «Tecnici»",
+            "fare": [
+                "«Copie MFC»: collega il fornitore dal riquadro «Multifunzioni» della scheda; serve il permesso delle fatture di Contatori.",
+                "«Tecnici»: serve il permesso di «Accessi esterni».",
+            ],
+        },
         {
             "sintomo": "Il fornitore non compare nelle manutenzioni degli asset",
             "fare": ["Controlla che il fornitore sia attivo.", "Nella scheda fornitore assegna l'asset o il contratto."],

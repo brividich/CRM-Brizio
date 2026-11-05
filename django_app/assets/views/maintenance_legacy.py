@@ -1519,32 +1519,16 @@ def maintenance_supplier_detail(request: HttpRequest, fornitore_id: int) -> Http
     today = timezone.localdate()
     now = timezone.now()
 
-    contracts = list(
-        AssistanceContract.objects.filter(supplier=supplier)
-        .select_related("asset", "asset_category", "document")
-        .order_by("-is_active", "-start_date", "id")
-    )
-    rules = list(
-        MaintenanceRule.objects.filter(supplier=supplier)
-        .select_related("intervention_template", "asset_category")
-        .prefetch_related("assets")
-        .order_by("-is_active", "asset_category__label", "sort_order", "id")
-    )
-    verifications = list(
-        PeriodicVerification.objects.filter(supplier=supplier)
-        .prefetch_related("assets")
-        .order_by("-is_active", "next_verification_date", "id")
-    )
-    workorders = list(
-        WorkOrder.objects.filter(supplier=supplier)
-        .select_related("asset", "assigned_to")
-        .order_by("-opened_at", "-id")
-    )
+    from ..services.fornitore_manutenzione import rapporto_ditta
 
-    open_wos = [wo for wo in workorders if wo.status == WorkOrder.STATUS_OPEN]
-    closed_wos = [wo for wo in workorders if wo.status == WorkOrder.STATUS_DONE]
-    ultimo_anno = today.replace(year=today.year - 1)
-    closed_12m = [wo for wo in closed_wos if wo.closed_at and wo.closed_at.date() >= ultimo_anno]
+    rapporto = rapporto_ditta(supplier, today)
+    contracts = rapporto.contracts
+    rules = rapporto.rules
+    verifications = rapporto.verifications
+    workorders = rapporto.workorders
+    open_wos = rapporto.open_wos
+    closed_wos = rapporto.closed_wos
+    closed_12m = rapporto.closed_12m
 
     # Asset toccati dal fornitore: quelli citati direttamente (OdL, contratto su
     # singolo asset, verifiche, piani su asset scelti) piu' quelli che ricadono
@@ -1596,10 +1580,8 @@ def maintenance_supplier_detail(request: HttpRequest, fornitore_id: int) -> Http
             ),
         },
     ]
-    costo_totale = sum((wo.resolved_total_cost_eur or Decimal("0")) for wo in closed_12m)
-    costo_coverage = _copertura_dato(
-        sum(1 for wo in closed_12m if (wo.resolved_total_cost_eur or Decimal("0")) > 0), len(closed_12m)
-    )
+    costo_totale = rapporto.costo_12m
+    costo_coverage = rapporto.costo_12m_coverage
 
     contract_rows = [
         {

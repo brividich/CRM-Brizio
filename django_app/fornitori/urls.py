@@ -16,6 +16,10 @@ urlpatterns = [
     path("<int:fornitore_id>/modifica/", views.fornitore_edit, name="fornitore_edit"),
     path("<int:fornitore_id>/toggle-active", views.fornitore_toggle_active, name="fornitore_toggle_active"),
 
+    # Sezioni caricate all'apertura della scheda: manutenzione, copie MFC, scadenze, tecnici
+    path("<int:fornitore_id>/sezione/<slug:sezione>/", views.fornitore_sezione, name="fornitore_sezione"),
+    path("<int:fornitore_id>/contatori/", views.fornitore_collega_contatori, name="fornitore_collega_contatori"),
+
     # Documenti
     path("<int:fornitore_id>/documenti/add", views.fornitore_documento_add, name="fornitore_documento_add"),
     path("<int:fornitore_id>/documenti/<int:doc_id>/download/", views.fornitore_documento_download, name="fornitore_documento_download"),

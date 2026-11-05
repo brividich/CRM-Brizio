@@ -41,6 +41,7 @@ SSO_TTL_SECONDI = 60
 SSO_SEGRETO_MIN = 32
 DB_TIMEOUT_SECONDI = 5
 STORICO_MAX_RIGHE = 500
+TECNICI_MAX_RIGHE = 300
 
 STATI = {
     "CHECKEDIN": "Presente",
@@ -318,6 +319,26 @@ def ditte_guestportal() -> list[tuple[int, str]]:
     return [(int(r["SupplierID"]), (r.get("CompanyName") or "").strip()) for r in righe]
 
 
+def _filtro_ditta(ditte_gp: list[int], nomi: list[str]) -> tuple[str, list]:
+    """Condizione SQL «visita di questa ditta»: fornitore del GuestPortal abbinato oppure nome
+    della ditta/azienda uguale a una delle ragioni sociali (maiuscole ignorate). Vuota se non
+    c'è niente con cui riconoscerla."""
+    ditte_gp = [int(x) for x in ditte_gp if x]
+    nomi = sorted({(n or "").strip().lower() for n in nomi if (n or "").strip()})
+    condizioni: list[str] = []
+    params: list = []
+    if ditte_gp:
+        condizioni.append("v.SupplierID IN (" + ",".join(["%s"] * len(ditte_gp)) + ")")
+        params.extend(ditte_gp)
+    if nomi:
+        segnaposti = ",".join(["%s"] * len(nomi))
+        condizioni.append(f"LOWER(TRIM(s.CompanyName)) IN ({segnaposti})")
+        condizioni.append(f"(g.IsAnonymized = 0 AND LOWER(TRIM(g.Company)) IN ({segnaposti}))")
+        params.extend(nomi)
+        params.extend(nomi)
+    return " OR ".join(condizioni), params
+
+
 def ingressi_ditta(
     *,
     ditte_gp: list[int],
@@ -332,27 +353,66 @@ def ingressi_ditta(
     fatto in Fornitori → Ditte GuestPortal) oppure dall'azienda scritta dal
     visitatore uguale a una delle ragioni sociali ``nomi`` (maiuscole ignorate).
     """
-    ditte_gp = [int(x) for x in ditte_gp if x]
-    nomi = sorted({(n or "").strip().lower() for n in nomi if (n or "").strip()})
-    if not ditte_gp and not nomi:
+    filtro, params_ditta = _filtro_ditta(ditte_gp, nomi)
+    if not filtro:
         return []
-    condizioni = []
     params: list = [datetime.combine(dal, datetime.min.time()),
                     datetime.combine(al + timedelta(days=1), datetime.min.time())]
-    if ditte_gp:
-        condizioni.append("v.SupplierID IN (" + ",".join(["%s"] * len(ditte_gp)) + ")")
-        params.extend(ditte_gp)
-    if nomi:
-        segnaposti = ",".join(["%s"] * len(nomi))
-        condizioni.append(f"LOWER(TRIM(s.CompanyName)) IN ({segnaposti})")
-        condizioni.append(f"(g.IsAnonymized = 0 AND LOWER(TRIM(g.Company)) IN ({segnaposti}))")
-        params.extend(nomi)
-        params.extend(nomi)
+    params.extend(params_ditta)
     sql = (
         _SELECT
         + " WHERE v.CheckInTime >= %s AND v.CheckInTime < %s AND ("
-        + " OR ".join(condizioni)
+        + filtro
         + ") ORDER BY v.CheckInTime DESC LIMIT %s"
     )
     params.append(int(limite))
     return [_riga_in_accesso(r) for r in _esegui(sql, params)]
+
+
+@dataclass
+class TecnicoDitta:
+    """Una persona registrata al GuestPortal per una ditta, con le sue visite ancora conservate."""
+
+    nome: str
+    ingressi: int
+    minuti: int
+    primo: datetime | None
+    ultimo: datetime | None
+    dentro: bool
+
+
+def tecnici_ditta(
+    *,
+    ditte_gp: list[int],
+    nomi: list[str],
+    limite: int = TECNICI_MAX_RIGHE,
+) -> tuple[list[TecnicoDitta], bool]:
+    """Persone entrate per una ditta tra le visite che il GuestPortal conserva ancora, dalla
+    più recente. Gli ospiti anonimizzati non si elencano. Ritorna ``(righe, troncato)``."""
+    filtro, params = _filtro_ditta(ditte_gp, nomi)
+    if not filtro:
+        return [], False
+    sql = (
+        "SELECT g.GuestID, g.FirstName, g.LastName,"
+        " COUNT(v.CheckInTime) AS Ingressi, MIN(v.CheckInTime) AS Primo, MAX(v.CheckInTime) AS Ultimo,"
+        " SUM(CASE WHEN v.CheckInTime IS NOT NULL AND v.CheckOutTime IS NOT NULL"
+        " THEN TIMESTAMPDIFF(MINUTE, v.CheckInTime, v.CheckOutTime) ELSE 0 END) AS Minuti,"
+        " SUM(CASE WHEN v.Status = 'CHECKEDIN' THEN 1 ELSE 0 END) AS Dentro"
+        " FROM Visits v JOIN Guests g ON g.GuestID = v.GuestID"
+        " LEFT JOIN Suppliers s ON s.SupplierID = v.SupplierID"
+        " WHERE g.IsAnonymized = 0 AND (" + filtro + ")"
+        " GROUP BY g.GuestID, g.FirstName, g.LastName ORDER BY Ultimo DESC LIMIT %s"
+    )
+    righe = _esegui(sql, [*params, int(limite) + 1])
+    troncato = len(righe) > limite
+    return [
+        TecnicoDitta(
+            nome=" ".join(p for p in ((r.get("FirstName") or "").strip(), (r.get("LastName") or "").strip()) if p) or "—",
+            ingressi=int(r.get("Ingressi") or 0),
+            minuti=max(0, int(r.get("Minuti") or 0)),
+            primo=r.get("Primo"),
+            ultimo=r.get("Ultimo"),
+            dentro=bool(r.get("Dentro")),
+        )
+        for r in righe[:limite]
+    ], troncato

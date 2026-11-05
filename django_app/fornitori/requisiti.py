@@ -140,6 +140,17 @@ def stato_fornitore(fornitore, oggi: date | None = None) -> StatoRequisiti:
     return stati_per_fornitori([fornitore.pk], oggi).get(fornitore.pk) or StatoRequisiti(ESITO_NON_RICHIESTO)
 
 
+def documenti_con_scadenza(documenti) -> list:
+    """Per fornitore e tipo il documento con la scadenza più lontana: un documento rinnovato
+    fa sparire il vecchio dalle scadenze. Stessa regola in Scadenzario e nella scheda."""
+    migliori: dict[tuple[int, str], object] = {}
+    for d in documenti:
+        chiave = (d.fornitore_id, d.tipo)
+        if chiave not in migliori or d.data_scadenza > migliori[chiave].data_scadenza:
+            migliori[chiave] = d
+    return list(migliori.values())
+
+
 def abbina_fornitori(accessi) -> None:
     """Imposta ``accesso.fornitore_id`` sugli accessi del GuestPortal.
 

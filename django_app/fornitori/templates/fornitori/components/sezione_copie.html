@@ -1,0 +1,54 @@
+<div class="fr-azioni">
+  <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'contatori:fatture' %}">Tutte le fatture →</a>
+  <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'contatori:riconciliazione' %}">Riconciliazione →</a>
+</div>
+<div class="fr-kpis">
+  <div class="ana-metric"><div class="ana-metric-val">{{ macchine_attive|default:0 }}</div><div class="ana-metric-label">Macchine attive</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ fatture|length }}</div><div class="ana-metric-label">Fatture copie</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ da_controllare|default:0 }}</div><div class="ana-metric-label">Da controllare</div></div>
+  <div class="ana-metric"><div class="ana-metric-val">{{ scoperti|length }}</div><div class="ana-metric-label">Trimestri senza fattura</div></div>
+</div>
+
+{% if scoperti %}
+<div class="fr-avviso">Letture presenti ma nessuna fattura di questa ditta per: {% for t in scoperti %}<a class="fr-link" href="{% url 'contatori:riconciliazione_trim' t %}">{{ t }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.</div>
+{% endif %}
+
+<div class="fr-sez">Fatture copie</div>
+{% if fatture %}
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Numero</th><th>Data</th><th>Trimestre</th><th>Chiusura letture</th><th>Contratti</th><th>Riconciliazione</th></tr></thead>
+  <tbody>{% for f in fatture %}
+    <tr>
+      <td>{% if puo_gestire_fatture %}<a class="fr-link" href="{% url 'contatori:fattura_edit' f.pk %}">{{ f.numero }}</a>{% else %}<strong>{{ f.numero }}</strong>{% endif %}</td>
+      <td>{{ f.data|date:"d-m-Y" }}</td>
+      <td><a class="fr-link" href="{% url 'contatori:riconciliazione_trim' f.trimestre %}">{{ f.trimestre }}</a></td>
+      <td>{{ f.periodo_al|date:"d-m-Y" }}</td>
+      <td>{{ f.righe.all|length }}</td>
+      <td>
+        {% if f.esito_label %}<span class="ana-pill {% if f.esito_livello == 'ok' %}ana-pill-green{% elif f.esito_livello == 'danger' %}ana-pill-red{% else %}ana-pill-amber{% endif %}">{{ f.esito_label }}</span>{% if f.copie_in_eccesso %} <small>{{ f.copie_in_eccesso }} copie in più del nostro conteggio</small>{% endif %}{% else %}—{% endif %}
+      </td>
+    </tr>{% endfor %}
+  </tbody>
+</table></div>
+<p class="fr-nota">Riconciliazione calcolata sugli ultimi {{ trimestri_con_esito }} trimestri fatturati, con le stesse regole della pagina Riconciliazione. Gli importi in euro non sono registrati nel modulo Contatori.</p>
+{% else %}
+<div class="ana-empty">Nessuna fattura caricata per questa ditta.</div>
+{% endif %}
+
+<div class="fr-sez">Macchine</div>
+{% if macchine %}
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Reparto</th><th>Matricola</th><th>Modello</th><th>Contratto</th><th>Stato</th></tr></thead>
+  <tbody>{% for m in macchine %}
+    <tr>
+      <td><a class="fr-link" href="{% url 'contatori:macchina' m.pk %}">{{ m.reparto }}</a></td>
+      <td>{{ m.matricola }}</td>
+      <td>{{ m.modello|default:"—" }}</td>
+      <td>{{ m.contratto|default:"—" }}</td>
+      <td>{% if m.attiva %}<span class="ana-pill ana-pill-green">Attiva</span>{% else %}<span class="ana-pill ana-pill-gray">Non attiva</span>{% endif %}</td>
+    </tr>{% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<div class="ana-empty">Nessuna macchina con questo fornitore.</div>
+{% endif %}

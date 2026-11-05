@@ -159,6 +159,15 @@ body.theme-dark .ana-pag span{color:var(--text-light)}
         {% endfor %}
       </select>
     </div>
+    <div class="ana-field" style="max-width:220px;">
+      <label>Documenti di sicurezza</label>
+      <select class="ana-input" name="requisiti">
+        <option value="">Tutti</option>
+        {% for val, label in requisiti_scelte %}
+          <option value="{{ val }}"{% if val == requisiti_filtro %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <label class="ana-check-label">
       <input type="checkbox" name="attivi" value="1"{% if solo_attivi %} checked{% endif %}> Solo attivi
     </label>
@@ -172,6 +181,7 @@ body.theme-dark .ana-pag span{color:var(--text-light)}
   <div class="ana-card">
     <div class="ana-card-head">
       <div class="ana-card-title">Risultati — {{ page_obj.paginator.count }} fornitori</div>
+      <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?{{ query_filtri }}&formato=csv">Esporta CSV</a>
     </div>
     <div class="ana-table-wrap">
       <table class="ana-table">
@@ -232,11 +242,11 @@ body.theme-dark .ana-pag span{color:var(--text-light)}
     {% if page_obj.has_other_pages %}
     <div class="ana-pag">
       {% if page_obj.has_previous %}
-        <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&categoria={{ categoria }}&attivi={% if solo_attivi %}1{% endif %}">← Prec</a>
+        <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?page={{ page_obj.previous_page_number }}&{{ query_filtri }}">← Prec</a>
       {% endif %}
       <span>Pagina {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
       {% if page_obj.has_next %}
-        <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?page={{ page_obj.next_page_number }}&q={{ q }}&categoria={{ categoria }}&attivi={% if solo_attivi %}1{% endif %}">Succ →</a>
+        <a class="ana-btn ana-btn-ghost ana-btn-sm" href="?page={{ page_obj.next_page_number }}&{{ query_filtri }}">Succ →</a>
       {% endif %}
     </div>
     {% endif %}

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "fornitori_acl_bootstrap_v2"
+_BOOTSTRAP_CACHE_KEY = "fornitori_acl_bootstrap_v3"
 
 _PULSANTI_DEFINITIONS = [
     {
@@ -32,6 +32,20 @@ _PULSANTI_DEFINITIONS = [
         "codice": "fornitore_detail",
         "label": "Fornitori - Scheda fornitore",
         "url": "route:fornitori:fornitore_detail",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "fornitore_sezione",
+        "label": "Fornitori - Scheda: manutenzione, copie, scadenze, tecnici",
+        "url": "route:fornitori:fornitore_sezione",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "fornitore_collega_contatori",
+        "label": "Fornitori - Collega al modulo Contatori",
+        "url": "route:fornitori:fornitore_collega_contatori",
         "visible_topbar": False,
     },
     {
