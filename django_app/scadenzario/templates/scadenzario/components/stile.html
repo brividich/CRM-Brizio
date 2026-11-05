@@ -1,5 +1,5 @@
 <style>
-.sz-page { display:flex; flex-direction:column; gap:16px; max-width:1240px; margin:0 auto; padding:4px 0 32px; min-width:0; }
+.sz-page { display:flex; flex-direction:column; gap:16px; width:100%; max-width:1240px; margin:0 auto; padding:4px 0 32px; min-width:0; }
 .sz-top { display:flex; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; gap:12px; }
 .sz-title { font-size:24px; font-weight:800; color:var(--text,#0f172a); margin:0; letter-spacing:-.01em; }
 .sz-sub { font-size:13px; color:var(--text-light,#64748b); margin-top:3px; max-width:860px; }
@@ -43,5 +43,24 @@ body.theme-dark .sz-ok { background:rgba(56,161,105,.18); color:#86efac; }
 body.theme-dark .sz-blu { background:rgba(29,78,216,.22); color:#93c5fd; }
 body.theme-dark .sz-banner { background:rgba(133,77,14,.2); color:#fde68a; border-color:rgba(253,230,138,.25); }
 body.theme-dark .sz-btn-danger { color:#fca5a5; border-color:rgba(252,165,165,.3); }
+.sz-form .sz-field input[type=checkbox], .sz-check input[type=checkbox], .sz-filters input[type=checkbox], .sz-table input[type=checkbox] { width:auto; min-height:0; margin:0; }
+.sz-filters .sz-check { flex-direction:row; align-items:center; }
+.sz-check { display:flex; gap:6px; align-items:center; }
+a.sz-kpi { text-decoration:none; }
+a.sz-kpi:hover { border-color:#93c5fd; }
+.sz-kpi.on { border-color:#1d4ed8; box-shadow:0 0 0 1px #1d4ed8 inset; }
+.sz-sez { margin:18px 0 8px; font-size:14px; }
+.sz-altro { margin-top:14px; font-size:13px; }
+.sz-altro summary { cursor:pointer; font-weight:600; color:var(--text-mid,#334155); }
+.sz-controllo { display:flex; gap:12px; align-items:center; padding:10px 12px; margin-bottom:8px; border:1px solid var(--border,#e2e8f0); border-radius:10px; text-decoration:none; color:var(--text,#0f172a); font-size:13px; }
+.sz-controllo:hover { border-color:#93c5fd; }
+.sz-controllo > b { min-width:32px; text-align:center; font-size:20px; font-weight:800; color:#b45309; }
+.sz-controllo.grave > b { color:#b91c1c; }
+.sz-controllo .sz-help { display:block; font-size:12px; }
+.sz-massa { position:sticky; bottom:10px; z-index:20; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; padding:12px 14px; border-radius:12px; background:var(--surface,#fff); border:1px solid #93c5fd; box-shadow:0 6px 24px rgba(15,23,42,.18); }
+.sz-massa[hidden], .sz-massa label[hidden] { display:none; }
+.sz-massa label { display:flex; flex-direction:column; gap:3px; font-size:11px; font-weight:600; color:var(--text-mid,#475569); }
+.sz-massa-mail { flex:1 1 260px; }
+.sz-massa-mail input { width:100%; }
 @media (max-width:720px) { .sz-title { font-size:20px; } .sz-form { grid-template-columns:1fr; } }
 </style>

@@ -285,7 +285,7 @@ def _azioni(request, voci) -> None:
                     gestibili[cat] = puo_gestire_categoria(request, cat)
                 except Exception:
                     gestibili[cat] = False
-            if gestibili[cat]:
+            if gestibili[cat] and (v.extra or {}).get("validita_mesi"):
                 v.rinnovo_url = reverse("scadenzario:scadenza_rinnovo", args=[sid])
 
 
