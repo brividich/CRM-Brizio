@@ -315,6 +315,16 @@ def scadenza_dettaglio(request, pk: int):
     })
 
 
+def _dopo_rinnovo(request, s):
+    """Dal calendario (``next`` = /scadenze…) si torna lì, altrimenti alla scheda."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    nxt = request.POST.get("next") or ""
+    if nxt.startswith("/scadenze") and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
+        return redirect(nxt)
+    return redirect("scadenzario:scadenza_dettaglio", pk=s.pk)
+
+
 @login_required
 @require_POST
 def scadenza_rinnovo(request, pk: int):
@@ -324,11 +334,11 @@ def scadenza_rinnovo(request, pk: int):
     form = RinnovoForm(request.POST, request.FILES)
     if not form.is_valid():
         messages.error(request, "; ".join(e for errs in form.errors.values() for e in errs))
-        return redirect("scadenzario:scadenza_dettaglio", pk=s.pk)
+        return _dopo_rinnovo(request, s)
     eseguito = form.cleaned_data["eseguito_il"]
     if eseguito > timezone.localdate():
         messages.error(request, "La data del controllo non può essere futura.")
-        return redirect("scadenzario:scadenza_dettaglio", pk=s.pk)
+        return _dopo_rinnovo(request, s)
     nuova = form.cleaned_data.get("nuova_scadenza")
     if not nuova and s.validita_mesi:
         from .models import _add_months
@@ -348,7 +358,7 @@ def scadenza_rinnovo(request, pk: int):
     log_action(request, "scadenza_generica_rinnovata", "scadenzario",
                {"id": s.pk, "eseguito_il": str(eseguito), "nuova_scadenza": str(nuova or "")})
     messages.success(request, f"Rinnovo registrato{f': prossima scadenza {nuova:%d/%m/%Y}' if nuova else ''}.")
-    return redirect("scadenzario:scadenza_dettaglio", pk=s.pk)
+    return _dopo_rinnovo(request, s)
 
 
 @login_required

@@ -17,7 +17,8 @@ Porta nel portale lo script `report_presenze.py` (diskstation, `UTLIC_ReportPres
 | Impostazioni | `/presenti/impostazioni/` | Pubblicazione PDF su SharePoint, avviso mattutino delle uscite |
 
 Pallino **«In azienda»** (`{% load presenti_tags %}{% pallino_presenza <legacy_id> %}`) accanto al nome in
-Anagrafica: elenco dipendenti e scheda dipendente. Anche nella ricerca globale (Ctrl+K): `api/search/` aggiunge
+Anagrafica: elenco dipendenti, scheda dipendente, organigramma ad albero (`{% presenti_ids as pres_ids %}` una volta per pagina,
+`ids=pres_ids stile=False` nei nodi inclusi con `only`, `{% pallino_presenza_stile %}`) e «Il mio team». Anche nella ricerca globale (Ctrl+K): `api/search/` aggiunge
 `presenza` (true/false; null se Solari non risponde o `/presenti/` non è visibile) ai risultati «dipendente».
 
 ## Dati

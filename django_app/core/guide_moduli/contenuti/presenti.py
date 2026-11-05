@@ -26,7 +26,8 @@ GUIDA = {
                     "(nome, azienda, tipo, referente, entrata, badge). Anche nel PDF.",
                     "Ricerca per nome, matricola o reparto; filtri per reparto e incarico.",
                     "«PDF»: la lista nel formato del vecchio CN-PRESENZE, senza ora di entrata.",
-                    "Pallino verde «In azienda» accanto al nome in Anagrafica (elenco dipendenti e scheda) "
+                    "Pallino verde «In azienda» accanto al nome in Anagrafica (elenco dipendenti, scheda, organigramma "
+                    "ad albero, «Il mio team») "
                     "e fra i dipendenti trovati con la ricerca in alto (Ctrl+K).",
                 ]),
             ],

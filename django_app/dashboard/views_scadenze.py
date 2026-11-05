@@ -1,9 +1,12 @@
-"""Scadenzario Globale Unificato (`/scadenze`).
+"""Scadenzario generale (`/scadenze`).
 
-Vista aggregatrice cross-modulo: compone i provider per dominio
-(`dashboard.scadenze_providers`) in un'unica tabella con filtri trasversali
-(tipo/sorgente, stato, reparto) ed export CSV. Ogni sorgente rispetta l'ACL
-del proprio modulo (gating dentro il provider).
+Compone i provider per dominio (`dashboard.scadenze_providers`) in un'unica
+pagina con cinque viste: calendario del mese, anno, agenda, elenco e andamento
+(fotografie giornaliere, per chi gestisce il pannello). Filtri a scelta multipla
+in memoria, ricerca, «solo le mie», viste salvate, schermo intero con
+aggiornamento automatico. Ogni sorgente rispetta l'ACL del proprio modulo
+(gating dentro il provider); le azioni in POST stanno in
+`scadenzario/views_calendario.py`.
 """
 from __future__ import annotations
 
@@ -16,9 +19,11 @@ from urllib.parse import urlencode
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.http import HttpRequest, HttpResponse
-from core.csv_export import BOM, CSV_CONTENT_TYPE, safe_csv_writer
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
+
+from core.csv_export import BOM, CSV_CONTENT_TYPE, safe_csv_writer
 
 from .scadenze_providers import (
     ORIZZONTE_GIORNI,
@@ -52,7 +57,7 @@ def _fascia(giorni: int | None) -> str:
     return "oltre"
 
 
-_VISTE = ("mese", "agenda", "elenco")
+_VISTE = ("mese", "anno", "agenda", "elenco", "andamento")
 _MESI = ("Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno", "Luglio",
          "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre")
 _MESI_BREVI = ("gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic")
@@ -65,6 +70,10 @@ _MESI_MAX = 24
 _VOCI_PER_CELLA = 12
 # Scadute mostrate nel riquadro laterale; tutte nell'elenco filtrato.
 _SCADUTE_LATO = 6
+# Aggiornamento automatico in schermo intero (minuti).
+_AUTO_MINUTI = (5, 10, 15)
+# Vista anno: gradini del colore per numero di scadenze nel giorno.
+_LIVELLI = ((1, 1), (2, 3), (4, 6), (7, 10))
 
 
 def _indice_mese(d: date) -> int:
@@ -80,6 +89,14 @@ def _mese_richiesto(valore: str, oggi: date) -> date:
     if abs(_indice_mese(primo) - _indice_mese(oggi)) > _MESI_MAX:
         return oggi.replace(day=1)
     return primo
+
+
+def _anno_richiesto(valore: str, oggi: date) -> int:
+    try:
+        anno = int(valore)
+    except (TypeError, ValueError):
+        return oggi.year
+    return anno if abs(anno - oggi.year) <= _MESI_MAX // 12 else oggi.year
 
 
 def _sposta_mese(primo: date, passi: int) -> date:
@@ -116,25 +133,32 @@ def _giorno_label(d: date) -> str:
     return f"{_GIORNI[d.weekday()]} {d.day} {_MESI[d.month - 1].lower()} {d.year}"
 
 
-def _griglia_mese(primo: date, voci, oggi: date) -> list[list[dict]]:
+def _per_data(voci) -> dict[date, list]:
     per_giorno: dict[date, list] = defaultdict(list)
     for v in voci:
         if v.data_scadenza:
             per_giorno[v.data_scadenza].append(v)
+    return per_giorno
+
+
+def _griglia_mese(primo: date, voci, oggi: date, feste: dict) -> list[list[dict]]:
+    per_giorno = _per_data(voci)
     settimane = []
     for settimana in calendar.Calendar(firstweekday=0).monthdatescalendar(primo.year, primo.month):
         riga = []
         for d in settimana:
             elenco = per_giorno.get(d, [])
             urg = {v.urgenza for v in elenco}
+            festa = feste.get(d, "")
             riga.append({
                 "data": d,
                 "iso": d.isoformat(),
-                "label": _giorno_label(d),
+                "label": _giorno_label(d) + (f" · {festa}" if festa else ""),
                 "nel_mese": d.month == primo.month,
                 "oggi": d == oggi,
                 "passato": d < oggi,
-                "festivo": d.weekday() >= 5,
+                "festivo": d.weekday() >= 5 or bool(festa),
+                "festa": festa,
                 "voci": elenco,
                 "in_cella": elenco[:_VOCI_PER_CELLA],
                 "altre": max(0, len(elenco) - _VOCI_PER_CELLA),
@@ -143,6 +167,43 @@ def _griglia_mese(primo: date, voci, oggi: date) -> list[list[dict]]:
             })
         settimane.append(riga)
     return settimane
+
+
+def _livello(n: int) -> int:
+    for i, (_minimo, massimo) in enumerate(_LIVELLI, start=1):
+        if n <= massimo:
+            return i
+    return len(_LIVELLI) + 1
+
+
+def _griglia_anno(anno: int, voci, oggi: date, feste: dict, link_giorno) -> list[dict]:
+    per_giorno = _per_data(voci)
+    mesi = []
+    for mese in range(1, 13):
+        settimane, totale = [], 0
+        for settimana in calendar.Calendar(firstweekday=0).monthdatescalendar(anno, mese):
+            riga = []
+            for d in settimana:
+                if d.month != mese:
+                    riga.append(None)
+                    continue
+                elenco = per_giorno.get(d, [])
+                totale += len(elenco)
+                festa = feste.get(d, "")
+                titolo = f"{d.day} {_MESI[mese - 1].lower()}" + (f" · {festa}" if festa else "")
+                if elenco:
+                    titolo += f": {len(elenco)} scadenz{'a' if len(elenco) == 1 else 'e'}"
+                riga.append({
+                    "num": d.day, "n": len(elenco), "livello": _livello(len(elenco)) if elenco else 0,
+                    "scadute": any(v.scaduta for v in elenco), "oggi": d == oggi,
+                    "festivo": d.weekday() >= 5 or bool(festa), "festa": festa, "titolo": titolo,
+                    "href": link_giorno(d) if elenco else "",
+                })
+            settimane.append(riga)
+        mesi.append({"nome": _MESI[mese - 1], "settimane": settimane, "n": totale,
+                     "corrente": anno == oggi.year and mese == oggi.month,
+                     "href": link_giorno(date(anno, mese, 1), giorno=False)})
+    return mesi
 
 
 def _per_giorno(voci) -> list[dict]:
@@ -186,7 +247,9 @@ def _agenda(voci, oggi: date) -> list[dict]:
 _PRIMA_LA_PERSONA = {"hr", "qualifiche", "dpi", "procedure"}
 
 
-def _decora(voci) -> None:
+def _decora(voci, *, feste: dict | None = None) -> None:
+    from scadenzario.calendario import non_lavorativo
+
     for v in voci:
         v.urgenza = _urgenza(v)
         v.quando = _etichetta_giorni(v)
@@ -196,38 +259,104 @@ def _decora(voci) -> None:
             v.principale, v.secondario = v.titolo, v.soggetto
         if v.secondario == v.principale:
             v.secondario = ""
+        v.non_lavorativo = non_lavorativo(v.data_scadenza, feste) if feste is not None else ""
+
+
+def _azioni(request, voci) -> None:
+    """Chiave della scadenza, presa in carico e rinnovo diretto (scadenze generiche)."""
+    from scadenzario.calendario import chiave_scadenza, nome_utente, prese_in_carico
+
+    for v in voci:
+        v.chiave = chiave_scadenza(v)
+    prese = prese_in_carico(v.chiave for v in voci)
+    gestibili: dict[int, bool] = {}
+    for v in voci:
+        v.presa = prese.get(v.chiave)
+        v.presa_nome = nome_utente(v.presa.utente) if v.presa else ""
+        v.presa_mia = bool(v.presa and v.presa.utente_id == request.user.id)
+        v.rinnovo_url = ""
+        cat = (v.extra or {}).get("categoria_id") if v.source == "generiche" else None
+        sid = (v.extra or {}).get("scadenza_id")
+        if cat and sid:
+            if cat not in gestibili:
+                try:
+                    from scadenzario.permessi import puo_gestire_categoria
+
+                    gestibili[cat] = puo_gestire_categoria(request, cat)
+                except Exception:
+                    gestibili[cat] = False
+            if gestibili[cat]:
+                v.rinnovo_url = reverse("scadenzario:scadenza_rinnovo", args=[sid])
+
+
+def _viste_salvate(request) -> list:
+    try:
+        from scadenzario.models import VistaSalvata
+
+        return list(VistaSalvata.objects.filter(utente=request.user))
+    except Exception:
+        return []
 
 
 @login_required
 def scadenze_globali(request: HttpRequest) -> HttpResponse:
+    viste_salvate = _viste_salvate(request)
+    # Senza parametri si apre la vista predefinita della persona, se ne ha una.
+    if not request.GET:
+        predefinita = next((vs for vs in viste_salvate if vs.predefinita and vs.parametri), None)
+        if predefinita:
+            return redirect(f"{reverse('scadenze_globali')}?{predefinita.parametri}")
+
     # Filtri a scelta multipla (?sorgente=a&sorgente=b…); vuoto = tutti.
     sel_sorgenti = [s for s in request.GET.getlist("sorgente") if s in PROVIDERS]
     sel_stati = [s for s in request.GET.getlist("stato") if s in _FASCE]
     sel_reparti = [r.strip() for r in request.GET.getlist("reparto") if r.strip()]
     cerca = request.GET.get("q", "").strip()[:80]
+    solo_mie = request.GET.get("mie") == "1"
     intero = request.GET.get("intero") == "1"
+    try:
+        auto = int(request.GET.get("auto") or 0)
+    except ValueError:
+        auto = 0
+    auto = auto if intero and auto in _AUTO_MINUTI else 0
     export_csv = request.GET.get("format") == "csv"
     export_ics = request.GET.get("format") == "ics"
+    puo_pannello = _puo_pannello(request)
     vista = request.GET.get("vista", "").strip()
     if export_csv or export_ics:
         vista = "elenco"
-    elif vista not in _VISTE:
+    elif vista not in _VISTE or (vista == "andamento" and not puo_pannello):
         vista = "mese"
 
     oggi = timezone.localdate()
+    finestra_kpi = oggi + timedelta(days=ORIZZONTE_GIORNI)
     primo = _mese_richiesto(request.GET.get("mese", ""), oggi)
+    anno = _anno_richiesto(request.GET.get("anno", ""), oggi)
     orizzonte = None
     if vista == "mese":
         ultimo = date(primo.year, primo.month, calendar.monthrange(primo.year, primo.month)[1])
         # La griglia mostra anche i primi giorni del mese dopo; mai meno della
         # finestra dei KPI, che devono restare uguali in tutte le viste.
-        orizzonte = max(oggi + timedelta(days=ORIZZONTE_GIORNI), ultimo + timedelta(days=7))
+        orizzonte = max(finestra_kpi, ultimo + timedelta(days=7))
+    elif vista == "anno":
+        orizzonte = max(finestra_kpi, date(anno, 12, 31))
 
     # Si raccolgono sempre tutte le fonti: i filtri lavorano in memoria, così
     # contatori ed etichette mostrano anche quanto c'è fuori dalla scelta.
     tutte = collect_all(request, oggi=oggi, orizzonte=orizzonte)
     for v in tutte:
         v.fascia = _fascia(v.giorni)
+
+    if not (export_csv or export_ics):
+        _azioni(request, tutte)
+    if solo_mie or not (export_csv or export_ics):
+        from scadenzario.calendario import chiavi_persona_di, e_mia
+
+        chiavi_persona = chiavi_persona_di(request)
+        for v in tutte:
+            if not hasattr(v, "presa"):
+                v.presa = None
+            v.mia = e_mia(v, user_id=request.user.id, chiavi_persona=chiavi_persona)
 
     def per_sorgente(v):
         return not sel_sorgenti or v.source in sel_sorgenti
@@ -249,7 +378,10 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
                           v.reparto or "", v.source_label))
         return cerca_cf in testo.casefold()
 
-    filtri_tutti = (per_sorgente, per_stato, per_reparto, per_testo)
+    def per_mie(v):
+        return not solo_mie or getattr(v, "mia", False)
+
+    filtri_tutti = (per_sorgente, per_stato, per_reparto, per_testo, per_mie)
 
     def tranne(escluso):
         return [v for v in tutte if all(f(v) for f in filtri_tutti if f is not escluso)]
@@ -257,7 +389,7 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
     filtrate = [v for v in tutte if all(f(v) for f in filtri_tutti)]
 
     # KPI, elenco, agenda ed export restano sulla finestra dello scadenzario
-    # (scadute + 90 giorni): solo la griglia del mese guarda più avanti.
+    # (scadute + 90 giorni): solo mese e anno guardano più avanti.
     def finestra(elenco):
         return [v for v in elenco if v.giorni is None or v.giorni <= ORIZZONTE_GIORNI]
 
@@ -273,7 +405,11 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
         resp["Content-Disposition"] = 'attachment; filename="scadenzario.ics"'
         return resp
 
-    _decora(filtrate)
+    from scadenzario.calendario import festivi, pulisci_parametri
+
+    anni = {oggi.year, primo.year, anno} | {v.data_scadenza.year for v in filtrate if v.data_scadenza}
+    feste = festivi(anni | {primo.year + 1, primo.year - 1})
+    _decora(filtrate, feste=feste)
 
     # Contatori «a faccette»: ognuno conta con tutti i filtri tranne il proprio,
     # così scegliere una fascia non azzera le altre.
@@ -283,13 +419,17 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
     conta_fonti: dict[str, int] = defaultdict(int)
     for v in finestra(tranne(per_sorgente)):
         conta_fonti[v.source] += 1
+    n_mie = sum(1 for v in finestra(tranne(per_mie)) if getattr(v, "mia", False))
     reparti = sorted({v.reparto for v in finestra(tranne(per_reparto)) if v.reparto} | set(sel_reparti),
                      key=str.casefold)
 
     filtri = {"sorgente": sel_sorgenti, "stato": sel_stati, "reparto": sel_reparti,
-              "q": [cerca] if cerca else [], "intero": ["1"] if intero else []}
+              "q": [cerca] if cerca else [], "mie": ["1"] if solo_mie else [],
+              "intero": ["1"] if intero else [], "auto": [str(auto)] if auto else []}
     if vista == "mese" and primo != oggi.replace(day=1):
         filtri["mese"] = [primo.strftime("%Y-%m")]
+    if vista == "anno" and anno != oggi.year:
+        filtri["anno"] = [str(anno)]
 
     def link(**cambi) -> str:
         """Querystring con i filtri correnti; `chiave=(valore,)` aggiunge o toglie
@@ -308,6 +448,10 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
                 nuovi[k] = list(val)
         return "?" + urlencode({k: v for k, v in nuovi.items() if v}, doseq=True)
 
+    def link_giorno(d: date, giorno: bool = True) -> str:
+        extra = {"giorno": [d.isoformat()]} if giorno else {"giorno": []}
+        return link(vista=["mese"], mese=[d.strftime("%Y-%m")], anno=[], **extra)
+
     kpi = [
         {"codice": code, "etichetta": etichetta, "classe": classe, "n": per_fascia.get(code, 0),
          "on": code in sel_stati, "href": link(stato=(code,))}
@@ -318,17 +462,24 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
          "on": code in sel_sorgenti, "href": link(sorgente=(code,))}
         for code in PROVIDERS if conta_fonti.get(code) or code in sel_sorgenti
     ]
-    n_scadute = per_fascia.get("scaduta", 0) if not sel_stati or "scaduta" in sel_stati else 0
-    ci_sono_filtri = bool(sel_sorgenti or sel_stati or sel_reparti or cerca)
+    ci_sono_filtri = bool(sel_sorgenti or sel_stati or sel_reparti or cerca or solo_mie)
+    parametri_correnti = pulisci_parametri(urlencode(
+        {k: v for k, v in {**filtri, "vista": [vista]}.items() if v}, doseq=True))
+    for vs in viste_salvate:
+        vs.href = f"?{vs.parametri}" if vs.parametri else "?vista=mese"
+        vs.attiva = vs.parametri == parametri_correnti
 
     context: dict[str, Any] = {
         "page_title": "Scadenzario",
         "vista": vista,
         "intero": intero,
+        "auto": auto,
+        "auto_scelte": [(m, link(auto=[str(m)]), m == auto) for m in _AUTO_MINUTI],
+        "link_auto_off": link(auto=[]),
+        "aggiornato_alle": timezone.localtime(),
         "kpi": kpi,
         "totale": len(voci),
         "totale_href": link(stato=[]),
-        "n_scadute": n_scadute,
         "orizzonte_giorni": ORIZZONTE_GIORNI,
         "reparti": reparti,
         "sorgenti": [(code, SOURCE_LABELS[code], code in sel_sorgenti) for code in PROVIDERS],
@@ -337,22 +488,33 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
         "sel_stati": sel_stati,
         "sel_reparti": sel_reparti,
         "cerca": cerca,
+        "solo_mie": solo_mie,
+        "n_mie": n_mie,
+        "link_mie": link(mie=[] if solo_mie else ["1"]),
         "ci_sono_filtri": ci_sono_filtri,
-        "link_pulisci": link(sorgente=[], stato=[], reparto=[], q=[]),
-        "link_viste": {v: link(vista=[v], mese=[]) for v in _VISTE},
-        "link_intero": link(intero=[] if intero else ["1"]),
-        "link_csv": link(format=["csv"], intero=[], mese=[]),
-        "link_ics": link(format=["ics"], intero=[], mese=[]),
-        "link_scadute": link(vista=["elenco"], stato=["scaduta"], mese=[]),
-        "puo_pannello": _puo_pannello(request),
+        "link_pulisci": link(sorgente=[], stato=[], reparto=[], q=[], mie=[]),
+        "link_viste": {v: link(vista=[v], mese=[], anno=[]) for v in _VISTE},
+        "link_intero": link(intero=[] if intero else ["1"], auto=[]),
+        "link_csv": link(format=["csv"], intero=[], auto=[], mese=[], anno=[]),
+        "link_ics": link(format=["ics"], intero=[], auto=[], mese=[], anno=[]),
+        "link_scadute": link(vista=["elenco"], stato=["scaduta"], mese=[], anno=[]),
+        "viste_salvate": viste_salvate,
+        "parametri_correnti": parametri_correnti,
+        "torna": request.get_full_path(),
+        "puo_pannello": puo_pannello,
         "puo_generiche": _puo_generiche(request),
         "oggi": oggi,
+        "oggi_iso": oggi.isoformat(),
     }
 
     if vista == "mese":
-        settimane = _griglia_mese(primo, filtrate, oggi)
+        settimane = _griglia_mese(primo, filtrate, oggi, feste)
         scadute = sorted((v for v in filtrate if v.scaduta and v.data_scadenza), key=lambda v: v.data_scadenza)
         prec, succ = _sposta_mese(primo, -1), _sposta_mese(primo, 1)
+        try:
+            giorno_sel = date.fromisoformat(request.GET.get("giorno", "")).isoformat()
+        except ValueError:
+            giorno_sel = ""
         context.update({
             "mese_label": f"{_MESI[primo.month - 1]} {primo.year}",
             "link_prec": link(mese=[prec.strftime("%Y-%m")]),
@@ -370,9 +532,30 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
             "scadute_lato": scadute[:_SCADUTE_LATO],
             "scadute_altre": max(0, len(scadute) - _SCADUTE_LATO),
             "prossimi_7": [v for v in filtrate if v.giorni is not None and 0 <= v.giorni <= 7],
+            "giorno_sel": giorno_sel,
+            "feste_mese": sorted((d, n) for d, n in feste.items() if d.year == primo.year and d.month == primo.month),
+        })
+    elif vista == "anno":
+        context.update({
+            "anno": anno,
+            "mesi_anno": _griglia_anno(anno, filtrate, oggi, feste, link_giorno),
+            "n_anno": sum(1 for v in filtrate if v.data_scadenza and v.data_scadenza.year == anno),
+            "n_scadute_prima": sum(1 for v in filtrate if v.data_scadenza and v.data_scadenza.year < anno),
+            "link_anno_prec": link(anno=[str(anno - 1)]),
+            "link_anno_succ": link(anno=[str(anno + 1)]),
+            "link_anno_oggi": link(anno=[]),
+            "nav_anno_prec": abs(anno - 1 - oggi.year) <= _MESI_MAX // 12,
+            "nav_anno_succ": abs(anno + 1 - oggi.year) <= _MESI_MAX // 12,
+            "intestazione": _GIORNI_BREVI,
+            "livelli": [(i, f"{a}" if a == b else f"{a}–{b}") for i, (a, b) in enumerate(_LIVELLI, start=1)]
+                       + [(len(_LIVELLI) + 1, f"{_LIVELLI[-1][1] + 1}+")],
         })
     elif vista == "agenda":
         context["gruppi"] = _agenda(voci, oggi)
+    elif vista == "andamento":
+        from .scadenze_andamento import andamento
+
+        context["andamento"] = andamento(oggi)
     else:
         context["page_obj"] = Paginator(voci, 50).get_page(request.GET.get("page"))
         context["link_pagina"] = link()

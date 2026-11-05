@@ -156,6 +156,7 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     # view dalle regole del pannello (scadenzario/permessi.py).
     "/scadenze/gestione/",
     "/scadenze/generiche/",
+    "/scadenze/azioni/",
     # Formazione e-learning — area discente (micro-corsi: catalogo, player, quiz):
     # accessibile a tutti i dipendenti autenticati; il gating reale è dentro le view
     # (@login_required + dati del solo dipendente collegato). Stesso schema di /capa/.

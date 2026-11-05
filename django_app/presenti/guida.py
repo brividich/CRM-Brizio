@@ -32,8 +32,9 @@ SEZIONI: list[dict] = [
                 ("Appello di evacuazione", "l'elenco per contare le persone al punto di raccolta, dipendenti ed esterni, "
                  "condiviso fra chi conta."),
                 ("Uscite non timbrate", "le giornate in cui le timbrature non tornano (uscita mancante, verso sbagliato)."),
-                ("Pallino «In azienda»", "il pallino verde accanto al nome nell'elenco dipendenti, nella scheda dipendente e "
-                 "fra i dipendenti trovati con la ricerca in alto (Ctrl+K); "
+                ("Pallino «In azienda»", "il pallino verde accanto al nome nell'elenco dipendenti, nella scheda dipendente, "
+                 "nell'organigramma ad albero, in «Il mio team» e fra i dipendenti trovati con la ricerca in alto "
+                 "(Ctrl+K); "
                  "grigio quando la persona non è in azienda."),
             ]),
         ],
