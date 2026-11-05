@@ -906,6 +906,16 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # DPI — mail e PDF delle consegne dal banco rimasti in sospeso perche' il browser
+        # si e' chiuso nei secondi dell'annullo. Senza lavoro non fa nulla.
+        "name": "dpi_avvisi_consegna",
+        "func": "dpi.tasks.run_dpi_avvisi_consegna",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "*/5 * * * *",
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # CORE — sigillo mensile dell'audit: sigilla i mesi conclusi (catena di hash),
         # verifica tutta la catena (mail agli ADMINS se rotta) ed esporta su SharePoint
         # se la cartella è configurata (SiteConfig audit_export_sp_*). Il giorno 1 e il 2

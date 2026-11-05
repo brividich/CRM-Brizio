@@ -498,6 +498,12 @@ class ConsegnaDPI(models.Model):
         related_name="consegne",
         help_text="Conferma di ricevuta via mail (al posto della firma al banco).",
     )
+    avvisi_in_sospeso_dal = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Consegna dal banco gia' registrata, con mail e PDF ancora da fare: finche' e' valorizzato si puo' annullare.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

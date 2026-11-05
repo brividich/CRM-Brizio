@@ -339,6 +339,12 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
               <label for="note-consegna">Note consegna</label>
               <input type="text" name="note_consegna" id="note-consegna" placeholder="Es: Taglia M, lotto 2024">
             </div>
+            {% if chiedi_motivo_giacenza %}
+            <div class="dpi-field">
+              <label for="motivo-giacenza">Motivo della consegna senza giacenza *</label>
+              <input type="text" name="motivo_giacenza" id="motivo-giacenza" maxlength="200" required placeholder="Es: carico non ancora registrato">
+            </div>
+            {% endif %}
             <div class="dpi-field" style="display:flex; align-items:center;">
               <input type="checkbox" name="firmato_ricevuta" id="firmato" value="1">
               <label for="firmato" style="text-transform:none; font-size:13px; font-weight:600; margin:0;">Ricevuta firmata dal dipendente</label>

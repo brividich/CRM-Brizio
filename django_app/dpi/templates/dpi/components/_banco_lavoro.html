@@ -77,7 +77,7 @@
           {% endwith %}{% endfor %}
         </ul>
 
-        <div class="banco-avviso" data-avviso-giacenza hidden>Giacenza insufficiente per un DPI spuntato: la consegna si può registrare lo stesso.</div>
+        <div class="banco-avviso" data-avviso-giacenza hidden>Giacenza insufficiente per un DPI spuntato: <a href="{% url 'dpi:magazzino' %}">registra il carico</a> oppure scrivi il motivo per consegnare lo stesso.</div>
 
         <div class="dpi-consegna">
           <div class="dpi-consegna-grid">
@@ -88,6 +88,10 @@
             <div class="dpi-field">
               <label>Note (facoltative)</label>
               <input type="text" name="note_consegna" placeholder="Es: lotto, taglia cambiata">
+            </div>
+            <div class="dpi-field" data-motivo hidden style="grid-column:1/-1;">
+              <label>Motivo della consegna senza giacenza *</label>
+              <input type="text" name="motivo_giacenza" maxlength="200" placeholder="Es: carico non ancora registrato">
             </div>
           </div>
           <div class="dpi-azioni">
