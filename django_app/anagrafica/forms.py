@@ -1645,7 +1645,8 @@ class SkillMatrixConfigForm(forms.ModelForm):
         model = SkillMatrixConfig
         fields = [
             "soglia_operativa", "includi_car_come_riserva", "regola_multivoce",
-            "soglia_uomo_solo", "finestra_continuita_mesi", "preavviso_continuita_mesi",
+            "soglia_uomo_solo", "soglia_concentrazione", "soglia_mansioni_persona",
+            "finestra_continuita_mesi", "preavviso_continuita_mesi",
             "periodicita_refresh_mesi", "preavviso_refresh_giorni",
             "etichetta_i", "etichetta_l", "etichetta_u", "etichetta_o",
         ]
@@ -1654,6 +1655,8 @@ class SkillMatrixConfigForm(forms.ModelForm):
             "regola_multivoce": forms.Select(attrs={"class": "ana-input"}),
             "includi_car_come_riserva": forms.CheckboxInput(attrs={"class": "ana-check"}),
             "soglia_uomo_solo": forms.NumberInput(attrs={"class": "ana-input", "min": 1}),
+            "soglia_concentrazione": forms.NumberInput(attrs={"class": "ana-input", "min": 1, "max": 100}),
+            "soglia_mansioni_persona": forms.NumberInput(attrs={"class": "ana-input", "min": 1, "max": 100}),
             "finestra_continuita_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),
             "preavviso_continuita_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),
             "periodicita_refresh_mesi": forms.NumberInput(attrs={"class": "ana-input", "min": 0}),

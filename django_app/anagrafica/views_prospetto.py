@@ -108,11 +108,21 @@ def prospetto(request, pk: int):
     base = ctx.pop("base")
     ctx.update({
         "page_title": p.nome, "p": p, "altro": altro, "scelte": _scelte(base), "is_admin": _puo_gestire(request),
-        "puo_costi": puo_costi(request), "oggi": timezone.localdate(),
+        "puo_costi": puo_costi(request), "oggi": timezone.localdate(), "puo_soglie": _puo_soglie(request),
         "altri_prospetti": P.objects.filter(stato=P.STATO_BOZZA).exclude(pk=p.pk),
         "ha_ostacoli": any(r["problema"] for r in ctx["righe_modifiche"]),
     })
     return render(request, "anagrafica/pages/prospetto.html", ctx)
+
+
+def _puo_soglie(request) -> bool:
+    """Stesso controllo della pagina Impostazioni Skill Matrix: serve solo a mostrare il link."""
+    from core.permessi.impostazioni import impostazioni_o
+
+    from .acl_bootstrap import PERM_SKM_MANAGE
+    from .views.qualifiche import _check_skm_permission
+
+    return impostazioni_o(request, "anagrafica", lambda r: _check_skm_permission(r, PERM_SKM_MANAGE))
 
 
 def _bozza(request, pk):
@@ -207,22 +217,6 @@ def prospetto_togli(request, pk: int, riga_id: int):
         return negato
     p.modifiche.filter(pk=riga_id).delete()
     log_action(request, "prospetto_modifica", MODULE, {"prospetto": p.pk, "tolta": riga_id}, oggetto=p)
-    return _torna(p, "confronto")
-
-
-@login_required
-@require_POST
-def prospetto_soglie(request, pk: int):
-    p, negato = _bozza(request, pk)
-    if negato is not None:
-        return negato
-    mansioni, conc = _intero(request.POST.get("soglia_mansioni")), _intero(request.POST.get("soglia_concentrazione"))
-    if mansioni is None or conc is None or not 1 <= mansioni <= 100 or not 1 <= conc <= 100:
-        messages.error(request, "Le soglie sono: mansioni per persona da 1 a 100, carico concentrato da 1 a 100%.")
-        return _torna(p, "soglie")
-    p.soglia_mansioni_persona, p.soglia_concentrazione = mansioni, conc
-    p.save(update_fields=["soglia_mansioni_persona", "soglia_concentrazione", "updated_at"])
-    log_action(request, "prospetto_modifica", MODULE, {"prospetto": p.pk, "soglie": [mansioni, conc]}, oggetto=p)
     return _torna(p, "confronto")
 
 

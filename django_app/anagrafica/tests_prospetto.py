@@ -175,8 +175,7 @@ class MansioniTests(_Base):
         self.assertFalse(alta["per_mansione"][self.m1.pk]["concentrato"])
 
     def test_troppe_mansioni_e_persona_chiave_con_le_soglie(self):
-        self.p.soglia_mansioni_persona = 2
-        self.p.save()
+        SkillMatrixConfig.objects.update(soglia_mansioni_persona=2)
         self.riga(M.PERSONA_MANSIONE, self.verdi, self.m1.pk, modo=M.ENTRA, livello="U")
         ctx = self.ctx(requisiti=False)
         self.assertEqual([(x["id"], x["n"]) for x in ctx["persone_su_troppe"]], [(self.verdi, 3)])
@@ -373,14 +372,48 @@ class PagineTests(_Base):
             self.client.post(u, dati)
         self.assertEqual(self.p.modifiche.count(), 0)
 
-    def test_soglie_valide_e_no(self):
-        u = reverse("anagrafica:prospetto_soglie", args=[self.p.pk])
-        self.client.post(u, {"soglia_mansioni": 5, "soglia_concentrazione": 60})
-        self.p.refresh_from_db()
-        self.assertEqual((self.p.soglia_mansioni_persona, self.p.soglia_concentrazione), (5, 60))
-        self.client.post(u, {"soglia_mansioni": 0, "soglia_concentrazione": 500})
-        self.p.refresh_from_db()
-        self.assertEqual((self.p.soglia_mansioni_persona, self.p.soglia_concentrazione), (5, 60))
+    def test_soglie_dalle_impostazioni_valide_e_no(self):
+        config = SkillMatrixConfig.get_instance()
+        dati = {
+            "soglia_operativa": "U", "regola_multivoce": config.regola_multivoce, "soglia_uomo_solo": 2,
+            "finestra_continuita_mesi": 12, "preavviso_continuita_mesi": 9, "periodicita_refresh_mesi": 6,
+            "preavviso_refresh_giorni": 60, "etichetta_i": "I", "etichetta_l": "L", "etichetta_u": "U", "etichetta_o": "O",
+        }
+        u = reverse("anagrafica:skm_impostazioni")
+        self.client.post(u, {**dati, "soglia_concentrazione": 60, "soglia_mansioni_persona": 5})
+        config.refresh_from_db()
+        self.assertEqual((config.soglia_mansioni_persona, config.soglia_concentrazione), (5, 60))
+        self.client.post(u, {**dati, "soglia_concentrazione": 500, "soglia_mansioni_persona": 0})
+        config.refresh_from_db()
+        self.assertEqual((config.soglia_mansioni_persona, config.soglia_concentrazione), (5, 60))
+        pagina = self.client.get(reverse("anagrafica:prospetto", args=[self.p.pk]))
+        self.assertContains(pagina, "carico concentrato da 60%")
+        self.assertContains(pagina, "troppe mansioni oltre 5")
+        self.assertContains(pagina, reverse("anagrafica:skm_impostazioni"))
+
+    def test_la_soglia_delle_impostazioni_cambia_il_segnale(self):
+        def segnalate():
+            righe = svc.costruisci(self.p, requisiti=False)["mansioni_critiche"]
+            return [r for r in righe if r["concentrato_dopo"]]
+
+        SkillMatrixConfig.get_instance()
+        SkillMatrixConfig.objects.update(soglia_concentrazione=80)
+        self.assertTrue(segnalate())
+        SkillMatrixConfig.objects.update(soglia_concentrazione=101)
+        self.assertFalse(segnalate())
+
+    def test_il_carico_conta_solo_gli_operativi_e_non_supera_il_cento(self):
+        base = svc.Base()
+        mis = svc.misure(base, base.stato, soglia_mansioni=8, soglia_concentrazione=80, capi={})
+        righe = [r for r in mis["per_mansione"].values() if r["operativi"]]
+        self.assertTrue(any(r["fte"] > r["fte_operativi"] for r in righe))
+        self.assertLessEqual(max(r["concentrazione"] or 0 for r in mis["per_mansione"].values()), 100)
+
+    def test_fotografia_conserva_le_soglie_usate(self):
+        SkillMatrixConfig.get_instance()
+        SkillMatrixConfig.objects.update(soglia_concentrazione=70, soglia_mansioni_persona=4)
+        foto = svc.fotografia(svc.costruisci(self.p, requisiti=False))
+        self.assertEqual((foto["soglie"]["soglia_concentrazione"], foto["soglie"]["soglia_mansioni"]), (70, 4))
 
     def test_confronto_con_un_altro_prospetto(self):
         altro = P.objects.create(nome="Alternativa")

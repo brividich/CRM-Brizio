@@ -88,6 +88,23 @@ body.theme-dark .ana-input{border-color:var(--border)}
         </div>
       </div>
 
+      <div class="skc-card" id="sovraccarico" style="scroll-margin-top:130px;">
+        <h3>Sovraccarico sulle mansioni</h3>
+        <p class="hint">Segnali del Prospetto dei cambiamenti, calcolati dai coefficienti: non sono ore di lavoro.</p>
+        <div class="skc-field">
+          <label for="{{ form.soglia_concentrazione.id_for_label }}">Carico concentrato da (%)</label>
+          {{ form.soglia_concentrazione }}
+          <div class="help">Da questa quota media di tempo degli operativi la mansione è segnalata.</div>
+          {{ form.soglia_concentrazione.errors }}
+        </div>
+        <div class="skc-field">
+          <label for="{{ form.soglia_mansioni_persona.id_for_label }}">Troppe mansioni oltre</label>
+          {{ form.soglia_mansioni_persona }}
+          <div class="help">Oltre questo numero di mansioni la persona è segnalata.</div>
+          {{ form.soglia_mansioni_persona.errors }}
+        </div>
+      </div>
+
       <div class="skc-card">
         <h3>Continuità &amp; refresh (mesi)</h3>
         <p class="hint">Finestre di monitoraggio della continuità operativa e cadenza del refresh CAR.</p>
