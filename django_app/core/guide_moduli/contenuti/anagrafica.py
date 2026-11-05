@@ -440,6 +440,23 @@ GUIDA = {
                 ]),
                 ("nota", "Cambiare il centro di costo non sposta nessuno e non cambia i capi. Esporta dà una riga per "
                          "reparto; anche l'export delle Aree aziendali ha la colonna «Centro di costo»."),
+                ("p", "Dove compare: scheda del dipendente, elenco Dipendenti (colonna da aggiungere alla vista), Report "
+                      "dipendenti (colonna e filtro), Costo orario e Storico (filtro ed export)."),
+                ("def", [
+                    ("Reportistica, filtro", "«Filtri sulle persone» → «Centri di costo» vale per tutte le sezioni del "
+                                             "documento."),
+                    ("Modello pronto", "«Centri di costo: organico e costo orario» (Excel): organico, RML e andamento "
+                                       "per centro; le parti sul costo sono solo per chi ha il permesso sui dati HR "
+                                       "riservati."),
+                    ("Organico per centro di costo", "per centro i reparti, i «Ruoli del reparto», le persone e la %; "
+                                                     "chi non ha un centro va in «Senza centro di costo». La somma "
+                                                     "delle righe «Centro di costo» è il totale delle persone."),
+                    ("Altre sezioni", "colonna «Centro di costo» a scelta nelle sezioni con le persone; «Centro di "
+                                      "costo» anche in «Distribuzioni da mostrare», in «Dettaglio per» della formazione "
+                                      "erogata, in «Una riga per» e «Raggruppa i mesi per» del costo orario."),
+                ]),
+                ("nota", "Il centro di costo non ha uno storico: è quello di oggi dell'area della persona, anche per i "
+                         "mesi passati del costo orario."),
             ],
         },
         {
@@ -544,10 +561,10 @@ GUIDA = {
                     "riga; colonne «Sul mese prima» (€ e %), «Scostamento» (% dalla media dei mostrati: cambia con i "
                     "filtri), «Andamento» (mini-grafico); filtro «Mostra»: sopra/sotto la media, oltre ±10%, "
                     "aumentati, diminuiti.",
-                    "Cedolini → «Costo orario»: costo medio, minimo e massimo; filtri mese, reparto, ricerca; «Esporta ▾» "
+                    "Cedolini → «Costo orario»: costo medio, minimo e massimo; filtri mese, reparto, centro di costo, ricerca; «Esporta ▾» "
                     "(Excel o PDF; «tutto» = tutti i mesi).",
                     "«Storico»: una riga per dipendente e una colonna per mese (di serie gli ultimi 12), filtri Dal, "
-                    "Al, reparto e nome; ▲ ▼ rispetto al mese prima, «Variazione» in € e % nel periodo, «Media» di "
+                    "Al, reparto, centro di costo e nome; ▲ ▼ rispetto al mese prima, «Variazione» in € e % nel periodo, «Media» di "
                     "ogni mese; «Esporta ▾» con una colonna per mese.",
                     "Scheda del dipendente: ultimo valore nel riepilogo, ultimi 12 mesi con il calcolo tra le "
                     "retribuzioni e «Storico completo →».",

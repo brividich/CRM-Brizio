@@ -52,6 +52,7 @@ from ..forms import (
 from ..models import (
     AnagraficaStatPermission,
     AreaAziendale,
+    CentroDiCosto,
     Reparto,
     CartellaDocumentoDipendente,
     DipendenteAnagraficaAziendale,
@@ -4573,6 +4574,7 @@ def dipendenti_report(request):
     q = request.GET.get("q", "").strip()
     reparto_filter = request.GET.get("reparto", "").strip()
     area_filter = request.GET.get("area", "").strip()
+    centro_filter = request.GET.get("centro_costo", "").strip()
     contratto_filter = request.GET.get("tipologia_contratto", "").strip()
     consenso_filter = request.GET.get("consenso_privacy", "").strip()
     cat_protetta_filter = request.GET.get("categoria_protetta", "").strip()
@@ -4602,6 +4604,13 @@ def dipendenti_report(request):
         all_rows = [
             row for row in all_rows
             if str(row.get("reparto") or "").strip().casefold() == reparto_filter.casefold()
+        ]
+
+    # Filtro per centro di costo (dell'area canonica)
+    if centro_filter:
+        all_rows = [
+            row for row in all_rows
+            if str(row.get("centro_di_costo_nome") or "").strip().casefold() == centro_filter.casefold()
         ]
 
     # Filtri su campi Django: area aziendale canonica e tipologia_contratto
@@ -4662,7 +4671,7 @@ def dipendenti_report(request):
         writer = safe_csv_writer(response, delimiter=";")
         writer.writerow([
             "ID", "Cognome", "Nome", "Matricola", "Reparto",
-            "Area aziendale", "Ruolo aziendale", "Tipologia contratto",
+            "Area aziendale", "Centro di costo", "Ruolo aziendale", "Tipologia contratto",
             "Livello inquadramento", "Data prima assunzione",
             "Consenso privacy", "Email aziendale", "Telefono aziendale",
         ])
@@ -4675,6 +4684,7 @@ def dipendenti_report(request):
                 row.get("matricola", ""),
                 row.get("reparto", ""),
                 row.get("area_aziendale_nome", "") or "",
+                row.get("centro_di_costo_nome", "") or "",
                 getattr(az, "ruolo_aziendale", "") or "",
                 getattr(az, "get_tipologia_contratto_display", lambda: "")() if az else "",
                 getattr(az, "livello_inquadramento", "") or "",
@@ -4701,11 +4711,13 @@ def dipendenti_report(request):
         "q": q,
         "reparto": reparto_filter,
         "area": area_filter,
+        "centro_costo": centro_filter,
         "tipologia_contratto": contratto_filter,
         "consenso_privacy": consenso_filter,
         "categoria_protetta": cat_protetta_filter,
         "reparti": reparti_list,
         "aree": aree_opts,
+        "centri_costo": list(CentroDiCosto.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)),
         "contratto_choices": DipendenteAnagraficaAziendale.CONTRATTO_CHOICES,
         "n_totale": len(all_rows),
     })
@@ -5555,6 +5567,10 @@ def organigramma_persona_popup(request, legacy_id: int):
         "mansione": dip.get("mansione") or "",
         "reparto": (aziendale.area if aziendale and aziendale.area else dip.get("reparto")) or "",
         "area_aziendale": str(aziendale.area_aziendale) if aziendale and aziendale.area_aziendale_id else "",
+        "centro_costo": (
+            aziendale.area_aziendale.centro_di_costo.nome
+            if aziendale and aziendale.area_aziendale_id and aziendale.area_aziendale.centro_di_costo_id else ""
+        ),
         "ruolo_principale": (aziendale.ruolo_aziendale if aziendale else "") or dip.get("ruolo") or "",
         "data_assunzione": (
             (aziendale.data_assunzione_ultima or aziendale.data_prima_assunzione) if aziendale else None

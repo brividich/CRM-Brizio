@@ -111,6 +111,11 @@ body.theme-dark .co-mese.co-ora .co-col{ background:#5aa9e0; }
             {% for r in reparti %}<option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}
           </select>
         </div>
+        <div class="fmd-filtf"><label for="co-centro">Centro di costo</label>
+          <select id="co-centro" name="centro_costo"><option value="">Tutti</option>
+            {% for c in centri %}<option value="{{ c }}"{% if c == centro %} selected{% endif %}>{{ c }}</option>{% endfor %}
+          </select>
+        </div>
         <div class="fmd-filtf"><label for="co-mostra">Mostra</label>
           <select id="co-mostra" name="mostra"><option value="">Tutti</option>
             {% for k, etichetta in filtri_mostra %}<option value="{{ k }}"{% if k == mostra %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
@@ -133,12 +138,13 @@ body.theme-dark .co-mese.co-ora .co-col{ background:#5aa9e0; }
       <p class="fmd-muted" style="font-size:12px; margin:10px 16px 0;">Clic sul nome per l'andamento mese per mese. «Scostamento» è rispetto alla media dei dipendenti mostrati (€ {{ media_euro }}/h): cambia con i filtri; passando sopra c'è anche quello dalla media del reparto.</p>
       <div class="fmd-tablewrap">
         <table class="fmd-table" id="co-tabella">
-          <thead><tr><th>Dipendente</th><th>Reparto</th><th>Classificazione</th><th class="fmd-num">RML</th><th class="fmd-num">Costo orario</th><th class="fmd-num">Sul mese prima</th><th class="fmd-num">Scostamento</th><th>Andamento</th></tr></thead>
+          <thead><tr><th>Dipendente</th><th>Reparto</th><th>Centro di costo</th><th>Classificazione</th><th class="fmd-num">RML</th><th class="fmd-num">Costo orario</th><th class="fmd-num">Sul mese prima</th><th class="fmd-num">Scostamento</th><th>Andamento</th></tr></thead>
           <tbody>
             {% for x in righe %}
             <tr>
               <td><button type="button" class="co-apri" aria-expanded="false" aria-controls="co-det-{{ forloop.counter }}" title="Mostra l'andamento"><span class="co-chev" aria-hidden="true">▸</span>{{ x.nome }}</button>{% if not x.legacy_id %} <span class="fmd-pill fmd-pill-grey">non abbinato</span>{% endif %}</td>
               <td class="fmd-muted">{{ x.reparto|default:"—" }}</td>
+              <td class="fmd-muted">{{ x.centro_costo|default:"—" }}</td>
               <td>{% if x.legacy_id %}<a class="fmd-data-link" href="{% url 'anagrafica:mansioni_coefficienti' x.legacy_id %}" title="Classificazione e coefficienti delle sue mansioni">{{ x.classe|default:"da indicare" }}</a>{% else %}—{% endif %}</td>
               <td class="fmd-num" data-sort-value="{{ x.c.rml|stringformat:'s' }}">€ {{ x.c.rml|floatformat:"2g" }}{% if x.c.rml_manuale %} <span class="fmd-pill fmd-pill-amber" title="Voce RML corretta a mano da HR">a mano</span>{% endif %}</td>
               <td class="fmd-num" data-sort-value="{{ x.c.costo_orario|stringformat:'s' }}"><strong>€ {{ x.c.costo_orario|floatformat:"2g" }}</strong>{% if x.c.divisore_giorni != giorni or x.c.divisore_ore != ore %}<div class="fmd-muted" style="font-size:11.5px;">con {{ x.c.divisore_giorni.normalize }} × {{ x.c.divisore_ore.normalize }}</div>{% endif %}</td>
@@ -189,7 +195,7 @@ body.theme-dark .co-mese.co-ora .co-col{ background:#5aa9e0; }
       <div class="fmd-empty">
         <span class="fmd-ebadge" style="background:#eef2f7;color:#94a3b8;"><svg class="fmd-ico"><use href="#i-coins"/></svg></span>
         <span class="fmd-et">Nessun costo orario</span>
-        <span class="fmd-em">{% if q or reparto or mostra %}Nessun risultato con i filtri selezionati.{% else %}Serve la voce RML nei cedolini importati.{% endif %}</span>
+        <span class="fmd-em">{% if q or reparto or centro or mostra %}Nessun risultato con i filtri selezionati.{% else %}Serve la voce RML nei cedolini importati.{% endif %}</span>
       </div>
       {% endif %}
     </section>

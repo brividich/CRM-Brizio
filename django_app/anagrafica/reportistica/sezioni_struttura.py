@@ -96,7 +96,7 @@ def _classe_principale(abilitazioni) -> str:
 
 def _perimetro_ristretto(ctx: Contesto) -> bool:
     per = ctx.perimetro
-    return bool(per.reparti or per.aree or per.mansioni or per.contratti or per.livelli or per.persone
+    return bool(per.reparti or per.aree or per.centri_costo or per.mansioni or per.contratti or per.livelli or per.persone
                 or per.qualifiche or per.assunti_dal or per.assunti_al)
 
 
@@ -148,7 +148,7 @@ def _ruoli_mansioni_persona(ctx: Contesto, o: dict) -> Risultato:
         if o["una_riga_per"] == "mansione" and sue:
             for ab in sue:
                 res.riga({
-                    "nominativo": p.nominativo, "reparto": p.reparto, "area": p.area,
+                    "nominativo": p.nominativo, "reparto": p.reparto, "area": p.area, "centro_costo": p.centro_costo,
                     "ruoli": ", ".join(a.ruolo.nome for a in suoi_ruoli), "mansione": ab.competenza.nome,
                     "livello": f"{ab.livello} · {LIVELLI.get(ab.livello, '')}" if ab.livello else "",
                     "operativa": "Sì" if ab.is_operativa(soglia) else "No",
@@ -159,7 +159,7 @@ def _ruoli_mansioni_persona(ctx: Contesto, o: dict) -> Risultato:
                 }, TONE_WARN if ab in fuori else "")
             continue
         res.riga({
-            "nominativo": p.nominativo, "reparto": p.reparto, "area": p.area,
+            "nominativo": p.nominativo, "reparto": p.reparto, "area": p.area, "centro_costo": p.centro_costo,
             "ruoli": ", ".join(a.ruolo.nome for a in suoi_ruoli),
             "mansione": "; ".join(f"{ab.competenza.nome} ({ab.livello or '—'})" for ab in sue),
             "livello": "", "operativa": "", "n_mansioni": len(sue), "operative": operative, "capo": capo_nome,
@@ -185,7 +185,7 @@ _registra(Sezione(
     descrizione="Per ogni persona i ruoli, le mansioni con il livello, il capo e cosa non torna.",
     builder=_ruoli_mansioni_persona,
     riferimenti=(f"{ISO_9001} §5.3", f"{ISO_9001} §7.2", f"{EN_9100} §7.2"),
-    colonne=(("nominativo", "Nominativo"), ("reparto", "Reparto"), ("area", "Area aziendale"), ("ruoli", "Ruoli"),
+    colonne=(("nominativo", "Nominativo"), ("reparto", "Reparto"), ("area", "Area aziendale"), ("centro_costo", "Centro di costo"), ("ruoli", "Ruoli"),
              ("mansione", "Mansioni"), ("livello", "Livello"), ("operativa", "Operativa"),
              ("n_mansioni", "N. mansioni"), ("operative", "Operative"), ("capo", "Capo"),
              ("classificazione", "Classificazione"), ("coefficiente", "Coefficiente"), ("avvisi", "Da sistemare")),
@@ -237,7 +237,7 @@ def _ruoli_persone(ctx: Contesto, o: dict) -> Risultato:
             elif o["solo_senza_mansione"]:
                 continue
             res.riga({
-                "ruolo": r.nome, "sigla": r.sigla or "", "nominativo": p.nominativo, "reparto": p.reparto,
+                "ruolo": r.nome, "sigla": r.sigla or "", "nominativo": p.nominativo, "reparto": p.reparto, "centro_costo": p.centro_costo,
                 "area": p.area, "dal": a.data_inizio,
                 "mansioni_ruolo": "; ".join(f"{ab.competenza.nome} ({ab.livello or '—'})" for ab in sue),
                 "avviso": "" if sue else "nessuna mansione del ruolo",
@@ -261,7 +261,7 @@ _registra(Sezione(
     descrizione="Per ruolo le persone che lo ricoprono, con le mansioni del ruolo che hanno in lista.",
     builder=_ruoli_persone,
     riferimenti=(f"{ISO_9001} §5.3", f"{ISO_45001} §5.3"),
-    colonne=(("ruolo", "Ruolo"), ("sigla", "Sigla"), ("nominativo", "Nominativo"), ("reparto", "Reparto"),
+    colonne=(("ruolo", "Ruolo"), ("sigla", "Sigla"), ("nominativo", "Nominativo"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"),
              ("area", "Area aziendale"), ("dal", "Dal"), ("mansioni_ruolo", "Mansioni del ruolo in lista"),
              ("avviso", "Da sistemare")),
     predefinite=("ruolo", "nominativo", "reparto", "mansioni_ruolo", "avviso"),
