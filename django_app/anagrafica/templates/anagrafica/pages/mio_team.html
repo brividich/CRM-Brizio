@@ -1,5 +1,6 @@
 {% extends "core/base.html" %}
 {% load anagrafica_extras %}
+{% load presenti_tags %}
 
 {% block title %}Il mio team | Anagrafica HR{% endblock %}
 
@@ -43,7 +44,7 @@
           {% for r in righe %}
           <tr>
             <td>
-              {% if r.scheda %}<a href="{% url 'anagrafica:dipendente_detail' r.id %}">{{ r.nome }}</a>{% else %}{{ r.nome }}{% endif %}
+              {% if r.scheda %}<a href="{% url 'anagrafica:dipendente_detail' r.id %}">{{ r.nome }}</a>{% else %}{{ r.nome }}{% endif %}{% pallino_presenza r.id %}
               {% if r.mansione %}<div class="mt-mansione">{{ r.mansione }}</div>{% endif %}
             </td>
             <td class="mt-col-area">{{ r.area|default:r.reparto|default:"—" }}</td>

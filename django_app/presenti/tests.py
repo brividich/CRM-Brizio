@@ -136,6 +136,15 @@ class ServiziTests(TestCase):
         with patch.object(services, "ids_presenti", return_value=None):
             self.assertEqual(Template("{% load presenti_tags %}{% pallino_presenza 501 %}").render(Context({})), "")
 
+    def test_pallino_con_ids_passati_e_stile_separato(self):
+        t = Template("{% load presenti_tags %}{% pallino_presenza 501 ids=ids stile=False %}|{% pallino_presenza 9 ids=ids stile=False %}|{% pallino_presenza 5 ids=nessuno %}")
+        out = t.render(Context({"ids": {501}, "nessuno": None}))
+        self.assertIn("is-dentro", out.split("|")[0])
+        self.assertIn("is-fuori", out.split("|")[1])
+        self.assertEqual(out.split("|")[2], "")
+        self.assertNotIn("<style>", out)
+        self.assertIn("<style>", Template("{% load presenti_tags %}{% pallino_presenza_stile %}").render(Context({})))
+
     def test_pdf(self):
         s, _, _ = self._stato()
         contenuto = pdf.genera_pdf(s["presenti"], timezone.localtime())
