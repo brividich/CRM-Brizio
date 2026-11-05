@@ -23,6 +23,25 @@ def _voce(giorni=3, titolo="Revisione furgone", soggetto="Officina", source="gen
                         data_scadenza=oggi + timedelta(days=giorni), giorni=giorni, url=url, extra=extra or {})
 
 
+class ChiaveDistintaTests(TestCase):
+    def test_stesso_corso_e_data_ma_persone_diverse(self):
+        from scadenzario.calendario import chiave_scadenza
+
+        comune = dict(source="hr", kind="formazione", kind_label="", titolo="Corso sintetico", reparto="",
+                      data_scadenza=date(2027, 1, 1), giorni=1, url="/x", elemento="Corso sintetico")
+        a = ScadenzaItem(soggetto="Persona Uno", **comune)
+        b = ScadenzaItem(soggetto="Persona Due", **comune)
+        self.assertNotEqual(chiave_scadenza(a), chiave_scadenza(b))
+
+    def test_generica_rinominata_tiene_la_chiave(self):
+        from scadenzario.calendario import chiave_scadenza
+
+        comune = dict(source="generiche", kind="cat-1", kind_label="", reparto="", data_scadenza=date(2027, 1, 1),
+                      giorni=1, url="/x", elemento="s1")
+        self.assertEqual(chiave_scadenza(ScadenzaItem(titolo="A", soggetto="A", **comune)),
+                         chiave_scadenza(ScadenzaItem(titolo="B", soggetto="B", **comune)))
+
+
 class FestivitaTests(TestCase):
     def test_pasqua_e_feste(self):
         self.assertEqual(cal.pasqua(2026), date(2026, 4, 5))

@@ -15,7 +15,8 @@ from __future__ import annotations
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from core.notifiche import invia_notifica
+from core.notifiche import giorno_di_promemoria, invia_notifica
+from core.permessi.identita import utente_da_anagrafica
 
 from anagrafica.services.email_digest import digest_fragment, scadenza_badge
 from anagrafica.services.reminders import get_reminder_recipients
@@ -71,9 +72,9 @@ class Command(BaseCommand):
                     f"  [{over}gg] dip #{d.legacy_anagrafica_id} - {d.corso.codice} {d.corso.titolo}"
                     + (f" - scaduto il {d.data_scadenza:%d-%m-%Y}" if d.data_scadenza else " - scaduto")
                 )
-                if not dry_run:
+                if not dry_run and d.data_scadenza and giorno_di_promemoria((d.data_scadenza - today).days, days):
                     invia_notifica(
-                        d.legacy_anagrafica_id, "formazione_scadenza",
+                        utente_da_anagrafica(d.legacy_anagrafica_id), "formazione_scadenza",
                         f"Corso obbligatorio scaduto: {d.corso.titolo}"
                         + (f" dal {d.data_scadenza:%d-%m-%Y}." if d.data_scadenza else "."),
                         "/anagrafica/formazione/",
@@ -88,9 +89,9 @@ class Command(BaseCommand):
                     f"  [{left}gg] dip #{d.legacy_anagrafica_id} - {d.corso.codice} {d.corso.titolo}"
                     + (f" - scadenza {d.data_scadenza:%d-%m-%Y}" if d.data_scadenza else "")
                 )
-                if not dry_run:
+                if not dry_run and giorno_di_promemoria(left, days):
                     invia_notifica(
-                        d.legacy_anagrafica_id, "formazione_scadenza",
+                        utente_da_anagrafica(d.legacy_anagrafica_id), "formazione_scadenza",
                         f"Corso obbligatorio in scadenza tra {left} giorni: {d.corso.titolo}.",
                         "/anagrafica/formazione/",
                     )

@@ -22,6 +22,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def giorno_di_promemoria(giorni_mancanti: int, anticipo: int = 30) -> bool:
+    """Giorni in cui ricordare una scadenza alla persona: a ``anticipo``, 14, 7 e 1
+    giorno, il giorno stesso; scaduta, il giorno dopo e poi ogni 7 giorni."""
+    if giorni_mancanti >= 0:
+        return giorni_mancanti in {anticipo, 14, 7, 1, 0}
+    return (-giorni_mancanti) % 7 == 1
+
+
 def invia_notifica(
     legacy_user_id: int | None,
     tipo: str,

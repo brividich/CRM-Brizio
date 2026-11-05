@@ -181,7 +181,7 @@ def _sgi_certificazioni(ctx) -> list:
         if a.stato == "PIANIFICATO" and a.data_inizio and a.data_inizio <= ctx.orizzonte:
             items.append(_item(ctx, SOURCE_SGI, "audit_esterno", f"{a.get_tipo_display()} {a.ente}".strip(), a.ente,
                                a.data_inizio, url, elemento=a.tipo, elemento_label=a.get_tipo_display()))
-        if a.risposta_entro and a.risposta_entro <= ctx.orizzonte:
+        if a.risposta_entro and not a.piano_inviato_il and a.risposta_entro <= ctx.orizzonte:
             items.append(_item(ctx, SOURCE_SGI, "risposta_ente", f"Risposta a {a.ente}".strip(), a.ente,
                                a.risposta_entro, url, elemento=a.tipo, elemento_label=a.get_tipo_display()))
     return items
@@ -203,7 +203,7 @@ def _sgi_audit(ctx) -> list:
         for v in AuditVerificaEfficacia.objects.select_related("esito").order_by("esito_id", "registrato_il", "pk"):
             ultime[v.esito_id] = v
         for v in ultime.values():
-            if v.prossima_verifica and v.prossima_verifica <= ctx.orizzonte:
+            if v.risultato != "EFFICACE" and v.prossima_verifica and v.prossima_verifica <= ctx.orizzonte:
                 items.append(_item(ctx, SOURCE_SGI, "efficacia", f"Efficacia rilievo {v.esito.clausola or v.esito_id}",
                                    v.get_risultato_display(), v.prossima_verifica,
                                    _url("sistema_gestione:audit_dettaglio", v.esito.audit_id)))
@@ -219,7 +219,7 @@ def _sgi_audit(ctx) -> list:
             return items
         car = car.filter(responsabile_id=uid)  # la propria CAR la vede sempre
     for c in car:
-        url = _url("sistema_gestione:procedura_car", c.pk)
+        url = _url("sistema_gestione:procedura_car", c.registro_id)
         nome = _nome_utente(c.responsabile)
         titolo = f"CAR {getattr(c.registro, 'numero', '') or c.pk}".strip()
         if not c.analizzata_il and c.scadenza_analisi <= ctx.orizzonte:
@@ -238,6 +238,8 @@ def _sgi_soa(ctx) -> list:
     items = []
     for v in SoaVoce.objects.filter(revisione__stato="APPROVATA", scadenza__isnull=False,
                                     scadenza__lte=ctx.orizzonte).select_related("controllo"):
+        if not v.ha_azione_aperta:
+            continue
         controllo = str(v.controllo)
         items.append(_item(ctx, SOURCE_SGI, "soa", (v.azione or controllo)[:200], v.responsabile, v.scadenza,
                            _url("sistema_gestione:soa_voce", v.pk), elemento=controllo))
@@ -388,11 +390,16 @@ def collect_procedure(ctx) -> list:
         if not uid:
             return []
         qs = qs.filter(user_id=uid)  # le proprie prese visione si vedono sempre
+    uid = _utente_id(ctx)
     for a in qs:
         campagna = a.campaign.name if a.campaign_id else ""
+        # La scheda dell'assegnazione si apre solo per la propria: al gestore la campagna.
+        if a.campaign_id and a.user_id != uid:
+            url = _url("procedure_refresh:campaign_detail", a.campaign_id)
+        else:
+            url = _url("procedure_refresh:assignment_detail", a.pk)
         items.append(_item(ctx, SOURCE_PROCEDURE, "assegnazione", str(a.revision) if a.revision_id else campagna,
-                           _nome_utente(a.user), a.due_date, _url("procedure_refresh:assignment_detail", a.pk),
-                           elemento=campagna))
+                           _nome_utente(a.user), a.due_date, url, elemento=campagna))
     if gestore:
         for c in ProcedureCampaign.objects.filter(status="published", due_date__isnull=False, due_date__lte=ctx.orizzonte):
             items.append(_item(ctx, SOURCE_PROCEDURE, "campagna", c.name, "", c.due_date,

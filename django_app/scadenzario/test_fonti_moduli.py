@@ -71,6 +71,43 @@ class SistemaGestioneTests(TestCase):
         self.assertEqual(voci[0].soggetto, "Auditor Esempio")
 
 
+class VociGiaEvaseTests(TestCase):
+    """Le voci che il modulo considera chiuse non restano aperte nello scadenzario."""
+
+    def test_risposta_ente_con_piano_inviato_sparisce(self):
+        from sistema_gestione.models import AuditEsterno
+
+        oggi = timezone.localdate()
+        dati = dict(tipo=AuditEsterno._meta.get_field("tipo").choices[0][0], ente="Ente Esempio",
+                    stato=AuditEsterno.STATO_SVOLTO, data_inizio=oggi, risposta_entro=oggi + timedelta(days=5))
+        AuditEsterno.objects.create(**dati)
+        self.assertEqual([v.kind for v in fm.collect_sgi(_ctx(sistema=True)) if v.kind == "risposta_ente"], ["risposta_ente"])
+        AuditEsterno.objects.update(piano_inviato_il=oggi)
+        self.assertEqual([v.kind for v in fm.collect_sgi(_ctx(sistema=True)) if v.kind == "risposta_ente"], [])
+
+    def test_gestore_va_alla_campagna_non_alla_presa_visione_altrui(self):
+        from unittest.mock import patch
+
+        righe = [SimpleNamespace(pk=5, campaign_id=9, user_id=1, due_date=timezone.localdate(), revision_id=None,
+                                 campaign=SimpleNamespace(name="Campagna sintetica"), user=None)]
+
+        class Qs(list):
+            def filter(self, **k):
+                return self
+
+            def select_related(self, *a):
+                return self
+
+            def exclude(self, *a, **k):
+                return self
+
+        with patch("procedure_refresh.models.ProcedureAssignment.objects", Qs(righe)), \
+                patch("procedure_refresh.models.ProcedureCampaign.objects", Qs()), \
+                patch.object(fm, "_utente_id", return_value=2), patch.object(fm, "_apre", return_value=True):
+            voci = fm.collect_procedure(_ctx(sistema=True))
+        self.assertIn("/9", [v.url for v in voci][0])
+
+
 class AltreFontiTests(TestCase):
     def test_amministratore_di_sistema(self):
         from registro_log.models import AmministratoreSistema

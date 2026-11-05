@@ -96,9 +96,17 @@ def non_lavorativo(giorno: date | None, feste: dict[date, str]) -> str:
 # ---------------------------------------------------------------------------
 
 def chiave_scadenza(v) -> str:
-    """Impronta stabile di una scadenza: fonte, tipo, elemento, link e data."""
-    base = "|".join((v.source or "", v.kind or "", v.elemento or "", v.url or "",
-                     v.data_scadenza.isoformat() if v.data_scadenza else ""))
+    """Impronta stabile di una scadenza: fonte, tipo, elemento, link e data.
+
+    Soggetto e titolo distinguono voci altrimenti uguali (stesso corso e stessa data per
+    due persone, due FIR dello stesso giorno). Le generiche hanno già l'attività in
+    ``elemento``: rinominarle non deve far decadere la presa in carico.
+    """
+    parti = [v.source or "", v.kind or "", v.elemento or "", v.url or "",
+             v.data_scadenza.isoformat() if v.data_scadenza else ""]
+    if v.source != "generiche":
+        parti += [v.soggetto or "", v.titolo or ""]
+    base = "|".join(parti)
     return hashlib.sha1(base.encode("utf-8")).hexdigest()
 
 
