@@ -49,6 +49,7 @@ _ROUTE_BINDINGS = {
     "presenti:home": PERM_LISTA,
     "presenti:lista_parziale": PERM_LISTA,
     "presenti:pdf": PERM_LISTA,
+    "presenti:andamento": PERM_LISTA,
     "presenti:guida": PERM_LISTA,
     "presenti:appello": PERM_APPELLO,
     "presenti:appello_avvia": PERM_APPELLO,

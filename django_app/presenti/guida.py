@@ -27,6 +27,8 @@ SEZIONI: list[dict] = [
                 ("Presenti adesso", "la lista live con turno, matricola, nome, reparto, ora di entrata e incarichi di sicurezza."),
                 ("Esterni in azienda", "visitatori, ditte e docenti registrati in ingresso al GuestPortal e non ancora "
                  "usciti: tabella sotto i dipendenti, nell'appello e nel PDF."),
+                ("Andamento per reparto", "quante persone c'erano a ogni ora di oggi, reparto per reparto: solo numeri, "
+                 "nessun nome."),
                 ("Appello di evacuazione", "l'elenco per contare le persone al punto di raccolta, dipendenti ed esterni, "
                  "condiviso fra chi conta."),
                 ("Uscite non timbrate", "le giornate in cui le timbrature non tornano (uscita mancante, verso sbagliato)."),
@@ -55,6 +57,18 @@ SEZIONI: list[dict] = [
             ]),
             ("p", "Gli incarichi (Preposto, Squadra Antincendio, Addetto Primo Soccorso, RLS, ASPP, RSPP…) vengono "
                   "dall'organigramma della sicurezza ISO 45001 in Anagrafica: si aggiornano lì, non in questo modulo."),
+        ],
+    },
+    {
+        "id": "andamento",
+        "titolo": "Andamento per reparto",
+        "blocchi": [
+            ("p", "Tabella con una riga per reparto e una colonna per ora, dalle 5 alle 22: in ogni casella quante "
+                  "persone del reparto erano in azienda allo scoccare di quell'ora. Più scuro = più persone. "
+                  "Le ore che devono ancora arrivare hanno un puntino."),
+            ("p", "«Adesso» usa la stessa regola e gli stessi dati della lista dei presenti. Il reparto è quello "
+                  "dell'anagrafica, non il posto dove la persona si trova. Gli esterni non sono contati qui: sono "
+                  "nella lista dei presenti. I dati si aggiornano al massimo ogni 5 minuti."),
         ],
     },
     {

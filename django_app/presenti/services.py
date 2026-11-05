@@ -253,3 +253,76 @@ def filtra(presenti: list[dict], *, q: str = "", reparto: str = "", incarico: st
                 continue
         risultato.append(p)
     return risultato
+
+
+# ── Andamento per reparto (cruscotto) ─────────────────────────────────────────
+
+_CHIAVE_ANDAMENTO = "presenti:andamento:v1"
+DURATA_ANDAMENTO = 300  # secondi: il cruscotto non è live come la lista
+ORE_CRUSCOTTO = range(5, 23)  # dalle 5 alle 22
+
+
+def _dentro_alle(seq: list[tuple], istante) -> bool:
+    """Dentro a quell'ora: ultima timbratura prima dell'istante in entrata."""
+    stato = False
+    for quando, verso in seq:
+        if quando > istante:
+            break
+        stato = verso == "E"
+    return stato
+
+
+def andamento(*, forza: bool = False) -> dict:
+    """Persone in azienda ora per ora, per reparto, oggi. Solo numeri, nessun nome.
+
+    ``{"aggiornato_il", "errore", "ore": [5..22], "righe": [{reparto, celle: [n|None], adesso}],
+    "totale": {celle, adesso}, "massimo"}``; ``None`` nelle ore future.
+    """
+    if not forza:
+        valore = cache.get(_CHIAVE_ANDAMENTO)
+        if valore is not None:
+            return valore
+    from datetime import datetime as _dt
+
+    adesso = timezone.localtime()
+    base = {"aggiornato_il": adesso, "ore": list(ORE_CRUSCOTTO), "righe": [], "totale": None,
+            "massimo": 0, "errore": ""}
+    try:
+        persone = solari.leggi_timbrature_giorno(adesso.date())
+    except solari.SolariNonConfigurato as exc:
+        valore = {**base, "errore": str(exc)}
+        cache.set(_CHIAVE_ANDAMENTO, valore, 20)
+        return valore
+    except Exception as exc:
+        logger.warning("Andamento presenze: lettura Solari fallita: %s", exc)
+        valore = {**base, "errore": "Il database delle timbrature non risponde. Riprova tra poco."}
+        cache.set(_CHIAVE_ANDAMENTO, valore, 20)
+        return valore
+
+    agganci = _anagrafica_per_cf({p["codice_fiscale"] for p in persone.values() if p["codice_fiscale"]})
+    ora_naive = adesso.replace(tzinfo=None)
+    istanti = [_dt.combine(adesso.date(), _dt.min.time()).replace(hour=h) for h in ORE_CRUSCOTTO]
+    per_reparto: dict[str, dict] = {}
+    for p in persone.values():
+        a = agganci.get(p["codice_fiscale"])
+        reparto = (a or {}).get("reparto") or ("Reparto non indicato" if a else "Non collegati all'anagrafica")
+        voce = per_reparto.setdefault(reparto, {"reparto": reparto, "celle": [0] * len(istanti), "adesso": 0})
+        for k, ist in enumerate(istanti):
+            if ist <= ora_naive and _dentro_alle(p["seq"], ist):
+                voce["celle"][k] += 1
+    # «Adesso» = stessa regola e stessa fotografia della lista live (una sola definizione di presente).
+    s = stato()
+    for p in s["presenti"]:
+        reparto = p.get("reparto") or ("Reparto non indicato" if p.get("legacy_id") else "Non collegati all'anagrafica")
+        per_reparto.setdefault(reparto, {"reparto": reparto, "celle": [0] * len(istanti), "adesso": 0})["adesso"] += 1
+    righe = sorted(per_reparto.values(), key=lambda v: (-v["adesso"], -max(v["celle"] or [0]), v["reparto"]))
+    for v in righe:
+        v["celle"] = [n if ist <= ora_naive else None for n, ist in zip(v["celle"], istanti)]
+    totale = {
+        "celle": [None if ist > ora_naive else sum(v["celle"][k] or 0 for v in righe) for k, ist in enumerate(istanti)],
+        "adesso": sum(v["adesso"] for v in righe),
+    }
+    massimo = max([n for v in righe for n in v["celle"] if n] or [0])
+    valore = {**base, "righe": righe, "totale": totale, "massimo": massimo}
+    cache.set(_CHIAVE_ANDAMENTO, valore, DURATA_ANDAMENTO)
+    return valore

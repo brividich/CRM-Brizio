@@ -426,6 +426,39 @@ class PresenzaGiornataTests(SimpleTestCase):
         self.assertIn("turno di notte", p[5]["verifica"])
 
 
+@override_settings(CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}})
+class AndamentoTests(TestCase):
+    """Cruscotto per reparto: persone dentro a ogni ora, solo numeri."""
+
+    def setUp(self):
+        cache.clear()
+        self.admin = get_user_model().objects.create_superuser("pres_and", password="x")
+        self.client.force_login(self.admin)
+        oggi = datetime.combine(date.today(), datetime.min.time())
+        giorno = {
+            11: {"codice_fiscale": CF_A, "seq": [(oggi.replace(hour=6, minute=50), "E")]},
+            12: {"codice_fiscale": CF_B, "seq": [(oggi.replace(hour=5, minute=30), "E"), (oggi.replace(hour=6, minute=10), "U")]},
+        }
+        for p in (patch.object(solari, "leggi_timbrature_giorno", return_value=giorno),
+                  patch.object(solari, "leggi_presenti", side_effect=lambda *a, **k: _solari_righe()),
+                  patch.object(services, "_anagrafica_per_cf", side_effect=_aggancio)):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_conteggi_per_ora_e_pagina(self):
+        d = services.andamento()
+        self.assertEqual(d["errore"], "")
+        tot = d["totale"]["celle"]
+        ore = d["ore"]
+        if datetime.now().hour >= 7:
+            self.assertEqual(tot[ore.index(6)], 1)   # alle 6:00 c'era solo chi era entrato alle 5:30
+            self.assertEqual(tot[ore.index(7)], 1)   # alle 7:00 chi è entrato alle 6:50 (l'altro è uscito)
+        r = self.client.get(reverse("presenti:andamento"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Andamento per reparto")
+        self.assertNotContains(r, "Rossi")  # nessun nome
+
+
 class UsciteTests(TestCase):
     def setUp(self):
         ieri = timezone.localdate() - timedelta(days=1)

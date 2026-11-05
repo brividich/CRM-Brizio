@@ -87,6 +87,19 @@ def pdf_presenti(request):
 
 @login_required
 @require_GET
+def andamento_view(request):
+    """Cruscotto: persone in azienda ora per ora per reparto, oggi. Solo numeri, nessun nome."""
+    dati = services.andamento()
+    massimo = dati["massimo"] or 1
+    righe = []
+    for v in dati["righe"]:
+        celle = [{"n": n, "livello": None if n is None else min(5, -(-n * 5 // massimo))} for n in v["celle"]]
+        righe.append({**v, "celle_vis": celle})
+    return render(request, "presenti/andamento.html", _ctx(request, "andamento", dati=dati, righe=righe))
+
+
+@login_required
+@require_GET
 def guida(request):
     if (request.GET.get("formato") or "") == "pdf":
         from core.guida_pdf import render_guida_pdf

@@ -32,6 +32,15 @@ GUIDA = {
             ],
         },
         {
+            "id": "andamento",
+            "titolo": "Andamento per reparto",
+            "blocchi": [
+                ("p", "Scheda «Andamento per reparto»: persone in azienda a ogni ora di oggi (5-22) per reparto "
+                      "dell'anagrafica, con colonna «Adesso» uguale alla lista. Solo numeri, nessun nome; dati "
+                      "aggiornati al massimo ogni 5 minuti. Gli esterni non sono contati."),
+            ],
+        },
+        {
             "id": "appello",
             "titolo": "Appello di evacuazione",
             "blocchi": [

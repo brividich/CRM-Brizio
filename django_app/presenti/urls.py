@@ -12,6 +12,7 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("lista/", views.lista_parziale, name="lista_parziale"),
     path("pdf/", views.pdf_presenti, name="pdf"),
+    path("andamento/", views.andamento_view, name="andamento"),
     path("guida/", views.guida, name="guida"),
     path("appello/", views.appello, name="appello"),
     path("appello/avvia/", views.appello_avvia, name="appello_avvia"),

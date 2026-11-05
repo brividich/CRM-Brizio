@@ -194,6 +194,40 @@ def leggi_presenti(giorno: date | None = None) -> list[dict]:
     return risultato
 
 
+def leggi_timbrature_giorno(giorno: date | None = None) -> dict[int, dict]:
+    """Tutte le timbrature E/U di un giorno per persona: ``{solari_id: {codice_fiscale, seq}}``.
+
+    ``seq`` = ``[(istante, 'E'|'U')]`` in ordine. Serve al cruscotto per reparto (numeri
+    aggregati, nessun nome in pagina).
+    """
+    cfg = configurazione()
+    giorno = giorno or date.today()
+    inizio = datetime.combine(giorno, time.min)
+    fine = inizio + timedelta(days=1)
+    ana, tim = cfg.db_anagrafico, cfg.db_timbrature
+    query = f"""
+        SELECT a.ID, a.CODFISC, t.DATAV, t.VERSOV
+        FROM [{tim}].[dbo].[TIMBRATURE] t
+        INNER JOIN [{ana}].[dbo].[ANAGRAFICO_DATI] a ON a.ID = t.IDDIP
+        WHERE t.DATAV >= ? AND t.DATAV < ? AND t.VERSOV IN ('E', 'U')
+        ORDER BY a.ID, t.DATAV
+    """
+    conn = _connetti(cfg)
+    try:
+        cur = conn.cursor()
+        cur.execute(query, (inizio, fine))
+        righe = cur.fetchall()
+    finally:
+        conn.close()
+    risultato: dict[int, dict] = {}
+    for sid, cf, quando, verso in righe:
+        voce = risultato.setdefault(int(sid), {"codice_fiscale": _pulisci(cf).upper(), "seq": []})
+        if voce["seq"] and voce["seq"][-1][0] == quando:
+            continue
+        voce["seq"].append((quando, _pulisci(verso).upper()))
+    return risultato
+
+
 # Un turno che passa la mezzanotte (entrata la sera, uscita il mattino dopo) non è un'uscita
 # mancante: l'uscita del giorno dopo entro queste ore chiude l'entrata della sera.
 ORE_MAX_TURNO = 16
