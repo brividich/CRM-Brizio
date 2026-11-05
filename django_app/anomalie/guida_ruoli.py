@@ -30,6 +30,10 @@ SEZIONI_CONTROLLORE: list[dict] = [
                 "Premi «Inizia controllo».",
             ]),
             ("img", (_IMG + "c2_avvio.jpg", "Fase del controllo e destinatari della mail")),
+            ("ul", [
+                "Sull'OP c'è già un controllo non terminato? «Riprendi» continua il tuo, «Prendi in carico» prosegue "
+                "quello di un collega. I controlli rimasti vuoti si chiudono da soli dopo 24 ore.",
+            ]),
         ],
     },
     {
@@ -40,7 +44,15 @@ SEZIONI_CONTROLLORE: list[dict] = [
             ("passi", [
                 "«Seriali»: scrivi un seriale o un intervallo (LCN00001-LCN00004) e premi Invio.",
                 "Scegli lo «Stato superficie del blocco».",
-                "Descrivi l'anomalia: cosa, dove, misura rilevata e tolleranza.",
+                "Scrivi «Dove sono i pezzi?» (es. area pezzi non conformi): il capocommessa lo trova nella mail.",
+                "Descrivi l'anomalia: cosa, dove, misura rilevata e tolleranza. I pulsanti «Simboli» (Ø ± ° ⊥ …) "
+                "scrivono il simbolo dove si trova il cursore.",
+                "Se serve, in «Che cosa hai trovato?» scegli il caso: «Misura fuori tolleranza», «Difetto sul pezzo» "
+                "o «Marcatura / documenti». Si aprono solo i campi di quel caso; con le misure il portale dice subito "
+                "se sono fuori tolleranza.",
+                "Misure da un report ZEISS: cattura le righe del protocollo (Win+Maiusc+S, PDF ingrandito almeno al "
+                "125%), clicca nel riquadro «Dal report ZEISS» e premi Ctrl+V. Controlla le righe proposte e premi "
+                "«Aggiungi N misure»; «Testo letto dall'immagine» mostra cosa ha letto il portale.",
                 "Foto: trascinale nel riquadro o incolla uno screenshot con Ctrl+V.",
                 "Solo alcuni pezzi? Togli «Presente su tutti i … seriali del blocco» e tocca i seriali interessati.",
                 "Altra anomalia sugli stessi pezzi: «+ Nuova anomalia su questi seriali».",
@@ -48,6 +60,8 @@ SEZIONI_CONTROLLORE: list[dict] = [
             ]),
             ("img", (_IMG + "c3_blocco.jpg", "Un blocco pronto da salvare")),
             ("ul", [
+                "Non vedi alcuni di questi campi? Chi gestisce il modulo sceglie in Configurazione quali compaiono e "
+                "per chi (per esempio solo a chi fa il controllo CMM).",
                 "Errore in un blocco salvato? «Modifica o aggiungi anomalie», finché il capocommessa non ha deciso.",
                 "Mentre scrivi la pagina salva da sola, anche su un OP nuovo: se si chiude, rientra nell'OP e premi "
                 "«Riprendi» (gli allegati vanno ricaricati).",
@@ -82,6 +96,7 @@ SEZIONI_CONTROLLORE: list[dict] = [
                 "Conferma la fase e «Inizia controllo»: i blocchi copiati si caricano uno alla volta. Correggi seriali "
                 "o testi e «Salva blocco»; «Salta questo blocco» lo scarta.",
             ]),
+            ("p", "Si copiano anche misure e riferimenti; «Dove sono i pezzi?» no, perché i pezzi del nuovo OP sono altri."),
             ("img", (_IMG + "c5_clona.jpg", "Scelta delle anomalie da copiare")),
         ],
     },
@@ -120,7 +135,9 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
                 "Dalla mail del controllo: «Apri nel portale» apre l'OP in Gestione anomalie (dai PC aziendali senza "
                 "login).",
                 "Dal portale: Menu Anomalie › «Segnalazioni in Carico», oppure Gestione anomalie con il filtro «In "
-                "carico a me» (gli OP di cui sei capocommessa o CAR).",
+                "carico a me» (gli OP di cui sei capocommessa o CAR; se sei fra i «Referenti RDC / segnalazione "
+                "cliente» di Configurazione, anche gli OP con anomalie da aprire RDC o da segnalare al cliente, che "
+                "puoi modificare).",
             ]),
             ("passi", [
                 "Clicca l'OP nella colonna di sinistra: il numero arancione indica le anomalie ancora da decidere.",
@@ -134,9 +151,13 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
         "titolo": "Decidere",
         "blocchi": [
             ("passi", [
-                "Leggi la «Segnalazione» e guarda le foto (un clic le ingrandisce).",
-                "Spunta se serve «Aprire RDC» (con il «Numero RDC»), «Segnalare al cliente», «Pezzi precedenti al "
-                "benestare».",
+                "Leggi la «Segnalazione» e guarda le foto (un clic le ingrandisce). Il riquadro «Dal controllore» "
+                "mostra dove sono i pezzi e le misure.",
+                "Spunta se serve «Aprire RDC» (con il «Numero RDC»), «Segnalare al cliente» (spunta anche «Aprire "
+                "RDC», che puoi togliere), «Segnala a terzista», «Pezzi precedenti al benestare».",
+                "«Segnala a CAR»: in «A quale CAR?» spunta i capi reparto da avvisare (nessuno è scelto di serie). Al "
+                "salvataggio solo loro ricevono la mail; il CAR dell'OP riceve comunque il riepilogo delle modifiche.",
+                "Documenti o foto della decisione: «Allegati della decisione» (si caricano anche ad anomalia chiusa).",
                 "Scegli l'«Avanzamento».",
                 "Scrivi la «Risposta / note per il reparto».",
                 "«Salva» (Ctrl+S) oppure «Salva e prossima».",
@@ -160,6 +181,9 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
             ("passi", [
                 "Spunta «Segnalare al cliente»: l'avanzamento passa a «In attesa risposta cliente».",
                 "Scrivi nella nota cosa hai chiesto al cliente e salva: l'anomalia resta aperta.",
+                "Quando hai avvisato il cliente spunta «Segnalato al cliente» (per il terzista «Segnalato al "
+                "terzista»): si registra subito con data e nome e non manda nessuna mail; compare nel riepilogo "
+                "successivo. Puoi allegare la comunicazione in «Allegati della decisione».",
                 "Quando il cliente risponde, torna sull'anomalia in Gestione e scegli lo stato definitivo.",
             ]),
             ("img", (_IMG + "k3_cliente.jpg", "«Segnalare al cliente» e stato «In attesa risposta cliente»")),
