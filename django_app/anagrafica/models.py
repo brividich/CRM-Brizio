@@ -1055,6 +1055,27 @@ class Reparto(models.Model):
 
 
 # ---------------------------------------------------------------------------
+# Centri di costo: raggruppano più reparti dell'elenco dell'azienda, cioè più
+# aree del portale. Un'area sta in un solo centro (FK sull'area), non il
+# contrario. Elenco iniziale in ``centri_costo_dati.py``.
+# ---------------------------------------------------------------------------
+
+class CentroDiCosto(models.Model):
+    nome = models.CharField(max_length=100, unique=True)
+    descrizione = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "Centro di costo"
+        verbose_name_plural = "Centri di costo"
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+# ---------------------------------------------------------------------------
 # Aree aziendali (sotto-articolazione di un reparto, es. "IN1", "IN2", "IT",
 # "DM"). Un reparto può avere più aree aziendali; un'area aziendale
 # appartiene a un solo reparto. Il "responsabile" è opzionale e distinto dal
@@ -1098,6 +1119,15 @@ class AreaAziendale(models.Model):
         "anagrafica.RuoloOperativo", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="aree_responsabilita", verbose_name="Ruolo responsabile",
         help_text="Ruolo della struttura responsabile dell'area. Vuoto = quello del reparto.",
+    )
+    centro_di_costo = models.ForeignKey(
+        CentroDiCosto, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="aree", verbose_name="Centro di costo",
+    )
+    ruoli_reparto = models.ManyToManyField(
+        "anagrafica.RuoloOperativo", blank=True, related_name="aree_reparto",
+        verbose_name="Ruoli del reparto",
+        help_text="Ruoli presenti in questo reparto, dall'elenco dell'azienda.",
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

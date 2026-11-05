@@ -19,7 +19,7 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from .models import AreaAziendale, Reparto, RuoloOperativo
+from .models import AreaAziendale, CentroDiCosto, Reparto, RuoloOperativo
 from .models_skillmatrix import AbilitazioneMacchina, CompetenzaSkm
 from .services import capi_mansione, capo_team, mansionario_struttura
 from .views import _helpers
@@ -46,7 +46,7 @@ def _contesto(request) -> dict:
     from .services.struttura_v8 import area_coincide_col_reparto
 
     reparti = list(Reparto.objects.select_related("ruolo_responsabile").order_by("nome"))
-    aree = list(AreaAziendale.objects.select_related("ruolo_responsabile", "reparto").order_by("nome"))
+    aree = list(AreaAziendale.objects.select_related("ruolo_responsabile", "reparto", "centro_di_costo").order_by("nome"))
     responsabilita = capi_mansione.mansioni_responsabilita()
     resp_aree = capi_mansione.mansioni_responsabilita_aree()
     mansioni = {m.pk: m for m in CompetenzaSkm.objects.filter(
@@ -143,6 +143,7 @@ def _contesto(request) -> dict:
         "ruoli_opts": _ruoli_opts(),
         "dipendenti_picker": picker,
         "reparti_opts": [r for r in reparti if r.is_active],
+        "centri_opts": list(CentroDiCosto.objects.filter(is_active=True).order_by("nome")),
         "is_admin": _helpers._is_anagrafica_admin(request),
     }
 

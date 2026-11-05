@@ -49,6 +49,7 @@
       {% if parte_admin %}
       <a class="fmd-data-link" href="#viste">Configurare le viste</a>
       <a class="fmd-data-link" href="#coerenza-capi">Capi, team e spostamenti</a>
+      <a class="fmd-data-link" href="#centri-costo">Centri di costo</a>
       <a class="fmd-data-link" href="#ruoli-in-blocco">Ruoli e mansioni in blocco</a>
       <a class="fmd-data-link" href="#coefficienti">Classificazione e coefficienti</a>
       <a class="fmd-data-link" href="#costo-orario">Costo orario</a>
@@ -201,6 +202,18 @@
         </li>
       </ul>
       <div class="gpa-nota">È un dato retributivo: lo vede solo chi ha il permesso sui dati HR riservati (anche le sezioni del report: senza permesso compaiono come «Sezione omessa»), e ogni consultazione o esportazione va nel registro attività. Non compare nel Mansionario né in «Chiedi un report».</div>
+    </section>
+
+    <section class="fmd-panel gpa-sec" id="centri-costo">
+      <h2><svg class="fmd-ico"><use href="#i-users"/></svg>Centri di costo</h2>
+      <p><strong>Persone → Centri di costo</strong> mostra una scheda per centro con i suoi reparti, le persone e i ruoli. Un centro di costo può includere più reparti; un reparto sta in un solo centro. Qui «reparto» è l'unità in cui lavorano le persone, cioè l'<strong>area aziendale</strong> del portale.</p>
+      <ul>
+        <li><strong>Spostare un reparto</strong>: <strong>Modifica</strong> sulla riga del reparto → «Centro di costo». Scegliere un altro centro lo toglie dal precedente. Lo stesso campo è in «Reparti, aree e capi», nella modifica dell'area.</li>
+        <li><strong>Ruoli del reparto</strong>: nella stessa finestra si spuntano i ruoli presenti nel reparto. Sono un'indicazione: non assegnano ruoli alle persone e non danno permessi.</li>
+        <li><strong>Reparti senza centro di costo</strong>: il riquadro in alto li elenca. Un reparto che non ne ha uno, come la Direzione, può restare lì.</li>
+        <li><strong>Nuovo centro</strong>: «+ Nuovo centro di costo» in fondo alla pagina. <strong>Modifica</strong> sulla scheda cambia nome e descrizione o lo rende non attivo; «Elimina il centro di costo» funziona solo se non ha più reparti.</li>
+      </ul>
+      <div class="gpa-nota">Le persone contate sono le stesse di «Reparti, aree e capi». Cambiare il centro di costo non sposta nessuno e non cambia i capi.</div>
     </section>
 
     <section class="fmd-panel gpa-sec" id="struttura-organizzativa">

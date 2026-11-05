@@ -423,6 +423,26 @@ GUIDA = {
             ],
         },
         {
+            "id": "centri-costo",
+            "titolo": "Centri di costo",
+            "blocchi": [
+                ("p", "Persone → Centri di costo: una scheda per centro con reparti, persone e ruoli. Un centro di costo "
+                      "può includere più reparti; un reparto sta in un solo centro. Qui «reparto» è l'area aziendale del "
+                      "portale, l'unità in cui lavorano le persone."),
+                ("ul", [
+                    "«Modifica» sulla riga del reparto: «Centro di costo» (scegliere un altro centro lo toglie dal "
+                    "precedente) e «Ruoli del reparto». Il centro si sceglie anche in «Reparti, aree e capi», nella "
+                    "modifica dell'area.",
+                    "I «Ruoli del reparto» sono un'indicazione: non assegnano ruoli alle persone e non danno permessi.",
+                    "«Reparti senza centro di costo» elenca quelli da collegare; la Direzione può restare lì.",
+                    "«+ Nuovo centro di costo» crea un centro; «Modifica» sulla scheda cambia nome e descrizione o lo "
+                    "rende non attivo; «Elimina il centro di costo» funziona solo se non ha più reparti.",
+                ]),
+                ("nota", "Cambiare il centro di costo non sposta nessuno e non cambia i capi. Esporta dà una riga per "
+                         "reparto; anche l'export delle Aree aziendali ha la colonna «Centro di costo»."),
+            ],
+        },
+        {
             "id": "struttura-mansionario",
             "titolo": "Struttura ruoli → mansioni → competenze: editor, Excel, ruoli e mansioni in blocco",
             "blocchi": [
