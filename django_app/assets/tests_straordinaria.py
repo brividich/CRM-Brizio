@@ -150,11 +150,31 @@ class ModificaInterventoTests(_Base):
         self.assertIsNotNone(log)
         self.assertIn("Titolo", log.note)
 
-    def test_chiuso_non_modificabile(self):
+    def test_chiuso_modificabile_con_resoconto(self):
+        # Le straordinarie si chiudono subito: la correzione dopo deve restare possibile.
         self.wo.status = WorkOrder.STATUS_DONE
-        self.wo.save(update_fields=["status"])
-        response = self.client.get(reverse("assets:wo_edit", args=[self.wo.id]))
-        self.assertRedirects(response, reverse("assets:wo_view", args=[self.wo.id]), fetch_redirect_response=False)
+        self.wo.resolution = "Sostituita guarnizione"
+        self.wo.save(update_fields=["status", "resolution"])
+        detail = self.client.get(reverse("assets:wo_view", args=[self.wo.id]))
+        self.assertContains(detail, reverse("assets:wo_edit", args=[self.wo.id]))
+        url = reverse("assets:wo_edit", args=[self.wo.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Cosa è stato fatto")
+        response = self.client.post(url, {
+            "kind": WorkOrder.KIND_CORRECTIVE,
+            "execution_mode": WorkOrder.EXECUTION_INTERNAL,
+            "title": "Titolo corretto dopo la chiusura",
+            "resolution": "Sostituita guarnizione e rabbocco olio",
+            "downtime_minutes": "0",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.wo.refresh_from_db()
+        self.assertEqual(self.wo.status, WorkOrder.STATUS_DONE)
+        self.assertEqual(self.wo.title, "Titolo corretto dopo la chiusura")
+        self.assertEqual(self.wo.resolution, "Sostituita guarnizione e rabbocco olio")
+        log = WorkOrderLog.objects.filter(work_order=self.wo, note__startswith="Intervento modificato").last()
+        self.assertIn("Cosa è stato fatto", log.note)
 
 
 class SchedaLavoroTests(_Base):

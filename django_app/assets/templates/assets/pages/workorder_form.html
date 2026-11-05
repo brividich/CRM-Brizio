@@ -336,6 +336,14 @@ body.theme-dark .wof-sibling-item { color: var(--text); }
 .wof-mode label:has(input:checked) { border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; }
 .wof-new-supplier { display:inline-flex; align-items:center; gap:6px; width:fit-content; padding:3px 8px; border-radius:999px; background:#fef3c7; color:#92400e; font-size:var(--fs-xs); font-weight:800; }
 .wof-required { color:#b91c1c; font-weight:900; }
+.wof-preview { position:relative; display:flex; align-items:center; justify-content:center; min-height:160px; border-radius:10px; background:#0f172a; overflow:hidden; }
+.wof-preview[hidden] { display:none !important; }
+.wof-preview img { display:block; max-width:100%; max-height:280px; object-fit:contain; }
+.wof-preview-nav { position:absolute; top:50%; transform:translateY(-50%); width:36px; height:36px; border:0; border-radius:999px; background:rgba(255,255,255,.88); color:#0f172a; font-size:20px; font-weight:900; cursor:pointer; }
+.wof-preview-nav[hidden] { display:none; }
+.wof-preview-prev { left:8px; }
+.wof-preview-next { right:8px; }
+.wof-preview-count { position:absolute; right:8px; bottom:8px; padding:2px 8px; border-radius:999px; background:rgba(15,23,42,.75); color:#fff; font-size:var(--fs-xs); font-weight:700; }
 .wof-optional { color:#64748b; font-weight:600; font-size:var(--fs-xs); }
 .wof-advanced {
   border:1px solid #d8e2ef;
@@ -452,7 +460,7 @@ body.theme-dark .wof-optional{color:var(--text-light)}
         <strong>{{ asset.asset_tag }} · {{ asset.name }}</strong>
         <span class="wof-source">{{ workorder_prefill.source_label }}</span>
       </div>
-      <span class="wof-context-meta">{% if is_edit %}Stai modificando un intervento aperto. Stato e chiusura restano in «Registra intervento».{% else %}Stai aprendo un intervento su questo asset. Controlla che sia quello corretto prima di salvare.{% endif %}</span>
+      <span class="wof-context-meta">{% if is_closed_edit %}Stai correggendo un intervento già {{ workorder.get_status_display|lower }}: stato ed esito non cambiano.{% elif is_edit %}Stai modificando un intervento aperto. Stato e chiusura restano in «Registra intervento».{% else %}Stai aprendo un intervento su questo asset. Controlla che sia quello corretto prima di salvare.{% endif %}</span>
     </div>
     <div class="wof-context-chips">
       <span class="wof-chip">{{ asset.get_asset_type_display }}</span>
@@ -550,6 +558,15 @@ body.theme-dark .wof-optional{color:var(--text-light)}
               </div>
               {% if form.description.errors %}<div class="wof-error">{{ form.description.errors }}</div>{% endif %}
             </div>
+
+            {% if form.resolution %}
+            <div class="wof-field wof-field--full">
+              <label for="{{ form.resolution.id_for_label }}">{{ form.resolution.label }}</label>
+              {{ form.resolution }}
+              <div class="wof-helper">Il resoconto scritto alla chiusura: correggilo se serve.</div>
+              {% if form.resolution.errors %}<div class="wof-error">{{ form.resolution.errors }}</div>{% endif %}
+            </div>
+            {% endif %}
           </div>
         </section>
 
@@ -594,6 +611,12 @@ body.theme-dark .wof-optional{color:var(--text-light)}
               <span class="wof-upload-status" id="attachmentsStatus">Nessun file selezionato</span>
             </label>
             <input class="wof-upload-input" id="id_attachments" type="file" name="attachments" multiple accept="{{ attachment_accept }}">
+            <div class="wof-preview" id="attachmentsPreview" hidden>
+              <img id="attachmentsPreviewImg" alt="Anteprima della foto scelta">
+              <button type="button" class="wof-preview-nav wof-preview-prev" id="attachmentsPreviewPrev" aria-label="Foto precedente">&#8249;</button>
+              <button type="button" class="wof-preview-nav wof-preview-next" id="attachmentsPreviewNext" aria-label="Foto successiva">&#8250;</button>
+              <span class="wof-preview-count" id="attachmentsPreviewCount"></span>
+            </div>
           </div>
         </section>
 
@@ -869,8 +892,40 @@ body.theme-dark .wof-optional{color:var(--text-light)}
     suggestionEl.classList.remove("is-highlight");
   }
 
+  // Anteprima delle foto scelte (solo nel browser, prima del salvataggio); con piu' foto si scorrono.
+  const previewBox = document.getElementById("attachmentsPreview");
+  const previewImg = document.getElementById("attachmentsPreviewImg");
+  const previewPrev = document.getElementById("attachmentsPreviewPrev");
+  const previewNext = document.getElementById("attachmentsPreviewNext");
+  const previewCount = document.getElementById("attachmentsPreviewCount");
+  let previewUrls = [];
+  let previewIndex = 0;
+
+  function showPreview(index) {
+    if (!previewUrls.length) return;
+    previewIndex = (index + previewUrls.length) % previewUrls.length;
+    previewImg.src = previewUrls[previewIndex];
+    previewCount.textContent = previewUrls.length > 1 ? (previewIndex + 1) + " / " + previewUrls.length : "";
+    previewCount.hidden = previewUrls.length < 2;
+    previewPrev.hidden = previewNext.hidden = previewUrls.length < 2;
+  }
+
+  function syncAttachmentPreview() {
+    if (!previewBox || !attachmentsEl) return;
+    previewUrls.forEach(function (url) { URL.revokeObjectURL(url); });
+    previewUrls = Array.prototype.filter.call(attachmentsEl.files || [], function (file) {
+      return /^image\/(jpeg|png|gif|webp|bmp)$/.test(file.type);
+    }).map(function (file) { return URL.createObjectURL(file); });
+    previewBox.hidden = !previewUrls.length;
+    showPreview(0);
+  }
+
+  if (previewPrev) previewPrev.addEventListener("click", function () { showPreview(previewIndex - 1); });
+  if (previewNext) previewNext.addEventListener("click", function () { showPreview(previewIndex + 1); });
+
   function syncAttachmentCount() {
     if (!attachmentsEl || !attachmentsStatusEl) return;
+    syncAttachmentPreview();
     const total = attachmentsEl.files ? attachmentsEl.files.length : 0;
     if (!total) {
       attachmentsStatusEl.textContent = "Nessun file selezionato";

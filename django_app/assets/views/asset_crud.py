@@ -1059,13 +1059,15 @@ def asset_list(request: HttpRequest) -> HttpResponse:
         tcr_only = bool(form.cleaned_data.get("tcr_only"))
 
         if q:
+            # Ricerca elastica: «dixi 80» trova anche «DIXI80» e «80 dixi».
+            from ..services.ricerca_flessibile import testo_q
+
             assets = assets.filter(
-                Q(asset_tag__icontains=q)
-                | Q(internal_number__icontains=q)
-                | Q(name__icontains=q)
-                | Q(serial_number__icontains=q)
-                | Q(manufacturer__icontains=q)
-                | Q(model__icontains=q)
+                testo_q(
+                    q,
+                    ("asset_tag", "internal_number", "name", "serial_number", "manufacturer", "model", "reparto"),
+                    compatti=("asset_tag", "internal_number", "name", "serial_number", "model"),
+                )
                 | Q(endpoints__endpoint_name__icontains=q)
                 | Q(endpoints__ip__icontains=q)
             )
@@ -1640,16 +1642,16 @@ def asset_component_list(request: HttpRequest, asset_id: int | None = None) -> H
     if selected_asset is not None:
         component_qs = component_qs.filter(asset_id=selected_asset.id)
     if q:
+        from ..services.ricerca_flessibile import testo_q
+
         component_qs = component_qs.filter(
-            Q(code__icontains=q)
-            | Q(name__icontains=q)
-            | Q(component_type__icontains=q)
-            | Q(serial_number__icontains=q)
-            | Q(manufacturer__icontains=q)
-            | Q(model__icontains=q)
+            testo_q(
+                q,
+                ("code", "name", "component_type", "serial_number", "manufacturer", "model",
+                 "asset__asset_tag", "asset__name"),
+                compatti=("code", "name", "model", "asset__asset_tag", "asset__name"),
+            )
             | Q(notes__icontains=q)
-            | Q(asset__asset_tag__icontains=q)
-            | Q(asset__name__icontains=q)
         )
     if active_filter == "active":
         component_qs = component_qs.filter(is_active=True)

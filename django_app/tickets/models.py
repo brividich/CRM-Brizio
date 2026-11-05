@@ -215,6 +215,15 @@ class Ticket(models.Model):
         on_delete=models.SET_NULL,
         related_name="tickets_richiesti",
     )
+    # Chi ha compilato il ticket quando non coincide con il richiedente: un
+    # manutentore che apre la segnalazione per conto di un collega.
+    aperto_da_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="tickets_aperti_per_altri",
+    )
+    aperto_da_nome = models.CharField(max_length=200, blank=True)
 
     # Assegnazione
     assegnato_a     = models.CharField(max_length=200, blank=True)

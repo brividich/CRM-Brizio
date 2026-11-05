@@ -98,6 +98,50 @@ def _legacy_identity(request) -> tuple[str, str, int | None]:
     return name, email, None
 
 
+def _identita_di(user) -> tuple[str, str, int | None]:
+    """Nome, email e id legacy di un altro utente (stessa regola di ``_legacy_identity``)."""
+    legacy_user = get_legacy_user(user)
+    if legacy_user:
+        name = (legacy_user.nome or "").strip() or user.get_full_name() or user.get_username()
+        email = (legacy_user.email or "").strip().lower() or (user.email or "").strip().lower()
+        return name, email, getattr(legacy_user, "id", None)
+    return user.get_full_name() or user.get_username(), (user.email or "").strip().lower(), None
+
+
+def _puo_aprire_per_altri(request, tipo: str) -> bool:
+    """Ticket di manutenzione a nome di un collega: solo la squadra manutenzione.
+
+    Squadra = il ruolo configurato in Assets > Impostazioni > Configurazione
+    («Squadra manutenzione»), lo stesso degli interventi «Interno». Valgono
+    anche i gestori dei ticket di manutenzione. Senza squadra configurata
+    restano solo i gestori: mai tutti.
+    """
+    if tipo != TipoTicket.MAN or not request.user.is_authenticated:
+        return False
+    if _can_manage_tickets(request, TipoTicket.MAN):
+        return True
+    try:
+        from assets.services.squadra_manutenzione import membri_squadra
+
+        membri = membri_squadra()
+    except Exception:
+        logger.warning("Squadra manutenzione non leggibile per «per conto di»", exc_info=True)
+        return False
+    return bool(membri is not None and membri.filter(pk=request.user.pk).exists())
+
+
+def _persone_per_conto_di(escludi_id: int | None) -> list[dict]:
+    """Colleghi a nome dei quali si puo' aprire il ticket: utenti attivi del portale."""
+    from django.contrib.auth import get_user_model
+
+    qs = (
+        get_user_model().objects.filter(is_active=True, profile__legacy_user_id__isnull=False)
+        .exclude(pk=escludi_id or 0)
+        .order_by("last_name", "first_name", "username")
+    )
+    return [{"id": u.pk, "label": u.get_full_name() or u.get_username()} for u in qs]
+
+
 def _build_ticket_activity_feed(ticket: Ticket) -> list[dict[str, object]]:
     """Costruisce una timeline operativa unificata per il dettaglio ticket."""
     feed: list[dict[str, object]] = []
@@ -534,7 +578,8 @@ def filtro_ticket_visibili(request) -> Q:
     lista, ricerca globale e assistente AI: la regola e' una sola.
     """
     _name, email, legacy_id = _legacy_identity(request)
-    propri = Q(richiedente_user_id=request.user.id)
+    # Anche quelli aperti per conto di un collega: chi li ha compilati li segue.
+    propri = Q(richiedente_user_id=request.user.id) | Q(aperto_da_user_id=request.user.id)
     if legacy_id:
         propri |= Q(richiedente_legacy_user_id=legacy_id)
     if email:
@@ -563,7 +608,7 @@ def ticket_visibili_queryset(request, qs):
     if sistema_ruoli_attivo():
         return qs.filter(filtro_ticket_visibili(request))
     _name, email, legacy_id = _legacy_identity(request)
-    visibili = Q(richiedente_user_id=request.user.id)
+    visibili = Q(richiedente_user_id=request.user.id) | Q(aperto_da_user_id=request.user.id)
     if legacy_id:
         visibili |= Q(richiedente_legacy_user_id=legacy_id)
     if email:
@@ -580,7 +625,8 @@ def _ticket_access_flags(request, ticket: Ticket) -> dict:
     is_admin = bool(legacy_user and is_legacy_admin(legacy_user))
     is_gestore = _can_manage_tickets(request, ticket.tipo)
     is_richiedente = _is_richiedente(request, ticket)
-    can_view = bool(is_richiedente or is_gestore or is_admin)
+    aperto_da_me = bool(ticket.aperto_da_user_id and ticket.aperto_da_user_id == request.user.id)
+    can_view = bool(is_richiedente or aperto_da_me or is_gestore or is_admin)
     if not can_view and sistema_ruoli_attivo():
         # Visibilita' del ruolo: «team» (preposto, responsabile) o «tutti» (Direzione).
         can_view = puo_fare(request, MODULO_PER_TIPO.get(ticket.tipo, "ticket_it"), "vedere", ticket)
@@ -985,7 +1031,7 @@ def ticket_dashboard(request, sezione: str = "miei"):
         # «I miei ticket»: solo quelli aperti dalla persona, per tutti (anche gestori
         # e CAR che vedono l'azienda: quelli stanno nella sezione «Ticket»).
         from django.db.models import Q
-        own = Q(richiedente_user=request.user)
+        own = Q(richiedente_user=request.user) | Q(aperto_da_user=request.user)
         if legacy_id:
             own |= Q(richiedente_legacy_user_id=legacy_id)
         if email:
@@ -1003,7 +1049,7 @@ def ticket_dashboard(request, sezione: str = "miei"):
         kpi_qs = kpi_qs.filter(visibili)
     elif not (is_admin or is_gestore or request.user.is_superuser):
         from django.db.models import Q
-        own = Q(richiedente_user=request.user)
+        own = Q(richiedente_user=request.user) | Q(aperto_da_user=request.user)
         if legacy_id:
             own |= Q(richiedente_legacy_user_id=legacy_id)
         if email:
@@ -1090,6 +1136,8 @@ def ticket_nuovo(request):
         ctx["initial_asset"] = initial_asset
         if t == TipoTicket.MAN:
             ctx.update(_mappa_context(request, reparto))
+        if _puo_aprire_per_altri(request, t):
+            ctx["persone_per_conto_di"] = _persone_per_conto_di(request.user.pk)
         return ctx
 
     if request.method == "POST":
@@ -1137,6 +1185,27 @@ def ticket_nuovo(request):
         if priorita not in dict(PrioritaTicket.choices):
             priorita = PrioritaTicket.MEDIA
 
+        # «Per conto di»: il richiedente diventa il collega, chi compila resta tracciato.
+        richiedente_user = request.user
+        rich_name, rich_email, rich_legacy_id = name, email, legacy_id
+        aperto_da_user, aperto_da_nome = None, ""
+        per_conto_di = (request.POST.get("per_conto_di") or "").strip()
+        if per_conto_di and _puo_aprire_per_altri(request, tipo_post):
+            from django.contrib.auth import get_user_model
+
+            collega = get_user_model().objects.filter(
+                pk=_int_or_none(per_conto_di) or 0, is_active=True
+            ).first()
+            if collega is None:
+                return render(request, "tickets/pages/nuovo.html",
+                    _ctx(tipo_eff=tipo_post,
+                         error="Il collega scelto in «Per conto di» non è più attivo: scegline un altro.",
+                         form_data=request.POST))
+            if collega.pk != request.user.pk:
+                richiedente_user = collega
+                rich_name, rich_email, rich_legacy_id = _identita_di(collega)
+                aperto_da_user, aperto_da_nome = request.user, name
+
         asset_obj = None
         if asset_id:
             try:
@@ -1157,13 +1226,20 @@ def ticket_nuovo(request):
             mappa_layout=mappa_layout,
             mappa_x=mappa_x,
             mappa_y=mappa_y,
-            richiedente_nome=name,
-            richiedente_email=email,
-            richiedente_legacy_user_id=legacy_id,
-            richiedente_user=request.user,
+            richiedente_nome=rich_name,
+            richiedente_email=rich_email,
+            richiedente_legacy_user_id=rich_legacy_id,
+            richiedente_user=richiedente_user,
+            aperto_da_user=aperto_da_user,
+            aperto_da_nome=aperto_da_nome,
             include_in_maintenance_register=tipo_post == TipoTicket.MAN,
         )
         ticket.save()
+        if aperto_da_user is not None:
+            log_action(
+                request, "ticket_aperto_per_conto_di", "tickets",
+                {"ticket": ticket.numero_ticket, "richiedente": rich_name},
+            )
 
         # Allegati
         for f in request.FILES.getlist("allegati"):
@@ -2256,9 +2332,10 @@ def api_assets_autocomplete(request):
         return JsonResponse({"results": []})
     try:
         from assets.models import Asset as AssetModel
+        from assets.services.ricerca_flessibile import testo_q
         assets = (
             AssetModel.objects.filter(status__in=["IN_USE", "IN_STOCK"])
-            .filter(Q(name__icontains=q) | Q(asset_tag__icontains=q) | Q(internal_number__icontains=q))
+            .filter(testo_q(q, ("name", "asset_tag", "internal_number")))
             .order_by("name")[:20]
         )
         results = [

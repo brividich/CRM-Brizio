@@ -82,7 +82,8 @@ class FailureCodeCloseAndAdminTests(_Fixture, TestCase):
         self.remedy = FailureCode.objects.create(kind=FailureCode.KIND_REMEDY, code="sostituzione", label="Sostituzione pezzo")
 
     def test_form_di_chiusura_filtra_e_salva_i_codici(self):
-        wo = WorkOrder.objects.create(asset=self.asset, title="Guasto C2", kind=WorkOrder.KIND_CORRECTIVE)
+        # I codici si scelgono in «Altri dettagli», che le straordinarie (CORRECTIVE) non hanno.
+        wo = WorkOrder.objects.create(asset=self.asset, title="Guasto C2", kind=WorkOrder.KIND_SAFETY)
         url = reverse("assets:wo_close", args=[wo.pk])
         page = self.client.get(url)
         self.assertContains(page, "Mandrino rumoroso")

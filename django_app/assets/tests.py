@@ -5261,9 +5261,10 @@ class WorkOrderFlowTests(TestCase):
         )
 
     def test_workorder_close_page_is_a_formal_guided_flow(self):
+        # Modulo completo: le straordinarie (CORRECTIVE) hanno la chiusura essenziale.
         workorder = WorkOrder.objects.create(
             asset=self.asset,
-            kind=WorkOrder.KIND_CORRECTIVE,
+            kind=WorkOrder.KIND_PREVENTIVE,
             status=WorkOrder.STATUS_OPEN,
             title="Intervento aperto",
         )

@@ -6,6 +6,7 @@ Estratto meccanicamente da assets/views.py (refactor C4): nessun cambio di compo
 from __future__ import annotations
 
 import json
+import logging
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
@@ -74,6 +75,9 @@ from ._helpers_c import (  # noqa: F401
     _workorder_attachment_accept_attr,
     _workorder_list_page_url,
 )
+
+logger = logging.getLogger(__name__)
+
 
 def _workorder_status_payload(status: str) -> dict[str, str]:
     if status == WorkOrder.STATUS_DONE:
@@ -899,6 +903,7 @@ def _render_workorder_form(
             "form": form,
             "workorder": workorder,
             "is_edit": workorder is not None,
+            "is_closed_edit": workorder is not None and workorder.status != WorkOrder.STATUS_OPEN,
             "supplier_name_options": form.supplier_name_options,
             "default_assignee": form.default_assignee,
             "workorder_back_url": workorder_back_url,
@@ -937,21 +942,23 @@ _WORKORDER_EDIT_TRACKED = (
     ("maintenance_rule_id", "Regola"),
     ("assistance_contract_id", "Contratto"),
     ("covered_by_contract", "Copertura contratto"),
+    ("resolution", "Cosa è stato fatto"),
 )
 
 
 @login_required
 def workorder_edit(request: HttpRequest, workorder_id: int) -> HttpResponse:
-    """Modifica di un intervento aperto con lo stesso form della creazione.
+    """Modifica di un intervento con lo stesso form della creazione.
 
-    Stato, chiusura e risoluzione restano fuori: li gestiscono presa in carico e
-    «Registra intervento». Ogni modifica lascia una riga nel registro dell'OdL.
+    Vale anche per gli interventi chiusi o annullati: le straordinarie si aprono e
+    chiudono di solito in un colpo, e i dati vanno corretti dopo. Stato ed esito
+    restano fuori (li gestiscono presa in carico e «Registra intervento»); su un
+    intervento chiuso si corregge anche «Cosa è stato fatto». Ogni modifica lascia
+    una riga nel registro dell'OdL.
     """
     workorder = get_object_or_404(WorkOrder.objects.select_related("asset", "supplier", "assigned_to"), pk=workorder_id)
     detail_url = reverse("assets:wo_view", kwargs={"id": workorder.id})
-    if workorder.status != WorkOrder.STATUS_OPEN:
-        messages.error(request, "Si possono modificare solo gli interventi aperti.")
-        return redirect(detail_url)
+    is_closed = workorder.status != WorkOrder.STATUS_OPEN
     asset = workorder.asset
     form_kwargs = {"asset": asset, "instance": workorder, "is_edit": True}
     if request.method == "POST":
@@ -964,6 +971,8 @@ def workorder_edit(request: HttpRequest, workorder_id: int) -> HttpResponse:
             form.add_error(None, error)
         if form_is_valid and not upload_errors:
             updated = form.save(commit=False)
+            if "resolution" in form.cleaned_data:
+                updated.resolution = form.cleaned_data["resolution"] or ""
             try:
                 updated.full_clean()
             except ValidationError as exc:
@@ -995,7 +1004,7 @@ def workorder_edit(request: HttpRequest, workorder_id: int) -> HttpResponse:
                             note=" ".join(parts),
                             author=request.user if request.user.is_authenticated else None,
                         )
-                if updated.assigned_to_id and updated.assigned_to_id != previous_assignee_id:
+                if not is_closed and updated.assigned_to_id and updated.assigned_to_id != previous_assignee_id:
                     notify_workorder_assigned(
                         updated,
                         actor=request.user if request.user.is_authenticated else None,
@@ -1221,6 +1230,7 @@ def workorder_detail(request: HttpRequest, id: int | None = None) -> HttpRespons
             **_workorder_suggestions(request, workorder),
             "logs": logs,
             "attachments": attachments,
+            "workorder_foto": _workorder_foto(workorder),
             "checklist_items": checklist_items,
             "checklist_done_count": checklist_done_count,
             "checklist_total": len(checklist_items),
@@ -1797,12 +1807,53 @@ def workorder_close(request: HttpRequest, id: int | None = None) -> HttpResponse
             ),
             "occurrences_anchor": f"{reverse('assets:wo_view', kwargs={'id': workorder.id})}#manutenzioni-raccolte",
             "same_work_others": same_work_others,
+            "workorder_foto": _workorder_foto(workorder),
+            # Straordinaria: chiusura essenziale, senza «Rapporto / documento» e
+            # «Altri dettagli» (i valori gia' presenti sull'OdL restano invariati).
+            "chiusura_essenziale": workorder.kind == WorkOrder.KIND_CORRECTIVE,
             "today": timezone.localdate(),
             **registra_insieme.window_context(),
             **_assets_shell_context(request, rows=_as_int(request.GET.get("rows"), default=25)),
             "assets_section_nav": None,
         },
     )
+
+
+_FOTO_ESTENSIONI = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
+
+
+def _workorder_foto(workorder: WorkOrder) -> list[dict[str, str]]:
+    """Le foto dell'intervento (e della segnalazione da cui nasce) per l'anteprima.
+
+    Solo immagini che il browser mostra; gli allegati del ticket rifiutati dal
+    team non compaiono. Ogni immagine passa dalla sua vista di download, con gli
+    stessi controlli di accesso dei link «Allegati».
+    """
+    foto: list[dict[str, str]] = []
+    for allegato in workorder.attachments.order_by("created_at", "id"):
+        nome = allegato.original_name or (allegato.file.name if allegato.file else "")
+        if nome.lower().endswith(_FOTO_ESTENSIONI):
+            foto.append({
+                "url": reverse("assets:workorder_attachment_download", args=[allegato.id]),
+                "nome": nome.rsplit("/", 1)[-1],
+                "fonte": "Intervento",
+            })
+    if workorder.ticket_id:
+        try:
+            from tickets.models import StatoValidazioneAllegato
+
+            allegati = workorder.ticket.allegati.exclude(stato_validazione=StatoValidazioneAllegato.RIFIUTATO)
+            for allegato in allegati:
+                nome = allegato.nome_originale or ""
+                if (allegato.tipo_mime or "").startswith("image/") or nome.lower().endswith(_FOTO_ESTENSIONI):
+                    foto.append({
+                        "url": reverse("tickets:download_allegato", args=[allegato.id]) + "?inline=1",
+                        "nome": nome,
+                        "fonte": f"Segnalazione {workorder.ticket.numero_ticket}",
+                    })
+        except Exception:
+            logger.warning("Foto della segnalazione dell'OdL %s non lette", workorder.pk, exc_info=True)
+    return foto
 
 
 def _workorder_map_url(workorder) -> str:
