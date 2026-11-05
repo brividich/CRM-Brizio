@@ -63,6 +63,8 @@ def _strade(request, ctx: dict) -> list[dict]:
         strade.append({"nome": "Centri di costo", "url": reverse("anagrafica:centri_costo"), "sotto": "collega i reparti"})
         strade.append({"nome": "Struttura organizzativa", "url": reverse("anagrafica:struttura_org"), "sotto": "revisioni e rischi"})
         strade.append({"nome": "Mansionario", "url": reverse("anagrafica:mansionario"), "sotto": "persone e valutazioni"})
+    strade.append({"nome": "Prova un cambiamento", "url": reverse("anagrafica:prospetti"),
+                   "sotto": "confronto oggi e dopo, prima di cambiare"})
     if can_view(request):
         modello = ReportModello.objects.filter(codice_sistema="centri_costo", is_active=True).first()
         if modello is not None:

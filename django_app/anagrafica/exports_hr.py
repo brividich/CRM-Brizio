@@ -170,6 +170,67 @@ register(ExportSpec(
 ))
 
 
+# ── Prospetto dei cambiamenti: confronto Oggi / Dopo ─────────────────────────
+
+def _prospetto_permesso(request: HttpRequest) -> bool:
+    from anagrafica.views_mansionario import _puo_vedere
+
+    return acl_gate("/anagrafica/struttura/prospetto/")(request) and _puo_vedere(request)
+
+
+def _prospetto_rows(request: HttpRequest, scope: str) -> list[dict]:
+    from anagrafica.models_struttura import ProspettoStruttura
+    from anagrafica.services import prospetto_struttura as svc
+    from anagrafica.views_prospetto import puo_costi, puo_visite
+
+    id_prospetto = str(request.GET.get("id") or "")
+    p = ProspettoStruttura.objects.filter(pk=int(id_prospetto), stato=ProspettoStruttura.STATO_BOZZA).first() if id_prospetto.isdigit() else None
+    if p is None:
+        return []
+    ctx = svc.costruisci(p, visite=puo_visite(request))
+    costi = puo_costi(request)
+    righe: list[dict] = []
+
+    def riga(sezione, voce, prima="", dopo="", nota=""):
+        righe.append({"sezione": sezione, "voce": voce, "prima": prima, "dopo": dopo, "nota": nota})
+
+    for r in ctx["righe_modifiche"]:
+        riga("Cambiamenti provati", r["testo"], nota=r["problema"])
+    for a in ctx["avvisi"]:
+        riga("Da guardare", a["testo"])
+    for r in ctx["kpi"]:
+        riga("Riepilogo", r["voce"], r["prima"], r["dopo"])
+    for r in ctx["centri"]:
+        riga("Persone per centro di costo", r["voce"], r["persone_prima"], r["persone_dopo"])
+        if costi:
+            riga("RML per centro di costo (€)", r["voce"], r["rml_prima"], r["rml_dopo"])
+            riga("Costo orario medio per centro (€/h)", r["voce"], r["medio_prima"], r["medio_dopo"])
+    for r in ctx["reparti"]:
+        riga("Persone per reparto", r["voce"], r["persone_prima"], r["persone_dopo"],
+             "; ".join(filter(None, ["entrano: " + ", ".join(r["entrano"]) if r["entrano"] else "",
+                                     "escono: " + ", ".join(r["escono"]) if r["escono"] else ""])))
+    for r in ctx["mansioni"]:
+        riga("Operativi per mansione", r["voce"], r["operativi_prima"], r["operativi_dopo"], f"{r['stato_prima']} → {r['stato_dopo']}")
+        riga("Teste equivalenti per mansione", r["voce"], r["fte_prima"], r["fte_dopo"])
+        if costi:
+            riga("Costo orario medio per mansione (€/h)", r["voce"], r["costo_prima"], r["costo_dopo"])
+    for r in ctx["persone"]:
+        riga("Reparto della persona", r["nome"], r["reparto_prima"], r["reparto_dopo"])
+        riga("Centro di costo della persona", r["nome"], r["centro_prima"], r["centro_dopo"])
+        riga("Capo della persona", r["nome"], r["capo_prima"], r["capo_dopo"])
+    return righe
+
+
+register(ExportSpec(
+    key="prospetto",
+    title="Prospetto dei cambiamenti",
+    sheet_title="Prospetto",
+    columns=[("Sezione", "sezione"), ("Voce", "voce"), ("Oggi", "prima"), ("Dopo", "dopo"), ("Note", "nota")],
+    dataset=_prospetto_rows,
+    permission=_prospetto_permesso,
+))
+
+
 # ── Reparti (stessa pagina, livello padre della gerarchia) ───────────────────
 
 def _reparti_rows(request: HttpRequest, scope: str) -> list[dict]:
