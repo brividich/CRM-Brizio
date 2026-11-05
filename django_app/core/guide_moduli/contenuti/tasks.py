@@ -40,6 +40,18 @@ GUIDA = {
             ],
         },
         {
+            "id": "attivita-rapide",
+            "titolo": "Creare attività al volo",
+            "blocchi": [
+                ("def", [
+                    ("Nel Piano", "la riga sopra il Gantt: titolo, responsabile, Inizio, Fine, «Aggiungi»."),
+                    ("Dettaglio ed esito dell'incontro", "«Attività di questo incontro»: scrivi il titolo e premi Invio; la pagina non si ricarica."),
+                    ("Conduci incontro", "«Cattura rapida», sempre visibile in fondo allo schermo, con tipo Attività; o «+ Nuova attività» sul punto per collegarla al punto. Le attività entrano nel Piano, azioni e problemi rientrano nell'ordine del giorno del prossimo incontro, le decisioni nel registro di commessa."),
+                ]),
+                ("p", "L'inizio proposto è il giorno dopo l'ultima fine in piano. «Più opzioni» apre tipo, priorità e attrezzatura."),
+            ],
+        },
+        {
             "id": "incontri",
             "titolo": "Gli incontri: prima la convocazione, poi l'esito",
             "blocchi": [

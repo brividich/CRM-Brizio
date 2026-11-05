@@ -1,0 +1,2 @@
+{% if quick_users.team %}<optgroup label="Team">{% for pk, nome in quick_users.team %}<option value="{{ pk }}"{% if pk == selected %} selected{% endif %}>{{ nome }}</option>{% endfor %}</optgroup>{% endif %}
+{% if quick_users.altri %}<optgroup label="Altri">{% for pk, nome in quick_users.altri %}<option value="{{ pk }}"{% if pk == selected %} selected{% endif %}>{{ nome }}</option>{% endfor %}</optgroup>{% endif %}

@@ -4301,6 +4301,26 @@ body.theme-dark .md-convocazione-note.warn { background: rgba(251,146,60,.12); b
 .tf-more[open] > summary{margin-bottom:12px}
 .tf-more > .tf-panel + .tf-panel{margin-top:12px}
 
+/* Riga rapida attivita' dentro un incontro */
+.qt-bar{display:grid;gap:8px;padding:12px 14px;margin:12px 0;background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:10px}
+.qt-head{font-size:12px;font-weight:700;color:var(--text)}
+.qt-count{display:inline-block;min-width:20px;padding:0 6px;margin-left:4px;border-radius:999px;background:var(--accent-light);color:var(--text);font-size:11px;text-align:center}
+.qt-row{display:grid;grid-template-columns:minmax(220px,2fr) minmax(150px,1fr) 170px 165px auto auto;gap:8px;align-items:center}
+.qt-date{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-light);margin:0}
+.qt-date .input{flex:1;min-width:0}
+.qt-err{margin:0;font-size:13px;font-weight:600;color:var(--danger)}
+.qt-off{margin:0;font-size:13px;color:var(--text-light)}
+.qt-log{margin:0;padding:0 0 0 18px;font-size:13px;color:var(--text-light)}
+.qt-log:empty{display:none}
+.qt-log a{font-weight:600;color:var(--text)}
+/* Conduzione: la cattura resta a portata mentre si scorrono i punti */
+@media (min-width:1001px){
+.ts-panel.run-capture{position:sticky;bottom:8px;z-index:5;box-shadow:0 -4px 18px rgba(15,23,42,.14)}
+.ts-panel.run-capture .ts-panel-head{padding-top:8px;padding-bottom:8px}
+.ts-panel.run-capture .run-capture-log{max-height:calc(4 * 1.6em);overflow-y:auto}
+}
+@media (max-width:1000px){.qt-row{grid-template-columns:1fr 1fr}.qt-title{grid-column:1 / -1}}
+
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .ts-kpi.blue  .ts-kpi-value{color:#93c5fd}
 body.theme-dark .ts-kpi.teal  .ts-kpi-value{color:#86efac}

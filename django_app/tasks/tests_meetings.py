@@ -271,7 +271,7 @@ class MeetingCreateTaskButtonTests(TasksBaseTestCase):
             reverse("tasks:project_meeting_detail", args=[self.project.id, self.meeting.id])
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Crea / assegna attività")
+        self.assertContains(response, "data-qt-bar")
         self.assertContains(response, 'id="ctm-overlay"')
         self.assertContains(response, 'name="assigned_to"')
 
