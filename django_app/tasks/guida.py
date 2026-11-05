@@ -54,6 +54,10 @@ SEZIONI: list[dict] = [
                   "commessa), Inizio e Fine, poi «Aggiungi». L'inizio proposto è il giorno dopo l'ultima fine già in piano e dopo ogni "
                   "aggiunta si riparte dal titolo. «+ Attività completa» apre il form con tipo, etichette e «Altre opzioni» "
                   "(attrezzatura, Outlook e promemoria)."),
+            ("p", "Dentro un incontro, nel dettaglio e nell'esito, «Attività di questo incontro» fa lo stesso senza ricaricare la "
+                  "pagina: titolo, Invio, e la riga è pronta per la successiva con lo stesso responsabile. «Più opzioni» apre il "
+                  "pannello con tipo, priorità, attrezzatura o l'aggiornamento di un'attività esistente. In «Conduci incontro» si "
+                  "usa «Cattura rapida» con il tipo Attività, oppure «+ Nuova attività» sul punto, che la collega al punto."),
             ("ul", [
                 "Gli stati sono Da fare, In corso, Completata e Annullata; le priorità Bassa, Media e Alta.",
                 "Data inizio e data fine possono coincidere: un'attività di una sola giornata è ammessa. "

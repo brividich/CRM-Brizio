@@ -48,6 +48,9 @@ from ..services.notify import (
     _project_notify_users_queryset,
 )
 from ._shared import (
+    _safe_int,
+    _prossimo_inizio,
+    _utenti_riga_rapida,
     _vrf_bozza,
     OPEN_STATUSES,
     _add_task_absence_warnings,
@@ -58,21 +61,6 @@ from ._shared import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _prossimo_inizio(tasks, today):
-    """Inizio proposto per la prossima attivita': il giorno dopo l'ultima fine."""
-    fini = [t.due_date for t in tasks if t.due_date]
-    return max(fini) + timedelta(days=1) if fini else today
-
-
-def _utenti_riga_rapida(project):
-    """Prima il team della commessa, poi gli altri utenti attivi."""
-    from ..forms import task_active_users_queryset, user_display_label
-
-    team = [(u.pk, user_display_label(u)) for u in task_active_users_queryset().filter(pk__in=project.team_user_ids)]
-    altri = [(u.pk, user_display_label(u)) for u in task_active_users_queryset().exclude(pk__in=project.team_user_ids)]
-    return {"team": team, "altri": altri}
 
 
 @require_POST
@@ -124,6 +112,9 @@ def project_quick_task(request, project_id: int):
         "message": f"Attività #{task.id} aggiunta dalla riga rapida al kickoff #{project.id}",
     })
     messages.success(request, f"Attività «{task.title}» aggiunta al piano.")
+    # Il piano si scrive a raffica: il responsabile resta quello appena usato.
+    if assegnatario is not None:
+        destinazione = reverse("tasks:project_gantt", kwargs={"project_id": project.id}) + f"?resp={assegnatario.pk}#riga-rapida"
     return redirect(destinazione)
 
 
@@ -277,6 +268,7 @@ def project_gantt(request, project_id: int):
             "vrf_bozza": _vrf_bozza(project),
             "quick_start": _prossimo_inizio(tasks, today),
             "quick_users": _utenti_riga_rapida(project),
+            "quick_resp": _safe_int(request.GET.get("resp")),
             "can_add_project_task": has_task_permission(request, "tasks_create") and can_manage_project(request, project),
         },
     )

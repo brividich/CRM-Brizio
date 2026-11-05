@@ -17,6 +17,7 @@ from django.utils import timezone
 
 
 from .models import (
+    KickoffMeeting,
     ProjectMember,
     MeetingStatus,
     Project,
@@ -1099,6 +1100,96 @@ class KickoffEditAndQuickTaskTests(TasksBaseTestCase):
         with patch("tasks.views.vrf._vrf_status_detail", return_value=bloccato):
             response = self.client.get(reverse("tasks:project_vrf_compile", args=[self.project.id]))
         self.assertEqual(response.status_code, 200)
+
+
+class MeetingQuickTaskTests(TasksBaseTestCase):
+    """Creazione rapida di attivita' dentro l'incontro. Dati sintetici."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "utente")
+        _grant_role_actions(2, ["tasks_view", "tasks_create", "tasks_edit"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="qtuser", legacy_user_id=6201, role_id=2, role_name="utente",
+        )
+        self.project = make_project(name="QT", client_name="Cliente", created_by=self.user)
+        self.project.set_team("project_managers", [self.user])
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project, data=timezone.localdate(), created_by=self.user,
+        )
+        self.args = [self.project.id, self.meeting.id]
+        self.client.force_login(self.user)
+
+    def test_detail_and_minutes_show_bar_outside_named_fields(self):
+        for nome in ("tasks:project_meeting_detail", "tasks:project_meeting_minutes"):
+            response = self.client.get(reverse(nome, args=self.args))
+            self.assertContains(response, "data-qt-bar")
+            self.assertContains(response, 'data-qt="title"')
+            self.assertContains(response, "quick_task_bar.js")
+            self.assertContains(response, '<optgroup label="Team">')
+
+    def test_bar_endpoint_creates_task_listed_on_meeting(self):
+        response = self.client.post(reverse("tasks:project_meeting_task_from_step", args=self.args), {
+            "title": "Riesame", "next_step_due": "2026-11-10", "due_date": "2026-11-11", "assigned_to": self.user.pk,
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        pagina = self.client.get(reverse("tasks:project_meeting_detail", args=self.args))
+        self.assertEqual([t.title for t in pagina.context["meeting_tasks"]], ["Riesame"])
+        self.assertContains(pagina, "entro 11/11/2026")
+
+    def test_meeting_tasks_exclude_other_meetings(self):
+        altro = KickoffMeeting.objects.create(project=self.project, data=timezone.localdate(), created_by=self.user)
+        self.client.post(reverse("tasks:project_meeting_task_from_step", args=[self.project.id, altro.id]), {"title": "Altrove"})
+        pagina = self.client.get(reverse("tasks:project_meeting_detail", args=self.args))
+        self.assertEqual(pagina.context["meeting_tasks"], [])
+
+    def test_capture_creates_task(self):
+        due = timezone.localdate() + timedelta(days=3)
+        response = self.client.post(reverse("tasks:project_meeting_quick_capture", args=self.args), {
+            "kind": "task", "titolo": "Programmazione", "owner_id": self.user.pk, "due_date": due.isoformat(),
+        })
+        self.assertEqual(response.json()["label"], "Attività")
+        task = self.project.tasks.get()
+        self.assertEqual(task.assigned_to, self.user)
+        self.assertEqual(task.next_step_due, timezone.localdate())
+        self.assertEqual(task.due_date, due)
+        self.assertTrue(task.description.startswith("Dall'incontro #"))
+
+    def test_capture_task_refused_when_blocked(self):
+        from unittest.mock import patch
+
+        bloccato = {"status": "blocked", "label": "", "is_blocked": True, "days_pending": 40, "show_upload_cta": True}
+        with patch("tasks.views._shared._vrf_status_detail", return_value=bloccato):
+            response = self.client.post(reverse("tasks:project_meeting_quick_capture", args=self.args), {
+                "kind": "task", "titolo": "X",
+            })
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(self.project.tasks.count(), 0)
+
+    def test_blocked_bar_points_to_vrf(self):
+        from unittest.mock import patch
+
+        bloccato = {"status": "blocked", "label": "", "is_blocked": True, "days_pending": 40, "show_upload_cta": True}
+        with patch("tasks.views._shared._vrf_status_detail", return_value=bloccato):
+            response = self.client.get(reverse("tasks:project_meeting_detail", args=self.args))
+        self.assertContains(response, "Compila la scheda VRF")
+        self.assertNotContains(response, 'data-qt="title"')
+
+    def test_run_page_has_task_capture_and_start_field(self):
+        response = self.client.get(reverse("tasks:project_meeting_run", args=self.args))
+        self.assertContains(response, '<option value="task">Attività</option>')
+        self.assertContains(response, 'data-role="task-new-start"')
+        self.assertNotContains(response, 'data-role="task-new-priority"')
+
+    def test_gantt_keeps_last_owner(self):
+        response = self.client.post(reverse("tasks:project_quick_task", args=[self.project.id]), {
+            "title": "Uno", "assigned_to": self.user.pk,
+        })
+        self.assertIn(f"?resp={self.user.pk}#riga-rapida", response["Location"])
+        pagina = self.client.get(reverse("tasks:project_gantt", args=[self.project.id]) + f"?resp={self.user.pk}")
+        self.assertContains(pagina, f'<option value="{self.user.pk}" selected>')
 
 
 class ReadinessComputeTests(TestCase):
