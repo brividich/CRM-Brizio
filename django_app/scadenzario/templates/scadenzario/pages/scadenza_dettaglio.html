@@ -21,22 +21,34 @@
       <tr><th>Scadenza</th><td>{{ s.data_scadenza|date:"d/m/Y"|default:"—" }}</td><th>Ultimo controllo</th><td>{{ s.ultimo_controllo|date:"d/m/Y"|default:"—" }}</td></tr>
       <tr><th>Validità</th><td>{% if s.validita_mesi %}{{ s.validita_mesi }} mesi{% else %}—{% endif %}</td><th>Ubicazione</th><td>{{ s.ubicazione|default:"—" }}</td></tr>
       <tr><th>Preavviso</th><td>{{ s.preavviso_giorni|default:"come la categoria" }}{% if s.preavviso_giorni %} giorni{% endif %}</td><th>Ripeti ogni</th><td>{{ s.ripeti_ogni_giorni|default:"come la categoria" }}{% if s.ripeti_ogni_giorni %} giorni{% endif %}</td></tr>
-      <tr><th>Avvisi a</th><td colspan="3">{{ s.destinatari|join:", "|default:"nessuno (solo riepilogo della categoria)" }}</td></tr>
+      <tr><th>Avvisi a</th><td colspan="3">{{ s.destinatari|join:", "|default:"nessun avviso singolo: solo riepilogo mensile della categoria" }}</td></tr>
       <tr><th>Responsabile</th><td>{% if s.responsabile %}{{ s.responsabile.get_full_name|default:s.responsabile.username }}{% else %}—{% endif %}</td>
           <th>Collegata a</th><td>{% if s.asset %}Asset: <a href="{% url 'assets:asset_view' s.asset_id %}">{{ s.asset.name }}</a>{% endif %}{% if s.fornitore %}{% if s.asset %} · {% endif %}Fornitore: <a href="{% url 'fornitori:fornitore_detail' s.fornitore_id %}">{{ s.fornitore.ragione_sociale }}</a>{% endif %}{% if not s.asset and not s.fornitore %}—{% endif %}</td></tr>
       {% if s.descrizione %}<tr><th>Descrizione</th><td colspan="3">{{ s.descrizione|linebreaksbr }}</td></tr>{% endif %}
     </table>
-    {% if gestisce %}<div style="margin-top:10px"><a class="sz-btn sz-btn-ghost" href="{% url 'scadenzario:scadenza_modifica' s.pk %}">Modifica</a></div>{% endif %}
+    {% if gestisce %}
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      {% if s.validita_mesi %}
+      <form method="post" action="{% url 'scadenzario:scadenza_rinnovo' s.pk %}" data-hub-confirm="Registrare il rinnovo di «{{ s.titolo }}» con data di oggi?">
+        {% csrf_token %}<input type="hidden" name="eseguito_il" value="{{ oggi|date:'Y-m-d' }}">
+        <button class="sz-btn sz-btn-primary" type="submit">✓ Rinnovato oggi</button>
+      </form>
+      {% endif %}
+      <a class="sz-btn sz-btn-ghost" href="{% url 'scadenzario:scadenza_modifica' s.pk %}">Modifica</a>
+    </div>
+    {% endif %}
   </div>
 
   {% if gestisce %}
-  <form method="post" action="{% url 'scadenzario:scadenza_rinnovo' s.pk %}" enctype="multipart/form-data" class="sz-card">
+  <details class="sz-card sz-altro"{% if not s.validita_mesi %} open{% endif %}>
+  <summary>{% if s.validita_mesi %}Rinnovo con altra data, note o allegato{% else %}Registra controllo / rinnovo{% endif %}</summary>
+  <form method="post" action="{% url 'scadenzario:scadenza_rinnovo' s.pk %}" enctype="multipart/form-data" style="margin-top:10px">
     {% csrf_token %}
-    <h2>Registra controllo / rinnovo</h2>
     <div class="sz-help" style="margin-bottom:8px">Aggiorna l'ultimo controllo e porta la scadenza alla successiva{% if s.validita_mesi %} (data del controllo + {{ s.validita_mesi }} mesi){% endif %}. Gli avvisi ripartono dalla nuova data.</div>
     {% with form=rinnovo_form %}{% include "scadenzario/components/campi.html" %}{% endwith %}
     <div style="margin-top:12px"><button class="sz-btn sz-btn-primary" type="submit">Registra</button></div>
   </form>
+  </details>
   {% endif %}
 
   <div class="sz-card sz-wrap">

@@ -7,29 +7,35 @@ from __future__ import annotations
 
 import mimetypes
 import os
-from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.db.models import Count, Q
 from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
+from . import avvisi as servizio_avvisi
 from . import catalogo
-from .forms import CategoriaForm, RegolaForm, RinnovoForm, ScadenzaForm, VoceForm
+from .controlli import da_sistemare
+from .fonte import SOURCE, chiave_categoria
+from .forms import CategoriaForm, RegolaForm, RinnovoForm, ScadenzaForm, VoceForm, opzioni_chi
 from .models import (
-    AvvisoInviato, CategoriaScadenza, RegolaVisibilita, RinnovoScadenza, ScadenzaGenerica, VoceConfig,
+    AvvisoInviato, CategoriaScadenza, RegolaVisibilita, RinnovoScadenza, ScadenzaGenerica, VoceConfig, _email_pulite,
 )
 from .permessi import (
     categorie_gestibili, categorie_visibili, puo_gestire_categoria, puo_usare_modulo, puo_vedere_scadenza,
 )
-from .visibilita import CHIAVE_PANNELLO, SEP, puo_gestire_pannello
+from .visibilita import CHIAVE_PANNELLO, SEP, antenati, chiavi_di, configurazione_di, puo_gestire_pannello
 
 # ---------------------------------------------------------------------------
 # Pannello di gestione
@@ -40,6 +46,25 @@ def _chiave_valida(chiave: str) -> bool:
     if chiave == CHIAVE_PANNELLO:
         return True
     return bool(chiave) and len(chiave) <= 300 and all(chiave.split(SEP)) and chiave.count(SEP) <= 2
+
+
+def _torna(request, predefinito: str):
+    """Torna a ``next`` se è una pagina dello scadenzario, altrimenti a ``predefinito``."""
+    nxt = request.POST.get("next") or ""
+    if nxt.startswith("/scadenze") and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
+        return redirect(nxt)
+    return redirect(predefinito)
+
+
+def _dati_regola(post):
+    """Il menu unico «Aggiungi» manda ``chi=tipo:id``: lo traduce nei campi di RegolaForm."""
+    tipo, _, valore = (post.get("chi") or "").partition(":")
+    if not tipo:
+        return post
+    dati = post.copy()
+    dati["tipo"] = tipo
+    dati[tipo] = valore
+    return dati
 
 
 def _url_gestione(chiave: str = "") -> str:
@@ -67,6 +92,8 @@ def gestione(request):
     if chiave and _chiave_valida(chiave):
         nodo = catalogo.trova(radici, chiave)
         cfg = voci_cfg.get(chiave)
+        conf = configurazione_di(request)
+        percorso_chiavi = [] if chiave == CHIAVE_PANNELLO else antenati(chiave)
         selezione = {
             "chiave": chiave,
             "nodo": nodo,
@@ -83,14 +110,18 @@ def gestione(request):
                 "attiva": "" if not cfg or cfg.attiva is None else ("1" if cfg.attiva else "0"),
                 "modalita": cfg.modalita if cfg else "",
             }),
-            "regola_form": RegolaForm(),
-            "generiche": chiave.startswith("generiche"),
+            "generiche": chiave.startswith(SOURCE),
+            "compare": conf.attiva(percorso_chiavi),
+            "solo_regole": conf.modalita(percorso_chiavi) == VoceConfig.MODALITA_REGOLE,
+            "n_regole": sum(len(regole_per_chiave.get(c, ())) for c in percorso_chiavi),
         }
     return render(request, "scadenzario/pages/gestione.html", {
         "radici": radici,
         "voci_cfg": voci_cfg,
         "regole_per_chiave": regole_per_chiave,
         "selezione": selezione,
+        "opzioni_chi": opzioni_chi() if selezione else [],
+        "da_sistemare": [] if selezione else da_sistemare(),
         "chiave_pannello": CHIAVE_PANNELLO,
         "n_regole_pannello": len(regole_per_chiave.get(CHIAVE_PANNELLO, [])),
     })
@@ -131,10 +162,10 @@ def gestione_regola_aggiungi(request):
     if not _chiave_valida(chiave):
         messages.error(request, "Voce non valida.")
         return redirect(_url_gestione())
-    form = RegolaForm(request.POST)
+    form = RegolaForm(_dati_regola(request.POST))
     if not form.is_valid():
         messages.error(request, "; ".join(e for errs in form.errors.values() for e in errs) or "Dati non validi.")
-        return redirect(_url_gestione(chiave))
+        return _torna(request, _url_gestione(chiave))
     tipo = form.cleaned_data["tipo"]
     dati = {"chiave": chiave, "livello": form.cleaned_data["livello"], "creato_da": request.user}
     if tipo == "ruolo_portale":
@@ -157,7 +188,7 @@ def gestione_regola_aggiungi(request):
     log_action(request, "scadenzario_regola_aggiunta", "scadenzario",
                {"chiave": chiave, "regola": regola.destinatario_label, "livello": regola.livello})
     messages.success(request, f"Regola salvata: {regola.destinatario_label}.")
-    return redirect(_url_gestione(chiave))
+    return _torna(request, _url_gestione(chiave))
 
 
 @login_required
@@ -171,7 +202,7 @@ def gestione_regola_togli(request, regola_id: int):
                {"chiave": chiave, "regola": regola.destinatario_label})
     regola.delete()
     messages.success(request, "Regola tolta.")
-    return redirect(_url_gestione(chiave))
+    return _torna(request, _url_gestione(chiave))
 
 
 # ---------------------------------------------------------------------------
@@ -199,6 +230,7 @@ def elenco(request):
     categoria = request.GET.get("categoria", "")
     testo = request.GET.get("q", "").strip()[:80]
     stato = request.GET.get("stato", "")
+    senza = request.GET.get("senza", "")
     mostra_sospese = request.GET.get("sospese") == "1"
     if categoria.isdigit():
         qs = qs.filter(categoria_id=int(categoria))
@@ -206,18 +238,29 @@ def elenco(request):
         qs = qs.filter(Q(titolo__icontains=testo) | Q(descrizione__icontains=testo) | Q(ubicazione__icontains=testo))
     if not mostra_sospese:
         qs = qs.filter(is_active=True)
-    if stato == "scadute":
-        qs = qs.filter(data_scadenza__lt=oggi)
-    elif stato in ("30", "60", "90"):
-        qs = qs.filter(data_scadenza__gte=oggi, data_scadenza__lte=oggi + timedelta(days=int(stato)))
-    righe = list(qs.order_by("data_scadenza", "titolo"))
-    for s in righe:
-        s.giorni = s.giorni_alla_scadenza(oggi)
+    if senza == "responsabile":
+        qs = qs.filter(responsabile__isnull=True)
     gestibili = categorie_gestibili(request)
+    tutte = list(qs.order_by("data_scadenza", "titolo"))
+    if senza == "destinatari":
+        tutte = [s for s in tutte if not s.destinatari]
+    for s in tutte:
+        s.giorni = s.giorni_alla_scadenza(oggi)
+        s.n_destinatari = len(s.destinatari)
+        s.gestibile = gestibili is None or s.categoria_id in gestibili
+    # I contatori in alto restano quelli senza il filtro di stato: servono a sceglierlo.
+    con_data = [s for s in tutte if s.giorni is not None]
+    if stato == "scadute":
+        righe = [s for s in con_data if s.giorni < 0]
+    elif stato in ("30", "60", "90"):
+        righe = [s for s in con_data if 0 <= s.giorni <= int(stato)]
+    else:
+        righe = tutte
     visibili = categorie_visibili(request)
     categorie = CategoriaScadenza.objects.order_by("nome")
     if visibili is not None:
         categorie = categorie.filter(pk__in=visibili)
+    puo_massa = gestibili is None or bool(gestibili)
     if request.GET.get("format") == "xlsx":
         return _export_xlsx(righe)
     return render(request, "scadenzario/pages/elenco.html", {
@@ -226,12 +269,81 @@ def elenco(request):
         "filtro_categoria": categoria,
         "q": testo,
         "stato": stato,
+        "senza": senza,
         "mostra_sospese": mostra_sospese,
-        "puo_inserire": gestibili is None or bool(gestibili),
-        "puo_pannello": puo_gestire_pannello(request),
-        "n_scadute": sum(1 for s in righe if s.giorni is not None and s.giorni < 0),
-        "n_30": sum(1 for s in righe if s.giorni is not None and 0 <= s.giorni <= 30),
+        "puo_inserire": puo_massa,
+        "puo_massa": puo_massa,
+        "utenti": _utenti_attivi() if puo_massa else [],
+        "oggi": oggi,
+        "n_tutte": len(tutte),
+        "n_scadute": sum(1 for s in con_data if s.giorni < 0),
+        "n_30": sum(1 for s in con_data if 0 <= s.giorni <= 30),
     })
+
+
+def _utenti_attivi():
+    return get_user_model().objects.filter(is_active=True).order_by("last_name", "first_name", "username")
+
+
+@login_required
+@require_POST
+def scadenze_massa(request):
+    """Stessa modifica su più attività. Tocca solo quelle delle categorie che la persona gestisce."""
+    predefinito = reverse("scadenzario:elenco")
+    gestibili = categorie_gestibili(request)
+    if gestibili is not None and not gestibili:
+        return HttpResponseForbidden("Non puoi modificare queste attività.")
+    azione = request.POST.get("azione", "")
+    ids = [int(x) for x in request.POST.getlist("ids") if x.isdigit()][:500]
+    scadenze = list(ScadenzaGenerica.objects.select_related("categoria").filter(pk__in=ids))
+    if gestibili is not None:
+        scadenze = [s for s in scadenze if s.categoria_id in gestibili]
+    if not scadenze:
+        messages.error(request, "Seleziona almeno un'attività.")
+        return _torna(request, predefinito)
+
+    email = _email_pulite(request.POST.get("email", ""))
+    if azione == "responsabile":
+        uid = request.POST.get("responsabile", "")
+        responsabile = None
+        if uid:
+            responsabile = _utenti_attivi().filter(pk=uid).first() if uid.isdigit() else None
+            if responsabile is None:
+                messages.error(request, "Responsabile non valido.")
+                return _torna(request, predefinito)
+        for s in scadenze:
+            s.responsabile = responsabile
+            s.save(update_fields=["responsabile", "aggiornato_il"])
+    elif azione in ("destinatari_aggiungi", "destinatari_sostituisci"):
+        try:
+            for indirizzo in email:
+                validate_email(indirizzo)
+        except ValidationError:
+            messages.error(request, "Controlla gli indirizzi: almeno uno non è valido.")
+            return _torna(request, predefinito)
+        if azione == "destinatari_aggiungi" and not email:
+            messages.error(request, "Scrivi almeno un indirizzo.")
+            return _torna(request, predefinito)
+        for s in scadenze:
+            nuovi = s.destinatari + email if azione == "destinatari_aggiungi" else email
+            s.email_avviso = ", ".join(_email_pulite(", ".join(nuovi)))
+            s.save(update_fields=["email_avviso", "aggiornato_il"])
+    elif azione == "destinatari_categoria":
+        for s in scadenze:
+            s.email_avviso = ", ".join(s.categoria.destinatari)
+            s.save(update_fields=["email_avviso", "aggiornato_il"])
+    elif azione in ("sospendi", "riattiva"):
+        for s in scadenze:
+            s.is_active = azione == "riattiva"
+            s.save(update_fields=["is_active", "aggiornato_il"])
+    else:
+        messages.error(request, "Azione non valida.")
+        return _torna(request, predefinito)
+    log_action(request, "scadenze_generiche_modifica_massa", "scadenzario",
+               {"azione": azione, "ids": [s.pk for s in scadenze]})
+    n = len(scadenze)
+    messages.success(request, f"Fatto su {n} attività." if n != 1 else "Fatto su 1 attività.")
+    return _torna(request, predefinito)
 
 
 def _export_xlsx(righe):
@@ -276,7 +388,9 @@ def scadenza_nuova(request):
         if request.GET.get("categoria", "").isdigit():
             iniziali["categoria"] = int(request.GET["categoria"])
         form = ScadenzaForm(initial=iniziali, categorie_ammesse=gestibili)
-    return render(request, "scadenzario/pages/scadenza_form.html", {"form": form, "nuova": True})
+    return render(request, "scadenzario/pages/scadenza_form.html", {
+        "form": form, "nuova": True, "email_categorie": _email_categorie(form),
+    })
 
 
 @login_required
@@ -296,7 +410,14 @@ def scadenza_modifica(request, pk: int):
             return redirect("scadenzario:scadenza_dettaglio", pk=s.pk)
     else:
         form = ScadenzaForm(instance=s, categorie_ammesse=gestibili)
-    return render(request, "scadenzario/pages/scadenza_form.html", {"form": form, "nuova": False, "s": s})
+    return render(request, "scadenzario/pages/scadenza_form.html", {
+        "form": form, "nuova": False, "s": s, "email_categorie": _email_categorie(form),
+    })
+
+
+def _email_categorie(form) -> dict:
+    """Destinatari di ogni categoria del form, per «Usa quelli della categoria»."""
+    return {str(c.pk): ", ".join(c.destinatari) for c in form.fields["categoria"].queryset}
 
 
 @login_required
@@ -308,6 +429,7 @@ def scadenza_dettaglio(request, pk: int):
     return render(request, "scadenzario/pages/scadenza_dettaglio.html", {
         "s": s,
         "giorni": s.giorni_alla_scadenza(),
+        "oggi": timezone.localdate(),
         "gestisce": gestisce,
         "rinnovi": s.rinnovi.select_related("registrato_da")[:50],
         "avvisi": s.avvisi.all()[:20],
@@ -316,13 +438,8 @@ def scadenza_dettaglio(request, pk: int):
 
 
 def _dopo_rinnovo(request, s):
-    """Dal calendario (``next`` = /scadenze…) si torna lì, altrimenti alla scheda."""
-    from django.utils.http import url_has_allowed_host_and_scheme
-
-    nxt = request.POST.get("next") or ""
-    if nxt.startswith("/scadenze") and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
-        return redirect(nxt)
-    return redirect("scadenzario:scadenza_dettaglio", pk=s.pk)
+    """Dal calendario o dall'elenco (``next`` = /scadenze…) si torna lì, altrimenti alla scheda."""
+    return _torna(request, reverse("scadenzario:scadenza_dettaglio", args=[s.pk]))
 
 
 @login_required
@@ -396,9 +513,27 @@ def categorie(request):
     qs = CategoriaScadenza.objects.order_by("nome")
     if gestibili is not None:
         qs = qs.filter(pk__in=gestibili)
+    categorie_righe = list(qs)
+    attive = ScadenzaGenerica.objects.filter(is_active=True).order_by()
+    n_attivita = dict(attive.values_list("categoria_id").annotate(n=Count("pk")))
+    n_scadute = dict(attive.filter(data_scadenza__lt=timezone.localdate()).values_list("categoria_id").annotate(n=Count("pk")))
+    regole = RegolaVisibilita.objects.select_related("ruolo_portale", "ruolo_aziendale")
+    regole_fonte = list(regole.filter(chiave=SOURCE))
+    per_chiave: dict[str, list] = {}
+    for r in regole.filter(chiave__startswith=SOURCE + SEP):
+        per_chiave.setdefault(r.chiave, []).append(r)
+    for c in categorie_righe:
+        c.n_attivita = n_attivita.get(c.pk, 0)
+        c.n_scadute = n_scadute.get(c.pk, 0)
+        c.regole = per_chiave.get(_chiave_cat(c.pk), [])
     return render(request, "scadenzario/pages/categorie.html", {
-        "categorie": qs, "form": form, "puo_pannello": puo_gestire_pannello(request),
+        "categorie": categorie_righe, "regole_fonte": regole_fonte, "form": form,
+        "puo_pannello": puo_gestire_pannello(request),
     })
+
+
+def _chiave_cat(categoria_id: int) -> str:
+    return chiavi_di(SOURCE, chiave_categoria(categoria_id))[1]
 
 
 @login_required
@@ -415,7 +550,17 @@ def categoria_modifica(request, pk: int):
             return redirect("scadenzario:categorie")
     else:
         form = CategoriaForm(instance=cat)
-    return render(request, "scadenzario/pages/categoria_form.html", {"form": form, "cat": cat})
+    contesto = {"form": form, "cat": cat, "puo_pannello": puo_gestire_pannello(request)}
+    if contesto["puo_pannello"]:
+        regole = RegolaVisibilita.objects.select_related("ruolo_portale", "ruolo_aziendale")
+        contesto.update({
+            "chiave": _chiave_cat(cat.pk),
+            "regole": list(regole.filter(chiave=_chiave_cat(cat.pk))),
+            "regole_fonte": list(regole.filter(chiave=SOURCE)),
+            "opzioni_chi": opzioni_chi(),
+            "torna": request.path,
+        })
+    return render(request, "scadenzario/pages/categoria_form.html", contesto)
 
 
 @login_required
@@ -426,4 +571,12 @@ def avvisi(request):
     qs = AvvisoInviato.objects.select_related("scadenza", "categoria")
     if visibili is not None:
         qs = qs.filter(Q(categoria_id__in=visibili) | Q(scadenza__categoria_id__in=visibili))
-    return render(request, "scadenzario/pages/avvisi.html", {"avvisi": qs[:300]})
+    return render(request, "scadenzario/pages/avvisi.html", {
+        "avvisi": qs[:300],
+        "anteprima": servizio_avvisi.anteprima(categorie=visibili),
+        "ora_invio": "{:02d}:{:02d}".format(*servizio_avvisi.ORA_AVVISI),
+        "riepilogo": {
+            "giorno": servizio_avvisi.prossimo_riepilogo(),
+            "ora": "{:02d}:{:02d}".format(*servizio_avvisi.ORA_RIEPILOGO),
+        },
+    })

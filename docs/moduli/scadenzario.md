@@ -18,8 +18,9 @@ Lo scadenzario del portale: la pagina `/scadenze` (`dashboard.views_scadenze`) r
 | `/scadenze/gestione/` | `scadenzario:gestione` | Pannello: albero voci, impostazioni, regole |
 | `/scadenze/generiche/` | `scadenzario:elenco` | Elenco scadenze generiche (+ export Excel `?format=xlsx`) |
 | `/scadenze/generiche/nuova/`, `<id>/`, `<id>/modifica/`, `<id>/rinnovo/` | `scadenza_*` | Attività, scheda, rinnovo con allegato |
-| `/scadenze/generiche/categorie/` | `scadenzario:categorie` | Categorie |
-| `/scadenze/generiche/avvisi/` | `scadenzario:avvisi` | Registro avvisi |
+| `/scadenze/generiche/massa/` | `scadenzario:scadenze_massa` | POST: stessa modifica su più attività (responsabile, destinatari, sospendi/riattiva), solo sulle categorie gestite |
+| `/scadenze/generiche/categorie/` | `scadenzario:categorie` | Categorie, con chi le vede; la scheda della categoria contiene anche le regole |
+| `/scadenze/generiche/avvisi/` | `scadenzario:avvisi` | Anteprima del prossimo invio e registro avvisi |
 
 Rotte condivise (prefissi `/scadenze/gestione/` e `/scadenze/generiche/` in `_ACL_SHARED_PREFIXES`): i permessi si decidono nelle view. Voce di menu «Scadenzario» in alto (migrazione `0002`, solo se non esiste già una voce verso `scadenze_globali`).
 
@@ -64,6 +65,8 @@ Avvisi (`scadenzario/avvisi.py`, task in `automazioni/schedules.py`):
 - `scadenzario_avvisi_attivita` ogni giorno 07:15: email dell'attività, entro il preavviso, ripetizione ogni N giorni contando solo gli invii riusciti, anche dopo la scadenza se la categoria lo vuole;
 - `scadenzario_riepilogo_mensile` il 1° alle 08:00: email della categoria, scadute + prossimi N giorni.
 
+Un'attività senza email propria non riceve l'avviso singolo e resta nel riepilogo della categoria, come nel vecchio scadenzario. Anteprima senza invio: `avvisi.anteprima()` (usa la stessa `da_avvisare`), pagina Avvisi e `manage.py scadenzario_avvisi [--giorno AAAA-MM-GG]`. «Da sistemare» del pannello: `scadenzario/controlli.py`.
+
 SiteConfig: `scadenzario_preavviso_giorni` (30), `scadenzario_ripeti_giorni` (7), `scadenzario_riepilogo_giorni` (60).
 
 ## Import
@@ -74,7 +77,7 @@ python django_app\manage.py importa_scadenzario                       # prova
 python django_app\manage.py importa_scadenzario --apply --con-avvisi  # import
 ```
 
-Parametri `--host` (10.0.0.7) `--port` `--database` (scadenziario) `--user` (hub_readonly). Rilanciabile (`legacy_id`). Prerequisito: `GRANT SELECT ON scadenziario.* TO 'hub_readonly'@'10.0.0.7';`. Lo stesso giorno spegnere lo scheduler del vecchio scadenzario sul NAS.
+Parametri `--host` (10.0.0.7) `--port` `--database` (scadenziario) `--user` (hub_readonly). Rilanciabile (`legacy_id`): le voci già importate non si riscrivono, per non perdere le modifiche fatte nel portale; `--aggiorna` le riscrive. Il vecchio scadenzario non aveva allegati né storico dei rinnovi. Prerequisito: `GRANT SELECT ON scadenziario.* TO 'hub_readonly'@'10.0.0.7';`. Lo stesso giorno spegnere lo scheduler del vecchio scadenzario sul NAS.
 
 ## Test
 
