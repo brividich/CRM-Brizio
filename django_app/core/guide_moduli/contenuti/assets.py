@@ -15,7 +15,10 @@ GUIDA = {
                 ("passi", [
                     "Apri Asset: si apre il cruscotto.",
                     "Clicca «Inventario completo» (area «Inventario» del menu a sinistra) oppure una categoria in «Inventario per categoria».",
-                    "Cerca per nome, numero interno, seriale o IP e apri la scheda.",
+                    "Cerca per nome, numero interno, seriale o IP e apri la scheda. Non serve scrivere il nome esatto: "
+                    "«dixi 80» trova anche «DIXI80» e «Dixi-80» (spazi, trattini e punti non contano) e le parole "
+                    "valgono in qualunque ordine («80 dixi»). Vale per la ricerca in testa al modulo, per gli elenchi "
+                    "e per la ricerca rapida delle tabelle.",
                 ]),
                 ("p", "Il menu a sinistra è diviso per area: Inventario, Manutenzione e officina, IT e rete (licenze, software, "
                       "indirizzi IP, rack), Inventario per categoria; in fondo «Guida del modulo»."),
@@ -146,8 +149,9 @@ GUIDA = {
                     "Nuovo intervento («+ Straordinaria»): «Chi lo esegue» Interno (già scelto: «Assegnato a» propone la "
                     "squadra manutenzione e il manutentore predefinito) o Esterno («Ditta esterna» obbligatoria: scrivi per "
                     "cercare fra i fornitori; se non c'è, «＋ Nuova ditta» la crea in anagrafica al salvataggio). La "
-                    "risoluzione si scrive solo in «Chiudi intervento». Un intervento aperto si corregge con «✎ Modifica» "
-                    "(ogni modifica finisce nel registro dell'intervento).",
+                    "risoluzione si scrive solo in «Chiudi intervento». Le foto scelte in «Allegati» si vedono subito in anteprima. Ogni intervento, anche già chiuso, si corregge "
+                    "con «✎ Modifica» (in testa e nel riquadro Panoramica; su un chiuso anche «Cosa è stato fatto»); "
+                    "stato ed esito non cambiano e ogni modifica finisce nel registro dell'intervento.",
                     "Ditte esterne: in ogni OdL aperto il riquadro «Presenze in azienda della ditta» propone gli "
                     "ingressi della ditta registrati al chiosco della reception; «Collega» li lega all'OdL come prova "
                     "dell'intervento. Se l'OdL era Interno e la ditta si riconosce, passa a Esterno con quella ditta "
@@ -157,7 +161,11 @@ GUIDA = {
                     "«Chiudi intervento» è uguale per asset IT e di produzione: «Com'è andata?» (Risolto già scelto, "
                     "Risolto temporaneamente, Non risolto, Non eseguito - annulla), poi Esecuzione (data e ora, "
                     "eseguito da, tempo impiegato, fermo macchina, «Cosa è stato fatto» obbligatorio) e rapportino. "
-                    "Giorni di lavoro, codici guasto, costi, contratto e nota sono in «Altri dettagli». Se lo stesso "
+                    "In cima le foto dell'intervento e della segnalazione (frecce o miniature se sono più di una). "
+                    "Il pulsante «Chiudi definitivamente» è in fondo alla pagina, dopo i ricambi. Nelle straordinarie "
+                    "non ci sono «Rapporto / documento» e «Altri dettagli»: assegnatario, codici, costi e contratto "
+                    "restano quelli già sull'intervento. "
+                    "Negli altri interventi giorni di lavoro, codici guasto, costi, contratto e nota sono in «Altri dettagli». Se lo stesso "
                     "intervento è aperto su altri asset, «Stesso intervento su altri asset» li chiude insieme (stesso "
                     "esito, data, esecutore e descrizione; tempo, fermo, costi e allegati solo su quello aperto).",
                     "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» la casella «Segna anche la "

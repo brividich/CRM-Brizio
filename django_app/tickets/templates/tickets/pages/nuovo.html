@@ -200,6 +200,10 @@ body.theme-dark .tkt-file-item-name { color:var(--text); }
 body.theme-dark .tkt-btn-secondary { background:var(--surface-alt); color:var(--text-mid); border-color:var(--border); }
 body.theme-dark .tkt-error { background:rgba(220,38,38,.12); border-color:rgba(220,38,38,.3); color:#fca5a5; }
   
+.tkt-per-conto{margin-bottom:14px;padding:10px 12px;border:1px dashed #94a3b8;border-radius:10px;background:#f8fafc}
+.tkt-optional{font-weight:500;color:#64748b;font-size:11px}
+body.theme-dark .tkt-per-conto{background:var(--surface-alt);border-color:var(--border)}
+body.theme-dark .tkt-optional{color:var(--text-light)}
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .tkt-field label .req{color:#fca5a5}
 body.theme-dark .tkt-file-remove{color:#fca5a5}
@@ -235,7 +239,7 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
     </div>
   </div>
   {% else %}
-  {% if error %}<div class="tkt-error">{{ error }}</div>{% endif %}
+  {% if error %}<div class="tkt-error" data-hub-form-error>{{ error }}<br><small>I dati inseriti sono rimasti nei campi. Se avevi allegato dei file, riallegali: il browser non li conserva dopo un errore.</small></div>{% endif %}
 
   <form method="post" enctype="multipart/form-data" id="tkt-form">
     {% csrf_token %}
@@ -317,6 +321,19 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
           <div class="tkt-form-section-title">
             {% if tipo == "IT" %}💻 Ticket IT{% else %}🔧 Ticket Manutenzione{% endif %}
           </div>
+
+          {% if persone_per_conto_di %}
+          <div class="tkt-field tkt-per-conto">
+            <label for="tkt-per-conto-di">Per conto di <span class="tkt-optional">facoltativo</span></label>
+            <select name="per_conto_di" id="tkt-per-conto-di" class="js-searchable" data-placeholder="Io stesso">
+              <option value="">Io stesso</option>
+              {% for p in persone_per_conto_di %}
+              <option value="{{ p.id }}"{% if form_data.per_conto_di == p.id|stringformat:"d" %} selected{% endif %}>{{ p.label }}</option>
+              {% endfor %}
+            </select>
+            <div class="tkt-field-hint">Riservato alla squadra manutenzione: il ticket risulta aperto dal collega scelto (lo vede nei suoi ticket e riceve gli aggiornamenti); tu resti registrato come chi l'ha compilato.</div>
+          </div>
+          {% endif %}
 
           <div class="tkt-field-row">
             <div class="tkt-field">
@@ -626,6 +643,18 @@ const assetSearch = document.getElementById('asset-search');
 const assetHidden = document.getElementById('asset-id-hidden');
 const assetRes = document.getElementById('asset-results');
 
+// Ritorno con errore: l'asset scelto resta nel campo nascosto, si rimette anche l'etichetta
+if (assetHidden && assetHidden.value) {
+  const scelto = ASSETS.find(a => String(a.id) === String(assetHidden.value));
+  if (scelto) {
+    const nome = `${scelto.name} [${scelto.asset_tag}]`;
+    if (assetSearch) assetSearch.value = nome;
+    document.querySelectorAll('.tkt-my-asset-chip').forEach(c => c.classList.toggle('selected', String(c.dataset.id) === String(scelto.id)));
+    if (!document.querySelector('.tkt-my-asset-chip.selected')) showCatalogoMode();
+    if (assetSelectedLabel) assetSelectedLabel.textContent = `✓ Selezionato: ${nome}`;
+  }
+}
+
 // Pre-selezione asset da ?asset=<id> (link dalla scheda asset)
 if (INITIAL_ASSET && assetHidden && !assetHidden.value) {
   assetHidden.value = String(INITIAL_ASSET.id);
@@ -705,6 +734,11 @@ function scoreAssetMatch(asset, query) {
     }
     if (field.includes(query)) {
       bestScore = Math.max(bestScore, 80);
+    }
+    // «dixi 80» = «dixi80»: stesso confronto senza spazi della ricerca del modulo Assets
+    const queryCompact = query.replace(/ /g, '');
+    if (queryCompact.length >= 2 && field.replace(/ /g, '').includes(queryCompact)) {
+      bestScore = Math.max(bestScore, 78);
     }
 
     tokenizeSearchValue(field).forEach(token => {

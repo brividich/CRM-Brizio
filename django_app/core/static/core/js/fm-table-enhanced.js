@@ -126,6 +126,21 @@
     return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   }
 
+  /* Ricerca elastica (stessa regola della ricerca del modulo Assets): il testo
+   * va bene se contiene la frase, se la contiene ignorando spazi/trattini/punti
+   * («dixi 80» = «DIXI80» = «Dixi-80»), o se contiene tutte le parole in qualunque ordine. */
+  const SEARCH_SEP = /[\s\-./_,;:]+/g;
+  function textMatchesQuery(text, query) {
+    const t = stripAccents(text).toLowerCase();
+    const q = stripAccents(query).toLowerCase().trim();
+    if (!q) return true;
+    if (t.includes(q)) return true;
+    const qc = q.replace(SEARCH_SEP, "");
+    if (qc.length >= 2 && t.replace(SEARCH_SEP, "").includes(qc)) return true;
+    const words = q.split(SEARCH_SEP).filter(Boolean);
+    return words.length > 1 && words.every(w => t.includes(w));
+  }
+
   function slugText(value, fallback) {
     const slug = stripAccents(value)
       .toLowerCase()
@@ -1505,8 +1520,7 @@
 
   function rowMatchesFilters(row, cols, state) {
     if (state.q && state.q.trim()) {
-      const ql = state.q.toLowerCase();
-      if (!row.textContent.toLowerCase().includes(ql)) return false;
+      if (!textMatchesQuery(row.textContent, state.q)) return false;
     }
     for (const key in state.filters) {
       const val = state.filters[key];

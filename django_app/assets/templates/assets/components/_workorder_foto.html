@@ -1,0 +1,97 @@
+{% comment %}Anteprima delle foto dell'intervento e della segnalazione collegata.
+Una foto: immagine grande. Piu' foto: scorrimento con frecce, tastiera, swipe e miniature.
+Contesto: workorder_foto (lista di {url, nome, fonte}).{% endcomment %}
+{% if workorder_foto %}
+<style>
+.wof-gal { border:1px solid var(--border,#dbe1ea); border-radius:12px; background:var(--surface,#fff); padding:12px 14px; display:grid; gap:10px; }
+.wof-gal-head { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+.wof-gal-head h2 { margin:0; font-size:var(--fs-md); color:var(--text,#0f172a); }
+.wof-gal-count { font-size:var(--fs-sm); color:var(--text-mid,#64748b); font-weight:700; }
+.wof-gal-stage { position:relative; display:flex; align-items:center; justify-content:center; background:#0f172a; border-radius:10px; min-height:220px; overflow:hidden; touch-action:pan-y; }
+.wof-gal-stage img { display:block; max-width:100%; max-height:min(60vh, 520px); object-fit:contain; }
+.wof-gal-stage img[hidden] { display:none; }
+.wof-gal-nav { position:absolute; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:999px; border:0; background:rgba(255,255,255,.88); color:#0f172a; font-size:22px; font-weight:900; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,.25); }
+.wof-gal-nav:hover { background:#fff; }
+.wof-gal-prev { left:10px; }
+.wof-gal-next { right:10px; }
+.wof-gal-caption { font-size:var(--fs-sm); color:var(--text-mid,#64748b); display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.wof-gal-caption a { color:#1d4ed8; font-weight:700; text-decoration:none; }
+.wof-gal-thumbs { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; }
+.wof-gal-thumb { flex:0 0 auto; width:64px; height:64px; padding:0; border:2px solid transparent; border-radius:8px; overflow:hidden; cursor:pointer; background:#e2e8f0; }
+.wof-gal-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.wof-gal-thumb.is-active { border-color:#2563eb; }
+body.theme-dark .wof-gal-caption a { color:#93c5fd; }
+body.theme-dark .wof-gal-thumb { background:var(--surface-alt); }
+body.theme-dark .wof-gal-thumb.is-active { border-color:#60a5fa; }
+</style>
+<section class="wof-gal" data-wof-gal aria-label="Foto dell'intervento">
+  <div class="wof-gal-head">
+    <h2>&#128247; Foto</h2>
+    <span class="wof-gal-count" data-wof-gal-count>{% if workorder_foto|length > 1 %}1 / {{ workorder_foto|length }}{% else %}1 foto{% endif %}</span>
+  </div>
+  <div class="wof-gal-stage" data-wof-gal-stage>
+    {% for f in workorder_foto %}
+      <img src="{{ f.url }}" alt="{{ f.nome }}" loading="{% if forloop.first %}eager{% else %}lazy{% endif %}" data-wof-gal-img data-nome="{{ f.nome }}" data-fonte="{{ f.fonte }}"{% if not forloop.first %} hidden{% endif %}>
+    {% endfor %}
+    {% if workorder_foto|length > 1 %}
+      <button type="button" class="wof-gal-nav wof-gal-prev" data-wof-gal-prev aria-label="Foto precedente">&#8249;</button>
+      <button type="button" class="wof-gal-nav wof-gal-next" data-wof-gal-next aria-label="Foto successiva">&#8250;</button>
+    {% endif %}
+  </div>
+  <div class="wof-gal-caption">
+    <span data-wof-gal-caption>{{ workorder_foto.0.fonte }} · {{ workorder_foto.0.nome }}</span>
+    <a href="{{ workorder_foto.0.url }}" target="_blank" rel="noopener" data-wof-gal-open>Apri a schermo intero &#8599;</a>
+  </div>
+  {% if workorder_foto|length > 1 %}
+    <div class="wof-gal-thumbs">
+      {% for f in workorder_foto %}
+        <button type="button" class="wof-gal-thumb{% if forloop.first %} is-active{% endif %}" data-wof-gal-thumb="{{ forloop.counter0 }}" aria-label="Foto {{ forloop.counter }}: {{ f.nome }}"><img src="{{ f.url }}" alt="" loading="lazy"></button>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+<script>
+(function(){
+  "use strict";
+  document.querySelectorAll("[data-wof-gal]:not([data-ready])").forEach(function(gal){
+    gal.setAttribute("data-ready","1");
+    var imgs=Array.prototype.slice.call(gal.querySelectorAll("[data-wof-gal-img]"));
+    var thumbs=Array.prototype.slice.call(gal.querySelectorAll("[data-wof-gal-thumb]"));
+    var count=gal.querySelector("[data-wof-gal-count]");
+    var caption=gal.querySelector("[data-wof-gal-caption]");
+    var open=gal.querySelector("[data-wof-gal-open]");
+    var stage=gal.querySelector("[data-wof-gal-stage]");
+    var current=0;
+    function show(i){
+      if(!imgs.length)return;
+      current=(i+imgs.length)%imgs.length;
+      imgs.forEach(function(img,k){img.hidden=k!==current;});
+      thumbs.forEach(function(t,k){t.classList.toggle("is-active",k===current);});
+      var img=imgs[current];
+      if(count&&imgs.length>1)count.textContent=(current+1)+" / "+imgs.length;
+      if(caption)caption.textContent=img.dataset.fonte+" · "+img.dataset.nome;
+      if(open)open.href=img.getAttribute("src");
+    }
+    var prev=gal.querySelector("[data-wof-gal-prev]"), next=gal.querySelector("[data-wof-gal-next]");
+    if(prev)prev.addEventListener("click",function(){show(current-1);});
+    if(next)next.addEventListener("click",function(){show(current+1);});
+    thumbs.forEach(function(t){t.addEventListener("click",function(){show(parseInt(t.dataset.wofGalThumb,10)||0);});});
+    gal.tabIndex=0;
+    gal.addEventListener("keydown",function(e){
+      if(imgs.length<2)return;
+      if(e.key==="ArrowLeft"){e.preventDefault();show(current-1);}
+      else if(e.key==="ArrowRight"){e.preventDefault();show(current+1);}
+    });
+    var startX=null;
+    if(stage){
+      stage.addEventListener("touchstart",function(e){startX=e.touches[0].clientX;},{passive:true});
+      stage.addEventListener("touchend",function(e){
+        if(startX===null||imgs.length<2)return;
+        var dx=e.changedTouches[0].clientX-startX; startX=null;
+        if(Math.abs(dx)>40)show(dx<0?current+1:current-1);
+      });
+    }
+  });
+})();
+</script>
+{% endif %}
