@@ -6,8 +6,8 @@ di preavviso), ``fornitori/tasks.py`` (avviso ogni 10 minuti a RSPP/ASPP, solo n
 from __future__ import annotations
 
 TITOLO = "Fornitori"
-SOTTOTITOLO = ("Anagrafica fornitori, documenti con scadenza, requisiti di sicurezza per chi lavora in sede "
-               "e accessi esterni dal GuestPortal.")
+SOTTOTITOLO = ("Anagrafica fornitori, documenti con scadenza, requisiti di sicurezza per chi lavora in sede, "
+               "accessi esterni dal GuestPortal e tutto ciò che gli altri moduli sanno della ditta.")
 
 SEZIONI = [
     {
@@ -20,11 +20,40 @@ SEZIONI = [
             ("def", [
                 ("Elenco fornitori", "ricerca per nome, P.IVA o città; nella colonna «Stato» anche lo stato dei "
                                      "documenti di sicurezza."),
-                ("Scheda fornitore", "dati, ordini, documenti, valutazioni, asset e il riquadro «Requisiti per "
-                                     "lavorare in sede»."),
+                ("Scheda fornitore", "dati, ordini, documenti, valutazioni, asset, il riquadro «Requisiti per "
+                                     "lavorare in sede» e le schede «Manutenzione», «Copie MFC», «Scadenze» e "
+                                     "«Tecnici»."),
                 ("Accessi esterni", "chi è entrato dal GuestPortal adesso e nei giorni scorsi, con la ditta "
                                     "collegata alla scheda fornitore."),
             ]),
+        ],
+    },
+    {
+        "id": "scheda-collegamenti",
+        "titolo": "Manutenzione, copie, scadenze e tecnici della ditta",
+        "blocchi": [
+            ("p", "Nella scheda del fornitore queste schede raccolgono ciò che esiste già negli altri moduli. Sono "
+                  "tutte facoltative: non c'è niente da compilare e una scheda vuota lo dice senza errori."),
+            ("def", [
+                ("Manutenzione", "ordini di lavoro aperti e chiusi, ticket delegati alla ditta, contratti di "
+                                 "assistenza, verifiche impianti, ricambi e rinnovi di licenze. «OdL chiusi 12 mesi» "
+                                 "e «Costo OdL 12 mesi» sono gli stessi numeri di «Scheda manutenzione completa»; "
+                                 "la nota sotto dice su quanti OdL il costo è compilato."),
+                ("Copie MFC", "macchine e fatture delle copie, con l'esito della Riconciliazione degli ultimi 8 "
+                              "trimestri fatturati e i trimestri con letture ma senza fattura della ditta. Gli "
+                              "importi in euro non ci sono: il modulo Contatori non li registra."),
+                ("Scadenze", "documenti, contratti, verifiche periodiche e attività dello Scadenzario della ditta, "
+                             "in ordine di data. «In scadenza» = entro 30 giorni."),
+                ("Tecnici", "le persone entrate per questa ditta dal GuestPortal, con ingressi, ore in azienda e "
+                            "ultimo ingresso, chi è dentro ora, gli ingressi collegati a un intervento e quelli "
+                            "degli ultimi 90 giorni."),
+            ]),
+            ("p", "La scheda «Copie MFC» compare da sola se il fornitore ha lo stesso nome di quello usato in Contatori "
+                  "(BASE SPA, Copylab). Altrimenti, nel riquadro «Multifunzioni» a destra, apri «Fattura le copie delle "
+                  "multifunzioni?», scegli il fornitore e premi «Collega»; «Togli» annulla il collegamento."),
+            ("nota", "I tecnici sono letti dal GuestPortal a ogni apertura e non vengono copiati nell'HUB: dopo la sua "
+                     "pulizia GDPR restano solo gli ingressi collegati a un ticket o a un OdL. Se il GuestPortal non "
+                     "risponde la scheda lo dice e il resto della pagina funziona."),
         ],
     },
     {
@@ -78,6 +107,9 @@ SEZIONI = [
         "blocchi": [
             ("def", [
                 ("Fornitori e scheda", "chi ha il modulo Fornitori."),
+                ("Manutenzione, Copie MFC", "chi apre anche le manutenzioni delle ditte in Asset, o le fatture in "
+                                            "Contatori; i ticket sono quelli che la persona può gestire."),
+                ("Tecnici", "chi ha il permesso di «Accessi esterni»: sono dati personali."),
                 ("Accessi esterni", "chi ha il permesso del portale esterno (in produzione amministratori)."),
                 ("Notifica ingressi non in regola", "chi ricopre i ruoli indicati nella chiave "
                                                      "«fornitori_requisiti_ruoli» (predefinito «RSPP,ASPP»)."),
@@ -91,6 +123,12 @@ SEZIONI = [
             ("def", [
                 ("La ditta entrata non risulta collegata", "il nome nel GuestPortal è diverso dalla ragione sociale: "
                                                            "abbinala in «Ditte GuestPortal»."),
+                ("La scheda «Tecnici» è vuota", "la ditta ha un altro nome nel GuestPortal (abbinala in «Ditte "
+                                                "GuestPortal») oppure le sue visite sono già state cancellate dalla "
+                                                "pulizia GDPR."),
+                ("Non vedo «Copie MFC»", "il nome non coincide con quello di Contatori: collega il fornitore dal "
+                                         "riquadro «Multifunzioni» della scheda. Serve anche il permesso delle "
+                                         "fatture di Contatori."),
                 ("Documento rinnovato ma ancora «scaduto»", "manca la scadenza sul nuovo documento o il tipo è "
                                                              "diverso: correggi caricandolo di nuovo con tipo e scadenza."),
                 ("Nessuno riceve la notifica", "nell'organigramma nessuno ricopre oggi RSPP/ASPP, oppure la persona "

@@ -17,8 +17,9 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
-from django.http import HttpResponse, HttpResponseForbidden, HttpResponseRedirect
+from django.http import Http404, HttpResponse, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -31,6 +32,7 @@ from anagrafica.models import (
 )
 from core.audit import log_action
 
+from . import collegamenti as col
 from . import guestportal as gp
 from . import ingressi as ing
 from .models import IngressoIntervento
@@ -86,6 +88,7 @@ def index(request):
         "n_asset_assegnati": n_asset_assegnati,
         "ultimi_fornitori": ultimi_fornitori,
         "spesa_categorie": spesa_categorie,
+        "da_guardare": col.da_guardare(request),
     })
 
 
@@ -112,11 +115,44 @@ def guida(request):
     })
 
 
+REQUISITI_FILTRO = {
+    "non_in_regola": "Documenti non in regola",
+    "in_scadenza": "Documenti in scadenza",
+    "ok": "Documenti in regola",
+}
+
+
+def _fornitori_csv(request, qs):
+    """Stesse righe dell'elenco filtrato, senza limite di pagina."""
+    from core.csv_export import csv_download_response
+
+    from .requisiti import stati_per_fornitori
+
+    fornitori = list(qs)
+    stati = stati_per_fornitori([f.pk for f in fornitori])
+    response, writer = csv_download_response("fornitori.csv", delimiter=";")
+    writer.writerow(["Ragione sociale", "P.IVA", "Categoria", "Città", "Telefono", "Email", "Attivo",
+                     "Lavora in sede", "Documenti di sicurezza"])
+    for f in fornitori:
+        stato = stati.get(f.pk)
+        writer.writerow([
+            f.ragione_sociale, f.piva, f.get_categoria_display(), f.citta, f.telefono, f.email,
+            "Sì" if f.is_active else "No", "Sì" if f.accede_in_sede else "No",
+            stato.etichetta if stato and f.accede_in_sede else "",
+        ])
+    log_action(request, "fornitori_esportati", "fornitori", {"righe": len(fornitori)})
+    return response
+
+
 @login_required
 def fornitori_list(request):
     q = request.GET.get("q", "").strip()
     categoria = request.GET.get("categoria", "").strip()
-    solo_attivi = request.GET.get("attivi", "1") == "1"
+    # Il form manda sempre «q»: con la casella «Solo attivi» tolta «attivi» non c'è e vuol dire tutti.
+    solo_attivi = request.GET.get("attivi", "" if "q" in request.GET else "1") == "1"
+    requisiti_filtro = request.GET.get("requisiti", "").strip()
+    if requisiti_filtro not in REQUISITI_FILTRO:
+        requisiti_filtro = ""
 
     qs = Fornitore.objects.all()
     if solo_attivi:
@@ -129,6 +165,14 @@ def fornitori_list(request):
         )
     if categoria:
         qs = qs.filter(categoria=categoria)
+    from .requisiti import stati_per_fornitori
+
+    if requisiti_filtro:
+        stati_filtro = stati_per_fornitori(qs.filter(accede_in_sede=True).values_list("pk", flat=True))
+        qs = qs.filter(pk__in=[pk for pk, s in stati_filtro.items() if s.esito == requisiti_filtro])
+
+    if request.GET.get("formato") == "csv":
+        return _fornitori_csv(request, qs)
 
     stats = Fornitore.objects.aggregate(
         totale=Count("id"),
@@ -138,8 +182,6 @@ def fornitori_list(request):
 
     paginator = Paginator(qs, 25)
     page = paginator.get_page(request.GET.get("page"))
-    from .requisiti import stati_per_fornitori
-
     stati = stati_per_fornitori([f.pk for f in page.object_list])
     for f in page.object_list:
         f.requisiti = stati.get(f.pk)
@@ -149,6 +191,11 @@ def fornitori_list(request):
         "q": q,
         "categoria": categoria,
         "solo_attivi": solo_attivi,
+        "requisiti_filtro": requisiti_filtro,
+        "requisiti_scelte": list(REQUISITI_FILTRO.items()),
+        "query_filtri": urlencode({
+            "q": q, "categoria": categoria, "attivi": "1" if solo_attivi else "", "requisiti": requisiti_filtro,
+        }),
         "categoria_choices": Fornitore.CATEGORIA_CHOICES,
         "stats_totale": stats["totale"],
         "stats_attivi": stats["attivi"],
@@ -170,8 +217,19 @@ def fornitore_detail(request, fornitore_id):
     spesa = ordini.aggregate(t=Sum("importo"))["t"] or Decimal("0")
     from .requisiti import GIORNI_PREAVVISO, stato_fornitore
 
+    sezioni = col.sezioni_visibili(request)
+    codici_contatori: list = []
+    codici_scegliere: list = []
+    if sezioni[col.SEZIONE_COPIE]:
+        codici_contatori = col.codici_del_fornitore(fornitore)
+        if col.apre(request, "fornitori:fornitore_edit", fornitore.pk):
+            codici_scegliere = col.codici_da_scegliere(fornitore)
+
     return render(request, "fornitori/pages/fornitore_detail.html", {
         "fornitore": fornitore,
+        "sezioni": sezioni,
+        "codici_contatori": codici_contatori,
+        "codici_scegliere": codici_scegliere,
         "requisiti": stato_fornitore(fornitore),
         "giorni_preavviso": GIORNI_PREAVVISO,
         "documenti": documenti,
@@ -184,6 +242,56 @@ def fornitore_detail(request, fornitore_id):
         "valutazione_form": FornitoreValutazioneForm(),
         "asset_form": FornitoreAssetForm(fornitore=fornitore),
     })
+
+
+@login_required
+def fornitore_sezione(request, fornitore_id, sezione):
+    """Una scheda della pagina fornitore, caricata quando la si apre. Ogni sezione segue il
+    permesso del modulo da cui arrivano i dati (``collegamenti.sezioni_visibili``)."""
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    visibili = col.sezioni_visibili(request)
+    if sezione not in visibili:
+        raise Http404("Sezione inesistente")
+    if not visibili[sezione]:
+        return JsonResponse({"ok": False, "errore": "Non hai il permesso di vedere questi dati."}, status=403)
+    if sezione == col.SEZIONE_MANUTENZIONE:
+        dati = col.dati_manutenzione(request, fornitore)
+    elif sezione == col.SEZIONE_COPIE:
+        from contatori.permessi import puo_gestire
+
+        dati = {**col.dati_copie(fornitore), "puo_gestire_fatture": puo_gestire(request)}
+    elif sezione == col.SEZIONE_SCADENZE:
+        dati = col.dati_scadenze(request, fornitore)
+    else:
+        dati = col.dati_tecnici(fornitore)
+    return render(request, f"fornitori/components/sezione_{sezione}.html", {"fornitore": fornitore, **dati})
+
+
+@login_required
+@require_POST
+def fornitore_collega_contatori(request, fornitore_id):
+    """Facoltativo: dice quale codice del modulo Contatori è questo fornitore."""
+    from .models import FornitoreContatori
+
+    fornitore = get_object_or_404(Fornitore, pk=fornitore_id)
+    if not (col.apre(request, "fornitori:fornitore_edit", fornitore.pk) and col.apre(request, "contatori:fatture")):
+        return HttpResponseForbidden("Non puoi modificare questo collegamento.")
+    catalogo = col.catalogo_codici()
+    codice = (request.POST.get("codice") or "").strip()
+    azione = request.POST.get("azione") or "collega"
+    if codice not in catalogo:
+        messages.error(request, "Scegli il fornitore del modulo Contatori.")
+    elif azione == "togli":
+        FornitoreContatori.objects.filter(codice=codice, fornitore=fornitore).delete()
+        messages.success(request, f"Collegamento con «{catalogo[codice]}» tolto.")
+    else:
+        FornitoreContatori.objects.update_or_create(
+            codice=codice, defaults={"fornitore": fornitore, "creato_da": request.user},
+        )
+        messages.success(request, f"«{catalogo[codice]}» collegato a questo fornitore.")
+    log_action(request, "fornitore_contatori_collegato", "fornitori",
+               {"fornitore_id": fornitore.pk, "codice": codice, "azione": azione})
+    return redirect(reverse("fornitori:fornitore_detail", args=[fornitore.pk]) + "#tab-copie")
 
 
 @login_required

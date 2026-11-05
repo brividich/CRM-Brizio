@@ -410,15 +410,13 @@ def collect_fornitori(ctx) -> list:
     if not _apre(ctx, "fornitori:fornitori_list"):
         return []
     from anagrafica.models import FornitoreDocumento
+    from fornitori.requisiti import documenti_con_scadenza
 
-    migliori: dict[tuple[int, str], FornitoreDocumento] = {}
-    for d in (FornitoreDocumento.objects.filter(fornitore__is_active=True, data_scadenza__isnull=False)
-              .select_related("fornitore")):
-        chiave = (d.fornitore_id, d.tipo)
-        if chiave not in migliori or d.data_scadenza > migliori[chiave].data_scadenza:
-            migliori[chiave] = d
     items = []
-    for d in migliori.values():
+    for d in documenti_con_scadenza(
+        FornitoreDocumento.objects.filter(fornitore__is_active=True, data_scadenza__isnull=False)
+        .select_related("fornitore")
+    ):
         if d.data_scadenza <= ctx.orizzonte:
             items.append(_item(ctx, SOURCE_FORNITORI, "documento", d.get_tipo_display(), d.fornitore.ragione_sociale,
                                d.data_scadenza, _url("fornitori:fornitore_detail", d.fornitore_id),

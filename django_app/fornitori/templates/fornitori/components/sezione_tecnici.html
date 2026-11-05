@@ -1,0 +1,65 @@
+<div class="fr-azioni">
+  <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'guida_modulo' 'fornitori' %}#scheda-collegamenti" target="_blank" rel="noopener">? Guida</a>
+  <a class="ana-btn ana-btn-ghost ana-btn-sm" href="{% url 'fornitori:accessi_esterni' %}?q={{ fornitore.ragione_sociale|urlencode }}">Accessi esterni →</a>
+</div>
+
+{% if errore %}<div class="fr-errore">{{ errore }}</div>{% endif %}
+{% if not configurato %}<div class="fr-avviso">Il GuestPortal non è collegato: si vedono solo gli ingressi già collegati agli interventi.</div>{% endif %}
+{% if configurato and not errore and not abbinata %}
+<div class="fr-avviso">Riconosco questa ditta solo dalla ragione sociale. Se nel GuestPortal ha un altro nome, <a class="fr-link" href="{% url 'fornitori:guestportal_ditte' %}">abbinala in Ditte GuestPortal</a>.</div>
+{% endif %}
+{% if troncato %}<div class="fr-avviso">Elencate le {{ limite }} persone entrate più di recente: ce ne sono altre nel GuestPortal.</div>{% endif %}
+
+<div class="fr-sez">Tecnici della ditta {% if n_dentro %}<span class="ana-pill ana-pill-green">{{ n_dentro }} in azienda ora</span>{% endif %}</div>
+{% if tecnici %}
+<div class="ana-table-wrap"><table class="ana-table">
+  <thead><tr><th>Tecnico</th><th>Ingressi</th><th>Ore in azienda</th><th>Ultimo ingresso</th><th>Interventi collegati</th></tr></thead>
+  <tbody>{% for t in tecnici %}
+    <tr>
+      <td><strong>{{ t.nome }}</strong>{% if t.dentro %} <span class="ana-pill ana-pill-green">In azienda</span>{% endif %}</td>
+      <td>{{ t.ingressi|default:"—" }}</td>
+      <td>{{ t.ore_label }}</td>
+      <td>{{ t.ultimo|date:"d-m-Y H:i"|default:"—" }}</td>
+      <td>{{ t.interventi|length|default:"—" }}</td>
+    </tr>{% endfor %}
+  </tbody>
+</table></div>
+<p class="fr-nota">Ingressi e ore vengono dal GuestPortal e comprendono solo le visite che conserva ancora: dopo la sua pulizia GDPR restano gli ingressi collegati a un intervento. Gli ospiti anonimizzati non si elencano.</p>
+{% else %}
+<div class="ana-empty">Nessun tecnico trovato per questa ditta.</div>
+{% endif %}
+
+{% if interventi %}
+<div class="fr-sez">Ingressi collegati a un intervento <small>{{ interventi|length }} su {{ n_interventi }}</small></div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Giorno</th><th>Tecnico</th><th>Entrata</th><th>Uscita</th><th>Durata</th><th>Intervento</th></tr></thead>
+  <tbody>{% for v in interventi %}
+    <tr>
+      <td>{{ v.link.ingresso|date:"d-m-Y"|default:"—" }}</td>
+      <td>{{ v.link.tecnico_nome|default:"—" }}</td>
+      <td>{{ v.link.ingresso|date:"H:i"|default:"—" }}</td>
+      <td>{{ v.link.uscita|date:"H:i"|default:"—" }}</td>
+      <td>{{ v.link.durata_label }}</td>
+      <td><a class="fr-link" href="{{ v.url }}">{{ v.etichetta }}</a></td>
+    </tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
+{% if ingressi %}
+<div class="fr-sez">Ingressi degli ultimi {{ giorni_ingressi }} giorni <small>{% if ingressi_troncati %}i {{ ingressi_mostrati }} più recenti: ce ne sono altri in Accessi esterni{% else %}{{ ingressi|length }}{% endif %}</small></div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Giorno</th><th>Persona</th><th>Entrata</th><th>Uscita</th><th>Durata</th><th>Referente</th><th>Motivo</th></tr></thead>
+  <tbody>{% for a in ingressi %}
+    <tr>
+      <td>{{ a.ingresso|date:"d-m-Y" }}</td>
+      <td>{{ a.nome }}</td>
+      <td>{{ a.ingresso|date:"H:i"|default:"—" }}</td>
+      <td>{% if a.presente %}<span class="ana-pill ana-pill-green">Presente</span>{% else %}{{ a.uscita|date:"H:i"|default:"—" }}{% endif %}</td>
+      <td>{{ a.durata_label }}</td>
+      <td>{{ a.referente|default:"—" }}</td>
+      <td>{{ a.motivo|default:"—" }}</td>
+    </tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}

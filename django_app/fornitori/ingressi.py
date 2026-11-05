@@ -222,14 +222,8 @@ def ditte_gp_del_fornitore(fornitore) -> list[int]:
     return list(DittaGuestPortal.objects.filter(fornitore=fornitore).values_list("ditta_gp_id", flat=True))
 
 
-def proposte(iv: Intervento) -> list[gp.Accesso]:
-    """Ingressi della ditta delegata nel periodo dell'intervento, non ancora collegati."""
-    if iv.formazione:
-        return proposte_formazione(iv)
-    fornitore = iv.fornitore
-    if fornitore is None:
-        return []
-    dal, al = iv.finestra()
+def ditte_e_nomi(fornitore) -> tuple[list[int], list[str]]:
+    """Come riconoscere la ditta nel GuestPortal: i suoi ``SupplierID`` e i nomi da cercare."""
     ditte = set(ditte_gp_del_fornitore(fornitore))
     nomi = {fornitore.ragione_sociale}
     # Ditte del GuestPortal con lo stesso nome a meno di forma giuridica e
@@ -241,7 +235,19 @@ def proposte(iv: Intervento) -> list[gp.Accesso]:
         if ditta_id not in abbinate_altrove and chiave and chiave_ditta(nome) == chiave:
             ditte.add(ditta_id)
             nomi.add(nome)
-    righe = gp.ingressi_ditta(ditte_gp=sorted(ditte), nomi=sorted(nomi), dal=dal, al=al)
+    return sorted(ditte), sorted(nomi)
+
+
+def proposte(iv: Intervento) -> list[gp.Accesso]:
+    """Ingressi della ditta delegata nel periodo dell'intervento, non ancora collegati."""
+    if iv.formazione:
+        return proposte_formazione(iv)
+    fornitore = iv.fornitore
+    if fornitore is None:
+        return []
+    dal, al = iv.finestra()
+    ditte, nomi = ditte_e_nomi(fornitore)
+    righe = gp.ingressi_ditta(ditte_gp=ditte, nomi=nomi, dal=dal, al=al)
     gia = set(iv.collegamenti().values_list("visita_gp_id", flat=True))
     return [a for a in righe if a.visita_id not in gia]
 

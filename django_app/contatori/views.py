@@ -351,6 +351,14 @@ def fattura_edit(request, pk=None):
 def fatture_elenco(request):
     """Archivio fatture per trimestre con esito della riconciliazione e trimestri scoperti."""
     archivio = services.archivio_fatture()
+    # Collegamento facoltativo alla scheda del fornitore: senza abbinamento resta il solo codice.
+    from fornitori import collegamenti as forn
+
+    if forn.apre(request, "fornitori:fornitori_list"):
+        schede = forn.mappa_codici()
+        for voce in archivio:
+            for fattura in voce["fatture"]:
+                fattura.fornitore_hub_id = schede.get(fattura.fornitore)
     return render(request, "contatori/fatture.html", {
         "archivio": archivio,
         "scoperti": [a for a in archivio if not a["fatture"] and not a["in_corso"]],
