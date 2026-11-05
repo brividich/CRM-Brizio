@@ -134,6 +134,12 @@ SEZIONI: list[dict] = [
                   "Se chiudi la pagina o si spegne il PC, rientrando nell'OP con «Riprendi» ritrovi il blocco com'era. "
                   "Vale anche per un OP nuovo non ancora creato e per i blocchi copiati con «Clona» ancora da caricare. "
                   "Gli allegati non si salvano in automatico: dopo il ripristino vanno ricaricati."),
+            ("p", "OP sbagliato? Nella pagina di inserimento clicca sul numero dell'OP o sul P/N nella barra in alto (hanno la matita ✎), cerca l'OP giusto per numero, P/N, capocommessa o CAR e premi «Passa a …». Il controllo continua sul nuovo OP: le anomalie già salvate passano con lui (solo se nessuna è stata ancora gestita dal capocommessa) e il blocco che stai scrivendo resta com'è. Quelle già comunicate arrivano al capocommessa del nuovo OP nel riepilogo delle modifiche. A controllo terminato si spostano le singole anomalie con «✂ Taglia»."),
+            ("p", "Anomalia salvata per sbaglio o sul S/N sbagliato? Riapri il blocco («Modifica o aggiungi anomalie»), "
+                  "apri l'anomalia e usa «Elimina» (sparisce, con conferma) o «✂ Taglia» (sposta su un altro S/N: dello "
+                  "stesso OP va nel blocco che ha già quel S/N o in uno nuovo, di un altro OP esce da questo controllo). "
+                  "I pulsanti ci sono solo sulle anomalie che hai inserito tu e si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate. Gli allegati di un'anomalia "
+                  "eliminata restano recuperabili dall'amministratore."),
             ("p", "Bozza dimenticata: se un blocco resta scritto e non salvato per 15 minuti (lo stesso tempo del "
                   "promemoria) e non ci sono anomalie salvate da inviare, ricevi una notifica nel portale e una mail con "
                   "quello che avevi scritto (seriali, descrizioni, blocchi copiati ancora da caricare) e il link che "
@@ -313,6 +319,11 @@ SEZIONI: list[dict] = [
                 "Un'anomalia chiusa si riapre con «Riapri anomalia» nel riquadro verde in alto: il pulsante c'è per il "
                 "capocommessa, il CAR, il controllore che l'ha segnalata e chi può modificare l'OP. Torna aperta e "
                 "«In attesa»; la riapertura resta nella «Cronologia azioni».",
+                "«Elimina» e «✂ Taglia» nella card «Segnalazione»: «Elimina» c'è solo per chi ha inserito l'anomalia, "
+                "«Taglia» anche per chi può modificare l'OP. «Taglia» sposta l'anomalia su un altro S/N dello stesso OP "
+                "o su un altro OP (scrivi OP e S/N; i S/N noti dell'OP vengono proposti). Su un altro OP passa alla sua "
+                "NC e il suo capocommessa la trova nel riepilogo delle modifiche. Entrambe le azioni si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate; "
+                "lo spostamento resta nella «Cronologia azioni».",
                 "«Applica la stessa decisione anche a» copia la decisione (avanzamento, RDC, cliente, note) su altre "
                 "anomalie aperte: «Solo questa» (di serie), «Stesso blocco di seriali», «Tutte le aperte dell'OP» o "
                 "«Scelte a mano» (spunte raggruppate per S/N, con «Tutte» e «Nessuna»). Le anomalie già decise restano "

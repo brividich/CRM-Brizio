@@ -11,6 +11,7 @@ urlpatterns = [
     path("gestione/regola/<int:regola_id>/togli/", views.gestione_regola_togli, name="gestione_regola_togli"),
     path("generiche/", views.elenco, name="elenco"),
     path("generiche/nuova/", views.scadenza_nuova, name="scadenza_nuova"),
+    path("generiche/massa/", views.scadenze_massa, name="scadenze_massa"),
     path("generiche/<int:pk>/", views.scadenza_dettaglio, name="scadenza_dettaglio"),
     path("generiche/<int:pk>/modifica/", views.scadenza_modifica, name="scadenza_modifica"),
     path("generiche/<int:pk>/rinnovo/", views.scadenza_rinnovo, name="scadenza_rinnovo"),

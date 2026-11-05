@@ -5,8 +5,10 @@
     python manage.py importa_scadenzario --apply --con-avvisi   # anche il registro degli avvisi
 
 Rilanciabile: categorie e attività si riconoscono dal vecchio id (``legacy_id``) e
-si aggiornano, non si duplicano. Gli avvisi importati si riconoscono da
-(attività, data, esito) e non si ripetono.
+non si duplicano. Quelle già importate restano come sono, perché nel portale
+possono essere state cambiate (rinnovi, destinatari): solo con ``--aggiorna``
+vengono riscritte con i dati del vecchio scadenzario. Gli avvisi importati si
+riconoscono da (attività, data, esito) e non si ripetono.
 
 Connessione: ``--host``/``--port``/``--database``/``--user``; la password solo
 dalla variabile d'ambiente ``SCADENZARIO_DB_PASSWORD`` (mai da riga di comando).
@@ -43,6 +45,8 @@ class Command(BaseCommand):
         parser.add_argument("--user", default="hub_readonly")
         parser.add_argument("--apply", action="store_true", help="Scrive nel database dell'HUB (senza: solo prova).")
         parser.add_argument("--con-avvisi", action="store_true", help="Importa anche alert_logs.")
+        parser.add_argument("--aggiorna", action="store_true",
+                            help="Riscrive anche categorie e attività già importate, perdendo le modifiche fatte nel portale.")
 
     def _righe(self, conn, sql):
         with conn.cursor() as cur:
@@ -83,16 +87,17 @@ class Command(BaseCommand):
             return
 
         with transaction.atomic():
-            esito = self._scrivi(famiglie, prodotti, avvisi)
+            esito = self._scrivi(famiglie, prodotti, avvisi, aggiorna=opts["aggiorna"])
         self.stdout.write(self.style.SUCCESS(
-            "Importati: categorie {cat_nuove} nuove / {cat_agg} aggiornate, attività {att_nuove} nuove / "
-            "{att_agg} aggiornate, avvisi {avvisi}.".format(**esito)
+            "Importati: categorie {cat_nuove} nuove / {cat_agg} aggiornate / {cat_ferme} lasciate come sono, "
+            "attività {att_nuove} nuove / {att_agg} aggiornate / {att_ferme} lasciate come sono, "
+            "avvisi {avvisi}.".format(**esito)
         ))
 
-    def _scrivi(self, famiglie, prodotti, avvisi) -> dict:
+    def _scrivi(self, famiglie, prodotti, avvisi, *, aggiorna: bool = False) -> dict:
         from scadenzario.models import AvvisoInviato, CategoriaScadenza, ScadenzaGenerica
 
-        esito = {"cat_nuove": 0, "cat_agg": 0, "att_nuove": 0, "att_agg": 0, "avvisi": 0}
+        esito = {"cat_nuove": 0, "cat_agg": 0, "cat_ferme": 0, "att_nuove": 0, "att_agg": 0, "att_ferme": 0, "avvisi": 0}
         categorie = {}
         for f in famiglie:
             nome = (f.get("name") or "").strip()[:150] or f"Categoria {f['id']}"
@@ -104,12 +109,14 @@ class Command(BaseCommand):
             if cat is None:
                 cat = CategoriaScadenza.objects.create(legacy_id=f["id"], **dati)
                 esito["cat_nuove"] += 1
-            else:
+            elif aggiorna or cat.legacy_id is None:
                 for k, v in dati.items():
                     setattr(cat, k, v)
                 cat.legacy_id = f["id"]
                 cat.save()
                 esito["cat_agg"] += 1
+            else:
+                esito["cat_ferme"] += 1
             categorie[f["id"]] = cat
 
         attivita = {}
@@ -130,8 +137,12 @@ class Command(BaseCommand):
                 "email_avviso": p.get("alert_emails") or "",
                 "is_active": bool(p.get("is_active", 1)),
             }
-            s, creata = ScadenzaGenerica.objects.update_or_create(legacy_id=p["id"], defaults=dati)
-            esito["att_nuove" if creata else "att_agg"] += 1
+            s = ScadenzaGenerica.objects.filter(legacy_id=p["id"]).first()
+            if s is not None and not aggiorna:
+                esito["att_ferme"] += 1
+            else:
+                s, creata = ScadenzaGenerica.objects.update_or_create(legacy_id=p["id"], defaults=dati)
+                esito["att_nuove" if creata else "att_agg"] += 1
             attivita[p["id"]] = s
 
         for a in avvisi:

@@ -101,6 +101,21 @@ SEZIONI_CONTROLLORE: list[dict] = [
         ],
     },
     {
+        "id": "c-correggi",
+        "titolo": "Anomalia o OP sbagliati: «Elimina», «Taglia», cambio OP",
+        "blocchi": [
+            ("passi", [
+                "Nel controllo: «Modifica o aggiungi anomalie» sul blocco e apri l'anomalia. In Gestione anomalie: apri "
+                "l'anomalia, card «Segnalazione».",
+                "«Elimina» la toglie (chiede conferma). «✂ Taglia» la sposta: scrivi l'OP (lo stesso o un altro) e il S/N "
+                "di destinazione, poi «Sposta qui».",
+            ]),
+            ("p", "OP sbagliato? Nella pagina di inserimento clicca sul numero dell'OP o sul P/N nella barra in alto (hanno la matita ✎), cerca l'OP giusto per numero, P/N, capocommessa o CAR e premi «Passa a …». Il controllo continua sul nuovo OP: le anomalie già salvate passano con lui (solo se nessuna è stata ancora gestita dal capocommessa) e il blocco che stai scrivendo resta com'è. Quelle già comunicate arrivano al capocommessa del nuovo OP nel riepilogo delle modifiche. A controllo terminato si spostano le singole anomalie con «✂ Taglia»."),
+            ("p", "Valgono solo per le anomalie che hai inserito tu e si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate. Su un altro OP l'anomalia esce dal "
+                  "tuo controllo e il capocommessa di quell'OP la riceve nel riepilogo delle modifiche."),
+        ],
+    },
+    {
         "id": "c-azione",
         "titolo": "Registrare l'azione effettuata",
         "blocchi": [
