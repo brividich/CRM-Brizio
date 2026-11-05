@@ -556,7 +556,7 @@ def _costo_orario_rows(request: HttpRequest, scope: str) -> list[dict]:
     else:
         righe = _righe_costo(request)["righe"]
     return [{
-        "dipendente": x["nome"], "reparto": x["reparto"], "classificazione": x["classe"],
+        "dipendente": x["nome"], "reparto": x["reparto"], "centro_costo": x["centro_costo"], "classificazione": x["classe"],
         "mese": x["c"].mese.strftime("%m-%Y"), "rml": x["c"].rml, "giorni": x["c"].divisore_giorni,
         "ore": x["c"].divisore_ore, "costo": x["c"].costo_orario, "delta": x["delta"], "delta_pct": x["delta_pct"],
         "scost": x["scost"], "manuale": _si_no(x["c"].rml_manuale),
@@ -567,7 +567,7 @@ def _costo_orario_filters(request: HttpRequest) -> str:
     parts = []
     from anagrafica.views_coefficienti import FILTRI_MOSTRA
 
-    for chiave, etichetta in (("mese", "Mese"), ("reparto", "Reparto"), ("q", "Ricerca")):
+    for chiave, etichetta in (("mese", "Mese"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"), ("q", "Ricerca")):
         valore = (request.GET.get(chiave) or "").strip()
         if valore:
             parts.append(f"{etichetta}: {valore}")
@@ -584,6 +584,7 @@ register(ExportSpec(
     columns=[
         ("Dipendente", "dipendente"),
         ("Reparto", "reparto"),
+        ("Centro di costo", "centro_costo"),
         ("Classificazione", "classificazione"),
         ("Mese", "mese"),
         ("RML (€)", "rml"),
@@ -624,7 +625,7 @@ def _costo_storico_columns(request: HttpRequest) -> list[tuple[str, str]]:
 
     scope = request.GET.get("scope") or "filtered"
     mesi = _storico(_storico_request(request, scope))["mesi"]
-    return ([("Dipendente", "dipendente"), ("Reparto", "reparto")]
+    return ([("Dipendente", "dipendente"), ("Reparto", "reparto"), ("Centro di costo", "centro_costo")]
             + [(m.strftime("%m/%Y"), m.strftime("m%Y%m")) for m in mesi]
             + [("Variazione (€)", "var"), ("Variazione (%)", "var_pct")])
 
@@ -635,7 +636,8 @@ def _costo_storico_rows(request: HttpRequest, scope: str) -> list[dict]:
     ctx = _storico(_storico_request(request, scope))
     out = []
     for r in ctx["righe"]:
-        riga = {"dipendente": r["nome"], "reparto": r["reparto"], "var": r["var"], "var_pct": r["var_pct"]}
+        riga = {"dipendente": r["nome"], "reparto": r["reparto"], "centro_costo": r["centro_costo"], "var": r["var"],
+                "var_pct": r["var_pct"]}
         for m, x in zip(ctx["mesi"], r["celle"]):
             riga[m.strftime("m%Y%m")] = x["c"].costo_orario if x["c"] else None
         out.append(riga)
@@ -644,7 +646,7 @@ def _costo_storico_rows(request: HttpRequest, scope: str) -> list[dict]:
 
 def _costo_storico_filters(request: HttpRequest) -> str:
     parts = []
-    for chiave, etichetta in (("dal", "Dal"), ("al", "Al"), ("reparto", "Reparto"), ("q", "Ricerca")):
+    for chiave, etichetta in (("dal", "Dal"), ("al", "Al"), ("reparto", "Reparto"), ("centro_costo", "Centro di costo"), ("q", "Ricerca")):
         valore = (request.GET.get(chiave) or "").strip()
         if valore:
             parts.append(f"{etichetta}: {valore}")
@@ -655,7 +657,7 @@ register(ExportSpec(
     key="costo_orario_storico",
     title="Storico del costo orario",
     sheet_title="Storico costo orario",
-    columns=[("Dipendente", "dipendente"), ("Reparto", "reparto")],
+    columns=[("Dipendente", "dipendente"), ("Reparto", "reparto"), ("Centro di costo", "centro_costo")],
     columns_fn=_costo_storico_columns,
     dataset=_costo_storico_rows,
     filters_label=_costo_storico_filters,

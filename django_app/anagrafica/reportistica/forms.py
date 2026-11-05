@@ -22,7 +22,7 @@ _DATE = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")
 
 def scelte_perimetro(dipendenti=None) -> dict[str, list[tuple[str, str]]]:
     """Valori selezionabili per il perimetro: cataloghi canonici + persone."""
-    from anagrafica.models import AreaAziendale, DipendenteAnagraficaAziendale, Mansione, Reparto, TipoQualifica
+    from anagrafica.models import AreaAziendale, CentroDiCosto, DipendenteAnagraficaAziendale, Mansione, Reparto, TipoQualifica
 
     dipendenti = carica_dipendenti() if dipendenti is None else dipendenti
     mansioni = {m for m in Mansione.objects.values_list("nome", flat=True) if m}
@@ -35,6 +35,7 @@ def scelte_perimetro(dipendenti=None) -> dict[str, list[tuple[str, str]]]:
     return {
         "reparti": [(x, x) for x in Reparto.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)],
         "aree": [(x, x) for x in AreaAziendale.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)],
+        "centri_costo": [(x, x) for x in CentroDiCosto.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)],
         "mansioni": [(x, x) for x in sorted(mansioni, key=str.casefold)],
         "contratti": list(DipendenteAnagraficaAziendale.CONTRATTO_CHOICES),
         "livelli": [(x, x) for x in sorted({d.livello for d in dipendenti if d.livello}, key=str.casefold)],
@@ -50,6 +51,7 @@ class PerimetroMixin:
     _MULTI = (
         ("reparti", "Reparti", ""),
         ("aree", "Aree aziendali", ""),
+        ("centri_costo", "Centri di costo", ""),
         ("mansioni", "Mansioni", ""),
         ("contratti", "Tipologie di contratto", ""),
         ("livelli", "Livelli di inquadramento", ""),

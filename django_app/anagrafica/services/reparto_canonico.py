@@ -21,7 +21,7 @@ def build_area_canonica_map(legacy_ids: list[int] | None = None) -> dict[int, Ar
     qs = (
         DipendenteAnagraficaAziendale.objects
         .filter(area_aziendale__isnull=False)
-        .select_related("area_aziendale", "area_aziendale__reparto")
+        .select_related("area_aziendale", "area_aziendale__reparto", "area_aziendale__centro_di_costo")
     )
     if legacy_ids is not None:
         qs = qs.filter(legacy_anagrafica_id__in=list(legacy_ids))
@@ -47,8 +47,9 @@ def enrich_rows_reparto_canonico(rows: list[dict], *, id_key: str = "id") -> lis
 
     Per ogni riga con un'assegnazione canonica: sovrascrive ``row["reparto"]``
     col nome del :class:`Reparto` canonico (così le tabelle non mostrano più il
-    testo legacy stantio) e imposta ``row["area_aziendale_nome"]``. Le righe
-    senza canonico restano invariate (il chiamante decide i propri fallback).
+    testo legacy stantio) e imposta ``row["area_aziendale_nome"]`` e
+    ``row["centro_di_costo_nome"]``. Le righe senza canonico restano invariate
+    (il chiamante decide i propri fallback).
     Ritorna la stessa lista per comodità di concatenamento.
     """
     all_ids = [int(r.get(id_key) or 0) for r in rows if int(r.get(id_key) or 0) > 0]
@@ -61,6 +62,9 @@ def enrich_rows_reparto_canonico(rows: list[dict], *, id_key: str = "id") -> lis
             lid = 0
         area = aree.get(lid)
         row["area_aziendale_nome"] = area.nome if area is not None else ""
+        row["centro_di_costo_nome"] = (
+            area.centro_di_costo.nome if area is not None and area.centro_di_costo_id else ""
+        )
         rep = canonico.get(lid)
         if rep is not None:
             row["reparto"] = rep.nome
