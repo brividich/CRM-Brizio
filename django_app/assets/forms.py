@@ -3064,6 +3064,14 @@ class WorkOrderForm(forms.ModelForm):
         if self.is_edit:
             # In modifica lo stato non si tocca: lo cambiano presa in carico e chiusura.
             del self.fields["status"]
+            if self.instance.pk and self.instance.status != WorkOrder.STATUS_OPEN:
+                # Intervento gia' chiuso: si corregge anche il resoconto («Cosa è stato fatto»).
+                self.fields["resolution"] = forms.CharField(
+                    required=False,
+                    label="Cosa è stato fatto",
+                    initial=self.instance.resolution,
+                    widget=forms.Textarea(attrs={"rows": 4}),
+                )
         else:
             self.fields["status"].required = False
             self.fields["status"].widget = forms.HiddenInput()

@@ -194,6 +194,8 @@ GUIDA = {
                       "in fondo alla tabella il piede dice «Visualizzate 100 di 1.340 righe»; scorrendo fino in fondo "
                       "arrivano le successive, oppure usa «Mostra altre 100» o «Mostra tutte». Gli elenchi divisi in pagine "
                       "caricano la pagina successiva allo stesso modo."),
+                ("p", "La ricerca della tabella non è parola per parola: «dixi 80» trova anche «DIXI80» e «Dixi-80» "
+                      "(spazi, trattini, punti e barre non contano) e più parole valgono in qualunque ordine."),
                 ("nota", "Ricerca, filtri e ordinamento valgono sempre su tutte le righe, anche quelle non ancora "
                          "disegnate: alla prima ricerca il portale carica l'elenco completo (fino a 5.000 righe). "
                          "Senza una vista, filtri e ricerca valgono solo finché resti sulla pagina: ricaricando la tabella torna completa."),
@@ -322,7 +324,10 @@ GUIDA = {
             "fare": [
                 "Il portale ricorda quello che hai scritto: se dopo «Salva» compare un messaggio di errore, i campi vengono "
                 "riempiti di nuovo e compare «Ho rimesso nei campi i dati che avevi inserito». Correggi il valore indicato e salva.",
-                "Vale anche tornando indietro con il pulsante «Indietro» del browser subito dopo l'errore.",
+                "Vale anche tornando indietro con il pulsante «Indietro» del browser subito dopo l'errore o da una "
+                "pagina «Accesso negato», e quando la pagina rifiuta il modulo senza un messaggio riconoscibile.",
+                "Se l'errore ti porta su un'altra pagina (per esempio «carica prima il documento»), i dati tornano nei campi "
+                "quando riapri il modulo, entro 30 minuti.",
                 "Non vengono ricordati i file allegati, le password e i PIN: quelli vanno scelti di nuovo.",
                 "I dati restano solo in quella scheda del browser e per 30 minuti: chiudendo la scheda si perdono.",
             ],

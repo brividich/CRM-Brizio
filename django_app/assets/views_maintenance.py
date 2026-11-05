@@ -242,11 +242,10 @@ def _apply_occurrence_filters(queryset, form: OccurrenceFilterForm, *, today: da
 
     if data.get("q"):
         term = data["q"].strip()
+        from .services.ricerca_flessibile import testo_q
+
         queryset = queryset.filter(
-            Q(plan__label__icontains=term)
-            | Q(asset__asset_tag__icontains=term)
-            | Q(asset__name__icontains=term)
-            | Q(asset__internal_number__icontains=term)
+            testo_q(term, ("plan__label", "asset__asset_tag", "asset__name", "asset__internal_number"))
         )
     if data.get("plan"):
         queryset = queryset.filter(plan=data["plan"])

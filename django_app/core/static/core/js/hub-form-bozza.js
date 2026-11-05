@@ -1,8 +1,11 @@
 /* Bozza dei moduli: i dati inseriti non si perdono se l'invio torna con un errore.
  * All'invio di un form POST (pagina intera, non HTMX) salva i campi in sessionStorage
  * (solo questa scheda del browser, mai sul server). Alla pagina successiva:
- * - se ci sono messaggi di errore/avviso o errori nei campi, oppure si torna con «Indietro»,
+ * - se ci sono messaggi di errore/avviso o errori nei campi, se la pagina torna senza redirect
+ *   (risposta diretta al POST = modulo respinto) oppure si torna con «Indietro»,
  *   rimette i valori nei campi dello stesso form sulla stessa pagina;
+ * - se l'errore porta su un'altra pagina, la bozza resta «in sospeso» (30 minuti) e torna
+ *   nei campi quando si riapre la pagina del modulo;
  * - altrimenti (salvataggio riuscito) la bozza viene buttata.
  * Mai salvati: password, file, campi nascosti, token. Esclusione: data-hub-no-bozza sul form. */
 (function () {
@@ -110,23 +113,82 @@
     } catch (e) { return false; }
   }
 
+  /* Riquadri d'errore: quelli standard più quelli dei moduli (ticket, assets, ...).
+   * Nuove pagine: basta data-hub-form-error sul riquadro dell'errore. */
+  var ERROR_SELECTOR =
+    '[data-hub-flash-stack] .hub-flash-error, [data-hub-flash-stack] .hub-flash-warning, ' +
+    '.errorlist, .field-error, .form-errors, .is-invalid, [data-hub-form-error], ' +
+    '.tkt-error, .wof-alert, .wof-error, .assets-message-error, .alert-danger, .alert-error, ' +
+    '.pc-form-errors, .hub-err, .sec-error, .fm-err, .plx-errors';
+
   function hasErrors() {
-    return !!document.querySelector(
-      '[data-hub-flash-stack] .hub-flash-error, [data-hub-flash-stack] .hub-flash-warning, ' +
-      '.errorlist, .field-error, .form-errors, .is-invalid'
-    );
+    var nodes = document.querySelectorAll(ERROR_SELECTOR);
+    for (var i = 0; i < nodes.length; i += 1) {
+      if ((nodes[i].textContent || '').trim()) return true;
+    }
+    return false;
+  }
+
+  function hasSuccess() {
+    return !!document.querySelector('[data-hub-flash-stack] .hub-flash-success');
+  }
+
+  function navEntry() {
+    try { return performance.getEntriesByType && performance.getEntriesByType('navigation')[0]; }
+    catch (e) { return null; }
+  }
+
+  /* Pagine d'errore (403 ecc.): la bozza resta per il ritorno con «Indietro». */
+  function isErrorPage() {
+    return !!document.querySelector('[data-hub-error-page]');
+  }
+
+  function drop() { try { sessionStorage.removeItem(KEY); } catch (e) {} }
+
+  /* Bozza «in sospeso»: l'errore ha portato su un'altra pagina (es. «carica prima il
+   * documento», elenco delle impostazioni). Si rimette quando si torna sul modulo. */
+  var PENDING_KEY = 'hubFormBozzaSospesa';
+
+  function restorePending() {
+    var pending;
+    try { pending = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null'); } catch (e) { return; }
+    if (!pending) return;
+    if (Date.now() - pending.at > MAX_AGE_MS) { try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {} return; }
+    if (pending.page !== location.pathname) return;
+    var changed = restore(pending);
+    try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {}
+    if (changed && window.hubFlash) {
+      window.hubFlash.show([{ level: 'info', text: 'Ho rimesso nei campi i dati che avevi inserito prima dell\'errore: controlla e salva di nuovo.' }]);
+    }
   }
 
   function onReady() {
     var draft;
-    try {
-      draft = JSON.parse(sessionStorage.getItem(KEY) || 'null');
-      sessionStorage.removeItem(KEY);
-    } catch (e) { return; }
-    if (!draft || draft.page !== location.pathname || Date.now() - draft.at > MAX_AGE_MS) return;
-    if (!hasErrors() && !cameBack()) return;
+    try { draft = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (e) { return; }
+    if (!draft) { restorePending(); return; }
+    if (Date.now() - draft.at > MAX_AGE_MS) { drop(); restorePending(); return; }
+    if (isErrorPage()) return;
+    if (draft.page !== location.pathname) {
+      // Solo un errore vero (non un avviso dopo un salvataggio riuscito, che si
+      // ricompilerebbe come doppione la volta dopo).
+      if (document.querySelector('[data-hub-flash-stack] .hub-flash-error') && !hasSuccess()) {
+        try { sessionStorage.setItem(PENDING_KEY, JSON.stringify(draft)); } catch (e) {}
+      }
+      drop();
+      restorePending();
+      return;
+    }
+    var errors = hasErrors();
+    var back = cameBack();
+    // Un salvataggio riuscito fa redirect (PRG); la stessa pagina restituita senza
+    // redirect è la risposta al POST, cioè il modulo tornato indietro con un errore.
+    var nav = navEntry();
+    var rerendered = !!nav && nav.type !== 'back_forward' && !nav.redirectCount;
+    if (!errors && hasSuccess()) { drop(); return; }
+    if (!errors && !back && !rerendered) { drop(); return; }
     var changed = restore(draft);
-    if (changed && window.hubFlash) {
+    drop();
+    if (changed && errors && window.hubFlash) {
       window.hubFlash.show([{ level: 'info', text: 'Ho rimesso nei campi i dati che avevi inserito: correggi e salva di nuovo.' }]);
     }
   }

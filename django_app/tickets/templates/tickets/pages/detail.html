@@ -247,7 +247,7 @@ body.theme-dark .tkt-interno-badge{background:rgba(214,158,46,.16);color:#fcd34d
         </div>
         <div class="tkt-meta-item">
           <span class="tkt-meta-key">Richiedente</span>
-          <span class="tkt-meta-val">{% if richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' richiedente_anagrafica_id %}">{{ ticket.richiedente_nome|upper }}</a>{% else %}{{ ticket.richiedente_nome|upper }}{% endif %}</span>
+          <span class="tkt-meta-val">{% if richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' richiedente_anagrafica_id %}">{{ ticket.richiedente_nome|upper }}</a>{% else %}{{ ticket.richiedente_nome|upper }}{% endif %}{% if ticket.aperto_da_nome %}<br><small style="font-weight:500;color:#64748b;">aperto da {{ ticket.aperto_da_nome|upper }} per suo conto</small>{% endif %}</span>
         </div>
         {% if ticket.assegnato_a %}
         <div class="tkt-meta-item">

@@ -28,6 +28,13 @@ GUIDA = {
                     "Clicca «Invia richiesta».",
                 ]),
                 ("p", "Puoi aprire un ticket anche inquadrando il QR attaccato alla macchina."),
+                ("p", "Squadra manutenzione: nei ticket MAN c'è «Per conto di». Scegli il collega che ha segnalato il "
+                      "guasto: il ticket risulta aperto da lui (lo trova in «I miei ticket» e riceve gli aggiornamenti) "
+                      "e nella scheda compare «Compilato da» con il tuo nome. Tu continui a vederlo nei tuoi ticket. "
+                      "Il campo c'è solo per chi è nel ruolo della squadra manutenzione (Assets › Impostazioni › "
+                      "Configurazione) o gestisce i ticket di manutenzione."),
+                ("p", "Se l'invio torna con un errore i dati restano nei campi: correggi e invia di nuovo. "
+                      "Gli allegati vanno riscelti (il browser non li conserva)."),
             ],
         },
         {

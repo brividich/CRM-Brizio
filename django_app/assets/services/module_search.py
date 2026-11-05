@@ -1,6 +1,8 @@
 """Ricerca trasversale del modulo Assets / Manutenzione.
 
 Il campo di ricerca in testa a ogni pagina del modulo cercava solo negli asset.
+Codici e nomi si confrontano anche senza spazi e trattini, e le parole di un
+termine valgono in qualunque ordine (``ricerca_flessibile.testo_q``).
 Qui una sola domanda interroga tutto quello che il modulo conserva — asset,
 piani, scadenze (ordinarie e amministrative), interventi, segnalazioni,
 manutenzioni eseguite, contratti, licenze, documenti — e restituisce i risultati
@@ -22,6 +24,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from ..registro_permessi import MODULO_INVENTARIO, MODULO_MANUTENZIONE
+from .ricerca_flessibile import testo_q
 from .visibilita import filtra_odl, filtra_per_asset, filtra_piani
 from ..models import (
     Asset,
@@ -101,11 +104,8 @@ def _asset_label(asset) -> str:
 
 
 def _asset_q(term: str, prefix: str = "asset__") -> Q:
-    return (
-        Q(**{f"{prefix}asset_tag__icontains": term})
-        | Q(**{f"{prefix}name__icontains": term})
-        | Q(**{f"{prefix}internal_number__icontains": term})
-    )
+    # Elastica: «dixi 80» trova anche «DIXI80» e «80 dixi» (vedi ricerca_flessibile).
+    return testo_q(term, (f"{prefix}asset_tag", f"{prefix}name", f"{prefix}internal_number"))
 
 
 def _occurrence_state(occ: MaintenanceOccurrence, today: date) -> tuple[str, str]:
@@ -146,12 +146,12 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
 
         qs = (
             filtra_visibili(request, Asset.objects).filter(
-                _asset_q(term, prefix="")
-                | Q(serial_number__icontains=term)
-                | Q(manufacturer__icontains=term)
-                | Q(model__icontains=term)
-                | Q(reparto__icontains=term)
-                | Q(assignment_to__icontains=term)
+                testo_q(
+                    term,
+                    ("asset_tag", "name", "internal_number", "serial_number", "manufacturer", "model",
+                     "reparto", "assignment_to"),
+                    compatti=("asset_tag", "name", "internal_number", "serial_number", "model"),
+                )
             )
             .select_related("asset_category")
             .order_by("asset_tag", "id")
@@ -175,7 +175,7 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
     plan_list = reverse("assets:maintenance_plan_list")
     if _allows(request, plan_list):
         qs = filtra_piani(request, MaintenanceInterventionTemplate.objects.all()).filter(
-            Q(label__icontains=term) | Q(code__icontains=term) | Q(description__icontains=term)
+            testo_q(term, ("label", "code")) | Q(description__icontains=term)
         ).select_related("asset_category").order_by("label", "id")
         groups.append(_group(
             "plans", "Piani di manutenzione", qs,
@@ -200,7 +200,7 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
                 filtra_per_asset(request, MaintenanceOccurrence.objects.all(), MODULO_MANUTENZIONE)
                 .filter(status=MaintenanceOccurrence.STATUS_OPEN)
             )
-            .filter(Q(plan__label__icontains=term) | _asset_q(term) | Q(asset__reparto__icontains=term))
+            .filter(testo_q(term, ("plan__label",)) | _asset_q(term) | Q(asset__reparto__icontains=term))
             .select_related("plan", "asset")
             .order_by("due_date", "id")
         )
@@ -257,7 +257,7 @@ def search(request, term: str, *, limit: int = DEFAULT_LIMIT) -> list[SearchGrou
     wo_list = reverse("assets:wo_list")
     if _allows(request, wo_list):
         wo_q = (
-            Q(title__icontains=term) | Q(description__icontains=term) | Q(resolution__icontains=term)
+            testo_q(term, ("title",)) | Q(description__icontains=term) | Q(resolution__icontains=term)
             | _asset_q(term) | Q(supplier__ragione_sociale__icontains=term)
         )
         if term.lstrip("#").isdigit():

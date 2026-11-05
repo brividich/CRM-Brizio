@@ -1905,16 +1905,17 @@ def _apply_workorder_list_filters(get_params, *, include_filters: bool = True):
             opened_at__lte=timezone.now() - timedelta(days=max(0, open_age_days)),
         )
     if q:
+        from ..services.ricerca_flessibile import testo_q
+
         qs = qs.filter(
-            Q(title__icontains=q)
-            | Q(asset__asset_tag__icontains=q)
-            | Q(asset__internal_number__icontains=q)
-            | Q(asset__name__icontains=q)
-            | Q(asset__reparto__icontains=q)
-            | Q(asset__asset_category__label__icontains=q)
+            testo_q(
+                q,
+                ("title", "asset__asset_tag", "asset__internal_number", "asset__name", "asset__reparto",
+                 "asset__asset_category__label", "supplier__ragione_sociale"),
+                compatti=("title", "asset__asset_tag", "asset__internal_number", "asset__name"),
+            )
             | Q(description__icontains=q)
             | Q(resolution__icontains=q)
-            | Q(supplier__ragione_sociale__icontains=q)
         )
     return qs
 
