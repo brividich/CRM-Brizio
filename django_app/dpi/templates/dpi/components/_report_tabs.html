@@ -1,0 +1,5 @@
+<nav class="dpi-rep-tabs" aria-label="Report DPI">
+  <a href="{% url 'dpi:report_persone' %}" class="{% if request.resolver_match.url_name == 'report_persone' or request.resolver_match.url_name == 'report_conformita' %}is-on{% endif %}">Conformità</a>
+  <a href="{% url 'dpi:report_consegne' %}" class="{% if request.resolver_match.url_name == 'report_consegne' %}is-on{% endif %}">Registro consegne</a>
+  <a href="{% url 'dpi:magazzino_report' %}" class="{% if request.resolver_match.url_name == 'magazzino_report' %}is-on{% endif %}">Consumi e magazzino</a>
+</nav>

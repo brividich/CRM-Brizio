@@ -1,0 +1,77 @@
+{% extends "core/base.html" %}
+
+{% block title %}Registro consegne DPI | Portale Applicativo{% endblock %}
+
+{% block extra_head %}{% include "dpi/components/_report_stile.html" %}{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/subnav.html" %}
+  {% include "dpi/components/_report_tabs.html" %}
+
+  <div class="rep-testa">
+    <div>
+      <div class="rep-titolo">Registro consegne DPI</div>
+      <div class="rep-sotto">Cosa è stato consegnato, a chi, quando e con quale ricevuta · dal {{ da|date:"d/m/Y" }} al {{ a|date:"d/m/Y" }}</div>
+    </div>
+    <div class="rep-azioni">
+      <a class="rep-btn" href="?{{ querystring }}{% if querystring %}&amp;{% endif %}export=xlsx">Esporta Excel</a>
+      <a class="rep-btn" href="?{{ querystring }}{% if querystring %}&amp;{% endif %}export=pdf">Esporta PDF</a>
+    </div>
+  </div>
+
+  <form method="get" class="rep-filtri">
+    <label>Dal<input type="date" name="da" value="{{ da|date:'Y-m-d' }}"></label>
+    <label>Al<input type="date" name="a" value="{{ a|date:'Y-m-d' }}"></label>
+    <label>Cerca<input type="search" name="q" value="{{ q }}" placeholder="Persona, richiesta, modello"></label>
+    <label>Reparto
+      <select name="reparto"><option value="">Tutti</option>{% for r in reparti %}<option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+    </label>
+    <label>Categoria
+      <select name="categoria_id"><option value="">Tutte</option>{% for c in categorie %}<option value="{{ c.pk }}"{% if c.pk == categoria_id %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}</select>
+    </label>
+    {% if ricevuta %}<input type="hidden" name="ricevuta" value="{{ ricevuta }}">{% endif %}
+    <button type="submit" class="rep-btn rep-btn-primo">Applica</button>
+    <a class="rep-btn" href="{% url 'dpi:report_consegne' %}">Azzera</a>
+  </form>
+
+  <div class="rep-kpi">
+    <a href="?{{ querystring_base }}" class="{% if not ricevuta %}is-on{% endif %}"><b>{{ totali.consegne }}</b><span>{% if ricevuta %}Consegne selezionate{% else %}Consegne{% endif %} · {{ totali.pezzi }} pezzi · {{ totali.persone }} persone</span></a>
+    {% for s in stati_ricevuta %}
+    <a href="?{{ querystring_base }}{% if querystring_base %}&amp;{% endif %}ricevuta={{ s.chiave }}" class="{% if s.chiave == 'senza_firma' or s.chiave == 'contestata' %}t-rosso{% elif s.chiave == 'da_confermare' %}t-arancio{% else %}t-verde{% endif %}{% if s.chiave == ricevuta %} is-on{% endif %}"><b>{{ s.n }}</b><span>{{ s.etichetta }}</span></a>
+    {% endfor %}
+  </div>
+
+  <div class="rep-tab-wrap">
+    {% if page_obj.object_list %}
+    <table class="rep-tab" data-fm-table-skip="1">
+      <thead><tr><th>Data</th><th>Persona</th><th>DPI</th><th>Pezzi</th><th>Consegnato da</th><th>Ricevuta</th><th>Scadenza</th><th>Richiesta</th></tr></thead>
+      <tbody>
+        {% for c in page_obj %}
+        <tr>
+          <td>{{ c.data_consegna|date:"d-m-Y" }}</td>
+          <td>{{ c.richiesta.richiedente_nome }}<div class="rep-muto">{{ c.richiesta.richiedente_reparto }}</div></td>
+          <td>{{ c.richiesta.categoria.nome }}<div class="rep-muto">{{ c.dpi_descrizione }}</div></td>
+          <td>{{ c.richiesta.quantita }}</td>
+          <td>{{ c.consegnato_da_nome|default:"—" }}</td>
+          <td><span class="rep-st rep-st-{{ c.ricevuta_chiave }}">{{ c.ricevuta_etichetta }}</span></td>
+          <td>{% if c.data_scadenza_stimata %}{{ c.data_scadenza_stimata|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+          <td><a href="{% url 'dpi:gestione_detail' c.richiesta.pk %}">{{ c.richiesta.numero }}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="rep-vuoto">Nessuna consegna con questi filtri.</div>{% endif %}
+  </div>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="rep-pagine">
+    <span>Consegne {{ page_obj.start_index }}–{{ page_obj.end_index }} di {{ page_obj.paginator.count }}. Gli export contengono tutte le righe filtrate.</span>
+    <span class="rep-azioni">
+      {% if page_obj.has_previous %}<a class="rep-btn" href="?{{ querystring }}{% if querystring %}&amp;{% endif %}page={{ page_obj.previous_page_number }}">← Precedenti</a>{% endif %}
+      {% if page_obj.has_next %}<a class="rep-btn" href="?{{ querystring }}{% if querystring %}&amp;{% endif %}page={{ page_obj.next_page_number }}">Successive →</a>{% endif %}
+    </span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

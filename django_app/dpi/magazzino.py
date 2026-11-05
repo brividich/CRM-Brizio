@@ -109,6 +109,9 @@ def mancanze(richieste) -> list[dict]:
     return [riga for riga in pezzi.values() if riga["giacenza"] < riga["pezzi"]]
 
 
+SEGNO_SENZA_GIACENZA = " · senza giacenza: "
+
+
 def scarica_per_consegna(richiesta: RichiestaDPI, data: date, *, user=None, motivo: str = "") -> tuple[MovimentoMagazzinoDPI | None, int | None]:
     """Scarica dal magazzino la quantita' consegnata. Idempotente per richiesta.
 
@@ -122,7 +125,7 @@ def scarica_per_consegna(richiesta: RichiestaDPI, data: date, *, user=None, moti
         defaults={
             "modello_id": richiesta.modello_dpi_id, "quantita": -int(richiesta.quantita or 1), "data": data,
             "note": (f"Consegna {richiesta.numero} - {richiesta.richiedente_nome}"
-                     + (f" · senza giacenza: {motivo}" if motivo else ""))[:300],
+                     + (f"{SEGNO_SENZA_GIACENZA}{motivo}" if motivo else ""))[:300],
             "created_by": user if getattr(user, "is_authenticated", False) else None,
         },
     )
@@ -203,7 +206,13 @@ def report(giorni: int, oggi: date | None = None) -> dict:
         (r for r in righe if r["stato"] != STATO_OK or (r["copertura"] is not None and r["copertura"] < 30 and r["suggerito"] > 0)),
         key=lambda r: (r["stato"] != STATO_ESAURITO, r["copertura"] if r["copertura"] is not None else 10**6),
     )
+    senza_giacenza = [
+        {"movimento": m, "pezzi": -m.quantita, "motivo": m.note.split(SEGNO_SENZA_GIACENZA, 1)[1]}
+        for m in scarichi.filter(note__contains=SEGNO_SENZA_GIACENZA)
+        .select_related("modello", "richiesta").order_by("-data", "-id")
+    ]
     return {
+        "senza_giacenza": senza_giacenza,
         "giorni": giorni, "da": da, "consumati": consumati, "caricati": caricati,
         "serie": serie, "serie_max": max([s["pezzi"] for s in serie] + [1]),
         "top": top, "top_max": max([r["consumo"] for r in top] + [1]),
