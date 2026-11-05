@@ -234,7 +234,7 @@ body.theme-dark .dpi-hbtn:hover{background:rgba(56,161,105,.18)}
           <td>{{ m.modello.codice }} <span class="dpi-muted">{{ m.modello.nome }}</span></td>
           <td class="{% if m.quantita > 0 %}dpi-pos{% else %}dpi-neg{% endif %}">{{ m.quantita|stringformat:"+d" }}</td>
           <td class="dpi-muted">{% if m.ddt_numero %}DDT {{ m.ddt_numero }}{% if m.fornitore %} · {{ m.fornitore }}{% endif %}{% elif m.note %}{{ m.note }}{% else %}—{% endif %}</td>
-          <td class="dpi-muted">{{ m.created_by.get_full_name|default:m.created_by.username|default:"—" }}</td>
+          <td class="dpi-muted">{% if m.created_by %}{{ m.created_by.get_full_name|default:m.created_by.username }}{% else %}—{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>

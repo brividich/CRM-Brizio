@@ -1,0 +1,101 @@
+{% extends "core/base.html" %}
+
+{% block title %}Bozza d'ordine DPI | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:16px; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.dpi-subnav-link:hover { background:#e2e8f0; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+.rio-testa { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.rio-titolo { font-size:22px; font-weight:900; color:#0f172a; }
+.rio-sub { font-size:13px; color:#64748b; margin-top:2px; }
+.rio-periodi { display:flex; gap:4px; flex-wrap:wrap; align-items:center; }
+.rio-btn { padding:8px 14px; border-radius:9px; border:1px solid #cbd5e1; background:#fff; color:#334155; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; }
+.rio-btn.attivo { background:#0369a1; border-color:#0369a1; color:#fff; }
+.rio-btn-forte { background:#15803d; border-color:#15803d; color:#fff; }
+.rio-box { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; display:flex; flex-direction:column; gap:8px; }
+.rio-forn { font-size:15px; font-weight:800; color:#0f172a; }
+.rio-riga { display:flex; align-items:center; gap:12px; padding:6px 0; border-top:1px solid #f1f5f9; flex-wrap:wrap; }
+.rio-dpi { flex:1 1 240px; min-width:0; font-size:13px; font-weight:700; color:#0f172a; }
+.rio-dett { display:block; font-size:12px; font-weight:400; color:#64748b; }
+.rio-qta { width:90px; padding:7px 9px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; background:#fff; color:#0f172a; }
+.rio-azioni { display:flex; gap:8px; flex-wrap:wrap; }
+.rio-vuoto { padding:36px; text-align:center; color:#94a3b8; font-size:14px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; }
+body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
+body.theme-dark .rio-titolo, body.theme-dark .rio-forn, body.theme-dark .rio-dpi { color:var(--text); }
+body.theme-dark .rio-sub, body.theme-dark .rio-dett { color:var(--text-light); }
+body.theme-dark .rio-box, body.theme-dark .rio-vuoto { background:var(--surface); border-color:var(--border); }
+body.theme-dark .rio-riga { border-color:var(--border); }
+body.theme-dark .rio-btn { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .rio-btn.attivo { background:#0369a1; border-color:#0369a1; color:#fff; }
+body.theme-dark .rio-btn-forte { background:#15803d; border-color:#15803d; color:#fff; }
+body.theme-dark .rio-qta { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/subnav.html" %}
+
+  <div class="rio-testa">
+    <div>
+      <div class="rio-titolo">Bozza d'ordine</div>
+      <div class="rio-sub">Quantità suggerite in base ai consumi degli ultimi {{ giorni }} giorni: correggile, poi copia il testo o aprilo nella posta. Il portale non invia nulla.</div>
+    </div>
+    <div class="rio-periodi">
+      {% for p in periodi %}<a class="rio-btn{% if p == giorni %} attivo{% endif %}" href="?giorni={{ p }}">{{ p }} gg</a>{% endfor %}
+      <a class="rio-btn" href="{% url 'dpi:magazzino_report' %}?giorni={{ giorni }}">← Report</a>
+    </div>
+  </div>
+
+  {% for f in fornitori %}
+  <div class="rio-box" data-ordine data-fornitore="{{ f.nome }}">
+    <div class="rio-forn">{{ f.nome|default:"Fornitore da indicare" }}</div>
+    {% for r in f.righe %}
+    <label class="rio-riga">
+      <span class="rio-dpi">{{ r.modello.codice }} {{ r.modello.nome }}
+        <span class="rio-dett">{{ r.modello.tipo.categoria.nome }} · in magazzino {{ r.giacenza }} · scorta minima {{ r.modello.scorta_minima }} · consumati {{ r.consumo }}</span>
+      </span>
+      <input type="number" class="rio-qta" min="0" value="{{ r.suggerito }}" data-riga="{{ r.modello.codice }} {{ r.modello.nome }}" aria-label="Quantità da ordinare">
+    </label>
+    {% endfor %}
+    <div class="rio-azioni">
+      <button type="button" class="rio-btn rio-btn-forte" data-copia>Copia il testo</button>
+      <a class="rio-btn" href="#" data-posta>Apri nella posta</a>
+    </div>
+  </div>
+  {% empty %}
+  <div class="rio-vuoto">Niente da riordinare.</div>
+  {% endfor %}
+</div>
+<script>
+(function () {
+  function testo(box) {
+    var righe = Array.prototype.slice.call(box.querySelectorAll('[data-riga]')).filter(function (i) { return Number(i.value) > 0; })
+      .map(function (i) { return '- ' + i.getAttribute('data-riga') + ': ' + Number(i.value) + ' pezzi'; });
+    return righe.length ? 'Buongiorno,\nvi chiediamo di fornirci:\n\n' + righe.join('\n') + '\n\nGrazie.' : '';
+  }
+  document.getElementById('dpi-root').addEventListener('click', function (e) {
+    var box = e.target.closest('[data-ordine]');
+    if (!box) return;
+    if (e.target.closest('[data-copia]')) {
+      var bottone = e.target.closest('[data-copia]');
+      var t = testo(box);
+      if (!t) { bottone.textContent = 'Nessuna quantità'; return; }
+      navigator.clipboard.writeText(t).then(function () {
+        bottone.textContent = 'Copiato';
+        setTimeout(function () { bottone.textContent = 'Copia il testo'; }, 2000);
+      });
+    } else if (e.target.closest('[data-posta]')) {
+      e.preventDefault();
+      var corpo = testo(box);
+      if (corpo) window.location.href = 'mailto:?subject=' + encodeURIComponent('Ordine DPI') + '&body=' + encodeURIComponent(corpo);
+    }
+  });
+})();
+</script>
+{% endblock %}

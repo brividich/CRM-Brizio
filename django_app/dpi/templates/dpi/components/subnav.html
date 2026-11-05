@@ -8,6 +8,7 @@
   {% endif %}
   {% if is_gestore %}
   <a href="{% url 'dpi:banco' %}" class="dpi-subnav-link{% if request.resolver_match.url_name == 'banco' %} active{% endif %}">Banco consegne</a>
+  <a href="{% url 'dpi:negozio' %}" class="dpi-subnav-link{% if request.resolver_match.url_name == 'negozio' %} active{% endif %}">Scarpe</a>
   <a href="{% url 'dpi:magazzino' %}" class="dpi-subnav-link{% if 'magazzino' in request.resolver_match.url_name %} active{% endif %}">Magazzino</a>
   <a href="{% url 'dpi:report_conformita' %}" class="dpi-subnav-link{% if request.resolver_match.url_name == 'report_conformita' %} active{% endif %}">Report conformità</a>
   {% impostazioni_visibili "dpi" True as mostra_impostazioni %}{% if mostra_impostazioni %}

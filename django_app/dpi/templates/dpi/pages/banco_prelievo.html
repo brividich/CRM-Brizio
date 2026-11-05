@@ -1,0 +1,98 @@
+{% extends "core/base.html" %}
+
+{% block title %}Lista di prelievo DPI | Portale Applicativo{% endblock %}
+
+{% block extra_head %}
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:16px; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.dpi-subnav-link:hover { background:#e2e8f0; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+.pre-testa { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+.pre-titolo { font-size:22px; font-weight:900; color:#0f172a; }
+.pre-sub { font-size:13px; color:#64748b; margin-top:2px; }
+.pre-azioni { display:flex; gap:8px; flex-wrap:wrap; }
+.pre-btn { padding:10px 16px; border-radius:10px; border:1px solid #cbd5e1; background:#fff; color:#334155; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; }
+.pre-btn-forte { background:#15803d; border-color:#15803d; color:#fff; }
+.pre-gruppo { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 16px; break-inside:avoid; }
+.pre-gruppo-testa { display:flex; justify-content:space-between; gap:12px; align-items:baseline; flex-wrap:wrap; margin-bottom:6px; }
+.pre-dpi { font-size:15px; font-weight:800; color:#0f172a; }
+.pre-cat { font-size:12px; color:#64748b; }
+.pre-qta { font-size:18px; font-weight:900; color:#0f172a; white-space:nowrap; }
+.pre-giac { font-size:12px; font-weight:700; color:#15803d; margin-left:8px; }
+.pre-giac.manca { color:#b91c1c; }
+.pre-riga { display:flex; align-items:center; gap:10px; padding:5px 0; border-top:1px solid #f1f5f9; font-size:13px; color:#0f172a; cursor:pointer; }
+.pre-riga input { width:18px; height:18px; accent-color:#16a34a; flex-shrink:0; }
+.pre-riga span.pre-num { color:#64748b; font-size:12px; margin-left:auto; white-space:nowrap; }
+.pre-vuoto { padding:36px; text-align:center; color:#94a3b8; font-size:14px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; }
+
+body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
+body.theme-dark .pre-titolo, body.theme-dark .pre-dpi, body.theme-dark .pre-qta, body.theme-dark .pre-riga { color:var(--text); }
+body.theme-dark .pre-sub, body.theme-dark .pre-cat, body.theme-dark .pre-riga span.pre-num { color:var(--text-light); }
+body.theme-dark .pre-gruppo, body.theme-dark .pre-vuoto { background:var(--surface); border-color:var(--border); }
+body.theme-dark .pre-riga { border-color:var(--border); }
+body.theme-dark .pre-btn { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
+body.theme-dark .pre-btn-forte { background:#15803d; border-color:#15803d; color:#fff; }
+body.theme-dark .pre-giac { color:#86efac; }
+body.theme-dark .pre-giac.manca { color:#fca5a5; }
+
+@media print {
+  body * { visibility:hidden; }
+  #prelievo, #prelievo * { visibility:visible; }
+  #prelievo { position:absolute; left:0; top:0; width:100%; display:flex; flex-direction:column; gap:8px; }
+  #prelievo .pre-azioni { display:none; }
+  .pre-gruppo { border-color:#94a3b8; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="dpi-root">
+  {% include "dpi/components/subnav.html" %}
+
+  <form method="post" id="prelievo" style="display:flex; flex-direction:column; gap:12px;">
+    {% csrf_token %}
+    {% if tutte %}<input type="hidden" name="tutte" value="1">{% endif %}
+    <div class="pre-testa">
+      <div>
+        <div class="pre-titolo">Lista di prelievo</div>
+        <div class="pre-sub">{{ n_righe }} DPI da preparare, {{ n_pezzi }} pezzi · {{ oggi|date:"d-m-Y" }}</div>
+      </div>
+      <div class="pre-azioni">
+        <a href="{% url 'dpi:banco' %}{% if tutte %}?tutte=1{% endif %}" class="pre-btn">← Banco</a>
+        <button type="button" class="pre-btn" id="pre-stampa">Stampa</button>
+        {% if gruppi %}<button type="submit" class="pre-btn pre-btn-forte">Pronti: avvisa gli spuntati</button>{% endif %}
+      </div>
+    </div>
+
+    {% for g in gruppi %}
+    <div class="pre-gruppo">
+      <div class="pre-gruppo-testa">
+        <div>
+          <span class="pre-dpi">{{ g.etichetta }}{% if g.taglia %} · taglia {{ g.taglia }}{% endif %}</span>
+          <span class="pre-cat">{{ g.categoria }}{% if g.codice %} · {{ g.codice }}{% endif %}</span>
+        </div>
+        <div>
+          <span class="pre-qta">× {{ g.pezzi }}</span>
+          {% if g.giacenza is not None %}<span class="pre-giac{% if g.manca %} manca{% endif %}">in magazzino {{ g.giacenza }}</span>{% endif %}
+        </div>
+      </div>
+      {% for r in g.richieste %}
+      <label class="pre-riga">
+        <input type="checkbox" name="ids" value="{{ r.pk }}" checked>
+        <span>{{ r.richiedente_nome|upper }}{% if r.richiedente_reparto %} · {{ r.richiedente_reparto }}{% endif %} · × {{ r.quantita }}</span>
+        <span class="pre-num">{{ r.numero }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% empty %}
+    <div class="pre-vuoto">Niente da preparare.</div>
+    {% endfor %}
+  </form>
+</div>
+<script>
+document.getElementById('pre-stampa').addEventListener('click', function () { window.print(); });
+</script>
+{% endblock %}

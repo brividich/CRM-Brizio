@@ -32,6 +32,41 @@ def stato_scorta(qta: int, minima: int) -> str:
     return STATO_OK
 
 
+def modelli_di_magazzino():
+    """Modelli attivi gestiti a scorta: le scarpe ordinate al negozio si comprano per la persona."""
+    return ModelloDPI.objects.filter(is_active=True).exclude(tipo__categoria__si_ordina_al_negozio=True)
+
+
+def ultimi_fornitori() -> dict[int, str]:
+    """Per modello, il fornitore dell'ultimo carico che ne indica uno."""
+    fornitori: dict[int, str] = {}
+    righe = MovimentoMagazzinoDPI.objects.filter(tipo=Tipo.CARICO).exclude(fornitore="").order_by("-data", "-id")
+    for modello_id, fornitore in righe.values_list("modello_id", "fornitore"):
+        fornitori.setdefault(modello_id, fornitore.strip())
+    return fornitori
+
+
+def bozza_ordine(giorni: int, oggi: date | None = None) -> list[dict]:
+    """L'elenco «da riordinare» del report, diviso per ultimo fornitore."""
+    fornitori = ultimi_fornitori()
+    gruppi: dict[str, list[dict]] = {}
+    for riga in report(giorni, oggi)["riordino"]:
+        gruppi.setdefault(fornitori.get(riga["modello"].pk, ""), []).append(riga)
+    return [{"nome": nome, "righe": gruppi[nome]} for nome in sorted(gruppi, key=lambda n: (not n, n.casefold()))]
+
+
+def da_riordinare() -> int:
+    """Modelli attivi esauriti o sotto scorta (stessi numeri della pagina Magazzino).
+    Zero se il magazzino non e' in uso, cioe' senza alcun movimento registrato."""
+    giac = giacenze()
+    if not giac:
+        return 0
+    return sum(
+        1 for m in modelli_di_magazzino()
+        if stato_scorta(giac.get(m.pk, 0), m.scorta_minima) != STATO_OK
+    )
+
+
 def carica_ddt(modello: ModelloDPI, quantita: int, *, ddt_numero: str = "", data: date | None = None,
                fornitore: str = "", note: str = "", user=None) -> MovimentoMagazzinoDPI:
     if quantita <= 0:
@@ -125,7 +160,7 @@ def report(giorni: int, oggi: date | None = None) -> dict:
         nome = (r["richiesta__richiedente_reparto"] or "").strip() or "Non indicato"
         per_reparto[nome] = per_reparto.get(nome, 0) - int(r["t"] or 0)
 
-    modelli = list(ModelloDPI.objects.filter(is_active=True).select_related("tipo", "tipo__categoria"))
+    modelli = list(modelli_di_magazzino().select_related("tipo", "tipo__categoria"))
     giac = giacenze()
     righe = []
     for m in modelli:

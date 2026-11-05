@@ -29,7 +29,14 @@ def run_dpi_expiry_reminders() -> dict:
             solleciti = sollecita()
         except Exception:
             logger.exception("run_dpi_expiry_reminders: solleciti conferma ricevuta non inviati")
-        return {"ok": True, "solleciti_conferma": solleciti}
+        promemoria_scarpe = 0
+        try:
+            from .negozio import promemoria_ordine
+
+            promemoria_scarpe = promemoria_ordine()
+        except Exception:
+            logger.exception("run_dpi_expiry_reminders: promemoria riepilogo scarpe non inviato")
+        return {"ok": True, "solleciti_conferma": solleciti, "promemoria_scarpe": promemoria_scarpe}
     except Exception:
         logger.exception("run_dpi_expiry_reminders: eccezione inattesa")
         raise
