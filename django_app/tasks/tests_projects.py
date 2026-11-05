@@ -1126,6 +1126,7 @@ class MeetingQuickTaskTests(TasksBaseTestCase):
             response = self.client.get(reverse(nome, args=self.args))
             self.assertContains(response, "data-qt-bar")
             self.assertContains(response, 'data-qt="title"')
+            self.assertContains(response, 'data-qt="more-box"')
             self.assertContains(response, "quick_task_bar.js")
             self.assertContains(response, '<optgroup label="Team">')
 

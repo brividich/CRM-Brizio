@@ -1,4 +1,5 @@
 {% extends "tasks/base_shell.html" %}
+{% block tasks_shell_guide_anchor %}#vrf{% endblock %}
 
 {% block tasks_shell_head %}
 {% include "tasks/_percorso_assets.html" %}
@@ -95,7 +96,7 @@
           <div class="vrf-upload-area">
             <div class="vrf-upload-icon">📄</div>
             <div class="vrf-upload-title">Trascina o seleziona il file MOD.073 VRF (.xlsx)</div>
-            <div class="vrf-upload-sub">Il file deve essere il template standard MOD.073 - VRF. I dati vengono letti dal foglio "VRF".</div>
+            <div class="vrf-upload-sub">Il file deve essere il modulo MOD.073 «Scheda valutazione rischi e fornitura»: da lì si leggono i dati identificativi.</div>
             <input type="file" name="vrf_file" id="id_vrf_file" accept=".xlsx,.xls" required
                    style="display:block;margin:0 auto;max-width:360px;padding:8px;background:var(--surface);border:1px solid #bfdbfe;border-radius:8px;font-size:13px;">
           </div>
