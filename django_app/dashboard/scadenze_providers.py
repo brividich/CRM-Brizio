@@ -94,14 +94,18 @@ class ScadenzeContext:
     sistema: bool = False
 
     @classmethod
-    def build(cls, request, *, oggi: date | None = None, sistema: bool = False) -> "ScadenzeContext":
+    def build(cls, request, *, oggi: date | None = None, sistema: bool = False,
+              orizzonte: date | None = None) -> "ScadenzeContext":
         oggi = oggi or timezone.localdate()
+        # Il calendario può guardare oltre i 90 giorni (mese mostrato): mai meno di oggi.
+        if orizzonte is None or orizzonte < oggi:
+            orizzonte = oggi + timedelta(days=ORIZZONTE_GIORNI)
         return cls(
             request=request,
             oggi=oggi,
             soglia_30=oggi + timedelta(days=30),
             soglia_60=oggi + timedelta(days=60),
-            orizzonte=oggi + timedelta(days=ORIZZONTE_GIORNI),
+            orizzonte=orizzonte,
             sistema=sistema,
         )
 
@@ -569,21 +573,23 @@ def _esegui(ctx: ScadenzeContext, wanted: set[str]) -> list[ScadenzaItem]:
     return out
 
 
-def collect_sistema(*, sources: set[str] | None = None, oggi: date | None = None) -> list[ScadenzaItem]:
+def collect_sistema(*, sources: set[str] | None = None, oggi: date | None = None,
+                    orizzonte: date | None = None) -> list[ScadenzaItem]:
     """Tutte le voci delle fonti, senza permessi di modulo. Solo per lo scadenzario
     generale (voci concesse dalle regole, catalogo del pannello): mai mostrata così."""
-    ctx = ScadenzeContext.build(_RichiestaDiSistema(), oggi=oggi, sistema=True)
+    ctx = ScadenzeContext.build(_RichiestaDiSistema(), oggi=oggi, sistema=True, orizzonte=orizzonte)
     return _esegui(ctx, set(sources or PROVIDERS.keys()))
 
 
-def collect_all(request, *, sources: set[str] | None = None, oggi: date | None = None) -> list[ScadenzaItem]:
+def collect_all(request, *, sources: set[str] | None = None, oggi: date | None = None,
+                orizzonte: date | None = None) -> list[ScadenzaItem]:
     """Esegue i provider richiesti e ritorna le voci ordinate per urgenza.
 
     Ogni provider è isolato: un errore (modulo assente/rotto, query legacy non
     disponibile) viene loggato e non fa cadere l'intera pagina — la sorgente
     semplicemente non contribuisce.
     """
-    ctx = ScadenzeContext.build(request, oggi=oggi)
+    ctx = ScadenzeContext.build(request, oggi=oggi, orizzonte=orizzonte)
     wanted = set(sources or PROVIDERS.keys())
     out = _esegui(ctx, wanted)
     # Pannello «Gestione scadenzario»: voci spente, «solo regole» e voci concesse
@@ -592,5 +598,5 @@ def collect_all(request, *, sources: set[str] | None = None, oggi: date | None =
 
     return applica(
         request, out, sources=wanted,
-        raccogli_sistema=lambda fonti: collect_sistema(sources=fonti, oggi=oggi),
+        raccogli_sistema=lambda fonti: collect_sistema(sources=fonti, oggi=oggi, orizzonte=orizzonte),
     )

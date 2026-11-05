@@ -2,192 +2,416 @@
 {% load static %}
 
 {% comment %}
-scadenze_globali.html — Scadenzario Globale Unificato.
-Context (vedi dashboard/views_scadenze.py):
-  page_obj        Page[ScadenzaItem]
-  totale          int
-  n_scadute/n_30gg/n_60gg  int
-  reparti         list[str]
-  sorgenti        list[(code,label)]
-  filtro_sorgente/filtro_stato/filtro_reparto  str
+scadenze_globali.html — Scadenzario generale (/scadenze), tre viste:
+  mese    calendario del mese con pannello del giorno e riquadro delle scadute
+  agenda  settimane in fila, le scadute in testa
+  elenco  tabella paginata (con export CSV / .ics)
+Context: dashboard/views_scadenze.py (scadenze_globali).
 {% endcomment %}
 
-{% block title %}Scadenzario globale · {{ block.super }}{% endblock %}
+{% block title %}Scadenzario · {{ block.super }}{% endblock %}
 
 {% block extra_head %}
 <style>
-  .sg-wrap { max-width: 1180px; min-width: 0; width: 100%; margin: 0 auto; padding: 4px 0 32px; }
-  .sg-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
-  .sg-title { font-size:1.6rem; font-weight:800; color:#0f172a; margin:0; }
-  .sg-sub { color:#64748b; font-size:.95rem; margin:4px 0 0; }
-  .sg-kpis { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
-  .sg-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:12px 18px; min-width:120px; }
-  .sg-kpi b { display:block; font-size:1.5rem; font-weight:800; line-height:1; }
-  .sg-kpi span { color:#64748b; font-size:.82rem; }
-  @media (max-width:720px) { .sg-kpis { gap:8px; } .sg-kpi { flex:1 1 calc(50% - 8px); min-width:0; } }
-  .sg-kpi.danger b { color:#b91c1c; }
-  .sg-kpi.warn b { color:#9a3412; }
-  .sg-kpi.info b { color:#1e40af; }
-  .sg-filters { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; margin-bottom:16px;
-                display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
-  .sg-filters label { display:flex; flex-direction:column; font-size:.78rem; color:#475569; gap:4px; font-weight:600; }
-  .sg-filters select, .sg-filters input { border:1px solid #cbd5e1; border-radius:8px; padding:6px 10px; font-size:.9rem; min-width:150px; }
-  .sg-btn { background:#0f172a; color:#fff; border:none; border-radius:8px; padding:8px 16px; font-weight:700; cursor:pointer; font-size:.9rem; }
-  .sg-btn.ghost { background:#fff; color:#0f172a; border:1px solid #cbd5e1; text-decoration:none; }
-  .sg-scroll { width:100%; max-width:100%; min-width:0; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px; }
-  .sg-table { min-width:760px; }
-  .sg-table { width:100%; border-collapse:collapse; background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; }
-  .sg-table th { text-align:left; font-size:.74rem; text-transform:uppercase; letter-spacing:.03em; color:#64748b;
-                 background:#f8fafc; padding:10px 12px; border-bottom:1px solid #e2e8f0; }
-  .sg-table td { padding:10px 12px; border-bottom:1px solid #f1f5f9; font-size:.9rem; color:#0f172a; vertical-align:middle; }
-  .sg-table tr:last-child td { border-bottom:none; }
-  .sg-src { display:inline-block; font-size:.72rem; font-weight:700; border-radius:999px; padding:2px 8px; background:#eef2ff; color:#3730a3; }
-  .sg-src.asset { background:#ecfeff; color:#155e75; }
-  .sg-src.dpi { background:#f0fdf4; color:#166534; }
-  .sg-src.rentri { background:#fef3c7; color:#92400e; }
-  .sg-src.impianti { background:#fdf2f8; color:#9d174d; }
-  .sg-src.capa { background:#f5f3ff; color:#5b21b6; }
-  .sg-when { font-weight:700; }
-  .sg-when.scaduta { color:#b91c1c; }
-  .sg-when.soon { color:#9a3412; }
-  .sg-empty { text-align:center; color:#94a3b8; padding:40px 0; }
-  .sg-pager { display:flex; gap:8px; justify-content:center; margin-top:16px; align-items:center; color:#64748b; font-size:.85rem; }
-  .sg-pager a { text-decoration:none; border:1px solid #cbd5e1; border-radius:8px; padding:5px 12px; color:#0f172a; }
-  /* Dark mode (additivo) */
-  body.theme-dark .sg-title { color: var(--text); }
-  body.theme-dark .sg-sub { color: var(--text-mid); }
-  body.theme-dark .sg-kpi { background: var(--surface); border-color: var(--border); }
-  body.theme-dark .sg-kpi span { color: var(--text-mid); }
-  body.theme-dark .sg-filters { background: var(--surface); border-color: var(--border); }
-  body.theme-dark .sg-filters label { color: var(--text-mid); }
-  body.theme-dark .sg-filters select,
-  body.theme-dark .sg-filters input { background: var(--surface); color: var(--text); border-color: var(--border); }
-  body.theme-dark .sg-btn:not(.ghost) { background: #2563eb; color: #fff; }
-  body.theme-dark .sg-btn.ghost { background: var(--surface); color: var(--text); border-color: var(--border); }
-  body.theme-dark .sg-table { background: var(--surface); border-color: var(--border); }
-  body.theme-dark .sg-table th { color: var(--text-mid); background: var(--surface-alt, #17222f); border-bottom-color: var(--border); }
-  body.theme-dark .sg-table td { color: var(--text); border-bottom-color: var(--border); }
-  body.theme-dark .sg-pager { color: var(--text-mid); }
-  body.theme-dark .sg-pager a { color: var(--text); border-color: var(--border); }
-  
-/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
-body.theme-dark .sg-kpi.danger b{color:#fca5a5}
-body.theme-dark .sg-kpi.warn b{color:#fdba74}
-body.theme-dark .sg-kpi.info b{color:#93c5fd}
-body.theme-dark .sg-table th{border-color:var(--border)}
-body.theme-dark .sg-table td{border-color:var(--border)}
-body.theme-dark .sg-src{background:rgba(139,92,246,.2)}
-body.theme-dark .sg-src.asset{background:rgba(59,130,246,.18)}
-body.theme-dark .sg-src.dpi{background:rgba(56,161,105,.18);color:#86efac}
-body.theme-dark .sg-src.rentri{background:rgba(214,158,46,.16);color:#fcd34d}
-body.theme-dark .sg-src.capa{background:rgba(139,92,246,.2);color:#c4b5fd}
-body.theme-dark .sg-when.scaduta{color:#fca5a5}
-body.theme-dark .sg-when.soon{color:#fdba74}
+.sc { --sc-surface:var(--surface,#fff); --sc-alt:var(--surface-alt,#f8fafc); --sc-border:var(--border,#e2e8f0);
+      --sc-text:var(--text,#0f172a); --sc-mid:var(--text-mid,#334155); --sc-light:var(--text-light,#64748b);
+      --sc-accent:#1d4ed8; --sc-accent-bg:#eff6ff; --sc-red:#dc2626; --sc-red-bg:#fef2f2; --sc-amber:#b45309; --sc-amber-bg:#fffbeb;
+      --sc-weekend:#f8fafc; --sc-out:#fbfcfe;
+      max-width:1320px; width:100%; min-width:0; margin:0 auto; padding:4px 0 32px; display:flex; flex-direction:column; gap:14px; color:var(--sc-text); }
+body.theme-dark .sc { --sc-accent:#60a5fa; --sc-accent-bg:rgba(96,165,250,.14); --sc-red:#f87171; --sc-red-bg:rgba(239,68,68,.13);
+      --sc-amber:#fbbf24; --sc-amber-bg:rgba(245,158,11,.13); --sc-weekend:rgba(255,255,255,.025); --sc-out:rgba(0,0,0,.18); }
+
+/* Colore di ogni fonte (pallino, barra laterale, sfondo tenue del chip) */
+.sc .src-hr{--c:#2563eb} .sc .src-asset{--c:#0891b2} .sc .src-impianti{--c:#db2777} .sc .src-dpi{--c:#16a34a}
+.sc .src-rentri{--c:#ca8a04} .sc .src-capa{--c:#7c3aed} .sc .src-sgi{--c:#4f46e5} .sc .src-qualifiche{--c:#0d9488}
+.sc .src-formazione{--c:#ea580c} .sc .src-soc{--c:#e11d48} .sc .src-gdpr{--c:#65a30d} .sc .src-procedure{--c:#0284c7}
+.sc .src-generiche{--c:#64748b}
+body.theme-dark .sc .src-hr{--c:#60a5fa} body.theme-dark .sc .src-asset{--c:#22d3ee} body.theme-dark .sc .src-impianti{--c:#f472b6}
+body.theme-dark .sc .src-dpi{--c:#4ade80} body.theme-dark .sc .src-rentri{--c:#facc15} body.theme-dark .sc .src-capa{--c:#a78bfa}
+body.theme-dark .sc .src-sgi{--c:#818cf8} body.theme-dark .sc .src-qualifiche{--c:#2dd4bf} body.theme-dark .sc .src-formazione{--c:#fb923c}
+body.theme-dark .sc .src-soc{--c:#fb7185} body.theme-dark .sc .src-gdpr{--c:#a3e635} body.theme-dark .sc .src-procedure{--c:#38bdf8}
+body.theme-dark .sc .src-generiche{--c:#94a3b8}
+
+/* Testata */
+.sc-head { display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.sc-title { font-size:26px; font-weight:800; margin:0; letter-spacing:-.02em; color:var(--sc-text); }
+.sc-sub { color:var(--sc-light); font-size:13.5px; margin:3px 0 0; max-width:720px; }
+.sc-actions { display:flex; gap:6px; flex-wrap:wrap; }
+.sc-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border-radius:9px; font-size:12.5px; font-weight:600;
+          border:1px solid var(--sc-border); background:var(--sc-surface); color:var(--sc-mid); text-decoration:none; cursor:pointer; white-space:nowrap; }
+.sc-btn:hover { border-color:var(--sc-accent); color:var(--sc-accent); }
+.sc-btn.primary { background:var(--sc-accent); border-color:var(--sc-accent); color:#fff; }
+body.theme-dark .sc-btn.primary { color:#0b1220; }
+
+/* KPI */
+.sc-kpis { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
+.sc-kpi { position:relative; display:flex; flex-direction:column; gap:2px; padding:12px 14px 12px 18px; border-radius:14px; text-decoration:none;
+          background:var(--sc-surface); border:1px solid var(--sc-border); color:var(--sc-text); overflow:hidden; transition:transform .12s, box-shadow .12s; }
+.sc-kpi::before { content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--k,var(--sc-light)); opacity:.85; }
+.sc-kpi:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(15,23,42,.08); }
+.sc-kpi b { font-size:26px; font-weight:800; line-height:1.05; color:var(--k,var(--sc-text)); }
+.sc-kpi span { font-size:12px; color:var(--sc-light); font-weight:600; }
+.sc-kpi.on { box-shadow:0 0 0 2px var(--k,var(--sc-accent)); }
+.sc-kpi.k-red { --k:var(--sc-red); } .sc-kpi.k-amber { --k:var(--sc-amber); } .sc-kpi.k-blue { --k:var(--sc-accent); }
+.sc-kpi.k-tot b { color:var(--sc-text); }
+
+/* Barra strumenti */
+.sc-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+              background:var(--sc-surface); border:1px solid var(--sc-border); border-radius:14px; padding:8px 10px; }
+.sc-seg { display:inline-flex; background:var(--sc-alt); border:1px solid var(--sc-border); border-radius:10px; padding:3px; gap:2px; }
+.sc-seg a { padding:6px 14px; border-radius:7px; font-size:13px; font-weight:700; color:var(--sc-light); text-decoration:none; white-space:nowrap; }
+.sc-seg a.on { background:var(--sc-surface); color:var(--sc-text); box-shadow:0 1px 3px rgba(15,23,42,.12); }
+body.theme-dark .sc-seg a.on { background:var(--sc-accent-bg); color:var(--sc-accent); }
+.sc-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.sc-filters select { border:1px solid var(--sc-border); border-radius:8px; padding:6px 28px 6px 10px; font-size:12.5px;
+                     background-color:var(--sc-alt); color:var(--sc-text); max-width:200px; }
+.sc-legend { display:flex; gap:6px; flex-wrap:wrap; }
+.sc-tag { display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 8px; border-radius:999px; font-size:12px; font-weight:600;
+          text-decoration:none; color:var(--sc-mid); background:var(--sc-surface); border:1px solid var(--sc-border); }
+.sc-tag i { width:9px; height:9px; border-radius:50%; background:var(--c,var(--sc-light)); flex:0 0 auto; }
+.sc-tag em { font-style:normal; color:var(--sc-light); font-weight:700; font-size:11px; }
+.sc-tag:hover, .sc-tag.on { border-color:var(--c,var(--sc-accent)); color:var(--sc-text); }
+.sc-tag.on { background:color-mix(in srgb, var(--c,var(--sc-accent)) 12%, var(--sc-surface)); }
+
+.sc-card { background:var(--sc-surface); border:1px solid var(--sc-border); border-radius:16px; min-width:0; }
+
+/* ── Vista mese ── */
+.sc-cal { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:14px; align-items:start; }
+.sc-month { overflow:hidden; }
+.sc-month-head { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--sc-border); flex-wrap:wrap; }
+.sc-month-head h2 { margin:0; font-size:20px; font-weight:800; letter-spacing:-.01em; min-width:170px; }
+.sc-arrow { display:inline-grid; place-items:center; width:34px; height:34px; border-radius:10px; border:1px solid var(--sc-border);
+            color:var(--sc-mid); text-decoration:none; font-size:18px; line-height:1; background:var(--sc-surface); }
+.sc-arrow:hover { border-color:var(--sc-accent); color:var(--sc-accent); }
+.sc-arrow.off { opacity:.35; pointer-events:none; }
+.sc-month-count { margin-left:auto; font-size:12.5px; color:var(--sc-light); font-weight:600; }
+.sc-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); }
+.sc-dow { padding:8px 10px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--sc-light);
+          border-bottom:1px solid var(--sc-border); background:var(--sc-alt); }
+.sc-day { position:relative; display:flex; flex-direction:column; gap:3px; align-items:stretch; text-align:left; min-height:118px; padding:6px 6px 8px;
+          border:0; border-right:1px solid var(--sc-border); border-bottom:1px solid var(--sc-border); background:var(--sc-surface);
+          color:inherit; font:inherit; cursor:pointer; min-width:0; }
+.sc-day:nth-child(7n+7) { border-right:0; }
+.sc-day.festivo { background:var(--sc-weekend); }
+.sc-day.fuori { background:var(--sc-out); }
+.sc-day.fuori .sc-dnum, .sc-day.fuori .sc-chip { opacity:.45; }
+.sc-day:hover { background:var(--sc-accent-bg); }
+.sc-day.sel { box-shadow:inset 0 0 0 2px var(--sc-accent); z-index:1; }
+.sc-day:focus-visible { outline:2px solid var(--sc-accent); outline-offset:-2px; }
+.sc-dtop { display:flex; align-items:center; justify-content:space-between; gap:4px; }
+.sc-dnum { display:inline-grid; place-items:center; min-width:26px; height:26px; padding:0 4px; border-radius:999px; font-size:13px; font-weight:700; color:var(--sc-mid); }
+.sc-day.passato:not(.oggi) .sc-dnum { color:var(--sc-light); }
+.sc-day.oggi .sc-dnum { background:var(--sc-accent); color:#fff; }
+body.theme-dark .sc-day.oggi .sc-dnum { color:#0b1220; }
+.sc-dcount { font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:999px; background:var(--sc-alt); color:var(--sc-light); }
+.sc-dcount.scaduta { background:var(--sc-red-bg); color:var(--sc-red); }
+.sc-dcount.vicina { background:var(--sc-amber-bg); color:var(--sc-amber); }
+.sc-chip { display:flex; align-items:center; gap:5px; min-width:0; padding:2px 6px 2px 5px; border-radius:6px; font-size:11.5px; font-weight:600; line-height:1.35;
+           color:var(--sc-text); background:color-mix(in srgb, var(--c) 11%, var(--sc-surface)); border-left:3px solid var(--c); }
+.sc-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sc-chip.scaduta { background:var(--sc-red-bg); }
+.sc-more { font-size:11px; font-weight:700; color:var(--sc-accent); padding-left:4px; }
+.sc-dots { display:none; gap:3px; flex-wrap:wrap; justify-content:center; }
+.sc-dots i { width:6px; height:6px; border-radius:50%; background:var(--c); }
+
+/* Pannelli laterali */
+.sc-side { display:flex; flex-direction:column; gap:14px; position:sticky; top:12px; min-width:0; }
+.sc-panel { padding:14px; }
+.sc-panel h3 { margin:0; font-size:15px; font-weight:800; }
+.sc-panel .sc-psub { font-size:12px; color:var(--sc-light); margin:2px 0 10px; }
+.sc-panel-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.sc-back { font-size:12px; font-weight:600; color:var(--sc-accent); background:none; border:0; cursor:pointer; padding:0; }
+.sc-list { display:flex; flex-direction:column; gap:6px; }
+.sc-empty { text-align:center; color:var(--sc-light); font-size:13px; padding:18px 6px; }
+.sc-empty b { display:block; font-size:24px; margin-bottom:4px; }
+.sc-overdue { border-color:color-mix(in srgb, var(--sc-red) 35%, var(--sc-border)); }
+.sc-overdue h3 { color:var(--sc-red); }
+.sc-link { display:inline-block; margin-top:10px; font-size:12.5px; font-weight:700; color:var(--sc-accent); text-decoration:none; }
+
+/* Voce (riga cliccabile) */
+.sc-item { position:relative; display:flex; align-items:center; gap:10px; padding:8px 10px 8px 12px; border-radius:10px; text-decoration:none;
+           color:var(--sc-text); background:var(--sc-alt); border:1px solid transparent; min-width:0; overflow:hidden; }
+a.sc-item:hover { border-color:var(--c); background:color-mix(in srgb, var(--c) 7%, var(--sc-surface)); }
+.sc-item-bar { position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--c); }
+.sc-item-body { display:flex; flex-direction:column; gap:1px; min-width:0; flex:1 1 auto; }
+.sc-item-top { display:flex; gap:6px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--sc-light); min-width:0; }
+.sc-item-top { color:var(--c); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+.sc-item-sogg { font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sc-item-desc { font-size:12px; color:var(--sc-light); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sc-item-when { flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; font-size:11.5px; font-weight:700; color:var(--sc-mid); white-space:nowrap; }
+.sc-item-when small { font-size:10.5px; font-weight:600; color:var(--sc-light); }
+.sc-item-when.scaduta { color:var(--sc-red); }
+.sc-item-when.vicina { color:var(--sc-amber); }
+
+/* ── Vista agenda ── */
+.sc-agenda { display:flex; flex-direction:column; gap:14px; max-width:980px; }
+.sc-week { padding:14px 16px; }
+.sc-week > header { display:flex; align-items:baseline; gap:10px; margin-bottom:10px; }
+.sc-week > header h2 { margin:0; font-size:16px; font-weight:800; }
+.sc-week > header span { font-size:12px; font-weight:700; color:var(--sc-light); background:var(--sc-alt); padding:2px 9px; border-radius:999px; }
+.sc-week.scaduta { border-color:color-mix(in srgb, var(--sc-red) 35%, var(--sc-border)); }
+.sc-week.scaduta > header h2 { color:var(--sc-red); }
+.sc-week.scaduta > header span { background:var(--sc-red-bg); color:var(--sc-red); }
+.sc-week.corrente { border-color:color-mix(in srgb, var(--sc-accent) 40%, var(--sc-border)); }
+.sc-aday { display:grid; grid-template-columns:58px minmax(0,1fr); gap:12px; padding:8px 0; border-top:1px dashed var(--sc-border); }
+.sc-aday:first-of-type { border-top:0; }
+.sc-badge { display:flex; flex-direction:column; align-items:center; justify-content:center; height:58px; border-radius:12px;
+            background:var(--sc-alt); border:1px solid var(--sc-border); line-height:1.05; }
+.sc-badge small { font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--sc-light); letter-spacing:.04em; }
+.sc-badge b { font-size:21px; font-weight:800; }
+.sc-badge.oggi { background:var(--sc-accent); border-color:var(--sc-accent); color:#fff; }
+.sc-badge.oggi small { color:rgba(255,255,255,.85); }
+body.theme-dark .sc-badge.oggi, body.theme-dark .sc-badge.oggi small { color:#0b1220; }
+
+/* ── Vista elenco ── */
+.sc-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.sc-table { width:100%; min-width:760px; border-collapse:collapse; font-size:13px; }
+.sc-table th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--sc-light); background:var(--sc-alt);
+               padding:10px 12px; border-bottom:1px solid var(--sc-border); white-space:nowrap; }
+.sc-table td { padding:9px 12px; border-bottom:1px solid var(--sc-border); vertical-align:middle; color:var(--sc-mid); }
+.sc-table tr:last-child td { border-bottom:0; }
+.sc-table td a { color:var(--sc-text); font-weight:700; text-decoration:none; }
+.sc-table td a:hover { color:var(--sc-accent); text-decoration:underline; }
+.sc-src { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--sc-text); white-space:nowrap; }
+.sc-src i { width:9px; height:9px; border-radius:50%; background:var(--c); }
+.sc-when { font-weight:700; white-space:nowrap; } .sc-when.scaduta { color:var(--sc-red); } .sc-when.vicina { color:var(--sc-amber); }
+.sc-pager { display:flex; gap:8px; justify-content:center; align-items:center; padding:12px; color:var(--sc-light); font-size:13px; }
+
+@media (max-width:1100px) {
+  .sc-cal { grid-template-columns:minmax(0,1fr); }
+  .sc-side { position:static; display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+}
+@media (max-width:720px) {
+  .sc-title { font-size:21px; }
+  .sc-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .sc-kpis .sc-kpi.k-tot { grid-column:1 / -1; flex-direction:row; align-items:baseline; gap:8px; }
+  .sc-kpi { padding:8px 10px 8px 14px; }
+  .sc-kpi b { font-size:21px; }
+  .sc-toolbar { flex-direction:column; align-items:stretch; }
+  .sc-seg { display:flex; } .sc-seg a { flex:1; text-align:center; padding:7px 6px; }
+  .sc-filters select { flex:1 1 140px; max-width:none; }
+  .sc-month-head h2 { font-size:17px; min-width:0; }
+  .sc-month-count { width:100%; margin-left:0; }
+  .sc-dow { padding:6px 2px; text-align:center; font-size:10px; letter-spacing:0; }
+  .sc-day { min-height:58px; padding:4px 2px; align-items:center; }
+  .sc-dtop { justify-content:center; }
+  .sc-dcount, .sc-chip, .sc-more { display:none; }
+  .sc-dots { display:flex; }
+  .sc-side { grid-template-columns:minmax(0,1fr); }
+  .sc-aday { grid-template-columns:46px minmax(0,1fr); gap:8px; }
+  .sc-badge { height:50px; } .sc-badge b { font-size:18px; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="sg-wrap">
-  <div class="sg-head">
+<div class="sc">
+  <div class="sc-head">
     <div>
-      <h1 class="sg-title">📅 Scadenzario globale</h1>
-      <p class="sg-sub">Le scadenze che puoi vedere (personale, asset, verifiche impianti, DPI, RENTRI, CAPA, sistema di gestione, qualifiche di processo, formazione, SOC, GDPR, presa visione, scadenze generiche): le scadute e quelle dei prossimi {{ orizzonte_giorni }} giorni, in un'unica vista.</p>
+      <h1 class="sc-title">📅 Scadenzario</h1>
+      <p class="sc-sub">Le scadenze del portale che puoi vedere, da tutti i moduli, in un solo posto. Clicca un giorno per vederne il dettaglio, una scadenza per aprirla nel suo modulo.</p>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      {% if puo_generiche %}<a class="sg-btn ghost" href="{% url 'scadenzario:elenco' %}">Scadenze generiche</a>{% endif %}
-      {% if puo_pannello %}<a class="sg-btn ghost" href="{% url 'scadenzario:gestione' %}">⚙ Gestione</a>{% endif %}
-      <a class="sg-btn ghost" href="{% url 'guida_modulo' 'scadenzario' %}">? Guida</a>
+    <div class="sc-actions">
+      {% if puo_generiche %}<a class="sc-btn" href="{% url 'scadenzario:elenco' %}">🗂 Scadenze generiche</a>{% endif %}
+      {% if puo_pannello %}<a class="sc-btn" href="{% url 'scadenzario:gestione' %}">⚙ Gestione</a>{% endif %}
+      <a class="sc-btn" href="{% url 'guida_modulo' 'scadenzario' %}">? Guida</a>
     </div>
   </div>
 
-  <div class="sg-kpis">
-    <div class="sg-kpi danger"><b>{{ n_scadute }}</b><span>Scadute</span></div>
-    <div class="sg-kpi warn"><b>{{ n_30gg }}</b><span>Entro 30 giorni</span></div>
-    <div class="sg-kpi info"><b>{{ n_60gg }}</b><span>31–60 giorni</span></div>
-    <div class="sg-kpi info"><b>{{ n_90gg }}</b><span>61–90 giorni</span></div>
-    <div class="sg-kpi"><b>{{ totale }}</b><span>Totale</span></div>
+  <div class="sc-kpis">
+    <a class="sc-kpi k-red{% if filtro_stato == 'scaduta' %} on{% endif %}" href="?{{ qs_senza_stato }}&vista={{ vista }}{% if filtro_stato != 'scaduta' %}&stato=scaduta{% endif %}"><b>{{ n_scadute }}</b><span>Scadute</span></a>
+    <a class="sc-kpi k-amber{% if filtro_stato == '30' %} on{% endif %}" href="?{{ qs_senza_stato }}&vista={{ vista }}{% if filtro_stato != '30' %}&stato=30{% endif %}"><b>{{ n_30gg }}</b><span>Entro 30 giorni</span></a>
+    <a class="sc-kpi k-blue{% if filtro_stato == '60' %} on{% endif %}" href="?{{ qs_senza_stato }}&vista={{ vista }}{% if filtro_stato != '60' %}&stato=60{% endif %}"><b>{{ n_60gg }}</b><span>31–60 giorni</span></a>
+    <a class="sc-kpi k-blue{% if filtro_stato == '90' %} on{% endif %}" href="?{{ qs_senza_stato }}&vista={{ vista }}{% if filtro_stato != '90' %}&stato=90{% endif %}"><b>{{ n_90gg }}</b><span>61–90 giorni</span></a>
+    <a class="sc-kpi k-tot{% if not filtro_stato %} on{% endif %}" href="?{{ qs_senza_stato }}&vista={{ vista }}"><b>{{ totale }}</b><span>Totale (scadute e prossimi {{ orizzonte_giorni }} giorni)</span></a>
   </div>
 
-  <form method="get" class="sg-filters">
-    <label>Sorgente
-      <select name="sorgente">
-        <option value="">Tutte</option>
-        {% for code, label in sorgenti %}
-          <option value="{{ code }}" {% if filtro_sorgente == code %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
+  <div class="sc-toolbar">
+    <nav class="sc-seg" aria-label="Vista">
+      <a href="?{{ qs_filtri }}&vista=mese" class="{% if vista == 'mese' %}on{% endif %}">Calendario</a>
+      <a href="?{{ qs_filtri }}&vista=agenda" class="{% if vista == 'agenda' %}on{% endif %}">Agenda</a>
+      <a href="?{{ qs_filtri }}&vista=elenco" class="{% if vista == 'elenco' %}on{% endif %}">Elenco</a>
+    </nav>
+    <form method="get" class="sc-filters" id="sc-filtri">
+      <input type="hidden" name="vista" value="{{ vista }}">
+      {% if vista == 'mese' and not mese_corrente %}<input type="hidden" name="mese" value="{{ request.GET.mese }}">{% endif %}
+      <select name="sorgente" aria-label="Fonte">
+        <option value="">Tutte le fonti</option>
+        {% for code, label in sorgenti %}<option value="{{ code }}" {% if filtro_sorgente == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
-    </label>
-    <label>Stato
-      <select name="stato">
-        <option value="">Tutti</option>
+      <select name="stato" aria-label="Stato">
+        <option value="">Tutti gli stati</option>
         <option value="scaduta" {% if filtro_stato == "scaduta" %}selected{% endif %}>Scadute</option>
         <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
         <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
         <option value="90" {% if filtro_stato == "90" %}selected{% endif %}>Entro 90 giorni</option>
       </select>
-    </label>
-    <label>Reparto
-      <select name="reparto">
-        <option value="">Tutti</option>
-        {% for r in reparti %}
-          <option value="{{ r }}" {% if filtro_reparto == r %}selected{% endif %}>{{ r }}</option>
-        {% endfor %}
+      {% if reparti %}
+      <select name="reparto" aria-label="Reparto">
+        <option value="">Tutti i reparti</option>
+        {% for r in reparti %}<option value="{{ r }}" {% if filtro_reparto == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
       </select>
-    </label>
-    <button type="submit" class="sg-btn">Filtra</button>
-    <a class="sg-btn ghost" href="?{% if filtro_sorgente %}sorgente={{ filtro_sorgente }}&{% endif %}{% if filtro_stato %}stato={{ filtro_stato }}&{% endif %}{% if filtro_reparto %}reparto={{ filtro_reparto }}&{% endif %}format=csv">⬇ CSV</a>
-    <a class="sg-btn ghost" title="File da aprire con Outlook o con un altro calendario: una voce per scadenza, promemoria il giorno prima" href="?{% if filtro_sorgente %}sorgente={{ filtro_sorgente }}&{% endif %}{% if filtro_stato %}stato={{ filtro_stato }}&{% endif %}{% if filtro_reparto %}reparto={{ filtro_reparto }}&{% endif %}format=ics">⬇ Calendario (.ics)</a>
-  </form>
-
-  <div class="sg-scroll">
-  <table class="sg-table">
-    <thead>
-      <tr>
-        <th>Sorgente</th>
-        <th>Tipo</th>
-        <th>Soggetto</th>
-        <th>Reparto</th>
-        <th>Descrizione</th>
-        <th>Scadenza</th>
-        <th>Stato</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for v in page_obj %}
-        <tr>
-          <td><span class="sg-src {{ v.source }}">{{ v.source_label }}</span></td>
-          <td>{{ v.kind_label }}</td>
-          <td>
-            {% if v.url %}<a href="{{ v.url }}">{{ v.soggetto }}</a>{% else %}{{ v.soggetto }}{% endif %}
-          </td>
-          <td>{{ v.reparto|default:"—" }}</td>
-          <td>{{ v.titolo }}</td>
-          <td>{{ v.data_scadenza|date:"d/m/Y"|default:"—" }}</td>
-          <td>
-            {% if v.scaduta %}
-              <span class="sg-when scaduta">Scaduta</span>
-            {% elif v.giorni is not None %}
-              <span class="sg-when {% if v.giorni <= 30 %}soon{% endif %}">tra {{ v.giorni }} gg</span>
-            {% else %}—{% endif %}
-          </td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="7" class="sg-empty">Nessuna scadenza nei criteri selezionati. 🎉</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      {% endif %}
+      <noscript><button type="submit" class="sc-btn primary">Filtra</button></noscript>
+      <a class="sc-btn" href="?{{ qs_filtri }}&format=csv" title="Scadute e prossimi {{ orizzonte_giorni }} giorni, con i filtri scelti">⬇ CSV</a>
+      <a class="sc-btn" href="?{{ qs_filtri }}&format=ics" title="File da aprire con Outlook o un altro calendario: una voce per scadenza, promemoria il giorno prima">⬇ Outlook (.ics)</a>
+    </form>
   </div>
 
-  {% if page_obj.paginator.num_pages > 1 %}
-    <div class="sg-pager">
-      {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}{% if filtro_sorgente %}&sorgente={{ filtro_sorgente }}{% endif %}{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_reparto %}&reparto={{ filtro_reparto }}{% endif %}">← Prec</a>
+  {% if legenda or filtro_sorgente %}
+  <div class="sc-legend" aria-label="Fonti">
+    <a class="sc-tag{% if not filtro_sorgente %} on{% endif %}" href="?{{ qs_senza_sorgente }}&vista={{ vista }}">Tutte le fonti</a>
+    {% for code, label, n in legenda %}
+      <a class="sc-tag src-{{ code }}{% if filtro_sorgente == code %} on{% endif %}" href="?{{ qs_senza_sorgente }}&vista={{ vista }}{% if filtro_sorgente != code %}&sorgente={{ code }}{% endif %}"><i></i>{{ label }} <em>{{ n }}</em></a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if vista == "mese" %}
+  <div class="sc-cal">
+    <section class="sc-card sc-month">
+      <div class="sc-month-head">
+        <a class="sc-arrow{% if not nav_prec %} off{% endif %}" href="?{{ qs_mese }}&mese={{ mese_prec }}" aria-label="Mese precedente">‹</a>
+        <a class="sc-arrow{% if not nav_succ %} off{% endif %}" href="?{{ qs_mese }}&mese={{ mese_succ }}" aria-label="Mese successivo">›</a>
+        <h2>{{ mese_label }}</h2>
+        {% if not mese_corrente %}<a class="sc-btn" href="?{{ qs_mese }}">Oggi</a>{% endif %}
+        <span class="sc-month-count">{{ n_mese }} scadenz{{ n_mese|pluralize:"a,e" }} nel mese</span>
+      </div>
+      <div class="sc-grid" role="grid">
+        {% for g in intestazione %}<div class="sc-dow" role="columnheader">{{ g }}</div>{% endfor %}
+        {% for riga in settimane %}{% for c in riga %}
+          <button type="button" class="sc-day{% if not c.nel_mese %} fuori{% endif %}{% if c.oggi %} oggi{% endif %}{% if c.passato %} passato{% endif %}{% if c.festivo %} festivo{% endif %}"
+                  data-day="{{ c.iso }}" data-label="{{ c.label }}" aria-label="{{ c.label }}{% if c.n %}: {{ c.n }} scadenz{{ c.n|pluralize:'a,e' }}{% endif %}">
+            <span class="sc-dtop"><span class="sc-dnum">{{ c.data.day }}</span>{% if c.n %}<span class="sc-dcount {{ c.urgenza }}">{{ c.n }}</span>{% endif %}</span>
+            {% for v in c.in_cella %}<span class="sc-chip src-{{ v.source }} {{ v.urgenza }}" title="{{ v.source_label }} · {{ v.kind_label }}: {{ v.principale }}{% if v.secondario %} ({{ v.secondario }}){% endif %}"><span>{{ v.principale }}</span></span>{% endfor %}
+            {% if c.altre %}<span class="sc-more">+{{ c.altre }} altr{{ c.altre|pluralize:"a,e" }}</span>{% endif %}
+            {% if c.n %}<span class="sc-dots" aria-hidden="true">{% for v in c.voci|slice:":6" %}<i class="src-{{ v.source }}"></i>{% endfor %}</span>{% endif %}
+          </button>
+        {% endfor %}{% endfor %}
+      </div>
+    </section>
+
+    <aside class="sc-side">
+      <section class="sc-card sc-panel" id="sc-pannello" aria-live="polite">
+        <div class="sc-dp" data-day="">
+          <h3>Oggi e i prossimi 7 giorni</h3>
+          <p class="sc-psub">{{ prossimi_7|length }} scadenz{{ prossimi_7|length|pluralize:"a,e" }} · clicca un giorno del calendario per il suo dettaglio</p>
+          <div class="sc-list">
+            {% for v in prossimi_7 %}{% include "dashboard/components/scadenza_voce.html" %}{% empty %}<div class="sc-empty"><b>🌤</b>Niente in scadenza nei prossimi 7 giorni.</div>{% endfor %}
+          </div>
+        </div>
+        {% for c in giorni_con_voci %}
+        <div class="sc-dp" data-day="{{ c.iso }}" hidden>
+          <div class="sc-panel-head"><h3>{{ c.label }}</h3><button type="button" class="sc-back" data-day="">✕ chiudi</button></div>
+          <p class="sc-psub">{{ c.n }} scadenz{{ c.n|pluralize:"a,e" }}</p>
+          <div class="sc-list">{% for v in c.voci %}{% include "dashboard/components/scadenza_voce.html" %}{% endfor %}</div>
+        </div>
+        {% endfor %}
+        <div class="sc-dp" data-day="__vuoto" hidden>
+          <div class="sc-panel-head"><h3 id="sc-vuoto-titolo"></h3><button type="button" class="sc-back" data-day="">✕ chiudi</button></div>
+          <div class="sc-empty"><b>✓</b>Nessuna scadenza in questo giorno.</div>
+        </div>
+      </section>
+
+      {% if n_scadute %}
+      <section class="sc-card sc-panel sc-overdue">
+        <h3>⚠ Scadute</h3>
+        <p class="sc-psub">{{ n_scadute }} scadenz{{ n_scadute|pluralize:"a,e" }} già passat{{ n_scadute|pluralize:"a,e" }}, dalla più vecchia</p>
+        <div class="sc-list">{% for v in scadute_lato %}{% include "dashboard/components/scadenza_voce.html" %}{% endfor %}</div>
+        {% if scadute_altre %}<a class="sc-link" href="?{{ qs_senza_stato }}&vista=elenco&stato=scaduta">Vedi tutte le {{ n_scadute }} scadute →</a>{% endif %}
+      </section>
       {% endif %}
-      <span>Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
-      {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}{% if filtro_sorgente %}&sorgente={{ filtro_sorgente }}{% endif %}{% if filtro_stato %}&stato={{ filtro_stato }}{% endif %}{% if filtro_reparto %}&reparto={{ filtro_reparto }}{% endif %}">Succ →</a>
-      {% endif %}
+    </aside>
+  </div>
+
+  {% elif vista == "agenda" %}
+  <div class="sc-agenda">
+    {% for g in gruppi %}
+      <section class="sc-card sc-week {{ g.classe }}">
+        <header><h2>{{ g.titolo }}</h2><span>{{ g.n }} scadenz{{ g.n|pluralize:"a,e" }}</span></header>
+        {% for d in g.giorni %}
+          <div class="sc-aday">
+            <div class="sc-badge{% if d.data == oggi %} oggi{% endif %}"><small>{{ d.dow }}</small><b>{{ d.num }}</b><small>{{ d.mese }}</small></div>
+            <div class="sc-list">{% for v in d.voci %}{% include "dashboard/components/scadenza_voce.html" %}{% endfor %}</div>
+          </div>
+        {% endfor %}
+      </section>
+    {% empty %}
+      <div class="sc-card sc-empty"><b>🎉</b>Nessuna scadenza nei criteri selezionati.</div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <section class="sc-card">
+    <div class="sc-scroll">
+    <table class="sc-table">
+      <thead><tr><th>Fonte</th><th>Tipo</th><th>Soggetto</th><th>Reparto</th><th>Descrizione</th><th>Scadenza</th><th>Stato</th></tr></thead>
+      <tbody>
+        {% for v in page_obj %}
+          <tr class="src-{{ v.source }}">
+            <td><span class="sc-src"><i></i>{{ v.source_label }}</span></td>
+            <td>{{ v.kind_label }}</td>
+            <td>{% if v.url %}<a href="{{ v.url }}">{{ v.soggetto }}</a>{% else %}{{ v.soggetto }}{% endif %}</td>
+            <td>{{ v.reparto|default:"—" }}</td>
+            <td>{{ v.titolo }}</td>
+            <td>{{ v.data_scadenza|date:"d/m/Y"|default:"—" }}</td>
+            <td><span class="sc-when {{ v.urgenza }}">{{ v.quando|default:"—" }}</span></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="7"><div class="sc-empty"><b>🎉</b>Nessuna scadenza nei criteri selezionati.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
     </div>
+    {% if page_obj.paginator.num_pages > 1 %}
+      <div class="sc-pager">
+        {% if page_obj.has_previous %}<a class="sc-btn" href="?{{ qs_filtri }}&vista=elenco&page={{ page_obj.previous_page_number }}">← Precedente</a>{% endif %}
+        <span>Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a class="sc-btn" href="?{{ qs_filtri }}&vista=elenco&page={{ page_obj.next_page_number }}">Successiva →</a>{% endif %}
+      </div>
+    {% endif %}
+  </section>
   {% endif %}
 </div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var form = document.getElementById('sc-filtri');
+  if (form) form.querySelectorAll('select').forEach(function (s) {
+    s.addEventListener('change', function () { form.submit(); });
+  });
+  var pannello = document.getElementById('sc-pannello');
+  if (!pannello) return;
+  var celle = document.querySelectorAll('.sc-day');
+  function mostra(giorno, label) {
+    var trovato = false;
+    pannello.querySelectorAll('.sc-dp').forEach(function (p) {
+      var si = p.getAttribute('data-day') === giorno;
+      p.hidden = !si;
+      if (si) trovato = true;
+    });
+    if (!trovato) {
+      document.getElementById('sc-vuoto-titolo').textContent = label || '';
+      pannello.querySelector('.sc-dp[data-day="__vuoto"]').hidden = false;
+    }
+    celle.forEach(function (c) {
+      var si = giorno && c.getAttribute('data-day') === giorno;
+      c.classList.toggle('sel', !!si);
+      c.setAttribute('aria-pressed', si ? 'true' : 'false');
+    });
+  }
+  celle.forEach(function (c) {
+    c.addEventListener('click', function () {
+      var giorno = c.getAttribute('data-day');
+      if (c.classList.contains('sel')) { mostra('', ''); return; }
+      mostra(giorno, c.getAttribute('data-label'));
+      if (window.matchMedia('(max-width:1100px)').matches) pannello.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
+  });
+  pannello.addEventListener('click', function (e) {
+    var b = e.target.closest('.sc-back');
+    if (b) mostra('', '');
+  });
+})();
+</script>
 {% endblock %}

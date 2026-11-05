@@ -1,0 +1,10 @@
+{% comment %}Una scadenza (ScadenzaItem decorata da views_scadenze._decora): riga cliccabile verso il modulo che la gestisce.{% endcomment %}
+{% if v.url %}<a class="sc-item src-{{ v.source }} {{ v.urgenza }}" href="{{ v.url }}" title="{{ v.source_label }}">{% else %}<div class="sc-item src-{{ v.source }} {{ v.urgenza }}" title="{{ v.source_label }}">{% endif %}
+  <span class="sc-item-bar" aria-hidden="true"></span>
+  <span class="sc-item-body">
+    <span class="sc-item-top">{% if v.kind_label %}{{ v.kind_label }}{% else %}{{ v.source_label }}{% endif %}</span>
+    <b class="sc-item-sogg">{{ v.principale }}</b>
+    {% if v.secondario %}<span class="sc-item-desc">{{ v.secondario }}</span>{% endif %}
+  </span>
+  <span class="sc-item-when {{ v.urgenza }}">{{ v.quando }}<small>{{ v.data_scadenza|date:"d/m/Y" }}</small></span>
+{% if v.url %}</a>{% else %}</div>{% endif %}

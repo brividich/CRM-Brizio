@@ -203,8 +203,18 @@ GUIDA = {
             "id": "scadenzario",
             "titolo": "Lo Scadenzario globale",
             "blocchi": [
-                ("p", "Dalla home, pulsante «Scadenzario» (indirizzo /scadenze): tutte le scadenze del portale in una tabella sola, "
-                      "le scadute in cima. Contiene le scadute e quelle dei prossimi 90 giorni."),
+                ("p", "Dalla home, pulsante «Scadenzario» (indirizzo /scadenze): tutte le scadenze del portale in un posto solo. "
+                      "In alto i contatori (Scadute, Entro 30 giorni, 31–60, 61–90, Totale: contano le scadute e i prossimi 90 giorni; "
+                      "un clic filtra, un secondo clic toglie il filtro), sotto tre viste da scegliere con i pulsanti Calendario, Agenda ed Elenco."),
+                ("def", [
+                    ("Calendario", "si apre qui: il mese con lunedì come primo giorno, oggi nel cerchio blu. In ogni giorno fino a 3 scadenze "
+                                   "(colore = fonte, sfondo rosso = scaduta) e «+N altre»; il numero in alto a destra è rosso se c'è una scaduta, "
+                                   "arancio se scade entro 30 giorni. Clicca un giorno: a destra (sotto, da telefono) l'elenco completo di quel giorno; "
+                                   "«✕ chiudi» torna a «Oggi e i prossimi 7 giorni». Il riquadro «⚠ Scadute» mostra le 6 più vecchie e «Vedi tutte» apre l'elenco. "
+                                   "Con ‹ › cambi mese (fino a 24 mesi avanti o indietro), «Oggi» torna al mese corrente. Il calendario mostra anche le scadenze oltre i 90 giorni."),
+                    ("Agenda", "le settimane in fila: prima le Scadute, poi «Questa settimana», «La prossima settimana» e le seguenti, giorno per giorno."),
+                    ("Elenco", "la tabella di sempre, 50 righe per pagina."),
+                ]),
                 ("def", [
                     ("Personale (HR)", "qualifiche, visite mediche, corsi obbligatori, contratti a termine e periodi di prova. Le stesse voci dello Scadenzario di Anagrafica."),
                     ("Asset", "scadenze amministrative (revisioni, certificati), licenze software e contratti di assistenza."),
@@ -217,11 +227,12 @@ GUIDA = {
                 ]),
                 ("ul", [
                     "Vedi le fonti che puoi aprire più quello che il pannello «⚙ Gestione» ti concede (per ruolo, ruolo aziendale o persona); il pannello può anche togliere voci a tutti.",
-                    "Filtri: Sorgente, Stato (Scadute, Entro 30, 60 o 90 giorni) e Reparto; «⬇ CSV» scarica le righe filtrate.",
-                    "«⬇ Calendario (.ics)» scarica le stesse righe come file di calendario: aprilo con Outlook (o un altro calendario) "
+                    "Filtri: fonte, stato (Scadute, Entro 30, 60 o 90 giorni) e reparto, si applicano appena li scegli e valgono in tutte le viste; "
+                    "le etichette colorate sotto la barra sono le fonti presenti con il loro numero: un clic mostra solo quella fonte. «⬇ CSV» scarica le righe filtrate.",
+                    "«⬇ Outlook (.ics)» scarica le stesse righe come file di calendario: aprilo con Outlook (o un altro calendario) "
                     "e ogni scadenza diventa un evento di un giorno con promemoria il giorno prima alle 9. È una copia: non si aggiorna da sola.",
                     "Per averle sempre aggiornate in Outlook: Impostazioni notifiche → «Le mie scadenze nel calendario Outlook».",
-                    "Il nome nella colonna Soggetto apre la pagina dove la scadenza si gestisce. Qui si guarda soltanto: niente si modifica.",
+                    "Una scadenza (nel pannello del giorno, nell'agenda o il nome nella colonna Soggetto dell'elenco) apre la pagina dove si gestisce. Qui si guarda soltanto: niente si modifica.",
                 ]),
             ],
         },
