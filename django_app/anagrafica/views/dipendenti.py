@@ -522,9 +522,10 @@ def _dipendenti_base_rows() -> list[dict]:
 
 
 def _filter_dipendenti_rows(rows: list[dict], request) -> list[dict]:
-    """Filtri della lista dipendenti (q / reparto / area / tipologia_contratto)."""
+    """Filtri della lista dipendenti (q / reparto / area / centro di costo / tipologia_contratto)."""
     q = request.GET.get("q", "").strip()
     reparto = request.GET.get("reparto", "").strip()
+    centro = request.GET.get("centro_costo", "").strip()
     area_filter = request.GET.get("area", "").strip()
     contratto_filter = request.GET.get("tipologia_contratto", "").strip()
 
@@ -546,6 +547,8 @@ def _filter_dipendenti_rows(rows: list[dict], request) -> list[dict]:
         ]
     if reparto:
         rows = [row for row in rows if str(row.get("reparto") or "").strip().casefold() == reparto.casefold()]
+    if centro:
+        rows = [row for row in rows if str(row.get("centro_di_costo_nome") or "").strip().casefold() == centro.casefold()]
 
     # Filtri su campi Django (area, tipologia_contratto)
     if area_filter or contratto_filter:
@@ -637,7 +640,7 @@ def dipendenti_list(request):
     # Vista configurabile (prompt 03): colonne dal registro, filtrate dai permessi dell'utente.
     vista = viste_elenco.vista_corrente(request)
     if (vista and vista.filtri and request.GET.get("vf") != "0"
-            and not any(k in request.GET for k in ("q", "reparto", "area", "tipologia_contratto"))):
+            and not any(k in request.GET for k in ("q", "reparto", "area", "centro_costo", "tipologia_contratto"))):
         filtri = request.GET.copy()
         for chiave, valore in vista.filtri.items():
             if chiave in ("reparto", "area", "tipologia_contratto") and valore:
@@ -817,6 +820,8 @@ def dipendenti_list(request):
         "tipologia_contratto": contratto_filter,
         "reparti": reparti_list,
         "aree": aree_opts,
+        "centro_costo": request.GET.get("centro_costo", "").strip(),
+        "centri_costo": list(CentroDiCosto.objects.filter(is_active=True).order_by("nome").values_list("nome", flat=True)),
         "tipologie_contratto": tipologie_contratto_list,
         "n_totale": n_totale,
         "n_reparti": len(reparti_list),
@@ -2341,6 +2346,7 @@ def dipendente_detail(request, legacy_id: int):
         "civile": civile,
         "civile_foto_url": civile_foto_url,
         "aziendale": aziendale,
+        "puo_esplorare": _helpers._is_anagrafica_admin(request) or _helpers._check_hr_permission(request),
         "form_civile": form_civile,
         "form_aziendale": form_aziendale,
         "schede_az": schede_az,
@@ -2475,6 +2481,7 @@ def dipendente_print(request, legacy_id: int):
         "dip": dip,
         "civile": civile,
         "aziendale": aziendale,
+        "puo_esplorare": _helpers._is_anagrafica_admin(request) or _helpers._check_hr_permission(request),
         "civile_foto_url": civile_foto_url,
         "can_hr": can_hr,
         "legacy_id": legacy_id,

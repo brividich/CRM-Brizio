@@ -1097,6 +1097,8 @@ _GENERE = {"F": "Donne", "M": "Uomini"}
 
 
 def _valore_dimensione(p, dim: str, oggi: date) -> str:
+    if dim == "centro_costo":
+        return p.centro_costo or SENZA_CENTRO
     if dim == "eta":
         return _fascia(anni_compiuti(p.data_nascita, oggi), _FASCE_ETA)
     if dim == "anzianita":
@@ -1337,7 +1339,7 @@ _registra(Sezione(
     gruppo=GRUPPO_ORGANICO,
     descrizione="Per centro di costo i reparti collegati, i loro ruoli e le persone, compreso chi non ha un centro.",
     builder=_organico_centri_costo,
-    colonne=(("centro", "Centro di costo"), ("reparto", "Reparto"), ("livello", "Livello"),
+    colonne=(("centro", "Centro di costo"), ("reparto", "Reparto (area)"), ("livello", "Livello"),
              ("reparto_portale", "Reparto del portale"), ("ruoli", "Ruoli del reparto"),
              ("persone", "Persone"), ("pct", "%")),
     predefinite=("centro", "livello", "reparto", "ruoli", "persone", "pct"),

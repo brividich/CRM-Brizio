@@ -149,7 +149,7 @@ class AltreSezioniTests(_Base):
     def test_distribuzione_dell_organico(self):
         res = self._sezione("organico_indicatori", dimensioni=["centro_costo"])
         voci = {r["voce"]: r["n"] for r in res.righe if r["dimensione"] == "Centro di costo"}
-        self.assertEqual(voci, {"LAVORAZIONI": 2, "Non registrato": 3})
+        self.assertEqual(voci, {"LAVORAZIONI": 2, SENZA_CENTRO: 3})
 
     def test_organigramma(self):
         righe = {r["area"]: r for r in self._sezione("organigramma").righe if r["area"]}

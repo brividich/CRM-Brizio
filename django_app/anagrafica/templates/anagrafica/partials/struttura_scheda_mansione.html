@@ -7,6 +7,8 @@
   <button type="button" class="sto-sch-x" data-sto-chiudi aria-label="Chiudi">×</button>
 </div>
 
+<p style="margin:0 0 10px;font-size:12.5px;"><a class="fmd-data-link" href="{% url 'anagrafica:esplora_struttura' %}?mansione={{ mansione.pk }}">Esplora la struttura da qui</a></p>
+
 <div class="sto-sch-kpi">
   <div><b>{{ persone|length }}</b><span>in lista</span></div>
   <div><b>{{ operativi }}</b><span>operativ{{ operativi|pluralize:"o,i" }}</span></div>

@@ -76,6 +76,12 @@
           {% for a in aree %}<option value="{{ a }}"{% if a == area %} selected{% endif %}>{{ a }}</option>{% endfor %}
         </select>
         {% endif %}
+        {% if centri_costo %}
+        <select class="fmd-select" name="centro_costo" aria-label="Filtra per centro di costo">
+          <option value="">Tutti i centri di costo</option>
+          {% for c in centri_costo %}<option value="{{ c }}"{% if c == centro_costo %} selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+        {% endif %}
         {% if tipologie_contratto %}
         <select class="fmd-select" name="tipologia_contratto" aria-label="Filtra per tipo contratto">
           <option value="">Tipo contratto: tutti</option>

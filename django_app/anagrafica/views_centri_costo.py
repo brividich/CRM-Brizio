@@ -80,6 +80,7 @@ def centri_costo(request):
         "centri_opts": [s["centro"] for s in schede if s["centro"].is_active],
         "ruoli_opts": list(RuoloOperativo.objects.filter(is_active=True).order_by("nome")),
         "is_admin": _helpers._is_anagrafica_admin(request),
+        "puo_costi": _helpers._check_hr_permission(request),
     })
 
 
