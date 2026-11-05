@@ -80,6 +80,8 @@ GUIDA = {
                     "Import: python manage.py importa_scadenzario --apply --con-avvisi (rilanciabile: aggiorna, non duplica).",
                     "Ferma le mail del vecchio scadenzario sul NAS lo stesso giorno, altrimenti arrivano doppie.",
                 ]),
+                ("p", "Santo patrono nel calendario: SiteConfig scadenzario_patrono = «MM-GG Nome» (es. «06-29 San Pietro»). "
+                      "Andamento: task «scadenzario_foto_giornaliera» ogni giorno alle 6:45; dopo il deploy python manage.py scadenzario_foto per il primo punto."),
                 ("p", "Preavviso, ripetizione e finestra del riepilogo generali: SiteConfig scadenzario_preavviso_giorni (30), "
                       "scadenzario_ripeti_giorni (7), scadenzario_riepilogo_giorni (60). Task: «scadenzario_avvisi_attivita» "
                       "(ogni giorno alle 7:15) e «scadenzario_riepilogo_mensile» (il 1° alle 8)."),

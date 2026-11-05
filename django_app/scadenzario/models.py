@@ -289,3 +289,69 @@ class RegolaVisibilita(models.Model):
         if self.ruolo_aziendale_id:
             return f"Ruolo aziendale: {self.ruolo_aziendale.nome}"
         return f"Persona: {self.persona_nome or self.persona_legacy_id}"
+
+
+class PresaInCarico(models.Model):
+    """Qualcuno ha detto «me ne occupo io» per una scadenza dello scadenzario globale.
+
+    La chiave identifica la singola scadenza (fonte, tipo, link al modulo e data,
+    vedi ``scadenzario.calendario.chiave_scadenza``): quando la scadenza si sposta
+    (rinnovo, nuova data) la presa in carico non vale più da sola.
+    """
+
+    chiave = models.CharField(max_length=64, unique=True)
+    descrizione = models.CharField(max_length=400, blank=True, default="", help_text="Scadenza al momento della presa in carico")
+    data_scadenza = models.DateField(null=True, blank=True)
+    utente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="scadenze_in_carico")
+    nota = models.CharField(max_length=300, blank=True, default="")
+    creato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-creato_il", "-pk"]
+        verbose_name = "Scadenza presa in carico"
+        verbose_name_plural = "Scadenze prese in carico"
+
+    def __str__(self) -> str:
+        return f"{self.descrizione} → {self.utente}"
+
+
+class VistaSalvata(models.Model):
+    """Combinazione di filtri dello scadenzario salvata da una persona."""
+
+    utente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="viste_scadenzario")
+    nome = models.CharField(max_length=80)
+    parametri = models.CharField(max_length=1000, blank=True, default="", help_text="Querystring dei filtri (chiavi ammesse)")
+    predefinita = models.BooleanField(default=False)
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nome", "pk"]
+        verbose_name = "Vista salvata dello scadenzario"
+        verbose_name_plural = "Viste salvate dello scadenzario"
+        constraints = [
+            models.UniqueConstraint(fields=["utente", "nome"], name="scadenzario_vista_nome_unico"),
+        ]
+
+    def __str__(self) -> str:
+        return self.nome
+
+
+class FotoScadenze(models.Model):
+    """Fotografia giornaliera dei numeri dello scadenzario, per fonte (andamento nel tempo)."""
+
+    data = models.DateField(db_index=True)
+    fonte = models.CharField(max_length=40)
+    scadute = models.PositiveIntegerField(default=0)
+    entro_30 = models.PositiveIntegerField(default=0)
+    totale = models.PositiveIntegerField(default=0, help_text="Scadute + prossimi 90 giorni")
+
+    class Meta:
+        ordering = ["data", "fonte"]
+        verbose_name = "Fotografia dello scadenzario"
+        verbose_name_plural = "Fotografie dello scadenzario"
+        constraints = [
+            models.UniqueConstraint(fields=["data", "fonte"], name="scadenzario_foto_data_fonte"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.data} {self.fonte}: {self.scadute} scadute"

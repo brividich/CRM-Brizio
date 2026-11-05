@@ -16,6 +16,16 @@ def run_avvisi_attivita() -> dict:
         return {"ok": False}
 
 
+def run_foto_giornaliera() -> dict:
+    from .calendario import scatta_foto
+
+    try:
+        return {"ok": True, **scatta_foto()}
+    except Exception:
+        logger.exception("scadenzario: fotografia giornaliera fallita")
+        return {"ok": False}
+
+
 def run_riepiloghi_categorie() -> dict:
     from .avvisi import invia_riepiloghi_categorie
 
