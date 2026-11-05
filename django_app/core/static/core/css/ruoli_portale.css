@@ -198,3 +198,11 @@
 .rp-pagine-tab th { text-align: left; font-weight: 600; color: var(--text-mid); border-bottom: 1px solid var(--border); padding: 4px 6px; }
 .rp-pagine-tab td { border-bottom: 1px solid var(--border); padding: 4px 6px; vertical-align: top; }
 .rp-pagine-tab select { min-width: 140px; }
+/* Ricerca nella matrice: modulo, pagina o percorso */
+.rp-cerca { margin: 10px 0 8px; }
+.rp-cerca label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 4px; }
+.rp-cerca input { width: 100%; max-width: 640px; box-sizing: border-box; padding: 8px 12px; }
+.rp-cerca-esito { font-size: .85rem; margin-top: 6px; }
+.rp-cerca-esito ul { margin: 4px 0 0; padding-left: 18px; }
+.rp-cerca-via { display: none !important; }
+.rp-pagine-tab tr.rp-cerca-trovata > td { background: var(--surface-alt, rgba(127, 127, 127, .12)); }
