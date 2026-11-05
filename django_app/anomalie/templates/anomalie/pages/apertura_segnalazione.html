@@ -57,6 +57,19 @@
     .op-info-items { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; flex: 1; }
     .op-info-chip { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.20); border-radius: 6px; padding: 3px 10px; font-size: var(--fs-sm); color: rgba(255,255,255,.90); }
     .op-info-chip strong { color: #fff; font-weight: 700; }
+    button.op-info-chip { font: inherit; font-size: var(--fs-sm); cursor: pointer; min-height: 0; }
+    button.op-info-chip:hover:not(:disabled) { background: rgba(255,255,255,.24); border-color: rgba(255,255,255,.45); }
+    button.op-info-chip:disabled { cursor: default; }
+    .op-info-chip__edit { margin-left: 6px; opacity: .75; }
+    .cambia-op { padding: 14px 24px; border-bottom: 1px solid var(--border); background: var(--accent-light); display: grid; gap: 10px; }
+    body.theme-dark .cambia-op { background: rgba(249,115,22,.10); }
+    .cambia-op__list { display: grid; gap: 4px; max-height: 260px; overflow: auto; }
+    .cambia-op__row { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; text-align: left; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; min-height: 0; }
+    .cambia-op__row:hover, .cambia-op__row.is-sel { border-color: var(--accent); }
+    .cambia-op__row strong { font-family: ui-monospace, Consolas, monospace; }
+    .cambia-op__row small { color: var(--text-mid); }
+    .cambia-op__foot { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+    .cambia-op__foot span { flex: 1; min-width: 220px; font-size: var(--fs-sm); color: var(--text-mid); }
     .form-body { padding: 20px 28px 24px; display: flex; flex-direction: column; gap: 20px; }
     .form-intro { display: grid; gap: 12px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(135deg, var(--surface), var(--bg)); }
     .form-intro-title { color: var(--text); font-size: var(--fs-md); font-weight: 800; }
@@ -459,6 +472,7 @@
       controllo_impostazioni: "{% url 'api_anomalie_controllo_impostazioni' 0 %}",
       controllo_blocco: "{% url 'api_anomalie_controllo_blocco' 0 %}",
       controllo_termina: "{% url 'api_anomalie_controllo_termina' 0 %}",
+      controllo_cambia_op: "{% url 'api_anomalie_controllo_cambia_op' 0 %}",
       controllo_bozza: "{% url 'api_anomalie_controllo_bozza' 0 %}",
       controllo_destinatari: "{% url 'api_anomalie_controllo_destinatari' %}",
       controllo_persone: "{% url 'api_anomalie_controllo_persone' %}",
@@ -488,6 +502,7 @@
     controllo_impostazioni: '/api/anomalie/controlli/0/impostazioni',
     controllo_blocco: '/api/anomalie/controlli/0/blocco',
     controllo_termina: '/api/anomalie/controlli/0/termina',
+    controllo_cambia_op: '/api/anomalie/controlli/0/cambia-op',
     controllo_bozza: '/api/anomalie/controlli/0/bozza',
     controllo_destinatari: '/api/anomalie/controlli/destinatari',
     controllo_persone: '/api/anomalie/controlli/persone',
@@ -1618,8 +1633,53 @@
     );
   };
 
-  /* «Taglia»: sposta un'anomalia salvata su un altro S/N (stesso OP o un altro OP). */
   let ORDINI_CACHE = null;
+  /* Cambio OP dalla pagina di inserimento: si clicca su OP o P/N in alto. */
+  const CambiaOpPanel = ({ opAttuale, nSalvate, busy, err, onScegli, onCancel }) => {
+    const [ordini, setOrdini] = useState(ORDINI_CACHE || []);
+    const [q, setQ] = useState('');
+    const [sel, setSel] = useState(null);
+    useEffect(() => {
+      if (ORDINI_CACHE) return;
+      getJson(API.db_ordini, 'Elenco OP').then(d => { ORDINI_CACHE = Array.isArray(d) ? d : []; setOrdini(ORDINI_CACHE); }).catch(() => {});
+    }, []);
+    const t = q.trim().toLowerCase();
+    const lista = ordini
+      .filter(o => String(o.id || '') !== String(opAttuale || ''))
+      .filter(o => !t || [o.id, o.pn, o.capo, o.car].some(v => String(v || '').toLowerCase().includes(t)))
+      .slice(0, 30);
+    return (
+      <div className="cambia-op">
+        <div className="dett-panel__head">Cambia OP / P/N <small>(ora: {opAttuale})</small></div>
+        <input className="text-input" autoFocus value={q} disabled={busy} placeholder="Cerca per OP, P/N, capocommessa o CAR…"
+          onChange={e => { setQ(e.target.value); setSel(null); }} />
+        <div className="cambia-op__list">
+          {!ordini.length && <small>Caricamento degli OP…</small>}
+          {ordini.length > 0 && !lista.length && <small>Nessun OP trovato.</small>}
+          {lista.map(o => (
+            <button type="button" key={o.item_id ?? o.id} className={`cambia-op__row${sel && sel.id === o.id ? ' is-sel' : ''}`}
+              disabled={busy} onClick={() => setSel(o)}>
+              <strong>{o.id}</strong>
+              <span>P/N {o.pn || '—'}</span>
+              <small>{[o.capo, o.car].filter(v => v && v !== '—').join(' · ')}</small>
+            </button>
+          ))}
+        </div>
+        {err && <div className="error-msg">{err}</div>}
+        <div className="cambia-op__foot">
+          <span>{nSalvate
+            ? `${nSalvate === 1 ? "L'anomalia già salvata passa" : `Le ${nSalvate} anomalie già salvate passano`} all'OP scelto (solo se nessuna è stata ancora gestita); il blocco che stai scrivendo resta com'è.`
+            : 'Il controllo prosegue sull’OP scelto; quello che stai scrivendo resta com’è.'}</span>
+          <button type="button" className="btn-secondary" disabled={busy} onClick={onCancel}>Annulla</button>
+          <button type="button" className="btn-primary" disabled={busy || !sel} onClick={() => onScegli(sel)}>
+            {busy ? 'Sposto…' : (sel ? `Passa a ${sel.id}` : 'Scegli un OP')}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  /* «Taglia»: sposta un'anomalia salvata su un altro S/N (stesso OP o un altro OP). */
   const TagliaPanel = ({ anomalia, opCorrente, onDone, onCancel }) => {
     const [opId, setOpId] = useState(opCorrente || '');
     const [sn, setSn] = useState('');
@@ -2034,7 +2094,7 @@
     );
   };
 
-  const Step2Controllo = ({ op, onBack, onDone, clona, onOpCreato, riprendiId }) => {
+  const Step2Controllo = ({ op, onBack, onDone, clona, onOpCreato, riprendiId, onCambiaOp }) => {
     // OP nuovo non ancora creato: nasce con il primo «Salva blocco»; uscendo prima non resta niente.
     const opRef = useRef(op);
     const daCreare = !!op.daCreare;
@@ -2056,6 +2116,8 @@
     const [editingFase, setEditingFase] = useState(false);
     const [editor, setEditor] = useState(newEditor());
     const [saving, setSaving] = useState(false);
+    // Cambio OP dalla barra in alto: null | { busy, err }.
+    const [cambioOp, setCambioOp] = useState(null);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
     const [attachErr, setAttachErr] = useState('');
@@ -2555,19 +2617,45 @@
 
     if (loading) return <div className="step-card"><div className="loading-msg">Caricamento…</div></div>;
 
-    const opBar = (
+    const cambiaOp = async (nuovo) => {
+      if (!nuovo || !onCambiaOp) return;
+      if (!controllo || !controllo.id) { onCambiaOp(nuovo, null); return; }
+      setCambioOp({ busy: true, err: '' });
+      try {
+        // L'ultima bozza va sul server prima: il controllo si riapre sul nuovo OP.
+        const b = bozzaRef.current.pending;
+        if (b) { bozzaRef.current.pending = null; await inviaBozza(b); }
+        await postJson(urlFor(API.controllo_cambia_op, controllo.id), { op_id: nuovo.id, op_item_id: nuovo.item_id }, 'Cambio OP');
+        onCambiaOp(nuovo, controllo.id);
+      } catch (e) { setCambioOp({ busy: false, err: e.message }); }
+    };
+    const puoCambiareOp = !!onCambiaOp && !saving && !riepilogo && !(controllo && controllo.terminato);
+    const apriCambioOp = () => { if (puoCambiareOp) setCambioOp({ busy: false, err: '' }); };
+    const titoloCambio = puoCambiareOp ? 'Clicca per cambiare OP / P/N' : '';
+
+    const opBar = (<>
       <div className="op-info-bar">
         <button className="op-info-back" onClick={onBack} disabled={saving || (dirty && !!controllo)} title={dirty ? 'Salva o svuota il blocco in corso prima di cambiare OP' : ''}>← Cambio OP</button>
         <div className="op-info-items">
-          <div className="op-info-chip"><strong>{op.id}</strong></div>
+          <button type="button" className="op-info-chip" disabled={!puoCambiareOp} title={titoloCambio} onClick={apriCambioOp}>
+            <strong>{op.id}</strong>{puoCambiareOp && <span className="op-info-chip__edit">✎</span>}
+          </button>
           {daCreare && <div className="op-info-chip is-nuovo" title="L’OP si crea quando salvi il primo blocco: uscendo prima non resta niente">Nuovo · si crea al primo salvataggio</div>}
-          {op.pn && op.pn !== '—' && <div className="op-info-chip"><strong>P/N</strong> {op.pn}</div>}
+          {op.pn && op.pn !== '—' && (
+            <button type="button" className="op-info-chip" disabled={!puoCambiareOp} title={titoloCambio} onClick={apriCambioOp}>
+              <strong>P/N</strong> {op.pn}{puoCambiareOp && <span className="op-info-chip__edit">✎</span>}
+            </button>
+          )}
           {op.capo && op.capo !== '—' && <div className="op-info-chip"><strong>Capocommessa</strong> {op.capo}</div>}
           {op.car && op.car !== '—' && <div className="op-info-chip"><strong>CAR</strong> {op.car}</div>}
           <div className={`op-info-chip ${isBenestare ? 'is-benestare' : ''}`}>{isBenestare ? 'Collaudo di benestare' : 'Altro controllo'}</div>
         </div>
       </div>
-    );
+      {cambioOp && (
+        <CambiaOpPanel opAttuale={op.id} nSalvate={nAnomalie} busy={cambioOp.busy} err={cambioOp.err}
+          onScegli={cambiaOp} onCancel={() => setCambioOp(null)} />
+      )}
+    </>);
 
     /* Esito di fine controllo */
     if (esito) {
@@ -3074,6 +3162,11 @@
     const handleSelectOp = (op) => { setSelectedOp(op); setStep(2); setFormKey(k => k + 1); };
     // OP nuovo creato al primo salvataggio: da qui in poi si lavora sull'OP vero.
     const handleOpCreato = (op) => setSelectedOp(op);
+    // Cambio OP dalla barra in alto: il controllo (se c'è) è già stato spostato dal server e si riapre.
+    const handleCambiaOp = (op, controlloId) => {
+      setSelectedOp(op); setRiprendiId(controlloId || null); setFormKey(k => k + 1);
+      if (window.location.search) window.history.replaceState(null, '', window.location.pathname);
+    };
     const handleBack = () => { setStep(1); setSelectedOp(null); setRiprendiId(null); };
 
     // Link del promemoria (?controllo=<id>): riapre quel controllo; per un OP nuovo
@@ -3161,6 +3254,7 @@
               clona={clona}
               onOpCreato={handleOpCreato}
               riprendiId={riprendiId}
+              onCambiaOp={clona ? null : handleCambiaOp}
             />
           )}
         </div>

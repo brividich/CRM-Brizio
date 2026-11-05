@@ -307,3 +307,72 @@ def ids_con_avanzamenti(ids) -> set[int]:
         | Q(segnalato_cliente_il__isnull=False) | Q(segnalato_terzista_il__isnull=False)
     ).values_list("anomalia_id", flat=True))
     return out
+
+
+# ── Cambio OP di un controllo intero (dati inseriti sull'OP sbagliato) ─────
+
+
+def cambia_op_controllo(controllo, *, op_dest: str, op_dest_item_id) -> dict:
+    """Porta il controllo e tutte le sue anomalie su un altro OP.
+
+    Solo se nessuna anomalia ha avanzamenti (``ValueError`` con il motivo). Ritorna
+    ``{"ids", "gia_comunicate", "op_da"}``: le già comunicate vanno nel riepilogo del nuovo OP.
+    """
+    from core.legacy_utils import legacy_table_columns
+
+    from .mail_action_service import _fetch_pn_for_ops
+    from .nc_service import ricalcola_stato, registra_evento
+    from .quality_models import AnomaliaSchedaQualita, AnomaliaSegnalazioneMeta
+    from .qualita_service import legacy_rows
+    from .views import _resolve_op_lookup_id
+
+    op_dest = op_dest.strip()[:100]
+    op_da = controllo.op_id
+    ids = list(AnomaliaSegnalazioneMeta.objects.filter(controllo=controllo).values_list("anomalia_id", flat=True))
+    righe = legacy_rows(ids) if ids else {}
+    bloccate = [f"#{i} ({testo_motivi(m)})" for i in ids if (m := motivi_avanzamento(i, righe.get(i)))]
+    if bloccate:
+        raise ValueError("Alcune anomalie hanno già avanzamenti e non si possono spostare: " + "; ".join(bloccate))
+    cols = legacy_table_columns("anomalie") or set()
+    lookup = _resolve_op_lookup_id(op_dest_item_id, op_dest) if "op_lookup_id" in cols else None
+    pn = ((_fetch_pn_for_ops([op_dest]) or {}).get(op_dest.lower(), "") or "")[:120]
+    nc_vecchie = {}
+    with transaction.atomic():
+        if ids:
+            sets, params = ["ex_op_nominativo = %s"], [op_dest]
+            if "op_lookup_id" in cols:
+                sets.append("op_lookup_id = %s")
+                params.append(lookup)
+            ph = ",".join(["%s"] * len(ids))
+            with connections["default"].cursor() as cur:
+                cur.execute(f"UPDATE anomalie SET {', '.join(sets)} WHERE id IN ({ph})", params + ids)
+            for scheda in AnomaliaSchedaQualita.objects.filter(anomalia_id__in=ids).select_related("nc"):
+                if scheda.nc_id:
+                    nc_vecchie[scheda.nc_id] = scheda.nc
+                scheda.op_titolo, scheda.part_number, scheda.nc = op_dest, pn, None
+                scheda.save(update_fields=["op_titolo", "part_number", "nc", "updated_at"])
+            AnomaliaSegnalazioneMeta.objects.filter(anomalia_id__in=ids).update(nc=None)
+        pending = [int(i) for i in (controllo.da_notificare or []) if str(i).isdigit()]
+        controllo.op_id = op_dest
+        controllo.op_item_id = str(op_dest_item_id or "")[:100]
+        controllo.op_nuovo = {}
+        controllo.save(update_fields=["op_id", "op_item_id", "op_nuovo", "updated_at"])
+    for i in ids:
+        _togli_da_riepilogo(op_da, i)
+    for nc in nc_vecchie.values():
+        registra_evento(nc, "anomalia", f"{len(ids)} anomalie del controllo #{controllo.pk} spostate sull'OP {op_dest}")
+        try:
+            ricalcola_stato(nc)
+        except Exception:
+            logger.warning("cambio OP controllo %s: stato NC non ricalcolato", controllo.pk, exc_info=True)
+    from .qualita_service import sync_da_anomalia
+
+    for i in ids:
+        try:
+            with transaction.atomic():
+                scheda = sync_da_anomalia(i)
+                if scheda is not None and scheda.nc_id:
+                    AnomaliaSegnalazioneMeta.objects.filter(anomalia_id=i).update(nc_id=scheda.nc_id)
+        except Exception:
+            logger.warning("cambio OP controllo: scheda %s non aggiornata", i, exc_info=True)
+    return {"ids": ids, "gia_comunicate": [i for i in ids if i not in pending], "op_da": op_da, "righe": righe}

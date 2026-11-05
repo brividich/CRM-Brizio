@@ -275,3 +275,49 @@ class FlagElencoTests(_Base):
         self.assertEqual(anomalie[self.a1]["autore_id"], ME)
         self.assertTrue(anomalie[self.a1]["modificabile"])
         self.assertFalse(anomalie[self.a2]["modificabile"])
+
+
+class CambiaOpControlloTests(_Api):
+    def post_cambia(self, body):
+        url = reverse("api_anomalie_controllo_cambia_op", args=[self.controllo.pk])
+        return self.client.post(url, data=json.dumps(body), content_type="application/json")
+
+    def test_sposta_controllo_e_anomalie(self):
+        self.controllo.da_notificare = [self.a1, self.a2]  # a3 già comunicata
+        self.controllo.save()
+        AnomaliaPendingNotification.objects.create(op_id=OP, last_modified_at="2026-11-05T10:00:00Z",
+                                                   updates_snapshot=[{"id": self.a3}])
+        r = self.post_cambia({"op_id": OP2, "op_item_id": "-9"})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.controllo.refresh_from_db()
+        self.assertEqual((self.controllo.op_id, self.controllo.op_item_id), (OP2, "-9"))
+        for i in (self.a1, self.a2, self.a3):
+            self.assertEqual(self.riga(i)["op"], OP2)
+            self.assertEqual(AnomaliaSchedaQualita.objects.get(anomalia_id=i).op_titolo, OP2)
+            self.assertTrue(AnomaliaActionLog.objects.filter(anomalia_id=i, action="spostata").exists())
+        # Blocchi e collegamento al controllo restano.
+        self.assertEqual(AnomaliaSegnalazioneMeta.objects.filter(controllo=self.controllo).count(), 3)
+        self.assertTrue(AnomaliaPendingNotification.objects.get(op_id=OP).notified)
+        dest = AnomaliaPendingNotification.objects.get(op_id=OP2)
+        self.assertEqual([u["id"] for u in dest.updates_snapshot], [self.a3])
+
+    def test_con_avanzamenti_non_si_sposta_niente(self):
+        self.set_riga(self.a2, avanzamento="Accetto lo stato")
+        r = self.post_cambia({"op_id": OP2})
+        self.assertEqual(r.status_code, 409)
+        self.assertIn(f"#{self.a2}", r.json()["error"])
+        self.controllo.refresh_from_db()
+        self.assertEqual(self.controllo.op_id, OP)
+        self.assertEqual(self.riga(self.a1)["op"], OP)
+
+    def test_stesso_op_e_terminato(self):
+        self.assertEqual(self.post_cambia({"op_id": OP}).status_code, 400)
+        self.controllo.terminato_at = "2026-11-05T11:00:00Z"
+        self.controllo.save()
+        self.assertEqual(self.post_cambia({"op_id": OP2}).status_code, 409)
+
+    def test_controllo_vuoto(self):
+        AnomaliaSegnalazioneMeta.objects.all().delete()
+        r = self.post_cambia({"op_id": OP2})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()["spostate"], 0)

@@ -66,6 +66,7 @@ urlpatterns = [
     path("api/anomalie/controlli/<int:pk>/blocco", controllo_views.api_controllo_blocco, name="api_anomalie_controllo_blocco"),
     path("api/anomalie/controlli/<int:pk>/bozza", controllo_views.api_controllo_bozza, name="api_anomalie_controllo_bozza"),
     path("api/anomalie/controlli/<int:pk>/termina", controllo_views.api_controllo_termina, name="api_anomalie_controllo_termina"),
+    path("api/anomalie/controlli/<int:pk>/cambia-op", controllo_views.api_controllo_cambia_op, name="api_anomalie_controllo_cambia_op"),
     path("api/anomalie/timeline", views.api_anomalie_timeline, name="api_anomalie_timeline"),
     path("api/anomalie/sync", views.api_sync, name="api_anomalie_sync"),
     path("api/anomalie/copilota", views.api_copilota_anomalia, name="api_anomalie_copilota"),
