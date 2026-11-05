@@ -126,10 +126,20 @@ def leggi_esterni() -> tuple[list[dict], str]:
         logger.warning("Lettura esterni GuestPortal fallita: %s", type(exc).__name__)
         return [], ("Il GuestPortal non risponde: gli esterni (visitatori e ditte) non sono in elenco. "
                     "Vanno contati a parte dal registro della portineria.")
+    # Ditta → scheda fornitore HUB → requisiti di sicurezza (art. 26): avviso in lista, mai bloccante.
+    stati = {}
+    try:
+        from fornitori.requisiti import abbina_fornitori, stati_per_fornitori
+
+        abbina_fornitori(accessi)
+        stati = stati_per_fornitori([a.fornitore_id for a in accessi if getattr(a, "fornitore_id", None)])
+    except Exception:
+        logger.exception("Requisiti fornitori non calcolati per gli esterni")
     righe = []
     for a in accessi:
         if not a.visita_id:
             continue
+        req = stati.get(getattr(a, "fornitore_id", None))
         righe.append({
             "solari_id": -int(a.visita_id),
             "esterno": True,
@@ -146,6 +156,10 @@ def leggi_esterni() -> tuple[list[dict], str]:
             "tipo": a.tipo_label,
             "badge": a.badge,
             "entrata": a.ingresso.strftime("%H:%M") if a.ingresso else "",
+            "fornitore_id": getattr(a, "fornitore_id", None),
+            "requisiti_esito": req.esito if req else "",
+            "requisiti_etichetta": req.etichetta if req else "",
+            "requisiti_testo": req.riassunto if req else "",
         })
     righe.sort(key=lambda r: (r["azienda"].lower(), r["cognome"].lower()))
     return righe, ""

@@ -17,7 +17,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
-from django.http import HttpResponseForbidden, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseForbidden, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -94,6 +94,25 @@ def index(request):
 # ---------------------------------------------------------------------------
 
 @login_required
+def guida(request):
+    from . import guida as guida_mod
+
+    if (request.GET.get("formato") or "") == "pdf":
+        from core.guida_pdf import render_guida_pdf
+
+        contenuto = render_guida_pdf(
+            titolo=guida_mod.TITOLO, sottotitolo=guida_mod.SOTTOTITOLO, sezioni=guida_mod.SEZIONI,
+            generato_da=request.user.get_username(), generato_il=timezone.localdate().strftime("%d-%m-%Y"),
+        )
+        resp = HttpResponse(contenuto, content_type="application/pdf")
+        resp["Content-Disposition"] = 'attachment; filename="Guida_Fornitori.pdf"'
+        return resp
+    return render(request, "fornitori/pages/guida.html", {
+        "titolo": guida_mod.TITOLO, "sottotitolo": guida_mod.SOTTOTITOLO, "sezioni": guida_mod.SEZIONI,
+    })
+
+
+@login_required
 def fornitori_list(request):
     q = request.GET.get("q", "").strip()
     categoria = request.GET.get("categoria", "").strip()
@@ -119,6 +138,11 @@ def fornitori_list(request):
 
     paginator = Paginator(qs, 25)
     page = paginator.get_page(request.GET.get("page"))
+    from .requisiti import stati_per_fornitori
+
+    stati = stati_per_fornitori([f.pk for f in page.object_list])
+    for f in page.object_list:
+        f.requisiti = stati.get(f.pk)
 
     return render(request, "fornitori/pages/fornitori_list.html", {
         "page_obj": page,
@@ -144,9 +168,12 @@ def fornitore_detail(request, fornitore_id):
     documenti = fornitore.documenti.all()
     asset_assegnati = fornitore.asset_assegnati.select_related("asset", "created_by").all()
     spesa = ordini.aggregate(t=Sum("importo"))["t"] or Decimal("0")
+    from .requisiti import GIORNI_PREAVVISO, stato_fornitore
 
     return render(request, "fornitori/pages/fornitore_detail.html", {
         "fornitore": fornitore,
+        "requisiti": stato_fornitore(fornitore),
+        "giorni_preavviso": GIORNI_PREAVVISO,
         "documenti": documenti,
         "ordini": ordini,
         "valutazioni": valutazioni,
@@ -422,23 +449,19 @@ def accessi_esterni(request):
         except gp.GuestPortalNonRaggiungibile:
             errore = "Il database del GuestPortal non risponde: riprova tra poco o avvisa l'IT."
 
-    # Collega l'azienda dell'esterno alla scheda fornitore: abbinamento ditta
-    # GuestPortal → fornitore HUB, altrimenti stessa ragione sociale.
-    from .models import DittaGuestPortal
+    # Collega l'azienda dell'esterno alla scheda fornitore (abbinamento ditta GuestPortal,
+    # altrimenti stessa ragione sociale): una sola regola, in fornitori/requisiti.py.
+    from .requisiti import abbina_fornitori, stati_per_fornitori
 
-    per_ditta = dict(DittaGuestPortal.objects.values_list("ditta_gp_id", "fornitore_id"))
-    # Stesso nome a meno di maiuscole, punteggiatura e forma giuridica; una chiave
-    # che corrisponde a più fornitori non collega nessuno (fornitori/nomi.py).
-    fornitori_per_chiave: dict[str, int | None] = {}
-    if any(a.azienda for a in presenti + righe):
-        for pk, rs in Fornitore.objects.filter(is_active=True).values_list("pk", "ragione_sociale"):
-            chiave = chiave_ditta(rs)
-            if chiave:
-                fornitori_per_chiave[chiave] = None if chiave in fornitori_per_chiave else pk
+    abbina_fornitori(presenti + righe)
     collegati = ing.interventi_per_visite([a.visita_id for a in presenti + righe])
     for accesso in presenti + righe:
-        accesso.fornitore_id = per_ditta.get(accesso.ditta_gp_id) or fornitori_per_chiave.get(chiave_ditta(accesso.azienda))
         accesso.interventi = collegati.get(accesso.visita_id, [])
+    # Requisiti di sicurezza della ditta per chi è dentro adesso (art. 26 D.Lgs. 81/2008).
+
+    stati = stati_per_fornitori([a.fornitore_id for a in presenti if a.fornitore_id])
+    for accesso in presenti:
+        accesso.requisiti = stati.get(accesso.fornitore_id) if accesso.fornitore_id else None
 
     return render(request, "fornitori/pages/accessi_esterni.html", {
         "dal": dal,

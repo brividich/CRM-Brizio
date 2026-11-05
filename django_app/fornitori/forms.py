@@ -51,7 +51,7 @@ class FornitoreForm(forms.ModelForm):
             "ragione_sociale", "piva", "codice_fiscale", "categoria",
             "telefono", "email", "pec", "website",
             "indirizzo", "citta", "cap", "provincia",
-            "is_active", "note",
+            "is_active", "accede_in_sede", "note",
         ]
         widgets = {
             "ragione_sociale": forms.TextInput(attrs={"class": "ana-input", "placeholder": "Ragione sociale *"}),
@@ -73,10 +73,11 @@ class FornitoreForm(forms.ModelForm):
 class FornitoreDocumentoForm(forms.ModelForm):
     class Meta:
         model = FornitoreDocumento
-        fields = ["nome", "tipo", "file", "note"]
+        fields = ["nome", "tipo", "data_scadenza", "file", "note"]
         widgets = {
             "nome": forms.TextInput(attrs={"class": "ana-input", "placeholder": "Nome documento"}),
             "tipo": forms.Select(attrs={"class": "ana-input"}),
+            "data_scadenza": forms.DateInput(attrs={"class": "ana-input", "type": "date"}, format="%Y-%m-%d"),
             "note": forms.TextInput(attrs={"class": "ana-input", "placeholder": "Note opzionali"}),
         }
 

@@ -46,6 +46,11 @@ body.theme-dark .ae-pill-sup { background:rgba(154,52,18,.2); color:#fdba74; }
 body.theme-dark .ae-banner-warn { background:rgba(133,77,14,.2); color:#fde68a; border-color:rgba(253,230,138,.25); }
 body.theme-dark .ae-banner-err { background:rgba(229,62,62,.16); color:#fca5a5; border-color:rgba(252,165,165,.25); }
 @media (max-width:700px) { .ae-field { min-width:100%; } }
+.ae-req{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:700}
+.ae-req-ok{background:#dcfce7;color:#166534}.ae-req-in_scadenza{background:#fef3c7;color:#92400e}.ae-req-non_in_regola{background:#fee2e2;color:#991b1b}
+.ae-req-det{display:block;font-size:12px;color:#991b1b;margin-top:2px}
+body.theme-dark .ae-req-ok{background:rgba(56,161,105,.18);color:#86efac}body.theme-dark .ae-req-in_scadenza{background:rgba(217,119,6,.18);color:#fcd34d}
+body.theme-dark .ae-req-non_in_regola{background:rgba(229,62,62,.16);color:#fca5a5}body.theme-dark .ae-req-det{color:#fca5a5}
 </style>
 {% endblock %}
 
@@ -61,6 +66,7 @@ body.theme-dark .ae-banner-err { background:rgba(229,62,62,.16); color:#fca5a5; 
     </div>
     <div class="ae-actions">
       <a class="ae-btn ae-btn-ghost" href="{% url 'guida_modulo' 'fornitori' %}#accessi-esterni">? Guida</a>
+      <a class="ae-btn" href="{% url 'fornitori:guida' %}#ingressi">? Guida</a>
       <a class="ae-btn ae-btn-primary" href="{% url 'fornitori:guestportal_apri' %}" target="_blank" rel="noopener noreferrer">Apri GuestPortal ↗</a>
     </div>
   </div>
@@ -90,7 +96,7 @@ body.theme-dark .ae-banner-err { background:rgba(229,62,62,.16); color:#fca5a5; 
         {% for a in presenti %}
           <tr>
             <td class="ae-nome">{{ a.nome }}</td>
-            <td>{% if a.fornitore_id %}<a href="{% url 'fornitori:fornitore_detail' a.fornitore_id %}">{{ a.azienda }}</a>{% else %}{{ a.azienda|default:"—" }}{% endif %}</td>
+            <td>{% if a.fornitore_id %}<a href="{% url 'fornitori:fornitore_detail' a.fornitore_id %}">{{ a.azienda }}</a>{% else %}{{ a.azienda|default:"—" }}{% endif %}{% if a.requisiti and a.requisiti.esito != "non_richiesto" %}<span class="ae-req ae-req-{{ a.requisiti.esito }}" title="{{ a.requisiti.riassunto }}">{{ a.requisiti.etichetta }}</span>{% if a.requisiti.esito != "ok" %}<span class="ae-req-det">{{ a.requisiti.riassunto }}</span>{% endif %}{% endif %}</td>
             <td><span class="ae-pill {% if a.tipo == 'SUPPLIER' %}ae-pill-sup{% elif a.tipo == 'PREREG' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.tipo_label }}</span></td>
             <td>{{ a.referente|default:"—" }}</td>
             <td>{{ a.motivo|default:"—" }}</td>

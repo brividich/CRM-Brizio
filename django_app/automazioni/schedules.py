@@ -1108,6 +1108,13 @@ SCHEDULES: list[dict] = [
         "repeats": -1,
         "kwargs": {},
     },
+    {
+        # FORNITORI — ditta entrata dal GuestPortal con documenti di sicurezza non in regola:
+        # notifica in-app a RSPP/ASPP (mai mail), una volta per visita.
+        "name": "fornitori_avvisi_ingressi_non_in_regola",
+        "func": "fornitori.tasks.run_avvisi_ingressi_non_in_regola",
+        "schedule_type": "I", "minutes": 10, "repeats": -1, "kwargs": {},
+    },
 ]
 
 

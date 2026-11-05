@@ -2,8 +2,8 @@ GUIDA = {
     "slug": "fornitori",
     "titolo": "Fornitori",
     "area": "Produzione e operations",
-    "sintesi": "Anagrafica fornitori con documenti, ordini, valutazioni di qualità e asset assegnati.",
-    "parole": "fornitore fornitori ordine ordini valutazione albo partita iva accessi esterni visitatori ospiti consulenti guestportal reception badge",
+    "sintesi": "Anagrafica fornitori con documenti a scadenza, requisiti di sicurezza per chi lavora in sede, ordini, valutazioni e asset.",
+    "parole": "durc duvri visura idoneità tecnico professionale polizza rct art 26 appalto requisiti fornitore fornitori ordine ordini valutazione albo partita iva accessi esterni visitatori ospiti consulenti guestportal reception badge",
     "url": "fornitori:index",
     "prefissi": ("/fornitori/",),
     "uso": [
@@ -19,11 +19,28 @@ GUIDA = {
             ],
         },
         {
+            "id": "requisiti",
+            "titolo": "Requisiti per lavorare in sede (art. 26 D.Lgs. 81/2008)",
+            "blocchi": [
+                ("p", "In «Modifica» spunta «Lavora nei nostri locali» per appalti, manutenzioni e servizi in azienda. "
+                      "Servono visura camerale, idoneità tecnico-professionale, DURC e DUVRI (obbligatori) e la polizza "
+                      "RCT/RCO (consigliata), caricati in «Documenti» con la scadenza."),
+                ("def", [
+                    ("Documenti in regola", "tutti gli obbligatori validi."),
+                    ("Documenti in scadenza", "un obbligatorio scade entro 30 giorni."),
+                    ("Documenti non in regola", "un obbligatorio manca o è scaduto."),
+                ]),
+                ("p", "Se una ditta non in regola entra dal GuestPortal compare l'avviso in «Accessi esterni» e nella lista "
+                      "«Presenti in azienda»; RSPP e ASPP dell'organigramma ricevono una notifica (mai una mail), una "
+                      "volta per ingresso. Le scadenze sono anche nello Scadenzario."),
+            ],
+        },
+        {
             "id": "scheda",
             "titolo": "La scheda del fornitore",
             "blocchi": [
                 ("def", [
-                    ("Documenti", "certificati e contratti: «Carica» per aggiungerne (PDF, Office o immagini, massimo 15 MB)."),
+                    ("Documenti", "certificati e contratti con tipo e scadenza (DURC, visura, DUVRI, polizza…): «Carica» per aggiungerne (PDF, Office o immagini, massimo 15 MB)."),
                     ("Ordini", "con stato e importo: la somma è la spesa totale. «Salva ordine»."),
                     ("Valutazioni", "qualità, puntualità e comunicazione da 1 a 5 stelle. «Salva valutazione»."),
                     ("Asset", "macchine o contratti assegnati al fornitore. «Assegna» / «Rimuovi»."),

@@ -71,6 +71,11 @@ class Fornitore(models.Model):
         default="",
     )
     is_active = models.BooleanField(default=True, verbose_name="Attivo")
+    accede_in_sede = models.BooleanField(
+        default=False, verbose_name="Lavora nei nostri locali",
+        help_text="Appalti, manutenzioni e servizi svolti in azienda: servono i documenti di sicurezza "
+                  "(art. 26 D.Lgs. 81/2008) e l'ingresso viene controllato.",
+    )
     note = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -124,6 +129,12 @@ class FornitoreDocumento(models.Model):
     TIPO_OFFERTA = "OFFERTA"
     TIPO_CERTIFICAZIONE = "CERTIFICAZIONE"
     TIPO_VISURA = "VISURA"
+    TIPO_DURC = "DURC"
+    TIPO_IDONEITA = "IDONEITA"
+    TIPO_DUVRI = "DUVRI"
+    TIPO_RCT = "RCT"
+    TIPO_POS = "POS"
+    TIPO_FORMAZIONE = "FORMAZIONE"
     TIPO_ALTRO = "ALTRO"
 
     TIPO_CHOICES = [
@@ -131,6 +142,12 @@ class FornitoreDocumento(models.Model):
         (TIPO_OFFERTA, "Offerta"),
         (TIPO_CERTIFICAZIONE, "Certificazione"),
         (TIPO_VISURA, "Visura camerale"),
+        (TIPO_DURC, "DURC"),
+        (TIPO_IDONEITA, "Idoneità tecnico-professionale"),
+        (TIPO_DUVRI, "DUVRI"),
+        (TIPO_RCT, "Polizza RCT/RCO"),
+        (TIPO_POS, "POS (piano operativo di sicurezza)"),
+        (TIPO_FORMAZIONE, "Formazione e idoneità dei lavoratori"),
         (TIPO_ALTRO, "Altro"),
     ]
 
@@ -145,6 +162,10 @@ class FornitoreDocumento(models.Model):
         storage=PrivateAnagraficaStorage(),
     )
     note = models.CharField(max_length=255, blank=True, default="")
+    data_scadenza = models.DateField(
+        null=True, blank=True, verbose_name="Scadenza",
+        help_text="Fino a quando vale (es. DURC 120 giorni, visura 6 mesi, polizza, fine contratto per il DUVRI).",
+    )
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
