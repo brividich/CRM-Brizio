@@ -597,6 +597,66 @@ def _sync_scheda(local_id: int) -> None:
 
 @login_required
 @require_POST
+def api_controllo_cambia_op(request, pk: int):
+    """Cambia l'OP del controllo in corso (dati inseriti sull'OP sbagliato).
+
+    Le anomalie già salvate passano all'OP scelto, purché nessuna abbia avanzamenti;
+    quelle già comunicate al capocommessa vanno nel riepilogo modifiche del nuovo OP.
+    """
+    from .elimina_sposta import cambia_op_controllo
+    from .views import _can_create_anomalie_for_op, _client_ip, _current_user_identity, _dove_pezzi_di, get_legacy_user
+
+    controllo, error = _get_controllo(request, pk)
+    if error:
+        return error
+    if controllo.terminato_at:
+        return _err("Il controllo è già terminato: sposta le singole anomalie con «Taglia» da Gestione anomalie", 409)
+    data = _body(request)
+    op_dest = _txt(data.get("op_id"), 100)
+    if not op_dest:
+        return _err("Scegli l'OP")
+    if op_dest.lower() == str(controllo.op_id or "").lower():
+        return _err("Il controllo è già su questo OP")
+    if not _op_esiste(op_dest):
+        return _err(f"OP «{op_dest}» non trovato", 404)
+    if not _can_create_anomalie_for_op(request, op_dest):
+        return _err(f"Non puoi inserire anomalie sull'OP «{op_dest}»", 403)
+    try:
+        esito = cambia_op_controllo(controllo, op_dest=op_dest, op_dest_item_id=data.get("op_item_id"))
+    except ValueError as exc:
+        return _err(str(exc), 409)
+    chi = _current_user_identity(request).get("name") or request.user.username
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    nota = f"Controllo spostato dall'OP {esito['op_da']} all'OP {op_dest}"
+    try:
+        from .mail_action_service import log_anomalia_portal_action, register_pending_update
+
+        for local_id in esito["ids"]:
+            log_anomalia_portal_action(
+                anomalia_id=local_id, op_id=op_dest, action="spostata", user=request.user,
+                legacy_user_id=int(legacy_user.id) if legacy_user else None, user_display=chi, note=nota,
+                ip_address=_client_ip(request), user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            )
+        for local_id in esito["gia_comunicate"]:
+            row = esito["righe"].get(local_id) or {}
+            register_pending_update(op_id=op_dest, op_nominativo=op_dest, modified_by=chi, update_row={
+                "id": local_id, "seriale": str(row.get("seriale") or ""), "avanzamento": str(row.get("avanzamento") or ""),
+                "descrizione": str(row.get("descrizione") or ""), "dove_pezzi": _dove_pezzi_di(local_id),
+                "note": nota, "aprire_rdc": False, "segnalare": False, "chiudere": False,
+                "modified_by": chi, "modified_by_legacy_id": int(legacy_user.id) if legacy_user else None,
+            })
+    except Exception:
+        logger.warning("cambio OP controllo %s: cronologia/riepilogo non scritti", controllo.pk, exc_info=True)
+    log_action(request, "anomalie_controllo_cambia_op", "anomalie", {
+        "controllo_id": controllo.pk, "da": esito["op_da"], "a": op_dest, "anomalie": esito["ids"],
+    })
+    controllo.refresh_from_db()
+    return JsonResponse({"success": True, "controllo": cs.serializza_controllo(controllo), "spostate": len(esito["ids"]),
+                         "nota": nota})
+
+
+@login_required
+@require_POST
 def api_controllo_termina(request, pk: int):
     controllo, error = _get_controllo(request, pk)
     if error:

@@ -21,6 +21,9 @@
       allegati_delete: "/api/anomalie/allegati/delete",
       allegati_file: "/api/anomalie/allegati/file",
       segnalato: "/api/anomalie/segnalato",
+      elimina: "/api/anomalie/elimina",
+      sposta: "/api/anomalie/sposta",
+      seriali_op: "/api/anomalie/seriali-op",
     };
     const EDIT_NAME_WHITELIST = Array.isArray(CONFIG_LISTS.autorizzati_modifica)
       ? CONFIG_LISTS.autorizzati_modifica
@@ -952,6 +955,8 @@
       const [scelteMano, setScelteMano] = useState([]);
       const [includiDecise, setIncludiDecise] = useState(false);
       const [riepilogo, setRiepilogo] = useState(null);  // null | { prossima: bool }
+      // «Elimina» / «Taglia» dell'anomalia aperta: { tipo, op, sn, seriali, busy, err }.
+      const [azAnom, setAzAnom] = useState(null);
       // Decisioni salvate su questo OP e non ancora partite nel riepilogo (parte dopo
       // la pausa configurata; «Invia ora» lo anticipa).
       const [coda, setCoda] = useState(null);  // null | { n, partenza }
@@ -1546,6 +1551,73 @@
         setSaving(false);
       };
 
+      const ricaricaAnomalie = async () => {
+        if (!op || !op.item_id) return;
+        const r = await fetch(`${API.anomalie}?op_item_id=${encodeURIComponent(op.item_id)}&op_id=${encodeURIComponent(op.id || "")}`, { credentials: "same-origin" });
+        const list = await readJsonOrThrow(r, "Caricamento anomalie");
+        setAnomalie(Array.isArray(list) ? list : []);
+        return Array.isArray(list) ? list : [];
+      };
+      const postAzione = async (url, body, contesto) => {
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRFToken": getCsrfToken() },
+          body: JSON.stringify(body),
+          credentials: "same-origin",
+        });
+        const data = await readJsonOrThrow(r, contesto);
+        if (!data.success) throw new Error(data.error || "risposta non valida");
+        return data;
+      };
+      const apriTaglia = () => {
+        setAzAnom({ tipo: "taglia", op: op.id || "", sn: "", seriali: [], busy: false, err: "" });
+      };
+      // S/N noti dell'OP di destinazione, come suggerimenti.
+      useEffect(() => {
+        if (!azAnom || azAnom.tipo !== "taglia" || !API.seriali_op) return undefined;
+        const opDest = String(azAnom.op || "").trim();
+        if (!opDest) return undefined;
+        let alive = true;
+        const t = setTimeout(() => {
+          fetch(`${API.seriali_op}?op_id=${encodeURIComponent(opDest)}`, { credentials: "same-origin" })
+            .then((r) => (r.ok ? r.json() : { seriali: [] }))
+            .then((d) => { if (alive) setAzAnom((p) => (p ? { ...p, seriali: Array.isArray(d.seriali) ? d.seriali : [] } : p)); })
+            .catch(() => {});
+        }, 300);
+        return () => { alive = false; clearTimeout(t); };
+      }, [azAnom && azAnom.tipo, azAnom && azAnom.op]);
+      const confermaAzione = async () => {
+        if (!azAnom || !sn.local_id) return;
+        const id = sn.local_id;
+        if (azAnom.tipo === "taglia") {
+          if (!String(azAnom.op || "").trim()) { setAzAnom({ ...azAnom, err: "Indica l'OP." }); return; }
+          if (!String(azAnom.sn || "").trim()) { setAzAnom({ ...azAnom, err: "Indica il S/N di destinazione." }); return; }
+        }
+        setAzAnom({ ...azAnom, busy: true, err: "" });
+        try {
+          if (azAnom.tipo === "elimina") {
+            await postAzione(API.elimina, { local_id: id }, "Elimina anomalia");
+            flash({ ok: true, text: `Anomalia #${id} eliminata` });
+          } else {
+            const dest = ordini.find((o) => String(o.id || "").toLowerCase() === String(azAnom.op).trim().toLowerCase());
+            const seriali = String(azAnom.sn).split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+            const data = await postAzione(API.sposta, {
+              local_id: id, op_id: String(azAnom.op).trim(), op_item_id: dest ? dest.item_id : null, seriali,
+            }, "Taglia");
+            flash({ ok: true, text: `Anomalia #${id}: ${data.nota || "spostata"}` }, 6000);
+          }
+          setAzAnom(null);
+          setCurrentItemId(null);
+          const list = await ricaricaAnomalie();
+          const ancora = (list || []).find((a) => a.local_id === id);
+          const first = ancora || (list || []).find(isDaDecidere) || (list || []).find((a) => !a.chiudere);
+          setSelectedSnId(first ? first.item_id : "");
+          loadOrdini();
+        } catch (e) {
+          setAzAnom((p) => (p ? { ...p, busy: false, err: e.message } : p));
+        }
+      };
+
       const duplica = () => {
         setMenuOpen(false);
         setCurrentItemId(null);
@@ -1853,6 +1925,8 @@
                         <span className="ga-card__title">Segnalazione</span>
                         {sn.stato_superficie && <span className="ga-pill ga-pill--sup">{sn.stato_superficie}</span>}
                         {canEditSelected && !editDesc && <button type="button" className="ga-link" onClick={() => setEditDesc(true)}>Modifica testo</button>}
+                        {sn.can_sposta && <button type="button" className="ga-link" title="Sposta su un altro S/N dello stesso OP o di un altro OP" onClick={apriTaglia}>✂ Taglia</button>}
+                        {sn.can_elimina && <button type="button" className="ga-link ga-link--danger" title="Solo chi l'ha inserita, finché nessuno ci ha lavorato" onClick={() => setAzAnom({ tipo: "elimina", busy: false, err: "" })}>Elimina</button>}
                       </div>
                       {editDesc ? (
                         <textarea className="ga-input" rows={4} value={desc} onChange={(e) => setDesc(e.target.value)} autoFocus />
@@ -2071,6 +2145,43 @@
               )}
             </section>
           </div>
+
+          {azAnom && sn.local_id && (
+            <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-az-t">
+              <div className="ga-modal__box">
+                <div className="ga-modal__title" id="ga-az-t">{azAnom.tipo === "elimina" ? `Eliminare l'anomalia #${sn.local_id}?` : `✂ Taglia l'anomalia #${sn.local_id}`}</div>
+                <div className="ga-hint ga-az__ctx">S/N {sn.sn || "—"} · {sn.testo || sn.desc || "(nessuna descrizione)"}</div>
+                {azAnom.tipo === "elimina" ? (
+                  <div className="ga-note ga-note--warn">Sparisce dall'OP con i suoi dati; gli allegati restano recuperabili dall'amministratore. Non si può annullare.</div>
+                ) : (
+                  <>
+                    <label className="ga-field"><span>OP di destinazione</span>
+                      <input className="ga-input" list="ga-taglia-op" value={azAnom.op} disabled={azAnom.busy}
+                        onChange={(e) => setAzAnom({ ...azAnom, op: e.target.value, err: "" })} />
+                      <datalist id="ga-taglia-op">{ordini.slice(0, 500).map((o) => <option key={opKey(o)} value={o.id} />)}</datalist>
+                    </label>
+                    <label className="ga-field"><span>S/N di destinazione</span>
+                      <input className="ga-input" list="ga-taglia-sn" value={azAnom.sn} disabled={azAnom.busy} autoFocus
+                        placeholder="Es. LCN00012 o LCN00012-LCN00015"
+                        onChange={(e) => setAzAnom({ ...azAnom, sn: e.target.value, err: "" })}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confermaAzione(); } }} />
+                      <datalist id="ga-taglia-sn">{(azAnom.seriali || []).slice(0, 500).map((s) => <option key={s} value={s} />)}</datalist>
+                    </label>
+                    <div className="ga-hint">{String(azAnom.op || "").trim().toLowerCase() === String(op.id || "").toLowerCase()
+                      ? "Stesso OP: cambia solo il S/N (nel controllo va nel blocco che ha già quel S/N)."
+                      : "Altro OP: passa alla NC di quell'OP e il suo capocommessa la trova nel riepilogo delle modifiche."}</div>
+                  </>
+                )}
+                {azAnom.err && <div className="ga-note ga-note--warn">{azAnom.err}</div>}
+                <div className="ga-modal__acts">
+                  <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={azAnom.busy} onClick={() => setAzAnom(null)}>Annulla</button>
+                  <button type="button" className={`ga-btn ${azAnom.tipo === "elimina" ? "ga-btn--danger" : "ga-btn--accent"}`} disabled={azAnom.busy} onClick={confermaAzione}>
+                    {azAnom.busy ? "Attendere…" : (azAnom.tipo === "elimina" ? "Elimina" : "Sposta qui")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Riepilogo prima di applicare la decisione ad altre anomalie */}
           {riepilogo && (
