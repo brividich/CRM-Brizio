@@ -1965,6 +1965,24 @@ def magazzino_view(request):
     })
 
 
+@login_required
+def magazzino_riordino(request):
+    """Bozza d'ordine ai fornitori: si corregge e si copia, il portale non invia nulla."""
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+    giorni = _int_or_none(request.GET.get("giorni")) or 90
+    if giorni not in (30, 90, 180, 365):
+        giorni = 90
+    return render(request, "dpi/pages/magazzino_riordino.html", {
+        "is_gestore": True,
+        "is_approvatore": True,
+        "giorni": giorni,
+        "periodi": (30, 90, 180, 365),
+        "fornitori": magazzino.bozza_ordine(giorni),
+    })
+
+
 def _csv_safe(value) -> str:
     """Neutralizza le formule dei fogli di calcolo nei campi di testo liberi."""
     text = str(value or "")
@@ -2111,11 +2129,50 @@ def _banco_consegna_diretta(request, tutte: bool):
     return _banco_redirect("apri-" + _chiave_persona(r), tutte)
 
 
+def _banco_cambia_modello(request, tutte: bool):
+    """Al banco manca quel modello o quella taglia: si cambia sulla richiesta, con traccia."""
+    r = _banco_queryset(request).filter(pk=_int_or_none(request.POST.get("cambia_richiesta"))).first()
+    if r is None:
+        messages.error(request, "Richiesta non trovata tra quelle da consegnare.")
+        return _banco_redirect(tutte=tutte)
+    chiave = _chiave_persona(r)
+    if r.modalita_negozio:
+        messages.error(request, "Queste scarpe sono ordinate al negozio: non si cambiano dal banco.")
+        return _banco_redirect(chiave, tutte)
+    modello = ModelloDPI.objects.filter(
+        pk=_int_or_none(request.POST.get("cambia_modello")), is_active=True, tipo__is_active=True, tipo__categoria_id=r.categoria_id,
+    ).select_related("tipo").first()
+    if modello is None:
+        messages.error(request, "Scegli un modello attivo della stessa categoria.")
+        return _banco_redirect(chiave, tutte)
+    taglia_id = _int_or_none(request.POST.get("cambia_taglia"))
+    taglia = TagliaDPI.objects.filter(pk=taglia_id, modello=modello, is_active=True).first() if taglia_id else None
+    if taglia_id and taglia is None:
+        messages.error(request, "La taglia scelta non è di quel modello.")
+        return _banco_redirect(chiave, tutte)
+    if r.modello_dpi_id == modello.pk and r.taglia_dpi_id == (taglia.pk if taglia else None):
+        messages.info(request, "Nessuna modifica.")
+        return _banco_redirect(chiave, tutte)
+    prima = flusso._riga_dpi(r)
+    r.tipo_dpi, r.modello_dpi, r.taglia_dpi = modello.tipo, modello, taglia
+    r.save(update_fields=["tipo_dpi", "modello_dpi", "taglia_dpi", "updated_at"])
+    autore = request.user.get_full_name() or request.user.username
+    dopo = flusso._riga_dpi(r)
+    RichiestaDPICommento.objects.create(
+        richiesta=r, autore_nome=autore, is_interno=False, testo=f"Cambiato al banco: da {prima} a {dopo}.",
+    )
+    log_action(request, "DPI_BANCO_CAMBIO", "dpi", f"{r.numero}: da {prima} a {dopo}")
+    messages.success(request, f"{r.numero}: ora {dopo}.")
+    return _banco_redirect(chiave, tutte)
+
+
 def _banco_azione(request):
     azione = request.POST.get("azione", "")
     tutte = request.POST.get("tutte") == "1"
     if azione == "diretta":
         return _banco_consegna_diretta(request, tutte)
+    if azione == "cambia":
+        return _banco_cambia_modello(request, tutte)
     richieste = _banco_selezionate(request)
     if not richieste:
         messages.warning(request, "Spunta almeno un DPI.")
@@ -2197,7 +2254,94 @@ def banco(request):
         contesto["modelli_diretti"] = modelli_diretti
         contesto["dipendenti"] = _dipendenti_selezionabili(request)
     contesto["cerca"] = request.GET.get("cerca", "").strip()[:80]
+    contesto["catalogo_modelli"] = _banco_catalogo()
+    contesto["badge_persone"] = _banco_badge_persone(request)
     return render(request, "dpi/pages/banco.html", contesto)
+
+
+def _banco_catalogo() -> dict[str, list[dict]]:
+    """Per categoria, i modelli tra cui scegliere al banco, con giacenza e taglie."""
+    giac = magazzino.giacenze()
+    catalogo: dict[str, list[dict]] = {}
+    modelli = ModelloDPI.objects.filter(is_active=True, tipo__is_active=True, tipo__categoria__is_active=True).select_related(
+        "tipo"
+    ).prefetch_related("taglie").order_by("tipo__ordine", "codice", "nome")
+    for m in modelli:
+        catalogo.setdefault(str(m.tipo.categoria_id), []).append({
+            "id": m.pk,
+            "nome": f"{m.codice} {m.nome}".strip(),
+            "giacenza": giac.get(m.pk, 0),
+            "taglie": [{"id": t.pk, "valore": t.valore} for t in m.taglie.all() if t.is_active],
+        })
+    return catalogo
+
+
+def _banco_badge_persone(request) -> list[dict]:
+    """Badge delle persone selezionabili: una lettura riconosce anche chi non ha richieste aperte."""
+    from anagrafica.models import DipendenteAnagraficaAziendale
+
+    nomi = {d["id"]: d["nome"] for d in _dipendenti_selezionabili(request)}
+    righe = DipendenteAnagraficaAziendale.objects.exclude(badge="").filter(
+        legacy_anagrafica_id__in=list(nomi)
+    ).values_list("legacy_anagrafica_id", "badge")
+    return [{"id": legacy, "nome": nomi[legacy], "badge": badge} for legacy, badge in righe]
+
+
+def _prelievo_gruppi(qs, giac: dict) -> list[dict]:
+    """Richieste da preparare raggruppate per cio' che si prende dallo scaffale."""
+    gruppi: dict[tuple, dict] = {}
+    for r in qs.order_by("richiedente_nome", "created_at"):
+        chiave = (r.categoria_id, r.modello_dpi_id, r.tipo_dpi_id if not r.modello_dpi_id else None, r.taglia_dpi_id)
+        g = gruppi.setdefault(chiave, {
+            "categoria": r.categoria.nome,
+            "etichetta": r.modello_dpi.nome if r.modello_dpi_id else (r.tipo_dpi.nome if r.tipo_dpi_id else r.categoria.nome),
+            "codice": r.modello_dpi.codice if r.modello_dpi_id else "",
+            "taglia": r.taglia_dpi.valore if r.taglia_dpi_id else "",
+            "giacenza": giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id and not r.modalita_negozio else None,
+            "pezzi": 0,
+            "richieste": [],
+        })
+        g["pezzi"] += r.quantita
+        g["richieste"].append(r)
+    for g in gruppi.values():
+        g["manca"] = g["giacenza"] is not None and g["giacenza"] < g["pezzi"]
+    return sorted(gruppi.values(), key=lambda g: (g["categoria"].casefold(), g["etichetta"].casefold(), g["taglia"]))
+
+
+@login_required
+def banco_prelievo(request):
+    """Foglio per preparare i DPI: tutto cio' che e' da preparare, e l'avviso di ritiro in blocco."""
+    from django.urls import reverse
+
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+    tutte = (request.POST if request.method == "POST" else request.GET).get("tutte") == "1"
+    qs = _banco_queryset(request).filter(pronta_ritiro_il__isnull=True)
+    if not tutte:
+        qs = qs.filter(categoria__consegna_magazzino=True)
+    url = reverse("dpi:banco_prelievo") + ("?tutte=1" if tutte else "")
+    if request.method == "POST":
+        ids = [i for i in (_int_or_none(v) for v in request.POST.getlist("ids")) if i]
+        richieste = list(qs.filter(pk__in=ids)) if ids else []
+        autore = request.user.get_full_name() or request.user.username
+        for r in richieste:
+            _segna_pronta(request, r, da_nome=autore)
+        if richieste:
+            messages.success(request, f"Avvisi di ritiro inviati: {len(richieste)}.")
+        else:
+            messages.warning(request, "Spunta almeno un DPI.")
+        return redirect(url)
+    gruppi = _prelievo_gruppi(qs, magazzino.giacenze())
+    return render(request, "dpi/pages/banco_prelievo.html", {
+        "is_gestore": True,
+        "is_approvatore": True,
+        "tutte": tutte,
+        "gruppi": gruppi,
+        "n_righe": sum(len(g["richieste"]) for g in gruppi),
+        "n_pezzi": sum(g["pezzi"] for g in gruppi),
+        "oggi": timezone.localdate(),
+    })
 
 
 def _modelli_diretti():
@@ -2215,6 +2359,13 @@ def _banco_contesto(request, tutte: bool) -> dict:
         qs = qs.filter(categoria__consegna_magazzino=True)
     giac = magazzino.giacenze()
     persone = _banco_persone(qs, giac)
+    from anagrafica.models import DipendenteAnagraficaAziendale
+
+    badge = dict(DipendenteAnagraficaAziendale.objects.exclude(badge="").filter(
+        legacy_anagrafica_id__in=[p["legacy_id"] for p in persone if p["legacy_id"]]
+    ).values_list("legacy_anagrafica_id", "badge"))
+    for p in persone:
+        p["badge"] = badge.get(p["legacy_id"], "")
 
     from .models import ConfermaConsegnaDPI
 

@@ -37,6 +37,24 @@ def modelli_di_magazzino():
     return ModelloDPI.objects.filter(is_active=True).exclude(tipo__categoria__si_ordina_al_negozio=True)
 
 
+def ultimi_fornitori() -> dict[int, str]:
+    """Per modello, il fornitore dell'ultimo carico che ne indica uno."""
+    fornitori: dict[int, str] = {}
+    righe = MovimentoMagazzinoDPI.objects.filter(tipo=Tipo.CARICO).exclude(fornitore="").order_by("-data", "-id")
+    for modello_id, fornitore in righe.values_list("modello_id", "fornitore"):
+        fornitori.setdefault(modello_id, fornitore.strip())
+    return fornitori
+
+
+def bozza_ordine(giorni: int, oggi: date | None = None) -> list[dict]:
+    """L'elenco «da riordinare» del report, diviso per ultimo fornitore."""
+    fornitori = ultimi_fornitori()
+    gruppi: dict[str, list[dict]] = {}
+    for riga in report(giorni, oggi)["riordino"]:
+        gruppi.setdefault(fornitori.get(riga["modello"].pk, ""), []).append(riga)
+    return [{"nome": nome, "righe": gruppi[nome]} for nome in sorted(gruppi, key=lambda n: (not n, n.casefold()))]
+
+
 def da_riordinare() -> int:
     """Modelli attivi esauriti o sotto scorta (stessi numeri della pagina Magazzino).
     Zero se il magazzino non e' in uso, cioe' senza alcun movimento registrato."""

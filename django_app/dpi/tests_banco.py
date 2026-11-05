@@ -11,8 +11,14 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from . import flusso, magazzino
+from datetime import date
+
+from django.utils import timezone
+
 from .models import (
     CategoriaDPI,
+    OrdineNegozioDPI,
+    TagliaDPI,
     ConsegnaDPI,
     DPIImpostazioni,
     ModelloDPI,
@@ -107,6 +113,90 @@ class BancoConsegneTests(TestCase):
         resp = self.client.get(self.url, headers={"X-Requested-With": "XMLHttpRequest"})
         self.assertContains(resp, r.numero)
         self.assertNotContains(resp, "<html")
+
+    def test_cambia_modello_al_banco_con_traccia(self):
+        altro = ModelloDPI.objects.create(tipo=self.mod_guanti.tipo, codice="GT-2", nome="Altro")
+        taglia = TagliaDPI.objects.create(modello=altro, valore="9")
+        r = self._richiesta(self.mod_guanti)
+        self.client.post(self.url, {"azione": "cambia", "cambia_richiesta": r.pk, "cambia_modello": altro.pk, "cambia_taglia": taglia.pk})
+        r.refresh_from_db()
+        self.assertEqual((r.modello_dpi_id, r.taglia_dpi_id), (altro.pk, taglia.pk))
+        self.assertEqual(r.stato, StatoRichiesta.APPROVATA)
+        self.assertIn("Cambiato al banco", r.commenti.get().testo)
+
+    def test_cambia_rifiuta_altra_categoria_taglia_altrui_e_scarpe_ordinate(self):
+        r = self._richiesta(self.mod_guanti)
+        altro = ModelloDPI.objects.create(tipo=self.mod_guanti.tipo, codice="GT-2", nome="Altro")
+        taglia = TagliaDPI.objects.create(modello=self.mod_guanti, valore="8")
+        self.client.post(self.url, {"azione": "cambia", "cambia_richiesta": r.pk, "cambia_modello": self.mod_scarpe.pk})
+        self.client.post(self.url, {"azione": "cambia", "cambia_richiesta": r.pk, "cambia_modello": altro.pk, "cambia_taglia": taglia.pk})
+        r.refresh_from_db()
+        self.assertEqual(r.modello_dpi_id, self.mod_guanti.pk)
+        ordine = OrdineNegozioDPI.objects.create()
+        RichiestaDPI.objects.filter(pk=r.pk).update(modalita_negozio="CONVENZIONE", ordine_negozio=ordine)
+        self.client.post(self.url, {"azione": "cambia", "cambia_richiesta": r.pk, "cambia_modello": altro.pk})
+        r.refresh_from_db()
+        self.assertEqual(r.modello_dpi_id, self.mod_guanti.pk)
+        self.assertFalse(r.commenti.exists())
+
+    def test_cambia_fuori_perimetro_non_tocca_nulla(self):
+        r = self._richiesta(self.mod_guanti)
+        altro = ModelloDPI.objects.create(tipo=self.mod_guanti.tipo, codice="GT-2", nome="Altro")
+        with mock.patch("dpi.views._banco_queryset", return_value=RichiestaDPI.objects.none()):
+            self.client.post(self.url, {"azione": "cambia", "cambia_richiesta": r.pk, "cambia_modello": altro.pk})
+        r.refresh_from_db()
+        self.assertEqual(r.modello_dpi_id, self.mod_guanti.pk)
+
+    def test_badge_delle_persone_nel_banco(self):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=101, badge="B-777")
+        self._richiesta(self.mod_guanti)
+        self.assertContains(self.client.get(self.url), 'data-badge="B-777"')
+        with mock.patch("dpi.views._dipendenti_selezionabili", return_value=[{"id": 101, "nome": "Mario Rossi"}]):
+            self.assertEqual(self.client.get(self.url).context["badge_persone"], [{"id": 101, "nome": "Mario Rossi", "badge": "B-777"}])
+
+    def test_lista_di_prelievo_somma_per_modello_e_taglia(self):
+        self._richiesta(self.mod_guanti, quantita=2)
+        self._richiesta(self.mod_guanti, nome="Luigi Verdi", legacy=102, quantita=3)
+        self._richiesta(self.mod_scarpe)
+        gia = self._richiesta(self.mod_guanti, nome="Anna Blu", legacy=103)
+        RichiestaDPI.objects.filter(pk=gia.pk).update(pronta_ritiro_il=timezone.now())
+        magazzino.carica_ddt(self.mod_guanti, 4)
+        url = reverse("dpi:banco_prelievo")
+        contesto = self.client.get(url).context
+        self.assertEqual(len(contesto["gruppi"]), 1)
+        g = contesto["gruppi"][0]
+        self.assertEqual((g["pezzi"], g["giacenza"], g["manca"]), (5, 4, True))
+        self.assertEqual(contesto["n_righe"], 2)
+        self.assertEqual(len(self.client.get(url + "?tutte=1").context["gruppi"]), 2)
+
+    def test_lista_di_prelievo_avvisa_solo_gli_spuntati(self):
+        a = self._richiesta(self.mod_guanti)
+        b = self._richiesta(self.mod_guanti, nome="Luigi Verdi", legacy=102)
+        with mock.patch("dpi.views._notifica_richiedente"), mock.patch("dpi.flusso.notifica_pronta_ritiro"):
+            self.client.post(reverse("dpi:banco_prelievo"), {"ids": [a.pk]})
+        a.refresh_from_db()
+        b.refresh_from_db()
+        self.assertIsNotNone(a.pronta_ritiro_il)
+        self.assertIsNone(b.pronta_ritiro_il)
+
+    def test_bozza_d_ordine_per_ultimo_fornitore(self):
+        magazzino.carica_ddt(self.mod_guanti, 1, fornitore="Vecchio", data=date(2026, 1, 1))
+        magazzino.carica_ddt(self.mod_guanti, 1, fornitore="Nuovo", data=date(2026, 6, 1))
+        self.mod_guanti.scorta_minima = 10
+        self.mod_guanti.save()
+        altro = ModelloDPI.objects.create(tipo=self.mod_guanti.tipo, codice="GT-2", nome="Altro")
+        fornitori = self.client.get(reverse("dpi:magazzino_riordino")).context["fornitori"]
+        self.assertEqual([f["nome"] for f in fornitori], ["Nuovo", ""])
+        self.assertEqual(fornitori[0]["righe"][0]["modello"].pk, self.mod_guanti.pk)
+        self.assertEqual(fornitori[0]["righe"][0]["suggerito"], 18)
+        self.assertEqual(fornitori[1]["righe"][0]["modello"].pk, altro.pk)
+
+    def test_strumenti_negati_a_chi_non_gestisce(self):
+        with mock.patch("dpi.views._is_gestore", return_value=False):
+            self.assertEqual(self.client.get(reverse("dpi:banco_prelievo")).status_code, 302)
+            self.assertEqual(self.client.get(reverse("dpi:magazzino_riordino")).status_code, 302)
 
     def test_giacenza_insufficiente_segnalata(self):
         magazzino.carica_ddt(self.mod_guanti, 1)

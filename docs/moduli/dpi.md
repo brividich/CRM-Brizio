@@ -74,3 +74,13 @@ Al deploy: `migrate` (dpi 0017), `setup_q_schedules` per le regole nuove, poi in
 ## Banco consegne più veloce (05/11/2026)
 
 Elenco delle persone a sinistra, scheda a destra (`dpi/components/_banco_lavoro.html`). Azioni con fetch dalla pagina aperta: con `X-Requested-With: XMLHttpRequest` `dpi:banco` risponde con la sola parte di lavoro e l'header `X-Banco-Apri` (persona da riaprire), i toast li consegna `FlashMessagesDeliveryMiddleware`; senza quell'header resta il redirect. Ricerca su nome, reparto, numero e modello; una sola persona trovata apre la scheda; pulsante «Consegna N DPI a…» senza passaggio intermedio; filtri sui riquadri numerici; tastiera (`/`, frecce, Invio, Esc); aggiornamento ogni 60 secondi solo a banco fermo; «+ Consumabile» apre la consegna diretta con la persona scelta. Stesse azioni e stessi controlli di prima, nessuna migrazione.
+
+## Strumenti del banco e bozza d'ordine (05/11/2026)
+
+- **Annulla consegna**: la consegna dal banco resta nel browser per 6 secondi (`ATTESA_SECONDI` in `banco.html`), poi parte il POST; fino ad allora il server non sa nulla, quindi nessuna mail e nessuno scarico. Una nuova azione o l'uscita dalla pagina la mandano subito (`sendBeacon`). Senza JavaScript resta l'invio immediato.
+- **Cambia modello**: `azione=cambia` su `dpi:banco` (`_banco_cambia_modello`): stessa categoria, modello e taglia attivi, perimetro del banco; commento nella richiesta e `log_action`. Non vale per le scarpe al negozio.
+- **Badge**: la ricerca riconosce `DipendenteAnagraficaAziendale.badge` (corrispondenza esatta) come lo digita un lettore a tastiera; chi non ha richieste aperte viene riconosciuto se è tra i dipendenti selezionabili.
+- **Lista di prelievo** `/dpi/banco/prelievo/` (`dpi:banco_prelievo`, gate `_is_gestore`): richieste non ancora pronte sommate per modello e taglia, stampabile, avviso di ritiro in blocco.
+- **Bozza d'ordine** `/dpi/magazzino/riordino/` (`dpi:magazzino_riordino`, gate `_is_gestore`): `magazzino.bozza_ordine`, l'elenco `riordino` del report diviso per ultimo fornitore. Solo testo da copiare o aprire nella posta.
+
+Nessuna migrazione, nessun permesso nuovo.

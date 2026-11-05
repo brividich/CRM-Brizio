@@ -6,18 +6,21 @@
   <button type="button" class="dpi-kpi-box{% if n_mancanti %} warn{% endif %}" data-filtro="manca"><span class="dpi-kpi-n">{{ n_mancanti }}</span><span class="dpi-kpi-l">Giacenza insufficiente</span></button>
 </div>
 
-{% if tutte %}
-<a href="{% url 'dpi:banco' %}" class="dpi-toggle">Solo i DPI del magazzino</a>
-{% elif n_altre %}
-<a href="{% url 'dpi:banco' %}?tutte=1" class="dpi-toggle">Mostra anche gli altri DPI ({{ n_altre }}, es. scarpe)</a>
-{% endif %}
+<div class="banco-strumenti">
+  {% if n_da_preparare and not avviso_all_approvazione %}<a href="{% url 'dpi:banco_prelievo' %}{% if tutte %}?tutte=1{% endif %}" class="dpi-toggle">Lista di prelievo ({{ n_da_preparare }})</a>{% endif %}
+  {% if tutte %}
+  <a href="{% url 'dpi:banco' %}" class="dpi-toggle">Solo i DPI del magazzino</a>
+  {% elif n_altre %}
+  <a href="{% url 'dpi:banco' %}?tutte=1" class="dpi-toggle">Mostra anche gli altri DPI ({{ n_altre }}, es. scarpe)</a>
+  {% endif %}
+</div>
 
 {% if persone %}
 <div class="banco-griglia">
   <div class="banco-lista" role="listbox" aria-label="Persone in attesa">
     {% for p in persone %}
     <button type="button" class="banco-persona" role="option" data-chiave="{{ p.chiave }}"
-            data-prep="{{ p.n_da_preparare }}" data-pronte="{{ p.n_pronte }}" data-manca="{{ p.n_mancanti }}"
+            data-badge="{{ p.badge }}" data-prep="{{ p.n_da_preparare }}" data-pronte="{{ p.n_pronte }}" data-manca="{{ p.n_mancanti }}"
             data-cerca="{{ p.nome }} {{ p.reparto }}{% for riga in p.righe %} {{ riga.r.numero }}{% if riga.r.modello_dpi %} {{ riga.r.modello_dpi.codice }} {{ riga.r.modello_dpi.nome }}{% endif %}{% endfor %}">
       <span class="banco-persona-nome">{{ p.nome|upper }}</span>
       {% if p.reparto %}<span class="dpi-persona-rep">{{ p.reparto }}</span>{% endif %}
@@ -29,7 +32,7 @@
     </button>
     {% endfor %}
     <div class="dpi-empty" id="banco-nessuno" hidden>
-      Nessuna persona trovata.
+      <span id="banco-nessuno-testo">Nessuna persona trovata.</span>
       {% if ha_diretta %}<br><button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta style="margin-top:10px;">Consegna diretta</button>{% endif %}
     </div>
   </div>
@@ -68,6 +71,7 @@
               </span>
               {% if riga.giacenza is not None %}<span class="dpi-giac{% if riga.manca %} manca{% endif %}">in magazzino {{ riga.giacenza }}</span>{% endif %}
               <span class="dpi-riga-qta">× {{ r.quantita }}</span>
+              {% if not r.modalita_negozio %}<button type="button" class="banco-link" data-cambia data-richiesta="{{ r.pk }}" data-categoria="{{ r.categoria_id }}" data-modello="{{ r.modello_dpi_id|default:'' }}" data-taglia="{{ r.taglia_dpi_id|default:'' }}">{% if r.modello_dpi %}Cambia{% else %}Scegli modello{% endif %}</button>{% endif %}
             </label>
           </li>
           {% endwith %}{% endfor %}

@@ -94,7 +94,9 @@ GUIDA = {
                     "Se resta una sola persona la sua scheda si apre da sola; altrimenti cliccala nell'elenco.",
                     "Nella scheda tutti i DPI sono già spuntati: togli la spunta a quelli che non consegni adesso («Tutti» e «Nessuno» fanno prima). "
                     "Accanto a ogni DPI vedi quanti pezzi ci sono «in magazzino» (in rosso se non bastano).",
-                    "Clicca «Consegna N DPI a…»: il pulsante dice quanti DPI e a chi. La pagina non si ricarica e il cursore torna sulla ricerca, pronto per la persona dopo. "
+                    "Se manca quel modello o quella taglia clicca «Cambia» (o «Scegli modello») accanto al DPI: la modifica resta scritta nella richiesta.",
+                    "Clicca «Consegna N DPI a…»: il pulsante dice quanti DPI e a chi. Il cursore torna sulla ricerca, pronto per la persona dopo. "
+                    "In basso una barra conta 6 secondi: «Annulla» (o Esc) ferma tutto, «Registra ora» non aspetta. Passato il tempo la consegna è registrata. "
                     "Non serve la firma: parte da sola la mail di conferma della ricevuta (vedi sotto).",
                     "Se al banco c'è un tablet o hai la ricevuta su carta, apri «Firma sul tablet o ricevuta su carta»: con la firma "
                     "(o la spunta «Ricevuta firmata su carta») la mail di conferma non parte.",
@@ -103,6 +105,9 @@ GUIDA = {
                     "Da tastiera: / va alla ricerca, frecce su e giù scelgono la persona, Invio porta sul pulsante di consegna e un secondo Invio registra, Esc pulisce la ricerca.",
                     "I riquadri in alto («Da preparare», «Pronti al ritiro», «Giacenza insufficiente») filtrano l'elenco: un secondo clic toglie il filtro.",
                     "L'elenco si aggiorna da solo ogni minuto se non stai lavorando su una persona.",
+                    "Con un lettore di badge (o di un QR che contiene il codice del badge) leggi il badge nella ricerca: il codice è quello della scheda in Anagrafica. "
+                    "Se la persona non ha DPI da ritirare lo dice e offre «Consegna diretta».",
+                    "«Lista di prelievo» raccoglie tutto ciò che è da preparare, sommato per modello e taglia con le persone: si stampa e con «Pronti: avvisa gli spuntati» manda l'avviso di ritiro in blocco.",
                 ]),
                 ("p", "Conferma della ricevuta via mail: una sola mail per tutti i DPI consegnati insieme, con i pulsanti "
                       "«Confermo, ricevuti» e «Non li ho ricevuti». Va al dipendente se ha la mail aziendale (i domini si scrivono "
@@ -195,6 +200,14 @@ GUIDA = {
                 ]),
                 ("p", "Gli indirizzi si scrivono in DPI → Impostazioni, uno per riga. Salva con «Salva impostazioni». "
                       "L'intero ciclo è l'automazione AU14 del modulo Automazioni (flussi «managed-dpi_…»)."),
+            ],
+        },
+        {
+            "id": "bozza-ordine",
+            "titolo": "Bozza d'ordine ai fornitori",
+            "blocchi": [
+                ("p", "Da DPI → «Magazzino» → report, «Bozza d'ordine» propone cosa riordinare, diviso per il fornitore dell'ultimo carico, con le quantità suggerite dai consumi "
+                      "del periodo scelto. Correggi le quantità (zero esclude la riga), poi «Copia il testo» o «Apri nella posta». Il portale non invia nulla."),
             ],
         },
         {
