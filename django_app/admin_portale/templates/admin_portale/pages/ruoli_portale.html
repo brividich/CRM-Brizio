@@ -303,12 +303,17 @@
         <span>Sotto ogni modulo, <strong>↳ Pagina per pagina</strong>: ogni permesso di pagina del modulo, come nel vecchio elenco dei permessi. <strong>Segue la matrice</strong> = la decide la colonna indicata; <strong>Sì, sempre</strong> la apre anche se la colonna è vuota; <strong>No, mai</strong> la chiude anche se la colonna la concede. Le eccezioni restano anche dopo i salvataggi successivi.</span>
       </div>
 
+      <div class="rp-cerca" id="rp-cerca" data-url="{% url 'admin_portale:ruoli_portale_percorso' %}" data-amministratore="{{ ruolo.amministratore|yesno:'1,0' }}">
+        <label for="rp-cerca-testo">Cerca un modulo, una pagina o il suo percorso</label>
+        <input type="search" id="rp-cerca-testo" autocomplete="off" placeholder="es. assenze/calendario oppure Calendario">
+        <div class="rp-cerca-esito" id="rp-cerca-esito" role="status"></div>
+      </div>
       <form method="post" action="{% url 'admin_portale:ruoli_portale_matrice' ruolo.id %}" id="rp-matrice-form">
         {% csrf_token %}
         {% comment %}Le tendine viaggiano in un solo campo: una per cella e una per pagina supererebbero DATA_UPLOAD_MAX_NUMBER_FIELDS e il POST tornerebbe 400.{% endcomment %}
         <input type="hidden" name="matrice_json" value="">
         <div class="rp-matrix-wrap">
-          <table class="rp-matrix">
+          <table class="rp-matrix" data-fm-hide-search="1">
             <thead>
               <tr>
                 <th>Modulo</th>
@@ -318,7 +323,7 @@
             <tbody>
             {% for r in righe %}
               {% ifchanged r.spec.area %}<tr class="rp-area"><td colspan="8">{{ r.spec.area|default:"Altro" }}</td></tr>{% endifchanged %}
-              <tr>
+              <tr data-mod="{{ r.spec.chiave }}" data-mod-testa="1">
                 <td class="rp-mod">
                   <div class="acl-text">{{ r.spec.nome }}{% if r.spec.solo_amministratore %} <span class="acl-chip unset">solo amministratori</span>{% endif %}</div>
                   <div class="acl-muted">{{ r.spec.descrizione }}</div>
@@ -347,7 +352,7 @@
                 {% endfor %}
               </tr>
               {% for c in r.extra %}
-                <tr class="rp-extra">
+                <tr class="rp-extra" data-mod="{{ r.spec.chiave }}">
                   <td class="rp-mod"><span class="acl-muted">↳ {{ c.label }}</span></td>
                   <td class="rp-cell">
                     <select name="c__{{ r.spec.chiave }}__{{ c.azione }}" data-v="{{ c.valore }}" aria-label="{{ r.spec.nome }}: {{ c.label }}" onchange="this.dataset.v=this.value">
@@ -365,7 +370,7 @@
                 </tr>
               {% endfor %}
               {% if r.pagine_dettaglio and not ruolo.amministratore %}
-                <tr class="rp-pagine-riga">
+                <tr class="rp-pagine-riga" data-mod="{{ r.spec.chiave }}">
                   <td colspan="8">
                     <details class="rp-pagine"{% if r.eccezioni %} open{% endif %}>
                       <summary>↳ Pagina per pagina ({{ r.pagine_dettaglio|length }}){% if r.eccezioni %} · <strong>{{ r.eccezioni }} eccezion{{ r.eccezioni|pluralize:"e,i" }}</strong>{% endif %}</summary>
@@ -373,7 +378,7 @@
                         <thead><tr><th>Pagina</th><th>La apre la colonna</th><th>Adesso</th><th>Per questo ruolo</th></tr></thead>
                         <tbody>
                         {% for p in r.pagine_dettaglio %}
-                          <tr>
+                          <tr data-code="{{ p.code }}">
                             <td><div class="acl-text">{{ p.label }}</div><div class="acl-muted"><code>{{ p.code }}</code></div></td>
                             <td class="acl-muted">{{ p.colonna }}</td>
                             <td>{% if p.aperta %}<span class="acl-chip">aperta</span>{% else %}<span class="acl-chip unset">chiusa</span>{% endif %}</td>
@@ -487,6 +492,118 @@
               if (avviso && sel.value !== valoreIniziale(sel)) avviso.hidden = false;
             });
           });
+          // Ricerca nella matrice. Con una «/» il testo e' un percorso: lo risolve il
+          // server con le stesse funzioni del controllo accessi. Filtra soltanto:
+          // le righe nascoste restano nel form e vengono salvate come le altre.
+          var cerca = document.getElementById("rp-cerca");
+          var campo = document.getElementById("rp-cerca-testo");
+          var esito = document.getElementById("rp-cerca-esito");
+          var tabella = document.querySelector("table.rp-matrix");
+          if (cerca && campo && tabella) {
+            var righeMatrice = Array.prototype.slice.call(tabella.tBodies[0].rows);
+            var pannelli = Array.prototype.slice.call(tabella.querySelectorAll("details.rp-pagine"));
+            pannelli.forEach(function (d) { d.dataset.apertoPrima = d.open ? "1" : ""; });
+            var attesa = null, giro = 0;
+
+            // moduli: chiave -> null (tutte le pagine) oppure insieme dei code da mostrare.
+            // Senza argomento la matrice torna com'era.
+            function applica(moduli) {
+              var attivo = !!moduli;
+              righeMatrice.forEach(function (tr) {
+                if (tr.dataset.mod) tr.classList.toggle("rp-cerca-via", attivo && !(tr.dataset.mod in moduli));
+              });
+              righeMatrice.forEach(function (tr, i) {
+                if (!tr.classList.contains("rp-area")) return;
+                var vuota = attivo;
+                for (var j = i + 1; vuota && j < righeMatrice.length && !righeMatrice[j].classList.contains("rp-area"); j++) {
+                  if (righeMatrice[j].dataset.mod && !righeMatrice[j].classList.contains("rp-cerca-via")) vuota = false;
+                }
+                tr.classList.toggle("rp-cerca-via", vuota);
+              });
+              pannelli.forEach(function (d) {
+                var codici = attivo ? moduli[d.closest("tr").dataset.mod] : null;
+                d.open = codici ? true : d.dataset.apertoPrima === "1";
+                d.querySelectorAll("tr[data-code]").forEach(function (tr) {
+                  tr.classList.toggle("rp-cerca-via", !!codici && !codici[tr.dataset.code]);
+                  tr.classList.toggle("rp-cerca-trovata", !!codici && !!codici[tr.dataset.code]);
+                });
+              });
+              var contatore = tabella._fmTblCountEl;
+              if (contatore) contatore.style.visibility = attivo ? "hidden" : "";
+            }
+            function cercaTesto(testo) {
+              var moduli = {}, n = 0;
+              righeMatrice.forEach(function (tr) {
+                if (!tr.dataset.modTesta) return;
+                var chiave = tr.dataset.mod;
+                if (tr.querySelector(".rp-mod").textContent.toLowerCase().indexOf(testo) >= 0) {
+                  moduli[chiave] = null; n += 1; return;
+                }
+                var codici = null;
+                tabella.querySelectorAll('tr.rp-pagine-riga[data-mod="' + chiave + '"] tr[data-code]').forEach(function (p) {
+                  if (p.cells[0].textContent.toLowerCase().indexOf(testo) >= 0) {
+                    codici = codici || {};
+                    codici[p.dataset.code] = 1;
+                  }
+                });
+                if (codici) { moduli[chiave] = codici; n += 1; }
+              });
+              applica(moduli);
+              esito.textContent = n ? n + (n === 1 ? " modulo trovato." : " moduli trovati.") : "Nessun modulo o pagina con questo testo.";
+            }
+            function mostraPercorso(righe) {
+              var moduli = {};
+              esito.textContent = "";
+              if (!righe.length) {
+                applica(moduli);
+                esito.textContent = "Nessuna pagina con questo percorso.";
+                return;
+              }
+              var elenco = document.createElement("ul");
+              righe.forEach(function (r) {
+                if (r.modulo) {
+                  moduli[r.modulo] = moduli[r.modulo] || {};
+                  moduli[r.modulo][r.code] = 1;
+                }
+                var li = document.createElement("li");
+                var via = document.createElement("code");
+                via.textContent = r.percorso;
+                li.appendChild(via);
+                var dove;
+                if (!r.code) dove = "nessun permesso di pagina collegato";
+                else if (r.modulo) dove = r.modulo_nome + " · " + r.label + " (" + r.code + ")";
+                else dove = r.label + " (" + r.code + "): non è in nessun modulo della matrice, si gestisce da Accessi";
+                li.appendChild(document.createTextNode(" → " + dove + (r.comune ? " · pagina comune, senza controllo di ruolo" : "")));
+                elenco.appendChild(li);
+              });
+              esito.appendChild(elenco);
+              if (cerca.dataset.amministratore === "1") {
+                var nota = document.createElement("div");
+                nota.className = "acl-muted";
+                nota.textContent = "Questo ruolo è amministratore: apre tutte le pagine, senza righe pagina per pagina.";
+                esito.appendChild(nota);
+              }
+              applica(moduli);
+            }
+            function cercaPercorso(testo) {
+              var questo = ++giro;
+              fetch(cerca.dataset.url + "?q=" + encodeURIComponent(testo), { headers: { Accept: "application/json" } })
+                .then(function (r) {
+                  if (!r.ok) throw new Error(String(r.status));
+                  return r.json();
+                })
+                .then(function (d) { if (questo === giro) mostraPercorso(d.righe || []); })
+                .catch(function (e) { if (questo === giro) esito.textContent = "Ricerca non riuscita (" + e.message + "): riprova."; });
+            }
+            campo.addEventListener("input", function () {
+              clearTimeout(attesa);
+              giro += 1;
+              var testo = campo.value.trim();
+              if (!testo) { applica(null); esito.textContent = ""; return; }
+              if (testo.indexOf("/") >= 0) attesa = setTimeout(function () { cercaPercorso(testo); }, 250);
+              else cercaTesto(testo.toLowerCase());
+            });
+          }
           var form = document.getElementById("rp-matrice-form");
           if (form) {
             form.addEventListener("submit", function () {

@@ -11,6 +11,7 @@ import json
 from django.contrib import messages
 from django.db import DatabaseError, transaction
 from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.dateparse import parse_datetime
@@ -30,6 +31,7 @@ from core.permessi.motore import (
     sistema_ruoli_attivo,
 )
 from core.permessi.organigramma import provenienze_per_utenti
+from core.permessi.percorsi import trova_permessi_percorso
 from core.permessi.preset import PRESETS_PER_CHIAVE, applica_preset
 from core.permessi.registro import AMBITI, AMBITI_LABEL, AZIONI_LABEL, AZIONI_STANDARD, moduli_registrati
 from core.permessi.ruolo_base import completa_dal_ruolo_base
@@ -650,6 +652,12 @@ def _ctx_modulo(request) -> dict:
         "pagine_senza_ruolo": sum(1 for p in pagine if p["nessuno"]),
         "chi": chi,
     }
+
+
+@legacy_admin_required
+def ruoli_portale_percorso(request):
+    """Permessi che governano un percorso, per la ricerca nella matrice. Sola lettura."""
+    return JsonResponse({"ok": True, "righe": trova_permessi_percorso(request.GET.get("q", ""))})
 
 
 @legacy_admin_required
