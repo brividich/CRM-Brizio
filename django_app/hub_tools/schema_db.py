@@ -32,7 +32,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
                 "saldi, calendario aziendale, contatori, copertura reparti, storico richieste, solleciti, "
                 "permessi ripetuti (serie di richieste con una sola approvazione)"),
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
-    "presenti": ("Persone e HR", "#16a34a", "Presenti in azienda dalle timbrature Solari (lette, non copiate): "
+    "presenti": ("Persone e HR", "#16a34a", "Presenti in azienda dalle timbrature Solari e esterni dal GuestPortal (letti, non copiati): "
                  "appelli di evacuazione con le persone contate, avvisi delle uscite non timbrate"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
     "scadenzario": ("Altri moduli", "#2563eb", "Scadenzario generale: scadenze generiche (ex scadenzario sul NAS), rinnovi, avvisi, regole di visibilità per voce"),
@@ -99,7 +99,7 @@ CONNESSIONI_ESTERNE: list[dict] = [
     },
     {
         "nome": "GuestPortal (accessi visitatori, MySQL)",
-        "cosa": "Applicazione separata (PHP + MySQL su IIS) del chiosco della reception: check-in/out di visitatori, fornitori e consulenti. L'HUB legge in sola lettura Visits/Guests/Suppliers (nessuna copia: la pulizia GDPR del GuestPortal resta valida) e apre il suo pannello con un token firmato a uso singolo (public/admin/sso.php).",
+        "cosa": "Applicazione separata (PHP + MySQL su IIS) del chiosco della reception: check-in/out di visitatori, fornitori e consulenti. L'HUB legge in sola lettura Visits/Guests/Suppliers (Accessi esterni; esterni in azienda nella lista Presenti e nell'appello di evacuazione; nessuna copia: la pulizia GDPR del GuestPortal resta valida) e apre il suo pannello con un token firmato a uso singolo (public/admin/sso.php).",
         "chi": "Fornitori → Accessi esterni e Ditte GuestPortal; riquadro «Presenze in azienda della ditta» in ticket MAN e OdL esterni (fornitori_ingressointervento, fornitori_dittaguestportal); voce di menu «Accessi azienda».",
         "config": "GUESTPORTAL_DB_HOST, GUESTPORTAL_DB_PORT, GUESTPORTAL_DB_NAME, GUESTPORTAL_DB_USER, GUESTPORTAL_DB_PASSWORD (utente MySQL con solo SELECT); GUESTPORTAL_ADMIN_URL, GUESTPORTAL_SSO_URL, GUESTPORTAL_SSO_SECRET (= GP_SSO_SECRET in config/sso.php del GuestPortal).",
         "controllo": "Pagina Accessi esterni (avviso giallo = non configurato, rosso = DB non risponde); porta 3306 aperta dal server HUB; righe «[SSO] accesso rifiutato: …» in C:\\Windows\\Temp\\guestportal.log del server GuestPortal.",

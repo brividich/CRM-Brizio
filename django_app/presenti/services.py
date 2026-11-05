@@ -22,7 +22,7 @@ from . import solari
 logger = logging.getLogger(__name__)
 
 DURATA_CACHE = 60  # secondi
-_CHIAVE = "presenti:stato:v1"
+_CHIAVE = "presenti:stato:v2"
 
 # Ambito dell'organigramma da cui vengono gli incarichi di sicurezza.
 AMBITO_SICUREZZA = "45001"
@@ -106,21 +106,69 @@ def collega_anagrafica(persone: list[dict], oggi: date | None = None) -> list[di
     return persone
 
 
+def leggi_esterni() -> tuple[list[dict], str]:
+    """Esterni in azienda adesso (visitatori, ditte, docenti) dal GuestPortal: ``(righe, errore)``.
+
+    Ogni riga ha la stessa forma di quelle Solari, così lista, appello e PDF li trattano
+    insieme: ``solari_id`` è l'id della visita col segno meno (non si scontra mai con un
+    dipendente), ``esterno=True``, ``cognome`` = nome completo come registrato all'ingresso.
+    """
+    try:
+        from fornitori import guestportal
+    except Exception:  # pragma: no cover - app sempre installata
+        return [], ""
+    if not guestportal.db_configurato():
+        return [], ("GuestPortal non collegato: gli esterni (visitatori e ditte) non sono in elenco. "
+                    "Vanno contati a parte dal registro della portineria.")
+    try:
+        accessi = guestportal.presenti_ora()
+    except Exception as exc:
+        logger.warning("Lettura esterni GuestPortal fallita: %s", type(exc).__name__)
+        return [], ("Il GuestPortal non risponde: gli esterni (visitatori e ditte) non sono in elenco. "
+                    "Vanno contati a parte dal registro della portineria.")
+    righe = []
+    for a in accessi:
+        if not a.visita_id:
+            continue
+        righe.append({
+            "solari_id": -int(a.visita_id),
+            "esterno": True,
+            "legacy_id": None,
+            "cognome": a.nome,
+            "nome": "",
+            "matricola": "",
+            "turno": "",
+            "reparto": "",
+            "mansione": "",
+            "incarichi": [],
+            "azienda": a.azienda,
+            "referente": a.referente,
+            "tipo": a.tipo_label,
+            "badge": a.badge,
+            "entrata": a.ingresso.strftime("%H:%M") if a.ingresso else "",
+        })
+    righe.sort(key=lambda r: (r["azienda"].lower(), r["cognome"].lower()))
+    return righe, ""
+
+
 def _calcola() -> dict:
     adesso = timezone.localtime()
+    # Gli esterni si leggono comunque: in un'evacuazione servono anche se Solari è giù.
+    esterni, errore_esterni = leggi_esterni()
+    base = {"aggiornato_il": adesso, "esterni": esterni, "errore_esterni": errore_esterni}
     try:
         persone = solari.leggi_presenti(adesso.date())
     except solari.SolariNonConfigurato as exc:
-        return {"aggiornato_il": adesso, "presenti": [], "errore": str(exc), "configurato": False}
+        return {**base, "presenti": [], "errore": str(exc), "configurato": False}
     except Exception as exc:  # rete, login, driver: la pagina mostra l'avviso e riprova
         logger.warning("Lettura presenze Solari fallita: %s", exc)
-        return {"aggiornato_il": adesso, "presenti": [], "configurato": True,
+        return {**base, "presenti": [], "configurato": True,
                 "errore": "Il database delle timbrature non risponde. Nuovo tentativo al prossimo aggiornamento."}
     for p in persone:
         # In cache vanno solo tipi serializzabili da tutte le cache (anche database).
         p["entrata"] = p["entrata"].strftime("%H:%M") if p.get("entrata") else ""
     collega_anagrafica(persone, adesso.date())
-    return {"aggiornato_il": adesso, "presenti": persone, "errore": "", "configurato": True}
+    return {**base, "presenti": persone, "errore": "", "configurato": True}
 
 
 def stato(*, forza: bool = False) -> dict:
@@ -199,7 +247,8 @@ def filtra(presenti: list[dict], *, q: str = "", reparto: str = "", incarico: st
             continue
         if q:
             testo = " ".join([p["cognome"], p["nome"], p["matricola"], p.get("reparto", ""),
-                              p.get("mansione", "")]).lower()
+                              p.get("mansione", ""),
+                              p.get("azienda", ""), p.get("referente", "")]).lower()
             if q not in testo:
                 continue
         risultato.append(p)

@@ -20,8 +20,12 @@ def _logo_path() -> str:
 
 
 def genera_pdf(presenti: list[dict], aggiornato_il, *, titolo: str = TITOLO, sottotitolo: str = "",
-               contati: set[int] | None = None) -> bytes:
-    """PDF della lista. Con ``contati`` aggiunge la colonna «CONTATO» (stampa dell'appello)."""
+               contati: set[int] | None = None, esterni: list[dict] | None = None) -> bytes:
+    """PDF della lista. Con ``contati`` aggiunge la colonna «CONTATO» (stampa dell'appello).
+
+    ``esterni`` (visitatori, ditte, docenti dal GuestPortal) vanno in una seconda tabella
+    «ESTERNI IN AZIENDA», con la stessa colonna «CONTATO» nell'appello.
+    """
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
     from reportlab.lib.pagesizes import A4
@@ -46,6 +50,7 @@ def genera_pdf(presenti: list[dict], aggiornato_il, *, titolo: str = TITOLO, sot
     st_tot = ParagraphStyle("c", parent=ss["Normal"], fontSize=11, alignment=TA_LEFT, textColor=primario,
                             fontName="Helvetica-Bold", spaceBefore=4 * mm)
     st_piede = ParagraphStyle("f", parent=ss["Normal"], fontSize=8, alignment=TA_RIGHT, textColor=colors.grey)
+    st_cella = ParagraphStyle("x", parent=ss["Normal"], fontSize=8.5, leading=10, textColor=testo)
     st_inc = ParagraphStyle("i", parent=ss["Normal"], fontSize=7.5, textColor=sicurezza,
                             fontName="Helvetica-Bold", leading=9)
 
@@ -108,6 +113,50 @@ def genera_pdf(presenti: list[dict], aggiornato_il, *, titolo: str = TITOLO, sot
         storia.append(Paragraph("Nessun dipendente risulta presente al momento.",
                                 ParagraphStyle("v", parent=ss["Normal"], fontSize=12, alignment=TA_CENTER,
                                                textColor=colors.HexColor("#7f8c8d"))))
+
+    if esterni is not None:
+        storia.append(Spacer(1, 6 * mm))
+        storia.append(Paragraph("ESTERNI IN AZIENDA", ParagraphStyle(
+            "e", parent=ss["Normal"], fontSize=12, fontName="Helvetica-Bold", textColor=primario, spaceAfter=2 * mm)))
+        if esterni:
+            intest = ["NOME", "AZIENDA", "TIPO", "REFERENTE", "ENTRATA"]
+            largh = [45 * mm, 45 * mm, 25 * mm, 45 * mm, 20 * mm]
+            if contati is not None:
+                intest = ["NOME", "AZIENDA", "TIPO", "REFERENTE", "CONTATO"]
+                largh = [45 * mm, 45 * mm, 25 * mm, 47 * mm, 18 * mm]
+            righe_e = [intest]
+            for p in esterni:
+                ultima = ("SÌ" if p.get("solari_id") in contati else "") if contati is not None else p.get("entrata", "")
+                righe_e.append([Paragraph(escape(p.get("cognome", "")), st_cella),
+                                Paragraph(escape(p.get("azienda", "")), st_cella),
+                                p.get("tipo", ""), Paragraph(escape(p.get("referente", "")), st_cella), ultima])
+            tab_e = Table(righe_e, colWidths=largh, repeatRows=1)
+            stile_e = [
+                ("BACKGROUND", (0, 0), (-1, 0), primario),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                ("ALIGN", (4, 1), (4, -1), "CENTER"),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LINEBELOW", (0, -1), (-1, -1), 0.5, primario),
+                ("LINEAFTER", (0, 0), (-2, -1), 0.25, griglia),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]
+            if contati is not None:
+                stile_e.append(("FONTNAME", (4, 1), (4, -1), "Helvetica-Bold"))
+            for i in range(2, len(righe_e), 2):
+                stile_e.append(("BACKGROUND", (0, i), (-1, i), riga_alt))
+            tab_e.setStyle(TableStyle(stile_e))
+            storia.append(tab_e)
+            tot_e = f"Totale esterni: {len(esterni)}"
+            if contati is not None:
+                n = sum(1 for p in esterni if p.get("solari_id") in contati)
+                tot_e += f" · contati: {n} · da trovare: {len(esterni) - n}"
+            storia.append(Paragraph(tot_e, st_tot))
+        else:
+            storia.append(Paragraph("Nessun esterno registrato in azienda al GuestPortal.", st_cella))
 
     storia.append(Spacer(1, 10 * mm))
     storia.append(Paragraph(f"Generato da NOVICROM HUB il {aggiornato_il:%d/%m/%Y %H:%M:%S}", st_piede))

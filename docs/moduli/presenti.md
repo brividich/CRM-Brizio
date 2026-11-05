@@ -10,7 +10,8 @@ Porta nel portale lo script `report_presenze.py` (diskstation, `UTLIC_ReportPres
 | Pagina | URL | Cosa fa |
 |---|---|---|
 | Presenti adesso | `/presenti/` | Lista live (HTMX ogni 30 s): turno, matricola, nome, reparto, ora di entrata, incarichi di sicurezza; contatori per incarico; ricerca e filtri; PDF (senza ora di entrata) |
-| Appello di evacuazione | `/presenti/appello/` | Fotografia dei presenti all'avvio; spunte «contato» condivise fra più persone (aggiornamento ogni 3 s); chiusura; PDF con colonna CONTATO; storico |
+| Esterni in azienda | `/presenti/` (sotto i dipendenti) | Visitatori, ditte e docenti con visita `CHECKEDIN` nel GuestPortal (`fornitori.guestportal.presenti_ora`): nome, azienda, tipo, referente, entrata, badge; anche nel PDF |
+| Appello di evacuazione | `/presenti/appello/` | Fotografia dei presenti all'avvio, dipendenti **ed esterni** (id visita col segno meno, nessuna migrazione); spunte «contato» condivise fra più persone (aggiornamento ogni 3 s); chiusura; PDF con colonna CONTATO; storico |
 | Uscite non timbrate | `/presenti/uscite/` | Giornate con ultima timbratura in entrata; il capo vede la sua squadra, chi ha «tutti» l'azienda |
 | Impostazioni | `/presenti/impostazioni/` | Pubblicazione PDF su SharePoint, avviso mattutino delle uscite |
 
@@ -25,6 +26,9 @@ Anagrafica: elenco dipendenti e scheda dipendente. Anche nella ricerca globale (
   Turno «N» = elemento `SOLARI_TURNO_NORMALE_ELEM` (34013).
 - **Una lettura al minuto per tutto il server**: `services.stato()` mette la fotografia nella cache condivisa
   (`DURATA_CACHE = 60` s; 20 s dopo un errore). La query costa ~0,1-0,5 s su ~1 milione di righe.
+- **Esterni**: GuestPortal (MySQL, sola lettura, stesse chiavi `GUESTPORTAL_DB_*` di Accessi esterni), letti
+  insieme alle timbrature nella stessa fotografia di `services.stato()` (chiavi `esterni`, `errore_esterni`);
+  se Solari è giù gli esterni si leggono comunque. Visibili a chi vede la lista presenti.
 - **Aggancio all'anagrafica** per codice fiscale (`DipendenteAnagraficaCivile.codice_fiscale`).
 - **Incarichi di sicurezza**: ruoli in essere dell'ambito ISO 45001 (`DipendenteRuoloOperativo`).
 - Tabelle proprie: `presenti_appello`, `presenti_appellospunta`, `presenti_avvisouscitamancante`

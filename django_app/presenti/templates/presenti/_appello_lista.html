@@ -1,7 +1,7 @@
 <div class="pres-card" style="margin-bottom:12px;">
   <div style="display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; align-items:baseline;">
     <div style="font-size:15px;">
-      <b style="font-size:26px;">{{ n_contati }}</b> contati su <b>{{ n_totale }}</b>
+      <b style="font-size:26px;">{{ n_contati }}</b> contati su <b>{{ n_totale }}</b>{% if n_esterni %} <span style="color:var(--text-mid); font-size:13px;">(di cui {{ n_esterni }} estern{{ n_esterni|pluralize:"o,i" }})</span>{% endif %}
       {% if n_mancanti %}· <b style="color:var(--danger); font-size:20px;">{{ n_mancanti }}</b> da trovare{% else %}· <b style="color:var(--success);">tutti contati</b>{% endif %}
     </div>
     <span class="pres-live">{% if appello.aperto %}Avviato alle {{ appello.aperto_il|time:"H:i" }}{% if appello.esercitazione %} · esercitazione{% endif %} · si aggiorna ogni {{ aggiorna_ogni }} s{% else %}Appello chiuso{% endif %}</span>
@@ -21,8 +21,9 @@
         <span class="pres-check" aria-hidden="true">{% if p.contato %}✓{% endif %}</span>
         <span>
           <span class="pres-nome">{{ p.cognome|upper }} {{ p.nome }}</span>
+          {% if p.esterno %}<span class="pres-inc pres-esterno">Esterno{% if p.azienda %} · {{ p.azienda }}{% endif %}</span>{% endif %}
           {% for inc in p.incarichi %}<span class="pres-inc" style="background:{{ inc.colore }}">{{ inc.nome }}</span>{% endfor %}
-          <span class="pres-chi">{% if p.contato %}Contato alle {{ p.contato_il|time:"H:i" }}{% if p.contato_da %} da {{ p.contato_da }}{% endif %}{% else %}{% if p.reparto %}{{ p.reparto }} · {% endif %}entrato alle {{ p.entrata }}{% endif %}</span>
+          <span class="pres-chi">{% if p.contato %}Contato alle {{ p.contato_il|time:"H:i" }}{% if p.contato_da %} da {{ p.contato_da }}{% endif %}{% elif p.esterno %}{{ p.tipo }}{% if p.referente %} · ospite di {{ p.referente }}{% endif %} · entrato alle {{ p.entrata }}{% else %}{% if p.reparto %}{{ p.reparto }} · {% endif %}entrato alle {{ p.entrata }}{% endif %}</span>
         </span>
       </button>
     </form>

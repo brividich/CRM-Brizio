@@ -1,9 +1,13 @@
 {% if stato.errore %}
 <div class="pres-avviso{% if not stato.configurato %} is-err{% endif %}">{{ stato.errore }}</div>
 {% endif %}
+{% if stato.errore_esterni %}
+<div class="pres-avviso">{{ stato.errore_esterni }}</div>
+{% endif %}
 
 <div class="pres-kpi">
-  <div class="pres-card"><b>{{ riepilogo.totale }}</b><span>Presenti adesso</span></div>
+  <div class="pres-card"><b>{{ riepilogo.totale }}</b><span>Dipendenti presenti</span></div>
+  <div class="pres-card"><b>{{ n_esterni }}</b><span>Esterni in azienda</span></div>
   {% for inc in riepilogo.incarichi %}
   <div class="pres-card"><b>{{ inc.n }}</b><span><i style="background:{{ inc.colore }}"></i>{{ inc.nome }}</span></div>
   {% endfor %}
@@ -37,6 +41,36 @@
       </tr>
       {% empty %}
       <tr><td colspan="6" class="pres-vuoto">{% if filtrato %}Nessun presente corrisponde ai filtri.{% elif not stato.errore %}Nessun dipendente risulta presente al momento.{% else %}Elenco non disponibile.{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="pres-gruppo" style="margin-top:18px;">Esterni in azienda ({% if filtrato %}{{ esterni|length }} su {% endif %}{{ n_esterni }})</h2>
+<div class="pres-card" style="padding:0; overflow-x:auto;">
+  <table class="pres-tab" data-fm-table-skip="1">
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>Azienda</th>
+        <th class="pres-hide-sm">Tipo</th>
+        <th class="pres-hide-sm">Referente</th>
+        <th class="pres-c">Entrata</th>
+        <th class="pres-c pres-hide-sm">Badge</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in esterni %}
+      <tr>
+        <td class="pres-nome">{{ p.cognome }}</td>
+        <td>{{ p.azienda|default:"—" }}</td>
+        <td class="pres-hide-sm">{{ p.tipo }}</td>
+        <td class="pres-hide-sm">{{ p.referente|default:"—" }}</td>
+        <td class="pres-c pres-mono">{{ p.entrata }}</td>
+        <td class="pres-c pres-mono pres-hide-sm">{{ p.badge|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="pres-vuoto">{% if stato.errore_esterni %}Elenco esterni non disponibile.{% elif filtrato %}Nessun esterno corrisponde ai filtri.{% else %}Nessun esterno registrato in azienda al GuestPortal.{% endif %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
