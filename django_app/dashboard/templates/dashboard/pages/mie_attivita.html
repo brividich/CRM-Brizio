@@ -36,7 +36,7 @@ Context (vedi dashboard/views_mie_attivita.py):
         {% for s in sections %}
           <div class="hp-cdg-group">
             <div class="hp-cdg-group-h">
-              <span class="hp-badge hp-tone-{{ s.tone }}">{{ s.icon }} {{ s.label }} ({{ s.items|length }})</span>
+              <span class="hp-badge hp-tone-{{ s.tone }}">{{ s.icon }} {{ s.label }} ({% if s.total %}{{ s.total }}{% else %}{{ s.items|length }}{% endif %})</span>
               {% if s.all_url and s.all_url != "#" %}<a href="{{ s.all_url }}" class="hp-card-link">Apri →</a>{% endif %}
             </div>
             {% if s.items %}

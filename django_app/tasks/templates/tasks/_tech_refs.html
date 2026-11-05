@@ -1,0 +1,12 @@
+{% comment %}
+Programmi CAM, programmi CMM e FAI: stessa riga in commessa e negli incontri. Niente <form>
+e campi senza name: nell'esito sta dentro il form della registrazione. Salva tech_refs.js.
+Contesto: tech_refs_context (tasks/views/tech_refs.py).
+{% endcomment %}
+<section class="tr-block" data-tr-block
+         data-save-url="{% url 'tasks:tech_ref_save' project.id %}"
+         data-action-base="/tasks/projects/{{ project.id }}/programmi/"
+         data-meeting="{{ tech_meeting.id|default:'' }}"
+         aria-label="Programmi e FAI">
+  {% include "tasks/_tech_refs_body.html" %}
+</section>

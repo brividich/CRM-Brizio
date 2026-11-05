@@ -80,6 +80,10 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Gestione menu sidebar** (*Impostazioni > Menu sidebar*): nuove voci da un form guidato in tre passi (nome, destinazione da tendina raggruppata o indirizzo personalizzato, posizione) con anteprima; criterio di evidenziazione e ordine sono opzionali (automatico / in fondo). Ogni voce esistente si modifica e si salva in linea; «Elimina» è un'azione separata con conferma
 - **Flag safety_impact**: campo boolean su Project per identificare progetti con impatto sulla sicurezza, esposto nel form Nuovo kickoff e mostrato come badge nelle viste portfolio, Gantt/dettaglio e task collegate solo quando attivo
 
+### Programmi CAM, CMM e FAI (05/11/2026)
+
+Scheda `/tasks/projects/<id>/programmi/` e stesso blocco nel dettaglio incontro e in «Registra esito». Modello `ProjectTechRef` (tipo, codice, percorso, responsabile, entro il, stato, incontro di origine), migrazione `tasks 0052`. Basta uno tra codice, percorso e responsabile. I percorsi passano da `tasks/tech_paths.py`: solo UNC e http(s). Il clic su un percorso di rete copia il percorso, perché i browser non aprono `file://` da una pagina web. Le voci assegnate compaiono in «Le mie azioni» e, con attività, azioni e problemi, nella sezione KICK-OFF di «Le mie attività» (`tasks/services/da_fare.py`).
+
 ## Struttura del codice
 
 - `access.py` — gate di modulo, livelli di accesso per ruolo, queryset filtrati per utente. API pubblica: `has_task_permission`, `scoped_tasks_queryset`, `scoped_projects_queryset`, `can_manage_project`, `can_manage_task`

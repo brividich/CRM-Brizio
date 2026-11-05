@@ -1,9 +1,10 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Le mie azioni</span>{% endblock %}
 {% block tasks_shell_guide_anchor %}#mie-azioni{% endblock %}
 {% block tasks_shell_title %}Le mie azioni{% endblock %}
-{% block tasks_shell_subtitle %}Azioni e problemi degli incontri di cui sei responsabile, su tutte le commesse.{% endblock %}
+{% block tasks_shell_subtitle %}Azioni, problemi, programmi e FAI di cui sei responsabile, su tutte le commesse.{% endblock %}
 
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">{{ open_count }} aperte</span>
@@ -25,11 +26,12 @@
         <a class="ml-scope-btn{% if filters.stato == 'tutte' %} active{% endif %}" href="?stato=tutte">Tutte</a>
       </div>
       <input type="hidden" name="stato" value="{{ filters.stato }}">
-      <input class="input" type="search" name="q" value="{{ filters.q }}" placeholder="Cerca in titolo, dettaglio, commessa…">
+      <input class="input" type="search" name="q" value="{{ filters.q }}" placeholder="Cerca in titolo, codice, commessa…">
       <select class="input" name="tipo" aria-label="Tipo">
-        <option value="">Azioni e problemi</option>
+        <option value="">Tutte le voci</option>
         <option value="azione"{% if filters.tipo == "azione" %} selected{% endif %}>Solo azioni</option>
         <option value="problema"{% if filters.tipo == "problema" %} selected{% endif %}>Solo problemi</option>
+        <option value="programma"{% if filters.tipo == "programma" %} selected{% endif %}>Solo programmi e FAI</option>
       </select>
       <select class="input" name="scadenza" aria-label="Scadenza">
         <option value="">Qualsiasi scadenza</option>
@@ -62,8 +64,11 @@
             {% for row in rows %}
               <tr class="{% if row.is_overdue %}status-overdue{% elif not row.is_open %}status-done{% endif %}">
                 <td>
-                  <span class="ts-chip {% if row.kind == 'problema' %}warn{% else %}info{% endif %} ma-kind">{% if row.kind == "problema" %}Problema{% else %}Azione{% endif %}</span>
-                  {% if row.meeting %}
+                  <span class="ts-chip {% if row.kind == 'problema' %}warn{% else %}info{% endif %} ma-kind">{% if row.kind == "problema" %}Problema{% elif row.kind == "programma" %}{{ row.obj.kind }}{% else %}Azione{% endif %}</span>
+                  {% if row.kind == "programma" %}
+                    <a class="tl-task-link" href="{% url 'tasks:project_tech_refs' row.project.id %}">{{ row.title }}</a>
+                    {% if row.obj.path %}<div class="tl-task-desc">{% include "tasks/_tech_ref_link.html" with ref=row.obj %}</div>{% endif %}
+                  {% elif row.meeting %}
                     <a class="tl-task-link" href="{% url 'tasks:project_meeting_detail' row.project.id row.meeting.id %}">{{ row.title }}</a>
                     <div class="tl-task-desc">Dall'incontro {{ row.meeting.numero }} del {{ row.meeting.data|date:"d-m-Y" }}</div>
                   {% else %}
@@ -99,8 +104,9 @@
         </table>
       </div>
     {% else %}
-      <p class="empty" style="text-align:center;padding:28px 12px;">Nessuna azione o problema corrisponde ai filtri.</p>
+      <p class="empty" style="text-align:center;padding:28px 12px;">Nessuna voce corrisponde ai filtri.</p>
     {% endif %}
   </div>
 </section>
+<script src="{% static 'tasks/js/tech_refs.js' %}?v=20261105a" defer></script>
 {% endblock %}

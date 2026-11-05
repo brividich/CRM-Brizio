@@ -101,6 +101,17 @@ def _my_nc(request, legacy_user) -> list[dict]:
     return out
 
 
+def _my_kickoff(request) -> tuple[list[dict], int]:
+    """Attività, azioni, problemi, programmi e FAI del KICK-OFF assegnati all'utente."""
+    try:
+        from tasks.services.da_fare import voci_kickoff
+
+        return voci_kickoff(request)
+    except Exception:
+        logger.exception("Voci KICK-OFF non calcolabili")
+        return [], 0
+
+
 def _my_tickets(request_user, legacy_user, legacy_user_id) -> list[dict]:
     try:
         from tickets.models import StatoTicket, Ticket  # noqa: F401
@@ -365,7 +376,18 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
     is_admin = request.user.is_superuser or (is_legacy_admin(legacy_user) if legacy_user else False)
     legacy_user_id = int(legacy_user.id) if legacy_user else None
 
+    kickoff_items, kickoff_total = _my_kickoff(request)
     sections = [
+        {
+            "key": "kickoff",
+            "label": "KICK-OFF",
+            "tone": "warning",
+            "icon": "🗂",
+            "items": kickoff_items,
+            "total": kickoff_total,
+            "all_url": _safe_url("tasks:mie_azioni"),
+            "empty": "Niente da fare nelle commesse.",
+        },
         {
             "key": "approvazioni",
             "label": "Approvazioni assenze",
@@ -465,7 +487,7 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "empty": "Nessuna scadenza nei prossimi 7 giorni.",
         })
 
-    total = sum(len(s["items"]) for s in sections)
+    total = sum(s.get("total", len(s["items"])) for s in sections)
     return {"sections": sections, "total": total}
 
 

@@ -245,6 +245,28 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "programmi-fai",
+        "titolo": "Programmi CAM, CMM e FAI",
+        "blocchi": [
+            ("p", "La scheda «Programmi e FAI» della commessa raccoglie i codici e i percorsi di rete, con il responsabile di ognuno. "
+                  "Non è obbligatoria e si può usare solo per quello che serve. Le stesse righe si vedono e si aggiungono anche nel dettaglio dell'incontro e in «Registra esito»: non vanno inserite due volte."),
+            ("passi", [
+                "Scegli il tipo: «Programma CAM», «Programma CMM» o «FAI».",
+                "Scrivi il codice e, se serve, il percorso, per esempio \\\\server\\cartella\\file.",
+                "Scegli il responsabile. Per CAM e CMM il portale propone il Programmatore, se la commessa ne ha uno solo.",
+                "Premi Invio. Tipo e responsabile restano, così scrivi subito il codice successivo.",
+            ]),
+            ("img", (_IMG + "programmi_fai.jpg", "La scheda Programmi e FAI con la riga di inserimento")),
+            ("ul", [
+                "Basta uno tra codice, percorso e responsabile: in riunione puoi assegnare «Programma CAM» a una persona, e il codice lo scrive poi lei con «Modifica».",
+                "Il responsabile riceve la notifica e trova la voce in «Le mie azioni» e in «Le mie attività» del portale. Con «Fatto» la chiude.",
+                "Le lettere di unità come Y:\\ non si accettano, perché cambiano da PC a PC: serve il percorso di rete.",
+                "Cliccando un percorso di rete il portale lo copia. I browser non aprono direttamente le cartelle da una pagina web: premi Win+E, poi Ctrl+L, Ctrl+V e Invio.",
+                "«Modifica» è per chi gestisce la commessa e per il responsabile della riga; «Elimina» solo per chi gestisce la commessa. Il responsabile non può passare la riga a un altro.",
+            ]),
+        ],
+    },
+    {
         "id": "scheda-attivita",
         "titolo": "La scheda di un'attività",
         "blocchi": [

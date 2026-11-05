@@ -2122,3 +2122,96 @@ class MeetingRoom(models.Model):
 
     def __str__(self) -> str:
         return self.nome
+
+class TechRefKind(models.TextChoices):
+    CAM = "CAM", "Programma CAM"
+    CMM = "CMM", "Programma CMM"
+    FAI = "FAI", "FAI"
+
+
+class TechRefStatus(models.TextChoices):
+    OPEN = "OPEN", "Da fare"
+    DONE = "DONE", "Fatto"
+
+
+class ProjectTechRef(models.Model):
+    """Programma CAM, programma CMM o FAI di una commessa: codice, percorso, responsabile.
+
+    Tutto facoltativo tranne che la riga dica qualcosa: in riunione basta assegnare
+    «Programma CAM» a qualcuno, codice e percorso li scrive poi lui. La stessa riga si
+    vede in commessa e negli incontri, quindi non va mai inserita due volte.
+    """
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="tech_refs", verbose_name="Kickoff")
+    kind = models.CharField(max_length=3, choices=TechRefKind.choices, db_index=True, verbose_name="Tipo")
+    code = models.CharField(max_length=120, blank=True, default="", verbose_name="Codice")
+    path = models.CharField(max_length=500, blank=True, default="", verbose_name="Cartella o file")
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tasks_tech_refs",
+        verbose_name="Responsabile",
+    )
+    due_date = models.DateField(null=True, blank=True, verbose_name="Entro il")
+    status = models.CharField(
+        max_length=4, choices=TechRefStatus.choices, default=TechRefStatus.OPEN, db_index=True, verbose_name="Stato"
+    )
+    source_meeting = models.ForeignKey(
+        KickoffMeeting,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tech_refs",
+        verbose_name="Incontro di origine",
+    )
+    done_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    done_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["kind", "id"]
+        verbose_name = "Programma o FAI"
+        verbose_name_plural = "Programmi e FAI"
+
+    def __str__(self) -> str:
+        return self.label
+
+    @property
+    def label(self) -> str:
+        return f"{self.get_kind_display()} {self.code}".strip()
+
+    @property
+    def is_open(self) -> bool:
+        return self.status == TechRefStatus.OPEN
+
+    @property
+    def is_overdue(self) -> bool:
+        return bool(self.is_open and self.due_date and self.due_date < timezone.localdate())
+
+    @property
+    def is_web_path(self) -> bool:
+        return self.path.lower().startswith(("http://", "https://"))
+
+    @property
+    def open_href(self) -> str:
+        from .tech_paths import href_percorso
+
+        return href_percorso(self.path)
+
+    def mark_done(self, user=None) -> None:
+        self.status = TechRefStatus.DONE
+        self.done_by = user
+        self.done_at = timezone.now()
+
+    def reopen(self) -> None:
+        self.status = TechRefStatus.OPEN
+        self.done_by = None
+        self.done_at = None
