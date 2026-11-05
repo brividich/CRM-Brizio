@@ -1,12 +1,23 @@
 """Guida d'uso del modulo KICK-OFF (pulsante «? Guida» in testa alle pagine).
 
-Testo semplice, niente HTML: il template lo mostra con l'autoescape.
-Blocchi di una sezione: ("p", testo) paragrafo, ("ul", [voci]) elenco,
-("nota", testo) riquadro di attenzione, ("def", [(termine, spiegazione)]).
+Guida completa: stessa forma della guida del modulo Anomalie. Le guide rapide per
+ruolo stanno in ``tasks/guida_ruoli.py``. Si apre su ``/tasks/guida/``; ``?per=<ruolo>``
+apre una guida rapida, ``?pdf=1`` (con o senza ``per``) scarica il PDF.
+
+Testo semplice, niente HTML: il template lo mostra con l'autoescape e il PDF lo passa
+da ``escape()``. Blocchi di una sezione: ("p", testo) paragrafo, ("passi", [voci])
+passi numerati, ("ul", [voci]) elenco, ("nota", testo) riquadro di attenzione,
+("def", [(termine, spiegazione)]) definizioni, ("img", (percorso static, didascalia)).
+Le immagini sono in ``tasks/static/tasks/guida/`` e mostrano dati di esempio.
 Le etichette citate sono quelle visibili nelle pagine: se ne cambia una, va
 aggiornata anche qui. Il testo alimenta anche l'assistente AI del portale.
 """
 from __future__ import annotations
+
+DOC_TITOLO = "KICK-OFF"
+DOC_SOTTOTITOLO = "Guida completa del modulo nel portale NOVICROM HUB"
+
+_IMG = "tasks/guida/"
 
 SEZIONI: list[dict] = [
     {
@@ -17,53 +28,215 @@ SEZIONI: list[dict] = [
                   "il documento VRF, il team, le attività pianificate sul Gantt e gli incontri con il loro esito."),
             ("def", [
                 ("Commessa (kickoff)", "la scheda «Cliente · P/N · KICK-OFF n» con team, fase e VRF."),
+                ("Scheda VRF", "il modulo MOD.073 «Scheda valutazione rischi e fornitura»: 9 rischi con probabilità, gravità e Totale Rischio."),
                 ("Attività", "lavoro pianificato con data inizio, data fine, responsabile e avanzamento. Compare sul Gantt."),
                 ("Incontro", "riunione di commessa: convocazione, conduzione, esito e minuta."),
                 ("Azione", "impegno deciso in un incontro: chi fa cosa entro quando."),
                 ("Problema", "criticità emersa in un incontro, seguita finché non è risolta."),
                 ("Decisione", "scelta presa in un incontro, conservata nel registro decisioni della commessa."),
             ]),
+            ("p", "In alto, le voci del modulo: «Dashboard» (il tuo quadro), «Da gestire» (cosa richiede intervento), "
+                  "«Kickoff» (l'elenco delle commesse), «Calendario» (gli incontri) e, per chi le gestisce, «Impostazioni». "
+                  "Dentro una commessa le schede sono «Panoramica», «Azioni», «Incontri», «Piano» e «VRF»."),
+            ("nota", "Non vedi un pulsante descritto qui? Dipende dai permessi: vedi «Chi può fare cosa»."),
+        ],
+    },
+    {
+        "id": "percorso",
+        "titolo": "Il percorso di una commessa",
+        "blocchi": [
+            ("p", "Il giro completo, dall'inizio alla fine. Ogni passo ha il suo capitolo più avanti."),
+            ("passi", [
+                "Crea la commessa con «+ Nuovo kickoff»: cliente, P/N e team. Nasce da sola l'incontro 1.",
+                "Si apre la convocazione dell'incontro 1: data, luogo, partecipanti e ordine del giorno. Salva e premi «Invia convocazione».",
+                "Compila la scheda VRF dalla scheda «VRF» della commessa, oppure carica il file Excel del modulo.",
+                "Scrivi il piano nella scheda «Piano», con la riga rapida sopra il Gantt.",
+                "Il giorno dell'incontro usa «Conduci incontro»; alla fine registra l'esito, invia la minuta e approvala.",
+                "Quando il semaforo di prontezza è verde («Pronto»), porta la commessa «In esecuzione».",
+                "Durante il lavoro aggiorna le attività e tieni i successivi incontri: problemi e azioni aperti tornano da soli nell'ordine del giorno.",
+                "A lavoro finito porta la commessa in «Completata».",
+            ]),
+        ],
+    },
+    {
+        "id": "dashboard",
+        "titolo": "Dashboard: il tuo quadro",
+        "blocchi": [
+            ("p", "«Dashboard» è la pagina «Control room KICK-OFF». Si legge dall'alto verso il basso."),
+            ("ul", [
+                "I riquadri in alto contano le attività nel tuo perimetro: In scope, In corso, Da fare, Overdue (scadute e ancora aperte), Completate, Annullate.",
+                "«Prossimi incontri»: data, commessa e quanto manca.",
+                "«Incontri da gestire»: esito mai registrato per un incontro passato, minuta da approvare, problemi rimasti aperti, con il pulsante per farlo subito.",
+                "«Le mie azioni»: le azioni e i problemi a tuo nome, scaduti in testa.",
+                "«Alert operativi»: attività non assegnate, senza data fine, in scadenza a 7 giorni, ferme da oltre 7 giorni; quante commesse sono Pronte, Quasi pronte, Non pronte.",
+                "«Le tue attività»: l'elenco, con «Le mie» o «Tutto lo scope» e i filtri «In corso» e «Overdue».",
+            ]),
+            ("img", (_IMG + "dashboard.jpg", "La dashboard del modulo")),
+        ],
+    },
+    {
+        "id": "portfolio",
+        "titolo": "Kickoff: l'elenco delle commesse",
+        "blocchi": [
+            ("p", "La voce «Kickoff» apre il «Portfolio kickoff», con tutte le commesse che puoi vedere."),
+            ("ul", [
+                "Filtri: «Cerca» (nome, P/N, cliente), «Cliente», «Stato VRF» (Caricato, In attesa, Bloccato, Da caricare).",
+                "«Ordina per»: Nome, Scadenza più vicina, Avanzamento, Criticità. Premi «Filtra» per applicare, «Reset» per togliere tutto.",
+                "Sulla card trovi numero, cliente, P/N, data di inizio (il primo incontro non annullato), fase, semaforo di prontezza, team e stato del documento VRF.",
+                "Pulsanti della card: «Attivita», «Gantt», «Incontri», «Copia VRF», «Copia senza P/N».",
+            ]),
+            ("img", (_IMG + "portfolio.jpg", "Il portfolio nella vista Card")),
+            ("p", "«Vista» cambia il modo di leggere le stesse commesse:"),
+            ("def", [
+                ("Card", "una scheda per commessa, la vista predefinita."),
+                ("Board", "una colonna per fase: Bozza, VRF, In esecuzione, Completata. Chi può modificare trascina la card, o usa il menu sulla card, per cambiare fase."),
+                ("Timeline", "una barra per commessa sul calendario, colorata in base alla prontezza, con il segno di oggi."),
+            ]),
+            ("img", (_IMG + "board.jpg", "La vista Board: le commesse per fase")),
+        ],
+    },
+    {
+        "id": "nuovo-kickoff",
+        "titolo": "Creare una commessa",
+        "blocchi": [
+            ("passi", [
+                "Premi «+ Nuovo kickoff».",
+                "Identificazione: «Cliente» è l'unico campo obbligatorio; i suggerimenti propongono clienti e P/N già usati. Aggiungi P/N, revisione, versione, metodo di controllo e descrizione.",
+                "Lascia vuoto «Nome del kickoff»: viene composto da solo come «Cliente · P/N · KICK-OFF n». Scrivilo solo se quella formula non basta.",
+                "Spunta «Impatto sulla sicurezza» se il lavoro lo richiede: la commessa viene evidenziata nelle viste.",
+                "Dati scheda VRF: preventivo ed Esp., se li hai. La «Descrizione» scritta sopra finisce anche nella scheda VRF.",
+                "Team di progetto: cerca la persona nel riquadro di ogni ruolo e spuntala. Le persone scelte appaiono come etichette, con × per toglierle. Ogni ruolo può avere più persone.",
+                "Premi «Crea kickoff e convoca il primo incontro»: nasce l'incontro 1 con il team già tra i partecipanti e si apre la sua convocazione.",
+            ]),
+            ("img", (_IMG + "nuovo_kickoff.jpg", "Il form «Nuovo kickoff»")),
+            ("ul", [
+                "Basta un referente del team per creare la commessa; per risultare pronta all'avvio servono Project manager, Capocommessa e Programmatore.",
+                "Revisione e versione valgono solo con un P/N.",
+            ]),
+            ("nota", "Se P/N, revisione e versione corrispondono a un kickoff che esiste già, non ne nasce uno doppio: il portale apre quello esistente e lo dice con un messaggio."),
+        ],
+    },
+    {
+        "id": "modifica-kickoff",
+        "titolo": "Correggere dati e team",
+        "blocchi": [
+            ("passi", [
+                "Apri la commessa e premi «Modifica kickoff» (in Panoramica, nel Piano o nella scheda VRF).",
+                "Correggi i dati o il team.",
+                "Premi «Salva modifiche»: torni alla Panoramica.",
+            ]),
+            ("img", (_IMG + "modifica_kickoff.jpg", "«Modifica kickoff»: gli stessi campi della creazione")),
+            ("ul", [
+                "Il portale rifiuta un P/N, revisione e versione già usati da un altro kickoff.",
+                "Il nome della commessa non cambia da solo se cambi cliente o P/N: se serve, correggilo.",
+                "Il file VRF già generato non si aggiorna: se cambiano i dati, riapri la scheda e conferma di nuovo.",
+            ]),
+        ],
+    },
+    {
+        "id": "panoramica",
+        "titolo": "Panoramica e semaforo di prontezza",
+        "blocchi": [
+            ("p", "Cliccando una commessa arrivi alla «Panoramica»: team, data di inizio, prossimo incontro, azioni aperte, attività a piano, le prossime azioni e gli ultimi incontri."),
+            ("img", (_IMG + "panoramica.jpg", "La Panoramica di una commessa")),
+            ("p", "«Prontezza all'avvio» controlla quattro cose. Ogni voce non a posto ha il link «Correggi», che porta dove si sistema."),
+            ("def", [
+                ("VRF a posto", "scheda confermata o file caricato, oppure VRF segnato come non richiesto."),
+                ("Incontro kickoff fatto", "un incontro svolto: non basta pianificarlo."),
+                ("Team assegnato", "almeno un Project manager, un Capocommessa e un Programmatore."),
+                ("Piano attività definito", "almeno un'attività con la scadenza."),
+            ]),
+            ("p", "Il semaforo dice «Pronto» con 4 su 4, «Quasi pronto» con 2 o 3, «Non pronto» con meno. È un'indicazione: non blocca niente da solo."),
         ],
     },
     {
         "id": "vrf",
         "titolo": "La scheda VRF (MOD.073)",
         "blocchi": [
-            ("p", "La «Scheda valutazione rischi e fornitura» si apre dalla scheda VRF della commessa e si compila online; "
+            ("p", "La «Scheda valutazione rischi e fornitura» si apre dalla scheda «VRF» della commessa e si compila online; "
                   "in alternativa «Carica file esistente» prende il file Excel del modulo, da cui il portale legge preventivo, "
-                  "versione, P/N, descrizione, Esp. e cliente. Una bozza salvata è segnalata nel Piano con Totale Rischio e rischi "
-                  "mancanti, e «Riprendi la scheda VRF» la riapre. Anche a kickoff bloccato la scheda resta compilabile: è quello che lo sblocca."),
+                  "versione, P/N, descrizione, Esp. e cliente."),
+            ("passi", [
+                "Apri la scheda «VRF» della commessa.",
+                "Per ognuno dei 9 rischi (R1-R9) apri «Checklist» se ti serve e scegli la Probabilità P: 1 Bassa, 2 Media, 3 Alta, oppure N/A se il rischio non riguarda la fornitura.",
+                "Guarda il Totale Rischio in fondo alla tabella: si aggiorna mentre scegli.",
+                "Scrivi le azioni correttive (fino a 4) e nome e data di IN1 e EM.",
+                "Premi «Conferma e genera xlsx»: nasce il file del modulo e il VRF risulta a posto.",
+            ]),
+            ("img", (_IMG + "vrf_scheda.jpg", "La scheda VRF: probabilità, gravità, Totale Rischio, azioni e firme")),
             ("ul", [
-                "Per ognuno dei 9 rischi (R1-R9) scegli la Probabilità P: 1 Bassa, 2 Media, 3 Alta, oppure N/A se il "
-                "rischio non riguarda la fornitura. La checklist sotto ogni rischio elenca i punti da considerare.",
                 "La Gravità D è fissata dal modulo: 3 per R1, R2, R3, R8 e R9; 2 per R4, R5, R6 e R7.",
                 "Il rischio R = P × D è verde da 1 a 3, giallo a 4, rosso da 6 a 9.",
-                "Il Totale Rischio (TR) è la somma delle R: Basso fino a 35, Medio tra 35 e 50, Alto da 50 in su. "
-                "Con TR Alto serve il coinvolgimento del CEO.",
-                "Azioni correttive / Risk Action Report: fino a 4 azioni. Firme: nome e data di IN1 e EM.",
-                "«Salva bozza» conserva i valori; «Prosegui e ricordami VRF» salva e torna al Gantt lasciando il VRF da fare; "
-                "«Conferma e genera xlsx» chiede la Probabilità di tutti i 9 rischi e crea il file del modulo.",
+                "Il Totale Rischio (TR) è la somma delle R, al massimo 69: Basso fino a 35, Medio tra 35 e 50, Alto da 50 in su. Con TR Alto serve il coinvolgimento del CEO: il portale lo segnala a video.",
+                "«Salva bozza» conserva i valori. «Prosegui e ricordami VRF» salva e torna al Piano lasciando il VRF da fare.",
+                "«Conferma e genera xlsx» vuole la Probabilità di tutti i 9 rischi: se ne manca una, il messaggio dice quali e la bozza resta salvata.",
+                "Una bozza salvata si vede nel Piano, con Totale Rischio e rischi mancanti: «Riprendi la scheda VRF» la riapre.",
             ]),
+            ("p", "La pagina «Carica file esistente» serve anche a scaricare il documento, a sostituirlo («Sostituisci documento VRF»), a rimandare («Carica in seguito») o a segnare «Non richiesto per questo kickoff». Il file caricato viene mostrato in anteprima prima di confermare."),
+            ("img", (_IMG + "vrf_carica.jpg", "Caricare il file Excel del modulo, oppure segnarlo come non richiesto")),
+        ],
+    },
+    {
+        "id": "blocco-vrf",
+        "titolo": "Avviso e blocco per VRF mancante",
+        "blocchi": [
+            ("p", "Finché il VRF non è a posto, il portale conta i giorni dalla creazione della commessa."),
+            ("ul", [
+                "Dopo 7 giorni compare l'avviso nel Piano e sul portfolio.",
+                "Dopo 30 giorni il kickoff è bloccato: non si creano né si modificano attività, nemmeno dalle scorciatoie degli incontri.",
+                "La scheda VRF resta compilabile anche a kickoff bloccato: è proprio quello che lo sblocca.",
+                "Se il VRF non serve, «Non richiesto per questo kickoff» toglie avviso e blocco.",
+            ]),
+            ("nota", "7 e 30 giorni sono i valori predefiniti: chi gestisce il modulo può cambiarli in Impostazioni › Configurazione."),
+        ],
+    },
+    {
+        "id": "piano",
+        "titolo": "Il Piano e il Gantt",
+        "blocchi": [
+            ("p", "La scheda «Piano» è il posto dove si scrive e si aggiorna il lavoro della commessa."),
+            ("passi", [
+                "Nella riga sopra il Gantt scrivi il titolo dell'attività.",
+                "Scegli il responsabile (prima il team della commessa, poi gli altri), controlla «Inizio» e indica «Fine».",
+                "Premi «Aggiungi». La barra compare nel Gantt e sei pronto per la riga dopo, con lo stesso responsabile.",
+            ]),
+            ("img", (_IMG + "piano.jpg", "Il Piano: numeri, riga rapida e Gantt")),
+            ("p", "L'inizio proposto è il giorno dopo l'ultima fine già in piano. Sul Gantt:"),
+            ("ul", [
+                "Trascina il centro di una barra per spostare inizio e fine insieme.",
+                "Trascina un bordo per allungare o accorciare.",
+                "Clicca una riga per aprire «Modifica rapida»: date, stato e avanzamento.",
+                "«Cascata» acceso: spostando un'attività si spostano anche quelle successive.",
+                "«Finestra», «Densità giorni», «Larghezza nome» e le caselle WBS, Durata, Inizio, Fine cambiano la vista; poi «Applica». «Reset» torna ai valori iniziali.",
+                "Le assenze dei responsabili sono in rosso con una X.",
+            ]),
+            ("def", [
+                ("Dipendenze tra attività", "scegli predecessore e successore per numero (WBS), il tipo e l'eventuale ritardo «Lag (gg)». Tipi: Fine → Inizio (FS), Inizio → Inizio (SS), Fine → Fine (FF), Inizio → Fine (SF)."),
+                ("Fissa baseline", "salva le date di oggi come riferimento. Da quel momento i badge BL nelle righe mostrano di quanti giorni si è spostata la data fine."),
+                ("Commenti kickoff", "note di coordinamento della commessa, con notifica a una persona se serve."),
+            ]),
+            ("p", "I riquadri in alto contano Attività, Avanzamento, Scadute, In 7 giorni, Senza responsabile e Da controllare (conflitti con assenze e date non valide). Con un piano vuoto non compaiono."),
         ],
     },
     {
         "id": "attivita",
         "titolo": "Le attività",
         "blocchi": [
-            ("p", "Il piano si scrive dalla scheda Piano, con la riga in alto sopra il Gantt: titolo, responsabile (prima il team della "
-                  "commessa), Inizio e Fine, poi «Aggiungi». L'inizio proposto è il giorno dopo l'ultima fine già in piano e dopo ogni "
-                  "aggiunta si riparte dal titolo. «+ Attività completa» apre il form con tipo, etichette e «Altre opzioni» "
-                  "(attrezzatura, Outlook e promemoria)."),
-            ("p", "Dentro un incontro, nel dettaglio e nell'esito, «Attività di questo incontro» fa lo stesso senza ricaricare la "
-                  "pagina: titolo, Invio, e la riga è pronta per la successiva con lo stesso responsabile. «Più opzioni» apre il "
-                  "pannello con tipo, priorità, attrezzatura o l'aggiornamento di un'attività esistente. In «Conduci incontro» si "
-                  "usa «Cattura rapida» con il tipo Attività, oppure «+ Nuova attività» sul punto, che la collega al punto."),
+            ("p", "Un'attività si crea in quattro modi. Scegli il più corto che basta."),
+            ("def", [
+                ("Riga del Piano", "titolo, responsabile, Inizio, Fine. Per scrivere un piano intero."),
+                ("«Attività di questo incontro»", "nel dettaglio e nell'esito dell'incontro: Invio salva senza ricaricare la pagina."),
+                ("Conduci incontro", "«Cattura rapida» con tipo Attività, o «+ Nuova attività» sul punto, che la collega al punto."),
+                ("Form completo", "«+ Attività completa» nel Piano, «+ Nuova attività» in Panoramica: tipo, descrizione, etichette, priorità, persone in copia, attrezzatura e Outlook."),
+            ]),
+            ("img", (_IMG + "attivita_form.jpg", "Il form completo: attrezzatura, Outlook e promemoria stanno in «Altre opzioni»")),
             ("ul", [
                 "Gli stati sono Da fare, In corso, Completata e Annullata; le priorità Bassa, Media e Alta.",
                 "Data inizio e data fine possono coincidere: un'attività di una sola giornata è ammessa. "
                 "La data fine non può precedere la data inizio.",
                 "Chi riceve un'attività, alla creazione o quando cambia il responsabile, riceve una notifica nel portale. "
                 "Chi si assegna un'attività da solo non viene avvisato.",
+                "Se la persona ha altri impegni nello stesso periodo, il form completo lo segnala e «Se l'operatore ha altri impegni nello stesso periodo» decide cosa fare della priorità.",
                 "Portando un'attività a «Completata» l'avanzamento passa al 100%.",
                 "Un'attività completata chiude da sola le azioni e i problemi d'incontro collegati a lei; "
                 "un'azione o un problema collegati a un'attività già completata nascono chiusi.",
@@ -72,11 +245,34 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "scheda-attivita",
+        "titolo": "La scheda di un'attività",
+        "blocchi": [
+            ("p", "Cliccando un'attività si apre la sua scheda: chi l'ha creata, a chi è assegnata, date, commessa e prossima azione."),
+            ("img", (_IMG + "attivita_scheda.jpg", "La scheda di un'attività")),
+            ("def", [
+                ("Aggiorna stato", "cambia lo stato senza aprire il form."),
+                ("Data richiesta fine e Data inizio", "si correggono qui, ognuna col suo «Aggiorna»."),
+                ("Subtask", "sotto-attività con responsabile, data e ordine, per spezzare il lavoro."),
+                ("Commenti", "note sull'attività; «Notifica utente» avvisa una persona."),
+                ("Allegati", "file caricati sull'attività o sul kickoff collegato, a scelta in «Destinazione»."),
+                ("Eventi", "la storia delle modifiche: stato, date, assegnatari, subtask, allegati."),
+                ("Modifica attivita", "apre il form completo."),
+            ]),
+        ],
+    },
+    {
         "id": "convocazione",
         "titolo": "Pianificare e convocare un incontro",
         "blocchi": [
-            ("p", "Dalla scheda di commessa, sezione Incontri, «Nuovo incontro» apre la convocazione: dettagli, "
-                  "partecipanti, ordine del giorno e Outlook."),
+            ("passi", [
+                "Scheda «Incontri» della commessa, «+ Nuovo incontro». Per l'incontro 1 la convocazione è già aperta dopo la creazione.",
+                "Informazioni base: «Data» è obbligatoria; titolo, ora e «Luogo / Link» (una sala dalla lista, o un link Teams).",
+                "Partecipanti: cerca gli «Utenti del portale» e aggiungi le «Email aggiuntive (esterni)», una per riga. «Destinatari in copia» vale per convocazione e minuta.",
+                "Ordine del giorno: aggiungi i punti, con durata e attività collegata se serve. Puoi usare un modello o «Duplica ODG dell'incontro precedente».",
+                "Salva. Poi, dal dettaglio dell'incontro, premi «Invia convocazione».",
+            ]),
+            ("img", (_IMG + "convocazione.jpg", "La convocazione: informazioni, partecipanti e ordine del giorno")),
             ("ul", [
                 "L'ordine del giorno parte già con i problemi e le azioni ancora aperti e con i punti non trattati nell'incontro precedente.",
                 "«Pianifica prossimo incontro», dal dettaglio di un incontro svolto, riprende convocati, persone in copia, luogo, "
@@ -94,7 +290,26 @@ SEZIONI: list[dict] = [
                 "L'evento Outlook è un canale separato dalla mail: si attiva con «Calendario Outlook» nel form.",
                 "L'invito .ics allegato alla mail usa l'ora italiana e l'organizzatore dell'evento Outlook (campo «Email organizzatore», "
                 "altrimenti chi ha creato l'incontro); quello di annullamento elenca anche i convocati, così il calendario toglie l'evento.",
+                "Ogni convocato può proporre un punto dal dettaglio di un incontro non ancora svolto: Project manager e capocommessa ricevono la notifica e lo accettano o lo rifiutano.",
+                "«Prepara con l'AI», in «Dalle commesse simili», cerca le commesse dello stesso cliente o P/N e propone punti da aggiungere: li scegli tu.",
             ]),
+        ],
+    },
+    {
+        "id": "incontro",
+        "titolo": "Il dettaglio dell'incontro",
+        "blocchi": [
+            ("p", "È la pagina di riferimento di un incontro: da qui parte tutto il resto."),
+            ("img", (_IMG + "incontro.jpg", "Il dettaglio di un incontro pianificato")),
+            ("def", [
+                ("In alto", "«Conduci incontro», «Registra esito», «Convocazione», «Annulla incontro», «Elimina»."),
+                ("Attività di questo incontro", "scrivi il titolo e premi Invio: la pagina non si ricarica, il responsabile resta e si riparte dal titolo. Sotto, l'elenco delle attività nate dall'incontro. «Più opzioni» apre sotto la riga tipo, priorità e attrezzatura, oppure «Aggiorna un'attività già creata» per correggerne date e responsabile senza crearne un'altra."),
+                ("Documenti", "«Invia convocazione», «Invia minuta», «Scarica minuta PDF», «Approva e chiudi minuta»."),
+                ("Partecipanti", "convocati, email esterne e, a incontro svolto, presenti e assenti."),
+                ("Ordine del giorno e verbale", "i punti, con la spunta di trattato e le note."),
+                ("Problemi, Decisioni, Azioni", "quello che riguarda l'incontro, con «Segna risolto» e «Segna fatta»."),
+            ]),
+            ("img", (_IMG + "incontro_opzioni.jpg", "«Più opzioni» aperto sotto la riga: tipo, priorità, attrezzatura")),
         ],
     },
     {
@@ -115,14 +330,21 @@ SEZIONI: list[dict] = [
         "id": "conduzione",
         "titolo": "Condurre l'incontro",
         "blocchi": [
-            ("p", "«Conduci incontro» apre la schermata da usare durante la riunione."),
+            ("p", "«Conduci incontro» apre la schermata da usare durante la riunione, un punto alla volta. In alto il tempo pianificato, il trascorso e i punti trattati."),
+            ("passi", [
+                "Appello: spunta chi è presente. Il dato si salva subito e vale anche per l'esito e la minuta.",
+                "Su ogni punto scrivi la nota: si salva da sola.",
+                "Serve del lavoro? «+ Nuova attività» sul punto (parte dal titolo del punto, poi responsabile, inizio e fine; «Crea e collega»), oppure scegli un'attività già esistente in «Attività collegata».",
+                "Premi «Segna trattato» e, se vuoi, scrivi il «Tempo effettivo».",
+                "Quello che emerge mentre si parla va in «Cattura rapida», sempre visibile in fondo allo schermo: scegli Attività, Azione, Decisione o Problema, scrivi e premi Invio.",
+                "A fine riunione premi «Termina incontro e registra l'esito».",
+            ]),
+            ("img", (_IMG + "conduci.jpg", "Conduci incontro: i punti e, in fondo, la Cattura rapida")),
             ("ul", [
-                "Appello: si spunta chi è presente; il dato si salva subito e vale anche per l'esito e la minuta.",
-                "Per ogni punto: nota, «Segna trattato», tempo effettivo e attività collegata (esistente o «+ Nuova attività»). "
                 "Ogni modifica si salva da sola e solo sul punto toccato.",
-                "Cattura rapida: registra al volo un'azione, una decisione o un problema, con responsabile e scadenza. "
-                "Il responsabile riceve subito una notifica.",
-                "«Termina incontro e registra l'esito» porta alla pagina dell'esito.",
+                "«Aggiungi un punto» inserisce un argomento nato in riunione: entra nell'ordine del giorno, quindi conta per spunte, tempi e minuta.",
+                "Il responsabile di un'attività, di un'azione o di un problema catturati riceve subito una notifica.",
+                "Le attività entrano nel Piano; azioni e problemi rientrano da soli nell'ordine del giorno del prossimo incontro; le decisioni finiscono nel registro di commessa.",
             ]),
         ],
     },
@@ -130,14 +352,28 @@ SEZIONI: list[dict] = [
         "id": "esito",
         "titolo": "Registrare l'esito e la minuta",
         "blocchi": [
+            ("passi", [
+                "Dal dettaglio premi «Registra esito».",
+                "Presenze: togli la spunta a chi non si è presentato; aggiungi chi c'era e non era convocato.",
+                "Ordine del giorno e verbale: spunta i punti trattati e scrivi cosa è emerso. Spunte e note si salvano subito.",
+                "Problemi: spunta «risolto» su quelli chiusi e aggiungi i nuovi con «Aggiungi problema».",
+                "Decisioni: «Aggiungi decisione», con motivazione, chi ha deciso e impatto.",
+                "Azioni: spunta quelle completate e aggiungi le nuove con «Aggiungi azione»: chi fa cosa entro quando.",
+                "Premi «Registra esito» in fondo: l'incontro passa a «Svolto».",
+                "Nel dettaglio premi «Invia minuta», controlla e poi «Approva e chiudi minuta».",
+            ]),
+            ("img", (_IMG + "esito.jpg", "La pagina esito")),
             ("ul", [
-                "La pagina esito raccoglie presenze, note generali, problemi, decisioni e azioni. Salvando, l'incontro passa a «Svolto».",
+                "«Attività di questo incontro» c'è anche qui: Invio salva l'attività e non registra l'esito.",
                 "Problemi e azioni hanno responsabile e scadenza; finché restano aperti tornano nell'ordine del giorno degli incontri successivi.",
+                "«Note generali» è solo per ciò che non riguarda un punto in particolare.",
+                "Le decisioni non si riscrivono: se una è sbagliata, se ne registra una nuova che la supera.",
                 "I vecchi campi di testo libero (ordine del giorno testuale, problemi aperti, next steps) restano consultabili "
                 "negli incontri storici ma non si compilano più.",
-                "«Approva e chiudi minuta» la segna come approvata; «Riapri minuta» chiede un motivo, che resta a registro.",
+                "«Approva e chiudi minuta» la segna come approvata e mette l'esito in sola lettura; «Riapri minuta» chiede un motivo, che resta a registro.",
                 "«Invia minuta» la manda ai presenti, con gli assenti in copia e il PDF allegato.",
             ]),
+            ("img", (_IMG + "incontro_svolto.jpg", "Un incontro svolto: minuta, problemi, decisioni e azioni")),
         ],
     },
     {
@@ -164,6 +400,7 @@ SEZIONI: list[dict] = [
                 "commessa; ricerca nel testo.",
                 "«Fatta» o «Risolto» chiudono la voce, «Riapri» la riporta aperta.",
             ]),
+            ("img", (_IMG + "mie_azioni.jpg", "Le mie azioni")),
         ],
     },
     {
@@ -176,16 +413,53 @@ SEZIONI: list[dict] = [
                 "Filtri per tipo, responsabile («Non assegnate» per quelle senza nessuno), scadenza e testo. "
                 "I riquadri in alto contano sempre tutto il registro, la tabella mostra il filtrato.",
             ]),
+            ("img", (_IMG + "registro_azioni.jpg", "Il registro azioni di una commessa")),
+        ],
+    },
+    {
+        "id": "decisioni",
+        "titolo": "Registro decisioni",
+        "blocchi": [
+            ("p", "Raccoglie tutte le decisioni della commessa, con motivazione, chi ha deciso e impatto (Basso, Medio, Alto). Si apre dal link «Registro di commessa» nel dettaglio di un incontro."),
+            ("p", "Le decisioni si registrano nella pagina esito o in Cattura rapida, finiscono nella minuta e non si riscrivono: una decisione si supera con una nuova."),
         ],
     },
     {
         "id": "elenco-incontri",
         "titolo": "Elenco e calendario incontri",
         "blocchi": [
+            ("p", "La voce «Calendario» mostra gli incontri del mese; l'elenco raccoglie tutti gli incontri a cui hai accesso."),
             ("ul", [
                 "«I miei» comprende gli incontri in cui sei convocato, in copia, presente, che hai creato o della cui commessa fai parte del team.",
                 "Filtri: stato, periodo (Prossimi 7 giorni, Da oggi in poi, Passati), esito e minuta "
                 "(Esito da registrare, Minuta da approvare, Minuta approvata), commessa e ricerca nel verbale.",
+            ]),
+            ("img", (_IMG + "elenco_incontri.jpg", "L'elenco degli incontri")),
+        ],
+    },
+    {
+        "id": "da-gestire",
+        "titolo": "Da gestire",
+        "blocchi": [
+            ("p", "«Da gestire» riunisce quello che richiede un intervento. In alto scegli «Portfolio» (tutte le commesse) o «Le mie». Ogni riga porta dove si risolve."),
+            ("def", [
+                ("Azioni e problemi aperti", "quelli assegnati a te."),
+                ("VRF da compilare", "commesse con il VRF non ancora a posto."),
+                ("Commesse non pronte", "commesse con il semaforo di prontezza incompleto."),
+                ("Attività critiche", "scadute, non assegnate, senza data o ferme."),
+                ("Incontri da chiudere", "esito da registrare, minuta da approvare, problemi aperti."),
+            ]),
+            ("img", (_IMG + "da_gestire.jpg", "La pagina «Da gestire»")),
+        ],
+    },
+    {
+        "id": "copia",
+        "titolo": "Copiare una commessa e importare da Excel",
+        "blocchi": [
+            ("def", [
+                ("Copia VRF", "sulla card del portfolio: crea un nuovo kickoff con gli stessi dati, lo stesso team e il file VRF."),
+                ("Copia senza P/N", "come sopra, ma svuota il P/N della commessa e del file VRF. Utile per un particolare simile."),
+                ("Import Excel", "nel portfolio: «Scarica template .xlsx», compilalo e caricalo. L'anteprima mostra cosa verrà importato prima di confermare."),
             ]),
         ],
     },
@@ -200,6 +474,54 @@ SEZIONI: list[dict] = [
                 "Più avvisi per la stessa persona nello stesso giorno arrivano in una sola email.",
             ]),
             ("nota", "Le notifiche nel portale rispettano le preferenze dell'utente e l'interruttore generale delle notifiche."),
+        ],
+    },
+    {
+        "id": "permessi",
+        "titolo": "Chi può fare cosa",
+        "blocchi": [
+            ("p", "Vedi le commesse del tuo perimetro: quelle dove sei nel team o convocato a un incontro, più quelle che i tuoi permessi aprono."),
+            ("def", [
+                ("Chi gestisce la commessa", "chi l'ha creata, chi ha i permessi di amministrazione del modulo e i ruoli con «Modifica tutto»: modifica dati e team, VRF, incontri, minute e piano."),
+                ("Chi ha un'attività", "con «Modifica solo i task assegnati» aggiorna le proprie attività e vede il resto."),
+                ("Il responsabile di un'azione o di un problema", "li chiude da sé, anche senza gestire la commessa."),
+                ("Un convocato", "vede l'incontro e può proporre un punto all'ordine del giorno."),
+            ]),
+            ("nota", "Se ti manca un pulsante che ti serve, chiedilo a chi gestisce il modulo: lo trova in Impostazioni › Accessi."),
+        ],
+    },
+    {
+        "id": "impostazioni",
+        "titolo": "Impostazioni (per chi gestisce il modulo)",
+        "blocchi": [
+            ("def", [
+                ("Configurazione", "email e preavviso delle notifiche di scadenza, «Giorni avviso» e «Giorni blocco» del VRF (9999 toglie il blocco), verifica disponibilità degli asset, destinatari in copia predefiniti."),
+                ("Riepilogo", "il quadro del modulo."),
+                ("Ruoli operativi", "catalogo dei ruoli e assegnazione delle persone: sono le liste del team. «Da anagrafica (Reparti)» legge i Caporeparto dai reparti; «Manuale» li assegna a mano."),
+                ("Accessi", "per ogni ruolo e per la singola persona: Vede tutto, Modifica solo i task assegnati, Modifica tutto."),
+                ("Promemoria", "i promemoria programmati delle attività: si eliminano, si rimandano o si inviano subito."),
+                ("Tipi attivita", "le tipologie di attività e i campi extra del form, con il ruolo dedicato."),
+                ("Modelli ODG", "punti ricorrenti da caricare nella convocazione. Un punto per riga; per la durata scrivi «Titolo | 15»."),
+                ("Record", "ricerca ed eliminazione di kickoff e attività: serve una motivazione e non si torna indietro."),
+                ("Log attivita", "il registro delle operazioni del modulo."),
+            ]),
+            ("img", (_IMG + "impostazioni.jpg", "Le impostazioni del modulo")),
+        ],
+    },
+    {
+        "id": "problemi",
+        "titolo": "Se qualcosa non va",
+        "blocchi": [
+            ("def", [
+                ("Non vedo una commessa", "non sei nel team e non hai permessi su di lei: chiedi di essere aggiunto da «Modifica kickoff»."),
+                ("Non riesco a creare attività: kickoff bloccato", "compila la scheda VRF o segnala «Non richiesto per questo kickoff»."),
+                ("«Conferma e genera xlsx» non crea il file", "il messaggio elenca i rischi senza Probabilità: sceglila per tutti i 9, N/A se non si applica."),
+                ("La persona non è nell'elenco del team", "le liste vengono dai ruoli operativi: chi gestisce il modulo la aggiunge in Impostazioni › Ruoli operativi."),
+                ("Ho salvato l'incontro ma nessuno ha ricevuto niente", "salvare non invia email: premi «Invia convocazione» nel dettaglio."),
+                ("Compare «La data fine non può precedere la data inizio»", "correggi anche l'Inizio: quello proposto è il giorno dopo l'ultima fine in piano."),
+                ("«Elimina» non c'è su un incontro", "un incontro svolto o con decisioni non si elimina. Se non si terrà, usa «Annulla incontro»."),
+                ("Non posso più modificare l'esito", "la minuta è approvata: «Riapri minuta», con il motivo."),
+            ]),
         ],
     },
 ]

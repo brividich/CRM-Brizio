@@ -1,5 +1,6 @@
 {% extends "tasks/base_shell.html" %}
 {% load static %}
+{% block tasks_shell_guide_anchor %}#incontro{% endblock %}
 
 {% block tasks_shell_content %}
 <div style="padding: 0 4px;">
@@ -573,6 +574,6 @@
   window.MEETING_TASK_MODAL = { url: "{{ task_from_step_url }}" };
 </script>
 <script src="{% static 'tasks/js/meeting_task_modal.js' %}?v=20261105" defer></script>
-<script src="{% static 'tasks/js/quick_task_bar.js' %}?v=20261105" defer></script>
+<script src="{% static 'tasks/js/quick_task_bar.js' %}?v=20261105b" defer></script>
 {% endif %}
 {% endblock %}

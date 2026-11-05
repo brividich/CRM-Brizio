@@ -35,14 +35,53 @@
     var count = bar.querySelector('[data-qt-count]');
     var inCorso = false;
 
+    var inizioProposto = start.value;
+
+    function valore(nome) {
+      var campo = f(nome);
+      return campo ? campo.value : '';
+    }
+
+    function mostraEsito(testo) {
+      err.textContent = testo;
+      err.hidden = !testo;
+      err.classList.add('qt-ok');
+    }
+
+    /* I campi dell'attrezzatura compaiono solo per la scelta che li chiede. */
+    function sincronizzaAttrezzatura() {
+      var modo = valore('tooling');
+      bar.querySelectorAll('[data-qt-show]').forEach(function (campo) {
+        campo.hidden = campo.dataset.qtShow.split(' ').indexOf(modo) < 0;
+      });
+    }
+
+    function azzeraOpzioni() {
+      ['existing', 'category', 'tool-existing', 'tool-pn', 'tool-code', 'tool-note'].forEach(function (nome) {
+        var campo = f(nome);
+        if (campo) { campo.value = ''; }
+      });
+      if (f('priority')) { f('priority').value = 'MEDIUM'; }
+      if (f('tooling')) { f('tooling').value = 'none'; }
+      sincronizzaAttrezzatura();
+      sincronizzaBottone();
+    }
+
+    function sincronizzaBottone() {
+      var aggiorna = !!valore('existing');
+      save.textContent = aggiorna ? 'Aggiorna' : 'Aggiungi';
+      title.placeholder = aggiorna ? 'Nuovo titolo (lascia vuoto per non cambiarlo)' : 'Nuova attività: scrivi il titolo e premi Invio';
+    }
+
     function mostraErrore(testo) {
+      err.classList.remove('qt-ok');
       err.textContent = testo;
       err.hidden = !testo;
     }
 
     function salva() {
       var titolo = title.value.trim();
-      if (!titolo) { title.focus(); return; }
+      if (!titolo && !valore('existing')) { title.focus(); return; }
       if (inCorso) { return; }
       inCorso = true;
       save.disabled = true;
@@ -56,15 +95,35 @@
         },
         body: new URLSearchParams({
           title: titolo,
+          task_id: valore('existing'),
           assigned_to: owner.value,
           next_step_due: start.value,
-          due_date: due.value
+          due_date: due.value,
+          category: valore('category'),
+          priority: valore('priority') || 'MEDIUM',
+          tooling_mode: valore('tooling') || 'none',
+          tooling_existing_attrezzatura: valore('tool-existing'),
+          tooling_part_number: valore('tool-pn'),
+          tooling_code: valore('tool-code'),
+          tooling_description: valore('tool-note')
         })
       }).then(function (r) {
         return r.json().catch(function () { return { ok: false }; });
       }).then(function (data) {
         if (!data.ok) {
           mostraErrore(data.message || (data.reason && data.reason.indexOf(' ') > 0 ? data.reason : 'Attività non creata: riprova.'));
+          return;
+        }
+        if (data.created === false) {
+          bar.querySelectorAll('[data-qt="log"] a').forEach(function (link) {
+            if (link.getAttribute('href') === data.task_url) { link.textContent = data.title; }
+          });
+          mostraEsito('Attività «' + data.title + '» aggiornata.');
+          azzeraOpzioni();
+          title.value = '';
+          due.value = '';
+          start.value = inizioProposto;
+          title.focus();
           return;
         }
         var li = document.createElement('li');
@@ -79,7 +138,16 @@
         log.appendChild(li);
         if (count) { count.textContent = String(log.children.length); }
         if (window.meetingTaskModalAddTask) { window.meetingTaskModalAddTask({ id: data.task_id, title: data.title }); }
+        var esistente = f('existing');
+        if (esistente) {
+          var opt = document.createElement('option');
+          opt.value = String(data.task_id);
+          opt.textContent = data.title;
+          esistente.appendChild(opt);
+        }
+        azzeraOpzioni();
         if (data.due_date) { start.value = giornoDopo(data.due_date); }
+        inizioProposto = start.value;
         title.value = '';
         due.value = '';
         title.focus();
@@ -100,14 +168,26 @@
     });
 
     var piu = f('more');
-    if (piu) {
+    var box = f('more-box');
+    if (piu && box) {
       piu.addEventListener('click', function () {
-        if (!window.openCreateTaskModal) { return; }
-        window.openCreateTaskModal('', null);
-        var porta = { 'ctm-title': title.value, 'ctm-assignee': owner.value, 'ctm-start': start.value, 'ctm-due': due.value };
-        Object.keys(porta).forEach(function (id) {
-          var campo = document.getElementById(id);
-          if (campo) { campo.value = porta[id]; }
+        box.hidden = !box.hidden;
+        piu.setAttribute('aria-expanded', String(!box.hidden));
+      });
+    }
+    if (f('tooling')) { f('tooling').addEventListener('change', sincronizzaAttrezzatura); }
+    if (f('existing')) {
+      /* Aggiornando un'attività le date proposte non devono sovrascrivere le sue. */
+      f('existing').addEventListener('change', function () {
+        if (valore('existing')) { start.value = ''; due.value = ''; } else { start.value = inizioProposto; }
+        sincronizzaBottone();
+      });
+    }
+    /* Invio nei campi del blocco salva come nella riga, senza inviare il form dell'esito. */
+    if (box) {
+      box.querySelectorAll('input').forEach(function (campo) {
+        campo.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter') { ev.preventDefault(); salva(); }
         });
       });
     }
