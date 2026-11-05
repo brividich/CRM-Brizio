@@ -423,6 +423,24 @@ GUIDA = {
             ],
         },
         {
+            "id": "esplora-struttura",
+            "titolo": "Esplora la struttura",
+            "blocchi": [
+                ("p", "Persone → Esplora la struttura: in una pagina sola la catena centro di costo → reparto → ruolo → "
+                      "mansione → competenza. Sola lettura, per chi vede la Struttura organizzativa."),
+                ("ul", [
+                    "Per scendere scegli una voce in una colonna; per risalire clicca un punto del percorso in alto.",
+                    "«Altre strade»: stesso ruolo in altri reparti, «riporta a» e «gli riporta», stessa mansione sotto "
+                    "un altro ruolo, stessa competenza su un'altra mansione, pagine già filtrate.",
+                    "«Cerca in tutta la struttura» trova ogni livello dal nome e ci salta sopra.",
+                    "«Senza centro di costo», «Senza reparto» e «Senza ruolo» raccolgono quello che non è collegato.",
+                ]),
+                ("nota", "Un ruolo compare in un reparto se è previsto dall'elenco aziendale, se lo ricopre una persona "
+                         "del reparto o se una mansione del reparto sta sotto quel ruolo. Il numero a destra sono le "
+                         "persone in forza, come in «Reparti, aree e capi»."),
+            ],
+        },
+        {
             "id": "centri-costo",
             "titolo": "Centri di costo",
             "blocchi": [

@@ -115,6 +115,9 @@ def _dipendenti_filters(request: HttpRequest) -> str:
     area = (request.GET.get("area") or "").strip()
     if area:
         parts.append(f"Reparto (catalogo): {area}")
+    centro = (request.GET.get("centro_costo") or "").strip()
+    if centro:
+        parts.append(f"Centro di costo: {centro}")
     contratto = (request.GET.get("tipologia_contratto") or "").strip()
     if contratto:
         from anagrafica.models import TipologiaContratto

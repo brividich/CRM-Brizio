@@ -35,6 +35,7 @@
       </div>
       <div class="fmd-pagehead-actions">
         {% if is_admin %}<a class="fmd-btn fmd-btn-ghost" href="#impostazioni" data-mns-vai="impostazioni"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica</a>{% endif %}
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:esplora_struttura' %}?mansione={{ mansione.pk }}">Esplora la struttura</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#mansionario" title="Come funziona questa pagina">? Guida</a>
       </div>
     </div>
