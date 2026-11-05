@@ -48,6 +48,10 @@ from ..services.notify import (
     _project_notify_users_queryset,
 )
 from ._shared import (
+    _safe_int,
+    _prossimo_inizio,
+    _utenti_riga_rapida,
+    _vrf_bozza,
     OPEN_STATUSES,
     _add_task_absence_warnings,
     _log_task_update_events,
@@ -57,6 +61,61 @@ from ._shared import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@require_POST
+@task_permissions_required("tasks_view", "tasks_create")
+def project_quick_task(request, project_id: int):
+    """Aggiunge un'attivita' al piano dalla riga rapida del Gantt."""
+    from django.utils.dateparse import parse_date
+
+    from ..forms import task_active_users_queryset
+    from ..services.meeting_tasks import KickoffBloccatoVRF, crea_attivita_rapida
+
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    if not can_manage_project(request, project):
+        return render(request, "core/pages/forbidden.html", {"page_title": "Accesso negato"}, status=403)
+
+    destinazione = reverse("tasks:project_gantt", kwargs={"project_id": project.id}) + "#riga-rapida"
+
+    def _data(nome):
+        try:
+            return parse_date((request.POST.get(nome) or "").strip())
+        except ValueError:
+            return None
+
+    assegnatario = None
+    raw_utente = (request.POST.get("assigned_to") or "").strip()
+    if raw_utente.isdigit():
+        assegnatario = task_active_users_queryset().filter(pk=int(raw_utente)).first()
+    try:
+        task = crea_attivita_rapida(
+            project=project,
+            user=request.user,
+            title=request.POST.get("title", ""),
+            assigned_to=assegnatario,
+            start_date=_data("start_date"),
+            due_date=_data("due_date"),
+        )
+    except KickoffBloccatoVRF:
+        messages.error(request, "Kickoff bloccato per VRF mancante: compila la scheda VRF per aggiungere attività.")
+        return redirect(destinazione)
+    except ValueError as exc:
+        if str(exc) == "date_range":
+            messages.error(request, "La data fine non può precedere la data inizio.")
+        else:
+            messages.error(request, "Scrivi il titolo dell'attività.")
+        return redirect(destinazione)
+    log_action(request, "task_quick_create", "tasks", {
+        "project_id": project.id,
+        "task_id": task.id,
+        "message": f"Attività #{task.id} aggiunta dalla riga rapida al kickoff #{project.id}",
+    })
+    messages.success(request, f"Attività «{task.title}» aggiunta al piano.")
+    # Il piano si scrive a raffica: il responsabile resta quello appena usato.
+    if assegnatario is not None:
+        destinazione = reverse("tasks:project_gantt", kwargs={"project_id": project.id}) + f"?resp={assegnatario.pk}#riga-rapida"
+    return redirect(destinazione)
 
 
 @task_permissions_required("tasks_view")
@@ -206,6 +265,10 @@ def project_gantt(request, project_id: int):
             "gantt_baseline": baseline,
             "gantt_deps": deps_display,
             "dependency_type_choices": DependencyType.choices,
+            "vrf_bozza": _vrf_bozza(project),
+            "quick_start": _prossimo_inizio(tasks, today),
+            "quick_users": _utenti_riga_rapida(project),
+            "quick_resp": _safe_int(request.GET.get("resp")),
             "can_add_project_task": has_task_permission(request, "tasks_create") and can_manage_project(request, project),
         },
     )

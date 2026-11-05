@@ -10,13 +10,14 @@ body.tk-wide .content sta in tasks.css.
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Gantt</span>{% endblock %}
 {% block tasks_shell_title %}{{ project.name }}{% endblock %}
 {% block tasks_shell_subtitle %}
-  Timeline {{ gantt_timeline_start|date:"d-m-Y" }} → {{ gantt_timeline_end|date:"d-m-Y" }} — {{ gantt_days|length }} giorni. Le attività modificabili espongono drag e quick edit.
+  Timeline {{ gantt_timeline_start|date:"d-m-Y" }} → {{ gantt_timeline_end|date:"d-m-Y" }} — {{ gantt_days|length }} giorni. Trascina le barre per spostare le date, clicca una riga per modificarla.
 {% endblock %}
 
 {% block tasks_shell_meta %}
-  <span class="ts-hero-pill">{{ tasks|length }} attivita</span>
+  <span class="ts-hero-pill">{{ tasks|length }} attività</span>
   {% if project.client_name %}<span class="ts-hero-pill">{{ project.client_name }}</span>{% endif %}
-  {% if project.part_number %}<span class="ts-hero-pill">P/N {{ project.part_number }}</span>{% endif %}
+  {% if project.part_number %}<span class="ts-hero-pill">P/N {{ project.part_number }}{% if project.revisione %} Rev. {{ project.revisione }}{% endif %}</span>{% endif %}
+  {% if project.vrf_quote_number %}<span class="ts-hero-pill">Prev. {{ project.vrf_quote_number }}</span>{% endif %}
   {% if project.safety_impact %}<span class="ts-hero-pill" style="background:rgba(239,68,68,.2);border-color:rgba(239,68,68,.35);">Impatto sicurezza</span>{% endif %}
   <span class="ts-hero-pill" style="{% if can_edit_schedule %}background:rgba(34,197,94,.2);border-color:rgba(34,197,94,.35);{% endif %}">
     {% if can_edit_schedule %}Modifica attiva{% else %}Sola lettura{% endif %}
@@ -26,54 +27,67 @@ body.tk-wide .content sta in tasks.css.
 {% block tasks_shell_actions %}
   {% if can_add_project_task %}
     {% if vrf_detail.is_blocked %}
-      <span class="ts-hero-action" style="opacity:.4;cursor:not-allowed;pointer-events:none;">+ Aggiungi attivita</span>
+      <span class="ts-hero-action" style="opacity:.4;cursor:not-allowed;pointer-events:none;">+ Attività completa</span>
     {% else %}
-      <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">+ Aggiungi attivita</a>
+      <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">+ Attività completa</a>
     {% endif %}
   {% endif %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_vrf_upload' project.id %}">VRF</a>
-  <a class="ts-hero-action" href="{% url 'tasks:list' %}?project={{ project.id }}">Attivita</a>
+  {% if can_add_project_task %}<a class="ts-hero-action" href="{% url 'tasks:project_edit' project.id %}">Modifica kickoff</a>{% endif %}
+  <a class="ts-hero-action" href="{% url 'tasks:list' %}?project={{ project.id }}">Elenco attività</a>
   <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio</a>
 {% endblock %}
 
+{% block tasks_shell_head %}
+{{ block.super }}
+<style>
+  .g-quick {
+    display: grid; grid-template-columns: minmax(240px, 2fr) minmax(170px, 1fr) 150px 150px auto; gap: 10px;
+    align-items: end; padding: 12px 14px; background: var(--surface);
+    border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 10px;
+  }
+  .g-quick .ts-field { margin: 0; }
+  #riga-rapida { scroll-margin-top: calc(var(--nav-h, 60px) + 16px); }
+  .g-quick-off { margin: 0; padding: 10px 14px; color: var(--text-light); font-size: 13px; }
+  @media (max-width: 900px) { .g-quick { grid-template-columns: 1fr 1fr; } .g-quick-title { grid-column: 1 / -1; } }
+</style>
+{% endblock %}
+
 {% block tasks_shell_kpis %}
+{% if project_summary.total_tasks %}
 <section class="ts-kpis">
   <article class="ts-kpi blue">
-    <div class="ts-kpi-label">Attivita</div>
+    <div class="ts-kpi-label">Attività</div>
     <div class="ts-kpi-value">{{ project_summary.total_tasks }}</div>
-    <div class="ts-kpi-note">Nella timeline corrente.</div>
-    <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:100%"></div></div>
+    <div class="ts-kpi-note">{{ project_summary.open_tasks }} aperte, {{ project_summary.in_progress_tasks }} in corso.</div>
   </article>
   <article class="ts-kpi green">
-    <div class="ts-kpi-label">Progresso</div>
+    <div class="ts-kpi-label">Avanzamento</div>
     <div class="ts-kpi-value">{{ project_summary.progress_percent }}%</div>
     <div class="ts-kpi-note">{{ project_summary.done_tasks }} chiuse.</div>
     <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{{ project_summary.progress_percent }}%"></div></div>
   </article>
-  <article class="ts-kpi amber">
-    <div class="ts-kpi-label">Aperte</div>
-    <div class="ts-kpi-value">{{ project_summary.open_tasks }}</div>
-    <div class="ts-kpi-note">{{ project_summary.in_progress_tasks }} in corso.</div>
-    {% if project_summary.total_tasks %}
-      <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio project_summary.open_tasks project_summary.total_tasks 100 %}%"></div></div>
-    {% endif %}
-  </article>
   <article class="ts-kpi red">
-    <div class="ts-kpi-label">Criticita</div>
-    <div class="ts-kpi-value">{{ project_summary.overdue_tasks|add:project_summary.absence_conflict_tasks|add:project_summary.invalid_range_tasks }}</div>
-    <div class="ts-kpi-note">Scadute, conflitti, range non validi.</div>
+    <div class="ts-kpi-label">Scadute</div>
+    <div class="ts-kpi-value">{{ project_summary.overdue_tasks }}</div>
+    <div class="ts-kpi-note">Aperte con data fine superata.</div>
+  </article>
+  <article class="ts-kpi amber">
+    <div class="ts-kpi-label">In 7 giorni</div>
+    <div class="ts-kpi-value">{{ project_summary.due_next_7d_tasks }}</div>
+    <div class="ts-kpi-note">Attività che finiscono a breve.</div>
   </article>
   <article class="ts-kpi teal">
-    <div class="ts-kpi-label">Finestra</div>
-    <div class="ts-kpi-value">{{ gantt_days|length }}</div>
-    <div class="ts-kpi-note">Giorni visibili nella timeline.</div>
+    <div class="ts-kpi-label">Senza responsabile</div>
+    <div class="ts-kpi-value">{{ project_summary.unassigned_tasks }}</div>
+    <div class="ts-kpi-note">{{ project_summary.high_priority_open_tasks }} ad alta priorità aperte.</div>
   </article>
-  <article class="ts-kpi {% if can_edit_schedule %}green{% else %}slate{% endif %}">
-    <div class="ts-kpi-label">Permesso</div>
-    <div class="ts-kpi-value">{% if can_edit_schedule %}Edit{% else %}Read{% endif %}</div>
-    <div class="ts-kpi-note">Disponibili solo sulle righe che puoi modificare.</div>
+  <article class="ts-kpi slate">
+    <div class="ts-kpi-label">Da controllare</div>
+    <div class="ts-kpi-value">{{ project_summary.absence_conflict_tasks|add:project_summary.invalid_range_tasks }}</div>
+    <div class="ts-kpi-note">Conflitti con assenze, date non valide.</div>
   </article>
 </section>
+{% endif %}
 {% endblock %}
 
 {% block tasks_shell_content %}
@@ -85,120 +99,57 @@ body.tk-wide .content sta in tasks.css.
       <div class="g-vrf-icon">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </div>
-      <div class="g-vrf-text">{{ vrf_detail.label }}</div>
-      <a class="btn btn-sm" href="{% url 'tasks:project_vrf_upload' project.id %}">Carica VRF ora</a>
+      <div class="g-vrf-text">{{ vrf_detail.label }}{% if vrf_bozza %} <strong>Bozza salvata: TR {{ vrf_bozza.tr }} ({{ vrf_bozza.livello }}){% if vrf_bozza.mancanti %}, mancano {{ vrf_bozza.mancanti|join:", " }}{% endif %}.</strong>{% endif %}</div>
+      <a class="btn btn-sm" href="{% url 'tasks:project_vrf_compile' project.id %}">{% if vrf_bozza %}Riprendi la scheda VRF{% else %}Compila la scheda VRF{% endif %}</a>
     </div>
   {% elif vrf_detail.status == 'warning' %}
     <div class="g-vrf-banner warning">
       <div class="g-vrf-icon">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       </div>
-      <div class="g-vrf-text">{{ vrf_detail.label }}</div>
-      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_vrf_upload' project.id %}">Carica VRF</a>
+      <div class="g-vrf-text">{{ vrf_detail.label }}{% if vrf_bozza %} <strong>Bozza salvata: TR {{ vrf_bozza.tr }} ({{ vrf_bozza.livello }}){% if vrf_bozza.mancanti %}, mancano {{ vrf_bozza.mancanti|join:", " }}{% endif %}.</strong>{% endif %}</div>
+      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_vrf_compile' project.id %}">{% if vrf_bozza %}Riprendi la scheda VRF{% else %}Compila la scheda VRF{% endif %}</a>
     </div>
   {% elif vrf_detail.status == 'pending' %}
     <div class="g-vrf-banner pending">
       <div class="g-vrf-icon">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
       </div>
-      <div class="g-vrf-text">{{ vrf_detail.label }}</div>
-      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_vrf_upload' project.id %}">Carica VRF</a>
+      <div class="g-vrf-text">{{ vrf_detail.label }}{% if vrf_bozza %} <strong>Bozza salvata: TR {{ vrf_bozza.tr }} ({{ vrf_bozza.livello }}){% if vrf_bozza.mancanti %}, mancano {{ vrf_bozza.mancanti|join:", " }}{% endif %}.</strong>{% endif %}</div>
+      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_vrf_compile' project.id %}">{% if vrf_bozza %}Riprendi la scheda VRF{% else %}Compila la scheda VRF{% endif %}</a>
     </div>
   {% endif %}
 
-  {# ── Anagrafica kickoff ── #}
-  {% if project.client_name or project.team_users or project.control_method or project.safety_impact or project.part_number or project.revisione or project.versione or project.similar_project or project.similar_work_note %}
-    <section class="ts-panel">
-      <div class="ts-panel-head">
-        <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Anagrafica kickoff</h2>
-          <p class="ts-panel-subtitle">Riferimenti utili mentre pianifichi le attivita nella timeline.</p>
+  {# ── Riga rapida: il piano si scrive qui, una riga dopo l'altra ── #}
+  {% if can_add_project_task %}
+    {% if vrf_detail.is_blocked %}
+      <p class="g-quick-off">Attività bloccate finché la scheda VRF non è a posto.</p>
+    {% else %}
+      <form method="post" action="{% url 'tasks:project_quick_task' project.id %}" class="g-quick" id="riga-rapida">
+        {% csrf_token %}
+        <div class="ts-field g-quick-title">
+          <label for="quick_title">{% if project_summary.total_tasks %}Aggiungi attività{% else %}Prima attività del piano{% endif %}</label>
+          <input id="quick_title" class="input" type="text" name="title" maxlength="200" required placeholder="Titolo dell'attività">
         </div>
-        <div class="ts-panel-meta">
-          {% if vrf_detail.status == 'ok' %}     <span class="ts-chip ok">VRF caricato</span>
-          {% elif vrf_detail.status == 'na' %}    <span class="ts-chip soft">VRF N/A</span>
-          {% elif vrf_detail.status == 'blocked' %}<span class="ts-chip danger">VRF bloccato</span>
-          {% elif vrf_detail.status == 'warning' %}<span class="ts-chip warn">VRF in attesa</span>
-          {% else %}                               <span class="ts-chip soft">VRF da caricare</span>{% endif %}
+        <div class="ts-field">
+          <label for="quick_user">Responsabile</label>
+          <select id="quick_user" class="input" name="assigned_to">
+            <option value="">Da assegnare</option>
+            {% include "tasks/_quick_user_options.html" with selected=quick_resp %}
+          </select>
         </div>
-      </div>
-      <div class="ts-panel-body">
-        <div class="ts-card-meta">
-          {% if project.client_name %}<span class="task-meta-chip">{{ project.client_name }}</span>{% endif %}
-          {% if project.part_number %}<span class="task-meta-chip" style="background:#eef2ff;border-color:#c7d2fe;color:#3730a3;"><strong>P/N</strong> {{ project.part_number }}</span>{% endif %}
-          {% if project.revisione %}<span class="task-meta-chip" style="background:var(--success-bg);border-color:var(--success-bg);color:var(--success);"><strong>Rev</strong> {{ project.revisione }}</span>{% endif %}
-          {% if project.versione %}<span class="task-meta-chip" style="background:#fff7ed;border-color:#fed7aa;color:#9a3412;"><strong>Ver</strong> {{ project.versione }}</span>{% endif %}
-          {% if project.vrf_quote_number %}<span class="task-meta-chip">Prev. {{ project.vrf_quote_number }}</span>{% endif %}
-          {% if project.vrf_description %}<span class="task-meta-chip">{{ project.vrf_description }}</span>{% endif %}
-          {% if project.safety_impact %}<span class="task-meta-chip" style="background:var(--danger-bg);border-color:var(--danger-bg);color:var(--danger);">Impatto sicurezza</span>{% endif %}
-          {% for block in project.team_blocks %}{% if block.display %}<span class="task-meta-chip">{{ block.label }}: {{ block.display }}</span>{% endif %}{% endfor %}
-          {% if project.control_method %}<span class="task-meta-chip">Controllo: {{ project.control_method }}</span>{% endif %}
-          {% if project.similar_project %}<span class="task-meta-chip">Simile a: {{ project.similar_project.name }}</span>{% endif %}
-          {% if project.similar_work_note %}<span class="task-meta-chip">{{ project.similar_work_note }}</span>{% endif %}
+        <div class="ts-field">
+          <label for="quick_start">Inizio</label>
+          <input id="quick_start" class="input" type="date" name="start_date" value="{{ quick_start|date:'Y-m-d' }}">
         </div>
-      </div>
-    </section>
+        <div class="ts-field">
+          <label for="quick_due">Fine</label>
+          <input id="quick_due" class="input" type="date" name="due_date">
+        </div>
+        <button type="submit" class="btn">Aggiungi</button>
+      </form>
+    {% endif %}
   {% endif %}
-
-  {# ── Step 3/3 del wizard: gantt vuoto, suggerisci prima attivita ── #}
-  {% if total_tasks == 0 %}
-    <section class="ts-panel" style="border-left: 4px solid var(--accent);">
-      <div class="ts-panel-body" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding:18px 22px;">
-        <div style="flex:1; min-width:240px;">
-          <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:var(--accent); font-weight:700; margin-bottom:4px;">Step 3/3 · Attivita' di lavorazione</div>
-          <h3 style="margin:0 0 6px 0; font-size:16px; color:var(--text);">Aggiungi la prima attivita' al kickoff</h3>
-          <p style="margin:0; font-size:13px; color:var(--text-light);">
-            Kickoff creato{% if vrf_detail.status == 'ok' %} e scheda VRF compilata{% endif %}. Ora puoi iniziare la pianificazione: definisci titolo, responsabile e date della prima attivita' di lavorazione.
-          </p>
-        </div>
-        <a href="{% url 'tasks:create' %}?project={{ project.id }}" class="btn">Aggiungi prima attivita' &rarr;</a>
-      </div>
-    </section>
-  {% endif %}
-
-  {# ── Spotlight: progress + health ── #}
-  <div class="g-spotlight">
-    <article class="g-progress-card">
-      <div class="g-progress-header">
-        <div>
-          <h3 class="g-progress-title">Stato kickoff</h3>
-          <p class="g-progress-sub">Avanzamento, aperture e finestra temporale in un colpo d'occhio.</p>
-        </div>
-        <div class="g-progress-pct">{{ project_summary.progress_percent }}%</div>
-      </div>
-      <div class="g-progress-bar-wrap">
-        <div class="g-progress-bar-fill" style="width:{{ project_summary.progress_percent }}%"></div>
-      </div>
-      <div class="g-progress-pills">
-        <span class="g-progress-pill">Aperte: {{ project_summary.open_tasks }}</span>
-        <span class="g-progress-pill">Chiuse: {{ project_summary.done_tasks }}</span>
-        <span class="g-progress-pill">{{ project_summary.planned_start|date:"d-m" }} → {{ project_summary.planned_end|date:"d-m" }}</span>
-      </div>
-    </article>
-
-    <div class="g-health-grid">
-      <article class="g-health-card red">
-        <div class="g-health-label">Scadute</div>
-        <div class="g-health-value">{{ project_summary.overdue_tasks }}</div>
-        <div class="g-health-note">Aperte con data fine superata.</div>
-      </article>
-      <article class="g-health-card amber">
-        <div class="g-health-label">In 7 giorni</div>
-        <div class="g-health-value">{{ project_summary.due_next_7d_tasks }}</div>
-        <div class="g-health-note">Consegne ravvicinate.</div>
-      </article>
-      <article class="g-health-card blue">
-        <div class="g-health-label">Alta priorita</div>
-        <div class="g-health-value">{{ project_summary.high_priority_open_tasks }}</div>
-        <div class="g-health-note">Marcate come `High`.</div>
-      </article>
-      <article class="g-health-card teal">
-        <div class="g-health-label">Non assegnate</div>
-        <div class="g-health-value">{{ project_summary.unassigned_tasks }}</div>
-        <div class="g-health-note">Senza responsabile.</div>
-      </article>
-    </div>
-  </div>
 
   {# ── Banner baseline attiva ── #}
   {% if gantt_baseline %}
@@ -219,7 +170,7 @@ body.tk-wide .content sta in tasks.css.
       <div class="ts-panel-title-wrap">
         <h2 class="ts-panel-title">Diagramma Gantt</h2>
         <p class="ts-panel-subtitle">
-          {% if can_edit_schedule %}Drag barre e quick edit solo sulle attività che puoi modificare.{% else %}Vista sola lettura.{% endif %}
+          {% if can_edit_schedule %}Trascina le barre o clicca una riga: vale per le attività che puoi modificare.{% else %}Vista sola lettura.{% endif %}
           Assenze in rosso con X.
         </p>
       </div>
@@ -240,7 +191,7 @@ body.tk-wide .content sta in tasks.css.
         </select>
       </div>
       <div class="ts-field">
-        <label for="id_cell_size">Densita giorni</label>
+        <label for="id_cell_size">Densità giorni</label>
         <select id="id_cell_size" name="cell_size" class="input">
           {% for value, label in gantt_cell_choices %}
             <option value="{{ value }}" {% if value == gantt_option_cell_size %}selected{% endif %}>{{ label }}</option>
@@ -326,13 +277,13 @@ body.tk-wide .content sta in tasks.css.
 
     {% if can_edit_schedule and gantt_rows %}
     <div class="g-hint-bar">
-      <span class="g-hint"><span class="g-hint-key">drag</span> centro barra per spostare date</span>
+      <span class="g-hint"><span class="g-hint-key">trascina</span> centro barra per spostare date</span>
       <span class="g-hint" style="opacity:.5;margin:0 2px;">Â·</span>
-      <span class="g-hint"><span class="g-hint-key">drag</span> bordo barra per allungare/accorciare</span>
+      <span class="g-hint"><span class="g-hint-key">trascina</span> bordo barra per allungare/accorciare</span>
       <span class="g-hint" style="opacity:.5;margin:0 2px;">·</span>
-      <span class="g-hint"><span class="g-hint-key">clic</span> riga per quick edit</span>
+      <span class="g-hint"><span class="g-hint-key">clic</span> riga per la modifica rapida</span>
       <span class="g-hint" style="opacity:.5;margin:0 2px;">·</span>
-      <span class="g-hint"><span class="g-hint-key">drag</span> header per ridimensionare colonne</span>
+      <span class="g-hint"><span class="g-hint-key">trascina</span> header per ridimensionare colonne</span>
     </div>
     {% endif %}
 
@@ -385,7 +336,7 @@ body.tk-wide .content sta in tasks.css.
           </div>
 
           <div class="glegend2">
-            <span><i class="gdot status-todo"></i>To do</span>
+            <span><i class="gdot status-todo"></i>Da fare</span>
             <span><i class="gdot status-in_progress"></i>In corso</span>
             <span><i class="gdot status-done"></i>Completata</span>
             <span><i class="gdot status-canceled"></i>Annullata</span>
@@ -603,4 +554,11 @@ body.tk-wide .content sta in tasks.css.
 
 {% block tasks_shell_scripts %}
 <script src="{% static 'tasks/js/project_gantt.js' %}?v=20261026"></script>
+<script>
+  // Dopo un'aggiunta si riparte dal titolo: il piano si scrive una riga dopo l'altra.
+  if (location.hash === "#riga-rapida") {
+    const titolo = document.getElementById("quick_title");
+    if (titolo) titolo.focus({ preventScroll: true });
+  }
+</script>
 {% endblock %}

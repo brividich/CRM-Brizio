@@ -14,8 +14,9 @@ GUIDA = {
                 ("passi", [
                     "Apri KICK-OFF e clicca «+ Nuovo kickoff».",
                     "Compila cliente e P/N: il nome viene proposto da solo (Cliente · P/N · KICK-OFF numero). Lascia vuoto il nome per usare la proposta.",
-                    "Scegli il team: PM, capo commessa, programmatore, caporeparto (anche più persone per ruolo).",
-                    "Salva. Nasce in automatico l'incontro 1 e si apre la sua convocazione.",
+                    "Scegli il team: PM, capo commessa, programmatore, caporeparto (anche più persone per ruolo). Basta un referente per creare, ma per risultare pronta la commessa vuole PM, capo commessa e programmatore.",
+                    "Salva con «Crea kickoff e convoca il primo incontro»: nasce l'incontro 1 e si apre la sua convocazione.",
+                    "Dati e team si correggono poi da «Modifica kickoff» nella Panoramica.",
                 ]),
             ],
         },
@@ -30,8 +31,24 @@ GUIDA = {
                     "team assegnato: almeno un PM, un capo commessa e un programmatore;",
                     "piano attività con le scadenze.",
                 ]),
-                ("p", "Il VRF si carica dalla scheda VRF della commessa: il portale legge da solo P/N, descrizione, cliente, preventivo e versione."),
+                ("p", "Il link «Correggi» accanto a ogni voce porta a dove si sistema; il team si cambia da «Modifica kickoff»."),
+                ("p", "Il file VRF già pronto si carica con «Carica file esistente»: il portale legge da solo P/N, descrizione, cliente, preventivo e versione."),
+                ("p", "In alternativa «Compila VRF online»: per i 9 rischi scegli la Probabilità (1-3 o N/A), la Gravità è quella del modulo; "
+                      "R = P × D e il Totale Rischio è la somma (Basso fino a 35, Medio tra 35 e 50, Alto da 50: coinvolgimento CEO). "
+                      "Si aggiungono fino a 4 azioni correttive e le firme IN1 / EM; «Conferma e genera xlsx» crea il file."),
                 ("nota", "Dopo 7 giorni senza VRF compare un avviso; dopo 30 giorni non si possono più creare o modificare attività finché non lo carichi."),
+            ],
+        },
+        {
+            "id": "attivita-rapide",
+            "titolo": "Creare attività al volo",
+            "blocchi": [
+                ("def", [
+                    ("Nel Piano", "la riga sopra il Gantt: titolo, responsabile, Inizio, Fine, «Aggiungi»."),
+                    ("Dettaglio ed esito dell'incontro", "«Attività di questo incontro»: scrivi il titolo e premi Invio; la pagina non si ricarica."),
+                    ("Conduci incontro", "«Cattura rapida», sempre visibile in fondo allo schermo, con tipo Attività; o «+ Nuova attività» sul punto per collegarla al punto. Le attività entrano nel Piano, azioni e problemi rientrano nell'ordine del giorno del prossimo incontro, le decisioni nel registro di commessa."),
+                ]),
+                ("p", "L'inizio proposto è il giorno dopo l'ultima fine in piano. «Più opzioni» apre tipo, priorità e attrezzatura."),
             ],
         },
         {
@@ -104,8 +121,15 @@ GUIDA = {
         {
             "sintomo": "Non si possono creare attività: «VRF mancante»",
             "fare": [
-                "Carica il VRF dalla scheda VRF della commessa.",
+                "Compila la scheda dalla voce VRF della commessa, oppure caricane il file: resta possibile anche a kickoff bloccato.",
                 "Se il VRF non serve, segnalo come «non richiesto».",
+            ],
+        },
+        {
+            "sintomo": "«Conferma e genera xlsx» non crea il file VRF",
+            "fare": [
+                "Il messaggio elenca i rischi senza Probabilità («Mancano: R…»): sceglila per tutti i 9, N/A se il rischio non si applica.",
+                "La bozza resta salvata: non si perde niente.",
             ],
         },
         {

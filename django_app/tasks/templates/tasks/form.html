@@ -1,8 +1,8 @@
 {% extends "tasks/base_shell.html" %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / {% if mode == "edit" %}Modifica{% else %}Creazione{% endif %}</span>{% endblock %}
-{% block tasks_shell_title %}{% if mode == "edit" %}Modifica attivita kickoff{% elif locked_project %}Nuova attivita in {{ locked_project.name }}{% else %}Nuova attivita kickoff{% endif %}{% endblock %}
-{% block tasks_shell_subtitle %}{% if mode == "edit" %}Aggiorna contesto, kickoff e pianificazione mantenendo la scheda coerente con il resto del portale.{% elif locked_project %}Compila descrizione, pianificazione e assegnazione: l'attivita entra direttamente nel Gantt del kickoff.{% else %}Inserisci una nuova attivita kickoff con un flusso guidato: prima il contesto, poi il kickoff P/N, quindi pianificazione e responsabilita operative.{% endif %}{% endblock %}
+{% block tasks_shell_title %}{% if mode == "edit" %}Modifica attività{% elif locked_project %}Nuova attività in {{ locked_project.name }}{% else %}Nuova attività{% endif %}{% endblock %}
+{% block tasks_shell_subtitle %}{% if mode == "edit" %}Aggiorna contesto, kickoff e pianificazione mantenendo la scheda coerente con il resto del portale.{% elif locked_project %}Titolo, date e responsabile bastano: l'attività entra nel Gantt del kickoff.{% else %}Inserisci una nuova attivita kickoff con un flusso guidato: prima il contesto, poi il kickoff P/N, quindi pianificazione e responsabilita operative.{% endif %}{% endblock %}
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">{% if mode == "edit" %}Modalita modifica{% else %}Modalita creazione{% endif %}</span>
   {% if task and task.project %}<span class="ts-hero-pill">{{ task.project.name }}</span>{% if task.project.part_number %}<span class="ts-hero-pill">P/N {{ task.project.part_number }}</span>{% endif %}{% elif locked_project %}<span class="ts-hero-pill">Dentro il kickoff</span>{% elif suggested_project_id %}<span class="ts-hero-pill">Kickoff preselezionato</span>{% else %}<span class="ts-hero-pill">Attività in kickoff</span>{% endif %}
@@ -16,7 +16,7 @@
     <div class="tf-kickoff-strip-left">
       <span class="tf-kicker">Kickoff</span>
       <div class="tf-kickoff-strip-name">{{ locked_project.name }}</div>
-      <div class="tf-kickoff-strip-sub">Attivita gia collegata al kickoff corrente</div>
+      <div class="tf-kickoff-strip-sub">Attività collegata a questo kickoff</div>
       <div class="tf-kickoff-strip-sub">{{ locked_project.client_name|default:"Cliente non indicato" }}{% if locked_project_task_total %} &middot; {{ locked_project_task_total }} attivita gia collegate{% endif %}</div>
     </div>
     <div class="tf-kickoff-strip-chips">
@@ -26,19 +26,6 @@
       {% if locked_project_vrf_detail %}<span class="tf-kickoff-strip-vrf tf-banner {{ locked_project_vrf_detail.status|default:'pending' }}">{{ locked_project_vrf_detail.label }}</span>{% endif %}
     </div>
   </section>
-  <div class="tf-intro-grid">
-    <article class="tf-intro-card"><div class="tf-step">1</div><div class="tf-intro-title">Cosa succede</div><div class="tf-intro-copy">Descrivi l'attivita, aggiungi tag e note: tutto resta dentro il kickoff corrente.</div></article>
-    <article class="tf-intro-card"><div class="tf-step">2</div><div class="tf-intro-title">Quando</div><div class="tf-intro-copy">Imposta stato, priorita, data di inizio e scadenza richiesta. Le date entrano nel Gantt del kickoff.</div></article>
-    <article class="tf-intro-card"><div class="tf-step">3</div><div class="tf-intro-title">Chi</div><div class="tf-intro-copy">Assegna incaricato, gestisci eventuali sovrapposizioni e aggiungi partecipanti in copia.</div></article>
-    <article class="tf-intro-card"><div class="tf-step">4</div><div class="tf-intro-title">Promemoria</div><div class="tf-intro-copy">Decidi se pubblicare l'evento su Outlook e se far arrivare un promemoria nel centro notifiche.</div></article>
-  </div>
-  {% else %}
-  <div class="tf-intro-grid">
-    <article class="tf-intro-card"><div class="tf-step">1</div><div class="tf-intro-title">Scegli il contesto</div><div class="tf-intro-copy">Decidi se stai aprendo un'attivita singola oppure un'attivita agganciata a un kickoff strutturato.</div></article>
-    <article class="tf-intro-card"><div class="tf-step">2</div><div class="tf-intro-title">Lavora per P/N</div><div class="tf-intro-copy">Ricerca i kickoff esistenti per nome, cliente e P/N oppure crea una nuova anagrafica completa.</div></article>
-    <article class="tf-intro-card"><div class="tf-step">3</div><div class="tf-intro-title">Pianifica bene</div><div class="tf-intro-copy">Stabilisci stato, priorita, data inizio, data richiesta fine e prossimo passo.</div></article>
-    <article class="tf-intro-card"><div class="tf-step">4</div><div class="tf-intro-title">Assegna le persone</div><div class="tf-intro-copy">Indica incaricato, partecipanti in copia e gestione delle sovrapposizioni.</div></article>
-  </div>
   {% endif %}
 
   <form method="post" class="tf-grid">
@@ -108,16 +95,6 @@
     {% endif %}
     {% endif %}
 
-    <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Attrezzatura</span><h2 class="tf-title">Gestione Attrezzatura</h2><p class="tf-copy">Collega un attrezzo esistente o apri la richiesta operativa per il P/N senza duplicare la scheda KICK-OFF.</p></div></div>
-      <div class="tf-grid-2">
-        <div class="ts-field"><label for="{{ form.tooling_mode.id_for_label }}">{{ form.tooling_mode.label }}</label>{{ form.tooling_mode }}{% if form.tooling_mode.errors %}<div class="ts-field-error">{{ form.tooling_mode.errors }}</div>{% endif %}{% if form.tooling_mode.help_text %}<div class="ts-field-help">{{ form.tooling_mode.help_text }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.tooling_existing_attrezzatura.id_for_label }}">{{ form.tooling_existing_attrezzatura.label }}</label>{{ form.tooling_existing_attrezzatura }}{% if form.tooling_existing_attrezzatura.errors %}<div class="ts-field-error">{{ form.tooling_existing_attrezzatura.errors }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.tooling_part_number.id_for_label }}">{{ form.tooling_part_number.label }}</label>{{ form.tooling_part_number }}{% if form.tooling_part_number.errors %}<div class="ts-field-error">{{ form.tooling_part_number.errors }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.tooling_code.id_for_label }}">{{ form.tooling_code.label }}</label>{{ form.tooling_code }}{% if form.tooling_code.errors %}<div class="ts-field-error">{{ form.tooling_code.errors }}</div>{% endif %}</div>
-        <div class="ts-field full"><label for="{{ form.tooling_description.id_for_label }}">{{ form.tooling_description.label }}</label>{{ form.tooling_description }}{% if form.tooling_description.errors %}<div class="ts-field-error">{{ form.tooling_description.errors }}</div>{% endif %}</div>
-      </div>
-    </section>
 
     {% if form.category.field.queryset.exists %}
     <section class="tf-panel">
@@ -135,7 +112,7 @@
     {% endif %}
 
     <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Attivita kickoff</span><h2 class="tf-title">Dettaglio attivita</h2><p class="tf-copy">Definisci l'attivita in modo semplice ma completo, cosi dashboard, dettaglio e Gantt restano leggibili.</p></div></div>
+      <div class="tf-head"><div><span class="tf-kicker">Attivita kickoff</span><h2 class="tf-title">Dettaglio attività</h2><p class="tf-copy">Cosa si deve fare.</p></div></div>
       <div class="tf-grid">
         <div class="ts-field"><label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>{{ form.title }}{% if form.title.errors %}<div class="ts-field-error">{{ form.title.errors }}</div>{% endif %}</div>
         <div class="ts-field"><label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>{{ form.description }}{% if form.description.errors %}<div class="ts-field-error">{{ form.description.errors }}</div>{% endif %}</div>
@@ -144,7 +121,7 @@
     </section>
 
     <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Pianificazione</span><h2 class="tf-title">Timeline e avanzamento</h2><p class="tf-copy">Le date sono il riferimento per backlog, Gantt e segnalazioni di sovraccarico.</p></div></div>
+      <div class="tf-head"><div><span class="tf-kicker">Pianificazione</span><h2 class="tf-title">Timeline e avanzamento</h2><p class="tf-copy">Le date alimentano Gantt e avvisi di sovraccarico.</p></div></div>
       {% if suggested_start_from_previous and not task %}<div id="date-suggestion-banner" class="date-suggestion-banner"><div>Data di inizio impostata automaticamente al <strong>{{ suggested_start_date|date:"d-m-Y" }}</strong> (giorno successivo alla fine dell'ultima attivita del kickoff). Puoi modificarla liberamente.</div></div>{% endif %}
       <div class="tf-grid-2">
         <div class="ts-field"><label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>{{ form.status }}{% if form.status.errors %}<div class="ts-field-error">{{ form.status.errors }}</div>{% endif %}</div>
@@ -156,7 +133,7 @@
     </section>
 
     <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Persone</span><h2 class="tf-title">Responsabilita e visibilita</h2><p class="tf-copy">L'assegnazione deve essere leggibile subito, anche quando l'attivita cambia mano o viene seguita da piu persone.</p></div></div>
+      <div class="tf-head"><div><span class="tf-kicker">Persone</span><h2 class="tf-title">Responsabile e persone in copia</h2><p class="tf-copy">Chi la fa e chi deve restare informato.</p></div></div>
       <div class="tf-grid-3">
         <div class="ts-field"><label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }}</label>{{ form.assigned_to }}{% if form.assigned_to.errors %}<div class="ts-field-error">{{ form.assigned_to.errors }}</div>{% endif %}</div>
         <div class="ts-field"><label for="{{ form.assignment_conflict_action.id_for_label }}">{{ form.assignment_conflict_action.label }}</label>{{ form.assignment_conflict_action }}{% if form.assignment_conflict_action.errors %}<div class="ts-field-error">{{ form.assignment_conflict_action.errors }}</div>{% endif %}{% if form.assignment_conflict_action.help_text %}<div class="ts-field-help">{{ form.assignment_conflict_action.help_text }}</div>{% endif %}</div>
@@ -164,6 +141,18 @@
       </div>
     </section>
 
+    <details class="tf-more"{% if mode == "edit" or form.tooling_mode.errors or form.tooling_existing_attrezzatura.errors or form.tooling_part_number.errors or form.tooling_code.errors or form.tooling_description.errors or form.outlook_target_email.errors %} open{% endif %}>
+      <summary>Altre opzioni: attrezzatura, Outlook e promemoria</summary>
+    <section class="tf-panel">
+      <div class="tf-head"><div><span class="tf-kicker">Attrezzatura</span><h2 class="tf-title">Gestione Attrezzatura</h2><p class="tf-copy">Collega un attrezzo esistente o apri la richiesta operativa per il P/N senza duplicare la scheda KICK-OFF.</p></div></div>
+      <div class="tf-grid-2">
+        <div class="ts-field"><label for="{{ form.tooling_mode.id_for_label }}">{{ form.tooling_mode.label }}</label>{{ form.tooling_mode }}{% if form.tooling_mode.errors %}<div class="ts-field-error">{{ form.tooling_mode.errors }}</div>{% endif %}{% if form.tooling_mode.help_text %}<div class="ts-field-help">{{ form.tooling_mode.help_text }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.tooling_existing_attrezzatura.id_for_label }}">{{ form.tooling_existing_attrezzatura.label }}</label>{{ form.tooling_existing_attrezzatura }}{% if form.tooling_existing_attrezzatura.errors %}<div class="ts-field-error">{{ form.tooling_existing_attrezzatura.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.tooling_part_number.id_for_label }}">{{ form.tooling_part_number.label }}</label>{{ form.tooling_part_number }}{% if form.tooling_part_number.errors %}<div class="ts-field-error">{{ form.tooling_part_number.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.tooling_code.id_for_label }}">{{ form.tooling_code.label }}</label>{{ form.tooling_code }}{% if form.tooling_code.errors %}<div class="ts-field-error">{{ form.tooling_code.errors }}</div>{% endif %}</div>
+        <div class="ts-field full"><label for="{{ form.tooling_description.id_for_label }}">{{ form.tooling_description.label }}</label>{{ form.tooling_description }}{% if form.tooling_description.errors %}<div class="ts-field-error">{{ form.tooling_description.errors }}</div>{% endif %}</div>
+      </div>
+    </section>
     <section class="tf-panel">
       <div class="tf-head"><div><span class="tf-kicker">Promemoria</span><h2 class="tf-title">Calendario Outlook e notifiche portale</h2><p class="tf-copy">Scegli se sincronizzare l'attivita' con il calendario Outlook dell'assegnatario e se mostrare un promemoria nel centro notifiche prima della scadenza.</p></div></div>
       <div class="tf-grid-2">
@@ -189,9 +178,10 @@
         </div>
       </div>
     </section>
+    </details>
 
     <div class="ts-field-actions">
-      <button type="submit" class="btn">{% if mode == "edit" %}Salva modifiche{% else %}Crea attivita{% endif %}</button>
+      <button type="submit" class="btn">{% if mode == "edit" %}Salva modifiche{% else %}Crea attività{% endif %}</button>
       {% if task %}<a class="btn btn-secondary" href="{% url 'tasks:detail' task.id %}">Annulla</a>{% elif locked_project %}<a class="btn btn-secondary" href="{% url 'tasks:project_gantt' locked_project.id %}">Annulla</a>{% else %}<a class="btn btn-secondary" href="{% url 'tasks:list' %}">Annulla</a>{% endif %}
     </div>
   </form>

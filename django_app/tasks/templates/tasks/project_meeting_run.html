@@ -75,16 +75,10 @@
             <input class="input" type="text" data-role="task-new-title" maxlength="200" placeholder="Titolo della nuova attività">
             <select class="input" data-role="task-new-owner">
               <option value="">Responsabile</option>
-              {% for u in active_users %}
-                <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>
-              {% endfor %}
+              {% include "tasks/_quick_user_options.html" %}
             </select>
-            <input class="input" type="date" data-role="task-new-due" title="Scadenza">
-            <select class="input" data-role="task-new-priority">
-              <option value="LOW">Priorità bassa</option>
-              <option value="MEDIUM" selected>Priorità media</option>
-              <option value="HIGH">Priorità alta</option>
-            </select>
+            <input class="input" type="date" data-role="task-new-start" title="Inizio" value="{{ quick_start|date:'Y-m-d' }}">
+            <input class="input" type="date" data-role="task-new-due" title="Fine">
             <button type="button" class="mf-btn-sm primary" data-role="task-new-save">Crea e collega</button>
             <button type="button" class="mf-btn-sm ghost" data-role="task-new-cancel">Annulla</button>
             {# Qui si creano attivita' essenziali: asset, tooling e reminder stanno nel form completo. #}
@@ -127,16 +121,10 @@
       <input class="input" type="text" data-role="task-new-title" maxlength="200" placeholder="Titolo della nuova attività">
       <select class="input" data-role="task-new-owner">
         <option value="">Responsabile</option>
-        {% for u in active_users %}
-          <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>
-        {% endfor %}
+        {% include "tasks/_quick_user_options.html" %}
       </select>
-      <input class="input" type="date" data-role="task-new-due" title="Scadenza">
-      <select class="input" data-role="task-new-priority">
-        <option value="LOW">Priorità bassa</option>
-        <option value="MEDIUM" selected>Priorità media</option>
-        <option value="HIGH">Priorità alta</option>
-      </select>
+      <input class="input" type="date" data-role="task-new-start" title="Inizio" value="{{ quick_start|date:'Y-m-d' }}">
+      <input class="input" type="date" data-role="task-new-due" title="Fine">
       <button type="button" class="mf-btn-sm primary" data-role="task-new-save">Crea e collega</button>
       <button type="button" class="mf-btn-sm ghost" data-role="task-new-cancel">Annulla</button>
       <a class="mf-btn-sm ghost" href="{% url 'tasks:create' %}?project={{ project.id }}" target="_blank" rel="noopener">Form completo</a>
@@ -168,21 +156,20 @@
   {# Cattura rapida: quello che emerge mentre si parla, senza uscire dalla pagina #}
   <section class="ts-panel run-capture">
     <div class="ts-panel-head">
-      <h2 class="ts-panel-title">Cattura rapida</h2>
+      <h2 class="ts-panel-title" title="Le attività entrano nel Piano; azioni e problemi rientrano da soli nell'ordine del giorno del prossimo incontro; le decisioni finiscono nel registro di commessa.">Cattura rapida</h2>
     </div>
     <div class="ts-panel-body">
       <div class="run-capture-form">
         <select class="input" id="capture-kind">
+          <option value="task">Attività</option>
           <option value="action">Azione</option>
           <option value="decision">Decisione</option>
           <option value="issue">Problema</option>
         </select>
-        <input class="input" type="text" id="capture-titolo" maxlength="400" placeholder="Cosa è stato deciso / chi fa cosa / cosa non torna">
+        <input class="input" type="text" id="capture-titolo" maxlength="400" placeholder="Scrivi e premi Invio: cosa fare, cosa è stato deciso, cosa non torna">
         <select class="input" id="capture-owner">
           <option value="">Responsabile</option>
-          {% for u in active_users %}
-            <option value="{{ u.pk }}">{{ u.get_full_name|default:u.username }}</option>
-          {% endfor %}
+          {% include "tasks/_quick_user_options.html" %}
         </select>
         <input class="input" type="date" id="capture-due" title="Scadenza">
         <select class="input" id="capture-impatto" hidden>
@@ -192,8 +179,8 @@
         </select>
         <button type="button" class="md-btn" id="capture-save">Registra</button>
       </div>
+      <p class="qt-err" id="capture-err" role="alert" hidden></p>
       <ul class="run-capture-log" id="capture-log"></ul>
-      <p class="mf-hint">Azioni e problemi rientrano da soli nell'ordine del giorno del prossimo incontro; le decisioni finiscono nel registro di commessa.</p>
     </div>
   </section>
 </div>
@@ -201,7 +188,7 @@
 
 {% block tasks_shell_scripts %}
 {{ project_tasks_json|json_script:"project-tasks-data" }}
-<script src="{% static 'tasks/js/meeting_run.js' %}" data-item-update-url="{{ item_update_url }}" data-quick-capture-url="{{ quick_capture_url }}" data-item-task-create-url="{{ item_task_create_url }}" data-task-detail-url="{% url 'tasks:detail' 0 %}" data-planned-minutes="{{ planned_minutes|default:0 }}"></script>
+<script src="{% static 'tasks/js/meeting_run.js' %}?v=20261105" data-item-update-url="{{ item_update_url }}" data-quick-capture-url="{{ quick_capture_url }}" data-item-task-create-url="{{ item_task_create_url }}" data-task-detail-url="{% url 'tasks:detail' 0 %}" data-planned-minutes="{{ planned_minutes|default:0 }}"></script>
 <script src="{% static 'tasks/js/meeting_agenda_add.js' %}" defer></script>
 <script>
   (function () {

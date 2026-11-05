@@ -671,7 +671,7 @@ $excludeFiles = @(
 )
 # NB sui pattern Excel/CSV:
 # - NON usare "*.xls": in robocopy il wildcard cattura anche "*.xlsx" e rimuoverebbe
-#   django_app/tasks/vrf_template/MOD_073_VRF_Rev10.xlsx, template runtime di vrf_generator.py.
+#   django_app/tasks/vrf_template/MOD_073_VRF.xlsx, template runtime di vrf_generator.py.
 # - NON escludere "*.xlsx"/"*.csv" globalmente per lo stesso motivo (template runtime).
 # I file Excel/CSV con dati personali vivono in doc/, docs/, media/ e .claude/,
 # tutti già esclusi via $excludeDirs. L'unico dato personale fuori da quelle dir

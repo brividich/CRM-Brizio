@@ -58,7 +58,7 @@
       <div class="ts-panel-body" style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
         <div style="flex:1; min-width:240px;">
           <h3 style="margin:0 0 6px 0; font-size:15px; color:var(--text);">Compila VRF online</h3>
-          <p style="margin:0; font-size:13px; color:var(--text-light);">Compila la matrice rischi MOD.073 Rev.10 direttamente nel browser (9 rischi, 45 sub-parametri). L'xlsx viene generato automaticamente dal template.</p>
+          <p style="margin:0; font-size:13px; color:var(--text-light);">Compila la scheda MOD.073 direttamente nel browser: Probabilità dei 9 rischi, azioni correttive e firme. L'xlsx viene generato dal modulo.</p>
         </div>
         <a href="{% url 'tasks:project_vrf_compile' project.id %}" class="btn">{% if vrf_detail.status == 'ok' %}Apri compilazione{% else %}Inizia compilazione{% endif %} &rarr;</a>
       </div>

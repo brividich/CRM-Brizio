@@ -1,6 +1,8 @@
 """Helper comuni alle viste KICK-OFF: shell, timeline, eventi, rollup."""
 from __future__ import annotations
 
+from datetime import timedelta
+
 import json
 import logging
 from datetime import date, datetime
@@ -131,9 +133,9 @@ def _vrf_status_detail(project, cfg: "TaskImpostazioni") -> dict:
         return {
             "status": "blocked",
             "label": (
-                f"Kickoff BLOCCATO: documento VRF non caricato da {days} giorni "
+                f"Kickoff BLOCCATO: scheda VRF mancante da {days} giorni "
                 f"(soglia blocco: {cfg.vrf_blocking_days} giorni). "
-                "Non e possibile aggiungere o modificare attivita kickoff finche il documento non viene caricato."
+                "Non si possono aggiungere o modificare attività finché la scheda non viene compilata o caricata."
             ),
             "is_blocked": True,
             "days_pending": days,
@@ -144,8 +146,8 @@ def _vrf_status_detail(project, cfg: "TaskImpostazioni") -> dict:
         return {
             "status": "warning",
             "label": (
-                f"Attenzione: documento VRF non ancora caricato ({days} giorni dalla creazione del kickoff). "
-                f"Il kickoff sara bloccato dopo {cfg.vrf_blocking_days} giorni."
+                f"Attenzione: scheda VRF da compilare ({days} giorni dalla creazione del kickoff). "
+                f"Il kickoff sarà bloccato dopo {cfg.vrf_blocking_days} giorni."
             ),
             "is_blocked": False,
             "days_pending": days,
@@ -154,11 +156,45 @@ def _vrf_status_detail(project, cfg: "TaskImpostazioni") -> dict:
 
     return {
         "status": "pending",
-        "label": f"Documento VRF non ancora caricato ({days} giorni dalla creazione del kickoff).",
+        "label": f"Scheda VRF da compilare ({days} giorni dalla creazione del kickoff).",
         "is_blocked": False,
         "days_pending": days,
         "show_upload_cta": True,
     }
+
+
+def _prossimo_inizio(tasks, today):
+    """Inizio proposto per la prossima attivita': il giorno dopo l'ultima fine."""
+    fini = [t.due_date for t in tasks if t.due_date]
+    return max(fini) + timedelta(days=1) if fini else today
+
+
+def _utenti_riga_rapida(project):
+    """Prima il team della commessa, poi gli altri utenti attivi."""
+    from ..forms import task_active_users_queryset, user_display_label
+
+    ids = project.team_user_ids
+    utenti = task_active_users_queryset()
+    return {
+        "team": [(u.pk, user_display_label(u)) for u in utenti.filter(pk__in=ids)],
+        "altri": [(u.pk, user_display_label(u)) for u in utenti.exclude(pk__in=ids)],
+    }
+
+
+def _vrf_bozza(project) -> dict | None:
+    """Scheda VRF iniziata e non confermata: quanti rischi mancano e il TR parziale."""
+    from .. import vrf_catalog
+    from ..models import VRFRiskAssessment
+
+    if project.vrf_status != VRFDocStatus.PENDING:
+        return None
+    assessment = VRFRiskAssessment.objects.filter(project=project).first()
+    if assessment is None:
+        return None
+    totali = vrf_catalog.compute_totals(assessment.data)
+    if len(totali["missing"]) == len(vrf_catalog.RISKS):
+        return None
+    return {"tr": totali["tr"], "livello": totali["level"]["label"], "mancanti": totali["missing"]}
 
 
 def _apply_default_ordering(qs):

@@ -72,6 +72,8 @@ from ..services.agenda import (
 from ..services.meeting_tasks import (
     KickoffBloccatoVRF,
     crea_attivita_da_incontro,
+    kickoff_bloccato_vrf,
+    meeting_task_marker,
     notify_meeting_item_assignment,
     notify_task_assignment,
     titolo_attivita,
@@ -80,8 +82,10 @@ from ..services.notify import (
     notify_user,
 )
 from ._shared import (
+    _prossimo_inizio,
     _safe_int,
     _tasks_shell_context,
+    _utenti_riga_rapida,
 )
 from ._tooling import (
     _apply_task_tooling_action,
@@ -218,6 +222,19 @@ def _sync_meeting_outlook(request, meeting) -> None:
         messages.info(request, msg)
 
 
+def _quick_task_context(project: Project, meeting: KickoffMeeting) -> dict:
+    """Dati della creazione rapida di attivita' dentro un incontro."""
+    return {
+        "quick_users": _utenti_riga_rapida(project),
+        "quick_start": _prossimo_inizio(project.tasks.exclude(due_date=None).only("due_date"), timezone.localdate()),
+        "quick_bloccato": kickoff_bloccato_vrf(project),
+        "meeting_tasks": list(
+            project.tasks.filter(description__startswith=meeting_task_marker(meeting))
+            .select_related("assigned_to").order_by("id")
+        ),
+    }
+
+
 def _meeting_task_modal_context(project: Project, *, project_id: int, meeting_id: int) -> dict:
     """Dati del mini-form «attivita' kickoff» usato dentro un incontro.
 
@@ -290,7 +307,7 @@ def _vrf_blocked_response(project: Project) -> JsonResponse:
     return JsonResponse({
         "ok": False,
         "reason": "vrf_blocked",
-        "message": "Kickoff bloccato: carica il documento VRF prima di creare attività.",
+        "message": "Kickoff bloccato: compila la scheda VRF prima di creare attività.",
         "vrf_upload_url": reverse("tasks:project_vrf_upload", kwargs={"project_id": project.pk}),
     }, status=409)
 
@@ -647,6 +664,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             "active_users": task_active_users_queryset() if can_manage else [],
             "agenda_toggle_url_base": f"/tasks/projects/{project_id}/incontri/{meeting_id}/agenda-toggle/",
             **_meeting_task_modal_context(project, project_id=project_id, meeting_id=meeting_id),
+            **_quick_task_context(project, meeting),
         },
     )
 
@@ -786,6 +804,7 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             "decision_impacts": MeetingDecisionImpact.choices,
             "active_users": task_active_users_queryset(),
             **_meeting_task_modal_context(project, project_id=project_id, meeting_id=meeting_id),
+            **_quick_task_context(project, meeting),
         },
     )
 
@@ -1293,7 +1312,7 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
             "agenda_items": items,
             "planned_minutes": planned_minutes,
             "done_count": sum(1 for item in items if item.get("done")),
-            "active_users": task_active_users_queryset(),
+            **_quick_task_context(project, meeting),
             "decision_impacts": MeetingDecisionImpact.choices,
             "item_update_url": reverse(
                 "tasks:project_meeting_agenda_item_update",
@@ -1443,7 +1462,13 @@ def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id
     assigned_to_id = (request.POST.get("assigned_to") or "").strip()
     if assigned_to_id:
         assigned_to = User.objects.filter(pk=_safe_int(assigned_to_id)).first()
+    start_date = _parse_optional_date(request.POST.get("next_step_due") or "")
     due_date = _parse_optional_date(request.POST.get("due_date") or "")
+    if start_date and due_date and due_date < start_date:
+        return JsonResponse(
+            {"ok": False, "reason": "date_range", "message": "La data fine non può precedere la data inizio."},
+            status=400,
+        )
     priority = (request.POST.get("priority") or TaskPriority.MEDIUM).strip().upper()
 
     try:
@@ -1454,6 +1479,7 @@ def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id
                 user=request.user,
                 title=title,
                 assigned_to=assigned_to,
+                start_date=start_date,
                 due_date=due_date,
                 priority=priority,
                 nota=str(target.get("nota") or ""),
@@ -1480,7 +1506,7 @@ def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id
 @require_POST
 @task_permissions_required("tasks_create")
 def project_meeting_quick_capture(request, project_id: int, meeting_id: int):
-    """Cattura rapida durante la riunione: azione, decisione o problema."""
+    """Cattura rapida durante la riunione: attivita', azione, decisione o problema."""
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
     if not can_manage_project(request, project):
@@ -1500,7 +1526,18 @@ def project_meeting_quick_capture(request, project_id: int, meeting_id: int):
             owner = None
     due_date = _parse_optional_date(request.POST.get("due_date") or "")
 
-    if kind == "action":
+    if kind == "task":
+        oggi = timezone.localdate()
+        try:
+            record = crea_attivita_da_incontro(
+                project=project, meeting=meeting, user=request.user, title=titolo,
+                assigned_to=owner, due_date=due_date,
+                start_date=min(oggi, due_date) if due_date else None,
+            )
+        except KickoffBloccatoVRF:
+            return _vrf_blocked_response(project)
+        label = "Attività"
+    elif kind == "action":
         record = MeetingActionItem.objects.create(
             project=project, source_meeting=meeting, title=titolo[:220],
             assigned_to=owner, due_date=due_date,

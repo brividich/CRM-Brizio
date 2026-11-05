@@ -102,13 +102,16 @@ def compute_project_readiness(project) -> ReadinessResult:
     criteria = [
         ReadinessCriterion(
             "vrf", "VRF a posto", vrf_ok,
-            None if vrf_ok else reverse("tasks:project_vrf_upload", args=[pid]),
+            None if vrf_ok else reverse("tasks:project_vrf_compile", args=[pid]),
         ),
         ReadinessCriterion(
             "meeting", "Incontro kickoff fatto", meeting_ok,
             None if meeting_ok else _meeting_action_url(project, pid),
         ),
-        ReadinessCriterion("team", "Team assegnato", team_ok, None),
+        ReadinessCriterion(
+            "team", "Team assegnato (PM, capocommessa, programmatore)", team_ok,
+            None if team_ok else reverse("tasks:project_edit", args=[pid]) + "#team",
+        ),
         ReadinessCriterion(
             "plan", "Piano attività definito", plan_ok,
             None if plan_ok else f"{reverse('tasks:create')}?project={pid}",

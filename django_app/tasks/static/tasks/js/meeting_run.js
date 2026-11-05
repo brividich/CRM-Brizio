@@ -16,6 +16,17 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
   } catch (e) { projectTasks = []; }
   const PLANNED = Number(KO_MEETING_RUN_CFG.plannedMinutes || 0);
 
+  /* Una nuova attività entra nei menu di tutti i punti, senza ricaricare. */
+  function aggiungiAiMenu(id, titolo) {
+    projectTasks.push({ id: id, title: titolo, status: 'TODO' });
+    document.querySelectorAll('[data-role=task-select]').forEach(function (sel) {
+      const opt = document.createElement('option');
+      opt.value = String(id);
+      opt.textContent = titolo;
+      sel.appendChild(opt);
+    });
+  }
+
   function csrfToken() {
     const el = document.querySelector('[name=csrfmiddlewaretoken]');
     if (el) return el.value;
@@ -158,8 +169,8 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
         item_id: itemId,
         title: title,
         assigned_to: card.querySelector('[data-role=task-new-owner]')?.value || '',
+        next_step_due: card.querySelector('[data-role=task-new-start]')?.value || '',
         due_date: card.querySelector('[data-role=task-new-due]')?.value || '',
-        priority: card.querySelector('[data-role=task-new-priority]')?.value || 'MEDIUM',
       }).then(function (data) {
         const err = card.querySelector('[data-role=task-new-err]');
         if (!data || !data.ok) {
@@ -174,13 +185,7 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
         if (err) err.hidden = true;
         /* La nuova attività entra anche nei menu degli altri punti: senza
            questo, per collegarla altrove bisognava ricaricare la pagina. */
-        projectTasks.push({ id: data.task_id, title: data.task_label, status: 'TODO' });
-        document.querySelectorAll('[data-role=task-select]').forEach(function (sel) {
-          const opt = document.createElement('option');
-          opt.value = String(data.task_id);
-          opt.textContent = data.task_label;
-          sel.appendChild(opt);
-        });
+        aggiungiAiMenu(data.task_id, data.task_label);
         if (taskSelect) taskSelect.value = String(data.task_id);
         card.setAttribute('data-task-id', String(data.task_id));
         paintTaskLink(data.task_id);
@@ -289,19 +294,28 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
   kindEl?.addEventListener('change', syncCaptureFields);
   syncCaptureFields();
 
-  document.getElementById('capture-save')?.addEventListener('click', function () {
+  function registraCattura() {
     const titoloEl = document.getElementById('capture-titolo');
     const ownerEl = document.getElementById('capture-owner');
+    const errEl = document.getElementById('capture-err');
     const titolo = titoloEl ? titoloEl.value.trim() : '';
     if (!titolo) { titoloEl?.focus(); return; }
     post(CAPTURE_URL, {
-      kind: kindEl ? kindEl.value : 'action',
+      kind: kindEl ? kindEl.value : 'task',
       titolo: titolo,
       owner_id: ownerEl ? ownerEl.value : '',
       due_date: dueEl && !dueEl.hidden ? dueEl.value : '',
       impatto: impattoEl && !impattoEl.hidden ? impattoEl.value : '',
     }).then(function (data) {
-      if (!data || !data.ok) return;
+      if (!data || !data.ok) {
+        if (errEl) {
+          errEl.textContent = (data && data.message) || 'Non registrato: riprova.';
+          errEl.hidden = false;
+        }
+        return;
+      }
+      if (errEl) errEl.hidden = true;
+      if (data.kind === 'task') aggiungiAiMenu(data.id, data.titolo);
       const log = document.getElementById('capture-log');
       if (log) {
         const li = document.createElement('li');
@@ -311,6 +325,16 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
       if (titoloEl) titoloEl.value = '';
       if (dueEl) dueEl.value = '';
       titoloEl?.focus();
-    }).catch(function () {});
+    }).catch(function () {
+      if (errEl) {
+        errEl.textContent = 'Connessione assente: non registrato.';
+        errEl.hidden = false;
+      }
+    });
+  }
+
+  document.getElementById('capture-save')?.addEventListener('click', registraCattura);
+  document.getElementById('capture-titolo')?.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); registraCattura(); }
   });
 })();

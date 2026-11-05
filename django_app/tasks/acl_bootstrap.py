@@ -131,6 +131,8 @@ _ROUTE_BINDINGS = {
     "tasks:edit": "tasks.kickoff.edit",
     "tasks:change_status": "tasks.kickoff.edit",
     "tasks:project_set_phase": "tasks.kickoff.edit",
+    "tasks:project_edit": "tasks.kickoff.edit",
+    "tasks:project_quick_task": "tasks.kickoff.create",
     "tasks:update_due_date": "tasks.kickoff.edit",
     "tasks:project_gantt_update_task": "tasks.kickoff.edit",
     "tasks:project_gantt_shift_task": "tasks.kickoff.edit",

@@ -86,6 +86,12 @@
     });
   }
 
+  /* La riga rapida aggiunge attivita' senza ricaricare: il menu qui resta aggiornato. */
+  window.meetingTaskModalAddTask = function (task) {
+    if (knownTasks === null) { knownTasks = loadTasks(); }
+    knownTasks.push(task);
+  };
+
   window.openCreateTaskModal = function (stepText, stepIndex, options) {
     var overlay = el('ctm-overlay');
     if (!overlay) { return; }

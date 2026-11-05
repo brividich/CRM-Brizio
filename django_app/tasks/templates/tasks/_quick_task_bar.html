@@ -1,0 +1,30 @@
+{% comment %}
+Riga rapida «attività» dentro un incontro (dettaglio ed esito): titolo, responsabile,
+date, Invio. Niente <form> e campi senza name: nell'esito sta dentro il form della
+registrazione e non deve finirci. Salva con quick_task_bar.js sull'endpoint task-da-step.
+Contesto: quick_users, quick_start, quick_bloccato, meeting_tasks, task_from_step_url, project.
+{% endcomment %}
+<section class="qt-bar" data-qt-bar data-url="{{ task_from_step_url }}" aria-label="Attività dell'incontro">
+  <div class="qt-head">Attività di questo incontro <span class="qt-count" data-qt-count>{{ meeting_tasks|length }}</span></div>
+  {% if quick_bloccato %}
+    <p class="qt-off">Attività bloccate finché la scheda VRF non è a posto. <a href="{% url 'tasks:project_vrf_compile' project.id %}">Compila la scheda VRF</a></p>
+  {% else %}
+    <div class="qt-row">
+      <input class="input qt-title" type="text" data-qt="title" maxlength="200" placeholder="Nuova attività: scrivi il titolo e premi Invio" aria-label="Titolo attività">
+      <select class="input" data-qt="owner" aria-label="Responsabile">
+        <option value="">Responsabile</option>
+        {% include "tasks/_quick_user_options.html" %}
+      </select>
+      <label class="qt-date">Inizio <input class="input" type="date" data-qt="start" value="{{ quick_start|date:'Y-m-d' }}"></label>
+      <label class="qt-date">Fine <input class="input" type="date" data-qt="due"></label>
+      <button type="button" class="btn" data-qt="save">Aggiungi</button>
+      <button type="button" class="btn btn-secondary" data-qt="more" title="Tipo, priorità, attrezzatura o aggiornamento di un'attività esistente">Più opzioni</button>
+    </div>
+    <p class="qt-err" data-qt="err" role="alert" hidden></p>
+  {% endif %}
+  <ul class="qt-log" data-qt="log">
+    {% for t in meeting_tasks %}
+      <li><a href="{% url 'tasks:detail' t.pk %}">{{ t.title }}</a>{% if t.assigned_to %} · {{ t.assigned_to.get_full_name|default:t.assigned_to.username }}{% endif %}{% if t.due_date %} · entro {{ t.due_date|date:"d/m/Y" }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+</section>

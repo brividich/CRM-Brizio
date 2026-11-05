@@ -46,7 +46,6 @@
         {% if meeting.is_svolto %}
           <a class="md-btn" href="{% url 'tasks:project_meeting_create' project.id %}?da={{ meeting.id }}">Pianifica prossimo incontro</a>
         {% endif %}
-        <button type="button" class="md-btn" onclick="openCreateTaskModal('', null)">Crea / assegna attività</button>
         <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Convocazione</a>
         {% if meeting.stato == "PIANIFICATO" %}
           <button type="button" class="md-btn danger-ghost" id="meeting-cancel-open">Annulla incontro</button>
@@ -61,6 +60,10 @@
       </div>
     {% endif %}
   </div>
+
+  {% if can_manage and not meeting.is_annullato %}
+    {% include "tasks/_quick_task_bar.html" %}
+  {% endif %}
 
   {% if can_manage and meeting.stato == "PIANIFICATO" %}
     <form method="post" action="{% url 'tasks:project_meeting_cancel' project.id meeting.id %}" class="md-convocazione-note warn" id="meeting-cancel-box" hidden>
@@ -569,6 +572,7 @@
 <script>
   window.MEETING_TASK_MODAL = { url: "{{ task_from_step_url }}" };
 </script>
-<script src="{% static 'tasks/js/meeting_task_modal.js' %}" defer></script>
+<script src="{% static 'tasks/js/meeting_task_modal.js' %}?v=20261105" defer></script>
+<script src="{% static 'tasks/js/quick_task_bar.js' %}?v=20261105" defer></script>
 {% endif %}
 {% endblock %}
