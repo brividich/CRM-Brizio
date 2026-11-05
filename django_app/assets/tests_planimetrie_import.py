@@ -165,6 +165,7 @@ class ImportaVisteTests(_MediaMixin, TestCase):
         # né il reparto CN5 né il numero di macchina -233- sono asset da creare; niente reparti su un livello
         self.assertEqual([d.sigla for d in risultato.da_creare], [])
         self.assertEqual(risultato.reparti, [])
+        self.assertNotIn("-233-", [d.sigla for d in risultato.da_associare])
         p = risultato.proposte[0]
         r = self.client.post(reverse("assets:plant_layout_editor") + "?leggi=1", {
             "action": "applica_proposte", "layout_id": lay.id, "sel": f"{p.asset_id}:{p.x}:{p.y}",
@@ -189,3 +190,42 @@ class ImportaVisteTests(_MediaMixin, TestCase):
         })
         self.assertEqual(r.status_code, 400)
         self.assertFalse(r.json()["ok"])
+
+    def test_associa_a_mano_sigle_ambigue_e_punti_aggiunti(self):
+        # «220» è il n. interno di due asset: non si propone da solo, si sceglie a mano
+        a1 = Asset.objects.create(asset_tag="CRP-2", name="Carroponte nord", internal_number="Int.220",
+                                  asset_category=self.carroponti)
+        a2 = Asset.objects.create(asset_tag="CRP-3", name="Carroponte sud", internal_number="Int 220",
+                                  asset_category=self.carroponti)
+        altro = Asset.objects.create(asset_tag="GRU-9", name="Gru a bandiera reparto prova", asset_category=self.carroponti)
+        self.pdf = _pdf(ruota=True, scala=0.8, legenda=True, titolo="PLANIMETRIA CARROPONTI",
+                        sigle=((30, 15, "219"), (50, 20, "220")))
+        lay = PlantLayout.objects.get(pk=self._importa().json()["id"])
+        url = reverse("assets:plant_layout_editor") + f"?leggi=1&layout={lay.id}&sorgente=1"
+        r = self.client.get(url)
+        self.assertContains(r, "Da associare a mano")
+        risultato = r.context["risultato"]
+        self.assertEqual([p.asset_id for p in risultato.proposte], [self.c219.id])
+        riga = next(d for d in risultato.da_associare if d.sigla == "220")
+        self.assertEqual({c["id"] for c in riga.candidati}, {a1.id, a2.id})
+        self.assertIn("2 asset", riga.motivo)
+
+        # ricerca per nome o n. interno, solo JSON
+        r = self.client.get(reverse("assets:plant_layout_editor") + "?leggi=1&cerca=bandiera")
+        self.assertEqual([x["id"] for x in r.json()["risultati"]], [altro.id])
+        self.assertEqual(self.client.get(reverse("assets:plant_layout_editor") + "?leggi=1&cerca=x").json(),
+                         {"risultati": []})
+
+        r = self.client.post(reverse("assets:plant_layout_editor") + "?leggi=1", {
+            "action": "applica_proposte", "layout_id": lay.id,
+            "assoc": ["1", "1001", "1002"],
+            "assoc_asset_1": str(a2.id), "assoc_x_1": str(riga.x), "assoc_y_1": str(riga.y),
+            "assoc_asset_1001": str(altro.id), "assoc_x_1001": "12.5", "assoc_y_1001": "40",
+            "assoc_asset_1002": "", "assoc_x_1002": "5", "assoc_y_1002": "5",  # nessun asset scelto: ignorata
+        })
+        self.assertRedirects(r, self.url, fetch_redirect_response=False)
+        self.assertTrue(PlantLayoutMarker.objects.filter(layout=lay, asset=a2).exists())
+        self.assertFalse(PlantLayoutMarker.objects.filter(layout=lay, asset=a1).exists())
+        m = PlantLayoutMarker.objects.get(layout=lay, asset=altro)
+        self.assertEqual((float(m.x_percent), float(m.y_percent)), (12.5, 40.0))
+        self.assertEqual(PlantLayoutMarker.objects.filter(layout=lay).count(), 2)
