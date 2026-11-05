@@ -92,7 +92,24 @@ def imposta_giacenza(modello: ModelloDPI, nuova: int, *, note: str = "", user=No
     )
 
 
-def scarica_per_consegna(richiesta: RichiestaDPI, data: date, *, user=None) -> tuple[MovimentoMagazzinoDPI | None, int | None]:
+def mancanze(richieste) -> list[dict]:
+    """Modelli la cui giacenza non copre i pezzi delle richieste, sommati per modello.
+    Vuoto se il magazzino non e' in uso (nessun movimento registrato), come ``da_riordinare``."""
+    giac = giacenze()
+    if not giac:
+        return []
+    pezzi: dict[int, dict] = {}
+    for r in richieste:
+        if r.modello_dpi_id and not r.modalita_negozio:
+            riga = pezzi.setdefault(r.modello_dpi_id, {
+                "modello_id": r.modello_dpi_id, "codice": r.modello_dpi.codice,
+                "pezzi": 0, "giacenza": giac.get(r.modello_dpi_id, 0),
+            })
+            riga["pezzi"] += int(r.quantita or 1)
+    return [riga for riga in pezzi.values() if riga["giacenza"] < riga["pezzi"]]
+
+
+def scarica_per_consegna(richiesta: RichiestaDPI, data: date, *, user=None, motivo: str = "") -> tuple[MovimentoMagazzinoDPI | None, int | None]:
     """Scarica dal magazzino la quantita' consegnata. Idempotente per richiesta.
 
     Ritorna (movimento, giacenza_residua); (None, None) se la richiesta non ha un
@@ -104,11 +121,17 @@ def scarica_per_consegna(richiesta: RichiestaDPI, data: date, *, user=None) -> t
         richiesta=richiesta, tipo=Tipo.SCARICO,
         defaults={
             "modello_id": richiesta.modello_dpi_id, "quantita": -int(richiesta.quantita or 1), "data": data,
-            "note": f"Consegna {richiesta.numero} - {richiesta.richiedente_nome}"[:300],
+            "note": (f"Consegna {richiesta.numero} - {richiesta.richiedente_nome}"
+                     + (f" · senza giacenza: {motivo}" if motivo else ""))[:300],
             "created_by": user if getattr(user, "is_authenticated", False) else None,
         },
     )
     return movimento, giacenza(richiesta.modello_dpi_id)
+
+
+def annulla_scarico(richiesta: RichiestaDPI) -> int:
+    """Consegna annullata subito: lo scarico sparisce, altrimenti conterebbe nei consumi."""
+    return MovimentoMagazzinoDPI.objects.filter(richiesta=richiesta, tipo=Tipo.SCARICO).delete()[0]
 
 
 # ---------------------------------------------------------------------------

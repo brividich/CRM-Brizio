@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -1012,6 +1012,7 @@ def gestione_detail(request, pk: int):
         "oggi": timezone.localdate(),
         "vita_utile_consegna": vita_utile_consegna,
         "giacenza_modello": magazzino.giacenza(richiesta.modello_dpi_id) if richiesta.modello_dpi_id and not richiesta.modalita_negozio else None,
+        "chiedi_motivo_giacenza": richiesta.stato == StatoRichiesta.APPROVATA and bool(magazzino.mancanze([richiesta])),
         "is_gestore": is_gestore,
         "is_approvatore": True,
     })
@@ -1166,7 +1167,7 @@ def _sostituisci_consegne_precedenti(request, richiesta: RichiestaDPI, consegna:
         vecchia.save(update_fields=["sostituita_da", "data_sostituzione"])
         RichiestaDPICommento.objects.create(
             richiesta=vecchia.richiesta,
-            autore_nome=request.user.get_full_name() or request.user.username,
+            autore_nome=consegna.consegnato_da_nome,
             testo=f"DPI sostituito dalla nuova consegna {richiesta.numero} del {data_consegna.strftime('%d-%m-%Y')}.",
             is_interno=True,
         )
@@ -1222,9 +1223,15 @@ def consegna_richiesta(request, pk: int):
         except ValueError:
             pass
 
+    motivo = request.POST.get("motivo_giacenza", "").strip()[:200]
+    mancanze = magazzino.mancanze([richiesta])
+    if mancanze and not motivo:
+        messages.error(request, _testo_manca_motivo(mancanze))
+        return redirect("dpi:gestione_detail", pk=pk)
+
     residuo = _registra_consegna(
         request, richiesta, data_consegna=data_consegna, note=note, firmato=firmato,
-        firma_immagine=firma_immagine, scadenza_override=scadenza_override,
+        firma_immagine=firma_immagine, scadenza_override=scadenza_override, motivo_giacenza=motivo if mancanze else "",
     )
     messages.success(request, f"Consegna DPI {richiesta.numero} registrata.")
     _avviso_giacenza(request, richiesta, residuo)
@@ -1233,13 +1240,22 @@ def consegna_richiesta(request, pk: int):
     return redirect("dpi:gestione_detail", pk=pk)
 
 
+def _testo_manca_motivo(mancanze: list[dict]) -> str:
+    elenco = ", ".join(f"{m['codice']} (servono {m['pezzi']}, in magazzino {m['giacenza']})" for m in mancanze)
+    return f"Giacenza insufficiente: {elenco}. Registra il carico oppure scrivi il motivo per consegnare lo stesso."
+
+
 def _chiedi_conferma(request, consegne: list[ConsegnaDPI]) -> None:
     """Senza firma ne' ricevuta su carta: mail di conferma al dipendente (mail aziendale)
     o al suo caporeparto. La consegna resta registrata comunque."""
     from . import conferme
 
-    autore = request.user.get_full_name() or request.user.username
+    autore = consegne[0].consegnato_da_nome if consegne else ""
     conferma, tipo, inviate = conferme.richiedi(consegne, autore=autore)
+    if getattr(request, "_senza_utente", False):  # dal task: nessuno a cui mostrare i messaggi
+        if conferma is not None:
+            log_action(request, "dpi_conferma_richiesta", "dpi", f"Conferma ricevuta {conferma.pk} per {conferma.richiedente_nome} ({tipo})")
+        return
     if conferma is not None and not inviate:
         messages.warning(request, "Mail di conferma della ricevuta non inviata (regola «DPI consegnato - conferma della "
                                   "ricevuta via mail» spenta in Automazioni o invio fallito): fai firmare il dipendente "
@@ -1262,9 +1278,12 @@ def _avviso_giacenza(request, richiesta: RichiestaDPI, residuo: int | None) -> N
 
 
 def _registra_consegna(request, richiesta: RichiestaDPI, *, data_consegna, note: str = "", firmato: bool = False,
-                       firma_immagine: str = "", scadenza_override=None) -> int | None:
-    """Registra la consegna di una richiesta approvata: consegna + stato, sostituzione
-    delle precedenti, PDF nei documenti del dipendente, notifiche, scarico di magazzino.
+                       firma_immagine: str = "", scadenza_override=None, motivo_giacenza: str = "",
+                       in_sospeso_dal=None) -> int | None:
+    """Registra la consegna di una richiesta approvata: consegna + stato + scarico di magazzino,
+    poi sostituzione delle precedenti, PDF nei documenti del dipendente e notifiche.
+    Con ``in_sospeso_dal`` la seconda parte aspetta ``_completa_in_sospeso``: la consegna e' gia'
+    salva, ma finche' non e' partito nulla si puo' annullare (Banco consegne).
     Ritorna la giacenza residua del modello (None se la richiesta non ha un modello).
     Unico punto per la consegna dalla scheda richiesta e dal Banco consegne."""
     # Scadenza automatica da vita utile modello, se presente, altrimenti categoria.
@@ -1278,21 +1297,42 @@ def _registra_consegna(request, richiesta: RichiestaDPI, *, data_consegna, note:
         if vita_utile:
             scadenza = data_consegna + timedelta(days=vita_utile)
 
-    consegna, _ = ConsegnaDPI.objects.update_or_create(
-        richiesta=richiesta,
-        defaults={
-            "data_consegna": data_consegna,
-            "consegnato_da_nome": request.user.get_full_name() or request.user.username,
-            "note_consegna": note,
-            "firmato_ricevuta": firmato,
-            "data_scadenza_stimata": scadenza,
-            "firma_immagine": firma_immagine,
-        },
-    )
-    richiesta.stato = StatoRichiesta.CONSEGNATA
-    richiesta.save(update_fields=["stato", "updated_at"])
+    autore = request.user.get_full_name() or request.user.username
+    movimento, residuo = None, None
+    with transaction.atomic():
+        consegna, _ = ConsegnaDPI.objects.update_or_create(
+            richiesta=richiesta,
+            defaults={
+                "data_consegna": data_consegna,
+                "consegnato_da_nome": autore,
+                "note_consegna": note,
+                "firmato_ricevuta": firmato,
+                "data_scadenza_stimata": scadenza,
+                "firma_immagine": firma_immagine,
+                "avvisi_in_sospeso_dal": in_sospeso_dal,
+            },
+        )
+        richiesta.stato = StatoRichiesta.CONSEGNATA
+        richiesta.save(update_fields=["stato", "updated_at"])
+        if motivo_giacenza:
+            RichiestaDPICommento.objects.create(
+                richiesta=richiesta, autore_nome=autore, is_interno=True,
+                testo=f"Consegnato senza giacenza sufficiente: {motivo_giacenza}",
+            )
+        # Le scarpe comprate per la persona non sono mai state in magazzino.
+        if not richiesta.modalita_negozio:
+            movimento, residuo = magazzino.scarica_per_consegna(richiesta, data_consegna, user=request.user, motivo=motivo_giacenza)
     log_action(request, "consegna", "dpi", f"Consegnato DPI {richiesta.numero} in data {data_consegna}")
+    if movimento is not None:
+        log_action(request, "DPI_MAGAZZINO_SCARICO", "dpi", f"Scarico {movimento.quantita} x {movimento.modello.codice} per {richiesta.numero}")
+    if in_sospeso_dal is None:
+        _completa_consegna(request, consegna)
+    return residuo
 
+
+def _completa_consegna(request, consegna: ConsegnaDPI) -> None:
+    """Quello che esce dalla consegna: sostituzione delle precedenti, PDF, notifiche e mail."""
+    richiesta, data_consegna = consegna.richiesta, consegna.data_consegna
     _sostituisci_consegne_precedenti(request, richiesta, consegna, data_consegna)
 
     # Genera e archivia il PDF del modulo di consegna nello spazio documenti del
@@ -1310,12 +1350,44 @@ def _registra_consegna(request, richiesta: RichiestaDPI, *, data_consegna, note:
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
         )
     flusso.notifica_consegnata(consegna)
-    if richiesta.modalita_negozio:  # comprate per la persona: non sono mai state in magazzino
-        return None
-    movimento, residuo = magazzino.scarica_per_consegna(richiesta, data_consegna, user=request.user)
-    if movimento is not None:
-        log_action(request, "DPI_MAGAZZINO_SCARICO", "dpi", f"Scarico {movimento.quantita} x {movimento.modello.codice} per {richiesta.numero}")
-    return residuo
+
+
+def _completa_in_sospeso(request, consegne) -> int:
+    """Manda mail e PDF delle consegne ancora in sospeso. Chi toglie il segno per primo la
+    completa: browser e task insieme non producono mail doppie, e dopo non si annulla piu'."""
+    fatte = 0
+    senza_firma: dict[str, list[ConsegnaDPI]] = {}
+    for c in consegne:
+        if not ConsegnaDPI.objects.filter(pk=c.pk, avvisi_in_sospeso_dal__isnull=False).update(avvisi_in_sospeso_dal=None):
+            continue
+        try:
+            _completa_consegna(request, c)
+        except Exception:  # la consegna e' registrata: un avviso fallito non ferma le altre
+            logger.exception("Avvisi della consegna DPI %s non completati", c.pk)
+            log_action(request, "DPI_CONSEGNA_AVVISI_ERRORE", "dpi", f"Avvisi non completati per {c.richiesta.numero}")
+            continue
+        fatte += 1
+        if not c.firmato_ricevuta:
+            senza_firma.setdefault(_chiave_persona(c.richiesta), []).append(c)
+    for gruppo in senza_firma.values():
+        _chiedi_conferma(request, gruppo)
+    return fatte
+
+
+def completa_consegne_in_sospeso(minuti: int = 2) -> int:
+    """Rete di sicurezza: l'annullo dura pochi secondi, quindi quello che resta in sospeso
+    oltre ``minuti`` viene da un browser chiuso o senza rete e parte da qui."""
+    from types import SimpleNamespace
+
+    from django.contrib.auth.models import AnonymousUser
+
+    limite = timezone.now() - timedelta(minutes=minuti)
+    consegne = list(ConsegnaDPI.objects.filter(avvisi_in_sospeso_dal__lt=limite).select_related(
+        "richiesta", "richiesta__categoria", "richiesta__tipo_dpi", "richiesta__modello_dpi", "richiesta__taglia_dpi",
+    ).order_by("avvisi_in_sospeso_dal"))
+    if not consegne:
+        return 0
+    return _completa_in_sospeso(SimpleNamespace(user=AnonymousUser(), META={}, _senza_utente=True), consegne)
 
 
 @login_required
@@ -2067,7 +2139,7 @@ def _banco_persone(qs, giac: dict) -> list[dict]:
             "righe": [], "n_pronte": 0, "n_da_preparare": 0, "n_mancanti": 0,
         })
         g_mod = giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id and not r.modalita_negozio else None
-        manca = g_mod is not None and g_mod < r.quantita
+        manca = bool(giac) and g_mod is not None and g_mod < r.quantita  # senza movimenti il magazzino non e' in uso
         g["righe"].append({"r": r, "giacenza": g_mod, "manca": manca})
         g["n_pronte" if r.pronta_ritiro_il else "n_da_preparare"] += 1
         g["n_mancanti"] += int(manca)
@@ -2166,6 +2238,45 @@ def _banco_cambia_modello(request, tutte: bool):
     return _banco_redirect(chiave, tutte)
 
 
+def _banco_in_sospeso(request) -> list[ConsegnaDPI]:
+    """Consegne indicate dal modulo, ancora annullabili e nel perimetro di chi gestisce."""
+    ids = [i for i in (_int_or_none(v) for v in request.POST.getlist("ids")) if i]
+    qs = ConsegnaDPI.objects.filter(richiesta_id__in=ids, avvisi_in_sospeso_dal__isnull=False).select_related(
+        "richiesta", "richiesta__categoria", "richiesta__tipo_dpi", "richiesta__modello_dpi", "richiesta__taglia_dpi",
+    )
+    if sistema_ruoli_attivo():
+        visibili = _anagrafiche_visibili(request, "gestire")
+        if visibili is not None:
+            qs = qs.filter(richiesta__richiedente_legacy_id__in=list(visibili))
+    return list(qs)
+
+
+def _banco_annulla_consegne(request, tutte: bool):
+    """Ripensamento subito dopo la consegna: non e' partito nulla, si torna alla richiesta approvata."""
+    autore = request.user.get_full_name() or request.user.username
+    annullate = []
+    for c in _banco_in_sospeso(request):
+        r = c.richiesta
+        with transaction.atomic():
+            if not ConsegnaDPI.objects.filter(pk=c.pk, avvisi_in_sospeso_dal__isnull=False).delete()[0]:
+                continue  # gli avvisi sono partiti proprio ora
+            magazzino.annulla_scarico(r)
+            r.stato = StatoRichiesta.APPROVATA
+            r.save(update_fields=["stato", "updated_at"])
+            RichiestaDPICommento.objects.create(
+                richiesta=r, autore_nome=autore, is_interno=True,
+                testo=f"Consegna del {c.data_consegna:%d-%m-%Y} annullata subito dopo la registrazione.",
+            )
+        log_action(request, "DPI_CONSEGNA_ANNULLATA", "dpi", f"Consegna {r.numero} annullata da {autore}")
+        annullate.append(r.pk)
+    request.banco_annullate = annullate
+    if annullate:
+        messages.info(request, f"Consegna annullata: {len(annullate)} DPI di nuovo da consegnare.")
+    else:
+        messages.error(request, "Troppo tardi per annullare: gli avvisi della consegna sono già partiti.")
+    return _banco_redirect(tutte=tutte)
+
+
 def _banco_azione(request):
     azione = request.POST.get("azione", "")
     tutte = request.POST.get("tutte") == "1"
@@ -2173,6 +2284,11 @@ def _banco_azione(request):
         return _banco_consegna_diretta(request, tutte)
     if azione == "cambia":
         return _banco_cambia_modello(request, tutte)
+    if azione == "avvisi":
+        _completa_in_sospeso(request, _banco_in_sospeso(request))
+        return _banco_redirect(tutte=tutte)
+    if azione == "annulla":
+        return _banco_annulla_consegne(request, tutte)
     richieste = _banco_selezionate(request)
     if not richieste:
         messages.warning(request, "Spunta almeno un DPI.")
@@ -2204,13 +2320,27 @@ def _banco_azione(request):
             return _banco_redirect(chiave, tutte)
         firmato = bool(firma_immagine) or bool(request.POST.get("firmato_ricevuta"))
         note = request.POST.get("note_consegna", "").strip()
+        motivo = request.POST.get("motivo_giacenza", "").strip()[:200]
+        mancanze = magazzino.mancanze(richieste)
+        if mancanze and not motivo:
+            request.banco_chiedi_motivo = True
+            messages.error(request, _testo_manca_motivo(mancanze))
+            return _banco_redirect(chiave, tutte)
+        senza_giacenza = {m["modello_id"] for m in mancanze}
+        # Dalla pagina aperta: mail e PDF aspettano qualche secondo, per poter annullare.
+        differita = request.POST.get("differisci") == "1" and request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        adesso = timezone.now() if differita else None
         per_persona: dict[str, list[ConsegnaDPI]] = {}
         for r in richieste:
             residuo = _registra_consegna(
                 request, r, data_consegna=data_consegna, note=note, firmato=firmato, firma_immagine=firma_immagine,
+                motivo_giacenza=motivo if r.modello_dpi_id in senza_giacenza else "", in_sospeso_dal=adesso,
             )
             _avviso_giacenza(request, r, residuo)
             per_persona.setdefault(_chiave_persona(r), []).append(r.consegna)
+        if differita:
+            request.banco_registrate = [r.pk for r in richieste]
+            return _banco_redirect(tutte=tutte)
         nomi = sorted({r.richiedente_nome for r in richieste})
         messages.success(request, f"Consegnati {len(richieste)} DPI a {', '.join(nomi)}.")
         if not firmato:
@@ -2237,8 +2367,14 @@ def banco(request):
         tutte = request.POST.get("tutte") == "1"
         pagina = render(request, "dpi/components/_banco_lavoro.html", _banco_contesto(request, tutte))
         pagina["X-Banco-Apri"] = risposta.url.partition("#")[2].removeprefix("apri-")
+        pagina["X-Banco-Registrate"] = ",".join(str(i) for i in getattr(request, "banco_registrate", []))
+        pagina["X-Banco-Annullate"] = ",".join(str(i) for i in getattr(request, "banco_annullate", []))
+        if getattr(request, "banco_chiedi_motivo", False):
+            pagina["X-Banco-Motivo"] = "1"
         return pagina
 
+    if not parziale:
+        completa_consegne_in_sospeso()
     tutte = request.GET.get("tutte") == "1"
     contesto = _banco_contesto(request, tutte)
     if parziale:
@@ -2304,7 +2440,7 @@ def _prelievo_gruppi(qs, giac: dict) -> list[dict]:
         g["pezzi"] += r.quantita
         g["richieste"].append(r)
     for g in gruppi.values():
-        g["manca"] = g["giacenza"] is not None and g["giacenza"] < g["pezzi"]
+        g["manca"] = bool(giac) and g["giacenza"] is not None and g["giacenza"] < g["pezzi"]
     return sorted(gruppi.values(), key=lambda g: (g["categoria"].casefold(), g["etichetta"].casefold(), g["taglia"]))
 
 
