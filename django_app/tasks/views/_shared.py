@@ -1,6 +1,8 @@
 """Helper comuni alle viste KICK-OFF: shell, timeline, eventi, rollup."""
 from __future__ import annotations
 
+from datetime import timedelta
+
 import json
 import logging
 from datetime import date, datetime
@@ -158,6 +160,24 @@ def _vrf_status_detail(project, cfg: "TaskImpostazioni") -> dict:
         "is_blocked": False,
         "days_pending": days,
         "show_upload_cta": True,
+    }
+
+
+def _prossimo_inizio(tasks, today):
+    """Inizio proposto per la prossima attivita': il giorno dopo l'ultima fine."""
+    fini = [t.due_date for t in tasks if t.due_date]
+    return max(fini) + timedelta(days=1) if fini else today
+
+
+def _utenti_riga_rapida(project):
+    """Prima il team della commessa, poi gli altri utenti attivi."""
+    from ..forms import task_active_users_queryset, user_display_label
+
+    ids = project.team_user_ids
+    utenti = task_active_users_queryset()
+    return {
+        "team": [(u.pk, user_display_label(u)) for u in utenti.filter(pk__in=ids)],
+        "altri": [(u.pk, user_display_label(u)) for u in utenti.exclude(pk__in=ids)],
     }
 
 

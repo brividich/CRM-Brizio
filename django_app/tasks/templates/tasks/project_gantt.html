@@ -135,8 +135,7 @@ body.tk-wide .content sta in tasks.css.
           <label for="quick_user">Responsabile</label>
           <select id="quick_user" class="input" name="assigned_to">
             <option value="">Da assegnare</option>
-            {% if quick_users.team %}<optgroup label="Team">{% for pk, nome in quick_users.team %}<option value="{{ pk }}">{{ nome }}</option>{% endfor %}</optgroup>{% endif %}
-            {% if quick_users.altri %}<optgroup label="Altri">{% for pk, nome in quick_users.altri %}<option value="{{ pk }}">{{ nome }}</option>{% endfor %}</optgroup>{% endif %}
+            {% include "tasks/_quick_user_options.html" with selected=quick_resp %}
           </select>
         </div>
         <div class="ts-field">
