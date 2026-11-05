@@ -136,9 +136,11 @@ register(ExportSpec(
 
 def _centri_costo_rows(request: HttpRequest, scope: str) -> list[dict]:
     from anagrafica.models import AreaAziendale
-    from anagrafica.views_centri_costo import persone_per_area
+    from anagrafica.views_centri_costo import carico_oggi, persone_per_area
 
     persone = persone_per_area()
+    carico = carico_oggi()
+    segnali = carico.per_area() if carico else {}
     aree = AreaAziendale.objects.select_related("reparto", "centro_di_costo").prefetch_related("ruoli_reparto")
     rows: list[dict] = []
     for area in aree.order_by("centro_di_costo__nome", "nome"):
@@ -149,6 +151,9 @@ def _centri_costo_rows(request: HttpRequest, scope: str) -> list[dict]:
             "nome": area.nome or "",
             "reparto": area.reparto.nome if area.reparto_id else "",
             "persone": persone.get(area.pk, 0),
+            "scoperte": (segnali.get(area.pk) or {}).get("scoperte", 0),
+            "uomo_solo": (segnali.get(area.pk) or {}).get("uomo_solo", 0),
+            "concentrate": (segnali.get(area.pk) or {}).get("concentrate", 0),
             "ruoli": ", ".join(sorted((r.sigla or r.nome) for r in area.ruoli_reparto.all())),
         })
     return rows
@@ -163,6 +168,9 @@ register(ExportSpec(
         ("Reparto (area)", "nome"),
         ("Reparto del portale", "reparto"),
         ("Persone", "persone"),
+        ("Mansioni scoperte", "scoperte"),
+        ("Mansioni uomo solo", "uomo_solo"),
+        ("Mansioni a carico concentrato", "concentrate"),
         ("Ruoli", "ruoli"),
     ],
     dataset=_centri_costo_rows,

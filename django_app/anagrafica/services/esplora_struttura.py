@@ -59,6 +59,16 @@ class Dati:
     area_di: dict = field(default_factory=dict)
     ruoli_di: dict = field(default_factory=dict)
     ruoli: dict = field(default_factory=dict)
+    _carico: object = None
+
+    @property
+    def carico(self):
+        """Carico sulle mansioni, letto una volta sola e solo se serve."""
+        if self._carico is None:
+            from .carico_mansioni import calcola
+
+            self._carico = calcola()
+        return self._carico
 
     @classmethod
     def carica(cls) -> "Dati":
@@ -262,14 +272,30 @@ def _ruoli_colonna(d: Dati, scelti, area) -> list:
     return righe
 
 
+def _segnale_mansione(d: Dati, m) -> str:
+    """«scoperta», «uomo solo», «carico concentrato»: vuoto se non c'è niente da guardare."""
+    r = d.carico.per_mansione.get(m.pk)
+    if r is None:
+        return ""
+    if r["stato"] != "ok":
+        return r["stato"]
+    return "carico concentrato" if r["concentrato"] else ""
+
+
+def _kpi_da_guardare(d: Dati, mansioni_ids) -> tuple:
+    n = d.carico.conteggi(mansioni_ids)["da_guardare"]
+    return ("Mansioni da guardare", n, bool(n))
+
+
 def _mansioni_colonna(d: Dati, scelti, info) -> list:
     voci = []
     conteggi = _conteggi_voci([m.pk for m in info["mansioni"]])
     for m in sorted(info["mansioni"], key=lambda x: x.nome.casefold()):
         n = conteggi.get(m.pk, 0)
-        voci.append(_voce(m.pk, m.nome, sotto=_quanti(n, "competenza", "competenze"),
+        segnale = _segnale_mansione(d, m)
+        voci.append(_voce(m.pk, m.nome, sotto=" · ".join(x for x in (_quanti(n, "competenza", "competenze"), segnale) if x),
                           url_=url(centro=scelti["centro"], area=scelti["area"], ruolo=scelti["ruolo"], mansione=m.pk),
-                          scelta=scelti["mansione"] == m.pk))
+                          scelta=scelti["mansione"] == m.pk, avviso=bool(segnale)))
     return voci
 
 
@@ -346,7 +372,7 @@ def _dettaglio_centro(d: Dati, s) -> dict:
         "tipo": "Centro di costo", "titolo": c.nome if c else ETICHETTE_SENZA["centro"],
         "testo": c.descrizione if c else "Reparti non collegati a un centro di costo. La Direzione può restare qui.",
         "kpi": [("Reparti", len(aree), False), ("Persone", len(ids), False), ("Ruoli", len(ruoli), False),
-                ("Mansioni", len(mansioni), False)],
+                ("Mansioni", len(mansioni), False), _kpi_da_guardare(d, mansioni)],
         "persone": _persone(ids),
     }
 
@@ -359,7 +385,8 @@ def _dettaglio_area(d: Dati, s, area) -> dict:
         "testo": (f"Nel reparto del portale {area.reparto.nome}." if area and area.reparto_id
                   else ("Non è in un reparto del portale." if area else "Persone e mansioni senza area aziendale.")),
         "kpi": [("Persone", len(ids), False), ("Ruoli", sum(1 for r in ruoli if r != SENZA), False),
-                ("Mansioni", len(d.mansioni_area(area)), False)],
+                ("Mansioni", len(d.mansioni_area(area)), False),
+                _kpi_da_guardare(d, [m.pk for m in d.mansioni_area(area)])],
         "persone": _persone(ids),
     }
 
@@ -399,6 +426,14 @@ def _dettaglio_ruolo(d: Dati, s, area, info) -> dict:
     }
 
 
+def _kpi_carico_mansione(d: Dati, m) -> list:
+    r = d.carico.per_mansione.get(m.pk)
+    if r is None or m.is_responsabilita:
+        return []
+    carico = "—" if r["concentrazione"] is None else f"{r['concentrazione']}%"
+    return [("Carico", carico, r["concentrato"]), ("Stato", r["stato"], r["stato"] != "ok")]
+
+
 def _dettaglio_mansione(d: Dati, s, m) -> dict:
     persone = [p for p in mansionario_struttura.persone(m) if p["legacy_id"] in d.in_forza]
     altri = [{"nome": _etichetta_ruolo(r), "sotto": "stessa mansione sotto un altro ruolo",
@@ -416,7 +451,7 @@ def _dettaglio_mansione(d: Dati, s, m) -> dict:
         "tipo": "Mansione", "titolo": m.nome, "dati": tecnico,
         "kpi": [("Persone in lista", len(persone), False),
                 ("Operative", sum(1 for p in persone if p["operativa"]), False),
-                ("Competenze", n_voci, not n_voci)],
+                ("Competenze", n_voci, not n_voci)] + _kpi_carico_mansione(d, m),
         "persone_titolo": "Persone in lista",
         "persone": [{"id": p["legacy_id"], "nome": p["nome"], "nota": f"livello {p['livello']}"
                      + ("" if p["operativa"] else " · non operativa")} for p in persone],

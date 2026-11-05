@@ -7,6 +7,7 @@ dell'anagrafica.
 """
 from __future__ import annotations
 
+import logging
 from collections import Counter
 
 from django.contrib import messages
@@ -21,6 +22,7 @@ from .models import AreaAziendale, CentroDiCosto, RuoloOperativo
 from .services import capo_team
 from .views import _helpers
 
+logger = logging.getLogger(__name__)
 MODULE = "anagrafica"
 
 
@@ -43,17 +45,36 @@ def persone_per_area() -> Counter:
     return Counter(a.pk for a in build_area_canonica_map(list(capo_team.mappa_capi())).values())
 
 
-def _riga(area, persone) -> dict:
+def carico_oggi():
+    """Il carico per le pagine di consultazione: senza anagrafica leggibile la pagina resta in piedi."""
+    from .services import carico_mansioni
+
+    try:
+        return carico_mansioni.calcola()
+    except Exception:
+        logger.warning("centri di costo: carico sulle mansioni non calcolato", exc_info=True)
+        return None
+
+
+def _riga(area, persone, segnali=None) -> dict:
     return {
         "area": area,
         "persone": persone.get(area.pk, 0),
+        "segnali": (segnali or {}).get(area.pk),
         "ruoli": sorted(area.ruoli_reparto.all(), key=lambda r: r.nome.lower()),
     }
 
 
 @login_required
 def centri_costo(request):
+    from .services import carico_mansioni
+
     persone = persone_per_area()
+    carico = carico_oggi()
+    segnali_area = carico.per_area() if carico else {}
+    segnali_centro = carico.per_centro() if carico else {}
+    puo_costi = _helpers._check_hr_permission(request)
+    costi = carico_mansioni.costi_per_centro(carico) if carico and puo_costi else {"mese": None, "centri": {}}
     aree = (
         AreaAziendale.objects.select_related("reparto", "centro_di_costo")
         .prefetch_related("ruoli_reparto").order_by("nome")
@@ -61,11 +82,12 @@ def centri_costo(request):
     per_centro: dict[int | None, list] = {}
     for area in aree:
         if area.is_active or area.centro_di_costo_id:
-            per_centro.setdefault(area.centro_di_costo_id, []).append(_riga(area, persone))
+            per_centro.setdefault(area.centro_di_costo_id, []).append(_riga(area, persone, segnali_area))
     schede = []
     for centro in CentroDiCosto.objects.order_by("nome"):
         righe = per_centro.get(centro.pk, [])
-        schede.append({"centro": centro, "righe": righe, "persone": sum(r["persone"] for r in righe)})
+        schede.append({"centro": centro, "righe": righe, "persone": sum(r["persone"] for r in righe),
+                       "segnali": segnali_centro.get(centro.pk), "costi": costi["centri"].get(centro.pk)})
     senza = per_centro.get(None, [])
     return render(request, "anagrafica/pages/centri_costo.html", {
         "schede": schede,
@@ -76,11 +98,14 @@ def centri_costo(request):
             "persone": sum(s["persone"] for s in schede),
             "senza_centro": len(senza),
             "persone_senza_centro": sum(r["persone"] for r in senza),
+            "da_guardare": carico.conteggi()["da_guardare"] if carico else None,
         },
+        "carico": carico,
+        "mese_costi": costi["mese"],
         "centri_opts": [s["centro"] for s in schede if s["centro"].is_active],
         "ruoli_opts": list(RuoloOperativo.objects.filter(is_active=True).order_by("nome")),
         "is_admin": _helpers._is_anagrafica_admin(request),
-        "puo_costi": _helpers._check_hr_permission(request),
+        "puo_costi": puo_costi,
     })
 
 

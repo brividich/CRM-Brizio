@@ -15,6 +15,9 @@
   <div><b>{{ ruoli|length }}</b><span>ruol{{ ruoli|length|pluralize:"o,i" }}</span></div>
   <div><b>{{ rischi|length }}</b><span>mansion{{ rischi|length|pluralize:"e,i" }} di rischio</span></div>
 </div>
+{% if carico_riga and not mansione.is_responsabilita %}
+<p class="sto-nota">Stato: <strong>{{ carico_riga.stato }}</strong>{% if carico_riga.concentrazione is not None %} · carico {{ carico_riga.concentrazione }}%{% if carico_riga.concentrato %} (<strong>concentrato</strong>){% endif %}{% endif %}.{% if mansione.area.centro_di_costo_id %} Centro di costo: {{ mansione.area.centro_di_costo.nome }}.{% endif %}{% if fuori_forza %} {{ fuori_forza }} in lista non più in forza: gli operativi non li contano.{% endif %}</p>
+{% endif %}
 
 <section class="sto-sch-sez">
   <h3>Ruoli che la svolgono</h3>

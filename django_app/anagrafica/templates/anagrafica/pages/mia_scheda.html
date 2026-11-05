@@ -34,6 +34,7 @@
   {% else %}
     {% include "anagrafica/components/hr_pagehead.html" with eyebrow="I miei dati" title=nome desc="Solo i tuoi dati: ferie, visite, formazione, cedolino e DPI. Se qualcosa non torna, usa «Segnala un dato errato» in fondo alla pagina." guida_url=guida_url|add:"#la-mia-scheda" %}
 
+    {% if reparto or centro_costo or mansione %}<p class="hr-card-desc" style="margin:0 0 12px;">{% if reparto %}Reparto: <strong>{{ reparto }}</strong>{% endif %}{% if centro_costo %} · Centro di costo: <strong>{{ centro_costo }}</strong>{% endif %}{% if mansione %} · Mansione: <strong>{{ mansione }}</strong>{% endif %}</p>{% endif %}
     <div class="ms-grid">
       <section class="hr-card ms-wide" aria-labelledby="ms-ferie">
         <div class="hr-card-head"><div>
