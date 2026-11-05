@@ -59,6 +59,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from core.legacy_anagrafica import fetch_anagrafica_rows
         from core.notifiche import invia_notifica
+        from core.permessi.identita import utente_da_anagrafica
         from anagrafica.models_formazione import TrainingEnrollment, TrainingSession
 
         today = timezone.localdate()
@@ -129,7 +130,7 @@ class Command(BaseCommand):
                 if not dry:
                     try:
                         invia_notifica(
-                            i.legacy_anagrafica_id, "formazione_promemoria",
+                            utente_da_anagrafica(i.legacy_anagrafica_id), "formazione_promemoria",
                             f"Promemoria: corso «{sess.corso.titolo}» il {sess.data_inizio:%d-%m-%Y}.",
                             f"/anagrafica/formazione/sessioni/{sess.pk}/iscritti/",
                         )

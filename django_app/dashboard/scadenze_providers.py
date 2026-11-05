@@ -213,7 +213,7 @@ def collect_rentri(ctx: ScadenzeContext) -> list[ScadenzaItem]:
                 reparto="",
                 data_scadenza=data,
                 giorni=giorni,
-                url=elenco_url,
+                url=reverse("rentri_dettaglio", args=[row["pk"]]) if row.get("pk") else elenco_url,
                 extra={"codice": row.get("codice"), "quantita": str(row.get("quantita") or "")},
             )
         )
@@ -367,10 +367,15 @@ def collect_hr(ctx: ScadenzeContext) -> list[ScadenzaItem]:
         base_url = reverse("anagrafica:scadenzario")
     except Exception:
         base_url = ""
+    schede = {"visita": "#scheda-visite", "contratto": "#scheda-contratto", "formazione": "#scheda-formazione"}
 
     items: list[ScadenzaItem] = []
     for v in voci:
         kind = v.get("kind") or ""
+        url = f"{base_url}?tipo={kind}" if base_url and kind else base_url
+        if v.get("legacy_id"):
+            # La scheda della persona, sulla parte giusta.
+            url = reverse("anagrafica:dipendente_detail", args=[v["legacy_id"]]) + schede.get(kind, "")
         items.append(ScadenzaItem(
             source=SOURCE_HR,
             kind=kind,
@@ -380,7 +385,7 @@ def collect_hr(ctx: ScadenzeContext) -> list[ScadenzaItem]:
             reparto=(v.get("reparto") or "").strip(),
             data_scadenza=v.get("data_scadenza"),
             giorni=v.get("giorni"),
-            url=f"{base_url}?tipo={kind}" if base_url and kind else base_url,
+            url=url,
             extra={"legacy_id": v.get("legacy_id")},
             elemento=v.get("tipo_nome") or "",
             elemento_label=v.get("tipo_nome") or "",

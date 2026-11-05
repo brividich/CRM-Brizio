@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 from io import StringIO
+from unittest.mock import patch
 
 from django.core import mail
 from django.core.management import call_command
@@ -37,20 +38,24 @@ def _deadline(corso, legacy_id, stato, giorni, is_required=True):
 class TrainingExpiryCommandTests(TestCase):
     def test_digest_e_notifica_per_scadute_e_in_scadenza(self):
         corso = _corso()
-        _deadline(corso, 711, "SCADUTO", -10)
-        _deadline(corso, 712, "IN_SCADENZA_30", 12)
+        _deadline(corso, 711, "SCADUTO", -8)
+        _deadline(corso, 712, "IN_SCADENZA_30", 14)
         _deadline(corso, 713, "VALIDO", 400)          # escluso
-        _deadline(corso, 714, "IN_SCADENZA_30", 12, is_required=False)  # non obbligatorio → escluso
+        _deadline(corso, 714, "IN_SCADENZA_30", 14, is_required=False)  # non obbligatorio → escluso
+        _deadline(corso, 715, "IN_SCADENZA_30", 12)   # mail sì, ma oggi niente promemoria alla persona
 
         out = StringIO()
-        call_command("send_training_expiry_reminders", recipients=["hr@x.local"], stdout=out)
+        # La notifica va all'utente della persona, non al suo numero di anagrafica.
+        with patch("anagrafica.management.commands.send_training_expiry_reminders.utente_da_anagrafica",
+                   side_effect=lambda legacy_id: legacy_id + 1000):
+            call_command("send_training_expiry_reminders", recipients=["hr@x.local"], stdout=out)
 
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["hr@x.local"])
-        self.assertEqual(Notifica.objects.filter(legacy_user_id=711).count(), 1)
-        self.assertEqual(Notifica.objects.filter(legacy_user_id=712).count(), 1)
-        self.assertEqual(Notifica.objects.filter(legacy_user_id=713).count(), 0)
-        self.assertEqual(Notifica.objects.filter(legacy_user_id=714).count(), 0)
+        self.assertEqual(Notifica.objects.filter(legacy_user_id=1711).count(), 1)
+        self.assertEqual(Notifica.objects.filter(legacy_user_id=1712).count(), 1)
+        self.assertEqual(Notifica.objects.filter(legacy_user_id=1715).count(), 0)
+        self.assertEqual(Notifica.objects.filter(legacy_user_id__in=[711, 712, 713, 714, 1713, 1714]).count(), 0)
 
     def test_in_scadenza_oltre_finestra_giorni_escluso(self):
         corso = _corso()
