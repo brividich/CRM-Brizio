@@ -28,29 +28,13 @@ from ..models import AbilitazioneMacchina, CostoOrarioMensile, DipendenteAnagraf
 from ..models_skillmatrix import SkillMatrixConfig, ordinale_livello
 from ..models_struttura import ProspettoModifica as M
 from . import capo_team, esplora_struttura, ruoli_in_blocco
+from .carico_mansioni import Abil, classifica
+from .carico_mansioni import quote as _quote
 from .mansionario_struttura import assegna, togli
 
 SENZA_CENTRO = "Senza centro di costo"
 SENZA_REPARTO = "Senza reparto"
 ZERO = Decimal(0)
-
-
-def _quote(sue: list) -> list:
-    """(id mansione, peso) con somma 1: stessa regola di ``sezioni_costi._quote``, sullo stato simulato."""
-    contate = [a for a in sue if a.coefficiente is not None]
-    somma = sum((a.coefficiente for a in contate), ZERO)
-    if not contate or somma <= 0:
-        return [(None, Decimal(1))]
-    return [(a.mansione_id, a.coefficiente / somma) for a in contate]
-
-
-@dataclass
-class Abil:
-    mansione_id: int
-    livello: str
-    operativa: bool
-    coefficiente: Decimal | None
-    id_reale: int | None = None
 
 
 @dataclass
@@ -319,23 +303,9 @@ def misure(base: Base, s: Stato, *, soglia_mansioni: int, soglia_concentrazione:
                 r["rml"] += c.rml * peso
                 r["ora"] += c.costo_orario * peso
 
-    soglia_solo = base.config.soglia_uomo_solo
     for mid, r in per_mansione.items():
-        mans = base.mansioni[mid]
-        if mans.is_responsabilita:
-            r["stato"] = "ok" if r["lista"] else "nessun titolare"
-        elif not r["operativi"]:
-            r["stato"] = "scoperta"
-        elif r["operativi"] < soglia_solo:
-            r["stato"] = "uomo solo"
-        else:
-            r["stato"] = "ok"
-        # Quanta parte del loro tempo danno qui gli operativi, senza chi è in lista sotto la soglia
-        # (altrimenti supera il 100%): alta = poco margine se aumenta il lavoro.
-        r["concentrazione"] = (int((r["fte_operativi"] / r["operativi"] * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-                               if r["operativi"] else None)
-        r["concentrato"] = (not mans.is_responsabilita and r["concentrazione"] is not None
-                            and r["concentrazione"] >= soglia_concentrazione)
+        classifica(r, responsabilita=base.mansioni[mid].is_responsabilita, soglia_uomo_solo=base.config.soglia_uomo_solo,
+                   soglia_concentrazione=soglia_concentrazione)
 
     # Persone: su troppe mansioni e persone chiave (unico operativo)
     uniche: dict[int, list] = defaultdict(list)

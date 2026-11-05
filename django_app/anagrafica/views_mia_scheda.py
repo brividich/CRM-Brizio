@@ -98,12 +98,17 @@ def mia_scheda(request):
     if lid is None:
         return render(request, "anagrafica/pages/mia_scheda.html", {"collegato": False})
     row = next(iter(fetch_anagrafica_rows(ids=[lid])), {})
+    if row:
+        from .services.reparto_canonico import enrich_rows_reparto_canonico
+
+        enrich_rows_reparto_canonico([row])
     mesi, voci, competenza = _cedolino(lid, request.GET.get("cedolino", ""))
     return render(request, "anagrafica/pages/mia_scheda.html", {
         "collegato": True,
         "nome": naming.nome_completo(row.get("nome"), row.get("cognome")),
         "reparto": row.get("reparto") or "",
         "mansione": row.get("mansione") or "",
+        "centro_costo": row.get("centro_di_costo_nome") or "",
         "saldo": _ratei(lid),
         "visite": _visite(lid),
         "formazione": _formazione(lid),

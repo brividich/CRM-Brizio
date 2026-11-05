@@ -1629,6 +1629,11 @@ def _posizione_struttura_ctx(request, legacy_id: int, is_admin: bool) -> dict:
         from ..services.struttura_persona import posizione
 
         ctx = {"posizione": posizione(legacy_id), "puo_assegnare_mansioni": puo_valutare}
+        from ..views_centri_costo import carico_oggi
+
+        carico = carico_oggi()
+        if carico is not None:
+            ctx["carico_persona"] = carico.persona(legacy_id)
         if is_admin:
             from core.permessi.variazioni import ultime_variazioni
 

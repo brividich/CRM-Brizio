@@ -6,8 +6,9 @@ Quattro viste dello stesso dato, nel perimetro di persone del modello:
 - **Chi ricopre ogni ruolo**: per ruolo le persone, anche quelle senza nessuna sua mansione;
 - **Capi e responsabilità**: per reparto e area il ruolo responsabile, chi ha la
   «Responsabilità» e quante persone restano senza capo;
-- **Copertura delle mansioni**: per mansione persone in lista, operativi, livelli,
-  «uomo solo» e titolari.
+- **Copertura delle mansioni**: per mansione persone in forza in lista, operativi, carico,
+  livelli, «uomo solo» e titolari (regola di ``services.carico_mansioni``, come il Prospetto);
+- **Carico sulle persone**: troppe mansioni, persone chiave, mansioni a carico concentrato.
 
 Stessa regola del Mansionario e di «Reparti, aree e capi» (``capi_mansione``,
 ``capo_team``): i numeri del report e delle pagine coincidono.
@@ -376,14 +377,15 @@ _registra(Sezione(
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _copertura_mansioni(ctx: Contesto, o: dict) -> Risultato:
-    from anagrafica.services import mansionario_struttura as mstr
+    from anagrafica.services import carico_mansioni, mansionario_struttura as mstr
 
     res = Risultato()
     persone, alias = _per_persona(ctx)
     righe = mstr.riepilogo()
+    carico = carico_mansioni.calcola()
     filtro_ruoli = {int(r) for r in o["ruoli"]}
     nel_perimetro = set(alias)
-    scoperte = uomo_solo = 0
+    scoperte = uomo_solo = concentrate = 0
     for r in sorted(righe, key=lambda x: ((x["reparto"] or "").casefold(), x["nome"].casefold())):
         m = r["mansione"]
         if o["tipo"] == "responsabilita" and not m.is_responsabilita:
@@ -392,33 +394,78 @@ def _copertura_mansioni(ctx: Contesto, o: dict) -> Risultato:
             continue
         if filtro_ruoli and not any(x.pk in filtro_ruoli for x in r["ruoli"]):
             continue
-        ids = [i for i in r["persone_ids"] if i in nel_perimetro]
+        c = carico.per_mansione.get(m.pk)
+        if c is None:  # mansione spenta: niente persone da contare
+            continue
+        ids = [i for i in c["persone_ids"] if i in nel_perimetro]
         if _perimetro_ristretto(ctx) and not ids and o["solo_perimetro"]:
             continue
-        lv = r["livelli"]
-        if m.is_responsabilita:
-            stato, tono = ("ok", "") if r["in_lista"] else ("nessun titolare", TONE_DANGER)
-        elif not r["operativi"]:
-            stato, tono = "nessun operativo", TONE_DANGER
-        elif r["uomo_solo"]:
-            stato, tono = "uomo solo", TONE_WARN
-        else:
-            stato, tono = "ok", ""
+        stato = c["stato"]
+        if o["solo_da_guardare"] and stato == carico_mansioni.OK and not c["concentrato"]:
+            continue
+        tono = {carico_mansioni.SCOPERTA: TONE_DANGER, carico_mansioni.SENZA_TITOLARE: TONE_DANGER,
+                carico_mansioni.UOMO_SOLO: TONE_WARN}.get(stato, TONE_WARN if c["concentrato"] else "")
         scoperte += 1 if tono == TONE_DANGER else 0
-        uomo_solo += 1 if stato == "uomo solo" else 0
+        uomo_solo += 1 if stato == carico_mansioni.UOMO_SOLO else 0
+        concentrate += 1 if c["concentrato"] else 0
+        lv = c["livelli"]
         res.riga({
             "mansione": r["nome"], "tipo": "Responsabilità" if m.is_responsabilita else m.get_tipo_display(),
+            "centro_costo": m.area.centro_di_costo.nome if m.area_id and m.area.centro_di_costo_id else "",
             "reparto": r["reparto"], "area": m.area.nome if m.area_id else "",
-            "ruoli": ", ".join(x.nome for x in r["ruoli"]), "in_lista": r["in_lista"], "operativi": r["operativi"],
+            "ruoli": ", ".join(x.nome for x in r["ruoli"]), "in_lista": c["lista"], "operativi": c["operativi"],
             "livelli": f"O {lv['O']} · U {lv['U']} · L {lv['L']} · I {lv['I']}",
             "persone": ", ".join(persone[alias[i]].nominativo for i in ids) if o["mostra_nomi"] else "",
-            "rischi": ", ".join(x.nome for x in r["rischi"]), "stato": stato,
+            "rischi": ", ".join(x.nome for x in r["rischi"]),
+            "carico": "" if c["concentrazione"] is None or m.is_responsabilita else f"{c['concentrazione']}%",
+            "stato": stato, "segnali": "carico concentrato" if c["concentrato"] else "",
         }, tono)
     res.kpis = [Kpi("Mansioni", len(res.righe)),
                 Kpi("Scoperte", scoperte, TONE_DANGER if scoperte else TONE_OK),
-                Kpi("Uomo solo", uomo_solo, TONE_WARN if uomo_solo else TONE_OK)]
-    res.note = ["Operativi: in lista al livello di soglia della skill matrix o sopra. «Uomo solo»: meno operativi "
-                "della soglia (MT CN 06 §8.2.2). Per le «Responsabilità» conta solo che ci sia un titolare."]
+                Kpi("Uomo solo", uomo_solo, TONE_WARN if uomo_solo else TONE_OK),
+                Kpi("Carico concentrato", concentrate, TONE_WARN if concentrate else TONE_OK)]
+    res.note = [f"Solo persone in forza. Operativi: in lista al livello di soglia della skill matrix o sopra. «Uomo solo»: "
+                f"meno di {carico.config.soglia_uomo_solo} operativi (MT CN 06 §8.2.2). Per le «Responsabilità» conta solo "
+                f"che ci sia un titolare.",
+                f"Carico: parte del loro tempo che gli operativi danno in media alla mansione, dai coefficienti; concentrato "
+                f"da {carico.config.soglia_concentrazione}%. Si regola in Impostazioni Skill Matrix: è un segnale, non una misura di ore."]
+    if carico.cessati_in_lista:
+        res.note.append(f"{carico.cessati_in_lista} assegnazioni di persone non più in forza sono ancora nelle liste: qui non contano.")
+    return res
+
+
+def _carico_persone(ctx: Contesto, o: dict) -> Risultato:
+    from anagrafica.services import carico_mansioni
+
+    res = Risultato()
+    carico = carico_mansioni.calcola()
+    troppe = chiave = 0
+    for p in ctx.dipendenti():
+        c = carico.persona(p.id)
+        if not c["in_forza"]:
+            continue
+        segnali = []
+        if c["troppe"]:
+            segnali.append("su troppe mansioni")
+        if c["chiave"]:
+            segnali.append("persona chiave")
+        if c["concentrate"]:
+            segnali.append("su mansioni a carico concentrato")
+        if o["solo_segnalate"] and not segnali:
+            continue
+        troppe += 1 if c["troppe"] else 0
+        chiave += 1 if c["chiave"] else 0
+        res.riga({
+            "nominativo": p.nominativo, "reparto": p.reparto, "area": p.area, "centro_costo": p.centro_costo,
+            "mansioni": c["n"], "operative": c["operative"], "chiave": ", ".join(v["nome"] for v in c["chiave"]),
+            "concentrate": ", ".join(v["nome"] for v in c["concentrate"]), "segnali": ", ".join(segnali),
+        }, TONE_WARN if segnali else "")
+    res.kpis = [Kpi("Persone", len(res.righe)),
+                Kpi("Su troppe mansioni", troppe, TONE_WARN if troppe else TONE_OK),
+                Kpi("Persone chiave", chiave, TONE_WARN if chiave else TONE_OK)]
+    res.note = [f"Troppe mansioni: più di {carico.config.soglia_mansioni_persona}. Persona chiave: unico operativo su almeno una "
+                f"mansione. Carico concentrato: da {carico.config.soglia_concentrazione}%. Le soglie si regolano in Impostazioni "
+                f"Skill Matrix; sono segnali dai coefficienti, non una misura di ore."]
     return res
 
 
@@ -429,17 +476,34 @@ _registra(Sezione(
     descrizione="Per mansione persone in lista, operativi, livelli, «uomo solo» e titolari delle responsabilità.",
     builder=_copertura_mansioni,
     riferimenti=(f"{ISO_9001} §7.1.2", f"{ISO_9001} §7.2", f"{EN_9100} §7.2"),
-    colonne=(("mansione", "Mansione"), ("tipo", "Tipo"), ("reparto", "Reparto"), ("area", "Area aziendale"),
-             ("ruoli", "Ruoli"), ("in_lista", "In lista"), ("operativi", "Operativi"), ("livelli", "Livelli"),
-             ("persone", "Persone"), ("rischi", "Mansione di rischio"), ("stato", "Stato")),
-    predefinite=("mansione", "reparto", "ruoli", "in_lista", "operativi", "stato"),
+    colonne=(("mansione", "Mansione"), ("tipo", "Tipo"), ("centro_costo", "Centro di costo"), ("reparto", "Reparto"),
+             ("area", "Area aziendale"), ("ruoli", "Ruoli"), ("in_lista", "In lista"), ("operativi", "Operativi"),
+             ("carico", "Carico"), ("livelli", "Livelli"), ("persone", "Persone"), ("rischi", "Mansione di rischio"),
+             ("stato", "Stato"), ("segnali", "Segnali")),
+    predefinite=("mansione", "centro_costo", "reparto", "ruoli", "in_lista", "operativi", "carico", "stato", "segnali"),
     opzioni=(
         Opzione("tipo", "Mansioni", SCELTA, _scelte_tipi, ""),
         Opzione("ruoli", "Solo mansioni di questi ruoli", MULTI, _scelte_ruoli, aiuto="Nessuno = tutte."),
         Opzione("mostra_nomi", "Riempi la colonna Persone con i nomi", SI_NO, predefinito=True),
         Opzione("solo_perimetro", "Con un perimetro: solo mansioni con persone del perimetro", SI_NO,
                 predefinito=True),
+        Opzione("solo_da_guardare", "Solo scoperte, con poche persone o a carico concentrato", SI_NO, predefinito=False),
     ),
+))
+
+
+_registra(Sezione(
+    key="carico_persone",
+    titolo="Carico sulle persone",
+    gruppo=GRUPPO_PERSONE,
+    descrizione="Persone su troppe mansioni, unico operativo su una mansione o su mansioni a carico concentrato.",
+    builder=_carico_persone,
+    riferimenti=(f"{ISO_9001} §7.1.2", f"{EN_9100} §7.2"),
+    colonne=(("nominativo", "Nominativo"), ("centro_costo", "Centro di costo"), ("reparto", "Reparto"),
+             ("area", "Area aziendale"), ("mansioni", "Mansioni"), ("operative", "Operative"),
+             ("chiave", "Unico operativo su"), ("concentrate", "A carico concentrato"), ("segnali", "Segnali")),
+    predefinite=("nominativo", "centro_costo", "reparto", "mansioni", "chiave", "concentrate", "segnali"),
+    opzioni=(Opzione("solo_segnalate", "Solo le persone con almeno un segnale", SI_NO, predefinito=True),),
 ))
 
 

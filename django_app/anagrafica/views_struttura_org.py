@@ -279,7 +279,15 @@ def struttura_scheda_mansione(request, mansione_id: int):
     mansione = get_object_or_404(
         CompetenzaSkm.objects.select_related("area__reparto", "reparto", "processo_sgi", "asset", "deriva_da"),
         pk=mansione_id, tipo__in=TIPI_MANSIONE)
-    return _scheda(request, "mansione", schede.scheda_mansione(mansione))
+    ctx = schede.scheda_mansione(mansione)
+    from .views_centri_costo import carico_oggi
+
+    carico = carico_oggi()
+    riga = carico.per_mansione.get(mansione.pk) if carico else None
+    if riga is not None:
+        ctx.update({"carico_riga": riga, "operativi": riga["operativi"],
+                    "fuori_forza": max(len(ctx["persone"]) - riga["lista"], 0)})
+    return _scheda(request, "mansione", ctx)
 
 
 @login_required

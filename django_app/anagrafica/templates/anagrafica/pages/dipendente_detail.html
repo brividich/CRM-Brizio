@@ -1708,12 +1708,20 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
         <div><div class="dp-pos-l">Reparto / area</div><div class="dp-pos-v">
           {% if posizione.area %}{% if posizione.reparto %}<a href="{% url 'anagrafica:struttura_org' %}#scheda-reparto-{{ posizione.reparto.pk }}">{{ posizione.reparto.nome }}</a>{% else %}—{% endif %} / {{ posizione.area.nome }}{% else %}{{ posizione.reparto_testo|default:"—" }} <span class="dp-pos-warn">· area da indicare</span>{% endif %}
         </div></div>
+        <div><div class="dp-pos-l">Centro di costo</div><div class="dp-pos-v">{% if posizione.area.centro_di_costo_id %}{% if puo_esplorare %}<a href="{% url 'anagrafica:esplora_struttura' %}?area={{ posizione.area.pk }}">{{ posizione.area.centro_di_costo.nome }}</a>{% else %}{{ posizione.area.centro_di_costo.nome }}{% endif %}{% else %}—{% endif %}</div></div>
         <div><div class="dp-pos-l">Responsabile (ruolo)</div><div class="dp-pos-v">{{ posizione.responsabile.etichetta|default:"—" }}</div></div>
         <div><div class="dp-pos-l">Processi</div><div class="dp-pos-v">{{ posizione.processi|join:", "|default:"—" }}</div></div>
         {% if posizione.incarichi %}
         <div><div class="dp-pos-l">Incarichi</div><div class="dp-pos-v">{% for a in posizione.incarichi %}{{ a.ruolo.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</div></div>
         {% endif %}
       </div>
+
+      {% if carico_persona.n %}
+      <div class="dp-pos-sec">Carico sulle mansioni</div>
+      <p class="dp-pos-meta" style="margin:0 0 4px;">{{ carico_persona.n }} mansion{{ carico_persona.n|pluralize:"e,i" }}, {{ carico_persona.operative }} operativ{{ carico_persona.operative|pluralize:"a,e" }}{% if carico_persona.troppe %} · <strong style="color:#b45309;">oltre la soglia di {{ carico_persona.soglia }}</strong>{% endif %}. È un segnale dai coefficienti, non una misura di ore.</p>
+      {% if carico_persona.chiave %}<p class="dp-pos-meta" style="margin:0 0 4px;"><strong>Unico operativo su:</strong> {% for v in carico_persona.chiave %}<a href="{% url 'anagrafica:mansionario_mansione' v.id %}">{{ v.nome }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+      {% if carico_persona.concentrate %}<p class="dp-pos-meta" style="margin:0 0 4px;"><strong>Mansioni a carico concentrato:</strong> {% for v in carico_persona.concentrate %}<a href="{% url 'anagrafica:mansionario_mansione' v.id %}">{{ v.nome }}</a> ({{ v.carico }}%){% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+      {% endif %}
 
       <div class="dp-pos-sec">Mansioni svolte ({{ posizione.abilitazioni|length }}{% if posizione.abilitazioni %}, {{ posizione.n_operative }} operativ{{ posizione.n_operative|pluralize:"a,e" }}{% endif %})</div>
       {% if posizione.abilitazioni and legacy_id %}
