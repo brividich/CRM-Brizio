@@ -532,6 +532,19 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
     return {"sections": sections, "total": total, "overdue": overdue, "soon": soon}
 
 
+def contesto_mie_attivita(data: dict[str, Any]) -> dict[str, Any]:
+    """Dati del blocco «Le mie attività», uguale nella pagina dedicata e nella Home."""
+    return {
+        "sections": data["sections"],
+        "sections_piene": [s for s in data["sections"] if s["items"]],
+        "sections_vuote": [s for s in data["sections"] if not s["items"]],
+        "total_open": data["total"],
+        "total_overdue": data.get("overdue", 0),
+        "total_soon": data.get("soon", 0),
+        "oggi": timezone.localdate(),
+    }
+
+
 @login_required
 def mie_attivita(request: HttpRequest) -> HttpResponse:
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
@@ -546,12 +559,6 @@ def mie_attivita(request: HttpRequest) -> HttpResponse:
     context: dict[str, Any] = {
         "page_title": "Le mie attività",
         "greeting_name": display_name,
-        "sections": data["sections"],
-        "sections_piene": [s for s in data["sections"] if s["items"]],
-        "sections_vuote": [s for s in data["sections"] if not s["items"]],
-        "total_open": data["total"],
-        "total_overdue": data["overdue"],
-        "total_soon": data["soon"],
-        "oggi": timezone.localdate(),
+        **contesto_mie_attivita(data),
     }
     return render(request, "dashboard/pages/mie_attivita.html", context)

@@ -1103,7 +1103,7 @@ def home_portale(request: HttpRequest) -> HttpResponse:
     groups = _module_groups(request, accessible_set, is_admin, image_lookup, tile_kpis)
 
     # "Cose da gestire": aggregato cross-modulo delle azioni che spettano all'utente.
-    from dashboard.views_mie_attivita import build_cose_da_gestire
+    from dashboard.views_mie_attivita import build_cose_da_gestire, contesto_mie_attivita
     cose_da_gestire = build_cose_da_gestire(request)
 
     from core.models import HubLinkCategory
@@ -1161,6 +1161,8 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         # d'azione sono stati sostituiti dal cockpit "Le mie attività" (cose_da_gestire).
         "my_tasks":           my_tasks_list,
         "pending_approvals":  pending,
+        **contesto_mie_attivita(cose_da_gestire),
+        "ma_titolo":              "Le mie attività",
         "cose_da_gestire":        cose_da_gestire["sections"],
         "cose_da_gestire_total":  cose_da_gestire["total"],
         "bacheca_groups":     bacheca_groups,
