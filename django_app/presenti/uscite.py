@@ -44,7 +44,9 @@ def _utente_e_email(legacy_anagrafica_id: int) -> tuple[int | None, str]:
 def invia_avvisi(oggi: date | None = None) -> dict:
     """Avvisa i capi delle uscite non timbrate degli ultimi giorni. Ritorna i contatori.
 
-    Un solo messaggio per capo con tutte le giornate nuove della sua squadra.
+    Un solo messaggio per capo con tutte le giornate nuove della sua squadra. Solo le
+    **uscite mancanti**: verso sbagliato e sequenze irregolari (problemi di timbratura)
+    restano nella pagina, senza notifica né mail.
     """
     from anagrafica.services.capo_team import mappa_capi
     from core.email_utils import send_hub_mail
@@ -52,7 +54,7 @@ def invia_avvisi(oggi: date | None = None) -> dict:
 
     from .models import AvvisoUscitaMancante
 
-    esito = {"trovate": 0, "capi_avvisati": 0, "gia_segnalate": 0, "senza_capo": 0}
+    esito = {"trovate": 0, "capi_avvisati": 0, "gia_segnalate": 0, "senza_capo": 0, "solo_pagina": 0}
     if not impostazioni.attivo("presenti_avviso_uscite_attivo"):
         esito["disattivato"] = True
         return esito
@@ -64,6 +66,9 @@ def invia_avvisi(oggi: date | None = None) -> dict:
     capi = mappa_capi()
     per_capo: dict[int, list[dict]] = {}
     for r in righe:
+        if r.get("tipo", "uscita_mancante") != "uscita_mancante":
+            esito["solo_pagina"] += 1
+            continue
         if (r["solari_id"], r["giorno"]) in gia:
             esito["gia_segnalate"] += 1
             continue
@@ -87,8 +92,8 @@ def invia_avvisi(oggi: date | None = None) -> dict:
             f"- {v['cognome']} {v['nome']}, {v['giorno']:%d/%m/%Y}: {v.get('problema') or 'manca uscita'}\n"
             f"  timbrature del giorno: {v.get('timbrature') or 'E ' + v['entrata']}"
             for v in voci)
-        breve = (f"Timbrature da sistemare: {voci[0]['cognome']} {voci[0]['nome']} il {voci[0]['giorno']:%d/%m/%Y}"
-                 if len(voci) == 1 else f"{len(voci)} giornate con timbrature da sistemare nella tua squadra")
+        breve = (f"Uscita non timbrata: {voci[0]['cognome']} {voci[0]['nome']} il {voci[0]['giorno']:%d/%m/%Y}"
+                 if len(voci) == 1 else f"{len(voci)} uscite non timbrate nella tua squadra")
         invia_notifica(legacy_user_id=utente_id, tipo="generico",
                        messaggio=f"{breve}. Fai regolarizzare la timbratura o inserire l'assenza.", url_azione=url)
         nota = "notifica" if utente_id else ""
@@ -96,7 +101,7 @@ def invia_avvisi(oggi: date | None = None) -> dict:
             try:
                 send_hub_mail(
                     f"[NOVICROM HUB] {breve}",
-                    "Controllate tutte le timbrature del giorno, queste giornate non tornano:\n\n"
+                    "Queste giornate risultano chiuse con un'entrata e senza uscita:\n\n"
                     f"{elenco_txt}\n\nFai regolarizzare la timbratura o inserire l'assenza. "
                     "L'elenco completo è in NOVICROM HUB, Persone › Presenti in azienda › Uscite non timbrate.",
                     [email], title="Uscite non timbrate", email_type="Presenze", section_label="Presenti in azienda",
