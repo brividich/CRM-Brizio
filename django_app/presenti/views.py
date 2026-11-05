@@ -157,7 +157,7 @@ def appello_avvia(request):
                 s = services.stato()
             persone = [
                 {k: p.get(k) for k in ("solari_id", "legacy_id", "cognome", "nome", "matricola", "reparto",
-                                       "incarichi", "entrata")}
+                                       "incarichi", "entrata", "verifica")}
                 for p in s["presenti"]
             ]
             # Esterni dal GuestPortal (visitatori, ditte, docenti): all'appello vanno contati anche loro.

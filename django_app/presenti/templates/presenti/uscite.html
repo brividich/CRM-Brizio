@@ -9,7 +9,9 @@
   <div class="pres-head">
     <div>
       <h1>Uscite non timbrate</h1>
-      <p>Giornate chiuse con un'entrata e senza uscita: va regolarizzata la timbratura o inserita l'assenza.
+      <p>Giornate in cui le timbrature non tornano (si controllano tutte, non solo l'ultima): uscita mancante,
+        uscita timbrata come entrata, due entrate o due uscite di fila. Va regolarizzata la timbratura o inserita l'assenza.
+        I turni a cavallo della mezzanotte non sono segnalati.
         {% if tutte %}Vedi tutta l'azienda.{% else %}Vedi le persone della tua squadra.{% endif %}</p>
     </div>
     <form class="pres-filtri" method="get" style="margin:0;">
@@ -31,18 +33,18 @@
 
   <div class="pres-card" style="padding:0; overflow-x:auto;">
     <table class="pres-tab">
-      <thead><tr><th>Giorno</th><th>Dipendente</th><th class="pres-hide-sm">Reparto</th><th class="pres-c">Ultima entrata</th><th>Capo avvisato</th></tr></thead>
+      <thead><tr><th>Giorno</th><th>Dipendente</th><th class="pres-hide-sm">Reparto</th><th>Problema e timbrature del giorno</th><th>Capo avvisato</th></tr></thead>
       <tbody>
         {% for r in righe %}
         <tr>
           <td class="pres-mono">{{ r.giorno|date:"D d-m-Y" }}</td>
           <td class="pres-nome">{% if r.legacy_id %}<a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{{ r.cognome|upper }} {{ r.nome }}</a>{% else %}{{ r.cognome|upper }} {{ r.nome }}{% endif %}<span class="pres-sub pres-mono">{{ r.matricola }}</span></td>
           <td class="pres-hide-sm">{{ r.reparto|default:"—" }}</td>
-          <td class="pres-c pres-mono">{{ r.entrata }}</td>
+          <td>{{ r.problema|default:"manca l'uscita" }}<span class="pres-sub pres-mono">{{ r.timbrature }}</span></td>
           <td>{% if r.avviso %}{{ r.avviso.inviato_il|date:"d-m H:i" }}<span class="pres-sub">{{ r.avviso.esito }}</span>{% else %}—{% endif %}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" class="pres-vuoto">{% if errore %}Elenco non disponibile.{% else %}Nessuna uscita mancante negli ultimi {{ giorni }} giorni.{% endif %}</td></tr>
+        <tr><td colspan="5" class="pres-vuoto">{% if errore %}Elenco non disponibile.{% else %}Nessuna giornata da sistemare negli ultimi {{ giorni }} giorni.{% endif %}</td></tr>
         {% endfor %}
       </tbody>
     </table>

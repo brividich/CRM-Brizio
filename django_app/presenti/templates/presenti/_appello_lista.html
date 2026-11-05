@@ -23,7 +23,7 @@
           <span class="pres-nome">{{ p.cognome|upper }} {{ p.nome }}</span>
           {% if p.esterno %}<span class="pres-inc pres-esterno">Esterno{% if p.azienda %} · {{ p.azienda }}{% endif %}</span>{% endif %}
           {% for inc in p.incarichi %}<span class="pres-inc" style="background:{{ inc.colore }}">{{ inc.nome }}</span>{% endfor %}
-          <span class="pres-chi">{% if p.contato %}Contato alle {{ p.contato_il|time:"H:i" }}{% if p.contato_da %} da {{ p.contato_da }}{% endif %}{% elif p.esterno %}{{ p.tipo }}{% if p.referente %} · ospite di {{ p.referente }}{% endif %} · entrato alle {{ p.entrata }}{% else %}{% if p.reparto %}{{ p.reparto }} · {% endif %}entrato alle {{ p.entrata }}{% endif %}</span>
+          <span class="pres-chi">{% if p.contato %}Contato alle {{ p.contato_il|time:"H:i" }}{% if p.contato_da %} da {{ p.contato_da }}{% endif %}{% elif p.esterno %}{{ p.tipo }}{% if p.referente %} · ospite di {{ p.referente }}{% endif %} · entrato alle {{ p.entrata }}{% else %}{% if p.reparto %}{{ p.reparto }} · {% endif %}entrato alle {{ p.entrata }}{% if p.verifica %} · <span class="pres-verifica">da verificare: {{ p.verifica }}</span>{% endif %}{% endif %}</span>
         </span>
       </button>
     </form>

@@ -114,87 +114,185 @@ def _matricola(valore) -> str:
 
 
 def leggi_presenti(giorno: date | None = None) -> list[dict]:
-    """Dipendenti con ultima timbratura del giorno in entrata.
+    """Chi è in azienda: si guardano tutte le timbrature di oggi, non solo l'ultima.
 
-    ``[{solari_id, matricola, cognome, nome, codice_fiscale, entrata, badge, turno}]``,
-    con ``entrata`` = ora dell'ultima timbratura (un'entrata).
+    Presente = ultima timbratura in entrata, **oppure** le ultime due sono uscite di fila
+    (E · U · U): la seconda è il rientro timbrato col tasto sbagliato, e in un'evacuazione è
+    meglio cercare una persona in più che dimenticarne una. Questi casi hanno ``verifica``.
+    Turno di notte: chi è entrato ieri sera (dalle 18) e non ha ancora timbrato oggi resta
+    presente per ``ORE_MAX_TURNO`` ore dall'entrata.
+
+    ``[{solari_id, matricola, cognome, nome, codice_fiscale, entrata, badge, turno, verifica}]``,
+    con ``entrata`` = ora dell'ultima timbratura.
     """
     cfg = configurazione()
-    giorno = giorno or date.today()
+    oggi_reale = date.today()
+    giorno = giorno or oggi_reale
     inizio = datetime.combine(giorno, time.min)
     fine = inizio + timedelta(days=1)
+    da_ieri_sera = inizio - timedelta(hours=6)
     ana, tim = cfg.db_anagrafico, cfg.db_timbrature
     query = f"""
         SELECT a.ID, a.MATRICOLA, a.COGNOME, a.NOME, a.CODFISC,
-               t.DATAV, t.BADGE,
+               t.DATAV, t.BADGE, t.VERSOV,
                CASE WHEN turno.IDDIP IS NOT NULL THEN 'N' ELSE '' END AS TURNO
-        FROM [{ana}].[dbo].[ANAGRAFICO_DATI] a
-        INNER JOIN (
-            SELECT t1.IDDIP, t1.DATAV, t1.VERSOV, t1.BADGE
-            FROM [{tim}].[dbo].[TIMBRATURE] t1
-            INNER JOIN (
-                SELECT IDDIP, MAX(DATAV) AS MAX_DATAV
-                FROM [{tim}].[dbo].[TIMBRATURE]
-                WHERE DATAV >= ? AND DATAV < ?
-                GROUP BY IDDIP
-            ) t2 ON t1.IDDIP = t2.IDDIP AND t1.DATAV = t2.MAX_DATAV
-        ) t ON a.ID = t.IDDIP
+        FROM [{tim}].[dbo].[TIMBRATURE] t
+        INNER JOIN [{ana}].[dbo].[ANAGRAFICO_DATI] a ON a.ID = t.IDDIP
         LEFT JOIN (
             SELECT DISTINCT IDDIP FROM [{tim}].[dbo].[ASSELEMGEN]
             WHERE IDELEM = ? AND DATAINIZIO <= ? AND (DATAFINE IS NULL OR DATAFINE >= ?)
         ) turno ON a.ID = turno.IDDIP
-        WHERE t.VERSOV = 'E'
-        ORDER BY a.COGNOME, a.NOME
+        WHERE t.DATAV >= ? AND t.DATAV < ? AND t.VERSOV IN ('E', 'U')
+        ORDER BY a.ID, t.DATAV
     """
     conn = _connetti(cfg)
     try:
         cur = conn.cursor()
-        cur.execute(query, (inizio, fine, cfg.turno_elem, inizio, inizio))
+        cur.execute(query, (cfg.turno_elem, inizio, inizio, da_ieri_sera, fine))
         righe = cur.fetchall()
     finally:
         conn.close()
-    visti: set[int] = set()
-    risultato = []
+    per_persona: dict[int, list] = {}
     for r in righe:
-        # Due timbrature allo stesso istante darebbero due righe: ne teniamo una.
-        if int(r[0]) in visti:
-            continue
-        visti.add(int(r[0]))
+        lista = per_persona.setdefault(int(r[0]), [])
+        if lista and lista[-1][5] == r[5]:
+            continue  # due timbrature nello stesso istante: una sola
+        lista.append(r)
+    adesso = datetime.now()
+    risultato = []
+    for sid, tutte in per_persona.items():
+        seq = [x for x in tutte if x[5] >= inizio]
+        verifica = ""
+        if not seq:
+            # Nessuna timbratura oggi: presente solo se ieri sera è entrato per il turno di notte.
+            ultima = tutte[-1]
+            if (_pulisci(ultima[7]).upper() != "E" or giorno != oggi_reale
+                    or adesso - ultima[5] > timedelta(hours=ORE_MAX_TURNO)):
+                continue
+            seq = [ultima]
+            verifica = f"entrato ieri alle {_hm(ultima[5])} (turno di notte), non ha ancora timbrato oggi"
+        ultima = seq[-1]
+        versi = [_pulisci(x[7]).upper() for x in seq]
+        if versi[-1] != "E":
+            if len(versi) >= 3 and versi[-2:] == ["U", "U"] and "E" in versi:
+                verifica = (f"risulta uscita alle {_hm(seq[-2][5])} e di nuovo alle {_hm(ultima[5])}: "
+                            "probabile rientro timbrato come uscita")
+            else:
+                continue
         risultato.append({
-            "solari_id": int(r[0]),
-            "matricola": _matricola(r[1]),
-            "cognome": _pulisci(r[2]),
-            "nome": _pulisci(r[3]),
-            "codice_fiscale": _pulisci(r[4]).upper(),
-            "entrata": r[5],
-            "badge": _pulisci(r[6]),
-            "turno": _pulisci(r[7]),
+            "solari_id": sid,
+            "matricola": _matricola(ultima[1]),
+            "cognome": _pulisci(ultima[2]),
+            "nome": _pulisci(ultima[3]),
+            "codice_fiscale": _pulisci(ultima[4]).upper(),
+            "entrata": ultima[5],
+            "badge": _pulisci(ultima[6]),
+            "turno": _pulisci(ultima[8]),
+            "verifica": verifica,
         })
+    risultato.sort(key=lambda x: (x["cognome"], x["nome"]))
     return risultato
 
 
-def leggi_uscite_mancanti(dal: date, al: date) -> list[dict]:
-    """Giorni chiusi con l'ultima timbratura in entrata: uscita dimenticata.
+# Un turno che passa la mezzanotte (entrata la sera, uscita il mattino dopo) non è un'uscita
+# mancante: l'uscita del giorno dopo entro queste ore chiude l'entrata della sera.
+ORE_MAX_TURNO = 16
 
-    Cerca fra ``dal`` e ``al`` compresi (giorni passati: oggi non è ancora chiuso).
-    ``[{solari_id, matricola, cognome, nome, codice_fiscale, giorno, entrata}]``.
+
+_GIRO = {"U": ("uscita", "un rientro"), "E": ("entrata", "un'uscita")}
+
+
+def _hm(d: datetime) -> str:
+    return d.strftime("%H:%M")
+
+
+def analizza_giornata(timbrature: list[tuple[datetime, str]], *, precedente: tuple[datetime, str] | None = None,
+                      successiva: tuple[datetime, str] | None = None) -> dict | None:
+    """Controlla tutte le timbrature di una giornata, non solo l'ultima.
+
+    ``timbrature`` = ``[(istante, 'E'|'U')]`` in ordine; ``precedente`` è l'ultima del giorno
+    prima, ``successiva`` la prima del giorno dopo (per i turni a cavallo della mezzanotte).
+    Ritorna ``None`` se la giornata è a posto, altrimenti
+    ``{tipo, problema, entrata}`` con ``tipo`` fra:
+
+    - ``uscita_mancante``: entrate e uscite alternate, ma l'ultima è un'entrata;
+    - ``verso_errato``: le ultime due sono entrate: l'ultima è quasi certamente l'uscita
+      timbrata col tasto sbagliato;
+    - ``sequenza_irregolare``: due entrate o due uscite di fila durante il giorno, o la
+      giornata inizia con un'uscita.
+    """
+    seq = list(timbrature)
+    if not seq:
+        return None
+    # Uscita al mattino che chiude il turno iniziato ieri sera: appartiene a ieri.
+    if (seq[0][1] == "U" and precedente and precedente[1] == "E"
+            and seq[0][0] - precedente[0] <= timedelta(hours=ORE_MAX_TURNO)):
+        seq = seq[1:]
+    # Entrata la sera chiusa dall'uscita di domattina: turno a cavallo della mezzanotte.
+    if (seq and seq[-1][1] == "E" and successiva and successiva[1] == "U"
+            and successiva[0] - seq[-1][0] <= timedelta(hours=ORE_MAX_TURNO)):
+        seq = seq[:-1]
+    if not seq:
+        return None
+
+    irregolari = []
+    invertite = []  # timbrature singole col tasto sbagliato: girandole la sequenza torna
+    atteso = "E"
+    for k, (quando, verso) in enumerate(seq):
+        if verso != atteso:
+            if 0 < k < len(seq) - 1 and seq[k + 1][1] == verso:
+                # E · U · U · U: la seconda uscita era il rientro col tasto sbagliato.
+                invertite.append((k, quando, verso))
+                atteso = "U" if atteso == "E" else "E"  # contata come se fosse del verso giusto
+                continue
+            irregolari.append((k, quando, verso))
+        atteso = "U" if verso == "E" else "E"
+    finisce_con_entrata = seq[-1][1] == "E"
+    if not irregolari and not invertite and not finisce_con_entrata:
+        return None
+
+    ultima_e = next((q for q, v in reversed(seq) if v == "E"), None)
+    if not invertite and irregolari == [(len(seq) - 1, seq[-1][0], "E")] and len(seq) >= 2:
+        return {"tipo": "verso_errato", "entrata": ultima_e,
+                "problema": f"l'uscita delle {_hm(seq[-1][0])} risulta timbrata come entrata: va corretto il verso"}
+    if invertite and not irregolari and not finisce_con_entrata:
+        return {"tipo": "verso_errato", "entrata": ultima_e, "problema": "; ".join(
+            f"la timbratura delle {_hm(q)} risulta {_GIRO[v][0]} ma è {_GIRO[v][1]}: va corretto il verso"
+            for _k, q, v in invertite)}
+    if not irregolari and not invertite:
+        return {"tipo": "uscita_mancante", "entrata": ultima_e,
+                "problema": f"manca l'uscita dopo l'entrata delle {_hm(seq[-1][0])}"}
+    parti = [f"la timbratura delle {_hm(q)} ha il verso sbagliato" for _k, q, _v in invertite]
+    for k, quando, verso in irregolari:
+        if k == 0 and verso == "U":
+            parti.append(f"manca l'entrata prima dell'uscita delle {_hm(quando)}")
+        elif verso == "E":
+            parti.append(f"due entrate di fila ({_hm(seq[k - 1][0])} e {_hm(quando)}): manca un'uscita in mezzo")
+        else:
+            parti.append(f"due uscite di fila ({_hm(seq[k - 1][0])} e {_hm(quando)}): manca un'entrata in mezzo")
+    if finisce_con_entrata and irregolari[-1][0] != len(seq) - 1:
+        parti.append(f"manca l'uscita dopo l'entrata delle {_hm(seq[-1][0])}")
+    return {"tipo": "sequenza_irregolare", "entrata": ultima_e, "problema": "; ".join(parti)}
+
+
+def leggi_uscite_mancanti(dal: date, al: date) -> list[dict]:
+    """Giornate con timbrature da sistemare, controllando **tutte** le timbrature del giorno.
+
+    Cerca fra ``dal`` e ``al`` compresi (giorni passati: oggi non è ancora chiuso); legge
+    anche il giorno prima e quello dopo per riconoscere i turni a cavallo della mezzanotte.
+    ``[{solari_id, matricola, cognome, nome, codice_fiscale, giorno, entrata, tipo, problema,
+    timbrature}]``; ``timbrature`` = sequenza del giorno, es. «E 07:45 · U 12:00 · E 12:50».
     """
     cfg = configurazione()
-    inizio = datetime.combine(dal, time.min)
-    fine = datetime.combine(al, time.min) + timedelta(days=1)
+    inizio = datetime.combine(dal - timedelta(days=1), time.min)
+    fine = datetime.combine(al, time.min) + timedelta(days=2)
     ana, tim = cfg.db_anagrafico, cfg.db_timbrature
     query = f"""
-        SELECT a.ID, a.MATRICOLA, a.COGNOME, a.NOME, a.CODFISC, t1.DATAV
-        FROM [{tim}].[dbo].[TIMBRATURE] t1
-        INNER JOIN (
-            SELECT IDDIP, CAST(DATAV AS date) AS GIORNO, MAX(DATAV) AS MAX_DATAV
-            FROM [{tim}].[dbo].[TIMBRATURE]
-            WHERE DATAV >= ? AND DATAV < ?
-            GROUP BY IDDIP, CAST(DATAV AS date)
-        ) t2 ON t1.IDDIP = t2.IDDIP AND t1.DATAV = t2.MAX_DATAV
-        INNER JOIN [{ana}].[dbo].[ANAGRAFICO_DATI] a ON a.ID = t1.IDDIP
-        WHERE t1.VERSOV = 'E'
-        ORDER BY t1.DATAV DESC, a.COGNOME, a.NOME
+        SELECT a.ID, a.MATRICOLA, a.COGNOME, a.NOME, a.CODFISC, t.DATAV, t.VERSOV
+        FROM [{tim}].[dbo].[TIMBRATURE] t
+        INNER JOIN [{ana}].[dbo].[ANAGRAFICO_DATI] a ON a.ID = t.IDDIP
+        WHERE t.DATAV >= ? AND t.DATAV < ? AND t.VERSOV IN ('E', 'U')
+        ORDER BY a.ID, t.DATAV
     """
     conn = _connetti(cfg)
     try:
@@ -203,22 +301,41 @@ def leggi_uscite_mancanti(dal: date, al: date) -> list[dict]:
         righe = cur.fetchall()
     finally:
         conn.close()
-    visti: set[tuple[int, date]] = set()
-    risultato = []
+
+    persone: dict[int, tuple] = {}
+    giorni: dict[tuple[int, date], list[tuple[datetime, str]]] = {}
     for r in righe:
-        chiave = (int(r[0]), r[5].date())
-        if chiave in visti:
+        sid = int(r[0])
+        persone.setdefault(sid, r)
+        voce = (r[5], _pulisci(r[6]).upper())
+        lista = giorni.setdefault((sid, r[5].date()), [])
+        if lista and lista[-1][0] == voce[0]:
+            continue  # due timbrature nello stesso istante: una sola
+        lista.append(voce)
+
+    risultato = []
+    for (sid, giorno), seq in giorni.items():
+        if giorno < dal or giorno > al:
             continue
-        visti.add(chiave)
+        ieri = giorni.get((sid, giorno - timedelta(days=1)))
+        domani = giorni.get((sid, giorno + timedelta(days=1)))
+        esito = analizza_giornata(seq, precedente=ieri[-1] if ieri else None, successiva=domani[0] if domani else None)
+        if not esito:
+            continue
+        r = persone[sid]
         risultato.append({
-            "solari_id": int(r[0]),
+            "solari_id": sid,
             "matricola": _matricola(r[1]),
             "cognome": _pulisci(r[2]),
             "nome": _pulisci(r[3]),
             "codice_fiscale": _pulisci(r[4]).upper(),
-            "giorno": r[5].date(),
-            "entrata": r[5],
+            "giorno": giorno,
+            "entrata": esito["entrata"] or seq[-1][0],
+            "tipo": esito["tipo"],
+            "problema": esito["problema"],
+            "timbrature": " · ".join(f"{v} {_hm(q)}" for q, v in seq),
         })
+    risultato.sort(key=lambda x: (-x["giorno"].toordinal(), x["cognome"], x["nome"]))
     return risultato
 
 

@@ -11,7 +11,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.template import Context, Template
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -303,6 +303,97 @@ class EsterniTests(TestCase):
         s = services.stato()
         self.assertTrue(pdf.genera_pdf(s["presenti"], timezone.localtime(), esterni=s["esterni"]).startswith(b"%PDF"))
         self.assertTrue(pdf.genera_pdf([], timezone.localtime(), contati={-77}, esterni=s["esterni"]).startswith(b"%PDF"))
+
+
+class AnalisiGiornataTests(SimpleTestCase):
+    """Uscite non timbrate: si controllano tutte le timbrature del giorno, non solo l'ultima."""
+
+    G = date(2026, 1, 13)
+
+    def _t(self, *voci, giorno=None):
+        g = giorno or self.G
+        return [(datetime.combine(g, datetime.min.time()).replace(hour=int(h[:2]), minute=int(h[3:])), v)
+                for h, v in (x.split() for x in voci)]
+
+    def test_giornata_regolare(self):
+        self.assertIsNone(solari.analizza_giornata(self._t("07:45 E", "12:00 U", "12:50 E", "17:00 U")))
+
+    def test_uscita_mancante(self):
+        e = solari.analizza_giornata(self._t("07:45 E", "12:00 U", "12:50 E"))
+        self.assertEqual(e["tipo"], "uscita_mancante")
+        self.assertIn("12:50", e["problema"])
+
+    def test_uscita_timbrata_come_entrata(self):
+        e = solari.analizza_giornata(self._t("06:47 E", "12:00 U", "12:55 E", "18:02 E"))
+        self.assertEqual(e["tipo"], "verso_errato")
+        self.assertIn("18:02", e["problema"])
+
+    def test_due_uscite_di_fila_e_inizio_con_uscita(self):
+        e = solari.analizza_giornata(self._t("07:30 E", "12:00 U", "17:00 U"))
+        self.assertEqual(e["tipo"], "sequenza_irregolare")
+        self.assertIn("due uscite di fila", e["problema"])
+        e = solari.analizza_giornata(self._t("12:00 U", "13:00 E", "17:00 U"))
+        self.assertIn("manca l'entrata", e["problema"])
+
+    def test_rientro_timbrato_come_uscita(self):
+        e = solari.analizza_giornata(self._t("07:50 E", "12:03 U", "13:01 U", "17:08 U"))
+        self.assertEqual(e["tipo"], "verso_errato")
+        self.assertIn("13:01", e["problema"])
+        self.assertNotIn("17:08", e["problema"])
+
+    def test_turno_a_cavallo_della_mezzanotte(self):
+        domani = self.G + timedelta(days=1)
+        sera = self._t("22:00 E")
+        mattina = self._t("06:00 U", giorno=domani)
+        self.assertIsNone(solari.analizza_giornata(sera, successiva=mattina[0]))
+        self.assertIsNone(solari.analizza_giornata(mattina, precedente=sera[-1]))
+        # Senza l'uscita del mattino dopo l'entrata della sera resta da sistemare.
+        self.assertEqual(solari.analizza_giornata(sera)["tipo"], "uscita_mancante")
+
+
+class PresenzaGiornataTests(SimpleTestCase):
+    """Lista live: presenza decisa guardando tutte le timbrature di oggi (e ieri sera)."""
+
+    def _leggi(self, righe):
+        class _Cur:
+            def execute(self, *a):
+                pass
+
+            def fetchall(self):
+                return righe
+
+        class _Conn:
+            def cursor(self):
+                return _Cur()
+
+            def close(self):
+                pass
+
+        with patch.object(solari, "configurazione", return_value=solari.Configurazione(server="x", user="u", password="p", driver="d", db_anagrafico="A", db_timbrature="T", turno_elem=1)),              patch.object(solari, "_connetti", return_value=_Conn()):
+            return {p["solari_id"]: p for p in solari.leggi_presenti()}
+
+    def _r(self, sid, quando, verso):
+        return (sid, "1", "ROSSI", "Mario", "CF", quando, "B", verso, "N")
+
+    def test_rientro_timbrato_come_uscita_resta_presente(self):
+        oggi = datetime.combine(date.today(), datetime.min.time())
+        h = lambda hh, mm=0: oggi.replace(hour=hh, minute=mm)  # noqa: E731
+        p = self._leggi([
+            self._r(1, h(7, 50), "E"), self._r(1, h(12, 3), "U"), self._r(1, h(13, 1), "U"),
+            self._r(2, h(7), "E"), self._r(2, h(12), "U"),
+            self._r(3, h(7), "E"),
+        ])
+        self.assertIn(1, p)
+        self.assertIn("rientro", p[1]["verifica"])
+        self.assertNotIn(2, p)
+        self.assertEqual(p[3]["verifica"], "")
+
+    def test_turno_di_notte_iniziato_ieri_sera(self):
+        ieri_sera = datetime.now() - timedelta(hours=3)
+        if ieri_sera.date() == date.today():
+            self.skipTest("serve un orario entro le 3 di notte per simulare ieri sera")
+        p = self._leggi([self._r(5, ieri_sera, "E")])
+        self.assertIn("turno di notte", p[5]["verifica"])
 
 
 class UsciteTests(TestCase):
