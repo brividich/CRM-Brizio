@@ -90,13 +90,19 @@ GUIDA = {
                       "preparare e consegnare, raggruppate per persona. In alto i numeri: «Persone in attesa», «Da preparare», "
                       "«Pronti al ritiro» e «Giacenza insufficiente»."),
                 ("passi", [
-                    "Quando la persona arriva al banco scrivi il suo nome in «Cerca la persona al banco».",
-                    "Nella sua scheda tutti i DPI sono già spuntati: togli la spunta a quelli che non consegni adesso. "
+                    "Quando la persona arriva scrivi il nome in «Cerca la persona al banco» (vale anche il reparto, il numero della richiesta o il codice del modello). "
+                    "Se resta una sola persona la sua scheda si apre da sola; altrimenti cliccala nell'elenco.",
+                    "Nella scheda tutti i DPI sono già spuntati: togli la spunta a quelli che non consegni adesso («Tutti» e «Nessuno» fanno prima). "
                     "Accanto a ogni DPI vedi quanti pezzi ci sono «in magazzino» (in rosso se non bastano).",
-                    "Clicca «Consegna…»: si apre il riquadro con «Data consegna» e le note.",
-                    "Clicca «Registra consegna dei DPI spuntati». Non serve la firma: parte da sola la mail di conferma della ricevuta (vedi sotto).",
+                    "Clicca «Consegna N DPI a…»: il pulsante dice quanti DPI e a chi. La pagina non si ricarica e il cursore torna sulla ricerca, pronto per la persona dopo. "
+                    "Non serve la firma: parte da sola la mail di conferma della ricevuta (vedi sotto).",
                     "Se al banco c'è un tablet o hai la ricevuta su carta, apri «Firma sul tablet o ricevuta su carta»: con la firma "
                     "(o la spunta «Ricevuta firmata su carta») la mail di conferma non parte.",
+                ]),
+                ("ul", [
+                    "Da tastiera: / va alla ricerca, frecce su e giù scelgono la persona, Invio porta sul pulsante di consegna e un secondo Invio registra, Esc pulisce la ricerca.",
+                    "I riquadri in alto («Da preparare», «Pronti al ritiro», «Giacenza insufficiente») filtrano l'elenco: un secondo clic toglie il filtro.",
+                    "L'elenco si aggiorna da solo ogni minuto se non stai lavorando su una persona.",
                 ]),
                 ("p", "Conferma della ricevuta via mail: una sola mail per tutti i DPI consegnati insieme, con i pulsanti "
                       "«Confermo, ricevuti» e «Non li ho ricevuti». Va al dipendente se ha la mail aziendale (i domini si scrivono "
@@ -114,7 +120,7 @@ GUIDA = {
                       "scarico del magazzino, sostituzione del DPI precedente dello stesso tipo, report al responsabile."),
                 ("p", "«Consegna diretta al banco» (solo se qualche categoria ha la spunta «Consegna diretta dal banco»): scegli "
                       "dipendente, DPI, taglia e quantità e clicca «Aggiungi al banco». La richiesta nasce già approvata, senza "
-                      "passare dal responsabile, e si apre subito la sua scheda per la firma."),
+                      "passare dal responsabile, e si apre subito la sua scheda. Il riquadro è chiuso finché non serve; «+ Consumabile» nella scheda lo apre con la persona già scelta."),
                 ("p", "In home, stanza «Oggi», chi gestisce le consegne trova il riquadro «Banco consegne DPI»: i numeri del banco "
                       "(persone in attesa, da preparare, pronti al ritiro, giacenza insufficiente, conferme in attesa e contestate), "
                       "le prime 6 persone con il pulsante «Consegna» che apre direttamente la loro consegna, la casella «Chi è al banco?» "

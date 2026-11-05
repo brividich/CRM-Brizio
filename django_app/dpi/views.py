@@ -2045,6 +2045,7 @@ def _banco_persone(qs, giac: dict) -> list[dict]:
         chiave = _chiave_persona(r)
         g = gruppi.setdefault(chiave, {
             "chiave": chiave, "nome": r.richiedente_nome, "reparto": r.richiedente_reparto,
+            "legacy_id": r.richiedente_legacy_id,
             "righe": [], "n_pronte": 0, "n_da_preparare": 0, "n_mancanti": 0,
         })
         g_mod = giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id and not r.modalita_negozio else None
@@ -2169,27 +2170,51 @@ def banco(request):
     if not _is_gestore(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
+    # Dalla pagina aperta (fetch) torna solo la parte di lavoro: niente ricarica. Il toast
+    # dei messaggi lo consegna FlashMessagesDeliveryMiddleware.
+    parziale = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if request.method == "POST":
-        return _banco_azione(request)
+        risposta = _banco_azione(request)
+        if not parziale:
+            return risposta
+        tutte = request.POST.get("tutte") == "1"
+        pagina = render(request, "dpi/components/_banco_lavoro.html", _banco_contesto(request, tutte))
+        pagina["X-Banco-Apri"] = risposta.url.partition("#")[2].removeprefix("apri-")
+        return pagina
 
     tutte = request.GET.get("tutte") == "1"
+    contesto = _banco_contesto(request, tutte)
+    if parziale:
+        return render(request, "dpi/components/_banco_lavoro.html", contesto)
+    if contesto["ha_diretta"]:
+        giac = magazzino.giacenze()
+        modelli_diretti = list(_modelli_diretti().select_related("tipo", "tipo__categoria").prefetch_related("taglie").order_by(
+            "tipo__categoria__order_index", "tipo__categoria__nome", "tipo__ordine", "nome"
+        ))
+        for m in modelli_diretti:
+            m.giacenza = giac.get(m.pk, 0)
+            m.taglie_attive = [t for t in m.taglie.all() if t.is_active]
+        contesto["modelli_diretti"] = modelli_diretti
+        contesto["dipendenti"] = _dipendenti_selezionabili(request)
+    contesto["cerca"] = request.GET.get("cerca", "").strip()[:80]
+    return render(request, "dpi/pages/banco.html", contesto)
+
+
+def _modelli_diretti():
+    return ModelloDPI.objects.filter(
+        is_active=True, tipo__is_active=True, tipo__categoria__is_active=True,
+        tipo__categoria__consegna_diretta=True,
+    )
+
+
+def _banco_contesto(request, tutte: bool) -> dict:
+    """La parte di lavoro del banco: numeri, persone, conferme."""
     qs = _banco_queryset(request)
     n_altre = qs.filter(categoria__consegna_magazzino=False).count()
     if not tutte:
         qs = qs.filter(categoria__consegna_magazzino=True)
     giac = magazzino.giacenze()
     persone = _banco_persone(qs, giac)
-
-    modelli_diretti = list(
-        ModelloDPI.objects.filter(
-            is_active=True, tipo__is_active=True, tipo__categoria__is_active=True,
-            tipo__categoria__consegna_diretta=True,
-        ).select_related("tipo", "tipo__categoria").prefetch_related("taglie")
-        .order_by("tipo__categoria__order_index", "tipo__categoria__nome", "tipo__ordine", "nome")
-    )
-    for m in modelli_diretti:
-        m.giacenza = giac.get(m.pk, 0)
-        m.taglie_attive = [t for t in m.taglie.all() if t.is_active]
 
     from .models import ConfermaConsegnaDPI
 
@@ -2199,7 +2224,7 @@ def banco(request):
         stato=ConfermaConsegnaDPI.Stato.CONTESTATA, decisa_il__gte=timezone.now() - timedelta(days=30)
     ).order_by("-decisa_il")[:30])
 
-    return render(request, "dpi/pages/banco.html", {
+    return {
         "conferme_attesa": conferme_attesa,
         "n_conferme_attesa": conferme_qs.filter(stato=ConfermaConsegnaDPI.Stato.IN_ATTESA).count(),
         "conferme_contestate": conferme_contestate,
@@ -2212,9 +2237,7 @@ def banco(request):
         "n_mancanti": sum(g["n_mancanti"] for g in persone),
         "n_altre": n_altre,
         "tutte": tutte,
-        "cerca": request.GET.get("cerca", "").strip()[:80],
         "oggi": timezone.localdate(),
         "avviso_all_approvazione": DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione,
-        "modelli_diretti": modelli_diretti,
-        "dipendenti": _dipendenti_selezionabili(request) if modelli_diretti else [],
-    })
+        "ha_diretta": _modelli_diretti().exists(),
+    }

@@ -66,6 +66,48 @@ class BancoConsegneTests(TestCase):
         tutte = self.client.get(self.url + "?tutte=1")
         self.assertEqual(len(tutte.context["persone"][1]["righe"]), 3)
 
+    def test_azione_dalla_pagina_aperta_torna_solo_la_parte_di_lavoro(self):
+        r = self._richiesta(self.mod_guanti)
+        altra = self._richiesta(self.mod_guanti, nome="Luigi Verdi", legacy=102)
+        resp = self.client.post(
+            self.url,
+            {"azione": "consegna", "ids": [r.pk], "data_consegna": "2026-11-02", "firmato_ricevuta": "1"},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["X-Banco-Apri"], "")
+        self.assertNotContains(resp, "<html")
+        self.assertNotContains(resp, r.numero)
+        self.assertContains(resp, altra.numero)
+        r.refresh_from_db()
+        self.assertEqual(r.stato, StatoRichiesta.CONSEGNATA)
+
+    def test_pronto_dalla_pagina_aperta_resta_sulla_persona(self):
+        r = self._richiesta(self.mod_guanti)
+        resp = self.client.post(self.url, {"azione": "pronta", "ids": [r.pk]}, headers={"X-Requested-With": "XMLHttpRequest"})
+        self.assertEqual(resp["X-Banco-Apri"], "p101")
+        self.assertContains(resp, r.numero)
+
+    def test_diretta_dalla_pagina_aperta_apre_la_persona(self):
+        self.guanti.consegna_diretta = True
+        self.guanti.save()
+        with mock.patch("dpi.views._dipendenti_selezionabili", return_value=[{"id": 101, "nome": "Mario Rossi"}]):
+            resp = self.client.post(self.url, {
+                "azione": "diretta", "dipendente": "101", "modello_dpi_id": self.mod_guanti.pk, "quantita": "1",
+            }, headers={"X-Requested-With": "XMLHttpRequest"})
+        self.assertEqual(resp["X-Banco-Apri"], "p101")
+
+    def test_azione_senza_javascript_resta_un_redirect(self):
+        r = self._richiesta(self.mod_guanti)
+        resp = self.client.post(self.url, {"azione": "pronta", "ids": [r.pk]})
+        self.assertEqual(resp.status_code, 302)
+
+    def test_aggiornamento_periodico_senza_pagina_intera(self):
+        r = self._richiesta(self.mod_guanti)
+        resp = self.client.get(self.url, headers={"X-Requested-With": "XMLHttpRequest"})
+        self.assertContains(resp, r.numero)
+        self.assertNotContains(resp, "<html")
+
     def test_giacenza_insufficiente_segnalata(self):
         magazzino.carica_ddt(self.mod_guanti, 1)
         self._richiesta(self.mod_guanti, quantita=3)

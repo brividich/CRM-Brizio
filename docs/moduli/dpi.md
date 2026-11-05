@@ -70,3 +70,7 @@ Nessuna migrazione, nessun permesso nuovo.
 - Nessuno scarico di magazzino per le scarpe con modalità; i modelli di queste categorie escono da pagina e report Magazzino e da «Da riordinare» (`magazzino.modelli_di_magazzino`).
 
 Al deploy: `migrate` (dpi 0017), `setup_q_schedules` per le regole nuove, poi in Impostazioni DPI mail del negozio e operatore; dare all'operatore «gestire» DPI.
+
+## Banco consegne più veloce (05/11/2026)
+
+Elenco delle persone a sinistra, scheda a destra (`dpi/components/_banco_lavoro.html`). Azioni con fetch dalla pagina aperta: con `X-Requested-With: XMLHttpRequest` `dpi:banco` risponde con la sola parte di lavoro e l'header `X-Banco-Apri` (persona da riaprire), i toast li consegna `FlashMessagesDeliveryMiddleware`; senza quell'header resta il redirect. Ricerca su nome, reparto, numero e modello; una sola persona trovata apre la scheda; pulsante «Consegna N DPI a…» senza passaggio intermedio; filtri sui riquadri numerici; tastiera (`/`, frecce, Invio, Esc); aggiornamento ogni 60 secondi solo a banco fermo; «+ Consumabile» apre la consegna diretta con la persona scelta. Stesse azioni e stessi controlli di prima, nessuna migrazione.
