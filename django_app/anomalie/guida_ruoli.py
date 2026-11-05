@@ -58,7 +58,7 @@ SEZIONI_CONTROLLORE: list[dict] = [
                 "Altra anomalia sugli stessi pezzi: «+ Nuova anomalia su questi seriali».",
                 "Premi «Salva blocco» e passa al blocco successivo.",
             ]),
-            ("img", (_IMG + "c3_blocco.jpg", "Un blocco pronto da salvare")),
+            ("img", (_IMG + "c3_blocco.jpg", "Un blocco pronto da salvare, con «Dove sono i pezzi?» e una misura fuori tolleranza")),
             ("ul", [
                 "Non vedi alcuni di questi campi? Chi gestisce il modulo sceglie in Configurazione quali compaiono e "
                 "per chi (per esempio solo a chi fa il controllo CMM).",
@@ -162,7 +162,7 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
                 "Scrivi la «Risposta / note per il reparto».",
                 "«Salva» (Ctrl+S) oppure «Salva e prossima».",
             ]),
-            ("img", (_IMG + "k2_decisione.jpg", "Decisione del capocommessa")),
+            ("img", (_IMG + "k2_decisione.jpg", "Decisione del capocommessa: flag, «A quale CAR?», «Dal controllore» e allegati")),
             ("ul", [
                 "Con una nota l'avanzamento non può restare «In attesa».",
                 "L'anomalia si chiude da sola con «Accetto lo stato», «Apertura ORE/RIPI» o aprendo un RDC.",
@@ -186,7 +186,7 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
                 "successivo. Puoi allegare la comunicazione in «Allegati della decisione».",
                 "Quando il cliente risponde, torna sull'anomalia in Gestione e scegli lo stato definitivo.",
             ]),
-            ("img", (_IMG + "k3_cliente.jpg", "«Segnalare al cliente» e stato «In attesa risposta cliente»")),
+            ("img", (_IMG + "k3_cliente.jpg", "«Segnalare al cliente», «Segnalato al cliente» e stato «In attesa risposta cliente»")),
         ],
     },
     {
