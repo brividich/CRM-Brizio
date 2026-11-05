@@ -66,8 +66,10 @@ def _copy_project_vrf_file(project: Project, *, clear_part_number: bool = False)
 
         workbook = openpyxl.load_workbook(io.BytesIO(file_bytes))
         try:
-            worksheet = workbook["VRF"] if "VRF" in workbook.sheetnames else workbook.active
-            worksheet["B3"] = ""
+            from ..vrf_generator import header_cells_for, select_sheet
+
+            worksheet = select_sheet(workbook)
+            worksheet[header_cells_for(worksheet)["part_number"]] = ""
             output = io.BytesIO()
             workbook.save(output)
             file_bytes = output.getvalue()
@@ -436,7 +438,7 @@ def copy_project_with_vrf_without_pn(request, project_id: int):
         {
             "message": (
                 f"Copiato kickoff #{source_project.id} in kickoff #{kickoff.id} "
-                "svuotando il P/N e la cella B3 del file VRF."
+                "svuotando il P/N anche nel file VRF."
             ),
             "source_project_id": source_project.id,
             "copied_project_id": kickoff.id,

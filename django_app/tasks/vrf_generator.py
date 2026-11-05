@@ -1,13 +1,15 @@
-"""Generatore xlsx MOD.073 VRF Rev.10 dalla compilazione online.
+"""Generatore xlsx MOD.073 VRF dalla compilazione online.
 
 Apre il template distribuito con il codice e scrive i valori compilati sulle
-celle canoniche definite in vrf_catalog. Le formule originali del template
-(medie, max, K x R, totali) restano intatte: Excel le ricalcola alla prima
-apertura. La sorgente di verita' per i totali mostrati in portale resta
-pero' VRFRiskAssessment.total_* (cache server-side).
+celle canoniche definite in vrf_catalog: intestazione, Probabilita' P dei 9
+rischi, azioni correttive e firme. Le formule del template (R = P x D, TR)
+restano intatte: Excel le ricalcola all'apertura. La sorgente di verita' per i
+totali mostrati in portale resta VRFRiskAssessment.total_tr (cache server-side).
 
 API:
     build_vrf_xlsx(project, assessment) -> bytes
+    parse_vrf_xlsx(file_obj) -> dict  (shape di vrf_catalog.default_scores())
+    read_header(ws) / header_cells_for(ws)
 """
 from __future__ import annotations
 
@@ -24,9 +26,41 @@ from . import vrf_catalog
 _TEMPLATE_PATH = Path(__file__).parent / "vrf_template" / vrf_catalog.TEMPLATE_FILENAME
 
 
-def _coerce_header_value(key: str, value: Any) -> Any:
-    if value is None:
-        return ""
+def select_sheet(wb):
+    """Foglio della scheda: quello del modulo attuale, poi il vecchio «VRF», poi il primo."""
+    for name in (vrf_catalog.TEMPLATE_SHEET, vrf_catalog.LEGACY_SHEET):
+        if name in wb.sheetnames:
+            return wb[name]
+    return wb.active
+
+
+def is_legacy_sheet(ws) -> bool:
+    """Il foglio e' del modulo precedente a 3 fasi? (il nuovo ha «Probabilità» in Q6)."""
+    if ws.title == vrf_catalog.LEGACY_SHEET:
+        return True
+    marker = str(ws[f"{vrf_catalog.P_COL}6"].value or "").lower()
+    return "probabilit" not in marker
+
+
+def header_cells_for(ws) -> dict[str, str]:
+    return vrf_catalog.LEGACY_HEADER_CELLS if is_legacy_sheet(ws) else vrf_catalog.HEADER_CELLS
+
+
+def read_header(ws) -> dict[str, str]:
+    """Campi identificativi del file (modulo attuale o precedente), mai None."""
+    return {key: str(ws[cell].value or "").strip() for key, cell in header_cells_for(ws).items()}
+
+
+def _firma(label: str, value: str) -> str:
+    value = (value or "").strip()
+    return f"{label}    {value}" if value else f"{label}    __________________"
+
+
+def _data_it(value: str) -> str:
+    """Data ISO del form (AAAA-MM-GG) -> GG/MM/AAAA per il foglio."""
+    value = (value or "").strip()
+    if len(value) == 10 and value[4] == "-" and value[7] == "-":
+        return f"{value[8:10]}/{value[5:7]}/{value[0:4]}"
     return value
 
 
@@ -34,54 +68,43 @@ def build_vrf_xlsx(project, assessment) -> bytes:
     """Ritorna i bytes di un .xlsx compilato per il progetto.
 
     project: tasks.models.Project (legge vrf_quote_number, part_number, ...)
-    assessment: tasks.models.VRFRiskAssessment | None — se None scrive solo header.
+    assessment: tasks.models.VRFRiskAssessment | None — se None (o modulo
+    precedente) scrive solo l'intestazione.
     """
     if not _TEMPLATE_PATH.exists():
         raise FileNotFoundError(f"Template VRF non trovato: {_TEMPLATE_PATH}")
 
     wb = load_workbook(_TEMPLATE_PATH)
-    ws = wb[vrf_catalog.TEMPLATE_SHEET] if vrf_catalog.TEMPLATE_SHEET in wb.sheetnames else wb.active
+    ws = select_sheet(wb)
 
-    header_values = {
-        "vrf_quote_number": getattr(project, "vrf_quote_number", "") or "",
-        "versione":         getattr(project, "versione", "") or "",
-        "part_number":      getattr(project, "part_number", "") or "",
-        "vrf_description":  getattr(project, "vrf_description", "") or "",
-        "vrf_esp":          getattr(project, "vrf_esp", "") or "",
-        "client_name":      getattr(project, "client_name", "") or "",
-    }
     # Header: testo libero dal progetto (P/N, descrizione, cliente...). Passa da
     # core.excel_export.write_cell_at: `ws[cell] = "=..."` lo scriverebbe come
-    # formula viva nel file scaricato (formula injection). I K/R sotto restano
+    # formula viva nel file scaricato (formula injection). Le P sotto restano
     # int/None, quindi non sono iniettabili e conservano le formule del template.
     for key, cell in vrf_catalog.HEADER_CELLS.items():
-        write_cell_at(ws, cell, _coerce_header_value(key, header_values.get(key)))
+        write_cell_at(ws, cell, getattr(project, key, "") or "")
 
     data = (assessment.data if assessment else None) or {}
+    if vrf_catalog.is_legacy(data):
+        data = {}
     risks_data = data.get("risks") or {}
 
     for risk in vrf_catalog.RISKS:
-        r_code = risk["code"]
-        r_info = risks_data.get(r_code) or {}
-        k_vals = r_info.get("k") or risk["k_default"]
-        subs = r_info.get("subs") or {}
-        for ph in vrf_catalog.PHASES:
-            ph_key = ph["key"]
-            k_cell = f"{ph['k_col']}{risk['row']}"
-            try:
-                ws[k_cell] = int(k_vals.get(ph_key, risk["k_default"][ph_key]))
-            except (TypeError, ValueError):
-                ws[k_cell] = risk["k_default"][ph_key]
-            for sub in risk["sub_parameters"]:
-                v = (subs.get(sub["code"]) or {}).get(ph_key)
-                cell = f"{ph['input_col']}{sub['row']}"
-                if v is None or v == "":
-                    ws[cell] = None
-                else:
-                    try:
-                        ws[cell] = int(v)
-                    except (TypeError, ValueError):
-                        ws[cell] = None
+        p = vrf_catalog.clamp_p((risks_data.get(risk["code"]) or {}).get("p"))
+        ws[f"{vrf_catalog.P_COL}{risk['row']}"] = p
+        ws[f"{vrf_catalog.D_COL}{risk['row']}"] = risk["d"]
+
+    azioni = list(data.get("azioni") or [])
+    for idx, cell in enumerate(vrf_catalog.AZIONI_CELLS):
+        testo = str(azioni[idx]).strip() if idx < len(azioni) and azioni[idx] else ""
+        write_cell_at(ws, cell, testo or None)
+
+    firme = data.get("firme") or {}
+    write_cell_at(ws, vrf_catalog.FIRMA_CELLS["in1"], _firma("IN1", firme.get("in1", "")))
+    write_cell_at(ws, vrf_catalog.FIRMA_CELLS["em"], _firma("EM", firme.get("em", "")))
+    for key in ("in1_data", "em_data"):
+        valore = _data_it(firme.get(key, ""))
+        write_cell_at(ws, vrf_catalog.FIRMA_CELLS[key], f"Data  {valore}" if valore else "Data")
 
     buffer = io.BytesIO()
     wb.save(buffer)
@@ -89,40 +112,52 @@ def build_vrf_xlsx(project, assessment) -> bytes:
     return buffer.getvalue()
 
 
+def _strip_label(value: Any, label: str) -> str:
+    testo = str(value or "").strip()
+    if testo.upper().startswith(label.upper()):
+        testo = testo[len(label):]
+    testo = testo.strip().strip("_").strip()
+    return testo
+
+
+def _data_iso(value: Any) -> str:
+    """Rilegge «Data  GG/MM/AAAA» (o un datetime) come AAAA-MM-GG; '' se non e' una data."""
+    import datetime as _dt
+
+    if isinstance(value, (_dt.date, _dt.datetime)):
+        return value.strftime("%Y-%m-%d")
+    testo = _strip_label(value, "Data")
+    try:
+        return _dt.datetime.strptime(testo, "%d/%m/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return ""
+
+
 def parse_vrf_xlsx(file_obj) -> dict[str, Any]:
     """Legge un xlsx VRF (caricato o generato) e ritorna una struttura 'data'
     compatibile con VRFRiskAssessment.data / vrf_catalog.default_scores().
 
     Usata per pre-popolare la compilazione online a partire dal file gia'
-    caricato dal kickoff. Valori mancanti / non convertibili restano None
-    (default per i sub-parametri; il default del catalogo per i K)."""
+    caricato dal kickoff. Un file del modulo precedente (3 fasi) non e'
+    convertibile: torna la scheda vuota."""
     wb = load_workbook(file_obj, data_only=True)
-    ws = wb[vrf_catalog.TEMPLATE_SHEET] if vrf_catalog.TEMPLATE_SHEET in wb.sheetnames else wb.active
-
-    data = vrf_catalog.default_scores()
-    for risk in vrf_catalog.RISKS:
-        r_code = risk["code"]
-        for ph in vrf_catalog.PHASES:
-            ph_key = ph["key"]
-            raw_k = ws[f"{ph['k_col']}{risk['row']}"].value
-            try:
-                k_val = int(raw_k)
-                k_val = max(vrf_catalog.K_RANGE[0], min(vrf_catalog.K_RANGE[1], k_val))
-                data["risks"][r_code]["k"][ph_key] = k_val
-            except (TypeError, ValueError):
-                pass
-            for sub in risk["sub_parameters"]:
-                raw = ws[f"{ph['input_col']}{sub['row']}"].value
-                if raw is None or raw == "":
-                    continue
-                try:
-                    v = int(raw)
-                    v = max(vrf_catalog.R_RANGE[0], min(vrf_catalog.R_RANGE[1], v))
-                    data["risks"][r_code]["subs"][sub["code"]][ph_key] = v
-                except (TypeError, ValueError):
-                    continue
-    wb.close()
-    return data
+    try:
+        ws = select_sheet(wb)
+        data = vrf_catalog.default_scores()
+        if is_legacy_sheet(ws):
+            return data
+        for risk in vrf_catalog.RISKS:
+            data["risks"][risk["code"]]["p"] = vrf_catalog.clamp_p(ws[f"{vrf_catalog.P_COL}{risk['row']}"].value)
+        data["azioni"] = [str(ws[c].value or "").strip() for c in vrf_catalog.AZIONI_CELLS]
+        data["firme"] = {
+            "in1": _strip_label(ws[vrf_catalog.FIRMA_CELLS["in1"]].value, "IN1"),
+            "em": _strip_label(ws[vrf_catalog.FIRMA_CELLS["em"]].value, "EM"),
+            "in1_data": _data_iso(ws[vrf_catalog.FIRMA_CELLS["in1_data"]].value),
+            "em_data": _data_iso(ws[vrf_catalog.FIRMA_CELLS["em_data"]].value),
+        }
+        return data
+    finally:
+        wb.close()
 
 
 def vrf_filename_for(project) -> str:
@@ -131,5 +166,5 @@ def vrf_filename_for(project) -> str:
         parts.append(f"KICKOFF-{project.kickoff_number}")
     if getattr(project, "part_number", ""):
         parts.append(str(project.part_number).replace("/", "-").replace(" ", "_"))
-    parts.append("VRF_MOD073_Rev10")
+    parts.append("VRF_MOD073")
     return "_".join(parts) + ".xlsx"

@@ -31,6 +31,9 @@ GUIDA = {
                     "piano attività con le scadenze.",
                 ]),
                 ("p", "Il VRF si carica dalla scheda VRF della commessa: il portale legge da solo P/N, descrizione, cliente, preventivo e versione."),
+                ("p", "In alternativa «Compila VRF online»: per i 9 rischi scegli la Probabilità (1-3 o N/A), la Gravità è quella del modulo; "
+                      "R = P × D e il Totale Rischio è la somma (Basso fino a 35, Medio tra 35 e 50, Alto da 50: coinvolgimento CEO). "
+                      "Si aggiungono fino a 4 azioni correttive e le firme IN1 / EM; «Conferma e genera xlsx» crea il file."),
                 ("nota", "Dopo 7 giorni senza VRF compare un avviso; dopo 30 giorni non si possono più creare o modificare attività finché non lo carichi."),
             ],
         },
@@ -106,6 +109,13 @@ GUIDA = {
             "fare": [
                 "Carica il VRF dalla scheda VRF della commessa.",
                 "Se il VRF non serve, segnalo come «non richiesto».",
+            ],
+        },
+        {
+            "sintomo": "«Conferma e genera xlsx» non crea il file VRF",
+            "fare": [
+                "Il messaggio elenca i rischi senza Probabilità («Mancano: R…»): sceglila per tutti i 9, N/A se il rischio non si applica.",
+                "La bozza resta salvata: non si perde niente.",
             ],
         },
         {

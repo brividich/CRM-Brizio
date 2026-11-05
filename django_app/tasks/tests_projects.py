@@ -802,110 +802,201 @@ class VRFCompileOnlineTests(TasksBaseTestCase):
             created_by=self.user,
         )
 
-    def test_compile_page_renders_full_matrix(self):
+    def _post(self, payload):
+        return self.client.post(reverse("tasks:project_vrf_compile", args=[self.project.id]), payload)
+
+    def _full_payload(self, action="confirm", p="2"):
+        from . import vrf_catalog
+
+        payload = {"action": action}
+        for risk in vrf_catalog.RISKS:
+            payload[f"p_{risk['code']}"] = p
+        return payload
+
+    def _project_workbook(self):
+        import openpyxl
+
+        self.project.vrf_file.open("rb")
+        try:
+            return openpyxl.load_workbook(io.BytesIO(self.project.vrf_file.read()))
+        finally:
+            self.project.vrf_file.close()
+
+    def test_compile_page_renders_scheda(self):
         self.client.force_login(self.user)
-        response = self.client.get(
-            reverse("tasks:project_vrf_compile", args=[self.project.id])
-        )
+        response = self.client.get(reverse("tasks:project_vrf_compile", args=[self.project.id]))
         self.assertEqual(response.status_code, 200)
         for r_code in ("R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9"):
-            self.assertContains(response, f'data-risk="{r_code}"')
-        self.assertContains(response, 'name="score_R1_a_p"')
-        self.assertContains(response, 'name="k_R2_c"')
+            self.assertContains(response, f'name="p_{r_code}"')
+        self.assertContains(response, 'name="azione_3"')
+        self.assertContains(response, 'name="firma_em_data"')
+        self.assertContains(response, "Alto ≥ 50")
+        self.assertNotContains(response, 'name="k_R1_p"')
 
-    def test_save_draft_persists_scores_and_recomputes_totals(self):
+    def test_save_draft_persists_p_and_recomputes_tr(self):
         from .models import VRFRiskAssessment
 
         self.client.force_login(self.user)
-        payload = {
-            "action": "save_draft",
-            "score_R1_a_p": "3", "score_R1_b_p": "2",
-            "score_R2_a_p": "1", "score_R2_b_p": "2", "score_R2_c_p": "3",
-            "k_R1_p": "3", "k_R1_i": "3", "k_R1_c": "3",
-            "k_R2_p": "3", "k_R2_i": "3", "k_R2_c": "5",
-        }
-        response = self.client.post(
-            reverse("tasks:project_vrf_compile", args=[self.project.id]), payload
-        )
+        response = self._post({
+            "action": "save_draft", "p_R1": "3", "p_R4": "2", "p_R8": "0",
+            "azione_0": "Verifica fornitore alternativo", "firma_in1": "Mario Prova",
+        })
         self.assertEqual(response.status_code, 302)
         assessment = VRFRiskAssessment.objects.get(project=self.project)
-        self.assertEqual(assessment.data["risks"]["R1"]["subs"]["a"]["p"], 3)
-        self.assertEqual(assessment.data["risks"]["R2"]["subs"]["c"]["p"], 3)
-        self.assertGreater(assessment.total_p, 0.0)
-        self.assertEqual(assessment.total_i, 0.0)
+        self.assertEqual(assessment.data["schema"], 2)
+        self.assertEqual(assessment.data["risks"]["R1"]["p"], 3)
+        self.assertEqual(assessment.data["risks"]["R8"]["p"], 0)
+        self.assertIsNone(assessment.data["risks"]["R2"]["p"])
+        # R1: 3x3=9, R4: 2x2=4, R8: N/A=0
+        self.assertEqual(assessment.total_tr, 13.0)
+        self.assertEqual(assessment.livello, "basso")
+        self.assertFalse(assessment.ceo_required)
+        self.assertEqual(assessment.data["azioni"][0], "Verifica fornitore alternativo")
+        self.assertEqual(assessment.data["firme"]["in1"], "Mario Prova")
         self.project.refresh_from_db()
         self.assertEqual(self.project.vrf_status, VRFDocStatus.PENDING)
 
-    def test_confirm_generates_xlsx_and_marks_uploaded(self):
+    def test_confirm_requires_all_probabilities(self):
+        from .models import VRFRiskAssessment
+
         self.client.force_login(self.user)
-        payload = {
-            "action": "confirm",
-            "score_R1_a_p": "2", "score_R1_b_p": "3",
-            "k_R1_p": "3",
-        }
-        response = self.client.post(
-            reverse("tasks:project_vrf_compile", args=[self.project.id]), payload
-        )
+        response = self._post({"action": "confirm", "p_R1": "2"})
+        self.assertEqual(response.status_code, 302)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.vrf_status, VRFDocStatus.PENDING)
+        self.assertFalse(self.project.vrf_file)
+        # la bozza resta salvata
+        self.assertEqual(VRFRiskAssessment.objects.get(project=self.project).data["risks"]["R1"]["p"], 2)
+
+    def test_confirm_generates_xlsx_and_marks_uploaded(self):
+        from . import vrf_catalog
+
+        self.client.force_login(self.user)
+        payload = self._full_payload(p="2")
+        payload.update({"p_R1": "3", "p_R9": "0", "azione_1": "Seconda azione",
+                        "firma_in1": "Mario Prova", "firma_in1_data": "2026-11-05", "firma_em": "Anna Test"})
+        response = self._post(payload)
         self.assertEqual(response.status_code, 302)
         self.project.refresh_from_db()
         self.assertEqual(self.project.vrf_status, VRFDocStatus.UPLOADED)
-        self.assertTrue(self.project.vrf_file.name)
         self.assertTrue(self.project.vrf_original_name.endswith(".xlsx"))
-        import openpyxl
-        self.project.vrf_file.open("rb")
-        try:
-            wb = openpyxl.load_workbook(io.BytesIO(self.project.vrf_file.read()))
-        finally:
-            self.project.vrf_file.close()
-        ws = wb["VRF"]
-        self.assertEqual(ws["B3"].value, "PN-TEST-1")
-        self.assertEqual(ws["B4"].value, "Test Client")
-        self.assertEqual(ws["U8"].value, 2)
-        self.assertEqual(ws["U9"].value, 3)
+        wb = self._project_workbook()
+        ws = wb[vrf_catalog.TEMPLATE_SHEET]
+        self.assertEqual(ws["C3"].value, "PN-TEST-1")
+        self.assertEqual(ws["N3"].value, "Test Client")
+        self.assertEqual(ws["J2"].value, "Q-TEST")
+        self.assertEqual(ws["Q7"].value, 3)
+        self.assertEqual(ws["Q8"].value, 2)
+        self.assertEqual(ws["Q15"].value, 0)
+        self.assertEqual(ws["R7"].value, 3)
+        self.assertEqual(ws["S7"].value, "=Q7*R7")
+        self.assertEqual(ws["S16"].value, "=SUM(S7:S15)")
+        self.assertEqual(ws["A27"].value, "Seconda azione")
+        self.assertIn("Mario Prova", ws["C30"].value)
+        self.assertEqual(ws["C32"].value, "Data  05/11/2026")
+        self.assertIn("Anna Test", ws["F30"].value)
         wb.close()
+
+    def test_generated_xlsx_round_trips_into_compile_page(self):
+        from .vrf_generator import parse_vrf_xlsx
+
+        self.client.force_login(self.user)
+        payload = self._full_payload(p="1")
+        payload.update({"p_R3": "3", "azione_0": "Azione A", "firma_em": "Anna Test", "firma_em_data": "2026-11-04"})
+        self._post(payload)
+        self.project.refresh_from_db()
+        with self.project.vrf_file.open("rb") as fh:
+            data = parse_vrf_xlsx(fh)
+        self.assertEqual(data["risks"]["R3"]["p"], 3)
+        self.assertEqual(data["risks"]["R1"]["p"], 1)
+        self.assertEqual(data["azioni"][0], "Azione A")
+        self.assertEqual(data["firme"]["em"], "Anna Test")
+        self.assertEqual(data["firme"]["em_data"], "2026-11-04")
+        self.assertEqual(data["firme"]["in1"], "")
 
     def test_skip_with_reminder_saves_draft_and_redirects_to_gantt(self):
         from .models import VRFRiskAssessment
 
         self.client.force_login(self.user)
-        payload = {
-            "action": "skip_with_reminder",
-            "score_R1_a_p": "2",
-            "k_R1_p": "3",
-        }
-        response = self.client.post(
-            reverse("tasks:project_vrf_compile", args=[self.project.id]), payload
-        )
-        self.assertRedirects(
-            response,
-            reverse("tasks:project_gantt", args=[self.project.id]),
-        )
-        # Stato rimane PENDING (non UPLOADED): il reminder progressivo resta attivo
+        response = self._post({"action": "skip_with_reminder", "p_R1": "2"})
+        self.assertRedirects(response, reverse("tasks:project_gantt", args=[self.project.id]))
         self.project.refresh_from_db()
         self.assertEqual(self.project.vrf_status, VRFDocStatus.PENDING)
-        # La bozza e' comunque stata salvata
         assessment = VRFRiskAssessment.objects.get(project=self.project)
-        self.assertEqual(assessment.data["risks"]["R1"]["subs"]["a"]["p"], 2)
+        self.assertEqual(assessment.data["risks"]["R1"]["p"], 2)
 
-    def test_dig_threshold_triggered_when_totals_high(self):
+    def test_tr_alto_requires_ceo(self):
         from .models import VRFRiskAssessment
         from . import vrf_catalog
 
         self.client.force_login(self.user)
-        payload = {"action": "save_draft"}
-        for risk in vrf_catalog.RISKS:
-            for sub in risk["sub_parameters"]:
-                payload[f"score_{risk['code']}_{sub['code']}_p"] = "3"
-            payload[f"k_{risk['code']}_p"] = "5"
-            payload[f"k_{risk['code']}_i"] = str(risk["k_default"]["i"])
-            payload[f"k_{risk['code']}_c"] = str(risk["k_default"]["c"])
-        response = self.client.post(
-            reverse("tasks:project_vrf_compile", args=[self.project.id]), payload
-        )
+        response = self._post(self._full_payload(action="save_draft", p="3"))
         self.assertEqual(response.status_code, 302)
         assessment = VRFRiskAssessment.objects.get(project=self.project)
-        self.assertGreaterEqual(assessment.total_p, vrf_catalog.DIG_THRESHOLD)
-        self.assertTrue(assessment.dig_triggered)
+        self.assertEqual(assessment.total_tr, float(vrf_catalog.TR_MAX))
+        self.assertEqual(assessment.livello, "alto")
+        self.assertTrue(assessment.ceo_required)
+
+    def test_tr_level_thresholds(self):
+        from . import vrf_catalog
+
+        self.assertEqual(vrf_catalog.tr_level(35)["key"], "basso")
+        self.assertEqual(vrf_catalog.tr_level(36)["key"], "medio")
+        self.assertEqual(vrf_catalog.tr_level(49)["key"], "medio")
+        self.assertEqual(vrf_catalog.tr_level(50)["key"], "alto")
+        self.assertEqual(vrf_catalog.TR_MAX, 69)
+
+    def test_legacy_assessment_is_shown_and_replaced(self):
+        from .models import VRFRiskAssessment
+
+        legacy = VRFRiskAssessment.objects.create(
+            project=self.project,
+            data={"risks": {"R1": {"k": {"p": 3, "i": 3, "c": 3}, "subs": {"a": {"p": 3, "i": None, "c": None}}}}},
+            total_p=9.0,
+        )
+        self.assertTrue(legacy.is_legacy)
+        legacy.recompute_totals()
+        self.assertEqual(legacy.total_p, 9.0)
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("tasks:project_vrf_compile", args=[self.project.id]))
+        self.assertContains(response, "modulo precedente a 3 fasi")
+        self._post({"action": "save_draft", "p_R1": "1"})
+        legacy.refresh_from_db()
+        self.assertFalse(legacy.is_legacy)
+        self.assertEqual(legacy.total_tr, 3.0)
+
+    def test_upload_reads_header_of_new_module(self):
+        from types import SimpleNamespace
+
+        from .views.vrf import _parse_vrf_excel
+        from .vrf_generator import build_vrf_xlsx
+
+        data = build_vrf_xlsx(SimpleNamespace(
+            vrf_quote_number="Q-77", versione="", part_number="PN-77",
+            vrf_description="Flangia", vrf_esp="03", client_name="Cliente Demo",
+        ), None)
+        header = _parse_vrf_excel(data)
+        self.assertEqual(header["vrf_quote_number"], "Q-77")
+        self.assertEqual(header["part_number"], "PN-77")
+        self.assertEqual(header["vrf_description"], "Flangia")
+        self.assertEqual(header["vrf_esp"], "03")
+        self.assertEqual(header["client_name"], "Cliente Demo")
+
+    def test_copy_without_pn_clears_pn_cell_of_new_module(self):
+        from django.core.files.base import ContentFile
+        from types import SimpleNamespace
+
+        from . import vrf_catalog
+        from .views.projects import _copy_project_vrf_file
+        from .vrf_generator import build_vrf_xlsx
+
+        self.project.vrf_file.save("nuovo.xlsx", ContentFile(build_vrf_xlsx(self.project, None)), save=True)
+        file_bytes, _name = _copy_project_vrf_file(self.project, clear_part_number=True)
+        import openpyxl
+
+        ws = openpyxl.load_workbook(io.BytesIO(file_bytes))[vrf_catalog.TEMPLATE_SHEET]
+        self.assertIn(ws[vrf_catalog.HEADER_CELLS["part_number"]].value, (None, ""))
+        self.assertEqual(ws[vrf_catalog.HEADER_CELLS["client_name"]].value, "Test Client")
 
 
 class ReadinessComputeTests(TestCase):
@@ -1394,14 +1485,15 @@ class PortfolioTimelineRenderTests(TestCase):
 
 class VrfXlsxFormulaInjectionTests(TestCase):
     """Il generatore VRF (MOD.073) scrive nel template i campi del progetto
-    (P/N, descrizione, cliente): sono testo libero, quindi `ws[cell] = valore`
-    li scriverebbe come formula viva. Le formule ORIGINALI del template (K x R,
-    totali) devono invece restare intatte. Dati sintetici.
+    (P/N, descrizione, cliente), le azioni correttive e le firme: sono testo
+    libero, quindi `ws[cell] = valore` li scriverebbe come formula viva. Le
+    formule ORIGINALI del template (R = P x D, TR) devono restare intatte.
+    Dati sintetici.
     """
 
     EVIL = '=HYPERLINK("http://evil.test","x")'
 
-    def _build(self, **project_kwargs):
+    def _build(self, assessment=None, **project_kwargs):
         from types import SimpleNamespace
 
         from openpyxl import load_workbook
@@ -1418,7 +1510,7 @@ class VrfXlsxFormulaInjectionTests(TestCase):
             "client_name": "Cliente Demo SRL",
         }
         defaults.update(project_kwargs)
-        data = build_vrf_xlsx(SimpleNamespace(**defaults), None)
+        data = build_vrf_xlsx(SimpleNamespace(**defaults), assessment)
         wb = load_workbook(io.BytesIO(data))
         return wb[vrf_catalog.TEMPLATE_SHEET], vrf_catalog
 
@@ -1431,13 +1523,25 @@ class VrfXlsxFormulaInjectionTests(TestCase):
             self.assertTrue(cell.quotePrefix, f"{key} senza quote prefix")
         self.assertEqual(ws[catalog.HEADER_CELLS["part_number"]].value, self.EVIL)
 
+    def test_azioni_are_not_live_formulas(self):
+        from types import SimpleNamespace
+
+        from tasks import vrf_catalog
+
+        data = vrf_catalog.default_scores()
+        data["azioni"][0] = self.EVIL
+        ws, catalog = self._build(assessment=SimpleNamespace(data=data))
+        cell = ws[catalog.AZIONI_CELLS[0]]
+        self.assertNotEqual(cell.data_type, "f")
+        self.assertEqual(cell.value, self.EVIL)
+
     def test_template_formulas_and_benign_values_survive(self):
         ws, catalog = self._build()
         self.assertEqual(ws[catalog.HEADER_CELLS["part_number"]].value, "PN-001")
         self.assertFalse(ws[catalog.HEADER_CELLS["part_number"]].quotePrefix)
-        # Non-regressione: le formule del template (totali TR) restano vive.
-        tr_cell = ws[catalog.TR_CELLS["p"]]
-        self.assertEqual(tr_cell.data_type, "f")
+        # Non-regressione: le formule del template (R e TR) restano vive.
+        self.assertEqual(ws[catalog.TR_CELL].data_type, "f")
+        self.assertEqual(ws["S7"].data_type, "f")
 
 
 class ProjectTeamMembersTests(TestCase):

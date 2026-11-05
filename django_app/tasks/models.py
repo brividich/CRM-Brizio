@@ -722,11 +722,14 @@ class TaskImpostazioni(models.Model):
 
 
 class VRFRiskAssessment(models.Model):
-    """Valutazione rischi del MOD.073 VRF Rev.10 compilata online.
+    """Scheda MOD.073 VRF compilata online (valutazione rischi e fornitura).
 
-    1:1 col Project. Il payload 'data' segue la shape di vrf_catalog.default_scores().
-    I totali (TR per fase) sono cache denormalizzata: ricalcolati a ogni save()
-    dal catalogo per mantenere coerenza con la logica di riferimento.
+    1:1 col Project. Il payload 'data' segue la shape di vrf_catalog.default_scores()
+    (schema 2: P per rischio, azioni correttive, firme). Totale Rischio, fascia e
+    coinvolgimento CEO sono cache denormalizzata ricalcolata dal catalogo.
+
+    total_p / total_i / total_c / dig_triggered appartengono al modulo
+    precedente a 3 fasi: restano solo per le valutazioni gia' salvate.
     """
 
     project = models.OneToOneField(
@@ -735,6 +738,9 @@ class VRFRiskAssessment(models.Model):
         related_name="vrf_assessment",
     )
     data = models.JSONField(default=dict, blank=True)
+    total_tr = models.FloatField(default=0.0)
+    livello = models.CharField(max_length=10, blank=True, default="")
+    ceo_required = models.BooleanField(default=False)
     total_p = models.FloatField(default=0.0)
     total_i = models.FloatField(default=0.0)
     total_c = models.FloatField(default=0.0)
@@ -757,14 +763,19 @@ class VRFRiskAssessment(models.Model):
     def __str__(self) -> str:
         return f"VRF#{self.project_id}"
 
+    @property
+    def is_legacy(self) -> bool:
+        from .vrf_catalog import is_legacy
+        return is_legacy(self.data)
+
     def recompute_totals(self) -> None:
-        from .vrf_catalog import compute_totals
+        from .vrf_catalog import compute_totals, is_legacy
+        if is_legacy(self.data):
+            return
         result = compute_totals(self.data or {})
-        totals = result["totals"]
-        self.total_p = float(totals.get("p") or 0.0)
-        self.total_i = float(totals.get("i") or 0.0)
-        self.total_c = float(totals.get("c") or 0.0)
-        self.dig_triggered = bool(result.get("dig_triggered"))
+        self.total_tr = float(result["tr"])
+        self.livello = result["level"]["key"]
+        self.ceo_required = bool(result["ceo_required"])
 
 
 class TaskRoleType(models.TextChoices):

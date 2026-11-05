@@ -3,21 +3,6 @@
 {% block tasks_shell_head %}
 {% include "tasks/_percorso_assets.html" %}
 <style>
-  /* Barra step wizard — allineata a project_create.html (.kc-*) */
-  .kc-wizard-steps {
-    display: flex; gap: 8px; margin-bottom: 12px;
-    padding: 8px 12px; background: #fff; border: 1px solid #e2e8f0;
-    border-radius: 10px;
-  }
-  .kc-step {
-    flex: 1; padding: 7px 12px; border-radius: 6px;
-    background: #f8fafc; border: 1px solid #e2e8f0;
-    text-align: center; font-weight: 600; color: #64748b; font-size: 12px;
-  }
-  .kc-step.active { background: #ea580c; color: #fff; border-color: #c2410c; }
-  .kc-step.done { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
-  .kc-step-num { display: block; font-size: 10px; opacity: .8; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
-
   .vrfc-header-grid {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
   }
@@ -28,155 +13,100 @@
   }
   .vrfc-header-grid .val {
     padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px;
-    background: #f8fafc; color: var(--text); font-weight: 600; font-size: 13px; min-height: 32px;
+    background: var(--surface-alt, #f8fafc); color: var(--text); font-weight: 600; font-size: 13px; min-height: 32px;
   }
   .vrfc-header-grid .val.empty { color: var(--text-light); font-weight: 400; font-style: italic; }
-  .vrfc-hint {
-    margin-top: 12px; font-size: 12px; color: var(--text-light);
-    padding: 8px 12px; background: #f1f5f9; border-radius: 6px;
-  }
 
-  /* Override del clipping del panel per permettere alla thead di restare sticky
-     rispetto al viewport e non al panel stesso */
-  .ts-panel.vrfc-panel { overflow: visible; }
-  .ts-panel.vrfc-panel .ts-panel-body.no-pad { overflow: visible; }
+  .vrfc-note {
+    display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 10px;
+    background: var(--surface-alt, #eff6ff); border: 1px solid var(--border); color: var(--text); font-size: 13px;
+  }
+  .vrfc-note > div { flex: 1; }
 
-  .vrfc-matrix {
-    width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px;
-    background: var(--surface);
+  .vrfc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .vrfc-table th {
+    background: var(--thead-bg, #f1f5f9); color: var(--text-light); font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 10px; text-align: left;
+    border-bottom: 1px solid var(--border);
   }
-  .vrfc-matrix thead th {
-    position: sticky; z-index: 20;
-    background: #1e293b; color: #fff;
-    padding: 8px 6px; text-align: center; font-weight: 700; font-size: 11px;
-    text-transform: uppercase; letter-spacing: 0.04em;
-    border-right: 1px solid var(--border);
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+  .vrfc-table th.num, .vrfc-table td.num { text-align: center; width: 120px; min-width: 120px; }
+  .vrfc-table td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text); }
+  .vrfc-code {
+    display: inline-block; background: var(--accent); color: #fff; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 800;
   }
-  /* prima riga: subito sotto la topnav / sidebar header del portale */
-  .vrfc-matrix thead tr:first-child th { top: var(--nav-h, 60px); }
-  /* seconda riga: sotto la prima (altezza effettiva ~34px) */
-  .vrfc-matrix thead tr:nth-child(2) th { top: calc(var(--nav-h, 60px) + 34px); }
-  .vrfc-matrix thead th.param-col { text-align: left; width: 38%; }
-  .vrfc-matrix thead th.phase-p { background: #0891b2; }
-  .vrfc-matrix thead th.phase-i { background: #7c3aed; }
-  .vrfc-matrix thead th.phase-c { background: #dc2626; }
-  .vrfc-matrix thead th.sub-k { background: #475569; width: 56px; }
-  .vrfc-matrix thead th.sub-score { background: #334155; width: 52px; }
-  .vrfc-matrix thead th.sub-rmed { background: #475569; width: 64px; }
-
-  .vrfc-matrix .risk-row {
-    background: #e2e8f0; font-weight: 700;
+  .vrfc-title { font-weight: 700; }
+  .vrfc-table details { margin-top: 6px; }
+  .vrfc-table summary { cursor: pointer; font-size: 12px; color: var(--text-light); }
+  .vrfc-checklist { margin: 6px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--text-light); line-height: 1.45; }
+  .vrfc-checklist li { display: flex; gap: 8px; padding: 2px 0; }
+  .vrfc-checklist b { width: 12px; flex: none; color: var(--text); }
+  .vrfc-table select {
+    width: 110px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text); font-size: 13px;
   }
-  .vrfc-matrix .risk-row td {
-    padding: 9px 8px; border-bottom: 2px solid var(--border);
-    vertical-align: middle;
-  }
-  .vrfc-matrix .risk-row .risk-title { font-size: 13px; color: var(--text); }
-  .vrfc-matrix .risk-row .risk-code {
-    display: inline-block; background: var(--accent); color: #fff;
-    padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 800;
-    margin-right: 8px;
-  }
-  .vrfc-matrix .risk-row .num-cell { text-align: center; font-variant-numeric: tabular-nums; }
-  .vrfc-matrix .risk-row .k-input {
-    width: 44px; padding: 4px 6px; text-align: center; border: 1px solid var(--text-light);
-    border-radius: 3px; font-size: 13px; font-weight: 700;
-    background: var(--surface);
-  }
-  .vrfc-matrix .risk-row .k-input:focus {
-    outline: 2px solid var(--accent); outline-offset: -1px;
-  }
-
-  .vrfc-matrix .sub-row td {
-    padding: 7px 8px; border-bottom: 1px solid var(--border); background: var(--surface);
-  }
-  .vrfc-matrix .sub-row .sub-label {
-    padding-left: 26px; font-size: 12px; color: #334155; line-height: 1.35;
-  }
-  .vrfc-matrix .sub-row .sub-code {
-    display: inline-block; color: var(--text-light); font-weight: 700;
-    margin-right: 6px; width: 14px;
-  }
-  .vrfc-matrix .sub-row .num-cell { text-align: center; }
-  .vrfc-matrix .sub-row select {
-    width: 54px; padding: 4px 6px; text-align: center;
-    border: 1px solid var(--border); border-radius: 3px; font-size: 13px;
-    background: var(--surface); font-variant-numeric: tabular-nums;
-  }
-  .vrfc-matrix .sub-row select:focus {
-    outline: 2px solid var(--accent); outline-offset: -1px;
-  }
+  .vrfc-table select.missing { border-color: var(--warning); }
+  .vrfc-d { font-weight: 700; font-variant-numeric: tabular-nums; }
 
   .vrfc-pill {
-    display: inline-block; padding: 3px 9px; border-radius: 10px;
-    font-size: 11px; font-weight: 700; line-height: 1;
+    display: inline-block; min-width: 34px; padding: 4px 9px; border-radius: 10px;
+    font-size: 12px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
   }
   .vrfc-pill-low  { background: var(--success-bg); color: var(--success); }
   .vrfc-pill-med  { background: var(--warning-bg); color: var(--warning); }
   .vrfc-pill-high { background: var(--danger-bg); color: var(--danger); }
+  .vrfc-pill-na   { background: var(--surface-alt, #f1f5f9); color: var(--text-light); }
 
-  .vrfc-totals {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
-    margin-top: 18px; padding: 18px;
-    background: var(--surface); border: 2px solid var(--accent); border-radius: 10px;
+  .vrfc-total {
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    margin-top: 14px; padding: 16px 18px; border: 2px solid var(--accent); border-radius: 10px; background: var(--surface);
   }
-  .vrfc-totals .card { text-align: center; padding: 10px; }
-  .vrfc-totals .card + .card { border-left: 1px solid var(--border); }
-  .vrfc-totals .lbl {
-    font-size: 11px; color: var(--text-light); text-transform: uppercase;
-    letter-spacing: 0.05em; font-weight: 700; margin-bottom: 6px;
-  }
-  .vrfc-totals .val {
-    font-size: 28px; font-weight: 800; color: var(--text);
-    font-variant-numeric: tabular-nums; margin-bottom: 4px;
-  }
+  .vrfc-total .lbl { font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+  .vrfc-total .val { font-size: 30px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+  .vrfc-total .scale { font-size: 12px; color: var(--text-light); margin-left: auto; }
 
-  .vrfc-dig {
-    margin-top: 14px; padding: 12px 16px;
-    border-left: 4px solid var(--success); background: var(--success-bg); color: var(--success);
-    border-radius: 4px; font-weight: 600; font-size: 13px;
+  .vrfc-ceo {
+    margin-top: 12px; padding: 12px 16px; border-left: 4px solid var(--success);
+    background: var(--success-bg); color: var(--success); border-radius: 4px; font-weight: 600; font-size: 13px;
   }
-  .vrfc-dig.triggered {
-    border-color: var(--danger); background: var(--danger-bg); color: var(--danger);
-  }
+  .vrfc-ceo.alto { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+  .vrfc-ceo.medio { border-color: var(--warning); background: var(--warning-bg); color: var(--warning); }
 
   .vrfc-legend {
-    display: flex; gap: 20px; flex-wrap: wrap;
-    margin-top: 10px; padding: 10px; font-size: 11px; color: var(--text-light);
-    background: #f8fafc; border-radius: 6px;
+    display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; padding: 10px;
+    font-size: 12px; color: var(--text-light); background: var(--surface-alt, #f8fafc); border-radius: 6px;
   }
 
-  .vrfc-actions {
-    display: flex; justify-content: space-between; gap: 10px;
-    margin-top: 20px; flex-wrap: wrap;
+  .vrfc-azioni { display: grid; gap: 8px; }
+  .vrfc-azioni input, .vrfc-firme input {
+    width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text); font-size: 13px;
   }
+  .vrfc-firme { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .vrfc-firme fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0; display: grid; gap: 8px; }
+  .vrfc-firme legend { font-size: 12px; font-weight: 700; color: var(--text); padding: 0 4px; }
+  .vrfc-firme label { font-size: 11px; color: var(--text-light); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .vrfc-actions { display: flex; justify-content: space-between; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
   .vrfc-actions .right { display: flex; gap: 8px; flex-wrap: wrap; }
 
-  body.theme-dark .kc-wizard-steps { background:var(--surface); border-color:var(--border); }
-  body.theme-dark .kc-step { background:var(--surface-alt, #f8fafc); border-color:var(--border); color:var(--text-light); }
-  body.theme-dark .kc-step.done { background:rgba(6,95,70,.2); border-color:rgba(167,243,208,.2); color:#6ee7b7; }
-  body.theme-dark .vrfc-header-grid .val { background:var(--surface); }
-  body.theme-dark .vrfc-hint { background:var(--surface-alt, #f8fafc); }
-  body.theme-dark .vrfc-matrix .risk-row { background:var(--thead-bg, #f8fafc); }
-  body.theme-dark .vrfc-totals { border-color:rgba(234,88,12,.4); }
-  body.theme-dark .vrfc-dig { background:rgba(22,101,52,.15); color:#86efac; }
-  body.theme-dark .vrfc-dig.triggered { background:rgba(220,38,38,.15); color:#fca5a5; }
-  body.theme-dark .vrfc-legend { background:var(--surface-alt, #f8fafc); }
-  
-/* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
-body.theme-dark .vrfc-matrix .sub-row .sub-label{color:var(--text)}
+  @media (max-width: 760px) {
+    .vrfc-header-grid, .vrfc-firme { grid-template-columns: 1fr; }
+    .vrfc-header-grid .row { grid-column: auto !important; }
+    .vrfc-table th.num, .vrfc-table td.num { width: auto; }
+  }
 </style>
 {% endblock %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Compila VRF</span>{% endblock %}
 {% block tasks_shell_title %}Compila VRF online - {{ project.name }}{% endblock %}
-{% block tasks_shell_subtitle %}Compila la matrice rischi MOD.073 Rev.10 direttamente nel browser. L'xlsx verra' generato alla conferma.{% endblock %}
+{% block tasks_shell_subtitle %}Scheda MOD.073 «Valutazione rischi e fornitura»: scegli la Probabilità di ogni rischio, il portale calcola R = P × D e il Totale Rischio. L'xlsx si genera alla conferma.{% endblock %}
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">Kickoff: {{ project.name }}</span>
   {% if project.client_name %}<span class="ts-hero-pill">{{ project.client_name }}</span>{% endif %}
   {% if project.part_number %}<span class="ts-hero-pill">P/N: {{ project.part_number }}{% if project.revisione %} Rev.{{ project.revisione }}{% endif %}{% if project.versione %} v{{ project.versione }}{% endif %}</span>{% endif %}
 {% endblock %}
+{% block tasks_shell_guide_anchor %}#vrf{% endblock %}
 {% block tasks_shell_actions %}
   <a class="ts-hero-action" href="{% url 'tasks:project_vrf_upload' project.id %}">Carica file esistente</a>
   <a class="ts-hero-action" href="{% url 'tasks:project_gantt' project.id %}">Gantt kickoff</a>
@@ -185,13 +115,21 @@ body.theme-dark .vrfc-matrix .sub-row .sub-label{color:var(--text)}
 {% block tasks_shell_content %}
 <div class="ts-stack">
 
-  {# I messages vanno tutti nel toast fisso in fondo pagina (alto a destra), evita consumo anticipato #}
+  {% if legacy_assessment %}
+    <div class="vrfc-note">
+      <div>
+        La valutazione salvata{% if legacy_assessment.compiled_at %} il {{ legacy_assessment.compiled_at|date:"d/m/Y" }}{% endif %}
+        usa il <strong>modulo precedente a 3 fasi</strong> (TR Preventivazione {{ legacy_assessment.total_p|floatformat:1 }} ·
+        Industrializzazione {{ legacy_assessment.total_i|floatformat:1 }} · Produzione {{ legacy_assessment.total_c|floatformat:1 }}).
+        Non si converte: compila la scheda nuova e salvala per sostituirla.
+      </div>
+    </div>
+  {% endif %}
 
   {% if prefilled_from_xlsx %}
-    <div style="display:flex; gap:12px; align-items:center; padding:12px 16px; border-radius:10px; background:#eff6ff; border:1px solid #bfdbfe; color:var(--primary-mid); font-size:13px;">
-      <span style="font-size:18px;">📥</span>
-      <div style="flex:1;">
-        I valori mostrati sono stati letti dal file VRF gia' caricato{% if project.vrf_original_name %} (<strong>{{ project.vrf_original_name }}</strong>){% endif %}.
+    <div class="vrfc-note">
+      <div>
+        I valori mostrati sono stati letti dal file VRF già caricato{% if project.vrf_original_name %} (<strong>{{ project.vrf_original_name }}</strong>){% endif %}.
         Modificali e premi <strong>Salva bozza</strong> o <strong>Conferma</strong> per aggiornare il documento.
       </div>
       <a href="{% url 'tasks:project_vrf_download' project.id %}" class="btn btn-secondary btn-sm">Scarica originale</a>
@@ -204,128 +142,135 @@ body.theme-dark .vrfc-matrix .sub-row .sub-label{color:var(--text)}
     <div class="ts-panel-head">
       <div class="ts-panel-title-wrap">
         <h2 class="ts-panel-title">Intestazione documento</h2>
-        <p class="ts-panel-subtitle">I dati identificativi vengono dal kickoff. Per modificarli usa il form di modifica attivita'.</p>
+        <p class="ts-panel-subtitle">I dati identificativi vengono dal kickoff. Per modificarli usa il form di modifica della commessa. La versione si compila solo in assenza di preventivo.</p>
       </div>
     </div>
     <div class="ts-panel-body">
       <div class="vrfc-header-grid">
         <div class="row"><label>Preventivo n°</label><div class="val {% if not project.vrf_quote_number %}empty{% endif %}">{{ project.vrf_quote_number|default:"-" }}</div></div>
-        <div class="row"><label>Versione</label><div class="val {% if not project.versione %}empty{% endif %}">{{ project.versione|default:"-" }}</div></div>
+        <div class="row"><label>Versione n°</label><div class="val {% if not project.versione %}empty{% endif %}">{{ project.versione|default:"-" }}</div></div>
         <div class="row"><label>P/N</label><div class="val {% if not project.part_number %}empty{% endif %}">{{ project.part_number|default:"-" }}</div></div>
         <div class="row" style="grid-column: span 2;"><label>Descrizione</label><div class="val {% if not project.vrf_description %}empty{% endif %}">{{ project.vrf_description|default:"-" }}</div></div>
-        <div class="row"><label>Esp</label><div class="val {% if not project.vrf_esp %}empty{% endif %}">{{ project.vrf_esp|default:"-" }}</div></div>
+        <div class="row"><label>Esp.</label><div class="val {% if not project.vrf_esp %}empty{% endif %}">{{ project.vrf_esp|default:"-" }}</div></div>
         <div class="row" style="grid-column: span 3;"><label>Cliente</label><div class="val {% if not project.client_name %}empty{% endif %}">{{ project.client_name|default:"-" }}</div></div>
       </div>
     </div>
   </section>
 
-  <form method="post" id="vrfc-form">
+  <form method="post" id="vrfc-form" class="ts-stack">
     {% csrf_token %}
     <input type="hidden" name="action" id="vrfc-action" value="">
-    <section class="ts-panel vrfc-panel">
+
+    <section class="ts-panel">
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Matrice rischi - 9 categorie, 45 sub-parametri</h2>
-          <p class="ts-panel-subtitle">Valori R: 0=N/A, 1=Bassa, 2=Media, 3=Alta. K (impatto): 1-5. I totali si aggiornano live; l'xlsx viene generato alla conferma.</p>
+          <h2 class="ts-panel-title">Parametri in valutazione</h2>
+          <p class="ts-panel-subtitle">Per ogni rischio scegli la Probabilità P aiutandoti con la checklist; la Gravità D è fissata dal modulo. N/A se il rischio non si applica alla fornitura.</p>
         </div>
       </div>
       <div class="ts-panel-body no-pad">
-        <table class="vrfc-matrix" id="vrfc-matrix">
+        <table class="vrfc-table" id="vrfc-matrix" data-fm-table-skip="1" data-table-enhanced="0">
           <thead>
             <tr>
-              <th rowspan="2" class="param-col">Parametro in valutazione</th>
-              <th colspan="3" class="phase-p">Preventivazione / Offerta</th>
-              <th colspan="3" class="phase-i">Industrializzazione</th>
-              <th colspan="3" class="phase-c">Produzione &amp; Consegna</th>
-            </tr>
-            <tr>
-              <th class="sub-score">R</th><th class="sub-k">K</th><th class="sub-rmed">K&times;R</th>
-              <th class="sub-score">R</th><th class="sub-k">K</th><th class="sub-rmed">K&times;R</th>
-              <th class="sub-score">R</th><th class="sub-k">K</th><th class="sub-rmed">K&times;R</th>
+              <th style="width:52px;">ID</th>
+              <th>Rischio</th>
+              <th class="num">Probabilità P</th>
+              <th class="num">Gravità D</th>
+              <th class="num">Rischio R = P×D</th>
             </tr>
           </thead>
           <tbody>
             {% for risk in risks %}
-              <tr class="risk-row" data-risk="{{ risk.code }}">
-                <td class="risk-title"><span class="risk-code">{{ risk.code }}</span>{{ risk.title }}</td>
-                <td class="num-cell" id="avg-{{ risk.code }}-p">-</td>
-                <td class="num-cell"><input type="number" class="k-input" name="k_{{ risk.code }}_p" min="{{ k_min }}" max="{{ k_max }}" data-risk="{{ risk.code }}" data-ph="p" data-kind="k" value="{{ risk.k_p }}"></td>
-                <td class="num-cell" id="kr-{{ risk.code }}-p">-</td>
-                <td class="num-cell" id="avg-{{ risk.code }}-i">-</td>
-                <td class="num-cell"><input type="number" class="k-input" name="k_{{ risk.code }}_i" min="{{ k_min }}" max="{{ k_max }}" data-risk="{{ risk.code }}" data-ph="i" data-kind="k" value="{{ risk.k_i }}"></td>
-                <td class="num-cell" id="kr-{{ risk.code }}-i">-</td>
-                <td class="num-cell" id="avg-{{ risk.code }}-c">-</td>
-                <td class="num-cell"><input type="number" class="k-input" name="k_{{ risk.code }}_c" min="{{ k_min }}" max="{{ k_max }}" data-risk="{{ risk.code }}" data-ph="c" data-kind="k" value="{{ risk.k_c }}"></td>
-                <td class="num-cell" id="kr-{{ risk.code }}-c">-</td>
+              <tr data-risk="{{ risk.code }}" data-d="{{ risk.d }}">
+                <td><span class="vrfc-code">{{ risk.code }}</span></td>
+                <td>
+                  <div class="vrfc-title">{{ risk.title }}</div>
+                  <details>
+                    <summary>Checklist ({{ risk.checklist|length }} punti)</summary>
+                    <ul class="vrfc-checklist">
+                      {% for code, label in risk.checklist %}<li><b>{{ code }}</b><span>{{ label }}</span></li>{% endfor %}
+                    </ul>
+                  </details>
+                </td>
+                <td class="num">
+                  <select name="p_{{ risk.code }}" aria-label="Probabilità {{ risk.code }}" data-kind="p">
+                    <option value="" {% if risk.p == "" %}selected{% endif %}>-</option>
+                    {% for val, lbl in p_choices %}
+                      <option value="{{ val }}" {% if risk.p == val %}selected{% endif %}>{{ lbl }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td class="num"><span class="vrfc-d">{{ risk.d }}</span></td>
+                <td class="num" id="r-{{ risk.code }}">
+                  {% if risk.r is None %}-{% else %}<span class="vrfc-pill vrfc-pill-{{ risk.level }}">{{ risk.r }}</span>{% endif %}
+                </td>
               </tr>
-              {% for sub in risk.sub_parameters %}
-                <tr class="sub-row" data-risk="{{ risk.code }}" data-sub="{{ sub.code }}">
-                  <td class="sub-label"><span class="sub-code">{{ sub.code }}</span>{{ sub.label }}</td>
-                  <td class="num-cell">
-                    <select name="score_{{ risk.code }}_{{ sub.code }}_p" data-risk="{{ risk.code }}" data-sub="{{ sub.code }}" data-ph="p" data-kind="score">
-                      <option value="" {% if sub.score_p == "" %}selected{% endif %}>-</option>
-                      <option value="0" {% if sub.score_p == "0" %}selected{% endif %}>0</option>
-                      <option value="1" {% if sub.score_p == "1" %}selected{% endif %}>1</option>
-                      <option value="2" {% if sub.score_p == "2" %}selected{% endif %}>2</option>
-                      <option value="3" {% if sub.score_p == "3" %}selected{% endif %}>3</option>
-                    </select>
-                  </td>
-                  <td></td><td></td>
-                  <td class="num-cell">
-                    <select name="score_{{ risk.code }}_{{ sub.code }}_i" data-risk="{{ risk.code }}" data-sub="{{ sub.code }}" data-ph="i" data-kind="score">
-                      <option value="" {% if sub.score_i == "" %}selected{% endif %}>-</option>
-                      <option value="0" {% if sub.score_i == "0" %}selected{% endif %}>0</option>
-                      <option value="1" {% if sub.score_i == "1" %}selected{% endif %}>1</option>
-                      <option value="2" {% if sub.score_i == "2" %}selected{% endif %}>2</option>
-                      <option value="3" {% if sub.score_i == "3" %}selected{% endif %}>3</option>
-                    </select>
-                  </td>
-                  <td></td><td></td>
-                  <td class="num-cell">
-                    <select name="score_{{ risk.code }}_{{ sub.code }}_c" data-risk="{{ risk.code }}" data-sub="{{ sub.code }}" data-ph="c" data-kind="score">
-                      <option value="" {% if sub.score_c == "" %}selected{% endif %}>-</option>
-                      <option value="0" {% if sub.score_c == "0" %}selected{% endif %}>0</option>
-                      <option value="1" {% if sub.score_c == "1" %}selected{% endif %}>1</option>
-                      <option value="2" {% if sub.score_c == "2" %}selected{% endif %}>2</option>
-                      <option value="3" {% if sub.score_c == "3" %}selected{% endif %}>3</option>
-                    </select>
-                  </td>
-                  <td></td><td></td>
-                </tr>
-              {% endfor %}
             {% endfor %}
           </tbody>
-          <tfoot>
-            <tr style="background:#1e293b;color:#fff;">
-              <td style="padding:12px 8px;font-weight:800;font-size:13px;">TOTALE RISCHIO (TR) = &Sigma; K&times;R</td>
-              {% for ph in phases %}
-                <td colspan="2" class="num-cell" style="padding:12px 8px;"></td>
-                <td class="num-cell" id="tr-{{ ph.key }}" style="padding:12px 8px;font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;">-</td>
-              {% endfor %}
-            </tr>
-          </tfoot>
         </table>
 
         <div class="vrfc-legend">
-          <div>R: 0=N/A &middot; 1=Bassa &middot; 2=Media &middot; 3=Alta</div>
-          <div>K (Impatto): 1-5</div>
-          <div>K&times;R: <span class="vrfc-pill vrfc-pill-low">Basso &lt;4</span> <span class="vrfc-pill vrfc-pill-med">Medio 4-6</span> <span class="vrfc-pill vrfc-pill-high">Alto &ge;6</span></div>
-          <div>TR &ge; {{ dig_threshold }} &rarr; DIG richiesto</div>
+          <div>P: N/A = 0 · Bassa = 1 · Media = 2 · Alta = 3</div>
+          <div>D (dal modulo): Bassa = 1 · Media = 2 · Alta = 3</div>
+          <div>R: <span class="vrfc-pill vrfc-pill-low">1-3</span> <span class="vrfc-pill vrfc-pill-med">4</span> <span class="vrfc-pill vrfc-pill-high">6-9</span></div>
         </div>
       </div>
     </section>
 
-    <div class="vrfc-totals">
-      {% for ph in phases %}
-        <div class="card">
-          <div class="lbl">Totale {{ ph.label }}</div>
-          <div class="val" id="tot-{{ ph.key }}">-</div>
-          <div id="tot-{{ ph.key }}-pill"></div>
+    <div>
+      <div class="vrfc-total">
+        <div>
+          <div class="lbl">Totale Rischio (TR) = Σ P×D</div>
+          <div class="val" id="vrfc-tr">{{ totals.tr }}</div>
         </div>
-      {% endfor %}
+        <div id="vrfc-tr-pill"><span class="vrfc-pill vrfc-pill-{% if totals.level.key == 'alto' %}high{% elif totals.level.key == 'medio' %}med{% else %}low{% endif %}">{{ totals.level.label }}</span></div>
+        <div class="scale">Basso ≤ {{ tr_basso_max }} · Medio tra {{ tr_basso_max }} e {{ tr_alto_min }} · Alto ≥ {{ tr_alto_min }} (massimo {{ tr_max }})</div>
+      </div>
+      <div class="vrfc-ceo {{ totals.level.key }}" id="vrfc-ceo"></div>
     </div>
 
-    <div class="vrfc-dig" id="vrfc-dig">Compila la matrice per verificare la soglia DIG.</div>
+    <section class="ts-panel">
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Azioni correttive / Risk Action Report</h2>
+          <p class="ts-panel-subtitle">Fino a 4 azioni, come nel modulo cartaceo. Indicale per i rischi rossi (R ≥ 6) e quando il TR non è basso.</p>
+        </div>
+      </div>
+      <div class="ts-panel-body">
+        <div class="vrfc-azioni">
+          {% for testo in azioni %}
+            <input type="text" name="azione_{{ forloop.counter0 }}" value="{{ testo }}" maxlength="500" placeholder="Azione {{ forloop.counter }}">
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="ts-panel">
+      <div class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Firme</h2>
+          <p class="ts-panel-subtitle">Nome di chi ha compilato (IN1) e di chi approva (EM), con la data. Vengono riportati nel file.</p>
+        </div>
+      </div>
+      <div class="ts-panel-body">
+        <div class="vrfc-firme">
+          <fieldset>
+            <legend>IN1</legend>
+            <label for="firma_in1">Nome</label>
+            <input type="text" id="firma_in1" name="firma_in1" value="{{ firme.in1 }}" maxlength="120">
+            <label for="firma_in1_data">Data</label>
+            <input type="date" id="firma_in1_data" name="firma_in1_data" value="{{ firme.in1_data }}">
+          </fieldset>
+          <fieldset>
+            <legend>EM</legend>
+            <label for="firma_em">Nome</label>
+            <input type="text" id="firma_em" name="firma_em" value="{{ firme.em }}" maxlength="120">
+            <label for="firma_em_data">Data</label>
+            <input type="date" id="firma_em_data" name="firma_em_data" value="{{ firme.em_data }}">
+          </fieldset>
+        </div>
+      </div>
+    </section>
 
     <div class="vrfc-actions">
       <a class="btn btn-secondary" href="{% url 'tasks:project_gantt' project.id %}">Annulla</a>
@@ -339,68 +284,53 @@ body.theme-dark .vrfc-matrix .sub-row .sub-label{color:var(--text)}
 
 </div>
 
-{# Toast fisso in alto a destra per feedback save_draft/info/warning/error (auto-dismiss success/info dopo 4s) #}
-
 <script>
 (function() {
-  const PHASES = [{% for ph in phases %}{key:"{{ ph.key }}",label:"{{ ph.label }}"}{% if not forloop.last %},{% endif %}{% endfor %}];
-  const DIG = {{ dig_threshold }};
+  const BASSO_MAX = {{ tr_basso_max }};
+  const ALTO_MIN = {{ tr_alto_min }};
+  const table = document.getElementById("vrfc-matrix");
+
+  function level(r) {
+    if (r === 0) return "na";
+    if (r >= 6) return "high";
+    if (r >= 4) return "med";
+    return "low";
+  }
 
   function recalc() {
-    const totals = Object.fromEntries(PHASES.map(p => [p.key, 0]));
-    document.querySelectorAll("tr.risk-row").forEach(row => {
-      const rCode = row.dataset.risk;
-      PHASES.forEach(ph => {
-        const scores = [];
-        document.querySelectorAll(`select[data-risk="${rCode}"][data-ph="${ph.key}"][data-kind="score"]`).forEach(s => {
-          if (s.value !== "") scores.push(parseFloat(s.value));
-        });
-        const avg = scores.length ? scores.reduce((a,b)=>a+b,0) / scores.length : null;
-        const kEl = document.querySelector(`input[data-risk="${rCode}"][data-ph="${ph.key}"][data-kind="k"]`);
-        const k = kEl ? parseFloat(kEl.value) || 0 : 0;
-        const kr = avg !== null ? avg * k : null;
-
-        const avgCell = document.getElementById(`avg-${rCode}-${ph.key}`);
-        const krCell  = document.getElementById(`kr-${rCode}-${ph.key}`);
-        if (avgCell) avgCell.textContent = avg === null ? "-" : avg.toFixed(2);
-        if (krCell) {
-          if (kr === null) krCell.innerHTML = "-";
-          else {
-            let cls = "vrfc-pill-low";
-            if (kr >= 6) cls = "vrfc-pill-high";
-            else if (kr >= 4) cls = "vrfc-pill-med";
-            krCell.innerHTML = `<span class="vrfc-pill ${cls}">${kr.toFixed(1)}</span>`;
-            totals[ph.key] += kr;
-          }
-        }
-      });
-    });
-    PHASES.forEach(ph => {
-      const v = totals[ph.key];
-      const totEl = document.getElementById(`tot-${ph.key}`);
-      const trEl  = document.getElementById(`tr-${ph.key}`);
-      const pillEl = document.getElementById(`tot-${ph.key}-pill`);
-      if (totEl) totEl.textContent = v.toFixed(1);
-      if (trEl)  trEl.textContent  = v.toFixed(1);
-      if (pillEl) {
-        let cls = "vrfc-pill-low", label = "Basso";
-        if (v >= DIG) { cls = "vrfc-pill-high"; label = "Alto &middot; DIG"; }
-        else if (v >= 20) { cls = "vrfc-pill-med"; label = "Medio"; }
-        pillEl.innerHTML = `<span class="vrfc-pill ${cls}">${label}</span>`;
+    let tr = 0;
+    const missing = [];
+    table.querySelectorAll("tbody tr[data-risk]").forEach(row => {
+      const code = row.dataset.risk;
+      const d = parseInt(row.dataset.d, 10);
+      const sel = row.querySelector('select[data-kind="p"]');
+      const cell = document.getElementById(`r-${code}`);
+      if (sel.value === "") {
+        missing.push(code);
+        sel.classList.add("missing");
+        cell.textContent = "-";
+        return;
       }
+      sel.classList.remove("missing");
+      const r = parseInt(sel.value, 10) * d;
+      tr += r;
+      cell.innerHTML = `<span class="vrfc-pill vrfc-pill-${level(r)}">${r}</span>`;
     });
-    const anyHigh = Object.values(totals).some(t => t >= DIG);
-    const digEl = document.getElementById("vrfc-dig");
-    if (anyHigh) {
-      digEl.classList.add("triggered");
-      digEl.innerHTML = `Totale Rischio &ge; ${DIG} in almeno una fase: richiesto coinvolgimento DIG prima di procedere.`;
-    } else {
-      digEl.classList.remove("triggered");
-      digEl.innerHTML = "Nessun totale sopra soglia DIG.";
-    }
+    document.getElementById("vrfc-tr").textContent = tr;
+    let key = "basso", label = "Basso", cls = "low";
+    if (tr >= ALTO_MIN) { key = "alto"; label = "Alto"; cls = "high"; }
+    else if (tr > BASSO_MAX) { key = "medio"; label = "Medio"; cls = "med"; }
+    document.getElementById("vrfc-tr-pill").innerHTML = `<span class="vrfc-pill vrfc-pill-${cls}">${label}</span>`;
+    const ceo = document.getElementById("vrfc-ceo");
+    ceo.className = `vrfc-ceo ${key}`;
+    let msg;
+    if (key === "alto") msg = `Totale Rischio ≥ ${ALTO_MIN} (Alto): richiesto il coinvolgimento del CEO.`;
+    else if (key === "medio") msg = "Totale Rischio medio: valuta le azioni correttive.";
+    else msg = "Totale Rischio basso.";
+    if (missing.length) msg += ` Probabilità da scegliere: ${missing.join(", ")}.`;
+    ceo.textContent = msg;
   }
-  document.getElementById("vrfc-matrix").addEventListener("change", recalc);
-  document.getElementById("vrfc-matrix").addEventListener("input", recalc);
+  table.addEventListener("change", recalc);
   recalc();
 })();
 </script>

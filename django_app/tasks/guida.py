@@ -26,6 +26,28 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "vrf",
+        "titolo": "La scheda VRF (MOD.073)",
+        "blocchi": [
+            ("p", "La «Scheda valutazione rischi e fornitura» si compila online da «Compila VRF online» oppure si carica "
+                  "come file Excel da «Carica file esistente». Dal file il portale legge preventivo, versione, P/N, "
+                  "descrizione, Esp. e cliente."),
+            ("ul", [
+                "Per ognuno dei 9 rischi (R1-R9) scegli la Probabilità P: 1 Bassa, 2 Media, 3 Alta, oppure N/A se il "
+                "rischio non riguarda la fornitura. La checklist sotto ogni rischio elenca i punti da considerare.",
+                "La Gravità D è fissata dal modulo: 3 per R1, R2, R3, R8 e R9; 2 per R4, R5, R6 e R7.",
+                "Il rischio R = P × D è verde da 1 a 3, giallo a 4, rosso da 6 a 9.",
+                "Il Totale Rischio (TR) è la somma delle R: Basso fino a 35, Medio tra 35 e 50, Alto da 50 in su. "
+                "Con TR Alto serve il coinvolgimento del CEO.",
+                "Azioni correttive / Risk Action Report: fino a 4 azioni. Firme: nome e data di IN1 e EM.",
+                "«Salva bozza» conserva i valori; «Prosegui e ricordami VRF» salva e torna al Gantt lasciando il VRF da fare; "
+                "«Conferma e genera xlsx» chiede la Probabilità di tutti i 9 rischi e crea il file del modulo.",
+            ]),
+            ("nota", "Le valutazioni fatte con il modulo precedente a 3 fasi (Preventivazione, Industrializzazione, Produzione) "
+                     "non si convertono: aprendo «Compila VRF online» il portale mostra i vecchi totali e chiede di compilare la scheda nuova."),
+        ],
+    },
+    {
         "id": "attivita",
         "titolo": "Le attività",
         "blocchi": [
