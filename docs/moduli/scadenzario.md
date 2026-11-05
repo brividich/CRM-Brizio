@@ -19,6 +19,8 @@ Lo scadenzario del portale: la pagina `/scadenze` (`dashboard.views_scadenze`) r
 | `/scadenze/generiche/` | `scadenzario:elenco` | Elenco scadenze generiche (+ export Excel `?format=xlsx`) |
 | `/scadenze/generiche/nuova/`, `<id>/`, `<id>/modifica/`, `<id>/rinnovo/` | `scadenza_*` | Attività, scheda, rinnovo con allegato |
 | `/scadenze/generiche/guida/` | `scadenzario:guida` | Guida completa (`scadenzario/guida.py`, `?formato=pdf`), per tutti: «? Guida» delle pagine dello scadenzario; le immagini sono in `scadenzario/static/scadenzario/guida/`, dati inventati |
+| `/scadenze/generiche/collega/` | `scadenzario:collega_elenco` | Attività isolate con i possibili collegamenti (`scadenzario/collegamenti.py`), confermati a mano; POST `generiche/<pk>/collega/`, `generiche/<pk>/scollega/` |
+| `/scadenze/azioni/scheda/` | `scadenzario:scheda_riquadro` | HTMX, riquadro `scadenzario/components/riquadro.html` nelle schede dei moduli: voci di `collect_all` col link a quella pagina e attività collegate, solo ciò che chi chiede vede |
 | `/scadenze/generiche/massa/` | `scadenzario:scadenze_massa` | POST: stessa modifica su più attività (responsabile, destinatari, sospendi/riattiva), solo sulle categorie gestite |
 | `/scadenze/generiche/categorie/` | `scadenzario:categorie` | Categorie, con chi le vede; la scheda della categoria contiene anche le regole |
 | `/scadenze/generiche/avvisi/` | `scadenzario:avvisi` | Anteprima del prossimo invio e registro avvisi |

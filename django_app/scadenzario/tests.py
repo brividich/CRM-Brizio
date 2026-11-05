@@ -380,6 +380,133 @@ class ImportNonSovrascriveTests(TestCase):
         self.assertEqual(s.categoria.email_avviso, "x@example.com")
 
 
+class CollegamentiTests(TestCase):
+    """Collegare e unire le attività alle cose già presenti, sempre con una conferma."""
+
+    def setUp(self):
+        from sistema_gestione.models import Certificazione
+
+        self.admin = _utente("coll.admin", is_superuser=True, is_staff=True)
+        self.client.force_login(self.admin)
+        self.oggi = timezone.localdate()
+        self.cat = CategoriaScadenza.objects.create(nome="Categoria sintetica", email_avviso="cat@example.com")
+        self.s = ScadenzaGenerica.objects.create(categoria=self.cat, titolo="Certificato ISO 9001",
+                                                 data_scadenza=self.oggi + timedelta(days=5), email_avviso="a@example.com")
+        self.cert = Certificazione.objects.create(norma="ISO9001", ente="Ente Esempio",
+                                                  scade_il=self.oggi + timedelta(days=40))
+
+    def _post(self, **dati):
+        return self.client.post(reverse("scadenzario:scadenza_collega", args=[self.s.pk]), dati)
+
+    def test_suggerisce_ma_non_collega_da_solo(self):
+        from scadenzario.collegamenti import suggerimenti
+
+        proposte = suggerimenti([self.s])
+        self.assertEqual(proposte[self.s.pk][0]["tipo"], "certificazione")
+        self.s.refresh_from_db()
+        self.assertEqual(self.s.collegata_tipo, "")
+        r = self.client.get(reverse("scadenzario:collega_elenco"))
+        self.assertContains(r, "Certificato ISO 9001")
+
+    def test_unire_lascia_una_voce_sola_con_la_data_del_modulo(self):
+        from scadenzario.collegamenti import allinea_unite
+        from scadenzario.fonte import collect_generiche
+        from dashboard.scadenze_providers import ScadenzeContext
+
+        self._post(tipo="certificazione", oggetto=self.cert.pk, unisci="1")
+        self.s.refresh_from_db()
+        self.assertTrue(self.s.unita)
+        self.assertEqual(self.s.data_scadenza, self.cert.scade_il)
+        self.assertEqual(collect_generiche(ScadenzeContext.build(SimpleNamespace(user=self.admin), sistema=True)), [])
+        # Il modulo cambia data: l'attività la segue, così gli avvisi restano giusti.
+        nuova = self.oggi + timedelta(days=90)
+        type(self.cert).objects.filter(pk=self.cert.pk).update(scade_il=nuova)
+        self.assertEqual(allinea_unite(), 1)
+        self.s.refresh_from_db()
+        self.assertEqual(self.s.data_scadenza, nuova)
+        # Non si rinnova qui, e si può separare.
+        self.client.post(reverse("scadenzario:scadenza_rinnovo", args=[self.s.pk]), {"eseguito_il": self.oggi.isoformat()})
+        self.assertEqual(self.s.rinnovi.count(), 0)
+        self.client.post(reverse("scadenzario:scadenza_scollega", args=[self.s.pk]), {"tipo": "certificazione", "solo_separa": "1"})
+        self.s.refresh_from_db()
+        self.assertFalse(self.s.unita)
+        self.assertEqual(self.s.collegata_tipo, "certificazione")
+
+    def test_tipo_senza_data_non_si_unisce(self):
+        from anagrafica.models import TipoQualifica
+
+        q = TipoQualifica.objects.create(nome="Qualifica sintetica")
+        self._post(tipo="qualifica", oggetto=q.pk, unisci="1")
+        self.s.refresh_from_db()
+        self.assertEqual(self.s.collegata_tipo, "")
+        self._post(tipo="qualifica", oggetto=q.pk)
+        self.s.refresh_from_db()
+        self.assertEqual((self.s.collegata_tipo, self.s.unita), ("qualifica", False))
+
+    def test_senza_gestione_non_si_collega(self):
+        utente = _utente("coll.utente", is_staff=False)
+        self.client.force_login(utente)
+        with patch("scadenzario.views.puo_gestire_categoria", return_value=False):
+            r = self._post(tipo="certificazione", oggetto=self.cert.pk)
+        self.assertIn(r.status_code, (302, 403))
+        self.s.refresh_from_db()
+        self.assertEqual(self.s.collegata_tipo, "")
+
+    def test_scheda_e_certificazione_da_attivita(self):
+        r = self.client.get(reverse("scadenzario:scadenza_dettaglio", args=[self.s.pk]),
+                            {"cerca_tipo": "certificazione", "cerca": "Esempio"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([x["id"] for x in r.context["risultati"]], [self.cert.pk])
+        url = reverse("sistema_gestione:esterni_certificazione_nuova") + f"?da_attivita={self.s.pk}"
+        r = self.client.get(url)
+        self.assertContains(r, "Certificato ISO 9001")
+
+
+class RiquadroSchedaTests(TestCase):
+    """Il riquadro nelle schede dei moduli mostra solo ciò che chi chiede può vedere."""
+
+    def setUp(self):
+        self.admin = _utente("riq.admin", is_superuser=True, is_staff=True)
+        self.client.force_login(self.admin)
+        self.url = reverse("scadenzario:scheda_riquadro")
+        self.cat = CategoriaScadenza.objects.create(nome="Categoria sintetica")
+        self.s = ScadenzaGenerica.objects.create(categoria=self.cat, titolo="Attività sintetica", collegata_tipo="corso",
+                                                 collegata_id=7, data_scadenza=timezone.localdate() + timedelta(days=9))
+
+    def test_vuoto_se_non_ce_nulla(self):
+        r = self.client.get(self.url, {"percorso": "/x/", "collegata": "corso:8"})
+        self.assertEqual(r.content, b"")
+        r = self.client.get(self.url, {"percorso": "http://altro.example/", "collegata": "corso:7"})
+        self.assertEqual(r.content, b"")
+
+    def test_attivita_collegata(self):
+        r = self.client.get(self.url, {"percorso": "/x/", "collegata": "corso:7", "nome": "Corso sintetico"})
+        self.assertContains(r, "Attività sintetica")
+        self.assertContains(r, "q=Corso+sintetico")
+
+    def test_voci_solo_della_scheda(self):
+        voce = _item()
+        voce.url = "/modulo/5/#parte"
+        altra = _item()
+        altra.url = "/modulo/6/"
+        altra.titolo = "Altra sintetica"
+        with patch("dashboard.scadenze_providers.collect_all", return_value=[voce, altra]):
+            r = self.client.get(self.url, {"percorso": "/modulo/5/", "fonti": voce.source})
+        self.assertContains(r, "Me ne occupo io")
+        self.assertNotContains(r, "Altra sintetica")
+
+    def test_chi_non_vede_lattivita_non_la_trova(self):
+        self.client.force_login(_utente("riq.utente"))
+        r = self.client.get(self.url, {"percorso": "/x/", "collegata": "corso:7"})
+        self.assertEqual(r.content, b"")
+
+    def test_presa_torna_alla_scheda_ma_non_fuori(self):
+        r = self.client.post(reverse("scadenzario:presa_in_carico"), {"azione": "lascia", "chiave": "x", "next": "/modulo/5/"})
+        self.assertEqual(r.url, "/modulo/5/")
+        r = self.client.post(reverse("scadenzario:presa_in_carico"), {"azione": "lascia", "chiave": "x", "next": "https://altro.example/"})
+        self.assertEqual(r.url, reverse("scadenze_globali"))
+
+
 class GuidaTests(TestCase):
     """Guida completa: si apre e si scarica, cita ogni fonte, le immagini esistono."""
 

@@ -24,6 +24,7 @@
         <p class="fmd-ph-sub">Corsi scaduti, in scadenza e mai frequentati.</p>
       </div>
       <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'scadenze_globali' %}?sorgente=hr" title="Queste scadenze insieme a quelle di tutti gli altri moduli">Scadenzario generale</a>
         <a href="{% url 'anagrafica:formazione_plan' %}?view=calendario" class="fmd-btn fmd-btn-ghost" title="Vista calendario (plan)"><svg class="fmd-ico"><use href="#i-calendar"/></svg>Calendario (plan)</a>
         {% if is_editor and filtro_corso %}
         <a href="{% url 'anagrafica:formazione_sessione_create' %}?corso={{ filtro_corso }}" class="fmd-btn fmd-btn-primary"

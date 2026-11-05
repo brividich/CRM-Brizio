@@ -25,6 +25,7 @@
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-alarm"/></svg>Scadenzario qualifiche</h1>
           <p class="fmd-sub">Tutte le qualifiche e certificazioni dei dipendenti con stato di validità. I promemoria email sono gestiti dal <a href="{% url 'automazioni:automazioni_settings' %}" class="fmd-data-link">report scadenze (automazioni)</a>.</p>
           <div class="fmd-hero-actions">
+            <a class="fmd-btn-template" href="{% url 'scadenze_globali' %}?sorgente=hr" title="Queste scadenze insieme a quelle di tutti gli altri moduli">Scadenzario generale</a>
             <a class="fmd-btn-template" href="{% url 'anagrafica:qualifiche_dashboard' %}">
               <svg class="fmd-ico"><use href="#i-cap"/></svg>Torna al cruscotto
             </a>

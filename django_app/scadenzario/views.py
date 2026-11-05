@@ -26,6 +26,7 @@ from core.audit import log_action
 
 from . import avvisi as servizio_avvisi
 from . import catalogo
+from . import collegamenti
 from . import guida as guida_mod
 from .controlli import da_sistemare
 from .fonte import SOURCE, chiave_categoria
@@ -445,8 +446,17 @@ def scadenza_dettaglio(request, pk: int):
     if not puo_vedere_scadenza(request, s):
         return HttpResponseForbidden("Non puoi vedere questa attività.")
     gestisce = puo_gestire_categoria(request, s.categoria_id)
+    if s.unita:
+        collegamenti.allinea_unite()
+        s.refresh_from_db(fields=["data_scadenza"])
+    cerca_tipo, cerca = request.GET.get("cerca_tipo", ""), request.GET.get("cerca", "")
     return render(request, "scadenzario/pages/scadenza_dettaglio.html", {
         "s": s,
+        "collegamenti": collegamenti.collegamenti_di(s),
+        "tipi_collegamento": [(t.codice, t.etichetta) for t in collegamenti.TIPI.values()],
+        "cerca_tipo": cerca_tipo,
+        "cerca": cerca,
+        "risultati": collegamenti.cerca(cerca_tipo, cerca) if gestisce else [],
         "giorni": s.giorni_alla_scadenza(),
         "oggi": timezone.localdate(),
         "gestisce": gestisce,
@@ -462,11 +472,83 @@ def _dopo_rinnovo(request, s):
 
 
 @login_required
+def collega_elenco(request):
+    """Le attività ancora isolate, con i possibili collegamenti da confermare."""
+    gestibili = categorie_gestibili(request)
+    if gestibili is not None and not gestibili:
+        return HttpResponseForbidden("Non gestisci categorie.")
+    qs = ScadenzaGenerica.objects.select_related("categoria").filter(is_active=True).order_by("categoria__nome", "titolo")
+    if gestibili is not None:
+        qs = qs.filter(categoria_id__in=gestibili)
+    attive = list(qs)
+    isolate = [s for s in attive if not (s.collegata_tipo or s.asset_id or s.fornitore_id)]
+    proposte = collegamenti.suggerimenti(isolate)
+    from sistema_gestione.models import Certificazione
+
+    return render(request, "scadenzario/pages/collega.html", {
+        "righe": [{"s": s, "proposte": proposte[s.pk]} for s in isolate if s.pk in proposte],
+        "senza_proposte": sum(1 for s in isolate if s.pk not in proposte),
+        "gia_collegate": len(attive) - len(isolate),
+        "senza_certificazioni": not Certificazione.objects.filter(attiva=True).exists(),
+    })
+
+
+def _dopo_collega(request, s):
+    return _torna(request, reverse("scadenzario:scadenza_dettaglio", args=[s.pk]))
+
+
+@login_required
+@require_POST
+def scadenza_collega(request, pk: int):
+    s = get_object_or_404(ScadenzaGenerica, pk=pk)
+    if not puo_gestire_categoria(request, s.categoria_id):
+        return HttpResponseForbidden("Non puoi modificare questa attività.")
+    tipo, oggetto = request.POST.get("tipo", ""), request.POST.get("oggetto", "")
+    unisci = request.POST.get("unisci") == "1"
+    if not oggetto.isdigit():
+        messages.error(request, "Scegli a cosa collegare l'attività.")
+        return _dopo_collega(request, s)
+    try:
+        collegamenti.collega(s, tipo, int(oggetto), unisci=unisci)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return _dopo_collega(request, s)
+    log_action(request, "scadenza_generica_collegata", "scadenzario",
+               {"id": s.pk, "tipo": tipo, "oggetto": int(oggetto), "unita": unisci})
+    messages.success(request, f"«{s.titolo}» unita al modulo." if unisci else f"«{s.titolo}» collegata.")
+    return _dopo_collega(request, s)
+
+
+@login_required
+@require_POST
+def scadenza_scollega(request, pk: int):
+    s = get_object_or_404(ScadenzaGenerica, pk=pk)
+    if not puo_gestire_categoria(request, s.categoria_id):
+        return HttpResponseForbidden("Non puoi modificare questa attività.")
+    tipo = request.POST.get("tipo", "")
+    try:
+        if request.POST.get("solo_separa") == "1":
+            collegamenti.separa(s)
+        else:
+            collegamenti.scollega(s, tipo)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return _dopo_collega(request, s)
+    log_action(request, "scadenza_generica_scollegata", "scadenzario",
+               {"id": s.pk, "tipo": tipo, "solo_separa": request.POST.get("solo_separa") == "1"})
+    messages.success(request, "Collegamento aggiornato.")
+    return _dopo_collega(request, s)
+
+
+@login_required
 @require_POST
 def scadenza_rinnovo(request, pk: int):
     s = get_object_or_404(ScadenzaGenerica, pk=pk)
     if not puo_gestire_categoria(request, s.categoria_id):
         return HttpResponseForbidden("Non puoi rinnovare questa attività.")
+    if s.unita:
+        messages.error(request, "Questa attività prende la data dal modulo collegato: aggiornala lì, oppure separala.")
+        return _dopo_rinnovo(request, s)
     form = RinnovoForm(request.POST, request.FILES)
     if not form.is_valid():
         messages.error(request, "; ".join(e for errs in form.errors.values() for e in errs))

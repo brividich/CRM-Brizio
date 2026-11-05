@@ -66,11 +66,11 @@
           {% if puo_massa %}<td>{% if s.gestibile %}<input type="checkbox" name="ids" value="{{ s.pk }}" form="sz-massa" class="sz-sel" aria-label="Seleziona {{ s.titolo }}">{% endif %}</td>{% endif %}
           <td><span class="sz-pill {{ st.0 }}">{{ st.1 }}</span></td>
           <td style="white-space:nowrap">{{ s.data_scadenza|date:"d/m/Y"|default:"—" }}</td>
-          <td><a href="{% url 'scadenzario:scadenza_dettaglio' s.pk %}">{{ s.titolo }}</a>{% if not s.is_active %} <span class="sz-pill sz-off">sospesa</span>{% endif %}{% if s.ubicazione %}<div class="sz-help">{{ s.ubicazione }}</div>{% endif %}</td>
+          <td><a href="{% url 'scadenzario:scadenza_dettaglio' s.pk %}">{{ s.titolo }}</a>{% if s.unita %} <span class="sz-pill sz-blu" title="La data viene dal modulo collegato">unita al modulo</span>{% endif %}{% if not s.is_active %} <span class="sz-pill sz-off">sospesa</span>{% endif %}{% if s.ubicazione %}<div class="sz-help">{{ s.ubicazione }}</div>{% endif %}</td>
           <td>{{ s.categoria.nome }}</td>
           <td>{% if s.responsabile %}{{ s.responsabile.get_full_name|default:s.responsabile.username }}{% else %}<span class="sz-muted">—</span>{% endif %}</td>
           <td>{% if s.n_destinatari %}<span title="{{ s.destinatari|join:', ' }}">{{ s.n_destinatari }} indirizz{{ s.n_destinatari|pluralize:"o,i" }}</span>{% else %}<span class="sz-muted">solo riepilogo</span>{% endif %}</td>
-          <td>{% if s.gestibile and s.validita_mesi and s.is_active %}
+          <td>{% if s.gestibile and s.validita_mesi and s.is_active and not s.unita %}
             <form method="post" action="{% url 'scadenzario:scadenza_rinnovo' s.pk %}" data-hub-confirm="Registrare il rinnovo di «{{ s.titolo }}» con data di oggi?">
               {% csrf_token %}<input type="hidden" name="eseguito_il" value="{{ oggi|date:'Y-m-d' }}"><input type="hidden" name="next" value="{{ request.get_full_path }}">
               <button class="sz-btn sz-btn-ghost" type="submit" style="white-space:nowrap">✓ Rinnovato oggi</button>
