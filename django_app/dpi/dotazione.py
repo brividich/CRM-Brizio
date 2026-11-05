@@ -14,7 +14,7 @@ from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import ConsegnaDPI, RichiestaDPI, StatoRichiesta
+from .models import ConsegnaDPI, ModalitaNegozio, RichiestaDPI, StatoRichiesta
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +49,15 @@ def url_richiesta(*, categoria_id, tipo_id=None, modello_id=None, taglia_id=None
 
 
 def _passo(richiesta: RichiestaDPI) -> str:
+    from . import flusso
+
     if richiesta.is_pronta_ritiro:
-        return "È pronta: passa in magazzino a ritirarla."
+        return f"È pronta: passa {flusso.luogo_ritiro(richiesta)} a ritirarla."
+    if richiesta.stato == StatoRichiesta.APPROVATA and richiesta.modalita_negozio == ModalitaNegozio.FUORI:
+        return "Approvata: stiamo avvisando il negozio."
+    if richiesta.stato == StatoRichiesta.APPROVATA and richiesta.modalita_negozio:
+        return ("Ordinata: ti avvisiamo quando arriva." if richiesta.ordine_negozio_id
+                else "Approvata: entra nel prossimo ordine al negozio.")
     if richiesta.stato == StatoRichiesta.APPROVATA:
         return "Approvata: il magazzino la sta preparando."
     return "In attesa dell'approvazione del responsabile."

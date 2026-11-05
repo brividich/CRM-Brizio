@@ -64,6 +64,25 @@ GUIDA = {
             ],
         },
         {
+            "id": "scarpe",
+            "titolo": "Scarpe: in convenzione o fuori convenzione",
+            "blocchi": [
+                ("p", "Chiedendo le scarpe scegli dove ritirarle. «In convenzione»: entrano nell'ordine al negozio, che parte ogni 15 giorni "
+                      "(si cambia in Impostazioni), e le ritiri in ufficio amministrativo quando ti avvisiamo. «Fuori convenzione»: le ritiri al negozio."),
+                ("p", "Dopo l'approvazione la mail va all'operatore incaricato, non al magazzino. L'operatore lavora in DPI → «Scarpe»:"),
+                ("passi", [
+                    "«Convenzione: da ordinare»: controlla le righe e clicca «Invia l'ordine». Se scrivi tu al negozio usa «Copia il testo» e poi "
+                    "«Ho già scritto io al negozio». Se sono passati i giorni del riepilogo arriva un promemoria.",
+                    "«Convenzione: ordinate, da consegnare»: quando arrivano spunta e clicca «Arrivate: avvisa di passare in ufficio». "
+                    "La consegna si chiude come per gli altri DPI, con «Registra la consegna».",
+                    "«Fuori convenzione: ritiro al negozio»: avvisa il negozio, spunta e clicca «Negozio avvisato: avvisa i dipendenti».",
+                    "Quando arriva la fattura: spunta gli ordini che copre, carica il file con «Numero» e «Data» e clicca «Carica e chiudi gli ordini spuntati». "
+                    "La data della fattura diventa la data di consegna, da cui parte la scadenza.",
+                ]),
+                ("nota", "Le scarpe ordinate al negozio non scaricano il magazzino. La fattura la vede solo chi gestisce i DPI."),
+            ],
+        },
+        {
             "id": "banco",
             "titolo": "Banco consegne (magazzino)",
             "blocchi": [
@@ -226,6 +245,13 @@ GUIDA = {
             "fare": [
                 'Contano le consegne attive delle richieste della tua coda in «Gestione richieste»: clicca il numero e vedi la stessa lista '
                 '(filtro «Scadenza»). Le consegne già sostituite non contano.',
+            ],
+        },
+        {
+            "sintomo": "Le scarpe non compaiono nel Banco consegne",
+            "perche": "quelle fuori convenzione si chiudono con la fattura, quelle in convenzione entrano nel banco solo dopo l'ordine al negozio.",
+            "fare": [
+                "Apri DPI → «Scarpe»: la riga è in una delle tre sezioni.",
             ],
         },
         {

@@ -59,3 +59,14 @@ Nessuna migrazione, nessun permesso nuovo (la home è già aperta a tutti, il ri
 - Corretti: chi gestisce perdeva il menu completo in Nuova richiesta; senza anagrafica collegata «Richiesta per» partiva dal primo dipendente in elenco, a cui finiva la richiesta (ora «Me stesso»).
 
 Nessuna migrazione, nessun permesso nuovo.
+
+## Scarpe al negozio: convenzione e fuori convenzione (05/11/2026)
+
+`CategoriaDPI.si_ordina_al_negozio` (migrazione `0017`, accesa per le calzature) fa scegliere nella richiesta `RichiestaDPI.modalita_negozio`. Le altre categorie e le richieste già aperte (modalità vuota) seguono il flusso di prima. Logica in `dpi/negozio.py`, pagina `/dpi/negozio/` (`views_negozio.py`, gate `_is_gestore`, voce «Scarpe»: l'operatore deve avere «gestire» DPI).
+
+- Approvazione → mail all'operatore incaricato (`DPIImpostazioni.negozio_operatore_emails`, ripiego referenti DPI), non al magazzino; vale anche per «Consegna annullata». Niente avviso di ritiro automatico all'approvazione.
+- **Convenzione**: l'operatore manda il riepilogo con «Invia l'ordine» (`OrdineNegozioDPI`, regola `dpi_ordine_negozio`, mail a `negozio_email` e in copia a lui) o lo segna se ha scritto a parte. Le righe contengono nome del dipendente, modello, taglia, quantità e numero richiesta. Promemoria dal task `dpi_expiry_reminders` passati `negozio_giorni_riepilogo` giorni (15), ripetuto ogni 3 (regola `dpi_promemoria_ordine_scarpe`). Ordinate: entrano nel banco con `?tutte=1` e si chiudono come gli altri DPI, conferma di ricevuta compresa.
+- **Fuori convenzione**: «Negozio avvisato» avvisa il dipendente; si chiude con fattura + spunta (`FatturaNegozioDPI`, storage privato cifrato, audit, download solo per chi gestisce). La data fattura è la data di consegna; nessuna conferma di ricevuta. Banco e scheda non la chiudono.
+- Nessuno scarico di magazzino per le scarpe con modalità; i modelli di queste categorie escono da pagina e report Magazzino e da «Da riordinare» (`magazzino.modelli_di_magazzino`).
+
+Al deploy: `migrate` (dpi 0017), `setup_q_schedules` per le regole nuove, poi in Impostazioni DPI mail del negozio e operatore; dare all'operatore «gestire» DPI.

@@ -39,6 +39,7 @@ from .models import (
     DocumentoDPI,
     MovimentoMagazzinoDPI,
     DPIImpostazioni,
+    ModalitaNegozio,
     ModelloDPI,
     RichiestaDPI,
     RichiestaDPICommento,
@@ -79,7 +80,7 @@ DPI_DOCUMENT_MAX_BYTES = DOCUMENT_MAX_BYTES
 DPI_CATEGORY_ALLOWED_IMAGE_EXTENSIONS = DPI_ALLOWED_IMAGE_EXTENSIONS
 DPI_CATEGORY_ALLOWED_IMAGE_MIMES = DPI_ALLOWED_IMAGE_MIMES
 # Guard di copertura policy MIME su tutti i FileField/ImageField del modulo DPI.
-DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine", "DocumentoDPI.file"}
+DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine", "DocumentoDPI.file", "FatturaNegozioDPI.file"}
 
 
 # ---------------------------------------------------------------------------
@@ -520,6 +521,16 @@ def _da_fare(request, is_gestore: bool) -> list[dict]:
             f"+ {altre} non del magazzino" if altre else "",
         ))
         tessere.append(_tessera("Da riordinare", magazzino.da_riordinare(), reverse("dpi:magazzino"), "arancione"))
+        if CategoriaDPI.objects.filter(si_ordina_al_negozio=True, is_active=True).exists():
+            from . import negozio
+
+            approvate = _approvate_queryset(request)
+            n_ordine = negozio.da_ordinare(approvate).count()
+            n_fuori = negozio.fuori_convenzione(approvate).count()
+            tessere.append(_tessera(
+                "Scarpe da gestire", n_ordine + n_fuori, reverse("dpi:negozio"), "arancione",
+                f"{n_ordine} da ordinare · {n_fuori} al negozio" if n_ordine + n_fuori else "",
+            ))
     if consentito:
         for chiave, etichetta, tono in (
             (dotazione_dpi.SCADUTI, "DPI scaduti", "rosso"),
@@ -594,6 +605,13 @@ def nuova_richiesta(request):
         except (ValueError, TypeError):
             quantita = 1
 
+        modalita_negozio = ""
+        if categoria is not None and categoria.si_ordina_al_negozio:
+            modalita_negozio = request.POST.get("modalita_negozio", "")
+            if modalita_negozio not in ModalitaNegozio.values:
+                modalita_negozio = ""
+                errors.append("Scegli se le scarpe sono in convenzione o fuori convenzione.")
+
         fuori_profilo = (
             profilo_attivo and categoria is not None and categoria.pk not in profilo_ids
         )
@@ -620,6 +638,7 @@ def nuova_richiesta(request):
                 taglia_dpi=taglia_dpi,
                 quantita=quantita,
                 motivazione=motivazione,
+                modalita_negozio=modalita_negozio,
                 stato=StatoRichiesta.INVIATA,
                 richiedente_legacy_id=_req_legacy,
                 richiedente_nome=info["nome"],
@@ -651,6 +670,9 @@ def nuova_richiesta(request):
         "testo_motivazione": testo_motivazione,
         "quantita_scelta": request.POST.get("quantita", "1") if request.method == "POST" else "1",
         "motivi_rapidi": ("Usura", "Rotto", "Perso", "Prima dotazione", "Cambio taglia"),
+        "negozio_nome": DPIImpostazioni.get_singleton().negozio_nome,
+        "modalita_scelta": request.POST.get("modalita_negozio", ModalitaNegozio.CONVENZIONE),
+        "negozio_giorni": DPIImpostazioni.get_singleton().negozio_giorni_riepilogo,
         **catalog_options,
     })
 
@@ -989,7 +1011,7 @@ def gestione_detail(request, pk: int):
         "consegna": consegna,
         "oggi": timezone.localdate(),
         "vita_utile_consegna": vita_utile_consegna,
-        "giacenza_modello": magazzino.giacenza(richiesta.modello_dpi_id) if richiesta.modello_dpi_id else None,
+        "giacenza_modello": magazzino.giacenza(richiesta.modello_dpi_id) if richiesta.modello_dpi_id and not richiesta.modalita_negozio else None,
         "is_gestore": is_gestore,
         "is_approvatore": True,
     })
@@ -1049,7 +1071,7 @@ def _approva(request, richiesta: RichiestaDPI, nota: str = "", *, automatica: bo
         registra_esito(richiesta, "approvare", user=request.user)
     _notifica_richiedente(richiesta, f"La tua richiesta {richiesta.numero} ({richiesta.categoria.nome}) è stata approvata.")
     flusso.notifica_approvata(richiesta)
-    if DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione:
+    if DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione and not richiesta.modalita_negozio:
         _segna_pronta(request, richiesta, da_nome="Portale (all'approvazione)")
 
 
@@ -1058,7 +1080,7 @@ def _segna_pronta(request, richiesta: RichiestaDPI, *, da_nome: str) -> None:
     richiesta.pronta_ritiro_da_nome = da_nome[:200]
     richiesta.save(update_fields=["pronta_ritiro_il", "pronta_ritiro_da_nome", "updated_at"])
     log_action(request, "pronta_ritiro", "dpi", f"DPI {richiesta.numero} pronto per il ritiro")
-    _notifica_richiedente(richiesta, f"Il tuo DPI {richiesta.numero} ({richiesta.categoria.nome}) è pronto: passa in magazzino a ritirarlo.")
+    _notifica_richiedente(richiesta, f"Il tuo DPI {richiesta.numero} ({richiesta.categoria.nome}) è pronto: passa {flusso.luogo_ritiro(richiesta)} a ritirarlo.")
     flusso.notifica_pronta_ritiro(richiesta)
 
 
@@ -1073,6 +1095,9 @@ def pronta_ritiro(request, pk: int):
     if richiesta.stato != StatoRichiesta.APPROVATA:
         messages.error(request, "Solo una richiesta approvata e non ancora consegnata può essere pronta per il ritiro.")
         return redirect("dpi:gestione_detail", pk=pk)
+    if richiesta.da_gestire_in_negozio:
+        messages.info(request, "Queste scarpe si gestiscono dalla pagina Scarpe.")
+        return redirect("dpi:negozio")
     gia = richiesta.pronta_ritiro_il is not None
     _segna_pronta(request, richiesta, da_nome=request.user.get_full_name() or request.user.username)
     messages.success(request, f"Il dipendente è stato {'avvisato di nuovo' if gia else 'avvisato'} di passare a ritirare il DPI.")
@@ -1164,6 +1189,9 @@ def consegna_richiesta(request, pk: int):
     if richiesta.stato != StatoRichiesta.APPROVATA:
         messages.error(request, "La consegna si registra solo dopo l'approvazione del responsabile.")
         return redirect("dpi:gestione_detail", pk=pk)
+    if richiesta.da_gestire_in_negozio:
+        messages.info(request, "Queste scarpe si gestiscono dalla pagina Scarpe.")
+        return redirect("dpi:negozio")
 
     data_str = request.POST.get("data_consegna", "").strip()
     note = request.POST.get("note_consegna", "").strip()
@@ -1282,6 +1310,8 @@ def _registra_consegna(request, richiesta: RichiestaDPI, *, data_consegna, note:
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
         )
     flusso.notifica_consegnata(consegna)
+    if richiesta.modalita_negozio:  # comprate per la persona: non sono mai state in magazzino
+        return None
     movimento, residuo = magazzino.scarica_per_consegna(richiesta, data_consegna, user=request.user)
     if movimento is not None:
         log_action(request, "DPI_MAGAZZINO_SCARICO", "dpi", f"Scarico {movimento.quantita} x {movimento.modello.codice} per {richiesta.numero}")
@@ -1329,6 +1359,10 @@ def impostazioni(request):
         impost.notifica_nuova_richiesta = bool(request.POST.get("notifica_nuova_richiesta"))
         impost.notifica_email_extra = request.POST.get("notifica_email_extra", "").strip()
         impost.magazzino_emails = request.POST.get("magazzino_emails", "").strip()
+        impost.negozio_nome = request.POST.get("negozio_nome", "").strip()[:120] or impost.negozio_nome
+        impost.negozio_email = request.POST.get("negozio_email", "").strip()[:254]
+        impost.negozio_operatore_emails = request.POST.get("negozio_operatore_emails", "").strip()
+        impost.negozio_giorni_riepilogo = _parse_optional_positive_int(request.POST.get("negozio_giorni_riepilogo")) or impost.negozio_giorni_riepilogo
         impost.amministrazione_emails = request.POST.get("amministrazione_emails", "").strip()
         impost.avviso_ritiro_all_approvazione = bool(request.POST.get("avviso_ritiro_all_approvazione"))
         impost.domini_email_aziendali = request.POST.get("domini_email_aziendali", "").strip()[:300]
@@ -1367,6 +1401,7 @@ def categoria_edit(request, pk: int | None = None):
             "scorta_minima": _parse_optional_positive_int(request.POST.get("scorta_minima")) or 0,
             "avvisa_amministrazione_consegna": bool(request.POST.get("avvisa_amministrazione_consegna")),
             "consegna_magazzino": bool(request.POST.get("consegna_magazzino")),
+            "si_ordina_al_negozio": bool(request.POST.get("si_ordina_al_negozio")),
             "consegna_diretta": bool(request.POST.get("consegna_diretta")),
             "is_active": bool(request.POST.get("is_active")),
             "order_index": _parse_optional_positive_int(request.POST.get("order_index")) or 0,
@@ -1899,7 +1934,7 @@ def magazzino_view(request):
             messages.success(request, f"Scorta minima di {modello.codice}: {soglia}.")
         return redirect("dpi:magazzino")
 
-    modelli = list(_catalog_select_related()["modelli"].filter(is_active=True))
+    modelli = list(_catalog_select_related()["modelli"].filter(is_active=True).exclude(tipo__categoria__si_ordina_al_negozio=True))
     per_modello = magazzino.giacenze()
     righe = []
     for m in modelli:
@@ -1971,7 +2006,15 @@ def magazzino_report(request):
 # ---------------------------------------------------------------------------
 
 def _banco_queryset(request):
-    """Richieste approvate da consegnare, nel perimetro di chi gestisce."""
+    """Richieste approvate da consegnare al banco: non le scarpe fuori convenzione (si chiudono
+    con la fattura) ne' quelle in convenzione non ancora ordinate."""
+    return _approvate_queryset(request).exclude(modalita_negozio=ModalitaNegozio.FUORI).exclude(
+        modalita_negozio=ModalitaNegozio.CONVENZIONE, ordine_negozio__isnull=True
+    )
+
+
+def _approvate_queryset(request):
+    """Richieste approvate non ancora consegnate, nel perimetro di chi gestisce."""
     qs = RichiestaDPI.objects.filter(stato=StatoRichiesta.APPROVATA).select_related(
         "categoria", "tipo_dpi", "modello_dpi", "taglia_dpi"
     )
@@ -2004,7 +2047,7 @@ def _banco_persone(qs, giac: dict) -> list[dict]:
             "chiave": chiave, "nome": r.richiedente_nome, "reparto": r.richiedente_reparto,
             "righe": [], "n_pronte": 0, "n_da_preparare": 0, "n_mancanti": 0,
         })
-        g_mod = giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id else None
+        g_mod = giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id and not r.modalita_negozio else None
         manca = g_mod is not None and g_mod < r.quantita
         g["righe"].append({"r": r, "giacenza": g_mod, "manca": manca})
         g["n_pronte" if r.pronta_ritiro_il else "n_da_preparare"] += 1

@@ -32,6 +32,11 @@ def stato_scorta(qta: int, minima: int) -> str:
     return STATO_OK
 
 
+def modelli_di_magazzino():
+    """Modelli attivi gestiti a scorta: le scarpe ordinate al negozio si comprano per la persona."""
+    return ModelloDPI.objects.filter(is_active=True).exclude(tipo__categoria__si_ordina_al_negozio=True)
+
+
 def da_riordinare() -> int:
     """Modelli attivi esauriti o sotto scorta (stessi numeri della pagina Magazzino).
     Zero se il magazzino non e' in uso, cioe' senza alcun movimento registrato."""
@@ -39,7 +44,7 @@ def da_riordinare() -> int:
     if not giac:
         return 0
     return sum(
-        1 for m in ModelloDPI.objects.filter(is_active=True)
+        1 for m in modelli_di_magazzino()
         if stato_scorta(giac.get(m.pk, 0), m.scorta_minima) != STATO_OK
     )
 
@@ -137,7 +142,7 @@ def report(giorni: int, oggi: date | None = None) -> dict:
         nome = (r["richiesta__richiedente_reparto"] or "").strip() or "Non indicato"
         per_reparto[nome] = per_reparto.get(nome, 0) - int(r["t"] or 0)
 
-    modelli = list(ModelloDPI.objects.filter(is_active=True).select_related("tipo", "tipo__categoria"))
+    modelli = list(modelli_di_magazzino().select_related("tipo", "tipo__categoria"))
     giac = giacenze()
     righe = []
     for m in modelli:

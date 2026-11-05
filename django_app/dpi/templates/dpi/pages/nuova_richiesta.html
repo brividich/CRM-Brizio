@@ -109,6 +109,11 @@ body.theme-dark .dpi-cat-card:hover .dpi-cat-card-emoji, body.theme-dark .dpi-ca
 .dpi-avviso-arancione { background:#fffbeb; border-color:#fde68a; color:#92400e; }
 .dpi-avviso-btn { padding:6px 12px; border-radius:8px; border:1px solid #16a34a; background:#fff; color:#15803d; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
 .dpi-avviso-btn:hover { background:#f0fdf4; }
+.dpi-modalita { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; }
+.dpi-field label.dpi-modalita-opt { display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border:2px solid #e2e8f0; border-radius:12px; cursor:pointer; text-transform:none; letter-spacing:0; font-size:13px; font-weight:400; margin:0; }
+.dpi-modalita-opt:has(input:checked) { border-color:#16a34a; background:#f0fdf4; }
+.dpi-modalita-opt strong { display:block; color:#0f172a; }
+.dpi-modalita-opt small { display:block; color:#64748b; font-size:12px; margin-top:2px; }
 .dpi-motivi { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
 .dpi-motivo { padding:5px 12px; border-radius:99px; border:1px solid #d1d5db; background:#fff; color:#374151; font-size:12px; font-weight:600; cursor:pointer; }
 .dpi-motivo:hover { border-color:#16a34a; background:#f0fdf4; }
@@ -145,6 +150,10 @@ body.theme-dark .dpi-avviso { background:var(--surface-alt); border-color:var(--
 body.theme-dark .dpi-avviso-blu { background:rgba(29,78,216,.15); border-color:rgba(96,165,250,.35); color:#93c5fd; }
 body.theme-dark .dpi-avviso-arancione { background:rgba(146,64,14,.2); border-color:rgba(251,191,36,.35); color:#fcd34d; }
 body.theme-dark .dpi-avviso-btn { background:var(--surface); color:#86efac; }
+body.theme-dark .dpi-field label.dpi-modalita-opt { border-color:var(--border); }
+body.theme-dark .dpi-field label.dpi-modalita-opt:has(input:checked) { border-color:#16a34a; background:rgba(21,128,61,.15); }
+body.theme-dark .dpi-modalita-opt strong { color:var(--text); }
+body.theme-dark .dpi-modalita-opt small { color:var(--text-light); }
 body.theme-dark .dpi-motivo { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
 body.theme-dark .dpi-motivo:hover { background:rgba(21,128,61,.15); }
 
@@ -205,6 +214,7 @@ body.theme-dark .dpi-cat-profilo{color:#86efac}
                data-um="{{ cat.unita_misura }}"
                data-vita="{{ cat.vita_utile_giorni|default:'' }}"
                data-cerca="{{ cat.parole_ricerca }}"
+               data-negozio="{% if cat.si_ordina_al_negozio %}1{% endif %}"
                data-in-profilo="{% if cat.in_profilo %}1{% else %}0{% endif %}">
             {% if cat.immagine %}
               <img class="dpi-cat-card-img" src="{{ cat.immagine.url }}" alt="{{ cat.nome }}">
@@ -227,6 +237,20 @@ body.theme-dark .dpi-cat-profilo{color:#86efac}
 
       <div id="dpi-dettagli" hidden>
         <div id="dpi-avvisi"></div>
+
+        <div class="dpi-field" id="campo-modalita" hidden>
+          <span class="dpi-picker-label">Dove le ritiri? <span class="dpi-picker-required">*</span></span>
+          <div class="dpi-modalita">
+            <label class="dpi-modalita-opt">
+              <input type="radio" name="modalita_negozio" value="CONVENZIONE"{% if modalita_scelta != "FUORI" %} checked{% endif %}>
+              <span><strong>In convenzione</strong><small>Ritiro in ufficio amministrativo. Entrano nell'ordine a {{ negozio_nome }} che parte ogni {{ negozio_giorni }} giorni.</small></span>
+            </label>
+            <label class="dpi-modalita-opt">
+              <input type="radio" name="modalita_negozio" value="FUORI"{% if modalita_scelta == "FUORI" %} checked{% endif %}>
+              <span><strong>Fuori convenzione</strong><small>Ritiro direttamente al negozio {{ negozio_nome }}.</small></span>
+            </label>
+          </div>
+        </div>
 
         <div class="dpi-field" id="campo-tipo">
           <label for="tipo_dpi_id">Tipo</label>
@@ -383,6 +407,7 @@ body.theme-dark .dpi-cat-profilo{color:#86efac}
     $('categoria_id').value = carta.dataset.id;
     $('qty-um').textContent = carta.dataset.um || 'pz';
     $('dpi-dettagli').hidden = false;
+    $('campo-modalita').hidden = !carta.dataset.negozio;
     $('btn-submit').disabled = false;
     tipo.value = ''; modello.value = ''; taglia.value = '';
     aggiorna(auto);
