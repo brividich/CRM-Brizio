@@ -8,6 +8,13 @@ GUIDA = {
     "prefissi": ("/tasks/",),
     "uso": [
         {
+            "id": "guida-completa",
+            "titolo": "La guida completa del modulo",
+            "blocchi": [
+                ("p", "Dentro il modulo, «? Guida» apre la guida completa con le immagini, sulla pagina in cui ti trovi. Da lì ci sono le due guide rapide (chi gestisce la commessa, chi partecipa) e «Scarica PDF»."),
+            ],
+        },
+        {
             "id": "creare",
             "titolo": "Creare un KICK-OFF",
             "blocchi": [

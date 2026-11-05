@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -175,15 +176,39 @@ def mia_voce_stato(request, kind: str, pk: int):
 
 @task_permissions_required("tasks_view")
 def guida(request):
-    """Guida d'uso del modulo KICK-OFF (pulsante «? Guida»)."""
-    from ..guida import SEZIONI
+    """Guida del modulo KICK-OFF: completa, rapida per ruolo (?per=), PDF (?pdf=1)."""
+    from ..guida import DOC_SOTTOTITOLO, DOC_TITOLO, SEZIONI
+    from ..guida_ruoli import GUIDE_RUOLI
+
+    per = str(request.GET.get("per") or "").strip().lower()
+    ruolo = GUIDE_RUOLI.get(per)
+    titolo = ruolo["titolo"] if ruolo else DOC_TITOLO
+    sezioni = ruolo["sezioni"] if ruolo else SEZIONI
+
+    if request.GET.get("pdf"):
+        from core.guida_pdf import render_guida_pdf
+
+        pdf = render_guida_pdf(
+            titolo=titolo,
+            sottotitolo=ruolo["sottotitolo"] if ruolo else DOC_SOTTOTITOLO,
+            sezioni=sezioni,
+            generato_da=(request.user.get_full_name() or request.user.get_username() or "").strip(),
+            generato_il=timezone.localdate().strftime("%d-%m-%Y"),
+        )
+        response = HttpResponse(pdf, content_type="application/pdf")
+        nome = ruolo["file"] if ruolo else "Guida_KickOff.pdf"
+        response["Content-Disposition"] = f'attachment; filename="{nome}"'
+        return response
 
     return render(
         request,
         "tasks/guida.html",
         {
             **_tasks_shell_context(request, active="guida"),
-            "page_title": "Guida KICK-OFF",
-            "sezioni": SEZIONI,
+            "page_title": titolo if ruolo else "Guida KICK-OFF",
+            "doc_titolo": titolo if ruolo else "Guida KICK-OFF",
+            "guida_per": per if ruolo else "",
+            "sezioni": sezioni,
+            "guide_ruoli": [{"chiave": k, "etichetta": g["etichetta"]} for k, g in GUIDE_RUOLI.items()],
         },
     )
