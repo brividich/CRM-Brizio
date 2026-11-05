@@ -158,3 +158,35 @@ class TechRefViewTests(TasksBaseTestCase):
         bootstrap_tasks_acl_endpoints(force=True)
         for nome in ("tasks:project_tech_refs", "tasks:tech_ref_save", "tasks:tech_ref_action"):
             self.assertTrue(RoutePermissionBinding.objects.filter(route_name=nome).exists(), nome)
+
+    def test_riepilogo_conta_e_chiude_dalla_riga(self):
+        ieri = timezone.localdate() - timedelta(days=1)
+        ref = ProjectTechRef.objects.create(
+            project=self.project, kind="CAM", code="O-RIGA", assigned_to=self.programmatore, due_date=ieri,
+        )
+        self.client.force_login(self.programmatore)
+        pagina = self.client.get(reverse("mie_attivita"))
+        self.assertEqual(pagina.context["total_overdue"], 1)
+        self.assertEqual(pagina.context["total_open"], 1)
+        self.assertContains(pagina, reverse("tasks:mia_voce_stato", args=["programma", ref.pk]))
+        risposta = self.client.post(
+            reverse("tasks:mia_voce_stato", args=["programma", ref.pk]), {"action": "done"},
+            HTTP_ACCEPT="application/json",
+        )
+        self.assertEqual(risposta.json()["ok"], True)
+        self.assertEqual(self.client.get(reverse("mie_attivita")).context["total_open"], 0)
+
+    def test_azione_non_contata_due_volte(self):
+        from django.core.cache import cache
+
+        from .models import MeetingActionItem
+
+        cache.clear()
+        MeetingActionItem.objects.create(
+            project=self.project, title="Azione unica", assigned_to=self.programmatore,
+            due_date=timezone.localdate() + timedelta(days=1),
+        )
+        self.client.force_login(self.programmatore)
+        pagina = self.client.get(reverse("mie_attivita"))
+        self.assertEqual(pagina.context["total_open"], 1)
+        self.assertEqual(pagina.context["total_soon"], 1)

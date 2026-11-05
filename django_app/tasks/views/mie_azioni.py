@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -210,6 +210,8 @@ def mia_voce_stato(request, kind: str, pk: int):
     log_action(request, f"kickoff_mia_voce_{verb}", "tasks", {
         "kind": kind, "id": item.pk, "project_id": item.project_id,
     })
+    if "application/json" in request.headers.get("Accept", ""):
+        return JsonResponse({"ok": True, "message": etichetta})
     messages.success(request, etichetta)
     next_url = request.POST.get("next") or ""
     if next_url.startswith("/tasks/") and "//" not in next_url:
