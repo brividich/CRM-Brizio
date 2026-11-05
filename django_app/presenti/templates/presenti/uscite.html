@@ -29,7 +29,7 @@
 
   {% if errore %}<div class="pres-avviso is-err">{{ errore }}</div>{% endif %}
   {% if squadra_vuota %}<div class="pres-avviso">Non risulti capo di nessuna persona nell'organigramma: qui non c'è niente da vedere.</div>{% endif %}
-  {% if avviso_attivo %}<div class="pres-avviso is-ok">Ogni mattina il capo riceve una notifica e una mail con le uscite non timbrate nuove della sua squadra.</div>{% endif %}
+  {% if avviso_attivo %}<div class="pres-avviso is-ok">Ogni mattina il capo riceve una notifica e una mail con le uscite non timbrate nuove della sua squadra. I problemi di timbratura (verso sbagliato, due entrate o uscite di fila) restano solo in questa pagina.</div>{% endif %}
 
   <div class="pres-card" style="padding:0; overflow-x:auto;">
     <table class="pres-tab">
@@ -41,7 +41,7 @@
           <td class="pres-nome">{% if r.legacy_id %}<a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{{ r.cognome|upper }} {{ r.nome }}</a>{% else %}{{ r.cognome|upper }} {{ r.nome }}{% endif %}<span class="pres-sub pres-mono">{{ r.matricola }}</span></td>
           <td class="pres-hide-sm">{{ r.reparto|default:"—" }}</td>
           <td>{{ r.problema|default:"manca l'uscita" }}<span class="pres-sub pres-mono">{{ r.timbrature }}</span></td>
-          <td>{% if r.avviso %}{{ r.avviso.inviato_il|date:"d-m H:i" }}<span class="pres-sub">{{ r.avviso.esito }}</span>{% else %}—{% endif %}</td>
+          <td>{% if r.avviso %}{{ r.avviso.inviato_il|date:"d-m H:i" }}<span class="pres-sub">{{ r.avviso.esito }}</span>{% elif r.tipo and r.tipo != "uscita_mancante" %}<span class="pres-sub">solo in questa pagina, nessun avviso</span>{% else %}—{% endif %}</td>
         </tr>
         {% empty %}
         <tr><td colspan="5" class="pres-vuoto">{% if errore %}Elenco non disponibile.{% else %}Nessuna giornata da sistemare negli ultimi {{ giorni }} giorni.{% endif %}</td></tr>

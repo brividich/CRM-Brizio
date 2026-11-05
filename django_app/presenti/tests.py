@@ -433,6 +433,22 @@ class UsciteTests(TestCase):
             notifica.assert_called_once()
         self.assertEqual(AvvisoUscitaMancante.objects.count(), 2)
 
+    def test_problemi_di_timbratura_senza_mail(self):
+        from anagrafica.services import capo_team
+
+        from . import uscite
+
+        for r in self.righe:
+            r["tipo"] = "verso_errato"
+        capi = {501: capo_team.Capo(700, "reparto", [])}
+        with patch("anagrafica.services.capo_team.mappa_capi", return_value=capi),              patch.object(uscite, "_utente_e_email", return_value=(42, "capo@example.com")),              patch("core.notifiche.invia_notifica") as notifica,              patch("core.email_utils.send_hub_mail") as mail:
+            esito = uscite.invia_avvisi()
+        self.assertEqual(esito["solo_pagina"], 2)
+        self.assertEqual(esito["capi_avvisati"], 0)
+        notifica.assert_not_called()
+        mail.assert_not_called()
+        self.assertEqual(AvvisoUscitaMancante.objects.count(), 0)
+
     def test_disattivato(self):
         from core.models import SiteConfig
 
