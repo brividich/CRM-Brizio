@@ -21,7 +21,7 @@ Ciclo completo DPI dal magazzino alla consegna firmata al dipendente.
 - **Approvazione** da parte del responsabile sicurezza con commenti
 - **Consegna** con firma dipendente via canvas HTML5, data e ricevuta firmata; una nuova consegna dello stesso `tipo_dpi` già in carico allo stesso dipendente sostituisce automaticamente la precedente (che resta in storico, uscendo dai conteggi "in uso"/scadenze)
 - **Vita utile** DPI tracciata per categoria/modello: il modello, se valorizzato, sovrascrive la vita utile categoria nel calcolo della scadenza consegna; lista e dettaglio mostrano il semaforo scadenza. Cambiando la vita utile di categoria o modello, le consegne in uso con scadenza automatica si riallineano subito (`segnali_scadenze.py`); restano quelle con scadenza inserita a mano e quelle già sostituite
-- **Report conformita** per dipendente su `/dpi/report-conformita/`, con filtro categorie obbligatorie e stato OK/scaduto/mancante
+- **Report**: voce unica con le schede Conformità `/dpi/report/`, Registro consegne `/dpi/report/consegne/` e Consumi e magazzino `/dpi/magazzino/report/`; dettaglio per persona su `/dpi/report-conformita/`
 - **Reminder scadenze** schedulabile con `python manage.py send_dpi_expiry_reminders --dry-run`
 - **Storico** completo per dipendente con export PDF
 - **KPI dashboard** su consumi, costi, scadenze imminenti
@@ -85,3 +85,14 @@ Elenco delle persone a sinistra, scheda a destra (`dpi/components/_banco_lavoro.
 - **Bozza d'ordine** `/dpi/magazzino/riordino/` (`dpi:magazzino_riordino`, gate `_is_gestore`): `magazzino.bozza_ordine`, l'elenco `riordino` del report diviso per ultimo fornitore. Solo testo da copiare o aprire nella posta.
 
 Nessuna migrazione, nessun permesso nuovo.
+
+## Report (05/11/2026)
+
+Logica in `dpi/report.py`, viste in `dpi/views_report.py`, gate `_is_gestore`, perimetro `_scope_report` (`utenti_visibili` su «gestire»: vale per elenchi, dettaglio ed export). Nessuna migrazione, nessun permesso nuovo.
+
+- **Dovuti** = `CategoriaDPI.obbligatoria_mansionario` + `requisiti_dipendenti_dettaglio(...)["requisiti"]["dpi"]`. Se il calcolo dalla mansione fallisce la pagina lo dice e conta solo le obbligatorie.
+- **Stato per categoria**: ultima consegna non sostituita; scaduto, in scadenza entro `dotazione.GIORNI_AVVISO`, in regola, mancante. L'esito della persona è il peggiore; «In scadenza» resta conforme.
+- `anagrafica/services/conformita.py::_dpi_batch` conta ancora solo le categorie obbligatorie e tratta il mancante come dato assente: non è allineato a questo report.
+- **Ricevuta** (`report.ricevuta`): firma, altrimenti stato di `ConfermaConsegnaDPI`, altrimenti «Senza firma».
+- Export Excel e PDF su tutte le righe filtrate, audit con `log_action`, catalogati in `core/report_centro/contenuti/dpi.py` con le varianti pianificabili.
+- Report magazzino: «Consegne senza giacenza» da `magazzino.SEGNO_SENZA_GIACENZA` nella nota del movimento; CSV con `core.csv_export`.

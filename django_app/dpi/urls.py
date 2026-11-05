@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.urls import path
 
-from . import views, views_negozio
+from . import views, views_negozio, views_report
 
 app_name = "dpi"
 
@@ -10,6 +10,8 @@ urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("nuova/", views.nuova_richiesta, name="nuova"),
     path("storico/", views.storico, name="storico"),
+    path("report/", views_report.report_persone, name="report_persone"),
+    path("report/consegne/", views_report.report_consegne, name="report_consegne"),
     path("report-conformita/", views.report_conformita, name="report_conformita"),
     path("<int:pk>/", views.richiesta_detail, name="detail"),
     path("<int:pk>/annulla/", views.annulla_richiesta, name="annulla"),

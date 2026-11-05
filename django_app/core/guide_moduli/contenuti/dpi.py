@@ -224,7 +224,26 @@ GUIDA = {
                     "(«da controllare» se non l'ha letta con sicurezza). Spunta le righe giuste, correggi le quantità e premi "
                     "«Carica le righe spuntate». I codici che non sono nel catalogo non vengono proposti: caricali a mano.",
                     "Con la scorta minima il modello diventa «Da riordinare» o «Esaurito».",
-                    "«Report e consumi» mostra i consumi per mese, reparto e modello e la quantità suggerita da riordinare; «Esporta movimenti (CSV)».",
+                    "«Report e consumi» mostra i consumi per mese, reparto e modello, la quantità suggerita da riordinare e le «Consegne senza giacenza» con il motivo; «Esporta movimenti (CSV)». "
+                    "Clicca un reparto per vedere le sue consegne nel Registro.",
+                ]),
+            ],
+        },
+        {
+            "id": "report",
+            "titolo": "Report: conformità, consegne e consumi",
+            "blocchi": [
+                ("p", "DPI → «Report» ha tre schede. Lo vede chi ha il permesso di gestire i DPI, sulle persone del proprio perimetro."),
+                ("ul", [
+                    "«Conformità»: tutti i dipendenti attivi con l'esito «Mancante», «Scaduto», «In scadenza» (entro 30 giorni), «In regola» o «Nessun DPI dovuto». "
+                    "Una persona conta in ogni stato che ha: con un DPI scaduto e uno mancante è in entrambi i numeri, e l'esito mostra il più grave. Clicca un numero in alto per filtrare, un nome per aprire il dettaglio. «Da sistemare» dice cosa manca e se c'è già una richiesta in corso.",
+                    "Un DPI è dovuto se la categoria ha «Obbligatoria nel report conformità» oppure se lo prevede la mansione di rischio della persona. "
+                    "Nel dettaglio, la colonna «Perché» dice quale delle due: «Per tutti» o «Dalla mansione».",
+                    "«Registro consegne»: cosa è stato consegnato, a chi e quando, con la ricevuta: «Firmata», «Confermata via mail», «Da confermare», «Contestata» o «Senza firma». "
+                    "Senza date scelte mostra gli ultimi 90 giorni.",
+                    "«Consumi e magazzino»: consumi, coperture, cosa riordinare e consegne senza giacenza.",
+                    "«Esporta Excel» ed «Esporta PDF» scaricano tutte le righe filtrate, non solo la pagina a video. Ogni scaricamento resta registrato.",
+                    "Gli amministratori possono farli inviare da soli: Centro report → Pianificazioni, «Persone da sistemare» e «Ultimi 90 giorni».",
                 ]),
             ],
         },
@@ -256,7 +275,7 @@ GUIDA = {
                     "giorno dopo e poi ogni 7 giorni finché non viene sostituito.",
                 ]),
                 ("p", "A mano: comando send_dpi_expiry_reminders, prima con --dry-run."),
-                ("p", "«Report conformità» mostra per ogni dipendente se ha i DPI obbligatori: OK, scaduto o mancante, con «Esporta Excel»."),
+                ("p", "DPI → «Report» → «Conformità» mostra chi deve sistemare qualcosa."),
             ],
         },
     ],
