@@ -44,17 +44,38 @@ def elenco(request):
     })
 
 
+def _attivita_di_partenza(request):
+    """L'attività dello Scadenzario da cui nasce la certificazione, se chi scrive la gestisce."""
+    valore = request.GET.get("da_attivita", "")
+    if not valore.isdigit():
+        return None
+    from scadenzario.models import ScadenzaGenerica
+    from scadenzario.permessi import puo_gestire_categoria
+
+    attivita = ScadenzaGenerica.objects.filter(pk=int(valore)).first()
+    return attivita if attivita and puo_gestire_categoria(request, attivita.categoria_id) else None
+
+
 @login_required
 def certificazione_modifica(request, pk: int | None = None):
     if not _has_perm(request, PERM_AUDIT_EDIT):
         return _deny(request)
     oggetto = get_object_or_404(Certificazione, pk=pk) if pk else None
-    form = CertificazioneForm(request.POST or None, instance=oggetto)
+    # «Crea la certificazione da questa attività» dello Scadenzario: precompila e, al salvataggio, unisce.
+    attivita = _attivita_di_partenza(request) if oggetto is None else None
+    iniziale = {"descrizione": attivita.titolo[:200], "scade_il": attivita.data_scadenza} if attivita else {}
+    form = CertificazioneForm(request.POST or None, instance=oggetto, initial=iniziale)
     if request.method == "POST" and form.is_valid():
         cert = form.save(commit=False)
         cert.aggiornata_da = request.user
         cert.save()
         log_action(request, "certificazione_salvata", MODULE, {"id": cert.pk}, oggetto=cert)
+        if attivita:
+            from scadenzario.collegamenti import collega
+
+            collega(attivita, "certificazione", cert.pk, unisci=True)
+            log_action(request, "scadenza_generica_collegata", "scadenzario",
+                       {"id": attivita.pk, "tipo": "certificazione", "oggetto": cert.pk, "unita": True})
         messages.success(request, f"Certificazione «{cert}» salvata.")
         return redirect("sistema_gestione:esterni_elenco")
     return render(request, "sistema_gestione/pages/esterni_certificazione_form.html", {

@@ -93,9 +93,12 @@ def invia_avvisi_attivita(*, oggi: date | None = None, dry_run: bool = False) ->
 
     from core.email_utils import send_hub_mail
 
+    from .collegamenti import allinea_unite
     from .models import AvvisoInviato, ScadenzaGenerica
 
     oggi = oggi or timezone.localdate()
+    if not dry_run:
+        allinea_unite()
     conf = impostazioni()
     inviati = errori = 0
     candidati = ScadenzaGenerica.objects.select_related("categoria").filter(
@@ -115,7 +118,9 @@ def invia_avvisi_attivita(*, oggi: date | None = None, dry_run: bool = False) ->
             + (f"Ubicazione: {s.ubicazione}\n" if s.ubicazione else "")
             + (f"Descrizione: {s.descrizione}\n" if s.descrizione else "")
             + f"Scadenza: {s.data_scadenza:%d/%m/%Y} ({_stato(giorni)})\n\n"
-            f"Quando l'attività è fatta registra il rinnovo nello Scadenzario: {link}"
+            + ("La data viene dal modulo collegato: aggiornala lì. Scheda: " if s.unita
+               else "Quando l'attività è fatta registra il rinnovo nello Scadenzario: ")
+            + link
         )
         try:
             send_hub_mail(
@@ -139,9 +144,12 @@ def invia_riepiloghi_categorie(*, oggi: date | None = None, dry_run: bool = Fals
 
     from core.email_utils import send_hub_mail
 
+    from .collegamenti import allinea_unite
     from .models import AvvisoInviato, CategoriaScadenza
 
     oggi = oggi or timezone.localdate()
+    if not dry_run:
+        allinea_unite()
     finestra = impostazioni()["riepilogo"]
     limite = oggi + timedelta(days=finestra)
     inviati = errori = 0

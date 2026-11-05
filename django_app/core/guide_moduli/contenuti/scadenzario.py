@@ -26,6 +26,7 @@ GUIDA = {
                 ]),
                 ("p", "Ogni voce compare a chi può aprire la pagina dove si gestisce (la tua CAR e la tua presa visione le vedi sempre). "
                       "Il nome nella colonna Soggetto porta a quella pagina."),
+                ("p", "Nelle schede di dipendente, asset, fornitore, certificazione, audit, incidente, verifica impianto e corso il riquadro «📅 Scadenze di questa scheda» mostra le scadenze, chi se ne occupa e «Me ne occupo io»."),
                 ("p", "Cosa vedi lo decidono i permessi del modulo di origine più le regole del pannello «Gestione»: "
                       "una regola può farti vedere scadenze di un modulo che non apri, oppure toglierne alcune a tutti."),
             ],
@@ -42,6 +43,7 @@ GUIDA = {
                     "Quando l'attività è fatta usa «✓ Rinnovato oggi» nell'elenco o nella scheda: compare se l'attività ha la validità in mesi, da cui si calcola la prossima scadenza.",
                     "Per un'altra data, le note o un allegato (verbale, certificato) apri nella scheda «Rinnovo con altra data, note o allegato».",
                 ]),
+                ("p", "«Collega» propone i legami con certificazioni, verifiche impianto, asset, fornitori, qualifiche e corsi: conferma sempre una persona. «Unisci» lascia una voce sola, quella del modulo, che dà anche la data; l'attività tiene storico e destinatari e si può separare."),
                 ("p", "Più attività insieme: nell'elenco spunta le righe e, nella barra che compare in basso, assegna il responsabile, aggiungi o sostituisci i destinatari, usa quelli della categoria, sospendi o riattiva. "
                       "Il filtro «Mancano» trova le attività senza responsabile o senza destinatari; i riquadri in alto filtrano scadute ed entro 30 giorni."),
                 ("def", [

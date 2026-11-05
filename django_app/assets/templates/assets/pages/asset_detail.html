@@ -1069,6 +1069,7 @@ body.theme-dark .af-map-pin { box-shadow:0 0 0 3px var(--surface), 0 3px 10px rg
             Tutte le scadenze dell'asset in un posto: manutenzioni, adempimenti,
             licenze e contratti, dalla stessa fonte di Calendario e Scadenzario.
           {% endcomment %}
+          {% include "scadenzario/components/riquadro.html" with collegata_tipo="asset" collegata_id=asset.pk nome=asset.name %}
           <details class="af-acc af-acc--flush" data-af-acc="asset:scadenze">
             <summary>
               <span class="af-acc-label">Scadenze di questo asset</span>

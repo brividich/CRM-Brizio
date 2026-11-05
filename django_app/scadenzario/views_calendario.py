@@ -9,8 +9,8 @@ from datetime import date, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseForbidden
-from django.shortcuts import get_object_or_404, redirect
+from django.http import HttpResponse, HttpResponseForbidden
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -25,7 +25,8 @@ from .visibilita import puo_gestire_pannello
 
 def _torna(request):
     nxt = request.POST.get("next") or ""
-    if nxt.startswith("/scadenze") and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
+    # Si torna anche alla scheda del modulo da cui si è presa la scadenza.
+    if nxt.startswith("/") and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
         return redirect(nxt)
     return redirect(reverse("scadenze_globali"))
 
@@ -44,6 +45,41 @@ def _scadenza_visibile(request, chiave: str, data_iso: str):
         if v.data_scadenza == data and chiave_scadenza(v) == chiave:
             return v
     return None
+
+
+@login_required
+def scheda_riquadro(request):
+    """Scadenze di una scheda di modulo: solo ciò che chi chiede vede già nello Scadenzario."""
+    from urllib.parse import urlencode, urlsplit
+
+    from dashboard.scadenze_providers import PROVIDERS, collect_all
+    from dashboard.views_scadenze import _azioni
+
+    from . import collegamenti
+    from .permessi import puo_vedere_scadenza
+
+    percorso = (request.GET.get("percorso") or "").strip()
+    if not percorso.startswith("/"):
+        return HttpResponse("")
+    fonti = {f for f in (request.GET.get("fonti") or "").split(",") if f in PROVIDERS}
+    voci = []
+    if fonti:
+        voci = [v for v in collect_all(request, sources=fonti) if urlsplit(v.url or "").path == percorso]
+        _azioni(request, voci)
+    tipo, _sep, oggetto = (request.GET.get("collegata") or "").partition(":")
+    collegate = []
+    if oggetto.isdigit():
+        oggi = timezone.localdate()
+        collegate = [s for s in collegamenti.attivita_collegate(tipo, int(oggetto)) if puo_vedere_scadenza(request, s)]
+        for s in collegate:
+            s.scaduta = bool(s.data_scadenza and s.data_scadenza < oggi)
+    if not voci and not collegate:
+        return HttpResponse("")
+    nome = (request.GET.get("nome") or "").strip()
+    return render(request, "scadenzario/components/riquadro_contenuto.html", {
+        "voci": voci, "collegate": collegate, "percorso": percorso,
+        "link_tutte": reverse("scadenze_globali") + (f"?{urlencode({'q': nome})}" if nome else ""),
+    })
 
 
 @login_required

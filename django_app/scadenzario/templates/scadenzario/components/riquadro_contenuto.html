@@ -1,0 +1,36 @@
+{% comment %}Scadenze di una scheda di modulo (scheda_riquadro): caricato a parte, vuoto se non c'è nulla.{% endcomment %}
+<style>
+.szr { background:var(--surface,#fff); border:1px solid var(--border,#e2e8f0); border-radius:14px; padding:14px 16px; margin:12px 0; color:var(--text,#0f172a); }
+.szr-top { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+.szr-top strong { font-size:14px; }
+.szr-top a { font-size:12px; }
+.szr-riga { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:7px 0; border-top:1px solid var(--border,#e2e8f0); font-size:13px; }
+.szr-riga:first-of-type { border-top:0; }
+.szr-testo { flex:1 1 220px; min-width:0; }
+.szr-chi { display:block; font-size:12px; color:var(--text-light,#64748b); }
+.szr-data { white-space:nowrap; font-weight:600; }
+.szr-data.scaduta { color:#b91c1c; }
+.szr form { margin:0; }
+.szr button { font:inherit; font-size:12px; padding:4px 10px; min-height:0; border-radius:8px; border:1px solid var(--border,#cbd5e1); background:transparent; color:inherit; cursor:pointer; }
+</style>
+<section class="szr" aria-label="Scadenze di questa scheda">
+  <div class="szr-top"><strong>📅 Scadenze di questa scheda</strong><a href="{{ link_tutte }}">Apri nello Scadenzario →</a></div>
+  {% for v in voci %}
+  <div class="szr-riga">
+    <span class="szr-testo">{{ v.kind_label|default:v.titolo }}{% if v.kind_label and v.titolo %}: {{ v.titolo }}{% endif %}
+      {% if v.presa %}<span class="szr-chi">👤 Se ne occupa {{ v.presa_nome }}{% if v.presa.nota %} · {{ v.presa.nota }}{% endif %}</span>{% endif %}</span>
+    <span class="szr-data{% if v.giorni is not None and v.giorni < 0 %} scaduta{% endif %}">{{ v.data_scadenza|date:"d/m/Y" }}</span>
+    <form method="post" action="{% url 'scadenzario:presa_in_carico' %}">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ percorso }}"><input type="hidden" name="chiave" value="{{ v.chiave }}"><input type="hidden" name="data" value="{{ v.data_scadenza|date:'Y-m-d' }}">
+      {% if v.presa_mia %}<input type="hidden" name="azione" value="lascia"><button type="submit">✕ Lascia</button>{% elif v.presa %}<button type="submit">👤 Subentro io</button>{% else %}<button type="submit">👤 Me ne occupo io</button>{% endif %}
+    </form>
+  </div>
+  {% endfor %}
+  {% for s in collegate %}
+  <div class="szr-riga">
+    <span class="szr-testo"><a href="{% url 'scadenzario:scadenza_dettaglio' s.pk %}">{{ s.titolo }}</a>
+      <span class="szr-chi">{{ s.categoria.nome }}{% if s.unita %} · unita: la data viene da qui{% endif %}</span></span>
+    <span class="szr-data{% if s.scaduta %} scaduta{% endif %}">{{ s.data_scadenza|date:"d/m/Y"|default:"—" }}</span>
+  </div>
+  {% endfor %}
+</section>
