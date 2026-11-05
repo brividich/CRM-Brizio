@@ -34,6 +34,7 @@ SOURCE_FORMAZIONE = "formazione"
 SOURCE_SOC = "soc"
 SOURCE_GDPR = "gdpr"
 SOURCE_PROCEDURE = "procedure"
+SOURCE_FORNITORI = "fornitori"
 
 SOURCE_LABELS = {
     SOURCE_SGI: "Sistema di gestione",
@@ -42,6 +43,7 @@ SOURCE_LABELS = {
     SOURCE_SOC: "SOC / NIS2",
     SOURCE_GDPR: "GDPR",
     SOURCE_PROCEDURE: "Presa visione procedure",
+    SOURCE_FORNITORI: "Fornitori (documenti di sicurezza)",
 }
 
 TIPI = {
@@ -75,6 +77,7 @@ TIPI = {
     },
     SOURCE_GDPR: {"ads_revisione": "Revisione amministratore di sistema"},
     SOURCE_PROCEDURE: {"assegnazione": "Presa visione", "campagna": "Campagna di presa visione"},
+    SOURCE_FORNITORI: {"documento": "Documento fornitore"},
 }
 
 
@@ -397,6 +400,32 @@ def collect_procedure(ctx) -> list:
     return items
 
 
+# ---------------------------------------------------------------------------
+# Fornitori: documenti di sicurezza (DURC, visura, DUVRI, polizza…)
+# ---------------------------------------------------------------------------
+
+def collect_fornitori(ctx) -> list:
+    """Per ogni fornitore attivo e per tipo di documento, quello con la scadenza più
+    lontana: un documento rinnovato fa sparire il vecchio dallo scadenzario."""
+    if not _apre(ctx, "fornitori:fornitori_list"):
+        return []
+    from anagrafica.models import FornitoreDocumento
+
+    migliori: dict[tuple[int, str], FornitoreDocumento] = {}
+    for d in (FornitoreDocumento.objects.filter(fornitore__is_active=True, data_scadenza__isnull=False)
+              .select_related("fornitore")):
+        chiave = (d.fornitore_id, d.tipo)
+        if chiave not in migliori or d.data_scadenza > migliori[chiave].data_scadenza:
+            migliori[chiave] = d
+    items = []
+    for d in migliori.values():
+        if d.data_scadenza <= ctx.orizzonte:
+            items.append(_item(ctx, SOURCE_FORNITORI, "documento", d.get_tipo_display(), d.fornitore.ragione_sociale,
+                               d.data_scadenza, _url("fornitori:fornitore_detail", d.fornitore_id),
+                               elemento=d.tipo, elemento_label=d.get_tipo_display()))
+    return items
+
+
 PROVIDERS = {
     SOURCE_SGI: collect_sgi,
     SOURCE_QUALIFICHE: collect_qualifiche,
@@ -404,4 +433,5 @@ PROVIDERS = {
     SOURCE_SOC: collect_soc,
     SOURCE_GDPR: collect_gdpr,
     SOURCE_PROCEDURE: collect_procedure,
+    SOURCE_FORNITORI: collect_fornitori,
 }

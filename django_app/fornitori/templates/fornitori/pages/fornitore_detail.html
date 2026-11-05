@@ -24,6 +24,15 @@
 .ana-pill { display:inline-block; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600; }
 .ana-pill-green { background:#dcfce7; color:#166534; }
 .ana-pill-red { background:#fee2e2; color:#991b1b; }
+.ana-pill-amber { background:#fef3c7; color:#92400e; }
+.fr-req-list { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:6px; }
+.fr-req-list li { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; font-size:13px; }
+.fr-req-icona { display:inline-flex; width:20px; height:20px; border-radius:50%; align-items:center; justify-content:center;
+  font-weight:800; font-size:12px; background:#e2e8f0; color:#475569; flex-shrink:0; }
+.fr-req-ok .fr-req-icona { background:#dcfce7; color:#166534; }
+.fr-req-in_scadenza .fr-req-icona { background:#fef3c7; color:#92400e; }
+.fr-req-scaduto .fr-req-icona, .fr-req-mancante .fr-req-icona { background:#fee2e2; color:#991b1b; }
+.fr-req-det { color:var(--text-mid); font-size:12.5px; }
 .ana-pill-blue { background:#dbeafe; color:#1e40af; }
 .ana-pill-gray { background:#f1f5f9; color:#475569; }
 .ana-hero-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
@@ -124,6 +133,11 @@ body.theme-dark .ana-hero-title{color:var(--text)}
 body.theme-dark .ana-hero-meta{color:var(--text-light)}
 body.theme-dark .ana-pill-green{background:rgba(56,161,105,.18);color:#86efac}
 body.theme-dark .ana-pill-red{background:rgba(229,62,62,.16);color:#fca5a5}
+body.theme-dark .ana-pill-amber{background:rgba(217,119,6,.18);color:#fcd34d}
+body.theme-dark .fr-req-icona{background:rgba(148,163,184,.2);color:#cbd5e1}
+body.theme-dark .fr-req-ok .fr-req-icona{background:rgba(56,161,105,.2);color:#86efac}
+body.theme-dark .fr-req-in_scadenza .fr-req-icona{background:rgba(217,119,6,.2);color:#fcd34d}
+body.theme-dark .fr-req-scaduto .fr-req-icona, body.theme-dark .fr-req-mancante .fr-req-icona{background:rgba(229,62,62,.2);color:#fca5a5}
 body.theme-dark .ana-pill-blue{background:rgba(59,130,246,.18);color:#93c5fd}
 body.theme-dark .ana-pill-gray{background:var(--surface-alt,#0f1b2d);color:var(--text-mid)}
 body.theme-dark .ana-metric-val{color:var(--text)}
@@ -160,12 +174,14 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
           {% if fornitore.is_active %}<span class="ana-pill ana-pill-green">Attivo</span>
           {% else %}<span class="ana-pill ana-pill-red">Non attivo</span>{% endif %}
           {% if fornitore.categoria %}<span class="ana-pill ana-pill-blue">{{ fornitore.get_categoria_display }}</span>{% endif %}
+          {% if requisiti.esito != "non_richiesto" %}<span class="ana-pill {% if requisiti.esito == 'ok' %}ana-pill-green{% elif requisiti.esito == 'in_scadenza' %}ana-pill-amber{% else %}ana-pill-red{% endif %}">{{ requisiti.etichetta }}</span>{% endif %}
           {% if fornitore.citta %}{{ fornitore.citta }}{% if fornitore.provincia %} ({{ fornitore.provincia }}){% endif %}{% endif %}
         </div>
       </div>
     </div>
     <div class="ana-hero-actions">
       <a class="ana-btn ana-btn-ghost" href="{% url 'fornitori:fornitori_list' %}">← Elenco</a>
+      <a class="ana-btn ana-btn-ghost" href="{% url 'fornitori:guida' %}#requisiti">? Guida</a>
       <a class="ana-btn ana-btn-primary" href="{% url 'fornitori:fornitore_edit' fornitore.pk %}">✏ Modifica</a>
       <form method="post" action="{% url 'fornitori:fornitore_toggle_active' fornitore.pk %}" style="display:inline;">
         {% csrf_token %}
@@ -204,6 +220,24 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
 
     <!-- Main: Tabs -->
     <div class="ana-main">
+      {% if requisiti.esito != "non_richiesto" %}
+      <div class="ana-card fr-req" style="margin-bottom:14px; padding:16px 18px;">
+        <div style="display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; align-items:baseline;">
+          <h3 style="margin:0; font-size:15px;">Requisiti per lavorare in sede <small style="font-weight:400; color:var(--text-mid);">(art. 26 D.Lgs. 81/2008)</small></h3>
+          <span class="ana-pill {% if requisiti.esito == 'ok' %}ana-pill-green{% elif requisiti.esito == 'in_scadenza' %}ana-pill-amber{% else %}ana-pill-red{% endif %}">{{ requisiti.etichetta }}</span>
+        </div>
+        <ul class="fr-req-list">
+          {% for v in requisiti.voci %}
+          <li class="fr-req-{{ v.stato }}">
+            <span class="fr-req-icona" aria-hidden="true">{% if v.stato == "ok" %}✓{% elif v.stato == "in_scadenza" %}!{% elif v.obbligatorio %}✕{% else %}–{% endif %}</span>
+            <b>{{ v.etichetta }}</b>{% if not v.obbligatorio %} <small>(consigliato)</small>{% endif %}
+            <span class="fr-req-det">{% if v.stato == "mancante" %}non caricato{% elif v.scadenza %}{% if v.stato == "scaduto" %}scaduto il{% else %}valido fino al{% endif %} {{ v.scadenza|date:"d-m-Y" }}{% else %}caricato, senza scadenza{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        <p style="margin:6px 0 0; font-size:12px; color:var(--text-mid);">Carica i documenti nella scheda «Documenti» scegliendo il tipo e la scadenza. In scadenza = entro {{ giorni_preavviso }} giorni.</p>
+      </div>
+      {% endif %}
       <div class="ana-card">
         <div class="ana-tabs">
           <button class="ana-tab is-active" data-tab="tab-ordini">Ordini ({{ ordini.count }})</button>
@@ -263,7 +297,7 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
               <div class="ana-doc-icon">📄</div>
               <div>
                 <div style="font-weight:700;font-size:13px;"><a href="{% url 'fornitori:fornitore_documento_download' fornitore.pk doc.pk %}" style="color:#1d4ed8;text-decoration:none;">{{ doc.nome }}</a></div>
-                <div style="font-size:12px;color:#64748b;">{{ doc.get_tipo_display }} · {{ doc.uploaded_at|date:"d-m-Y" }}{% if doc.note %} · {{ doc.note }}{% endif %}</div>
+                <div style="font-size:12px;color:#64748b;">{{ doc.get_tipo_display }} · {{ doc.uploaded_at|date:"d-m-Y" }}{% if doc.data_scadenza %} · scade il {{ doc.data_scadenza|date:"d-m-Y" }}{% endif %}{% if doc.note %} · {{ doc.note }}{% endif %}</div>
               </div>
             </div>
             <form method="post" action="{% url 'fornitori:fornitore_documento_delete' fornitore.pk doc.pk %}">{% csrf_token %}
@@ -277,6 +311,7 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
               {% csrf_token %}
               <div class="ana-field"><label>Nome *</label>{{ doc_form.nome }}</div>
               <div class="ana-field"><label>Tipo</label>{{ doc_form.tipo }}</div>
+              <div class="ana-field"><label>Scadenza</label>{{ doc_form.data_scadenza }}</div>
               <div class="ana-field full">
                 <label>File *</label>
                 <div class="ana-drop">{{ doc_form.file }}<div style="font-size:12px;color:#94a3b8;margin-top:6px;">PDF, DOC, XLS, immagini...</div></div>

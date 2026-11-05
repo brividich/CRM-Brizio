@@ -64,7 +64,8 @@
       {% for p in esterni %}
       <tr>
         <td class="pres-nome">{{ p.cognome }}</td>
-        <td>{{ p.azienda|default:"—" }}</td>
+        <td>{% if p.fornitore_id %}<a href="{% url 'fornitori:fornitore_detail' p.fornitore_id %}">{{ p.azienda }}</a>{% else %}{{ p.azienda|default:"—" }}{% endif %}
+          {% if p.requisiti_esito and p.requisiti_esito != "non_richiesto" and p.requisiti_esito != "ok" %}<span class="pres-sub pres-req-{{ p.requisiti_esito }}">{{ p.requisiti_etichetta }}: {{ p.requisiti_testo }}</span>{% endif %}</td>
         <td class="pres-hide-sm">{{ p.tipo }}</td>
         <td class="pres-hide-sm">{{ p.referente|default:"—" }}</td>
         <td class="pres-c pres-mono">{{ p.entrata }}</td>

@@ -10,6 +10,7 @@ urlpatterns = [
 
     # Lista e CRUD
     path("elenco/", views.fornitori_list, name="fornitori_list"),
+    path("guida/", views.guida, name="guida"),
     path("nuovo/", views.fornitore_create, name="fornitore_create"),
     path("<int:fornitore_id>/", views.fornitore_detail, name="fornitore_detail"),
     path("<int:fornitore_id>/modifica/", views.fornitore_edit, name="fornitore_edit"),

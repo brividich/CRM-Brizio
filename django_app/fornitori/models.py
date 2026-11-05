@@ -114,3 +114,23 @@ class IngressoIntervento(models.Model):
         if minuti < 60:
             return f"{minuti} min"
         return f"{minuti // 60} h {minuti % 60:02d} min"
+
+
+class AvvisoIngressoNonInRegola(models.Model):
+    """Ingresso dal GuestPortal di una ditta con i documenti di sicurezza non in regola,
+    già segnalato con una notifica a RSPP/ASPP (una sola volta per visita, mai mail)."""
+
+    visita_id = models.IntegerField(unique=True, help_text="Visits.VisitID del GuestPortal")
+    fornitore = models.ForeignKey("anagrafica.Fornitore", on_delete=models.CASCADE, related_name="+")
+    azienda = models.CharField(max_length=200, blank=True)
+    problemi = models.CharField(max_length=500, blank=True)
+    destinatari = models.PositiveIntegerField(default=0)
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-creato_il"]
+        verbose_name = "Avviso ingresso ditta non in regola"
+        verbose_name_plural = "Avvisi ingresso ditte non in regola"
+
+    def __str__(self) -> str:
+        return f"{self.azienda} (visita {self.visita_id})"
