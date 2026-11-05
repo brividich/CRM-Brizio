@@ -6,6 +6,7 @@ scadenze_globali.html — Scadenzario generale (/scadenze), tre viste:
   mese    calendario del mese con pannello del giorno e riquadro delle scadute
   agenda  settimane in fila, le scadute in testa
   elenco  tabella paginata (con export CSV / .ics)
+Filtri a scelta multipla (fonti, fasce, reparti) + ricerca; «intero=1» = schermo intero.
 Context: dashboard/views_scadenze.py (scadenze_globali).
 {% endcomment %}
 
@@ -16,8 +17,8 @@ Context: dashboard/views_scadenze.py (scadenze_globali).
 .sc { --sc-surface:var(--surface,#fff); --sc-alt:var(--surface-alt,#f8fafc); --sc-border:var(--border,#e2e8f0);
       --sc-text:var(--text,#0f172a); --sc-mid:var(--text-mid,#334155); --sc-light:var(--text-light,#64748b);
       --sc-accent:#1d4ed8; --sc-accent-bg:#eff6ff; --sc-red:#dc2626; --sc-red-bg:#fef2f2; --sc-amber:#b45309; --sc-amber-bg:#fffbeb;
-      --sc-weekend:#f8fafc; --sc-out:#fbfcfe;
-      max-width:1320px; width:100%; min-width:0; margin:0 auto; padding:4px 0 32px; display:flex; flex-direction:column; gap:14px; color:var(--sc-text); }
+      --sc-weekend:#f8fafc; --sc-out:#fbfcfe; --sc-page:var(--bg,#f2f5f8);
+      width:100%; min-width:0; margin:0 auto; padding:4px 0 32px; display:flex; flex-direction:column; gap:12px; color:var(--sc-text); }
 body.theme-dark .sc { --sc-accent:#60a5fa; --sc-accent-bg:rgba(96,165,250,.14); --sc-red:#f87171; --sc-red-bg:rgba(239,68,68,.13);
       --sc-amber:#fbbf24; --sc-amber-bg:rgba(245,158,11,.13); --sc-weekend:rgba(255,255,255,.025); --sc-out:rgba(0,0,0,.18); }
 
@@ -33,52 +34,77 @@ body.theme-dark .sc .src-soc{--c:#fb7185} body.theme-dark .sc .src-gdpr{--c:#a3e
 body.theme-dark .sc .src-generiche{--c:#94a3b8}
 
 /* Testata */
-.sc-head { display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.sc-head { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
 .sc-title { font-size:26px; font-weight:800; margin:0; letter-spacing:-.02em; color:var(--sc-text); }
-.sc-sub { color:var(--sc-light); font-size:13.5px; margin:3px 0 0; max-width:720px; }
+.sc-sub { color:var(--sc-light); font-size:13px; margin:2px 0 0; max-width:760px; }
 .sc-actions { display:flex; gap:6px; flex-wrap:wrap; }
 .sc-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border-radius:9px; font-size:12.5px; font-weight:600;
-          border:1px solid var(--sc-border); background:var(--sc-surface); color:var(--sc-mid); text-decoration:none; cursor:pointer; white-space:nowrap; }
+          border:1px solid var(--sc-border); background:var(--sc-surface); color:var(--sc-mid); text-decoration:none; cursor:pointer; white-space:nowrap; font-family:inherit; }
 .sc-btn:hover { border-color:var(--sc-accent); color:var(--sc-accent); }
 .sc-btn.primary { background:var(--sc-accent); border-color:var(--sc-accent); color:#fff; }
 body.theme-dark .sc-btn.primary { color:#0b1220; }
 
-/* KPI */
+/* KPI = filtro delle fasce (più di una insieme) */
 .sc-kpis { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; }
-.sc-kpi { position:relative; display:flex; flex-direction:column; gap:2px; padding:12px 14px 12px 18px; border-radius:14px; text-decoration:none;
+.sc-kpi { position:relative; display:flex; align-items:baseline; gap:10px; padding:10px 14px 10px 18px; border-radius:14px; text-decoration:none;
           background:var(--sc-surface); border:1px solid var(--sc-border); color:var(--sc-text); overflow:hidden; transition:transform .12s, box-shadow .12s; }
 .sc-kpi::before { content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--k,var(--sc-light)); opacity:.85; }
 .sc-kpi:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(15,23,42,.08); }
 .sc-kpi b { font-size:26px; font-weight:800; line-height:1.05; color:var(--k,var(--sc-text)); }
-.sc-kpi span { font-size:12px; color:var(--sc-light); font-weight:600; }
-.sc-kpi.on { box-shadow:0 0 0 2px var(--k,var(--sc-accent)); }
+.sc-kpi span { font-size:12.5px; color:var(--sc-light); font-weight:600; }
+.sc-kpi.on { box-shadow:0 0 0 2px var(--k,var(--sc-accent)); background:color-mix(in srgb, var(--k,var(--sc-accent)) 7%, var(--sc-surface)); }
+.sc-kpi.on::after { content:"✓"; position:absolute; top:8px; right:10px; font-size:12px; font-weight:800; color:var(--k,var(--sc-accent)); }
 .sc-kpi.k-red { --k:var(--sc-red); } .sc-kpi.k-amber { --k:var(--sc-amber); } .sc-kpi.k-blue { --k:var(--sc-accent); }
 .sc-kpi.k-tot b { color:var(--sc-text); }
 
 /* Barra strumenti */
-.sc-toolbar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+.sc-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
               background:var(--sc-surface); border:1px solid var(--sc-border); border-radius:14px; padding:8px 10px; }
 .sc-seg { display:inline-flex; background:var(--sc-alt); border:1px solid var(--sc-border); border-radius:10px; padding:3px; gap:2px; }
 .sc-seg a { padding:6px 14px; border-radius:7px; font-size:13px; font-weight:700; color:var(--sc-light); text-decoration:none; white-space:nowrap; }
 .sc-seg a.on { background:var(--sc-surface); color:var(--sc-text); box-shadow:0 1px 3px rgba(15,23,42,.12); }
 body.theme-dark .sc-seg a.on { background:var(--sc-accent-bg); color:var(--sc-accent); }
-.sc-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-.sc-filters select { border:1px solid var(--sc-border); border-radius:8px; padding:6px 28px 6px 10px; font-size:12.5px;
-                     background-color:var(--sc-alt); color:var(--sc-text); max-width:200px; }
-.sc-legend { display:flex; gap:6px; flex-wrap:wrap; }
+.sc-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; flex:1 1 auto; justify-content:flex-end; }
+.sc-search { position:relative; flex:0 1 260px; min-width:160px; }
+.sc-search input { width:100%; box-sizing:border-box; border:1px solid var(--sc-border); border-radius:9px; padding:7px 30px 7px 30px; font-size:13px;
+                   background:var(--sc-alt); color:var(--sc-text); font-family:inherit; }
+.sc-search input:focus { outline:2px solid var(--sc-accent); outline-offset:-1px; background:var(--sc-surface); }
+.sc-search::before { content:"⌕"; position:absolute; left:10px; top:50%; transform:translateY(-52%); color:var(--sc-light); font-size:16px; pointer-events:none; }
+.sc-search a { position:absolute; right:8px; top:50%; transform:translateY(-50%); text-decoration:none; color:var(--sc-light); font-weight:700; }
+.sc-multi { position:relative; }
+.sc-multi > summary { list-style:none; cursor:pointer; }
+.sc-multi > summary::-webkit-details-marker { display:none; }
+.sc-multi > summary::after { content:"▾"; font-size:10px; margin-left:2px; }
+.sc-multi[open] > summary { border-color:var(--sc-accent); color:var(--sc-accent); }
+.sc-multi .sc-n { background:var(--sc-accent); color:#fff; border-radius:999px; font-size:10.5px; font-weight:800; padding:0 6px; }
+body.theme-dark .sc-multi .sc-n { color:#0b1220; }
+.sc-pop { position:absolute; right:0; top:calc(100% + 6px); z-index:50; width:280px; max-height:360px; overflow:auto; padding:8px;
+          background:var(--sc-surface); border:1px solid var(--sc-border); border-radius:12px; box-shadow:0 14px 34px rgba(15,23,42,.18); }
+.sc-pop label { display:flex; align-items:center; gap:8px; margin:0; min-height:0; padding:6px 8px; border-radius:8px; font-size:13px; font-weight:500; line-height:1.3; color:var(--sc-text); cursor:pointer; }
+.sc-pop input[type=checkbox] { margin:0; padding:0; width:15px; height:15px; min-height:0; min-width:0; flex:0 0 auto; accent-color:var(--sc-accent); }
+.sc-pop label:hover { background:var(--sc-alt); }
+.sc-pop label i { width:9px; height:9px; border-radius:50%; background:var(--c,var(--sc-light)); flex:0 0 auto; }
+.sc-pop-foot { display:flex; justify-content:space-between; gap:6px; padding:8px 4px 2px; border-top:1px solid var(--sc-border); margin-top:6px; position:sticky; bottom:-8px; background:var(--sc-surface); }
+.sc-pop-foot button { font-size:12px; }
+.sc-legend { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 .sc-tag { display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 8px; border-radius:999px; font-size:12px; font-weight:600;
           text-decoration:none; color:var(--sc-mid); background:var(--sc-surface); border:1px solid var(--sc-border); }
 .sc-tag i { width:9px; height:9px; border-radius:50%; background:var(--c,var(--sc-light)); flex:0 0 auto; }
 .sc-tag em { font-style:normal; color:var(--sc-light); font-weight:700; font-size:11px; }
-.sc-tag:hover, .sc-tag.on { border-color:var(--c,var(--sc-accent)); color:var(--sc-text); }
-.sc-tag.on { background:color-mix(in srgb, var(--c,var(--sc-accent)) 12%, var(--sc-surface)); }
+.sc-tag:hover { border-color:var(--c,var(--sc-accent)); color:var(--sc-text); }
+.sc-tag.on { border-color:var(--c,var(--sc-accent)); color:var(--sc-text); background:color-mix(in srgb, var(--c,var(--sc-accent)) 14%, var(--sc-surface)); }
+.sc-tag.on::after { content:"✕"; font-size:10px; color:var(--sc-light); margin-left:2px; }
+.sc-legend.scelta .sc-tag:not(.on):not(.tutte) { opacity:.6; }
+.sc-legend.scelta .sc-tag:not(.on):not(.tutte):hover { opacity:1; }
+.sc-legend-hint { font-size:11.5px; color:var(--sc-light); margin-left:4px; }
+.sc-clear { font-size:12px; font-weight:700; color:var(--sc-red); text-decoration:none; margin-left:auto; }
 
 .sc-card { background:var(--sc-surface); border:1px solid var(--sc-border); border-radius:16px; min-width:0; }
 
 /* ── Vista mese ── */
-.sc-cal { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:14px; align-items:start; }
-.sc-month { overflow:hidden; }
-.sc-month-head { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--sc-border); flex-wrap:wrap; }
+.sc-cal { display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:14px; align-items:start; }
+.sc-month { overflow:hidden; display:flex; flex-direction:column; }
+.sc-month-head { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--sc-border); flex-wrap:wrap; }
 .sc-month-head h2 { margin:0; font-size:20px; font-weight:800; letter-spacing:-.01em; min-width:170px; }
 .sc-arrow { display:inline-grid; place-items:center; width:34px; height:34px; border-radius:10px; border:1px solid var(--sc-border);
             color:var(--sc-mid); text-decoration:none; font-size:18px; line-height:1; background:var(--sc-surface); }
@@ -86,11 +112,11 @@ body.theme-dark .sc-seg a.on { background:var(--sc-accent-bg); color:var(--sc-ac
 .sc-arrow.off { opacity:.35; pointer-events:none; }
 .sc-month-count { margin-left:auto; font-size:12.5px; color:var(--sc-light); font-weight:600; }
 .sc-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); }
-.sc-dow { padding:8px 10px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--sc-light);
+.sc-dow { padding:7px 10px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--sc-light);
           border-bottom:1px solid var(--sc-border); background:var(--sc-alt); }
-.sc-day { position:relative; display:flex; flex-direction:column; gap:3px; align-items:stretch; text-align:left; min-height:118px; padding:6px 6px 8px;
+.sc-day { position:relative; display:flex; flex-direction:column; gap:3px; align-items:stretch; text-align:left; height:132px; padding:6px 6px 6px;
           border:0; border-right:1px solid var(--sc-border); border-bottom:1px solid var(--sc-border); background:var(--sc-surface);
-          color:inherit; font:inherit; cursor:pointer; min-width:0; }
+          color:inherit; font:inherit; cursor:pointer; min-width:0; overflow:hidden; }
 .sc-day:nth-child(7n+7) { border-right:0; }
 .sc-day.festivo { background:var(--sc-weekend); }
 .sc-day.fuori { background:var(--sc-out); }
@@ -98,7 +124,7 @@ body.theme-dark .sc-seg a.on { background:var(--sc-accent-bg); color:var(--sc-ac
 .sc-day:hover { background:var(--sc-accent-bg); }
 .sc-day.sel { box-shadow:inset 0 0 0 2px var(--sc-accent); z-index:1; }
 .sc-day:focus-visible { outline:2px solid var(--sc-accent); outline-offset:-2px; }
-.sc-dtop { display:flex; align-items:center; justify-content:space-between; gap:4px; }
+.sc-dtop { display:flex; align-items:center; justify-content:space-between; gap:4px; flex:0 0 auto; }
 .sc-dnum { display:inline-grid; place-items:center; min-width:26px; height:26px; padding:0 4px; border-radius:999px; font-size:13px; font-weight:700; color:var(--sc-mid); }
 .sc-day.passato:not(.oggi) .sc-dnum { color:var(--sc-light); }
 .sc-day.oggi .sc-dnum { background:var(--sc-accent); color:#fff; }
@@ -106,11 +132,13 @@ body.theme-dark .sc-day.oggi .sc-dnum { color:#0b1220; }
 .sc-dcount { font-size:10.5px; font-weight:800; padding:1px 7px; border-radius:999px; background:var(--sc-alt); color:var(--sc-light); }
 .sc-dcount.scaduta { background:var(--sc-red-bg); color:var(--sc-red); }
 .sc-dcount.vicina { background:var(--sc-amber-bg); color:var(--sc-amber); }
-.sc-chip { display:flex; align-items:center; gap:5px; min-width:0; padding:2px 6px 2px 5px; border-radius:6px; font-size:11.5px; font-weight:600; line-height:1.35;
+.sc-chips { display:flex; flex-direction:column; gap:3px; flex:1 1 auto; min-height:0; overflow:hidden; }
+.sc-chip { display:flex; align-items:center; gap:5px; min-width:0; flex:0 0 auto; padding:2px 6px 2px 5px; border-radius:6px; font-size:11.5px; font-weight:600; line-height:1.35;
            color:var(--sc-text); background:color-mix(in srgb, var(--c) 11%, var(--sc-surface)); border-left:3px solid var(--c); }
 .sc-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sc-chip.scaduta { background:var(--sc-red-bg); }
-.sc-more { font-size:11px; font-weight:700; color:var(--sc-accent); padding-left:4px; }
+.sc-chip[hidden], .sc-more[hidden] { display:none; }
+.sc-more { flex:0 0 auto; font-size:11px; font-weight:700; color:var(--sc-accent); padding-left:4px; line-height:1.35; }
 .sc-dots { display:none; gap:3px; flex-wrap:wrap; justify-content:center; }
 .sc-dots i { width:6px; height:6px; border-radius:50%; background:var(--c); }
 
@@ -120,7 +148,7 @@ body.theme-dark .sc-day.oggi .sc-dnum { color:#0b1220; }
 .sc-panel h3 { margin:0; font-size:15px; font-weight:800; }
 .sc-panel .sc-psub { font-size:12px; color:var(--sc-light); margin:2px 0 10px; }
 .sc-panel-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
-.sc-back { font-size:12px; font-weight:600; color:var(--sc-accent); background:none; border:0; cursor:pointer; padding:0; }
+.sc-back { font-size:12px; font-weight:600; color:var(--sc-accent); background:none; border:0; cursor:pointer; padding:0; font-family:inherit; }
 .sc-list { display:flex; flex-direction:column; gap:6px; }
 .sc-empty { text-align:center; color:var(--sc-light); font-size:13px; padding:18px 6px; }
 .sc-empty b { display:block; font-size:24px; margin-bottom:4px; }
@@ -134,8 +162,7 @@ body.theme-dark .sc-day.oggi .sc-dnum { color:#0b1220; }
 a.sc-item:hover { border-color:var(--c); background:color-mix(in srgb, var(--c) 7%, var(--sc-surface)); }
 .sc-item-bar { position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--c); }
 .sc-item-body { display:flex; flex-direction:column; gap:1px; min-width:0; flex:1 1 auto; }
-.sc-item-top { display:flex; gap:6px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--sc-light); min-width:0; }
-.sc-item-top { color:var(--c); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; }
+.sc-item-top { display:block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--c); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sc-item-sogg { font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sc-item-desc { font-size:12px; color:var(--sc-light); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sc-item-when { flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; font-size:11.5px; font-weight:700; color:var(--sc-mid); white-space:nowrap; }
@@ -144,12 +171,12 @@ a.sc-item:hover { border-color:var(--c); background:color-mix(in srgb, var(--c) 
 .sc-item-when.vicina { color:var(--sc-amber); }
 
 /* ── Vista agenda ── */
-.sc-agenda { display:flex; flex-direction:column; gap:14px; max-width:980px; }
+.sc-agenda { display:grid; grid-template-columns:repeat(auto-fill,minmax(440px,1fr)); gap:14px; align-items:start; }
 .sc-week { padding:14px 16px; }
 .sc-week > header { display:flex; align-items:baseline; gap:10px; margin-bottom:10px; }
 .sc-week > header h2 { margin:0; font-size:16px; font-weight:800; }
 .sc-week > header span { font-size:12px; font-weight:700; color:var(--sc-light); background:var(--sc-alt); padding:2px 9px; border-radius:999px; }
-.sc-week.scaduta { border-color:color-mix(in srgb, var(--sc-red) 35%, var(--sc-border)); }
+.sc-week.scaduta { border-color:color-mix(in srgb, var(--sc-red) 35%, var(--sc-border)); grid-row:span 3; }
 .sc-week.scaduta > header h2 { color:var(--sc-red); }
 .sc-week.scaduta > header span { background:var(--sc-red-bg); color:var(--sc-red); }
 .sc-week.corrente { border-color:color-mix(in srgb, var(--sc-accent) 40%, var(--sc-border)); }
@@ -177,93 +204,127 @@ body.theme-dark .sc-badge.oggi, body.theme-dark .sc-badge.oggi small { color:#0b
 .sc-when { font-weight:700; white-space:nowrap; } .sc-when.scaduta { color:var(--sc-red); } .sc-when.vicina { color:var(--sc-amber); }
 .sc-pager { display:flex; gap:8px; justify-content:center; align-items:center; padding:12px; color:var(--sc-light); font-size:13px; }
 
+/* ── Schermo intero: la pagina copre tutto, il calendario riempie l'altezza ── */
+.sc.intero { position:fixed; inset:0; z-index:3000; margin:0; padding:12px 16px; background:var(--sc-page); overflow:auto; gap:10px; }
+body.theme-dark .sc.intero { background:var(--bg,#0b1220); }
+.sc.intero .sc-sub { display:none; }
+.sc.intero .sc-title { font-size:20px; }
+.sc.intero .sc-kpi { padding:6px 12px 6px 16px; }
+.sc.intero .sc-kpi b { font-size:20px; }
+.sc.intero.vista-mese { overflow:hidden; }
+.sc.intero.vista-mese .sc-cal { flex:1 1 auto; min-height:0; align-items:stretch; }
+.sc.intero.vista-mese .sc-month { min-height:0; }
+.sc.intero.vista-mese .sc-grid { flex:1 1 auto; min-height:0; grid-template-rows:auto repeat(var(--righe,6),minmax(0,1fr)); }
+.sc.intero.vista-mese .sc-day { height:auto; min-height:0; }
+.sc.intero.vista-mese .sc-side { position:static; min-height:0; overflow:auto; }
+html.sc-bloccato, html.sc-bloccato body { overflow:hidden; }
+
 @media (max-width:1100px) {
   .sc-cal { grid-template-columns:minmax(0,1fr); }
   .sc-side { position:static; display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+  .sc.intero.vista-mese { overflow:auto; }
+  .sc.intero.vista-mese .sc-grid { grid-template-rows:none; }
+  .sc.intero.vista-mese .sc-day { height:132px; }
+  .sc-agenda { grid-template-columns:minmax(0,1fr); }
+  .sc-week.scaduta { grid-row:auto; }
 }
 @media (max-width:720px) {
   .sc-title { font-size:21px; }
   .sc-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-  .sc-kpis .sc-kpi.k-tot { grid-column:1 / -1; flex-direction:row; align-items:baseline; gap:8px; }
+  .sc-kpis .sc-kpi.k-tot { grid-column:1 / -1; }
   .sc-kpi { padding:8px 10px 8px 14px; }
   .sc-kpi b { font-size:21px; }
   .sc-toolbar { flex-direction:column; align-items:stretch; }
   .sc-seg { display:flex; } .sc-seg a { flex:1; text-align:center; padding:7px 6px; }
-  .sc-filters select { flex:1 1 140px; max-width:none; }
+  .sc-filters { justify-content:stretch; }
+  .sc-search { flex:1 1 100%; }
+  .sc-pop { left:0; right:auto; width:min(300px, calc(100vw - 48px)); }
   .sc-month-head h2 { font-size:17px; min-width:0; }
   .sc-month-count { width:100%; margin-left:0; }
   .sc-dow { padding:6px 2px; text-align:center; font-size:10px; letter-spacing:0; }
-  .sc-day { min-height:58px; padding:4px 2px; align-items:center; }
+  .sc-day, .sc.intero.vista-mese .sc-day { height:58px; padding:4px 2px; align-items:center; }
   .sc-dtop { justify-content:center; }
-  .sc-dcount, .sc-chip, .sc-more { display:none; }
+  .sc-dcount, .sc-chips { display:none; }
   .sc-dots { display:flex; }
   .sc-side { grid-template-columns:minmax(0,1fr); }
   .sc-aday { grid-template-columns:46px minmax(0,1fr); gap:8px; }
   .sc-badge { height:50px; } .sc-badge b { font-size:18px; }
+  .sc-btn-intero { display:none; }
 }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="sc">
+<div class="sc vista-{{ vista }}{% if intero %} intero{% endif %}" id="sc">
   <div class="sc-head">
     <div>
       <h1 class="sc-title">📅 Scadenzario</h1>
       <p class="sc-sub">Le scadenze del portale che puoi vedere, da tutti i moduli, in un solo posto. Clicca un giorno per vederne il dettaglio, una scadenza per aprirla nel suo modulo.</p>
     </div>
     <div class="sc-actions">
+      <a class="sc-btn sc-btn-intero{% if intero %} primary{% endif %}" href="{{ link_intero }}" id="sc-intero" title="{% if intero %}Torna alla pagina normale (Esc){% else %}Lo scadenzario occupa tutto lo schermo (per il browser intero anche F11){% endif %}">{% if intero %}✕ Esci dallo schermo intero{% else %}⛶ Schermo intero{% endif %}</a>
+      {% if not intero %}
       {% if puo_generiche %}<a class="sc-btn" href="{% url 'scadenzario:elenco' %}">🗂 Scadenze generiche</a>{% endif %}
       {% if puo_pannello %}<a class="sc-btn" href="{% url 'scadenzario:gestione' %}">⚙ Gestione</a>{% endif %}
       <a class="sc-btn" href="{% url 'guida_modulo' 'scadenzario' %}">? Guida</a>
+      {% endif %}
     </div>
   </div>
 
-  <div class="sc-kpis">
-    <a class="sc-kpi k-red{% if filtro_stato == 'scaduta' %} on{% endif %}" href="?{{ qs_senza_stato }}&vista={{ vista }}{% if filtro_stato != 'scaduta' %}&stato=scaduta{% endif %}"><b>{{ n_scadute }}</b><span>Scadute</span></a>
-    <a class="sc-kpi k-amber{% if filtro_stato == '30' %} on{% endif %}" href="?{{ qs_senza_stato }}&vista={{ vista }}{% if filtro_stato != '30' %}&stato=30{% endif %}"><b>{{ n_30gg }}</b><span>Entro 30 giorni</span></a>
-    <a class="sc-kpi k-blue{% if filtro_stato == '60' %} on{% endif %}" href="?{{ qs_senza_stato }}&vista={{ vista }}{% if filtro_stato != '60' %}&stato=60{% endif %}"><b>{{ n_60gg }}</b><span>31–60 giorni</span></a>
-    <a class="sc-kpi k-blue{% if filtro_stato == '90' %} on{% endif %}" href="?{{ qs_senza_stato }}&vista={{ vista }}{% if filtro_stato != '90' %}&stato=90{% endif %}"><b>{{ n_90gg }}</b><span>61–90 giorni</span></a>
-    <a class="sc-kpi k-tot{% if not filtro_stato %} on{% endif %}" href="?{{ qs_senza_stato }}&vista={{ vista }}"><b>{{ totale }}</b><span>Totale (scadute e prossimi {{ orizzonte_giorni }} giorni)</span></a>
+  <div class="sc-kpis" aria-label="Stato: puoi sceglierne più di uno">
+    {% for k in kpi %}
+      <a class="sc-kpi {{ k.classe }}{% if k.on %} on{% endif %}" href="{{ k.href }}" title="{% if k.on %}Togli questo filtro{% else %}Aggiungi al filtro (puoi sceglierne più di uno){% endif %}"><b>{{ k.n }}</b><span>{{ k.etichetta }}</span></a>
+    {% endfor %}
+    <a class="sc-kpi k-tot{% if not sel_stati %} on{% endif %}" href="{{ totale_href }}" title="Tutti gli stati"><b>{{ totale }}</b><span>Totale · scadute e prossimi {{ orizzonte_giorni }} giorni</span></a>
   </div>
 
   <div class="sc-toolbar">
     <nav class="sc-seg" aria-label="Vista">
-      <a href="?{{ qs_filtri }}&vista=mese" class="{% if vista == 'mese' %}on{% endif %}">Calendario</a>
-      <a href="?{{ qs_filtri }}&vista=agenda" class="{% if vista == 'agenda' %}on{% endif %}">Agenda</a>
-      <a href="?{{ qs_filtri }}&vista=elenco" class="{% if vista == 'elenco' %}on{% endif %}">Elenco</a>
+      <a href="{{ link_viste.mese }}" class="{% if vista == 'mese' %}on{% endif %}">Calendario</a>
+      <a href="{{ link_viste.agenda }}" class="{% if vista == 'agenda' %}on{% endif %}">Agenda</a>
+      <a href="{{ link_viste.elenco }}" class="{% if vista == 'elenco' %}on{% endif %}">Elenco</a>
     </nav>
     <form method="get" class="sc-filters" id="sc-filtri">
       <input type="hidden" name="vista" value="{{ vista }}">
+      {% if intero %}<input type="hidden" name="intero" value="1">{% endif %}
       {% if vista == 'mese' and not mese_corrente %}<input type="hidden" name="mese" value="{{ request.GET.mese }}">{% endif %}
-      <select name="sorgente" aria-label="Fonte">
-        <option value="">Tutte le fonti</option>
-        {% for code, label in sorgenti %}<option value="{{ code }}" {% if filtro_sorgente == code %}selected{% endif %}>{{ label }}</option>{% endfor %}
-      </select>
-      <select name="stato" aria-label="Stato">
-        <option value="">Tutti gli stati</option>
-        <option value="scaduta" {% if filtro_stato == "scaduta" %}selected{% endif %}>Scadute</option>
-        <option value="30" {% if filtro_stato == "30" %}selected{% endif %}>Entro 30 giorni</option>
-        <option value="60" {% if filtro_stato == "60" %}selected{% endif %}>Entro 60 giorni</option>
-        <option value="90" {% if filtro_stato == "90" %}selected{% endif %}>Entro 90 giorni</option>
-      </select>
+      {% for s in sel_stati %}<input type="hidden" name="stato" value="{{ s }}">{% endfor %}
+      <div class="sc-search">
+        <input type="search" name="q" value="{{ cerca }}" placeholder="Cerca persona, asset, attività…" aria-label="Cerca" id="sc-q" autocomplete="off">
+      </div>
+      <details class="sc-multi" data-multi>
+        <summary class="sc-btn">Fonti {% if sel_sorgenti %}<span class="sc-n">{{ sel_sorgenti|length }}</span>{% endif %}</summary>
+        <div class="sc-pop">
+          {% for code, label, on in sorgenti %}
+            <label class="src-{{ code }}"><input type="checkbox" name="sorgente" value="{{ code }}" {% if on %}checked{% endif %}><i></i>{{ label }}</label>
+          {% endfor %}
+          <div class="sc-pop-foot"><button type="button" class="sc-btn" data-nessuno>Tutte</button><button type="submit" class="sc-btn primary">Applica</button></div>
+        </div>
+      </details>
       {% if reparti %}
-      <select name="reparto" aria-label="Reparto">
-        <option value="">Tutti i reparti</option>
-        {% for r in reparti %}<option value="{{ r }}" {% if filtro_reparto == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
-      </select>
+      <details class="sc-multi" data-multi>
+        <summary class="sc-btn">Reparti {% if sel_reparti %}<span class="sc-n">{{ sel_reparti|length }}</span>{% endif %}</summary>
+        <div class="sc-pop">
+          {% for r in reparti %}
+            <label><input type="checkbox" name="reparto" value="{{ r }}" {% if r in sel_reparti %}checked{% endif %}>{{ r }}</label>
+          {% endfor %}
+          <div class="sc-pop-foot"><button type="button" class="sc-btn" data-nessuno>Tutti</button><button type="submit" class="sc-btn primary">Applica</button></div>
+        </div>
+      </details>
       {% endif %}
       <noscript><button type="submit" class="sc-btn primary">Filtra</button></noscript>
-      <a class="sc-btn" href="?{{ qs_filtri }}&format=csv" title="Scadute e prossimi {{ orizzonte_giorni }} giorni, con i filtri scelti">⬇ CSV</a>
-      <a class="sc-btn" href="?{{ qs_filtri }}&format=ics" title="File da aprire con Outlook o un altro calendario: una voce per scadenza, promemoria il giorno prima">⬇ Outlook (.ics)</a>
+      <a class="sc-btn" href="{{ link_csv }}" title="Scadute e prossimi {{ orizzonte_giorni }} giorni, con i filtri scelti">⬇ CSV</a>
+      <a class="sc-btn" href="{{ link_ics }}" title="File da aprire con Outlook o un altro calendario: una voce per scadenza, promemoria il giorno prima">⬇ Outlook (.ics)</a>
     </form>
   </div>
 
-  {% if legenda or filtro_sorgente %}
-  <div class="sc-legend" aria-label="Fonti">
-    <a class="sc-tag{% if not filtro_sorgente %} on{% endif %}" href="?{{ qs_senza_sorgente }}&vista={{ vista }}">Tutte le fonti</a>
-    {% for code, label, n in legenda %}
-      <a class="sc-tag src-{{ code }}{% if filtro_sorgente == code %} on{% endif %}" href="?{{ qs_senza_sorgente }}&vista={{ vista }}{% if filtro_sorgente != code %}&sorgente={{ code }}{% endif %}"><i></i>{{ label }} <em>{{ n }}</em></a>
+  {% if legenda or ci_sono_filtri %}
+  <div class="sc-legend{% if sel_sorgenti %} scelta{% endif %}" aria-label="Fonti: puoi sceglierne più di una">
+    {% for f in legenda %}
+      <a class="sc-tag src-{{ f.codice }}{% if f.on %} on{% endif %}" href="{{ f.href }}" title="{% if f.on %}Togli questa fonte{% else %}Aggiungi questa fonte{% endif %}"><i></i>{{ f.etichetta }} <em>{{ f.n }}</em></a>
     {% endfor %}
+    {% if not sel_sorgenti and legenda|length > 1 %}<span class="sc-legend-hint">clic su una o più fonti per vedere solo quelle</span>{% endif %}
+    {% if ci_sono_filtri %}<a class="sc-clear" href="{{ link_pulisci }}">✕ Togli tutti i filtri</a>{% endif %}
   </div>
   {% endif %}
 
@@ -271,21 +332,25 @@ body.theme-dark .sc-badge.oggi, body.theme-dark .sc-badge.oggi small { color:#0b
   <div class="sc-cal">
     <section class="sc-card sc-month">
       <div class="sc-month-head">
-        <a class="sc-arrow{% if not nav_prec %} off{% endif %}" href="?{{ qs_mese }}&mese={{ mese_prec }}" aria-label="Mese precedente">‹</a>
-        <a class="sc-arrow{% if not nav_succ %} off{% endif %}" href="?{{ qs_mese }}&mese={{ mese_succ }}" aria-label="Mese successivo">›</a>
+        <a class="sc-arrow{% if not nav_prec %} off{% endif %}" href="{{ link_prec }}" aria-label="Mese precedente" id="sc-prec">‹</a>
+        <a class="sc-arrow{% if not nav_succ %} off{% endif %}" href="{{ link_succ }}" aria-label="Mese successivo" id="sc-succ">›</a>
         <h2>{{ mese_label }}</h2>
-        {% if not mese_corrente %}<a class="sc-btn" href="?{{ qs_mese }}">Oggi</a>{% endif %}
+        {% if not mese_corrente %}<a class="sc-btn" href="{{ link_oggi }}">Oggi</a>{% endif %}
         <span class="sc-month-count">{{ n_mese }} scadenz{{ n_mese|pluralize:"a,e" }} nel mese</span>
       </div>
-      <div class="sc-grid" role="grid">
+      <div class="sc-grid" role="grid" style="--righe:{{ n_settimane }}">
         {% for g in intestazione %}<div class="sc-dow" role="columnheader">{{ g }}</div>{% endfor %}
         {% for riga in settimane %}{% for c in riga %}
           <button type="button" class="sc-day{% if not c.nel_mese %} fuori{% endif %}{% if c.oggi %} oggi{% endif %}{% if c.passato %} passato{% endif %}{% if c.festivo %} festivo{% endif %}"
-                  data-day="{{ c.iso }}" data-label="{{ c.label }}" aria-label="{{ c.label }}{% if c.n %}: {{ c.n }} scadenz{{ c.n|pluralize:'a,e' }}{% endif %}">
+                  data-day="{{ c.iso }}" data-label="{{ c.label }}" data-n="{{ c.n }}" aria-label="{{ c.label }}{% if c.n %}: {{ c.n }} scadenz{{ c.n|pluralize:'a,e' }}{% endif %}">
             <span class="sc-dtop"><span class="sc-dnum">{{ c.data.day }}</span>{% if c.n %}<span class="sc-dcount {{ c.urgenza }}">{{ c.n }}</span>{% endif %}</span>
-            {% for v in c.in_cella %}<span class="sc-chip src-{{ v.source }} {{ v.urgenza }}" title="{{ v.source_label }} · {{ v.kind_label }}: {{ v.principale }}{% if v.secondario %} ({{ v.secondario }}){% endif %}"><span>{{ v.principale }}</span></span>{% endfor %}
-            {% if c.altre %}<span class="sc-more">+{{ c.altre }} altr{{ c.altre|pluralize:"a,e" }}</span>{% endif %}
-            {% if c.n %}<span class="sc-dots" aria-hidden="true">{% for v in c.voci|slice:":6" %}<i class="src-{{ v.source }}"></i>{% endfor %}</span>{% endif %}
+            {% if c.n %}
+            <span class="sc-chips">
+              {% for v in c.in_cella %}<span class="sc-chip src-{{ v.source }} {{ v.urgenza }}" title="{{ v.source_label }} · {{ v.kind_label }}: {{ v.principale }}{% if v.secondario %} ({{ v.secondario }}){% endif %}"><span>{{ v.principale }}</span></span>{% endfor %}
+              <span class="sc-more"{% if not c.altre %} hidden{% endif %}>+{{ c.altre }} altr{{ c.altre|pluralize:"a,e" }}</span>
+            </span>
+            <span class="sc-dots" aria-hidden="true">{% for v in c.voci|slice:":6" %}<i class="src-{{ v.source }}"></i>{% endfor %}</span>
+            {% endif %}
           </button>
         {% endfor %}{% endfor %}
       </div>
@@ -302,23 +367,23 @@ body.theme-dark .sc-badge.oggi, body.theme-dark .sc-badge.oggi small { color:#0b
         </div>
         {% for c in giorni_con_voci %}
         <div class="sc-dp" data-day="{{ c.iso }}" hidden>
-          <div class="sc-panel-head"><h3>{{ c.label }}</h3><button type="button" class="sc-back" data-day="">✕ chiudi</button></div>
+          <div class="sc-panel-head"><h3>{{ c.label }}</h3><button type="button" class="sc-back">✕ chiudi</button></div>
           <p class="sc-psub">{{ c.n }} scadenz{{ c.n|pluralize:"a,e" }}</p>
           <div class="sc-list">{% for v in c.voci %}{% include "dashboard/components/scadenza_voce.html" %}{% endfor %}</div>
         </div>
         {% endfor %}
         <div class="sc-dp" data-day="__vuoto" hidden>
-          <div class="sc-panel-head"><h3 id="sc-vuoto-titolo"></h3><button type="button" class="sc-back" data-day="">✕ chiudi</button></div>
+          <div class="sc-panel-head"><h3 id="sc-vuoto-titolo"></h3><button type="button" class="sc-back">✕ chiudi</button></div>
           <div class="sc-empty"><b>✓</b>Nessuna scadenza in questo giorno.</div>
         </div>
       </section>
 
-      {% if n_scadute %}
+      {% if n_scadute_lato %}
       <section class="sc-card sc-panel sc-overdue">
         <h3>⚠ Scadute</h3>
-        <p class="sc-psub">{{ n_scadute }} scadenz{{ n_scadute|pluralize:"a,e" }} già passat{{ n_scadute|pluralize:"a,e" }}, dalla più vecchia</p>
+        <p class="sc-psub">{{ n_scadute_lato }} scadenz{{ n_scadute_lato|pluralize:"a,e" }} già passat{{ n_scadute_lato|pluralize:"a,e" }}, dalla più vecchia</p>
         <div class="sc-list">{% for v in scadute_lato %}{% include "dashboard/components/scadenza_voce.html" %}{% endfor %}</div>
-        {% if scadute_altre %}<a class="sc-link" href="?{{ qs_senza_stato }}&vista=elenco&stato=scaduta">Vedi tutte le {{ n_scadute }} scadute →</a>{% endif %}
+        {% if scadute_altre %}<a class="sc-link" href="{{ link_scadute }}">Vedi tutte le {{ n_scadute_lato }} scadute →</a>{% endif %}
       </section>
       {% endif %}
     </aside>
@@ -365,9 +430,9 @@ body.theme-dark .sc-badge.oggi, body.theme-dark .sc-badge.oggi small { color:#0b
     </div>
     {% if page_obj.paginator.num_pages > 1 %}
       <div class="sc-pager">
-        {% if page_obj.has_previous %}<a class="sc-btn" href="?{{ qs_filtri }}&vista=elenco&page={{ page_obj.previous_page_number }}">← Precedente</a>{% endif %}
+        {% if page_obj.has_previous %}<a class="sc-btn" href="{{ link_pagina }}&page={{ page_obj.previous_page_number }}">← Precedente</a>{% endif %}
         <span>Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span>
-        {% if page_obj.has_next %}<a class="sc-btn" href="?{{ qs_filtri }}&vista=elenco&page={{ page_obj.next_page_number }}">Successiva →</a>{% endif %}
+        {% if page_obj.has_next %}<a class="sc-btn" href="{{ link_pagina }}&page={{ page_obj.next_page_number }}">Successiva →</a>{% endif %}
       </div>
     {% endif %}
   </section>
@@ -376,10 +441,77 @@ body.theme-dark .sc-badge.oggi, body.theme-dark .sc-badge.oggi small { color:#0b
 
 <script nonce="{{ csp_nonce }}">
 (function () {
+  var radice = document.getElementById('sc');
+  if (!radice) return;
   var form = document.getElementById('sc-filtri');
-  if (form) form.querySelectorAll('select').forEach(function (s) {
-    s.addEventListener('change', function () { form.submit(); });
+
+  /* Schermo intero: niente scroll della pagina sotto; Esc per uscire. */
+  if (radice.classList.contains('intero')) {
+    document.documentElement.classList.add('sc-bloccato');
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !document.querySelector('.sc-multi[open]')) {
+        window.location.href = document.getElementById('sc-intero').getAttribute('href');
+      }
+    });
+  }
+  /* Frecce ← → per cambiare mese (fuori dai campi di testo). */
+  document.addEventListener('keydown', function (e) {
+    if (e.target.closest('input, textarea, select') || e.altKey || e.ctrlKey || e.metaKey) return;
+    var a = e.key === 'ArrowLeft' ? document.getElementById('sc-prec') : e.key === 'ArrowRight' ? document.getElementById('sc-succ') : null;
+    if (a && !a.classList.contains('off')) window.location.href = a.getAttribute('href');
   });
+
+  /* Tendine a scelta multipla: si applica con «Applica» o chiudendo la tendina. */
+  if (form) {
+    var modificato = false;
+    form.querySelectorAll('[data-multi]').forEach(function (d) {
+      d.addEventListener('change', function () { modificato = true; });
+      d.addEventListener('toggle', function () {
+        if (!d.open && modificato) form.submit();
+        if (d.open) form.querySelectorAll('[data-multi]').forEach(function (altro) { if (altro !== d) altro.open = false; });
+      });
+      var nessuno = d.querySelector('[data-nessuno]');
+      if (nessuno) nessuno.addEventListener('click', function () {
+        d.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = false; });
+        modificato = true;
+      });
+    });
+    document.addEventListener('click', function (e) {
+      form.querySelectorAll('[data-multi][open]').forEach(function (d) { if (!d.contains(e.target)) d.open = false; });
+    });
+    var q = document.getElementById('sc-q');
+    if (q) {
+      q.addEventListener('search', function () { if (!q.value) form.submit(); });
+      if (q.value) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+    }
+  }
+
+  /* In ogni giorno tante voci quante ne entrano; le altre in «+N altre». */
+  function adatta() {
+    document.querySelectorAll('.sc-day').forEach(function (cella) {
+      var box = cella.querySelector('.sc-chips');
+      if (!box || !box.offsetParent) return;
+      var chips = box.querySelectorAll('.sc-chip');
+      var more = box.querySelector('.sc-more');
+      var totale = parseInt(cella.getAttribute('data-n') || '0', 10);
+      chips.forEach(function (c) { c.hidden = false; });
+      var nascoste = totale - chips.length;
+      function etichetta() {
+        more.hidden = nascoste <= 0;
+        more.textContent = '+' + nascoste + (nascoste === 1 ? ' altra' : ' altre');
+      }
+      etichetta();
+      var i = chips.length - 1;
+      while (i >= 0 && box.scrollHeight > box.clientHeight + 1) {
+        chips[i].hidden = true; nascoste++; i--; etichetta();
+      }
+    });
+  }
+  adatta();
+  var attesa;
+  window.addEventListener('resize', function () { clearTimeout(attesa); attesa = setTimeout(adatta, 120); });
+
+  /* Pannello del giorno. */
   var pannello = document.getElementById('sc-pannello');
   if (!pannello) return;
   var celle = document.querySelectorAll('.sc-day');
@@ -402,15 +534,13 @@ body.theme-dark .sc-badge.oggi, body.theme-dark .sc-badge.oggi small { color:#0b
   }
   celle.forEach(function (c) {
     c.addEventListener('click', function () {
-      var giorno = c.getAttribute('data-day');
       if (c.classList.contains('sel')) { mostra('', ''); return; }
-      mostra(giorno, c.getAttribute('data-label'));
+      mostra(c.getAttribute('data-day'), c.getAttribute('data-label'));
       if (window.matchMedia('(max-width:1100px)').matches) pannello.scrollIntoView({behavior: 'smooth', block: 'start'});
     });
   });
   pannello.addEventListener('click', function (e) {
-    var b = e.target.closest('.sc-back');
-    if (b) mostra('', '');
+    if (e.target.closest('.sc-back')) mostra('', '');
   });
 })();
 </script>

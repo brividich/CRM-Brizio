@@ -88,6 +88,48 @@ class VisteScadenzarioTests(TestCase):
         self.assertEqual((p.principale, p.secondario), ("Rossi Mario", "Visita medica"))
         self.assertEqual(g.quando, "scade domani")
 
+    def test_filtri_multipli_e_contatori_a_faccette(self):
+        voci = [_voce(-2, "Scaduta gen"), _voce(10, "Vicina hr", source="hr", soggetto="Rossi Mario"),
+                _voce(45, "Media capa", source="capa"), _voce(80, "Lontana gen")]
+        resp, m = self._get(voci, "?vista=elenco&sorgente=generiche&sorgente=capa&stato=scaduta&stato=60")
+        self.assertNotIn("sources", m.call_args.kwargs)  # si raccolgono sempre tutte le fonti
+        titoli = [v.titolo for v in resp.context["page_obj"].object_list]
+        self.assertEqual(sorted(titoli), ["Media capa", "Scaduta gen"])
+        kpi = {k["codice"]: (k["n"], k["on"]) for k in resp.context["kpi"]}
+        # La fascia non filtra il proprio contatore: «61–90» conta la generica a 80 giorni.
+        self.assertEqual(kpi, {"scaduta": (1, True), "30": (0, False), "60": (1, True), "90": (1, False)})
+        fonti = {f["codice"]: (f["n"], f["on"]) for f in resp.context["legenda"]}
+        self.assertEqual(fonti["hr"], (0, False)) if "hr" in fonti else None
+        self.assertEqual(fonti["generiche"], (1, True))
+        # Clic su una fonte già scelta la toglie, le altre restano.
+        href = next(f["href"] for f in resp.context["legenda"] if f["codice"] == "capa")
+        self.assertIn("sorgente=generiche", href)
+        self.assertNotIn("sorgente=capa", href)
+        self.assertIn("stato=scaduta", href)
+
+    def test_ricerca_e_reparti(self):
+        a = _voce(3, "Revisione furgone")
+        a.reparto = "Officina"
+        b = _voce(4, "Polizza RC")
+        b.reparto = "Uffici"
+        resp, _ = self._get([a, b], "?vista=elenco&q=furg")
+        self.assertEqual([v.titolo for v in resp.context["page_obj"].object_list], ["Revisione furgone"])
+        resp, _ = self._get([a, b], "?vista=elenco&reparto=Uffici&reparto=Officina")
+        self.assertEqual(len(resp.context["page_obj"].object_list), 2)
+        self.assertEqual(resp.context["reparti"], ["Officina", "Uffici"])
+
+    def test_schermo_intero_resta_nei_link(self):
+        resp, _ = self._get([_voce(1, "X")], "?intero=1")
+        self.assertTrue(resp.context["intero"])
+        self.assertIn("intero=1", resp.context["link_prec"])
+        self.assertNotIn("intero", resp.context["link_intero"])
+        self.assertNotIn("intero", resp.context["link_csv"])
+        self.assertContains(resp, 'class="sc vista-mese intero"')
+
+    def test_fascia(self):
+        self.assertEqual([vs._fascia(g) for g in (-1, 0, 30, 31, 60, 61, 90, 91, None)],
+                         ["scaduta", "30", "30", "60", "60", "90", "90", "oltre", ""])
+
     def test_sposta_mese(self):
         self.assertEqual(vs._sposta_mese(date(2026, 12, 1), 1), date(2027, 1, 1))
         self.assertEqual(vs._sposta_mese(date(2026, 1, 1), -1), date(2025, 12, 1))
