@@ -542,3 +542,40 @@ class UsciteTests(TestCase):
         with patch("presenti.views.request_has_permission_code", return_value=True):
             r = self.client.get(reverse("presenti:uscite"))
         self.assertContains(r, "VERDI Luigi")
+
+
+class ImportaIncarichiIniTests(TestCase):
+    """Lettura del config.ini: BOM del Blocco note e file mancante."""
+
+    def _esegui(self, percorso):
+        import io
+
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        try:
+            with patch.object(solari, "leggi_matricole", return_value={}):
+                call_command("importa_incarichi_presenze", ini=str(percorso), stdout=io.StringIO())
+        except CommandError as exc:
+            return str(exc)
+        return ""
+
+    def test_file_con_bom_viene_letto(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as cartella:
+            percorso = Path(cartella) / "config.ini"
+            percorso.write_text(
+                "\n[sharepoint]\nnome = a%b\n\n[incarichi_sicurezza]\nT999 = Preposto\n", encoding="utf-8-sig"
+            )
+            errore = self._esegui(percorso)
+        self.assertNotIn("non trovata", errore)
+        self.assertNotIn("Impossibile leggere", errore)
+
+    def test_file_mancante_lo_dice(self):
+        import tempfile
+        from pathlib import Path
+
+        errore = self._esegui(Path(tempfile.gettempdir()) / "non-esiste-pn" / "config.ini")
+        self.assertIn("File non trovato", errore)
