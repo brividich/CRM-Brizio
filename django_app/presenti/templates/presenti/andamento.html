@@ -1,0 +1,71 @@
+{% extends "core/base.html" %}
+
+{% block title %}Andamento per reparto · Presenti in azienda{% endblock %}
+
+{% block extra_head %}{% include "presenti/_stile.html" %}
+<style>
+  .pres-heat td.h{ text-align:center; font-family:var(--font-mono, monospace); font-size:12.5px; min-width:34px; padding:6px 4px; }
+  .pres-heat td.h0{ color:var(--text-light); }
+  .pres-heat td.h1{ background:#e0f2fe; } .pres-heat td.h2{ background:#bae6fd; }
+  .pres-heat td.h3{ background:#7dd3fc; } .pres-heat td.h4{ background:#38bdf8; color:#0c4a6e; font-weight:700; }
+  .pres-heat td.h5{ background:#0284c7; color:#fff; font-weight:700; }
+  .pres-heat td.hf{ background:transparent; color:var(--text-light); }
+  .pres-heat th.h{ text-align:center; font-size:11.5px; }
+  .pres-heat tr.tot td{ font-weight:700; border-top:2px solid var(--border); }
+  .pres-heat td.adesso{ text-align:center; font-weight:800; font-size:15px; }
+  body.theme-dark .pres-heat td.h1{ background:#0c4a6e55; } body.theme-dark .pres-heat td.h2{ background:#075985aa; }
+  body.theme-dark .pres-heat td.h3{ background:#0369a1; color:#e0f2fe; } body.theme-dark .pres-heat td.h4{ background:#0284c7; color:#fff; }
+  body.theme-dark .pres-heat td.h5{ background:#38bdf8; color:#0c4a6e; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pres">
+  <div class="pres-head">
+    <div>
+      <h1>Andamento per reparto</h1>
+      <p>Quante persone erano in azienda a ogni ora di oggi, reparto per reparto (reparto dell'anagrafica, non dove si trovano).
+        Solo numeri, nessun nome. Si aggiorna al massimo ogni 5 minuti.</p>
+    </div>
+  </div>
+
+  {% include "presenti/_nav.html" %}
+
+  {% if dati.errore %}<div class="pres-avviso is-err">{{ dati.errore }}</div>{% endif %}
+
+  <div class="pres-card" style="padding:0; overflow-x:auto;">
+    <table class="pres-tab pres-heat" data-fm-table-skip="1">
+      <thead>
+        <tr>
+          <th>Reparto</th>
+          <th class="h" title="Presenti adesso, come nella lista">Adesso</th>
+          {% for h in dati.ore %}<th class="h">{{ h }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in righe %}
+        <tr>
+          <td class="pres-nome">{{ r.reparto }}</td>
+          <td class="adesso">{{ r.adesso }}</td>
+          {% for c in r.celle_vis %}<td class="h {% if c.n is None %}hf{% else %}h{{ c.livello }}{% endif %}">{% if c.n is None %}·{% else %}{{ c.n }}{% endif %}</td>{% endfor %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="{{ dati.ore|length|add:2 }}" class="pres-vuoto">{% if dati.errore %}Dati non disponibili.{% else %}Nessuna timbratura oggi.{% endif %}</td></tr>
+        {% endfor %}
+        {% if righe %}
+        <tr class="tot">
+          <td>Totale</td>
+          <td class="adesso">{{ dati.totale.adesso }}</td>
+          {% for n in dati.totale.celle %}<td class="h">{% if n is None %}·{% else %}{{ n }}{% endif %}</td>{% endfor %}
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pres-piede">
+    <span class="pres-live">Dati delle {{ dati.aggiornato_il|time:"H:i" }} · ogni colonna = persone dentro allo scoccare dell'ora · «Adesso» = stessa regola della lista dei presenti</span>
+    <span>Solo dipendenti che timbrano; gli esterni sono nella lista dei presenti.</span>
+  </div>
+</div>
+{% endblock %}

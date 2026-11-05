@@ -205,13 +205,15 @@ GUIDA = {
             "blocchi": [
                 ("p", "Dalla home, pulsante «Scadenzario» (indirizzo /scadenze): tutte le scadenze del portale in un posto solo. "
                       "In alto i contatori (Scadute, Entro 30 giorni, 31–60, 61–90, Totale: contano le scadute e i prossimi 90 giorni; "
-                      "un clic filtra, un secondo clic toglie il filtro), sotto tre viste da scegliere con i pulsanti Calendario, Agenda ed Elenco."),
+                      "un clic aggiunge quella fascia al filtro, anche più di una insieme, un secondo clic la toglie; «Totale» le toglie tutte), sotto tre viste da scegliere con i pulsanti Calendario, Agenda ed Elenco."),
                 ("def", [
-                    ("Calendario", "si apre qui: il mese con lunedì come primo giorno, oggi nel cerchio blu. In ogni giorno fino a 3 scadenze "
-                                   "(colore = fonte, sfondo rosso = scaduta) e «+N altre»; il numero in alto a destra è rosso se c'è una scaduta, "
+                    ("Calendario", "si apre qui: il mese con lunedì come primo giorno, oggi nel cerchio blu. In ogni giorno le scadenze che ci stanno "
+                                   "(colore = fonte, sfondo rosso = scaduta) e «+N altre» per le restanti; il numero in alto a destra è rosso se c'è una scaduta, "
                                    "arancio se scade entro 30 giorni. Clicca un giorno: a destra (sotto, da telefono) l'elenco completo di quel giorno; "
                                    "«✕ chiudi» torna a «Oggi e i prossimi 7 giorni». Il riquadro «⚠ Scadute» mostra le 6 più vecchie e «Vedi tutte» apre l'elenco. "
-                                   "Con ‹ › cambi mese (fino a 24 mesi avanti o indietro), «Oggi» torna al mese corrente. Il calendario mostra anche le scadenze oltre i 90 giorni."),
+                                   "Con ‹ › o con le frecce ← → della tastiera cambi mese (fino a 24 mesi avanti o indietro), «Oggi» torna al mese corrente. Il calendario mostra anche le scadenze oltre i 90 giorni."),
+                    ("⛶ Schermo intero", "lo scadenzario copre tutta la finestra e il calendario riempie l'altezza: più grande è lo schermo, più scadenze si vedono in ogni giorno. "
+                                         "Resta attivo cambiando filtri, mese o vista; si esce con «✕ Esci dallo schermo intero» o con Esc. Per togliere anche le barre del browser, F11."),
                     ("Agenda", "le settimane in fila: prima le Scadute, poi «Questa settimana», «La prossima settimana» e le seguenti, giorno per giorno."),
                     ("Elenco", "la tabella di sempre, 50 righe per pagina."),
                 ]),
@@ -227,8 +229,9 @@ GUIDA = {
                 ]),
                 ("ul", [
                     "Vedi le fonti che puoi aprire più quello che il pannello «⚙ Gestione» ti concede (per ruolo, ruolo aziendale o persona); il pannello può anche togliere voci a tutti.",
-                    "Filtri: fonte, stato (Scadute, Entro 30, 60 o 90 giorni) e reparto, si applicano appena li scegli e valgono in tutte le viste; "
-                    "le etichette colorate sotto la barra sono le fonti presenti con il loro numero: un clic mostra solo quella fonte. «⬇ CSV» scarica le righe filtrate.",
+                    "Filtri, tutti a scelta multipla e validi in tutte le viste: le fasce dai contatori; le fonti dalle etichette colorate (un clic aggiunge o toglie una fonte, ✕ sulle scelte) "
+                    "o dalla tendina «Fonti»; i reparti dalla tendina «Reparti» (spunta, poi «Applica» o chiudi la tendina); «Cerca» trova persona, asset, attività o reparto (Invio). "
+                    "Ogni contatore conta con gli altri filtri ma non con il proprio, così vedi quante scadenze aggiungeresti. «✕ Togli tutti i filtri» riparte da zero. «⬇ CSV» scarica le righe filtrate.",
                     "«⬇ Outlook (.ics)» scarica le stesse righe come file di calendario: aprilo con Outlook (o un altro calendario) "
                     "e ogni scadenza diventa un evento di un giorno con promemoria il giorno prima alle 9. È una copia: non si aggiorna da sola.",
                     "Per averle sempre aggiornate in Outlook: Impostazioni notifiche → «Le mie scadenze nel calendario Outlook».",

@@ -32,6 +32,15 @@ GUIDA = {
             ],
         },
         {
+            "id": "andamento",
+            "titolo": "Andamento per reparto",
+            "blocchi": [
+                ("p", "Scheda «Andamento per reparto»: persone in azienda a ogni ora di oggi (5-22) per reparto "
+                      "dell'anagrafica, con colonna «Adesso» uguale alla lista. Solo numeri, nessun nome; dati "
+                      "aggiornati al massimo ogni 5 minuti. Gli esterni non sono contati."),
+            ],
+        },
+        {
             "id": "appello",
             "titolo": "Appello di evacuazione",
             "blocchi": [
@@ -40,6 +49,9 @@ GUIDA = {
                     "Al punto di raccolta tocca ogni persona trovata: diventa verde con ora e nome di chi l'ha contata.",
                     "Più persone contano insieme: le spunte degli altri arrivano entro 3 secondi; «Da trovare» resta in cima.",
                     "«Chiudi appello» a fine conta; «Stampa» dà il PDF con la colonna «CONTATO».",
+                    "Dopo la chiusura si apre il «Verbale»: tempi al 50/90/100 %, chi ha contato, non contati, "
+                    "osservazioni da scrivere; «PDF verbale» con spazi firma. Le esercitazioni si possono eliminare "
+                    "(chi le ha avviate o l'amministratore), le emergenze no.",
                 ]),
                 ("nota", "L'appello comprende i dipendenti che hanno timbrato e gli esterni registrati al GuestPortal "
                          "(etichetta «Esterno · azienda»). Chi entra senza registrarsi al GuestPortal non c'è."),

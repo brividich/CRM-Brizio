@@ -1,5 +1,6 @@
 <nav class="pres-nav" aria-label="Menu Presenti in azienda">
   <a href="{% url 'presenti:home' %}"{% if pres_corrente == "home" %} class="is-on"{% endif %}>Presenti adesso</a>
+  <a href="{% url 'presenti:andamento' %}"{% if pres_corrente == "andamento" %} class="is-on"{% endif %}>Andamento per reparto</a>
   {% if pres_puo_appello %}<a href="{% url 'presenti:appello' %}"{% if pres_corrente == "appello" %} class="is-on"{% endif %}>Appello di evacuazione{% if appello_aperto %} <span class="pres-inc" style="background:#b42318">in corso</span>{% endif %}</a>{% endif %}
   {% if pres_puo_uscite %}<a href="{% url 'presenti:uscite' %}"{% if pres_corrente == "uscite" %} class="is-on"{% endif %}>Uscite non timbrate</a>{% endif %}
   {% if pres_puo_impostazioni %}<a href="{% url 'presenti:impostazioni' %}"{% if pres_corrente == "impostazioni" %} class="is-on"{% endif %}>Impostazioni</a>{% endif %}

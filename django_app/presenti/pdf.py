@@ -162,3 +162,109 @@ def genera_pdf(presenti: list[dict], aggiornato_il, *, titolo: str = TITOLO, sot
     storia.append(Paragraph(f"Generato da NOVICROM HUB il {aggiornato_il:%d/%m/%Y %H:%M:%S}", st_piede))
     doc.build(storia)
     return buf.getvalue()
+
+
+def genera_verbale(d: dict) -> bytes:
+    """Verbale dell'appello (esercitazione o emergenza) per il registro della sicurezza.
+
+    ``d`` = ``views._dati_verbale``: tempi, soglie 50/90/100 %, chi ha contato, mancanti,
+    osservazioni. Spazi firma per coordinatore e RSPP.
+    """
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    a = d["appello"]
+    primario = colors.HexColor("#1a5276")
+    griglia = colors.HexColor("#d5dbdb")
+    chiaro = colors.HexColor("#eaf2f8")
+    buf = BytesIO()
+    titolo = "VERBALE DI " + ("ESERCITAZIONE DI EVACUAZIONE" if a.esercitazione else "EVACUAZIONE DI EMERGENZA")
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=15 * mm, bottomMargin=15 * mm,
+                            leftMargin=15 * mm, rightMargin=15 * mm, title=titolo)
+    ss = getSampleStyleSheet()
+    st_t = ParagraphStyle("t", parent=ss["Title"], fontSize=15, textColor=primario, alignment=TA_CENTER)
+    st_h = ParagraphStyle("h", parent=ss["Normal"], fontSize=11.5, fontName="Helvetica-Bold", textColor=primario,
+                          spaceBefore=5 * mm, spaceAfter=2 * mm)
+    st_n = ParagraphStyle("n", parent=ss["Normal"], fontSize=9.5, leading=12)
+    st_piede = ParagraphStyle("f", parent=ss["Normal"], fontSize=8, alignment=TA_RIGHT, textColor=colors.grey)
+
+    def tabella(righe, larghezze, intestazione=False):
+        t = Table(righe, colWidths=larghezze, repeatRows=1 if intestazione else 0)
+        stile = [("FONTSIZE", (0, 0), (-1, -1), 9), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                 ("GRID", (0, 0), (-1, -1), 0.25, griglia),
+                 ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]
+        if intestazione:
+            stile += [("BACKGROUND", (0, 0), (-1, 0), primario), ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                      ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold")]
+        else:
+            stile += [("BACKGROUND", (0, 0), (0, -1), chiaro), ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold")]
+        t.setStyle(TableStyle(stile))
+        return t
+
+    storia = []
+    logo = _logo_path()
+    cella_logo = Image(logo, width=25 * mm, height=17 * mm, kind="proportional") if logo else ""
+    testata = Table([[cella_logo, Paragraph(escape(titolo), st_t)]], colWidths=[30 * mm, 150 * mm])
+    testata.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+    storia.append(testata)
+
+    storia.append(Paragraph("Dati generali", st_h))
+    chiuso = f"{d['chiuso_il']:%H:%M:%S} da {d['chiuso_da']}" if d["chiuso_il"] else "appello ancora aperto"
+    storia.append(tabella([
+        ["Tipo", d["tipo"]],
+        ["Data", f"{d['aperto_il']:%d/%m/%Y}"],
+        ["Avviato", f"{d['aperto_il']:%H:%M:%S} da {d['aperto_da']}"],
+        ["Chiuso", chiuso],
+        ["Durata", d["durata"]],
+        ["Nota all'avvio", Paragraph(escape(a.nota or "—"), st_n)],
+    ], [45 * mm, 135 * mm]))
+
+    storia.append(Paragraph("Conta al punto di raccolta", st_h))
+    storia.append(tabella([
+        ["Persone in elenco", f"{d['n_totale']} (dipendenti {d['n_dipendenti']}, esterni {d['n_esterni']})"],
+        ["Contate", str(d["n_contati"])],
+        ["Non contate", str(d["n_totale"] - d["n_contati"])],
+    ] + [[f"Tempo al {s['perc']} %", f"{s['tempo']}" + (f"  ({s['serve']} persone)" if s["serve"] else "")]
+         for s in d["soglie"]], [45 * mm, 135 * mm]))
+
+    if d["per_chi"]:
+        storia.append(Paragraph("Chi ha contato", st_h))
+        storia.append(tabella([["Persona", "Spunte"]] + [[n, str(c)] for n, c in d["per_chi"]],
+                              [140 * mm, 40 * mm], intestazione=True))
+
+    storia.append(Paragraph(f"Non contati alla chiusura ({len(d['mancanti'])})", st_h))
+    if d["mancanti"]:
+        righe = [["Nome", "Reparto / azienda", "Tipo"]]
+        for p in d["mancanti"]:
+            nome = f"{(p.get('cognome') or '').upper()} {p.get('nome') or ''}".strip()
+            righe.append([Paragraph(escape(nome), st_n),
+                          Paragraph(escape(p.get("azienda") or p.get("reparto") or ""), st_n),
+                          "Esterno" if p.get("esterno") else "Dipendente"])
+        storia.append(tabella(righe, [80 * mm, 70 * mm, 30 * mm], intestazione=True))
+    else:
+        storia.append(Paragraph("Tutte le persone in elenco sono state contate.", st_n))
+
+    storia.append(Paragraph("Osservazioni, criticità e azioni di miglioramento", st_h))
+    testo = escape(a.osservazioni or "").replace("\n", "<br/>") or "&nbsp;<br/>&nbsp;<br/>&nbsp;"
+    storia.append(tabella([[Paragraph(testo, st_n)]], [180 * mm]))
+
+    storia.append(Spacer(1, 12 * mm))
+    riga_firma = "\n\n____________________________"
+    firme = Table([["Il coordinatore dell'emergenza", "", "RSPP"], [riga_firma, "", riga_firma]],
+                  colWidths=[80 * mm, 20 * mm, 80 * mm])
+    firme.setStyle(TableStyle([("FONTSIZE", (0, 0), (-1, -1), 9), ("ALIGN", (0, 0), (-1, -1), "CENTER")]))
+    storia.append(firme)
+    storia.append(Spacer(1, 8 * mm))
+    storia.append(Paragraph(f"Generato da NOVICROM HUB il {timezone_now():%d/%m/%Y %H:%M}", st_piede))
+    doc.build(storia)
+    return buf.getvalue()
+
+
+def timezone_now():
+    from django.utils import timezone
+
+    return timezone.localtime()

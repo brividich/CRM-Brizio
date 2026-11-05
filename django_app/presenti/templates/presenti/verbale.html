@@ -1,0 +1,74 @@
+{% extends "core/base.html" %}
+
+{% block title %}Verbale appello · Presenti in azienda{% endblock %}
+
+{% block extra_head %}{% include "presenti/_stile.html" %}{% endblock %}
+
+{% block content %}
+<div class="pres">
+  <div class="pres-head">
+    <div>
+      <h1>Verbale · {{ tipo }}</h1>
+      <p>{{ aperto_il|date:"l d-m-Y" }}, avviato alle {{ aperto_il|time:"H:i" }} da {{ aperto_da }}.
+        Scrivi le osservazioni e scarica il PDF per il registro della sicurezza.</p>
+    </div>
+    <div class="pres-azioni">
+      <a class="pres-btn" href="{% url 'presenti:appello' %}">Torna all'appello</a>
+      <a class="pres-btn pres-btn-primary" href="{% url 'presenti:appello_verbale_pdf' appello.pk %}" target="_blank" rel="noopener">PDF verbale</a>
+    </div>
+  </div>
+
+  {% include "presenti/_nav.html" %}
+
+  {% if not chiuso_il %}<div class="pres-avviso">L'appello è ancora aperto: i numeri cambiano finché non viene chiuso.</div>{% endif %}
+
+  <div class="pres-kpi">
+    <div class="pres-card"><b>{{ n_contati }}/{{ n_totale }}</b><span>Contati</span></div>
+    <div class="pres-card"><b>{{ durata }}</b><span>Durata</span></div>
+    {% for s in soglie %}
+    <div class="pres-card"><b>{{ s.tempo }}</b><span>Tempo al {{ s.perc }} %</span></div>
+    {% endfor %}
+  </div>
+
+  <div class="pres-card" style="padding:0; overflow-x:auto; margin-bottom:12px;">
+    <table class="pres-tab" data-fm-table-skip="1">
+      <tbody>
+        <tr><th style="width:220px;">Tipo</th><td>{{ tipo }}</td></tr>
+        <tr><th>Avviato</th><td>{{ aperto_il|date:"d-m-Y H:i:s" }} da {{ aperto_da }}</td></tr>
+        <tr><th>Chiuso</th><td>{% if chiuso_il %}{{ chiuso_il|date:"d-m-Y H:i:s" }} da {{ chiuso_da }}{% else %}ancora aperto{% endif %}</td></tr>
+        <tr><th>Persone in elenco</th><td>{{ n_totale }} (dipendenti {{ n_dipendenti }}, esterni {{ n_esterni }})</td></tr>
+        <tr><th>Nota all'avvio</th><td>{{ appello.nota|default:"—" }}</td></tr>
+        <tr><th>Chi ha contato</th><td>{% for nome, n in per_chi %}{{ nome }} ({{ n }}){% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="pres-gruppo">Non contati alla chiusura ({{ mancanti|length }})</h2>
+  <div class="pres-card" style="padding:0; overflow-x:auto; margin-bottom:12px;">
+    <table class="pres-tab" data-fm-table-skip="1">
+      <tbody>
+        {% for p in mancanti %}
+        <tr><td class="pres-nome">{{ p.cognome|upper }} {{ p.nome }}</td><td>{{ p.azienda|default:p.reparto|default:"—" }}</td><td>{% if p.esterno %}Esterno{% else %}Dipendente{% endif %}</td></tr>
+        {% empty %}
+        <tr><td class="pres-vuoto">Tutte le persone in elenco sono state contate.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <form method="post" class="pres-card pres-form" style="margin-bottom:12px;">
+    {% csrf_token %}
+    <label for="pres-oss" style="font-weight:700;">Osservazioni, criticità e azioni di miglioramento</label>
+    <textarea id="pres-oss" name="osservazioni" rows="6" maxlength="4000" placeholder="Es. allarme non udito in magazzino; uscita lato nord ingombra; tempo al 100 % da ridurre.">{{ appello.osservazioni }}</textarea>
+    <div><button class="pres-btn pres-btn-primary" type="submit">Salva osservazioni</button></div>
+  </form>
+
+  {% if puo_eliminare %}
+  <form method="post" action="{% url 'presenti:appello_elimina' appello.pk %}" data-hub-confirm="Eliminare questa esercitazione con tutte le spunte? Non si può annullare.">
+    {% csrf_token %}
+    <button class="pres-btn pres-btn-danger" type="submit">Elimina esercitazione</button>
+    <span style="font-size:12.5px; color:var(--text-mid); margin-left:8px;">Per le prove di funzionamento. Gli appelli di emergenza non si possono eliminare.</span>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -57,7 +57,7 @@
           <td class="pres-hide-sm">{{ a.aperto_da.get_full_name|default:a.aperto_da.username|default:"—" }}</td>
           <td class="pres-mono">{{ a.chiuso_il|date:"H:i" }}</td>
           <td class="pres-c">{{ a.persone|length }}</td>
-          <td><a href="{% url 'presenti:appello_stampa' a.pk %}" target="_blank" rel="noopener">PDF</a></td>
+          <td style="white-space:nowrap;"><a href="{% url 'presenti:appello_verbale' a.pk %}">Verbale</a> · <a href="{% url 'presenti:appello_stampa' a.pk %}" target="_blank" rel="noopener">Elenco PDF</a></td>
         </tr>
         {% endfor %}
       </tbody>

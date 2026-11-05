@@ -27,13 +27,29 @@ from .scadenze_providers import (
     collect_all,
 )
 
-# Filtro stato → predicato sui giorni.
-_STATI = {
-    "scaduta": lambda g: g is not None and g < 0,
-    "30": lambda g: g is not None and 0 <= g <= 30,
-    "60": lambda g: g is not None and 0 <= g <= 60,
-    "90": lambda g: g is not None and 0 <= g <= 90,
-}
+# Fasce dello stato: le stesse dei contatori, disgiunte, così filtro e numero
+# coincidono sempre (una scadenza sta in una fascia sola).
+_FASCE = ("scaduta", "30", "60", "90")
+_FASCE_KPI = (
+    ("scaduta", "Scadute", "k-red"),
+    ("30", "Entro 30 giorni", "k-amber"),
+    ("60", "31–60 giorni", "k-blue"),
+    ("90", "61–90 giorni", "k-blue"),
+)
+
+
+def _fascia(giorni: int | None) -> str:
+    if giorni is None:
+        return ""
+    if giorni < 0:
+        return "scaduta"
+    if giorni <= 30:
+        return "30"
+    if giorni <= 60:
+        return "60"
+    if giorni <= 90:
+        return "90"
+    return "oltre"
 
 
 _VISTE = ("mese", "agenda", "elenco")
@@ -44,8 +60,9 @@ _GIORNI = ("Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"
 _GIORNI_BREVI = ("Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom")
 # Il calendario si sposta al massimo di due anni da oggi, avanti e indietro.
 _MESI_MAX = 24
-# Voci mostrate dentro la cella del mese; tutte nel pannello del giorno.
-_VOCI_PER_CELLA = 3
+# Voci messe nella cella del mese (quante se ne vedono lo decide l'altezza della
+# cella, in pagina); tutte comunque nel pannello del giorno.
+_VOCI_PER_CELLA = 12
 # Scadute mostrate nel riquadro laterale; tutte nell'elenco filtrato.
 _SCADUTE_LATO = 6
 
@@ -183,9 +200,12 @@ def _decora(voci) -> None:
 
 @login_required
 def scadenze_globali(request: HttpRequest) -> HttpResponse:
-    filtro_sorgente = request.GET.get("sorgente", "").strip()   # uno dei PROVIDERS o ""
-    filtro_stato = request.GET.get("stato", "").strip()          # scaduta/30/60/90/""
-    filtro_reparto = request.GET.get("reparto", "").strip()
+    # Filtri a scelta multipla (?sorgente=a&sorgente=b…); vuoto = tutti.
+    sel_sorgenti = [s for s in request.GET.getlist("sorgente") if s in PROVIDERS]
+    sel_stati = [s for s in request.GET.getlist("stato") if s in _FASCE]
+    sel_reparti = [r.strip() for r in request.GET.getlist("reparto") if r.strip()]
+    cerca = request.GET.get("q", "").strip()[:80]
+    intero = request.GET.get("intero") == "1"
     export_csv = request.GET.get("format") == "csv"
     export_ics = request.GET.get("format") == "ics"
     vista = request.GET.get("vista", "").strip()
@@ -203,29 +223,46 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
         # finestra dei KPI, che devono restare uguali in tutte le viste.
         orizzonte = max(oggi + timedelta(days=ORIZZONTE_GIORNI), ultimo + timedelta(days=7))
 
-    # Sorgenti da interrogare: solo quella selezionata, altrimenti tutte.
-    if filtro_sorgente in PROVIDERS:
-        sources = {filtro_sorgente}
-    else:
-        sources = None
+    # Si raccolgono sempre tutte le fonti: i filtri lavorano in memoria, così
+    # contatori ed etichette mostrano anche quanto c'è fuori dalla scelta.
+    tutte = collect_all(request, oggi=oggi, orizzonte=orizzonte)
+    for v in tutte:
+        v.fascia = _fascia(v.giorni)
 
-    tutte = collect_all(request, sources=sources, oggi=oggi, orizzonte=orizzonte)
+    def per_sorgente(v):
+        return not sel_sorgenti or v.source in sel_sorgenti
 
-    # Filtro stato (in memoria: le voci sono già normalizzate su `giorni`).
-    if filtro_stato in _STATI:
-        pred = _STATI[filtro_stato]
-        tutte = [v for v in tutte if pred(v.giorni)]
+    def per_stato(v):
+        return not sel_stati or v.fascia in sel_stati
 
-    # Filtro reparto (case-insensitive).
-    if filtro_reparto:
-        rf = filtro_reparto.casefold()
-        tutte = [v for v in tutte if v.reparto and v.reparto.casefold() == rf]
+    rep_cf = {r.casefold() for r in sel_reparti}
+
+    def per_reparto(v):
+        return not rep_cf or (v.reparto or "").casefold() in rep_cf
+
+    cerca_cf = cerca.casefold()
+
+    def per_testo(v):
+        if not cerca_cf:
+            return True
+        testo = " ".join((v.soggetto or "", v.titolo or "", v.kind_label or "", v.elemento_label or "",
+                          v.reparto or "", v.source_label))
+        return cerca_cf in testo.casefold()
+
+    filtri_tutti = (per_sorgente, per_stato, per_reparto, per_testo)
+
+    def tranne(escluso):
+        return [v for v in tutte if all(f(v) for f in filtri_tutti if f is not escluso)]
+
+    filtrate = [v for v in tutte if all(f(v) for f in filtri_tutti)]
 
     # KPI, elenco, agenda ed export restano sulla finestra dello scadenzario
     # (scadute + 90 giorni): solo la griglia del mese guarda più avanti.
-    voci = [v for v in tutte if v.giorni is None or v.giorni <= ORIZZONTE_GIORNI]
+    def finestra(elenco):
+        return [v for v in elenco if v.giorni is None or v.giorni <= ORIZZONTE_GIORNI]
 
-    # Export CSV (prima della paginazione: esporta il set filtrato completo).
+    voci = finestra(filtrate)
+
     if export_csv:
         return _export_csv(voci)
     if export_ics:
@@ -236,76 +273,109 @@ def scadenze_globali(request: HttpRequest) -> HttpResponse:
         resp["Content-Disposition"] = 'attachment; filename="scadenzario.ics"'
         return resp
 
-    _decora(tutte)
+    _decora(filtrate)
 
-    # KPI di sintesi.
-    n_scadute = sum(1 for v in voci if v.scaduta)
-    n_30gg = sum(1 for v in voci if not v.scaduta and v.giorni is not None and v.giorni <= 30)
-    n_60gg = sum(1 for v in voci if not v.scaduta and v.giorni is not None and 30 < v.giorni <= 60)
-    n_90gg = sum(1 for v in voci if not v.scaduta and v.giorni is not None and 60 < v.giorni <= 90)
+    # Contatori «a faccette»: ognuno conta con tutti i filtri tranne il proprio,
+    # così scegliere una fascia non azzera le altre.
+    per_fascia: dict[str, int] = defaultdict(int)
+    for v in finestra(tranne(per_stato)):
+        per_fascia[v.fascia] += 1
+    conta_fonti: dict[str, int] = defaultdict(int)
+    for v in finestra(tranne(per_sorgente)):
+        conta_fonti[v.source] += 1
+    reparti = sorted({v.reparto for v in finestra(tranne(per_reparto)) if v.reparto} | set(sel_reparti),
+                     key=str.casefold)
 
-    reparti = sorted({v.reparto for v in voci if v.reparto})
+    filtri = {"sorgente": sel_sorgenti, "stato": sel_stati, "reparto": sel_reparti,
+              "q": [cerca] if cerca else [], "intero": ["1"] if intero else []}
+    if vista == "mese" and primo != oggi.replace(day=1):
+        filtri["mese"] = [primo.strftime("%Y-%m")]
 
-    # Legenda: le fonti presenti con il loro numero (stessa finestra dei KPI).
-    conta: dict[str, int] = defaultdict(int)
-    for v in voci:
-        conta[v.source] += 1
-    legenda = [(code, SOURCE_LABELS[code], conta[code]) for code in PROVIDERS if conta.get(code)]
+    def link(**cambi) -> str:
+        """Querystring con i filtri correnti; `chiave=(valore,)` aggiunge o toglie
+        quel valore, `chiave=[...]` sostituisce la lista."""
+        nuovi = {k: list(v) for k, v in filtri.items()}
+        nuovi["vista"] = [vista]
+        for k, val in cambi.items():
+            if isinstance(val, tuple):
+                cur = nuovi.setdefault(k, [])
+                for x in val:
+                    if x in cur:
+                        cur.remove(x)
+                    else:
+                        cur.append(x)
+            else:
+                nuovi[k] = list(val)
+        return "?" + urlencode({k: v for k, v in nuovi.items() if v}, doseq=True)
 
-    filtri = {k: val for k, val in (("sorgente", filtro_sorgente), ("stato", filtro_stato),
-                                    ("reparto", filtro_reparto)) if val}
-    qs_mese = urlencode({**filtri, "vista": "mese"})
+    kpi = [
+        {"codice": code, "etichetta": etichetta, "classe": classe, "n": per_fascia.get(code, 0),
+         "on": code in sel_stati, "href": link(stato=(code,))}
+        for code, etichetta, classe in _FASCE_KPI
+    ]
+    legenda = [
+        {"codice": code, "etichetta": SOURCE_LABELS[code], "n": conta_fonti.get(code, 0),
+         "on": code in sel_sorgenti, "href": link(sorgente=(code,))}
+        for code in PROVIDERS if conta_fonti.get(code) or code in sel_sorgenti
+    ]
+    n_scadute = per_fascia.get("scaduta", 0) if not sel_stati or "scaduta" in sel_stati else 0
+    ci_sono_filtri = bool(sel_sorgenti or sel_stati or sel_reparti or cerca)
 
     context: dict[str, Any] = {
         "page_title": "Scadenzario",
         "vista": vista,
+        "intero": intero,
+        "kpi": kpi,
         "totale": len(voci),
+        "totale_href": link(stato=[]),
         "n_scadute": n_scadute,
-        "n_30gg": n_30gg,
-        "n_60gg": n_60gg,
-        "n_90gg": n_90gg,
         "orizzonte_giorni": ORIZZONTE_GIORNI,
-        "source_labels": SOURCE_LABELS,
         "reparti": reparti,
-        "sorgenti": [(code, SOURCE_LABELS[code]) for code in PROVIDERS],
+        "sorgenti": [(code, SOURCE_LABELS[code], code in sel_sorgenti) for code in PROVIDERS],
         "legenda": legenda,
-        "filtro_sorgente": filtro_sorgente,
-        "filtro_stato": filtro_stato,
-        "filtro_reparto": filtro_reparto,
-        "qs_filtri": urlencode(filtri),
-        "qs_senza_sorgente": urlencode({k: val for k, val in filtri.items() if k != "sorgente"}),
-        "qs_senza_stato": urlencode({k: val for k, val in filtri.items() if k != "stato"}),
+        "sel_sorgenti": sel_sorgenti,
+        "sel_stati": sel_stati,
+        "sel_reparti": sel_reparti,
+        "cerca": cerca,
+        "ci_sono_filtri": ci_sono_filtri,
+        "link_pulisci": link(sorgente=[], stato=[], reparto=[], q=[]),
+        "link_viste": {v: link(vista=[v], mese=[]) for v in _VISTE},
+        "link_intero": link(intero=[] if intero else ["1"]),
+        "link_csv": link(format=["csv"], intero=[], mese=[]),
+        "link_ics": link(format=["ics"], intero=[], mese=[]),
+        "link_scadute": link(vista=["elenco"], stato=["scaduta"], mese=[]),
         "puo_pannello": _puo_pannello(request),
         "puo_generiche": _puo_generiche(request),
         "oggi": oggi,
     }
 
     if vista == "mese":
-        settimane = _griglia_mese(primo, tutte, oggi)
-        scadute = sorted((v for v in tutte if v.scaduta and v.data_scadenza),
-                         key=lambda v: v.data_scadenza)
+        settimane = _griglia_mese(primo, filtrate, oggi)
+        scadute = sorted((v for v in filtrate if v.scaduta and v.data_scadenza), key=lambda v: v.data_scadenza)
         prec, succ = _sposta_mese(primo, -1), _sposta_mese(primo, 1)
-        giorni_con_voci = [c for riga in settimane for c in riga if c["n"]]
         context.update({
-            "qs_mese": qs_mese,
             "mese_label": f"{_MESI[primo.month - 1]} {primo.year}",
-            "mese_prec": prec.strftime("%Y-%m"),
-            "mese_succ": succ.strftime("%Y-%m"),
+            "link_prec": link(mese=[prec.strftime("%Y-%m")]),
+            "link_succ": link(mese=[succ.strftime("%Y-%m")]),
+            "link_oggi": link(mese=[]),
             "mese_corrente": primo == oggi.replace(day=1),
             "nav_prec": abs(_indice_mese(prec) - _indice_mese(oggi)) <= _MESI_MAX,
             "nav_succ": abs(_indice_mese(succ) - _indice_mese(oggi)) <= _MESI_MAX,
             "settimane": settimane,
+            "n_settimane": len(settimane),
             "intestazione": _GIORNI_BREVI,
-            "giorni_con_voci": giorni_con_voci,
+            "giorni_con_voci": [c for riga in settimane for c in riga if c["n"]],
             "n_mese": sum(c["n"] for riga in settimane for c in riga if c["nel_mese"]),
+            "n_scadute_lato": len(scadute),
             "scadute_lato": scadute[:_SCADUTE_LATO],
             "scadute_altre": max(0, len(scadute) - _SCADUTE_LATO),
-            "prossimi_7": [v for v in tutte if v.giorni is not None and 0 <= v.giorni <= 7],
+            "prossimi_7": [v for v in filtrate if v.giorni is not None and 0 <= v.giorni <= 7],
         })
     elif vista == "agenda":
         context["gruppi"] = _agenda(voci, oggi)
     else:
         context["page_obj"] = Paginator(voci, 50).get_page(request.GET.get("page"))
+        context["link_pagina"] = link()
     return render(request, "dashboard/pages/scadenze_globali.html", context)
 
 

@@ -27,6 +27,8 @@ SEZIONI: list[dict] = [
                 ("Presenti adesso", "la lista live con turno, matricola, nome, reparto, ora di entrata e incarichi di sicurezza."),
                 ("Esterni in azienda", "visitatori, ditte e docenti registrati in ingresso al GuestPortal e non ancora "
                  "usciti: tabella sotto i dipendenti, nell'appello e nel PDF."),
+                ("Andamento per reparto", "quante persone c'erano a ogni ora di oggi, reparto per reparto: solo numeri, "
+                 "nessun nome."),
                 ("Appello di evacuazione", "l'elenco per contare le persone al punto di raccolta, dipendenti ed esterni, "
                  "condiviso fra chi conta."),
                 ("Uscite non timbrate", "le giornate in cui le timbrature non tornano (uscita mancante, verso sbagliato)."),
@@ -58,6 +60,18 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "andamento",
+        "titolo": "Andamento per reparto",
+        "blocchi": [
+            ("p", "Tabella con una riga per reparto e una colonna per ora, dalle 5 alle 22: in ogni casella quante "
+                  "persone del reparto erano in azienda allo scoccare di quell'ora. Più scuro = più persone. "
+                  "Le ore che devono ancora arrivare hanno un puntino."),
+            ("p", "«Adesso» usa la stessa regola e gli stessi dati della lista dei presenti. Il reparto è quello "
+                  "dell'anagrafica, non il posto dove la persona si trova. Gli esterni non sono contati qui: sono "
+                  "nella lista dei presenti. I dati si aggiornano al massimo ogni 5 minuti."),
+        ],
+    },
+    {
         "id": "appello",
         "titolo": "L'appello di evacuazione",
         "blocchi": [
@@ -77,6 +91,12 @@ SEZIONI: list[dict] = [
                      "Se il GuestPortal non risponde compare l'avviso e gli esterni non sono in elenco: in quel caso "
                      "contali dal registro della portineria. Chi entra senza registrarsi al GuestPortal non c'è."),
             ("p", "Gli appelli conclusi restano nello storico in fondo alla pagina, con il PDF."),
+            ("p", "Alla chiusura si apre il «Verbale»: durata, tempo al 50, 90 e 100 % delle persone contate, chi ha "
+                  "contato, chi non è stato contato. Scrivi le osservazioni (criticità, azioni di miglioramento) e "
+                  "premi «Salva osservazioni»; «PDF verbale» dà il documento con gli spazi firma per coordinatore e "
+                  "RSPP. Il verbale si riapre dallo storico con «Verbale»."),
+            ("nota", "«Elimina esercitazione» (nel verbale) cancella una prova con tutte le spunte: per chi l'ha "
+                     "avviata o per l'amministratore del modulo. Gli appelli di emergenza non si possono eliminare."),
         ],
     },
     {

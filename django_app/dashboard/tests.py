@@ -811,7 +811,7 @@ class ScadenzeGlobaliTests(TestCase):
         self._make_asset_deadline(days=75, title="Entro settantacinque")
         response = self.client.get(reverse("scadenze_globali") + "?sorgente=asset&stato=90&vista=elenco")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["n_90gg"], 1)
+        self.assertEqual({k["codice"]: k["n"] for k in response.context["kpi"]}["90"], 1)
         self.assertContains(response, "Entro settantacinque")
         self.assertContains(response, "Asset")  # etichetta della sorgente, non il codice
         response = self.client.get(reverse("scadenze_globali") + "?sorgente=asset&stato=30&vista=elenco")

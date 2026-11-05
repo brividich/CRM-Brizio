@@ -208,6 +208,36 @@ class VisteTests(TestCase):
         self.client.post(url, {"solari_id": 13, "contato": "1"})
         self.assertEqual(AppelloSpunta.objects.filter(appello=a).count(), 1)
 
+    def test_verbale_e_elimina_solo_esercitazioni(self):
+        self.client.post(reverse("presenti:appello_avvia"), {"esercitazione": "1", "nota": "prova"})
+        a = Appello.objects.get()
+        self.client.post(reverse("presenti:appello_spunta", args=[a.pk]), {"solari_id": 11, "contato": "1"})
+        r = self.client.post(reverse("presenti:appello_chiudi", args=[a.pk]))
+        self.assertRedirects(r, reverse("presenti:appello_verbale", args=[a.pk]), fetch_redirect_response=False)
+        r = self.client.get(reverse("presenti:appello_verbale", args=[a.pk]))
+        self.assertContains(r, "1/3")
+        self.assertContains(r, "Elimina esercitazione")
+        self.client.post(reverse("presenti:appello_verbale", args=[a.pk]), {"osservazioni": "Uscita nord ingombra"})
+        a.refresh_from_db()
+        self.assertEqual(a.osservazioni, "Uscita nord ingombra")
+        r = self.client.get(reverse("presenti:appello_verbale_pdf", args=[a.pk]))
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertTrue(r.content.startswith(b"%PDF"))
+        # Un collega che non l'ha avviata e non è amministratore del modulo non la elimina.
+        altro = self.client_class()
+        altro.force_login(self.collega)
+        with patch("presenti.views.request_has_permission_code", return_value=False):
+            self.assertEqual(altro.post(reverse("presenti:appello_elimina", args=[a.pk])).status_code, 403)
+        self.client.post(reverse("presenti:appello_elimina", args=[a.pk]))
+        self.assertFalse(Appello.objects.exists())
+
+    def test_emergenza_reale_non_si_elimina(self):
+        self.client.post(reverse("presenti:appello_avvia"))
+        a = Appello.objects.get()
+        self.assertEqual(self.client.post(reverse("presenti:appello_elimina", args=[a.pk])).status_code, 403)
+        self.assertNotContains(self.client.get(reverse("presenti:appello_verbale", args=[a.pk])), "Elimina esercitazione")
+        self.assertTrue(Appello.objects.exists())
+
     def test_impostazioni(self):
         r = self.client.post(reverse("presenti:impostazioni"),
                              {"azione": "salva", "presenti_sp_attivo": "1", "presenti_sp_raccolta": "Docs"})
@@ -394,6 +424,39 @@ class PresenzaGiornataTests(SimpleTestCase):
             self.skipTest("serve un orario entro le 3 di notte per simulare ieri sera")
         p = self._leggi([self._r(5, ieri_sera, "E")])
         self.assertIn("turno di notte", p[5]["verifica"])
+
+
+@override_settings(CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}})
+class AndamentoTests(TestCase):
+    """Cruscotto per reparto: persone dentro a ogni ora, solo numeri."""
+
+    def setUp(self):
+        cache.clear()
+        self.admin = get_user_model().objects.create_superuser("pres_and", password="x")
+        self.client.force_login(self.admin)
+        oggi = datetime.combine(date.today(), datetime.min.time())
+        giorno = {
+            11: {"codice_fiscale": CF_A, "seq": [(oggi.replace(hour=6, minute=50), "E")]},
+            12: {"codice_fiscale": CF_B, "seq": [(oggi.replace(hour=5, minute=30), "E"), (oggi.replace(hour=6, minute=10), "U")]},
+        }
+        for p in (patch.object(solari, "leggi_timbrature_giorno", return_value=giorno),
+                  patch.object(solari, "leggi_presenti", side_effect=lambda *a, **k: _solari_righe()),
+                  patch.object(services, "_anagrafica_per_cf", side_effect=_aggancio)):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_conteggi_per_ora_e_pagina(self):
+        d = services.andamento()
+        self.assertEqual(d["errore"], "")
+        tot = d["totale"]["celle"]
+        ore = d["ore"]
+        if datetime.now().hour >= 7:
+            self.assertEqual(tot[ore.index(6)], 1)   # alle 6:00 c'era solo chi era entrato alle 5:30
+            self.assertEqual(tot[ore.index(7)], 1)   # alle 7:00 chi è entrato alle 6:50 (l'altro è uscito)
+        r = self.client.get(reverse("presenti:andamento"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Andamento per reparto")
+        self.assertNotContains(r, "Rossi")  # nessun nome
 
 
 class UsciteTests(TestCase):
