@@ -1,0 +1,73 @@
+<style>
+#dpi-root { display:flex; flex-direction:column; gap:18px; }
+.dpi-subnav { display:flex; gap:4px; flex-wrap:wrap; }
+.dpi-subnav-link { padding:7px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; color:#475569; background:#f1f5f9; }
+.dpi-subnav-link:hover { background:#e2e8f0; }
+.dpi-subnav-link.active { background:#0369a1; color:#fff; }
+.dpi-rep-tabs { display:flex; gap:4px; flex-wrap:wrap; border-bottom:1px solid #e2e8f0; }
+.dpi-rep-tabs a { padding:9px 16px; font-size:14px; font-weight:700; color:#475569; text-decoration:none; border-bottom:3px solid transparent; margin-bottom:-1px; }
+.dpi-rep-tabs a:hover { color:#0f172a; }
+.dpi-rep-tabs a.is-on { color:#0369a1; border-color:#0369a1; }
+.rep-testa { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.rep-titolo { font-size:20px; font-weight:800; color:#0f172a; }
+.rep-sotto { font-size:13px; color:#64748b; margin-top:2px; }
+.rep-azioni { display:flex; gap:8px; flex-wrap:wrap; }
+.rep-btn { display:inline-flex; align-items:center; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; text-decoration:none; border:1px solid #cbd5e1; background:#fff; color:#0f172a; cursor:pointer; }
+.rep-btn:hover { background:#f1f5f9; }
+.rep-btn-primo { background:#0369a1; border-color:#0369a1; color:#fff; }
+.rep-btn-primo:hover { background:#075985; }
+.rep-kpi { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:10px; }
+.rep-kpi > * { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:3px; text-decoration:none; }
+.rep-kpi a:hover { border-color:#0369a1; }
+.rep-kpi .is-on { border-color:#0369a1; box-shadow:inset 0 0 0 1px #0369a1; }
+.rep-kpi b { font-size:26px; font-weight:900; line-height:1.05; color:#0f172a; }
+.rep-kpi span { font-size:12px; font-weight:600; color:#64748b; }
+.rep-kpi .t-rosso b { color:#dc2626; }
+.rep-kpi .t-arancio b { color:#b45309; }
+.rep-kpi .t-verde b { color:#15803d; }
+.rep-filtri { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; }
+.rep-filtri label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:#475569; flex:1 1 150px; min-width:0; }
+.rep-filtri input, .rep-filtri select { width:100%; padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:13px; background:#fff; color:#0f172a; }
+.rep-tab-wrap { background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow-x:auto; }
+.rep-tab { width:100%; border-collapse:collapse; font-size:13px; }
+.rep-tab th { text-align:left; background:#f8fafc; color:#64748b; font-size:12px; font-weight:700; padding:10px 14px; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+.rep-tab td { padding:10px 14px; border-bottom:1px solid #f1f5f9; vertical-align:top; color:#0f172a; }
+.rep-tab tr:last-child td { border-bottom:none; }
+.rep-tab a { color:#0369a1; font-weight:700; text-decoration:none; }
+.rep-tab a:hover { text-decoration:underline; }
+.rep-muto { color:#64748b; font-size:12px; }
+.rep-st { display:inline-block; padding:3px 10px; border-radius:99px; font-size:12px; font-weight:700; white-space:nowrap; }
+.rep-st-ok, .rep-st-firmata, .rep-st-confermata { background:#dcfce7; color:#166534; }
+.rep-st-in_scadenza, .rep-st-da_confermare { background:#fef3c7; color:#92400e; }
+.rep-st-scaduto, .rep-st-mancante, .rep-st-contestata, .rep-st-senza_firma { background:#fee2e2; color:#991b1b; }
+.rep-st-non_previsto { background:#f1f5f9; color:#475569; }
+.rep-vuoto { padding:32px 20px; text-align:center; color:#64748b; }
+.rep-avviso { padding:10px 14px; border-radius:10px; font-size:13px; background:#fef3c7; color:#92400e; }
+.rep-pagine { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; font-size:13px; color:#64748b; }
+body.theme-dark .dpi-subnav-link { background:var(--surface); color:var(--text-mid); }
+body.theme-dark .dpi-subnav-link:hover { background:rgba(255,255,255,.07); color:var(--text); }
+body.theme-dark .dpi-subnav-link.active { background:#0369a1; color:#fff; }
+body.theme-dark .dpi-rep-tabs { border-color:var(--border); }
+body.theme-dark .dpi-rep-tabs a { color:var(--text-mid); }
+body.theme-dark .dpi-rep-tabs a:hover { color:var(--text); }
+body.theme-dark .dpi-rep-tabs a.is-on { color:#7dd3fc; border-color:#7dd3fc; }
+body.theme-dark .rep-titolo, body.theme-dark .rep-kpi b, body.theme-dark .rep-tab td { color:var(--text); }
+body.theme-dark .rep-sotto, body.theme-dark .rep-kpi span, body.theme-dark .rep-muto, body.theme-dark .rep-vuoto, body.theme-dark .rep-pagine { color:var(--text-light); }
+body.theme-dark .rep-kpi > *, body.theme-dark .rep-filtri, body.theme-dark .rep-tab-wrap { background:var(--surface); border-color:var(--border); }
+body.theme-dark .rep-kpi .t-rosso b { color:#fca5a5; }
+body.theme-dark .rep-kpi .t-arancio b { color:#fcd34d; }
+body.theme-dark .rep-kpi .t-verde b { color:#86efac; }
+body.theme-dark .rep-filtri label { color:var(--text-mid); }
+body.theme-dark .rep-filtri input, body.theme-dark .rep-filtri select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
+body.theme-dark .rep-btn { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .rep-btn:hover { background:rgba(255,255,255,.07); }
+body.theme-dark .rep-btn-primo { background:#0369a1; border-color:#0369a1; color:#fff; }
+body.theme-dark .rep-tab th { background:var(--thead-bg); color:var(--text-light); border-color:var(--border); }
+body.theme-dark .rep-tab td { border-color:var(--border); }
+body.theme-dark .rep-tab a { color:#7dd3fc; }
+body.theme-dark .rep-st-ok, body.theme-dark .rep-st-firmata, body.theme-dark .rep-st-confermata { background:rgba(34,197,94,.2); color:#86efac; }
+body.theme-dark .rep-st-in_scadenza, body.theme-dark .rep-st-da_confermare { background:rgba(245,158,11,.2); color:#fcd34d; }
+body.theme-dark .rep-st-scaduto, body.theme-dark .rep-st-mancante, body.theme-dark .rep-st-contestata, body.theme-dark .rep-st-senza_firma { background:rgba(220,38,38,.2); color:#fca5a5; }
+body.theme-dark .rep-st-non_previsto { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .rep-avviso { background:rgba(245,158,11,.2); color:#fcd34d; }
+</style>

@@ -30,6 +30,7 @@ from core.upload_mime import UploadMimeValidationError, validate_extension_and_m
 
 from . import dotazione as dotazione_dpi
 from . import flusso, magazzino
+from . import report as report_dpi
 from .acl_bootstrap import PERM_DPI_MANAGE
 
 from .models import (
@@ -768,23 +769,42 @@ def storico(request):
 # Report conformita
 # ---------------------------------------------------------------------------
 
+def _scope_report(request) -> set[int] | None:
+    """Persone che chi gestisce puo' vedere nei report. None = tutte."""
+    return _anagrafiche_visibili(request, "gestire") if sistema_ruoli_attivo() else None
+
+
+def _dipendenti_attivi(request) -> list[dict]:
+    """Dipendenti attivi nel perimetro di chi guarda, in ordine di cognome e nome."""
+    ensure_anagrafica_schema()
+    scope = _scope_report(request)
+    righe = [
+        {**row, "nominativo": naming.nome_completo(row.get("nome"), row.get("cognome"))}
+        for row in fetch_anagrafica_rows(deduplicate=True)
+        if row.get("id")
+        and (row.get("attivo") is None or bool(row.get("attivo")))
+        and (scope is None or int(row["id"]) in scope)
+    ]
+    return sorted(righe, key=lambda row: (
+        str(row.get("cognome") or "").casefold(),
+        str(row.get("nome") or "").casefold(),
+        str(row.get("aliasusername") or "").casefold(),
+    ))
+
+
 @login_required
 def report_conformita(request):
     if not _is_gestore(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
 
-    ensure_anagrafica_schema()
     q = request.GET.get("q", "").strip()
     dipendente_id_raw = request.GET.get("dipendente_id", "").strip()
     categoria_id_raw = request.GET.get("categoria_id", "").strip()
     solo_obbligatorie = request.GET.get("solo_obbligatorie", "1") != "0"
 
-    dipendenti = fetch_anagrafica_rows(deduplicate=True)
-    dipendenti = [
-        row for row in dipendenti
-        if row.get("id") and (row.get("attivo") is None or bool(row.get("attivo")))
-    ]
+    tutti = _dipendenti_attivi(request)
+    dipendenti = tutti
     if q:
         q_norm = q.casefold()
         dipendenti = [
@@ -794,79 +814,33 @@ def report_conformita(request):
                 for field in ("nome", "cognome", "aliasusername", "reparto", "mansione")
             )
         ]
-    dipendenti = sorted(
-        dipendenti,
-        key=lambda row: (
-            str(row.get("cognome") or "").casefold(),
-            str(row.get("nome") or "").casefold(),
-            str(row.get("aliasusername") or "").casefold(),
-        ),
-    )[:100]
-    dipendenti = [
-        {**row, "nominativo": naming.nome_completo(row.get("nome"), row.get("cognome"))}
-        for row in dipendenti
-    ]
 
     categorie_qs = CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome")
     categorie_obbligatorie = categorie_qs.filter(obbligatoria_mansionario=True)
-    categorie_report = categorie_obbligatorie if solo_obbligatorie else categorie_qs
-    if categoria_id_raw:
-        try:
-            categorie_report = categorie_report.filter(pk=int(categoria_id_raw))
-        except ValueError:
-            categorie_report = categorie_report.none()
 
-    dipendente = None
+    dipendente = next((row for row in tutti if str(row.get("id") or "") == dipendente_id_raw), None) if dipendente_id_raw else None
     righe_report = []
     conforme = None
-    oggi = timezone.localdate()
-    if dipendente_id_raw:
-        try:
-            dipendente_id = int(dipendente_id_raw)
-        except ValueError:
-            dipendente_id = None
-        for row in fetch_anagrafica_rows(deduplicate=True):
-            if str(row.get("id") or "") == dipendente_id_raw:
-                dipendente = row
-                break
-        if dipendente and dipendente_id:
-            consegne = (
-                ConsegnaDPI.objects.filter(
-                    richiesta__richiedente_legacy_id=dipendente_id,
-                    richiesta__stato=StatoRichiesta.CONSEGNATA,
-                )
-                .select_related("richiesta", "richiesta__categoria", "richiesta__tipo_dpi", "richiesta__modello_dpi", "richiesta__taglia_dpi")
-                .order_by("richiesta__categoria_id", "-data_consegna", "-created_at")
-            )
-            consegna_per_categoria = {}
-            for consegna in consegne:
-                consegna_per_categoria.setdefault(consegna.richiesta.categoria_id, consegna)
-
-            for categoria in categorie_report:
-                consegna = consegna_per_categoria.get(categoria.pk)
-                stato = "mancante"
-                if consegna:
-                    stato = "ok"
-                    if consegna.data_scadenza_stimata and consegna.data_scadenza_stimata < oggi:
-                        stato = "scaduto"
-                righe_report.append({
-                    "categoria": categoria,
-                    "consegna": consegna,
-                    "stato": stato,
-                })
-            conforme = bool(righe_report) and all(row["stato"] == "ok" for row in righe_report)
+    in_scadenza = False
+    if dipendente:
+        situazione = report_dpi.conformita(
+            [dipendente], categoria_id=_int_or_none(categoria_id_raw), tutte_le_categorie=not solo_obbligatorie,
+        )["persone"][0]
+        righe_report = situazione["righe"]
+        conforme = situazione["conforme"]
+        in_scadenza = situazione["esito"] == report_dpi.IN_SCADENZA
 
     if request.GET.get("export") == "xlsx" and dipendente and righe_report:
         from core.excel_export import make_xlsx_response
 
-        _stato_lbl = {"ok": "OK", "scaduto": "Scaduto", "mancante": "Mancante"}
         _rows = []
         for _r in righe_report:
             _c = _r.get("consegna")
             _scad = (getattr(_c, "scadenza_calcolata", None) or getattr(_c, "data_scadenza_stimata", None)) if _c else None
             _rows.append([
                 _r["categoria"].nome,
-                _stato_lbl.get(_r["stato"], _r["stato"]),
+                _r["origine"],
+                _r["etichetta"],
                 _c.data_consegna.strftime("%d-%m-%Y") if _c and _c.data_consegna else "",
                 _scad.strftime("%d-%m-%Y") if _scad else "",
                 _c.richiesta.numero if _c and _c.richiesta_id else "",
@@ -878,7 +852,7 @@ def report_conformita(request):
         })
         return make_xlsx_response(
             filename=f"conformita-dpi-{_nome.replace(' ', '_')}.xlsx",
-            columns=["Categoria", "Stato", "Ultima consegna", "Scadenza", "Richiesta"],
+            columns=["Categoria", "Perché", "Stato", "Ultima consegna", "Scadenza", "Richiesta"],
             rows=_rows,
             sheet_title="Conformità DPI",
             title=f"Conformità DPI — {_nome}",
@@ -891,6 +865,7 @@ def report_conformita(request):
         "categorie_obbligatorie": categorie_obbligatorie,
         "righe_report": righe_report,
         "conforme": conforme,
+        "in_scadenza": in_scadenza,
         "q": q,
         "dipendente_id": dipendente_id_raw,
         "categoria_id": categoria_id_raw,
@@ -2055,12 +2030,6 @@ def magazzino_riordino(request):
     })
 
 
-def _csv_safe(value) -> str:
-    """Neutralizza le formule dei fogli di calcolo nei campi di testo liberi."""
-    text = str(value or "")
-    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
-
-
 @login_required
 def magazzino_report(request):
     if not _is_gestore(request):
@@ -2072,17 +2041,14 @@ def magazzino_report(request):
     dati = magazzino.report(giorni)
 
     if request.GET.get("formato") == "csv":
-        import csv
+        from core.csv_export import csv_download_response
 
-        response = HttpResponse(content_type="text/csv; charset=utf-8")
-        response["Content-Disposition"] = f'attachment; filename="movimenti_dpi_{timezone.localdate():%Y%m%d}.csv"'
-        response.write("\ufeff")
-        writer = csv.writer(response, delimiter=";")
+        response, writer = csv_download_response(f"movimenti_dpi_{timezone.localdate():%Y%m%d}.csv", delimiter=";")
         writer.writerow(["Data", "Movimento", "Codice", "DPI", "Quantita", "DDT", "Fornitore", "Nota"])
         for m in MovimentoMagazzinoDPI.objects.filter(data__gte=dati["da"]).select_related("modello").order_by("data", "id"):
             writer.writerow([
-                m.data.isoformat(), m.get_tipo_display(), _csv_safe(m.modello.codice), _csv_safe(m.modello.nome),
-                m.quantita, _csv_safe(m.ddt_numero), _csv_safe(m.fornitore), _csv_safe(m.note),
+                m.data.isoformat(), m.get_tipo_display(), m.modello.codice, m.modello.nome,
+                m.quantita, m.ddt_numero, m.fornitore, m.note,
             ])
         log_action(request, "DPI_MAGAZZINO_EXPORT", "dpi", f"Esportati movimenti magazzino dal {dati['da']}")
         return response
