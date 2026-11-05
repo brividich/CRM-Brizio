@@ -1,4 +1,8 @@
-"""Uscite non timbrate: giornate chiuse con l'ultima timbratura in entrata.
+"""Uscite non timbrate: giornate con timbrature da sistemare.
+
+Si controllano tutte le timbrature del giorno (``solari.analizza_giornata``): uscita
+mancante, uscita timbrata col verso sbagliato, due entrate o due uscite di fila. I turni
+a cavallo della mezzanotte non sono segnalati.
 
 Per ogni giornata trovata il capo della persona (``anagrafica.services.capo_team``,
 la stessa regola del flusso assenze) riceve una notifica in-app e una mail: deve
@@ -79,10 +83,12 @@ def invia_avvisi(oggi: date | None = None) -> dict:
     url = reverse("presenti:uscite")
     for capo_id, voci in per_capo.items():
         utente_id, email = _utente_e_email(capo_id)
-        elenco_txt = "\n".join(f"- {v['cognome']} {v['nome']}: {v['giorno']:%d/%m/%Y}, entrata alle {v['entrata']}"
-                                for v in voci)
-        breve = (f"Uscita non timbrata: {voci[0]['cognome']} {voci[0]['nome']} il {voci[0]['giorno']:%d/%m/%Y}"
-                 if len(voci) == 1 else f"{len(voci)} uscite non timbrate nella tua squadra")
+        elenco_txt = "\n".join(
+            f"- {v['cognome']} {v['nome']}, {v['giorno']:%d/%m/%Y}: {v.get('problema') or 'manca uscita'}\n"
+            f"  timbrature del giorno: {v.get('timbrature') or 'E ' + v['entrata']}"
+            for v in voci)
+        breve = (f"Timbrature da sistemare: {voci[0]['cognome']} {voci[0]['nome']} il {voci[0]['giorno']:%d/%m/%Y}"
+                 if len(voci) == 1 else f"{len(voci)} giornate con timbrature da sistemare nella tua squadra")
         invia_notifica(legacy_user_id=utente_id, tipo="generico",
                        messaggio=f"{breve}. Fai regolarizzare la timbratura o inserire l'assenza.", url_azione=url)
         nota = "notifica" if utente_id else ""
@@ -90,7 +96,7 @@ def invia_avvisi(oggi: date | None = None) -> dict:
             try:
                 send_hub_mail(
                     f"[NOVICROM HUB] {breve}",
-                    "Queste giornate risultano chiuse con un'entrata e senza uscita:\n\n"
+                    "Controllate tutte le timbrature del giorno, queste giornate non tornano:\n\n"
                     f"{elenco_txt}\n\nFai regolarizzare la timbratura o inserire l'assenza. "
                     "L'elenco completo è in NOVICROM HUB, Persone › Presenti in azienda › Uscite non timbrate.",
                     [email], title="Uscite non timbrate", email_type="Presenze", section_label="Presenti in azienda",

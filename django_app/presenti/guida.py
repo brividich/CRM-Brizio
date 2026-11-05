@@ -17,7 +17,10 @@ SEZIONI: list[dict] = [
         "titolo": "A cosa serve",
         "blocchi": [
             ("p", "Il modulo mostra chi è in azienda in questo momento leggendo le timbrature del sistema Solari. "
-                  "Una persona è presente quando la sua ultima timbratura di oggi è un'entrata."),
+                  "Una persona è presente quando la sua ultima timbratura di oggi è un'entrata. Due uscite di fila "
+                  "(E · U · U) contano come presente «da verificare»: la seconda è quasi sempre il rientro timbrato "
+                  "col tasto sbagliato. Chi è entrato ieri sera dalle 18 per il turno di notte resta presente fino a "
+                  "16 ore dall'entrata."),
             ("p", "Sostituisce il PDF «CN-PRESENZE» che uno script generava ogni ora: qui la lista si aggiorna da "
                   "sola e il PDF si può ancora scaricare o pubblicare su SharePoint."),
             ("def", [
@@ -26,7 +29,7 @@ SEZIONI: list[dict] = [
                  "usciti: tabella sotto i dipendenti, nell'appello e nel PDF."),
                 ("Appello di evacuazione", "l'elenco per contare le persone al punto di raccolta, dipendenti ed esterni, "
                  "condiviso fra chi conta."),
-                ("Uscite non timbrate", "le giornate chiuse con un'entrata e senza uscita."),
+                ("Uscite non timbrate", "le giornate in cui le timbrature non tornano (uscita mancante, verso sbagliato)."),
                 ("Pallino «In azienda»", "il pallino verde accanto al nome nell'elenco dipendenti, nella scheda dipendente e "
                  "fra i dipendenti trovati con la ricerca in alto (Ctrl+K); "
                  "grigio quando la persona non è in azienda."),
@@ -80,8 +83,8 @@ SEZIONI: list[dict] = [
         "id": "uscite",
         "titolo": "Uscite non timbrate",
         "blocchi": [
-            ("p", "Elenca le giornate passate in cui l'ultima timbratura è un'entrata: la persona è uscita senza "
-                  "timbrare. Chi è capo vede le persone della sua squadra (organigramma); l'amministratore vede tutti."),
+            ("p", "Si controllano tutte le timbrature del giorno, non solo l'ultima. Segnala: uscita mancante (l'ultima è un'entrata), verso sbagliato (es. E 12:55 · E 18:02: l'uscita delle 18:02 timbrata come entrata; E · U 12:03 · U 13:01 · U 17:08: il rientro delle 13:01 timbrato come uscita), due entrate o due uscite di fila. I turni a cavallo della mezzanotte (entrata la sera, uscita il mattino dopo entro 16 ore) non sono segnalati. La colonna «Problema» spiega cosa non torna e mostra le timbrature del giorno."),
+            ("p", "Chi è capo vede le persone della sua squadra (organigramma); l'amministratore vede tutti."),
             ("p", "Ogni mattina alle 7:30 (lunedì-sabato) il portale controlla gli ultimi 3 giorni e manda al capo una "
                   "notifica e una mail con le giornate nuove. La stessa giornata non viene segnalata due volte. "
                   "La colonna «Capo avvisato» dice quando e come è partito l'avviso."),

@@ -49,8 +49,9 @@ GUIDA = {
             "id": "uscite",
             "titolo": "Uscite non timbrate",
             "blocchi": [
-                ("p", "Le giornate chiuse con un'entrata e senza uscita. Il capo vede la sua squadra e ogni mattina alle "
-                      "7:30 (lunedì-sabato) riceve notifica e mail con le giornate nuove degli ultimi 3 giorni."),
+                ("p", "Si controllano tutte le timbrature del giorno, non solo l'ultima. Segnala: uscita mancante (l'ultima è un'entrata), verso sbagliato (es. E 12:55 · E 18:02: l'uscita delle 18:02 timbrata come entrata; E · U 12:03 · U 13:01 · U 17:08: il rientro delle 13:01 timbrato come uscita), due entrate o due uscite di fila. I turni a cavallo della mezzanotte (entrata la sera, uscita il mattino dopo entro 16 ore) non sono segnalati. La colonna «Problema» spiega cosa non torna e mostra le timbrature del giorno."),
+                ("p", "Il capo vede la sua squadra e ogni mattina alle 7:30 (lunedì-sabato) riceve notifica e mail "
+                      "con le giornate nuove degli ultimi 3 giorni, con il problema e le timbrature del giorno."),
             ],
         },
     ],

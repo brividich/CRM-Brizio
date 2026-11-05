@@ -34,6 +34,7 @@
         <td class="pres-nome">
           {% if p.legacy_id %}<a href="{% url 'anagrafica:dipendente_detail' p.legacy_id %}">{{ p.cognome|upper }} {{ p.nome }}</a>{% else %}{{ p.cognome|upper }} {{ p.nome }}{% endif %}
           {% if p.mansione %}<span class="pres-sub">{{ p.mansione }}</span>{% endif %}
+          {% if p.verifica %}<span class="pres-sub pres-verifica">Da verificare: {{ p.verifica }}</span>{% endif %}
         </td>
         <td class="pres-hide-sm">{{ p.reparto|default:"—" }}</td>
         <td class="pres-c pres-mono">{{ p.entrata }}</td>
