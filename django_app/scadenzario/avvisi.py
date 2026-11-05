@@ -88,6 +88,23 @@ def da_avvisare(scadenza, oggi: date, conf: dict) -> tuple[bool, str]:
     return True, "da inviare"
 
 
+def _ricorda_al_responsabile(s, oggi: date, conf: dict) -> None:
+    """Notifica in-app al responsabile, a scaletta, anche se l'attività non ha destinatari mail."""
+    from django.urls import reverse
+
+    from core.notifiche import giorno_di_promemoria
+
+    from .notifiche import avvisa_utente
+
+    if not s.responsabile_id:
+        return
+    giorni = (s.data_scadenza - oggi).days
+    if giorni > s.preavviso_effettivo(conf["preavviso"]) or not giorno_di_promemoria(giorni, s.preavviso_effettivo(conf["preavviso"])):
+        return
+    avvisa_utente(s.responsabile, "scadenza_promemoria", f"{s.titolo}: {_stato(giorni)}, scadenza {s.data_scadenza:%d/%m/%Y}.",
+                  reverse("scadenzario:scadenza_dettaglio", args=[s.pk]))
+
+
 def invia_avvisi_attivita(*, oggi: date | None = None, dry_run: bool = False) -> dict:
     from django.urls import reverse
 
@@ -101,10 +118,12 @@ def invia_avvisi_attivita(*, oggi: date | None = None, dry_run: bool = False) ->
         allinea_unite()
     conf = impostazioni()
     inviati = errori = 0
-    candidati = ScadenzaGenerica.objects.select_related("categoria").filter(
+    candidati = ScadenzaGenerica.objects.select_related("categoria", "responsabile").filter(
         is_active=True, categoria__is_active=True, data_scadenza__isnull=False,
     )
     for s in candidati:
+        if not dry_run:
+            _ricorda_al_responsabile(s, oggi, conf)
         ok, _motivo = da_avvisare(s, oggi, conf)
         if not ok:
             continue

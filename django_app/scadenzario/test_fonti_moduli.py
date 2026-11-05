@@ -71,6 +71,50 @@ class SistemaGestioneTests(TestCase):
         self.assertEqual(voci[0].soggetto, "Auditor Esempio")
 
 
+class FontiOperativeTests(TestCase):
+    def test_manutenzione_spenta_finche_il_pannello_non_la_accende(self):
+        from unittest.mock import patch
+
+        from scadenzario.models import VoceConfig
+
+        riga = SimpleNamespace(title="Taratura sintetica", asset_name="Macchina", asset_tag="", target_label="", due_date=timezone.localdate(),
+                               detail_url="/x/", reparto="")
+        with patch("assets.services.deadline_feed.collect", return_value=[riga]):
+            self.assertEqual(fm.collect_manutenzione(_ctx(sistema=True)), [])
+            VoceConfig.objects.create(chiave="manutenzione", attiva=True)
+            self.assertEqual([v.kind for v in fm.collect_manutenzione(_ctx(sistema=True))], ["ordinaria"])
+
+    def test_attivita_solo_di_chi_guarda(self):
+        from django.contrib.auth import get_user_model
+        from tasks.models import Task
+
+        U = get_user_model()
+        mio, altro = U.objects.create_user("lav.mio", "m@example.com", "x"), U.objects.create_user("lav.altro", "a@example.com", "x")
+        oggi = timezone.localdate()
+        Task.objects.create(title="Mia sintetica", assigned_to=mio, due_date=oggi, created_by=mio)
+        Task.objects.create(title="Altrui sintetica", assigned_to=altro, due_date=oggi, created_by=mio)
+        Task.objects.create(title="Fatta sintetica", assigned_to=mio, due_date=oggi, status="DONE", created_by=mio)
+        self.assertEqual([v.titolo for v in fm.collect_lavoro(_ctx(user=mio))], ["Mia sintetica"])
+        self.assertEqual(fm.collect_lavoro(_ctx(sistema=True)), [])
+
+    def test_termini_nis2(self):
+        from unittest.mock import patch
+
+        from security.models import SecurityIncident
+
+        campi = {f.name: f for f in SecurityIncident._meta.fields}
+        self.assertIn("is_significant", campi)
+        ora = timezone.now()
+        inc = SimpleNamespace(pk=1, code="INC-SINTETICO")
+        termini = [{"key": "early_warning", "label": "Pre-allarme", "due_at": ora, "state": "overdue"},
+                   {"key": "gdpr", "label": "Notifica GDPR", "due_at": ora, "state": "done"}]
+        qs = SimpleNamespace(filter=lambda *a, **k: [inc])
+        with patch("security.models.SecurityIncident.objects", qs), patch("security.services.incidents.deadlines", return_value=termini):
+            voci = fm._termini_soc(_ctx(sistema=True))
+        self.assertEqual([v.elemento for v in voci], ["early_warning"])
+        self.assertIn("entro le", voci[0].titolo)
+
+
 class VociGiaEvaseTests(TestCase):
     """Le voci che il modulo considera chiuse non restano aperte nello scadenzario."""
 

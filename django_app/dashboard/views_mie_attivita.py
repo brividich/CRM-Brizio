@@ -23,6 +23,8 @@ from django.shortcuts import render
 from django.urls import NoReverseMatch, reverse
 
 from core.legacy_utils import get_legacy_user, is_legacy_admin
+
+logger = __import__("logging").getLogger(__name__)
 from dashboard.views import (
     _board_data_anomalie,
     _board_data_assenze_da_approvare,
@@ -313,6 +315,43 @@ def _my_skm_refresh(legacy_user_id) -> list[dict]:
     return out
 
 
+def _mie_scadenze(request: HttpRequest) -> list[dict]:
+    """Scadute ed entro 7 giorni che riguardano la persona, da tutte le fonti tranne l'HR
+    (dati sanitari: vedi sotto). Il risultato resta in cache 5 minuti: la Home non deve
+    interrogare ogni modulo a ogni apertura."""
+    from django.core.cache import cache
+
+    user_id = getattr(request.user, "id", None)
+    if not user_id:
+        return []
+    chiave = f"scadenzario:mie:{user_id}"
+    salvate = cache.get(chiave)
+    if salvate is not None:
+        return salvate
+    try:
+        from dashboard.scadenze_providers import PROVIDERS, collect_all
+        from dashboard.views_scadenze import _azioni
+        from scadenzario.calendario import chiavi_persona_di, e_mia
+
+        voci = [v for v in collect_all(request, sources=set(PROVIDERS) - {"hr"}) if v.giorni is not None and v.giorni <= 7]
+        _azioni(request, voci)
+        persona = chiavi_persona_di(request)
+        righe = [v for v in voci if e_mia(v, user_id=user_id, chiavi_persona=persona)]
+        righe.sort(key=lambda v: v.giorni)
+        esito = [{
+            "code": v.source_label,
+            "title": v.titolo or v.soggetto,
+            "meta": f"{v.kind_label} · {v.data_scadenza:%d/%m/%Y}" if v.kind_label else f"{v.data_scadenza:%d/%m/%Y}",
+            "status": "Scaduta" if v.giorni < 0 else ("Oggi" if v.giorni == 0 else f"Tra {v.giorni} gg"),
+            "url": v.url,
+        } for v in righe[:10]]
+    except Exception:
+        logger.exception("Le mie scadenze non calcolabili")
+        return []
+    cache.set(chiave, esito, 300)
+    return esito
+
+
 def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
     """Aggrega in un'unica struttura le "cose da gestire" dell'utente corrente,
     attraversando i moduli. Riusato sia dalla pagina dedicata `mie_attivita` sia
@@ -412,6 +451,18 @@ def build_cose_da_gestire(request: HttpRequest) -> dict[str, Any]:
             "items": safety_items,
             "all_url": _safe_url("anagrafica:scadenzario") + "?tipo=qualifica",
             "empty": "Nessuna qualifica scaduta o in scadenza.",
+        })
+
+    mie = _mie_scadenze(request)
+    if mie:
+        sections.append({
+            "key": "scadenze",
+            "label": "Le mie scadenze",
+            "tone": "warning",
+            "icon": "📅",
+            "items": mie,
+            "all_url": _safe_url("scadenze_globali") + "?mie=1",
+            "empty": "Nessuna scadenza nei prossimi 7 giorni.",
         })
 
     total = sum(len(s["items"]) for s in sections)
