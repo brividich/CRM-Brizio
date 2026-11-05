@@ -7,6 +7,7 @@ per garantire il layout grafico uniforme (core/email/base_email.html).
 from __future__ import annotations
 
 import html as _html
+import logging
 import re as _re
 from typing import Sequence
 
@@ -14,6 +15,8 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.safestring import mark_safe
+
+logger = logging.getLogger(__name__)
 
 
 def render_hub_email_html(
@@ -255,4 +258,20 @@ def send_hub_mail(
             msg.attach(filename, content, mimetype)
         except Exception:
             pass
-    return msg.send(fail_silently=fail_silently)
+    try:
+        inviate = msg.send(fail_silently=fail_silently)
+    except Exception as exc:
+        _registra_invio(subject, recipients, cc, email_type, errore=str(exc) or type(exc).__name__)
+        raise
+    _registra_invio(subject, recipients, cc, email_type, errore="" if inviate else "Nessuna mail consegnata al server di posta.")
+    return inviate
+
+
+def _registra_invio(subject, recipients, cc, email_type: str, *, errore: str = "") -> None:
+    """Automazioni → «Mail inviate»: ogni mail del portale, promemoria compresi. Non blocca mai l'invio."""
+    try:
+        from automazioni.mail_inviate import registra
+
+        registra(origine="hub", destinatari=recipients, copia=cc, oggetto=subject, sorgente=email_type, errore=errore)
+    except Exception:
+        logger.warning("Mail non scritta nel registro", exc_info=True)
