@@ -11,7 +11,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from . import flusso, magazzino
-from datetime import date
+from datetime import date, timedelta
 
 from django.utils import timezone
 
@@ -273,6 +273,133 @@ class BancoConsegneTests(TestCase):
                                         "data_consegna": "2026-11-02"})
         self.assertRedirects(resp, reverse("dpi:dashboard"), fetch_redirect_response=False)
         self.assertFalse(ConsegnaDPI.objects.exists())
+
+
+class ConsegnaSalvataSubitoTests(TestCase):
+    """Dalla pagina aperta la consegna e' subito sul server; mail e PDF aspettano l'annullo."""
+
+    AJAX = {"HTTP_X_REQUESTED_WITH": "XMLHttpRequest"}
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_superuser(username="dpi-subito", password="x", email="s@y.z"))
+        self.categoria = CategoriaDPI.objects.create(nome="Mani", icona_emoji="gloves", vita_utile_giorni=30)
+        self.tipo = TipoDPI.objects.create(categoria=self.categoria, nome="Guanti")
+        self.modello = ModelloDPI.objects.create(tipo=self.tipo, codice="GT-1", nome="Blade Safe")
+        self.url = reverse("dpi:banco")
+        for bersaglio in ("dpi.pdf.render_modulo_consegna_dpi", "dpi.flusso.notifica_consegnata", "dpi.conferme.richiedi"):
+            patcher = mock.patch(bersaglio, return_value=(None, "", 0) if bersaglio.endswith("richiedi") else b"%PDF")
+            setattr(self, bersaglio.rpartition(".")[2], patcher.start())
+            self.addCleanup(patcher.stop)
+
+    def _richiesta(self, quantita=1):
+        return RichiestaDPI.objects.create(
+            categoria=self.categoria, tipo_dpi=self.tipo, modello_dpi=self.modello, quantita=quantita,
+            stato=StatoRichiesta.APPROVATA, richiedente_nome="Mario Rossi", richiedente_legacy_id=101,
+        )
+
+    def _consegna(self, *richieste, **extra):
+        dati = {"azione": "consegna", "differisci": "1", "ids": [r.pk for r in richieste], "data_consegna": "2026-11-05"}
+        dati.update(extra)
+        return self.client.post(self.url, dati, **self.AJAX)
+
+    def test_salvata_subito_senza_avvisi(self):
+        magazzino.carica_ddt(self.modello, 5)
+        r = self._richiesta()
+        resp = self._consegna(r)
+        self.assertEqual(resp["X-Banco-Registrate"], str(r.pk))
+        r.refresh_from_db()
+        self.assertEqual(r.stato, StatoRichiesta.CONSEGNATA)
+        self.assertIsNotNone(r.consegna.avvisi_in_sospeso_dal)
+        self.assertEqual(magazzino.giacenza(self.modello.pk), 4)
+        self.notifica_consegnata.assert_not_called()
+        self.richiedi.assert_not_called()
+
+    def test_annulla_torna_da_consegnare_con_traccia(self):
+        magazzino.carica_ddt(self.modello, 5)
+        r = self._richiesta()
+        self._consegna(r)
+        resp = self.client.post(self.url, {"azione": "annulla", "ids": [r.pk]}, **self.AJAX)
+        self.assertEqual(resp["X-Banco-Annullate"], str(r.pk))
+        r.refresh_from_db()
+        self.assertEqual(r.stato, StatoRichiesta.APPROVATA)
+        self.assertFalse(ConsegnaDPI.objects.filter(richiesta=r).exists())
+        self.assertEqual(magazzino.giacenza(self.modello.pk), 5)
+        self.assertTrue(r.commenti.filter(testo__contains="annullata").exists())
+        self.notifica_consegnata.assert_not_called()
+        # Riconsegnata dopo l'annullo, scarica di nuovo.
+        self._consegna(r)
+        self.assertEqual(magazzino.giacenza(self.modello.pk), 4)
+
+    def test_avvisi_una_volta_sola_poi_non_si_annulla(self):
+        magazzino.carica_ddt(self.modello, 5)
+        r = self._richiesta()
+        self._consegna(r)
+        for _ in range(2):
+            self.client.post(self.url, {"azione": "avvisi", "ids": [r.pk]}, **self.AJAX)
+        self.notifica_consegnata.assert_called_once()
+        self.richiedi.assert_called_once()
+        r.refresh_from_db()
+        self.assertIsNone(r.consegna.avvisi_in_sospeso_dal)
+        resp = self.client.post(self.url, {"azione": "annulla", "ids": [r.pk]}, **self.AJAX)
+        self.assertEqual(resp["X-Banco-Annullate"], "")
+        r.refresh_from_db()
+        self.assertEqual(r.stato, StatoRichiesta.CONSEGNATA)
+
+    def test_browser_sparito_gli_avvisi_li_manda_il_task(self):
+        from .tasks import run_dpi_avvisi_consegna
+
+        magazzino.carica_ddt(self.modello, 5)
+        r = self._richiesta()
+        self._consegna(r)
+        self.assertEqual(run_dpi_avvisi_consegna()["completate"], 0)  # ancora nel tempo dell'annullo
+        ConsegnaDPI.objects.filter(richiesta=r).update(avvisi_in_sospeso_dal=timezone.now() - timedelta(minutes=3))
+        self.assertEqual(run_dpi_avvisi_consegna()["completate"], 1)
+        self.notifica_consegnata.assert_called_once()
+        self.richiedi.assert_called_once()
+        self.assertEqual(run_dpi_avvisi_consegna()["completate"], 0)
+
+    def test_senza_differisci_avvisi_immediati(self):
+        magazzino.carica_ddt(self.modello, 5)
+        r = self._richiesta()
+        self.client.post(self.url, {"azione": "consegna", "ids": [r.pk], "data_consegna": "2026-11-05"})
+        self.notifica_consegnata.assert_called_once()
+
+    def test_giacenza_insufficiente_chiede_il_motivo(self):
+        magazzino.carica_ddt(self.modello, 1)
+        r = self._richiesta(quantita=2)
+        resp = self._consegna(r)
+        self.assertEqual(resp["X-Banco-Motivo"], "1")
+        self.assertEqual(resp["X-Banco-Registrate"], "")
+        r.refresh_from_db()
+        self.assertEqual(r.stato, StatoRichiesta.APPROVATA)
+        self.assertEqual(magazzino.giacenza(self.modello.pk), 1)
+
+        self.assertEqual(self._consegna(r, motivo_giacenza="carico non ancora registrato")["X-Banco-Registrate"], str(r.pk))
+        movimento = r.movimenti_magazzino.get()
+        self.assertIn("carico non ancora registrato", movimento.note)
+        self.assertTrue(r.commenti.filter(testo__contains="carico non ancora registrato", is_interno=True).exists())
+
+    def test_giacenza_si_somma_tra_le_richieste_spuntate(self):
+        magazzino.carica_ddt(self.modello, 1)
+        a, b = self._richiesta(), self._richiesta()
+        self.assertEqual(self._consegna(a, b)["X-Banco-Motivo"], "1")
+
+    def test_magazzino_non_in_uso_non_chiede_il_motivo(self):
+        r = self._richiesta()
+        self.assertEqual(self._consegna(r)["X-Banco-Registrate"], str(r.pk))
+
+    def test_scheda_richiesta_chiede_il_motivo(self):
+        magazzino.carica_ddt(self.modello, 1)
+        r = self._richiesta(quantita=2)
+        self.client.post(reverse("dpi:consegna", args=[r.pk]), {"data_consegna": "2026-11-05", "firmato_ricevuta": "1"})
+        r.refresh_from_db()
+        self.assertEqual(r.stato, StatoRichiesta.APPROVATA)
+        self.assertContains(self.client.get(reverse("dpi:gestione_detail", args=[r.pk])), "Motivo della consegna senza giacenza")
+        self.client.post(reverse("dpi:consegna", args=[r.pk]), {
+            "data_consegna": "2026-11-05", "firmato_ricevuta": "1", "motivo_giacenza": "rettifica in corso",
+        })
+        r.refresh_from_db()
+        self.assertEqual(r.stato, StatoRichiesta.CONSEGNATA)
 
 
 class DestinatariConsegnaTests(TestCase):

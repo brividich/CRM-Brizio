@@ -233,7 +233,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
 <div id="banco-annulla" role="status" hidden>
   <span id="banco-annulla-testo"></span>
   <button type="button" id="banco-annulla-si">Annulla</button>
-  <button type="button" id="banco-annulla-ora">Registra ora</button>
+  <button type="button" id="banco-annulla-ora">Invia ora</button>
 </div>
 {{ catalogo_modelli|json_script:"banco-catalogo" }}
 {{ badge_persone|json_script:"banco-badge" }}
@@ -243,7 +243,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
   var catalogo = JSON.parse(document.getElementById('banco-catalogo').textContent);
   var badgePersone = JSON.parse(document.getElementById('banco-badge').textContent);
   var ATTESA_SECONDI = 6;
-  var sospesa = null, nascoste = {}, coda = Promise.resolve();
+  var sospesa = null, coda = Promise.resolve();
   var lavoro = document.getElementById('banco-lavoro');
   var cerca = document.getElementById('banco-cerca');
   var scelta = null, filtro = '', attiva = null, occupato = false;
@@ -263,7 +263,9 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     btn.textContent = scelte.length ? 'Consegna ' + scelte.length + ' DPI a ' + card.getAttribute('data-nome') : 'Spunta almeno un DPI';
     var pronto = card.querySelector('[data-pronto]');
     if (pronto) pronto.disabled = !scelte.some(function (c) { return !c.getAttribute('data-pronta'); });
-    card.querySelector('[data-avviso-giacenza]').hidden = !scelte.some(function (c) { return c.getAttribute('data-manca'); });
+    var manca = scelte.some(function (c) { return c.getAttribute('data-manca'); });
+    card.querySelector('[data-avviso-giacenza]').hidden = !manca && !card._serveMotivo;
+    card.querySelector('[data-motivo]').hidden = !manca && !card._serveMotivo;
     card.querySelectorAll('[data-cambia]').forEach(function (b) {
       var modelli = catalogo[b.getAttribute('data-categoria')] || [];
       b.hidden = !modelli.length || (modelli.length === 1 && String(modelli[0].id) === b.getAttribute('data-modello') && modelli[0].taglie.length < 2);
@@ -311,8 +313,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     righe().forEach(function (r) {
       var testo = norm(r.getAttribute('data-cerca'));
       var ok = (perBadge ? norm(r.getAttribute('data-badge')) === q : parole.every(function (p) { return testo.indexOf(p) !== -1; }))
-        && (!filtro || Number(r.getAttribute('data-' + filtro)) > 0)
-        && !nascoste[r.getAttribute('data-chiave')];
+        && (!filtro || Number(r.getAttribute('data-' + filtro)) > 0);
       r.hidden = !ok;
       if (ok) { quante++; ultima = r; }
     });
@@ -384,12 +385,22 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     return coda;
   }
 
-  // La consegna parte dopo qualche secondo: fino ad allora non e' successo niente sul server.
+  // La consegna e' gia' sul server: qui aspettano solo mail e PDF, per poter annullare.
+  // Se il browser sparisce, gli avvisi rimasti li manda il server.
   function mostraAttesa() {
     var barra = document.getElementById('banco-annulla');
     barra.hidden = !sospesa;
     if (sospesa) document.getElementById('banco-annulla-testo').textContent =
-      sospesa.n + ' DPI a ' + sospesa.nome + ': registro tra ' + sospesa.resto + ' s';
+      sospesa.n + ' DPI a ' + sospesa.nome + ' registrati: avvisi tra ' + sospesa.resto + ' s';
+  }
+
+  function avviaConto() {
+    sospesa.conto = setInterval(function () {
+      sospesa.resto -= 1;
+      if (sospesa.resto <= 0) inviaAvvisi();
+      else mostraAttesa();
+    }, 1000);
+    mostraAttesa();
   }
 
   function chiudiAttesa() {
@@ -400,59 +411,100 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     return s;
   }
 
-  function registraOra() {
-    if (!sospesa) return;
+  function datiSospesa(s, azione) {
+    var dati = new FormData();
+    dati.set('csrfmiddlewaretoken', s.csrf);
+    dati.set('azione', azione);
+    dati.set('tutte', s.tutte);
+    s.ids.forEach(function (id) { dati.append('ids', id); });
+    return dati;
+  }
+
+  function indirizzo() { return window.location.pathname + window.location.search; }
+
+  function inviaAvvisi() {
+    if (!sospesa || sospesa.annullo) return;
     var s = chiudiAttesa();
     inCoda(function () {
-      return chiedi(window.location.pathname + window.location.search, {method: 'POST', body: s.dati}).then(function (r) {
-        delete nascoste[s.chiave];
+      return chiedi(indirizzo(), {method: 'POST', body: datiSospesa(s, 'avvisi')}).then(function (r) {
         aggiorna(r.html, '', true);
-      }).catch(function (e) {
-        delete nascoste[s.chiave];
-        applica();
-        if (e.message !== 'ricarica') errore('Connessione assente: la consegna a ' + s.nome + ' non è stata registrata. Riprova.');
-      });
+      }).catch(function () {});  // la consegna e' salva: gli avvisi li recupera il server
     });
   }
 
   function annullaConsegna() {
-    if (!sospesa) return;
-    var s = chiudiAttesa();
-    delete nascoste[s.chiave];
-    cerca.value = '';
-    applica();
-    seleziona(s.chiave, {scorri: true, fuoco: true});
+    if (!sospesa || sospesa.annullo) return;
+    var s = sospesa;
+    s.annullo = true;
+    clearInterval(s.conto);
+    inCoda(function () {
+      return chiedi(indirizzo(), {method: 'POST', body: datiSospesa(s, 'annulla')}).then(function (r) {
+        chiudiAttesa();
+        if (!r.annullate.length) { aggiorna(r.html, '', true); return; }
+        cerca.value = '';
+        aggiorna(r.html, '');
+        // Torna la scheda di prima, con spunte, note e firma.
+        var nuova = document.getElementById(s.chiave);
+        if (nuova) nuova.replaceWith(s.card);
+        applica();
+        seleziona(s.chiave, {scorri: true, fuoco: true});
+      }).catch(function (e) {
+        if (e.message === 'ricarica') return;
+        s.annullo = false;
+        avviaConto();
+        errore('Connessione assente: la consegna resta registrata. Riprova ad annullare.');
+      });
+    });
   }
 
   function avviaConsegna(form, bottone) {
-    registraOra();
+    if (occupato) return;
     var card = form.closest('.dpi-persona');
+    var motivo = card.querySelector('[data-motivo]');
+    var campoMotivo = motivo.querySelector('input');
+    if (!motivo.hidden && !campoMotivo.value.trim()) {
+      errore('Scrivi il motivo della consegna senza giacenza.');
+      campoMotivo.focus();
+      return;
+    }
+    inviaAvvisi();
     var canvas = card.querySelector('[data-firma]');
     card.querySelector('input[name=firma_immagine]').value = canvas._ink ? canvas.toDataURL('image/png') : '';
     var dati = new FormData(form);
     dati.set('azione', 'consegna');
-    sospesa = {
-      dati: dati, chiave: card.id, nome: card.getAttribute('data-nome'),
-      n: dati.getAll('ids').length, resto: ATTESA_SECONDI,
-    };
-    sospesa.conto = setInterval(function () {
-      sospesa.resto -= 1;
-      if (sospesa.resto <= 0) registraOra();
-      else mostraAttesa();
-    }, 1000);
-    nascoste[card.id] = true;
-    cerca.value = '';
-    seleziona(null);
-    applica();
-    mostraAttesa();
-    cerca.focus();
+    dati.set('differisci', '1');
+    var nome = card.getAttribute('data-nome');
+    occupato = true;
+    bottone.disabled = true;
+    bottone.textContent = 'Un momento…';
+    inCoda(function () { return chiedi(indirizzo(), {method: 'POST', body: dati}); }).then(function (r) {
+      if (!r.registrate.length) {  // rifiutata dal server: il motivo del rifiuto e' nel messaggio
+        card._serveMotivo = card._serveMotivo || r.motivo;
+        aggiorna(r.html, '', true);
+        sincronizza(card);
+        if (r.motivo) campoMotivo.focus();
+        return;
+      }
+      sospesa = {
+        ids: r.registrate, n: r.registrate.length, chiave: card.id, card: card, nome: nome, resto: ATTESA_SECONDI,
+        csrf: dati.get('csrfmiddlewaretoken'), tutte: dati.get('tutte') || '',
+      };
+      cerca.value = '';
+      aggiorna(r.html, '');
+      avviaConto();
+      cerca.focus();
+    }).catch(function (e) {
+      if (e.message === 'ricarica') return;
+      sincronizza(card);
+      errore('Connessione assente: la consegna a ' + nome + ' non è stata registrata. Riprova.');
+    }).then(function () { occupato = false; });
   }
 
-  // Si esce dalla pagina durante l'attesa: la consegna decisa parte comunque.
+  // Si esce dalla pagina durante l'attesa: gli avvisi partono subito.
   window.addEventListener('pagehide', function () {
-    if (!sospesa) return;
+    if (!sospesa || sospesa.annullo) return;
     var s = chiudiAttesa();
-    navigator.sendBeacon(window.location.pathname + window.location.search, s.dati);
+    navigator.sendBeacon(indirizzo(), datiSospesa(s, 'avvisi'));
   });
 
   function apriCambio(b) {
@@ -512,14 +564,20 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
       var html = (res.headers.get('Content-Type') || '').indexOf('text/html') !== -1;
       // Sessione scaduta o permesso tolto: si ricarica la pagina, ci pensa il portale.
       if (!res.ok || res.redirected || !html) { window.location.reload(); throw new Error('ricarica'); }
-      return res.text().then(function (testo) { return {html: testo, apri: res.headers.get('X-Banco-Apri') || ''}; });
+      return res.text().then(function (testo) {
+        return {
+          html: testo, apri: res.headers.get('X-Banco-Apri') || '', motivo: !!res.headers.get('X-Banco-Motivo'),
+          registrate: (res.headers.get('X-Banco-Registrate') || '').split(',').filter(Boolean),
+          annullate: (res.headers.get('X-Banco-Annullate') || '').split(',').filter(Boolean),
+        };
+      });
     });
   }
 
   function invia(form, bottone) {
     if (bottone && bottone.value === 'consegna') { avviaConsegna(form, bottone); return; }
     if (occupato) return;
-    registraOra();
+    inviaAvvisi();
     var card = form.closest('.dpi-persona');
     var canvas = card && card.querySelector('[data-firma]');
     if (canvas) card.querySelector('input[name=firma_immagine]').value = canvas._ink ? canvas.toDataURL('image/png') : '';
@@ -606,7 +664,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
   });
 
   document.getElementById('banco-annulla-si').addEventListener('click', annullaConsegna);
-  document.getElementById('banco-annulla-ora').addEventListener('click', registraOra);
+  document.getElementById('banco-annulla-ora').addEventListener('click', inviaAvvisi);
   cerca.addEventListener('input', applica);
   cerca.addEventListener('keydown', function (e) {
     var lista = visibili();
@@ -630,9 +688,12 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     }
   });
   document.addEventListener('keydown', function (e) {
-    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
-    e.preventDefault();
+    if (e.key === '/') e.preventDefault();
+    // Lettore di badge con il fuoco su un pulsante: il codice va nella ricerca, cosi'
+    // l'Invio con cui il lettore chiude la lettura non conferma la consegna aperta.
+    else if (e.key.length !== 1 || e.key === ' ') return;
     cerca.focus();
     cerca.select();
   });
