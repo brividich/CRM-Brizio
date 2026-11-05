@@ -56,6 +56,9 @@ _ROUTE_BINDINGS = {
     "presenti:appello_spunta": PERM_APPELLO,
     "presenti:appello_chiudi": PERM_APPELLO,
     "presenti:appello_stampa": PERM_APPELLO,
+    "presenti:appello_verbale": PERM_APPELLO,
+    "presenti:appello_verbale_pdf": PERM_APPELLO,
+    "presenti:appello_elimina": PERM_APPELLO,
     "presenti:uscite": PERM_USCITE,
     "presenti:impostazioni": PERM_IMPOSTAZIONI,
 }

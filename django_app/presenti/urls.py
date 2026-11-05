@@ -19,6 +19,9 @@ urlpatterns = [
     path("appello/<int:pk>/spunta/", views.appello_spunta, name="appello_spunta"),
     path("appello/<int:pk>/chiudi/", views.appello_chiudi, name="appello_chiudi"),
     path("appello/<int:pk>/stampa/", views.appello_stampa, name="appello_stampa"),
+    path("appello/<int:pk>/verbale/", views.appello_verbale, name="appello_verbale"),
+    path("appello/<int:pk>/verbale/pdf/", views.appello_verbale_pdf, name="appello_verbale_pdf"),
+    path("appello/<int:pk>/elimina/", views.appello_elimina, name="appello_elimina"),
     path("uscite/", views.uscite_view, name="uscite"),
     path("impostazioni/", views.impostazioni_view, name="impostazioni"),
 ]

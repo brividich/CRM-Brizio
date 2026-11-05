@@ -28,6 +28,9 @@ class Appello(models.Model):
         default=False, help_text="Prova di evacuazione: resta nello storico distinta da un'emergenza reale.",
     )
     nota = models.CharField(max_length=300, blank=True, default="")
+    osservazioni = models.TextField(
+        blank=True, default="", help_text="Osservazioni per il verbale: criticità, tempi, azioni di miglioramento.",
+    )
     # [{solari_id, legacy_id, cognome, nome, matricola, reparto, incarichi:[{nome, colore}], entrata}]
     persone = models.JSONField(default=list)
     aggiornato_il = models.DateTimeField(auto_now=True)

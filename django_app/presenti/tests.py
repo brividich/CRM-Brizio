@@ -208,6 +208,36 @@ class VisteTests(TestCase):
         self.client.post(url, {"solari_id": 13, "contato": "1"})
         self.assertEqual(AppelloSpunta.objects.filter(appello=a).count(), 1)
 
+    def test_verbale_e_elimina_solo_esercitazioni(self):
+        self.client.post(reverse("presenti:appello_avvia"), {"esercitazione": "1", "nota": "prova"})
+        a = Appello.objects.get()
+        self.client.post(reverse("presenti:appello_spunta", args=[a.pk]), {"solari_id": 11, "contato": "1"})
+        r = self.client.post(reverse("presenti:appello_chiudi", args=[a.pk]))
+        self.assertRedirects(r, reverse("presenti:appello_verbale", args=[a.pk]), fetch_redirect_response=False)
+        r = self.client.get(reverse("presenti:appello_verbale", args=[a.pk]))
+        self.assertContains(r, "1/3")
+        self.assertContains(r, "Elimina esercitazione")
+        self.client.post(reverse("presenti:appello_verbale", args=[a.pk]), {"osservazioni": "Uscita nord ingombra"})
+        a.refresh_from_db()
+        self.assertEqual(a.osservazioni, "Uscita nord ingombra")
+        r = self.client.get(reverse("presenti:appello_verbale_pdf", args=[a.pk]))
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertTrue(r.content.startswith(b"%PDF"))
+        # Un collega che non l'ha avviata e non è amministratore del modulo non la elimina.
+        altro = self.client_class()
+        altro.force_login(self.collega)
+        with patch("presenti.views.request_has_permission_code", return_value=False):
+            self.assertEqual(altro.post(reverse("presenti:appello_elimina", args=[a.pk])).status_code, 403)
+        self.client.post(reverse("presenti:appello_elimina", args=[a.pk]))
+        self.assertFalse(Appello.objects.exists())
+
+    def test_emergenza_reale_non_si_elimina(self):
+        self.client.post(reverse("presenti:appello_avvia"))
+        a = Appello.objects.get()
+        self.assertEqual(self.client.post(reverse("presenti:appello_elimina", args=[a.pk])).status_code, 403)
+        self.assertNotContains(self.client.get(reverse("presenti:appello_verbale", args=[a.pk])), "Elimina esercitazione")
+        self.assertTrue(Appello.objects.exists())
+
     def test_impostazioni(self):
         r = self.client.post(reverse("presenti:impostazioni"),
                              {"azione": "salva", "presenti_sp_attivo": "1", "presenti_sp_raccolta": "Docs"})

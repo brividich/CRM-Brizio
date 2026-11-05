@@ -223,6 +223,8 @@ def appello_chiudi(request, pk: int):
         d = _dati_appello(a)
         log_action(request, "appello_chiuso", "presenti",
                    {"appello": a.pk, "contati": d["n_contati"], "mancanti": d["n_mancanti"]}, oggetto=a)
+        # Dopo la chiusura si passa al verbale: si scrivono subito le osservazioni.
+        return redirect("presenti:appello_verbale", pk=a.pk)
     return redirect("presenti:appello")
 
 
@@ -246,6 +248,107 @@ def appello_stampa(request, pk: int):
     resp = HttpResponse(contenuto, content_type="application/pdf")
     resp["Content-Disposition"] = f'inline; filename="Appello_{aperto_il:%Y%m%d_%H%M}.pdf"'
     return resp
+
+
+# ── Verbale ───────────────────────────────────────────────────────────────────
+
+def _puo_eliminare(request, a: Appello) -> bool:
+    """Solo le esercitazioni, e solo chi l'ha avviata o l'amministratore del modulo.
+
+    Un appello di emergenza reale non si cancella: è la traccia dell'evento.
+    """
+    if not a.esercitazione:
+        return False
+    return a.aperto_da_id == request.user.pk or request_has_permission_code(request, PERM_IMPOSTAZIONI)
+
+
+def _durata(delta) -> str:
+    if delta is None:
+        return "—"
+    secondi = max(0, int(delta.total_seconds()))
+    m, s = divmod(secondi, 60)
+    return f"{m} min {s:02d} s" if m < 60 else f"{m // 60} h {m % 60:02d} min"
+
+
+def _dati_verbale(a: Appello) -> dict:
+    """Numeri del verbale: tempi, soglie di conta, chi ha contato, chi mancava."""
+    spunte = list(a.spunte.select_related("contato_da").order_by("contato_il"))
+    totale = len(a.persone)
+    fine = a.chiuso_il or timezone.now()
+    soglie = []
+    for perc in (50, 90, 100):
+        serve = -(-totale * perc // 100) if totale else 0  # arrotondato per eccesso
+        quando = spunte[serve - 1].contato_il if serve and len(spunte) >= serve else None
+        soglie.append({"perc": perc, "serve": serve,
+                       "tempo": _durata(quando - a.aperto_il) if quando else "non raggiunto"})
+    per_chi: dict[str, int] = {}
+    for s in spunte:
+        nome = _nome_utente(s.contato_da) or "—"
+        per_chi[nome] = per_chi.get(nome, 0) + 1
+    contati_ids = {s.solari_id for s in spunte}
+    mancanti = sorted((p for p in a.persone if p["solari_id"] not in contati_ids),
+                      key=lambda p: ((p.get("cognome") or "").lower(), (p.get("nome") or "").lower()))
+    return {
+        "appello": a,
+        "tipo": "Esercitazione di evacuazione" if a.esercitazione else "Evacuazione di emergenza",
+        "aperto_il": timezone.localtime(a.aperto_il),
+        "chiuso_il": timezone.localtime(a.chiuso_il) if a.chiuso_il else None,
+        "aperto_da": _nome_utente(a.aperto_da) or "—",
+        "chiuso_da": _nome_utente(a.chiuso_da) or "—",
+        "durata": _durata(fine - a.aperto_il),
+        "n_totale": totale,
+        "n_dipendenti": sum(1 for p in a.persone if not p.get("esterno")),
+        "n_esterni": sum(1 for p in a.persone if p.get("esterno")),
+        "n_contati": len(contati_ids),
+        "soglie": soglie,
+        "per_chi": sorted(per_chi.items(), key=lambda kv: (-kv[1], kv[0])),
+        "mancanti": mancanti,
+    }
+
+
+@login_required
+def appello_verbale(request, pk: int):
+    a = get_object_or_404(Appello, pk=pk)
+    if request.method == "POST":
+        a.osservazioni = (request.POST.get("osservazioni") or "").strip()[:4000]
+        a.save(update_fields=["osservazioni", "aggiornato_il"])
+        log_action(request, "appello_verbale_osservazioni", "presenti", {"appello": a.pk}, oggetto=a)
+        from django.contrib import messages
+
+        messages.success(request, "Osservazioni salvate nel verbale.")
+        return redirect("presenti:appello_verbale", pk=a.pk)
+    return render(request, "presenti/verbale.html", _ctx(
+        request, "appello", **_dati_verbale(a), puo_eliminare=_puo_eliminare(request, a),
+    ))
+
+
+@login_required
+@require_GET
+def appello_verbale_pdf(request, pk: int):
+    a = get_object_or_404(Appello, pk=pk)
+    dati = _dati_verbale(a)
+    contenuto = pdf.genera_verbale(dati)
+    resp = HttpResponse(contenuto, content_type="application/pdf")
+    resp["Content-Disposition"] = f'inline; filename="Verbale_evacuazione_{dati["aperto_il"]:%Y%m%d_%H%M}.pdf"'
+    return resp
+
+
+@login_required
+@require_POST
+def appello_elimina(request, pk: int):
+    a = get_object_or_404(Appello, pk=pk)
+    if not _puo_eliminare(request, a):
+        from django.http import HttpResponseForbidden
+
+        return HttpResponseForbidden("Si possono eliminare solo le esercitazioni, da chi le ha avviate o dall'amministratore.")
+    dati = {"appello": a.pk, "aperto_il": a.aperto_il.isoformat(), "persone": len(a.persone),
+            "contati": a.spunte.count(), "esercitazione": True}
+    a.delete()
+    log_action(request, "appello_eliminato", "presenti", dati)
+    from django.contrib import messages
+
+    messages.success(request, "Esercitazione eliminata.")
+    return redirect("presenti:appello")
 
 
 # ── Uscite non timbrate ───────────────────────────────────────────────────────

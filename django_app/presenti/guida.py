@@ -77,6 +77,12 @@ SEZIONI: list[dict] = [
                      "Se il GuestPortal non risponde compare l'avviso e gli esterni non sono in elenco: in quel caso "
                      "contali dal registro della portineria. Chi entra senza registrarsi al GuestPortal non c'è."),
             ("p", "Gli appelli conclusi restano nello storico in fondo alla pagina, con il PDF."),
+            ("p", "Alla chiusura si apre il «Verbale»: durata, tempo al 50, 90 e 100 % delle persone contate, chi ha "
+                  "contato, chi non è stato contato. Scrivi le osservazioni (criticità, azioni di miglioramento) e "
+                  "premi «Salva osservazioni»; «PDF verbale» dà il documento con gli spazi firma per coordinatore e "
+                  "RSPP. Il verbale si riapre dallo storico con «Verbale»."),
+            ("nota", "«Elimina esercitazione» (nel verbale) cancella una prova con tutte le spunte: per chi l'ha "
+                     "avviata o per l'amministratore del modulo. Gli appelli di emergenza non si possono eliminare."),
         ],
     },
     {
