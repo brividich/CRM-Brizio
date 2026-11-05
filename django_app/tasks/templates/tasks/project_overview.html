@@ -17,7 +17,8 @@
 {% block tasks_shell_actions %}
   <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
   {% if can_manage %}
-    <a class="ts-hero-action" href="{% url 'tasks:project_vrf_upload' project.id %}">Gestisci VRF</a>
+    <a class="ts-hero-action" href="{% url 'tasks:project_edit' project.id %}">Modifica kickoff</a>
+    <a class="ts-hero-action" href="{% url 'tasks:project_vrf_compile' project.id %}">Gestisci VRF</a>
     {% if tasks_shell_can_create %}
       <a class="ts-hero-action" href="{% url 'tasks:project_meeting_create' project.id %}">Nuovo incontro</a>
       <a class="ts-hero-action primary" href="{% url 'tasks:create' %}?project={{ project.id }}">+ Nuova attività</a>

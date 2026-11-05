@@ -4,22 +4,27 @@
   {% include "tasks/_percorso_assets.html" %}
 {% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Nuovo kickoff</span>{% endblock %}
-{% block tasks_shell_title %}Nuovo kickoff{% endblock %}
-{% block tasks_shell_subtitle %}Segui il percorso: anagrafica del kickoff → scheda VRF → attività di lavorazione.{% endblock %}
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / {% if edit_project %}Modifica kickoff{% else %}Nuovo kickoff{% endif %}</span>{% endblock %}
+{% block tasks_shell_title %}{% if edit_project %}Modifica {{ edit_project.name }}{% else %}Nuovo kickoff{% endif %}{% endblock %}
+{% block tasks_shell_subtitle %}{% if edit_project %}Dati e team della commessa.{% else %}Inserisci i dati e il team: al salvataggio nasce il primo incontro da convocare. Scheda VRF e attività si completano dopo.{% endif %}{% endblock %}
 {% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
+  {% if edit_project %}
+    <a class="ts-hero-action" href="{% url 'tasks:project_overview' edit_project.id %}">Panoramica</a>
+  {% else %}
+    <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
+  {% endif %}
 {% endblock %}
 
 {% block tasks_shell_content %}
 <div class="ts-stack">
 
+  {% if not edit_project %}
   {% include "tasks/_percorso_lifecycle.html" with current="anagrafica" %}
-
 
   <div class="ts-note-box">
     Se inserisci un <strong>P/N con revisione e versione già esistenti</strong>, il sistema riusa il kickoff corrispondente invece di crearne un duplicato.
   </div>
+  {% endif %}
 
   <form method="post" id="kc-form">
     {% csrf_token %}
@@ -88,7 +93,7 @@
                 </div>
               </div>
               <div class="kp-field col-3">
-                <label for="{{ form.description.id_for_label }}">Descrizione kickoff</label>
+                <label for="{{ form.description.id_for_label }}">Descrizione</label>
                 {{ form.description }}
               </div>
             </div>
@@ -114,21 +119,17 @@
                 <label for="{{ form.vrf_esp.id_for_label }}">Esp</label>
                 {{ form.vrf_esp }}
               </div>
-              <div class="kp-field col-3">
-                <label for="{{ form.vrf_description.id_for_label }}">Descrizione scheda VRF</label>
-                {{ form.vrf_description }}
-              </div>
             </div>
           </div>
         </section>
 
         {# ── Tappa 3 ─────────────────────────────────────────────── #}
-        <section class="kp-station" data-title="Team">
+        <section class="kp-station" id="team" data-title="Team">
           <div class="kp-station-head">
             <span class="kp-num">3</span>
             <div class="kp-station-titles">
               <h3>Team di progetto <span class="kp-req">*</span></h3>
-              <p>Indica almeno un referente del kickoff.</p>
+              <p>Basta un referente per creare il kickoff. Per risultare pronto all'avvio servono Project manager, Capocommessa e Programmatore.</p>
             </div>
           </div>
           <div class="kp-body">
@@ -158,9 +159,9 @@
     </div>{# /kp-layout #}
 
     <div class="kp-actions">
-      <a class="btn btn-secondary" href="{% url 'tasks:project_list' %}">Annulla</a>
+      <a class="btn btn-secondary" href="{% if edit_project %}{% url 'tasks:project_overview' edit_project.id %}{% else %}{% url 'tasks:project_list' %}{% endif %}">Annulla</a>
       <div class="kp-right">
-        <button type="submit" class="btn">Crea kickoff e passa alla scheda VRF &rarr;</button>
+        <button type="submit" class="btn">{% if edit_project %}Salva modifiche{% else %}Crea kickoff e convoca il primo incontro &rarr;{% endif %}</button>
       </div>
     </div>
   </form>
@@ -175,19 +176,48 @@
 
   const suggestUrl = "{% url 'tasks:identity_suggest' %}";
 
-  // Filtro locale sulle liste di selezione multipla del team.
+  // Team: le persone scelte restano visibili come etichette; un elenco lungo
+  // resta chiuso finche' non si entra nella casella di ricerca.
   document.querySelectorAll('[data-kp-multipick]').forEach(function (box) {
     const search = box.querySelector('.kp-multipick-search');
     const options = Array.prototype.slice.call(box.querySelectorAll('.kp-multipick-opt'));
     if (!search || !options.length) return;
+    const chips = document.createElement('div');
+    chips.className = 'kp-multipick-chips';
+    box.insertBefore(chips, search);
+    const lunga = options.length > 6;
+
+    function disegna() {
+      chips.replaceChildren();
+      options.forEach(function (opt) {
+        const input = opt.querySelector('input[type="checkbox"]');
+        if (!input.checked) return;
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'kp-multipick-chip';
+        chip.textContent = opt.textContent.trim() + ' ×';
+        chip.title = 'Togli';
+        chip.addEventListener('click', function () {
+          input.checked = false;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        chips.appendChild(chip);
+      });
+    }
+    function chiudi(si) { if (lunga) box.classList.toggle('is-collapsed', si); }
+
+    box.addEventListener('change', disegna);
+    box.addEventListener('focusin', function () { chiudi(false); });
+    document.addEventListener('click', function (e) { if (!box.contains(e.target)) chiudi(true); });
     search.addEventListener('input', function () {
       const needle = search.value.trim().toLowerCase();
       options.forEach(function (opt) {
-        const checked = opt.querySelector('input[type="checkbox"]').checked;
         const match = !needle || opt.textContent.toLowerCase().indexOf(needle) !== -1;
-        opt.classList.toggle('is-hidden', !(match || checked));
+        opt.classList.toggle('is-hidden', !match);
       });
     });
+    disegna();
+    chiudi(true);
   });
 
   function attachIdentitySuggestions(inputId, datalistId, field) {

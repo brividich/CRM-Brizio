@@ -167,11 +167,11 @@
                 {% elif d.status == 'na' %}
                   <span class="ts-chip soft" style="font-size:10px;">N/A</span>
                 {% elif d.status == 'blocked' %}
-                  <a href="{% url 'tasks:project_vrf_upload' project.id %}" class="ts-chip danger" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">Bloccato</a>
+                  <a href="{% url 'tasks:project_vrf_compile' project.id %}" class="ts-chip danger" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">Bloccato</a>
                 {% elif d.status == 'warning' %}
-                  <a href="{% url 'tasks:project_vrf_upload' project.id %}" class="ts-chip warn" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">{{ d.days_pending }}gg</a>
+                  <a href="{% url 'tasks:project_vrf_compile' project.id %}" class="ts-chip warn" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">{{ d.days_pending }}gg</a>
                 {% else %}
-                  <a href="{% url 'tasks:project_vrf_upload' project.id %}" class="ts-chip soft" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">Da caricare</a>
+                  <a href="{% url 'tasks:project_vrf_compile' project.id %}" class="ts-chip soft" style="font-size:10px;text-decoration:none;" title="{{ d.label }}">Da caricare</a>
                 {% endif %}
               </div>
 

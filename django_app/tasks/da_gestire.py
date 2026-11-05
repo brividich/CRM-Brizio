@@ -51,13 +51,13 @@ def _sec_vrf_pending(request, scope):
         .order_by("-updated_at")
     )
     items = [
-        {"label": p.name, "url": _url("tasks:project_vrf_upload", p.id), "meta": "VRF da caricare"}
+        {"label": p.name, "url": _url("tasks:project_vrf_compile", p.id), "meta": "VRF da compilare"}
         for p in qs[:_TOP]
     ]
     return {
-        "key": "vrf", "label": "VRF da caricare", "tone": "warning", "icon": "\U0001F4C4",
+        "key": "vrf", "label": "VRF da compilare", "tone": "warning", "icon": "\U0001F4C4",
         "items": items, "all_url": _url("tasks:project_list") + "?vrf_status=pending",
-        "empty": "Nessun VRF da caricare.",
+        "empty": "Nessun VRF da compilare.",
     }
 
 

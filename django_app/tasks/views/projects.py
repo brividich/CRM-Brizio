@@ -66,8 +66,11 @@ def _copy_project_vrf_file(project: Project, *, clear_part_number: bool = False)
 
         workbook = openpyxl.load_workbook(io.BytesIO(file_bytes))
         try:
-            worksheet = workbook["VRF"] if "VRF" in workbook.sheetnames else workbook.active
-            worksheet["B3"] = ""
+            from .. import vrf_catalog
+            from ..vrf_generator import select_sheet
+
+            worksheet = select_sheet(workbook)
+            worksheet[vrf_catalog.HEADER_CELLS["part_number"]] = ""
             output = io.BytesIO()
             workbook.save(output)
             file_bytes = output.getvalue()
@@ -141,6 +144,41 @@ def _create_first_meeting(project: Project, user) -> KickoffMeeting | None:
             task_active_users_queryset().filter(pk__in=team_ids)
         )
     return meeting
+
+
+@task_permissions_required("tasks_view", "tasks_edit")
+def project_edit(request, project_id: int):
+    """Modifica anagrafica e team di un kickoff esistente."""
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    if not can_manage_project(request, project):
+        return render(request, "core/pages/forbidden.html", {"page_title": "Accesso negato"}, status=403)
+
+    if request.method == "POST":
+        form = ProjectKickoffForm(request.POST, instance=project)
+        if form.is_valid():
+            with transaction.atomic():
+                project = form.save()
+            log_action(request, "kickoff_edited", "tasks", {
+                "project_id": project.id,
+                "fields": form.changed_data,
+                "message": f"Kickoff #{project.id} '{project.name}' modificato",
+            })
+            messages.success(request, "Kickoff aggiornato.")
+            return redirect("tasks:project_overview", project_id=project.id)
+    else:
+        form = ProjectKickoffForm(instance=project)
+
+    return render(
+        request,
+        "tasks/project_create.html",
+        {
+            **_tasks_shell_context(request, active="projects", project=project),
+            "page_title": f"Modifica kickoff - {project.name}",
+            "form": form,
+            "edit_project": project,
+            "team_fields": [form[name] for name in ProjectKickoffForm.TEAM_FIELDS],
+        },
+    )
 
 
 @task_permissions_required("tasks_view", "tasks_create")
@@ -436,7 +474,7 @@ def copy_project_with_vrf_without_pn(request, project_id: int):
         {
             "message": (
                 f"Copiato kickoff #{source_project.id} in kickoff #{kickoff.id} "
-                "svuotando il P/N e la cella B3 del file VRF."
+                "svuotando il P/N anche nel file VRF."
             ),
             "source_project_id": source_project.id,
             "copied_project_id": kickoff.id,
