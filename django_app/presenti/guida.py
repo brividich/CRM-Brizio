@@ -22,7 +22,10 @@ SEZIONI: list[dict] = [
                   "sola e il PDF si può ancora scaricare o pubblicare su SharePoint."),
             ("def", [
                 ("Presenti adesso", "la lista live con turno, matricola, nome, reparto, ora di entrata e incarichi di sicurezza."),
-                ("Appello di evacuazione", "l'elenco per contare le persone al punto di raccolta, condiviso fra chi conta."),
+                ("Esterni in azienda", "visitatori, ditte e docenti registrati in ingresso al GuestPortal e non ancora "
+                 "usciti: tabella sotto i dipendenti, nell'appello e nel PDF."),
+                ("Appello di evacuazione", "l'elenco per contare le persone al punto di raccolta, dipendenti ed esterni, "
+                 "condiviso fra chi conta."),
                 ("Uscite non timbrate", "le giornate chiuse con un'entrata e senza uscita."),
                 ("Pallino «In azienda»", "il pallino verde accanto al nome nell'elenco dipendenti, nella scheda dipendente e "
                  "fra i dipendenti trovati con la ricerca in alto (Ctrl+K); "
@@ -64,9 +67,12 @@ SEZIONI: list[dict] = [
                 "In cima restano sempre le persone «Da trovare».",
                 "Quando hai finito premi «Chiudi appello». «Stampa» produce il PDF con la colonna «CONTATO».",
             ]),
+            ("p", "L'appello comprende anche gli esterni registrati al GuestPortal (visitatori, ditte, docenti): "
+                  "hanno l'etichetta grigia «Esterno · azienda», sotto il nome tipo di visita e referente. "
+                  "Il PDF li elenca in una tabella «ESTERNI IN AZIENDA» con la colonna «CONTATO»."),
             ("nota", "Se il database delle timbrature non risponde, l'appello parte dall'ultima lista letta. "
-                     "Tieni comunque a portata di mano il registro visitatori e l'elenco dei fornitori in azienda: "
-                     "l'appello comprende solo chi timbra."),
+                     "Se il GuestPortal non risponde compare l'avviso e gli esterni non sono in elenco: in quel caso "
+                     "contali dal registro della portineria. Chi entra senza registrarsi al GuestPortal non c'è."),
             ("p", "Gli appelli conclusi restano nello storico in fondo alla pagina, con il PDF."),
         ],
     },

@@ -21,7 +21,9 @@ GUIDA = {
                       "di oggi è un'entrata. La tabella si aggiorna da sola ogni 30 secondi; le timbrature si leggono al "
                       "massimo una volta al minuto."),
                 ("ul", [
-                    "Contatori in alto: presenti e, per incarico di sicurezza, quanti sono in azienda.",
+                    "Contatori in alto: dipendenti presenti, esterni in azienda e, per incarico di sicurezza, quanti sono in azienda.",
+                    "Tabella «Esterni in azienda»: visitatori, ditte e docenti registrati al GuestPortal e non ancora usciti "
+                    "(nome, azienda, tipo, referente, entrata, badge). Anche nel PDF.",
                     "Ricerca per nome, matricola o reparto; filtri per reparto e incarico.",
                     "«PDF»: la lista nel formato del vecchio CN-PRESENZE, senza ora di entrata.",
                     "Pallino verde «In azienda» accanto al nome in Anagrafica (elenco dipendenti e scheda) "
@@ -39,7 +41,8 @@ GUIDA = {
                     "Più persone contano insieme: le spunte degli altri arrivano entro 3 secondi; «Da trovare» resta in cima.",
                     "«Chiudi appello» a fine conta; «Stampa» dà il PDF con la colonna «CONTATO».",
                 ]),
-                ("nota", "L'appello comprende solo chi timbra: visitatori e fornitori vanno contati dal registro accessi."),
+                ("nota", "L'appello comprende i dipendenti che hanno timbrato e gli esterni registrati al GuestPortal "
+                         "(etichetta «Esterno · azienda»). Chi entra senza registrarsi al GuestPortal non c'è."),
             ],
         },
         {
@@ -71,6 +74,12 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "«Il GuestPortal non risponde» o «GuestPortal non collegato» sopra la lista",
+            "perche": "il database del GuestPortal non è raggiungibile o le chiavi GUESTPORTAL_DB_* mancano nel .env.",
+            "fare": ["Nell'emergenza conta gli esterni dal registro della portineria.",
+                     "Poi controlla le chiavi GUESTPORTAL_DB_* nel .env e la rete verso il MySQL del GuestPortal."],
+        },
         {
             "sintomo": "«Database timbrature Solari non configurato»",
             "perche": "mancano le chiavi SOLARI_DB_* nel file .env del server.",
