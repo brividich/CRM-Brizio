@@ -26,6 +26,7 @@
       {% include "anagrafica/partials/_guida_persone_link.html" with ancora="coerenza-capi" %}
       {% if is_admin %}<a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:coerenza_capi' %}">Capo di ogni persona</a>{% endif %}
       <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:centri_costo' %}">Centri di costo</a>
+      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:esplora_struttura' %}">Esplora la struttura</a>
       <span class="rc-label">Reparti</span>{% include "anagrafica/partials/_export_buttons.html" with export_key="reparti" %}
       <span class="rc-label">Aree</span>{% include "anagrafica/partials/_export_buttons.html" with export_key="aree" %}
     </div>
@@ -145,7 +146,7 @@
           <tbody>
           {% for a in s.aree %}
             <tr class="{% if not a.area.is_active %}is-off{% endif %}" id="area-{{ a.area.pk }}">
-              <td><strong>{{ a.area.nome }}</strong>{% if a.area.descrizione %}<div class="rc-old">{{ a.area.descrizione }}</div>{% endif %}<div class="rc-old">Centro di costo: {% if a.area.centro_di_costo_id %}{{ a.area.centro_di_costo.nome }}{% else %}nessuno{% endif %}</div></td>
+              <td><strong>{{ a.area.nome }}</strong>{% if a.area.descrizione %}<div class="rc-old">{{ a.area.descrizione }}</div>{% endif %}<div class="rc-old">{% if a.area.centro_di_costo_id %}Centro di costo: {{ a.area.centro_di_costo.nome }}{% else %}Senza centro di costo{% endif %}</div></td>
               <td class="rc-n">{{ a.persone }}</td>
               <td>
                 {% if a.coincide %}

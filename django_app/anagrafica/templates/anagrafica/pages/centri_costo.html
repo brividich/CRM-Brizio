@@ -8,6 +8,12 @@
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
 {% include "core/components/_hub_formkit.html" %}
 {% include "anagrafica/components/_rc_stili.html" %}
+<style>
+.cc-vai { margin-top:5px; gap:10px; font-size:12px; font-weight:600; }
+.cc-vai a, .cc-link { color:#1f6fb0; text-decoration:none; }
+.cc-vai a:hover, .cc-link:hover { text-decoration:underline; }
+body.theme-dark .cc-vai a, body.theme-dark .cc-link { color:#7cc0f0; }
+</style>
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -24,6 +30,7 @@
     </div>
     <div class="rc-actions">
       {% include "anagrafica/partials/_guida_persone_link.html" with ancora="centri-costo" %}
+      <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:esplora_struttura' %}">Esplora la struttura</a>
       <a class="rc-btn rc-btn-ghost" href="{% url 'anagrafica:aree_list' %}">Reparti, aree e capi</a>
       {% include "anagrafica/partials/_export_buttons.html" with export_key="centri_costo" %}
     </div>
@@ -52,6 +59,11 @@
           <div class="rc-card-name">{{ s.centro.nome }}</div>
           <div class="rc-card-meta">{{ s.righe|length }} repart{{ s.righe|length|pluralize:"o,i" }} · {{ s.persone }} person{{ s.persone|pluralize:"a,e" }}{% if not s.centro.is_active %} · non attivo{% endif %}</div>
           {% if s.centro.descrizione %}<div class="rc-old">{{ s.centro.descrizione }}</div>{% endif %}
+          <div class="rc-chips cc-vai">
+            <a href="{% url 'anagrafica:esplora_struttura' %}?centro={{ s.centro.pk }}">Esplora</a>
+            <a href="{% url 'anagrafica:dipendenti_report' %}?centro_costo={{ s.centro.nome|urlencode:'' }}">Persone</a>
+            {% if puo_costi %}<a href="{% url 'anagrafica:costo_orario' %}?centro_costo={{ s.centro.nome|urlencode:'' }}">Costo orario</a>{% endif %}
+          </div>
         </div>
         {% if is_admin %}
         <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" data-cc-id="{{ s.centro.pk }}" data-cc-nome="{{ s.centro.nome }}" data-cc-desc="{{ s.centro.descrizione }}" data-cc-attivo="{{ s.centro.is_active|yesno:'1,0' }}">Modifica</button>

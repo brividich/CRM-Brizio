@@ -1,0 +1,182 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Esplora la struttura | Anagrafica{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+{% include "anagrafica/components/_rc_stili.html" %}
+<style>
+.es-cerca { display:flex; gap:6px; }
+.es-cerca input { width:240px; max-width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:13px; }
+.es-briciole { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; font-size:13px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:10px 14px; }
+.es-briciole a { color:#1f6fb0; font-weight:600; text-decoration:none; }
+.es-briciole a:hover { text-decoration:underline; }
+.es-briciole .es-qui { font-weight:800; color:#0f172a; }
+.es-briciole .es-liv { display:block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+.es-briciole .es-sep { color:#94a3b8; }
+.es-colonne { display:grid; grid-template-columns:repeat(5, minmax(190px, 1fr)); gap:10px; overflow-x:auto; padding-bottom:4px; }
+.es-col { background:#fff; border:1px solid #e2e8f0; border-radius:12px; display:flex; flex-direction:column; min-width:0; }
+.es-col-h { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; padding:10px 12px 8px; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; gap:6px; }
+.es-lista { list-style:none; margin:0; padding:4px; max-height:380px; overflow-y:auto; }
+.es-voce { display:flex; justify-content:space-between; gap:8px; align-items:flex-start; padding:7px 8px; border-radius:8px; text-decoration:none; color:#1e293b; font-size:13px; font-weight:600; line-height:1.3; }
+.es-voce:hover { background:#f1f5f9; }
+.es-voce small { display:block; font-weight:500; font-size:11.5px; color:#64748b; margin-top:1px; }
+.es-voce .es-n { font-size:12px; font-weight:700; color:#475569; flex:none; }
+.es-voce.is-avviso { color:#9a3412; }
+.es-voce.is-scelta { background:#0c2545; color:#fff; }
+.es-voce.is-scelta small, .es-voce.is-scelta .es-n { color:#cbd5e1; }
+.es-attesa { padding:14px 12px; font-size:12.5px; color:#94a3b8; font-style:italic; }
+.es-corpo { display:grid; grid-template-columns:minmax(0, 2fr) minmax(240px, 1fr); gap:14px; align-items:start; }
+.es-tipo { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+.es-titolo { font-size:20px; font-weight:800; color:#0f172a; margin:2px 0 6px; overflow-wrap:anywhere; }
+.es-dati { display:grid; grid-template-columns:max-content minmax(0, 1fr); gap:3px 12px; font-size:13px; margin:0 0 12px; }
+.es-dati dt { color:#64748b; }
+.es-dati dd { margin:0; color:#1e293b; }
+.es-sotto-h { font-size:13px; font-weight:700; color:#1e293b; margin:14px 0 6px; }
+.es-persone { list-style:none; padding:0; margin:0; columns:2 200px; font-size:13px; }
+.es-persone li { margin:0 0 4px; break-inside:avoid; }
+.es-persone a { color:#1f6fb0; text-decoration:none; font-weight:600; }
+.es-persone a:hover { text-decoration:underline; }
+.es-persone small { color:#64748b; }
+.es-strade { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:6px; }
+.es-strade-lunga { max-height:300px; overflow-y:auto; }
+.es-strada { display:block; padding:8px 10px; border:1px solid #e2e8f0; border-radius:10px; text-decoration:none; color:#1e293b; font-size:13px; font-weight:600; }
+.es-strada:hover { background:#f1f5f9; }
+.es-strada small { display:block; font-weight:500; color:#64748b; font-size:11.5px; }
+.es-kpis-det { display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 12px; }
+.es-kpis-det > div { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:7px 12px; min-width:100px; }
+.es-kpis-det b { display:block; font-size:18px; color:#0f172a; }
+.es-kpis-det span { font-size:11.5px; color:#64748b; }
+.es-kpis-det .is-avviso { background:var(--hr-alert-bg,#ffedd5); border-color:#fdba74; }
+.es-kpis-det .is-avviso b { color:#9a3412; }
+.es-ris { list-style:none; padding:0; margin:0; columns:2 280px; font-size:13px; }
+.es-ris li { margin:0 0 5px; break-inside:avoid; }
+.es-ris a { color:#1f6fb0; font-weight:600; text-decoration:none; }
+.es-ris small { color:#64748b; display:block; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+@media (max-width:900px) {
+  .es-colonne { display:block; overflow:visible; }
+  .es-col { display:none; }
+  .es-col.is-corrente { display:flex; }
+  .es-corpo { grid-template-columns:minmax(0, 1fr); }
+  .es-cerca, .es-cerca input { width:100%; }
+}
+body.theme-dark .es-briciole, body.theme-dark .es-col { background:var(--surface); border-color:var(--border); }
+body.theme-dark .es-briciole .es-qui, body.theme-dark .es-titolo, body.theme-dark .es-sotto-h, body.theme-dark .es-dati dd, body.theme-dark .es-kpis-det b { color:var(--text); }
+body.theme-dark .es-col-h, body.theme-dark .es-tipo, body.theme-dark .es-dati dt, body.theme-dark .es-briciole .es-liv, body.theme-dark .es-persone small, body.theme-dark .es-voce small, body.theme-dark .es-strada small, body.theme-dark .es-kpis-det span, body.theme-dark .es-ris small { color:var(--text-light); }
+body.theme-dark .es-col-h { border-color:var(--border); }
+body.theme-dark .es-voce, body.theme-dark .es-strada { color:var(--text-mid); }
+body.theme-dark .es-voce .es-n { color:var(--text-light); }
+body.theme-dark .es-voce:hover, body.theme-dark .es-strada:hover { background:var(--surface-alt,#0f1b2d); }
+body.theme-dark .es-voce.is-avviso { color:#fdba74; }
+body.theme-dark .es-voce.is-scelta { background:#2563a8; color:#fff; }
+body.theme-dark .es-voce.is-scelta small, body.theme-dark .es-voce.is-scelta .es-n { color:#dbeafe; }
+body.theme-dark .es-strada, body.theme-dark .es-kpis-det > div { background:var(--surface-alt,#0f1b2d); border-color:var(--border); }
+body.theme-dark .es-briciole a, body.theme-dark .es-persone a, body.theme-dark .es-ris a { color:#7cc0f0; }
+body.theme-dark .es-cerca input { background:var(--surface-alt,#0f1b2d); border-color:var(--border); color:var(--text); }
+body.theme-dark .es-kpis-det .is-avviso { background:rgba(245,158,11,.14); border-color:rgba(245,158,11,.45); }
+body.theme-dark .es-kpis-det .is-avviso b { color:#fcd34d; }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="rc-page">
+  {% include "anagrafica/components/flash_messages.html" %}
+
+  <div class="rc-top">
+    <div>
+      <div class="rc-title">Esplora la struttura</div>
+      <div class="rc-sub">Dal centro di costo alle competenze: scendi scegliendo nelle colonne, risali dal percorso, prendi le altre strade a destra. Qui «reparto» è l'unità in cui lavorano le persone, cioè l'area aziendale.</div>
+    </div>
+    <div class="rc-actions">
+      <form method="get" class="es-cerca" role="search">
+        <input type="search" name="q" value="{{ q }}" placeholder="Cerca in tutta la struttura…" aria-label="Cerca centro di costo, reparto, ruolo, mansione o competenza">
+        <button type="submit" class="rc-btn rc-btn-ghost">Cerca</button>
+      </form>
+      {% include "anagrafica/partials/_guida_persone_link.html" with ancora="esplora-struttura" %}
+    </div>
+  </div>
+
+  <nav class="es-briciole" aria-label="Percorso">
+    {% for b in briciole %}
+      {% if not forloop.first %}<span class="es-sep" aria-hidden="true">›</span>{% endif %}
+      {% if b.url_corrente %}<span class="es-qui" aria-current="page">{% if b.livello %}<span class="es-liv">{{ b.livello }}</span>{% endif %}{{ b.nome }}</span>
+      {% else %}<a href="{{ b.url }}">{% if b.livello %}<span class="es-liv">{{ b.livello }}</span>{% endif %}{{ b.nome }}</a>{% endif %}
+    {% endfor %}
+  </nav>
+
+  {% if risultati is not None %}
+  <section class="rc-panel">
+    <h2>«{{ q }}»: {{ risultati|length }} risultat{{ risultati|length|pluralize:"o,i" }}</h2>
+    {% if risultati %}
+    <ul class="es-ris">{% for r in risultati %}<li><small>{{ r.livello }}</small><a href="{{ r.url }}">{{ r.nome }}</a></li>{% endfor %}</ul>
+    {% else %}<p>Nessun punto della struttura contiene questo testo.</p>{% endif %}
+  </section>
+  {% endif %}
+
+  <div class="es-colonne">
+    {% for c in colonne %}
+    <section class="es-col {% if c.corrente %}is-corrente{% endif %}" aria-label="{{ c.titolo }}">
+      <div class="es-col-h"><span>{{ c.titolo }}</span>{% if c.voci is not None %}<span>{{ c.voci|length }}</span>{% endif %}</div>
+      {% if c.voci is None %}
+        <div class="es-attesa">{{ c.attesa }}</div>
+      {% elif c.voci %}
+        <ul class="es-lista">
+          {% for v in c.voci %}<li><a class="es-voce {% if v.scelta %}is-scelta{% endif %} {% if v.avviso %}is-avviso{% endif %}" href="{{ v.url }}"{% if v.scelta %} aria-current="true"{% endif %}><span>{{ v.nome }}{% if v.sotto %}<small>{{ v.sotto }}</small>{% endif %}</span>{% if v.n is not None %}<span class="es-n" title="Persone in forza">{{ v.n }}</span>{% endif %}</a></li>{% endfor %}
+        </ul>
+      {% else %}
+        <div class="es-attesa">{% if c.livello == "competenza" %}Nessuna competenza caricata per questa mansione.{% elif c.livello == "mansione" %}Nessuna mansione per questo ruolo in questo reparto.{% elif c.livello == "ruolo" %}Nessun ruolo in questo reparto.{% elif c.livello == "area" %}Nessun reparto in questo centro.{% else %}Nessun centro di costo.{% endif %}</div>
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+
+  <div class="es-corpo">
+    <section class="rc-panel">
+      <div class="es-tipo">{{ dettaglio.tipo }}</div>
+      <div class="es-titolo">{{ dettaglio.titolo }}</div>
+      {% if dettaglio.testo %}<p>{{ dettaglio.testo }}</p>{% endif %}
+      <div class="es-kpis-det">{% for etichetta, valore, avviso in dettaglio.kpi %}<div class="{% if avviso %}is-avviso{% endif %}"><b>{{ valore }}</b><span>{{ etichetta }}</span></div>{% endfor %}</div>
+      {% if dettaglio.dati %}<dl class="es-dati">{% for k, v in dettaglio.dati %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>{% endif %}
+      {% if dettaglio.persone is not None %}
+        <div class="es-sotto-h">{{ dettaglio.persone_titolo|default:"Persone" }} ({{ dettaglio.persone|length }})</div>
+        {% if dettaglio.persone %}
+        <ul class="es-persone">{% for p in dettaglio.persone %}<li><a href="{% url 'anagrafica:dipendente_detail' p.id %}">{{ p.nome }}</a>{% if p.nota %} <small>{{ p.nota }}</small>{% endif %}</li>{% endfor %}</ul>
+        {% else %}<span class="rc-none">Nessuna persona.</span>{% endif %}
+      {% endif %}
+    </section>
+    <aside class="rc-panel" aria-label="Altre strade">
+      <h2>Altre strade</h2>
+      {% if dettaglio.gerarchia %}
+      <div class="es-sotto-h">Nella gerarchia dei ruoli</div>
+      <ul class="es-strade">{% for x in dettaglio.gerarchia %}{% if x.url %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endif %}{% endfor %}</ul>
+      {% endif %}
+      {% if dettaglio.altri_reparti %}
+      <div class="es-sotto-h">Stesso ruolo in altri reparti ({{ dettaglio.altri_reparti|length }})</div>
+      <ul class="es-strade es-strade-lunga">{% for x in dettaglio.altri_reparti %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endfor %}</ul>
+      {% endif %}
+      {% if dettaglio.altri_ruoli %}
+      <div class="es-sotto-h">Stessa mansione sotto altri ruoli</div>
+      <ul class="es-strade">{% for x in dettaglio.altri_ruoli %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endfor %}</ul>
+      {% endif %}
+      {% if dettaglio.altre_mansioni %}
+      <div class="es-sotto-h">Stessa competenza su altre mansioni</div>
+      <ul class="es-strade es-strade-lunga">{% for x in dettaglio.altre_mansioni %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endfor %}</ul>
+      {% endif %}
+      <div class="es-sotto-h">Apri nelle altre pagine</div>
+      <ul class="es-strade">{% for x in strade %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endfor %}</ul>
+    </aside>
+  </div>
+</div>
+<script>
+// In un elenco lungo la voce scelta deve restare in vista.
+document.querySelectorAll('.es-lista').forEach(function (lista) {
+  var scelta = lista.querySelector('.is-scelta');
+  if (scelta) lista.scrollTop = Math.max(0, scelta.offsetTop - lista.offsetTop - 40);
+});
+</script>
+{% endblock %}

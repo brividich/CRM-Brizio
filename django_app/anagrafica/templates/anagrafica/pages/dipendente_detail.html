@@ -965,7 +965,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
         <div class="dp-info-item"><div class="dp-info-label">Mansione di rischio</div><div class="dp-info-value">{{ dip.mansione|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Caporeparto</div><div class="dp-info-value">{% if caporeparto_label %}{{ caporeparto_label }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Area aziendale</div><div class="dp-info-value">{{ aziendale.area_aziendale.nome|default:"—" }}</div></div>
-        <div class="dp-info-item"><div class="dp-info-label">Centro di costo</div><div class="dp-info-value">{{ aziendale.area_aziendale.centro_di_costo.nome|default:"—" }}</div></div>
+        <div class="dp-info-item"><div class="dp-info-label">Centro di costo</div><div class="dp-info-value">{% if aziendale.area_aziendale.centro_di_costo_id %}{% if puo_esplorare %}<a href="{% url 'anagrafica:esplora_struttura' %}?area={{ aziendale.area_aziendale_id }}" style="color:#1f87cd;">{{ aziendale.area_aziendale.centro_di_costo.nome }}</a>{% else %}{{ aziendale.area_aziendale.centro_di_costo.nome }}{% endif %}{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Assunto il</div><div class="dp-info-value">{{ aziendale.data_prima_assunzione|date:"d-m-Y"|default:"—" }}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Email notifica</div><div class="dp-info-value">{% if dip.email_notifica %}<a href="mailto:{{ dip.email_notifica }}" style="color:#1f87cd;">{{ dip.email_notifica }}</a>{% else %}—{% endif %}</div></div>
         <div class="dp-info-item"><div class="dp-info-label">Username</div><div class="dp-info-value">{{ dip.aliasusername|default:"—" }}</div></div>
@@ -1069,7 +1069,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
         </div>
         <div class="dp-info-item">
           <div class="dp-info-label">Centro di costo</div>
-          <div class="dp-info-value">{{ aziendale.area_aziendale.centro_di_costo.nome|default:"—" }}</div>
+          <div class="dp-info-value">{% if aziendale.area_aziendale.centro_di_costo_id %}{% if puo_esplorare %}<a href="{% url 'anagrafica:esplora_struttura' %}?area={{ aziendale.area_aziendale_id }}" style="color:#1f87cd;">{{ aziendale.area_aziendale.centro_di_costo.nome }}</a>{% else %}{{ aziendale.area_aziendale.centro_di_costo.nome }}{% endif %}{% else %}—{% endif %}</div>
         </div>
         <div class="dp-info-item">
           <div class="dp-info-label">Caporeparto</div>
