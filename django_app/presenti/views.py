@@ -48,9 +48,12 @@ def _dati_lista(request) -> dict:
     s = services.stato()
     filtri = {k: (request.GET.get(k) or "").strip() for k in ("q", "reparto", "incarico")}
     righe = services.filtra(s["presenti"], **filtri)
+    esterni = services.filtra(s.get("esterni", []), **filtri)
     return {
         "stato": s,
         "righe": righe,
+        "esterni": esterni,
+        "n_esterni": len(s.get("esterni", [])),
         "riepilogo": services.riepilogo(s["presenti"]),
         "filtri": filtri,
         "filtrato": any(filtri.values()),
@@ -76,7 +79,7 @@ def lista_parziale(request):
 @require_GET
 def pdf_presenti(request):
     s = services.stato()
-    contenuto = pdf.genera_pdf(s["presenti"], s["aggiornato_il"])
+    contenuto = pdf.genera_pdf(s["presenti"], s["aggiornato_il"], esterni=s.get("esterni", []))
     resp = HttpResponse(contenuto, content_type="application/pdf")
     resp["Content-Disposition"] = f'inline; filename="Presenti_{s["aggiornato_il"]:%Y%m%d_%H%M}.pdf"'
     return resp
@@ -117,9 +120,10 @@ def _dati_appello(appello: Appello) -> dict:
                         "contato_il": timezone.localtime(s.contato_il) if s else None,
                         "contato_da": _nome_utente(s.contato_da) if s else ""})
     # Da trovare in cima: chi conta vede subito chi manca.
-    persone.sort(key=lambda p: (p["contato"], p["cognome"], p["nome"]))
+    persone.sort(key=lambda p: (p["contato"], (p.get("cognome") or "").lower(), (p.get("nome") or "").lower()))
     contati = sum(1 for p in persone if p["contato"])
     return {
+        "n_esterni": sum(1 for p in persone if p.get("esterno")),
         "appello": appello,
         "persone": persone,
         "n_totale": len(persone),
@@ -156,13 +160,21 @@ def appello_avvia(request):
                                        "incarichi", "entrata")}
                 for p in s["presenti"]
             ]
+            # Esterni dal GuestPortal (visitatori, ditte, docenti): all'appello vanno contati anche loro.
+            persone += [
+                {k: p.get(k) for k in ("solari_id", "esterno", "cognome", "nome", "azienda", "referente",
+                                       "tipo", "badge", "entrata")}
+                for p in s.get("esterni", [])
+            ]
             aperto = Appello.objects.create(
                 aperto_da=request.user, persone=persone,
                 esercitazione=request.POST.get("esercitazione") == "1",
                 nota=(request.POST.get("nota") or "").strip()[:300],
             )
             log_action(request, "appello_avviato", "presenti",
-                       {"appello": aperto.pk, "persone": len(persone), "esercitazione": aperto.esercitazione},
+                       {"appello": aperto.pk, "persone": len(persone),
+                        "esterni": sum(1 for p in persone if p.get("esterno")),
+                        "esercitazione": aperto.esercitazione},
                        oggetto=aperto)
     return redirect("presenti:appello")
 
@@ -224,7 +236,9 @@ def appello_stampa(request, pk: int):
     stato_txt = (f"chiuso alle {timezone.localtime(a.chiuso_il):%H:%M}" if a.chiuso_il
                  else f"in corso, stampato alle {timezone.localtime():%H:%M}")
     contenuto = pdf.genera_pdf(
-        sorted(a.persone, key=lambda p: (p["cognome"], p["nome"])), timezone.localtime(),
+        sorted((p for p in a.persone if not p.get("esterno")), key=lambda p: (p["cognome"], p["nome"])),
+        timezone.localtime(),
+        esterni=[p for p in a.persone if p.get("esterno")],
         titolo="APPELLO DI EVACUAZIONE",
         sottotitolo=f"{tipo} del {aperto_il:%d/%m/%Y} avviato alle {aperto_il:%H:%M} · {stato_txt}",
         contati=contati,

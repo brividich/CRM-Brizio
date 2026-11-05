@@ -220,6 +220,91 @@ class VisteTests(TestCase):
 
 
 @override_settings(CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}})
+def _accessi_finti():
+    from datetime import datetime
+
+    from fornitori.guestportal import Accesso
+
+    oggi = timezone.localdate()
+    return [Accesso(visita_id=77, stato="CHECKEDIN", tipo="SUPPLIER", nome="Paolo Verdi", azienda="Ditta Esempio Srl",
+                    referente="Ufficio tecnico", motivo="", badge="V12",
+                    ingresso=datetime.combine(oggi, datetime.min.time()).replace(hour=9, minute=15), uscita=None)]
+
+
+@override_settings(CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}})
+class EsterniTests(TestCase):
+    """Visitatori e ditte del GuestPortal: in lista, nell'appello e nel PDF insieme ai dipendenti."""
+
+    def setUp(self):
+        cache.clear()
+        self.admin = get_user_model().objects.create_superuser("pres_est", password="x")
+        self.client.force_login(self.admin)
+        for p in (patch.object(services, "_anagrafica_per_cf", side_effect=_aggancio),
+                  patch("fornitori.guestportal.db_configurato", return_value=True)):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def _con(self, solari_ok=True, gp=None, gp_errore=False):
+        ps = patch.object(solari, "leggi_presenti", side_effect=(lambda *a, **k: _solari_righe()) if solari_ok
+                          else ConnectionError("giù"))
+        pg = patch("fornitori.guestportal.presenti_ora",
+                   side_effect=ConnectionError("giù") if gp_errore else (lambda: gp if gp is not None else _accessi_finti()))
+        ps.start(), pg.start()
+        self.addCleanup(ps.stop)
+        self.addCleanup(pg.stop)
+
+    def test_stato_include_esterni_con_id_negativo(self):
+        self._con()
+        s = services.stato()
+        self.assertEqual(len(s["presenti"]), 3)
+        self.assertEqual([(e["solari_id"], e["azienda"], e["entrata"]) for e in s["esterni"]],
+                         [(-77, "Ditta Esempio Srl", "09:15")])
+        self.assertEqual(s["errore_esterni"], "")
+
+    def test_esterni_anche_se_solari_non_risponde(self):
+        self._con(solari_ok=False)
+        s = services.stato()
+        self.assertTrue(s["errore"])
+        self.assertEqual(len(s["esterni"]), 1)
+
+    def test_guestportal_giu_avvisa_e_tiene_i_dipendenti(self):
+        self._con(gp_errore=True)
+        s = services.stato()
+        self.assertEqual(len(s["presenti"]), 3)
+        self.assertEqual(s["esterni"], [])
+        self.assertIn("GuestPortal non risponde", s["errore_esterni"])
+        r = self.client.get(reverse("presenti:lista_parziale"))
+        self.assertContains(r, "GuestPortal non risponde")
+
+    def test_lista_appello_e_pdf(self):
+        self._con()
+        r = self.client.get(reverse("presenti:lista_parziale"))
+        self.assertContains(r, "Esterni in azienda (1)")
+        self.assertContains(r, "Paolo Verdi")
+        self.assertContains(r, "Ditta Esempio Srl")
+        r = self.client.get(reverse("presenti:lista_parziale"), {"q": "esempio"})
+        self.assertContains(r, "Paolo Verdi")
+        self.assertNotContains(r, "ROSSI Mario")
+        self.assertEqual(self.client.get(reverse("presenti:pdf"))["Content-Type"], "application/pdf")
+
+        self.client.post(reverse("presenti:appello_avvia"))
+        a = Appello.objects.get()
+        self.assertEqual(len(a.persone), 4)
+        url = reverse("presenti:appello_spunta", args=[a.pk])
+        r = self.client.post(url, {"solari_id": -77, "contato": "1"})
+        self.assertContains(r, "1</b> contati su <b>4")
+        self.assertContains(r, "di cui 1 esterno")
+        self.assertContains(r, "Esterno · Ditta Esempio Srl")
+        self.assertEqual(self.client.get(reverse("presenti:appello_stampa", args=[a.pk]))["Content-Type"],
+                         "application/pdf")
+
+    def test_pdf_con_esterni(self):
+        self._con()
+        s = services.stato()
+        self.assertTrue(pdf.genera_pdf(s["presenti"], timezone.localtime(), esterni=s["esterni"]).startswith(b"%PDF"))
+        self.assertTrue(pdf.genera_pdf([], timezone.localtime(), contati={-77}, esterni=s["esterni"]).startswith(b"%PDF"))
+
+
 class UsciteTests(TestCase):
     def setUp(self):
         ieri = timezone.localdate() - timedelta(days=1)

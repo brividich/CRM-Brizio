@@ -20,7 +20,8 @@ def pubblica_pdf(*, forza: bool = False) -> dict:
         esito = {"ok": False, "messaggio": f"PDF non pubblicato: {s['errore']}"}
     else:
         try:
-            url = impostazioni.pubblica_su_sharepoint(pdf.genera_pdf(s["presenti"], s["aggiornato_il"]))
+            url = impostazioni.pubblica_su_sharepoint(pdf.genera_pdf(s["presenti"], s["aggiornato_il"],
+                                                                         esterni=s.get("esterni", [])))
             esito = {"ok": True, "messaggio": f"PDF pubblicato ({len(s['presenti'])} presenti).", "url": url}
         except Exception as exc:
             logger.exception("Pubblicazione PDF presenti su SharePoint fallita")
