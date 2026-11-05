@@ -50,3 +50,37 @@ Nessuna migrazione, nessun permesso nuovo (la home è già aperta a tutti, il ri
 ## KPI coerenti e in tempo reale (02/11/2026)
 
 «In scadenza» e «Scadute» della dashboard sulle consegne delle richieste visibili.
+
+## Dashboard «Da fare» e richiesta guidata (05/11/2026)
+
+- Dashboard: i vecchi contatori sono sostituiti da **«Da fare»** (`views._da_fare`): «In attesa di approvazione» e «DPI scaduti»/«In scadenza (30 gg)» sul perimetro di `_gestione_scope` (lo stesso di `/dpi/gestione/`), «Da consegnare» (come il banco, con la nota «+ N non del magazzino») e «Da riordinare» (`magazzino.da_riordinare`, zero se il magazzino non ha movimenti) solo per chi gestisce. Ogni numero apre la lista che lo mostra uguale; nuovo filtro `/dpi/gestione/?scadenza=scaduti|in_scadenza`.
+- **«La mia dotazione»** (`dpi/dotazione.py`, per chi ha un'anagrafica): DPI previsti dalla mansione e mancanti, richieste in corso con il passo, consegne attive dalla più urgente, con «Richiedi il ricambio» (link alla richiesta compilata) o «Rotto o perso?». Scadenza da `ConsegnaDPI.semaforo_scadenza`; le consegne sostituite non contano.
+- **Nuova richiesta**: ricerca su categoria, tipo, modello e codice (trova anche i DPI fuori profilo, con motivo obbligatorio); stato sulla scheda; i campi compaiono dopo la scelta e solo se hanno opzioni, con compilazione automatica delle scelte uniche; avvisi su richiesta già aperta e DPI ancora valido (non bloccano); «Uguale all'ultima volta»; motivi rapidi. Parametri `?categoria=&tipo=&modello=&taglia=&motivo=scadenza|prima`. Un errore di invio non perde quanto scritto.
+- Corretti: chi gestisce perdeva il menu completo in Nuova richiesta; senza anagrafica collegata «Richiesta per» partiva dal primo dipendente in elenco, a cui finiva la richiesta (ora «Me stesso»).
+
+Nessuna migrazione, nessun permesso nuovo.
+
+## Scarpe al negozio: convenzione e fuori convenzione (05/11/2026)
+
+`CategoriaDPI.si_ordina_al_negozio` (migrazione `0017`, accesa per le calzature) fa scegliere nella richiesta `RichiestaDPI.modalita_negozio`. Le altre categorie e le richieste già aperte (modalità vuota) seguono il flusso di prima. Logica in `dpi/negozio.py`, pagina `/dpi/negozio/` (`views_negozio.py`, gate `_is_gestore`, voce «Scarpe»: l'operatore deve avere «gestire» DPI).
+
+- Approvazione → mail all'operatore incaricato (`DPIImpostazioni.negozio_operatore_emails`, ripiego referenti DPI), non al magazzino; vale anche per «Consegna annullata». Niente avviso di ritiro automatico all'approvazione.
+- **Convenzione**: l'operatore manda il riepilogo con «Invia l'ordine» (`OrdineNegozioDPI`, regola `dpi_ordine_negozio`, mail a `negozio_email` e in copia a lui) o lo segna se ha scritto a parte. Le righe contengono nome del dipendente, modello, taglia, quantità e numero richiesta. Promemoria dal task `dpi_expiry_reminders` passati `negozio_giorni_riepilogo` giorni (15), ripetuto ogni 3 (regola `dpi_promemoria_ordine_scarpe`). Ordinate: entrano nel banco con `?tutte=1` e si chiudono come gli altri DPI, conferma di ricevuta compresa.
+- **Fuori convenzione**: «Negozio avvisato» avvisa il dipendente; si chiude con fattura + spunta (`FatturaNegozioDPI`, storage privato cifrato, audit, download solo per chi gestisce). La data fattura è la data di consegna; nessuna conferma di ricevuta. Banco e scheda non la chiudono.
+- Nessuno scarico di magazzino per le scarpe con modalità; i modelli di queste categorie escono da pagina e report Magazzino e da «Da riordinare» (`magazzino.modelli_di_magazzino`).
+
+Al deploy: `migrate` (dpi 0017), `setup_q_schedules` per le regole nuove, poi in Impostazioni DPI mail del negozio e operatore; dare all'operatore «gestire» DPI.
+
+## Banco consegne più veloce (05/11/2026)
+
+Elenco delle persone a sinistra, scheda a destra (`dpi/components/_banco_lavoro.html`). Azioni con fetch dalla pagina aperta: con `X-Requested-With: XMLHttpRequest` `dpi:banco` risponde con la sola parte di lavoro e l'header `X-Banco-Apri` (persona da riaprire), i toast li consegna `FlashMessagesDeliveryMiddleware`; senza quell'header resta il redirect. Ricerca su nome, reparto, numero e modello; una sola persona trovata apre la scheda; pulsante «Consegna N DPI a…» senza passaggio intermedio; filtri sui riquadri numerici; tastiera (`/`, frecce, Invio, Esc); aggiornamento ogni 60 secondi solo a banco fermo; «+ Consumabile» apre la consegna diretta con la persona scelta. Stesse azioni e stessi controlli di prima, nessuna migrazione.
+
+## Strumenti del banco e bozza d'ordine (05/11/2026)
+
+- **Annulla consegna**: la consegna dal banco resta nel browser per 6 secondi (`ATTESA_SECONDI` in `banco.html`), poi parte il POST; fino ad allora il server non sa nulla, quindi nessuna mail e nessuno scarico. Una nuova azione o l'uscita dalla pagina la mandano subito (`sendBeacon`). Senza JavaScript resta l'invio immediato.
+- **Cambia modello**: `azione=cambia` su `dpi:banco` (`_banco_cambia_modello`): stessa categoria, modello e taglia attivi, perimetro del banco; commento nella richiesta e `log_action`. Non vale per le scarpe al negozio.
+- **Badge**: la ricerca riconosce `DipendenteAnagraficaAziendale.badge` (corrispondenza esatta) come lo digita un lettore a tastiera; chi non ha richieste aperte viene riconosciuto se è tra i dipendenti selezionabili.
+- **Lista di prelievo** `/dpi/banco/prelievo/` (`dpi:banco_prelievo`, gate `_is_gestore`): richieste non ancora pronte sommate per modello e taglia, stampabile, avviso di ritiro in blocco.
+- **Bozza d'ordine** `/dpi/magazzino/riordino/` (`dpi:magazzino_riordino`, gate `_is_gestore`): `magazzino.bozza_ordine`, l'elenco `riordino` del report diviso per ultimo fornitore. Solo testo da copiare o aprire nella posta.
+
+Nessuna migrazione, nessun permesso nuovo.

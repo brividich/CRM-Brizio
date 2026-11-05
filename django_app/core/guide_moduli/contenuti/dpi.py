@@ -14,9 +14,13 @@ GUIDA = {
                 ("passi", [
                     "Apri DPI e clicca «+ Nuova richiesta».",
                     "In «Richiesta per» lascia «Me stesso». Se sei un responsabile puoi scegliere un tuo dipendente.",
-                    "Clicca sulla scheda della categoria (per esempio scarpe, guanti, occhiali).",
-                    "Se lo sai, scegli «Tipo DPI», «Modello DPI» e «Taglia DPI». Se non lo sai lascia «Solo categoria»: ci pensa il magazzino.",
-                    "Indica la «Quantità» e, se serve, il motivo in «Motivazione / Note».",
+                    "Clicca sulla scheda del DPI (per esempio scarpe, guanti, occhiali). Puoi anche scrivere il nome o il codice del modello in «Cerca». "
+                    "Sulla scheda vedi se è «In dotazione», «In scadenza», «Scaduto» o «Già richiesto».",
+                    "Compaiono solo le domande che servono. Se c'è una scelta sola è già compilata. Se non sai il tipo o il modello lascia "
+                    "«Non lo so, decide il magazzino»; la «Taglia» si chiede dopo il modello, altrimenti «Da scegliere al ritiro».",
+                    "Se hai già ricevuto quel DPI, «Uguale all'ultima volta» riprende tipo, modello e taglia.",
+                    "Indica la «Quantità» e il «Motivo»: clicca Usura, Rotto, Perso, Prima dotazione o Cambio taglia, oppure scrivilo. "
+                    "Per un DPI fuori dal profilo della tua mansione il motivo è obbligatorio.",
                     "Clicca «Invia richiesta». Il numero della richiesta ha la forma DPI-anno-numero.",
                 ]),
                 ("p", "La richiesta passa per questi stati: inviata → approvata → pronta al ritiro → consegnata "
@@ -31,6 +35,9 @@ GUIDA = {
             "id": "storico",
             "titolo": "Vedere i DPI che hai in carico",
             "blocchi": [
+                ("p", "«La mia dotazione», nella Dashboard DPI, mette in cima quello che richiede attenzione: i DPI previsti dalla tua mansione "
+                      "e non ancora consegnati («Richiedi»), le richieste in corso con il passo a cui sono, i DPI scaduti o che scadono entro 30 giorni "
+                      "(«Richiedi il ricambio» apre la richiesta già compilata). Per un DPI ancora valido usa «Rotto o perso?»."),
                 ("p", "«Il mio storico» elenca le consegne fatte a te, con la data di scadenza di ogni DPI."),
                 ("ul", [
                     "Il pallino colorato dice se il DPI è in regola, in scadenza o scaduto.",
@@ -43,7 +50,8 @@ GUIDA = {
             "titolo": "Approvare e consegnare (responsabili e magazzino)",
             "blocchi": [
                 ("passi", [
-                    "Apri «Gestione richieste» dalla Dashboard DPI e clicca la richiesta.",
+                    "Nella Dashboard DPI il riquadro «Da fare» mostra «In attesa di approvazione», «Da consegnare», «Da riordinare», «DPI scaduti» e "
+                    "«In scadenza (30 gg)»: ogni numero apre la lista corrispondente. Clicca «In attesa di approvazione» e poi la richiesta.",
                     "Nel riquadro «Prima di decidere» guarda le consegne precedenti della persona e la media del reparto. "
                     "«Proponi con l'AI» suggerisce una decisione: è solo un consiglio.",
                     "Clicca «Approva» oppure «Rifiuta» (scrivi il motivo). Con «Aggiungi nota» lasci un commento.",
@@ -56,6 +64,25 @@ GUIDA = {
             ],
         },
         {
+            "id": "scarpe",
+            "titolo": "Scarpe: in convenzione o fuori convenzione",
+            "blocchi": [
+                ("p", "Chiedendo le scarpe scegli dove ritirarle. «In convenzione»: entrano nell'ordine al negozio, che parte ogni 15 giorni "
+                      "(si cambia in Impostazioni), e le ritiri in ufficio amministrativo quando ti avvisiamo. «Fuori convenzione»: le ritiri al negozio."),
+                ("p", "Dopo l'approvazione la mail va all'operatore incaricato, non al magazzino. L'operatore lavora in DPI → «Scarpe»:"),
+                ("passi", [
+                    "«Convenzione: da ordinare»: controlla le righe e clicca «Invia l'ordine». Se scrivi tu al negozio usa «Copia il testo» e poi "
+                    "«Ho già scritto io al negozio». Se sono passati i giorni del riepilogo arriva un promemoria.",
+                    "«Convenzione: ordinate, da consegnare»: quando arrivano spunta e clicca «Arrivate: avvisa di passare in ufficio». "
+                    "La consegna si chiude come per gli altri DPI, con «Registra la consegna».",
+                    "«Fuori convenzione: ritiro al negozio»: avvisa il negozio, spunta e clicca «Negozio avvisato: avvisa i dipendenti».",
+                    "Quando arriva la fattura: spunta gli ordini che copre, carica il file con «Numero» e «Data» e clicca «Carica e chiudi gli ordini spuntati». "
+                    "La data della fattura diventa la data di consegna, da cui parte la scadenza.",
+                ]),
+                ("nota", "Le scarpe ordinate al negozio non scaricano il magazzino. La fattura la vede solo chi gestisce i DPI."),
+            ],
+        },
+        {
             "id": "banco",
             "titolo": "Banco consegne (magazzino)",
             "blocchi": [
@@ -63,13 +90,24 @@ GUIDA = {
                       "preparare e consegnare, raggruppate per persona. In alto i numeri: «Persone in attesa», «Da preparare», "
                       "«Pronti al ritiro» e «Giacenza insufficiente»."),
                 ("passi", [
-                    "Quando la persona arriva al banco scrivi il suo nome in «Cerca la persona al banco».",
-                    "Nella sua scheda tutti i DPI sono già spuntati: togli la spunta a quelli che non consegni adesso. "
+                    "Quando la persona arriva scrivi il nome in «Cerca la persona al banco» (vale anche il reparto, il numero della richiesta o il codice del modello). "
+                    "Se resta una sola persona la sua scheda si apre da sola; altrimenti cliccala nell'elenco.",
+                    "Nella scheda tutti i DPI sono già spuntati: togli la spunta a quelli che non consegni adesso («Tutti» e «Nessuno» fanno prima). "
                     "Accanto a ogni DPI vedi quanti pezzi ci sono «in magazzino» (in rosso se non bastano).",
-                    "Clicca «Consegna…»: si apre il riquadro con «Data consegna» e le note.",
-                    "Clicca «Registra consegna dei DPI spuntati». Non serve la firma: parte da sola la mail di conferma della ricevuta (vedi sotto).",
+                    "Se manca quel modello o quella taglia clicca «Cambia» (o «Scegli modello») accanto al DPI: la modifica resta scritta nella richiesta.",
+                    "Clicca «Consegna N DPI a…»: il pulsante dice quanti DPI e a chi. Il cursore torna sulla ricerca, pronto per la persona dopo. "
+                    "In basso una barra conta 6 secondi: «Annulla» (o Esc) ferma tutto, «Registra ora» non aspetta. Passato il tempo la consegna è registrata. "
+                    "Non serve la firma: parte da sola la mail di conferma della ricevuta (vedi sotto).",
                     "Se al banco c'è un tablet o hai la ricevuta su carta, apri «Firma sul tablet o ricevuta su carta»: con la firma "
                     "(o la spunta «Ricevuta firmata su carta») la mail di conferma non parte.",
+                ]),
+                ("ul", [
+                    "Da tastiera: / va alla ricerca, frecce su e giù scelgono la persona, Invio porta sul pulsante di consegna e un secondo Invio registra, Esc pulisce la ricerca.",
+                    "I riquadri in alto («Da preparare», «Pronti al ritiro», «Giacenza insufficiente») filtrano l'elenco: un secondo clic toglie il filtro.",
+                    "L'elenco si aggiorna da solo ogni minuto se non stai lavorando su una persona.",
+                    "Con un lettore di badge (o di un QR che contiene il codice del badge) leggi il badge nella ricerca: il codice è quello della scheda in Anagrafica. "
+                    "Se la persona non ha DPI da ritirare lo dice e offre «Consegna diretta».",
+                    "«Lista di prelievo» raccoglie tutto ciò che è da preparare, sommato per modello e taglia con le persone: si stampa e con «Pronti: avvisa gli spuntati» manda l'avviso di ritiro in blocco.",
                 ]),
                 ("p", "Conferma della ricevuta via mail: una sola mail per tutti i DPI consegnati insieme, con i pulsanti "
                       "«Confermo, ricevuti» e «Non li ho ricevuti». Va al dipendente se ha la mail aziendale (i domini si scrivono "
@@ -87,7 +125,7 @@ GUIDA = {
                       "scarico del magazzino, sostituzione del DPI precedente dello stesso tipo, report al responsabile."),
                 ("p", "«Consegna diretta al banco» (solo se qualche categoria ha la spunta «Consegna diretta dal banco»): scegli "
                       "dipendente, DPI, taglia e quantità e clicca «Aggiungi al banco». La richiesta nasce già approvata, senza "
-                      "passare dal responsabile, e si apre subito la sua scheda per la firma."),
+                      "passare dal responsabile, e si apre subito la sua scheda. Il riquadro è chiuso finché non serve; «+ Consumabile» nella scheda lo apre con la persona già scelta."),
                 ("p", "In home, stanza «Oggi», chi gestisce le consegne trova il riquadro «Banco consegne DPI»: i numeri del banco "
                       "(persone in attesa, da preparare, pronti al ritiro, giacenza insufficiente, conferme in attesa e contestate), "
                       "le prime 6 persone con il pulsante «Consegna» che apre direttamente la loro consegna, la casella «Chi è al banco?» "
@@ -165,6 +203,14 @@ GUIDA = {
             ],
         },
         {
+            "id": "bozza-ordine",
+            "titolo": "Bozza d'ordine ai fornitori",
+            "blocchi": [
+                ("p", "Da DPI → «Magazzino» → report, «Bozza d'ordine» propone cosa riordinare, diviso per il fornitore dell'ultimo carico, con le quantità suggerite dai consumi "
+                      "del periodo scelto. Correggi le quantità (zero esclude la riga), poi «Copia il testo» o «Apri nella posta». Il portale non invia nulla."),
+            ],
+        },
+        {
             "id": "magazzino",
             "titolo": "Magazzino e scorte",
             "blocchi": [
@@ -214,9 +260,17 @@ GUIDA = {
     ],
     "problemi": [
         {
-            "sintomo": '«In scadenza» e «Scadute» della dashboard non tornano con le richieste',
+            "sintomo": '«DPI scaduti» e «In scadenza» della dashboard non tornano con le richieste',
             "fare": [
-                'Ora contano le consegne delle sole richieste che vedi (propri, team o tutti), come gli altri numeri della pagina.',
+                'Contano le consegne attive delle richieste della tua coda in «Gestione richieste»: clicca il numero e vedi la stessa lista '
+                '(filtro «Scadenza»). Le consegne già sostituite non contano.',
+            ],
+        },
+        {
+            "sintomo": "Le scarpe non compaiono nel Banco consegne",
+            "perche": "quelle fuori convenzione si chiudono con la fattura, quelle in convenzione entrano nel banco solo dopo l'ordine al negozio.",
+            "fare": [
+                "Apri DPI → «Scarpe»: la riga è in una delle tre sezioni.",
             ],
         },
         {

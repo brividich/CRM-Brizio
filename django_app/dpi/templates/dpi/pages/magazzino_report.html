@@ -120,6 +120,7 @@ body.theme-dark .dpi-hbtn-ghost:hover{background:rgba(255,255,255,.06)}
     </div>
     <div class="dpi-hero-actions">
       <a class="dpi-hbtn dpi-hbtn-ghost" href="{% url 'dpi:magazzino' %}">← Magazzino</a>
+      <a class="dpi-hbtn" href="{% url 'dpi:magazzino_riordino' %}?giorni={{ giorni }}">Bozza d'ordine</a>
       <a class="dpi-hbtn" href="?giorni={{ giorni }}&formato=csv">Esporta movimenti (CSV)</a>
     </div>
   </div>

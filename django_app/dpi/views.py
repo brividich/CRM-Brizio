@@ -28,6 +28,7 @@ from core.permessi.identita import anagrafiche_di_utenti, utente_da_anagrafica
 from core.permessi.negato import risposta_negata
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
+from . import dotazione as dotazione_dpi
 from . import flusso, magazzino
 from .acl_bootstrap import PERM_DPI_MANAGE
 
@@ -38,6 +39,7 @@ from .models import (
     DocumentoDPI,
     MovimentoMagazzinoDPI,
     DPIImpostazioni,
+    ModalitaNegozio,
     ModelloDPI,
     RichiestaDPI,
     RichiestaDPICommento,
@@ -78,7 +80,7 @@ DPI_DOCUMENT_MAX_BYTES = DOCUMENT_MAX_BYTES
 DPI_CATEGORY_ALLOWED_IMAGE_EXTENSIONS = DPI_ALLOWED_IMAGE_EXTENSIONS
 DPI_CATEGORY_ALLOWED_IMAGE_MIMES = DPI_ALLOWED_IMAGE_MIMES
 # Guard di copertura policy MIME su tutti i FileField/ImageField del modulo DPI.
-DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine", "DocumentoDPI.file"}
+DPI_MIME_POLICY_FIELDS = {"CategoriaDPI.immagine", "ModelloDPI.immagine", "DocumentoDPI.file", "FatturaNegozioDPI.file"}
 
 
 # ---------------------------------------------------------------------------
@@ -478,50 +480,65 @@ def dashboard(request):
             _own_richiesta_filter(request)
         ).select_related("categoria", "tipo_dpi", "modello_dpi", "taglia_dpi")
 
-    n_totale = qs_all.count()
-    n_inviate = qs_all.filter(stato=StatoRichiesta.INVIATA).count()
-    n_approvate = qs_all.filter(stato=StatoRichiesta.APPROVATA).count()
-    n_consegnate = qs_all.filter(stato=StatoRichiesta.CONSEGNATA).count()
-    n_rifiutate = qs_all.filter(stato=StatoRichiesta.RIFIUTATA).count()
-
-    # Scadenze prossime (entro 30 giorni, solo consegnate)
-    oggi = timezone.localdate()
-    fra_30 = oggi + timedelta(days=30)
-    # Stesso perimetro delle richieste sopra: le consegne delle sole richieste visibili.
-    consegne = ConsegnaDPI.objects.filter(richiesta__in=qs_all.values("pk"))
-    n_in_scadenza = consegne.filter(
-        data_scadenza_stimata__isnull=False,
-        data_scadenza_stimata__lte=fra_30,
-        data_scadenza_stimata__gte=oggi,
-        richiesta__stato=StatoRichiesta.CONSEGNATA,
-        sostituita_da__isnull=True,
-    ).count()
-    n_scadute = consegne.filter(
-        data_scadenza_stimata__isnull=False,
-        data_scadenza_stimata__lt=oggi,
-        richiesta__stato=StatoRichiesta.CONSEGNATA,
-        sostituita_da__isnull=True,
-    ).count()
-
     # Lista ultime richieste
     ultime = qs_all.order_by("-created_at")[:20]
 
-    # Categorie attive (per link rapido nuova richiesta)
-    categorie = CategoriaDPI.objects.filter(is_active=True).order_by("order_index", "nome")
-
+    legacy_id = _legacy_id(request)
     return render(request, "dpi/pages/dashboard.html", {
         "is_gestore": is_gestore,
         "is_approvatore": bool(_scope_approvatore(request)),
-        "n_totale": n_totale,
-        "n_inviate": n_inviate,
-        "n_approvate": n_approvate,
-        "n_consegnate": n_consegnate,
-        "n_rifiutate": n_rifiutate,
-        "n_in_scadenza": n_in_scadenza,
-        "n_scadute": n_scadute,
+        "da_fare": _da_fare(request, is_gestore),
+        "situazione": dotazione_dpi.dotazione(legacy_id) if legacy_id else None,
         "ultime": ultime,
-        "categorie": categorie,
     })
+
+
+def _tessera(etichetta: str, n: int, url: str, tono: str, nota: str = "") -> dict:
+    return {"etichetta": etichetta, "n": n, "url": url, "tono": tono if n else "zero", "nota": nota}
+
+
+def _da_fare(request, is_gestore: bool) -> list[dict]:
+    """Il lavoro in attesa, ogni numero con il link alla lista che lo mostra uguale."""
+    from django.urls import reverse
+
+    consentito, scope = _gestione_scope(request, is_gestore)
+    lista = reverse("dpi:gestione_list")
+    base = RichiestaDPI.objects.all()
+    if scope is not None:
+        base = base.filter(richiedente_legacy_id__in=list(scope))
+    tessere = []
+    if consentito:
+        tessere.append(_tessera(
+            "In attesa di approvazione", base.filter(stato=StatoRichiesta.INVIATA).count(),
+            f"{lista}?stato={StatoRichiesta.INVIATA}", "blu",
+        ))
+    if is_gestore:
+        banco = _banco_queryset(request)
+        n_magazzino = banco.filter(categoria__consegna_magazzino=True).count()
+        altre = banco.count() - n_magazzino
+        tessere.append(_tessera(
+            "Da consegnare", n_magazzino, reverse("dpi:banco") + ("" if n_magazzino or not altre else "?tutte=1"), "arancione",
+            f"+ {altre} non del magazzino" if altre else "",
+        ))
+        tessere.append(_tessera("Da riordinare", magazzino.da_riordinare(), reverse("dpi:magazzino"), "arancione"))
+        if CategoriaDPI.objects.filter(si_ordina_al_negozio=True, is_active=True).exists():
+            from . import negozio
+
+            approvate = _approvate_queryset(request)
+            n_ordine = negozio.da_ordinare(approvate).count()
+            n_fuori = negozio.fuori_convenzione(approvate).count()
+            tessere.append(_tessera(
+                "Scarpe da gestire", n_ordine + n_fuori, reverse("dpi:negozio"), "arancione",
+                f"{n_ordine} da ordinare · {n_fuori} al negozio" if n_ordine + n_fuori else "",
+            ))
+    if consentito:
+        for chiave, etichetta, tono in (
+            (dotazione_dpi.SCADUTI, "DPI scaduti", "rosso"),
+            (dotazione_dpi.IN_SCADENZA, f"In scadenza ({dotazione_dpi.GIORNI_AVVISO} gg)", "arancione"),
+        ):
+            n = base.filter(dotazione_dpi.filtro_scadenza(chiave)).count()
+            tessere.append(_tessera(etichetta, n, f"{lista}?scadenza={chiave}", tono))
+    return tessere
 
 
 # ---------------------------------------------------------------------------
@@ -555,10 +572,30 @@ def nuova_richiesta(request):
     )
     profilo_ids = {c.pk for c in _profilo["dpi"]}
     profilo_attivo = bool(profilo_ids)  # se vuoto, nessun filtro reale (mostra tutto)
+    situazione = dotazione_dpi.dotazione(_req_legacy) if _req_legacy else None
+    aiuti = dotazione_dpi.aiuti_per_categoria(situazione) if situazione else {}
+    parole: dict[int, list[str]] = {}
+    for tipo in catalog_options["tipi_attivi"]:
+        parole.setdefault(tipo.categoria_id, []).append(tipo.nome)
+    for modello in catalog_options["modelli_attivi"]:
+        parole.setdefault(modello.tipo.categoria_id, []).extend([modello.nome, modello.codice])
     for c in categorie:
         c.in_profilo = c.pk in profilo_ids
+        c.parole_ricerca = " ".join([c.nome, *parole.get(c.pk, [])])
+        c.etichetta_stato = dotazione_dpi.etichetta_categoria(aiuti.get(c.pk))
+
+    dati = request.POST if request.method == "POST" else request.GET
+    scelta = {
+        "categoria": _parse_optional_positive_int(dati.get("categoria_id") or dati.get("categoria")),
+        "tipo": _parse_optional_positive_int(dati.get("tipo_dpi_id") or dati.get("tipo")),
+        "modello": _parse_optional_positive_int(dati.get("modello_dpi_id") or dati.get("modello")),
+        "taglia": _parse_optional_positive_int(dati.get("taglia_dpi_id") or dati.get("taglia")),
+    }
+    motivi_precompilati = {"scadenza": "Sostituzione alla scadenza", "prima": "Prima dotazione"}
+    testo_motivazione = motivi_precompilati.get(request.GET.get("motivo", ""), "")
 
     if request.method == "POST":
+        testo_motivazione = request.POST.get("motivazione", "")
         quantita_raw = request.POST.get("quantita", "1").strip()
         motivazione = request.POST.get("motivazione", "").strip()
         categoria, tipo_dpi, modello_dpi, taglia_dpi, errors = _resolve_richiesta_catalog_selection(request.POST)
@@ -567,6 +604,13 @@ def nuova_richiesta(request):
             quantita = max(1, int(quantita_raw))
         except (ValueError, TypeError):
             quantita = 1
+
+        modalita_negozio = ""
+        if categoria is not None and categoria.si_ordina_al_negozio:
+            modalita_negozio = request.POST.get("modalita_negozio", "")
+            if modalita_negozio not in ModalitaNegozio.values:
+                modalita_negozio = ""
+                errors.append("Scegli se le scarpe sono in convenzione o fuori convenzione.")
 
         fuori_profilo = (
             profilo_attivo and categoria is not None and categoria.pk not in profilo_ids
@@ -594,6 +638,7 @@ def nuova_richiesta(request):
                 taglia_dpi=taglia_dpi,
                 quantita=quantita,
                 motivazione=motivazione,
+                modalita_negozio=modalita_negozio,
                 stato=StatoRichiesta.INVIATA,
                 richiedente_legacy_id=_req_legacy,
                 richiedente_nome=info["nome"],
@@ -620,6 +665,14 @@ def nuova_richiesta(request):
         "is_approvatore": bool(per_conto_di) or bool(_scope_approvatore(request)),
         "richiedente_scelto": _req_legacy,
         "richiedente_proprio": _own_legacy,
+        "aiuti": {str(k): v for k, v in aiuti.items()},
+        "scelta": scelta,
+        "testo_motivazione": testo_motivazione,
+        "quantita_scelta": request.POST.get("quantita", "1") if request.method == "POST" else "1",
+        "motivi_rapidi": ("Usura", "Rotto", "Perso", "Prima dotazione", "Cambio taglia"),
+        "negozio_nome": DPIImpostazioni.get_singleton().negozio_nome,
+        "modalita_scelta": request.POST.get("modalita_negozio", ModalitaNegozio.CONVENZIONE),
+        "negozio_giorni": DPIImpostazioni.get_singleton().negozio_giorni_riepilogo,
         **catalog_options,
     })
 
@@ -849,24 +902,29 @@ def report_conformita(request):
 # Gestione — lista
 # ---------------------------------------------------------------------------
 
-@login_required
-def gestione_list(request):
-    is_gestore = _is_gestore(request)
+def _gestione_scope(request, is_gestore: bool) -> tuple[bool, set[int] | None]:
+    """Coda di lavoro: chi gestisce (consegne) e chi approva, ognuno sul suo perimetro.
+    Ritorna (accesso consentito, id dei richiedenti; None = tutti)."""
     if sistema_ruoli_attivo():
-        # Coda di lavoro: chi gestisce (consegne) e chi approva, ognuno sul suo perimetro.
         gestire = _anagrafiche_visibili(request, "gestire") if is_gestore else set()
         approvare = _scope_approvatore(request) if decisione(request, MODULO, "approvare").consentito else set()
         if gestire is None:
-            scope = None
-        else:
-            scope = set(gestire) | set(approvare)
-            if not scope:
-                return risposta_negata(request, pagina="DPI — gestione richieste")
-    else:
-        scope = None if is_gestore else _scope_approvatore(request)
-        if not is_gestore and not scope:
-            messages.error(request, "Accesso non autorizzato.")
-            return redirect("dpi:dashboard")
+            return True, None
+        scope = set(gestire) | set(approvare)
+        return bool(scope), scope
+    scope = None if is_gestore else _scope_approvatore(request)
+    return (is_gestore or bool(scope)), scope
+
+
+@login_required
+def gestione_list(request):
+    is_gestore = _is_gestore(request)
+    consentito, scope = _gestione_scope(request, is_gestore)
+    if not consentito:
+        if sistema_ruoli_attivo():
+            return risposta_negata(request, pagina="DPI — gestione richieste")
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
 
     base_qs = RichiestaDPI.objects.all()
     if scope is not None:
@@ -878,7 +936,12 @@ def gestione_list(request):
     filtro_stato = request.GET.get("stato", "").strip()
     filtro_cat = request.GET.get("categoria", "").strip()
     filtro_q = request.GET.get("q", "").strip()
+    filtro_scadenza = request.GET.get("scadenza", "").strip()
+    if filtro_scadenza not in dict(dotazione_dpi.FILTRI_SCADENZA):
+        filtro_scadenza = ""
 
+    if filtro_scadenza:
+        qs = qs.filter(dotazione_dpi.filtro_scadenza(filtro_scadenza)).order_by("consegna__data_scadenza_stimata")
     if filtro_stato:
         qs = qs.filter(stato=filtro_stato)
     if filtro_cat:
@@ -900,6 +963,8 @@ def gestione_list(request):
         "filtro_stato": filtro_stato,
         "filtro_cat": filtro_cat,
         "filtro_q": filtro_q,
+        "filtro_scadenza": filtro_scadenza,
+        "filtri_scadenza": dotazione_dpi.FILTRI_SCADENZA,
         "n_inviate": n_inviate,
         "is_gestore": is_gestore,
         "is_approvatore": True,
@@ -946,7 +1011,7 @@ def gestione_detail(request, pk: int):
         "consegna": consegna,
         "oggi": timezone.localdate(),
         "vita_utile_consegna": vita_utile_consegna,
-        "giacenza_modello": magazzino.giacenza(richiesta.modello_dpi_id) if richiesta.modello_dpi_id else None,
+        "giacenza_modello": magazzino.giacenza(richiesta.modello_dpi_id) if richiesta.modello_dpi_id and not richiesta.modalita_negozio else None,
         "is_gestore": is_gestore,
         "is_approvatore": True,
     })
@@ -1006,7 +1071,7 @@ def _approva(request, richiesta: RichiestaDPI, nota: str = "", *, automatica: bo
         registra_esito(richiesta, "approvare", user=request.user)
     _notifica_richiedente(richiesta, f"La tua richiesta {richiesta.numero} ({richiesta.categoria.nome}) è stata approvata.")
     flusso.notifica_approvata(richiesta)
-    if DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione:
+    if DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione and not richiesta.modalita_negozio:
         _segna_pronta(request, richiesta, da_nome="Portale (all'approvazione)")
 
 
@@ -1015,7 +1080,7 @@ def _segna_pronta(request, richiesta: RichiestaDPI, *, da_nome: str) -> None:
     richiesta.pronta_ritiro_da_nome = da_nome[:200]
     richiesta.save(update_fields=["pronta_ritiro_il", "pronta_ritiro_da_nome", "updated_at"])
     log_action(request, "pronta_ritiro", "dpi", f"DPI {richiesta.numero} pronto per il ritiro")
-    _notifica_richiedente(richiesta, f"Il tuo DPI {richiesta.numero} ({richiesta.categoria.nome}) è pronto: passa in magazzino a ritirarlo.")
+    _notifica_richiedente(richiesta, f"Il tuo DPI {richiesta.numero} ({richiesta.categoria.nome}) è pronto: passa {flusso.luogo_ritiro(richiesta)} a ritirarlo.")
     flusso.notifica_pronta_ritiro(richiesta)
 
 
@@ -1030,6 +1095,9 @@ def pronta_ritiro(request, pk: int):
     if richiesta.stato != StatoRichiesta.APPROVATA:
         messages.error(request, "Solo una richiesta approvata e non ancora consegnata può essere pronta per il ritiro.")
         return redirect("dpi:gestione_detail", pk=pk)
+    if richiesta.da_gestire_in_negozio:
+        messages.info(request, "Queste scarpe si gestiscono dalla pagina Scarpe.")
+        return redirect("dpi:negozio")
     gia = richiesta.pronta_ritiro_il is not None
     _segna_pronta(request, richiesta, da_nome=request.user.get_full_name() or request.user.username)
     messages.success(request, f"Il dipendente è stato {'avvisato di nuovo' if gia else 'avvisato'} di passare a ritirare il DPI.")
@@ -1121,6 +1189,9 @@ def consegna_richiesta(request, pk: int):
     if richiesta.stato != StatoRichiesta.APPROVATA:
         messages.error(request, "La consegna si registra solo dopo l'approvazione del responsabile.")
         return redirect("dpi:gestione_detail", pk=pk)
+    if richiesta.da_gestire_in_negozio:
+        messages.info(request, "Queste scarpe si gestiscono dalla pagina Scarpe.")
+        return redirect("dpi:negozio")
 
     data_str = request.POST.get("data_consegna", "").strip()
     note = request.POST.get("note_consegna", "").strip()
@@ -1239,6 +1310,8 @@ def _registra_consegna(request, richiesta: RichiestaDPI, *, data_consegna, note:
             url_azione=reverse("dpi:detail", args=[richiesta.pk]),
         )
     flusso.notifica_consegnata(consegna)
+    if richiesta.modalita_negozio:  # comprate per la persona: non sono mai state in magazzino
+        return None
     movimento, residuo = magazzino.scarica_per_consegna(richiesta, data_consegna, user=request.user)
     if movimento is not None:
         log_action(request, "DPI_MAGAZZINO_SCARICO", "dpi", f"Scarico {movimento.quantita} x {movimento.modello.codice} per {richiesta.numero}")
@@ -1286,6 +1359,10 @@ def impostazioni(request):
         impost.notifica_nuova_richiesta = bool(request.POST.get("notifica_nuova_richiesta"))
         impost.notifica_email_extra = request.POST.get("notifica_email_extra", "").strip()
         impost.magazzino_emails = request.POST.get("magazzino_emails", "").strip()
+        impost.negozio_nome = request.POST.get("negozio_nome", "").strip()[:120] or impost.negozio_nome
+        impost.negozio_email = request.POST.get("negozio_email", "").strip()[:254]
+        impost.negozio_operatore_emails = request.POST.get("negozio_operatore_emails", "").strip()
+        impost.negozio_giorni_riepilogo = _parse_optional_positive_int(request.POST.get("negozio_giorni_riepilogo")) or impost.negozio_giorni_riepilogo
         impost.amministrazione_emails = request.POST.get("amministrazione_emails", "").strip()
         impost.avviso_ritiro_all_approvazione = bool(request.POST.get("avviso_ritiro_all_approvazione"))
         impost.domini_email_aziendali = request.POST.get("domini_email_aziendali", "").strip()[:300]
@@ -1324,6 +1401,7 @@ def categoria_edit(request, pk: int | None = None):
             "scorta_minima": _parse_optional_positive_int(request.POST.get("scorta_minima")) or 0,
             "avvisa_amministrazione_consegna": bool(request.POST.get("avvisa_amministrazione_consegna")),
             "consegna_magazzino": bool(request.POST.get("consegna_magazzino")),
+            "si_ordina_al_negozio": bool(request.POST.get("si_ordina_al_negozio")),
             "consegna_diretta": bool(request.POST.get("consegna_diretta")),
             "is_active": bool(request.POST.get("is_active")),
             "order_index": _parse_optional_positive_int(request.POST.get("order_index")) or 0,
@@ -1856,7 +1934,7 @@ def magazzino_view(request):
             messages.success(request, f"Scorta minima di {modello.codice}: {soglia}.")
         return redirect("dpi:magazzino")
 
-    modelli = list(_catalog_select_related()["modelli"].filter(is_active=True))
+    modelli = list(_catalog_select_related()["modelli"].filter(is_active=True).exclude(tipo__categoria__si_ordina_al_negozio=True))
     per_modello = magazzino.giacenze()
     righe = []
     for m in modelli:
@@ -1884,6 +1962,24 @@ def magazzino_view(request):
         "modello_mov": modello_mov,
         "movimenti": movimenti[:40],
         "oggi": timezone.localdate(),
+    })
+
+
+@login_required
+def magazzino_riordino(request):
+    """Bozza d'ordine ai fornitori: si corregge e si copia, il portale non invia nulla."""
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+    giorni = _int_or_none(request.GET.get("giorni")) or 90
+    if giorni not in (30, 90, 180, 365):
+        giorni = 90
+    return render(request, "dpi/pages/magazzino_riordino.html", {
+        "is_gestore": True,
+        "is_approvatore": True,
+        "giorni": giorni,
+        "periodi": (30, 90, 180, 365),
+        "fornitori": magazzino.bozza_ordine(giorni),
     })
 
 
@@ -1928,7 +2024,15 @@ def magazzino_report(request):
 # ---------------------------------------------------------------------------
 
 def _banco_queryset(request):
-    """Richieste approvate da consegnare, nel perimetro di chi gestisce."""
+    """Richieste approvate da consegnare al banco: non le scarpe fuori convenzione (si chiudono
+    con la fattura) ne' quelle in convenzione non ancora ordinate."""
+    return _approvate_queryset(request).exclude(modalita_negozio=ModalitaNegozio.FUORI).exclude(
+        modalita_negozio=ModalitaNegozio.CONVENZIONE, ordine_negozio__isnull=True
+    )
+
+
+def _approvate_queryset(request):
+    """Richieste approvate non ancora consegnate, nel perimetro di chi gestisce."""
     qs = RichiestaDPI.objects.filter(stato=StatoRichiesta.APPROVATA).select_related(
         "categoria", "tipo_dpi", "modello_dpi", "taglia_dpi"
     )
@@ -1959,9 +2063,10 @@ def _banco_persone(qs, giac: dict) -> list[dict]:
         chiave = _chiave_persona(r)
         g = gruppi.setdefault(chiave, {
             "chiave": chiave, "nome": r.richiedente_nome, "reparto": r.richiedente_reparto,
+            "legacy_id": r.richiedente_legacy_id,
             "righe": [], "n_pronte": 0, "n_da_preparare": 0, "n_mancanti": 0,
         })
-        g_mod = giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id else None
+        g_mod = giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id and not r.modalita_negozio else None
         manca = g_mod is not None and g_mod < r.quantita
         g["righe"].append({"r": r, "giacenza": g_mod, "manca": manca})
         g["n_pronte" if r.pronta_ritiro_il else "n_da_preparare"] += 1
@@ -2024,11 +2129,50 @@ def _banco_consegna_diretta(request, tutte: bool):
     return _banco_redirect("apri-" + _chiave_persona(r), tutte)
 
 
+def _banco_cambia_modello(request, tutte: bool):
+    """Al banco manca quel modello o quella taglia: si cambia sulla richiesta, con traccia."""
+    r = _banco_queryset(request).filter(pk=_int_or_none(request.POST.get("cambia_richiesta"))).first()
+    if r is None:
+        messages.error(request, "Richiesta non trovata tra quelle da consegnare.")
+        return _banco_redirect(tutte=tutte)
+    chiave = _chiave_persona(r)
+    if r.modalita_negozio:
+        messages.error(request, "Queste scarpe sono ordinate al negozio: non si cambiano dal banco.")
+        return _banco_redirect(chiave, tutte)
+    modello = ModelloDPI.objects.filter(
+        pk=_int_or_none(request.POST.get("cambia_modello")), is_active=True, tipo__is_active=True, tipo__categoria_id=r.categoria_id,
+    ).select_related("tipo").first()
+    if modello is None:
+        messages.error(request, "Scegli un modello attivo della stessa categoria.")
+        return _banco_redirect(chiave, tutte)
+    taglia_id = _int_or_none(request.POST.get("cambia_taglia"))
+    taglia = TagliaDPI.objects.filter(pk=taglia_id, modello=modello, is_active=True).first() if taglia_id else None
+    if taglia_id and taglia is None:
+        messages.error(request, "La taglia scelta non è di quel modello.")
+        return _banco_redirect(chiave, tutte)
+    if r.modello_dpi_id == modello.pk and r.taglia_dpi_id == (taglia.pk if taglia else None):
+        messages.info(request, "Nessuna modifica.")
+        return _banco_redirect(chiave, tutte)
+    prima = flusso._riga_dpi(r)
+    r.tipo_dpi, r.modello_dpi, r.taglia_dpi = modello.tipo, modello, taglia
+    r.save(update_fields=["tipo_dpi", "modello_dpi", "taglia_dpi", "updated_at"])
+    autore = request.user.get_full_name() or request.user.username
+    dopo = flusso._riga_dpi(r)
+    RichiestaDPICommento.objects.create(
+        richiesta=r, autore_nome=autore, is_interno=False, testo=f"Cambiato al banco: da {prima} a {dopo}.",
+    )
+    log_action(request, "DPI_BANCO_CAMBIO", "dpi", f"{r.numero}: da {prima} a {dopo}")
+    messages.success(request, f"{r.numero}: ora {dopo}.")
+    return _banco_redirect(chiave, tutte)
+
+
 def _banco_azione(request):
     azione = request.POST.get("azione", "")
     tutte = request.POST.get("tutte") == "1"
     if azione == "diretta":
         return _banco_consegna_diretta(request, tutte)
+    if azione == "cambia":
+        return _banco_cambia_modello(request, tutte)
     richieste = _banco_selezionate(request)
     if not richieste:
         messages.warning(request, "Spunta almeno un DPI.")
@@ -2083,27 +2227,145 @@ def banco(request):
     if not _is_gestore(request):
         messages.error(request, "Accesso non autorizzato.")
         return redirect("dpi:dashboard")
+    # Dalla pagina aperta (fetch) torna solo la parte di lavoro: niente ricarica. Il toast
+    # dei messaggi lo consegna FlashMessagesDeliveryMiddleware.
+    parziale = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if request.method == "POST":
-        return _banco_azione(request)
+        risposta = _banco_azione(request)
+        if not parziale:
+            return risposta
+        tutte = request.POST.get("tutte") == "1"
+        pagina = render(request, "dpi/components/_banco_lavoro.html", _banco_contesto(request, tutte))
+        pagina["X-Banco-Apri"] = risposta.url.partition("#")[2].removeprefix("apri-")
+        return pagina
 
     tutte = request.GET.get("tutte") == "1"
+    contesto = _banco_contesto(request, tutte)
+    if parziale:
+        return render(request, "dpi/components/_banco_lavoro.html", contesto)
+    if contesto["ha_diretta"]:
+        giac = magazzino.giacenze()
+        modelli_diretti = list(_modelli_diretti().select_related("tipo", "tipo__categoria").prefetch_related("taglie").order_by(
+            "tipo__categoria__order_index", "tipo__categoria__nome", "tipo__ordine", "nome"
+        ))
+        for m in modelli_diretti:
+            m.giacenza = giac.get(m.pk, 0)
+            m.taglie_attive = [t for t in m.taglie.all() if t.is_active]
+        contesto["modelli_diretti"] = modelli_diretti
+        contesto["dipendenti"] = _dipendenti_selezionabili(request)
+    contesto["cerca"] = request.GET.get("cerca", "").strip()[:80]
+    contesto["catalogo_modelli"] = _banco_catalogo()
+    contesto["badge_persone"] = _banco_badge_persone(request)
+    return render(request, "dpi/pages/banco.html", contesto)
+
+
+def _banco_catalogo() -> dict[str, list[dict]]:
+    """Per categoria, i modelli tra cui scegliere al banco, con giacenza e taglie."""
+    giac = magazzino.giacenze()
+    catalogo: dict[str, list[dict]] = {}
+    modelli = ModelloDPI.objects.filter(is_active=True, tipo__is_active=True, tipo__categoria__is_active=True).select_related(
+        "tipo"
+    ).prefetch_related("taglie").order_by("tipo__ordine", "codice", "nome")
+    for m in modelli:
+        catalogo.setdefault(str(m.tipo.categoria_id), []).append({
+            "id": m.pk,
+            "nome": f"{m.codice} {m.nome}".strip(),
+            "giacenza": giac.get(m.pk, 0),
+            "taglie": [{"id": t.pk, "valore": t.valore} for t in m.taglie.all() if t.is_active],
+        })
+    return catalogo
+
+
+def _banco_badge_persone(request) -> list[dict]:
+    """Badge delle persone selezionabili: una lettura riconosce anche chi non ha richieste aperte."""
+    from anagrafica.models import DipendenteAnagraficaAziendale
+
+    nomi = {d["id"]: d["nome"] for d in _dipendenti_selezionabili(request)}
+    righe = DipendenteAnagraficaAziendale.objects.exclude(badge="").filter(
+        legacy_anagrafica_id__in=list(nomi)
+    ).values_list("legacy_anagrafica_id", "badge")
+    return [{"id": legacy, "nome": nomi[legacy], "badge": badge} for legacy, badge in righe]
+
+
+def _prelievo_gruppi(qs, giac: dict) -> list[dict]:
+    """Richieste da preparare raggruppate per cio' che si prende dallo scaffale."""
+    gruppi: dict[tuple, dict] = {}
+    for r in qs.order_by("richiedente_nome", "created_at"):
+        chiave = (r.categoria_id, r.modello_dpi_id, r.tipo_dpi_id if not r.modello_dpi_id else None, r.taglia_dpi_id)
+        g = gruppi.setdefault(chiave, {
+            "categoria": r.categoria.nome,
+            "etichetta": r.modello_dpi.nome if r.modello_dpi_id else (r.tipo_dpi.nome if r.tipo_dpi_id else r.categoria.nome),
+            "codice": r.modello_dpi.codice if r.modello_dpi_id else "",
+            "taglia": r.taglia_dpi.valore if r.taglia_dpi_id else "",
+            "giacenza": giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id and not r.modalita_negozio else None,
+            "pezzi": 0,
+            "richieste": [],
+        })
+        g["pezzi"] += r.quantita
+        g["richieste"].append(r)
+    for g in gruppi.values():
+        g["manca"] = g["giacenza"] is not None and g["giacenza"] < g["pezzi"]
+    return sorted(gruppi.values(), key=lambda g: (g["categoria"].casefold(), g["etichetta"].casefold(), g["taglia"]))
+
+
+@login_required
+def banco_prelievo(request):
+    """Foglio per preparare i DPI: tutto cio' che e' da preparare, e l'avviso di ritiro in blocco."""
+    from django.urls import reverse
+
+    if not _is_gestore(request):
+        messages.error(request, "Accesso non autorizzato.")
+        return redirect("dpi:dashboard")
+    tutte = (request.POST if request.method == "POST" else request.GET).get("tutte") == "1"
+    qs = _banco_queryset(request).filter(pronta_ritiro_il__isnull=True)
+    if not tutte:
+        qs = qs.filter(categoria__consegna_magazzino=True)
+    url = reverse("dpi:banco_prelievo") + ("?tutte=1" if tutte else "")
+    if request.method == "POST":
+        ids = [i for i in (_int_or_none(v) for v in request.POST.getlist("ids")) if i]
+        richieste = list(qs.filter(pk__in=ids)) if ids else []
+        autore = request.user.get_full_name() or request.user.username
+        for r in richieste:
+            _segna_pronta(request, r, da_nome=autore)
+        if richieste:
+            messages.success(request, f"Avvisi di ritiro inviati: {len(richieste)}.")
+        else:
+            messages.warning(request, "Spunta almeno un DPI.")
+        return redirect(url)
+    gruppi = _prelievo_gruppi(qs, magazzino.giacenze())
+    return render(request, "dpi/pages/banco_prelievo.html", {
+        "is_gestore": True,
+        "is_approvatore": True,
+        "tutte": tutte,
+        "gruppi": gruppi,
+        "n_righe": sum(len(g["richieste"]) for g in gruppi),
+        "n_pezzi": sum(g["pezzi"] for g in gruppi),
+        "oggi": timezone.localdate(),
+    })
+
+
+def _modelli_diretti():
+    return ModelloDPI.objects.filter(
+        is_active=True, tipo__is_active=True, tipo__categoria__is_active=True,
+        tipo__categoria__consegna_diretta=True,
+    )
+
+
+def _banco_contesto(request, tutte: bool) -> dict:
+    """La parte di lavoro del banco: numeri, persone, conferme."""
     qs = _banco_queryset(request)
     n_altre = qs.filter(categoria__consegna_magazzino=False).count()
     if not tutte:
         qs = qs.filter(categoria__consegna_magazzino=True)
     giac = magazzino.giacenze()
     persone = _banco_persone(qs, giac)
+    from anagrafica.models import DipendenteAnagraficaAziendale
 
-    modelli_diretti = list(
-        ModelloDPI.objects.filter(
-            is_active=True, tipo__is_active=True, tipo__categoria__is_active=True,
-            tipo__categoria__consegna_diretta=True,
-        ).select_related("tipo", "tipo__categoria").prefetch_related("taglie")
-        .order_by("tipo__categoria__order_index", "tipo__categoria__nome", "tipo__ordine", "nome")
-    )
-    for m in modelli_diretti:
-        m.giacenza = giac.get(m.pk, 0)
-        m.taglie_attive = [t for t in m.taglie.all() if t.is_active]
+    badge = dict(DipendenteAnagraficaAziendale.objects.exclude(badge="").filter(
+        legacy_anagrafica_id__in=[p["legacy_id"] for p in persone if p["legacy_id"]]
+    ).values_list("legacy_anagrafica_id", "badge"))
+    for p in persone:
+        p["badge"] = badge.get(p["legacy_id"], "")
 
     from .models import ConfermaConsegnaDPI
 
@@ -2113,7 +2375,7 @@ def banco(request):
         stato=ConfermaConsegnaDPI.Stato.CONTESTATA, decisa_il__gte=timezone.now() - timedelta(days=30)
     ).order_by("-decisa_il")[:30])
 
-    return render(request, "dpi/pages/banco.html", {
+    return {
         "conferme_attesa": conferme_attesa,
         "n_conferme_attesa": conferme_qs.filter(stato=ConfermaConsegnaDPI.Stato.IN_ATTESA).count(),
         "conferme_contestate": conferme_contestate,
@@ -2126,9 +2388,7 @@ def banco(request):
         "n_mancanti": sum(g["n_mancanti"] for g in persone),
         "n_altre": n_altre,
         "tutte": tutte,
-        "cerca": request.GET.get("cerca", "").strip()[:80],
         "oggi": timezone.localdate(),
         "avviso_all_approvazione": DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione,
-        "modelli_diretti": modelli_diretti,
-        "dipendenti": _dipendenti_selezionabili(request) if modelli_diretti else [],
-    })
+        "ha_diretta": _modelli_diretti().exists(),
+    }

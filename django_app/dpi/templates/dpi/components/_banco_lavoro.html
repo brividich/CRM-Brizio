@@ -1,0 +1,144 @@
+{% load dpi_extras %}
+<div class="dpi-kpi">
+  <button type="button" class="dpi-kpi-box" data-filtro=""><span class="dpi-kpi-n">{{ n_persone }}</span><span class="dpi-kpi-l">Persone in attesa</span></button>
+  <button type="button" class="dpi-kpi-box" data-filtro="prep"><span class="dpi-kpi-n">{{ n_da_preparare }}</span><span class="dpi-kpi-l">Da preparare</span></button>
+  <button type="button" class="dpi-kpi-box" data-filtro="pronte"><span class="dpi-kpi-n">{{ n_pronte }}</span><span class="dpi-kpi-l">Pronti al ritiro</span></button>
+  <button type="button" class="dpi-kpi-box{% if n_mancanti %} warn{% endif %}" data-filtro="manca"><span class="dpi-kpi-n">{{ n_mancanti }}</span><span class="dpi-kpi-l">Giacenza insufficiente</span></button>
+</div>
+
+<div class="banco-strumenti">
+  {% if n_da_preparare and not avviso_all_approvazione %}<a href="{% url 'dpi:banco_prelievo' %}{% if tutte %}?tutte=1{% endif %}" class="dpi-toggle">Lista di prelievo ({{ n_da_preparare }})</a>{% endif %}
+  {% if tutte %}
+  <a href="{% url 'dpi:banco' %}" class="dpi-toggle">Solo i DPI del magazzino</a>
+  {% elif n_altre %}
+  <a href="{% url 'dpi:banco' %}?tutte=1" class="dpi-toggle">Mostra anche gli altri DPI ({{ n_altre }}, es. scarpe)</a>
+  {% endif %}
+</div>
+
+{% if persone %}
+<div class="banco-griglia">
+  <div class="banco-lista" role="listbox" aria-label="Persone in attesa">
+    {% for p in persone %}
+    <button type="button" class="banco-persona" role="option" data-chiave="{{ p.chiave }}"
+            data-badge="{{ p.badge }}" data-prep="{{ p.n_da_preparare }}" data-pronte="{{ p.n_pronte }}" data-manca="{{ p.n_mancanti }}"
+            data-cerca="{{ p.nome }} {{ p.reparto }}{% for riga in p.righe %} {{ riga.r.numero }}{% if riga.r.modello_dpi %} {{ riga.r.modello_dpi.codice }} {{ riga.r.modello_dpi.nome }}{% endif %}{% endfor %}">
+      <span class="banco-persona-nome">{{ p.nome|upper }}</span>
+      {% if p.reparto %}<span class="dpi-persona-rep">{{ p.reparto }}</span>{% endif %}
+      <span class="banco-persona-pill">
+        {% if p.n_pronte %}<span class="dpi-pill dpi-pill-pronta">{{ p.n_pronte }} pront{{ p.n_pronte|pluralize:"o,i" }}</span>{% endif %}
+        {% if p.n_da_preparare %}<span class="dpi-pill dpi-pill-prep">{{ p.n_da_preparare }} da preparare</span>{% endif %}
+        {% if p.n_mancanti %}<span class="dpi-pill dpi-pill-manca">{{ p.n_mancanti }} senza giacenza</span>{% endif %}
+      </span>
+    </button>
+    {% endfor %}
+    <div class="dpi-empty" id="banco-nessuno" hidden>
+      <span id="banco-nessuno-testo">Nessuna persona trovata.</span>
+      {% if ha_diretta %}<br><button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta style="margin-top:10px;">Consegna diretta</button>{% endif %}
+    </div>
+  </div>
+
+  <div class="banco-scheda">
+    <div class="dpi-card dpi-empty" id="banco-invito">Scrivi il nome o clicca una persona.</div>
+    {% for p in persone %}
+    <div class="dpi-card dpi-persona" id="{{ p.chiave }}" data-nome="{{ p.nome|upper }}" hidden>
+      <form method="post">
+        {% csrf_token %}
+        {% if tutte %}<input type="hidden" name="tutte" value="1">{% endif %}
+        <div class="dpi-persona-head">
+          <div>
+            <div class="dpi-persona-nome">{{ p.nome|upper }}</div>
+            {% if p.reparto %}<div class="dpi-persona-rep">{{ p.reparto }}</div>{% endif %}
+          </div>
+          <div class="banco-spunte">
+            <button type="button" class="banco-link" data-spunta="1">Tutti</button>
+            <button type="button" class="banco-link" data-spunta="0">Nessuno</button>
+          </div>
+        </div>
+
+        <ul class="dpi-righe">
+          {% for riga in p.righe %}{% with r=riga.r %}
+          <li>
+            <label class="dpi-riga{% if riga.manca %} dpi-riga-manca{% endif %}">
+              <input type="checkbox" name="ids" value="{{ r.pk }}" checked data-manca="{% if riga.manca %}1{% endif %}" data-pronta="{% if r.pronta_ritiro_il %}1{% endif %}">
+              {% if r.categoria.immagine %}<img src="{{ r.categoria.immagine.url }}" alt="" class="dpi-riga-ico" style="object-fit:contain;">{% else %}<svg class="dpi-riga-ico"><use href="#i-dpi-{{ r.categoria.icona_emoji|dpi_icon_key }}"/></svg>{% endif %}
+              <span class="dpi-riga-main">
+                <span class="dpi-riga-dpi">{% if r.modello_dpi %}{{ r.modello_dpi.nome }}{% elif r.tipo_dpi %}{{ r.tipo_dpi.nome }}{% else %}{{ r.categoria.nome }}{% endif %}{% if r.taglia_dpi %} · taglia {{ r.taglia_dpi.valore }}{% endif %}</span>
+                <span class="dpi-riga-meta" style="display:block;">
+                  {{ r.categoria.nome }}{% if r.modello_dpi %} · {{ r.modello_dpi.codice }}{% endif %} ·
+                  <a href="{% url 'dpi:gestione_detail' r.pk %}">{{ r.numero }}</a> ·
+                  {% if r.pronta_ritiro_il %}avvisato il {{ r.pronta_ritiro_il|date:"d-m H:i" }}{% else %}richiesta il {{ r.created_at|date:"d-m" }}{% endif %}
+                </span>
+              </span>
+              {% if riga.giacenza is not None %}<span class="dpi-giac{% if riga.manca %} manca{% endif %}">in magazzino {{ riga.giacenza }}</span>{% endif %}
+              <span class="dpi-riga-qta">× {{ r.quantita }}</span>
+              {% if not r.modalita_negozio %}<button type="button" class="banco-link" data-cambia data-richiesta="{{ r.pk }}" data-categoria="{{ r.categoria_id }}" data-modello="{{ r.modello_dpi_id|default:'' }}" data-taglia="{{ r.taglia_dpi_id|default:'' }}">{% if r.modello_dpi %}Cambia{% else %}Scegli modello{% endif %}</button>{% endif %}
+            </label>
+          </li>
+          {% endwith %}{% endfor %}
+        </ul>
+
+        <div class="banco-avviso" data-avviso-giacenza hidden>Giacenza insufficiente per un DPI spuntato: la consegna si può registrare lo stesso.</div>
+
+        <div class="dpi-consegna">
+          <div class="dpi-consegna-grid">
+            <div class="dpi-field">
+              <label>Data consegna</label>
+              <input type="date" name="data_consegna" value="{{ oggi|date:'Y-m-d' }}" required>
+            </div>
+            <div class="dpi-field">
+              <label>Note (facoltative)</label>
+              <input type="text" name="note_consegna" placeholder="Es: lotto, taglia cambiata">
+            </div>
+          </div>
+          <div class="dpi-azioni">
+            <button type="submit" name="azione" value="consegna" class="dpi-btn dpi-btn-green" data-consegna>Consegna</button>
+            {% if p.n_da_preparare and not avviso_all_approvazione %}
+            <button type="submit" name="azione" value="pronta" class="dpi-btn dpi-btn-gray" formnovalidate data-pronto>Pronto per il ritiro (avvisa)</button>
+            {% endif %}
+            {% if ha_diretta and p.legacy_id %}
+            <button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta="{{ p.legacy_id }}">+ Consumabile</button>
+            {% endif %}
+          </div>
+          <p class="dpi-hint" style="margin:10px 0 0;">Parte la mail di conferma della ricevuta al dipendente (se ha la mail aziendale) o al suo caporeparto.</p>
+          <details class="dpi-firma-box">
+            <summary>Firma sul tablet o ricevuta su carta (al posto della mail)</summary>
+            <div class="dpi-field" style="margin-top:10px;">
+              <label>Firma del dipendente (vale per tutti i DPI spuntati)</label>
+              <canvas class="dpi-firma" data-firma></canvas>
+              <input type="hidden" name="firma_immagine">
+            </div>
+            <div class="dpi-azioni" style="margin-top:6px;">
+              <button type="button" class="dpi-btn dpi-btn-gray" data-cancella-firma>Cancella firma</button>
+              <label class="dpi-check" style="margin:0;"><input type="checkbox" name="firmato_ricevuta" value="1"> Ricevuta firmata su carta</label>
+            </div>
+          </details>
+        </div>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="dpi-card dpi-empty">Nessun DPI da consegnare: le richieste approvate compaiono qui.</div>
+{% endif %}
+
+{% if conferme_contestate or n_conferme_attesa %}
+<details class="dpi-card" id="conferme"{% if conferme_contestate %} open{% endif %}>
+  <summary class="dpi-card-title">Conferme di ricevuta
+    {% if n_conferme_attesa %}<span class="dpi-pill dpi-pill-prep">{{ n_conferme_attesa }} da confermare</span>{% endif %}
+    {% if conferme_contestate %}<span class="dpi-pill dpi-pill-manca">{{ conferme_contestate|length }} contestat{{ conferme_contestate|length|pluralize:"a,e" }}</span>{% endif %}
+  </summary>
+  {% for c in conferme_contestate %}
+  <div class="dpi-conf-row">
+    <span><strong>{{ c.richiedente_nome|upper }}</strong> · contestata il {{ c.decisa_il|date:"d-m H:i" }} da {{ c.decisa_da_email }}{% if c.nota %} · «{{ c.nota }}»{% endif %}</span>
+    <span>{% for co in c.consegne.all %}<a href="{% url 'dpi:gestione_detail' co.richiesta_id %}">{{ co.richiesta.numero }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+  </div>
+  {% endfor %}
+  {% for c in conferme_attesa %}
+  <div class="dpi-conf-row">
+    <span>{{ c.richiedente_nome|upper }} · mail del {{ c.created_at|date:"d-m" }} {{ c.get_destinatario_tipo_display|lower }}{% if c.sollecitata_il %} · sollecitata il {{ c.sollecitata_il|date:"d-m" }}{% endif %}</span>
+    <span>{% for co in c.consegne.all %}<a href="{% url 'dpi:gestione_detail' co.richiesta_id %}">{{ co.richiesta.numero }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+  </div>
+  {% endfor %}
+</details>
+{% endif %}
