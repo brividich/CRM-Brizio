@@ -2181,6 +2181,148 @@ def api_segnalato(request):
     })
 
 
+def _segna_eliminabili(request, rows: list[dict], raw_by_id: dict, autori: dict, op_title: str) -> None:
+    """``can_elimina`` (solo chi l'ha inserita) e ``can_sposta`` («Taglia»: chi l'ha
+    inserita o chi modifica l'OP), finché l'anomalia non ha avanzamenti."""
+    from . import controllo_service as cs
+    from .elimina_sposta import ids_con_avanzamenti
+
+    for r in rows:
+        r["can_elimina"] = False
+        r["can_sposta"] = False
+    ids = [r.get("local_id") for r in rows if r.get("local_id") is not None]
+    if not ids:
+        return
+    me = _request_legacy_user_id(request)
+    edit_op = _can_edit_anomalie_for_op(request, op_title) if op_title else False
+    if me is None and not edit_op:
+        return
+    bloccate = ids_con_avanzamenti(ids)
+    for r in rows:
+        lid = r.get("local_id")
+        raw = raw_by_id.get(lid) or {}
+        if lid is None or lid in bloccate or cs.riga_gestita(raw):
+            continue
+        autore = autori.get(lid)
+        mia = me is not None and autore is not None and int(autore) == me
+        r["can_elimina"] = mia
+        r["can_sposta"] = mia or edit_op
+
+
+def _anomalia_da_body(request):
+    """``(local_id, data, riga, errore)`` per le API che agiscono su una sola anomalia."""
+    if request.method != "POST":
+        return None, {}, None, _json_error("Metodo non consentito", status=405)
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+        local_id = int(data.get("local_id"))
+    except Exception:
+        return None, {}, None, _json_error("local_id non valido", status=400)
+    from .elimina_sposta import riga
+
+    row = riga(local_id) if _has_table("anomalie") else None
+    if row is None:
+        return local_id, data, None, _json_error("Anomalia non trovata", status=404)
+    return local_id, data, row, None
+
+
+@login_required
+def api_anomalie_elimina(request):
+    """Elimina una singola anomalia: solo chi l'ha inserita e solo senza avanzamenti."""
+    from .elimina_sposta import elimina, motivi_avanzamento, testo_motivi
+
+    local_id, _data, row, err = _anomalia_da_body(request)
+    if err:
+        return err
+    if not _is_creatore_anomalia(request, local_id):
+        return _json_error("Elimina l'anomalia solo chi l'ha inserita", status=403)
+    motivi = motivi_avanzamento(local_id, row)
+    if motivi:
+        return _json_error(f"Non si può più eliminare: {testo_motivi(motivi)}", status=409)
+    try:
+        istantanea = elimina(local_id)
+    except DatabaseError as exc:
+        logger.exception("api_anomalie_elimina: id=%s", local_id)
+        return _json_error(f"Eliminazione non riuscita: {exc}", status=500)
+    try:
+        log_action(request, "anomalia_eliminata", "anomalie", istantanea)
+    except Exception:
+        logger.warning("api_anomalie_elimina: audit non scritto id=%s", local_id, exc_info=True)
+    return JsonResponse({"success": True, "local_id": local_id, "controllo_id": istantanea.get("controllo_id")})
+
+
+@login_required
+def api_anomalie_sposta(request):
+    """«Taglia»: sposta l'anomalia su un altro S/N dello stesso OP o di un altro OP.
+
+    Chi l'ha inserita o chi modifica l'OP di partenza, con il permesso di aprire
+    segnalazioni sull'OP di arrivo; solo finché non ci sono avanzamenti.
+    """
+    from .controllo_views import _op_esiste
+    from .elimina_sposta import motivi_avanzamento, sposta, testo_motivi
+    from .seriali import etichetta_blocco, normalizza_voci
+
+    local_id, data, row, err = _anomalia_da_body(request)
+    if err:
+        return err
+    op_da = str(row.get("ex_op_nominativo") or "").strip()
+    if not (_is_creatore_anomalia(request, local_id) or _can_edit_anomalie_for_op(request, op_da)):
+        return _json_error("Sposta l'anomalia chi l'ha inserita o chi gestisce l'OP", status=403)
+    motivi = motivi_avanzamento(local_id, row)
+    if motivi:
+        return _json_error(f"Non si può più spostare: {testo_motivi(motivi)}", status=409)
+    op_dest = _safe_text(data.get("op_id"), 100) or op_da
+    raw_sn = data.get("seriali")
+    voci = normalizza_voci(raw_sn if isinstance(raw_sn, list) else [raw_sn or ""])
+    if not voci:
+        return _json_error("Indica il S/N di destinazione")
+    stesso_op = op_dest.lower() == op_da.lower()
+    if not stesso_op:
+        if not _op_esiste(op_dest):
+            return _json_error(f"OP «{op_dest}» non trovato", status=404)
+        if not _can_create_anomalie_for_op(request, op_dest):
+            return _json_error(f"Non puoi inserire anomalie sull'OP «{op_dest}»", status=403)
+    elif etichetta_blocco(voci).lower() == str(row.get("seriale") or "").lower():
+        return _json_error("L'anomalia è già su questo S/N")
+    try:
+        esito = sposta(local_id, op_dest=op_dest, op_dest_item_id=data.get("op_item_id"), voci=voci)
+    except DatabaseError as exc:
+        logger.exception("api_anomalie_sposta: id=%s", local_id)
+        return _json_error(f"Spostamento non riuscito: {exc}", status=500)
+
+    identity = _current_user_identity(request)
+    chi = identity.get("name") or request.user.username
+    legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+    da, a = esito["da"], esito["a"]
+    if esito["cambia_op"]:
+        nota = f"Spostata dall'OP {da['op_id']} (S/N {da['seriale']}) all'OP {a['op_id']} (S/N {a['seriale']})"
+    else:
+        nota = f"Spostata da S/N {da['seriale']} a S/N {a['seriale']}"
+    try:
+        log_action(request, "anomalia_spostata", "anomalie", {"local_id": local_id, **esito})
+    except Exception:
+        pass
+    try:
+        from anomalie.mail_action_service import log_anomalia_portal_action, register_pending_update
+
+        log_anomalia_portal_action(
+            anomalia_id=local_id, op_id=a["op_id"], action="spostata", user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None, user_display=chi, note=nota,
+            ip_address=_client_ip(request), user_agent=request.META.get("HTTP_USER_AGENT", ""),
+        )
+        if esito["cambia_op"]:
+            # Il capocommessa del nuovo OP la riceve nel riepilogo delle modifiche.
+            register_pending_update(op_id=a["op_id"], op_nominativo=a["op_id"], modified_by=chi, update_row={
+                "id": local_id, "seriale": a["seriale"], "avanzamento": esito["avanzamento"],
+                "descrizione": esito["descrizione"], "dove_pezzi": _dove_pezzi_di(local_id),
+                "note": nota, "aprire_rdc": False, "segnalare": False, "chiudere": False,
+                "modified_by": chi, "modified_by_legacy_id": int(legacy_user.id) if legacy_user else None,
+            })
+    except Exception:
+        logger.warning("api_anomalie_sposta: timeline/riepilogo non scritti id=%s", local_id, exc_info=True)
+    return JsonResponse({"success": True, "local_id": local_id, "nota": nota, **esito})
+
+
 def _segna_dove_pezzi_terzista(rows: list[dict]) -> None:
     """``dove_pezzi`` e ``segnala_terzista`` dalla scheda qualità di ogni riga."""
     from anomalie.quality_models import AnomaliaSchedaQualita
@@ -3258,6 +3400,7 @@ def api_anomalie(request):
         _segna_riapribili(request, payload_rows, op_title, autori)
         _segna_serve_azione(payload_rows)
         _segna_dove_pezzi_terzista(payload_rows)
+        _segna_eliminabili(request, payload_rows, {r.get("id"): r for r in unique_rows}, autori, op_title)
         return JsonResponse(payload_rows, safe=False)
     except DatabaseError as exc:
         return _json_error(str(exc), status=500)
@@ -4488,6 +4631,7 @@ _TIMELINE_ACTION_LABELS = {
     "chiudi": "Anomalia chiusa",
     "riapri": "Anomalia riaperta",
     "segnalato": "Segnalato (senza mail)",
+    "spostata": "Spostata («Taglia»)",
     "risposta_cliente": "Risposta del cliente registrata",
     "azione": "Azione effettuata",
     "prendi_in_carico": "Presa in carico",
@@ -5521,6 +5665,7 @@ def apertura_segnalazione_page(request):
         "controllo_tempi": tempi_controllo(),
         "dettaglio_catalogo_json": json.dumps(catalogo_per_pagina(), ensure_ascii=False),
         "campi_controllo_json": json.dumps(campi_controllo_per(request)),
+        "legacy_user_id": _request_legacy_user_id(request),
     }
     return render(request, "anomalie/pages/apertura_segnalazione.html", context)
 

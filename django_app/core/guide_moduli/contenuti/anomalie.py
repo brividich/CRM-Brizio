@@ -32,6 +32,14 @@ GUIDA = {
                       "le anomalie da copiare e «Continua»: il nuovo OP arriva con P/N, capocommessa e CAR già scritti "
                       "(manca il numero) e i blocchi copiati si caricano uno alla volta, da controllare e salvare. Gli "
                       "allegati si copiano solo se lo scegli sull'anomalia."),
+                ("p", "Un'anomalia inserita per sbaglio la elimina solo chi l'ha inserita («Elimina»); «✂ Taglia» "
+                      "la sposta su un altro S/N dello stesso OP o di un altro OP (anche chi può modificare l'OP). "
+                      "Si fanno dal controllo (anomalia aperta nel blocco) o dalla card «Segnalazione» di Gestione "
+                      "anomalie, e si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate."),
+                ("p", "Un'anomalia inserita per sbaglio la elimina solo chi l'ha inserita («Elimina»); «✂ Taglia» "
+                      "la sposta su un altro S/N dello stesso OP o di un altro OP (anche chi può modificare l'OP). "
+                      "Si fanno dal controllo (anomalia aperta nel blocco) o dalla card «Segnalazione» di Gestione "
+                      "anomalie, e si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate."),
                 ("p", "Guide rapide con le immagini delle pagine, da scaricare in PDF: dal pulsante «? Guida» di "
                       "qualunque pagina Anomalie scegli «Guida del controllore» o «Guida del capocommessa / CAR»."),
                 ("p", "Un OP nuovo (da «+ Nuovo OP» o da «Clona») si crea solo quando salvi il primo blocco di "

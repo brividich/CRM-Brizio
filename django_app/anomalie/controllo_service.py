@@ -140,11 +140,14 @@ def carica_righe(ids: list[int]) -> dict[int, dict]:
     if not ids:
         return {}
     placeholders = ",".join(["%s"] * len(ids))
+    from core.legacy_utils import legacy_table_columns
+
+    autore = ", created_by_user_id" if "created_by_user_id" in (legacy_table_columns("anomalie") or set()) else ""
     try:
         with connections["default"].cursor() as cur:
             cur.execute(
                 "SELECT id, ex_op_nominativo, seriale, descrizione, note_capocommessa, avanzamento,"
-                " aprire_rdc, segnalare_cliente, chiudere"
+                f" aprire_rdc, segnalare_cliente, chiudere{autore}"
                 f" FROM anomalie WHERE id IN ({placeholders})",
                 ids,
             )
@@ -181,6 +184,9 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
     schede = {s["anomalia_id"]: s for s in AnomaliaSchedaQualita.objects.filter(
         anomalia_id__in=[m.anomalia_id for m in metas],
     ).values("anomalia_id", "dettaglio_controllo", "tipo_difetto_id", "dove_pezzi")} if metas else {}
+    from .elimina_sposta import ids_con_avanzamenti
+
+    con_avanzamenti = ids_con_avanzamenti([m.anomalia_id for m in metas]) if metas else set()
     per_blocco: dict[int, list] = {}
     for meta in metas:
         row = righe.get(meta.anomalia_id)
@@ -196,6 +202,9 @@ def serializza_controllo(controllo, *, con_allegati: bool = True) -> dict:
             "segnalare": bool(row.get("segnalare_cliente")),
             "note_capocommessa": str(row.get("note_capocommessa") or ""),
             "gestita": riga_gestita(row),
+            # «Elimina» (solo chi l'ha inserita) e «Taglia»: finché non ci sono avanzamenti.
+            "autore_id": row.get("created_by_user_id"),
+            "modificabile": not riga_gestita(row) and meta.anomalia_id not in con_avanzamenti,
             "dettaglio": (schede.get(meta.anomalia_id) or {}).get("dettaglio_controllo") or {},
             "tipo_difetto_id": (schede.get(meta.anomalia_id) or {}).get("tipo_difetto_id"),
             "dove_pezzi": (schede.get(meta.anomalia_id) or {}).get("dove_pezzi") or "",

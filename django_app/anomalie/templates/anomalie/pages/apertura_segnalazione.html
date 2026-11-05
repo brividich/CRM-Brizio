@@ -211,11 +211,12 @@
     .blk-sn { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-weight: 800; color: var(--text); word-break: break-word; }
     .blk-meta { font-size: var(--fs-sm); color: var(--text-mid); }
     .blk-lock { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); font-weight: 800; color: var(--success); background: var(--success-bg); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
-    .blk-list { list-style: none; display: grid; gap: 4px; padding-left: 42px; }
+    .blk-list { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding-left: 42px; }
+    .blk-list > li { min-width: 0; }
     .blk-item__btn { width: 100%; display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
     .blk-item__n, .anom-card__n { flex: 0 0 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-light); color: var(--accent); font-size: var(--fs-xs); font-weight: 800; }
     .blk-item__txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-sm); }
-    .blk-item__txt.is-open { white-space: pre-wrap; }
+    .blk-item__txt.is-open { white-space: pre-wrap; overflow-wrap: anywhere; }
     .blk-item__att, .anom-card__att { font-size: var(--fs-xs); color: var(--text-mid); white-space: nowrap; }
     .blk-item__note { margin: 4px 0 2px 32px; font-size: var(--fs-sm); color: var(--text-mid); white-space: pre-wrap; }
     .blk-foot { display: flex; justify-content: flex-end; }
@@ -234,8 +235,16 @@
     .sn-chip__n { font-family: "Outfit", sans-serif; font-size: var(--fs-xs); color: var(--text-mid); }
     .sn-chip__x { border: 0; background: transparent; color: var(--text-light); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 4px; min-height: 0; }
     .sn-chip__x:hover { color: var(--danger); }
-    .anom-list { display: grid; gap: 8px; }
-    .anom-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+    .anom-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .anom-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); min-width: 0; }
+    .anom-card .textarea-input { overflow-wrap: anywhere; }
+    .anom-taglia { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed var(--accent); border-radius: 10px; background: var(--accent-light); }
+    .anom-taglia__row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+    .anom-taglia__row label { display: grid; gap: 3px; font-size: var(--fs-xs); font-weight: 700; color: var(--text-mid); min-width: 0; }
+    .anom-taglia__foot { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
+    .anom-taglia__foot small { flex: 1; color: var(--text-mid); min-width: 200px; }
+    body.theme-dark .anom-taglia { background: rgba(249,115,22,.10); }
+    @media (max-width: 640px) { .anom-taglia__row { grid-template-columns: minmax(0, 1fr); } }
     .anom-card.is-collapsed { display: flex; align-items: center; gap: 10px; padding: 9px 12px; font: inherit; color: var(--text); text-align: left; cursor: pointer; width: 100%; }
     .anom-card.is-collapsed:hover { border-color: var(--accent); }
     .anom-card__txt { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-sm); }
@@ -433,6 +442,7 @@
     window._AP_CONFIG_LISTS = JSON.parse("{{ config_lists_json|escapejs }}");
     window._AP_DETTAGLIO = JSON.parse("{{ dettaglio_catalogo_json|default:'{}'|escapejs }}");
     window._AP_CAMPI = JSON.parse("{{ campi_controllo_json|default:'{}'|escapejs }}");
+    window._AP_ME = Number("{{ legacy_user_id|default:0 }}") || 0;
     window._AP_API = {
       db_ordini: "{% url 'api_anomalie_db_ordini' %}",
       db_ordini_crea: "{% url 'api_anomalie_db_ordini_crea' %}",
@@ -455,6 +465,8 @@
       clona: "{% url 'api_anomalie_clona' %}",
       allegati_copia: "{% url 'api_anomalie_allegati_copia' %}",
       report_cmm: "{% url 'api_anomalie_report_cmm_leggi' %}",
+      elimina: "{% url 'api_anomalie_elimina' %}",
+      sposta: "{% url 'api_anomalie_sposta' %}",
     };
   </script>
 
@@ -482,6 +494,8 @@
     clona: '/api/anomalie/clona',
     allegati_copia: '/api/anomalie/allegati/copia',
     report_cmm: '/api/anomalie/report-cmm/leggi',
+    elimina: '/api/anomalie/elimina',
+    sposta: '/api/anomalie/sposta',
   };
 
   /* Clonazione da Gestione anomalie: ?clona_da=<OP>&anomalie=<id,id,…> */
@@ -1458,6 +1472,7 @@
     anomalie: (b.anomalie || []).map(a => ({
       key: `s${a.local_id}`, localId: a.local_id, testo: a.testo || '', files: [], existing: a.allegati || [],
       gestita: !!a.gestita, avanzamento: a.avanzamento || '',
+      autoreId: a.autore_id || null, modificabile: a.modificabile !== false,
       tutti: a.tutti !== false, sel: a.tutti === false ? tokensOf(a.seriali) : [],
       dett: dettDaServer(a.dettaglio, a.tipo_difetto_id),
     })),
@@ -1599,6 +1614,70 @@
             }}
           />
         )}
+      </div>
+    );
+  };
+
+  /* «Taglia»: sposta un'anomalia salvata su un altro S/N (stesso OP o un altro OP). */
+  let ORDINI_CACHE = null;
+  const TagliaPanel = ({ anomalia, opCorrente, onDone, onCancel }) => {
+    const [opId, setOpId] = useState(opCorrente || '');
+    const [sn, setSn] = useState('');
+    const [ordini, setOrdini] = useState(ORDINI_CACHE || []);
+    const [seriali, setSeriali] = useState([]);
+    const [busy, setBusy] = useState(false);
+    const [err, setErr] = useState('');
+    useEffect(() => {
+      if (ORDINI_CACHE) return;
+      getJson(API.db_ordini, 'Elenco OP').then(d => { ORDINI_CACHE = Array.isArray(d) ? d : []; setOrdini(ORDINI_CACHE); }).catch(() => {});
+    }, []);
+    useEffect(() => {
+      const op = opId.trim();
+      setSeriali([]);
+      if (!op) return undefined;
+      const t = setTimeout(() => {
+        getJson(`${API.seriali_op}?op_id=${encodeURIComponent(op)}`, 'Seriali OP')
+          .then(d => setSeriali(Array.isArray(d.seriali) ? d.seriali : [])).catch(() => {});
+      }, 300);
+      return () => clearTimeout(t);
+    }, [opId]);
+    const altroOp = opId.trim().toLowerCase() !== String(opCorrente || '').toLowerCase();
+    const conferma = async () => {
+      if (!opId.trim()) { setErr('Indica l’OP.'); return; }
+      if (!sn.trim()) { setErr('Indica il S/N di destinazione.'); return; }
+      const sel = ordini.find(o => String(o.id || '').toLowerCase() === opId.trim().toLowerCase());
+      setBusy(true); setErr('');
+      try {
+        const j = await postJson(API.sposta, {
+          local_id: anomalia.localId, op_id: opId.trim(), op_item_id: sel ? sel.item_id : null, seriali: splitSerialText(sn),
+        }, 'Taglia');
+        onDone(j);
+      } catch (e) { setErr(e.message); setBusy(false); }
+    };
+    return (
+      <div className="anom-taglia">
+        <div className="dett-panel__head">✂ Taglia: sposta l’anomalia #{anomalia.localId} su un altro S/N</div>
+        <div className="anom-taglia__row">
+          <label>OP
+            <input className="text-input" list="taglia-op" value={opId} disabled={busy}
+              onChange={e => setOpId(e.target.value)} placeholder="Stesso OP o un altro" />
+            <datalist id="taglia-op">{ordini.slice(0, 500).map(o => <option key={o.item_id ?? o.id} value={o.id} />)}</datalist>
+          </label>
+          <label>S/N di destinazione
+            <input className="text-input" list="taglia-sn" value={sn} disabled={busy} autoFocus
+              onChange={e => setSn(e.target.value)} placeholder="Es. LCN00012 o LCN00012-LCN00015"
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); conferma(); } }} />
+            <datalist id="taglia-sn">{seriali.slice(0, 500).map(s => <option key={s} value={s} />)}</datalist>
+          </label>
+        </div>
+        {err && <div className="error-msg" role="alert">{err}</div>}
+        <div className="anom-taglia__foot">
+          <small>{altroOp
+            ? 'Esce da questo controllo e passa all’OP indicato: il suo capocommessa la trova nel riepilogo delle modifiche.'
+            : 'Resta in questo controllo: va nel blocco che ha già quel S/N, altrimenti in un blocco nuovo.'}</small>
+          <button type="button" className="btn-secondary" disabled={busy} onClick={onCancel}>Annulla</button>
+          <button type="button" className="btn-primary" disabled={busy} onClick={conferma}>{busy ? 'Sposto…' : 'Sposta qui'}</button>
+        </div>
       </div>
     );
   };
@@ -2222,6 +2301,37 @@
       return { ...prev, anomalie: [...prev.anomalie, newAnomalia()], attiva: prev.anomalie.length };
     });
 
+    // Elimina / Taglia su un'anomalia già salvata: {key, tipo: 'elimina'|'taglia', busy, err}.
+    const [azAnom, setAzAnom] = useState(null);
+    const puoAgireSu = (a) => !!(a.localId && !a.gestita && a.modificabile && window._AP_ME && a.autoreId === window._AP_ME);
+    const dopoAzioneAnom = async (a, messaggio) => {
+      const fresh = await getJson(urlFor(API.controllo_dettaglio, controllo.id), 'Aggiornamento controllo');
+      setControllo(fresh.controllo);
+      const fb = (fresh.controllo.blocchi || []).find(b => b.id === editor.bloccoId);
+      setEditor(prev => {
+        if (!fb) return newEditor();
+        const fa = (fb.anomalie || []).find(x => x.local_id === a.localId);
+        const anomalie = fa
+          ? prev.anomalie.map(x => (x.key === a.key ? { ...x, tutti: fa.tutti !== false, sel: fa.tutti === false ? tokensOf(fa.seriali) : [] } : x))
+          : prev.anomalie.filter(x => x.key !== a.key);
+        return { ...prev, anomalie: anomalie.length ? anomalie : [newAnomalia()], attiva: -1 };
+      });
+      setAzAnom(null);
+      setNotice(messaggio);
+    };
+    const eliminaAnomalia = async (a) => {
+      setAzAnom({ key: a.key, tipo: 'elimina', busy: true, err: '' });
+      try {
+        await postJson(API.elimina, { local_id: a.localId }, 'Elimina anomalia');
+        await dopoAzioneAnom(a, `Anomalia #${a.localId} eliminata.`);
+      } catch (e) { setAzAnom({ key: a.key, tipo: 'elimina', busy: false, err: e.message }); }
+    };
+    const tagliaFatta = async (a, j) => {
+      try {
+        await dopoAzioneAnom(a, `Anomalia #${a.localId}: ${j.nota || 'spostata'}.`);
+      } catch (e) { setAzAnom(null); setError(e.message); }
+    };
+
     const rimuoviAnomalia = (i) => setEditor(prev => {
       const anomalie = prev.anomalie.filter((_, idx) => idx !== i);
       return { ...prev, anomalie: anomalie.length ? anomalie : [newAnomalia()], attiva: Math.max(0, Math.min(prev.attiva, anomalie.length - 1)) };
@@ -2677,8 +2787,29 @@
                     {!a.localId && editor.anomalie.length > 1 && (
                       <button type="button" className="link-btn link-btn--danger" onClick={() => rimuoviAnomalia(i)}>Rimuovi</button>
                     )}
+                    {puoAgireSu(a) && !azAnom && (<>
+                      <button type="button" className="link-btn" title="Sposta su un altro S/N dello stesso OP o di un altro OP"
+                        onClick={() => setAzAnom({ key: a.key, tipo: 'taglia', busy: false, err: '' })}>✂ Taglia</button>
+                      <button type="button" className="link-btn link-btn--danger"
+                        onClick={() => setAzAnom({ key: a.key, tipo: 'elimina', busy: false, err: '' })}>Elimina</button>
+                    </>)}
                     <button type="button" className="link-btn" onClick={() => setEditor(prev => ({ ...prev, attiva: -1 }))}>Comprimi</button>
                   </div>
+                  {azAnom && azAnom.key === a.key && azAnom.tipo === 'elimina' && (
+                    <div className="error-msg" role="alert">
+                      <div><strong>Eliminare l’anomalia #{a.localId}?</strong> Sparisce dall’OP con i suoi dati; gli allegati restano recuperabili dall’amministratore. Non si può annullare.</div>
+                      {azAnom.err && <div style={{ marginTop: 6 }}>{azAnom.err}</div>}
+                      <div className="anom-taglia__foot" style={{ marginTop: 8 }}>
+                        <button type="button" className="btn-secondary" disabled={azAnom.busy} onClick={() => setAzAnom(null)}>Annulla</button>
+                        <button type="button" className="btn-primary" style={{ background: 'var(--danger)' }} disabled={azAnom.busy}
+                          onClick={() => eliminaAnomalia(a)}>{azAnom.busy ? 'Elimino…' : 'Elimina'}</button>
+                      </div>
+                    </div>
+                  )}
+                  {azAnom && azAnom.key === a.key && azAnom.tipo === 'taglia' && (
+                    <TagliaPanel anomalia={a} opCorrente={controllo ? controllo.op_id : ''}
+                      onCancel={() => setAzAnom(null)} onDone={j => tagliaFatta(a, j)} />
+                  )}
                   {campoVisibile('simboli', { fase: controllo && controllo.fase, tipo: codiceTipoAnomalia(a.dett, a.testo) }) && <BarraSimboli disabled={a.gestita} fallbackRef={testoRef} />}
                   <textarea ref={testoRef} className="textarea-input" rows={4} autoFocus={!a.gestita} disabled={a.gestita}
                     spellCheck lang="it"

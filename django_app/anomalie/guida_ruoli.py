@@ -101,6 +101,20 @@ SEZIONI_CONTROLLORE: list[dict] = [
         ],
     },
     {
+        "id": "c-correggi",
+        "titolo": "Anomalia sbagliata: «Elimina» o «Taglia»",
+        "blocchi": [
+            ("passi", [
+                "Nel controllo: «Modifica o aggiungi anomalie» sul blocco e apri l'anomalia. In Gestione anomalie: apri "
+                "l'anomalia, card «Segnalazione».",
+                "«Elimina» la toglie (chiede conferma). «✂ Taglia» la sposta: scrivi l'OP (lo stesso o un altro) e il S/N "
+                "di destinazione, poi «Sposta qui».",
+            ]),
+            ("p", "Valgono solo per le anomalie che hai inserito tu e si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate. Su un altro OP l'anomalia esce dal "
+                  "tuo controllo e il capocommessa di quell'OP la riceve nel riepilogo delle modifiche."),
+        ],
+    },
+    {
         "id": "c-azione",
         "titolo": "Registrare l'azione effettuata",
         "blocchi": [
