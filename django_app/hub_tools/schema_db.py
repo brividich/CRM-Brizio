@@ -35,7 +35,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "presenti": ("Persone e HR", "#16a34a", "Presenti in azienda dalle timbrature Solari e esterni dal GuestPortal (letti, non copiati): "
                  "appelli di evacuazione con le persone contate, avvisi delle uscite non timbrate"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
-    "scadenzario": ("Altri moduli", "#2563eb", "Scadenzario generale: scadenze generiche (ex scadenzario sul NAS), rinnovi, avvisi, regole di visibilità per voce"),
+    "scadenzario": ("Altri moduli", "#2563eb", "Scadenzario generale: scadenze generiche (ex scadenzario sul NAS), rinnovi, avvisi, regole di visibilità per voce, prese in carico, viste salvate, fotografie giornaliere"),
     "fornitori": ("Operations", "#16a34a", "Fornitori (anagrafica nelle tabelle di anagrafica); ingressi del GuestPortal collegati a ticket e OdL, abbinamento ditte GuestPortal"),
     "assets": ("Operations", "#f97316", "Asset, manutenzioni, ordini di lavoro, verifiche, software, indirizzi IP (DHCP/DNS), rack e switch di rete, macchine collegate (MTConnect)"),
     "attrezzature": ("Operations", "#14b8a6", "Attrezzature per P/N"),

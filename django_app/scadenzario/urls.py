@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import views, views_calendario
 
 app_name = "scadenzario"
 
@@ -18,4 +18,8 @@ urlpatterns = [
     path("generiche/categorie/", views.categorie, name="categorie"),
     path("generiche/categorie/<int:pk>/", views.categoria_modifica, name="categoria_modifica"),
     path("generiche/avvisi/", views.avvisi, name="avvisi"),
+    path("azioni/presa/", views_calendario.presa_in_carico, name="presa_in_carico"),
+    path("azioni/viste/", views_calendario.vista_salva, name="vista_salva"),
+    path("azioni/viste/<int:pk>/elimina/", views_calendario.vista_elimina, name="vista_elimina"),
+    path("azioni/viste/<int:pk>/predefinita/", views_calendario.vista_predefinita, name="vista_predefinita"),
 ]
