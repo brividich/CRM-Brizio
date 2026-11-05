@@ -91,6 +91,23 @@ def _chiave(testo) -> str:
     return " ".join((testo or "").split()).upper()
 
 
+def assicura_cam_manager(RuoloOperativo, AmbitoRuolo, AreaAziendale):
+    """Ruolo CAMM «CAM Manager» nel reparto UFFICIO TECNICO (CAM), se quel reparto esiste."""
+    area = AreaAziendale.objects.filter(nome__iexact="UFFICIO TECNICO (CAM)").first()
+    if area is None:
+        return None
+    ruolo = RuoloOperativo.objects.filter(sigla__iexact="CAMM").first()
+    if ruolo is None:
+        ruolo = RuoloOperativo.objects.filter(nome__iexact="CAM Manager").first()
+    if ruolo is None:
+        ruolo = RuoloOperativo.objects.create(
+            nome="CAM Manager", sigla="CAMM", classe="INDIRETTO",
+            ambito=AmbitoRuolo.objects.filter(nome__iexact="Produttivo").first(),
+        )
+    area.ruoli_reparto.add(ruolo)
+    return ruolo
+
+
 def carica_elenco(CentroDiCosto, AreaAziendale, Reparto, RuoloOperativo) -> dict:
     """Carica l'elenco senza toccare ciò che è già deciso (si può rilanciare).
 

@@ -4,8 +4,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 
-from .centri_costo_dati import ALIAS_AREA, ELENCO, NUOVE_AREE, carica_elenco
-from .models import AreaAziendale, CentroDiCosto, Reparto, RuoloOperativo, SubnavLinkAnagrafica
+from .centri_costo_dati import ALIAS_AREA, ELENCO, NUOVE_AREE, assicura_cam_manager, carica_elenco
+from .models import AmbitoRuolo, AreaAziendale, CentroDiCosto, Reparto, RuoloOperativo, SubnavLinkAnagrafica
 
 
 def _carica():
@@ -86,6 +86,24 @@ class ElencoTests(TestCase):
         self.assertEqual(self.marcatura.centro_di_costo, altro)
         self.assertEqual((CentroDiCosto.objects.count(), AreaAziendale.objects.count()), conteggi)
         self.assertEqual((esito["centri"], esito["aree_create"], esito["collegate"]), (0, [], 0))
+
+
+class CamManagerTests(TestCase):
+    def _assicura(self):
+        return assicura_cam_manager(RuoloOperativo, AmbitoRuolo, AreaAziendale)
+
+    def test_senza_reparto_non_crea_nulla(self):
+        self.assertIsNone(self._assicura())
+        self.assertFalse(RuoloOperativo.objects.filter(sigla="CAMM").exists())
+
+    def test_crea_il_ruolo_una_volta_e_lo_mette_nel_reparto(self):
+        area = AreaAziendale.objects.create(nome="UFFICIO TECNICO (CAM)")
+        ambito = AmbitoRuolo.objects.filter(nome__iexact="Produttivo").first()
+        self._assicura()
+        self._assicura()
+        ruolo = RuoloOperativo.objects.get(sigla="CAMM")
+        self.assertEqual((ruolo.nome, ruolo.classe, ruolo.ambito), ("CAM Manager", "INDIRETTO", ambito))
+        self.assertEqual(list(area.ruoli_reparto.all()), [ruolo])
 
 
 class PaginaTests(TestCase):
