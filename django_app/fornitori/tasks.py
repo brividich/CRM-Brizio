@@ -4,7 +4,8 @@
 GuestPortal; se la ditta ha la scheda fornitore con «Lavora nei nostri locali» e i
 documenti di sicurezza non in regola (``fornitori.requisiti``), manda una **notifica
 in-app** (mai mail) a chi ricopre oggi i ruoli indicati in ``fornitori_requisiti_ruoli``
-(SiteConfig, predefinito «RSPP,ASPP»). Una sola notifica per visita.
+(SiteConfig, predefinito «RSPP,ASPP»). Una sola notifica per visita. Nello stesso giro
+registra sul fornitore chi è entrato per una ditta riconosciuta (``fornitori.tecnici``).
 """
 from __future__ import annotations
 
@@ -52,6 +53,7 @@ def avvisa_ingressi_non_in_regola() -> dict:
     from core.notifiche import invia_notifica
 
     from . import guestportal as gp
+    from . import tecnici
     from .models import AvvisoIngressoNonInRegola
     from .requisiti import ESITO_NON_IN_REGOLA, abbina_fornitori, stati_per_fornitori
 
@@ -62,6 +64,10 @@ def avvisa_ingressi_non_in_regola() -> dict:
     presenti = gp.presenti_ora()
     esito["presenti"] = len(presenti)
     abbina_fornitori(presenti)
+    try:
+        esito["tecnici_registrati"] = tecnici.registra_da_accessi(presenti)
+    except Exception:  # noqa: BLE001 - il registro non deve fermare gli avvisi di sicurezza
+        logger.exception("Registrazione dei tecnici dal GuestPortal fallita")
     stati = stati_per_fornitori([a.fornitore_id for a in presenti if a.fornitore_id])
     da_avvisare = [a for a in presenti if a.fornitore_id and stati.get(a.fornitore_id)
                    and stati[a.fornitore_id].esito == ESITO_NON_IN_REGOLA]
@@ -99,6 +105,6 @@ def run_avvisi_ingressi_non_in_regola():
     except Exception:
         logger.exception("Avvisi ingressi ditte non in regola falliti")
         return {"ok": False}
-    if esito.get("avvisati"):
+    if esito.get("avvisati") or esito.get("tecnici_registrati"):
         logger.info("Avvisi ingressi ditte non in regola: %s", esito)
     return {"ok": True, **esito}

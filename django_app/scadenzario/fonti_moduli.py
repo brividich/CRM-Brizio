@@ -428,6 +428,14 @@ def collect_fornitori(ctx) -> list:
             items.append(_item(ctx, SOURCE_FORNITORI, "documento", d.get_tipo_display(), d.fornitore.ragione_sociale,
                                d.data_scadenza, _url("fornitori:fornitore_detail", d.fornitore_id),
                                elemento=d.tipo, elemento_label=d.get_tipo_display()))
+    from fornitori.models import TecnicoFornitore
+
+    for t in (TecnicoFornitore.objects.filter(fornitore__is_active=True, attivo=True, attestati_fino_al__isnull=False,
+                                              attestati_fino_al__lte=ctx.orizzonte).select_related("fornitore")):
+        items.append(_item(ctx, SOURCE_FORNITORI, "tecnico", "Attestati tecnico",
+                           f"{t.fornitore.ragione_sociale} — {t.nome}", t.attestati_fino_al,
+                           _url("fornitori:fornitore_detail", t.fornitore_id) + "#tab-tecnici",
+                           elemento="TECNICO", elemento_label="Attestati dei tecnici"))
     return items
 
 

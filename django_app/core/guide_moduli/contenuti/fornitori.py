@@ -56,7 +56,7 @@ GUIDA = {
                     ("Manutenzione", "ordini di lavoro, ticket delegati, contratti di assistenza, verifiche impianti, ricambi e rinnovi di licenze. «Scheda manutenzione completa →» apre la pagina di Asset, con gli stessi numeri."),
                     ("Copie MFC", "macchine e fatture delle copie, con l'esito della Riconciliazione e i trimestri senza fattura della ditta."),
                     ("Scadenze", "documenti, contratti, verifiche periodiche e attività dello Scadenzario della ditta, in ordine di data; «In scadenza» = entro 30 giorni."),
-                    ("Tecnici", "chi è entrato per questa ditta dal GuestPortal: ingressi, ore in azienda, ultimo ingresso, chi è dentro ora e gli ingressi collegati a un intervento. Si vede con il permesso di «Accessi esterni»."),
+                    ("Tecnici", "il registro dei tecnici della ditta: si registrano da soli quando entrano dal GuestPortal o quando un ingresso viene collegato a un intervento, oppure con «+ Nuovo tecnico». «Modifica» per qualifica, contatti e attestati (facoltativi). Con il permesso di «Accessi esterni» si vedono anche ingressi, ore e chi è dentro ora."),
                 ]),
                 ("p", "«Copie MFC» compare da sola se il nome del fornitore è quello di Contatori; altrimenti collega il fornitore dal riquadro «Multifunzioni» della scheda con «Collega»."),
             ],
@@ -169,14 +169,15 @@ GUIDA = {
             "sintomo": "La scheda «Tecnici» è vuota o non elenca tutti",
             "fare": [
                 "Se nel GuestPortal la ditta ha un altro nome, abbinala in Fornitori → «Ditte GuestPortal».",
-                "Le visite cancellate dalla pulizia GDPR del GuestPortal non si vedono più: restano gli ingressi collegati a un ticket o a un OdL.",
+                "Chi è già uscito prima del controllo ogni 10 minuti si registra da «Entrati ma non ancora registrati» («Registra» / «Registra tutti»).",
+                "Il registro resta anche dopo la pulizia GDPR del GuestPortal; ingressi e ore delle visite cancellate non si vedono più.",
             ],
         },
         {
             "sintomo": "Non vedo la scheda «Copie MFC» o «Tecnici»",
             "fare": [
                 "«Copie MFC»: collega il fornitore dal riquadro «Multifunzioni» della scheda; serve il permesso delle fatture di Contatori.",
-                "«Tecnici»: serve il permesso di «Accessi esterni».",
+                "Nei «Tecnici» ingressi e ore richiedono il permesso di «Accessi esterni»; aggiungere e modificare richiedono quello di modifica del fornitore.",
             ],
         },
         {

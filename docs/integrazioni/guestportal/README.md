@@ -47,6 +47,8 @@ Poi nel `.env` persistente dell'HUB: `GUESTPORTAL_DB_HOST`, `GUESTPORTAL_DB_PORT
 
 L'HUB non copia i dati delle visite per le pagine Accessi esterni e scheda fornitore → Tecnici: legge a ogni apertura.
 
+Seconda eccezione voluta (decisione 05/11/2026): il **nominativo** di chi entra per una ditta riconosciuta viene registrato sul fornitore (`fornitori_tecnicofornitore`) con la sola origine, senza orari né visite. Resta anche dopo la pulizia del GuestPortal, finché non viene eliminato dalla scheda fornitore (Tecnici → Modifica → «Elimina dal registro»).
+
 Eccezione voluta (decisione 04/11/2026): quando un ingresso viene **collegato a un ticket o a un OdL** l'HUB salva `VisitID`, giorno, entrata, uscita, nominativo del tecnico, azienda e badge (`fornitori_ingressointervento`), come prova dell'intervento e per il confronto con le ore fatturate. Questi dati seguono la conservazione del ticket/OdL, non la pulizia del GuestPortal.
 
 ## Messa in sicurezza (04/11/2026)
