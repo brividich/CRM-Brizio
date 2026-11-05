@@ -215,7 +215,11 @@ GUIDA = {
                     ("⛶ Schermo intero", "lo scadenzario copre tutta la finestra e il calendario riempie l'altezza: più grande è lo schermo, più scadenze si vedono in ogni giorno. "
                                          "Resta attivo cambiando filtri, mese o vista; si esce con «✕ Esci dallo schermo intero» o con Esc. Per togliere anche le barre del browser, F11."),
                     ("Agenda", "le settimane in fila: prima le Scadute, poi «Questa settimana», «La prossima settimana» e le seguenti, giorno per giorno."),
+                    ("Anno", "i 12 mesi affiancati: ogni giorno colorato per numero di scadenze (più scuro = più scadenze, bordo rosso = ci sono scadute), "
+                             "festivi in rosso. Per programmare audit, rinnovi e ferie. Clic su un giorno: apre il mese con quel giorno già aperto; clic sul nome del mese: il mese."),
                     ("Elenco", "la tabella di sempre, 50 righe per pagina."),
+                    ("Andamento", "solo per chi gestisce lo scadenzario: le scadute e quelle entro 30 giorni nel tempo, da tutte le fonti (ogni mattina il portale ne fa una fotografia), "
+                                  "e per ogni fonte il numero di oggi, di 30 e di 90 giorni prima. Per il riesame della direzione."),
                 ]),
                 ("def", [
                     ("Personale (HR)", "qualifiche, visite mediche, corsi obbligatori, contratti a termine e periodi di prova. Le stesse voci dello Scadenzario di Anagrafica."),
@@ -235,7 +239,15 @@ GUIDA = {
                     "«⬇ Outlook (.ics)» scarica le stesse righe come file di calendario: aprilo con Outlook (o un altro calendario) "
                     "e ogni scadenza diventa un evento di un giorno con promemoria il giorno prima alle 9. È una copia: non si aggiorna da sola.",
                     "Per averle sempre aggiornate in Outlook: Impostazioni notifiche → «Le mie scadenze nel calendario Outlook».",
-                    "Una scadenza (nel pannello del giorno, nell'agenda o il nome nella colonna Soggetto dell'elenco) apre la pagina dove si gestisce. Qui si guarda soltanto: niente si modifica.",
+                    "Una scadenza (nel pannello del giorno, nell'agenda o il nome nella colonna Soggetto dell'elenco) apre la pagina dove si gestisce.",
+                    "«👤 Me ne occupo io» (sotto la scadenza, nel pannello del giorno e nell'agenda): la scadenza compare a tutti con il tuo nome e la nota (＋ nota); «✕ Lascia» la libera. "
+                    "Chi gestisce lo scadenzario può liberare quelle degli altri; «Subentro io» prende il posto di chi l'aveva. Se la scadenza cambia data (rinnovo) la presa in carico decade da sola.",
+                    "«✓ Rinnovato oggi» (solo scadenze generiche, per chi gestisce la categoria): registra il rinnovo con la data di oggi e calcola la prossima scadenza; per un'altra data o un allegato si usa la scheda.",
+                    "«👤 Solo le mie»: le scadenze col tuo nome, di cui sei responsabile o che hai preso in carico.",
+                    "«★ Viste»: salva i filtri e la vista attuali con un nome e li richiami con un clic; con ☆ una vista diventa quella che si apre entrando nello scadenzario (★ = attiva).",
+                    "Festivi (nazionali, Pasqua e Pasquetta, santo patrono se impostato) in rosso nel calendario; una scadenza che cade di sabato, domenica o festivo mostra «⚠ domenica», «⚠ Natale»…",
+                    "«🖨 Stampa»: stampa o salva in PDF la vista (dal dialogo di stampa «Salva come PDF»), in orizzontale, con i filtri attivi in testa; il mese aggiunge l'elenco delle sue scadenze su una seconda pagina.",
+                    "In schermo intero, «⟳ Aggiorna No / 5 / 10 / 15 min» ricarica da sola la pagina: per un monitor d'ufficio (non ricarica mentre stai scrivendo o una tendina è aperta).",
                 ]),
             ],
         },

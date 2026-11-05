@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 98
+**Totale automazioni disponibili:** 103
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -522,6 +522,18 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Task eseguito:** `security.tasks.run_defender_vulnerabilita_task`
 - **Cosa fa:** SOC — CVE viste da Defender, accanto al calcolo del SOC nel pannello CVE. Gira solo con «Confronta le CVE con Defender» acceso in /soc/impostazioni/.
 
+### `presenti_avvisi_uscite`
+
+- **Quando gira:** da lun a sab, alle 07:30
+- **Task eseguito:** `presenti.tasks.run_avvisi_uscite_mancanti`
+- **Cosa fa:** PRESENTI IN AZIENDA — uscite non timbrate degli ultimi 3 giorni: notifica e mail al capo.
+
+### `presenti_pubblica_pdf`
+
+- **Quando gira:** ogni 30 minuti
+- **Task eseguito:** `presenti.tasks.run_pubblica_pdf_presenti`
+- **Cosa fa:** PRESENTI IN AZIENDA — PDF dei presenti su SharePoint (CN-PRESENZE.pdf), al posto dello script ReportPresenze del diskstation. No-op se disattivato nelle Impostazioni del modulo.
+
 ### `registro_log_ad`
 
 - **Quando gira:** ogni 360 minuti
@@ -539,6 +551,24 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 60 minuti
 - **Task eseguito:** `registro_log.tasks.run_infra`
 - **Cosa fa:** Registro accessi — stato di ESXi/vCenter e iLO/iDRAC (sola lettura, solo ultima fotografia).
+
+### `scadenzario_avvisi_attivita`
+
+- **Quando gira:** ogni giorno, alle 07:15
+- **Task eseguito:** `scadenzario.tasks.run_avvisi_attivita`
+- **Cosa fa:** SCADENZARIO — avvisi delle scadenze generiche alle email delle attività (preavviso, ripetizione ogni N giorni, anche dopo la scadenza se la categoria lo vuole).
+
+### `scadenzario_foto_giornaliera`
+
+- **Quando gira:** ogni giorno, alle 06:45
+- **Task eseguito:** `scadenzario.tasks.run_foto_giornaliera`
+- **Cosa fa:** SCADENZARIO — fotografia giornaliera dei numeri per fonte (vista «Andamento»).
+
+### `scadenzario_riepilogo_mensile`
+
+- **Quando gira:** il giorno 1 del mese, alle 08:00
+- **Task eseguito:** `scadenzario.tasks.run_riepiloghi_categorie`
+- **Cosa fa:** SCADENZARIO — riepilogo mensile per categoria alle email della categoria.
 
 ### `scadenze_digest_personale`
 

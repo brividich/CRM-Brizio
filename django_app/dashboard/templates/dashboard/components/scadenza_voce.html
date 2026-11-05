@@ -1,10 +1,40 @@
-{% comment %}Una scadenza (ScadenzaItem decorata da views_scadenze._decora): riga cliccabile verso il modulo che la gestisce.{% endcomment %}
+{% comment %}Una scadenza (ScadenzaItem decorata da views_scadenze): riga cliccabile verso il modulo che la gestisce; con «azioni» anche rinnovo diretto e presa in carico.{% endcomment %}
+<div class="sc-voce">
 {% if v.url %}<a class="sc-item src-{{ v.source }} {{ v.urgenza }}" href="{{ v.url }}" title="{{ v.source_label }}">{% else %}<div class="sc-item src-{{ v.source }} {{ v.urgenza }}" title="{{ v.source_label }}">{% endif %}
   <span class="sc-item-bar" aria-hidden="true"></span>
   <span class="sc-item-body">
     <span class="sc-item-top">{% if v.kind_label %}{{ v.kind_label }}{% else %}{{ v.source_label }}{% endif %}</span>
     <b class="sc-item-sogg">{{ v.principale }}</b>
     {% if v.secondario %}<span class="sc-item-desc">{{ v.secondario }}</span>{% endif %}
+    {% if v.presa or v.non_lavorativo %}<span class="sc-item-tags">
+      {% if v.presa %}<span class="sc-presa" title="Presa in carico{% if v.presa.nota %}: {{ v.presa.nota }}{% endif %}">👤 {{ v.presa_nome }}{% if v.presa.nota %} · {{ v.presa.nota }}{% endif %}</span>{% endif %}
+      {% if v.non_lavorativo %}<span class="sc-nonlav" title="Cade in un giorno non lavorativo">⚠ {{ v.non_lavorativo }}</span>{% endif %}
+    </span>{% endif %}
   </span>
   <span class="sc-item-when {{ v.urgenza }}">{{ v.quando }}<small>{{ v.data_scadenza|date:"d/m/Y" }}</small></span>
 {% if v.url %}</a>{% else %}</div>{% endif %}
+{% if azioni and v.chiave %}
+  <div class="sc-azioni">
+    {% if v.rinnovo_url %}
+    <form method="post" action="{{ v.rinnovo_url }}" class="sc-az">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ torna }}">
+      <input type="hidden" name="eseguito_il" value="{{ oggi_iso }}">
+      <button type="submit" class="sc-mini ok" data-hub-confirm="Registrare il rinnovo con la data di oggi? La prossima scadenza si calcola dalla validità dell'attività. Per un'altra data o un allegato apri la scheda." data-hub-confirm-ok="Registra" title="Rinnovo con la data di oggi (altra data o allegato: dalla scheda)">✓ Rinnovato oggi</button>
+    </form>
+    {% endif %}
+    {% if v.presa_mia or v.presa and puo_pannello %}
+    <form method="post" action="{% url 'scadenzario:presa_in_carico' %}" class="sc-az">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ torna }}"><input type="hidden" name="chiave" value="{{ v.chiave }}"><input type="hidden" name="azione" value="lascia">
+      <button type="submit" class="sc-mini">✕ Lascia</button>
+    </form>
+    {% endif %}
+    {% if not v.presa_mia %}
+    <form method="post" action="{% url 'scadenzario:presa_in_carico' %}" class="sc-az sc-az-presa">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ torna }}"><input type="hidden" name="chiave" value="{{ v.chiave }}"><input type="hidden" name="data" value="{{ v.data_scadenza|date:'Y-m-d' }}">
+      <button type="submit" class="sc-mini">{% if v.presa %}👤 Subentro io{% else %}👤 Me ne occupo io{% endif %}</button>
+      <details class="sc-nota"><summary class="sc-mini" title="Aggiungi una nota alla presa in carico">＋ nota</summary><input type="text" name="nota" maxlength="300" placeholder="es. chiamata la ditta" aria-label="Nota"></details>
+    </form>
+    {% endif %}
+  </div>
+{% endif %}
+</div>

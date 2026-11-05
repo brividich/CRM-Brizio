@@ -45,7 +45,7 @@ class VisteScadenzarioTests(TestCase):
         self.assertContains(resp, f'data-day="{oggi.isoformat()}"')
         # Orizzonte della raccolta: almeno la finestra dei 90 giorni.
         self.assertGreaterEqual(m.call_args.kwargs["orizzonte"], oggi + timedelta(days=ORIZZONTE_GIORNI))
-        self.assertEqual(resp.context["n_scadute"], 1)
+        self.assertEqual({k["codice"]: k["n"] for k in resp.context["kpi"]}["scaduta"], 1)
         self.assertContains(resp, "Già scaduta")
 
     def test_mese_lontano_guarda_oltre_i_90_giorni_ma_i_kpi_no(self):

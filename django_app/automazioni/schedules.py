@@ -949,6 +949,15 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # SCADENZARIO — fotografia giornaliera dei numeri per fonte (vista «Andamento»).
+        "name": "scadenzario_foto_giornaliera",
+        "func": "scadenzario.tasks.run_foto_giornaliera",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "45 6 * * *",       # ogni giorno alle 06:45
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # SCADENZARIO — riepilogo mensile per categoria alle email della categoria.
         "name": "scadenzario_riepilogo_mensile",
         "func": "scadenzario.tasks.run_riepiloghi_categorie",
