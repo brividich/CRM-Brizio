@@ -435,7 +435,7 @@ GUIDA = {
                                      "operativi, teste equivalenti, carico e costo pesato; capi, ruoli scoperti e requisiti "
                                      "delle persone spostate. RML e costo solo con il permesso sui dati HR riservati."),
                     ("I segnali", "«Scoperta» = nessun operativo; «Uomo solo» = meno operativi della soglia della skill "
-                                  "matrix; «Carico concentrato» e «Su troppe mansioni» dalle soglie del prospetto; «Persona "
+                                  "matrix; «Carico concentrato» e «Su troppe mansioni» dalle soglie in Impostazioni Skill Matrix (di serie 80% e 8); «Persona "
                                   "chiave» = unico operativo su una mansione."),
                 ]),
                 ("nota", "Il carico è un segnale dai coefficienti, non una misura di ore: il portale non conosce le ore "

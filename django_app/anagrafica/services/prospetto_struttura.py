@@ -13,7 +13,7 @@ Fonti, le stesse delle altre pagine:
 
 Un'avvertenza vale per tutto il carico: il portale non conosce le ore richieste da una
 mansione. «Carico concentrato» e «su troppe mansioni» sono segnali dai coefficienti e
-dalle soglie scelte nel prospetto, non una misura di ore.
+dalle soglie delle impostazioni della skill matrix, non una misura di ore.
 """
 from __future__ import annotations
 
@@ -293,7 +293,7 @@ def misure(base: Base, s: Stato, *, soglia_mansioni: int, soglia_concentrazione:
         per_centro[cid]["reparti"].add(aid)
 
     # Mansioni: operativi, teste equivalenti e costo ripartito con i coefficienti
-    per_mansione: dict = {mid: {"lista": 0, "operativi": 0, "fte": ZERO, "rml": ZERO, "ora": ZERO, "persone": set(),
+    per_mansione: dict = {mid: {"lista": 0, "operativi": 0, "fte": ZERO, "fte_operativi": ZERO, "rml": ZERO, "ora": ZERO, "persone": set(),
                                 "operativi_ids": set()} for mid in base.mansioni}
     senza_mansioni = {"fte": ZERO, "rml": ZERO, "ora": ZERO, "persone": set()}
     per_persona: dict = {}
@@ -312,6 +312,8 @@ def misure(base: Base, s: Stato, *, soglia_mansioni: int, soglia_concentrazione:
         for mid, peso in _quote(sue):
             r = per_mansione[mid] if mid is not None else senza_mansioni
             r["fte"] += peso
+            if mid in operative:
+                r["fte_operativi"] += peso
             r["persone"].add(pid)
             if c is not None:
                 r["rml"] += c.rml * peso
@@ -328,8 +330,9 @@ def misure(base: Base, s: Stato, *, soglia_mansioni: int, soglia_concentrazione:
             r["stato"] = "uomo solo"
         else:
             r["stato"] = "ok"
-        # Quanta parte del loro tempo danno qui gli operativi: alta = poco margine se aumenta il lavoro.
-        r["concentrazione"] = (int((r["fte"] / r["operativi"] * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        # Quanta parte del loro tempo danno qui gli operativi, senza chi è in lista sotto la soglia
+        # (altrimenti supera il 100%): alta = poco margine se aumenta il lavoro.
+        r["concentrazione"] = (int((r["fte_operativi"] / r["operativi"] * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
                                if r["operativi"] else None)
         r["concentrato"] = (not mans.is_responsabilita and r["concentrazione"] is not None
                             and r["concentrazione"] >= soglia_concentrazione)
@@ -575,7 +578,7 @@ def costruisci(prospetto, *, altro=None, visite: bool = False, requisiti: bool =
     """Tutto il prospetto: stessi calcoli su Oggi e su Dopo, e sull'altro prospetto se chiesto."""
     base = Base()
     modifiche = list(prospetto.modifiche.all())
-    soglie = {"soglia_mansioni": prospetto.soglia_mansioni_persona, "soglia_concentrazione": prospetto.soglia_concentrazione}
+    soglie = {"soglia_mansioni": base.config.soglia_mansioni_persona, "soglia_concentrazione": base.config.soglia_concentrazione}
     s_dopo = simula(base, modifiche)
     capi_prima = _mappa_capi(base, None)
     capi_dopo = _mappa_capi(base, s_dopo)
@@ -604,6 +607,7 @@ def costruisci(prospetto, *, altro=None, visite: bool = False, requisiti: bool =
             key=lambda x: (-len(x["mansioni"]), x["nome"].casefold())),
         "totali": {"rml": _euro(prima["kpi"]["rml"]), "costo_medio": _euro(prima["kpi"]["costo_medio"]), "mese": base.mese,
                    "persone": len(base.dati.in_forza), "con_costo": len(base.costi), "uomo_solo": base.config.soglia_uomo_solo,
+                   "soglia_concentrazione": base.config.soglia_concentrazione, "soglia_mansioni": base.config.soglia_mansioni_persona,
                    "somma_rml_dopo": _euro(sum((r["rml"] for r in dopo["per_centro"].values()), ZERO))},
         "senza_mansioni": {"prima": d_due(prima["senza_mansioni"]["fte"]), "dopo": d_due(dopo["senza_mansioni"]["fte"])},
         "ha_modifiche": bool(modifiche),
@@ -616,6 +620,7 @@ def fotografia(ctx: dict) -> dict:
         "kpi": [{"voce": r["voce"], "prima": r["prima"], "dopo": r["dopo"]} for r in ctx["kpi"]],
         "centri": [{"voce": r["voce"], "persone_prima": r["persone_prima"], "persone_dopo": r["persone_dopo"]} for r in ctx["centri"] if r["cambia"]],
         "mese_costi": ctx["totali"]["mese"].isoformat() if ctx["totali"]["mese"] else "",
+        "soglie": {k: ctx["totali"][k] for k in ("uomo_solo", "soglia_concentrazione", "soglia_mansioni")},
     }
 
 

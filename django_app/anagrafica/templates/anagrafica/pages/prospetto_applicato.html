@@ -33,6 +33,7 @@
     </table>
   </section>
 
+  {% if fotografia.soglie %}<p class="rc-sub">Soglie al momento di applicare: carico concentrato da {{ fotografia.soglie.soglia_concentrazione }}%, troppe mansioni oltre {{ fotografia.soglie.soglia_mansioni }}, uomo solo sotto {{ fotografia.soglie.uomo_solo }} operativi.</p>{% endif %}
   {% if fotografia.kpi %}
   <section class="rc-panel">
     <h2>Il confronto al momento di applicare</h2>

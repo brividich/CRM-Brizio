@@ -229,13 +229,8 @@ body.theme-dark .pr-info { background:var(--surface-alt,#0f1b2d); color:var(--te
       <summary class="pr-neutro" style="cursor:pointer;font-size:13px;">Tutte le mansioni da guardare, dopo i cambiamenti ({{ mansioni_critiche|length }})</summary>
       <div style="margin-top:8px;">{% include "anagrafica/partials/_prospetto_mansioni.html" with righe=mansioni_critiche %}</div>
     </details>
-    <p class="pr-nota"><strong>Operativi</strong>: in lista al livello di soglia o sopra, solo persone in forza. <strong>Teste equivalenti</strong>: somma dei coefficienti delle persone. <strong>Carico</strong>: teste equivalenti ÷ operativi, cioè quanta parte del loro tempo gli operativi danno a questa mansione. È un segnale dai coefficienti, non una misura di ore: il portale non conosce le ore richieste da una mansione. <strong>Uomo solo</strong>: meno di {{ totali.uomo_solo }} operativi.</p>
-    <form method="post" action="{% url 'anagrafica:prospetto_soglie' p.pk %}" class="rc-assegna pr-sez" id="soglie" style="margin-top:8px;align-items:flex-end;">
-      {% csrf_token %}
-      <label style="font-size:12px;">Carico concentrato da (%)<br><input type="number" name="soglia_concentrazione" min="1" max="100" value="{{ p.soglia_concentrazione }}" {% if not is_admin %}disabled{% endif %} style="width:90px;padding:5px;"></label>
-      <label style="font-size:12px;">Troppe mansioni oltre<br><input type="number" name="soglia_mansioni" min="1" max="100" value="{{ p.soglia_mansioni_persona }}" {% if not is_admin %}disabled{% endif %} style="width:90px;padding:5px;"></label>
-      {% if is_admin %}<button type="submit" class="rc-btn rc-btn-ghost rc-btn-sm">Aggiorna le soglie</button>{% endif %}
-    </form>
+    <p class="pr-nota"><strong>Operativi</strong>: in lista al livello di soglia o sopra, solo persone in forza. <strong>Teste equivalenti</strong>: somma dei coefficienti delle persone. <strong>Carico</strong>: quanta parte del loro tempo, in media, gli operativi danno a questa mansione (dai coefficienti dei soli operativi). È un segnale dai coefficienti, non una misura di ore: il portale non conosce le ore richieste da una mansione. <strong>Uomo solo</strong>: meno di {{ totali.uomo_solo }} operativi.</p>
+    <p class="pr-nota" id="soglie">Soglie in uso: carico concentrato da {{ totali.soglia_concentrazione }}%, troppe mansioni oltre {{ totali.soglia_mansioni }}, uomo solo sotto {{ totali.uomo_solo }} operativi.{% if puo_soglie %} <a class="fmd-data-link" href="{% url 'anagrafica:skm_impostazioni' %}#sovraccarico">Cambiale nelle impostazioni</a>{% endif %}</p>
   </section>
 
   <section class="rc-panel pr-sez" id="persone-carico">

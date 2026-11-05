@@ -81,6 +81,8 @@ class SkillMatrixImpostazioniViewTests(TestCase):
             "soglia_operativa": "U",
             "regola_multivoce": "MIN",
             "soglia_uomo_solo": 2,
+            "soglia_concentrazione": 80,
+            "soglia_mansioni_persona": 8,
             "finestra_continuita_mesi": 12,
             "preavviso_continuita_mesi": 9,
             "periodicita_refresh_mesi": 6,

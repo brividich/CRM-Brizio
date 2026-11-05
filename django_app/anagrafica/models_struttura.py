@@ -47,13 +47,6 @@ class ProspettoStruttura(models.Model):
 
     nome = models.CharField(max_length=150)
     stato = models.CharField(max_length=10, choices=STATO_CHOICES, default=STATO_BOZZA)
-    # Soglie scelte da chi prepara: non ci sono norme né ore richieste per mansione.
-    soglia_mansioni_persona = models.PositiveSmallIntegerField(
-        default=8, help_text="Oltre questo numero di mansioni la persona si segnala.",
-    )
-    soglia_concentrazione = models.PositiveSmallIntegerField(
-        default=80, help_text="Dal questa % di tempo media degli operativi sulla mansione il carico è concentrato.",
-    )
     creato_da = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="prospetti_creati",
     )
