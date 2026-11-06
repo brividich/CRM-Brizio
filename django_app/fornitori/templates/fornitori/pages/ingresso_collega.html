@@ -44,7 +44,7 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
   <div class="ic-top">
     <div>
       <div class="ic-title">Collega l'ingresso a un intervento</div>
-      <div class="ic-sub">Scegli il ticket di manutenzione o l'ordine di lavoro per cui la persona è entrata. Se l'intervento non ha ancora una ditta, prende quella dell'ingresso.</div>
+      <div class="ic-sub">Scegli il ticket, l'ordine di lavoro, la manutenzione ordinaria o la scadenza per cui la persona è entrata. Se non ha ancora una ditta, prende quella dell'ingresso.</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <a class="ic-btn ic-btn-ghost" href="{% url 'guida_modulo' 'fornitori' %}#presenze-interventi">? Guida</a>
@@ -89,23 +89,24 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
 
   <div class="ic-card">
     <div class="ic-card-head">
-      <span>Ticket MAN e OdL aperti{% if puo_formazione %}, sessioni formative del giorno{% endif %}</span>
+      <span>Ticket MAN, OdL, manutenzioni ordinarie e scadenze{% if puo_formazione %}, sessioni formative del giorno{% endif %}</span>
       <form method="get" class="ic-search">
-        <input class="ic-input" type="text" name="q" value="{{ q }}" maxlength="80" placeholder="Numero, titolo, macchina, corso…" aria-label="Cerca intervento">
+        <input class="ic-input" type="text" name="q" value="{{ q }}" maxlength="80" placeholder="Titolo, macchina, scadenza…" aria-label="Cerca intervento">
         <button class="ic-btn ic-btn-ghost" type="submit">Cerca</button>
       </form>
     </div>
+    <div class="ic-note">Manutenzioni e scadenze: quelle della ditta e quelle a due mesi dal giorno dell'ingresso. Con la ricerca, tutte.{% if elenco_tagliato %} Per tipo se ne vedono al massimo {{ elenco_max }}: usa la ricerca per trovare le altre.{% endif %}</div>
     {% if not puo_odl %}<div class="ic-note">Gli ordini di lavoro non sono elencati: per collegarli serve il permesso di eseguire le manutenzioni.</div>{% endif %}
     <div class="ic-wrap">
       <table class="ic-table">
-        <thead><tr><th>Intervento</th><th>Titolo / macchina / corso</th><th>Ditta / docente</th><th>Aperto il</th><th></th></tr></thead>
+        <thead><tr><th>Intervento</th><th>Titolo / macchina / corso / categoria</th><th>Ditta / docente</th><th>Aperto / scade il</th><th></th></tr></thead>
         <tbody>
         {% for iv in righe %}
           <tr>
             <td><span class="ic-pill {% if iv.tipo == 'ticket' %}ic-pill-man{% elif iv.tipo == 'odl' %}ic-pill-odl{% else %}ic-pill-for{% endif %}">{{ iv.tipo_label }}</span> <a href="{{ iv.url }}">{{ iv.etichetta }}</a></td>
             <td>{{ iv.titolo }}</td>
             <td>{% if iv.fornitore and fornitore and iv.fornitore.pk == fornitore.pk %}<span class="ic-pill ic-pill-ok">{{ iv.chi }}</span>{% else %}{{ iv.chi|default:"—" }}{% endif %}</td>
-            <td>{{ iv.aperto_il|date:"d/m/Y" }}</td>
+            <td>{{ iv.aperto_il|date:"d/m/Y"|default:"—" }}</td>
             <td>
               <form method="post">
                 {% csrf_token %}
@@ -116,7 +117,7 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="ic-empty">Nessun ticket MAN, OdL aperto o sessione formativa del giorno{% if q %} per «{{ q }}»{% endif %}.</td></tr>
+          <tr><td colspan="5" class="ic-empty">Nessun ticket MAN, OdL aperto, manutenzione, scadenza o sessione formativa del giorno{% if q %} per «{{ q }}»{% endif %}.</td></tr>
         {% endfor %}
         </tbody>
       </table>
