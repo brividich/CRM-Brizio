@@ -10,7 +10,7 @@
   var SILICON_LABS = 0x10C4;
   var STX = 0x02, ETX = 0x03, CR = 0x0D;
   var MAX_MESSAGGIO = 64;
-  var PAUSA_STESSO_BADGE_MS = 3000;
+  var PAUSA_STESSO_BADGE_MS = 2000;
 
   // Restituisce i codici completi e validi: i messaggi rovinati si scartano.
   function creaAnalizzatore() {
@@ -60,6 +60,7 @@
 
     function aspetto(collegato) {
       bottone.textContent = collegato ? "Scollega lettore" : "Collega lettore badge";
+      if (opzioni.suStato) opzioni.suStato(collegato);
     }
 
     function consegna(codice) {

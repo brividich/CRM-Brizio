@@ -42,7 +42,7 @@ Consegna senza firma né «Ricevuta firmata su carta» (banco o scheda) → `con
 
 ## Lettore di badge al Banco (06/11/2026)
 
-`dpi/static/dpi/js/lettore_badge.js` (Web Serial: Chrome o Edge in https; serve `collectstatic`). Il lettore usa il chip CP210x (driver Silicon Labs sul PC del Banco) e invia da solo a 19200 baud: `STX` + cifre + `ETX` + XOR da STX a ETX + `CR`. Il codice si confronta in pagina con `DipendenteAnagraficaAziendale.badge` ignorando gli zeri a sinistra e apre la scheda, senza registrare consegne. Sul lettore `3022L` la levetta 2 di `SW1` va spostata rispetto a come è uscito dal magazzino, altrimenti non trasmette nulla.
+`dpi/static/dpi/js/lettore_badge.js` (Web Serial: Chrome o Edge in https; serve `collectstatic`). Il lettore usa il chip CP210x (driver Silicon Labs sul PC del Banco) e invia da solo a 19200 baud: `STX` + cifre + `ETX` + XOR da STX a ETX + `CR`. Il codice si confronta in pagina con `DipendenteAnagraficaAziendale.badge` ignorando gli zeri a sinistra e apre la scheda. Con la scheda aperta, il badge della stessa persona conferma il ritiro: `azione=consegna` con `badge_conferma`, ricontrollato sul server (`_badge_di_tutte`), salva `ConsegnaDPI.confermata_badge_il` e `firmato_ricevuta=True`, quindi niente mail di conferma; registro «Confermata con badge» (`report.CON_BADGE`), audit `DPI_RICEVUTA_BADGE`. Il codice non si conserva. Migrazione `dpi 0019`. Sul lettore `3022L` la levetta 2 di `SW1` va spostata rispetto a come è uscito dal magazzino, altrimenti non trasmette nulla.
 
 ## Banco in home, link nella mail, PDF di consegna (03/11/2026)
 

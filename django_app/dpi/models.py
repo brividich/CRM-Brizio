@@ -498,6 +498,11 @@ class ConsegnaDPI(models.Model):
         related_name="consegne",
         help_text="Conferma di ricevuta via mail (al posto della firma al banco).",
     )
+    confermata_badge_il = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Il dipendente ha confermato la ricevuta passando il proprio badge al banco. Il codice non si conserva.",
+    )
     avvisi_in_sospeso_dal = models.DateTimeField(
         null=True,
         blank=True,

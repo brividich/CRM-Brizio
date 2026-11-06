@@ -152,6 +152,53 @@ class BancoConsegneTests(TestCase):
         self.assertContains(pagina, 'id="lettore-collega"')
         self.assertContains(pagina, "dpi/js/lettore_badge.js")
 
+    def _consegna_con_badge(self, richieste, badge):
+        return self.client.post(self.url, {
+            "azione": "consegna", "ids": [r.pk for r in richieste], "data_consegna": "2026-11-06", "badge_conferma": badge,
+        })
+
+    def test_badge_conferma_la_ricevuta_senza_mail(self):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+
+        from . import report
+        from .models import ConfermaConsegnaDPI
+
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=101, badge="42")
+        r = self._richiesta(self.mod_guanti)
+        self._consegna_con_badge([r], "0000000042")
+        c = ConsegnaDPI.objects.get(richiesta=r)
+        self.assertIsNotNone(c.confermata_badge_il)
+        self.assertTrue(c.firmato_ricevuta)
+        self.assertEqual(report.ricevuta(c), report.CON_BADGE)
+        self.assertFalse(ConfermaConsegnaDPI.objects.exists())
+
+    def test_badge_di_un_altro_non_registra_la_consegna(self):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=101, badge="42")
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=102, badge="77")
+        r = self._richiesta(self.mod_guanti)
+        self._consegna_con_badge([r], "0000000077")
+        self.assertFalse(ConsegnaDPI.objects.filter(richiesta=r).exists())
+        r.refresh_from_db()
+        self.assertEqual(r.stato, StatoRichiesta.APPROVATA)
+
+    def test_badge_non_vale_senza_badge_in_anagrafica_o_per_due_persone(self):
+        from anagrafica.models import DipendenteAnagraficaAziendale
+
+        r = self._richiesta(self.mod_guanti)
+        self._consegna_con_badge([r], "0")
+        self.assertFalse(ConsegnaDPI.objects.filter(richiesta=r).exists())
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=101, badge="42")
+        altra = self._richiesta(self.mod_guanti, nome="Luigi Verdi", legacy=102)
+        self._consegna_con_badge([r, altra], "42")
+        self.assertFalse(ConsegnaDPI.objects.filter(richiesta__in=[r, altra]).exists())
+
+    def test_senza_badge_resta_la_conferma_via_mail(self):
+        r = self._richiesta(self.mod_guanti)
+        self.client.post(self.url, {"azione": "consegna", "ids": [r.pk], "data_consegna": "2026-11-06"})
+        self.assertIsNone(ConsegnaDPI.objects.get(richiesta=r).confermata_badge_il)
+
     def test_badge_delle_persone_nel_banco(self):
         from anagrafica.models import DipendenteAnagraficaAziendale
 

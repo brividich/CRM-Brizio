@@ -155,6 +155,10 @@ def _ricevuta_flowables(consegna: ConsegnaDPI, theme: PdfTheme, styles: dict) ->
         flow.append(_kv_table([("Conferma via mail", testo)], theme, styles))
         if conferma.decisa_il:
             return flow
+    elif consegna.confermata_badge_il:
+        quando = timezone.localtime(consegna.confermata_badge_il).strftime("%d/%m/%Y %H:%M")
+        flow.append(Paragraph(f"Ricevuta confermata dal dipendente con il proprio badge al banco il {quando}.", body))
+        return flow
     elif consegna.firmato_ricevuta:
         flow.append(Paragraph("Ricevuta firmata su carta al momento della consegna.", body))
         return flow

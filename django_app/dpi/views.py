@@ -1259,7 +1259,7 @@ def _avviso_giacenza(request, richiesta: RichiestaDPI, residuo: int | None) -> N
 
 def _registra_consegna(request, richiesta: RichiestaDPI, *, data_consegna, note: str = "", firmato: bool = False,
                        firma_immagine: str = "", scadenza_override=None, motivo_giacenza: str = "",
-                       in_sospeso_dal=None) -> int | None:
+                       in_sospeso_dal=None, confermata_badge_il=None) -> int | None:
     """Registra la consegna di una richiesta approvata: consegna + stato + scarico di magazzino,
     poi sostituzione delle precedenti, PDF nei documenti del dipendente e notifiche.
     Con ``in_sospeso_dal`` la seconda parte aspetta ``_completa_in_sospeso``: la consegna e' gia'
@@ -1289,6 +1289,7 @@ def _registra_consegna(request, richiesta: RichiestaDPI, *, data_consegna, note:
                 "firmato_ricevuta": firmato,
                 "data_scadenza_stimata": scadenza,
                 "firma_immagine": firma_immagine,
+                "confermata_badge_il": confermata_badge_il,
                 "avvisi_in_sospeso_dal": in_sospeso_dal,
             },
         )
@@ -2248,6 +2249,23 @@ def _banco_annulla_consegne(request, tutte: bool):
     return _banco_redirect(tutte=tutte)
 
 
+def _codice_badge(valore: str) -> str:
+    """Il lettore manda gli zeri a sinistra, in Anagrafica il badge e' senza."""
+    valore = (valore or "").strip()
+    return (valore.lstrip("0") or "0") if valore.isdigit() else valore
+
+
+def _badge_di_tutte(richieste: list[RichiestaDPI], letto: str) -> bool:
+    """Il badge letto e' proprio di chi riceve tutti i DPI scelti: il controllo decisivo sta qui."""
+    from anagrafica.models import DipendenteAnagraficaAziendale
+
+    persone = {r.richiedente_legacy_id for r in richieste}
+    if len(persone) != 1 or None in persone:
+        return False
+    salvato = DipendenteAnagraficaAziendale.objects.filter(legacy_anagrafica_id=persone.pop()).values_list("badge", flat=True).first()
+    return bool(salvato and _codice_badge(letto)) and _codice_badge(salvato) == _codice_badge(letto)
+
+
 def _banco_azione(request):
     azione = request.POST.get("azione", "")
     tutte = request.POST.get("tutte") == "1"
@@ -2290,6 +2308,14 @@ def _banco_azione(request):
             messages.error(request, firma_error)
             return _banco_redirect(chiave, tutte)
         firmato = bool(firma_immagine) or bool(request.POST.get("firmato_ricevuta"))
+        confermata_badge_il = None
+        badge_letto = request.POST.get("badge_conferma", "").strip()[:30]
+        if badge_letto:
+            if not _badge_di_tutte(richieste, badge_letto):
+                messages.error(request, "Il badge non è di chi riceve questi DPI: consegna non registrata.")
+                return _banco_redirect(chiave, tutte)
+            confermata_badge_il = timezone.now()
+            firmato = True
         note = request.POST.get("note_consegna", "").strip()
         motivo = request.POST.get("motivo_giacenza", "").strip()[:200]
         mancanze = magazzino.mancanze(richieste)
@@ -2306,7 +2332,10 @@ def _banco_azione(request):
             residuo = _registra_consegna(
                 request, r, data_consegna=data_consegna, note=note, firmato=firmato, firma_immagine=firma_immagine,
                 motivo_giacenza=motivo if r.modello_dpi_id in senza_giacenza else "", in_sospeso_dal=adesso,
+                confermata_badge_il=confermata_badge_il,
             )
+            if confermata_badge_il:
+                log_action(request, "DPI_RICEVUTA_BADGE", "dpi", f"Ricevuta di {r.numero} confermata col badge di {r.richiedente_nome}")
             _avviso_giacenza(request, r, residuo)
             per_persona.setdefault(_chiave_persona(r), []).append(r.consegna)
         if differita:

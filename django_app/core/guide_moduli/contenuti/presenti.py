@@ -84,6 +84,9 @@ GUIDA = {
                     ("Avvisi uscite", "Presenti › Impostazioni, casella dell'avviso mattutino al capo."),
                     ("Incarichi di sicurezza", "dall'organigramma ISO 45001 in Anagrafica; import una tantum dal vecchio "
                      "config.ini con «manage.py importa_incarichi_presenze --ini <file>» (poi --apply)."),
+                ("p", "Numeri di badge: «manage.py importa_badge_solari» mostra le differenze con Solari, con --apply riempie quelli mancanti in Anagrafica, "
+                      "con --sovrascrivi aggiorna anche quelli diversi. Prende l'ultimo badge con cui la persona ha timbrato, per codice fiscale. "
+                      "Lo stesso numero su due persone non si importa e viene segnalato."),
                 ]),
             ],
         },
