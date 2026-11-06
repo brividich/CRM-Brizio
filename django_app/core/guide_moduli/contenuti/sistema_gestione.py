@@ -30,6 +30,9 @@ GUIDA = {
                     ("Panoramica", "la pagina iniziale del modulo: «Da fare adesso» mette in un solo elenco, dal più urgente, "
                      "certificati, sorveglianze, piani azioni, audit in ritardo o in arrivo, CAR scadute e qualifiche. "
                      "Il menu in alto porta a tutte le pagine del modulo e a Registro OFI, Qualifiche e Scadenzario."),
+                    ("Riesame", "verbale MOD.062: argomenti con gli indicatori del periodo, obiettivi precedenti da valutare, "
+                     "nuovi obiettivi con responsabile e scadenza; il DIG approva e il verbale non cambia più. Riesame "
+                     "annuale e obiettivi compaiono nello Scadenzario. Permessi separati: consulta, prepara, approva."),
                     ("Scheda del certificato", "dal nome del certificato: date, copia in PDF con storico dei rinnovi, "
                      "qualifiche del personale collegate con il conteggio di valide, in scadenza e scadute, audit del "
                      "certificato e scadenze dello Scadenzario."),

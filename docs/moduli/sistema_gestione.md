@@ -10,6 +10,7 @@ Area **Qualità** · URL `/sistema-gestione/` · codice [`django_app/sistema_ges
 
 ## Dettaglio
 
+- **Riesame della direzione (06/11/2026, migration `0023`):** `/sistema-gestione/riesame/`, verbale MOD.062 secondo MT CN 19. Argomenti con indicatori da Report conformità fissati nel verbale, obiettivi con ritorno nel verbale successivo, bozza → proposto → approvato (immutabile), PDF e copia firmata. Permessi `.riesame.view/.edit/.approva`. Riesame annuale e obiettivi in Scadenzario e «Da fare adesso». Non replica la tabella dei rischi del MOD.062.
 - **Panoramica e menu (06/11/2026):** menu unico del modulo (`templatetags/sg_guida.py`, `sg_menu`) al posto dei pulsanti in testata, voci filtrate con i binding ACL; `/sistema-gestione/` mostra «Da fare adesso» (`services/panoramica.py`), che riusa le regole già esistenti.
 - **Scheda certificato (migration `0022`):** `/sistema-gestione/audit/esterni/certificazioni/<pk>/scheda/`, leggibile con `.audit.view`; `CertificazioneDocumento` conserva le copie PDF (storage privato cifrato, SHA-256, storico dei rinnovi, download registrato).
 - **Collegamento a Formazione (`services/qualifiche.py`, sola lettura):** `Certificazione.qualifiche_richieste` conta valide, in scadenza e scadute con le regole del cruscotto Qualifiche; l'impostazione «Qualifica auditor» lega `Auditor` a un `TipoQualifica`: se scaduta, l'auditor non è qualificato.

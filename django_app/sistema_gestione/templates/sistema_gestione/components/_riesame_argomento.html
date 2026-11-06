@@ -1,0 +1,11 @@
+{% comment %}Un argomento del verbale: indicatori fissati nel verbale e analisi. Parametri: a, puo_modificare.{% endcomment %}
+<details class="sg-rz-arg"{% if not a.analisi or not puo_modificare %} open{% endif %}>
+  <summary><span class="sg-rz-codice">{{ a.codice }}</span> {{ a.titolo }}{% if a.analisi %} <span class="sg-badge ok">Compilato</span>{% endif %}</summary>
+  {% for r in a.indicatori %}<div class="sg-rz-indicatori">
+    <a href="{% url 'report_conformita:report' r.slug %}">{{ r.titolo }}</a>
+    {% if r.errore %}<span class="sg-badge warn">Non calcolabile</span>{% endif %}
+    {% for k in r.kpi %}<span class="sg-rz-kpi">{{ k.label }}: <strong>{{ k.value }}</strong></span>{% endfor %}
+  </div>{% endfor %}
+  {% if puo_modificare %}<textarea name="analisi_{{ a.pk }}" rows="3" aria-label="Analisi: {{ a.titolo }}">{{ a.analisi }}</textarea>
+  {% else %}<p>{{ a.analisi|default:"—"|linebreaksbr }}</p>{% endif %}
+</details>

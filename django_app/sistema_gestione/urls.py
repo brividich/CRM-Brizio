@@ -9,6 +9,7 @@ from . import esterni_views
 from . import isms_views
 from . import checklist_views
 from . import rischio_views
+from . import riesame_views
 
 app_name = "sistema_gestione"
 
@@ -60,6 +61,23 @@ urlpatterns = [
     path("audit/<int:pk>/conferme/aggiorna/", programma_views.audit_conferme_aggiorna, name="audit_conferme_aggiorna"),
 
     path("", views.index, name="index"),
+    path("riesame/", riesame_views.elenco, name="riesame_elenco"),
+    path("riesame/nuovo/", riesame_views.nuovo, name="riesame_nuovo"),
+    path("riesame/<int:pk>/", riesame_views.dettaglio, name="riesame_dettaglio"),
+    path("riesame/<int:pk>/modifica/", riesame_views.modifica, name="riesame_modifica"),
+    path("riesame/<int:pk>/salva/", riesame_views.salva_analisi, name="riesame_salva_analisi"),
+    path("riesame/<int:pk>/indicatori/", riesame_views.aggiorna_indicatori, name="riesame_aggiorna_indicatori"),
+    path("riesame/<int:pk>/partecipante/", riesame_views.partecipante_aggiungi, name="riesame_partecipante_aggiungi"),
+    path("riesame/<int:pk>/partecipante/<int:partecipante_pk>/togli/", riesame_views.partecipante_togli, name="riesame_partecipante_togli"),
+    path("riesame/<int:pk>/obiettivo/nuovo/", riesame_views.obiettivo, name="riesame_obiettivo_nuovo"),
+    path("riesame/<int:pk>/obiettivo/<int:obiettivo_pk>/", riesame_views.obiettivo, name="riesame_obiettivo"),
+    path("riesame/<int:pk>/obiettivo/<int:obiettivo_pk>/togli/", riesame_views.obiettivo_togli, name="riesame_obiettivo_togli"),
+    path("riesame/<int:pk>/proponi/", riesame_views.proponi, name="riesame_proponi"),
+    path("riesame/<int:pk>/bozza/", riesame_views.riporta_in_bozza, name="riesame_riporta_in_bozza"),
+    path("riesame/<int:pk>/approva/", riesame_views.approva, name="riesame_approva"),
+    path("riesame/<int:pk>/pdf/", riesame_views.pdf, name="riesame_pdf"),
+    path("riesame/<int:pk>/copia-firmata/carica/", riesame_views.carica_firmata, name="riesame_carica_firmata"),
+    path("riesame/<int:pk>/copia-firmata/", riesame_views.copia_firmata, name="riesame_copia_firmata"),
     path("soa/", views.soa, name="soa"),
     path("soa/nuova-revisione/", views.soa_nuova_revisione, name="soa_nuova_revisione"),
     path("soa/voce/<int:pk>/", views.soa_voce, name="soa_voce"),
