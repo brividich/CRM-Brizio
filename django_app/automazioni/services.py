@@ -4973,7 +4973,9 @@ def execute_action(
             # Carica tutte le anomalie aperte dell'OP dal DB per popolare la mail
             anomalie_rows = _fetch_anomalie_by_op(op_id) or [dict(payload_context, id=anomalia_id)]
 
-            cc_emails = [secondary["email"]] if secondary else []
+            from anomalie.silenzia_op import togli_silenziati
+
+            cc_emails = togli_silenziati(op_id, [secondary["email"]] if secondary else [])
 
             token_obj = send_anomalie_action_email(
                 recipient_email=primary["email"],
@@ -5015,7 +5017,7 @@ def execute_action(
                 msg.send(fail_silently=True)
 
             role_label = "CAR" if benestare else "CC"
-            cc_label = secondary["email"] if secondary else "nessuno"
+            cc_label = cc_emails[0] if cc_emails else "nessuno"
             result_message = (
                 f"Mail-action OP inviata a {primary['email']} ({role_label}), "
                 f"cc={cc_label}, op={op_id}, action={mail_action}, "

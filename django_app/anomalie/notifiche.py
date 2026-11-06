@@ -115,6 +115,7 @@ def _ultimi_invii(kinds: set[str]) -> dict[str, dict]:
 def stato_pannello() -> dict:
     """Tutto quello che serve al pannello: mail, destinatari, interruttori, motori."""
     from .escalation_config import durata_label, get_escalation_config
+    from .silenzia_op import elenco as elenco_silenziati
     from .views import _load_anomalie_lists
 
     cfg = get_escalation_config()
@@ -234,6 +235,7 @@ def stato_pannello() -> dict:
                            "attiva": nuova_attiva, "regola_id": rule.pk if rule else None},
         "parametri": {k: cfg[k] for k in PARAM_KEYS},
         "motori": motori,
+        "silenziati": elenco_silenziati(),
     }
 
 

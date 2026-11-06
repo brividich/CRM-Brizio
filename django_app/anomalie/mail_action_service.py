@@ -260,7 +260,9 @@ def build_anomalie_action_email(
 
     action_url = site_url + reverse("anomalie_mail_action", kwargs={"token": token_str})
     from .automazioni_service import op_portal_link
+    from .silenzia_op import link_silenzia
     portal_url = op_portal_link(op_id, base=site_url)
+    silenzia_url = link_silenzia(op_id, base=site_url)
 
     n_tot = len(anomalie_rows)
     troncato = n_tot > MAX_ANOMALIE_IN_EMAIL
@@ -300,6 +302,7 @@ def build_anomalie_action_email(
         action_url=action_url,
         expires_at=expires_at,
         portal_url=portal_url,
+        silenzia_url=silenzia_url,
     )
 
     body_html = render_to_string(
@@ -317,6 +320,7 @@ def build_anomalie_action_email(
             "action_label": action_label,
             "action_url": action_url,
             "portal_url": portal_url,
+            "silenzia_url": silenzia_url,
             "expires_at": expires_at,
             "site_url": site_url,
         },
@@ -418,6 +422,7 @@ def _build_plain_text(
     action_url: str,
     expires_at: Any,
     portal_url: str = "",
+    silenzia_url: str = "",
 ) -> str:
     plurale = n_tot != 1
     lines = [
@@ -469,6 +474,8 @@ def _build_plain_text(
     if portal_url:
         lines += ["", "Oppure apri l'OP direttamente in Gestione anomalie (accesso automatico dai PC aziendali):",
                   portal_url]
+    if silenzia_url:
+        lines += ["", f"Non vuoi più aggiornamenti su questo OP? {silenzia_url}"]
     lines += [
         "",
         "—",
@@ -616,11 +623,15 @@ def send_anomalie_update_confirmation(
     destinatari.extend(_resolve_lista_fissa_conferma())
 
     # 4) Lista dedicata RDC/segnalazione: solo se ci sono anomalie con quei flag
-    if has_rdc:
-        destinatari.extend(_resolve_lista_rdc_segnalazione())
+    lista_rdc = _resolve_lista_rdc_segnalazione() if has_rdc else []
+    destinatari.extend(lista_rdc)
 
     if extra_emails:
         destinatari.extend(extra_emails)
+
+    # Chi ha silenziato l'OP esce, tranne la lista RDC: per lei è un compito.
+    from .silenzia_op import link_silenzia, togli_silenziati
+    destinatari = togli_silenziati(op_id, destinatari, tieni=lista_rdc)
 
     # Dedup case-insensitive preservando l'ordine
     seen = {str(e or "").strip().lower() for e in (exclude_emails or []) if str(e or "").strip()}
@@ -714,6 +725,9 @@ def send_anomalie_update_confirmation(
         lines += [f"Apri l'OP nel portale (accesso automatico dai PC aziendali): {portal_url}", ""]
     if source_label:
         lines += [f"Origine: {source_label}", ""]
+    silenzia_url = link_silenzia(op_id)
+    if silenzia_url:
+        lines += [f"Non vuoi più aggiornamenti su questo OP? {silenzia_url}", ""]
     lines += [
         "—",
         "NOVICROM HUB · Portale interno · Email automatica",
@@ -734,6 +748,7 @@ def send_anomalie_update_confirmation(
             "has_rdc": has_rdc,
             "source_label": source_label,
             "portal_url": portal_url,
+            "silenzia_url": silenzia_url,
             "n": n,
             "n_aprire": n_aprire,
             "n_segnalare": n_segnalare,
@@ -1169,6 +1184,19 @@ def create_dashboard_reminders(op_rows: list[dict], *, soglia_ore: int) -> int:
     return created
 
 
+def _destinatari_resoconto(op_id: str, recs: list[dict]) -> list[str]:
+    """CC/CAR dell'OP per il resoconto, senza chi l'ha silenziato; chi deve decidere
+    resta: il resoconto è il sollecito per la decisione che manca."""
+    from .controllo_service import _destinatari
+    from .silenzia_op import email_silenziate, togli_silenziati
+
+    emails = [r["email"] for r in recs if r.get("email")]
+    if not email_silenziate(op_id):
+        return emails
+    primary, _ = _destinatari(op_id)
+    return togli_silenziati(op_id, emails, tieni=[primary["email"]] if primary else [])
+
+
 def send_escalation_resoconto(
     op_rows: list[dict],
     *,
@@ -1199,15 +1227,13 @@ def send_escalation_resoconto(
         cc_car = ", ".join(
             f"{r.get('display') or r.get('email')}" for r in recs if (r.get("display") or r.get("email"))
         )
-        for r in recs:
-            if r.get("email"):
-                destinatari.append(r["email"])
+        destinatari.extend(_destinatari_resoconto(op.get("op_id") or "", recs))
         enriched.append({**op, "cc_car": cc_car})
 
     rdc_enriched = []
     for op in rdc_rows:
         recs = _resolve_op_recipients(op.get("op_id") or "")
-        destinatari.extend(r["email"] for r in recs if r.get("email"))
+        destinatari.extend(_destinatari_resoconto(op.get("op_id") or "", recs))
         rdc_enriched.append({
             **op,
             "cc_car": ", ".join(f"{r.get('display') or r.get('email')}" for r in recs if (r.get("display") or r.get("email"))),

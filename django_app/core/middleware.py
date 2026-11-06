@@ -141,6 +141,9 @@ _ACL_SHARED_PREFIXES = _ACL_ONBOARDING_SHARED_PREFIXES + (
     # collegato, come le preferenze interfaccia. Il permesso «api» era solo per
     # amministratori e bloccava tutti gli altri.
     "/api/table-prefs/",
+    # «Non voglio più aggiornamenti su questo OP»: ci arriva chiunque riceva la mail, anche
+    # senza permessi sul modulo; agisce solo sugli indirizzi dell'utente collegato.
+    "/anomalie-op-silenzia",
     "/api/onboarding/",
     "/api/gestione-reparto/",
     "/api/employee-board/widget/",
