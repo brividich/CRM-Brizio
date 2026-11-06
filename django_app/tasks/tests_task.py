@@ -327,7 +327,7 @@ class TaskAuditTrailTests(TasksBaseTestCase):
         self.assertContains(response, "Data inizio")
         self.assertContains(response, "10-03-2026")
         self.assertContains(response, "12-03-2026")
-        self.assertContains(response, "Payload tecnico")
+        self.assertContains(response, "Dati tecnici")
         self.assertNotContains(response, "{&#x27;changes&#x27;:")
 
 

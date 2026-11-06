@@ -269,6 +269,20 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "report-fai",
+        "titolo": "Report FAI",
+        "blocchi": [
+            ("p", "«Report FAI» del menu riassume il registro: articoli per situazione, per cliente, FAI per stato e per anno di invio, con i giorni medi fra invio e chiusura. Il filtro «Cliente» vale per tutta la pagina e per i file."),
+            ("def", [
+                ("Da ripetere e in scadenza", "articoli da ripetere o con la ripetizione entro 6 mesi, i più urgenti prima. Excel e PDF."),
+                ("Controllo trimestrale", "articoli oltre la soglia dall'ultima spedizione, da segnalare a IN1 e MSM (MT CN 15 §5.10). Excel e PDF; il Centro report può mandarlo in automatico."),
+                ("Situazione degli articoli", "un articolo per riga, con il FAI più recente. Excel e PDF."),
+                ("Riepilogo per cliente", "articoli per cliente e situazione. Excel e PDF."),
+                ("Tutti i FAI", "le colonne del file Situazione FAI-ISIR. Solo Excel: nel PDF non starebbero."),
+            ]),
+        ],
+    },
+    {
         "id": "registro-fai",
         "titolo": "FAI e Registro FAI",
         "blocchi": [
@@ -296,14 +310,14 @@ SEZIONI: list[dict] = [
         "id": "scheda-attivita",
         "titolo": "La scheda di un'attività",
         "blocchi": [
-            ("p", "Cliccando un'attività si apre la sua scheda: chi l'ha creata, a chi è assegnata, date, commessa e prossima azione."),
+            ("p", "Cliccando un'attività si apre la sua scheda: a sinistra il lavoro da fare, a destra responsabile, date, kickoff e allegati."),
             ("img", (_IMG + "attivita_scheda.jpg", "La scheda di un'attività")),
             ("def", [
-                ("Aggiorna stato", "cambia lo stato senza aprire il form."),
-                ("Data richiesta fine e Data inizio", "si correggono qui, ognuna col suo «Aggiorna»."),
-                ("Subtask", "sotto-attività con responsabile, data e ordine, per spezzare il lavoro."),
-                ("Commenti", "note sull'attività; «Notifica utente» avvisa una persona."),
-                ("Allegati", "file caricati sull'attività o sul kickoff collegato, a scelta in «Destinazione»."),
+                ("Stato", "i pulsanti in alto cambiano lo stato con un clic."),
+                ("Inizio e Fine richiesta", "si correggono in «Dettagli»: cambiando la data compare «Salva»."),
+                ("Sotto-attività", "con responsabile, data e ordine, per spezzare il lavoro: si aggiungono con «+ Aggiungi sotto-attività»."),
+                ("Commenti", "note sull'attività; «Avvisa» manda la notifica a una persona. Sotto, «Storico» elenca tutte le modifiche."),
+                ("Allegati", "file dell'attività e del kickoff collegato; «+ Carica un file» e «Dove» scelgono su quale dei due salvarlo."),
                 ("Eventi", "la storia delle modifiche: stato, date, assegnatari, subtask, allegati."),
                 ("Modifica attivita", "apre il form completo."),
             ]),

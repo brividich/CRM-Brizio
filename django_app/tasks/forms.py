@@ -1107,7 +1107,7 @@ class TaskAttachmentForm(forms.ModelForm):
     TARGET_PROJECT = "project"
 
     attach_to = forms.ChoiceField(
-        choices=((TARGET_TASK, "Task corrente"),),
+        choices=((TARGET_TASK, "Questa attività"),),
         widget=forms.Select(attrs={"class": "input"}),
         label="Destinazione",
     )
@@ -1122,7 +1122,7 @@ class TaskAttachmentForm(forms.ModelForm):
     def __init__(self, *args, task=None, **kwargs):
         self.task = task
         super().__init__(*args, **kwargs)
-        choices = [(self.TARGET_TASK, "Task corrente")]
+        choices = [(self.TARGET_TASK, "Questa attività")]
         if task and task.project_id:
             choices.append((self.TARGET_PROJECT, "Kickoff collegato"))
         self.fields["attach_to"].choices = choices

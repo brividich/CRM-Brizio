@@ -19,10 +19,12 @@ from core.paginazione import pagina_elenco
 
 from ..access import can_manage_project, has_task_permission, scoped_projects_queryset, task_permissions_required
 from ..fai_regole import aggiungi_mesi
-from ..models import FaiDocumento, FaiGruppo, FaiOpzione, FaiRecord, FaiTipo, ProjectTechRef, TechRefKind
+from ..models import FaiDocumento, FaiFase, FaiGruppo, FaiOpzione, FaiRecord, FaiTipo, ProjectTechRef, TechRefKind
 from ..services.fai import (
     allinea_riga,
     causale_proposta,
+    ripetizione_entro,
+    stato_articolo,
     numero_piano_automatico,
     prossimo_numero_fai,
     opzioni_attive,
@@ -31,6 +33,7 @@ from ..services.fai import (
     stato_iniziale,
     trova_o_crea_articolo,
 )
+from ..services.fai_report import conta_situazioni
 from ..services.notify import notify_user
 from ..tech_paths import normalizza_percorso
 from ._shared import _tasks_shell_context, _utenti_riga_rapida
@@ -76,6 +79,11 @@ CAMPI_OPZIONE_FILE = (
     ("cross_correlation", FaiGruppo.CROSS),
 )
 CAMPI_DOCUMENTO = (("doc_sdc", "SDC"), ("doc_pfc", "PFC"), ("doc_sintesi", "Sintesi"), ("doc_fai", "FAI"))
+# Il blocco piegato della scheda si apre da solo se contiene qualcosa.
+NOMI_VERSIONE = (
+    "versione_produzione", "stato_versione", "data_versione", "codice_dip", "data_approvazione_dip",
+    "invio_cq", "cross_correlation", "doc_sdc", "doc_pfc", "doc_sintesi", "doc_fai",
+)
 
 
 class FaiForm(forms.Form):
@@ -181,31 +189,41 @@ def _esporta(righe):
     return response
 
 
-def _esporta_tutti(records):
-    """Le stesse colonne del file, per chi deve ancora passargli i dati."""
-    response, writer = csv_download_response("situazione_fai.csv", delimiter=";")
-    testo = [c for c in CAMPI_TESTO_FILE if c[0] != "invio_cq"]
-    writer.writerow(
+_TESTO_TUTTI = [c for c in CAMPI_TESTO_FILE if c[0] != "invio_cq"]
+
+
+def colonne_tutti() -> list[str]:
+    return (
         ["Cliente", "P/N", "Numero piano", "Tipo", "Stato", "Data invio", "Chiusura con", "Data chiusura"]
-        + [c[1] for c in testo]
+        + [c[1] for c in _TESTO_TUTTI]
         + ["Stato versione", "Data versione", "Data approvazione DIP", "Invio CQ", "Cross-correlation"]
         + [c[1] for c in CAMPI_DOCUMENTO]
         + ["Note"]
     )
-    for f in records.select_related("chiusura_con", "stato_versione", "cross_correlation"):
-        writer.writerow(
-            [
-                f.articolo.client_name, f.articolo.part_number, f.piano_numero, f.get_tipo_display(), f.stato.etichetta,
-                f.data_invio or "", f.chiusura_con.etichetta if f.chiusura_con else "", f.data_chiusura or "",
-            ]
-            + [getattr(f, c[0]) for c in testo]
-            + [
-                f.stato_versione.etichetta if f.stato_versione else "", f.data_versione or "",
-                f.data_approvazione_dip or "", f.invio_cq, f.cross_correlation.etichetta if f.cross_correlation else "",
-            ]
-            + [getattr(f, f"get_{c[0]}_display")() for c in CAMPI_DOCUMENTO]
-            + [f.note]
-        )
+
+
+def righe_tutti(records) -> list[list]:
+    """Le stesse colonne del file, per chi deve ancora passargli i dati."""
+    return [
+        [
+            f.articolo.client_name, f.articolo.part_number, f.piano_numero, f.get_tipo_display(), f.stato.etichetta,
+            f.data_invio or "", f.chiusura_con.etichetta if f.chiusura_con else "", f.data_chiusura or "",
+        ]
+        + [getattr(f, c[0]) for c in _TESTO_TUTTI]
+        + [
+            f.stato_versione.etichetta if f.stato_versione else "", f.data_versione or "",
+            f.data_approvazione_dip or "", f.invio_cq, f.cross_correlation.etichetta if f.cross_correlation else "",
+        ]
+        + [getattr(f, f"get_{c[0]}_display")() for c in CAMPI_DOCUMENTO]
+        + [f.note]
+        for f in records.select_related("chiusura_con", "stato_versione", "cross_correlation")
+    ]
+
+
+def _esporta_tutti(records):
+    response, writer = csv_download_response("situazione_fai.csv", delimiter=";")
+    writer.writerow(colonne_tutti())
+    writer.writerows(righe_tutti(records))
     return response
 
 
@@ -257,9 +275,7 @@ def fai_registro(request):
         return _tutti_i_fai(request)
     tutte = righe_registro(_fai_visibili(request))
     limiti = soglie()
-    conteggi: dict[str, int] = {}
-    for riga in tutte:
-        conteggi[riga["situazione"].codice] = conteggi.get(riga["situazione"].codice, 0) + 1
+    conteggi = conta_situazioni(tutte)
 
     viste = (
         ("", "Tutti"),
@@ -328,11 +344,11 @@ def _dati_originali(record) -> list[tuple[str, str]]:
     return [(nomi.get(nome, nome), valore) for nome, valore in record.origine_excel.items()]
 
 
-def _campi(form, definizioni) -> list[dict]:
-    return [
-        {"nome": nome, "etichetta": etichetta, "massimo": massimo, "valore": form[nome].value(), "errori": form[nome].errors}
-        for nome, etichetta, massimo in definizioni
-    ]
+def _campi(form) -> dict[str, dict]:
+    return {
+        nome: {"nome": nome, "etichetta": etichetta, "massimo": massimo, "valore": form[nome].value(), "errori": form[nome].errors}
+        for nome, etichetta, massimo in CAMPI_TESTO_FILE
+    }
 
 
 def _campi_opzione(form, record, nome, etichetta, gruppo) -> dict:
@@ -345,13 +361,13 @@ def _campi_opzione(form, record, nome, etichetta, gruppo) -> dict:
 
 def _contesto_scheda(request, form, record, project, ref, *, modificabile: bool) -> dict:
     articolo = record.articolo if record else None
-    mesi = soglie().mesi_ripetizione
+    limiti = soglie()
+    annullato = bool(record and record.stato.fase == FaiFase.ANNULLATO)
     return {
-        "campi_articolo": _campi(form, CAMPI_ARTICOLO),
-        "campi_codici": _campi(form, CAMPI_CODICI),
-        "campi_riferimenti": _campi(form, CAMPI_RIFERIMENTI),
-        "campi_piano": _campi(form, CAMPI_PIANO),
-        "campi_versione": _campi(form, CAMPI_VERSIONE),
+        "f": _campi(form),
+        "situazione": stato_articolo(articolo, record, limiti=limiti) if record and not annullato else None,
+        "ripetizione": ripetizione_entro(articolo, record, limiti) if record and not annullato else None,
+        "ha_versione": any(form[nome].value() for nome in NOMI_VERSIONE),
         "campo_chiusura": _campi_opzione(form, record, "chiusura_con", "Chiusura con", FaiGruppo.CHIUSURA),
         "campo_versione": _campi_opzione(form, record, "stato_versione", "Stato versione", FaiGruppo.VERSIONE),
         "campo_cross": _campi_opzione(form, record, "cross_correlation", "Cross-correlation", FaiGruppo.CROSS),
@@ -363,8 +379,6 @@ def _contesto_scheda(request, form, record, project, ref, *, modificabile: bool)
         "valore_invio_cq": form["invio_cq"].value() or "",
         "fai_storico": bool(record and record.chiave_import),
         "dati_originali": _dati_originali(record) if record else [],
-        "scadenza_chiusura": aggiungi_mesi(record.data_chiusura, mesi) if record and record.data_chiusura else None,
-        "mesi_ripetizione": mesi,
         **_tasks_shell_context(request, active="tech_refs" if project else "fai", project=project),
         "page_title": "Scheda FAI",
         "form": form,

@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 
 from django.utils import timezone
 
-from ..fai_regole import StatoArticolo, prossimo_piano_interno, stato_decorrenza
+from ..fai_regole import aggiungi_mesi, StatoArticolo, prossimo_piano_interno, stato_decorrenza
 from ..models import (
     FaiArticolo,
     FaiFase,
@@ -71,6 +71,23 @@ def trova_o_crea_articolo(client_name: str, part_number: str) -> FaiArticolo:
     )
 
 
+def _conclusione(ultimo: FaiRecord | None):
+    if ultimo is None:
+        return None
+    return ultimo.data_chiusura or (ultimo.data_invio if ultimo.stato.fase == FaiFase.POSITIVO else None)
+
+
+def ripetizione_entro(articolo: FaiArticolo, ultimo: FaiRecord | None, limiti: Soglie | None = None):
+    """Entro quando va ripetuto: ultima produzione o chiusura, o prima se lo chiede il cliente."""
+    if ultimo is not None and not ultimo.data_chiusura and ultimo.stato.fase in FASI_IN_CORSO:
+        return None
+    limiti = limiti or soglie()
+    basi = [d for d in (articolo.ultima_produzione, _conclusione(ultimo)) if d]
+    calcolata = aggiungi_mesi(max(basi), limiti.mesi_ripetizione) if basi else None
+    date = [d for d in (calcolata, articolo.scadenza_cliente) if d]
+    return min(date) if date else None
+
+
 def stato_articolo(articolo: FaiArticolo, ultimo: FaiRecord | None, oggi=None, limiti: Soglie | None = None) -> StatoArticolo:
     """Situazione del P/N rispetto alle soglie, tenendo conto dell'ultimo FAI."""
     oggi = oggi or timezone.localdate()
@@ -79,9 +96,7 @@ def stato_articolo(articolo: FaiArticolo, ultimo: FaiRecord | None, oggi=None, l
     if ultimo is not None and not ultimo.data_chiusura and ultimo.stato.fase in FASI_IN_CORSO:
         return StatoArticolo("in_corso", "In corso", "info", "")
     produzione, spedizione = articolo.ultima_produzione, articolo.ultima_spedizione
-    conclusione = None
-    if ultimo is not None:
-        conclusione = ultimo.data_chiusura or (ultimo.data_invio if ultimo.stato.fase == FaiFase.POSITIVO else None)
+    conclusione = _conclusione(ultimo)
     # La regola è l'ultima produzione (MT CN 15). Finché non si conosce vale la chiusura del FAI:
     # un articolo appena riqualificato non deve restare «da ripetere» per date non aggiornate.
     dal_fai = bool(conclusione and (not produzione or conclusione > produzione))
@@ -154,6 +169,7 @@ def righe_registro(records, oggi=None) -> list[dict]:
                 "fai": record,
                 "precedenti": 0,
                 "situazione": stato_articolo(record.articolo, record, oggi, limiti),
+                "ripetizione": ripetizione_entro(record.articolo, record, limiti),
             }
         else:
             riga["precedenti"] += 1
