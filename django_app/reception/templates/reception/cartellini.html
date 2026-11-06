@@ -1,0 +1,39 @@
+{% extends "reception/_base.html" %}
+{% block title %}Cartellini | Reception{% endblock %}
+{% block rc_titolo %}Cartellini{% endblock %}
+{% block rc_sub %}Il QR sull'etichetta è il numero del cartellino: al chiosco basta scansionarlo per uscire.{% endblock %}
+{% block rc_contenuto %}
+<div class="rc-card rc-noprint">
+  <div class="rc-body">
+    <form method="post" class="rc-form">
+      {% csrf_token %}
+      <div class="rc-field"><label for="k-q">Aggiungi cartellini</label><input class="rc-input" id="k-q" type="number" name="quanti" min="1" max="200"></div>
+      <div class="rc-field"><button class="rc-btn rc-btn-g" type="submit">Aggiungi</button></div>
+      <div class="rc-field"><a class="rc-btn rc-btn-g" href="?stampa=1">Etichette con QR</a></div>
+      {% if etichette %}<div class="rc-field"><button class="rc-btn rc-btn-p" type="button" id="rc-stampa">Stampa</button></div>{% endif %}
+    </form>
+  </div>
+</div>
+{% if etichette %}
+<div class="rc-card"><div class="rc-etichette">
+  {% for e in etichette %}<div class="rc-etichetta"><img src="{{ e.qr }}" alt="QR del cartellino {{ e.numero }}">{{ e.numero }}</div>{% endfor %}
+</div></div>
+<script nonce="{{ csp_nonce }}">document.getElementById('rc-stampa').addEventListener('click', function () { window.print(); });</script>
+{% endif %}
+<div class="rc-card rc-noprint">
+  <div class="rc-wrap">
+    <table class="rc-table">
+      <thead><tr><th>Numero</th><th>Stato</th><th>Ultima assegnazione</th><th>Ultima restituzione</th></tr></thead>
+      <tbody>
+      {% for c in righe %}
+        <tr><td><strong>{{ c.numero }}</strong></td>
+          <td>{% if c.occupato or not c.disponibile %}<span class="rc-pill">In uso</span>{% else %}<span class="rc-pill rc-pill-ok">Libero</span>{% endif %}</td>
+          <td>{{ c.ultima_assegnazione|date:"d/m/Y H:i"|default:"—" }}</td><td>{{ c.ultima_restituzione|date:"d/m/Y H:i"|default:"—" }}</td></tr>
+      {% empty %}
+        <tr><td colspan="4" class="rc-empty">Nessun cartellino.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

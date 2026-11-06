@@ -1,0 +1,44 @@
+{% extends "reception/_base.html" %}
+{% block title %}Pre-registrazioni | Reception{% endblock %}
+{% block rc_titolo %}Pre-registrazioni{% endblock %}
+{% block rc_sub %}L'ospite riceve il codice e il QR per entrare dal chiosco. Se indichi il giorno, ospite e referente ricevono anche l'invito in calendario.{% endblock %}
+{% block rc_contenuto %}
+<div class="rc-card">
+  <div class="rc-card-head">Nuova</div>
+  <div class="rc-body">
+    <form method="post" class="rc-form">
+      {% csrf_token %}
+      <div class="rc-field"><label for="p-nome">Nome e cognome *</label><input class="rc-input" id="p-nome" name="nome" maxlength="200" required></div>
+      <div class="rc-field"><label for="p-email">Email *</label><input class="rc-input" id="p-email" type="email" name="email" maxlength="255" required></div>
+      <div class="rc-field"><label for="p-azienda">Azienda</label><input class="rc-input" id="p-azienda" name="azienda" maxlength="200"></div>
+      <div class="rc-field"><label for="p-ref">Referente *</label><select class="rc-input" id="p-ref" name="referente" required><option value="">Scegli</option>{% for r in referenti %}<option value="{{ r.pk }}">{{ r.nome_elenco }}</option>{% endfor %}</select></div>
+      <div class="rc-field"><label for="p-motivo">Motivo</label><select class="rc-input" id="p-motivo" name="motivo">{% for c in categorie %}<option value="{{ c.nome }}">{{ c.nome }}</option>{% endfor %}</select></div>
+      <div class="rc-field"><label for="p-data">Giorno</label><input class="rc-input" id="p-data" type="date" name="data_visita"></div>
+      <div class="rc-field"><label for="p-ini">Dalle</label><input class="rc-input" id="p-ini" type="time" name="ora_inizio"></div>
+      <div class="rc-field"><label for="p-fine">Alle</label><input class="rc-input" id="p-fine" type="time" name="ora_fine"></div>
+      <div class="rc-field"><label for="p-scade">Valido fino al (7 giorni se vuoto)</label><input class="rc-input" id="p-scade" type="date" name="scade"></div>
+      <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit">Crea e invia</button></div>
+    </form>
+  </div>
+</div>
+<div class="rc-card">
+  <div class="rc-card-head">Elenco</div>
+  <div class="rc-wrap">
+    <table class="rc-table">
+      <thead><tr><th>Codice</th><th>Ospite</th><th>Email</th><th>Referente</th><th>Giorno</th><th>Scade</th><th>Stato</th><th></th></tr></thead>
+      <tbody>
+      {% for p in righe %}
+        <tr>
+          <td><strong>{{ p.codice }}</strong></td><td>{{ p.ospite_nome }}</td><td>{{ p.ospite_email|default:"—" }}</td><td>{{ p.referente_nome }}</td>
+          <td>{{ p.data_visita|date:"d/m/Y"|default:"—" }}</td><td>{{ p.scade_il|date:"d/m/Y" }}</td>
+          <td>{% if p.usata_il %}<span class="rc-pill rc-pill-ok">Usato il {{ p.usata_il|date:"d/m H:i" }}</span>{% else %}<span class="rc-pill">Da usare</span>{% endif %}</td>
+          <td>{% if not p.usata_il %}<form class="rc-inline" method="post" action="{% url 'reception:preregistrazione_azione' p.pk %}">{% csrf_token %}<button class="rc-btn rc-btn-g" name="azione" value="invia">Invia</button> <button class="rc-btn rc-btn-d" name="azione" value="elimina">Elimina</button></form>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="rc-empty">Nessuna pre-registrazione.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

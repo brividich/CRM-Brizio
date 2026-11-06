@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "fornitori_acl_bootstrap_v4"
+_BOOTSTRAP_CACHE_KEY = "fornitori_acl_bootstrap_v5"
 
 _PULSANTI_DEFINITIONS = [
     {
@@ -144,6 +144,83 @@ _PULSANTI_DEFINITIONS = [
         "codice": "fornitore_asset_remove",
         "label": "Fornitori - Scollega asset",
         "url": "route:fornitori:fornitore_asset_remove",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_cruscotto",
+        "label": "Reception - Presenti",
+        "url": "route:reception:cruscotto",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_registra",
+        "label": "Reception - Registra ingresso",
+        "url": "route:reception:registra",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_storico",
+        "label": "Reception - Storico",
+        "url": "route:reception:storico",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_visita_scheda",
+        "label": "Reception - Scheda visita e correzioni",
+        "url": "route:reception:visita_scheda",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_visita_uscita",
+        "label": "Reception - Registra uscita",
+        "url": "route:reception:visita_uscita",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_preregistrazioni",
+        "label": "Reception - Pre-registrazioni",
+        "url": "route:reception:preregistrazioni",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_preregistrazione_azione",
+        "label": "Reception - Invia o elimina pre-registrazione",
+        "url": "route:reception:preregistrazione_azione",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_referenti",
+        "label": "Reception - Referenti",
+        "url": "route:reception:referenti",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_ditte",
+        "label": "Reception - Ditte accreditate",
+        "url": "route:reception:ditte",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_cartellini",
+        "label": "Reception - Cartellini",
+        "url": "route:reception:cartellini",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_impostazioni",
+        "label": "Reception - Impostazioni",
+        "url": "route:reception:impostazioni",
         "visible_topbar": False,
     },
     {
