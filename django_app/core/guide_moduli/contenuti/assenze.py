@@ -193,6 +193,9 @@ GUIDA = {
                      "inseriscono per qualunque dipendente attivo, gli altri non la vedono e, se provano a inviarla o a "
                      "trasformare una loro richiesta in malattia, ricevono un errore. Elenco vuoto = tutti la vedono come prima "
                      "(per sé; per gli altri solo chi inserisce già per conto altrui). Si salva con «Salva inserimento malattia»."),
+                    ("Cambio capo reparto", "chi può cambiare il capo proposto nella nuova richiesta: le persone spuntate "
+                     "scelgono dall'elenco dei capi, gli altri vedono il capo assegnato e non possono modificarlo. Chi non ha un capo "
+                     "assegnato può comunque sceglierlo. Elenco vuoto = tutti possono cambiarlo. Si salva con «Salva cambio capo reparto»."),
                     ("Gestione admin · Tutte le assenze", "tutte le richieste con filtri, ordinamento, approvazione o rifiuto in blocco (fino a 200 alla volta, nota obbligatoria) ed «Export CSV»."),
                     ("Certificati arrivati in blocco", "filtro «Certificato» = «Malattie senza certificato» (con «Tutti gli stati»), "
                                                        "seleziona le righe e premi «Certificato arrivato (senza mail)». Non parte nessuna mail; "
@@ -217,7 +220,8 @@ GUIDA = {
                     "Nessuno approva le proprie assenze: se il capo così trovato è il dipendente stesso (es. il CAR "
                     "capo del suo reparto), si propone chi gli sta sopra nella gerarchia dei ruoli, partendo dal suo "
                     "ruolo più alto (Caporeparto → Operations Manager, anche se lavora in un altro reparto).",
-                    "Tutti possono scegliere un altro capo nella richiesta. Se lo fanno, la richiesta compare in coda "
+                    "Chi è abilitato in Impostazioni → «Cambio capo reparto» (se l'elenco è vuoto, tutti) può scegliere un "
+                    "altro capo nella richiesta. Se lo fa, la richiesta compare in coda "
                     "e si approva solo dal capo scelto (oltre che dall'Amministrazione); il capo dell'organigramma la vede "
                     "ancora nel calendario ma non la approva.",
                     "La visibilità si assegna in Amministrazione → «Accessi» con i permessi «view_all_assenze» "
@@ -308,6 +312,14 @@ GUIDA = {
             "fare": [
                 "Apri «Le mie richieste»: ogni richiesta inviata è lì con il suo stato.",
                 "Non reinviarla: una richiesta identica viene comunque fermata con «Questa richiesta è già stata inviata».",
+            ],
+        },
+        {
+            "sintomo": "Non riesco a cambiare il capo reparto nella richiesta",
+            "perche": "in Impostazioni → «Cambio capo reparto» c'è un elenco di persone abilitate e tu non ci sei.",
+            "fare": [
+                "Invia la richiesta al capo assegnato: se è assente quel giorno, l'approvazione passa al suo superiore.",
+                "Chi amministra il modulo può aggiungerti in Impostazioni → «Cambio capo reparto» (serve un utente collegato all'anagrafica).",
             ],
         },
         {

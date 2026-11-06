@@ -796,11 +796,11 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
                 <div class="abs-field">
                   <label for="caporeparto">Capo reparto</label>
                   {% comment %}
-                  Il ruolo UTENTE ha il campo bloccato sul caporeparto ASSEGNATO.
-                  Tutti gli altri ruoli possono scegliere a chi inviare la richiesta:
+                  Chi non è abilitato (Impostazioni, «Cambio capo reparto») ha il campo bloccato
+                  sul caporeparto ASSEGNATO. Gli abilitati scelgono a chi inviare la richiesta:
                   il server accetta solo capi presenti in elenco.
                   {% endcomment %}
-                  <select id="caporeparto" name="caporeparto" class="abs-select"{% if not assenze_can_choose_capo %} disabled aria-readonly="true"{% endif %}>
+                  <select id="caporeparto" name="caporeparto" class="abs-select"{% if capo_bloccato %} disabled aria-readonly="true"{% endif %}>
                     <option value="">-- Assegnato automaticamente --</option>
                     {% for capo in capi %}
                       {% with option_value=capo.Email|default:capo.LookupId %}
@@ -810,8 +810,10 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
                   </select>
                   {% if assenze_can_choose_capo %}
                     <div class="abs-field-hint">Proposto dall'organigramma (capo del dipendente): se il capo sei tu, è chi ti sta sopra; puoi sceglierne un altro. In quel caso la richiesta la vede e la approva solo il capo scelto. Se lasci quello proposto ed è assente nel giorno della richiesta, l'approvazione passa al suo superiore.</div>
+                  {% elif not capo_bloccato %}
+                    <div class="abs-field-hint" id="caporeparto-hint">Non risulta un capo assegnato: scegli a chi inviare la richiesta.</div>
                   {% else %}
-                    <div class="abs-field-hint">Assegnato automaticamente dall'area aziendale del dipendente. Se il caporeparto è assente nel giorno della richiesta, l'approvazione passa al suo superiore.</div>
+                    <div class="abs-field-hint" id="caporeparto-hint">Assegnato automaticamente dall'area aziendale del dipendente. Se il caporeparto è assente nel giorno della richiesta, l'approvazione passa al suo superiore.</div>
                   {% endif %}
                 </div>
               </div>
@@ -1920,6 +1922,10 @@ body.theme-dark .abs-corsi-close:hover{color:#fdba74}
       })
         .then(function(r) { return r.ok ? r.json() : null; })
         .then(function(data) {
+          {% if not assenze_can_choose_capo %}
+          // Non abilitato al cambio: il campo si libera solo se il dipendente non ha un capo.
+          if (data && data.ok) capoSel.disabled = !!data.capo_value;
+          {% endif %}
           if (!data || !data.ok || !data.capo_value) return;
           for (var i = 0; i < capoSel.options.length; i++) {
             if (capoSel.options[i].value === data.capo_value) {

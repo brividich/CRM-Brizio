@@ -9,6 +9,7 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+- **Assenze: chi può cambiare il capo reparto** — nuova sezione «Cambio capo reparto» in Impostazioni; elenco vuoto = tutti, come prima. Gli altri hanno il campo bloccato sul capo assegnato, se ne hanno uno (`assenze/models.py`, `assenze/migrations/0014_cambio_capo_abilitato.py`, `assenze/views/_helpers.py`, `assenze/views/richieste.py`, `assenze/views/amministrazione.py`, `assenze/templates/assenze/pages/impostazioni.html`, `assenze/templates/assenze/pages/richiesta_assenze.html`, `assenze/tests_conferma_malattia.py`, `assenze/tests.py`, `core/guide_moduli/contenuti/assenze.py`, `docs/moduli/assenze.md`).
 - **Assenze: pulsante «Sollecita» in «Le mie richieste»** — sulle proprie richieste in attesa il dipendente manda al capo una mail di sollecito; stesso interruttore e stessa attesa dei solleciti automatici (`assenze/solleciti.py`, `assenze/views/richieste.py`, `assenze/views/__init__.py`, `assenze/urls.py`, `core/middleware.py`, `assenze/templates/assenze/pages/gestione_assenze.html`, `assenze/tests_hr.py`, `core/guide_moduli/contenuti/assenze.py`, `docs/moduli/assenze.md`).
 - **Assenze: ore del permesso nel calendario** — nell'elenco del giorno compare il totale (es. «Permesso - 8h»), con lo stesso calcolo del saldo (`assenze/hr.py`, `assenze/views/eventi.py`, `assenze/templates/assenze/pages/calendario.html`, `assenze/tests_hr.py`, `core/guide_moduli/contenuti/assenze.py`, `docs/moduli/assenze.md`).
 
