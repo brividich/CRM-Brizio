@@ -363,14 +363,21 @@ def _parentesi_di_release(match):
     return " " if all(t in _RUMORE_PAREN for t in re.split(r"[\s,]+", testo)) else match.group(0)
 
 
+def versione_chiave(version):
+    """La stessa versione scritta da fonti diverse: «26.05», «26.05.0.0», «26.05.00.0» → «26.05»."""
+    testo = str(version or "").strip().casefold()
+    return re.sub(r"(?:\.0+)+$", "", testo) or testo
+
+
 @lru_cache(maxsize=8192)
-def nome_programma(nome):
+def nome_programma(nome, togli_anno=True):
     """Il nome del programma senza release: «7-Zip 26.05 (x64 edition)» → «7-Zip»,
     «Java 8 Update 381» → «Java 8», «Microsoft 365 - it-it» → «Microsoft 365», «MUD 2024» → «MUD».
 
     Si toglie la versione con il punto e l'anno, non il numero che fa parte del nome: «Windows 10»,
     «Microsoft 365», «PostgreSQL 15» restano interi, e «Visual C++ 2013» tiene l'anno.
     Solo per raggruppare e mostrare; le correzioni a mano stanno in ``SoftwareProgrammaRegola``.
+    ``togli_anno=False`` per fondere le righe di due fonti: Office 2016 e 2019 si mostrano insieme ma restano righe distinte.
     """
     originale = re.sub(r"\s+", " ", str(nome or "")).strip()
     testo = re.sub(r"[®™©]", "", originale)
@@ -381,7 +388,7 @@ def nome_programma(nome):
     testo = _ANNO_PUNTO.sub(r"\1", testo)
     testo = _VERSIONE_ATTACCATA.sub(" ", testo)
     testo = _VERSIONE.sub(" ", testo)
-    if not _ANNO_CHE_CONTA.search(testo):
+    if togli_anno and not _ANNO_CHE_CONTA.search(testo):
         testo = _ANNO.sub(" ", testo)
     testo = _PAREN.sub(_parentesi_di_release, testo)
     testo = _CODA.sub("", re.sub(r"\s+", " ", testo).strip())
@@ -393,9 +400,23 @@ def nome_programma(nome):
     return testo or originale
 
 
-def _produttori_compatibili(v1, v2):
+# Non un produttore: il pacchetto di un'app dello Store («msteams_26288», «5319275a»).
+_VENDOR_PACCHETTO = re.compile(r"_\d+$|^[0-9a-f]{8}(?:-|$)", re.I)
+
+
+def _compatto(testo):
+    return "".join(_token(testo))
+
+
+def _produttori_compatibili(v1, v2, p1="", p2=""):
+    """Stesso produttore, o uno dei due non dice niente: vuoto, il pacchetto dello Store, il nome del programma stesso
+    («7-zip» di Defender per «7-Zip» di «Igor Pavlov»), la stessa parola con gli spazi («acrosoftware», «Acro Software»)."""
     a, b = _token(v1), _token(v2)
-    return not a or not b or a[0] == b[0]
+    if not a or not b or a[0] == b[0] or _compatto(v1) == _compatto(v2):
+        return True
+    if _VENDOR_PACCHETTO.search(str(v1)) or _VENDOR_PACCHETTO.search(str(v2)):
+        return True
+    return _compatto(v1) == _compatto(p1) or _compatto(v2) == _compatto(p2)
 
 
 def somiglianza_prodotti(v1, p1, v2, p2):
@@ -403,10 +424,12 @@ def somiglianza_prodotti(v1, p1, v2, p2):
 
     Prudente per non fondere prodotti diversi: serve lo stesso produttore (o uno ignoto) e,
     per il contenimento, al massimo due parole in più, senza numeri («edge» ≠ «edge webview2
-    runtime», «office» ≠ «office 2019»). Chi chiama impone anche la stessa versione.
+    runtime», «office» ≠ «office 2019»). I nomi si confrontano senza release e lingua («7-zip 26.05 (x64 edition)» =
+    «7-zip»). Chi chiama impone anche la stessa versione, scritta allo stesso modo o no (``versione_chiave``).
     """
+    p1, p2 = nome_programma(p1, togli_anno=False), nome_programma(p2, togli_anno=False)
     a, b = base_name(v1, p1), base_name(v2, p2)
-    if not a or not b or not _produttori_compatibili(v1, v2):
+    if not a or not b or not _produttori_compatibili(v1, v2, p1, p2):
         return 0.0
     if a == b:
         return 1.0
@@ -448,7 +471,7 @@ def unisci_per_equivalenza(*, applica=False) -> dict:
     for pk, host, vendor, product, version, fonti, origine in SoftwareInstallation.objects.filter(still_detected=True).exclude(
         source_kind=SoftwareSourceKind.SNMP_FIRMWARE
     ).order_by("pk").values_list("pk", "host", "vendor", "product", "version_raw", "fonti", "source_kind"):
-        per_chiave.setdefault((host, str(version).strip().lower()), []).append((pk, vendor, product, set(fonti or [origine]), origine))
+        per_chiave.setdefault((host, versione_chiave(version)), []).append((pk, vendor, product, set(fonti or [origine]), origine))
     coppie, ambigue = [], 0
     for righe in per_chiave.values():
         if len(righe) < 2:
@@ -594,13 +617,13 @@ def run_import(inventory_import: SoftwareInventoryImport, preview: RowPreview):
                 ).exclude(source_kind=SoftwareSourceKind.SNMP_FIRMWARE).values_list(
                     "pk", "host", "vendor", "product", "version_raw", "fonti", "source_kind"
                 ):
-                    candidati_per_pc.setdefault((host, str(version).strip().lower()), []).append(
+                    candidati_per_pc.setdefault((host, versione_chiave(version)), []).append(
                         (pk, vendor, product, list(fonti or [origine]))
                     )
             usati = set(existing.values())
             for key in nuove_chiavi:
                 data = rows[key]
-                candidati = candidati_per_pc.get((data["host_norm"], str(data["version"]).strip().lower()))
+                candidati = candidati_per_pc.get((data["host_norm"], versione_chiave(data["version"])))
                 if not candidati:
                     continue
                 trovato = _migliore_equivalente(data["vendor_norm"], data["product_norm"], candidati, usati)

@@ -51,7 +51,7 @@ body.theme-dark .rc-empty{color:var(--text-light)}
   <p class="rc-intro">Dispositivi della centrale SNMP, MFC, dispositivi citati dal SOC, PC gestiti da Microsoft Intune, PC dell'inventario software e indirizzi del DHCP non ancora collegati a un asset. La proposta arriva dall'abbinamento unico (seriale, MAC, indirizzo IP, nome host): conferma solo quelle corrette. Vedi solo le righe dei moduli che puoi gestire.</p>
   <nav class="rc-tabs" aria-label="Viste">
     <a class="rc-tab {% if view == 'proposte' %}active{% endif %}" href="?vista=proposte">Con proposta <strong>{{ counts.proposte }}</strong></a>
-    <a class="rc-tab {% if view != 'proposte' %}active{% endif %}" href="?vista=senza">Senza proposta <strong>{{ counts.ambigue|add:counts.senza }}</strong></a>
+    <a class="rc-tab {% if view == 'senza' %}active{% endif %}" href="?vista=senza">Senza proposta <strong>{{ counts.ambigue|add:counts.senza }}</strong></a>
     <a class="rc-tab {% if view == 'inventario' %}active{% endif %}" href="?vista=inventario">PC e server senza inventario <strong>{{ da_spiegare|length }}</strong></a>
     <a class="rc-tab" href="{% url 'assets:device_list' %}?copertura=scoperti">Asset senza monitoraggio</a>
   </nav>
