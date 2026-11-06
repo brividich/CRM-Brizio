@@ -21,7 +21,8 @@ MODULE = "sistema_gestione"
 # v5: cruscotto, export rilievi, «I miei rilievi».
 # v7: certificazioni e audit esterni.
 # v8: preparazione all'audit dell'ente e piano azioni.
-_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v8"
+# v9: scheda della certificazione e copie del certificato.
+_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v9"
 
 PERM_VIEW = "sistema_gestione.modulo.view"
 PERM_SOA_VIEW = "sistema_gestione.soa.view"
@@ -137,6 +138,9 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:esterni_rapporto": PERM_AUDIT_VIEW,
     "sistema_gestione:esterni_certificazione_nuova": PERM_AUDIT_EDIT,
     "sistema_gestione:esterni_certificazione": PERM_AUDIT_EDIT,
+    "sistema_gestione:esterni_certificazione_scheda": PERM_AUDIT_VIEW,
+    "sistema_gestione:esterni_certificazione_documento": PERM_AUDIT_VIEW,
+    "sistema_gestione:esterni_certificazione_documento_carica": PERM_AUDIT_EDIT,
     "sistema_gestione:esterni_audit_nuovo": PERM_AUDIT_EDIT,
     "sistema_gestione:esterni_audit_modifica": PERM_AUDIT_EDIT,
     "sistema_gestione:esterni_rilievo": PERM_AUDIT_EDIT,

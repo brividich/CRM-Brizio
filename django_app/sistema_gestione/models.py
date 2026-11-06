@@ -18,6 +18,7 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from django.utils.functional import cached_property
 
 from .catalogo_27002 import TEMI
 from .storage import PrivateSistemaGestioneStorage
@@ -295,7 +296,17 @@ class Auditor(models.Model):
     def qualifica_scaduta(self) -> bool:
         from django.utils import timezone
 
-        return bool(self.qualifica_scadenza and self.qualifica_scadenza < timezone.localdate())
+        if self.qualifica_scadenza and self.qualifica_scadenza < timezone.localdate():
+            return True
+        formazione = self.qualifica_formazione
+        return bool(formazione and formazione["scaduta"])
+
+    @cached_property
+    def qualifica_formazione(self) -> dict | None:
+        """La qualifica «auditor» della persona in Formazione, se scelta nelle impostazioni."""
+        from .services.qualifiche import qualifica_auditor
+
+        return qualifica_auditor(self)
 
     @property
     def norme_abilitate_set(self) -> set[str]:
@@ -1145,6 +1156,12 @@ class Certificazione(models.Model):
     prossima_sorveglianza = models.DateField("Prossimo audit di sorveglianza", null=True, blank=True)
     attiva = models.BooleanField(default=True)
     note = models.TextField(blank=True, default="")
+    qualifiche_richieste = models.ManyToManyField(
+        "anagrafica.TipoQualifica", blank=True, related_name="certificazioni_sgi",
+        verbose_name="Qualifiche del personale collegate",
+        help_text="Le qualifiche di Formazione che questo certificato presuppone: la scheda mostra quante sono "
+                  "valide, in scadenza o scadute.",
+    )
     aggiornata_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                       related_name="+")
     aggiornata_il = models.DateTimeField(auto_now=True)
@@ -1171,6 +1188,47 @@ class Certificazione(models.Model):
         if giorni < 0:
             return "scaduta"
         return "in_scadenza" if giorni <= self.PREAVVISO_GIORNI else "valida"
+
+    @property
+    def nome_breve(self) -> str:
+        return self.descrizione if self.norma == "ALTRO" and self.descrizione else self.get_norma_display()
+
+    @property
+    def documento_corrente(self):
+        """L'ultimo certificato caricato (usa il prefetch di ``documenti`` se c'è)."""
+        return next(iter(self.documenti.all()), None)
+
+    @property
+    def sorveglianza_superata(self) -> bool:
+        """La data della prossima sorveglianza è passata: va registrato l'audit o aggiornata la data."""
+        return bool(self.attiva and self.prossima_sorveglianza and self.prossima_sorveglianza < timezone.localdate())
+
+
+def upload_to_certificato(instance, filename: str) -> str:
+    from django.utils.text import get_valid_filename
+    return f"sistema_gestione/certificati/{instance.certificazione_id}/{get_valid_filename(filename)}"
+
+
+class CertificazioneDocumento(models.Model):
+    """Copia del certificato. Un rinnovo aggiunge un documento: i precedenti restano come storico."""
+
+    certificazione = models.ForeignKey(Certificazione, on_delete=models.CASCADE, related_name="documenti")
+    file = models.FileField(upload_to=upload_to_certificato, storage=PrivateSistemaGestioneStorage())
+    nome = models.CharField(max_length=200)
+    sha256 = models.CharField(max_length=64)
+    emesso_il = models.DateField(null=True, blank=True)
+    scade_il = models.DateField(null=True, blank=True)
+    caricato_da = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="+")
+    caricato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-caricato_il", "-pk"]
+        verbose_name = "Copia del certificato"
+        verbose_name_plural = "Copie del certificato"
+
+    def __str__(self) -> str:
+        return self.nome
 
 
 def upload_to_audit_esterno(instance, filename: str) -> str:

@@ -14,6 +14,7 @@ COLUMN_SOURCES = {
     "presa-visione": ["Documento: codice", "Documento: titolo", "Revisione corrente: codice", "Data efficacia, altrimenti data revisione", "Assegnazioni non annullate", "Assegnazioni confermate", "Confermate / assegnate", "Assegnazioni oltre scadenza o con stato in ritardo"],
     "manutenzione": ["Categoria asset, altrimenti Senza categoria", "Occorrenze non annullate con scadenza nel periodo", "Occorrenze completate", "Completate entro la scadenza", "Non completate e scadenza passata", "Nei tempi / (eseguite + scadute)", "Minuti fermo delle completate / 60"],
     "audit-interni": ["Audit: numero", "Audit: data inizio", "Audit: tipo", "Audit: processi (testo abbreviato)", "Audit: norme", "Lead auditor: nome", "Audit: stato", "Checklist: conteggio OFI", "Checklist: conteggio NC", "Rapporto: data valutazione RDD"],
+    "certificazioni-audit-esterni": ["Audit esterno: data inizio", "Audit esterno: tipo", "Audit esterno: ente", "Audit esterno: norme verificate", "Audit esterno: stato", "Audit esterno: esito", "Registro OFI: voci originate dall'audit", "Registro OFI: voci di tipo NC", "Registro OFI: voci NC non chiuse"],
     "competenze": ["Anagrafica legacy: nominativo", "Anagrafica legacy: reparto", "Scadenzario formazione oppure qualifica", "Corso oppure tipo qualifica", "Requisito formazione o qualifica: scadenza", "Stato formazione oppure calcolato da scadenza qualifica"],
     "processi-speciali": ["Processo qualificato: nome", "Processo: regime", "Processo: cliente", "Processo: scadenza o validita illimitata", "Anagrafica dipendente o nominativo esterno", "Abilitazione: ruoli attivi", "Prima scadenza certificazioni individuali attive", "Calcolato da cessazione, certificazione e scadenza processo"],
     "efficacia-formazione": ["Anagrafica legacy: nominativo", "Anagrafica legacy: reparto", "Record formativo: titolo snapshot o corso", "Record: data completamento", "Efficacia: attesa dal", "Efficacia: valutata il", "Efficacia: esito o Da valutare", "Efficacia: azione (testo abbreviato)"],
@@ -26,6 +27,7 @@ COLUMN_SOURCES = {
 def record_links(obj):
     model = obj._meta.label_lower
     routes = {
+        "sistema_gestione.auditesterno": ("sistema_gestione:esterni_audit", [obj.pk]),
         "assets.asset": ("assets:asset_edit", [obj.pk]),
         "assets.softwarelicense": ("assets:software_license_list", []),
         "assets.periodicverification": ("assets:periodic_verifications", []),

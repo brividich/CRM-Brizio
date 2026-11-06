@@ -10,6 +10,11 @@ Area **Qualità** · URL `/sistema-gestione/` · codice [`django_app/sistema_ges
 
 ## Dettaglio
 
+- **Panoramica e menu (06/11/2026):** menu unico del modulo (`templatetags/sg_guida.py`, `sg_menu`) al posto dei pulsanti in testata, voci filtrate con i binding ACL; `/sistema-gestione/` mostra «Da fare adesso» (`services/panoramica.py`), che riusa le regole già esistenti.
+- **Scheda certificato (migration `0022`):** `/sistema-gestione/audit/esterni/certificazioni/<pk>/scheda/`, leggibile con `.audit.view`; `CertificazioneDocumento` conserva le copie PDF (storage privato cifrato, SHA-256, storico dei rinnovi, download registrato).
+- **Collegamento a Formazione (`services/qualifiche.py`, sola lettura):** `Certificazione.qualifiche_richieste` conta valide, in scadenza e scadute con le regole del cruscotto Qualifiche; l'impostazione «Qualifica auditor» lega `Auditor` a un `TipoQualifica`: se scaduta, l'auditor non è qualificato.
+- **Scadenzario:** le voci dei certificati aprono la scheda, non più il form riservato a chi modifica. **Riesame:** report `certificazioni-audit-esterni` (MT CN 19 §6.4 f).
+
 Sezione `/sistema-gestione/` (menu **Qualità**) per i documenti di governo del SGI. Comprende SoA/threat intelligence, gli audit interni EN 9100 e gli audit ISMS MOD.171/MOD.168 (MT CN 276).
 
 - **SoA** = foglio *Control Matrix* del MOD.165 - RAR: catalogo dei 93 controlli ISO/IEC 27002:2022 (titoli brevi in italiano scritti per il portale), per ciascuno livello 0–4 (4 = pienamente applicato, 0 = escluso con giustificazione obbligatoria), vulnerabilità (suggerita dal livello come nel MOD.165), riferimenti, giustificazione, fonte dell'obbligo, azione del piano di trattamento (responsabile, scadenza obbligatoria, livello atteso, voce del Registro OFI).
