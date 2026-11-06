@@ -120,7 +120,7 @@ _PAGINE_AUDIT = [
             ("p", "Elenco di programmi e audit dell'anno. Le altre pagine degli audit (Priorità e proposte, Calendario, Cicli "
                   "triennali, Cruscotto, I miei rilievi, Indicatori, Impostazioni) sono nella seconda riga del menu."),
             ("ul", [
-                "«Anno di riferimento» con «Mostra» cambia l'anno di tessere e tabelle.",
+                "«Anno» con «Mostra» cambia l'anno di tessere e tabelle.",
                 "Le tessere riportano Audit programmati, Audit chiusi e Auditor attivi dell'anno.",
                 "«Processi da verificare» elenca i processi mai auditati o oltre la frequenza raccomandata dal rischio, "
                 "con il collegamento alle priorità.",

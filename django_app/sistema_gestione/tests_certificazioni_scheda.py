@@ -1,9 +1,11 @@
 """Menu del modulo, pagina «Da fare», scheda del certificato e collegamento a Formazione. Dati sintetici."""
 from __future__ import annotations
 
+import re
 import shutil
 import tempfile
 from datetime import timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -266,3 +268,14 @@ class RiesameTests(BaseTest):
         self.assertEqual(valori["Scaduti o in scadenza (90 giorni)"], 1)
         self.assertEqual(valori["Audit esterni nel periodo"], 1)
         self.assertEqual(len(risultato.rows), 1)
+
+
+class TemplateBilanciatiTests(TestCase):
+    def test_nelle_pagine_del_modulo_i_div_si_chiudono_tutti(self):
+        """Un </div> in più in «Audit interni» faceva uscire le sezioni dal contenitore della pagina."""
+        cartella = Path(__file__).parent / "templates" / "sistema_gestione" / "pages"
+        for nome in ("index", "audit_index", "esterni_elenco", "esterni_certificazione_scheda", "riesame_elenco", "riesame_dettaglio"):
+            testo = (cartella / f"{nome}.html").read_text(encoding="utf-8")
+            with self.subTest(pagina=nome):
+                self.assertEqual(len(re.findall(r"<div\b", testo)), testo.count("</div>"))
+
