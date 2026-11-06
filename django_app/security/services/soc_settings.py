@@ -234,8 +234,12 @@ SECTIONS = [
                    "dell'API WindowsDefenderATP."),
             Option("defender.vulnerabilita.attivo", False, "Confronta le CVE con Defender",
                    "Ogni mattina alle 06:25 legge le vulnerabilità che Defender vede sui PC e le mette accanto al calcolo del SOC "
-                   "nel pannello CVE («Defender conferma» / «Defender non la vede»). Non apre alert. Servono Vulnerability.Read.All "
+                   "nel pannello CVE («Defender conferma» / «Defender non la vede»). Servono Vulnerability.Read.All "
                    "e Machine.Read.All dell'API WindowsDefenderATP."),
+            Option("defender.vulnerabilita.ibrido", True, "Usa le CVE di Defender nel calcolo",
+                   "Vale con il confronto acceso. Le CVE critiche e alte di Defender entrano nell'elenco del SOC: quello che Defender "
+                   "vede su un PC conta come «impatta», anche senza CPE collegato, e NVD permette di controllarle anche sui PC che "
+                   "Defender non vede. Le CVE critiche aprono un alert, raggruppato in Proposte AI."),
             Option("defender.secure_score.attivo", False, "Mostra il Secure Score",
                    "Punteggio di Microsoft Secure Score, andamento e le 5 azioni che valgono di più, nella Panoramica. "
                    "Letto ogni 12 ore. Serve SecurityEvents.Read.All."),
