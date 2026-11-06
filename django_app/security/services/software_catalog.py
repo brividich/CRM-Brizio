@@ -186,13 +186,17 @@ NON_APPLICABILE = "non_applicabile"
 
 def stati_cve(indice=None):
     """{chiave del programma: stato} per chi legge le CVE. «Controllato»: almeno un nome ha un CPE confermato.
-    «Non applicabile»: tutti i nomi sono dichiarati tali. Altrimenti il SOC non sa niente: «non controllato»."""
+    Con il calcolo ibrido basta anche che lo legga Defender. «Non applicabile»: tutti i nomi sono dichiarati tali. Altrimenti il SOC non sa niente: «non controllato»."""
     from security.models import SoftwareCpeMapping
 
     canonici = (indice or indice_famiglie())[0]
     confermati, esclusi = set(), set()
     for vendor, product, confirmed, na in SoftwareCpeMapping.objects.values_list("vendor", "product", "confirmed", "not_applicable"):
         (confermati if confirmed else esclusi if na else set()).add((vendor, product))
+    # Con il calcolo ibrido anche ciò che Defender legge è controllato: se ha una CVE la dice lui.
+    from security.services.defender_vuln import programmi_coperti
+
+    confermati |= programmi_coperti()
     membri = defaultdict(set)
     for membro, canon in canonici.items():
         membri[canon].add(membro)
