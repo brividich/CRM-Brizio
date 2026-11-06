@@ -285,6 +285,15 @@ def da_gestire(request):
     )
 
 
+def _causale_fai(tech_ref) -> str:
+    if tech_ref is None or tech_ref.kind != "FAI" or tech_ref.project_id is None:
+        return ""
+    from ..services.fai import esito_progetto
+
+    esito = esito_progetto(tech_ref.project)
+    return esito.causale if esito else ""
+
+
 @task_permissions_required("tasks_view")
 def task_detail(request, task_id: int):
     task = get_object_or_404(_detail_queryset(request), pk=task_id)
@@ -294,6 +303,9 @@ def task_detail(request, task_id: int):
         user=request.user,
         notify_user_queryset=_task_notify_users_queryset(task),
     )
+    from ..models import ProjectTechRef
+
+    tech_ref = ProjectTechRef.objects.filter(task=task).first()
 
     return render(
         request,
@@ -316,7 +328,12 @@ def task_detail(request, task_id: int):
             "subtask_status_choices": TaskStatus.choices,
             "task_extra_rows": _render_task_extra_data(task),
             "task_timeline_events": _build_task_timeline_events(task),
-            "attrezzatura_embedded_context": _build_task_attrezzatura_context(task),
+            # Chi deve scrivere un programma vede il programma, non la gestione attrezzatura.
+            "attrezzatura_embedded_context": None if tech_ref else _build_task_attrezzatura_context(task),
+            "task_tech_ref": tech_ref,
+            # La scheda FAI parte da ciò che la procedura prevede per questo P/N.
+            "task_fai_causale": _causale_fai(tech_ref),
+            "task_tech_ref_modificabile": can_manage or task.assigned_to_id == request.user.pk,
         },
     )
 
@@ -999,6 +1016,13 @@ def change_status(request, task_id: int):
                 {"from": old_status, "to": task.status},
             )
             messages.success(request, "Stato task aggiornato.")
+            from ..models import ProjectTechRef
+
+            mancante = ProjectTechRef.objects.filter(task=task, status="OPEN").first()
+            if task.status == TaskStatus.DONE and mancante and not mancante.ha_contenuto:
+                messages.warning(
+                    request, f"{mancante.get_kind_display()} non ancora inserito: resta da fare per {task.title}."
+                )
             # Integrazione Carichi Macchina (non bloccante): chiusura/annullamento
             # rimuove la pianificazione collegata, ripresa la ricrea.
             try:

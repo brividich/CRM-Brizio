@@ -16,16 +16,18 @@
 <p class="tr-hint"{% if not tech_can_add %} hidden{% endif %}>Tutto facoltativo: basta il codice, il percorso o il responsabile. Invio per salvare e scriverne un altro.</p>
 <p class="tr-err" data-tr="err" role="alert" hidden></p>
 {% endif %}
-{% if tech_rows %}
+
+<h3 class="tr-sezione">Programmi CAM e CMM</h3>
+{% if tech_rows_programmi %}
 <div class="tl-table-wrap">
   <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
     <thead><tr><th>Tipo</th><th>Codice</th><th>Cartella o file</th><th>Responsabile</th><th>Entro il</th><th>Stato</th><th></th></tr></thead>
     <tbody>
-      {% for row in tech_rows %}
+      {% for row in tech_rows_programmi %}
       {% with ref=row.ref %}
       <tr class="{% if ref.is_overdue %}status-overdue{% elif not ref.is_open %}status-done{% endif %}" data-tr-ref="{{ ref.id }}"
           data-kind="{{ ref.kind }}" data-code="{{ ref.code }}" data-path="{{ ref.path }}"
-          data-owner="{{ ref.assigned_to_id|default:'' }}" data-due="{{ ref.due_date|date:'Y-m-d' }}">
+          data-owner="{{ ref.assigned_to_id|default:'' }}" data-due="{{ ref.due_date|date:'Y-m-d' }}" data-task="{{ ref.task_id|default:'' }}">
         <td class="tr-kind">{{ ref.kind }}</td>
         <td>{% if ref.code %}{{ ref.code }}{% else %}<span class="tr-empty">da inserire</span>{% endif %}</td>
         <td>{% include "tasks/_tech_ref_link.html" %}</td>
@@ -34,15 +36,18 @@
         <td>
           {% if ref.is_overdue %}<span class="ts-chip danger">Scaduta</span>{% elif ref.is_open %}<span class="ts-chip ok">Da fare</span>{% else %}<span class="ts-chip">Fatto</span>{% endif %}
           {% if ref.source_meeting %}<div class="tl-task-desc">Incontro {{ ref.source_meeting.numero }}</div>{% endif %}
+          {% if ref.task_id %}<div class="tl-task-desc"><a class="tl-task-link" href="{% url 'tasks:detail' ref.task_id %}">Attività: {{ ref.task.title }}</a></div>{% endif %}
         </td>
         <td>
           <div class="tr-actions">
             {% if row.can_edit %}
+              {% if not ref.attivita_aperta %}
               {% if ref.is_open %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="done">Fatto</button>
               {% else %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="reopen">Riapri</button>{% endif %}
+              {% endif %}
               <button type="button" class="btn btn-secondary btn-sm" data-tr-edit>Modifica</button>
             {% endif %}
-            {% if row.can_delete %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="delete">Elimina</button>{% endif %}
+            {% if row.can_delete and not ref.task_id %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="delete">Elimina</button>{% endif %}
           </div>
         </td>
       </tr>
@@ -52,5 +57,71 @@
   </table>
 </div>
 {% else %}
-<p class="tr-hint">Ancora nessun programma o FAI.</p>
+<p class="tr-hint">Ancora nessun programma.</p>
+{% endif %}
+
+<h3 class="tr-sezione">FAI</h3>
+{% if fai_non_richiesto %}
+<div class="fai-regola">
+  <div><strong>FAI non richiesto per questo kickoff</strong> <span>Deciso{% if project.fai_non_richiesto_da %} da {{ project.fai_non_richiesto_da.get_full_name|default:project.fai_non_richiesto_da.username }}{% endif %} il {{ project.fai_non_richiesto_il|date:"d/m/Y" }}.</span></div>
+  {% if tech_can_assign %}<button type="button" class="btn btn-secondary btn-sm" data-tr-fai="0">Annulla</button>{% endif %}
+</div>
+{% elif fai_esito %}
+<div class="fai-regola fai-regola--{{ fai_esito.classe }}">
+  <div><strong>{{ fai_esito.titolo }}</strong> <span>{{ fai_esito.nota }}</span></div>
+  <div class="tr-actions">
+  {% if tech_can_assign and fai_esito.causale and not tech_rows_fai %}<button type="button" class="btn btn-secondary btn-sm" data-tr-fai="1">Non richiesto per questo kickoff</button>{% endif %}
+  {% if fai_puo_creare and not fai_esito.in_corso and not fai_ref_libera %}
+  <a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_nuovo' %}?project={{ project.id }}{% if fai_esito.causale %}&amp;causale={{ fai_esito.causale }}{% endif %}{% if fai_ref_libera %}&amp;ref={{ fai_ref_libera.id }}{% endif %}">Apri un FAI</a>
+  {% endif %}
+  </div>
+</div>
+{% endif %}
+{% if tech_rows_fai %}
+<div class="tl-table-wrap">
+  <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
+    <thead><tr><th>Piano</th><th>Tipo</th><th>Stato</th><th>Responsabile</th><th>Entro il</th><th></th></tr></thead>
+    <tbody>
+      {% for row in tech_rows_fai %}
+      {% with ref=row.ref fai=row.ref.fai_record %}
+      <tr class="{% if ref.is_overdue %}status-overdue{% elif not ref.is_open %}status-done{% endif %}" data-tr-ref="{{ ref.id }}"
+          data-kind="{{ ref.kind }}" data-code="{{ ref.code }}" data-path="{{ ref.path }}"
+          data-owner="{{ ref.assigned_to_id|default:'' }}" data-due="{{ ref.due_date|date:'Y-m-d' }}" data-task="{{ ref.task_id|default:'' }}">
+        <td>
+          {% if ref.code %}{{ ref.code }}{% else %}<span class="tr-empty">da inserire</span>{% endif %}
+          {% if ref.path %}<div class="tl-task-desc">{% include "tasks/_tech_ref_link.html" %}</div>{% endif %}
+        </td>
+        <td>
+          {% if fai %}{{ fai.get_tipo_display }}<div class="tl-task-desc">{{ fai.causale.etichetta }}</div>
+          {% else %}<span class="tr-empty">scheda da completare</span>{% endif %}
+        </td>
+        <td>
+          {% if fai %}{{ fai.stato.etichetta }}
+          {% elif ref.is_overdue %}<span class="ts-chip danger">Scaduta</span>
+          {% elif ref.is_open %}<span class="ts-chip ok">Da fare</span>
+          {% else %}<span class="ts-chip">Fatto</span>{% endif %}
+          {% if ref.source_meeting %}<div class="tl-task-desc">Incontro {{ ref.source_meeting.numero }}</div>{% endif %}
+          {% if ref.task_id %}<div class="tl-task-desc"><a class="tl-task-link" href="{% url 'tasks:detail' ref.task_id %}">Attività: {{ ref.task.title }}</a></div>{% endif %}
+        </td>
+        <td>{% if ref.assigned_to %}{{ ref.assigned_to.get_full_name|default:ref.assigned_to.username }}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
+        <td>{% if ref.due_date %}{{ ref.due_date|date:"d/m/Y" }}{% else %}<span class="tr-empty">-</span>{% endif %}</td>
+        <td>
+          <div class="tr-actions">
+            {% if fai %}
+              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_scheda' fai.id %}">Apri</a>
+            {% else %}
+              {% if tech_can_add %}<a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_nuovo' %}?project={{ project.id }}&amp;ref={{ ref.id }}{% if fai_esito.causale %}&amp;causale={{ fai_esito.causale }}{% endif %}">Completa</a>{% endif %}
+              {% if row.can_edit %}<button type="button" class="btn btn-secondary btn-sm" data-tr-edit>Modifica</button>{% endif %}
+              {% if row.can_delete and not ref.task_id %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="delete">Elimina</button>{% endif %}
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endwith %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% elif not fai_esito and not fai_non_richiesto %}
+<p class="tr-hint">Ancora nessun FAI.{% if not project.part_number %} Con il P/N sulla commessa il portale indica quale serve.{% endif %}</p>
 {% endif %}

@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from ..access import has_task_permission, scoped_projects_queryset
+from .programmi import senza_attivita_aperta
 from ..models import (
     MeetingActionItem,
     MeetingActionStatus,
@@ -58,7 +59,7 @@ def voci_kickoff(request) -> dict:
         voci.append(_voce("Azione", a.title, a.project, a.due_date, reverse("tasks:mie_azioni"), oggi, done=("azione", a.pk)))
     for i in MeetingIssue.objects.filter(status=MeetingIssueStatus.OPEN, **comuni).select_related("project"):
         voci.append(_voce("Problema", i.title, i.project, i.due_date, reverse("tasks:mie_azioni"), oggi, done=("problema", i.pk)))
-    for r in ProjectTechRef.objects.filter(status=TechRefStatus.OPEN, **comuni).select_related("project"):
+    for r in senza_attivita_aperta(ProjectTechRef.objects.filter(status=TechRefStatus.OPEN, **comuni)).select_related("project"):
         titolo = r.code or r.get_kind_display()
         url = reverse("tasks:project_tech_refs", args=[r.project_id])
         voci.append(_voce(r.kind, titolo, r.project, r.due_date, url, oggi, done=("programma", r.pk), ref=r))

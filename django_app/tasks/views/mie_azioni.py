@@ -12,7 +12,9 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
+from ..services.fai import allinea_da_riga
 from ..access import can_manage_project, scoped_projects_queryset, task_permissions_required
+from ..services.programmi import senza_attivita_aperta
 from ..models import (
     MeetingActionItem,
     MeetingActionStatus,
@@ -76,9 +78,9 @@ def mie_voci_aperte_count(request) -> int:
         + MeetingIssue.objects.filter(
             assigned_to=user, status=MeetingIssueStatus.OPEN, project_id__in=projects
         ).count()
-        + ProjectTechRef.objects.filter(
+        + senza_attivita_aperta(ProjectTechRef.objects.filter(
             assigned_to=user, status=TechRefStatus.OPEN, project_id__in=projects
-        ).count()
+        )).count()
     )
 
 
@@ -96,7 +98,7 @@ def mie_azioni(request):
     common = {"assigned_to": request.user, "project_id__in": projects.values("id")}
     actions = MeetingActionItem.objects.filter(**common)
     issues = MeetingIssue.objects.filter(**common)
-    refs = ProjectTechRef.objects.filter(**common)
+    refs = senza_attivita_aperta(ProjectTechRef.objects.filter(**common))
     if stato == "aperte":
         actions = actions.filter(status=MeetingActionStatus.OPEN)
         issues = issues.filter(status=MeetingIssueStatus.OPEN)
@@ -174,6 +176,9 @@ def mia_voce_stato(request, kind: str, pk: int):
         return back
 
     verb = (request.POST.get("action") or "").strip()
+    if kind == KIND_TECH and item.attivita_aperta:
+        messages.error(request, "Questa voce si chiude con la sua attività.")
+        return back
     if kind == KIND_TECH:
         if verb == "done":
             item.mark_done(user=request.user)
@@ -183,6 +188,7 @@ def mia_voce_stato(request, kind: str, pk: int):
             messages.error(request, "Azione non valida.")
             return back
         item.save(update_fields=["status", "done_by", "done_at", "updated_at"])
+        allinea_da_riga(item)
         etichetta = "Segnato come fatto." if verb == "done" else "Riaperto."
     elif kind == KIND_ACTION:
         if verb == "done":

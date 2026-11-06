@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 
 from .models import MeetingActionItem, MeetingIssue, Task, TaskStatus
@@ -42,6 +42,29 @@ def chiudi_voci_incontro_su_completamento(sender, instance: Task, created: bool,
         chiudi_voci_collegate(instance)
     except Exception:
         logger.exception("Chiusura voci incontro collegate fallita (task=%s)", instance.pk)
+
+
+@receiver(post_save, sender=Task, dispatch_uid="tasks_programma_da_attivita")
+def programma_da_attivita(sender, instance: Task, raw=False, **kwargs):
+    if raw:
+        return
+    from .services.programmi import allinea_da_attivita
+
+    # Come per le voci d'incontro: un problema sulla riga non deve far perdere l'attività.
+    try:
+        allinea_da_attivita(instance)
+    except Exception:
+        logger.exception("Allineamento programma fallito (task=%s)", instance.pk)
+
+
+@receiver(pre_delete, sender=Task, dispatch_uid="tasks_programma_attivita_eliminata")
+def programma_attivita_eliminata(sender, instance: Task, **kwargs):
+    from .models import ProjectTechRef
+    from .services.programmi import sgancia
+
+    ref = ProjectTechRef.objects.filter(task=instance).first()
+    if ref is not None:
+        sgancia(ref)
 
 
 @receiver(post_save, sender=MeetingActionItem, dispatch_uid="tasks_azione_su_attivita_completata")

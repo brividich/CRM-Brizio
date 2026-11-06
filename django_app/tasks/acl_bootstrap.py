@@ -8,7 +8,7 @@ from core.acl_bootstrap_base import run_bootstrap
 
 logger = logging.getLogger(__name__)
 
-_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v11"
+_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v14"
 
 MODULE = "tasks"
 
@@ -173,6 +173,12 @@ _ROUTE_BINDINGS = {
     "tasks:project_tech_refs": "tasks.kickoff.projects",
     "tasks:tech_ref_save": "tasks.kickoff.projects",
     "tasks:tech_ref_action": "tasks.kickoff.projects",
+    "tasks:fai_non_richiesto": "tasks.kickoff.projects",
+    "tasks:programmi_registro": "tasks.kickoff.projects",
+    "tasks:task_programma": "tasks.kickoff.projects",
+    "tasks:fai_registro": "tasks.kickoff.projects",
+    "tasks:fai_nuovo": "tasks.kickoff.projects",
+    "tasks:fai_scheda": "tasks.kickoff.projects",
     "tasks:project_gantt": "tasks.kickoff.projects",
     "tasks:project_info_json": "tasks.kickoff.projects",
     "tasks:project_meetings": "tasks.kickoff.projects",
