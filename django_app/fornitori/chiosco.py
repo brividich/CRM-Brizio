@@ -47,8 +47,12 @@ class ChioscoNonDisponibile(Exception):
     """Il GuestPortal non risponde o non risponde come previsto."""
 
 
+def nativa() -> bool:
+    return bool(getattr(settings, "RECEPTION_NATIVA", False))
+
+
 def configurato() -> bool:
-    return bool(getattr(settings, "GUESTPORTAL_CHIOSCO_API_URL", "").strip())
+    return nativa() or bool(getattr(settings, "GUESTPORTAL_CHIOSCO_API_URL", "").strip())
 
 
 def _richiesta(url: str, dati: dict | None = None) -> tuple[int, bytes]:
@@ -67,8 +71,13 @@ def _richiesta(url: str, dati: dict | None = None) -> tuple[int, bytes]:
         raise ChioscoNonDisponibile from exc
 
 
-def chiama(nome_api: str, dati: dict | None = None) -> tuple[int, dict]:
-    """``public/api/<nome_api>.php``. Ritorna stato HTTP e JSON."""
+def chiama(nome_api: str, dati: dict | None = None, ip: str = "") -> tuple[int, dict]:
+    """``public/api/<nome_api>.php``, o le stesse risposte dalle tabelle dell'HUB dopo il passaggio
+    (lì ``ip`` finisce nella registrazione dell'informativa). Ritorna stato HTTP e JSON."""
+    if nativa():
+        from reception import api_chiosco
+
+        return api_chiosco.chiama(nome_api, dati, ip)
     if not configurato():
         raise ChioscoNonDisponibile
     url = settings.GUESTPORTAL_CHIOSCO_API_URL.rstrip("/") + f"/{nome_api}.php"
@@ -85,7 +94,7 @@ def chiama(nome_api: str, dati: dict | None = None) -> tuple[int, dict]:
 
 def referenti() -> list[dict]:
     """Dipendenti attivi: ``{id, nome, reparto, email}``. L'email resta sul server."""
-    elenco = cache.get(CACHE_REFERENTI)
+    elenco = None if nativa() else cache.get(CACHE_REFERENTI)
     if elenco is not None:
         return elenco
     _stato, esito = chiama("employees")
@@ -105,6 +114,10 @@ def referente(pk) -> dict | None:
 
 
 def categorie() -> list[dict]:
+    if nativa():
+        from reception import api_chiosco
+
+        return api_chiosco.categorie() or CATEGORIE_PREDEFINITE
     elenco = cache.get(CACHE_CATEGORIE)
     if elenco is not None:
         return elenco

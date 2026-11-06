@@ -92,6 +92,35 @@ body.theme-dark .tkt-meta-val a{color:#93c5fd}
 <div id="tkt-root">
   {% include "tickets/components/subnav.html" %}
   <a href="{% url 'tickets:gestione_list' %}" class="tkt-back">&larr; Torna alla lista</a>
+<style>
+.tkt-barra-az{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.tkt-barra-scheda{margin:0 0 16px}
+.tkt-az-prim,.tkt-az-sec{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;cursor:pointer}
+.tkt-az-prim{border:0;background:#0369a1;color:#fff}
+.tkt-az-prim:hover{background:#075985;color:#fff}
+.tkt-az-sec{border:1px solid var(--border,#cbd5e1);background:var(--surface,#fff);color:var(--text-mid,#334155)}
+.tkt-az-sec:hover{background:var(--hover-bg,#f1f5f9)}
+.tkt-chiuso-ok{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px;padding:14px 18px;border:1px solid #6ee7b7;border-radius:14px;background:#ecfdf5;color:#065f46}
+.tkt-risolvi{display:flex;flex-direction:column;gap:14px;margin-bottom:16px;padding:18px 20px;border:2px solid #0369a1;border-radius:14px;background:var(--surface,#fff)}
+.tkt-risolvi[hidden]{display:none}
+.tkt-risolvi-tit{margin:0;font-size:18px;font-weight:800;color:var(--text,#0f172a)}
+.tkt-risolvi-riga{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.tkt-risolvi-nota{font-size:12px;color:var(--text-light,#64748b)}
+.tkt-risolvi-altri summary{min-height:32px;font-size:14px;font-weight:700;color:#0369a1;cursor:pointer}
+.tkt-risolvi-altri[open] summary{margin-bottom:12px}
+.tkt-risolvi-check{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;font-weight:600;color:var(--text,#0f172a)}
+.tkt-risolvi-errore{font-size:13px;font-weight:600;color:#b91c1c}
+body.theme-dark .tkt-chiuso-ok{background:rgba(6,95,70,.25);color:#6ee7b7}
+body.theme-dark .tkt-risolvi-altri summary{color:#7dd3fc}
+body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
+</style>
+
+  {% if appena_chiuso %}
+  <div class="tkt-chiuso-ok" role="status">
+    <div><strong>Ticket chiuso, intervento registrato.</strong></div>
+    {% if prossimo %}<a class="tkt-az-prim" href="{% url 'tickets:gestione_detail' prossimo.pk %}">Prossimo: {{ prossimo.titolo|truncatechars:40 }} &rarr;</a>{% else %}<a class="tkt-az-prim" href="{% url 'tickets:gestione_list' %}">Tutto fatto: torna all'elenco</a>{% endif %}
+  </div>
+  {% endif %}
 
   <div class="tkt-hero">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;">
@@ -122,8 +151,51 @@ body.theme-dark .tkt-meta-val a{color:#93c5fd}
     </div>
   </div>
 
+  <div class="tkt-barra-az tkt-barra-scheda">
+    {% if puo_risolvere %}
+      {% if e_mio %}
+      <button type="button" class="tkt-az-prim" id="btn-risolvi">Risolvi</button>
+      {% else %}
+      <button type="button" class="tkt-az-prim" id="btn-prendo">Prendo io</button>
+      <button type="button" class="tkt-az-sec" id="btn-risolvi">Risolvi</button>
+      {% endif %}
+    {% elif ticket.is_chiuso %}
+    <button type="button" class="tkt-az-sec" id="btn-riapri">Riapri</button>
+    {% endif %}
+    <a class="tkt-az-sec" href="{% url 'tickets:pdf' ticket.pk %}" target="_blank" rel="noopener">PDF</a>
+    <span id="barra-esito" class="tkt-risolvi-errore" role="alert"></span>
+  </div>
+
   <div class="tkt-workspace">
     <div class="tkt-main">
+      {% if puo_risolvere %}
+      <section class="tkt-risolvi" id="rv-pannello" aria-label="Risolvi il ticket"{% if not apri_risolvi %} hidden{% endif %}>
+        <h2 class="tkt-risolvi-tit">Risolvi il ticket</h2>
+        <div class="tkt-field"><label for="rv-fatto">Cosa è stato fatto <span style="color:#dc2626;">*</span></label><textarea id="rv-fatto" rows="3"></textarea></div>
+        <div class="tkt-risolvi-riga">
+          <div class="tkt-field"><label for="rv-ore">Ore di lavoro</label><input type="number" id="rv-ore" min="0" step="0.25" value="{{ ore_proposte }}"><span class="tkt-risolvi-nota" id="rv-ore-nota">{% if ore_proposte %}Dalla presa in carico: puoi cambiarle.{% else %}Facoltativo{% endif %}</span></div>
+          <div class="tkt-field"><label for="rv-tipo-fermo">Tipo di fermo</label><select id="rv-tipo-fermo">{% for val, lbl in tipo_fermo_choices %}<option value="{{ val }}"{% if ticket.tipo_fermo == val %} selected{% endif %}>{{ lbl }}</option>{% endfor %}</select><span class="tkt-risolvi-nota">Facoltativo</span></div>
+          <div class="tkt-field"><label for="rv-ore-fermo">Ore di fermo</label><input type="number" id="rv-ore-fermo" min="0" step="0.5" value="{{ ticket.ore_fermo_macchina|default_if_none:''|stringformat:'s' }}"><span class="tkt-risolvi-nota">Facoltativo</span></div>
+        </div>
+        {% if ticket.tipo == "MAN" or ticket.delegato_fornitore_id %}<div id="rv-visita"></div>{% endif %}
+        <details class="tkt-risolvi-altri">
+          <summary>Altri dettagli: componente, causa, costi</summary>
+          <div class="tkt-risolvi-riga">
+            <div class="tkt-field"><label for="rv-componente">Componente</label><input type="text" id="rv-componente" maxlength="200" value="{{ ticket.componente }}"></div>
+            <div class="tkt-field"><label for="rv-causa">Causa</label><input type="text" id="rv-causa" maxlength="500" value="{{ ticket.causa_radice }}"></div>
+            <div class="tkt-field"><label for="rv-materiali">Costo materiali (€)</label><input type="number" id="rv-materiali" min="0" step="0.01"></div>
+            <div class="tkt-field"><label for="rv-rapportino">N. rapportino</label><input type="text" id="rv-rapportino" maxlength="50"></div>
+          </div>
+          <label class="tkt-risolvi-check"><input type="checkbox" id="rv-ricorrente"{% if ticket.ricorrente %} checked{% endif %}> Problema ricorrente</label>
+        </details>
+        <input type="hidden" id="rv-tecnico"><input type="hidden" id="rv-dal"><input type="hidden" id="rv-al">
+        <div class="tkt-barra-az">
+          <button type="button" class="tkt-az-prim" id="rv-chiudi">Chiudi ticket</button>
+          <button type="button" class="tkt-az-sec" id="rv-annulla">Non ancora</button>
+          <span id="rv-esito" class="tkt-risolvi-errore" role="alert"></span>
+        </div>
+      </section>
+      {% endif %}
       {% if ticket.incide_sicurezza %}<div class="tkt-sicurezza">Problema segnalato come sicurezza sul lavoro. Dare priorita alla presa in carico e alla chiusura del rischio.</div>{% endif %}
 
       <div class="tkt-tabs">
@@ -305,7 +377,7 @@ body.theme-dark .tkt-meta-val a{color:#93c5fd}
           {% else %}<div id="interv-empty" class="tkt-empty">Nessun intervento registrato.</div>{% endif %}
         </div>
         {% if ticket.tipo == "MAN" or ticket.delegato_fornitore_id %}
-        <div hx-get="{% url 'fornitori:presenze_intervento' 'ticket' ticket.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="tkt-empty">Caricamento presenze in azienda della ditta…</p></div>
+        <div id="pz-casa"><div id="pz-segnaposto" hx-get="{% url 'fornitori:presenze_intervento' 'ticket' ticket.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="tkt-empty">Caricamento presenze in azienda della ditta…</p></div></div>
         {% endif %}
       </section>
 
@@ -377,9 +449,8 @@ body.theme-dark .tkt-meta-val a{color:#93c5fd}
         <div style="padding-top:14px;margin-top:14px;border-top:1px solid #e2e8f0;">
           <div class="tkt-card-title" style="margin-bottom:10px;">Aggiorna stato</div>
           <div class="tkt-azioni">
-            {% if ticket.stato == 'APERTA' %}<button class="tkt-azione-btn tkt-az-carico" data-stato="IN_CARICO">Prendi in carico</button>{% endif %}
-            {% if ticket.stato == 'APERTA' or ticket.stato == 'IN_CARICO' or ticket.stato == 'IN_ATTESA' %}<button class="tkt-azione-btn tkt-az-attesa" data-stato="IN_ATTESA">Metti in attesa</button><button class="tkt-azione-btn tkt-az-risolto" data-stato="RISOLTO">Segna come risolto</button>{% endif %}
-            {% if ticket.stato != 'CHIUSO' %}<button class="tkt-azione-btn tkt-az-chiudi" data-stato="CHIUSO">Chiudi ticket</button>{% endif %}
+            {% if puo_risolvere and ticket.stato != 'IN_ATTESA' %}<button class="tkt-azione-btn tkt-az-attesa" data-stato="IN_ATTESA">Metti in attesa</button>{% endif %}
+            {% if ticket.stato == 'RISOLTO' %}<button class="tkt-azione-btn tkt-az-chiudi" data-stato="CHIUSO">Chiudi ticket</button>{% endif %}
             <button class="tkt-azione-btn tkt-az-annulla" data-stato="ANNULLATO" id="btn-annulla">Annulla ticket</button>
           </div>
           <div id="nota-stato-wrap" style="display:none;margin-top:10px;"><div id="data-prevista-wrap" class="tkt-field" style="display:none;margin-bottom:8px;"><label>Data prevista risoluzione</label><input type="date" id="data-prevista-input" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box;"></div><div class="tkt-field"><label>Nota cambio stato</label><textarea id="nota-stato" rows="2" placeholder="Motivazione o nota operativa"></textarea></div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"><button class="tkt-btn-sm tkt-btn-blue" id="confirm-stato">Conferma</button><button class="tkt-btn-sm tkt-btn-gray" id="cancel-stato">Annulla</button></div></div>
@@ -389,7 +460,7 @@ body.theme-dark .tkt-meta-val a{color:#93c5fd}
           <div class="tkt-card-title" style="margin-bottom:10px;">Assegna / delega</div>
           <div class="tkt-field"><label>Tecnico interno</label><select id="assign-membro" class="js-searchable" data-placeholder="Cerca tecnico…"><option value="">- Tecnico interno -</option>{% for m in cfg.team_gestori %}<option value="{{ m.nome }}" data-email="{{ m.email }}"{% if ticket.assegnato_a == m.nome %} selected{% endif %}>{{ m.nome|upper }}{% if m.email %} ({{ m.email }}){% endif %}</option>{% endfor %}</select></div>
           <div class="tkt-field" style="margin-top:10px;"><label>Fornitore esterno</label><select id="assign-fornitore" class="js-searchable" data-placeholder="Cerca fornitore…"><option value="">- Nessun fornitore -</option>{% for f in fornitori %}<option value="{{ f.id }}"{% if ticket.delegato_fornitore_id == f.id %} selected{% endif %}>{{ f.ragione_sociale }}</option>{% endfor %}</select></div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;"><button class="tkt-btn-sm tkt-btn-blue" id="assign-submit">Salva assegnazione</button><span id="assign-status" style="font-size:12px;color:#64748b;"></span></div>
+          <div style="margin-top:8px;font-size:12px;color:#64748b;" id="assign-status" role="status">Si salva appena scegli.</div>
         </div>
         {% else %}<div class="tkt-empty" style="margin-top:14px;">Ticket chiuso o annullato. Le azioni operative non sono piu disponibili.</div>{% endif %}
       </div>
@@ -452,7 +523,7 @@ document.getElementById("ag-clear")?.addEventListener("click",async()=>{const st
 window.tktMappa=TicketMappa.monta(radice,{mappe:dati,selezionabile:true,linkMappa:"{% url 'assets:plant_layout_map' %}",onAsset:m=>{agToggle("catalogo");_agSelectedId=m.asset_id;if(agSearch)agSearch.value=`${m.nome} [${m.tag}]`;document.getElementById("ag-status").textContent="Scelto sulla mappa: premi «Salva» per collegarlo."}});
 {% if ticket.asset_id %}if(!tktMappa.mostraAsset({{ ticket.asset_id }}))document.getElementById("mappa-card").querySelector("div").insertAdjacentHTML("afterend",'<div style="font-size:12px;color:#94a3b8;margin-bottom:8px;">L\'asset collegato non è collocato su nessuna planimetria.</div>');{% elif ticket.mappa_layout_id %}tktMappa.mostraPunto({{ ticket.mappa_layout_id }},{{ ticket.mappa_x|stringformat:"s" }},{{ ticket.mappa_y|stringformat:"s" }});{% endif %}})();
 let pendingStato=null;document.querySelectorAll("[data-stato]").forEach(btn=>btn.addEventListener("click",()=>{pendingStato=btn.dataset.stato;document.getElementById("nota-stato-wrap").style.display="";document.getElementById("nota-stato").placeholder=pendingStato==="ANNULLATO"?"Motivazione annullamento (obbligatoria)...":"Nota operativa (opzionale)...";const dpWrap=document.getElementById("data-prevista-wrap");if(dpWrap)dpWrap.style.display=pendingStato==="IN_ATTESA"?"":"none"}));document.getElementById("cancel-stato")?.addEventListener("click",()=>{pendingStato=null;document.getElementById("nota-stato-wrap").style.display="none";document.getElementById("nota-stato").value="";const dpWrap=document.getElementById("data-prevista-wrap");if(dpWrap){dpWrap.style.display="none";document.getElementById("data-prevista-input").value=""}});document.getElementById("confirm-stato")?.addEventListener("click",async()=>{if(!pendingStato)return;const nota=document.getElementById("nota-stato").value.trim();if(pendingStato==="ANNULLATO"&&!nota){alert("Inserisci una motivazione per l'annullamento.");return}const dataPrevista=document.getElementById("data-prevista-input")?.value||"";const st=document.getElementById("stato-status");st.textContent="Aggiornamento...";try{const r=await fetch(API_STATO,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,stato:pendingStato,nota,data_prevista:dataPrevista})}),d=await r.json();if(d.ok)location.reload();else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}});
-document.getElementById("assign-submit")?.addEventListener("click",async()=>{const sel=document.getElementById("assign-membro"),opt=sel.options[sel.selectedIndex],nome=opt.value||"",email=opt.dataset.email||"",fornitore=document.getElementById("assign-fornitore").value||null,st=document.getElementById("assign-status");st.textContent="Salvataggio...";try{const r=await fetch(API_ASSEGNA,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,assegnato_a:nome,assegnato_email:email,fornitore_id:fornitore})}),d=await r.json();if(d.ok){st.textContent="Salvato.";document.getElementById("meta-assegnato").textContent=d.assegnato_a||"-";document.getElementById("meta-assegnato-hero").textContent=d.assegnato_a||"Non assegnato"}else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}});
+["assign-membro","assign-fornitore"].forEach(idCampo=>document.getElementById(idCampo)?.addEventListener("change",async()=>{const sel=document.getElementById("assign-membro"),opt=sel.options[sel.selectedIndex],nome=opt.value||"",email=opt.dataset.email||"",fornitore=document.getElementById("assign-fornitore").value||null,st=document.getElementById("assign-status");st.textContent="Salvataggio...";try{const r=await fetch(API_ASSEGNA,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,assegnato_a:nome,assegnato_email:email,fornitore_id:fornitore})}),d=await r.json();if(d.ok){st.textContent="Salvato.";document.getElementById("meta-assegnato").textContent=d.assegnato_a||"-";document.getElementById("meta-assegnato-hero").textContent=d.assegnato_a||"Non assegnato"}else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}}));
 document.getElementById("an-save")?.addEventListener("click",async()=>{const st=document.getElementById("an-status");st.textContent="Salvataggio...";const payload={ticket_id:TICKET_ID,componente:document.getElementById("an-componente").value.trim(),tipo_fermo:document.getElementById("an-tipo-fermo").value,ore_fermo_macchina:document.getElementById("an-ore-fermo").value||null,causa_radice:document.getElementById("an-causa-radice").value.trim(),ricorrente:document.getElementById("an-ricorrente").checked};const includeRegistro=document.getElementById("an-include-registro");if(includeRegistro)payload.include_in_maintenance_register=includeRegistro.checked;try{const r=await fetch(API_ANALYTICS,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify(payload)}),d=await r.json();st.textContent=d.ok?"Salvato.":(d.error||"Errore.")}catch(e){st.textContent="Errore di rete."}});
 document.getElementById("interv-toggle-form")?.addEventListener("click",()=>{const f=document.getElementById("interv-form");f.style.display=f.style.display==="none"?"":"none";activateTicketTab("interventi");if(f.style.display!=="none"&&!document.getElementById("if-inizio").value){const now=new Date();now.setSeconds(0,0);document.getElementById("if-inizio").value=now.toISOString().slice(0,16)}});document.getElementById("if-cancel")?.addEventListener("click",()=>{document.getElementById("interv-form").style.display="none"});
 document.getElementById("if-save")?.addEventListener("click",async()=>{const st=document.getElementById("if-status"),inizio=document.getElementById("if-inizio").value;if(!inizio){st.textContent="Inserire data inizio.";return}st.textContent="Salvataggio...";try{const r=await fetch(API_INTERVENTO,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,tecnico_nome:document.getElementById("if-tecnico").value.trim(),data_inizio:inizio,data_fine:document.getElementById("if-fine").value||null,ore_lavorate:document.getElementById("if-ore").value||null,componente_interessato:document.getElementById("if-componente").value.trim(),descrizione_lavoro:document.getElementById("if-descrizione").value.trim(),azioni_svolte:document.getElementById("if-azioni").value.trim(),esito:document.getElementById("if-esito").value,costo_manodopera_eur:document.getElementById("if-costo-manodopera").value||null,materiali_costo_eur:document.getElementById("if-costo-materiali").value||null,numero_rapportino:document.getElementById("if-rapportino").value.trim()})}),d=await r.json();if(d.ok)location.reload();else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}});
@@ -520,6 +591,92 @@ document.querySelectorAll(".interv-delete-btn").forEach(btn=>btn.addEventListene
 })();
 </script>
 <script>
+(function () {
+  var URL_AZIONE = "{% url 'tickets:api_stato' %}", TOKEN = "{{ csrf_token }}", ID = {{ ticket.pk }};
+  var pannello = document.getElementById('rv-pannello');
+  function invia(dati) {
+    return fetch(URL_AZIONE, {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': TOKEN},
+      body: JSON.stringify(Object.assign({ticket_id: ID}, dati))}).then(function (r) { return r.json(); });
+  }
+  function valore(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+  function schedaPresenze() { return document.querySelector('[id^="presenze-ticket-"]') || document.getElementById('pz-segnaposto'); }
+  function apri() {
+    if (!pannello) { return; }
+    pannello.hidden = false;
+    var slot = document.getElementById('rv-visita'), scheda = schedaPresenze();
+    if (slot && scheda) { slot.appendChild(scheda); }
+    pannello.scrollIntoView({block: 'nearest'});
+    document.getElementById('rv-fatto').focus();
+  }
+  function chiudiPannello() {
+    pannello.hidden = true;
+    var casa = document.getElementById('pz-casa'), scheda = schedaPresenze();
+    if (casa && scheda) { casa.appendChild(scheda); }
+  }
+  var btnRisolvi = document.getElementById('btn-risolvi');
+  if (btnRisolvi) { btnRisolvi.addEventListener('click', apri); }
+  var annulla = document.getElementById('rv-annulla');
+  if (annulla) { annulla.addEventListener('click', chiudiPannello); }
+  if (pannello && !pannello.hidden) { apri(); }
+
+  var prendo = document.getElementById('btn-prendo');
+  if (prendo) {
+    prendo.addEventListener('click', function () {
+      prendo.disabled = true;
+      invia({azione: 'prendi'}).then(function (d) {
+        if (d.ok) { location.reload(); return; }
+        prendo.disabled = false;
+        document.getElementById('barra-esito').textContent = d.error || 'Non riuscito: riprova.';
+      }).catch(function () {
+        prendo.disabled = false;
+        document.getElementById('barra-esito').textContent = 'Errore di rete: riprova.';
+      });
+    });
+  }
+  var riapri = document.getElementById('btn-riapri');
+  if (riapri) {
+    riapri.addEventListener('click', function () {
+      riapri.disabled = true;
+      invia({stato: 'IN_CARICO', nota: 'Ticket riaperto.'}).then(function (d) {
+        if (d.ok) { location.href = location.pathname; return; }
+        riapri.disabled = false;
+        document.getElementById('barra-esito').textContent = d.error || 'Non riuscito: riprova.';
+      }).catch(function () {
+        riapri.disabled = false;
+        document.getElementById('barra-esito').textContent = 'Errore di rete: riprova.';
+      });
+    });
+  }
+  var chiudi = document.getElementById('rv-chiudi');
+  if (chiudi) {
+    chiudi.addEventListener('click', function () {
+      var esito = document.getElementById('rv-esito');
+      if (!valore('rv-fatto').trim()) {
+        esito.textContent = 'Scrivi cosa è stato fatto: è l\'unico dato obbligatorio.';
+        document.getElementById('rv-fatto').focus();
+        return;
+      }
+      esito.textContent = '';
+      chiudi.disabled = true;
+      invia({
+        azione: 'risolvi', intervento_svolto: valore('rv-fatto'), intervento_ore: valore('rv-ore'),
+        tipo_fermo: valore('rv-tipo-fermo'), ore_fermo: valore('rv-ore-fermo'), componente: valore('rv-componente'),
+        causa: valore('rv-causa'), costo_materiali: valore('rv-materiali'), rapportino: valore('rv-rapportino'),
+        ricorrente: document.getElementById('rv-ricorrente').checked, tecnico: valore('rv-tecnico'),
+        intervento_dal: valore('rv-dal'), intervento_quando: valore('rv-al')
+      }).then(function (d) {
+        if (d.ok) { location.href = location.pathname + '?chiuso=1'; return; }
+        chiudi.disabled = false;
+        esito.textContent = d.error || 'Non riuscito: riprova.';
+      }).catch(function () {
+        chiudi.disabled = false;
+        esito.textContent = 'Errore di rete: riprova.';
+      });
+    });
+  }
+})();
+</script>
+<script>
 /* «Usa nel rapportino» del riquadro Presenze: apre «Registra intervento» e lo riempie, a salvare resta la persona. */
 (function () {
   if (!document.getElementById('if-tecnico')) { return; }
@@ -527,6 +684,16 @@ document.querySelectorAll(".interv-delete-btn").forEach(btn=>btn.addEventListene
   document.addEventListener('click', function (event) {
     var b = event.target.closest('[data-pz-usa]');
     if (!b) { return; }
+    var pannello = document.getElementById('rv-pannello');
+    if (pannello && !pannello.hidden) {
+      [['rv-tecnico', b.dataset.tecnici], ['rv-dal', b.dataset.dal], ['rv-al', b.dataset.al], ['rv-ore', b.dataset.ore]].forEach(function (voce) {
+        var campo = document.getElementById(voce[0]);
+        if (campo && voce[1]) { campo.value = voce[1]; }
+      });
+      document.getElementById('rv-ore-nota').textContent = 'Dalla visita collegata: puoi cambiarle.';
+      b.textContent = 'Inserito: controlla e chiudi';
+      return;
+    }
     var form = document.getElementById('interv-form');
     if (form) { form.style.display = ''; }
     [['if-tecnico', b.dataset.tecnici], ['if-inizio', b.dataset.dal], ['if-fine', b.dataset.al], ['if-ore', b.dataset.ore]].forEach(function (voce) {

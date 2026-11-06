@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 106
+**Totale automazioni disponibili:** 109
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -540,6 +540,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Task eseguito:** `fornitori.tasks.run_avvisi_ingressi_non_in_regola`
 - **Cosa fa:** FORNITORI — ditta entrata dal GuestPortal con documenti di sicurezza non in regola: notifica in-app a RSPP/ASPP (mai mail), una volta per visita.
 
+### `fornitori_avvisi_usciti_dimenticati`
+
+- **Quando gira:** da lun a ven, alle 19:00
+- **Task eseguito:** `fornitori.tasks.run_avvisi_usciti_dimenticati`
+- **Cosa fa:** FORNITORI — a fine giornata, chi risulta ancora dentro: notifica ai ruoli configurati (per ora IT).
+
 ### `presenti_avvisi_uscite`
 
 - **Quando gira:** da lun a sab, alle 07:30
@@ -551,6 +557,18 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni 30 minuti
 - **Task eseguito:** `presenti.tasks.run_pubblica_pdf_presenti`
 - **Cosa fa:** PRESENTI IN AZIENDA — PDF dei presenti su SharePoint (CN-PRESENZE.pdf), al posto dello script ReportPresenze del diskstation. No-op se disattivato nelle Impostazioni del modulo.
+
+### `reception_avvisi_referenti`
+
+- **Quando gira:** ogni minuto
+- **Task eseguito:** `reception.tasks.run_avvisi_referenti`
+- **Cosa fa:** RECEPTION — mail al referente quando arriva il visitatore. Non fa niente finché RECEPTION_NATIVA è spenta.
+
+### `reception_pulizia`
+
+- **Quando gira:** ogni giorno, alle 03:40
+- **Task eseguito:** `reception.tasks.run_pulizia`
+- **Cosa fa:** RECEPTION — ogni notte: pre-registrazioni passate e dati oltre i 12 mesi dell'informativa.
 
 ### `registro_log_ad`
 

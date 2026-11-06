@@ -1,0 +1,41 @@
+{% extends "reception/_base.html" %}
+{% block title %}Ditte accreditate | Reception{% endblock %}
+{% block rc_titolo %}Ditte accreditate{% endblock %}
+{% block rc_sub %}Ditte e nominativi che si scelgono al chiosco. L'abbinamento con i fornitori dell'HUB è in Fornitori → Ditte GuestPortal.{% endblock %}
+{% block rc_contenuto %}
+<div class="rc-card">
+  <div class="rc-card-head">Nuova ditta</div>
+  <div class="rc-body">
+    <form method="post" class="rc-form">
+      {% csrf_token %}
+      <div class="rc-field"><label for="t-nome">Nome *</label><input class="rc-input" id="t-nome" name="nome" maxlength="200" required></div>
+      <div class="rc-field"><label for="t-note">Note</label><input class="rc-input" id="t-note" name="note" maxlength="500"></div>
+      <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit">Aggiungi</button></div>
+    </form>
+  </div>
+</div>
+{% for d in righe %}
+<div class="rc-card">
+  <div class="rc-card-head" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+    <span>{{ d.nome }} {% if not d.attiva %}<span class="rc-pill">Non attiva</span>{% endif %}{% if d.note %} <span class="rc-muted">· {{ d.note }}</span>{% endif %}</span>
+    <form class="rc-inline" method="post">{% csrf_token %}<input type="hidden" name="pk" value="{{ d.pk }}"><button class="rc-btn rc-btn-g" name="azione" value="ditta_stato">{% if d.attiva %}Disattiva{% else %}Riattiva{% endif %}</button></form>
+  </div>
+  <div class="rc-body">
+    {% for c in d.contatti.all %}
+      <form class="rc-inline" method="post">{% csrf_token %}<input type="hidden" name="pk" value="{{ c.pk }}"><button class="rc-btn rc-btn-g" name="azione" value="contatto_stato" title="{% if c.attivo %}Disattiva{% else %}Riattiva{% endif %}">{{ c }}{% if not c.attivo %} (non attivo){% endif %} ×</button></form>
+    {% empty %}
+      <p class="rc-note">Nessun nominativo.</p>
+    {% endfor %}
+    <form method="post" class="rc-form" style="margin-top:12px">
+      {% csrf_token %}
+      <input type="hidden" name="pk" value="{{ d.pk }}">
+      <div class="rc-field"><label for="c-n{{ d.pk }}">Nome</label><input class="rc-input" id="c-n{{ d.pk }}" name="nome" maxlength="100" required></div>
+      <div class="rc-field"><label for="c-c{{ d.pk }}">Cognome</label><input class="rc-input" id="c-c{{ d.pk }}" name="cognome" maxlength="100" required></div>
+      <div class="rc-field"><button class="rc-btn rc-btn-g" name="azione" value="contatto">Aggiungi nominativo</button></div>
+    </form>
+  </div>
+</div>
+{% empty %}
+<div class="rc-card"><div class="rc-empty">Nessuna ditta.</div></div>
+{% endfor %}
+{% endblock %}

@@ -34,6 +34,21 @@ Per disattivare l'accesso automatico basta rinominare `public/admin/sso.php`: il
 
 Il segreto è stato generato a caso e scritto solo in `config/sso.php` sul server GuestPortal. Va copiato **a mano** nel `.env` persistente dell'HUB (`GUESTPORTAL_SSO_SECRET`), senza passare da chat, mail o ticket. Per ruotarlo: nuovo valore in entrambi i posti, poi riavvio dell'HUB.
 
+## Passaggio dei dati su SQL Server (app `reception`)
+
+1. Permesso di lettura per l'importazione (un utente dedicato, da togliere a passaggio finito):
+
+```sql
+GRANT SELECT ON GuestManagement.* TO 'hub_readonly'@'<IP server HUB>';
+```
+
+2. `manage.py importa_guestportal`: prova, stampa solo i conteggi.
+3. A chiosco fermo: `manage.py importa_guestportal --apply`, confronta i conteggi.
+4. `RECEPTION_NATIVA=1` nel `.env`, `setup_q_schedules`, riavvio di HUB e qcluster.
+5. Spegni il sito PHP e le sue attività pianificate; MySQL resta in sola lettura come riserva. Di ritorno: `RECEPTION_NATIVA=0`.
+
+Attenzione: la prima notte con `RECEPTION_NATIVA=1` si cancellano le visite concluse più vecchie di `RECEPTION_CONSERVAZIONE_MESI` (12).
+
 ## Utente MySQL in sola lettura per l'HUB
 
 Da eseguire sul MySQL del GuestPortal con un account amministrativo (scegliere la password e l'host da cui si collega il server HUB):

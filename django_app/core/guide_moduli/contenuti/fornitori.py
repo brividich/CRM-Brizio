@@ -96,6 +96,24 @@ GUIDA = {
             ],
         },
         {
+            "id": "reception",
+            "titolo": "Pannello Reception",
+            "blocchi": [
+                ("p", "Fornitori → «Reception» è il pannello che prende il posto di quello del GuestPortal, finché non è attivo mostra un avviso giallo."),
+                ("def", [
+                    ("Presenti", "chi è dentro adesso, con «Registra uscita»."),
+                    ("Registra ingresso", "per chi non passa dal chiosco; il cartellino si sceglie tra quelli liberi."),
+                    ("Storico", "le visite con i filtri; aprendone una correggi l'uscita, oppure «Riapri» entro 7 giorni. Le correzioni restano scritte nella visita."),
+                    ("Pre-registrazioni", "«Crea e invia» manda all'ospite codice e QR; se indichi il giorno, ospite e referente ricevono anche l'invito in calendario."),
+                    ("Referenti", "i dipendenti che i visitatori possono scegliere al chiosco."),
+                    ("Ditte accreditate", "ditte e nominativi che si scelgono al chiosco."),
+                    ("Cartellini", "stato, «Aggiungi» ed «Etichette con QR» da stampare."),
+                    ("Impostazioni", "l'avviso «Passa dalla reception» per le ditte non in regola, spento di default, e la cancellazione dei dati oltre 12 mesi."),
+                ]),
+                ("p", "A fine giornata, dal lunedì al venerdì alle 19, chi ha il ruolo indicato in «reception_usciti_ruoli» (per ora l'Information Technology Manager) riceve una notifica con chi risulta ancora dentro."),
+            ],
+        },
+        {
             "id": "chiosco",
             "titolo": "Chiosco della reception nell'HUB",
             "blocchi": [
@@ -196,6 +214,11 @@ GUIDA = {
                     "Nel file .env dell'HUB scrivi l'IP del PC della reception in CHIOSCO_ALLOWED_IPS (più valori separati da virgola, anche reti come 10.0.5.0/24).",
                     "Se serve, imposta GUESTPORTAL_CHIOSCO_API_URL con l'indirizzo delle API del GuestPortal.",
                     "Riavvia l'HUB e apri /chiosco/ dalla postazione.",
+                ]),
+                ("passi", [
+                    "Passaggio dal GuestPortal: dai all'utente MySQL il permesso di lettura su tutte le tabelle (docs/integrazioni/guestportal/README.md).",
+                    "Lancia manage.py importa_guestportal: è una prova e mostra solo i conteggi. Poi, a chiosco fermo, manage.py importa_guestportal --apply.",
+                    "Imposta RECEPTION_NATIVA=1 nel .env e riavvia HUB e qcluster.",
                 ]),
                 ("nota", "Con CHIOSCO_ALLOWED_IPS vuoto il chiosco resta chiuso per tutti. Serve anche l'IP vero del client: se l'HUB vede 127.0.0.1, controlla il proxy fidato di Waitress. Non pubblicare /chiosco/ su Entra Application Proxy."),
             ],

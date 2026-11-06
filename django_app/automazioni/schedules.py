@@ -1135,6 +1135,24 @@ SCHEDULES: list[dict] = [
         "schedule_type": "I", "minutes": 10, "repeats": -1, "kwargs": {},
     },
     {
+        # RECEPTION — mail al referente quando arriva il visitatore. Non fa niente finché RECEPTION_NATIVA è spenta.
+        "name": "reception_avvisi_referenti",
+        "func": "reception.tasks.run_avvisi_referenti",
+        "schedule_type": "I", "minutes": 1, "repeats": -1, "kwargs": {},
+    },
+    {
+        # RECEPTION — ogni notte: pre-registrazioni passate e dati oltre i 12 mesi dell'informativa.
+        "name": "reception_pulizia",
+        "func": "reception.tasks.run_pulizia",
+        "schedule_type": "C", "cron": "40 3 * * *", "repeats": -1, "kwargs": {},
+    },
+    {
+        # FORNITORI — a fine giornata, chi risulta ancora dentro: notifica ai ruoli configurati (per ora IT).
+        "name": "fornitori_avvisi_usciti_dimenticati",
+        "func": "fornitori.tasks.run_avvisi_usciti_dimenticati",
+        "schedule_type": "C", "cron": "0 19 * * 1-5", "repeats": -1, "kwargs": {},
+    },
+    {
         # FORNITORI — ditta attesa (manutenzione, OdL o ticket aperti) che non sarà in regola
         # con i documenti di sicurezza: notifica in-app a RSPP/ASPP (mai mail), prima che entri.
         "name": "fornitori_avvisi_ditte_attese",

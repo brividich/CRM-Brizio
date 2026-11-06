@@ -23,9 +23,12 @@ logger = logging.getLogger(__name__)
 CHIAVE_RUOLI = "fornitori_requisiti_ruoli"
 RUOLI_PREDEFINITI = "RSPP,ASPP"
 GIORNI_RIPETI_AVVISO = 14
+CHIAVE_RUOLI_USCITI = "reception_usciti_ruoli"
+RUOLI_USCITI_PREDEFINITI = "Information Technology Manager"
+MAX_NOMI_USCITI = 15
 
 
-def _destinatari() -> list[int]:
+def _destinatari(chiave: str = CHIAVE_RUOLI, predefiniti: str = RUOLI_PREDEFINITI) -> list[int]:
     """``utenti.id`` legacy di chi ricopre oggi i ruoli configurati (nome del ruolo, senza maiuscole)."""
     from datetime import date
 
@@ -35,7 +38,7 @@ def _destinatari() -> list[int]:
     from core.legacy_models import AnagraficaDipendente
     from core.models import SiteConfig
 
-    nomi = [n.strip().lower() for n in (SiteConfig.get(CHIAVE_RUOLI, RUOLI_PREDEFINITI) or "").split(",") if n.strip()]
+    nomi = [n.strip().lower() for n in (SiteConfig.get(chiave, predefiniti) or "").split(",") if n.strip()]
     if not nomi:
         return []
     oggi = date.today()
@@ -143,6 +146,41 @@ def avvisa_ditte_attese(oggi=None) -> dict:
         )
         esito["avvisate"] += 1
     return esito
+
+
+def avvisa_usciti_dimenticati() -> dict:
+    """A fine giornata, chi risulta ancora dentro: notifica ai ruoli in ``reception_usciti_ruoli`` (per ora IT)."""
+    from core.notifiche import invia_notifica
+
+    from . import guestportal as gp
+
+    esito = {"dentro": 0, "avvisati": 0}
+    if not gp.db_configurato():
+        esito["saltato"] = "GuestPortal non configurato"
+        return esito
+    presenti = gp.presenti_ora()
+    esito["dentro"] = len(presenti)
+    if not presenti:
+        return esito
+    destinatari = _destinatari(CHIAVE_RUOLI_USCITI, RUOLI_USCITI_PREDEFINITI)
+    nomi = ", ".join(f"{a.nome}{f' ({a.azienda})' if a.azienda else ''}" for a in presenti[:MAX_NOMI_USCITI])
+    altri = len(presenti) - MAX_NOMI_USCITI
+    testo = (f"Fine giornata: {len(presenti)} esterni risultano ancora dentro: {nomi}"
+             f"{f' e altri {altri}' if altri > 0 else ''}. Controlla l'uscita e i cartellini.")
+    url = reverse("fornitori:accessi_esterni")
+    for uid in destinatari:
+        invia_notifica(legacy_user_id=uid, tipo="generico", messaggio=testo[:480], url_azione=url)
+        esito["avvisati"] += 1
+    return esito
+
+
+def run_avvisi_usciti_dimenticati():
+    try:
+        esito = avvisa_usciti_dimenticati()
+    except Exception:
+        logger.exception("Avviso usciti dimenticati fallito")
+        return {"ok": False}
+    return {"ok": True, **esito}
 
 
 def run_avvisi_ditte_attese():

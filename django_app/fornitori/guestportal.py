@@ -84,7 +84,14 @@ def sso_configurato() -> bool:
     return bool(_cfg("GUESTPORTAL_SSO_URL")) and len(_cfg("GUESTPORTAL_SSO_SECRET")) >= SSO_SEGRETO_MIN
 
 
+def nativa() -> bool:
+    """Dopo il passaggio i dati stanno nelle tabelle dell'HUB (``reception``), non più su MySQL."""
+    return bool(getattr(settings, "RECEPTION_NATIVA", False))
+
+
 def db_configurato() -> bool:
+    if nativa():
+        return True
     return all(_cfg(n) for n in ("GUESTPORTAL_DB_HOST", "GUESTPORTAL_DB_NAME", "GUESTPORTAL_DB_USER"))
 
 
@@ -266,6 +273,10 @@ def _esegui(sql: str, params: list) -> list[dict]:
 
 
 def presenti_ora() -> list[Accesso]:
+    if nativa():
+        from reception import letture
+
+        return letture.presenti_ora()
     """Esterni con check-in aperto, dal più vecchio (chi è dentro da più tempo)."""
     righe = _esegui(_SELECT + " WHERE v.Status = 'CHECKEDIN' ORDER BY v.CheckInTime ASC", [])
     return [_riga_in_accesso(r) for r in righe]
@@ -284,6 +295,10 @@ def storico(
     Ritorna ``(righe, troncato)``: ``troncato`` è vero se le visite trovate sono
     più di ``limite`` (la pagina lo dice, niente tagli muti).
     """
+    if nativa():
+        from reception import letture
+
+        return letture.storico(dal=dal, al=al, testo=testo, tipo=tipo, limite=limite)
     where = ["v.CheckInTime >= %s", "v.CheckInTime < %s"]
     params: list = [datetime.combine(dal, datetime.min.time()),
                     datetime.combine(al + timedelta(days=1), datetime.min.time())]
@@ -306,6 +321,10 @@ def storico(
 
 
 def visita(visita_id: int) -> Accesso | None:
+    if nativa():
+        from reception import letture
+
+        return letture.visita(visita_id)
     """Una visita per numero (VisitID), o None se non esiste più (pulizia GDPR)."""
     righe = _esegui(_SELECT + " WHERE v.VisitID = %s", [int(visita_id)])
     return _riga_in_accesso(righe[0]) if righe else None
@@ -313,6 +332,10 @@ def visita(visita_id: int) -> Accesso | None:
 
 def ditte_guestportal() -> list[tuple[int, str]]:
     """Anagrafica fornitori/consulenti del GuestPortal: ``[(SupplierID, CompanyName)]``."""
+    if nativa():
+        from reception import letture
+
+        return letture.ditte()
     righe = _esegui(
         "SELECT SupplierID, CompanyName FROM Suppliers WHERE IsActive = 1 ORDER BY CompanyName", []
     )
@@ -353,6 +376,10 @@ def ingressi_ditta(
     fatto in Fornitori → Ditte GuestPortal) oppure dall'azienda scritta dal
     visitatore uguale a una delle ragioni sociali ``nomi`` (maiuscole ignorate).
     """
+    if nativa():
+        from reception import letture
+
+        return letture.ingressi_ditta(ditte_gp=ditte_gp, nomi=nomi, dal=dal, al=al, limite=limite)
     filtro, params_ditta = _filtro_ditta(ditte_gp, nomi)
     if not filtro:
         return []
@@ -389,6 +416,10 @@ def tecnici_ditta(
 ) -> tuple[list[TecnicoDitta], bool]:
     """Persone entrate per una ditta tra le visite che il GuestPortal conserva ancora, dalla
     più recente. Gli ospiti anonimizzati non si elencano. Ritorna ``(righe, troncato)``."""
+    if nativa():
+        from reception import letture
+
+        return letture.tecnici_ditta(ditte_gp=ditte_gp, nomi=nomi, limite=limite)
     filtro, params = _filtro_ditta(ditte_gp, nomi)
     if not filtro:
         return [], False

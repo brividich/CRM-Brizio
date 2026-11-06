@@ -1,0 +1,39 @@
+{% extends "reception/_base.html" %}
+{% block title %}Storico | Reception{% endblock %}
+{% block rc_titolo %}Storico presenze{% endblock %}
+{% block rc_sub %}Apri una visita per correggere l'uscita o riaprirla. Ogni correzione resta scritta nella visita.{% endblock %}
+{% block rc_contenuto %}
+<div class="rc-card"><div class="rc-body">
+  <form method="get" class="rc-form">
+    <div class="rc-field"><label for="s-dal">Dal</label><input class="rc-input" id="s-dal" type="date" name="dal" value="{{ dal }}"></div>
+    <div class="rc-field"><label for="s-al">Al</label><input class="rc-input" id="s-al" type="date" name="al" value="{{ al }}"></div>
+    <div class="rc-field"><label for="s-stato">Stato</label><select class="rc-input" id="s-stato" name="stato"><option value="">Tutti</option>{% for val, label in stati %}<option value="{{ val }}"{% if val == stato %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="rc-field"><label for="s-q">Cerca</label><input class="rc-input" id="s-q" name="q" value="{{ q }}" maxlength="80" placeholder="Nome, azienda, referente…"></div>
+    <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit">Filtra</button></div>
+  </form>
+</div></div>
+<div class="rc-card">
+  <div class="rc-card-head">{{ righe|length }} visite{% if tagliato %}: mostrate le {{ massimo }} più recenti, restringi il periodo per vederle tutte{% endif %}</div>
+  <div class="rc-wrap">
+    <table class="rc-table">
+      <thead><tr><th>Nome</th><th>Azienda</th><th>Referente</th><th>Motivo</th><th>Cartellino</th><th>Ingresso</th><th>Uscita</th><th>Stato</th></tr></thead>
+      <tbody>
+      {% for v in righe %}
+        <tr>
+          <td><a href="{% url 'reception:visita_scheda' v.pk %}">{{ v.ospite.nome_completo }}</a></td>
+          <td>{% if v.ditta_id %}{{ v.ditta.nome }}{% else %}{{ v.ospite.azienda|default:"—" }}{% endif %}</td>
+          <td>{{ v.referente_nome }}</td>
+          <td>{{ v.motivo|default:"—" }}</td>
+          <td>{{ v.cartellino }}</td>
+          <td>{{ v.ingresso|date:"d/m/Y H:i"|default:"—" }}</td>
+          <td>{{ v.uscita|date:"d/m/Y H:i"|default:"—" }}</td>
+          <td><span class="rc-pill{% if v.stato == 'CHECKEDIN' %} rc-pill-ok{% endif %}">{{ v.get_stato_display }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="rc-empty">Nessuna visita nel periodo.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
