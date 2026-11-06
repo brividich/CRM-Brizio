@@ -887,9 +887,11 @@ def cve_pannello_programma(request):
     key = request.GET.get("k", "")
     if "|" not in key:
         raise Http404
-    vendor, product = software_catalog.families().get(software_catalog.split_key(key), software_catalog.split_key(key))
-    nome = (SoftwareInstallation.objects.filter(vendor=vendor, product=product).exclude(product_raw="")
-            .values_list("product_raw", flat=True).first() or product)
+    vendor, product = software_catalog.split_key(software_catalog.chiave_canonica(key))
+    nome = software_inventory.nome_programma(
+        SoftwareInstallation.objects.filter(vendor=vendor, product=product).exclude(product_raw="")
+        .values_list("product_raw", flat=True).first() or product
+    )
     return render(request, "security/partials/cve_pannello_elenco.html", {
         "titolo": nome, "sottotitolo": "CVE sui PC che hanno oggi il programma",
         "dati": cve_pannello.per_programma(key), "qui": request.get_full_path(),
