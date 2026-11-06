@@ -48,7 +48,7 @@
     <table class="pres-tab" data-fm-table-skip="1">
       <tbody>
         {% for p in mancanti %}
-        <tr><td class="pres-nome">{{ p.cognome|upper }} {{ p.nome }}</td><td>{{ p.azienda|default:p.reparto|default:"—" }}</td><td>{% if p.esterno %}Esterno{% else %}Dipendente{% endif %}</td></tr>
+        <tr><td class="pres-nome">{{ p.cognome|upper }} {{ p.nome }}</td><td>{% firstof p.azienda p.reparto "—" %}</td><td>{% if p.esterno %}Esterno{% else %}Dipendente{% endif %}</td></tr>
         {% empty %}
         <tr><td class="pres-vuoto">Tutte le persone in elenco sono state contate.</td></tr>
         {% endfor %}
