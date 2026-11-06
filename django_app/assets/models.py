@@ -1761,6 +1761,27 @@ class SoftwareCatalogEntry(models.Model):
         return self.display_name or self.inventory_key
 
 
+class SoftwareProduttoreConsentito(models.Model):
+    """«Di questo produttore è tutto consentito»: vale anche per i programmi nuovi.
+
+    Solo «consentito»: una regola non può vietare, perché vietare fa scattare gli alert del SOC e va deciso
+    programma per programma. Una decisione sul singolo programma vince sempre sulla regola.
+    """
+
+    produttore = models.CharField(max_length=120, unique=True)  # prima parola del produttore, minuscola
+    etichetta = models.CharField(max_length=255, blank=True, default="")
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["produttore"]
+        verbose_name = "Produttore di software consentito"
+        verbose_name_plural = "Produttori di software consentiti"
+
+    def __str__(self) -> str:
+        return self.etichetta or self.produttore
+
+
 class WorkMachine(models.Model):
     asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="work_machine")
     source_key = models.CharField(max_length=64, unique=True, db_index=True)

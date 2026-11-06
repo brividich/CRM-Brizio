@@ -424,6 +424,7 @@ GUIDA = {
                     "Nella casella Cerca sopra la tabella scrivi programma, produttore o versione: filtra mentre scrivi e spazi e trattini non contano («7zip» trova 7-Zip).",
                     "Apri il programma: la sezione «Nomi raggruppati in questo programma» dice come lo riportano le fonti.",
                     "La decisione (classificazione, licenza, versione minima) vale per tutto il programma e resta dopo un aggiornamento.",
+                    "Per decidere su molti programmi: spunta le righe, scegli la classificazione e premi «Applica». «Regole per produttore › Consenti tutto» consente ogni programma ancora da classificare di quel produttore, anche i nuovi.",
                     "Raggruppamento sbagliato? Gli amministratori del modulo premono «Separa» accanto a un nome, oppure scelgono un programma in «Unisci a un altro programma». Si annulla dalla stessa sezione.",
                 ]),
             ],
