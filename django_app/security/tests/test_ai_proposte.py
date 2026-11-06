@@ -184,7 +184,7 @@ class PaginaTests(_Base):
         self.giro()
         r = self.client.get(reverse("security:alert_proposte"))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Proposte di chiusura dell'AI")
+        self.assertContains(r, "Alert da decidere, con l'AI")
         self.assertContains(r, "Il backup successivo è riuscito.")
         self.assertContains(r, reverse("security:alert_proposte"))  # voce nel menu del SOC
         r = self.client.get(reverse("security:alert_detail", args=[alert.pk]))

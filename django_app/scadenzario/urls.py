@@ -8,6 +8,7 @@ urlpatterns = [
     path("gestione/", views.gestione, name="gestione"),
     path("gestione/voce/", views.gestione_voce, name="gestione_voce"),
     path("gestione/regola/", views.gestione_regola_aggiungi, name="gestione_regola_aggiungi"),
+    path("gestione/regola/<int:regola_id>/modifica/", views.gestione_regola_modifica, name="gestione_regola_modifica"),
     path("gestione/regola/<int:regola_id>/togli/", views.gestione_regola_togli, name="gestione_regola_togli"),
     path("generiche/", views.elenco, name="elenco"),
     path("generiche/guida/", views.guida, name="guida"),

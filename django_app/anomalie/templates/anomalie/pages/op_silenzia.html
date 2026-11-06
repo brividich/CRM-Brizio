@@ -1,0 +1,51 @@
+{% extends "core/base.html" %}
+
+{% block title %}Aggiornamenti per OP | Anomalie{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-main">
+    <div class="page-h">Aggiornamenti per OP</div>
+    <div class="page-sub">Scegli di quali OP non vuoi più ricevere le mail di aggiornamento.</div>
+  </div>
+</div>
+
+{% if op %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body" style="display:grid;gap:12px;">
+    <div style="font-weight:800;font-size:var(--fs-lg);">OP {{ op }}</div>
+    {% if not ha_indirizzo %}
+    <p style="margin:0;">Al tuo utente non è collegato un indirizzo email: chiedi a chi amministra il portale di togliere il tuo indirizzo da questo OP.</p>
+    {% elif silenziato %}
+    <p style="margin:0;"><strong>Non ricevi più gli aggiornamenti di questo OP.</strong></p>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="op" value="{{ op }}">
+      <button type="submit" name="azione" value="riattiva" class="btn btn-secondary btn-sm">Ricevi di nuovo gli aggiornamenti</button>
+    </form>
+    {% else %}
+    <p style="margin:0;">Se confermi non ricevi più queste mail dell'OP: copia della mail di decisione, riepilogo delle modifiche, decisioni sulle anomalie che hai segnalato, OP completato e resoconto giornaliero.</p>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="op" value="{{ op }}">
+      <button type="submit" name="azione" value="silenzia" class="btn btn-sm">Non voglio più aggiornamenti su questo OP</button>
+    </form>
+    {% endif %}
+    <p style="margin:0;color:var(--text-mid);font-size:var(--fs-sm);">Continuano ad arrivare: la mail con il link di decisione se sei tu a dover decidere, le richieste «Segnala a CAR», le mail su RDC e segnalazione cliente se sei nella lista dedicata, le notifiche nel portale.</p>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-body" style="display:grid;gap:10px;">
+    <div style="font-weight:800;">I tuoi OP silenziati</div>
+    {% for s in silenziati %}
+    <form method="post" style="display:flex;justify-content:space-between;align-items:center;gap:12px;">{% csrf_token %}
+      <span>{{ s }}</span>
+      <input type="hidden" name="op" value="{{ s }}">
+      <button type="submit" name="azione" value="riattiva" class="btn btn-secondary btn-sm">Riattiva</button>
+    </form>
+    {% empty %}
+    <p style="margin:0;color:var(--text-mid);">Nessuno: ricevi gli aggiornamenti di tutti i tuoi OP.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

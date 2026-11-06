@@ -34,6 +34,8 @@
 .fr-req-scaduto .fr-req-icona, .fr-req-mancante .fr-req-icona { background:#fee2e2; color:#991b1b; }
 .fr-req-det { color:var(--text-mid); font-size:12.5px; }
 .ana-pill-blue { background:#dbeafe; color:#1e40af; }
+.fr-anno { display:flex; align-items:center; gap:8px; margin-bottom:12px; font-size:13px; font-weight:600; }
+.fr-anno select { border:1px solid var(--border,#e2e8f0); border-radius:8px; padding:5px 10px; font-size:13px; background:var(--surface-alt,#f8fafc); color:var(--text,#0f172a); }
 .fr-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:16px; }
 .fr-kpis .ana-metric { padding:12px 14px; }
 .fr-kpis .ana-metric-val { font-size:20px; }
@@ -265,6 +267,7 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
           {% if sezioni.copie and codici_contatori %}<button class="ana-tab" data-tab="tab-copie">Copie MFC</button>{% endif %}
           <button class="ana-tab" data-tab="tab-scadenze">Scadenze</button>
           {% if sezioni.tecnici %}<button class="ana-tab" data-tab="tab-tecnici">Tecnici ({{ n_tecnici }})</button>{% endif %}
+          <button class="ana-tab" data-tab="tab-riepilogo">Riepilogo annuale</button>
         </div>
 
         <!-- TAB ORDINI -->
@@ -420,6 +423,7 @@ body.theme-dark .stato-CONSEGNATO{background:rgba(56,161,105,.18);color:#86efac}
         {% if sezioni.tecnici %}
         <div id="tab-tecnici" class="ana-tab-panel" data-sezione="{% url 'fornitori:fornitore_sezione' fornitore.pk 'tecnici' %}"><div class="ana-empty">Caricamento…</div></div>
         {% endif %}
+        <div id="tab-riepilogo" class="ana-tab-panel" data-sezione="{% url 'fornitori:fornitore_sezione' fornitore.pk 'riepilogo' %}"><div class="ana-empty">Caricamento…</div></div>
 
       </div>
     </div>

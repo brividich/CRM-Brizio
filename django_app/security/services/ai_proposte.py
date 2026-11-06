@@ -184,6 +184,9 @@ def prove_alert(alert, *, now=None):
             prove.append(f"Job «{run.job_name}»: esecuzione del {_quando(run.started_at or run.created_at)} con esito «{run.status}» (dopo l'alert)")
         else:
             prove.append(f"Job «{soggetti['job']}»: nessuna esecuzione registrata dopo l'alert")
+    gruppo = getattr(alert, "_gruppo_alert", None) or []
+    if len(gruppo) > 1:
+        prove.append(f"Alert uguali ancora aperti sullo stesso soggetto: {len(gruppo)}, il primo del {_quando(gruppo[-1].created_at)}")
     prove.extend(_eventi_collegati(alert, soggetti, aperto_il))
     return prove[:MAX_PROVE]
 
@@ -381,15 +384,37 @@ def chiudi_da_sola(proposta_obj, alert):
     _chiudi(alert, proposta_obj.esito, ACTOR, reason)
     for case in _cases_of(alert):
         maybe_resolve_case(case)
+    _chiudi_resto_del_gruppo(proposta_obj, alert, reason)
+
+
+def _chiudi_resto_del_gruppo(proposta_obj, alert, reason):
+    """Gli alert uguali più vecchi seguono la decisione: ciascuno passa dagli stessi limiti (mai critici, minacce, KEV)."""
+    from security.services.auto_resolution import _cases_of, maybe_resolve_case
+    from security.services.learned_suppression import effective_severity, guardrail_reason
+
+    for altro in getattr(alert, "_gruppo_alert", None) or []:
+        if altro.pk == alert.pk or altro.status not in APERTI:
+            continue
+        if altro.event_id and altro.event:
+            severita = effective_severity(altro.event, altro)
+            if severita == Severity.CRITICAL or guardrail_reason(altro.event, severity=severita):
+                continue
+        elif altro.severity == Severity.CRITICAL:
+            continue
+        _chiudi(altro, proposta_obj.esito, ACTOR, f"Stesso gruppo dell'alert #{alert.pk}. {reason}"[:2000])
+        for case in _cases_of(altro):
+            maybe_resolve_case(case)
 
 
 # --- Giro automatico ---------------------------------------------------------------------------------
 
 def alert_da_esaminare(limit):
+    """Un alert per gruppo (il più recente), dai gruppi più grandi: una risposta dell'AI vale per tutto il gruppo."""
+    from security.services.alert_gruppi import rappresentanti
+
     attesa = timezone.now() - timedelta(hours=soc_settings.value("ai.proposte.attesa_ore"))
     since = timezone.now() - timedelta(days=GIORNI_ALERT)
-    return list(SecurityAlert.objects.filter(status__in=APERTI, created_at__lte=attesa, created_at__gte=since)
-                .select_related("source", "event", "event__report").order_by("created_at")[:limit])
+    return rappresentanti(created_at__lte=attesa, created_at__gte=since)[:limit]
 
 
 def _salva(alert, proposta, schema, label, impronta):
@@ -444,6 +469,9 @@ def giro(*, limit, time_budget_seconds=BUDGET_PIANIFICATO):
         tempi.append(proposta["ms"])
         proposta["schema"] = schema
         riga = _salva(alert, proposta, schema, label, _impronta(alert))
+        # Una proposta aperta per gruppo: quelle su alert più vecchi dello stesso gruppo sono superate.
+        (SecurityAlertProposta.objects.filter(stato=SecurityAlertProposta.APERTA, alert__in=getattr(alert, "_gruppo_alert", []))
+         .exclude(pk=riga.pk).update(stato=SecurityAlertProposta.SUPERATA, decisa_il=timezone.now()))
         esito["proposte"] += 1
         if not blocco_auto(alert, proposta):
             try:
@@ -535,14 +563,12 @@ def riapri(proposta, user, nota=""):
 # --- Dati per la pagina ------------------------------------------------------------------------------
 
 def pagina():
+    from security.services.alert_gruppi import per_pagina
+
     since = timezone.now() - timedelta(days=30)
-    aperte = list(SecurityAlertProposta.objects.filter(stato=SecurityAlertProposta.APERTA)
-                  .select_related("alert", "alert__source").order_by("-confidenza", "creata_il")[:200])
     auto = list(SecurityAlertProposta.objects.filter(stato__in=(SecurityAlertProposta.CHIUSA_AUTO, SecurityAlertProposta.ANNULLATA),
                                                      decisa_il__gte=since)
                 .select_related("alert", "alert__source").order_by("-decisa_il")[:100])
-    for p in aperte:
-        p.blocco = blocco_auto(p.alert, {"esito": p.esito, "confidenza": p.confidenza, "prove": p.prove, "schema": p.schema})
     gruppi = {}
     for p in SecurityAlertProposta.objects.filter(creata_il__gte=timezone.now() - timedelta(days=GIORNI_DECISIONI)).exclude(esito="aperto"):
         gruppi.setdefault((p.schema, p.esito), p.schema_label)
@@ -553,7 +579,7 @@ def pagina():
                          "percento": min(100, int(100 * stato["conferme"] / max(stato["soglia"], 1)))})
     imparato.sort(key=lambda r: (not r["affidabile"], -r["conferme"], r["label"]))
     return {
-        "aperte": aperte,
+        **per_pagina(),
         "auto": auto,
         "imparato": imparato,
         "n_auto_7": sum(1 for p in auto if p.stato == SecurityAlertProposta.CHIUSA_AUTO and p.decisa_il >= timezone.now() - timedelta(days=7)),

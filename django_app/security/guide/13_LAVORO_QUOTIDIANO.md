@@ -87,7 +87,11 @@ Falso positivo, «Non rilevante», «Rischio accettato» e Silenzia chiedono un 
 
 ## Proposte di chiusura dell'AI
 
-**Segnalazioni › Proposte AI** è il lavoro che l'AI locale fa da sola sugli alert aperti. Ogni 15 minuti (lettura «ai_proposte»), per gli alert aperti da almeno 2 ore e non più vecchi di 60 giorni:
+**Segnalazioni › Proposte AI** è il punto da cui smaltire gli alert aperti: sono raggruppati, e l'AI locale lavora sui gruppi.
+
+**Gruppi.** Lo stesso problema sullo stesso PC, job di backup o utente è un gruppo; le CVE stanno tutte nel gruppo del loro tipo. La pagina mostra i tipi di alert dal più grave e, dentro, i gruppi: scegli l'esito, scrivi il motivo e premi **Chiudi i N alert**. **Chiudi tutti i N** fa lo stesso per tutto il tipo. Il motivo è obbligatorio e resta su ogni alert; un alert arrivato mentre avevi la pagina aperta resta aperto. Una chiusura di gruppo conta come una decisione sola, anche per quello che impara l'AI.
+
+Ogni 15 minuti (lettura «ai_proposte»), per i gruppi dal più grande, l'AI esamina l'alert più recente, purché aperto da almeno 2 ore e non più vecchio di 60 giorni:
 
 1. il portale raccoglie le **prove** dai report arrivati dopo l'alert: se lo stesso evento si è ripetuto o no, l'ultima esecuzione del job di backup, gli altri report sullo stesso PC, utente o IP;
 2. aggiunge le **decisioni passate** su alert dello stesso tipo (stessa sorgente e stesso tipo di evento, prima quelli sullo stesso PC/job/utente): come li avete chiusi o riaperti e con quale motivo, e le proposte che avete scartato con la vostra nota;
@@ -103,6 +107,8 @@ Un alert viene riesaminato solo quando cambia qualcosa: un report nuovo, una dec
 | **Riapri** (tra i chiusi dall'AI) | L'alert torna aperto; anche la riapertura dalla scheda dell'alert vale. Conta come errore grave |
 
 ### Quando chiude da sola
+
+Quando l'AI chiude da sola, chiude anche gli alert più vecchi dello stesso gruppo, ognuno con gli stessi limiti: un critico nel gruppo resta aperto.
 
 Per ogni tipo di alert ed esito la tabella **Cosa ha imparato** conta le conferme di fila. Quando le ultime **5** (impostazione «Conferme per chiudere da sola») sono tutte conferme, le proposte successive con quell'esito chiudono l'alert da sole: nella timeline compare «Chiuso dall'AI (appreso da N conferme di fila)» con il motivo e le prove, attore `system:ai`. Non succede mai se:
 

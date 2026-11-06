@@ -34,6 +34,10 @@
 .ae-crea button { background:none; border:0; padding:0; font:inherit; font-size:12px; font-weight:600; color:var(--accent,#1d4ed8); cursor:pointer; white-space:nowrap; }
 .ae-crea button:hover { text-decoration:underline; }
 body.theme-dark .ae-crea button { color:#93c5fd; }
+.ae-daco { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; background:var(--surface,#fff); border:1px solid var(--border,#e2e8f0); border-radius:12px; padding:10px 16px; font-size:13px; color:var(--text-mid,#334155); }
+.ae-daco strong { color:var(--text,#0f172a); }
+.ae-nonserve { display:inline; margin-left:6px; }
+.ae-nonserve button { background:none; border:0; padding:0; font:inherit; font-size:12px; color:var(--text-light,#64748b); cursor:pointer; white-space:nowrap; text-decoration:underline; }
 .ae-empty { text-align:center; padding:32px; color:var(--text-light,#94a3b8); font-size:14px; }
 .ae-filtri { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; padding:16px 20px; }
 .ae-field { display:flex; flex-direction:column; gap:4px; min-width:140px; flex:1; }
@@ -87,6 +91,12 @@ body.theme-dark .ae-req-non_in_regola{background:rgba(229,62,62,.16);color:#fca5
     <div class="ae-banner ae-banner-err">{{ errore }}</div>
   {% endif %}
 
+  {% if configurato and not errore and solo_da_collegare %}
+  <div class="ae-daco"><span><strong>Da collegare:</strong> ingressi di ditte senza un intervento e non segnati «Non serve». Collegarli è facoltativo.</span><a class="ae-btn ae-btn-ghost" href="{% url 'fornitori:accessi_esterni' %}">Mostra tutti</a></div>
+  {% elif configurato and not errore and n_da_collegare %}
+  <div class="ae-daco"><span><strong>{% if da_collegare_troncato %}Almeno {% endif %}{{ n_da_collegare }} {{ n_da_collegare|pluralize:"ingresso,ingressi" }}</strong> di ditte negli ultimi {{ giorni_da_collegare }} giorni {{ n_da_collegare|pluralize:"è,sono" }} senza un intervento collegato.</span><a class="ae-btn ae-btn-ghost" href="{% url 'fornitori:accessi_esterni' %}?da_collegare=1">Da collegare</a></div>
+  {% endif %}
+
   {% if configurato and not errore %}
   <div class="ae-card">
     <div class="ae-card-head">
@@ -121,6 +131,7 @@ body.theme-dark .ae-req-non_in_regola{background:rgba(229,62,62,.16);color:#fca5
   {% if configurato %}
   <div class="ae-card">
     <form method="get" class="ae-filtri">
+      {% if solo_da_collegare %}<input type="hidden" name="da_collegare" value="1">{% endif %}
       <div class="ae-field" style="max-width:170px;">
         <label for="ae-dal">Dal</label>
         <input class="ae-input" id="ae-dal" type="date" name="dal" value="{{ dal|date:'Y-m-d' }}">
@@ -164,7 +175,7 @@ body.theme-dark .ae-req-non_in_regola{background:rgba(229,62,62,.16);color:#fca5
             <td><span class="ae-pill {% if a.tipo == 'SUPPLIER' %}ae-pill-sup{% elif a.tipo == 'PREREG' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.tipo_label }}</span></td>
             <td>{{ a.referente|default:"—" }}</td>
             <td>{{ a.motivo|default:"—" }}</td>
-            <td>{% for etichetta, url in a.interventi %}<a href="{{ url }}">{{ etichetta }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% if a.nome != "Ospite anonimizzato" %}{% if a.interventi %} · {% endif %}<a class="ae-collega" href="{% url 'fornitori:ingresso_collega' a.visita_id %}">{% if a.interventi %}+ altro{% else %}Collega…{% endif %}</a>{% endif %}</td>
+            <td>{% for etichetta, url in a.interventi %}<a href="{{ url }}">{{ etichetta }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% if a.nome != "Ospite anonimizzato" %}{% if a.interventi %} · {% endif %}<a class="ae-collega" href="{% url 'fornitori:ingresso_collega' a.visita_id %}">{% if a.interventi %}+ altro{% else %}Collega…{% endif %}</a>{% endif %}{% if a.da_collegare %}<form class="ae-nonserve" method="post" action="{% url 'fornitori:ingresso_non_serve' a.visita_id %}">{% csrf_token %}<input type="hidden" name="torna" value="{{ request.get_full_path }}"><button type="submit" title="Riunione, consegna o altro: non va collegato a un intervento">Non serve</button></form>{% elif a.non_serve %}<form class="ae-nonserve" method="post" action="{% url 'fornitori:ingresso_non_serve' a.visita_id %}">{% csrf_token %}<input type="hidden" name="azione" value="togli"><input type="hidden" name="torna" value="{{ request.get_full_path }}"><span class="ae-muted">Non serve</span> · <button type="submit">annulla</button></form>{% endif %}</td>
             <td>{{ a.ingresso|date:"d/m/Y H:i"|default:"—" }}</td>
             <td>{% if a.uscita %}{{ a.uscita|date:"d/m/Y H:i" }}{% else %}<span class="ae-muted">—</span>{% endif %}</td>
             <td><span class="ae-pill {% if a.presente %}ae-pill-in{% elif a.stato == 'PREREGISTERED' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.stato_label }}</span></td>

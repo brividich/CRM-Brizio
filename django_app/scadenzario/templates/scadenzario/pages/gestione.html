@@ -19,12 +19,6 @@
 .gz-sez { font-size:12px; font-weight:700; color:var(--text,#1e293b); margin:16px 0 6px; text-transform:uppercase; letter-spacing:.04em; }
 .gz-percorso { font-size:12px; color:var(--text-light,#64748b); }
 .gz-frase { margin:8px 0 2px; padding:10px 14px; border-radius:10px; font-size:13px; background:var(--surface-alt,#f1f5f9); color:var(--text,#0f172a); }
-.gz-righe { display:flex; flex-direction:column; gap:6px; }
-.gz-regola { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--border,#e2e8f0); border-radius:8px; font-size:13px; }
-.gz-form { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; }
-.gz-form label { display:flex; flex-direction:column; gap:3px; font-size:11px; font-weight:600; color:var(--text-mid,#475569); }
-.gz-chi { flex:1 1 260px; min-width:0; }
-.gz-chi select { width:100%; }
 @media (max-width:900px) { .gz-grid { grid-template-columns:1fr; } .gz-dett { order:-1; } }
 </style>
 {% endblock %}
@@ -70,7 +64,7 @@
         <h2>Chi gestisce questo pannello</h2>
         <div class="sz-sub">Gli amministratori del portale lo gestiscono sempre. Qui aggiungi altri ruoli o persone, per esempio la Qualità.</div>
         <div class="gz-sez">Regole</div>
-        {% include "scadenzario/components/regole.html" with regole=selezione.regole chiave=selezione.chiave con_livello=False %}
+        {% include "scadenzario/components/regole.html" with regole=selezione.regole chiave=selezione.chiave con_livello=False con_ambito=False %}
       {% else %}
         <div class="gz-percorso">{% for c, etichetta in selezione.percorso %}{% if not forloop.first %} › {% endif %}<a href="?chiave={{ c|urlencode }}">{{ etichetta }}</a>{% endfor %}</div>
         <h2 style="margin-top:4px">{{ selezione.nodo.etichetta|default:selezione.chiave }}</h2>
@@ -83,13 +77,13 @@
         {% if selezione.nodo and not selezione.nodo.presente %}<div class="sz-help" style="margin-top:6px">Oggi non ci sono scadenze per questa voce: l'impostazione vale quando torneranno.</div>{% endif %}
 
         <div class="gz-sez">Chi la vede</div>
-        {% include "scadenzario/components/regole.html" with regole=selezione.regole chiave=selezione.chiave con_livello=selezione.generiche %}
+        {% include "scadenzario/components/regole.html" with regole=selezione.regole chiave=selezione.chiave con_livello=selezione.generiche con_ambito=True %}
 
         {% if selezione.regole_ereditate %}
           <div class="gz-sez">Arrivano dalle voci superiori</div>
           <div class="gz-righe">
             {% for etichetta, regole in selezione.regole_ereditate %}
-              {% for r in regole %}<div class="gz-regola"><span>{{ r.destinatario_label }} · <span class="sz-muted">da «{{ etichetta }}»</span></span><span class="sz-pill sz-off">{{ r.get_livello_display }}</span></div>{% endfor %}
+              {% for r in regole %}<div class="gz-regola"><span>{{ r.destinatario_label }} · <span class="sz-muted">da «{{ etichetta }}»</span></span><span class="sz-pill sz-off">{{ r.get_livello_display }} · {{ r.get_ambito_display }}</span></div>{% endfor %}
             {% endfor %}
           </div>
         {% endif %}

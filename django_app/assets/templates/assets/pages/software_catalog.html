@@ -12,6 +12,11 @@
 .sc-filters a.active{border-color:var(--link,#2563eb);color:var(--link,#2563eb);background:color-mix(in srgb,var(--link,#2563eb) 10%,transparent)}
 .sc-filters a span{opacity:.7;margin-left:4px}
 .sc-search{display:flex;gap:8px;margin-left:auto}
+.sc-mini-btn{padding:6px 12px;border:1px solid var(--border,#dbe3ef);border-radius:10px;background:var(--surface,#fff);color:inherit;font:inherit;font-size:var(--fs-sm,13px);font-weight:600;cursor:pointer;white-space:nowrap}
+.sc-regola{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 8px}
+.sc-regola .sc-tag{white-space:normal}
+.sc-unisci{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;margin-top:14px}
+.sc-unisci label,.sc-unisci .sc-note{grid-column:1/-1}
 .sc-search input{border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 10px;font:inherit;background:var(--surface,#fff);color:inherit;min-width:220px}
 .sc-table-wrap{overflow:auto}
 .sc-cve-strip{display:flex;gap:14px;align-items:center;justify-content:space-between;border-left:5px solid var(--success,#16a34a)}
@@ -52,7 +57,7 @@ body.theme-dark .sc-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
       <tbody>
       {% for row in rows %}
         <tr>
-          <td><a href="{{ row.url }}"><strong>{{ row.name }}</strong></a><br><span class="sc-meta">{{ row.vendor|default:"produttore n/d" }}</span></td>
+          <td><a href="{{ row.url }}"><strong>{{ row.name }}</strong></a><br><span class="sc-meta">{{ row.vendor|default:"produttore n/d" }}{% if row.names > 1 %} · {{ row.names }} nomi raggruppati{% endif %}</span>{% if row.cerca %}<span hidden>{{ row.cerca }}</span>{% endif %}</td>
           <td>{{ row.hosts }}</td>
           <td>{{ row.versions }}</td>
           <td><span class="sc-tag {% if row.classification == 'consentito' %}sc-tag--ok{% elif row.classification == 'non_autorizzato' %}sc-tag--danger{% elif row.classification == 'da_rimuovere' %}sc-tag--warn{% else %}sc-tag--muted{% endif %}">{{ row.classification_label }}</span></td>

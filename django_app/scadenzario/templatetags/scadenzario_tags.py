@@ -10,6 +10,14 @@ def voce(voci_cfg, chiave):
 
 
 @register.filter
+def senza_regole(opzioni_chi, regole):
+    """Le scelte di «Aggiungi» senza chi ha già una regola sulla voce, e senza gruppi vuoti."""
+    presenti = {r.chi_valore for r in regole or ()}
+    gruppi = ((g, [o for o in opzioni if o[0] not in presenti]) for g, opzioni in opzioni_chi or ())
+    return [(g, opzioni) for g, opzioni in gruppi if opzioni]
+
+
+@register.filter
 def n_regole(regole_per_chiave, chiave):
     return len((regole_per_chiave or {}).get(chiave, ()))
 

@@ -1441,6 +1441,30 @@ class SoftwareAlias(models.Model):
         return f"{self.raw} → {self.canonical}"
 
 
+class SoftwareProgrammaRegola(models.Model):
+    """Correzione a mano del raggruppamento del Catalogo software, sopra la regola automatica.
+
+    «separa»: ``chiave`` (vendor|product) è un programma a sé. «unisci»: il programma di ``chiave``
+    e quello di ``chiave_altra`` sono uno solo; vale anche per le release future di entrambi.
+    """
+
+    TIPO_SEPARA = "separa"
+    TIPO_UNISCI = "unisci"
+    TIPO_CHOICES = [(TIPO_SEPARA, "Separa"), (TIPO_UNISCI, "Unisci")]
+
+    tipo = models.CharField(max_length=16, choices=TIPO_CHOICES)
+    chiave = models.CharField(max_length=300)
+    chiave_altra = models.CharField(max_length=300, blank=True)
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["pk"]
+
+    def __str__(self):
+        return f"{self.tipo}: {self.chiave}" + (f" + {self.chiave_altra}" if self.chiave_altra else "")
+
+
 class SoftwareNaRule(models.Model):
     """Regola «non applicabile»: i software il cui nome contiene ``pattern`` non hanno CVE da seguire.
 

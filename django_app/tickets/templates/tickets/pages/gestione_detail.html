@@ -519,4 +519,23 @@ document.querySelectorAll(".interv-delete-btn").forEach(btn=>btn.addEventListene
   });
 })();
 </script>
+<script>
+/* «Usa nel rapportino» del riquadro Presenze: apre «Registra intervento» e lo riempie, a salvare resta la persona. */
+(function () {
+  if (!document.getElementById('if-tecnico')) { return; }
+  document.body.classList.add('pz-con-rapportino');
+  document.addEventListener('click', function (event) {
+    var b = event.target.closest('[data-pz-usa]');
+    if (!b) { return; }
+    var form = document.getElementById('interv-form');
+    if (form) { form.style.display = ''; }
+    [['if-tecnico', b.dataset.tecnici], ['if-inizio', b.dataset.dal], ['if-fine', b.dataset.al], ['if-ore', b.dataset.ore]].forEach(function (voce) {
+      var campo = document.getElementById(voce[0]);
+      if (campo && voce[1]) { campo.value = voce[1]; }
+    });
+    b.textContent = 'Inserito: controlla e registra';
+    if (form) { form.scrollIntoView({block: 'center'}); }
+  });
+})();
+</script>
 {% endblock %}
