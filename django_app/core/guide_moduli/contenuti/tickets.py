@@ -28,11 +28,17 @@ GUIDA = {
                     "Clicca «Invia richiesta».",
                 ]),
                 ("p", "Puoi aprire un ticket anche inquadrando il QR attaccato alla macchina."),
-                ("p", "Squadra manutenzione: nei ticket MAN c'è «Per conto di». Scegli il collega che ha segnalato il "
-                      "guasto: il ticket risulta aperto da lui (lo trova in «I miei ticket» e riceve gli aggiornamenti) "
+                ("p", "Manutentori e IT: c'è «Per conto di». Scegli il collega che ha segnalato il problema: il "
+                      "ticket risulta aperto da lui (lo trova in «I miei ticket» e riceve gli aggiornamenti) "
                       "e nella scheda compare «Compilato da» con il tuo nome. Tu continui a vederlo nei tuoi ticket. "
-                      "Il campo c'è solo per chi è nel ruolo della squadra manutenzione (Assets › Impostazioni › "
-                      "Configurazione) o gestisce i ticket di manutenzione."),
+                      "Il campo c'è solo per chi gestisce quel tipo di ticket e, per la manutenzione, per chi è nel "
+                      "ruolo della squadra manutenzione (Assets › Impostazioni › Configurazione)."),
+                ("p", "Problema già sistemato al volo: spunta «Già risolto: registra l'intervento e chiudi il ticket», "
+                      "scrivi «Cosa è stato fatto» (obbligatorio) e, se serve, «Concluso il» (vuoto = adesso) e «Ore "
+                      "di lavoro», poi clicca «Registra e chiudi». Il ticket nasce «Chiuso» con l'intervento "
+                      "registrato; per la manutenzione con asset entra nel registro. Il team non riceve l'avviso di "
+                      "nuovo ticket, tranne quando incide sulla sicurezza. Vale anche senza «Per conto di». "
+                      "«Concluso il» resta sull'intervento: la data di chiusura del ticket è quella di registrazione."),
                 ("p", "Se l'invio torna con un errore i dati restano nei campi: correggi e invia di nuovo. "
                       "Gli allegati vanno riscelti (il browser non li conserva)."),
             ],
