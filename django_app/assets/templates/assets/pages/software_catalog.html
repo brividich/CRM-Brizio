@@ -52,7 +52,7 @@ body.theme-dark .sc-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
       <tbody>
       {% for row in rows %}
         <tr>
-          <td><a href="{{ row.url }}"><strong>{{ row.name }}</strong></a><br><span class="sc-meta">{{ row.vendor|default:"produttore n/d" }}</span></td>
+          <td><a href="{{ row.url }}"><strong>{{ row.name }}</strong></a><br><span class="sc-meta">{{ row.vendor|default:"produttore n/d" }}{% if row.names > 1 %} · {{ row.names }} nomi raggruppati{% endif %}</span>{% if row.cerca %}<span hidden>{{ row.cerca }}</span>{% endif %}</td>
           <td>{{ row.hosts }}</td>
           <td>{{ row.versions }}</td>
           <td><span class="sc-tag {% if row.classification == 'consentito' %}sc-tag--ok{% elif row.classification == 'non_autorizzato' %}sc-tag--danger{% elif row.classification == 'da_rimuovere' %}sc-tag--warn{% else %}sc-tag--muted{% endif %}">{{ row.classification_label }}</span></td>

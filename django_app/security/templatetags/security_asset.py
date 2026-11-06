@@ -87,7 +87,7 @@ def security_asset_software(context, asset):
     data = software_catalog.software_for_hub_asset(
         asset,
         with_cve=can_view_security_center(getattr(request, "user", None)),
-        license_states=software_catalog.license_states_for_keys(licenses),
+        license_states=software_catalog.license_states_per_programma(licenses),
     )
     if not data["rows"]:
         return {"show": False}
@@ -97,7 +97,9 @@ def security_asset_software(context, asset):
 
     from assets.models import SoftwareCatalogEntry
 
-    entries = {e.inventory_key: e for e in SoftwareCatalogEntry.objects.filter(inventory_key__in=[r["key"] for r in data["rows"]])}
+    # la decisione può essere su un altro nome dello stesso programma
+    tutte = {e.inventory_key: e for e in SoftwareCatalogEntry.objects.all()}
+    entries = {canon: tutte[keys[0]] for canon, keys in software_catalog.chiavi_per_programma(tutte).items()}
     detail = reverse("assets:software_catalog_detail")
     for row in data["rows"]:
         entry = entries.get(row["key"])
