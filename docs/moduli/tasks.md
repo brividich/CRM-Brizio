@@ -82,6 +82,10 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 
 ### Programmi CAM, CMM e FAI (05/11/2026)
 
+Report `/tasks/fai/report/` (voce di menu, `core 0111`): conteggi da `righe_registro`, file da `/tasks/fai/report/scarica/?report=<scadenze|trimestrale|situazione|clienti|tutti>&formato=<xlsx|pdf>&cliente=`, in `tasks/services/fai_report.py` e `tasks/views/fai_report.py`. Voce `fai` del Centro report, con «Controllo trimestrale» e «Da ripetere e in scadenza» pianificabili.
+
+Il file `Situazione FAI-ISIR.xlsm` si migra con `manage.py importa_situazione_fai <file> [--apply] [--report <csv>]` (`tasks/services/fai_import.py`, migrazioni `tasks 0057-0058`): senza `--apply` non scrive; rilanciandolo aggiorna solo le righe non modificate nel portale. `/tasks/fai/?per=fai` elenca tutti i FAI. Scadenza: ultima produzione; se manca, chiusura del FAI.
+
 `TaskCategory.richiede` (CAM, CMM, FAI) lega il tipo attività a ciò che deve produrre: l'attività crea o adotta la sua riga `ProjectTechRef.task`, responsabile, data e stato vengono dall'attività (`tasks/services/programmi.py`, migrazioni `tasks 0055-0056`). Vista generale `/tasks/programmi/` (voce di menu, `core 0110`). La scheda dell'attività scrive codice e cartella con `POST /tasks/<id>/programma/`.
 
 Il FAI previsto è una proposta: chi gestisce il kickoff può segnarlo «Non richiesto per questo kickoff» (`POST /tasks/projects/<id>/programmi/fai-non-richiesto/`, migrazione `tasks 0054`). Restano chi e quando; se poi si apre un FAI, vale il FAI.

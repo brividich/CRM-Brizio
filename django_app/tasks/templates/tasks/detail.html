@@ -1,230 +1,72 @@
 {% extends "tasks/base_shell.html" %}
 {% block tasks_shell_guide_anchor %}#scheda-attivita{% endblock %}
 
-{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Dettaglio attivita</span>{% endblock %}
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Attività</span>{% endblock %}
 
 {% block tasks_shell_title %}{{ task.title }}{% endblock %}
 
-{% block tasks_shell_subtitle %}
-  Attivita kickoff #{{ task.id }}
-  {% if task.project %}
-    collegata al kickoff {{ task.project.name }} con informazioni operative, pianificazione, commenti, allegati e storico eventi.
-  {% else %}
-    gestita come attivita singola con tutte le informazioni operative e di avanzamento in un'unica scheda.
-  {% endif %}
-{% endblock %}
-
-{% block tasks_shell_meta %}
-  <span class="ts-hero-pill">{{ task.get_status_display }}</span>
-  <span class="ts-hero-pill">{{ task.get_priority_display }}</span>
-  {% if task.project %}
-    <span class="ts-hero-pill">{{ task.project.name }}</span>
-  {% else %}
-    <span class="ts-hero-pill">Attivita singola</span>
-  {% endif %}
-  {% if task.is_overdue %}
-    <span class="ts-hero-pill">Overdue</span>
-  {% endif %}
-{% endblock %}
+{% block tasks_shell_subtitle %}{% if task.project %}<a class="td-kickoff" href="{% url 'tasks:project_overview' task.project.id %}">{{ task.project.name }}</a>{% else %}Attività singola{% endif %}{% endblock %}
 
 {% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna alla dashboard</a>
   {% if task.project %}
-    <a class="ts-hero-action" href="{% url 'tasks:project_gantt' task.project.id %}">Apri Gantt</a>
+    <a class="ts-hero-action" href="{% url 'tasks:project_gantt' task.project.id %}">Piano</a>
+  {% else %}
+    <a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna alla dashboard</a>
   {% endif %}
   {% if can_edit %}
-    <a class="ts-hero-action primary" href="{% url 'tasks:edit' task.id %}">Modifica attivita</a>
+    <a class="ts-hero-action primary" href="{% url 'tasks:edit' task.id %}">Modifica</a>
   {% endif %}
-{% endblock %}
-
-{% block tasks_shell_kpis %}
-<section class="ts-kpis">
-  <article class="ts-kpi blue">
-    <div class="ts-kpi-label">Subtask</div>
-    <div class="ts-kpi-value">{{ task.subtasks.all|length }}</div>
-    <div class="ts-kpi-note">Sotto-attivita collegate all'attivita principale.</div>
-  </article>
-  <article class="ts-kpi amber">
-    <div class="ts-kpi-label">Commenti</div>
-    <div class="ts-kpi-value">{{ task.comments.all|length }}</div>
-    <div class="ts-kpi-note">Scambi operativi registrati sull'attivita.</div>
-  </article>
-  <article class="ts-kpi teal">
-    <div class="ts-kpi-label">Allegati attivita</div>
-    <div class="ts-kpi-value">{{ task.attachments.all|length }}</div>
-    <div class="ts-kpi-note">File agganciati direttamente all'attivita.</div>
-  </article>
-  <article class="ts-kpi slate">
-    <div class="ts-kpi-label">Eventi</div>
-    <div class="ts-kpi-value">{{ task.events.all|length }}</div>
-    <div class="ts-kpi-note">Timeline delle modifiche e delle azioni utente.</div>
-  </article>
-</section>
 {% endblock %}
 
 {% block tasks_shell_content %}
-<section class="task-detail-layout">
-  <div class="ts-stack">
+<section class="td-layout">
+  <div class="td-colonna">
+
+    <div class="td-stato">
+      {% if can_edit %}
+        <form method="post" action="{% url 'tasks:change_status' task.id %}" class="td-stati" aria-label="Stato dell'attività">
+          {% csrf_token %}
+          {% for valore, etichetta in task_status_choices %}
+            <button type="submit" name="status" value="{{ valore }}" class="td-stato-btn{% if task.status == valore %} attivo{% endif %}"{% if task.status == valore %} aria-pressed="true"{% endif %}>{{ etichetta }}</button>
+          {% endfor %}
+        </form>
+      {% else %}
+        <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
+      {% endif %}
+      <span class="td-stato-info">
+        <span class="ts-badge ts-badge--{{ task.priority|lower }}">Priorità {{ task.get_priority_display|lower }}</span>
+        {% if task.is_overdue %}<span class="ts-badge danger">In ritardo</span>{% endif %}
+      </span>
+    </div>
+
     {% include "tasks/_task_programma.html" %}
-    <article class="ts-panel">
-      <div class="ts-panel-head">
-        <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Panoramica attivita</h2>
-          <p class="ts-panel-subtitle">Contesto operativo, persone coinvolte, pianificazione e prossima azione da eseguire.</p>
-        </div>
-        <div class="ts-panel-meta">
-          <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
-          <span class="ts-badge ts-badge--{{ task.priority|lower }}">{{ task.get_priority_display }}</span>
-          {% if task.is_overdue %}
-            <span class="ts-badge danger">Overdue</span>
-          {% endif %}
-        </div>
-      </div>
-      <div class="ts-panel-body">
-        <div class="task-detail-body">{{ task.description|default:"Nessuna descrizione." }}</div>
 
-        <div class="task-detail-meta">
-          <div class="task-detail-meta-item">
-            <strong>Creata da</strong>
-            {{ task.created_by.get_full_name|default:task.created_by.username }}
-          </div>
-          <div class="task-detail-meta-item">
-            <strong>Assegnata a</strong>
-            {% if task.assigned_to %}
-              {{ task.assigned_to.get_full_name|default:task.assigned_to.username }}
-            {% else %}
-              Nessuno
-            {% endif %}
-          </div>
-          <div class="task-detail-meta-item">
-            <strong>Data richiesta fine</strong>
-            {% if task.due_date %}{{ task.due_date|date:"d-m-Y" }}{% else %}-{% endif %}
-            {% if can_update_due_date %}
-              <form method="post" action="{% url 'tasks:update_due_date' task.id %}" class="task-inline-form">
-                {% csrf_token %}
-                {{ task_due_date_form.due_date }}
-                <button type="submit" class="btn btn-sm">Aggiorna</button>
-              </form>
-            {% endif %}
-          </div>
-          <div class="task-detail-meta-item">
-            <strong>Data inizio</strong>
-            {% if task.next_step_due %}{{ task.next_step_due|date:"d-m-Y" }}{% else %}-{% endif %}
-            {% if can_update_due_date %}
-              <form method="post" action="{% url 'tasks:update_start_date' task.id %}" class="task-inline-form">
-                {% csrf_token %}
-                {{ task_start_date_form.next_step_due }}
-                <button type="submit" class="btn btn-sm">Aggiorna</button>
-              </form>
-            {% endif %}
-          </div>
-          <div class="task-detail-meta-item" style="grid-column: 1 / -1;">
-            <strong>Kickoff</strong>
-            {% if task.project %}
-              <div>{{ task.project.name }}</div>
-              <div class="ts-card-meta" style="margin-top:8px;">
-                {% if task.project.client_name %}<span class="task-meta-chip">Cliente: {{ task.project.client_name }}</span>{% endif %}
-                {% for block in task.project.team_blocks %}{% if block.display %}<span class="task-meta-chip">{{ block.label }}: {{ block.display }}</span>{% endif %}{% endfor %}
-                {% if task.project.control_method %}<span class="task-meta-chip">Controllo: {{ task.project.control_method }}</span>{% endif %}
-                {% if task.project.part_number %}<span class="task-meta-chip">P/N: {{ task.project.part_number }}</span>{% endif %}
-                {% if task.project.safety_impact %}<span class="task-meta-chip">Impatto sicurezza</span>{% endif %}
-                {% if task.project.similar_project %}<span class="task-meta-chip">Simile a: {{ task.project.similar_project.name }}</span>{% endif %}
-                {% if task.project.similar_work_note %}<span class="task-meta-chip">Lavorazione simile: {{ task.project.similar_work_note }}</span>{% endif %}
-              </div>
-            {% else %}
-              Attivita singola
-            {% endif %}
-          </div>
-          <div class="task-detail-meta-item" style="grid-column: 1 / -1;">
-            <strong>Tag</strong>
-            {{ task.tags|default:"-" }}
-          </div>
-          <div class="task-detail-meta-item" style="grid-column: 1 / -1;">
-            <strong>Next step</strong>
-            {{ task.next_step_text|default:"-" }}
-          </div>
-          <div class="task-detail-meta-item" style="grid-column: 1 / -1;">
-            <strong>Subscribers</strong>
-            {% with subs=task.subscribers.all %}
-              {% if subs %}
-                {% for subscriber in subs %}
-                  {{ subscriber.get_full_name|default:subscriber.username }}{% if not forloop.last %}, {% endif %}
-                {% endfor %}
-              {% else %}
-                Nessuno
-              {% endif %}
-            {% endwith %}
-          </div>
-          {% if task.category %}
-            <div class="task-detail-meta-item" style="grid-column: 1 / -1;">
-              <strong>Tipo attivita</strong>
-              {% if task.category.icon %}<span style="opacity:.7;">{{ task.category.icon }}</span>{% endif %}
-              {{ task.category.name }}
-            </div>
-            {% if task_extra_rows %}
-              <div class="task-detail-meta-item" style="grid-column: 1 / -1; background:#f8fbff; border-radius:10px; padding:12px 14px; border:1px solid #e2e8f0;">
-                <strong>Campi tipo "{{ task.category.name }}"</strong>
-                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:10px; margin-top:8px;">
-                  {% for row in task_extra_rows %}
-                    <div style="background:#fff; padding:8px 10px; border-radius:8px; border:1px solid #e2e8f0;">
-                      <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#94a3b8;">{{ row.label }}</div>
-                      <div style="font-weight:600; color:#0f172a;">
-                        {% if row.href %}<a href="{{ row.href }}" style="color:#2563eb; text-decoration:none;">{{ row.value }}</a>
-                        {% else %}{{ row.value }}{% endif %}
-                      </div>
-                    </div>
-                  {% endfor %}
-                </div>
-              </div>
-            {% endif %}
-          {% endif %}
-        </div>
-
-        {% if can_edit %}
-          <div class="ts-note-box">
-            Puoi aggiornare rapidamente lo stato da questa scheda.
-            <form method="post" action="{% url 'tasks:change_status' task.id %}" class="task-inline-form">
-              {% csrf_token %}
-              {{ task_status_form.status }}
-              <button type="submit" class="btn btn-sm">Aggiorna stato</button>
-            </form>
-          </div>
+    {% if task.description or task.next_step_text %}
+      <article class="td-card">
+        {% if task.description %}
+          <h2 class="td-titolo">Descrizione</h2>
+          <div class="td-testo">{{ task.description }}</div>
         {% endif %}
-      </div>
-    </article>
-
-    {% if attrezzatura_embedded_context %}
-      {% include "attrezzature/components/embedded_panel.html" with embedded_context=attrezzatura_embedded_context %}
+        {% if task.next_step_text %}
+          <h2 class="td-titolo">Prossimo passo</h2>
+          <div class="td-testo">{{ task.next_step_text }}</div>
+        {% endif %}
+      </article>
     {% endif %}
 
-    <article class="ts-panel" id="subtask-panel">
-      <div class="ts-panel-head">
-        <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Subtask</h2>
-          <p class="ts-panel-subtitle">Sequenza di lavorazioni collegate all'attivita principale.</p>
-        </div>
-        <div class="ts-panel-meta">
-          <span class="ts-chip soft" id="subtask-progress-label">{{ task.subtasks.all|length }} elementi</span>
-        </div>
+    <article class="td-card" id="subtask-panel">
+      <div class="td-testa">
+        <h2 class="td-titolo">Sotto-attività</h2>
+        <span class="td-conta" id="subtask-progress-label">{{ task.subtasks.all|length }} elementi</span>
       </div>
-      <div class="ts-panel-body">
-        {% if task.subtasks.all %}
-          <div class="ts-table-wrap">
-            <table class="task-table-mini" id="subtask-table">
-              <thead>
-                <tr>
-                  {% if can_edit %}<th style="width:36px;"></th>{% endif %}
-                  <th>Titolo</th>
-                  <th>Assegnata a</th>
-                  <th>Fine</th>
-                  <th>Stato</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for subtask in task.subtasks.all %}
-                  <tr class="st-row{% if subtask.status == 'DONE' %} done-row{% endif %}" id="st-row-{{ subtask.id }}" data-status="{{ subtask.status }}">
-                    {% if can_edit %}
-                    <td style="padding:6px 4px 6px 8px;">
+      {% if task.subtasks.all %}
+        <div class="ts-table-wrap">
+          <table class="td-sotto" id="subtask-table">
+            <tbody>
+              {% for subtask in task.subtasks.all %}
+                <tr class="st-row{% if subtask.status == 'DONE' %} done-row{% endif %}" id="st-row-{{ subtask.id }}" data-status="{{ subtask.status }}">
+                  {% if can_edit %}
+                    <td class="td-sotto-spunta">
                       <button type="button"
                               class="st-toggle{% if subtask.status == 'DONE' %} done{% endif %}"
                               id="st-toggle-{{ subtask.id }}"
@@ -236,282 +78,248 @@
                         </svg>
                       </button>
                     </td>
+                  {% endif %}
+                  <td class="st-title">{{ subtask.title }}</td>
+                  <td class="td-sotto-info">{% if subtask.assigned_to %}{{ subtask.assigned_to.get_full_name|default:subtask.assigned_to.username }}{% else %}Da assegnare{% endif %}</td>
+                  <td class="td-sotto-info">{{ subtask.due_date|date:"d/m/Y" }}</td>
+                  <td class="td-sotto-stato">
+                    {% if can_edit %}
+                      <form method="post" action="{% url 'tasks:edit_subtask_status' task.id subtask.id %}">
+                        {% csrf_token %}
+                        <select name="status" class="input" aria-label="Stato di {{ subtask.title }}" data-invia-al-cambio>
+                          {% for value, label in subtask_status_choices %}
+                            <option value="{{ value }}"{% if subtask.status == value %} selected{% endif %}>{{ label }}</option>
+                          {% endfor %}
+                        </select>
+                      </form>
+                    {% else %}
+                      <span class="st-status-badge {{ subtask.status|lower }}" id="st-badge-{{ subtask.id }}">{{ subtask.get_status_display }}</span>
                     {% endif %}
-                    <td class="st-title">{{ subtask.title }}</td>
-                    <td>
-                      {% if subtask.assigned_to %}
-                        {{ subtask.assigned_to.get_full_name|default:subtask.assigned_to.username }}
-                      {% else %}
-                        -
-                      {% endif %}
-                    </td>
-                    <td>{% if subtask.due_date %}{{ subtask.due_date|date:"d-m-Y" }}{% else %}-{% endif %}</td>
-                    <td>
-                      <span class="st-status-badge {{ subtask.status|lower }}" id="st-badge-{{ subtask.id }}">
-                        {{ subtask.get_status_display }}
-                      </span>
-                      {% if can_edit %}
-                        <form method="post" action="{% url 'tasks:edit_subtask_status' task.id subtask.id %}" class="task-inline-form" style="margin-top:6px;">
-                          {% csrf_token %}
-                          <select name="status" class="input" style="min-width:130px;font-size:12px;">
-                            {% for value, label in subtask_status_choices %}
-                              <option value="{{ value }}" {% if subtask.status == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                          </select>
-                          <button type="submit" class="btn btn-sm">Salva</button>
-                        </form>
-                      {% endif %}
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <div class="ts-empty">
-            <strong>Nessuna subtask collegata.</strong>
-            <div>Aggiungi una sotto-attivita se vuoi spezzare il lavoro in step piu piccoli.</div>
-          </div>
-        {% endif %}
-      </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="td-vuoto">Nessuna sotto-attività.</p>
+      {% endif %}
+      {% if can_edit %}
+        <details class="td-aggiungi">
+          <summary>+ Aggiungi sotto-attività</summary>
+          <form method="post" action="{% url 'tasks:add_subtask' task.id %}" class="td-griglia-sotto">
+            {% csrf_token %}
+            <label class="fai-campo td-largo"><span>Titolo</span>{{ subtask_form.title }}</label>
+            <label class="fai-campo"><span>Assegnata a</span>{{ subtask_form.assigned_to }}</label>
+            <label class="fai-campo"><span>Fine</span>{{ subtask_form.due_date }}</label>
+            <label class="fai-campo"><span>Ordine</span>{{ subtask_form.order_index }}</label>
+            <button type="submit" class="btn btn-sm">Aggiungi</button>
+          </form>
+        </details>
+      {% endif %}
     </article>
 
-    <article class="ts-panel">
-      <div class="ts-panel-head">
-        <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Commenti</h2>
-          <p class="ts-panel-subtitle">Discussione operativa con notifiche opzionali ai partecipanti rilevanti.</p>
-        </div>
-        <div class="ts-panel-meta">
-          <span class="ts-chip soft">{{ task.comments.all|length }} note</span>
-        </div>
-      </div>
-      <div class="ts-panel-body">
-        {% if can_comment %}
-          <form method="post" action="{% url 'tasks:add_comment' task.id %}" class="ts-stack">
-            {% csrf_token %}
-            <div class="ts-field">
-              <label for="{{ comment_form.body.id_for_label }}">Nuovo commento</label>
-              {{ comment_form.body }}
-            </div>
-            <div class="ts-field">
-              <label for="{{ comment_form.target_user.id_for_label }}">Notifica utente (opzionale)</label>
-              {{ comment_form.target_user }}
-            </div>
-            <div class="ts-field-actions">
-              <button type="submit" class="btn btn-sm">Aggiungi commento</button>
-            </div>
-          </form>
-        {% endif %}
+    {% if attrezzatura_embedded_context %}
+      <details class="td-card td-piega td-attrezzatura">
+        <summary>
+          <span class="td-titolo">Attrezzatura</span>
+          <span class="td-conta">P/N {{ attrezzatura_embedded_context.part_number|default:"-" }} · {{ attrezzatura_embedded_context.summary.count|default:0 }} collegate · {{ attrezzatura_embedded_context.open_tasks|length }} attività aperte</span>
+        </summary>
+        {% include "attrezzature/components/embedded_panel.html" with embedded_context=attrezzatura_embedded_context %}
+      </details>
+    {% endif %}
 
-        {% if task.comments.all %}
-          <ul class="task-list-clean">
-            {% for comment in task.comments.all %}
-              <li class="task-list-card task-comment-card">
-                <div class="ts-card-meta" style="margin-bottom:8px;">
-                  <span style="font-weight:800;color:#0f172a;">{{ comment.author.get_full_name|default:comment.author.username }}</span>
-                  <span style="color:#94a3b8;">{{ comment.created_at|date:"d-m-Y H:i" }}</span>
-                </div>
-                <div class="task-detail-body" style="font-size:13px;">{{ comment.body }}</div>
-                {% if comment.target_user %}
-                  <div class="ts-card-text" style="margin-top:8px;font-size:11px;">Notifica inviata a: {{ comment.target_user.get_full_name|default:comment.target_user.username }}</div>
-                {% endif %}
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <div class="ts-empty">
-            <strong>Nessun commento registrato.</strong>
-            <div>Usa questa sezione per lasciare note operative o chiedere aggiornamenti mirati.</div>
+    <article class="td-card">
+      <div class="td-testa">
+        <h2 class="td-titolo">Commenti</h2>
+        <span class="td-conta">{{ task.comments.all|length }}</span>
+      </div>
+      {% if can_comment %}
+        <form method="post" action="{% url 'tasks:add_comment' task.id %}" class="td-commento">
+          {% csrf_token %}
+          <label class="fai-campo"><span>Nuovo commento</span>{{ comment_form.body }}</label>
+          <div class="td-commento-piede">
+            <label class="fai-campo td-notifica"><span>Avvisa (facoltativo)</span>{{ comment_form.target_user }}</label>
+            <button type="submit" class="btn btn-sm">Commenta</button>
           </div>
-        {% endif %}
-      </div>
-    </article>
-  </div>
-
-  <div class="ts-stack">
-    <article class="ts-panel">
-      <div class="ts-panel-head">
-        <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Allegati</h2>
-          <p class="ts-panel-subtitle">File caricati sull'attivita e, se presente, sul kickoff collegato.</p>
-        </div>
-      </div>
-      <div class="ts-panel-body">
-        {% if can_edit %}
-          <form method="post" action="{% url 'tasks:add_attachment' task.id %}" enctype="multipart/form-data" class="ts-stack">
-            {% csrf_token %}
-            <div class="ts-field">
-              <label for="{{ attachment_form.attach_to.id_for_label }}">Destinazione</label>
-              {{ attachment_form.attach_to }}
-            </div>
-            <div class="ts-field">
-              <label for="{{ attachment_form.file.id_for_label }}">File</label>
-              {{ attachment_form.file }}
-            </div>
-            <div class="ts-field-actions">
-              <button type="submit" class="btn btn-sm">Carica allegato</button>
-            </div>
-          </form>
-        {% endif %}
-
-        <div class="ts-stack">
-          <div>
-            <div class="ts-field-label" style="margin-bottom:8px;">Allegati attivita</div>
-            {% if task.attachments.all %}
-              <ul class="task-list-clean">
-                {% for attachment in task.attachments.all %}
-                  <li class="task-list-card task-attach-card">
-                    <div class="task-attach-icon">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </div>
-                    <div class="task-attach-body">
-                      <a class="task-attachment-link" href="{% url 'tasks:task_attachment_download' attachment.id %}" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
-                      <div class="ts-card-text" style="margin-top:3px;font-size:11px;">
-                        {{ attachment.created_at|date:"d-m-Y H:i" }}
-                        {% if attachment.uploaded_by %} &middot; {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}{% endif %}
-                      </div>
-                    </div>
-                  </li>
-                {% endfor %}
-              </ul>
-            {% else %}
-              <div class="ts-empty" style="padding:18px;">
-                <strong>Nessun allegato attivita.</strong>
+        </form>
+      {% endif %}
+      {% if task.comments.all %}
+        <ul class="td-commenti">
+          {% for comment in task.comments.all %}
+            <li>
+              <div class="td-commento-testa">
+                <strong>{{ comment.author.get_full_name|default:comment.author.username }}</strong>
+                <span>{{ comment.created_at|date:"d/m/Y H:i" }}</span>
               </div>
-            {% endif %}
-          </div>
+              <div class="td-testo">{{ comment.body }}</div>
+              {% if comment.target_user %}<div class="td-commento-nota">Avvisato: {{ comment.target_user.get_full_name|default:comment.target_user.username }}</div>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% elif not can_comment %}
+        <p class="td-vuoto">Nessun commento.</p>
+      {% endif %}
+    </article>
 
-          {% if task.project %}
-            <div>
-              <div class="ts-field-label" style="margin-bottom:8px;">Allegati kickoff</div>
-              {% if task.project.attachments.all %}
-                <ul class="task-list-clean">
-                  {% for attachment in task.project.attachments.all %}
-                    <li class="task-list-card">
-                      <a class="task-attachment-link" href="{% url 'tasks:task_attachment_download' attachment.id %}" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
-                      <div class="ts-card-text" style="margin-top:6px;">
-                        {{ attachment.created_at|date:"d-m-Y H:i" }}
-                        {% if attachment.uploaded_by %}
-                          - {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}
+    <details class="td-card td-piega">
+      <summary>
+        <span class="td-titolo">Storico</span>
+        <span class="td-conta">{{ task_timeline_events|length }} eventi</span>
+      </summary>
+      {% if task_timeline_events %}
+        <ul class="task-list-clean">
+          {% for item in task_timeline_events %}
+            <li class="task-list-card task-event-card tone-{{ item.tone }}">
+              <div class="task-event-head">
+                <span class="task-event-time">{{ item.event.created_at|date:"d/m/Y H:i" }}</span>
+                <span class="task-event-actor">{{ item.actor_name }}</span>
+              </div>
+              <h3 class="task-event-title">{{ item.title }}</h3>
+              <p class="task-event-description">{{ item.description }}</p>
+              {% if item.details %}
+                <div class="task-event-details">
+                  {% for detail in item.details %}
+                    <div class="task-event-detail">
+                      <span class="task-event-detail-label">{{ detail.label }}</span>
+                      <span class="task-event-change">
+                        {% if detail.note %}
+                          <span class="task-event-value">{{ detail.note }}</span>
+                        {% else %}
+                          <span class="task-event-value">{{ detail.before }}</span>
+                          <span class="task-event-arrow">&rarr;</span>
+                          <span class="task-event-value">{{ detail.after }}</span>
                         {% endif %}
-                      </div>
-                    </li>
+                      </span>
+                    </div>
                   {% endfor %}
-                </ul>
-              {% else %}
-                <div class="ts-empty" style="padding:18px;">
-                  <strong>Nessun allegato kickoff.</strong>
                 </div>
               {% endif %}
-            </div>
-          {% endif %}
+              {% if item.technical_payload %}
+                <details class="task-event-technical">
+                  <summary>Dati tecnici</summary>
+                  <pre>{{ item.technical_payload }}</pre>
+                </details>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="td-vuoto">Nessun evento.</p>
+      {% endif %}
+    </details>
+  </div>
+
+  <aside class="td-colonna">
+    <article class="td-card">
+      <h2 class="td-titolo">Dettagli</h2>
+      <dl class="td-dati">
+        <div><dt>Responsabile</dt><dd>{% if task.assigned_to %}{{ task.assigned_to.get_full_name|default:task.assigned_to.username }}{% else %}Da assegnare{% endif %}</dd></div>
+        <div>
+          <dt>Inizio</dt>
+          <dd>
+            {% if can_update_due_date %}
+              <form method="post" action="{% url 'tasks:update_start_date' task.id %}" class="td-data">
+                {% csrf_token %}
+                <input class="input" type="date" name="next_step_due" value="{{ task.next_step_due|date:'Y-m-d' }}" aria-label="Data di inizio" data-mostra-salva>
+                <button type="submit" class="btn btn-sm" hidden>Salva</button>
+              </form>
+            {% else %}{{ task.next_step_due|date:"d/m/Y"|default:"-" }}{% endif %}
+          </dd>
         </div>
-      </div>
+        <div>
+          <dt>Fine richiesta</dt>
+          <dd>
+            {% if can_update_due_date %}
+              <form method="post" action="{% url 'tasks:update_due_date' task.id %}" class="td-data">
+                {% csrf_token %}
+                <input class="input" type="date" name="due_date" value="{{ task.due_date|date:'Y-m-d' }}" aria-label="Data di fine richiesta" data-mostra-salva>
+                <button type="submit" class="btn btn-sm" hidden>Salva</button>
+              </form>
+            {% else %}{{ task.due_date|date:"d/m/Y"|default:"-" }}{% endif %}
+          </dd>
+        </div>
+        {% if task.category %}<div><dt>Tipo</dt><dd>{{ task.category.name }}</dd></div>{% endif %}
+        {% for row in task_extra_rows %}
+          <div><dt>{{ row.label }}</dt><dd>{% if row.href %}<a href="{{ row.href }}">{{ row.value }}</a>{% else %}{{ row.value }}{% endif %}</dd></div>
+        {% endfor %}
+        <div><dt>Creata da</dt><dd>{{ task.created_by.get_full_name|default:task.created_by.username }}</dd></div>
+        {% with subs=task.subscribers.all %}{% if subs %}
+          <div><dt>Chi segue</dt><dd>{% for subscriber in subs %}{{ subscriber.get_full_name|default:subscriber.username }}{% if not forloop.last %}, {% endif %}{% endfor %}</dd></div>
+        {% endif %}{% endwith %}
+        {% if task.tags %}<div><dt>Tag</dt><dd>{{ task.tags }}</dd></div>{% endif %}
+      </dl>
     </article>
 
-    {% if can_edit %}
-      <article class="ts-panel">
-        <div class="ts-panel-head">
-          <div class="ts-panel-title-wrap">
-            <h2 class="ts-panel-title">Nuova subtask</h2>
-            <p class="ts-panel-subtitle">Aggiungi un elemento operativo secondario all'attivita con responsabile, data e ordine.</p>
-          </div>
-        </div>
-        <div class="ts-panel-body">
-          <form method="post" action="{% url 'tasks:add_subtask' task.id %}" class="ts-stack">
-            {% csrf_token %}
-            <div class="ts-field">
-              <label for="{{ subtask_form.title.id_for_label }}">Titolo</label>
-              {{ subtask_form.title }}
-            </div>
-            <div class="ts-field">
-              <label for="{{ subtask_form.assigned_to.id_for_label }}">Assegnata a</label>
-              {{ subtask_form.assigned_to }}
-            </div>
-            <div class="ts-form-grid-2">
-              <div class="ts-field">
-                <label for="{{ subtask_form.due_date.id_for_label }}">Data fine</label>
-                {{ subtask_form.due_date }}
-              </div>
-              <div class="ts-field">
-                <label for="{{ subtask_form.order_index.id_for_label }}">Ordine</label>
-                {{ subtask_form.order_index }}
-              </div>
-            </div>
-            <div class="ts-field-actions">
-              <button type="submit" class="btn btn-sm">Aggiungi subtask</button>
-            </div>
-          </form>
-        </div>
+    {% if task.project %}
+      <article class="td-card">
+        <h2 class="td-titolo">Kickoff</h2>
+        <dl class="td-dati">
+          {% if task.project.client_name %}<div><dt>Cliente</dt><dd>{{ task.project.client_name }}</dd></div>{% endif %}
+          {% if task.project.part_number %}<div><dt>P/N</dt><dd>{{ task.project.part_number }}</dd></div>{% endif %}
+          {% for block in task.project.team_blocks %}{% if block.display %}<div><dt>{{ block.label }}</dt><dd>{{ block.display }}</dd></div>{% endif %}{% endfor %}
+          {% if task.project.control_method %}<div><dt>Controllo</dt><dd>{{ task.project.control_method }}</dd></div>{% endif %}
+          {% if task.project.safety_impact %}<div><dt>Sicurezza</dt><dd>Impatto sulla sicurezza</dd></div>{% endif %}
+          {% if task.project.similar_project %}<div><dt>Simile a</dt><dd>{{ task.project.similar_project.name }}</dd></div>{% endif %}
+          {% if task.project.similar_work_note %}<div><dt>Lavorazione simile</dt><dd>{{ task.project.similar_work_note }}</dd></div>{% endif %}
+        </dl>
       </article>
     {% endif %}
 
-    <article class="ts-panel">
-      <div class="ts-panel-head">
-        <div class="ts-panel-title-wrap">
-          <h2 class="ts-panel-title">Timeline eventi</h2>
-          <p class="ts-panel-subtitle">Storia operativa dell'attivita: cosa e cambiato, da chi e con quali valori.</p>
-        </div>
-        <div class="ts-panel-meta">
-          <span class="ts-chip soft">{{ task_timeline_events|length }} eventi</span>
-        </div>
-      </div>
-      <div class="ts-panel-body">
-        {% if task_timeline_events %}
-          <ul class="task-list-clean">
-            {% for item in task_timeline_events %}
-              <li class="task-list-card task-event-card tone-{{ item.tone }}">
-                <div class="task-event-head">
-                  <span class="task-event-time">{{ item.event.created_at|date:"d-m-Y H:i" }}</span>
-                  <span class="task-event-actor">{{ item.actor_name }}</span>
-                </div>
-                <h3 class="task-event-title">{{ item.title }}</h3>
-                <p class="task-event-description">{{ item.description }}</p>
-                {% if item.details %}
-                  <div class="task-event-details">
-                    {% for detail in item.details %}
-                      <div class="task-event-detail">
-                        <span class="task-event-detail-label">{{ detail.label }}</span>
-                        <span class="task-event-change">
-                          {% if detail.note %}
-                            <span class="task-event-value">{{ detail.note }}</span>
-                          {% else %}
-                            <span class="task-event-value">{{ detail.before }}</span>
-                            <span class="task-event-arrow">&rarr;</span>
-                            <span class="task-event-value">{{ detail.after }}</span>
-                          {% endif %}
-                        </span>
-                      </div>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                {% if item.technical_payload %}
-                  <details class="task-event-technical">
-                    <summary>Payload tecnico</summary>
-                    <pre>{{ item.technical_payload }}</pre>
-                  </details>
-                {% endif %}
-              </li>
-            {% endfor %}
-          </ul>
-        {% else %}
-          <div class="ts-empty">
-            <strong>Nessun evento registrato.</strong>
-            <div>Gli aggiornamenti compariranno qui man mano che la task viene modificata.</div>
-          </div>
-        {% endif %}
-      </div>
+    <article class="td-card">
+      <h2 class="td-titolo">Allegati</h2>
+      {% if task.attachments.all %}
+        <ul class="td-file">
+          {% for attachment in task.attachments.all %}
+            <li>
+              <a href="{% url 'tasks:task_attachment_download' attachment.id %}" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
+              <span>{{ attachment.created_at|date:"d/m/Y" }}{% if attachment.uploaded_by %} · {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}{% endif %}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="td-vuoto">Nessun allegato su questa attività.</p>
+      {% endif %}
+      {% if task.project and task.project.attachments.all %}
+        <h3 class="td-sottotitolo">Del kickoff</h3>
+        <ul class="td-file">
+          {% for attachment in task.project.attachments.all %}
+            <li>
+              <a href="{% url 'tasks:task_attachment_download' attachment.id %}" rel="noopener">{{ attachment.original_name|default:attachment.file.name }}</a>
+              <span>{{ attachment.created_at|date:"d/m/Y" }}{% if attachment.uploaded_by %} · {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}{% endif %}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if can_edit %}
+        <details class="td-aggiungi">
+          <summary>+ Carica un file</summary>
+          <form method="post" action="{% url 'tasks:add_attachment' task.id %}" enctype="multipart/form-data" class="td-carica">
+            {% csrf_token %}
+            <label class="fai-campo"><span>Dove</span>{{ attachment_form.attach_to }}</label>
+            <label class="fai-campo"><span>File</span>{{ attachment_form.file }}</label>
+            <button type="submit" class="btn btn-sm">Carica</button>
+          </form>
+        </details>
+      {% endif %}
     </article>
-  </div>
+  </aside>
 </section>
 {% endblock %}
 
 {% block tasks_shell_scripts %}
-{% if can_edit %}
 <script>
 (function () {
   'use strict';
+
+  document.querySelectorAll('[data-mostra-salva]').forEach(function (campo) {
+    var salva = campo.form.querySelector('button[type="submit"]');
+    var iniziale = campo.value;
+    campo.addEventListener('input', function () { salva.hidden = campo.value === iniziale; });
+  });
+  document.querySelectorAll('[data-invia-al-cambio]').forEach(function (campo) {
+    campo.addEventListener('change', function () { campo.form.requestSubmit(); });
+  });
 
   function getCsrf() {
     return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
@@ -523,15 +331,12 @@
     const rows  = document.querySelectorAll('#subtask-table tbody .st-row');
     const done  = document.querySelectorAll('#subtask-table tbody .st-row.done-row');
     if (rows.length === 0) return;
-    label.textContent = done.length === 0
-      ? `${rows.length} element${rows.length === 1 ? 'o' : 'i'}`
-      : `${done.length}/${rows.length} completat${done.length === 1 ? 'a' : 'e'}`;
+    label.textContent = `${done.length} di ${rows.length} completate`;
   }
 
   window.toggleSubtask = function (subtaskId) {
     const btn = document.getElementById('st-toggle-' + subtaskId);
     const row = document.getElementById('st-row-' + subtaskId);
-    const badge = document.getElementById('st-badge-' + subtaskId);
     if (!btn || !row) return;
 
     const url = btn.dataset.toggleUrl;
@@ -551,12 +356,6 @@
       btn.classList.toggle('done', isDone);
       btn.title = isDone ? 'Segna come Da fare' : 'Segna come Fatto';
 
-      if (badge) {
-        badge.textContent = data.status_display;
-        badge.className = 'st-status-badge ' + data.status.toLowerCase();
-      }
-
-      // Sync the <select> in the inline form to match
       const sel = row.querySelector('select[name="status"]');
       if (sel) sel.value = data.status;
 
@@ -569,5 +368,4 @@
   updateSubtaskCounter();
 })();
 </script>
-{% endif %}
 {% endblock %}

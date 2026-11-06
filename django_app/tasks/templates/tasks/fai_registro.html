@@ -11,6 +11,7 @@
 {% block tasks_shell_content %}
 <section class="ts-panel">
   <div class="ts-panel-body fai-registro">
+    {% include "tasks/_fai_schede_registro.html" %}
     <div class="fai-viste" role="group" aria-label="Filtra per situazione">
       {% for v in viste %}
         <a class="fai-vista{% if vista == v.codice %} active{% endif %}{% if v.codice == 'da_ripetere' and v.conta %} danger{% endif %}{% if v.codice == 'da_verificare' and v.conta %} warn{% endif %}"
@@ -41,7 +42,7 @@
               <div class="tl-task-desc">{{ r.articolo.client_name|default:"Cliente non indicato" }}</div>
             </td>
             <td>
-              {{ r.fai.get_tipo_display }}
+              {{ r.fai.get_tipo_display|default:"FAI" }}
               <div class="tl-task-desc">{{ r.fai.piano_numero|default:"Piano da inserire" }}{% if r.precedenti %} · altri {{ r.precedenti }}{% endif %}</div>
             </td>
             <td>
