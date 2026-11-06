@@ -335,7 +335,15 @@ def known_cve_ids(days=180):
     since = timezone.now() - timedelta(days=days)
     ids = set(SecurityVulnerabilityFinding.objects.filter(last_seen_at__gte=since).values_list("cve", flat=True).distinct())
     ids |= set(SecurityCveRecord.objects.values_list("cve_id", flat=True))
+    ids |= set(_cve_da_defender())
     return sorted({i.strip().upper() for i in ids if i and i.strip().upper().startswith("CVE-")})
+
+
+def _cve_da_defender():
+    """Le CVE gravi di Defender, le critiche per prime (vuoto se il calcolo ibrido è spento)."""
+    from security.services import defender_vuln
+
+    return list(defender_vuln.cve_per_calcolo()) if defender_vuln.ibrido_attivo() else []
 
 
 def stale_cve_ids(limit):
@@ -343,6 +351,9 @@ def stale_cve_ids(limit):
     fresh_before = timezone.now() - TTL["nvd_cve"]
     fresh = set(SecurityCveRecord.objects.filter(nvd_fetched_at__gte=fresh_before).values_list("cve_id", flat=True))
     missing = [cve for cve in ids if cve not in fresh]
+    # Prima quelle che Defender vede davvero sui PC: con un limite di richieste a NVD contano di più.
+    priorita = {cve: i for i, cve in enumerate(_cve_da_defender())}
+    missing.sort(key=lambda cve: priorita.get(cve, len(priorita)))
     return missing[:limit]
 
 
