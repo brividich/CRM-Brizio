@@ -116,7 +116,9 @@ class PerContoDiTests(TestCase):
         self.assertEqual(intervento.descrizione_lavoro, "Sostituito fusibile sintetico")
         self.assertEqual(intervento.durata_ore, 1.5)
         self.assertEqual(intervento.data_fine - intervento.data_inizio, timedelta(hours=1.5))
-        self.assertEqual(ticket.data_primo_intervento, intervento.created_at)
+        self.assertEqual(ticket.data_primo_intervento, intervento.data_inizio)
+        self.assertEqual(ticket.created_at, intervento.data_inizio)
+        self.assertEqual(ticket.closed_at, intervento.data_fine)
         self.assertTrue(ticket.commenti.filter(is_interno=False, testo__contains="fusibile").exists())
         self.assertEqual(ticket.stato_log.get().a_stato, StatoTicket.CHIUSO)
         silenzia.assert_called_once()
@@ -152,13 +154,17 @@ class PerContoDiTests(TestCase):
                 self.assertContains(response, messaggio)
                 self.assertEqual(Ticket.objects.count(), 0)
 
-    def test_al_volo_data_passata_resta_sull_intervento(self):
+    def test_al_volo_data_passata_vale_per_ticket_e_intervento(self):
         passato = (timezone.localtime() - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")
-        self._post_al_volo(self._al_volo(intervento_quando=passato))
+        self._post_al_volo(self._al_volo(intervento_quando=passato, intervento_ore="2"))
         ticket = Ticket.objects.get()
         intervento = ticket.interventi.get()
-        self.assertLess(intervento.data_fine, ticket.created_at)
-        self.assertGreaterEqual(ticket.closed_at, ticket.created_at)
+        self.assertEqual(timezone.localtime(ticket.closed_at).strftime("%Y-%m-%dT%H:%M"), passato)
+        self.assertEqual(ticket.closed_at, intervento.data_fine)
+        self.assertEqual(ticket.created_at, intervento.data_inizio)
+        self.assertEqual(ticket.closed_at - ticket.created_at, timedelta(hours=2))
+        # Il momento vero della registrazione resta nel log di stato
+        self.assertGreater(ticket.stato_log.get().created_at, ticket.closed_at)
 
     def test_chi_non_e_ammesso_non_chiude_al_volo(self):
         self.client.force_login(self.estraneo)
