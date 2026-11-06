@@ -27,6 +27,7 @@ PUBLIC_VIEWS = frozenset({
     "monitoring.views.healthz",  # liveness (HEALTHZ_ALLOWED_IPS)
     "monitoring.views.readyz",  # readiness (HEALTHZ_ALLOWED_IPS, solo nome/stato)
     "suggestion_corner.views.nuova",  # form anonimo per scelta (§5)
+    "fornitori.views_chiosco.pagina",  # chiosco reception: il visitatore non ha un utente, allowlist IP nella view
     # Aperto solo finche' SETUP_COMPLETED manca dal .env (audit M9): nei test
     # il flag non c'e'; in produzione il wizard risponde redirect/404.
     "setup_wizard.views.wizard_home",
