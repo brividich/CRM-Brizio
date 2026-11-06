@@ -9,10 +9,11 @@ from __future__ import annotations
 import re
 from collections import Counter, defaultdict
 
+from django.db import transaction
 from django.db.models import Count, Max
 from django.utils import timezone
 
-from security.models import SecurityCveImpact, SoftwareInstallation
+from security.models import SecurityCveImpact, SoftwareInstallation, SoftwareProgrammaRegola
 
 
 # Le app dello Store hanno come produttore il pacchetto: «msteams_26288», «claude_3», «5319275a».
@@ -81,9 +82,12 @@ def _preferenza_canonico(riga):
 
 
 def indice_famiglie():
-    """(canonici, etichette): {(vendor, product): canonico} dei prodotti presenti e {etichetta: canonico} per
+    """(canonici, etichette, separati): {(vendor, product): canonico} dei prodotti presenti, {etichetta: canonico} per
     ritrovare il programma anche di una chiave non più presente (una decisione presa su «7-Zip 26.05» vale per
-    «7-Zip 26.07»). Due prodotti stanno insieme se hanno lo stesso produttore e nome base, oppure lo stesso nome intero."""
+    «7-Zip 26.07») e le chiavi separate a mano. Due prodotti stanno insieme se hanno lo stesso produttore e nome base,
+    oppure lo stesso nome intero; sopra questa regola valgono le correzioni a mano (``SoftwareProgrammaRegola``)."""
+    regole = list(SoftwareProgrammaRegola.objects.all())
+    separati = {r.chiave for r in regole if r.tipo == SoftwareProgrammaRegola.TIPO_SEPARA}
     rows = list(
         SoftwareInstallation.objects.filter(still_detected=True)
         .values("vendor", "product").order_by().annotate(hosts=Count("host", distinct=True))
@@ -97,12 +101,27 @@ def indice_famiglie():
         return i
 
     primo = {}
+    posizione = {inventory_key(r["vendor"], r["product"]): i for i, r in enumerate(rows)}
     for i, row in enumerate(rows):
+        if inventory_key(row["vendor"], row["product"]) in separati:
+            continue
         for etichetta in _etichette(row["vendor"], row["product"]):
             if etichetta in primo:
                 genitore[radice(i)] = radice(primo[etichetta])
             else:
                 primo[etichetta] = i
+
+    def riga_di(chiave):
+        # il nome esatto, o uno dello stesso programma se quel nome è sparito dopo un aggiornamento
+        if chiave in posizione or chiave in separati:
+            return posizione.get(chiave)
+        return next((primo[e] for e in _etichette(*split_key(chiave)) if e in primo), None)
+
+    for regola in regole:
+        if regola.tipo == SoftwareProgrammaRegola.TIPO_UNISCI:
+            a, b = riga_di(regola.chiave), riga_di(regola.chiave_altra)
+            if a is not None and b is not None:
+                genitore[radice(a)] = radice(b)
     gruppi = defaultdict(list)
     for i, row in enumerate(rows):
         gruppi[radice(i)].append(row)
@@ -112,9 +131,10 @@ def indice_famiglie():
         canon = (scelto["vendor"], scelto["product"])
         for r in membri:
             canonici[(r["vendor"], r["product"])] = canon
-            for etichetta in _etichette(r["vendor"], r["product"]):
-                per_etichetta[etichetta] = canon
-    return canonici, per_etichetta
+            if inventory_key(r["vendor"], r["product"]) not in separati:
+                for etichetta in _etichette(r["vendor"], r["product"]):
+                    per_etichetta[etichetta] = canon
+    return canonici, per_etichetta, separati
 
 
 def families():
@@ -128,9 +148,11 @@ def _canon(fam, vendor, product):
 
 def chiave_canonica(key, indice=None):
     """La chiave con cui il catalogo mostra il programma di ``key``, anche se ``key`` non è più nell'inventario."""
-    canonici, per_etichetta = indice or indice_famiglie()
+    canonici, per_etichetta, separati = indice or indice_famiglie()
     vendor, product = split_key(key)
     trovato = canonici.get((vendor, product))
+    if trovato is None and key in separati:
+        trovato = (vendor, product)
     if trovato is None:
         trovato = next((per_etichetta[e] for e in _etichette(vendor, product) if e in per_etichetta), (vendor, product))
     return inventory_key(*trovato)
@@ -143,6 +165,76 @@ def member_keys(key):
     keys = {inventory_key(*m) for m, c in indice[0].items() if c == target}
     keys.add(key)
     return keys
+
+
+def separa_dal_programma(chiave, utente=None):
+    """Toglie un nome dal suo programma. Decisione, licenze e unioni fatte su quel nome restano al resto del
+    programma, che è quello per cui erano state prese. Ritorna la chiave del resto, ``None`` se è da solo."""
+    from assets.models import SoftwareCatalogEntry, SoftwareLicense
+
+    canon = chiave_canonica(chiave)
+    resto = sorted(member_keys(canon) - {chiave})
+    if not resto:
+        return None
+    altra = canon if canon != chiave else resto[0]
+    with transaction.atomic():
+        if not SoftwareCatalogEntry.objects.filter(inventory_key=altra).exists():
+            SoftwareCatalogEntry.objects.filter(inventory_key=chiave).update(inventory_key=altra)
+        SoftwareLicense.objects.filter(inventory_key=chiave).update(inventory_key=altra)
+        unioni = SoftwareProgrammaRegola.objects.filter(tipo=SoftwareProgrammaRegola.TIPO_UNISCI)
+        unioni.filter(chiave=chiave).update(chiave=altra)
+        unioni.filter(chiave_altra=chiave).update(chiave_altra=altra)
+        SoftwareProgrammaRegola.objects.get_or_create(
+            tipo=SoftwareProgrammaRegola.TIPO_SEPARA, chiave=chiave, defaults={"creato_da": utente}
+        )
+    return altra
+
+
+def unisci_programmi(chiave, chiave_altra, utente=None):
+    """Unisce due programmi. Se entrambi hanno una decisione vale quella di ``chiave``: le note dell'altra si
+    aggiungono e la riga si elimina, altrimenti il SOC continuerebbe ad applicarle tutte e due al programma.
+    Ritorna la decisione eliminata, per il registro."""
+    from assets.models import SoftwareCatalogEntry
+
+    indice = indice_famiglie()
+    canon, altra = chiave_canonica(chiave, indice), chiave_canonica(chiave_altra, indice)
+    if canon == altra:
+        return None
+    entries = {e.inventory_key: e for e in SoftwareCatalogEntry.objects.all()}
+    per_programma = chiavi_per_programma(entries, indice)
+    mie, altre = per_programma.get(canon, []), per_programma.get(altra, [])
+    eliminata = None
+    with transaction.atomic():
+        if mie and altre:
+            tenuta, tolta = entries[mie[0]], entries[altre[0]]
+            eliminata = {"inventory_key": tolta.inventory_key, "classification": tolta.classification,
+                         "licensing": tolta.licensing, "min_version": tolta.min_version}
+            if tolta.notes:
+                tenuta.notes = f"{tenuta.notes}\n{tolta.notes}".strip()[:4000]
+                tenuta.save(update_fields=["notes"])
+            tolta.delete()
+        SoftwareProgrammaRegola.objects.create(
+            tipo=SoftwareProgrammaRegola.TIPO_UNISCI, chiave=canon, chiave_altra=altra, creato_da=utente
+        )
+    return eliminata
+
+
+def regole_del_programma(key, indice=None):
+    """Le correzioni a mano che riguardano il programma di ``key``: unioni e, se è separato, la separazione."""
+    from security.services.software_inventory import nome_programma
+
+    indice = indice or indice_famiglie()
+    out = []
+    for regola in SoftwareProgrammaRegola.objects.all():
+        if chiave_canonica(regola.chiave, indice) != key:
+            continue
+        if regola.tipo == SoftwareProgrammaRegola.TIPO_UNISCI:
+            nomi = [nome_programma(split_key(k)[1]) for k in (regola.chiave, regola.chiave_altra)]
+            out.append({"pk": regola.pk, "testo": f"Uniti a mano: {nomi[0]} e {nomi[1]}", "azione": "Annulla l'unione"})
+        else:
+            out.append({"pk": regola.pk, "testo": f"Separato a mano: {nome_programma(split_key(regola.chiave)[1])}",
+                        "azione": "Rimetti nel gruppo"})
+    return out
 
 
 def chiavi_per_programma(keys, indice=None):
@@ -176,7 +268,8 @@ def catalog(limit=2000):
     («7-Zip») e quanti PC lo hanno. ``cerca`` tiene i nomi originali, per trovarlo con qualsiasi scritta."""
     from security.services.software_inventory import nome_programma
 
-    fam = families()
+    indice = indice_famiglie()
+    fam, separati = indice[0], indice[2]
     nomi = defaultdict(Counter)
     produttori = defaultdict(Counter)
     originali = defaultdict(set)
@@ -186,7 +279,8 @@ def catalog(limit=2000):
         "vendor", "product", "product_raw", "vendor_raw", "host"
     ):
         canon = _canon(fam, vendor, product)
-        nomi[canon][nome_programma(raw or product)] += 1
+        # separato a mano: tiene il nome intero, altrimenti «MUD 2025» e il resto si chiamerebbero entrambi «MUD»
+        nomi[canon][(raw or product) if inventory_key(vendor, product) in separati else nome_programma(raw or product)] += 1
         produttori[canon][vendor_raw or vendor] += 1
         originali[canon].update({raw or product, vendor_raw or vendor})
         hosts[canon].add(host)
@@ -200,6 +294,7 @@ def catalog(limit=2000):
             "vendor_label": _etichetta_preferita(produttori[canon], scarta=lambda v, n=nomi[canon]: _produttore_finto(v, n)),
             "hosts": len(hosts[canon]),
             "member_keys": sorted(members[canon]),
+            "separato": inventory_key(vendor, product) in separati,
             "cerca": " ".join(sorted(x for x in originali[canon] if x)),
         })
     return out
@@ -254,7 +349,8 @@ def software_for_hub_asset(asset, *, with_cve=False, license_states=None):
                 cve[inst_id]["to_verify"] += 1
     from security.services.software_inventory import nome_programma
 
-    fam = families()
+    indice = indice_famiglie()
+    fam, separati = indice[0], indice[2]
     groups = defaultdict(list)
     for inst in installs:
         groups[_canon(fam, inst.vendor, inst.product)].append(inst)
@@ -267,7 +363,7 @@ def software_for_hub_asset(asset, *, with_cve=False, license_states=None):
         key = inventory_key(vendor, product)
         rows.append({
             "key": key,
-            "name": nome_programma(head.product_raw),
+            "name": head.product_raw if key in separati else nome_programma(head.product_raw),
             "vendor": head.vendor_raw or vendor,
             "versions": _versioni_senza_doppioni(current),
             "present": bool(current),

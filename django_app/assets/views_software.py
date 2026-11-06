@@ -99,7 +99,7 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
         rows.append({
             "key": key,
             "url": _detail_url(key),
-            "name": nome_programma(entry.display_name) if entry and entry.display_name else item["label"],
+            "name": nome_programma(entry.display_name) if entry and entry.display_name and not item.get("separato") else item["label"],
             "vendor": (entry.vendor_name if entry and entry.vendor_name else item["vendor_label"]),
             "hosts": item["hosts"],
             "versions": len(versions.get(key, {})),
@@ -169,6 +169,52 @@ def software_catalog(request: HttpRequest) -> HttpResponse:
     })
 
 
+def _azione_raggruppamento(request: HttpRequest, key: str) -> HttpResponse:
+    """Correzioni a mano del raggruppamento: separa un nome, unisci a un altro programma, annulla."""
+    from security.models import SoftwareProgrammaRegola
+    from security.services import software_catalog as sc
+
+    azione = request.POST.get("azione")
+    destinazione = key
+    if azione == "separa":
+        membro = (request.POST.get("membro") or "").strip()[:300]
+        if membro not in sc.member_keys(key):
+            messages.error(request, "Questo nome non fa parte del programma.")
+            return redirect(_detail_url(key))
+        resto = sc.separa_dal_programma(membro, request.user)
+        if resto is None:
+            messages.error(request, "Il programma ha un solo nome: non c'è niente da separare.")
+            return redirect(_detail_url(key))
+        log_action(request, "software_catalog_separa", "assets", {"membro": membro, "programma": key})
+        messages.success(request, "Nome separato: ora è un programma a sé, da classificare. Decisione e licenze restano al gruppo.")
+        destinazione = resto if membro == key else key
+    elif azione == "unisci":
+        altra = (request.POST.get("altro") or "").strip()[:300]
+        if altra not in {r["key"] for r in catalog_rows(with_cve=False)} or altra == key:
+            messages.error(request, "Scegli un altro programma del catalogo.")
+            return redirect(_detail_url(key))
+        eliminata = sc.unisci_programmi(key, altra, request.user)
+        log_action(request, "software_catalog_unisci", "assets", {"programma": key, "altro": altra, "decisione_eliminata": eliminata})
+        messages.success(request, "Programmi uniti." + (" Avevano entrambi una decisione: vale quella di questa pagina, controllala." if eliminata else ""))
+    elif azione == "annulla_regola":
+        valore = (request.POST.get("regola") or "").strip()
+        regola = SoftwareProgrammaRegola.objects.filter(pk=valore if valore.isdigit() else 0).first()
+        if regola is None:
+            messages.error(request, "Correzione non trovata.")
+            return redirect(_detail_url(key))
+        log_action(request, "software_catalog_annulla_regola", "assets", {"tipo": regola.tipo, "chiave": regola.chiave, "chiave_altra": regola.chiave_altra})
+        chiave = regola.chiave
+        regola.delete()
+        messages.success(request, "Correzione annullata: vale di nuovo il raggruppamento automatico.")
+        destinazione = chiave
+    else:
+        messages.error(request, "Azione non valida.")
+        return redirect(_detail_url(key))
+    # Le decisioni ora coprono PC diversi: il SOC ricontrolla subito.
+    _run_software_policy()
+    return redirect(_detail_url(destinazione))
+
+
 @login_required
 def software_catalog_detail(request: HttpRequest) -> HttpResponse:
     from security.services import software_catalog as sc
@@ -190,6 +236,8 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
         if not can_edit:
             messages.error(request, "Solo gli amministratori del modulo Asset possono classificare il software.")
             return redirect(_detail_url(key))
+        if request.POST.get("azione"):
+            return _azione_raggruppamento(request, key)
         classification = request.POST.get("classification") or SoftwareCatalogEntry.CLASS_UNREVIEWED
         licensing = request.POST.get("licensing") or SoftwareCatalogEntry.LICENSING_UNKNOWN
         if classification not in dict(SoftwareCatalogEntry.CLASSIFICATION_CHOICES) or licensing not in dict(SoftwareCatalogEntry.LICENSING_CHOICES):
@@ -242,11 +290,15 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
     # Sotto quali nomi le fonti riportano il programma: chi legge vede cosa è stato raggruppato.
     nomi = {}
     for inst in hosts:
-        nomi.setdefault((inst.product_raw or inst.product, inst.vendor_raw or inst.vendor), set()).add(inst.host)
+        riga = nomi.setdefault(sc.inventory_key(inst.vendor, inst.product), {"nomi": set(), "vendor": set(), "hosts": set()})
+        riga["nomi"].add(inst.product_raw or inst.product)
+        riga["vendor"].add(inst.vendor_raw or inst.vendor)
+        riga["hosts"].add(inst.host)
     name_rows = [
-        {"name": n, "vendor": v, "hosts": len(h)}
-        for (n, v), h in sorted(nomi.items(), key=lambda x: (-len(x[1]), x[0]))
+        {"key": k, "name": ", ".join(sorted(r["nomi"])), "vendor": ", ".join(sorted(v for v in r["vendor"] if v)), "hosts": len(r["hosts"])}
+        for k, r in sorted(nomi.items(), key=lambda x: (-len(x[1]["hosts"]), x[0]))
     ]
+    altri_programmi = [r for r in catalog_rows(with_cve=False) if r["key"] != key] if can_edit else []
     return render(request, "assets/pages/software_catalog_detail.html", {
         **_assets_shell_context(request, search_placeholder="Cerca software"),
         "page_title": (row or {}).get("name") or key,
@@ -259,6 +311,8 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
         "hosts": [{"install": i, "outdated": i.pk in outdated} for i in hosts],
         "version_rows": version_rows,
         "name_rows": name_rows,
+        "regole": sc.regole_del_programma(key, indice),
+        "altri_programmi": altri_programmi,
         "host_count": len({i.host for i in hosts}),
         "licenses": licenses,
         "classification_choices": SoftwareCatalogEntry.CLASSIFICATION_CHOICES,
