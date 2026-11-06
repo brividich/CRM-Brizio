@@ -23,6 +23,10 @@ SEZIONI = [
                 ("Scheda fornitore", "dati, ordini, documenti, valutazioni, asset, il riquadro «Requisiti per "
                                      "lavorare in sede» e le schede «Manutenzione», «Copie MFC», «Scadenze» e "
                                      "«Tecnici»."),
+                ("+ Crea fornitore", "in «Accessi esterni», accanto a un'azienda che non è tra i fornitori: crea il "
+                                     "fornitore con il nome scritto nel GuestPortal e ci registra la persona tra i "
+                                     "tecnici. Gli altri dati si completano dopo con «Modifica»; il tecnico non "
+                                     "riceve nessun accesso al portale."),
                 ("Accessi esterni", "chi è entrato dal GuestPortal adesso e nei giorni scorsi, con la ditta "
                                     "collegata alla scheda fornitore."),
             ]),

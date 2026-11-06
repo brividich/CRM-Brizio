@@ -56,7 +56,7 @@ GUIDA = {
                     ("Manutenzione", "ordini di lavoro, ticket delegati, contratti di assistenza, verifiche impianti, ricambi e rinnovi di licenze. «Scheda manutenzione completa →» apre la pagina di Asset, con gli stessi numeri."),
                     ("Copie MFC", "macchine e fatture delle copie, con l'esito della Riconciliazione e i trimestri senza fattura della ditta."),
                     ("Scadenze", "documenti, contratti, verifiche periodiche e attività dello Scadenzario della ditta, in ordine di data; «In scadenza» = entro 30 giorni."),
-                    ("Tecnici", "il registro dei tecnici della ditta: si registrano da soli quando entrano dal GuestPortal o quando un ingresso viene collegato a un intervento, oppure con «+ Nuovo tecnico». «Modifica» per qualifica, contatti e attestati (facoltativi). Con il permesso di «Accessi esterni» si vedono anche ingressi, ore e chi è dentro ora."),
+                    ("Tecnici", "il registro dei tecnici della ditta: si registrano da soli quando entrano dal GuestPortal o quando un ingresso viene collegato a un intervento, oppure con «+ Nuovo tecnico». Se la ditta non è ancora tra i fornitori, in «Accessi esterni» il pulsante «+ Crea fornitore» crea il fornitore dal nome scritto nel GuestPortal e ci registra la persona. Il tecnico non riceve accesso al portale. «Modifica» per qualifica, contatti e attestati (facoltativi). Con il permesso di «Accessi esterni» si vedono anche ingressi, ore e chi è dentro ora."),
                 ]),
                 ("p", "«Copie MFC» compare da sola se il nome del fornitore è quello di Contatori; altrimenti collega il fornitore dal riquadro «Multifunzioni» della scheda con «Collega»."),
             ],
