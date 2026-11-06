@@ -1,0 +1,1 @@
+{% comment %}Etichetta dello stato di un obiettivo. Parametro: testo (etichetta già leggibile: il verbale approvato conserva quella).{% endcomment %}<span class="sg-badge{% if testo == "Raggiunto" %} ok{% elif testo == "Raggiunto in parte" %} warn{% elif testo == "Non raggiunto" %} danger{% endif %}">{{ testo }}</span>
