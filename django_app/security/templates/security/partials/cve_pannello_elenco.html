@@ -17,7 +17,13 @@
   </details>
 {% endif %}
 {% if not dati.colpiscono and not dati.da_verificare %}
-  <p class="cvp-empty">Nessuna CVE nota colpisce questo programma secondo l'ultimo calcolo. Se il programma non è collegato a un CPE il SOC non può controllarlo: vedi <a href="{% url 'security:software_mapping' %}">Software e CPE</a>.</p>
+  {% if stato_cve == "non_controllato" %}
+  <p class="cvp-empty"><strong>Non controllato.</strong> Il programma non è collegato a un CPE: il SOC non può dire se ha CVE. Collegalo in <a href="{% url 'security:software_mapping' %}">Software e CPE</a>.</p>
+  {% elif stato_cve == "non_applicabile" %}
+  <p class="cvp-empty">Il programma è segnato «non applicabile»: il SOC non lo controlla. Si cambia in <a href="{% url 'security:software_mapping' %}">Software e CPE</a>.</p>
+  {% else %}
+  <p class="cvp-empty">Nessuna delle CVE note al SOC colpisce questo programma secondo l'ultimo calcolo.</p>
+  {% endif %}
 {% endif %}
 {% include "security/partials/cve_pannello_risolte.html" with d=dati mostra_cve=True mostra_host=True %}
 <footer class="pv-foot"><a class="cvp-btn" href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a></footer>

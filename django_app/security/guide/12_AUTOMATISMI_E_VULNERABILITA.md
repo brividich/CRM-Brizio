@@ -118,6 +118,10 @@ Il file caricato resta in un'area privata e cifrata solo fino all'import e non �
 
 NVD descrive i prodotti con un codice chiamato **CPE** (produttore e prodotto, per esempio `7-zip:7-zip`). Per sapere se una CVE riguarda un software dell'inventario, ogni coppia produttore/prodotto va collegata al suo CPE una volta sola, in **Configurazione › Inventario software › Software e CPE**.
 
+**Una volta per programma.** Software e CPE ha una riga per programma, non per nome: la decisione vale per tutti i nomi e le release del programma, e una release nuova prende da sola il CPE già confermato. Con due CPE diversi nello stesso programma non si estende nulla. Le unioni fatte a mano nel Catalogo software non estendono il CPE.
+
+**Non controllato.** Un programma senza CPE né «non applicabile» compare come «non controllato» nel Catalogo software, nella scheda del PC e nel cruscotto. Il SOC confronta i programmi collegati con le CVE che ha già scaricato, non con tutte quelle esistenti.
+
 **Collegamento automatico.** Dopo ogni giro dell'arricchimento CVE e dopo ogni import dell'inventario il sistema collega **da solo** i software il cui nome coincide senza dubbi con un CPE delle CVE scaricate:
 
 - produttore e prodotto uguali (per esempio «google» + «google chrome» ↔ `google:chrome`);

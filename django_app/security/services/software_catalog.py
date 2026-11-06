@@ -81,11 +81,13 @@ def _preferenza_canonico(riga):
     )
 
 
-def indice_famiglie():
+def indice_famiglie(con_unioni=True):
     """(canonici, etichette, separati): {(vendor, product): canonico} dei prodotti presenti, {etichetta: canonico} per
     ritrovare il programma anche di una chiave non più presente (una decisione presa su «7-Zip 26.05» vale per
     «7-Zip 26.07») e le chiavi separate a mano. Due prodotti stanno insieme se hanno lo stesso produttore e nome base,
-    oppure lo stesso nome intero; sopra questa regola valgono le correzioni a mano (``SoftwareProgrammaRegola``)."""
+    oppure lo stesso nome intero; sopra questa regola valgono le correzioni a mano (``SoftwareProgrammaRegola``).
+    ``con_unioni=False`` ignora le unioni a mano: il CPE non si estende da Windows 10 a Windows 11 solo perché
+    qualcuno li ha uniti per vederli su una riga."""
     regole = list(SoftwareProgrammaRegola.objects.all())
     separati = {r.chiave for r in regole if r.tipo == SoftwareProgrammaRegola.TIPO_SEPARA}
     rows = list(
@@ -118,7 +120,7 @@ def indice_famiglie():
         return next((primo[e] for e in _etichette(*split_key(chiave)) if e in primo), None)
 
     for regola in regole:
-        if regola.tipo == SoftwareProgrammaRegola.TIPO_UNISCI:
+        if con_unioni and regola.tipo == SoftwareProgrammaRegola.TIPO_UNISCI:
             a, b = riga_di(regola.chiave), riga_di(regola.chiave_altra)
             if a is not None and b is not None:
                 genitore[radice(a)] = radice(b)
@@ -165,6 +167,61 @@ def member_keys(key):
     keys = {inventory_key(*m) for m, c in indice[0].items() if c == target}
     keys.add(key)
     return keys
+
+
+def membri_automatici(vendor, product, indice=None):
+    """I (vendor, product) dello stesso programma per la regola automatica: un CPE vale per tutti loro."""
+    canonici = (indice or indice_famiglie(con_unioni=False))[0]
+    target = canonici.get((vendor, product))
+    if target is None:
+        return {(vendor, product)}
+    return {m for m, c in canonici.items() if c == target} | {(vendor, product)}
+
+
+NON_CONTROLLATO = "non_controllato"
+CONTROLLATO = "controllato"
+NON_APPLICABILE = "non_applicabile"
+
+
+def stati_cve(indice=None):
+    """{chiave del programma: stato} per chi legge le CVE. «Controllato»: almeno un nome ha un CPE confermato.
+    «Non applicabile»: tutti i nomi sono dichiarati tali. Altrimenti il SOC non sa niente: «non controllato»."""
+    from security.models import SoftwareCpeMapping
+
+    canonici = (indice or indice_famiglie())[0]
+    confermati, esclusi = set(), set()
+    for vendor, product, confirmed, na in SoftwareCpeMapping.objects.values_list("vendor", "product", "confirmed", "not_applicable"):
+        (confermati if confirmed else esclusi if na else set()).add((vendor, product))
+    membri = defaultdict(set)
+    for membro, canon in canonici.items():
+        membri[canon].add(membro)
+    out = {}
+    for canon, nomi in membri.items():
+        if nomi & confermati:
+            stato = CONTROLLATO
+        elif nomi <= esclusi:
+            stato = NON_APPLICABILE
+        else:
+            stato = NON_CONTROLLATO
+        out[inventory_key(*canon)] = stato
+    return out
+
+
+def riepilogo_cve(indice=None):
+    """Quanti programmi il SOC controlla: la definizione unica del numero (vedi ``metriche.copertura_cpe``)."""
+    conteggio = Counter(stati_cve(indice).values())
+    return {"programmi": sum(conteggio.values()), "controllati": conteggio[CONTROLLATO],
+            "non_applicabili": conteggio[NON_APPLICABILE], "non_controllati": conteggio[NON_CONTROLLATO]}
+
+
+def copertura_asset(asset):
+    """Di questo PC: quanti programmi il SOC controlla e quanti no."""
+    indice = indice_famiglie()
+    stati = stati_cve(indice)
+    programmi = {inventory_key(*_canon(indice[0], v, p)) for v, p in
+                 SoftwareInstallation.objects.filter(hub_asset=asset, still_detected=True).values_list("vendor", "product").distinct()}
+    return {"programmi": len(programmi),
+            "non_controllati": sum(1 for k in programmi if stati.get(k, NON_CONTROLLATO) == NON_CONTROLLATO)}
 
 
 def separa_dal_programma(chiave, utente=None):

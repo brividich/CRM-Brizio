@@ -29,6 +29,7 @@ FILTERS = [
     ("senza_licenza", "A pagamento senza licenza"),
     ("vecchi", "Sotto la versione minima"),
     ("cve", "Con CVE"),
+    ("non_controllato", "CVE non controllate"),
 ]
 
 
@@ -42,6 +43,12 @@ def _can_see_cve(request: HttpRequest) -> bool:
     from security.permissions import can_view_security_center
 
     return can_view_security_center(request.user)
+
+
+def _can_configure_soc(request: HttpRequest) -> bool:
+    from security.services.configuration import can_configure_soc
+
+    return can_configure_soc(request)
 
 
 def _run_software_policy() -> int:
@@ -80,6 +87,7 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
     versions = sc.versions_by_key()
     cves = sc.cve_by_key() if with_cve else {}
     indice = sc.indice_famiglie()
+    stati_cve = sc.stati_cve(indice) if with_cve else {}
     entry_keys = sc.chiavi_per_programma(entries, indice)
     license_keys = sc.chiavi_per_programma({*states, *seats}, indice)
     rows = []
@@ -117,6 +125,7 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
             "outdated": old,
             "not_comparable": unknown,
             "cves": cves.get(key, 0),
+            "cve_stato": stati_cve.get(key, sc.NON_CONTROLLATO) if with_cve else "",
         })
     return rows
 
@@ -139,6 +148,8 @@ def _filter(rows: list[dict], code: str, q: str) -> list[dict]:
         return [r for r in rows if r["outdated"]]
     if code == "cve":
         return [r for r in rows if r["cves"]]
+    if code == "non_controllato":
+        return [r for r in rows if r.get("cve_stato") == "non_controllato"]
     return rows
 
 
@@ -150,16 +161,18 @@ def software_catalog(request: HttpRequest) -> HttpResponse:
 
     with_cve = _can_see_cve(request)
     all_rows = catalog_rows(with_cve=with_cve)
+    # Lo stato delle CVE lo vede solo chi vede il SOC, come la colonna.
+    filtri = [f for f in FILTERS if with_cve or f[0] != "non_controllato"]
     code = request.GET.get("f") or "all"
-    code = code if code in dict(FILTERS) else "all"
+    code = code if code in dict(filtri) else "all"
     q = (request.GET.get("q") or "").strip()[:100]
     rows = _filter(all_rows, code, q)
-    counts = {c: len(_filter(all_rows, c, "")) for c, _label in FILTERS}
+    counts = {c: len(_filter(all_rows, c, "")) for c, _label in filtri}
     return render(request, "assets/pages/software_catalog.html", {
         **_assets_shell_context(request, search_placeholder="Cerca software"),
         "page_title": "Catalogo software",
         "rows": rows,
-        "filters": [{"code": c, "label": label, "count": counts[c], "active": c == code} for c, label in FILTERS],
+        "filters": [{"code": c, "label": label, "count": counts[c], "active": c == code} for c, label in filtri],
         "q": q,
         "filter_code": code,
         "show_cve": with_cve,
@@ -320,6 +333,8 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
         "can_edit": can_edit,
         "show_cve": with_cve,
         "cve_count": (row or {}).get("cves", 0),
+        "cve_stato": (row or {}).get("cve_stato", ""),
+        "cpe_url": f"{reverse('security:software_mapping')}?{urlencode({'q': sc.split_key(key)[1]})}" if with_cve and _can_configure_soc(request) else "",
         "cve_panel_url": f"{reverse('security:cve_pannello_programma')}?{urlencode({'k': key})}" if with_cve else "",
         "catalog_url": reverse("assets:software_catalog"),
         "licenses_url": reverse("assets:software_license_list"),
