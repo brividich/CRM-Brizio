@@ -209,7 +209,7 @@ def _vuln_numbers():
     return [
         {"name": "cve", "label": "CVE sui nostri PC", "tile": {"value": cve.value}, "hint": "adesso", "url": cve.url, "raw": True},
         {"name": "pc_esposti", "label": "PC con CVE", "tile": {"value": pc.value}, "hint": "adesso", "url": pc.url, "raw": True},
-        {"name": "copertura_cpe", "label": f"software controllabili ({cop.extra['coperti']} su {cop.extra['totale']})",
+        {"name": "copertura_cpe", "label": f"programmi controllabili ({cop.extra['coperti']} su {cop.extra['totale']})",
          "tile": {"value": f"{cop.value}%"}, "hint": "collegati a un CPE o N/A", "url": cop.url, "raw": True},
     ]
 

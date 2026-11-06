@@ -7,11 +7,25 @@
 {% block assets_shell_content %}
 <section class="sc-page">
   {% if show_cve %}
+  {% if not cve_count and cve_stato == "non_controllato" %}
+  <div class="sc-card sc-cve-strip is-unknown">
+    <div><strong>CVE non controllate per questo programma</strong>
+      <p class="sc-note">Non è collegato a un CPE: il SOC non può dire se ha vulnerabilità. Non vuol dire che sia a posto.</p></div>
+    {% if cpe_url %}<a class="cvp-open cvp-open--warn" href="{{ cpe_url }}">Collega il CPE</a>{% endif %}
+  </div>
+  {% elif not cve_count and cve_stato == "non_applicabile" %}
+  <div class="sc-card sc-cve-strip is-unknown">
+    <div><strong>CVE non applicabili a questo programma</strong>
+      <p class="sc-note">È segnato così in Software e CPE: il SOC non lo controlla.</p></div>
+    {% if cpe_url %}<a class="cvp-open cvp-open--warn" href="{{ cpe_url }}">Cambia</a>{% endif %}
+  </div>
+  {% else %}
   <div class="sc-card sc-cve-strip{% if cve_count %} has-cve{% endif %}">
-    <div><strong>{% if cve_count %}{{ cve_count }} CVE colpiscono questo programma{% else %}Nessuna CVE nota colpisce questo programma{% endif %}</strong>
-      <p class="sc-note">{% if cve_count %}Calcolate sui PC che lo hanno oggi, versione per versione: nella tabella «Versioni presenti» vedi quali versioni sono vulnerabili.{% else %}Secondo l'ultimo calcolo del SOC. Un programma non collegato a un CPE non si può controllare.{% endif %}</p></div>
+    <div><strong>{% if cve_count %}{{ cve_count }} CVE colpiscono questo programma{% else %}Nessuna delle CVE note al SOC colpisce questo programma{% endif %}</strong>
+      <p class="sc-note">{% if cve_count %}Calcolate sui PC che lo hanno oggi, versione per versione: nella tabella «Versioni presenti» vedi quali versioni sono vulnerabili.{% else %}Secondo l'ultimo calcolo. Il SOC confronta il programma con le CVE che conosce, non con tutte quelle esistenti.{% endif %}</p></div>
     <button type="button" class="cvp-open{% if not cve_count %} cvp-open--warn{% endif %}" data-preview="{{ cve_panel_url }}">{% if cve_count %}Vedi le CVE{% else %}Dettagli{% endif %}</button>
   </div>
+  {% endif %}
   {% endif %}
   <div class="sc-card">
     <h2 style="margin:0 0 10px;font-size:18px">Decisione dell'azienda</h2>
@@ -54,7 +68,7 @@
       <tbody>
       {% for v in version_rows %}
         <tr><td>{{ v.version }}{% if v.outdated %} <span class="sc-tag sc-tag--warn">sotto la minima</span>{% endif %}</td><td>{{ v.hosts }}</td><td>{{ v.fonti|join:", "|default:"—" }}</td>
-          {% if show_cve %}<td>{% if v.cves %}<button type="button" class="cvp-open" data-preview="{{ cve_panel_url }}" title="CVE che colpiscono la versione {{ v.version }}">{{ v.cves }} CVE</button>{% else %}<span class="sc-tag sc-tag--ok">nessuna nota</span>{% endif %}</td>{% endif %}</tr>
+          {% if show_cve %}<td>{% if v.cves %}<button type="button" class="cvp-open" data-preview="{{ cve_panel_url }}" title="CVE che colpiscono la versione {{ v.version }}">{{ v.cves }} CVE</button>{% elif cve_stato == "controllato" %}<span class="sc-tag sc-tag--ok">nessuna nota</span>{% else %}<span class="sc-tag sc-tag--muted">non controllato</span>{% endif %}</td>{% endif %}</tr>
       {% empty %}<tr><td colspan="4" class="sc-meta">Nessuna versione rilevata.</td></tr>{% endfor %}
       </tbody>
     </table>
