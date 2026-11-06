@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timedelta
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.core import signing
@@ -29,6 +30,7 @@ from core import naming
 
 from .. import hr as calcoli_hr
 from .. import serie
+from .. import solleciti as solleciti_assenze
 from . import _helpers  # noqa: E402
 
 # Permesso ripetuto: oltre questa ampiezza (giorni di calendario) si chiede di
@@ -1094,6 +1096,7 @@ def gestione_assenze(request):
     if not e_capo:
         richieste_da_approvare = []
     richieste_personali = _helpers._load_personal(name, email, limit=40)
+    solleciti_assenze.annota_richieste_personali(richieste_personali)
 
     # Le richieste dei propri dipendenti gia' decise: senza queste la pagina
     # mostrava solo la coda da approvare, e appena approvata una richiesta
@@ -1308,6 +1311,22 @@ def api_car_aggiorna_consenso(request, item_id: int):
         _richiedi_calendario_capo(request, item_id)
 
     return JsonResponse({"ok": True, "item_id": item_id, "consenso": consenso, "note_gestione": note_gestione, "sync": sync_result})
+
+
+@login_required
+@require_http_methods(["POST"])
+def api_sollecita_richiesta(request, item_id: int):
+    """Il dipendente sollecita al capo una propria richiesta ancora in attesa."""
+    current = _helpers._get_assenza(item_id)
+    if not current:
+        return _helpers._json_error("Record non trovato.", status=404)
+    if not _helpers._e_mia_richiesta(request, current):
+        return _helpers._json_error("Puoi sollecitare solo le tue richieste.", status=403)
+    inviato, testo = solleciti_assenze.sollecita_richiesta(current)
+    if not inviato:
+        return _helpers._json_error(testo, status=400)
+    messages.success(request, testo)
+    return JsonResponse({"ok": True})
 
 
 def _certificato_arrivato_su_approvata(request, item_id: int, current: dict, payload: dict | None):

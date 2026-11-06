@@ -909,6 +909,15 @@ body.theme-dark #modal-error{color:#fca5a5}
                             >
                               Modifica
                             </button>
+                            {% if r.sollecito_visibile %}
+                              <button
+                                class="btn btn-sm btn-sollecita"
+                                data-id="{{ r.id }}"
+                                {% if r.sollecito_prossimo %}disabled title="Capo già sollecitato il {{ r.sollecito_ultimo }}. Puoi sollecitare di nuovo dal {{ r.sollecito_prossimo }}."{% else %}title="Manda al capo una mail per ricordargli di decidere"{% endif %}
+                              >
+                                {% if r.sollecito_prossimo %}Sollecitata{% else %}Sollecita{% endif %}
+                              </button>
+                            {% endif %}
                           {% elif 'approv' in stato_l and r.tipo_raw == 'Malattia' and not r.certificato_medico %}
                             <button
                               class="btn btn-sm btn-cert-arrivato"
@@ -1120,6 +1129,26 @@ body.theme-dark #modal-error{color:#fca5a5}
           btn.textContent = "Salvataggio...";
           try {
             const result = await postJsonWithCsrfRetry("/assenze/api/mia/" + btn.dataset.id + "/update", { certificato_medico: "Arrivato" });
+            if (!result.res.ok || !result.data.ok) {
+              throw new Error(result.data.error || ("HTTP " + result.res.status));
+            }
+            window.location.reload();
+          } catch (err) {
+            alert("Errore: " + err.message);
+            btn.disabled = false;
+            btn.textContent = originalText;
+          }
+        });
+      });
+
+      document.querySelectorAll(".btn-sollecita").forEach(function (btn) {
+        btn.addEventListener("click", async function () {
+          if (!(await hubConfirm("Mandare al capo una mail di sollecito per questa richiesta?"))) return;
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = "Invio...";
+          try {
+            const result = await postJsonWithCsrfRetry("/assenze/api/sollecita/" + btn.dataset.id, {});
             if (!result.res.ok || !result.data.ok) {
               throw new Error(result.data.error || ("HTTP " + result.res.status));
             }

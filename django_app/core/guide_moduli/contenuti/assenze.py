@@ -77,6 +77,9 @@ GUIDA = {
                     "Clicca «Le mie richieste».",
                     "Le schede in alto (In attesa, Approvate, Rifiutate, Tutte) filtrano l'elenco.",
                     "Una richiesta ancora «In attesa» si può correggere con «Modifica» o togliere con «Elimina».",
+                    "Se il capo non decide, con «Sollecita» gli mandi una mail di promemoria per quella richiesta. Dopo l'invio "
+                    "il pulsante diventa «Sollecitata» e resta fermo per i giorni di «Ripeti il sollecito ogni» (predefinito 2): "
+                    "conta anche il promemoria automatico del mattino.",
                     "Ogni modifica (date, tipo, motivazione, «Certificato arrivato») manda una mail «Richiesta modificata» "
                     "ad assenza@ e al capo reparto, con cosa è cambiato prima e dopo.",
                 ]),
@@ -257,7 +260,9 @@ GUIDA = {
                                                     "Sotto l'interruttore: quanti eventi ci sono e gli ultimi errori."),
                     ("Orario, patrono e solleciti", "ore di una giornata (predefinite 8), sabato lavorativo, patrono e solleciti ai "
                                                     "capi: «Sollecita dopo» (predefinito 2 giorni) e «Ripeti il sollecito ogni» "
-                                                    "(predefinito 2 giorni). Il lavoro «assenze_solleciti» gira nei giorni feriali alle 08:15."),
+                                                    "(predefinito 2 giorni). Il lavoro «assenze_solleciti» gira nei giorni feriali alle 08:15. "
+                                                    "Lo stesso interruttore e la stessa attesa valgono per il pulsante «Sollecita» "
+                                                    "che il dipendente trova in «Le mie richieste»."),
                     ("Avviso certificato medico mancante", "acceso, ogni mattina feriale alle 08:30 (lavoro «assenze_certificato_avviso») "
                                                     "parte una mail ad assenza@ con le malattie iniziate da almeno «Avvisa se il certificato "
                                                     "manca dopo» giorni (predefinito 2) senza «Certificato arrivato». Ogni malattia compare in "

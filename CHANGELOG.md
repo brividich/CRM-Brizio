@@ -9,6 +9,7 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+- **Assenze: pulsante «Sollecita» in «Le mie richieste»** — sulle proprie richieste in attesa il dipendente manda al capo una mail di sollecito; stesso interruttore e stessa attesa dei solleciti automatici (`assenze/solleciti.py`, `assenze/views/richieste.py`, `assenze/views/__init__.py`, `assenze/urls.py`, `core/middleware.py`, `assenze/templates/assenze/pages/gestione_assenze.html`, `assenze/tests_hr.py`, `core/guide_moduli/contenuti/assenze.py`, `docs/moduli/assenze.md`).
 - **Assenze: ore del permesso nel calendario** — nell'elenco del giorno compare il totale (es. «Permesso - 8h»), con lo stesso calcolo del saldo (`assenze/hr.py`, `assenze/views/eventi.py`, `assenze/templates/assenze/pages/calendario.html`, `assenze/tests_hr.py`, `core/guide_moduli/contenuti/assenze.py`, `docs/moduli/assenze.md`).
 
 - **Anagrafica: carico sulle mansioni collegato a schede e report**: regola unica `services/carico_mansioni.py`. Pagina ed export Centri di costo con mansioni da guardare e, per HR, RML e costo medio; Esplora, schede Struttura e scheda dipendente con segnali e centro di costo; La mia scheda con il centro di costo; report «Copertura delle mansioni» con centro, carico e solo persone in forza; nuovo report «Carico sulle persone», anche nel modello pronto dei centri di costo.
