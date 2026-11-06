@@ -159,6 +159,22 @@ class AbbinamentoAutomaticoTests(TestCase):
         # edge ≠ edge webview2 runtime (numero), office ≠ office 2019 (numero)
         self.assertEqual(SoftwareInstallation.objects.filter(host="pc-01").count(), 4)
 
+    def test_stessa_versione_scritta_diversa_e_release_nel_nome(self):
+        importa(WG, [("pc-01", "Igor Pavlov", "7-Zip 26.05 (x64 edition)", "26.05.00.0")])
+        importa(DEF, [("pc-01", "7-zip", "7-zip", "26.05.0.0")])
+        riga = SoftwareInstallation.objects.get()
+        self.assertEqual(sorted(riga.fonti), ["defender", "watchguard"])
+
+    def test_pacchetto_dello_store_e_produttore_scritto_diverso(self):
+        importa(WG, [("pc-01", "MSTeams_26276", "Microsoft Teams", "1.0"), ("pc-01", "Acro Software Inc.", "CutePDF Writer", "4.0")])
+        importa(DEF, [("pc-01", "microsoft", "teams", "1.0"), ("pc-01", "acrosoftware", "cutepdf writer", "4.0")])
+        self.assertEqual(SoftwareInstallation.objects.count(), 2)
+
+    def test_anni_diversi_restano_due_righe(self):
+        importa(WG, [("pc-01", "Microsoft", "Microsoft Office 2016", "16.0")])
+        importa(DEF, [("pc-01", "microsoft", "microsoft office 2019", "16.0")])
+        self.assertEqual(SoftwareInstallation.objects.count(), 2)
+
     def test_produttori_diversi_non_si_fondono(self):
         importa(WG, [("pc-01", "Acme", "Acme Tool", "1.0")])
         importa(DEF, [("pc-01", "Globex", "tool", "1.0")])

@@ -14,6 +14,7 @@ from django.db.models import Count, Max
 from django.utils import timezone
 
 from security.models import SecurityCveImpact, SoftwareInstallation, SoftwareProgrammaRegola
+from security.services.software_inventory import versione_chiave
 
 
 # Le app dello Store hanno come produttore il pacchetto: «msteams_26288», «claude_3», «5319275a».
@@ -446,12 +447,6 @@ def product_hosts(key):
     vendors, products = {v for v, _p in pairs}, {p for _v, p in pairs}
     rows = SoftwareInstallation.objects.filter(still_detected=True, vendor__in=vendors, product__in=products).select_related("hub_asset")
     return sorted((i for i in rows if (i.vendor, i.product) in pairs), key=lambda i: (i.host, i.version_raw))
-
-
-def versione_chiave(version):
-    """La stessa versione scritta da fonti diverse: «26.05», «26.05.0.0», «26.05.00.0» → «26.05»."""
-    testo = str(version or "").strip().casefold()
-    return re.sub(r"(?:\.0+)+$", "", testo) or testo
 
 
 def versione_da_mostrare(scritte):
