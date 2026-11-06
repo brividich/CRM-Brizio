@@ -7,6 +7,7 @@ richieste da una mansione.
 """
 from __future__ import annotations
 
+import logging
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
@@ -16,6 +17,7 @@ from ..models_skillmatrix import CompetenzaSkm, SkillMatrixConfig
 from . import capo_team
 from .mansionario_struttura import TIPI_MANSIONE
 
+logger = logging.getLogger(__name__)
 ZERO = Decimal(0)
 OK = "ok"
 SCOPERTA = "scoperta"
@@ -170,19 +172,68 @@ def calcola() -> Carico:
     return c
 
 
+def oggi() -> Carico | None:
+    """Per le pagine di consultazione: senza anagrafica leggibile la pagina resta in piedi."""
+    try:
+        return calcola()
+    except Exception:
+        logger.warning("carico sulle mansioni non calcolato", exc_info=True)
+        return None
+
+
+def su_riepilogo(righe: list, c: Carico | None) -> list:
+    """Il Mansionario mostra le liste com'erano, ma operativi e segnali sono quelli del carico.
+
+    ``fuori_forza``: persone in lista non più in forza, da togliere. Senza carico restano i
+    numeri delle liste; le mansioni non attive non sono nel carico e restano come sono.
+    """
+    for r in righe:
+        r.update(fuori_forza=0, concentrazione=None, concentrato=False)
+        x = c.per_mansione.get(r["mansione"].pk) if c else None
+        if x is None:
+            continue
+        r["operativi"] = x["operativi"]
+        r["uomo_solo"] = x["operativi"] < c.config.soglia_uomo_solo
+        r["concentrazione"], r["concentrato"] = x["concentrazione"], x["concentrato"]
+        r["fuori_forza"] = sum(1 for i in r["persone_ids"] if c.alias.get(i, i) not in c.in_forza)
+    return righe
+
+
+def frasi_persona(c: Carico | None, legacy_id: int) -> list[str]:
+    """I segnali di una persona in parole: stessa regola della scheda dipendente."""
+    if c is None:
+        return []
+    p = c.persona(legacy_id)
+    frasi = []
+    if p["chiave"]:
+        frasi.append("Unico operativo su " + ", ".join(v["nome"] for v in p["chiave"]))
+    if p["troppe"]:
+        frasi.append(f"Su {p['n']} mansioni (soglia {p['soglia']})")
+    if p["concentrate"]:
+        frasi.append("Carico concentrato su " + ", ".join(v["nome"] for v in p["concentrate"]))
+    return frasi
+
+
+def costi_per_persona(c: Carico) -> tuple:
+    """(mese, {persona in forza: riga di costo}) dell'ultimo mese caricato. Solo per chi vede i costi."""
+    mese = CostoOrarioMensile.objects.order_by("-mese").values_list("mese", flat=True).first()
+    costi: dict = {}
+    if mese:
+        for riga in CostoOrarioMensile.objects.filter(mese=mese, legacy_anagrafica_id__isnull=False):
+            pid = c.alias.get(riga.legacy_anagrafica_id, riga.legacy_anagrafica_id)
+            if pid in c.in_forza:
+                costi.setdefault(pid, riga)
+    return mese, costi
+
+
 def costi_per_centro(c: Carico) -> dict:
     """RML e costo orario medio per centro, ultimo mese caricato: stessi numeri del Prospetto. Solo per chi vede i costi."""
     from .reparto_canonico import build_area_canonica_map
 
-    mese = CostoOrarioMensile.objects.order_by("-mese").values_list("mese", flat=True).first()
+    mese, costi = costi_per_persona(c)
     if not mese:
         return {"mese": None, "centri": {}}
     area_di = build_area_canonica_map(list(c.in_forza))
-    costi: dict = {}
-    for riga in CostoOrarioMensile.objects.filter(mese=mese, legacy_anagrafica_id__isnull=False):
-        pid = c.alias.get(riga.legacy_anagrafica_id, riga.legacy_anagrafica_id)
-        if pid in c.in_forza:
-            costi.setdefault(pid, riga)
     gruppi: dict = defaultdict(lambda: {"rml": ZERO, "ore": []})
     for pid, riga in costi.items():
         area = area_di.get(pid)

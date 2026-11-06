@@ -126,6 +126,8 @@ GUIDA = {
                 ("p", "Anagrafica → Persone → «Il mio team» (anche dalla Dashboard reparto delle Assenze) elenca le persone "
                       "di cui sei responsabile: quelle della tua area aziendale, o del tuo reparto se l'area non ha un "
                       "responsabile. È la stessa regola che decide a chi arrivano le richieste di ferie."),
+                ("p", "Per ognuno vedi anche il centro di costo e i segnali di carico: unico operativo su una mansione, "
+                      "troppe mansioni, carico concentrato."),
                 ("p", "Per ognuno vedi area, mansione e il semaforo di conformità alla mansione; prima chi non è conforme, "
                       "poi chi ha adempimenti in scadenza. Nessun dato sanitario. Il nome apre la scheda solo se hai il "
                       "permesso di vederla."),
@@ -454,6 +456,13 @@ GUIDA = {
                     "«Altre strade»: stesso ruolo in altri reparti, «riporta a» e «gli riporta», stessa mansione sotto "
                     "un altro ruolo, stessa competenza su un'altra mansione, pagine già filtrate.",
                     "«Cerca in tutta la struttura» trova ogni livello dal nome e ci salta sopra.",
+                    "Passare da un reparto o da un ruolo all'altro è immediato: la pagina non si ricarica e il ruolo e "
+                    "la mansione scelti restano, se esistono anche nella nuova voce. Si usano anche ‹ e › sopra il "
+                    "dettaglio, le frecce della tastiera (Invio sceglie) e, nelle liste lunghe, la casella «Filtra».",
+                    "La tabella delle persone cambia col punto scelto: capo, reparto, ruolo, livello, mansioni e segnali "
+                    "di carico, semaforo di conformità; a chi lavora sui dati HR anche contratto e costo orario del mese.",
+                    "Sul centro di costo trovi i suoi reparti con responsabile, persone e mansioni da guardare; sul "
+                    "reparto il responsabile e le mansioni da guardare.",
                     "«Senza centro di costo», «Senza reparto» e «Senza ruolo» raccolgono quello che non è collegato.",
                 ]),
                 ("nota", "Un ruolo compare in un reparto se è previsto dall'elenco aziendale, se lo ricopre una persona "
@@ -824,8 +833,11 @@ GUIDA = {
                                          "Una mansione che serve a più ruoli compare sotto ciascuno. In fondo, in "
                                          "arancione, «Da collegare a un ruolo» raccoglie le mansioni senza ruolo."),
                     ("Cerca e filtri", "la casella «Cerca» trova per nome della mansione, persona, reparto, area, "
-                                       "ruolo o mansione di rischio; le tendine filtrano per reparto, area e persona; "
-                                       "«Macchine» e «Processi» per tipo. I riquadri «Senza operativi», «Senza ruolo», "
+                                       "ruolo o mansione di rischio; le tendine filtrano per centro di costo, reparto, area e persona; "
+                                       "«Macchine» e «Processi» per tipo. Operativi, «Scoperte», «Uomo solo» e «Carico "
+                                       "concentrato» contano solo chi è in forza, come Prospetto e report; «Liste da "
+                                       "ripulire» indica le mansioni con persone non più in forza da togliere. I riquadri "
+                                       "«Scoperte», «Senza ruolo», "
                                        "«Senza mansione di rischio», «Responsabilità senza titolare», «Uomo solo» e «Con "
                                        "il ruolo, senza mansioni» filtrano (clic di nuovo o «Mostra tutto» per togliere "
                                        "il filtro); «Persone non abilitate» e «In addestramento» aprono le Lacune di "

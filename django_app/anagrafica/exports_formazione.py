@@ -549,6 +549,9 @@ def _formazione_scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]
         filtro_stato = (request.GET.get("stato") or "").strip()
         filtro_corso = (request.GET.get("corso") or "").strip()
         filtro_q = (request.GET.get("q") or "").strip()
+        from anagrafica.services import centro_filtro
+
+        qs = centro_filtro.leggi(request).applica(qs)
         if filtro_stato:
             qs = qs.filter(stato_scadenza=filtro_stato)
         else:
@@ -596,6 +599,11 @@ def _formazione_scadenzario_filters(request: HttpRequest) -> str:
     filtro_q = (request.GET.get("q") or "").strip()
     if filtro_q:
         parts.append(f'Ricerca: "{filtro_q}"')
+    from anagrafica.services import centro_filtro
+
+    centro = centro_filtro.leggi(request).etichetta
+    if centro:
+        parts.append(centro)
     return " · ".join(parts)
 
 

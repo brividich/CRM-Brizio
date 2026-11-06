@@ -106,12 +106,13 @@ def _scheda(r: dict, *, ruolo_gruppo=None, persone: dict | None = None) -> dict:
     area = m.area.nome if m.area_id else ""
     filtri = {
         "reparto": sezioni_c.tag_slug(r["reparto"] or ""), "area": sezioni_c.tag_slug(area),
+        "centro": sezioni_c.tag_slug(m.area.centro_di_costo.nome if m.area_id and m.area.centro_di_costo_id else ""),
         "persone": " " + " ".join(str(i) for i in r["persone_ids"]) + " ",
         "classi": " " + " ".join(r.get("classi", [])) + " ",
     }
     q = " ".join([r["nome"], r["reparto"] or "", area, rischi, *(x.nome for x in r["ruoli"]), *nomi]).casefold()
     if m.is_responsabilita:
-        flag = ["responsabilita"] + ([] if nomi else ["senza-titolare", "scoperta"])
+        flag = ["responsabilita"] + ([] if nomi else ["senza-titolare"])
         dove = f"dell'area {area}" if m.responsabilita_area_id else f"del reparto {r['reparto']}"
         s = sezioni_c.scheda(
             titolo=r["nome"],
@@ -139,6 +140,10 @@ def _scheda(r: dict, *, ruolo_gruppo=None, persone: dict | None = None) -> dict:
         flag.append("senza-rischio")
     if r["uomo_solo"] and r["operativi"]:
         flag.append("uomo-solo")
+    if r.get("concentrato"):
+        flag.append("concentrato")
+    if r.get("fuori_forza"):
+        flag.append("fuori-forza")
     s = sezioni_c.scheda(
         titolo=r["nome"],
         href=reverse("anagrafica:mansionario_mansione", args=[m.pk]),
@@ -150,8 +155,10 @@ def _scheda(r: dict, *, ruolo_gruppo=None, persone: dict | None = None) -> dict:
         principale=str(r["operativi"]), principale_label="operativ" + ("o" if r["operativi"] == 1 else "i"),
         principale_sub=f"su {r['in_lista']} in lista",
         pillole=[
-            sezioni_c.pillola("fmd-c-ko", "nessun operativo") if not r["operativi"] else
+            sezioni_c.pillola("fmd-c-ko", "scoperta") if not r["operativi"] else
             (sezioni_c.pillola("fmd-c-s30", "uomo solo") if r["uomo_solo"] else None),
+            sezioni_c.pillola("fmd-c-s30", f"carico {r['concentrazione']}%") if r.get("concentrato") else None,
+            sezioni_c.pillola("fmd-c-mai", f"{r['fuori_forza']} non più in forza") if r.get("fuori_forza") else None,
             sezioni_c.pillola("fmd-c-mai", "senza mansione di rischio") if not r["rischi"] else None,
         ],
         piede=f"Rischio: {rischi}" if rischi else "Mansione di rischio da indicare",
@@ -225,7 +232,7 @@ def _gruppi_per_ruolo(righe: list[dict], persone: dict[int, dict] | None = None)
         return {
             "nome": nome, "ruolo": ruolo, "da_collegare": da_collegare,
             "schede": [_scheda(x, ruolo_gruppo=ruolo, persone=persone) for x in righe_g],
-            "scoperte": sum(1 for x in righe_g if not x["operativi"]),
+            "scoperte": sum(1 for x in righe_g if not x["operativi"] and not x["mansione"].is_responsabilita),
             "in_lista": sum(x["in_lista"] for x in righe_g),
             "chi": chi,
             "persone_ids": " " + " ".join(str(i) for i in sorted(ids)) + " ",
@@ -242,9 +249,9 @@ def _gruppi_per_ruolo(righe: list[dict], persone: dict[int, dict] | None = None)
 def mansionario(request):
     if not _puo_vedere(request):
         return _nega(request)
-    from .services import sezioni_c
+    from .services import carico_mansioni, sezioni_c
 
-    righe = svc.riepilogo()
+    righe = carico_mansioni.su_riepilogo(svc.riepilogo(), carico_mansioni.oggi())
     aree = sezioni_c.aree_visibili(request, [
         sezioni_c.Area("anagrafica:mansionario_lacune", "Lacune di competenza", "Chi non è abilitato e cosa manca", icona="i-alert-cir"),
         sezioni_c.Area("anagrafica:skill_matrix_macchina", "Skill matrix", "Persone × macchine, livelli I/L/U/O", icona="i-grid"),
@@ -266,6 +273,8 @@ def mansionario(request):
     kpi["uomo_solo"] = sum(1 for r in righe if r["uomo_solo"] and r["operativi"]
                            and not r["mansione"].is_responsabilita)
     kpi["ruolo_senza_mansione"] = sum(g["chi"]["senza_mansione"] for g in gruppi if g["chi"])
+    kpi["concentrate"] = sum(1 for r in righe if r["concentrato"])
+    kpi["fuori_forza"] = sum(1 for r in righe if r["fuori_forza"])
     from .services.mansioni_coefficienti import CLASSIFICAZIONI
     from .services.sezioni_c import tag_slug
 
@@ -273,6 +282,9 @@ def mansionario(request):
         "reparti": [(tag_slug(n), n) for n in sorted({r["reparto"] for r in righe if r["reparto"]}, key=str.casefold)],
         "aree": [(tag_slug(n), n) for n in sorted({r["mansione"].area.nome for r in righe if r["mansione"].area_id},
                                                   key=str.casefold)],
+        "centri": [(tag_slug(n), n) for n in sorted({r["mansione"].area.centro_di_costo.nome for r in righe
+                                                     if r["mansione"].area_id and r["mansione"].area.centro_di_costo_id},
+                                                    key=str.casefold)],
         "persone": sorted(persone.values(), key=lambda p: p["nome"].casefold()),
         "classi": [*CLASSIFICAZIONI.items(), ("-", "Non classificata")],
     }
@@ -326,10 +338,14 @@ def mansionario_mansione(request, mansione_id: int):
             f" Prima si chiamava «{nome_prima}»: persone, competenze e rischi restano collegati." if nome_prima else ""))
         return _alla_scheda(mansione.pk, "impostazioni")
 
-    from .services import mansionario_competenze as comp_svc
+    from .services import carico_mansioni, mansionario_competenze as comp_svc
 
     competenze = list(comp_svc.competenze(mansione))
     persone = svc.persone(mansione)
+    carico = carico_mansioni.oggi()
+    carico_mansione = carico.per_mansione.get(mansione.pk) if carico else None
+    for p in persone:
+        p["fuori_forza"] = bool(carico) and carico.alias.get(p["legacy_id"], p["legacy_id"]) not in carico.in_forza
     requisiti = comp_svc.Requisiti([p["legacy_id"] for p in persone], competenze)
     for p in persone:
         val = comp_svc.valuta(p["abilitazione"], voci=competenze, requisiti=requisiti)
@@ -368,6 +384,8 @@ def mansionario_mansione(request, mansione_id: int):
         "competenze": competenze,
         "persone": persone,
         "stato": stato,
+        "carico_mansione": carico_mansione,
+        "n_fuori_forza": sum(1 for p in persone if p["fuori_forza"]),
         "candidati": candidati,
         **(_opzioni_requisiti() if is_admin else {}),
         "livelli": svc.LIVELLI,

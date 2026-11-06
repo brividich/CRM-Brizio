@@ -776,6 +776,10 @@ def _visite_mediche_rows(request: HttpRequest, scope: str) -> list[dict]:
         filtro = "tutti"
 
     oggi, qs = _visite_scad_queryset(filtro)
+    if scope == "filtered":
+        from anagrafica.services import centro_filtro
+
+        qs = centro_filtro.leggi(request).applica(qs)
     visite = list(qs)
     nomi = _nomi_legacy({v.legacy_anagrafica_id for v in visite})
 
@@ -804,7 +808,11 @@ def _visite_mediche_filters(request: HttpRequest) -> str:
         "mese_corrente": "Scadenze del mese corrente",
         "prossimo_mese": "Scadenze del prossimo mese",
     }
-    return labels.get(filtro, "Scadute o in scadenza entro 60 giorni")
+    from anagrafica.services import centro_filtro
+
+    testo = labels.get(filtro, "Scadute o in scadenza entro 60 giorni")
+    centro = centro_filtro.leggi(request).etichetta
+    return f"{testo} · {centro}" if centro else testo
 
 
 register(ExportSpec(
@@ -825,7 +833,7 @@ register(ExportSpec(
 
 
 # ── Visite mediche — copertura per tipologia ─────────────────────────────────
-# Seconda tabella della stessa dashboard (nessun filtro in querystring).
+# Seconda tabella della stessa dashboard: l'unico filtro è il centro di costo.
 
 def _visite_copertura_rows(request: HttpRequest, scope: str) -> list[dict]:
     from django.db.models import Count
@@ -833,15 +841,19 @@ def _visite_copertura_rows(request: HttpRequest, scope: str) -> list[dict]:
 
     from anagrafica.models import DipendenteRuoloOperativo, TipoVisitaMedica, VisitaMedica
 
+    from anagrafica.services import centro_filtro
+
     oggi = timezone.localdate()
+    filtro_centro = centro_filtro.leggi(request) if scope == "filtered" else centro_filtro.Filtro()
+    visite = filtro_centro.applica(VisitaMedica.objects.all())
     valide_per_tipo = {
         row["tipo_id"]: row["n"]
-        for row in VisitaMedica.objects.filter(data_scadenza__gte=oggi)
+        for row in visite.filter(data_scadenza__gte=oggi)
         .order_by().values("tipo_id").annotate(n=Count("legacy_anagrafica_id", distinct=True))
     }
     scadute_per_tipo = {
         row["tipo_id"]: row["n"]
-        for row in VisitaMedica.objects.filter(data_scadenza__lt=oggi)
+        for row in visite.filter(data_scadenza__lt=oggi)
         .order_by().values("tipo_id").annotate(n=Count("legacy_anagrafica_id", distinct=True))
     }
 
@@ -854,10 +866,12 @@ def _visite_copertura_rows(request: HttpRequest, scope: str) -> list[dict]:
                 .filter(ruolo_id__in=ruoli_ids)
                 .values_list("legacy_anagrafica_id", flat=True)
             )
+            if filtro_centro.attivo:
+                richiesti &= filtro_centro.ids
         else:
             richiesti = set()
         coperti = set(
-            VisitaMedica.objects
+            visite
             .filter(tipo=t, data_scadenza__gte=oggi)
             .values_list("legacy_anagrafica_id", flat=True)
         )

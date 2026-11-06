@@ -477,8 +477,13 @@ def _scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]:
     }
 
     voci: list[dict] = []
+    from anagrafica.services import centro_filtro
+
+    filtro_centro = centro_filtro.leggi(request) if scope == "filtered" else centro_filtro.Filtro()
 
     def _add(kind_label: str, legacy_id: int, tipo_nome: str, data_scadenza):
+        if not filtro_centro.contiene(legacy_id):
+            return
         dip = dip_map.get(legacy_id, {})
         reparto = str(dip.get("reparto") or "").strip()
         if filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
@@ -609,6 +614,11 @@ def _scadenzario_filters(request: HttpRequest) -> str:
     filtro_reparto = (request.GET.get("reparto") or "").strip()
     if filtro_reparto:
         parts.append(f"Reparto: {filtro_reparto}")
+    from anagrafica.services import centro_filtro
+
+    centro = centro_filtro.leggi(request).etichetta
+    if centro:
+        parts.append(centro)
     return " · ".join(parts)
 
 

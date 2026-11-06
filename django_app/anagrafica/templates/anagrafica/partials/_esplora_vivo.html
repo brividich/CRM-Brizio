@@ -1,0 +1,89 @@
+  <nav class="es-briciole" aria-label="Percorso">
+    {% for b in briciole %}
+      {% if not forloop.first %}<span class="es-sep" aria-hidden="true">›</span>{% endif %}
+      {% if b.url_corrente %}<span class="es-qui" aria-current="page">{% if b.livello %}<span class="es-liv">{{ b.livello }}</span>{% endif %}{{ b.nome }}</span>
+      {% else %}<a href="{{ b.url }}">{% if b.livello %}<span class="es-liv">{{ b.livello }}</span>{% endif %}{{ b.nome }}</a>{% endif %}
+    {% endfor %}
+  </nav>
+
+  {% if risultati is not None %}
+  <section class="rc-panel">
+    <h2>«{{ q }}»: {{ risultati|length }} risultat{{ risultati|length|pluralize:"o,i" }}</h2>
+    {% if risultati %}
+    <ul class="es-ris">{% for r in risultati %}<li><small>{{ r.livello }}</small><a href="{{ r.url }}">{{ r.nome }}</a></li>{% endfor %}</ul>
+    {% else %}<p>Nessun punto della struttura contiene questo testo.</p>{% endif %}
+  </section>
+  {% endif %}
+
+  <div class="es-colonne">
+    {% for c in colonne %}
+    <section class="es-col {% if c.corrente %}is-corrente{% endif %}" aria-label="{{ c.titolo }}" data-es-liv="{{ c.livello }}">
+      <div class="es-col-h"><span>{{ c.titolo }}</span>{% if c.voci is not None %}<span>{{ c.voci|length }}</span>{% endif %}</div>
+      {% if c.voci is None %}
+        <div class="es-attesa">{{ c.attesa }}</div>
+      {% elif c.voci %}
+        {% if c.voci|length > 7 %}<input type="search" class="es-filtra" data-es-filtra placeholder="Filtra {{ c.titolo|lower }}…" aria-label="Filtra {{ c.titolo|lower }}" autocomplete="off">{% endif %}
+        <ul class="es-lista">
+          {% for v in c.voci %}<li><a class="es-voce {% if v.scelta %}is-scelta{% endif %} {% if v.avviso %}is-avviso{% endif %}" href="{{ v.url }}"{% if v.scelta %} aria-current="true"{% endif %}><span>{{ v.nome }}{% if v.sotto %}<small>{{ v.sotto }}</small>{% endif %}</span>{% if v.n is not None %}<span class="es-n" title="Persone in forza">{{ v.n }}</span>{% endif %}</a></li>{% endfor %}
+        </ul>
+      {% else %}
+        <div class="es-attesa">{% if c.livello == "competenza" %}Nessuna competenza caricata per questa mansione.{% elif c.livello == "mansione" %}Nessuna mansione per questo ruolo in questo reparto.{% elif c.livello == "ruolo" %}Nessun ruolo in questo reparto.{% elif c.livello == "area" %}Nessun reparto in questo centro.{% else %}Nessun centro di costo.{% endif %}</div>
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+
+  <div class="es-corpo">
+    <section class="rc-panel">
+      <div class="es-tipo">{{ dettaglio.tipo }}</div>
+      <div class="es-titolo">{{ dettaglio.titolo }}</div>
+      {% if vicini and vicini.totale > 1 %}
+      <div class="es-vicini" aria-label="Passa a un'altra voce di {{ vicini.titolo }}">
+        {% if vicini.prec %}<a class="es-strada" href="{{ vicini.prec.url }}" title="{{ vicini.prec.nome }}">‹ <span>{{ vicini.prec.nome }}</span></a>{% endif %}
+        <span class="es-posto">{{ vicini.titolo }}: {{ vicini.posto }} di {{ vicini.totale }}</span>
+        {% if vicini.succ %}<a class="es-strada" href="{{ vicini.succ.url }}" title="{{ vicini.succ.nome }}"><span>{{ vicini.succ.nome }}</span> ›</a>{% endif %}
+      </div>
+      {% endif %}
+      {% if dettaglio.testo %}<p>{{ dettaglio.testo }}</p>{% endif %}
+      <div class="es-kpis-det">{% for etichetta, valore, avviso in dettaglio.kpi %}<div class="{% if avviso %}is-avviso{% endif %}"><b>{{ valore }}</b><span>{{ etichetta }}</span></div>{% endfor %}</div>
+      {% if dettaglio.dati %}<dl class="es-dati">{% for k, v in dettaglio.dati %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>{% endif %}
+      {% if dettaglio.reparti %}
+      <div class="es-sotto-h">Reparti del centro ({{ dettaglio.reparti|length }})</div>
+      <div class="es-tab-wrap" data-fm-table-skip="1" data-mcards-off><table class="es-tab">
+        <thead><tr><th>Reparto</th><th>Responsabile</th><th class="es-num">Persone</th><th class="es-num">Ruoli</th><th class="es-num">Mansioni</th><th class="es-num">Da guardare</th>{% if dettaglio.colonne_persone.riservati %}<th class="es-num">€/ora medio</th>{% endif %}</tr></thead>
+        <tbody>{% for r in dettaglio.reparti %}<tr><td><a href="{{ r.url }}">{{ r.nome }}</a></td><td>{{ r.responsabili|default:"—" }}</td><td class="es-num">{{ r.persone }}</td><td class="es-num">{{ r.ruoli }}</td><td class="es-num">{{ r.mansioni }}</td><td class="es-num{% if r.da_guardare %} es-rosso{% endif %}">{{ r.da_guardare }}</td>{% if dettaglio.colonne_persone.riservati %}<td class="es-num">{{ r.costo|default:"—" }}</td>{% endif %}</tr>{% endfor %}</tbody>
+      </table></div>
+      {% endif %}
+      {% if dettaglio.da_guardare %}
+      <div class="es-sotto-h">Mansioni da guardare ({{ dettaglio.da_guardare|length }})</div>
+      <ul class="es-persone">{% for x in dettaglio.da_guardare %}<li><a href="{{ x.url }}">{{ x.nome }}</a> <small>{{ x.sotto }}</small></li>{% endfor %}</ul>
+      {% endif %}
+      {% if dettaglio.persone is not None %}
+        <div class="es-sotto-h">{{ dettaglio.persone_titolo|default:"Persone" }} ({{ dettaglio.persone|length }})</div>
+        {% if dettaglio.persone %}
+        {% include "anagrafica/partials/_esplora_persone.html" %}
+        {% else %}<span class="rc-none">Nessuna persona.</span>{% endif %}
+      {% endif %}
+    </section>
+    <aside class="rc-panel" aria-label="Altre strade">
+      <h2>Altre strade</h2>
+      {% if dettaglio.gerarchia %}
+      <div class="es-sotto-h">Nella gerarchia dei ruoli</div>
+      <ul class="es-strade">{% for x in dettaglio.gerarchia %}{% if x.url %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endif %}{% endfor %}</ul>
+      {% endif %}
+      {% if dettaglio.altri_reparti %}
+      <div class="es-sotto-h">Stesso ruolo in altri reparti ({{ dettaglio.altri_reparti|length }})</div>
+      <ul class="es-strade es-strade-lunga">{% for x in dettaglio.altri_reparti %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endfor %}</ul>
+      {% endif %}
+      {% if dettaglio.altri_ruoli %}
+      <div class="es-sotto-h">Stessa mansione sotto altri ruoli</div>
+      <ul class="es-strade">{% for x in dettaglio.altri_ruoli %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endfor %}</ul>
+      {% endif %}
+      {% if dettaglio.altre_mansioni %}
+      <div class="es-sotto-h">Stessa competenza su altre mansioni</div>
+      <ul class="es-strade es-strade-lunga">{% for x in dettaglio.altre_mansioni %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endfor %}</ul>
+      {% endif %}
+      <div class="es-sotto-h">Apri nelle altre pagine</div>
+      <ul class="es-strade">{% for x in strade %}<li><a class="es-strada" href="{{ x.url }}">{{ x.nome }}<small>{{ x.sotto }}</small></a></li>{% endfor %}</ul>
+    </aside>
+  </div>

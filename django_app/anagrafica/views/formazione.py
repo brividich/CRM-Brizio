@@ -776,15 +776,15 @@ _COPERTURA_SEGMENTI = {
 }
 
 
-def _copertura_corsi_obbligatori(oggi) -> list[dict]:
+def _copertura_corsi_obbligatori(oggi, filtro_centro=None) -> list[dict]:
     """Una riga per corso con scadenze obbligatorie: quante persone sono in regola,
     in scadenza, scadute o mai formate (dalla cache TrainingDeadline, come i KPI)
     e la prossima sessione pianificata. Ordinata dal corso più scoperto."""
     conteggi: dict[int, dict[str, int]] = {}
-    righe = (
-        TrainingDeadline.objects.filter(is_required=True)
-        .values("corso_id", "stato_scadenza").annotate(n=Count("id")).order_by()
-    )
+    base = TrainingDeadline.objects.filter(is_required=True)
+    if filtro_centro is not None:
+        base = filtro_centro.applica(base)
+    righe = base.values("corso_id", "stato_scadenza").annotate(n=Count("id")).order_by()
     for r in righe:
         segmento = _COPERTURA_SEGMENTI.get(r["stato_scadenza"])
         if segmento:
@@ -839,18 +839,22 @@ def formazione_dashboard(request):
 
     from django.utils import timezone as _tz
 
+    from ..services import centro_filtro
+
     oggi = _tz.localdate()
+    filtro_centro = centro_filtro.leggi(request)
+    scadenze_qs = filtro_centro.applica(TrainingDeadline.objects.all())
 
     # KPI da TrainingEmployeeRecord (non dipende dalla cache)
     kpi_dipendenti_formazione = (
-        TrainingEmployeeRecord.objects
+        filtro_centro.applica(TrainingEmployeeRecord.objects.all())
         .values("legacy_anagrafica_id").distinct().count()
     )
 
     # KPI da TrainingDeadline (cache — può essere 0 se non ancora ricalcolata)
-    kpi_scaduti         = TrainingDeadline.objects.filter(stato_scadenza="SCADUTO").count()
-    kpi_in_scadenza_30  = TrainingDeadline.objects.filter(stato_scadenza="IN_SCADENZA_30").count()
-    kpi_obbligatori_mancanti = TrainingDeadline.objects.filter(
+    kpi_scaduti         = scadenze_qs.filter(stato_scadenza="SCADUTO").count()
+    kpi_in_scadenza_30  = scadenze_qs.filter(stato_scadenza="IN_SCADENZA_30").count()
+    kpi_obbligatori_mancanti = scadenze_qs.filter(
         stato_scadenza__in=["MAI_FREQUENTATO", "SCADUTO"],
         is_required=True,
     ).count()
@@ -861,7 +865,7 @@ def formazione_dashboard(request):
 
     # Scadenzario urgente TOP 20 (ordinato per urgenza crescente)
     scadenze_raw = list(
-        TrainingDeadline.objects
+        scadenze_qs
         .filter(stato_scadenza__in=["SCADUTO", "IN_SCADENZA_30", "IN_SCADENZA_90"])
         .select_related("corso", "corso__piano")
         .order_by("data_scadenza", "legacy_anagrafica_id")[:20]
@@ -872,9 +876,10 @@ def formazione_dashboard(request):
         d.giorni = (d.data_scadenza - oggi).days if d.data_scadenza else None
 
     deadline_cache_empty = not TrainingDeadline.objects.exists()
-    copertura_corsi = _copertura_corsi_obbligatori(oggi)
+    copertura_corsi = _copertura_corsi_obbligatori(oggi, filtro_centro)
 
     return render(request, "anagrafica/pages/formazione_dashboard.html", {
+        "filtro_centro": filtro_centro,
         "copertura_corsi": copertura_corsi,
         "copertura_piani": sorted({c["piano"] for c in copertura_corsi if c["piano"]}),
         "oggi": oggi,
@@ -4259,8 +4264,11 @@ def formazione_scadenzario(request):
     filtro_stato = request.GET.get("stato", "").strip()
     filtro_corso = request.GET.get("corso", "").strip()
     filtro_q     = request.GET.get("q", "").strip()
+    from ..services import centro_filtro
 
-    qs = (
+    filtro_centro = centro_filtro.leggi(request)
+
+    qs = filtro_centro.applica(
         TrainingDeadline.objects
         .select_related("corso", "corso__piano")
         .order_by("stato_scadenza", "data_scadenza", "legacy_anagrafica_id")
@@ -4290,14 +4298,14 @@ def formazione_scadenzario(request):
     for s in scadenze:
         s.nome_dip = nomi_map.get(s.legacy_anagrafica_id, f"#{s.legacy_anagrafica_id}")
 
-    # KPI globali (su tutti, non filtrati)
-    all_qs = TrainingDeadline.objects
+    # KPI su tutti gli stati e i corsi; col centro scelto, solo le sue persone (come la dashboard).
+    all_qs = filtro_centro.applica(TrainingDeadline.objects.all())
     n_scaduti  = all_qs.filter(stato_scadenza="SCADUTO").count()
     n_30gg     = all_qs.filter(stato_scadenza="IN_SCADENZA_30").count()
     n_90gg     = all_qs.filter(stato_scadenza="IN_SCADENZA_90").count()
     n_mai      = all_qs.filter(stato_scadenza="MAI_FREQUENTATO", is_required=True).count()
 
-    is_cache_empty = not all_qs.exists()
+    is_cache_empty = not TrainingDeadline.objects.exists()
 
     paginator = Paginator(scadenze, 50)
     page_obj  = paginator.get_page(request.GET.get("page"))
@@ -4305,6 +4313,7 @@ def formazione_scadenzario(request):
     corsi_list = TrainingCourse.objects.filter(is_active=True).order_by("codice")
 
     return render(request, "anagrafica/pages/formazione_scadenzario.html", {
+        "filtro_centro": filtro_centro,
         "page_obj":      page_obj,
         "filtro_stato":  filtro_stato,
         "filtro_corso":  filtro_corso,

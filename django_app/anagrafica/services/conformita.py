@@ -388,6 +388,15 @@ def _idoneita_batch(
     return out
 
 
+# Il semaforo per chi non deve vedere il dettaglio: (tono, etichetta). Nessun dato sanitario.
+ESITI = {
+    "ko": ("danger", "Non conforme"),
+    "warn": ("warning", "In scadenza"),
+    "ok": ("ok", "In regola"),
+    "na": ("neutral", "Nessun requisito"),
+}
+
+
 def stato_conformita_batch(
     legacy_ids: list[int],
     *,
