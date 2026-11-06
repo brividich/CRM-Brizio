@@ -1,14 +1,16 @@
-"""Ticket di manutenzione aperto per conto di un collega (solo squadra manutenzione).
+"""Ticket aperto per conto di un collega e chiuso al volo (solo manutentori e IT).
 Solo dati sintetici."""
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from assets.services import squadra_manutenzione
 from core.models import AccessGroup, AccessGroupMembership, Profile, UserOnboarding
-from tickets.models import Ticket
+from tickets.models import EsitoIntervento, StatoTicket, Ticket
 
 User = get_user_model()
 
@@ -89,3 +91,128 @@ class PerContoDiTests(TestCase):
         self.assertContains(response, f'value="{self.collega.pk}" selected')
         self.assertContains(response, "Descrizione sintetica")
         self.assertEqual(Ticket.objects.count(), 0)
+
+    def _al_volo(self, **extra):
+        return self._payload(per_conto_di=str(self.collega.pk), chiudi_subito="1",
+                             intervento_svolto="Sostituito fusibile sintetico", **extra)
+
+    def _post_al_volo(self, payload):
+        self.client.force_login(self.manut)
+        p1, p2, p3, p4 = self._patches()
+        with p1, p2, p3, p4, patch("tickets.views._silenzia_automazioni_import") as silenzia:
+            response = self.client.post(reverse("tickets:nuovo") + "?tipo=MAN", payload)
+        return response, silenzia
+
+    def test_al_volo_nasce_chiuso_con_intervento(self):
+        response, silenzia = self._post_al_volo(self._al_volo(intervento_ore="1,5"))
+        self.assertEqual(response.status_code, 302)
+        ticket = Ticket.objects.get()
+        self.assertEqual(ticket.stato, StatoTicket.CHIUSO)
+        self.assertIsNotNone(ticket.closed_at)
+        self.assertEqual(ticket.richiedente_user_id, self.collega.pk)
+        self.assertEqual(ticket.risolto_da_nome, ticket.aperto_da_nome)
+        intervento = ticket.interventi.get()
+        self.assertEqual(intervento.esito, EsitoIntervento.COMPLETATO)
+        self.assertEqual(intervento.descrizione_lavoro, "Sostituito fusibile sintetico")
+        self.assertEqual(intervento.durata_ore, 1.5)
+        self.assertEqual(intervento.data_fine - intervento.data_inizio, timedelta(hours=1.5))
+        self.assertEqual(ticket.data_primo_intervento, intervento.created_at)
+        self.assertTrue(ticket.commenti.filter(is_interno=False, testo__contains="fusibile").exists())
+        self.assertEqual(ticket.stato_log.get().a_stato, StatoTicket.CHIUSO)
+        silenzia.assert_called_once()
+        self.assertEqual(silenzia.call_args.args[0], [ticket.pk])
+
+    def test_al_volo_con_sicurezza_lascia_gli_avvisi(self):
+        payload = self._al_volo()
+        payload["incide_sicurezza"] = "1"
+        _response, silenzia = self._post_al_volo(payload)
+        self.assertEqual(Ticket.objects.get().stato, StatoTicket.CHIUSO)
+        silenzia.assert_not_called()
+
+    def test_al_volo_senza_lavoro_non_crea_e_conserva_i_campi(self):
+        payload = self._al_volo(intervento_ore="2")
+        payload["intervento_svolto"] = ""
+        response, _silenzia = self._post_al_volo(payload)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Scrivi cosa è stato fatto")
+        self.assertContains(response, 'value="1" checked')
+        self.assertEqual(Ticket.objects.count(), 0)
+
+    def test_al_volo_date_e_ore_non_valide(self):
+        futuro = (timezone.localtime() + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M")
+        for extra, messaggio in (
+            ({"intervento_quando": futuro}, "non può essere futura"),
+            ({"intervento_quando": "2026-13-45T10:00"}, "non è valida"),
+            ({"intervento_ore": "abc"}, "non sono valide"),
+            ({"intervento_ore": "-1"}, "non sono valide"),
+        ):
+            with self.subTest(extra=extra):
+                response, _silenzia = self._post_al_volo(self._al_volo(**extra))
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, messaggio)
+                self.assertEqual(Ticket.objects.count(), 0)
+
+    def test_al_volo_data_passata_resta_sull_intervento(self):
+        passato = (timezone.localtime() - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M")
+        self._post_al_volo(self._al_volo(intervento_quando=passato))
+        ticket = Ticket.objects.get()
+        intervento = ticket.interventi.get()
+        self.assertLess(intervento.data_fine, ticket.created_at)
+        self.assertGreaterEqual(ticket.closed_at, ticket.created_at)
+
+    def test_chi_non_e_ammesso_non_chiude_al_volo(self):
+        self.client.force_login(self.estraneo)
+        p1, p2, p3, p4 = self._patches()
+        with p1, p2, p3, p4:
+            page = self.client.get(reverse("tickets:nuovo") + "?tipo=MAN")
+            self.assertNotContains(page, "Già risolto")
+            self.client.post(reverse("tickets:nuovo") + "?tipo=MAN", self._al_volo())
+        ticket = Ticket.objects.get()
+        self.assertEqual(ticket.stato, StatoTicket.APERTA)
+        self.assertEqual(ticket.interventi.count(), 0)
+
+    def _payload_it(self, **extra):
+        data = self._payload(categoria="PC", **extra)
+        data["tipo"] = "IT"
+        return data
+
+    def test_it_solo_per_i_gestori_it(self):
+        def gestisce_it(_request, tipo=None):
+            return tipo == "IT"
+
+        self.client.force_login(self.manut)
+        p1, _p2, p3, p4 = self._patches()
+        with p1, p3, p4, patch("tickets.views._can_manage_tickets", side_effect=gestisce_it):
+            page = self.client.get(reverse("tickets:nuovo") + "?tipo=IT")
+            self.assertContains(page, "Per conto di")
+            self.assertContains(page, "Già risolto")
+            self.client.post(reverse("tickets:nuovo") + "?tipo=IT", self._payload_it(
+                per_conto_di=str(self.collega.pk), chiudi_subito="1", intervento_svolto="Riavviato servizio sintetico",
+            ))
+        ticket = Ticket.objects.get()
+        self.assertEqual(ticket.richiedente_user_id, self.collega.pk)
+        self.assertEqual(ticket.stato, StatoTicket.CHIUSO)
+
+    def test_squadra_manutenzione_non_vale_per_l_it(self):
+        self.client.force_login(self.manut)
+        p1, p2, p3, p4 = self._patches()
+        with p1, p2, p3, p4:
+            page = self.client.get(reverse("tickets:nuovo") + "?tipo=IT")
+            self.assertNotContains(page, "Per conto di")
+            self.assertNotContains(page, "Già risolto")
+            self.client.post(reverse("tickets:nuovo") + "?tipo=IT", self._payload_it(
+                per_conto_di=str(self.collega.pk), chiudi_subito="1", intervento_svolto="Sintetico",
+            ))
+        ticket = Ticket.objects.get()
+        self.assertEqual(ticket.richiedente_user_id, self.manut.pk)
+        self.assertEqual(ticket.stato, StatoTicket.APERTA)
+
+    def test_il_richiedente_vede_intervento_e_compilatore(self):
+        self._post_al_volo(self._al_volo())
+        ticket = Ticket.objects.get()
+        self.client.force_login(self.collega)
+        p1, p2, p3, p4 = self._patches()
+        with p1, p2, p3, p4:
+            detail = self.client.get(reverse("tickets:detail", args=[ticket.pk]))
+        self.assertContains(detail, "per suo conto")
+        self.assertContains(detail, "Sostituito fusibile sintetico")
