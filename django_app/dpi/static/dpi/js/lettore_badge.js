@@ -1,7 +1,7 @@
 /* Banco consegne DPI · lettore di badge seriale (Web Serial: Chrome o Edge in https).
  * Il lettore invia da solo a ogni passaggio, a 19200 baud:
  *   STX (02) + cifre ASCII + ETX (03) + XOR dei byte da STX a ETX + CR (0D).
- * Il codice non lascia la pagina: serve solo a trovare la persona tra quelle gia' caricate.
+ * Il messaggio va al server, che lo verifica e dice di chi e' il badge: alla pagina il numero non serve.
  */
 (function () {
   "use strict";
@@ -12,7 +12,7 @@
   var MAX_MESSAGGIO = 64;
   var PAUSA_STESSO_BADGE_MS = 2000;
 
-  // Restituisce i codici completi e validi: i messaggi rovinati si scartano.
+  // Restituisce i messaggi completi e validi, {codice, messaggio}: quelli rovinati si scartano.
   function creaAnalizzatore() {
     var buf = [];
 
@@ -40,8 +40,9 @@
         // CR puo' essere anche il byte di controllo: conta solo dopo ETX e controllo.
         if (b === CR && buf.length >= 3 && buf[buf.length - 3] === ETX) {
           var codice = cifre(buf);
+          var messaggio = buf.map(function (x) { return (x < 16 ? "0" : "") + x.toString(16); }).join("");
           buf = [];
-          if (codice) letti.push(codice);
+          if (codice) letti.push({codice: codice, messaggio: messaggio});
         }
       }
       return letti;
@@ -63,13 +64,14 @@
       if (opzioni.suStato) opzioni.suStato(collegato);
     }
 
-    function consegna(codice) {
+    function consegna(letto) {
+      var codice = letto.codice;
       var ora = Date.now();
       // Il badge lasciato sul lettore si ripete: vale una lettura sola.
       if (codice === ultimo && ora - ultimoQuando < PAUSA_STESSO_BADGE_MS) { ultimoQuando = ora; return; }
       ultimo = codice;
       ultimoQuando = ora;
-      opzioni.suCodice(codice);
+      opzioni.suLettura(letto.messaggio);
     }
 
     function leggi() {

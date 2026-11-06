@@ -152,61 +152,114 @@ class BancoConsegneTests(TestCase):
         self.assertContains(pagina, 'id="lettore-collega"')
         self.assertContains(pagina, "dpi/js/lettore_badge.js")
 
-    def _consegna_con_badge(self, richieste, badge):
-        return self.client.post(self.url, {
-            "azione": "consegna", "ids": [r.pk for r in richieste], "data_consegna": "2026-11-06", "badge_conferma": badge,
-        })
+    # I messaggi del lettore: 02 + cifre + 03 + XOR + 0D
+    @staticmethod
+    def _messaggio(cifre, rovina=False):
+        dati = bytes([2]) + cifre.encode() + bytes([3])
+        controllo = 0
+        for b in dati:
+            controllo ^= b
+        return (dati + bytes([controllo ^ (1 if rovina else 0), 13])).hex()
 
-    def test_badge_conferma_la_ricevuta_senza_mail(self):
+    def _verifica(self, messaggio):
+        return self.client.post(self.url, {"azione": "verifica_badge", "messaggio": messaggio})
+
+    def _consegna(self, richieste, **altro):
+        return self.client.post(self.url, {"azione": "consegna", "ids": [r.pk for r in richieste], "data_consegna": "2026-11-06", **altro})
+
+    def _badge(self, legacy=101, numero="42"):
         from anagrafica.models import DipendenteAnagraficaAziendale
 
+        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=legacy, badge=numero)
+
+    def test_verifica_riconosce_la_persona_dal_messaggio_del_lettore(self):
+        self._badge()
+        risposta = self._verifica(self._messaggio("0000000042")).json()
+        self.assertEqual(risposta["esito"], "ok")
+        self.assertEqual(risposta["chiave"], "p101")
+        self.assertNotIn("42", {str(v) for k, v in risposta.items() if k != "prova"})
+
+    def test_verifica_rifiuta_numero_scritto_a_mano_e_messaggio_rovinato(self):
+        self._badge()
+        for valore in ("42", "0000000042", self._messaggio("0000000042", rovina=True), "zz"):
+            self.assertEqual(self._verifica(valore).json()["esito"], "sconosciuto", valore)
+
+    def test_badge_doppio_non_e_riconosciuto(self):
+        self._badge(101, "42")
+        self._badge(102, "0042")
+        self.assertEqual(self._verifica(self._messaggio("0000000042")).json()["esito"], "sconosciuto")
+
+    def test_troppi_errori_sospendono_la_verifica(self):
+        from django.core.cache import cache
+
+        cache.delete(f"dpi_badge_errori:{self.admin.pk}")
+        self.addCleanup(cache.delete, f"dpi_badge_errori:{self.admin.pk}")
+        for _ in range(20):
+            self._verifica("zz")
+        self.assertEqual(self._verifica(self._messaggio("0000000042")).status_code, 429)
+
+    def test_conferma_con_badge_vale_come_ricevuta_senza_mail(self):
         from . import report
         from .models import ConfermaConsegnaDPI
 
-        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=101, badge="42")
+        self._badge()
         r = self._richiesta(self.mod_guanti)
-        self._consegna_con_badge([r], "0000000042")
+        prova = self._verifica(self._messaggio("0000000042")).json()["prova"]
+        self._consegna([r], prova_badge=prova)
         c = ConsegnaDPI.objects.get(richiesta=r)
         self.assertIsNotNone(c.confermata_badge_il)
-        self.assertTrue(c.firmato_ricevuta)
         self.assertEqual(report.ricevuta(c), report.CON_BADGE)
         self.assertFalse(ConfermaConsegnaDPI.objects.exists())
 
-    def test_badge_di_un_altro_non_registra_la_consegna(self):
-        from anagrafica.models import DipendenteAnagraficaAziendale
-
-        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=101, badge="42")
-        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=102, badge="77")
-        r = self._richiesta(self.mod_guanti)
-        self._consegna_con_badge([r], "0000000077")
-        self.assertFalse(ConsegnaDPI.objects.filter(richiesta=r).exists())
-        r.refresh_from_db()
-        self.assertEqual(r.stato, StatoRichiesta.APPROVATA)
-
-    def test_badge_non_vale_senza_badge_in_anagrafica_o_per_due_persone(self):
-        from anagrafica.models import DipendenteAnagraficaAziendale
-
-        r = self._richiesta(self.mod_guanti)
-        self._consegna_con_badge([r], "0")
-        self.assertFalse(ConsegnaDPI.objects.filter(richiesta=r).exists())
-        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=101, badge="42")
+    def test_prova_vale_una_volta_per_la_persona_giusta(self):
+        self._badge()
+        self._badge(102, "77")
+        prova = self._verifica(self._messaggio("0000000042")).json()["prova"]
         altra = self._richiesta(self.mod_guanti, nome="Luigi Verdi", legacy=102)
-        self._consegna_con_badge([r, altra], "42")
-        self.assertFalse(ConsegnaDPI.objects.filter(richiesta__in=[r, altra]).exists())
+        self._consegna([altra], prova_badge=prova)
+        self.assertFalse(ConsegnaDPI.objects.filter(richiesta=altra).exists())
+        r1 = self._richiesta(self.mod_guanti)
+        self._consegna([r1], prova_badge=prova)
+        self.assertTrue(ConsegnaDPI.objects.filter(richiesta=r1).exists())
+        r2 = self._richiesta(self.mod_guanti)
+        self._consegna([r2], prova_badge=prova)
+        self.assertFalse(ConsegnaDPI.objects.filter(richiesta=r2).exists())
 
-    def test_senza_badge_resta_la_conferma_via_mail(self):
+    def test_prova_non_vale_per_un_altro_operatore_ne_scaduta(self):
+        from . import badge
+
+        self._badge()
         r = self._richiesta(self.mod_guanti)
-        self.client.post(self.url, {"azione": "consegna", "ids": [r.pk], "data_consegna": "2026-11-06"})
-        self.assertIsNone(ConsegnaDPI.objects.get(richiesta=r).confermata_badge_il)
+        self._consegna([r], prova_badge=badge.crea_prova(self.admin.pk + 1, 101))
+        self.assertFalse(ConsegnaDPI.objects.filter(richiesta=r).exists())
+        prova = badge.crea_prova(self.admin.pk, 101)
+        with mock.patch.object(badge, "DURATA_PROVA_SECONDI", -1):
+            self._consegna([r], prova_badge=prova)
+        self.assertFalse(ConsegnaDPI.objects.filter(richiesta=r).exists())
 
-    def test_badge_delle_persone_nel_banco(self):
-        from anagrafica.models import DipendenteAnagraficaAziendale
+    def test_numero_scritto_a_mano_al_posto_della_prova_non_consegna(self):
+        self._badge()
+        r = self._richiesta(self.mod_guanti)
+        self._consegna([r], prova_badge="42")
+        self.assertFalse(ConsegnaDPI.objects.filter(richiesta=r).exists())
 
-        DipendenteAnagraficaAziendale.objects.create(legacy_anagrafica_id=101, badge="B-777")
+    def test_conferma_con_mail_per_chi_non_ha_il_badge(self):
+        r = self._richiesta(self.mod_guanti)
+        with mock.patch("dpi.views._chiedi_conferma") as conferma:
+            self.client.post(self.url, {"azione": "consegna", "ids": [r.pk], "data_consegna": "2026-11-06"})
+        c = ConsegnaDPI.objects.get(richiesta=r)
+        self.assertIsNone(c.confermata_badge_il)
+        self.assertFalse(c.firmato_ricevuta)
+        conferma.assert_called_once()
+
+    def test_i_numeri_di_badge_non_arrivano_alla_pagina(self):
+        self._badge(101, "B-777")
         self._richiesta(self.mod_guanti)
-        self.assertContains(self.client.get(self.url), 'data-badge="B-777"')
-        with mock.patch("dpi.views._dipendenti_selezionabili", return_value=[{"id": 101, "nome": "Mario Rossi"}]):
-            self.assertEqual(self.client.get(self.url).context["badge_persone"], [{"id": 101, "nome": "Mario Rossi", "badge": "B-777"}])
+        pagina = self.client.get(self.url)
+        self.assertNotContains(pagina, "B-777")
+        self.assertContains(pagina, 'data-ha-badge="1"')
+        self.assertContains(pagina, "Conferma con badge")
+        self.assertContains(pagina, "Conferma con mail")
 
     def test_lista_di_prelievo_somma_per_modello_e_taglia(self):
         self._richiesta(self.mod_guanti, quantita=2)
