@@ -1,11 +1,13 @@
-{% comment %}Un argomento del verbale: indicatori fissati nel verbale e analisi. Parametri: a, puo_modificare.{% endcomment %}
-<details class="sg-rz-arg"{% if not a.analisi or not puo_modificare %} open{% endif %}>
-  <summary><span class="sg-rz-codice">{{ a.codice }}</span> {{ a.titolo }}{% if a.analisi %} <span class="sg-badge ok">Compilato</span>{% endif %}</summary>
-  {% for r in a.indicatori %}<div class="sg-rz-indicatori">
-    <a href="{% url 'report_conformita:report' r.slug %}">{{ r.titolo }}</a>
-    {% if r.errore %}<span class="sg-badge warn">Non calcolabile</span>{% endif %}
-    {% for k in r.kpi %}<span class="sg-rz-kpi">{{ k.label }}: <strong>{{ k.value }}</strong></span>{% endfor %}
+{% comment %}Pannello di un argomento: indicatori fissati nel verbale e analisi. Parametri: a, etichetta, totale, puo_modificare, forloop.{% endcomment %}
+<section class="sg-rz-pannello" id="arg-{{ a.pk }}" data-rz-pannello>
+  <div class="sg-rz-sopra">{{ etichetta }} {{ forloop.counter }} di {{ totale }} · {{ a.codice }}</div>
+  <h2>{{ a.titolo }}</h2>
+  {% if a.indicatori %}<div class="sg-testa sg-rz-dati-testa"><span>Dati del periodo</span>{% if puo_modificare %}<button class="sg-rz-link" type="submit" form="rz-indicatori" name="next" value="arg-{{ a.pk }}">Aggiorna gli indicatori</button>{% endif %}</div>{% endif %}
+  {% for r in a.indicatori %}<div class="sg-rz-report">
+    <a href="{% url 'report_conformita:report' r.slug %}">{{ r.titolo }}</a>{% if r.errore %} <span class="sg-badge warn">Non calcolabile</span>{% endif %}
+    {% if r.kpi %}<div class="sg-rz-dati">{% for k in r.kpi %}<div><span>{{ k.label }}</span><strong>{{ k.value }}</strong></div>{% endfor %}</div>{% endif %}
   </div>{% endfor %}
-  {% if puo_modificare %}<textarea name="analisi_{{ a.pk }}" rows="3" aria-label="Analisi: {{ a.titolo }}">{{ a.analisi }}</textarea>
-  {% else %}<p>{{ a.analisi|default:"—"|linebreaksbr }}</p>{% endif %}
-</details>
+  {% if puo_modificare %}<label class="sg-rz-etichetta" for="analisi-{{ a.pk }}">{% if etichetta == "Decisione" %}Decisione della Direzione{% else %}Analisi della Direzione{% endif %}</label>
+  <textarea id="analisi-{{ a.pk }}" name="analisi_{{ a.pk }}" form="rz-form" rows="8">{{ a.analisi }}</textarea>
+  {% else %}<p class="sg-rz-testo">{{ a.analisi|default:"—"|linebreaksbr }}</p>{% endif %}
+</section>

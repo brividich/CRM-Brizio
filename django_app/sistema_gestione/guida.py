@@ -582,10 +582,12 @@ _PAGINE_AUDIT = [
         "id": "pagina-panoramica",
         "titolo": "Pagina iniziale e menu del modulo",
         "blocchi": [
-            ("p", "Il menu in alto, uguale su tutte le pagine, porta a Panoramica, Audit interni, Certificazioni e audit "
-                  "esterni, Auditor, Processi, Checklist e SoA. A destra i moduli collegati: Registro OFI, Qualifiche, "
-                  "Scadenzario. Si vedono solo le voci che il proprio profilo può aprire."),
-            ("p", "«Da fare adesso» mette in un solo elenco, dal più urgente:"),
+            ("p", "Il menu in alto, uguale su tutte le pagine, porta a Panoramica, Audit interni, Certificazioni, Riesame, "
+                  "Auditor, Processi, Checklist e SoA. A destra i moduli collegati (Registro OFI, Qualifiche, Scadenzario) e "
+                  "«Guida». Si vedono solo le voci che il proprio profilo può aprire."),
+            ("p", "In alto i certificati in vigore con il loro stato. Sotto, le cose da gestire in quattro colonne: In ritardo "
+                  "(data passata o alta priorità), Entro 30 giorni, Più avanti, Senza data. Ogni voce apre la pagina giusta. "
+                  "Rientrano:"),
             ("ul", [
                 "in rosso: certificati scaduti, audit interni in ritardo, piani azioni oltre la data, CAR oltre la scadenza;",
                 "in giallo: certificati in scadenza entro 90 giorni, sorveglianze con la data superata, piani azioni da "
@@ -603,17 +605,19 @@ _PAGINE_AUDIT = [
             ("p", "Il riesame si fa almeno una volta all'anno (MT CN 19). «Nuovo verbale» prepara gli argomenti, riprende i "
                   "partecipanti dell'ultimo verbale e riporta gli indicatori del periodo scelto da Report conformità."),
             ("ul", [
-                "«Salva il verbale» salva insieme le analisi degli argomenti e il livello di raggiungimento degli obiettivi "
-                "precedenti. Se un argomento non si applica, scrivilo.",
+                "A sinistra l'indice con lo stato di ogni voce (✓ a posto, ! da completare, ○ da compilare), a destra una voce "
+                "alla volta. La pagina si apre sulla prima voce che manca.",
+                "«Salva e vai a…» salva insieme tutte le analisi e i livelli di raggiungimento e passa alla voce successiva. "
+                "Se esci con modifiche non salvate, il browser chiede conferma. Se un argomento non si applica, scrivilo.",
                 "Gli obiettivi dei verbali approvati tornano qui con In corso, Raggiunto, Raggiunto in parte, Non raggiunto o "
                 "Ripianificato; «Ripianificato» crea il nuovo obiettivo da completare con responsabile e scadenza.",
                 "«Aggiorna gli indicatori» li ricalcola finché il verbale è in bozza. Entrano solo le aree di Report conformità "
                 "che chi prepara può vedere.",
                 "«Proponi alla Direzione» richiede documenti esaminati, partecipanti, tutte le analisi e, per i nuovi obiettivi, "
-                "responsabile e scadenza; l'avviso in alto elenca cosa manca.",
+                "responsabile e scadenza; «Prima di proporlo alla Direzione», in alto, elenca cosa manca.",
                 "«Approva» spetta al DIG: dopo il verbale non cambia più. Si scarica il PDF, si fa firmare ai partecipanti e si "
                 "carica la copia firmata. Sugli obiettivi resta aggiornabile solo l'andamento.",
-                "Scadenze: il riesame annuale e gli obiettivi in corso compaiono nello Scadenzario e in «Da fare adesso».",
+                "Scadenze: il riesame annuale e gli obiettivi in corso compaiono nello Scadenzario e in Panoramica.",
             ]),
         ],
     },
@@ -634,7 +638,7 @@ _PAGINE_AUDIT = [
                 "impronta SHA-256), qualifiche del personale collegate, audit del certificato e scadenze dello Scadenzario.",
                 "«Qualifiche del personale collegate», nella modifica del certificato: si scelgono i tipi di qualifica di "
                 "Formazione. La scheda conta le valide, quelle in scadenza entro 60 giorni e le scadute fra il personale in "
-                "forza; le scadute compaiono anche in «Da fare adesso».",
+                "forza; le scadute compaiono anche in Panoramica.",
                 "«Nuovo audit esterno»: tipo (certificazione iniziale, sorveglianza, rinnovo, cliente, autorità, speciale), "
                 "ente, date, norme verificate (almeno una), auditor dell'ente, ambito, stato, esito e data entro cui inviare "
                 "il piano azioni all'ente.",
