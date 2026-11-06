@@ -53,6 +53,7 @@ urlpatterns = [
     # Presenze in azienda: ingressi GuestPortal collegati a ticket/OdL (riquadro HTMX)
     # «scollega» prima della rotta con <tipo>, che altrimenti la cattura.
     path("presenze/scollega/<int:link_id>/", views.presenze_scollega, name="presenze_scollega"),
+    path("accessi-esterni/<int:visita_id>/non-serve/", views.ingresso_non_serve, name="ingresso_non_serve"),
     path("presenze/<str:tipo>/<int:pk>/", views.presenze_intervento, name="presenze_intervento"),
     path("presenze/<str:tipo>/<int:pk>/collega/", views.presenze_collega, name="presenze_collega"),
     path("presenze/<str:tipo>/<int:pk>/ditta/", views.presenze_imposta_ditta, name="presenze_imposta_ditta"),
