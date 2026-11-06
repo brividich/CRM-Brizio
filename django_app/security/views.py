@@ -341,6 +341,31 @@ def alert_proposte(request):
 
 
 @require_POST
+def alert_gruppo_chiudi(request):
+    """Chiude gli alert di un gruppo o di un tipo. Conta come una decisione sola, con motivo obbligatorio."""
+    from security.services import alert_gruppi
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    motivo = request.POST.get("motivo", "").strip()[:500]
+    esito = request.POST.get("esito", "")
+    chiave = request.POST.get("chiave", "").strip()
+    tipo = request.POST.get("tipo", "").strip()
+    max_pk = request.POST.get("max_pk", "")
+    if not motivo:
+        messages.error(request, "Scrivi il motivo: resta su ogni alert chiuso.")
+    elif esito not in dict(alert_gruppi.ESITI) or not max_pk.isdigit() or not (chiave or tipo):
+        messages.error(request, "Richiesta non valida.")
+    else:
+        fatti = alert_gruppi.chiudi(esito=esito, motivo=motivo, max_pk=int(max_pk), user=request.user, chiave=chiave, tipo=tipo)
+        if fatti:
+            messages.success(request, f"{fatti} alert chius{'o' if fatti == 1 else 'i'} come «{dict(alert_gruppi.ESITI)[esito]}».")
+        else:
+            messages.info(request, "Nessun alert da chiudere: erano già stati gestiti.")
+    return redirect("security:alert_proposte")
+
+
+@require_POST
 def alert_proposta_azione(request, pk, azione):
     """Conferma (chiude con l'esito proposto), scarta (resta aperto) o riapri (chiusura automatica sbagliata)."""
     from security.models import SecurityAlertProposta

@@ -1,0 +1,59 @@
+{# Alert aperti per tipo e per gruppo: una decisione per gruppo, con la proposta dell'AI se c'è. #}
+{% for t in tipi %}
+<details class="agr-tipo"{% if forloop.first %} open{% endif %}>
+  <summary>
+    <span class="sec-badge agr-sev agr-sev-{{ t.severita }}">{{ t.severita }}</span>
+    <strong>{{ t.label }}</strong>
+    <span class="sec-muted sec-small">{{ t.n }} alert in {{ t.n_gruppi }} grupp{{ t.n_gruppi|pluralize:"o,i" }}{% if t.proposte %} · {{ t.proposte }} con proposta dell'AI{% endif %}</span>
+  </summary>
+  {% if t.n_gruppi > 1 %}
+  <form method="post" action="{% url 'security:alert_gruppo_chiudi' %}" class="prop-form agr-form agr-form-tipo">
+    {% csrf_token %}<input type="hidden" name="tipo" value="{{ t.tipo }}"><input type="hidden" name="max_pk" value="{{ t.max_pk }}">
+    <select name="esito" aria-label="Esito per tutto il tipo">{% for codice, label in esiti %}<option value="{{ codice }}">{{ label }}</option>{% endfor %}</select>
+    <input type="text" name="motivo" maxlength="500" required placeholder="Perché chiudi tutti questi alert?" aria-label="Motivo per tutto il tipo">
+    <button type="submit" class="sec-button">Chiudi tutti i {{ t.n }}</button>
+  </form>
+  {% endif %}
+  <div class="agr-lista">
+    {% for g in t.gruppi %}
+    <article class="prop-card agr-gruppo">
+      <header class="prop-head">
+        <span class="sec-badge agr-sev agr-sev-{{ g.severita }}">{{ g.severita }}</span>
+        <strong>{{ g.soggetto|default:g.titolo|truncatechars:80 }}</strong>
+        <span class="sec-small sec-muted">{{ g.n }} alert · {% if g.n > 1 %}dal {{ g.primo|date:"d/m/Y" }} al {{ g.ultimo|date:"d/m/Y" }}{% else %}del {{ g.ultimo|date:"d/m/Y" }}{% endif %}</span>
+      </header>
+      {% if g.proposta %}
+      <div class="agr-ai">
+        <span class="sec-badge{% if g.proposta.esito == 'aperto' %} sec-badge-muted{% elif g.proposta.esito == 'resolved' %} prop-esito{% else %} prop-esito-warn{% endif %}">AI: {{ g.proposta.esito_label }}</span>
+        <span class="sec-small sec-muted">confidenza {{ g.proposta.confidenza }}%</span>
+        {% if g.proposta.motivo %}<p class="prop-motivo">{{ g.proposta.motivo }}</p>{% endif %}
+        {% if g.proposta.prove %}<ul class="prop-prove sec-small">{% for prova in g.proposta.prove %}<li>{{ prova }}</li>{% endfor %}</ul>{% endif %}
+        {% if g.proposta.blocco and g.proposta.esito != 'aperto' %}<p class="sec-small sec-muted">Non chiude da sola: {{ g.proposta.blocco }}.</p>{% endif %}
+      </div>
+      {% elif attivo %}<p class="sec-small sec-muted">L'AI locale non l'ha ancora esaminato.</p>{% endif %}
+      <details class="agr-esempi sec-small">
+        <summary>Vedi {% if g.n > 8 %}gli ultimi 8 alert{% else %}gli alert{% endif %}</summary>
+        <ul>{% for a in g.esempi %}<li><a href="{% url 'security:alert_detail' a.pk %}">#{{ a.pk }} {{ a.title|truncatechars:100 }}</a> · {{ a.created_at|date:"d/m/Y H:i" }}</li>{% endfor %}</ul>
+      </details>
+      <div class="prop-azioni">
+        <form method="post" action="{% url 'security:alert_gruppo_chiudi' %}" class="prop-form agr-form">
+          {% csrf_token %}<input type="hidden" name="chiave" value="{{ g.chiave }}"><input type="hidden" name="max_pk" value="{{ g.max_pk }}">
+          <select name="esito" aria-label="Esito">{% for codice, label in esiti %}<option value="{{ codice }}"{% if codice == g.esito_scelto %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+          <input type="text" name="motivo" maxlength="500" required value="{{ g.motivo }}" placeholder="Motivo di chiusura" aria-label="Motivo di chiusura">
+          <button type="submit" class="sec-button-primary">Chiudi {% if g.n > 1 %}i {{ g.n }} alert{% else %}l'alert{% endif %}</button>
+        </form>
+        {% if g.proposta %}
+        <form method="post" action="{% url 'security:alert_proposta_azione' g.proposta.pk 'scarta' %}" class="prop-form">
+          {% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
+          <input type="text" name="nota" maxlength="500" placeholder="Perché no? (l'AI lo terrà a mente)" aria-label="Perché scarti la proposta">
+          <button type="submit" class="sec-button">Scarta la proposta</button>
+        </form>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</details>
+{% empty %}
+<p class="sec-empty">Nessun alert aperto.</p>
+{% endfor %}
