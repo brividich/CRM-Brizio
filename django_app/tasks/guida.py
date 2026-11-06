@@ -273,6 +273,8 @@ SEZIONI: list[dict] = [
         "titolo": "FAI e Registro FAI",
         "blocchi": [
             ("p", "In «Programmi e FAI» la parte FAI dice cosa prevede la procedura per il P/N della commessa. Il «Registro FAI» del menu tiene una riga per articolo con il FAI più recente: in alto quello che richiede una decisione."),
+            ("p", "Tutti i FAI si gestiscono qui: la scheda «Tutti i FAI» del registro ha una riga per FAI, con filtri per cliente e stato, ricerca su P/N, piano, OP, OdA e FAI CN, ed esportazione CSV con le colonne del vecchio file «Situazione FAI-ISIR». "
+                  "I FAI storici sono importati da quel file: nella scheda, in fondo, restano i dati originali. Un FAI storico si può salvare anche senza perché e senza tipo, che il file non indicava. Per la scadenza conta l'ultima produzione; finché non è indicata vale la chiusura del FAI e la nota lo dice."),
             ("passi", [
                 "In «Programmi e FAI» premi «Apri un FAI». Se in riunione hai già assegnato una riga FAI, premi «Completa»: non si crea un doppione.",
                 "Scegli «Perché serve»: il portale propone FAI completo o Delta FAI.",

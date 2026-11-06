@@ -1,0 +1,4 @@
+<nav class="fai-schede" aria-label="Come vedere il registro">
+  <a class="fai-scheda-tab{% if not per_fai %} active{% endif %}" href="{% url 'tasks:fai_registro' %}"{% if not per_fai %} aria-current="page"{% endif %}>Per articolo e scadenza</a>
+  <a class="fai-scheda-tab{% if per_fai %} active{% endif %}" href="{% url 'tasks:fai_registro' %}?per=fai"{% if per_fai %} aria-current="page"{% endif %}>Tutti i FAI</a>
+</nav>

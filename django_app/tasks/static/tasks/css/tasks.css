@@ -4464,3 +4464,14 @@ body.theme-dark .fai-tipo input:checked+span{background:rgba(249,115,22,.14)}
 .prog-riga{margin:10px 0 0}
 .prog-attivita .btn+.prog-riga{margin-top:10px}
 @media (max-width:700px){.prog-form{grid-template-columns:minmax(0,1fr)}}
+.fai-altri{display:grid;gap:10px}
+.fai-altri>summary{cursor:pointer;font-weight:600;font-size:13px}
+.fai-altri>summary+*{margin-top:10px}
+.fai-originali{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 16px;margin:10px 0 0}
+.fai-originali dt{font-size:12px;color:var(--text-mid)}
+.fai-originali dd{margin:0;overflow-wrap:anywhere}
+.fai-schede{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--border)}
+.fai-scheda-tab{padding:8px 14px;font-weight:600;color:var(--text-mid);border-bottom:2px solid transparent;text-decoration:none}
+.fai-scheda-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.fai-filtro{flex:0 1 200px}
+.fai-opz-chiusura,.fai-opz-versione,.fai-opz-cross{grid-template-columns:minmax(200px,1fr) 70px 50px 170px}

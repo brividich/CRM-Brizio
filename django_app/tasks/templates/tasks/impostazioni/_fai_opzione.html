@@ -28,7 +28,7 @@
     <label class="fai-cella fai-spunta"><span class="fai-opz-tit">Numero PFCN automatico</span>
       <input type="checkbox" name="numerazione_auto"{% if o.numerazione_auto %} checked{% endif %}>
     </label>
-  {% else %}
+  {% elif gruppo == "STATO" %}
     <label class="fai-cella"><span class="fai-opz-tit">Significato</span>
       <select class="input" name="fase">
         {% for valore, etichetta in fai_fasi %}<option value="{{ valore }}"{% if o.fase == valore %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}

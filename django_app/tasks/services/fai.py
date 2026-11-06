@@ -1,7 +1,7 @@
 """Registro FAI: articolo, situazione del P/N e allineamento con «Programmi e FAI»."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from django.utils import timezone
 
@@ -75,18 +75,30 @@ def stato_articolo(articolo: FaiArticolo, ultimo: FaiRecord | None, oggi=None, l
     """Situazione del P/N rispetto alle soglie, tenendo conto dell'ultimo FAI."""
     oggi = oggi or timezone.localdate()
     limiti = limiti or soglie()
-    if ultimo is not None and ultimo.stato.fase in FASI_IN_CORSO:
+    # Una data di chiusura dice che è concluso, qualunque nome abbia lo stato.
+    if ultimo is not None and not ultimo.data_chiusura and ultimo.stato.fase in FASI_IN_CORSO:
         return StatoArticolo("in_corso", "In corso", "info", "")
     produzione, spedizione = articolo.ultima_produzione, articolo.ultima_spedizione
-    if ultimo is not None and ultimo.stato.fase == FaiFase.POSITIVO and ultimo.data_invio:
-        # Un FAI positivo prova una produzione: un articolo appena riqualificato non
-        # deve restare «da ripetere» solo perché le date non sono state aggiornate.
-        produzione = max(filter(None, (produzione, ultimo.data_invio)))
-        spedizione = max(filter(None, (spedizione, ultimo.data_invio)))
-    return stato_decorrenza(
+    conclusione = None
+    if ultimo is not None:
+        conclusione = ultimo.data_chiusura or (ultimo.data_invio if ultimo.stato.fase == FaiFase.POSITIVO else None)
+    # La regola è l'ultima produzione (MT CN 15). Finché non si conosce vale la chiusura del FAI:
+    # un articolo appena riqualificato non deve restare «da ripetere» per date non aggiornate.
+    dal_fai = bool(conclusione and (not produzione or conclusione > produzione))
+    if conclusione:
+        produzione = max(filter(None, (produzione, conclusione)))
+        spedizione = max(filter(None, (spedizione, conclusione)))
+    situazione = stato_decorrenza(
         oggi, produzione, spedizione, articolo.scadenza_cliente,
         mesi_verifica=limiti.mesi_verifica, mesi_ripetizione=limiti.mesi_ripetizione,
     )
+    if dal_fai and not (articolo.scadenza_cliente and articolo.scadenza_cliente < oggi):
+        data = f"{conclusione:%d/%m/%Y}"
+        if situazione.codice == "da_ripetere":
+            return replace(situazione, nota=f"Oltre {limiti.mesi_ripetizione} mesi dalla chiusura del FAI ({data}); data di produzione non aggiornata.")
+        if situazione.codice == "da_verificare" and (not articolo.ultima_spedizione or conclusione > articolo.ultima_spedizione):
+            return replace(situazione, nota=f"Nessuna spedizione registrata dopo la chiusura del FAI ({data}): da segnalare a IN1 e MSM.")
+    return situazione
 
 
 @dataclass(frozen=True)
@@ -103,7 +115,11 @@ def esito_progetto(project, oggi=None) -> EsitoProgetto | None:
     if not (project.part_number or "").strip():
         return None
     articolo = trova_articolo(project.client_name, project.part_number)
-    ultimo = articolo.fai.select_related("stato").first() if articolo else None
+    if articolo is None:
+        # Il nome del cliente può essere scritto diversamente nel file storico: basta che il P/N sia uno solo.
+        simili = list(FaiArticolo.objects.filter(part_number__iexact=project.part_number.strip())[:2])
+        articolo = simili[0] if len(simili) == 1 else None
+    ultimo = articolo.fai.exclude(stato__fase=FaiFase.ANNULLATO).select_related("stato").first() if articolo else None
     if ultimo is None:
         return EsitoProgetto(
             "FAI completo previsto", "Il P/N non è nel registro: se è davvero nuovo vale la prima produzione.",
@@ -129,6 +145,8 @@ def righe_registro(records, oggi=None) -> list[dict]:
     limiti = soglie()
     righe: dict[int, dict] = {}
     for record in records:
+        if record.stato.fase == FaiFase.ANNULLATO:
+            continue
         riga = righe.get(record.articolo_id)
         if riga is None:
             righe[record.articolo_id] = {
@@ -140,6 +158,13 @@ def righe_registro(records, oggi=None) -> list[dict]:
         else:
             riga["precedenti"] += 1
     return list(righe.values())
+
+
+def prossimo_numero_fai(anno: int) -> str:
+    """Il file teneva l'ultimo numero per anno: qui si propone il successivo."""
+    numeri = FaiRecord.objects.filter(fai_anno=str(anno)).values_list("fai_numero", flat=True)
+    interi = [int(n) for n in numeri if str(n).isdigit()]
+    return str(max(interi, default=0) + 1)
 
 
 def numero_piano_automatico(articolo: FaiArticolo) -> str:

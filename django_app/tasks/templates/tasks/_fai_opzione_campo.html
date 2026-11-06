@@ -1,0 +1,6 @@
+<label class="fai-campo"><span>{{ campo.etichetta }}</span>
+  <select class="input" name="{{ campo.nome }}">
+    <option value=""></option>
+    {% for o in campo.opzioni %}<option value="{{ o.pk }}"{% if o.pk == campo.scelta %} selected{% endif %}>{{ o.etichetta }}</option>{% endfor %}
+  </select>
+</label>
