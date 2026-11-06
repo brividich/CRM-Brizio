@@ -5,11 +5,13 @@ delle timbrature.
 """
 from __future__ import annotations
 
+import io
 from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.core.management import call_command
 from django.template import Context, Template
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
@@ -609,3 +611,52 @@ class ImportaIncarichiIniTests(TestCase):
 
         errore = self._esegui(Path(tempfile.gettempdir()) / "non-esiste-pn" / "config.ini")
         self.assertIn("File non trovato", errore)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class ImportaBadgeSolariTests(TestCase):
+    def setUp(self):
+        from anagrafica.models import DipendenteAnagraficaAziendale as Az, DipendenteAnagraficaCivile as Civ
+
+        self.Az = Az
+        for lid, cf in ((1, "AAA"), (2, "BBB"), (3, "CCC"), (4, "DDD"), (5, "EEE"), (6, "FFF")):
+            Civ.objects.create(legacy_anagrafica_id=lid, codice_fiscale=cf)
+        Az.objects.create(legacy_anagrafica_id=2, badge="20")
+        Az.objects.create(legacy_anagrafica_id=3, badge="30")
+        Az.objects.create(legacy_anagrafica_id=7, badge="70")
+
+    def _lancia(self, **opzioni):
+        uscita = io.StringIO()
+        dati = {"AAA": "0000000010", "BBB": "0000000020", "CCC": "99", "DDD": "55", "EEE": "55", "FFF": "70", "ZZZ": "1"}
+        with patch.object(solari, "leggi_badge", return_value=dati):
+            call_command("importa_badge_solari", stdout=uscita, **opzioni)
+        return uscita.getvalue()
+
+    def _badge(self, lid):
+        return self.Az.objects.filter(legacy_anagrafica_id=lid).values_list("badge", flat=True).first()
+
+    def test_anteprima_non_scrive_e_non_mostra_i_numeri(self):
+        testo = self._lancia()
+        self.assertIsNone(self._badge(1))
+        self.assertIn("Mancanti nel portale: 2", testo)
+        self.assertIn("Anteprima: scriverei 1 badge", testo)
+        self.assertNotIn("0000000010", testo)
+        self.assertNotIn("99", testo)
+
+    def test_apply_riempie_solo_i_mancanti(self):
+        self._lancia(apply=True)
+        self.assertEqual(self._badge(1), "10")
+        self.assertEqual(self._badge(2), "20")
+        self.assertEqual(self._badge(3), "30")  # diverso: resta
+
+    def test_stesso_badge_su_due_persone_o_gia_occupato_non_si_importa(self):
+        testo = self._lancia(apply=True)
+        self.assertIsNone(self._badge(4))
+        self.assertIsNone(self._badge(5))
+        self.assertIsNone(self._badge(6))  # 70 e' gia' della persona 7
+        self.assertIn("Stesso badge a più persone in Solari, non importati: 4, 5", testo)
+        self.assertIn("Badge già di un'altra persona del portale, non importati: 6", testo)
+
+    def test_sovrascrivi_aggiorna_i_diversi(self):
+        self._lancia(apply=True, sovrascrivi=True)
+        self.assertEqual(self._badge(3), "99")

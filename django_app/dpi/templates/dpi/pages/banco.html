@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load dpi_extras %}
+{% load static dpi_extras %}
 
 {% block title %}Banco consegne DPI | Portale Applicativo{% endblock %}
 
@@ -25,6 +25,13 @@
 .dpi-kpi-box.warn .dpi-kpi-n { color:#b91c1c; }
 
 .dpi-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.banco-badge-invito { margin-top:12px; padding:9px 12px; border-radius:8px; background:#f1f5f9; color:#475569; font-size:13px; font-weight:600; }
+.banco-badge-invito.attesa { background:#dcfce7; color:#166534; font-weight:800; }
+.banco-lettore { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.banco-lettore button { cursor:pointer; font-family:inherit; }
+#lettore-stato { font-size:12px; font-weight:600; color:#15803d; }
+#lettore-stato.errore { color:#b91c1c; }
+@media (pointer:coarse) { .banco-lettore { display:none; } }
 .dpi-search { flex:1; min-width:220px; padding:10px 14px; border:1px solid #cbd5e1; border-radius:10px; font-size:16px; background:#fff; color:#0f172a; }
 #dpi-root [hidden] { display:none !important; }
 #banco-lavoro { display:flex; flex-direction:column; gap:14px; align-items:stretch; }
@@ -118,6 +125,10 @@ body.theme-dark .banco-cambio { border-color:var(--border); }
 body.theme-dark .banco-cambio select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark #banco-annulla { background:var(--surface-alt); border:1px solid var(--border); color:var(--text); }
 body.theme-dark .banco-avviso { background:rgba(153,27,27,.2); color:#fca5a5; }
+body.theme-dark .banco-badge-invito { background:var(--surface-alt); color:var(--text-mid); }
+body.theme-dark .banco-badge-invito.attesa { background:rgba(21,128,61,.2); color:#86efac; }
+body.theme-dark #lettore-stato { color:#86efac; }
+body.theme-dark #lettore-stato.errore { color:#fca5a5; }
 body.theme-dark .banco-tasti { color:var(--text-light); }
 body.theme-dark .banco-tasti kbd { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
 body.theme-dark .dpi-riga-manca { border-color:rgba(248,113,113,.4); }
@@ -168,13 +179,18 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
   <div class="dpi-hero">
     <div>
       <div class="dpi-hero-title">Banco consegne</div>
-      <div class="dpi-hero-sub">Cerca la persona, controlla i DPI, consegna. La conferma di ricevuta arriva via mail.</div>
+      <div class="dpi-hero-sub">Passa il badge o cerca la persona, controlla i DPI, conferma con badge o con mail.</div>
     </div>
     <a href="{% url 'guida_modulo' 'dpi' %}#banco">? Guida</a>
   </div>
 
   <div class="dpi-toolbar">
-    <input type="search" class="dpi-search" id="banco-cerca" value="{{ cerca }}" placeholder="Chi è al banco? Nome, numero o badge…" autocomplete="off" aria-label="Cerca la persona al banco">
+    <input type="search" class="dpi-search" id="banco-cerca" value="{{ cerca }}" placeholder="Chi è al banco? Nome, reparto o numero richiesta…" autocomplete="off" aria-label="Cerca la persona al banco">
+    <div class="banco-lettore" id="banco-lettore">
+      {% csrf_token %}
+      <button type="button" class="dpi-toggle" id="lettore-collega" hidden>Collega lettore badge</button>
+      <span id="lettore-stato" role="status"></span>
+    </div>
   </div>
   <div class="banco-tasti">Tastiera: <kbd>/</kbd> cerca · <kbd>↑</kbd><kbd>↓</kbd> scegli · <kbd>Invio</kbd> vai alla consegna · <kbd>Esc</kbd> pulisci</div>
 
@@ -236,17 +252,19 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
   <button type="button" id="banco-annulla-ora">Invia ora</button>
 </div>
 {{ catalogo_modelli|json_script:"banco-catalogo" }}
-{{ badge_persone|json_script:"banco-badge" }}
+<script src="{% static 'dpi/js/lettore_badge.js' %}"></script>
 <script>
 (function () {
   var radice = document.getElementById('dpi-root');
   var catalogo = JSON.parse(document.getElementById('banco-catalogo').textContent);
-  var badgePersone = JSON.parse(document.getElementById('banco-badge').textContent);
   var ATTESA_SECONDI = 6;
   var sospesa = null, coda = Promise.resolve();
   var lavoro = document.getElementById('banco-lavoro');
   var cerca = document.getElementById('banco-cerca');
-  var scelta = null, filtro = '', attiva = null, occupato = false;
+  var scelta = null, filtro = '', attiva = null, occupato = false, lettoreAttivo = false;
+  // lettura: esito dell'ultimo badge passato, {chiave, testo, diretta}. attesa: scheda che aspetta il badge.
+  var lettura = null, attesa = null;
+  var SECONDI_ATTESA_BADGE = 60;
 
   function norm(s) { return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
   function righe() { return Array.prototype.slice.call(lavoro.querySelectorAll('.banco-persona')); }
@@ -259,8 +277,14 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     var spunte = Array.prototype.slice.call(card.querySelectorAll('input[name=ids]'));
     var scelte = spunte.filter(function (c) { return c.checked; });
     var btn = consegnaBtn(card);
+    var conFirma = !!card.querySelector('input[name=firmato_ricevuta]:checked') || !!(card.querySelector('[data-firma]') || {})._ink;
     btn.disabled = !scelte.length;
-    btn.textContent = scelte.length ? 'Consegna ' + scelte.length + ' DPI a ' + card.getAttribute('data-nome') : 'Spunta almeno un DPI';
+    btn.textContent = !scelte.length ? 'Spunta almeno un DPI' : (conFirma ? 'Consegna con la firma' : 'Conferma con mail');
+    var inAttesa = attesa && attesa.card === card;
+    var btnBadge = card.querySelector('[data-conferma-badge]');
+    var haBadge = !!card.getAttribute('data-ha-badge');
+    btnBadge.disabled = !scelte.length || !haBadge || !lettoreAttivo;
+    btnBadge.textContent = inAttesa ? 'Annulla attesa badge' : 'Conferma con badge';
     var pronto = card.querySelector('[data-pronto]');
     if (pronto) pronto.disabled = !scelte.some(function (c) { return !c.getAttribute('data-pronta'); });
     var manca = scelte.some(function (c) { return c.getAttribute('data-manca'); });
@@ -270,10 +294,25 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
       var modelli = catalogo[b.getAttribute('data-categoria')] || [];
       b.hidden = !modelli.length || (modelli.length === 1 && String(modelli[0].id) === b.getAttribute('data-modello') && modelli[0].taglie.length < 2);
     });
+    var invito = card.querySelector('[data-badge-invito]');
+    invito.hidden = !inAttesa && (!scelte.length || (haBadge && lettoreAttivo));
+    invito.classList.toggle('attesa', !!inAttesa);
+    invito.textContent = inAttesa
+      ? 'Passa ora il badge di ' + card.getAttribute('data-nome') + ' per ' + scelte.length + ' DPI.'
+      : (!haBadge ? 'Nessun badge in Anagrafica per questa persona: usa la conferma con mail.' : 'Per confermare con il badge collega il lettore.');
+  }
+
+  function fermaAttesa() {
+    if (!attesa) return;
+    var card = attesa.card;
+    clearTimeout(attesa.timer);
+    attesa = null;
+    sincronizza(card);
   }
 
   function seleziona(chiave, opzioni) {
     scelta = chiave || null;
+    if (attesa && attesa.card.id !== scelta) fermaAttesa();
     var trovata = null;
     lavoro.querySelectorAll('.dpi-persona').forEach(function (card) {
       var si = card.id === scelta;
@@ -308,29 +347,27 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     var q = norm(cerca.value.trim());
     var parole = q ? q.split(/\s+/) : [];
     var quante = 0, ultima = null;
-    // Lettore di badge: il codice esatto vince su ogni altra corrispondenza.
-    var perBadge = q && righe().some(function (r) { return norm(r.getAttribute('data-badge')) === q; });
     righe().forEach(function (r) {
       var testo = norm(r.getAttribute('data-cerca'));
-      var ok = (perBadge ? norm(r.getAttribute('data-badge')) === q : parole.every(function (p) { return testo.indexOf(p) !== -1; }))
+      var ok = (lettura ? r.getAttribute('data-chiave') === lettura.chiave : parole.every(function (p) { return testo.indexOf(p) !== -1; }))
         && (!filtro || Number(r.getAttribute('data-' + filtro)) > 0);
       r.hidden = !ok;
       if (ok) { quante++; ultima = r; }
     });
     var nessuno = document.getElementById('banco-nessuno');
     if (nessuno) nessuno.hidden = quante > 0;
-    var conosciuta = quante === 0 && q ? badgePersone.filter(function (b) { return norm(b.badge) === q; })[0] : null;
     var testoNessuno = document.getElementById('banco-nessuno-testo');
-    if (testoNessuno) testoNessuno.textContent = conosciuta ? conosciuta.nome + ' non ha DPI da ritirare.' : 'Nessuna persona trovata.';
+    if (testoNessuno) testoNessuno.textContent = lettura ? lettura.testo : 'Nessuna persona trovata.';
     var bottoneDiretta = nessuno && nessuno.querySelector('[data-apri-diretta]');
-    if (bottoneDiretta) bottoneDiretta.setAttribute('data-apri-diretta', conosciuta ? conosciuta.id : '');
+    if (bottoneDiretta) bottoneDiretta.setAttribute('data-apri-diretta', lettura ? lettura.diretta : '');
     lavoro.querySelectorAll('[data-filtro]').forEach(function (b) {
       b.classList.toggle('attivo', b.getAttribute('data-filtro') === filtro);
     });
-    evidenzia(q ? visibili()[0] : null);
+    var cercando = q || lettura;
+    evidenzia(cercando ? visibili()[0] : null);
     // Una sola persona trovata: la scheda e' gia' aperta.
-    if (q && quante === 1) seleziona(ultima.getAttribute('data-chiave'));
-    else if (q && scelta && !visibili().some(function (r) { return r.getAttribute('data-chiave') === scelta; })) seleziona(null);
+    if (cercando && quante === 1) seleziona(ultima.getAttribute('data-chiave'));
+    else if (cercando && scelta && !visibili().some(function (r) { return r.getAttribute('data-chiave') === scelta; })) seleziona(null);
   }
 
   // Firma: si prepara quando si apre il riquadro.
@@ -351,7 +388,10 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     }
     function start(e) { e.preventDefault(); drawing = true; var p = pt(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); }
     function move(e) { if (!drawing) return; e.preventDefault(); var p = pt(e); ctx.lineTo(p.x, p.y); ctx.stroke(); canvas._ink = true; }
-    function end() { drawing = false; }
+    function end() {
+      if (drawing && canvas.closest('.dpi-persona')) sincronizza(canvas.closest('.dpi-persona'));
+      drawing = false;
+    }
     canvas.addEventListener('mousedown', start);
     canvas.addEventListener('mousemove', move);
     canvas.addEventListener('mouseup', end);
@@ -359,7 +399,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     canvas.addEventListener('touchstart', start, {passive: false});
     canvas.addEventListener('touchmove', move, {passive: false});
     canvas.addEventListener('touchend', end);
-    canvas._clear = function () { ctx.clearRect(0, 0, canvas.width, canvas.height); canvas._ink = false; };
+    canvas._clear = function () { ctx.clearRect(0, 0, canvas.width, canvas.height); canvas._ink = false; sincronizza(canvas.closest('.dpi-persona')); };
   }
 
   function errore(testo) {
@@ -391,7 +431,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     var barra = document.getElementById('banco-annulla');
     barra.hidden = !sospesa;
     if (sospesa) document.getElementById('banco-annulla-testo').textContent =
-      sospesa.n + ' DPI a ' + sospesa.nome + ' registrati: avvisi tra ' + sospesa.resto + ' s';
+      sospesa.n + ' DPI a ' + sospesa.nome + (sospesa.conBadge ? ' confermati con il badge' : ' registrati') + ': avvisi tra ' + sospesa.resto + ' s';
   }
 
   function avviaConto() {
@@ -442,6 +482,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
         chiudiAttesa();
         if (!r.annullate.length) { aggiorna(r.html, '', true); return; }
         cerca.value = '';
+        lettura = null;
         aggiorna(r.html, '');
         // Torna la scheda di prima, con spunte, note e firma.
         var nuova = document.getElementById(s.chiave);
@@ -457,22 +498,27 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     });
   }
 
-  function avviaConsegna(form, bottone) {
-    if (occupato) return;
-    var card = form.closest('.dpi-persona');
+  function manca_motivo(card) {
     var motivo = card.querySelector('[data-motivo]');
     var campoMotivo = motivo.querySelector('input');
-    if (!motivo.hidden && !campoMotivo.value.trim()) {
-      errore('Scrivi il motivo della consegna senza giacenza.');
-      campoMotivo.focus();
-      return;
-    }
+    if (motivo.hidden || campoMotivo.value.trim()) return false;
+    errore('Scrivi il motivo della consegna senza giacenza.');
+    campoMotivo.focus();
+    return true;
+  }
+
+  function avviaConsegna(form, bottone, prova) {
+    if (occupato) return;
+    var card = form.closest('.dpi-persona');
+    var campoMotivo = card.querySelector('[data-motivo] input');
+    if (manca_motivo(card)) return;
     inviaAvvisi();
     var canvas = card.querySelector('[data-firma]');
     card.querySelector('input[name=firma_immagine]').value = canvas._ink ? canvas.toDataURL('image/png') : '';
     var dati = new FormData(form);
     dati.set('azione', 'consegna');
     dati.set('differisci', '1');
+    if (prova) dati.set('prova_badge', prova);
     var nome = card.getAttribute('data-nome');
     occupato = true;
     bottone.disabled = true;
@@ -486,10 +532,11 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
         return;
       }
       sospesa = {
-        ids: r.registrate, n: r.registrate.length, chiave: card.id, card: card, nome: nome, resto: ATTESA_SECONDI,
+        ids: r.registrate, n: r.registrate.length, chiave: card.id, card: card, nome: nome, resto: ATTESA_SECONDI, conBadge: !!prova,
         csrf: dati.get('csrfmiddlewaretoken'), tutte: dati.get('tutte') || '',
       };
       cerca.value = '';
+      lettura = null;
       aggiorna(r.html, '');
       avviaConto();
       cerca.focus();
@@ -615,6 +662,18 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     var el;
     if ((el = e.target.closest('.banco-persona'))) { seleziona(el.getAttribute('data-chiave'), {scorri: true}); return; }
     if ((el = e.target.closest('[data-cambia]'))) { e.preventDefault(); apriCambio(el); return; }
+    if ((el = e.target.closest('[data-conferma-badge]'))) {
+      var perBadge = el.closest('.dpi-persona');
+      if (attesa && attesa.card === perBadge) { fermaAttesa(); return; }
+      fermaAttesa();
+      if (manca_motivo(perBadge)) return;
+      attesa = {card: perBadge, timer: setTimeout(function () {
+        fermaAttesa();
+        errore('Tempo scaduto: clicca di nuovo «Conferma con badge» o usa la mail.');
+      }, SECONDI_ATTESA_BADGE * 1000)};
+      sincronizza(perBadge);
+      return;
+    }
     if ((el = e.target.closest('[data-filtro]'))) {
       var f = el.getAttribute('data-filtro');
       filtro = filtro === f ? '' : f;
@@ -646,7 +705,11 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
   });
 
   radice.addEventListener('change', function (e) {
-    if (e.target.name === 'ids') sincronizza(e.target.closest('.dpi-persona'));
+    if (e.target.name === 'ids' || e.target.name === 'firmato_ricevuta') {
+      var cardCambiata = e.target.closest('.dpi-persona');
+      if (attesa && attesa.card === cardCambiata) fermaAttesa();
+      sincronizza(cardCambiata);
+    }
   });
 
   // «toggle» non risale: si ascolta in cattura.
@@ -663,9 +726,73 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     if (e.key === 'Escape') { cerca.focus(); cerca.select(); }
   });
 
+  // Badge passato sul lettore: il server verifica subito di chi e', il numero non torna qui.
+  function mostraLettura(chiave, testo, diretta) {
+    lettura = {chiave: chiave, testo: testo, diretta: diretta || ''};
+    cerca.value = '';
+    filtro = '';
+    applica();
+    if (!document.getElementById('banco-nessuno')) errore(testo);
+  }
+
+  function suLettura(messaggio) {
+    var dati = new FormData();
+    dati.set('csrfmiddlewaretoken', document.querySelector('#banco-lettore [name=csrfmiddlewaretoken]').value);
+    dati.set('azione', 'verifica_badge');
+    dati.set('messaggio', messaggio);
+    fetch(indirizzo(), {method: 'POST', body: dati, credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}}).then(function (res) {
+      var json = (res.headers.get('Content-Type') || '').indexOf('application/json') !== -1;
+      if (res.redirected || !json) { window.location.reload(); throw new Error('ricarica'); }
+      return res.json();
+    }).then(function (r) {
+      if (r.esito === 'bloccato') {
+        fermaAttesa();
+        errore('Troppi badge non riconosciuti: lettura sospesa per qualche minuto.');
+        return;
+      }
+      var card = r.esito === 'ok' ? document.getElementById(r.chiave) : null;
+      if (attesa) {
+        if (card === attesa.card) {
+          var persona = attesa.card;
+          lettoreStato.textContent = 'Badge verificato: ' + persona.getAttribute('data-nome') + '.';
+          clearTimeout(attesa.timer);
+          attesa = null;
+          sincronizza(persona);
+          var bottone = persona.querySelector('[data-conferma-badge]');
+          avviaConsegna(bottone.form, bottone, r.prova);
+        } else {
+          errore(r.esito === 'ok' ? 'Badge di un\'altra persona: DPI non consegnati. Passa il badge giusto o usa la mail.' : 'Badge non riconosciuto: DPI non consegnati. Passa il badge giusto o usa la mail.');
+        }
+        return;
+      }
+      if (r.esito !== 'ok') { mostraLettura('-', 'Badge non riconosciuto: cerca la persona per nome.'); return; }
+      lettoreStato.textContent = 'Badge verificato: ' + (r.nome || 'persona trovata') + '.';
+      if (!card) { mostraLettura('-', (r.nome || 'Questa persona') + ' non ha DPI da ritirare.', r.id); return; }
+      mostraLettura(r.chiave, '');
+      seleziona(r.chiave, {scorri: true});
+    }).catch(function (e) {
+      if (e.message !== 'ricarica') errore('Connessione assente: lettura del badge non verificata. Ripassalo.');
+    });
+  }
+
+  var lettoreBtn = document.getElementById('lettore-collega');
+  var lettoreStato = document.getElementById('lettore-stato');
+  if (window.LettoreBadge && window.LettoreBadge.disponibile()) {
+    lettoreBtn.hidden = false;
+    window.LettoreBadge.avvia({bottone: lettoreBtn, stato: lettoreStato, suLettura: suLettura, suStato: function (collegato) {
+      lettoreAttivo = collegato;
+      if (!collegato) fermaAttesa();
+      var aperta = scelta ? document.getElementById(scelta) : null;
+      if (aperta) sincronizza(aperta);
+    }});
+  } else {
+    lettoreStato.textContent = 'Per il lettore di badge serve Chrome o Edge.';
+    lettoreStato.classList.add('errore');
+  }
+
   document.getElementById('banco-annulla-si').addEventListener('click', annullaConsegna);
   document.getElementById('banco-annulla-ora').addEventListener('click', inviaAvvisi);
-  cerca.addEventListener('input', applica);
+  cerca.addEventListener('input', function () { lettura = null; applica(); });
   cerca.addEventListener('keydown', function (e) {
     var lista = visibili();
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -683,6 +810,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
       if (sospesa) { annullaConsegna(); return; }
       cerca.value = '';
       filtro = '';
+      lettura = null;
       seleziona(null);
       applica();
     }
@@ -691,8 +819,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
     if (e.key === '/') e.preventDefault();
-    // Lettore di badge con il fuoco su un pulsante: il codice va nella ricerca, cosi'
-    // l'Invio con cui il lettore chiude la lettura non conferma la consegna aperta.
+    // Tasti con il fuoco su un pulsante: si scrive nella ricerca, cosi' l'Invio non conferma la consegna aperta.
     else if (e.key.length !== 1 || e.key === ' ') return;
     cerca.focus();
     cerca.select();
@@ -712,7 +839,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
 
   // Nuove richieste approvate: si aggiorna da solo, ma mai mentre si sta lavorando.
   setInterval(function () {
-    if (document.hidden || occupato || sospesa || scelta || cerca.value.trim()) return;
+    if (document.hidden || occupato || sospesa || scelta || lettura || cerca.value.trim()) return;
     if (radice.querySelector('details[open]#diretta')) return;
     occupato = true;
     chiedi(window.location.pathname + window.location.search).then(function (r) {

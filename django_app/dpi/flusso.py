@@ -454,7 +454,7 @@ def notifica_consegnata(consegna) -> None:
             _dettaglio_richiesta(richiesta),
             f"Consegnato il: {data:%d/%m/%Y}" if isinstance(data, date) else "",
             f"Consegnato da: {consegna.consegnato_da_nome}" if getattr(consegna, "consegnato_da_nome", "") else "",
-            "Ricevuta firmata: " + ("si" if consegna.firmato_ricevuta else "no"),
+            "Ricevuta: confermata con badge" if getattr(consegna, "confermata_badge_il", None) else "Ricevuta firmata: " + ("si" if consegna.firmato_ricevuta else "no"),
         ]
         scadenza = getattr(consegna, "scadenza_calcolata", None)
         if scadenza:

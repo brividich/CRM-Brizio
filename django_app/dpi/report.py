@@ -42,12 +42,14 @@ FILTRI_ESITO = (
 _GRAVITA = {MANCANTE: 0, SCADUTO: 1, IN_SCADENZA: 2, OK: 3}
 
 FIRMATA = "firmata"
+CON_BADGE = "con_badge"
 CONFERMATA = "confermata"
 DA_CONFERMARE = "da_confermare"
 CONTESTATA = "contestata"
 SENZA_FIRMA = "senza_firma"
 FILTRI_RICEVUTA = (
     (FIRMATA, "Firmata"),
+    (CON_BADGE, "Confermata con badge"),
     (CONFERMATA, "Confermata via mail"),
     (DA_CONFERMARE, "Da confermare"),
     (CONTESTATA, "Contestata"),
@@ -188,7 +190,8 @@ def testo_da_sistemare(persona: dict) -> str:
 def _q_ricevuta(chiave: str) -> Q:
     non_firmata = Q(firmato_ricevuta=False)
     return {
-        FIRMATA: Q(firmato_ricevuta=True),
+        FIRMATA: Q(firmato_ricevuta=True, confermata_badge_il__isnull=True),
+        CON_BADGE: Q(confermata_badge_il__isnull=False),
         CONFERMATA: non_firmata & Q(conferma__stato=ConfermaConsegnaDPI.Stato.CONFERMATA),
         DA_CONFERMARE: non_firmata & Q(conferma__stato=ConfermaConsegnaDPI.Stato.IN_ATTESA),
         CONTESTATA: non_firmata & Q(conferma__stato=ConfermaConsegnaDPI.Stato.CONTESTATA),
@@ -197,6 +200,8 @@ def _q_ricevuta(chiave: str) -> Q:
 
 
 def ricevuta(consegna: ConsegnaDPI) -> str:
+    if consegna.confermata_badge_il:
+        return CON_BADGE
     if consegna.firmato_ricevuta:
         return FIRMATA
     if consegna.conferma_id is None:
