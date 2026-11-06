@@ -61,14 +61,37 @@
     <p class="sc-note" style="margin-top:8px">L'elenco dei PC è più in basso, con la versione di ciascuno.</p>
   </div>
 
-  {% if name_rows|length > 1 %}
-  <details class="sc-card sc-table-wrap">
-    <summary style="cursor:pointer;font-weight:700">Nomi raggruppati in questo programma ({{ name_rows|length }})</summary>
-    <p class="sc-note" style="margin:8px 0">Così lo riportano le fonti: stesso nome a parte versione, architettura e lingua, oppure lo stesso programma scritto con un produttore diverso.</p>
+  {% if name_rows|length > 1 or can_edit or regole %}
+  <details class="sc-card"{% if regole %} open{% endif %}>
+    <summary style="cursor:pointer;font-weight:700">Nomi raggruppati in questo programma ({{ name_rows|length }}){% if can_edit %} · unisci o separa{% endif %}</summary>
+    <p class="sc-note" style="margin:8px 0">Così lo riportano le fonti: stesso nome a parte versione, anno, architettura e lingua, oppure lo stesso programma scritto con un produttore diverso.</p>
+    {% for r in regole %}
+    <form method="post" class="sc-regola">
+      {% csrf_token %}<input type="hidden" name="k" value="{{ key }}"><input type="hidden" name="azione" value="annulla_regola"><input type="hidden" name="regola" value="{{ r.pk }}">
+      <span class="sc-tag sc-tag--warn">{{ r.testo }}</span>
+      {% if can_edit %}<button type="submit" class="sc-mini-btn">{{ r.azione }}</button>{% endif %}
+    </form>
+    {% endfor %}
+    <div class="sc-table-wrap">
     <table class="sc-table">
-      <thead><tr><th>Nome nell'inventario</th><th>Produttore</th><th>PC</th></tr></thead>
-      <tbody>{% for n in name_rows %}<tr><td>{{ n.name }}</td><td>{{ n.vendor|default:"—" }}</td><td>{{ n.hosts }}</td></tr>{% endfor %}</tbody>
+      <thead><tr><th>Nome nell'inventario</th><th>Produttore</th><th>PC</th>{% if can_edit and name_rows|length > 1 %}<th></th>{% endif %}</tr></thead>
+      <tbody>{% for n in name_rows %}<tr><td>{{ n.name }}</td><td>{{ n.vendor|default:"—" }}</td><td>{{ n.hosts }}</td>
+        {% if can_edit and name_rows|length > 1 %}<td><form method="post">{% csrf_token %}<input type="hidden" name="k" value="{{ key }}"><input type="hidden" name="azione" value="separa"><input type="hidden" name="membro" value="{{ n.key }}"><button type="submit" class="sc-mini-btn">Separa</button></form></td>{% endif %}
+      </tr>{% endfor %}</tbody>
     </table>
+    </div>
+    {% if can_edit %}
+    <form method="post" class="sc-unisci">
+      {% csrf_token %}<input type="hidden" name="k" value="{{ key }}"><input type="hidden" name="azione" value="unisci">
+      <label for="sc-altro"><strong>Unisci a un altro programma</strong></label>
+      <select id="sc-altro" name="altro" class="js-searchable" data-placeholder="Cerca il programma" required>
+        <option value="">Scegli il programma</option>
+        {% for p in altri_programmi %}<option value="{{ p.key }}">{{ p.name }} · {{ p.vendor|default:"produttore n/d" }} ({{ p.hosts }} PC)</option>{% endfor %}
+      </select>
+      <button type="submit" class="sc-mini-btn">Unisci</button>
+      <p class="sc-note">Vale anche per le versioni future e si può annullare. Se entrambi hanno una decisione resta quella di questa pagina.</p>
+    </form>
+    {% endif %}
   </details>
   {% endif %}
 

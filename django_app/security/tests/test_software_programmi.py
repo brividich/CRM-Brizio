@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from assets.models import SoftwareCatalogEntry, SoftwareLicense
 from assets.views_software import _filter, catalog_rows
-from security.models import SoftwareInstallation
+from security.models import SoftwareInstallation, SoftwareProgrammaRegola
 from security.services import software_catalog as sc
 from security.services.software_inventory import nome_programma
 
@@ -24,7 +24,7 @@ class NomeProgrammaTests(SimpleTestCase):
             "Windows 11 Pro 64 bits version 24H2": "Windows 11 Pro",
             "Intr@Web-Client-19.0.0.0": "Intr@Web-Client",
             "WinAppRuntime.Main.1.8": "WinAppRuntime.Main",
-            "hyperMILL 2024 SUITE | Update 5": "hyperMILL 2024 SUITE",
+            "hyperMILL 2024 SUITE | Update 5": "hyperMILL SUITE",
             "Peugeot Update 1.5.1": "Peugeot Update",
             "Pacchetto driver Windows - Demo (usbser) Ports  (01/05/2012 2.0.1.0)": "Pacchetto driver Windows - Demo (usbser) Ports",
         }
@@ -33,13 +33,19 @@ class NomeProgrammaTests(SimpleTestCase):
                 self.assertEqual(nome_programma(grezzo), atteso)
 
     def test_il_numero_del_nome_resta(self):
-        for nome in ("Windows 10", "Microsoft 365", "Microsoft Office Enterprise 2007", "Microsoft Visual C++ 2013 Redistributable",
+        for nome in ("Windows 10", "Microsoft 365", "Microsoft Visual C++ 2013 Redistributable", "Microsoft Visual C++ 2015-2022 Redistributable",
                      "PostgreSQL 15", "Intel(R) USB 3.0 eXtensible Host Controller Driver", "Microsoft Teams (personal)"):
             with self.subTest(nome):
                 self.assertEqual(nome_programma(nome), nome)
 
     def test_anno_con_punto_come_anno_senza(self):
-        self.assertEqual(nome_programma("hyperMILL 2023.2 License Manager"), "hyperMILL 2023 License Manager")
+        self.assertEqual(nome_programma("hyperMILL 2023.2 License Manager"), "hyperMILL License Manager")
+        self.assertEqual(nome_programma("hyperMILL 2024 License Manager"), "hyperMILL License Manager")
+
+    def test_toglie_l_anno(self):
+        for grezzo, atteso in {"MUD 2024": "MUD", "Microsoft Office Enterprise 2007": "Microsoft Office Enterprise", "mtb2011": "mtb2011", "2024": "2024"}.items():
+            with self.subTest(grezzo):
+                self.assertEqual(nome_programma(grezzo), atteso)
 
     def test_nome_fatto_solo_di_versione_resta(self):
         self.assertEqual(nome_programma("26.05"), "26.05")
@@ -83,7 +89,7 @@ class ProgrammiTests(TestCase):
         for vendor, product in (("autodesk", "autodesk access"), ("microsoft", "microsoft access"),
                                 ("docker", "docker desktop"), ("github", "github desktop"),
                                 ("microsoft", "windows 10"), ("microsoft", "windows 11"),
-                                ("microsoft", "microsoft office 2016"), ("microsoft", "microsoft office 2019"),
+                                ("microsoft", "microsoft visual c++ 2013 redistributable"), ("microsoft", "microsoft visual c++ 2015 redistributable"),
                                 ("microsoft", "ms-resource:appname"), ("clipchamp", "ms-resource:appname")):
             _sw("pc1", vendor, product)
         self.assertEqual(len(catalog_rows(with_cve=False)), 10)
@@ -120,6 +126,86 @@ class ProgrammiTests(TestCase):
     def test_stesso_programma(self):
         self.assertTrue(sc.stesso_programma("igor pavlov", "7-zip 25.01", "7-zip", "7-zip"))
         self.assertFalse(sc.stesso_programma("autodesk", "autodesk access", "microsoft", "microsoft access"))
+
+
+class RegoleAManoTests(TestCase):
+    def setUp(self):
+        from core.models import UserOnboarding
+
+        self.user = get_user_model().objects.create_superuser("regole-demo", "regole@example.test", "x")
+        self.client.force_login(self.user)
+        UserOnboarding.objects.update_or_create(user=self.user, defaults={"completed": True})
+        self.url = reverse("assets:software_catalog_detail")
+        _sw("pc1", "demo", "demo suite 2024", "24.1", raw="Demo Suite 2024")
+        _sw("pc2", "demo", "demo suite 2025", "25.1", raw="Demo Suite 2025")
+        _sw("pc3", "altro", "altro programma", "1.0", raw="Altro Programma")
+        self.k24, self.k25, self.kaltro = "demo|demo suite 2024", "demo|demo suite 2025", "altro|altro programma"
+
+    def _programmi(self):
+        return {tuple(sorted(sc.member_keys(r["key"]))) for r in catalog_rows(with_cve=False)}
+
+    def test_le_edizioni_annuali_sono_unite(self):
+        self.assertEqual(self._programmi(), {(self.k24, self.k25), (self.kaltro,)})
+
+    def test_separa_e_rimetti(self):
+        self.client.post(self.url, {"k": self.k24, "azione": "separa", "membro": self.k25})
+        self.assertEqual(self._programmi(), {(self.k24,), (self.k25,), (self.kaltro,)})
+        self.assertEqual(sc.chiave_canonica(self.k25), self.k25)
+        self.assertEqual({r["name"] for r in catalog_rows(with_cve=False)}, {"Demo Suite", "Demo Suite 2025", "Altro Programma"})
+        regola = SoftwareProgrammaRegola.objects.get(tipo="separa")
+        pagina = self.client.get(self.url, {"k": self.k25})
+        self.assertContains(pagina, "Rimetti nel gruppo")
+        self.client.post(self.url, {"k": self.k25, "azione": "annulla_regola", "regola": regola.pk})
+        self.assertEqual(self._programmi(), {(self.k24, self.k25), (self.kaltro,)})
+
+    def test_separare_il_nome_con_la_decisione_la_lascia_al_gruppo(self):
+        SoftwareCatalogEntry.objects.create(inventory_key=self.k24, classification=SoftwareCatalogEntry.CLASS_FORBIDDEN)
+        SoftwareLicense.objects.create(product_name="Demo", inventory_key=self.k24)
+        self.client.post(self.url, {"k": self.k24, "azione": "separa", "membro": self.k24})
+        self.assertEqual(SoftwareCatalogEntry.objects.get().inventory_key, self.k25)
+        self.assertEqual(SoftwareLicense.objects.get().inventory_key, self.k25)
+        righe = {r["key"]: r["classification"] for r in catalog_rows(with_cve=False)}
+        self.assertEqual(righe[self.k25], SoftwareCatalogEntry.CLASS_FORBIDDEN)
+        self.assertEqual(righe[self.k24], SoftwareCatalogEntry.CLASS_UNREVIEWED)
+
+    def test_non_si_separa_un_nome_solo_o_di_un_altro_programma(self):
+        self.client.post(self.url, {"k": self.kaltro, "azione": "separa", "membro": self.kaltro})
+        self.client.post(self.url, {"k": self.kaltro, "azione": "separa", "membro": self.k24})
+        self.assertFalse(SoftwareProgrammaRegola.objects.exists())
+
+    def test_unisci_vale_per_le_versioni_future_e_si_annulla(self):
+        canon = sc.chiave_canonica(self.k24)
+        self.client.post(self.url, {"k": self.kaltro, "azione": "unisci", "altro": canon})
+        self.assertEqual(self._programmi(), {(self.kaltro, self.k24, self.k25)})
+        _sw("pc4", "demo", "demo suite 2026", "26.1", raw="Demo Suite 2026")
+        SoftwareInstallation.objects.filter(product="demo suite 2024").update(still_detected=False)
+        self.assertEqual(sc.chiave_canonica("demo|demo suite 2026"), sc.chiave_canonica(self.kaltro))
+        regola = SoftwareProgrammaRegola.objects.get(tipo="unisci")
+        self.client.post(self.url, {"k": self.kaltro, "azione": "annulla_regola", "regola": regola.pk})
+        self.assertNotEqual(sc.chiave_canonica("demo|demo suite 2026"), sc.chiave_canonica(self.kaltro))
+
+    def test_unisci_con_due_decisioni_ne_resta_una_con_le_note(self):
+        canon = sc.chiave_canonica(self.k24)
+        SoftwareCatalogEntry.objects.create(inventory_key=self.kaltro, classification=SoftwareCatalogEntry.CLASS_ALLOWED, notes="Nota A")
+        SoftwareCatalogEntry.objects.create(inventory_key=canon, classification=SoftwareCatalogEntry.CLASS_FORBIDDEN, notes="Nota B")
+        self.client.post(self.url, {"k": self.kaltro, "azione": "unisci", "altro": canon})
+        entry = SoftwareCatalogEntry.objects.get()
+        self.assertEqual(entry.classification, SoftwareCatalogEntry.CLASS_ALLOWED)
+        self.assertEqual(entry.notes, "Nota A\nNota B")
+
+    def test_unisci_rifiuta_un_programma_che_non_esiste(self):
+        self.client.post(self.url, {"k": self.kaltro, "azione": "unisci", "altro": "finto|finto"})
+        self.assertFalse(SoftwareProgrammaRegola.objects.exists())
+
+    def test_chi_non_amministra_non_cambia_il_raggruppamento(self):
+        from unittest.mock import patch
+
+        with patch("assets.views_software._can_edit", return_value=False):
+            risposta = self.client.get(self.url, {"k": self.k24})
+            self.assertNotContains(risposta, 'value="separa"')
+            self.assertNotContains(risposta, 'value="unisci"')
+            self.client.post(self.url, {"k": self.k24, "azione": "separa", "membro": self.k25})
+        self.assertFalse(SoftwareProgrammaRegola.objects.exists())
 
 
 class DettaglioProgrammaTests(TestCase):
