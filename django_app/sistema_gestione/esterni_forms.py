@@ -17,7 +17,7 @@ class CertificazioneForm(forms.ModelForm):
     class Meta:
         model = Certificazione
         fields = ["norma", "descrizione", "ente", "numero", "campo_applicazione", "emesso_il", "scade_il",
-                  "prossima_sorveglianza", "attiva", "note"]
+                  "prossima_sorveglianza", "attiva", "note", "qualifiche_richieste"]
         widgets = {
             "emesso_il": forms.DateInput(attrs=_DATA, format="%Y-%m-%d"),
             "scade_il": forms.DateInput(attrs=_DATA, format="%Y-%m-%d"),
@@ -26,6 +26,17 @@ class CertificazioneForm(forms.ModelForm):
             "note": forms.Textarea(attrs={"rows": 2}),
         }
         labels = {"attiva": "Certificato in vigore"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from django.db.models import Q
+
+        from anagrafica.models import TipoQualifica
+
+        campo = self.fields["qualifiche_richieste"]
+        gia = list(self.instance.qualifiche_richieste.values_list("pk", flat=True)) if self.instance.pk else []
+        campo.queryset = TipoQualifica.objects.filter(Q(is_active=True) | Q(pk__in=gia)).order_by("nome")
+        campo.widget = forms.CheckboxSelectMultiple(choices=campo.choices)
 
     def clean(self):
         dati = super().clean()
@@ -92,13 +103,19 @@ class RilievoEsternoForm(forms.Form):
 
 
 class RapportoEsternoForm(forms.Form):
+    ETICHETTA = "Rapporto"
     file = forms.FileField(label="Rapporto dell'ente (PDF)")
 
     def clean_file(self):
         caricato = self.cleaned_data["file"]
         try:
             validate_extension_and_mime(caricato, allowed_extensions={".pdf"}, allowed_mimes={"application/pdf"},
-                                        max_bytes=DOCUMENT_MAX_BYTES, label="Rapporto", allow_empty=False)
+                                        max_bytes=DOCUMENT_MAX_BYTES, label=self.ETICHETTA, allow_empty=False)
         except UploadMimeValidationError as exc:
             raise forms.ValidationError(str(exc)) from exc
         return caricato
+
+
+class CertificatoDocumentoForm(RapportoEsternoForm):
+    ETICHETTA = "Certificato"
+    file = forms.FileField(label="Certificato (PDF)")

@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% block title %}{% if oggetto %}Modifica audit esterno{% else %}Nuovo audit esterno{% endif %}{% endblock %}
 {% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% include "core/components/_hub_formkit.html" %}{% endblock %}
-{% block content %}{% load sg_guida %}{% sg_guida_link %}
+{% block content %}{% load sg_guida %}{% sg_menu %}{% sg_guida_link %}
 <div class="rc-wrap">
   <a class="rc-back" href="{% if oggetto %}{% url 'sistema_gestione:esterni_audit' oggetto.pk %}{% else %}{% url 'sistema_gestione:esterni_elenco' %}{% endif %}">← {% if oggetto %}Audit esterno{% else %}Certificazioni e audit esterni{% endif %}</a>
   <div class="page-header"><div class="page-header-main"><div class="page-h">{% if oggetto %}Modifica audit esterno{% else %}Nuovo audit esterno{% endif %}</div><div class="page-sub">Audit dell'ente di certificazione, di un cliente o di un'autorità. I rilievi si aggiungono dalla scheda.</div></div></div>
