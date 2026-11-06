@@ -124,7 +124,7 @@ GUIDA = {
                 ("p", "«Pronto per il ritiro (avvisa)» manda in un colpo l'avviso di ritiro per tutti i DPI spuntati della persona "
                       "(chi era già avvisato non riceve un secondo avviso). Non compare se in Impostazioni l'avviso parte già all'approvazione."),
                 ("p", "Lettore di badge: con Chrome o Edge clicca «Collega lettore badge» e scegli la porta CP210x (solo la prima volta, poi si "
-                      "ricollega da solo). Passando il badge il portale verifica subito di chi è e apre la sua scheda. Controlla i DPI spuntati e scegli: "
+                      "collega da solo). Il permesso vale per quell'indirizzo del portale: se apri il portale da un altro indirizzo va dato di nuovo. Con più schede aperte il lettore passa da solo alla scheda che stai usando. Passando il badge il portale verifica subito di chi è e apre la sua scheda. Controlla i DPI spuntati e scegli: "
                       "«Conferma con badge», poi la persona passa di nuovo il proprio badge entro 60 secondi: vale come ricevuta, senza mail (per qualche secondo puoi ancora «Annulla»); "
                       "«Conferma con mail», per chi non ha il badge con sé: ritira subito e la conferma arriva per mail. Un badge di un'altra persona non conferma nulla. "
                       "Il numero del badge non si può scrivere a mano e la ricerca non lo cerca: funziona solo la lettura dal lettore. "
