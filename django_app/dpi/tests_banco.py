@@ -147,6 +147,11 @@ class BancoConsegneTests(TestCase):
         r.refresh_from_db()
         self.assertEqual(r.modello_dpi_id, self.mod_guanti.pk)
 
+    def test_pagina_collega_il_lettore_di_badge(self):
+        pagina = self.client.get(self.url)
+        self.assertContains(pagina, 'id="lettore-collega"')
+        self.assertContains(pagina, "dpi/js/lettore_badge.js")
+
     def test_badge_delle_persone_nel_banco(self):
         from anagrafica.models import DipendenteAnagraficaAziendale
 

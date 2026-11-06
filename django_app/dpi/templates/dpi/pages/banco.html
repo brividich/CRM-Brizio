@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load dpi_extras %}
+{% load static dpi_extras %}
 
 {% block title %}Banco consegne DPI | Portale Applicativo{% endblock %}
 
@@ -25,6 +25,11 @@
 .dpi-kpi-box.warn .dpi-kpi-n { color:#b91c1c; }
 
 .dpi-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.banco-lettore { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.banco-lettore button { cursor:pointer; font-family:inherit; }
+#lettore-stato { font-size:12px; font-weight:600; color:#15803d; }
+#lettore-stato.errore { color:#b91c1c; }
+@media (pointer:coarse) { .banco-lettore { display:none; } }
 .dpi-search { flex:1; min-width:220px; padding:10px 14px; border:1px solid #cbd5e1; border-radius:10px; font-size:16px; background:#fff; color:#0f172a; }
 #dpi-root [hidden] { display:none !important; }
 #banco-lavoro { display:flex; flex-direction:column; gap:14px; align-items:stretch; }
@@ -118,6 +123,8 @@ body.theme-dark .banco-cambio { border-color:var(--border); }
 body.theme-dark .banco-cambio select { background:var(--surface-alt); border-color:var(--border); color:var(--text); }
 body.theme-dark #banco-annulla { background:var(--surface-alt); border:1px solid var(--border); color:var(--text); }
 body.theme-dark .banco-avviso { background:rgba(153,27,27,.2); color:#fca5a5; }
+body.theme-dark #lettore-stato { color:#86efac; }
+body.theme-dark #lettore-stato.errore { color:#fca5a5; }
 body.theme-dark .banco-tasti { color:var(--text-light); }
 body.theme-dark .banco-tasti kbd { background:var(--surface-alt); border-color:var(--border); color:var(--text-mid); }
 body.theme-dark .dpi-riga-manca { border-color:rgba(248,113,113,.4); }
@@ -175,6 +182,10 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
 
   <div class="dpi-toolbar">
     <input type="search" class="dpi-search" id="banco-cerca" value="{{ cerca }}" placeholder="Chi è al banco? Nome, numero o badge…" autocomplete="off" aria-label="Cerca la persona al banco">
+    <div class="banco-lettore" id="banco-lettore">
+      <button type="button" class="dpi-toggle" id="lettore-collega" hidden>Collega lettore badge</button>
+      <span id="lettore-stato" role="status"></span>
+    </div>
   </div>
   <div class="banco-tasti">Tastiera: <kbd>/</kbd> cerca · <kbd>↑</kbd><kbd>↓</kbd> scegli · <kbd>Invio</kbd> vai alla consegna · <kbd>Esc</kbd> pulisci</div>
 
@@ -237,6 +248,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
 </div>
 {{ catalogo_modelli|json_script:"banco-catalogo" }}
 {{ badge_persone|json_script:"banco-badge" }}
+<script src="{% static 'dpi/js/lettore_badge.js' %}"></script>
 <script>
 (function () {
   var radice = document.getElementById('dpi-root');
@@ -246,8 +258,11 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
   var sospesa = null, coda = Promise.resolve();
   var lavoro = document.getElementById('banco-lavoro');
   var cerca = document.getElementById('banco-cerca');
-  var scelta = null, filtro = '', attiva = null, occupato = false;
+  var scelta = null, filtro = '', attiva = null, occupato = false, daLettore = false;
 
+  // Il lettore manda 10 cifre con gli zeri davanti, in Anagrafica il badge e' senza zeri.
+  function codiceBadge(s) { return /^\d+$/.test(s) ? s.replace(/^0+(?=\d)/, '') : s; }
+  function stessoBadge(a, b) { return !!a && codiceBadge(a) === codiceBadge(b); }
   function norm(s) { return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
   function righe() { return Array.prototype.slice.call(lavoro.querySelectorAll('.banco-persona')); }
   function visibili() { return righe().filter(function (r) { return !r.hidden; }); }
@@ -309,19 +324,19 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     var parole = q ? q.split(/\s+/) : [];
     var quante = 0, ultima = null;
     // Lettore di badge: il codice esatto vince su ogni altra corrispondenza.
-    var perBadge = q && righe().some(function (r) { return norm(r.getAttribute('data-badge')) === q; });
+    var perBadge = q && righe().some(function (r) { return stessoBadge(norm(r.getAttribute('data-badge')), q); });
     righe().forEach(function (r) {
       var testo = norm(r.getAttribute('data-cerca'));
-      var ok = (perBadge ? norm(r.getAttribute('data-badge')) === q : parole.every(function (p) { return testo.indexOf(p) !== -1; }))
+      var ok = (perBadge ? stessoBadge(norm(r.getAttribute('data-badge')), q) : parole.every(function (p) { return testo.indexOf(p) !== -1; }))
         && (!filtro || Number(r.getAttribute('data-' + filtro)) > 0);
       r.hidden = !ok;
       if (ok) { quante++; ultima = r; }
     });
     var nessuno = document.getElementById('banco-nessuno');
     if (nessuno) nessuno.hidden = quante > 0;
-    var conosciuta = quante === 0 && q ? badgePersone.filter(function (b) { return norm(b.badge) === q; })[0] : null;
+    var conosciuta = quante === 0 && q ? badgePersone.filter(function (b) { return stessoBadge(norm(b.badge), q); })[0] : null;
     var testoNessuno = document.getElementById('banco-nessuno-testo');
-    if (testoNessuno) testoNessuno.textContent = conosciuta ? conosciuta.nome + ' non ha DPI da ritirare.' : 'Nessuna persona trovata.';
+    if (testoNessuno) testoNessuno.textContent = conosciuta ? conosciuta.nome + ' non ha DPI da ritirare.' : (daLettore ? 'Badge non riconosciuto: cerca la persona per nome.' : 'Nessuna persona trovata.');
     var bottoneDiretta = nessuno && nessuno.querySelector('[data-apri-diretta]');
     if (bottoneDiretta) bottoneDiretta.setAttribute('data-apri-diretta', conosciuta ? conosciuta.id : '');
     lavoro.querySelectorAll('[data-filtro]').forEach(function (b) {
@@ -663,9 +678,33 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     if (e.key === 'Escape') { cerca.focus(); cerca.select(); }
   });
 
+  // Badge passato sul lettore: la persona si apre da sola, nessuna consegna parte da qui.
+  function badgeLetto(codice) {
+    daLettore = true;
+    filtro = '';
+    cerca.value = codiceBadge(codice);
+    applica();
+    var lista = visibili();
+    if (lista.length === 1) { seleziona(lista[0].getAttribute('data-chiave'), {scorri: true}); return; }
+    if (!document.getElementById('banco-nessuno') && window.hubFlash) {
+      var nota = badgePersone.filter(function (b) { return stessoBadge(norm(b.badge), cerca.value); })[0];
+      window.hubFlash.show([{level: 'info', text: nota ? nota.nome + ' non ha DPI da ritirare.' : 'Badge non riconosciuto: cerca la persona per nome.', count: 1}]);
+    }
+  }
+
+  var lettoreBtn = document.getElementById('lettore-collega');
+  var lettoreStato = document.getElementById('lettore-stato');
+  if (window.LettoreBadge && window.LettoreBadge.disponibile()) {
+    lettoreBtn.hidden = false;
+    window.LettoreBadge.avvia({bottone: lettoreBtn, stato: lettoreStato, suCodice: badgeLetto});
+  } else {
+    lettoreStato.textContent = 'Per il lettore di badge serve Chrome o Edge.';
+    lettoreStato.classList.add('errore');
+  }
+
   document.getElementById('banco-annulla-si').addEventListener('click', annullaConsegna);
   document.getElementById('banco-annulla-ora').addEventListener('click', inviaAvvisi);
-  cerca.addEventListener('input', applica);
+  cerca.addEventListener('input', function () { daLettore = false; applica(); });
   cerca.addEventListener('keydown', function (e) {
     var lista = visibili();
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {

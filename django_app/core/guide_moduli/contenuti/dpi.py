@@ -123,6 +123,10 @@ GUIDA = {
                 ]),
                 ("p", "«Pronto per il ritiro (avvisa)» manda in un colpo l'avviso di ritiro per tutti i DPI spuntati della persona "
                       "(chi era già avvisato non riceve un secondo avviso). Non compare se in Impostazioni l'avviso parte già all'approvazione."),
+                ("p", "Lettore di badge: con Chrome o Edge clicca «Collega lettore badge» e scegli la porta CP210x (solo la prima volta, poi si "
+                      "ricollega da solo). Quando la scritta dice «Lettore pronto: passa il badge», a ogni passaggio si apre la scheda della persona: "
+                      "la consegna resta da confermare col pulsante. Se la persona non ha DPI da ritirare lo dice; «Badge non riconosciuto» vuol dire "
+                      "che il codice non è nell'Anagrafica o la persona è fuori dal tuo perimetro: cerca per nome. Se il lettore è pronto ma al passaggio non succede nulla, sul lettore 3022L controlla la levetta 2 del blocchetto SW1 sulla piastra: con quella in posizione originale non trasmette."),
                 ("p", "Ogni consegna fatta dal banco vale come quella dalla scheda richiesta: PDF nei documenti del dipendente, "
                       "scarico del magazzino, sostituzione del DPI precedente dello stesso tipo, report al responsabile."),
                 ("p", "«Consegna diretta al banco» (solo se qualche categoria ha la spunta «Consegna diretta dal banco»): scegli "
