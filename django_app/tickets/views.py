@@ -14,10 +14,12 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Case, When, Value, IntegerField, Count, OuterRef, Subquery
 from django.contrib.auth.views import redirect_to_login
+from django.db import transaction
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils.timezone import now as tz_now
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import is_naive, make_aware, now as tz_now
 from django.views.decorators.http import require_POST
 from reportlab.lib.colors import HexColor, white
 from reportlab.lib.pagesizes import A4
@@ -109,17 +111,19 @@ def _identita_di(user) -> tuple[str, str, int | None]:
 
 
 def _puo_aprire_per_altri(request, tipo: str) -> bool:
-    """Ticket di manutenzione a nome di un collega: solo la squadra manutenzione.
+    """Ticket a nome di un collega e intervento chiuso al volo: solo chi interviene.
 
-    Squadra = il ruolo configurato in Assets > Impostazioni > Configurazione
-    («Squadra manutenzione»), lo stesso degli interventi «Interno». Valgono
-    anche i gestori dei ticket di manutenzione. Senza squadra configurata
-    restano solo i gestori: mai tutti.
+    IT: i gestori dei ticket IT. Manutenzione: i gestori dei ticket di
+    manutenzione e la squadra, cioè il ruolo configurato in Assets > Impostazioni
+    > Configurazione («Squadra manutenzione»), lo stesso degli interventi
+    «Interno». Senza squadra configurata restano solo i gestori: mai tutti.
     """
-    if tipo != TipoTicket.MAN or not request.user.is_authenticated:
+    if tipo not in (TipoTicket.IT, TipoTicket.MAN) or not request.user.is_authenticated:
         return False
-    if _can_manage_tickets(request, TipoTicket.MAN):
+    if _can_manage_tickets(request, tipo):
         return True
+    if tipo != TipoTicket.MAN:
+        return False
     try:
         from assets.services.squadra_manutenzione import membri_squadra
 
@@ -140,6 +144,40 @@ def _persone_per_conto_di(escludi_id: int | None) -> list[dict]:
         .order_by("last_name", "first_name", "username")
     )
     return [{"id": u.pk, "label": u.get_full_name() or u.get_username()} for u in qs]
+
+
+def _intervento_al_volo(post) -> tuple[dict | None, str]:
+    """Dati dell'intervento già concluso scritti nel form: (dati, errore)."""
+    lavoro = (post.get("intervento_svolto") or "").strip()
+    if not lavoro:
+        return None, "Scrivi cosa è stato fatto: serve per registrare l'intervento."
+
+    fine = tz_now()
+    quando = (post.get("intervento_quando") or "").strip()
+    if quando:
+        try:
+            fine = parse_datetime(quando)
+        except ValueError:
+            fine = None
+        if fine is None:
+            return None, "La data dell'intervento non è valida."
+        if is_naive(fine):
+            fine = make_aware(fine)
+        if fine > tz_now() + timedelta(minutes=5):
+            return None, "L'intervento è già concluso: la data non può essere futura."
+
+    ore = None
+    ore_raw = (post.get("intervento_ore") or "").strip().replace(",", ".")
+    if ore_raw:
+        try:
+            ore = Decimal(ore_raw).quantize(Decimal("0.01"))
+        except InvalidOperation:
+            return None, "Le ore di lavoro non sono valide."
+        if not Decimal("0") <= ore <= Decimal("9999"):
+            return None, "Le ore di lavoro non sono valide."
+
+    inizio = fine - timedelta(hours=float(ore)) if ore else fine
+    return {"lavoro": lavoro, "inizio": inizio, "fine": fine, "ore": ore}, ""
 
 
 def _build_ticket_activity_feed(ticket: Ticket) -> list[dict[str, object]]:
@@ -1137,6 +1175,7 @@ def ticket_nuovo(request):
         if t == TipoTicket.MAN:
             ctx.update(_mappa_context(request, reparto))
         if _puo_aprire_per_altri(request, t):
+            ctx["puo_aprire_per_altri"] = True
             ctx["persone_per_conto_di"] = _persone_per_conto_di(request.user.pk)
         return ctx
 
@@ -1206,6 +1245,14 @@ def ticket_nuovo(request):
                 rich_name, rich_email, rich_legacy_id = _identita_di(collega)
                 aperto_da_user, aperto_da_nome = request.user, name
 
+        # «Già risolto»: il ticket nasce chiuso, con l'intervento registrato.
+        al_volo = None
+        if request.POST.get("chiudi_subito") == "1" and _puo_aprire_per_altri(request, tipo_post):
+            al_volo, errore_al_volo = _intervento_al_volo(request.POST)
+            if al_volo is None:
+                return render(request, "tickets/pages/nuovo.html",
+                    _ctx(tipo_eff=tipo_post, error=errore_al_volo, form_data=request.POST))
+
         asset_obj = None
         if asset_id:
             try:
@@ -1233,8 +1280,46 @@ def ticket_nuovo(request):
             aperto_da_user=aperto_da_user,
             aperto_da_nome=aperto_da_nome,
             include_in_maintenance_register=tipo_post == TipoTicket.MAN,
+            risolto_da_nome=name if al_volo else "",
         )
-        ticket.save()
+        with transaction.atomic():
+            ticket.save()
+            if al_volo:
+                intervento = TicketIntervento.objects.create(
+                    ticket=ticket,
+                    tecnico_nome=name[:200],
+                    tecnico_email=email[:200],
+                    data_inizio=al_volo["inizio"],
+                    data_fine=al_volo["fine"],
+                    ore_lavorate=al_volo["ore"],
+                    descrizione_lavoro=al_volo["lavoro"],
+                    esito=EsitoIntervento.COMPLETATO,
+                )
+                ticket.data_primo_intervento = intervento.created_at
+                ticket.save(update_fields=["data_primo_intervento", "updated_at"])
+                # Visibile anche a richiedente e compilatore: vedono solo i commenti non interni.
+                TicketCommento.objects.create(
+                    ticket=ticket,
+                    autore_nome=name,
+                    autore_email=email,
+                    testo=f"Intervento già eseguito: {al_volo['lavoro']}",
+                    is_interno=False,
+                )
+                cambia_stato_ticket(
+                    ticket, StatoTicket.CHIUSO, utente_nome=name, utente_email=email,
+                    nota="Registrato a intervento concluso.",
+                )
+                # Niente da gestire: le regole «nuovo ticket» non devono chiamare il
+                # team. Se incide sulla sicurezza gli avvisi restano.
+                if not sicurezza:
+                    _silenzia_automazioni_import(
+                        [ticket.pk], motivo="Ticket registrato a intervento concluso: automazioni non eseguite",
+                    )
+        if al_volo:
+            log_action(
+                request, "ticket_chiuso_al_volo", "tickets",
+                {"ticket": ticket.numero_ticket, "richiedente": rich_name},
+            )
         if aperto_da_user is not None:
             log_action(
                 request, "ticket_aperto_per_conto_di", "tickets",
@@ -2616,7 +2701,9 @@ def _stato_da_riga(row: dict) -> str:
     return StatoTicket.APERTA
 
 
-def _silenzia_automazioni_import(ticket_ids) -> int:
+def _silenzia_automazioni_import(
+    ticket_ids, motivo: str = "Import CSV ticket: automazioni non eseguite",
+) -> int:
     """Marca come già eseguiti gli eventi automazione generati dall'import.
 
     I trigger SQL su ``tickets_ticket`` accodano un evento per ogni INSERT/UPDATE:
@@ -2640,10 +2727,10 @@ def _silenzia_automazioni_import(ticket_ids) -> int:
                 cursor.execute(
                     "UPDATE dbo.automation_event_queue "
                     "SET status = 'done', processed_at = SYSUTCDATETIME(), "
-                    "error_message = 'Import CSV ticket: automazioni non eseguite' "
+                    "error_message = %s "
                     "WHERE source_table = 'tickets_ticket' AND status = 'pending' "
                     f"AND CAST(source_pk AS NVARCHAR(50)) IN ({segnaposto})",
-                    blocco,
+                    [motivo, *blocco],
                 )
                 marcati += int(cursor.rowcount or 0)
     except Exception:
