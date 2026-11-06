@@ -10,8 +10,10 @@ ruolo può stare in più reparti: per questo il percorso conserva il reparto da 
 """
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
+from decimal import ROUND_HALF_UP, Decimal
 from urllib.parse import urlencode
 
 from django.db.models import Q
@@ -23,6 +25,7 @@ from ..models_skillmatrix import AbilitazioneMacchinaVoce, VoceMacchinaCatalogo
 from . import capo_team, mansionario_struttura, struttura_vista
 from .reparto_canonico import build_area_canonica_map
 
+logger = logging.getLogger(__name__)
 SENZA = 0  # valore nell'indirizzo per «Senza centro», «Senza reparto», «Senza ruolo»
 LIVELLI = ("centro", "area", "ruolo", "mansione", "competenza")
 ETICHETTE_SENZA = {"centro": "Senza centro di costo", "area": "Senza reparto", "ruolo": "Senza ruolo"}
@@ -59,6 +62,7 @@ class Dati:
     area_di: dict = field(default_factory=dict)
     ruoli_di: dict = field(default_factory=dict)
     ruoli: dict = field(default_factory=dict)
+    capi: dict = field(default_factory=dict)
     _carico: object = None
 
     @property
@@ -77,7 +81,8 @@ class Dati:
         d.aree = list(AreaAziendale.objects.select_related("reparto", "centro_di_costo")
                       .prefetch_related("ruoli_reparto").order_by("nome"))
         d.mansioni = struttura_vista._mansioni()
-        d.in_forza = set(capo_team.mappa_capi())
+        d.capi = capo_team.mappa_capi()
+        d.in_forza = set(d.capi)
         d.area_di = {pid: a.pk for pid, a in build_area_canonica_map(list(d.in_forza)).items()}
         d.ruoli = {r.pk: r for r in RuoloOperativo.objects.all()}
         oggi = timezone.localdate()
@@ -247,10 +252,23 @@ def _centri_colonna(d: Dati, scelti) -> list:
     return voci
 
 
+def _dove_si_resta(d: Dati, scelti, area) -> dict:
+    """Cambiando reparto restano ruolo e mansione scelti, se ci sono anche lì."""
+    if scelti["ruolo"] is None or area.pk == scelti["area"]:
+        return {}
+    info = d.ruoli_area(area).get(scelti["ruolo"])
+    if info is None:
+        return {}
+    resta = {"ruolo": scelti["ruolo"]}
+    if scelti["mansione"] is not None and any(m.pk == scelti["mansione"] for m in info["mansioni"]):
+        resta["mansione"] = scelti["mansione"]
+    return resta
+
+
 def _aree_colonna(d: Dati, scelti) -> list:
     voci = [_voce(a.pk, a.nome, sotto=(f"in {a.reparto.nome}" if a.reparto_id else "senza reparto del portale")
                   + ("" if a.is_active else " · non attiva"),
-                  n=len(d.persone_area(a.pk)), url_=url(centro=scelti["centro"], area=a.pk),
+                  n=len(d.persone_area(a.pk)), url_=url(centro=scelti["centro"], area=a.pk, **_dove_si_resta(d, scelti, a)),
                   scelta=scelti["area"] == a.pk) for a in d.aree_centro(scelti["centro"])]
     if scelti["centro"] == SENZA and d.ha_senza_area():
         voci.append(_voce(SENZA, ETICHETTE_SENZA["area"], sotto="persone o mansioni senza area",
@@ -265,8 +283,10 @@ def _ruoli_colonna(d: Dati, scelti, area) -> list:
         ruolo = d.ruoli.get(rid)
         nome = _etichetta_ruolo(ruolo) if ruolo else ETICHETTE_SENZA["ruolo"]
         n_m = len(info["mansioni"])
+        # Cambiando ruolo resta la mansione scelta, se quel ruolo ce l'ha.
+        resta = scelti["mansione"] if rid != scelti["ruolo"] and any(m.pk == scelti["mansione"] for m in info["mansioni"]) else None
         righe.append(_voce(rid, nome, sotto=_quanti(n_m, "mansione", "mansioni"), n=len(info["persone"]),
-                           url_=url(centro=scelti["centro"], area=scelti["area"], ruolo=rid),
+                           url_=url(centro=scelti["centro"], area=scelti["area"], ruolo=rid, mansione=resta),
                            scelta=scelti["ruolo"] == rid, avviso=rid == SENZA))
     righe.sort(key=lambda v: (v["id"] == SENZA, v["nome"].casefold()))
     return righe
@@ -342,6 +362,124 @@ def _persone(ids) -> list:
     righe = [{"id": i, "nome": nomi.get(i) or f"#{i}"} for i in ids]
     righe.sort(key=lambda p: p["nome"].casefold())
     return righe
+
+
+def _euro(valore) -> str:
+    return f"€ {valore.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)}".replace(".", ",")
+
+
+def _responsabili(d: Dati, area) -> list[int]:
+    """Chi guida il reparto: stessa fonte del capo delle persone."""
+    from .capi_mansione import titolari_struttura
+
+    if capo_team.regola_unica_attiva():
+        reparti = [area.reparto] if area.reparto_id else []
+        tit_rep, tit_area = titolari_struttura(reparti, [area], in_forza=d.in_forza)
+        return list(tit_area.get(area.pk) or tit_rep.get(area.reparto_id) or [])
+    scelto = area.responsabile_legacy_id or (area.reparto.caporeparto_legacy_id if area.reparto_id else None)
+    return [scelto] if scelto else []
+
+
+def _da_guardare(d: Dati, mansioni) -> list:
+    """Le mansioni con un segnale, con il link per andarci."""
+    out = []
+    for m in {x.pk: x for x in mansioni}.values():
+        segnale = _segnale_mansione(d, m)
+        if segnale and not m.is_responsabilita:
+            out.append({"nome": m.nome, "sotto": segnale, "url": d.url_mansione(m)})
+    return sorted(out, key=lambda x: x["nome"].casefold())
+
+
+def _kpi_costi(costi: dict, ids) -> list:
+    righe = [costi[i] for i in ids if i in costi]
+    if not righe:
+        return []
+    medio = sum((r.costo_orario for r in righe), Decimal(0)) / len(righe)
+    return [("Costo orario medio", _euro(medio), False), ("RML del mese", _euro(sum((r.rml for r in righe), Decimal(0))), False)]
+
+
+def _reparti_del_centro(d: Dati, aree, costi: dict, riservati: bool) -> list:
+    nomi = struttura_vista._nomi(sorted({i for a in aree for i in _responsabili(d, a)}))
+    righe = []
+    for a in aree:
+        ids = d.persone_area(a.pk)
+        n_costo = [costi[i].costo_orario for i in ids if i in costi]
+        righe.append({
+            "nome": a.nome, "url": url(centro=a.centro_di_costo_id or SENZA, area=a.pk), "persone": len(ids),
+            "responsabili": ", ".join(nomi.get(i) or f"#{i}" for i in _responsabili(d, a)),
+            "ruoli": sum(1 for r in d.ruoli_area(a) if r != SENZA), "mansioni": len(d.mansioni_area(a)),
+            "da_guardare": d.carico.conteggi([m.pk for m in d.mansioni_area(a)])["da_guardare"],
+            "costo": _euro(sum(n_costo, Decimal(0)) / len(n_costo)) if riservati and n_costo else "",
+        })
+    return righe
+
+
+def _arricchisci_persone(d: Dati, det: dict, *, costi: dict, riservati: bool, livello: str) -> None:
+    """Le righe delle persone diventano una tabella: colonne secondo il punto scelto.
+
+    Reparto e ruolo si vedono solo dove possono cambiare da riga a riga; contratto e costo
+    solo a chi lavora sui dati HR. Conformità: solo il semaforo, come in «Il mio team».
+    """
+    from ..reportistica.dati import carica_dipendenti
+    from .carico_mansioni import frasi_persona
+    from .conformita import ESITI, stato_conformita_batch
+
+    persone = det.get("persone")
+    if persone is None:
+        return
+    det["colonne_persone"] = {"reparto": livello == "centro", "ruolo": livello in ("centro", "area"),
+                              "nota": livello in ("mansione", "competenza"), "riservati": riservati}
+    if not persone:
+        return
+    ids = [p["id"] for p in persone]
+    schede = {i: x for x in carica_dipendenti() for i in x.tutti_gli_id}
+    aree = {a.pk: a.nome for a in d.aree}
+    mansioni = {m.pk: m for m in d.mansioni}
+    capi = {i: d.capi[i].legacy_id for i in ids if i in d.capi and d.capi[i].legacy_id}
+    nomi_capi = struttura_vista._nomi(sorted(set(capi.values())))
+    try:
+        stati = stato_conformita_batch(ids, mansioni_per_legacy={i: schede[i].mansione for i in ids
+                                                                 if i in schede and schede[i].mansione} or None)
+    except Exception:
+        logger.exception("Esplora: conformità non calcolabile")
+        stati = {}
+    conta = {"ko": 0, "segnali": 0}
+    for p in persone:
+        i = p["id"]
+        x = schede.get(i)
+        carico = d.carico.per_persona.get(d.carico.alias.get(i, i)) or {"mansioni": []}
+        p["mansioni"] = sorted(
+            ({"nome": mansioni[mid].nome, "url": d.url_mansione(mansioni[mid])} for mid in carico["mansioni"] if mid in mansioni),
+            key=lambda v: v["nome"].casefold())
+        p["segnali"] = frasi_persona(d.carico, i)
+        esito = (stati.get(i) or {}).get("complessivo") or "na"
+        p["tono"], p["esito"] = ESITI.get(esito, ESITI["na"])
+        p["matricola"] = x.matricola if x else ""
+        p["capo"] = nomi_capi.get(capi.get(i)) or ""
+        p["area"] = aree.get(d.area_di.get(i), "")
+        p["ruoli"] = sorted((_etichetta_ruolo(d.ruoli[r]) for r in d.ruoli_di.get(i, ()) if r in d.ruoli), key=str.casefold)
+        if riservati:
+            p["contratto"] = x.contratto_label if x else ""
+            p["dal"] = x.data_assunzione if x else None
+            p["costo"] = _euro(costi[i].costo_orario) if i in costi else ""
+        p["cerca"] = " ".join([p["nome"], p["matricola"], p["capo"], p["area"], *p["ruoli"]]).casefold()
+        conta["ko"] += esito == "ko"
+        conta["segnali"] += bool(p["segnali"])
+    det["n_con_segnali"] = conta["segnali"]
+    det["kpi"] = [*det["kpi"], ("Con segnali di carico", conta["segnali"], bool(conta["segnali"])),
+                  ("Non conformi", conta["ko"], bool(conta["ko"])),
+                  *(_kpi_costi(costi, ids) if riservati else [])]
+
+
+def _vicini(colonne: list) -> dict | None:
+    """Voce precedente e successiva nella colonna più a destra con una scelta."""
+    for c in reversed(colonne):
+        voci = c["voci"] or []
+        i = next((n for n, v in enumerate(voci) if v["scelta"]), None)
+        if i is not None:
+            return {"titolo": c["titolo"], "posto": i + 1, "totale": len(voci),
+                    "prec": voci[i - 1] if i else None, "succ": voci[i + 1] if i + 1 < len(voci) else None}
+    return None
 
 
 def _dettaglio_radice(d: Dati) -> dict:
@@ -518,8 +656,11 @@ def cerca(d: Dati, testo: str) -> list:
     return out
 
 
-def costruisci(params) -> dict:
-    """Contesto della pagina per il punto indicato dall'indirizzo."""
+def costruisci(params, *, riservati: bool = False) -> dict:
+    """Contesto della pagina per il punto indicato dall'indirizzo.
+
+    ``riservati``: contratto e costi, solo per chi lavora sui dati HR (decide la view).
+    """
     d = Dati.carica()
     ris = _risolvi(d, params)
     s, area, info, m, voce = ris["scelti"], ris["area"], ris["info"], ris["mansione"], ris["voce"]
@@ -551,8 +692,32 @@ def costruisci(params) -> dict:
     else:
         det = _dettaglio_radice(d)
 
+    costi: dict = {}
+    if riservati and det.get("persone"):
+        from .carico_mansioni import costi_per_persona
+
+        det["mese_costi"], costi = costi_per_persona(d.carico)
+    livello = ("competenza" if voce is not None else "mansione" if m is not None else "ruolo" if info is not None
+               else "area" if s["area"] is not None else "centro")
+    _arricchisci_persone(d, det, costi=costi, riservati=riservati, livello=livello)
+    if voce is None and m is None and s["centro"] is not None:
+        if info is not None:
+            elenco = info["mansioni"]
+        elif s["area"] is not None:
+            elenco = d.mansioni_area(area)
+        else:
+            elenco = [x for a in d.aree_centro(s["centro"]) for x in d.mansioni_area(a)]
+        det["da_guardare"] = _da_guardare(d, elenco)
+    if area is not None and voce is None and m is None and info is None:
+        nomi = struttura_vista._nomi(_responsabili(d, area))
+        det["dati"] = [("Centro di costo", area.centro_di_costo.nome if area.centro_di_costo_id else "Nessuno"),
+                       ("Responsabile", ", ".join(nomi.values()) or "Nessuno")]
+    if s["centro"] is not None and s["area"] is None:
+        det["reparti"] = _reparti_del_centro(d, d.aree_centro(s["centro"]), costi, riservati)
+
     centro = next((c for c in d.centri if c.pk == s["centro"]), None)
     return {
+        "vicini": _vicini(colonne),
         "colonne": colonne, "briciole": _briciole(d, ris), "dettaglio": det, "scelti": s, "centro_obj": centro,
         "area_obj": area, "ruolo_obj": d.ruoli.get(s["ruolo"]) if s["ruolo"] else None, "mansione_obj": m,
         "voce_obj": voce, "dati": d,

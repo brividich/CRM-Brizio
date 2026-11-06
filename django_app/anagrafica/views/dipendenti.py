@@ -448,7 +448,20 @@ def index(request):
     except Exception:
         logger.exception("Cruscotto HR non calcolabile")
 
+    # Mansioni da guardare: stessa regola di Prospetto e Centri di costo. La scheda porta a una
+    # pagina di struttura, quindi solo a chi lavora sui dati HR.
+    carico_home = None
+    can_admin = _helpers._is_anagrafica_admin(request)
+    if can_admin or _helpers._check_hr_permission(request):
+        from ..models import CentroDiCosto
+        from ..services import carico_mansioni
+
+        carico = carico_mansioni.oggi()
+        if carico is not None:
+            carico_home = {**carico.conteggi(), "centri": CentroDiCosto.objects.filter(is_active=True).count()}
+
     return render(request, "anagrafica/pages/index.html", {
+        "carico_home": carico_home,
         "n_dipendenti": n_dipendenti,
         "n_reparti": n_reparti,
         "n_mansioni": n_mansioni,

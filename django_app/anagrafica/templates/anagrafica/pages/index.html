@@ -354,6 +354,22 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
           <div class="hr-metric-sub"><a href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica&stato=60" style="color:#1f87cd;">Prossimi 60 giorni →</a></div>
         </div>
       </div>
+      {% if carico_home %}
+      <div class="hr-metric">
+        <div class="hr-metric-ico red">🧭</div>
+        <div class="hr-metric-body">
+          <div class="hr-metric-top"><span class="hr-metric-lbl">Mansioni da guardare</span><span class="hr-metric-val">{{ carico_home.da_guardare }}</span></div>
+          <div class="hr-metric-sub">{{ carico_home.scoperte }} scoperte · {{ carico_home.uomo_solo }} uomo solo · {{ carico_home.concentrate }} concentrate</div>
+        </div>
+      </div>
+      <div class="hr-metric">
+        <div class="hr-metric-ico navy">🗂️</div>
+        <div class="hr-metric-body">
+          <div class="hr-metric-top"><span class="hr-metric-lbl">Centri di costo</span><span class="hr-metric-val">{{ carico_home.centri }}</span></div>
+          <div class="hr-metric-sub"><a href="{% url 'anagrafica:centri_costo' %}" style="color:#1f87cd;">Reparti, carico e costi →</a></div>
+        </div>
+      </div>
+      {% endif %}
     </div>
   </div>
 

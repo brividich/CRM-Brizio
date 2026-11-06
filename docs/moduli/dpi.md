@@ -22,6 +22,7 @@ Ciclo completo DPI dal magazzino alla consegna firmata al dipendente.
 - **Consegna** con firma dipendente via canvas HTML5, data e ricevuta firmata; una nuova consegna dello stesso `tipo_dpi` già in carico allo stesso dipendente sostituisce automaticamente la precedente (che resta in storico, uscendo dai conteggi "in uso"/scadenze)
 - **Vita utile** DPI tracciata per categoria/modello: il modello, se valorizzato, sovrascrive la vita utile categoria nel calcolo della scadenza consegna; lista e dettaglio mostrano il semaforo scadenza. Cambiando la vita utile di categoria o modello, le consegne in uso con scadenza automatica si riallineano subito (`segnali_scadenze.py`); restano quelle con scadenza inserita a mano e quelle già sostituite
 - **Report**: voce unica con le schede Conformità `/dpi/report/`, Registro consegne `/dpi/report/consegne/` e Consumi e magazzino `/dpi/magazzino/report/`; dettaglio per persona su `/dpi/report-conformita/`
+- **Filtro «Centro di costo»** (`?centro=`, `anagrafica/services/centro_filtro.py`) su Conformità, Registro consegne e Gestione richieste, colonna negli export dei report.
 - **Reminder scadenze** schedulabile con `python manage.py send_dpi_expiry_reminders --dry-run`
 - **Storico** completo per dipendente con export PDF
 - **KPI dashboard** su consumi, costi, scadenze imminenti

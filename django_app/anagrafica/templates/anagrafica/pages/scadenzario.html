@@ -82,6 +82,7 @@
           <label>dal <input type="date" name="dal" class="fmd-select" value="{{ periodo_dal|date:'Y-m-d' }}"></label>
           <label>al <input type="date" name="al" class="fmd-select" value="{{ periodo_al|date:'Y-m-d' }}"></label>
         </span>
+        {% include "anagrafica/partials/_filtro_centro_select.html" %}
         {% if reparti %}
         <select name="reparto" class="fmd-select" aria-label="Filtra per reparto" onchange="this.form.submit()">
           <option value="" {% if not filtro_reparto %}selected{% endif %}>Tutti i reparti</option>
@@ -256,9 +257,9 @@
       {% elif layout == "calendario" %}
       <div style="margin-top:6px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <a class="fmd-btn fmd-btn-ghost" href="?layout=calendario&anno={{ cal_prev|date:'Y' }}&mese={{ cal_prev|date:'n' }}">‹ Mese prec.</a>
+          <a class="fmd-btn fmd-btn-ghost" href="?layout=calendario&anno={{ cal_prev|date:'Y' }}&mese={{ cal_prev|date:'n' }}{{ filtro_centro.suffisso }}">‹ Mese prec.</a>
           <strong>{{ cal_label }}</strong>
-          <a class="fmd-btn fmd-btn-ghost" href="?layout=calendario&anno={{ cal_next|date:'Y' }}&mese={{ cal_next|date:'n' }}">Mese succ. ›</a>
+          <a class="fmd-btn fmd-btn-ghost" href="?layout=calendario&anno={{ cal_next|date:'Y' }}&mese={{ cal_next|date:'n' }}{{ filtro_centro.suffisso }}">Mese succ. ›</a>
         </div>
         <table class="cal-grid" style="width:100%;border-collapse:collapse;table-layout:fixed;">
           <thead><tr>{% for d in "LMMGVSD"|make_list %}<th style="padding:4px;font-size:11px;color:var(--fmd-muted);">{{ d }}</th>{% endfor %}</tr></thead>

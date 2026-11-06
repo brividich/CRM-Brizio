@@ -923,6 +923,10 @@ def gestione_list(request):
         qs = qs.filter(categoria_id=filtro_cat)
     if filtro_q:
         qs = qs.filter(richiedente_nome__icontains=filtro_q)
+    from anagrafica.services import centro_filtro
+
+    filtro_centro = centro_filtro.leggi(request)
+    qs = filtro_centro.applica(qs, "richiedente_legacy_id")
 
     n_inviate = base_qs.filter(stato=StatoRichiesta.INVIATA).count()
 
@@ -932,6 +936,7 @@ def gestione_list(request):
     categorie = CategoriaDPI.objects.filter(is_active=True).order_by("nome")
 
     return render(request, "dpi/pages/gestione_list.html", {
+        "filtro_centro": filtro_centro,
         "page_obj": page_obj,
         "categorie": categorie,
         "stati": StatoRichiesta.choices,

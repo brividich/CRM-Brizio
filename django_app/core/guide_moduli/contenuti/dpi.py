@@ -241,6 +241,7 @@ GUIDA = {
                     "Nel dettaglio, la colonna «Perché» dice quale delle due: «Per tutti» o «Dalla mansione».",
                     "«Registro consegne»: cosa è stato consegnato, a chi e quando, con la ricevuta: «Firmata», «Confermata via mail», «Da confermare», «Contestata» o «Senza firma». "
                     "Senza date scelte mostra gli ultimi 90 giorni.",
+                    "Conformità, Registro consegne e Gestione richieste si filtrano anche per centro di costo; negli export di Conformità e Registro c'è la colonna.",
                     "«Consumi e magazzino»: consumi, coperture, cosa riordinare e consegne senza giacenza.",
                     "«Esporta Excel» ed «Esporta PDF» scaricano tutte le righe filtrate, non solo la pagina a video. Ogni scaricamento resta registrato.",
                     "Gli amministratori possono farli inviare da soli: Centro report → Pianificazioni, «Persone da sistemare» e «Ultimi 90 giorni».",

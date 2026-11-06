@@ -24,6 +24,9 @@
     <label>Dal<input type="date" name="da" value="{{ da|date:'Y-m-d' }}"></label>
     <label>Al<input type="date" name="a" value="{{ a|date:'Y-m-d' }}"></label>
     <label>Cerca<input type="search" name="q" value="{{ q }}" placeholder="Persona, richiesta, modello"></label>
+    <label>Centro di costo
+      <select name="centro"><option value="">Tutti</option>{% for v, t in filtro_centro.scelte %}<option value="{{ v }}"{% if v == filtro_centro.valore %} selected{% endif %}>{{ t }}</option>{% endfor %}<option value="senza"{% if filtro_centro.valore == "senza" %} selected{% endif %}>Senza centro</option></select>
+    </label>
     <label>Reparto
       <select name="reparto"><option value="">Tutti</option>{% for r in reparti %}<option value="{{ r }}"{% if r == reparto %} selected{% endif %}>{{ r }}</option>{% endfor %}</select>
     </label>

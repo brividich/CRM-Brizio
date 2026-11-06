@@ -901,7 +901,11 @@ def visite_mediche_dashboard(request):
 
     # Fonte unica "visite correnti" (l'ultima per dipendente+tipo): le righe
     # storiche superate non contano più come scadute/in scadenza.
-    correnti_qs = VisitaMedica.objects.filter(id__in=ultime_visite_correnti_ids())
+    from ..services import centro_filtro
+
+    filtro_centro = centro_filtro.leggi(request)
+    visite_qs = filtro_centro.applica(VisitaMedica.objects.all())
+    correnti_qs = visite_qs.filter(id__in=ultime_visite_correnti_ids())
 
     # KPI globali (sulle visite correnti dell'intero dataset, non filtrato per mese)
     kpi_scadute = correnti_qs.filter(
@@ -910,14 +914,14 @@ def visite_mediche_dashboard(request):
     kpi_in_scad = correnti_qs.filter(
         data_scadenza__isnull=False, data_scadenza__range=[oggi, soglia_avviso]
     ).count()
-    kpi_visite_totali = VisitaMedica.objects.count()
+    kpi_visite_totali = visite_qs.count()
 
     _MESI_ITA = ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
                  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"]
 
     # Ultime visite registrate (globale, 30 più recenti)
     ultime_visite = list(
-        VisitaMedica.objects
+        visite_qs
         .select_related("tipo", "referto_documento")
         .order_by("-data_svolgimento", "-id")[:30]
     )
@@ -988,6 +992,8 @@ def visite_mediche_dashboard(request):
         ruoli_ids = list(t.ruoli_operativi.values_list("id", flat=True))
         if ruoli_ids:
             legacy_ids_richiesti = _richiesti_per_ruoli(ruoli_ids, oggi)
+            if filtro_centro.attivo:
+                legacy_ids_richiesti &= filtro_centro.ids
         else:
             legacy_ids_richiesti = set()
         legacy_ids_coperti = set(
@@ -1081,6 +1087,7 @@ def visite_mediche_dashboard(request):
     ])
 
     return render(request, "anagrafica/pages/visite_mediche_dashboard.html", {
+        "filtro_centro": filtro_centro,
         "oggi": oggi,
         "copertura_visite": copertura_visite,
         "kpi_referti": kpi_referti,
@@ -1695,6 +1702,9 @@ def visite_mediche_export_scadenze(request):
     oggi = _tz.localdate()
     filtro = request.GET.get("scad", "tutti").strip()
     correnti_ids = ultime_visite_correnti_ids()
+    from ..services import centro_filtro
+
+    filtro_centro = centro_filtro.leggi(request)
 
     if filtro == "mese_corrente":
         _, ld = _cal.monthrange(oggi.year, oggi.month)
@@ -1721,7 +1731,7 @@ def visite_mediche_export_scadenze(request):
         )
         label = "scadenze_60gg"
 
-    qs = qs.select_related("tipo").order_by("data_scadenza")
+    qs = filtro_centro.applica(qs).select_related("tipo").order_by("data_scadenza")
     nomi_map = _helpers._build_nomi_map()
 
     # CF lookup
@@ -1791,8 +1801,11 @@ def visite_mediche_export_copertura(request):
 
     from django.utils import timezone as _tz
 
+    from ..services import centro_filtro
+
     oggi = _tz.localdate()
-    correnti_qs = VisitaMedica.objects.filter(id__in=ultime_visite_correnti_ids())
+    filtro_centro = centro_filtro.leggi(request)
+    correnti_qs = filtro_centro.applica(VisitaMedica.objects.all()).filter(id__in=ultime_visite_correnti_ids())
 
     _valide_per_tipo = {
         row["tipo_id"]: row["n"]
@@ -1829,6 +1842,8 @@ def visite_mediche_export_copertura(request):
         ruoli_ids = list(t.ruoli_operativi.values_list("id", flat=True))
         if ruoli_ids:
             legacy_ids_richiesti = _richiesti_per_ruoli(ruoli_ids, oggi)
+            if filtro_centro.attivo:
+                legacy_ids_richiesti &= filtro_centro.ids
         else:
             legacy_ids_richiesti = set()
         legacy_ids_coperti = set(

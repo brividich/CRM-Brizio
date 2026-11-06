@@ -33,7 +33,7 @@ LIVELLI = [c for c, _ in LivelloSkm.choices]  # I, L, U, O
 def mansioni(*, solo_attive: bool = True):
     qs = (
         CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE)
-        .select_related("asset", "reparto", "area")
+        .select_related("asset", "reparto", "area__centro_di_costo")
         .prefetch_related("ruoli", "mansioni_rischio")
         .order_by("tipo", "display", "competenza_key")
     )
@@ -84,7 +84,7 @@ def kpi(righe: list[dict]) -> dict:
         "mansioni": len(righe),
         "senza_ruolo": sum(1 for r in righe if not r["ruoli"]),
         "senza_rischio": sum(1 for r in righe if not r["rischi"]),
-        "scoperte": sum(1 for r in righe if not r["operativi"]),
+        "scoperte": sum(1 for r in righe if not r["operativi"] and not r["mansione"].is_responsabilita),
     }
 
 

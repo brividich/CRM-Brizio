@@ -137,9 +137,10 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
     {% include "anagrafica/components/_fmd_ricerca.html" with ambito="visite" placeholder="Cerca un tipo di visita o le scadenze di una persona…" %}
 
   {# ── KPI ──────────────────────────────────────────────────────────────── #}
+  {% include "anagrafica/partials/_filtro_centro.html" with nota="Referti da rivedere, tipologie e sessioni restano di tutta l'azienda." %}
   <section class="fmd-kpi">
-    <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:scadenzario' %}?tipo=visita&amp;stato=scaduta" title="Apri lo scadenzario: visite scadute"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi_scadute }}</span></div><div class="fmd-mtr-lbl">Scadute</div><div class="fmd-mtr-sub">Da pianificare con priorità</div></a>
-    <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:scadenzario' %}?tipo=visita&amp;stato=60" title="Apri lo scadenzario: visite entro 60 giorni"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ kpi_in_scad }}</span></div><div class="fmd-mtr-lbl">In scadenza ≤60g</div><div class="fmd-mtr-sub">Visite in avvicinamento</div></a>
+    <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:scadenzario' %}?tipo=visita&amp;stato=scaduta{{ filtro_centro.suffisso }}" title="Apri lo scadenzario: visite scadute"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ kpi_scadute }}</span></div><div class="fmd-mtr-lbl">Scadute</div><div class="fmd-mtr-sub">Da pianificare con priorità</div></a>
+    <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:scadenzario' %}?tipo=visita&amp;stato=60{{ filtro_centro.suffisso }}" title="Apri lo scadenzario: visite entro 60 giorni"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ kpi_in_scad }}</span></div><div class="fmd-mtr-lbl">In scadenza ≤60g</div><div class="fmd-mtr-sub">Visite in avvicinamento</div></a>
     <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ kpi_totali }}</span></div><div class="fmd-mtr-lbl">Visite registrate</div><div class="fmd-mtr-sub">Totale a sistema</div></div>
     <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-pill"/></svg></span><span class="fmd-mtr-val">{{ kpi_tipi_attivi }}</span></div><div class="fmd-mtr-lbl">Tipologie attive</div><div class="fmd-mtr-sub">Catalogo visite</div></div>
     <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:referti_coda' %}" title="Apri i referti da rivedere"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span><span class="fmd-mtr-val">{{ kpi_referti }}</span></div><div class="fmd-mtr-lbl">Referti da rivedere</div><div class="fmd-mtr-sub">Lettura da confermare</div></a>
@@ -155,10 +156,10 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
     <div class="hr-card-head">
       <div class="hr-card-title">🩺 Visite scadute o in scadenza</div>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <a href="?scad=tutti" class="vm-chip{% if filtro_scad == 'tutti' %} active{% endif %}">Tutti</a>
-        <a href="?scad=mese_corrente" class="vm-chip{% if filtro_scad == 'mese_corrente' %} active{% endif %}">Mese corrente</a>
-        <a href="?scad=prossimo_mese" class="vm-chip{% if filtro_scad == 'prossimo_mese' %} active{% endif %}">Prossimo mese</a>
-        <a href="{% url 'anagrafica:visite_mediche_export_scadenze' %}?scad={{ filtro_scad }}" class="vm-excel">↓ Excel</a>
+        <a href="?scad=tutti{{ filtro_centro.suffisso }}" class="vm-chip{% if filtro_scad == 'tutti' %} active{% endif %}">Tutti</a>
+        <a href="?scad=mese_corrente{{ filtro_centro.suffisso }}" class="vm-chip{% if filtro_scad == 'mese_corrente' %} active{% endif %}">Mese corrente</a>
+        <a href="?scad=prossimo_mese{{ filtro_centro.suffisso }}" class="vm-chip{% if filtro_scad == 'prossimo_mese' %} active{% endif %}">Prossimo mese</a>
+        <a href="{% url 'anagrafica:visite_mediche_export_scadenze' %}?scad={{ filtro_scad }}{{ filtro_centro.suffisso }}" class="vm-excel">↓ Excel</a>
         {# Export unificato (Excel + PDF) — solo le colonne a schermo, nessun esito sanitario. #}
         {% include "anagrafica/partials/_export_buttons.html" with export_key="visite_mediche" %}
         <span style="font-size:12px;color:#94a3b8;">{{ scad_o_in_scad|length }} record</span>
@@ -240,7 +241,7 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
         <div class="hr-card-desc">Valide/Scadute = conteggio reale dal DB. Richiesti/Mancanti = attivi solo se ruoli operativi configurati. Clicca su una riga per il dettaglio dipendenti.</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;">
-        <a href="{% url 'anagrafica:visite_mediche_export_copertura' %}" class="vm-excel">↓ Excel</a>
+        <a href="{% url 'anagrafica:visite_mediche_export_copertura' %}{{ filtro_centro.prefisso }}" class="vm-excel">↓ Excel</a>
         {% include "anagrafica/partials/_export_buttons.html" with export_key="visite_mediche_copertura" %}
         <a class="hr-btn hr-btn-outline hr-btn-sm" href="{% url 'anagrafica:impostazioni' %}?tab=visite-mediche">⚙️ Catalogo tipi</a>
         <button class="hr-collapse-btn" onclick="vmToggleCard('card-copertura-body', this)" title="Comprimi">▼</button>
