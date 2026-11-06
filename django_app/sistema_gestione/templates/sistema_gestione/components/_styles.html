@@ -119,16 +119,6 @@ form.sg-actions:has(> label) > button{grid-column:1 / -1;justify-self:start}}
 .rc-wrap .page-header{flex-wrap:wrap}
 .rc-wrap .page-header-main{flex:1 1 320px;min-width:0}
 .rc-wrap .page-header>.sg-actions{flex:0 1 auto}
-.sg-menu{display:grid;gap:6px;margin:0 0 14px;border-bottom:1px solid var(--border)}
-.sg-menu-riga,.sg-menu-sotto{display:flex;align-items:center;gap:2px;overflow-x:auto;scrollbar-width:thin}
-.sg-menu a{flex:0 0 auto;padding:8px 12px;color:var(--text-mid);font-size:var(--fs-sm);font-weight:700;text-decoration:none;white-space:nowrap;border-bottom:3px solid transparent}
-.sg-menu a:hover{color:var(--text)}
-.sg-menu-riga>a.is-attiva{color:var(--accent);border-bottom-color:var(--accent)}
-.sg-menu-collegati{display:flex;gap:2px;margin-left:auto;padding-left:16px}
-.sg-menu-collegati a{font-weight:600;color:var(--text-mid)}
-.sg-menu-sotto{padding:0 0 6px}
-.sg-menu-sotto a{padding:4px 10px;border:0;border-radius:999px;font-size:var(--fs-xs);font-weight:600}
-.sg-menu-sotto a.is-attiva{background:var(--accent-light);color:var(--accent)}
 .sg-todo{list-style:none;margin:10px 0 0;padding:0 !important;display:grid;gap:6px}
 .sg-todo li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:8px 12px;border-left:4px solid var(--border);border-radius:6px;background:var(--surface-soft)}
 .sg-todo li.is-danger{border-left-color:var(--danger)}
@@ -143,7 +133,7 @@ form.sg-actions:has(> label) > button{grid-column:1 / -1;justify-self:start}}
 .sg-rz-persone form{margin:0}
 .sg-rz-togli{border:0;background:none;color:var(--text-mid);font-size:var(--fs-md);line-height:1;cursor:pointer}
 .sg-rz-aggiungi{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;margin:10px 0}
-@media (max-width:760px){.sg-menu-collegati{margin-left:0}.sg-rz-prec{grid-template-columns:1fr}}
+@media (max-width:760px){.sg-rz-prec{grid-template-columns:1fr}}
 
 /* ── Ritocco grafico: solo token del tema, così chiaro e scuro restano allineati ── */
 /* Il token non è definito dal tema: senza, i fondi tenui del modulo restavano trasparenti. */
@@ -311,9 +301,26 @@ body.theme-dark .sg-rz-link{color:var(--text-mid)}
   .sg-rz-pannello>textarea{font-size:16px}
 }
 
-/* Il collegamento alla guida sta nella riga del menu */
-.sg-menu-guida{display:inline-flex;align-items:center;gap:5px}
-.sg-menu-guida span{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--primary,#1f87cd);color:#fff;font-size:var(--fs-xs);font-weight:800}
+
+/* Menu del modulo: sezioni a sinistra, moduli collegati e guida a destra, voci della sezione sotto. */
+.sg-menu{margin:0 0 14px;border:1px solid var(--border);border-radius:var(--radius,12px);background:var(--surface);box-shadow:var(--shadow)}
+.sg-menu a{text-decoration:none;white-space:nowrap}
+.sg-menu a:focus-visible{outline:2px solid var(--primary-mid);outline-offset:-2px;border-radius:6px}
+.sg-menu-riga{display:flex;flex-wrap:wrap;align-items:stretch;justify-content:space-between;gap:0 16px;padding:0 8px}
+.sg-menu-sezioni{display:flex;flex-wrap:wrap;gap:0 2px;min-width:0}
+.sg-menu-sezioni a{display:flex;align-items:center;min-height:44px;padding:0 12px;border-bottom:3px solid transparent;border-top:3px solid transparent;color:var(--text-mid);font-size:var(--fs-sm);font-weight:700}
+.sg-menu-sezioni a:hover{color:var(--text)}
+.sg-menu-sezioni a.is-attiva{border-bottom-color:var(--accent);color:var(--text)}
+.sg-menu-collegati{display:flex;flex-wrap:wrap;align-items:center;gap:0 2px;margin:6px 0;padding-left:12px;border-left:1px solid var(--border)}
+.sg-menu-collegati a{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:0 9px;border-radius:8px;color:var(--text-mid);font-size:var(--fs-xs);font-weight:600}
+.sg-menu-collegati a:hover{background:color-mix(in srgb,var(--text) 6%,var(--surface));color:var(--text)}
+.sg-menu-guida span{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--primary-mid);color:#fff;font-size:11px;font-weight:800}
+.sg-menu-sotto{display:flex;flex-wrap:wrap;align-items:center;gap:2px;padding:6px 8px;border-top:1px solid var(--border);border-radius:0 0 var(--radius,12px) var(--radius,12px);background:color-mix(in srgb,var(--text) 3%,var(--surface))}
+.sg-menu-sotto a{display:inline-flex;align-items:center;min-height:30px;padding:0 11px;border-radius:8px;color:var(--text-mid);font-size:var(--fs-xs);font-weight:600}
+.sg-menu-sotto a:hover{background:color-mix(in srgb,var(--text) 7%,var(--surface));color:var(--text)}
+.sg-menu-sotto a.is-attiva{background:var(--surface);box-shadow:0 0 0 1px var(--border);color:var(--text);font-weight:800}
+.sg-menu-sotto .sg-menu-destra{margin-left:auto}
+@media (max-width:1180px){.sg-menu-collegati{margin:0 0 6px;padding-left:0;border-left:0}}
 
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .sg-guida-link a:hover{color:#93c5fd}

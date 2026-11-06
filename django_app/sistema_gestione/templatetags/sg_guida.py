@@ -51,7 +51,6 @@ _SOTTO = {
         ("Cruscotto", "sistema_gestione:audit_cruscotto"),
         ("I miei rilievi", "sistema_gestione:audit_miei_rilievi"),
         ("Indicatori MT CN 13", "sistema_gestione:procedura_kpi"),
-        ("Guida", "sistema_gestione:audit_guida"),
         ("Impostazioni", "sistema_gestione:audit_impostazioni"),
     ],
     "soa": [
@@ -114,7 +113,8 @@ def sg_menu(context):
             return False
 
     sezioni = [{"etichetta": e, "url": reverse(r), "attiva": s == sezione} for s, e, r in _SEZIONI if puo(r)]
-    sotto = [{"etichetta": e, "url": reverse(r), "attiva": r == vista} for e, r in _SOTTO.get(sezione, []) if puo(r)]
+    sotto = [{"etichetta": e, "url": reverse(r), "attiva": r == vista, "destra": e == "Impostazioni"}
+             for e, r in _SOTTO.get(sezione, []) if puo(r)]
     collegati = []
     for etichetta, rotta, query in _COLLEGATI:
         try:
@@ -123,8 +123,10 @@ def sg_menu(context):
             continue
         if puo_aprire_altrove(url):
             collegati.append({"etichetta": etichetta, "url": url + query})
-    guida = _url_guida(request)
+    # Le pagine senza un capitolo proprio aprono la guida dall'inizio.
+    guida = _url_guida(request) or (reverse("sistema_gestione:audit_guida") if puo("sistema_gestione:audit_guida") else "")
     # Le pagine col menu hanno la guida nella sua riga: sg_guida_link, che segue, non la ripete.
     if request is not None:
         request._sg_guida_nel_menu = True
-    return {"sezioni": sezioni, "sotto": sotto, "collegati": collegati, "guida": guida}
+    return {"sezioni": sezioni, "sotto": sotto, "collegati": collegati, "guida": guida,
+            "sezione_nome": next((e for s, e, _ in _SEZIONI if s == sezione), "")}

@@ -584,7 +584,8 @@ _PAGINE_AUDIT = [
         "blocchi": [
             ("p", "Il menu in alto, uguale su tutte le pagine, porta a Panoramica, Audit interni, Certificazioni, Riesame, "
                   "Auditor, Processi, Checklist e SoA. A destra i moduli collegati (Registro OFI, Qualifiche, Scadenzario) e "
-                  "«Guida». Si vedono solo le voci che il proprio profilo può aprire."),
+                  "«Guida», che apre il capitolo della pagina. Sotto, le voci della sezione. Da telefono il menu è un "
+                  "pulsante che apre tutte le voci. Si vedono solo le voci che il proprio profilo può aprire."),
             ("p", "In alto i certificati in vigore con il loro stato. Sotto, le cose da gestire in quattro colonne: In ritardo "
                   "(data passata o alta priorità), Entro 30 giorni, Più avanti, Senza data. Ogni voce apre la pagina giusta. "
                   "Rientrano:"),
