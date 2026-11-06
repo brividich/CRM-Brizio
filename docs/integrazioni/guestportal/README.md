@@ -5,6 +5,8 @@ Il **GuestPortal** (chiosco visitatori in reception, PHP + MySQL su IIS) resta u
 1. **legge** le visite dal database MySQL `GuestManagement` in sola lettura (pagina Fornitori → Accessi esterni);
 2. **apre** il pannello admin del GuestPortal già autenticato (voce «Accessi azienda» / «Apri GuestPortal»).
 
+3. **mostra il chiosco** in `/chiosco/` senza login, solo dalle postazioni in `CHIOSCO_ALLOWED_IPS`, chiamando lato server le API `public/api/*.php`.
+
 Codice HUB: [`django_app/fornitori/guestportal.py`](../../../django_app/fornitori/guestportal.py). Scheda modulo: [docs/moduli/fornitori.md](../../moduli/fornitori.md).
 
 ## Lato GuestPortal (installato il 04/11/2026)

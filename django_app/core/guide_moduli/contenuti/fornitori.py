@@ -96,6 +96,18 @@ GUIDA = {
             ],
         },
         {
+            "id": "chiosco",
+            "titolo": "Chiosco della reception nell'HUB",
+            "blocchi": [
+                ("p", "All'indirizzo /chiosco/ dell'HUB il visitatore registra ingresso e uscita senza login: «Entro», «Esco» o «Ho un codice», "
+                      "come sul chiosco del GuestPortal, con la tastiera a schermo. Il pulsante «Chiosco» in Accessi esterni lo apre. "
+                      "Si apre solo dalle postazioni abilitate: dalle altre dice «Chiosco non abilitato». Ingressi, cartellini e mail al referente "
+                      "restano quelli del GuestPortal, quindi le visite compaiono in Accessi esterni come sempre."),
+                ("nota", "Dopo 2 minuti senza tocchi torna alla schermata iniziale e cancella i dati scritti. La scansione del QR compare solo se l'HUB è in HTTPS: "
+                         "altrimenti il browser non dà accesso alla fotocamera e si usano numero del cartellino e codice a mano."),
+            ],
+        },
+        {
             "id": "da-collegare",
             "titolo": "Ingressi da collegare",
             "blocchi": [
@@ -173,6 +185,18 @@ GUIDA = {
                     "Un fornitore che non si usa più si disattiva («Disattiva»), non si elimina: i suoi ordini e le manutenzioni restano collegati.",
                     "I permessi del modulo Fornitori sono separati da quelli di Anagrafica HR (Amministrazione → Accessi).",
                 ]),
+            ],
+        },
+        {
+            "id": "chiosco-admin",
+            "titolo": "Abilitare il chiosco su una postazione",
+            "blocchi": [
+                ("passi", [
+                    "Nel file .env dell'HUB scrivi l'IP del PC della reception in CHIOSCO_ALLOWED_IPS (più valori separati da virgola, anche reti come 10.0.5.0/24).",
+                    "Se serve, imposta GUESTPORTAL_CHIOSCO_API_URL con l'indirizzo delle API del GuestPortal.",
+                    "Riavvia l'HUB e apri /chiosco/ dalla postazione.",
+                ]),
+                ("nota", "Con CHIOSCO_ALLOWED_IPS vuoto il chiosco resta chiuso per tutti. Serve anche l'IP vero del client: se l'HUB vede 127.0.0.1, controlla il proxy fidato di Waitress. Non pubblicare /chiosco/ su Entra Application Proxy."),
             ],
         },
         {
