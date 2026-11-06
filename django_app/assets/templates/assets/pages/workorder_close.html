@@ -55,6 +55,7 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
 {% endblock %}
 
 {% block assets_shell_content %}
+<div hx-get="{% url 'fornitori:presenze_intervento' 'odl' workorder.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="md-note">Caricamento presenze in azienda della ditta…</p></div>
 <form class="md-form" method="post" enctype="multipart/form-data" id="workorderCloseForm" data-autosave-key="wo-close-draft-{{ workorder.id }}">
   {% csrf_token %}
   {{ form.status }}
@@ -268,6 +269,25 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
 {% endblock %}
 
 {% block assets_shell_scripts %}
+<script>
+/* «Usa nel rapportino» del riquadro Presenze: riempie tempo e chiusura, a salvare resta la persona. */
+document.body.classList.add('pz-con-rapportino');
+document.addEventListener('click', function (event) {
+  var b = event.target.closest('[data-pz-usa]');
+  if (!b) { return; }
+  var minuti = parseInt(b.dataset.minuti, 10) || 0;
+  [['id_intervention_duration_hours', Math.floor(minuti / 60)], ['id_intervention_duration_remainder', minuti % 60], ['id_closed_at', b.dataset.al]].forEach(function (voce) {
+    var campo = document.getElementById(voce[0]);
+    if (!campo) { return; }
+    campo.value = voce[1];
+    campo.dispatchEvent(new Event('input', {bubbles: true}));
+    campo.dispatchEvent(new Event('change', {bubbles: true}));
+  });
+  b.textContent = 'Inserito: controlla e salva';
+  var campo = document.getElementById('id_intervention_duration_hours');
+  if (campo) { campo.scrollIntoView({block: 'center'}); }
+});
+</script>
 <script>
 (function(){
   "use strict";
