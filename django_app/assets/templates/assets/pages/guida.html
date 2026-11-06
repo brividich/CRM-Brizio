@@ -381,6 +381,7 @@ body.theme-dark .ag-perm.si{color:#86efac;background:rgba(22,163,74,.18)}body.th
         <li>Chi ha ancora una licenza ma ha lasciato l'azienda lo vedi in Amministrazione › Ruoli e permessi › «Account Microsoft 365».</li>
       </ul>
       <p>Il riquadro qui sotto propone il collegamento quando il nome è univoco: <span class="ag-btn">Collega le N con il nome uguale</span> conferma insieme quelle identiche; le proposte per somiglianza si confermano una per una, perché un abbonamento per persona come Microsoft 365 non si conta sui PC. Il report <strong>Licenze software</strong> del Catalogo report ha le colonne <strong>PC con il software</strong> e <strong>Posti meno PC</strong> (negativo = più PC che posti), utili per un audit del fornitore.</p>
+      <p>La pagina <strong>Riconciliazione dispositivi IT</strong> raccoglie anche i PC dell'inventario software senza asset e la scheda <strong>PC e server senza inventario</strong>: per ognuno scegli il motivo (Dismesso, Fuori dominio, Macchina senza agente, Spento o di scorta, Altro) con <span class="ag-btn">Segna</span>; quelli senza motivo sono i veri buchi da chiudere.</p>
       <h3>Riquadro «Da sistemare: licenze e software installato»</h3>
       <p>In cima a <a href="{% url 'assets:software_license_list' %}">Licenze software</a> compare quando qualcosa non quadra con l'inventario importato nel SOC. Sono solo segnalazioni: nessuna licenza cambia da sola (tranne posti, stato e scadenza degli abbonamenti Microsoft 365, vedi sopra).</p>
       <ul>

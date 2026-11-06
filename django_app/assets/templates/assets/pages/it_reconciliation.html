@@ -20,8 +20,13 @@
 .rc-mod.soc { background:#fef3c7; color:#92400e; }
 .rc-mod.mfc { background:#dcfce7; color:#166534; }
 .rc-mod.intune { background:#ede9fe; color:#5b21b6; }
+.rc-mod.inv { background:#fce7f3; color:#9d174d; }
 .rc-sub { color:#64748b; font-size:var(--fs-xs); }
 .rc-empty { padding:24px; text-align:center; color:#64748b; }
+.rc-motivo { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.rc-motivo select, .rc-motivo input[type=text] { border:1px solid #dbe3f0; border-radius:8px; padding:5px 8px; font:inherit; font-size:var(--fs-sm); background:#fff; color:inherit; min-width:0; }
+.rc-spiegati > summary { padding:10px 14px; cursor:pointer; font-weight:700; font-size:var(--fs-sm); }
+body.theme-dark .rc-motivo select, body.theme-dark .rc-motivo input[type=text] { background:var(--surface-alt); border-color:var(--border); }
 body.theme-dark .rc-intro, body.theme-dark .rc-sub, body.theme-dark .rc-table th { color:var(--text-light); }
 body.theme-dark .rc-tab { background:var(--surface); border-color:var(--border); color:var(--text-light); }
 body.theme-dark .rc-tab.active { background:#2563eb; border-color:#2563eb; color:#fff; }
@@ -32,6 +37,7 @@ body.theme-dark .rc-mod { background:rgba(37,99,235,.22); color:#93c5fd; }
 body.theme-dark .rc-mod.soc { background:rgba(146,64,14,.25); color:#fde68a; }
 body.theme-dark .rc-mod.mfc { background:rgba(21,128,61,.22); color:#86efac; }
 body.theme-dark .rc-mod.intune { background:rgba(91,33,182,.25); color:#c4b5fd; }
+body.theme-dark .rc-mod.inv { background:rgba(157,23,77,.25); color:#f9a8d4; }
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .rc-empty{color:var(--text-light)}
@@ -42,12 +48,54 @@ body.theme-dark .rc-empty{color:var(--text-light)}
 
 {% block assets_shell_content %}
 <section class="rc-page">
-  <p class="rc-intro">Dispositivi della centrale SNMP, MFC, dispositivi citati dal SOC, PC gestiti da Microsoft Intune e indirizzi del DHCP non ancora collegati a un asset. La proposta arriva dall'abbinamento unico (seriale, MAC, indirizzo IP, nome host): conferma solo quelle corrette. Vedi solo le righe dei moduli che puoi gestire.</p>
+  <p class="rc-intro">Dispositivi della centrale SNMP, MFC, dispositivi citati dal SOC, PC gestiti da Microsoft Intune, PC dell'inventario software e indirizzi del DHCP non ancora collegati a un asset. La proposta arriva dall'abbinamento unico (seriale, MAC, indirizzo IP, nome host): conferma solo quelle corrette. Vedi solo le righe dei moduli che puoi gestire.</p>
   <nav class="rc-tabs" aria-label="Viste">
     <a class="rc-tab {% if view == 'proposte' %}active{% endif %}" href="?vista=proposte">Con proposta <strong>{{ counts.proposte }}</strong></a>
     <a class="rc-tab {% if view != 'proposte' %}active{% endif %}" href="?vista=senza">Senza proposta <strong>{{ counts.ambigue|add:counts.senza }}</strong></a>
+    <a class="rc-tab {% if view == 'inventario' %}active{% endif %}" href="?vista=inventario">PC e server senza inventario <strong>{{ da_spiegare|length }}</strong></a>
     <a class="rc-tab" href="{% url 'assets:device_list' %}?copertura=scoperti">Asset senza monitoraggio</a>
   </nav>
+  {% if view == 'inventario' %}
+  <div class="rc-card">
+    <div class="rc-bar"><span class="rc-sub">PC, notebook e server in uso senza programmi rilevati da WatchGuard o Defender: o manca l'agente, o c'è un motivo. Scrivilo, così non resta un dubbio. I dismessi non compaiono.</span></div>
+    {% if da_spiegare %}
+    <table class="rc-table">
+      <thead><tr><th>Asset</th><th>Tipo</th><th>Reparto</th><th>Perché non ha l'inventario</th></tr></thead>
+      <tbody>
+      {% for asset in da_spiegare %}
+        <tr>
+          <td><a href="{% url 'assets:asset_view' asset.id %}">{{ asset.name }}</a><div class="rc-sub">#{{ asset.asset_tag }}</div></td>
+          <td>{{ asset.get_asset_type_display }}</td>
+          <td>{{ asset.reparto|default:"—" }}</td>
+          <td><form method="post" class="rc-motivo">{% csrf_token %}<input type="hidden" name="azione" value="motivo"><input type="hidden" name="asset" value="{{ asset.id }}">
+            <select name="motivo" required aria-label="Motivo per {{ asset.name }}"><option value="">Scegli…</option>{% for value, label in motivi %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+            <input type="text" name="nota" maxlength="255" placeholder="Nota" aria-label="Nota per {{ asset.name }}">
+            <button type="submit" class="btn btn-secondary btn-sm">Segna</button></form></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="rc-empty">Ogni PC e server in uso ha l'inventario o un motivo.</div>{% endif %}
+  </div>
+  {% if spiegati %}
+  <details class="rc-card rc-spiegati">
+    <summary>Già spiegati ({{ spiegati|length }})</summary>
+    <table class="rc-table">
+      <thead><tr><th>Asset</th><th>Motivo</th><th>Nota</th><th></th></tr></thead>
+      <tbody>
+      {% for r in spiegati %}
+        <tr>
+          <td><a href="{% url 'assets:asset_view' r.asset_id %}">{{ r.asset.name }}</a><div class="rc-sub">#{{ r.asset.asset_tag }}</div></td>
+          <td>{{ r.get_motivo_display }}</td>
+          <td>{{ r.nota|default:"—" }}</td>
+          <td><form method="post">{% csrf_token %}<input type="hidden" name="azione" value="togli_motivo"><input type="hidden" name="asset" value="{{ r.asset_id }}"><button type="submit" class="btn btn-secondary btn-sm">Togli</button></form></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endif %}
+  {% else %}
   <form method="post" class="rc-card">
     {% csrf_token %}
     {% if view == 'proposte' and rows %}
@@ -75,6 +123,7 @@ body.theme-dark .rc-empty{color:var(--text-light)}
       <div class="rc-empty">{% if view == 'proposte' %}Nessuna proposta da confermare.{% else %}Tutti i dispositivi non collegati hanno una proposta.{% endif %}</div>
     {% endif %}
   </form>
+  {% endif %}
 </section>
 <script>
 (() => {

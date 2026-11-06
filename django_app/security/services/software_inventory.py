@@ -543,6 +543,10 @@ def _link_assets(host_norm):
         from assets.models import Asset
 
         hub = Asset.objects.filter(name__iexact=host_norm).first()
+    if hub is None:
+        # Collegato a mano dalla Riconciliazione: anche i programmi nuovi di quel PC vanno sullo stesso asset.
+        riga = SoftwareInstallation.objects.filter(host=host_norm, hub_asset__isnull=False).select_related("hub_asset").first()
+        hub = riga.hub_asset if riga else None
     return sec, hub
 
 

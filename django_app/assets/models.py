@@ -1761,6 +1761,36 @@ class SoftwareCatalogEntry(models.Model):
         return self.display_name or self.inventory_key
 
 
+class AssetSenzaInventario(models.Model):
+    """Perché un PC o un server non ha l'inventario software: non è un buco da sistemare, lo si è deciso."""
+
+    MOTIVO_DISMESSO = "dismesso"
+    MOTIVO_FUORI_DOMINIO = "fuori_dominio"
+    MOTIVO_NON_GESTITO = "non_gestito"
+    MOTIVO_SPENTO = "spento"
+    MOTIVO_ALTRO = "altro"
+    MOTIVO_CHOICES = [
+        (MOTIVO_DISMESSO, "Dismesso"),
+        (MOTIVO_FUORI_DOMINIO, "Fuori dominio"),
+        (MOTIVO_NON_GESTITO, "Macchina senza agente (CNC, strumento)"),
+        (MOTIVO_SPENTO, "Spento o di scorta"),
+        (MOTIVO_ALTRO, "Altro"),
+    ]
+
+    asset = models.OneToOneField(Asset, on_delete=models.CASCADE, related_name="senza_inventario")
+    motivo = models.CharField(max_length=20, choices=MOTIVO_CHOICES)
+    nota = models.CharField(max_length=255, blank=True, default="")
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Asset senza inventario software"
+        verbose_name_plural = "Asset senza inventario software"
+
+    def __str__(self) -> str:
+        return f"{self.asset} · {self.get_motivo_display()}"
+
+
 class SoftwareProduttoreConsentito(models.Model):
     """«Di questo produttore è tutto consentito»: vale anche per i programmi nuovi.
 

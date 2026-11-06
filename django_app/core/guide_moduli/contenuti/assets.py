@@ -413,6 +413,17 @@ GUIDA = {
             ],
         },
         {
+            "id": "riconciliazione_inventario",
+            "titolo": "Trovare i PC senza asset e gli asset senza inventario",
+            "blocchi": [
+                ("passi", [
+                    "IT e rete › Licenze software o scheda asset › Riconciliazione dispositivi IT: i PC dell'inventario software senza asset stanno con gli altri dispositivi, col modulo «Inventario software». Spunta la proposta e premi «Collega selezionati».",
+                    "Scheda «PC e server senza inventario»: PC, notebook e server in uso senza programmi rilevati. Scegli il motivo e premi «Segna»; «Togli» lo rimette in lista.",
+                    "Chi resta senza motivo è un PC da controllare: di solito manca l'agente WatchGuard.",
+                ]),
+            ],
+        },
+        {
             "id": "licenze_inventario",
             "titolo": "Collegare le licenze all'inventario e contare i posti",
             "blocchi": [
