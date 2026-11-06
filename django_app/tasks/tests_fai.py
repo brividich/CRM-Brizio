@@ -112,7 +112,7 @@ class SituazioneTests(TasksBaseTestCase):
         self.assertEqual(esito_progetto(project).causale, "a")
         crea_fai(self._art(ultima_produzione=date(2020, 1, 1)))
         esito = esito_progetto(project)  # maiuscole diverse: stesso articolo
-        self.assertEqual((esito.titolo, esito.causale), ("Serve il FAI completo", "f"))
+        self.assertEqual((esito.titolo, esito.causale), ("FAI completo previsto", "f"))
         project.part_number = ""
         self.assertIsNone(esito_progetto(project))
 

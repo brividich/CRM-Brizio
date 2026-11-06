@@ -274,6 +274,7 @@ SEZIONI: list[dict] = [
             ("passi", [
                 "In «Programmi e FAI» premi «Apri un FAI». Se in riunione hai già assegnato una riga FAI, premi «Completa»: non si crea un doppione.",
                 "Scegli «Perché serve»: il portale propone FAI completo o Delta FAI.",
+                "È una proposta, non un obbligo: se per quella commessa il FAI non serve, non aprirlo. Nulla si blocca.",
                 "Indica il piano e, se c'è, il numero. Per i piani con numerazione automatica lascialo vuoto.",
                 "Aggiorna lo «Stato» man mano e inserisci le date dell'articolo: servono a calcolare la scadenza.",
             ]),

@@ -106,20 +106,20 @@ def esito_progetto(project, oggi=None) -> EsitoProgetto | None:
     ultimo = articolo.fai.select_related("stato").first() if articolo else None
     if ultimo is None:
         return EsitoProgetto(
-            "Serve il FAI completo", "Il P/N non è nel registro: se è davvero nuovo vale la prima produzione.",
+            "FAI completo previsto", "Il P/N non è nel registro: se è davvero nuovo vale la prima produzione. Se qui non serve, non aprirlo.",
             "warn", CAUSALE_NUOVO,
         )
     stato = stato_articolo(articolo, ultimo, oggi)
     if stato.codice == "in_corso":
         return EsitoProgetto("FAI in corso", ultimo.stato.etichetta, "info", "", in_corso=True)
     if stato.codice == "da_ripetere":
-        return EsitoProgetto("Serve il FAI completo", stato.nota, "danger", CAUSALE_FERMO)
+        return EsitoProgetto("FAI completo previsto", f"{stato.nota} Se qui non serve, non aprirlo.", "warn", CAUSALE_FERMO)
     if stato.codice == "da_verificare":
         return EsitoProgetto("FAI valido, da segnalare", stato.nota, "warn", "")
     if stato.codice == "date_mancanti":
         return EsitoProgetto("FAI presente, scadenza non calcolabile", stato.nota, "soft", "")
     return EsitoProgetto(
-        "Nessun FAI per scadenza", "Serve un Delta FAI solo se cambiano progetto, processo o risorse.", "ok", ""
+        "Nessun FAI per scadenza", "Un Delta FAI si valuta solo se cambiano progetto, processo o risorse.", "ok", ""
     )
 
 
