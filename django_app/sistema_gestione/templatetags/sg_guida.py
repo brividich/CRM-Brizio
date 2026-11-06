@@ -30,6 +30,7 @@ _SEZIONI = [
     ("panoramica", "Panoramica", "sistema_gestione:index"),
     ("audit", "Audit interni", "sistema_gestione:audit_index"),
     ("certificazioni", "Certificazioni e audit esterni", "sistema_gestione:esterni_elenco"),
+    ("riesame", "Riesame", "sistema_gestione:riesame_elenco"),
     ("auditor", "Auditor", "sistema_gestione:auditor_elenco"),
     ("processi", "Processi", "sistema_gestione:processi_catalogo"),
     ("checklist", "Checklist", "sistema_gestione:checklist_norme"),
@@ -66,6 +67,8 @@ def _sezione(nome_vista: str) -> str:
         return "panoramica"
     if nome.startswith("esterni_"):
         return "certificazioni"
+    if nome.startswith("riesame_"):
+        return "riesame"
     if nome.startswith("auditor_"):
         return "auditor"
     if nome.startswith(("processi_", "processo_", "checklist_processo")):

@@ -7,7 +7,7 @@
 - **App**: `django_app/sistema_gestione/` — URL `/sistema-gestione/` — namespace `sistema_gestione`
 - **Voce di menu**: «Sistema di gestione», categoria **Qualità** (`riorganizza_topbar`, ordine 65)
 - **Modulo collegato**: `django_app/report_conformita/` (report di sola lettura, riesame della direzione)
-- **Ultimo aggiornamento**: 2026-11-06 (panoramica «Da fare», scheda certificato, collegamento a Formazione: migration 0022, vedi `docs/moduli/sistema_gestione.md`)
+- **Ultimo aggiornamento**: 2026-11-06 (panoramica «Da fare», scheda certificato, collegamento a Formazione: migration 0022; verbale di riesame MOD.062: migration 0023; vedi `docs/moduli/sistema_gestione.md`)
 
 ---
 
