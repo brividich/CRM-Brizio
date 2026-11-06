@@ -71,7 +71,7 @@ body.theme-dark .pz-warn { background:rgba(133,77,14,.2); color:#fde68a; }
       {% if ditta_proposta %}
         <div class="pz-msg pz-warn">
           L'ingresso collegato di {{ ditta_proposta.1.tecnico_nome|default:"—" }} ({{ ditta_proposta.1.azienda|default:"—" }}) corrisponde al fornitore «{{ ditta_proposta.0.ragione_sociale }}».
-          <button type="button" class="pz-btn pz-btn-primary" hx-post="{% url 'fornitori:presenze_imposta_ditta' iv.tipo iv.pk %}" hx-vals='{"link_id": "{{ ditta_proposta.1.pk }}"}' hx-target="#presenze-{{ iv.tipo }}-{{ iv.pk }}" hx-swap="outerHTML">Imposta come ditta {% if iv.tipo == "ticket" %}delegata{% else %}dell'OdL{% endif %}</button>
+          <button type="button" class="pz-btn pz-btn-primary" hx-post="{% url 'fornitori:presenze_imposta_ditta' iv.tipo iv.pk %}" hx-vals='{"link_id": "{{ ditta_proposta.1.pk }}"}' hx-target="#presenze-{{ iv.tipo }}-{{ iv.pk }}" hx-swap="outerHTML">Imposta come ditta {{ iv.dove_la_ditta }}</button>
         </div>
       {% elif aziende_sconosciute %}
         <div class="pz-msg pz-warn">
@@ -84,7 +84,7 @@ body.theme-dark .pz-warn { background:rgba(133,77,14,.2); color:#fde68a; }
       {% if iv.formazione %}
         {% if not proposte %}<div class="pz-sub" style="margin-top:8px">Nessun ingresso con il nome del docente o l'azienda dell'ente di formazione tra il {{ dal_al.0|date:"d/m" }} e il {{ dal_al.1|date:"d/m/Y" }}: se il docente ha scritto il nome in modo diverso al chiosco, collegalo a mano dal giorno.</div>{% endif %}
       {% elif not iv.fornitore %}
-        <div class="pz-sub" style="margin-top:8px">Nessuna ditta {% if iv.tipo == "ticket" %}delegata{% else %}sull'OdL{% endif %}: collega a mano un ingresso del giorno (se la ditta si riconosce viene impostata {% if iv.tipo == "ticket" %}sul ticket{% else %}sull'OdL, che diventa «Esterna»{% endif %}), oppure parti da Fornitori → Accessi esterni → «Collega…».</div>
+        <div class="pz-sub" style="margin-top:8px">Nessuna ditta {{ iv.dove_la_ditta }}: collega a mano un ingresso del giorno (se la ditta si riconosce viene impostata{% if iv.tipo == "odl" %} sull'OdL, che diventa «Esterna»{% elif iv.tipo == "ticket" %} sul ticket{% endif %}), oppure parti da Fornitori → Accessi esterni → «Collega…».</div>
       {% endif %}
       {% if proposte %}
         <div class="pz-sez">{% if iv.formazione %}Ingressi del docente o dell'ente da collegare{% else %}Ingressi della ditta da collegare{% endif %} ({{ dal_al.0|date:"d/m" }} – {{ dal_al.1|date:"d/m/Y" }})</div>

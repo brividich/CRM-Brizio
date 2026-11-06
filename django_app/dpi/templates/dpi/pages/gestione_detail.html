@@ -233,7 +233,7 @@ body.theme-dark .dpi-ai-fatti li{border-color:var(--border)}
             </span>
           </dd>
           {% endif %}
-          <dt>Ricevuta firmata</dt><dd>{% if consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
+          <dt>Ricevuta firmata</dt><dd>{% if consegna.confermata_badge_il %}Confermata con badge il {{ consegna.confermata_badge_il|date:"d/m/Y H:i" }}{% elif consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
           {% if consegna.conferma %}
           <dt>Conferma via mail</dt>
           <dd>{{ consegna.conferma.get_stato_display }}{% if consegna.conferma.decisa_il %} il {{ consegna.conferma.decisa_il|date:"d-m-Y H:i" }} da {{ consegna.conferma.decisa_da_email }}{% else %} ({{ consegna.conferma.get_destinatario_tipo_display|lower }}, mail del {{ consegna.conferma.created_at|date:"d-m-Y" }}){% endif %}{% if consegna.conferma.nota %} — «{{ consegna.conferma.nota }}»{% endif %}</dd>

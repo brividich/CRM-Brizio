@@ -21,7 +21,9 @@ MODULE = "sistema_gestione"
 # v5: cruscotto, export rilievi, «I miei rilievi».
 # v7: certificazioni e audit esterni.
 # v8: preparazione all'audit dell'ente e piano azioni.
-_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v8"
+# v9: scheda della certificazione e copie del certificato.
+# v10: verbale di riesame della direzione.
+_BOOTSTRAP_CACHE_KEY = "sistema_gestione_acl_bootstrap_v10"
 
 PERM_VIEW = "sistema_gestione.modulo.view"
 PERM_SOA_VIEW = "sistema_gestione.soa.view"
@@ -32,6 +34,9 @@ PERM_AUDIT_EDIT = "sistema_gestione.audit.edit"
 PERM_AUDIT_ESEGUI = "sistema_gestione.audit.esegui"
 PERM_AUDIT_APPROVA = "sistema_gestione.audit.approva"
 PERM_AUDIT_MIEI = "sistema_gestione.audit.miei_rilievi"
+PERM_RIESAME_VIEW = "sistema_gestione.riesame.view"
+PERM_RIESAME_EDIT = "sistema_gestione.riesame.edit"
+PERM_RIESAME_APPROVA = "sistema_gestione.riesame.approva"
 
 _CANONICAL = {
     PERM_VIEW: {
@@ -66,6 +71,18 @@ _CANONICAL = {
         "label": "Sistema di gestione - Audit: approva",
         "description": "Approva programma e piano, convalida e valuta il rapporto di audit.",
     },
+    PERM_RIESAME_VIEW: {
+        "label": "Sistema di gestione - Riesame: consulta",
+        "description": "Consulta i verbali di riesame della direzione e gli obiettivi fissati.",
+    },
+    PERM_RIESAME_EDIT: {
+        "label": "Sistema di gestione - Riesame: prepara",
+        "description": "Compila il verbale MOD.062, lo propone alla Direzione e registra l'andamento degli obiettivi.",
+    },
+    PERM_RIESAME_APPROVA: {
+        "label": "Sistema di gestione - Riesame: approva",
+        "description": "Approva il verbale proposto (DIG): da quel momento non cambia più.",
+    },
     PERM_AUDIT_MIEI: {
         "label": "Sistema di gestione - Audit: i miei rilievi",
         "description": "Consulta solo i rilievi dei propri audit (auditato, responsabile di processo o dell'azione) e la propria CAR.",
@@ -73,6 +90,23 @@ _CANONICAL = {
 }
 
 _ROUTE_BINDINGS = {
+    "sistema_gestione:riesame_elenco": PERM_RIESAME_VIEW,
+    "sistema_gestione:riesame_dettaglio": PERM_RIESAME_VIEW,
+    "sistema_gestione:riesame_pdf": PERM_RIESAME_VIEW,
+    "sistema_gestione:riesame_copia_firmata": PERM_RIESAME_VIEW,
+    "sistema_gestione:riesame_nuovo": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_modifica": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_salva_analisi": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_aggiorna_indicatori": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_partecipante_aggiungi": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_partecipante_togli": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_obiettivo_nuovo": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_obiettivo": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_obiettivo_togli": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_proponi": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_riporta_in_bozza": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_carica_firmata": PERM_RIESAME_EDIT,
+    "sistema_gestione:riesame_approva": PERM_RIESAME_APPROVA,
     "sistema_gestione:procedura_preparazione": PERM_AUDIT_VIEW,
     "sistema_gestione:procedura_preparazione_ai": PERM_AUDIT_VIEW,
     # La CAR la apre anche il suo responsabile senza consultazione degli audit: il controllo
@@ -137,6 +171,9 @@ _ROUTE_BINDINGS = {
     "sistema_gestione:esterni_rapporto": PERM_AUDIT_VIEW,
     "sistema_gestione:esterni_certificazione_nuova": PERM_AUDIT_EDIT,
     "sistema_gestione:esterni_certificazione": PERM_AUDIT_EDIT,
+    "sistema_gestione:esterni_certificazione_scheda": PERM_AUDIT_VIEW,
+    "sistema_gestione:esterni_certificazione_documento": PERM_AUDIT_VIEW,
+    "sistema_gestione:esterni_certificazione_documento_carica": PERM_AUDIT_EDIT,
     "sistema_gestione:esterni_audit_nuovo": PERM_AUDIT_EDIT,
     "sistema_gestione:esterni_audit_modifica": PERM_AUDIT_EDIT,
     "sistema_gestione:esterni_rilievo": PERM_AUDIT_EDIT,
@@ -199,7 +236,7 @@ _ROUTE_BINDINGS = {
 # si assegnano per utente o gruppo in Admin › ACL.
 _ROLE_GRANTS = {
     "admin": set(_CANONICAL),
-    "qualita": {PERM_VIEW, PERM_SOA_VIEW, PERM_AUDIT_VIEW, PERM_AUDIT_MIEI},
+    "qualita": {PERM_VIEW, PERM_SOA_VIEW, PERM_AUDIT_VIEW, PERM_AUDIT_MIEI, PERM_RIESAME_VIEW},
     # «I miei rilievi» filtra per utente: concederlo a tutti non espone i rilievi altrui.
     "amministrazione": {PERM_AUDIT_MIEI},
     "caporeparto": {PERM_AUDIT_MIEI},

@@ -767,7 +767,10 @@ def _visite_scad_queryset(filtro: str):
             data_scadenza__isnull=False,
             data_scadenza__lte=oggi + _timedelta(days=60),
         )
-    return oggi, qs.select_related("tipo").order_by("data_scadenza")
+    # Solo le visite correnti, come la dashboard: un rinnovo non lascia la vecchia «scaduta».
+    from anagrafica.services.visite import ultime_visite_correnti_ids
+
+    return oggi, qs.filter(id__in=ultime_visite_correnti_ids()).select_related("tipo").order_by("data_scadenza")
 
 
 def _visite_mediche_rows(request: HttpRequest, scope: str) -> list[dict]:
@@ -839,13 +842,15 @@ def _visite_copertura_rows(request: HttpRequest, scope: str) -> list[dict]:
     from django.db.models import Count
     from django.utils import timezone
 
-    from anagrafica.models import DipendenteRuoloOperativo, TipoVisitaMedica, VisitaMedica
+    from anagrafica.models import TipoVisitaMedica, VisitaMedica
+    from anagrafica.services.visite import ultime_visite_correnti_ids
+    from anagrafica.views.visite import _richiesti_per_ruoli
 
     from anagrafica.services import centro_filtro
 
     oggi = timezone.localdate()
     filtro_centro = centro_filtro.leggi(request) if scope == "filtered" else centro_filtro.Filtro()
-    visite = filtro_centro.applica(VisitaMedica.objects.all())
+    visite = filtro_centro.applica(VisitaMedica.objects.all()).filter(id__in=ultime_visite_correnti_ids())
     valide_per_tipo = {
         row["tipo_id"]: row["n"]
         for row in visite.filter(data_scadenza__gte=oggi)
@@ -861,11 +866,7 @@ def _visite_copertura_rows(request: HttpRequest, scope: str) -> list[dict]:
     for t in TipoVisitaMedica.objects.filter(is_active=True).prefetch_related("ruoli_operativi"):
         ruoli_ids = [r.id for r in t.ruoli_operativi.all()]
         if ruoli_ids:
-            richiesti = set(
-                DipendenteRuoloOperativo.objects
-                .filter(ruolo_id__in=ruoli_ids)
-                .values_list("legacy_anagrafica_id", flat=True)
-            )
+            richiesti = _richiesti_per_ruoli(ruoli_ids, oggi)
             if filtro_centro.attivo:
                 richiesti &= filtro_centro.ids
         else:

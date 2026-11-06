@@ -1,0 +1,8 @@
+{% comment %}Menu unico del modulo. Le voci arrivano già filtrate per permesso dal tag sg_menu; decide comunque il server su ogni pagina.{% endcomment %}
+<nav class="sg-menu" aria-label="Sistema di gestione">
+  <div class="sg-menu-riga">
+    {% for v in sezioni %}<a href="{{ v.url }}"{% if v.attiva %} class="is-attiva" aria-current="true"{% endif %}>{{ v.etichetta }}</a>{% endfor %}
+    {% if collegati %}<span class="sg-menu-collegati">{% for v in collegati %}<a href="{{ v.url }}">{{ v.etichetta }}</a>{% endfor %}</span>{% endif %}
+  </div>
+  {% if sotto %}<div class="sg-menu-sotto">{% for v in sotto %}<a href="{{ v.url }}"{% if v.attiva %} class="is-attiva" aria-current="page"{% endif %}>{{ v.etichetta }}</a>{% endfor %}</div>{% endif %}
+</nav>

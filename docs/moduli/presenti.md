@@ -77,6 +77,8 @@ Dopo il deploy: `migrate`, `setup_q_schedules`, riavvio qcluster; import una tan
 (crea «Addetto Primo Soccorso» e «RLS» nell'ambito ISO 45001). Per dismettere lo script: attivare la
 pubblicazione in Impostazioni, verificare «Ultima pubblicazione», poi disattivare l'attività pianificata dell'exe.
 
+Numeri di badge da Solari: `manage.py importa_badge_solari` (anteprima), `--apply` per i mancanti, `--sovrascrivi` anche per i diversi. Prende l'ultimo `TIMBRATURE.BADGE` di ogni persona, aggancio per codice fiscale; lo stesso numero su due persone non si importa; nell'output mai i numeri.
+
 ## Limiti noti
 
 - Un turno a cavallo della mezzanotte: chi entra la sera e timbra l'uscita il giorno dopo compare fra i presenti

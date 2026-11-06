@@ -117,9 +117,8 @@ _PAGINE_AUDIT = [
         "id": "pagina-indice",
         "titolo": "Pagina «Audit interni»",
         "blocchi": [
-            ("p", "È il punto di partenza. In alto i pulsanti verso le altre pagine: Priorita e proposte, Catalogo processi, "
-                  "Checklist per norma, Auditor, Cicli triennali, Calendario, Cruscotto, I miei rilievi, Registro OFI (filtrato sui rilievi "
-                  "degli audit), Guida e, secondo i permessi, Impostazioni, Nuovo programma e Nuovo audit. In cima c'è anche «Indicatori di processo - MT CN 13»."),
+            ("p", "Elenco di programmi e audit dell'anno. Le altre pagine degli audit (Priorità e proposte, Calendario, Cicli "
+                  "triennali, Cruscotto, I miei rilievi, Indicatori, Impostazioni) sono nella seconda riga del menu."),
             ("ul", [
                 "«Anno di riferimento» con «Mostra» cambia l'anno di tessere e tabelle.",
                 "Le tessere riportano Audit programmati, Audit chiusi e Auditor attivi dell'anno.",
@@ -573,7 +572,48 @@ _PAGINE_AUDIT = [
                  "la deroga va approvata dall'RDD."),
                 ("Giorni di ritardo di una CAR prima dell'escalation a RSGI", "predefinito 15."),
                 ("Email RSGI per escalation", "indirizzi separati da virgola."),
+                ("Qualifica «auditor» in Formazione", "il tipo di qualifica che vale come auditor: nell'elenco Auditor "
+                 "compare il suo stato; se è scaduta l'auditor non risulta qualificato. «Non registrata» è solo un avviso."),
                 ("Allegati del MOD.035B", "«Rilievi e azioni», preparazione MT CN 12 e indice delle evidenze con impronta SHA-256."),
+            ]),
+        ],
+    },
+    {
+        "id": "pagina-panoramica",
+        "titolo": "Pagina iniziale e menu del modulo",
+        "blocchi": [
+            ("p", "Il menu in alto, uguale su tutte le pagine, porta a Panoramica, Audit interni, Certificazioni e audit "
+                  "esterni, Auditor, Processi, Checklist e SoA. A destra i moduli collegati: Registro OFI, Qualifiche, "
+                  "Scadenzario. Si vedono solo le voci che il proprio profilo può aprire."),
+            ("p", "«Da fare adesso» mette in un solo elenco, dal più urgente:"),
+            ("ul", [
+                "in rosso: certificati scaduti, audit interni in ritardo, piani azioni oltre la data, CAR oltre la scadenza;",
+                "in giallo: certificati in scadenza entro 90 giorni, sorveglianze con la data superata, piani azioni da "
+                "inviare entro 7 giorni, programma dell'anno non approvato, processi mai verificati o oltre la frequenza, "
+                "qualifiche scadute collegate a un certificato, auditor con la qualifica scaduta;",
+                "senza colore: audit e sorveglianze entro 30 giorni, qualifiche degli auditor in scadenza entro 60 giorni, "
+                "certificati senza la copia in PDF.",
+            ]),
+        ],
+    },
+    {
+        "id": "pagina-riesame",
+        "titolo": "Pagina «Riesame» e verbale MOD.062",
+        "blocchi": [
+            ("p", "Il riesame si fa almeno una volta all'anno (MT CN 19). «Nuovo verbale» prepara gli argomenti, riprende i "
+                  "partecipanti dell'ultimo verbale e riporta gli indicatori del periodo scelto da Report conformità."),
+            ("ul", [
+                "«Salva il verbale» salva insieme le analisi degli argomenti e il livello di raggiungimento degli obiettivi "
+                "precedenti. Se un argomento non si applica, scrivilo.",
+                "Gli obiettivi dei verbali approvati tornano qui con In corso, Raggiunto, Raggiunto in parte, Non raggiunto o "
+                "Ripianificato; «Ripianificato» crea il nuovo obiettivo da completare con responsabile e scadenza.",
+                "«Aggiorna gli indicatori» li ricalcola finché il verbale è in bozza. Entrano solo le aree di Report conformità "
+                "che chi prepara può vedere.",
+                "«Proponi alla Direzione» richiede documenti esaminati, partecipanti, tutte le analisi e, per i nuovi obiettivi, "
+                "responsabile e scadenza; l'avviso in alto elenca cosa manca.",
+                "«Approva» spetta al DIG: dopo il verbale non cambia più. Si scarica il PDF, si fa firmare ai partecipanti e si "
+                "carica la copia firmata. Sugli obiettivi resta aggiornabile solo l'andamento.",
+                "Scadenze: il riesame annuale e gli obiettivi in corso compaiono nello Scadenzario e in «Da fare adesso».",
             ]),
         ],
     },
@@ -581,7 +621,7 @@ _PAGINE_AUDIT = [
         "id": "pagina-esterni",
         "titolo": "Pagina «Certificazioni e audit esterni»",
         "blocchi": [
-            ("p", "Dalla pagina degli audit, pulsante «Audit esterni e certificazioni». Raccoglie i certificati del sistema di "
+            ("p", "Dal menu del modulo, voce «Certificazioni e audit esterni». Raccoglie i certificati del sistema di "
                   "gestione e gli audit di enti di certificazione, clienti e autorità."),
             ("ul", [
                 "Tessere: certificati in vigore, scaduti o in scadenza entro 90 giorni, sorveglianze entro 30 giorni, piani "
@@ -590,6 +630,11 @@ _PAGINE_AUDIT = [
                 "descrizione), ente, numero, emissione, scadenza, prossimo audit di sorveglianza, campo di applicazione. "
                 "Togli «Certificato in vigore» quando non vale più.",
                 "Nella tabella «Registra audit» apre un nuovo audit di sorveglianza già legato al certificato.",
+                "Il nome del certificato apre la sua scheda: date, copia in PDF con lo storico dei rinnovi (cifrata, con "
+                "impronta SHA-256), qualifiche del personale collegate, audit del certificato e scadenze dello Scadenzario.",
+                "«Qualifiche del personale collegate», nella modifica del certificato: si scelgono i tipi di qualifica di "
+                "Formazione. La scheda conta le valide, quelle in scadenza entro 60 giorni e le scadute fra il personale in "
+                "forza; le scadute compaiono anche in «Da fare adesso».",
                 "«Nuovo audit esterno»: tipo (certificazione iniziale, sorveglianza, rinnovo, cliente, autorità, speciale), "
                 "ente, date, norme verificate (almeno una), auditor dell'ente, ambito, stato, esito e data entro cui inviare "
                 "il piano azioni all'ente.",
@@ -859,6 +904,9 @@ GUIDA_OFI = {
 # Rotta -> (guida, capitolo). Le pagine del registro puntano alla guida del registro,
 # così chi ha solo quel permesso non incontra un 403.
 PAGE_HELP = {
+    "sistema_gestione:index": ("audit", "pagina-panoramica"),
+    "sistema_gestione:riesame_elenco": ("audit", "pagina-riesame"),
+    "sistema_gestione:riesame_dettaglio": ("audit", "pagina-riesame"),
     "sistema_gestione:audit_index": ("audit", "pagina-indice"),
     "sistema_gestione:processi_catalogo": ("audit", "pagina-catalogo"),
     "sistema_gestione:processo_dettaglio": ("audit", "pagina-catalogo"),
@@ -900,6 +948,7 @@ PAGE_HELP = {
     "sistema_gestione:esterni_elenco": ("audit", "pagina-esterni"),
     "sistema_gestione:esterni_certificazione_nuova": ("audit", "pagina-esterni"),
     "sistema_gestione:esterni_certificazione": ("audit", "pagina-esterni"),
+    "sistema_gestione:esterni_certificazione_scheda": ("audit", "pagina-esterni"),
     "sistema_gestione:esterni_audit_nuovo": ("audit", "pagina-esterni"),
     "sistema_gestione:esterni_audit": ("audit", "pagina-esterni"),
     "sistema_gestione:esterni_audit_modifica": ("audit", "pagina-esterni"),

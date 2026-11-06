@@ -41,6 +41,13 @@ class ImpostazioniForm(forms.Form):
                 self.fields[nome] = forms.BooleanField(label=label, required=False, initial=programma_service.impostazione_attiva(chiave))
             elif tipo == "int":
                 self.fields[nome] = forms.IntegerField(label=label, min_value=1, max_value=365, initial=int(valore or 0) or None)
+            elif tipo == "qualifica":
+                from anagrafica.models import TipoQualifica
+
+                scelte = [("", "— Nessun collegamento —")]
+                scelte += [(str(pk), n) for pk, n in TipoQualifica.objects.filter(is_active=True)
+                           .order_by("nome").values_list("pk", "nome")]
+                self.fields[nome] = forms.ChoiceField(label=label, required=False, choices=scelte, initial=valore)
             else:
                 self.fields[nome] = forms.CharField(label=label, required=False, max_length=500, initial=valore)
 

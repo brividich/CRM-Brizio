@@ -1,4 +1,5 @@
 """Area HR delle assenze: calendario aziendale, saldi, contatori, copertura, storico, solleciti."""
+import re
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -394,8 +395,10 @@ class SollecitaRichiestaTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         msg = mail.outbox[0]
         self.assertEqual(msg.to, ["capo@example.com"])
-        self.assertEqual(msg.subject, "Sollecito: richiesta di assenza di ROSSI MARIO in attesa")
-        self.assertIn("ROSSI MARIO sollecita una decisione", msg.alternatives[0][0])
+        self.assertEqual(msg.subject, "Richiesta di assenza da approvare: ROSSI MARIO")
+        for testo in (msg.subject, msg.body, msg.alternatives[0][0]):
+            self.assertNotIn("sollecit", testo.lower())
+            self.assertNotIn("promemoria", testo.lower())
         self.assertEqual(AssenzaSollecito.objects.get(assenza_id=77).invii, 1)
 
     def test_richiesta_altrui_rifiutata(self):
@@ -453,6 +456,63 @@ class SollecitaRichiestaTests(TestCase):
 
 
 class SollecitiTests(TestCase):
+    def _approval(self, record_id, approvatori=("capo@example.com",), **extra):
+        from automazioni.models import AutomationApproval, AutomationRunLog
+
+        run_log = AutomationRunLog.objects.create(
+            source_code="assenze", operation_type="INSERT", status="waiting_approval", payload_json={"id": record_id},
+        )
+        return AutomationApproval.objects.create(
+            run_log=run_log, approver_emails=list(approvatori), subject="Approva",
+            resume_payload={"id": record_id}, approved_actions=[], **extra,
+        )
+
+    def _righe(self, *ids):
+        return [
+            {"id": i, "copia_nome": f"PROVA {i}", "tipo_assenza": "Ferie", "data_inizio": datetime(2026, 6, 8),
+             "data_fine": datetime(2026, 6, 9), "created_datetime": datetime(2026, 6, 1)}
+            for i in ids
+        ]
+
+    @override_settings(SITE_URL="https://hub.example.com")
+    def test_pulsanti_solo_se_il_capo_e_approvatore_di_una_richiesta_aperta(self):
+        from automazioni.approval_links import decide_with_link
+        from automazioni.models import AutomationApprovalLink
+
+        from . import solleciti
+
+        valida = self._approval(1, approvatori=("Capo@Example.com",))
+        self._approval(2, approvatori=("altro@example.com",))
+        self._approval(3, expires_at=timezone.now() - timedelta(days=1))
+        self._approval(4, status="approved")
+        _, html, testo = solleciti._contenuto_mail(self._righe(1, 2, 3, 4, 5), "capo@example.com")
+
+        self.assertEqual(html.count(">Approva</a>"), 1)
+        self.assertEqual(html.count(">Rifiuta</a>"), 1)
+        link = AutomationApprovalLink.objects.get()
+        self.assertEqual(link.approval_id, valida.pk)
+        self.assertEqual(link.recipient_email, "capo@example.com")
+        self.assertNotIn(link.token_hash, html)
+
+        raw = re.search(r"/approval-actions/r/([^/]+)/approva/", html).group(1)
+        self.assertIn(f"Rifiuta: https://hub.example.com/approval-actions/r/{raw}/rifiuta/", testo)
+        self.assertTrue(decide_with_link(raw, "approved")["ok"])
+        valida.refresh_from_db()
+        self.assertEqual(valida.status, "approved")
+        self.assertEqual(valida.decided_by_email, "capo@example.com")
+
+    def test_senza_approvazione_resta_il_link_al_portale(self):
+        from automazioni.models import AutomationApprovalLink
+
+        from . import solleciti
+
+        oggetto, html, _ = solleciti._contenuto_mail(self._righe(9), "capo@example.com")
+        self.assertEqual(oggetto, "Richiesta di assenza da approvare: PROVA 9")
+        self.assertNotIn(">Approva</a>", html)
+        self.assertNotIn("Non inoltrare", html)
+        self.assertIn("per approvare o rifiutare", html)
+        self.assertFalse(AutomationApprovalLink.objects.exists())
+
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
                        DEFAULT_FROM_EMAIL="noreply@example.com")
     def test_una_mail_per_capo_e_niente_ripetizioni_ravvicinate(self):
@@ -468,7 +528,7 @@ class SollecitiTests(TestCase):
             esito = solleciti.invia_solleciti()
         self.assertEqual(esito["email_sent"], 1)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("2 richieste", mail.outbox[0].subject)
+        self.assertEqual(mail.outbox[0].subject, "2 richieste di assenza da approvare")
         self.assertIn("Aggiungi a Outlook", mail.outbox[0].alternatives[0][0])
         self.assertEqual(AssenzaSollecito.objects.get(assenza_id=1).invii, 1)
 

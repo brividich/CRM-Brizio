@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
 from django.db import IntegrityError, transaction
@@ -35,10 +35,22 @@ logger = logging.getLogger(__name__)
 TIPO_TICKET = "ticket"
 TIPO_ODL = "odl"
 TIPO_FORMAZIONE = "formazione"
-TIPI = (TIPO_TICKET, TIPO_ODL)  # interventi con una ditta (fornitore)
+TIPO_ORDINARIA = "ordinaria"
+TIPO_AMMINISTRATIVA = "amministrativa"
+TIPO_SCADENZA = "scadenza"
+TIPI = (TIPO_TICKET, TIPO_ODL, TIPO_ORDINARIA, TIPO_AMMINISTRATIVA, TIPO_SCADENZA)  # interventi con una ditta
 TIPI_TUTTI = (*TIPI, TIPO_FORMAZIONE)
 FINESTRA_MAX_GIORNI = 90
 TOLLERANZA_MINUTI = 15
+GIORNI_PROPOSTE_SCADENZE = 30
+ELENCO_MAX_SCADENZE = 200
+GIORNI_PRIMA_ELENCO = 60
+GIORNI_DOPO_ELENCO = 60
+_CAMPI_DESTINAZIONE = {
+    TIPO_TICKET: "ticket", TIPO_ODL: "work_order", TIPO_FORMAZIONE: "sessione_formazione",
+    TIPO_ORDINARIA: "occorrenza", TIPO_AMMINISTRATIVA: "scadenza_asset", TIPO_SCADENZA: "scadenza",
+}
+_NON_LETTA = object()
 
 
 @dataclass
@@ -47,6 +59,7 @@ class Intervento:
 
     tipo: str
     oggetto: object
+    ditta_letta: object = field(default=_NON_LETTA, repr=False)
 
     @property
     def pk(self) -> int:
@@ -60,9 +73,29 @@ class Intervento:
     def fornitore(self):
         if self.tipo == TIPO_TICKET:
             return self.oggetto.delegato_fornitore
-        if self.tipo == TIPO_ODL:
+        if self.tipo in (TIPO_ODL, TIPO_ORDINARIA):
             return self.oggetto.supplier
+        if self.tipo == TIPO_SCADENZA:
+            return self.oggetto.fornitore
+        if self.tipo == TIPO_AMMINISTRATIVA:
+            # L'ente è un testo: vale la stessa ragione sociale, se è di un solo fornitore.
+            if self.ditta_letta is _NON_LETTA:
+                self.ditta_letta = _fornitore_con_nome(self.oggetto.issuer)
+            return self.ditta_letta
         return None
+
+    @property
+    def puo_prendere_ditta(self) -> bool:
+        """Senza ditta e con un posto libero: un ente già scritto a mano non si sovrascrive."""
+        if self.tipo not in TIPI or self.fornitore is not None:
+            return False
+        return not (self.tipo == TIPO_AMMINISTRATIVA and self.oggetto.issuer.strip())
+
+    @property
+    def dove_la_ditta(self) -> str:
+        return {TIPO_TICKET: "delegata", TIPO_ODL: "dell'OdL", TIPO_ORDINARIA: "della manutenzione"}.get(
+            self.tipo, "della scadenza",
+        )
 
     @property
     def etichetta(self) -> str:
@@ -70,11 +103,20 @@ class Intervento:
             return self.oggetto.numero_ticket or f"Ticket #{self.oggetto.pk}"
         if self.tipo == TIPO_ODL:
             return f"OdL #{self.oggetto.display_number}"
+        if self.tipo == TIPO_ORDINARIA:
+            return self.oggetto.plan.label
+        if self.tipo == TIPO_AMMINISTRATIVA:
+            return self.oggetto.title
+        if self.tipo == TIPO_SCADENZA:
+            return self.oggetto.titolo
         return f"Sessione {self.oggetto.codice_sessione}"
 
     @property
     def tipo_label(self) -> str:
-        return {TIPO_TICKET: "Ticket", TIPO_ODL: "OdL", TIPO_FORMAZIONE: "Formazione"}[self.tipo]
+        return {
+            TIPO_TICKET: "Ticket", TIPO_ODL: "OdL", TIPO_FORMAZIONE: "Formazione", TIPO_ORDINARIA: "Manutenzione",
+            TIPO_AMMINISTRATIVA: "Scadenza asset", TIPO_SCADENZA: "Scadenzario",
+        }[self.tipo]
 
     @property
     def titolo(self) -> str:
@@ -83,6 +125,10 @@ class Intervento:
             return o.titolo
         if self.tipo == TIPO_ODL:
             return f"{o.title} · {o.asset.name}" if o.asset_id else o.title
+        if self.tipo in (TIPO_ORDINARIA, TIPO_AMMINISTRATIVA):
+            return o.asset.name
+        if self.tipo == TIPO_SCADENZA:
+            return o.categoria.nome
         return o.corso.titolo
 
     @property
@@ -92,6 +138,10 @@ class Intervento:
             return o.created_at
         if self.tipo == TIPO_ODL:
             return o.opened_at
+        if self.tipo in (TIPO_ORDINARIA, TIPO_AMMINISTRATIVA):
+            return o.due_date
+        if self.tipo == TIPO_SCADENZA:
+            return o.data_scadenza
         return o.data_inizio
 
     @property
@@ -102,6 +152,15 @@ class Intervento:
             return reverse("tickets:gestione_detail", args=[self.pk])
         if self.tipo == TIPO_ODL:
             return reverse("assets:wo_view", args=[self.pk])
+        if self.tipo == TIPO_ORDINARIA:
+            # Da eseguita la pagina di registrazione non si apre più: resta la scheda dell'asset.
+            if self.oggetto.status == self.oggetto.STATUS_OPEN:
+                return reverse("assets:occurrence_complete", args=[self.pk])
+            return reverse("assets:asset_view", args=[self.oggetto.asset_id])
+        if self.tipo == TIPO_AMMINISTRATIVA:
+            return reverse("assets:asset_administrative_deadline_edit", args=[self.pk])
+        if self.tipo == TIPO_SCADENZA:
+            return reverse("scadenzario:scadenza_dettaglio", args=[self.pk])
         return reverse("anagrafica:formazione_sessione_detail", args=[self.pk])
 
     @property
@@ -109,7 +168,9 @@ class Intervento:
         """Ditta (ticket/OdL) o docente/ente (sessione) per gli elenchi."""
         if self.formazione:
             return self.oggetto.erogatore_display or ""
-        return self.fornitore.ragione_sociale if self.fornitore else ""
+        if self.fornitore:
+            return self.fornitore.ragione_sociale
+        return self.oggetto.issuer if self.tipo == TIPO_AMMINISTRATIVA else ""
 
     @property
     def chiuso(self) -> bool:
@@ -117,6 +178,11 @@ class Intervento:
             return bool(self.oggetto.is_chiuso)
         if self.tipo == TIPO_ODL:
             return self.oggetto.status != self.oggetto.STATUS_OPEN
+        if self.tipo == TIPO_ORDINARIA:
+            # Eseguita resta collegabile: spesso l'ingresso si collega dopo aver registrato il lavoro.
+            return self.oggetto.status == self.oggetto.STATUS_CANCELED
+        if self.tipo in (TIPO_AMMINISTRATIVA, TIPO_SCADENZA):
+            return not self.oggetto.is_active
         # Sessione: l'ingresso del docente si collega anche a edizione chiusa o
         # approvata (è una prova di presenza, non tocca il registro); non se annullata.
         return self.oggetto.stato == "ANNULLATA"
@@ -133,6 +199,10 @@ class Intervento:
             if (al - dal).days > FINESTRA_MAX_GIORNI:
                 dal = al - timedelta(days=FINESTRA_MAX_GIORNI)
             return dal, al
+        if self.tipo in (TIPO_ORDINARIA, TIPO_AMMINISTRATIVA, TIPO_SCADENZA):
+            # Queste non hanno una data di apertura: gli ultimi giorni, fino all'esecuzione se c'è.
+            al = min(getattr(o, "completed_on", None) or oggi, oggi)
+            return al - timedelta(days=GIORNI_PROPOSTE_SCADENZE), al
         inizio = o.created_at if self.tipo == TIPO_TICKET else o.opened_at
         fine = o.closed_at
         al = timezone.localtime(fine).date() if fine else oggi
@@ -143,8 +213,7 @@ class Intervento:
         return dal, al
 
     def collegamenti(self):
-        campo = {TIPO_TICKET: "ticket", TIPO_ODL: "work_order", TIPO_FORMAZIONE: "sessione_formazione"}[self.tipo]
-        filtro = {campo: self.oggetto}
+        filtro = {_CAMPI_DESTINAZIONE[self.tipo]: self.oggetto}
         return IngressoIntervento.objects.filter(**filtro).select_related("collegato_da")
 
 
@@ -163,6 +232,18 @@ def intervento(tipo: str, pk: int) -> Intervento | None:
         oggetto = TrainingSession.objects.select_related(
             "corso", "corso__ente_formativo", "docente", "docente__azienda", "docente_ente",
         ).filter(pk=pk).first()
+    elif tipo == TIPO_ORDINARIA:
+        from assets.models import MaintenanceOccurrence
+
+        oggetto = MaintenanceOccurrence.objects.select_related("plan", "asset", "supplier").filter(pk=pk).first()
+    elif tipo == TIPO_AMMINISTRATIVA:
+        from assets.models import AssetAdministrativeDeadline
+
+        oggetto = AssetAdministrativeDeadline.objects.select_related("asset").filter(pk=pk).first()
+    elif tipo == TIPO_SCADENZA:
+        from scadenzario.models import ScadenzaGenerica
+
+        oggetto = ScadenzaGenerica.objects.select_related("categoria", "fornitore").filter(pk=pk).first()
     else:
         return None
     return Intervento(tipo, oggetto) if oggetto else None
@@ -173,6 +254,12 @@ def intervento_del_link(link: IngressoIntervento) -> Intervento:
         return Intervento(TIPO_TICKET, link.ticket)
     if link.work_order_id:
         return Intervento(TIPO_ODL, link.work_order)
+    if link.occorrenza_id:
+        return Intervento(TIPO_ORDINARIA, link.occorrenza)
+    if link.scadenza_asset_id:
+        return Intervento(TIPO_AMMINISTRATIVA, link.scadenza_asset)
+    if link.scadenza_id:
+        return Intervento(TIPO_SCADENZA, link.scadenza)
     return Intervento(TIPO_FORMAZIONE, link.sessione_formazione)
 
 
@@ -275,6 +362,14 @@ class CollegamentoNonValido(Exception):
     pass
 
 
+def _fornitore_con_nome(nome: str):
+    """L'unico fornitore attivo con quel nome, a meno di forma giuridica e punteggiatura."""
+    from anagrafica.models import Fornitore
+
+    pk = unico(chiave_ditta(nome), Fornitore.objects.filter(is_active=True).values_list("pk", "ragione_sociale"))
+    return Fornitore.objects.filter(pk=pk).first() if pk else None
+
+
 def fornitore_da_accesso(accesso: gp.Accesso, preferito=None):
     """Fornitore HUB di un ingresso: abbinamento della ditta GuestPortal, altrimenti
     azienda dell'ingresso con lo stesso nome della ragione sociale a meno di
@@ -295,12 +390,60 @@ def fornitore_da_accesso(accesso: gp.Accesso, preferito=None):
     return Fornitore.objects.filter(pk=pk).first() if pk else None
 
 
+def crea_fornitore_da_accesso(accesso: gp.Accesso, *, utente) -> tuple[object | None, bool, bool]:
+    """Fornitore e tecnico dall'ingresso di una ditta nuova: nome dell'azienda e nominativo del
+    GuestPortal. Una ditta già presente, anche non attiva, non si duplica: il tecnico va su quella.
+
+    Ritorna ``(fornitore, fornitore_creato, tecnico_registrato)``; fornitore None se il nome è
+    vuoto o corrisponde a più fornitori.
+    """
+    from anagrafica.models import Fornitore
+
+    from . import tecnici
+
+    chiave = chiave_ditta(accesso.azienda)
+    if not chiave:
+        return None, False, False
+    fornitore = fornitore_da_accesso(accesso)
+    if fornitore is None:
+        pk = {p for p, nome in Fornitore.objects.values_list("pk", "ragione_sociale") if chiave_ditta(nome) == chiave}
+        if len(pk) > 1:
+            return None, False, False
+        fornitore = Fornitore.objects.filter(pk__in=pk).first()
+    with transaction.atomic():
+        creato = fornitore is None
+        if creato:
+            fornitore = Fornitore.objects.create(ragione_sociale=accesso.azienda.strip()[:200])
+        if accesso.ditta_gp_id:
+            DittaGuestPortal.objects.get_or_create(
+                ditta_gp_id=accesso.ditta_gp_id,
+                defaults={"fornitore": fornitore, "ditta_gp_nome": accesso.azienda.strip()[:200], "creato_da": utente},
+            )
+        _tecnico, registrato = tecnici.registra(
+            fornitore.pk, accesso.nome, origine=TecnicoFornitore.ORIGINE_GUESTPORTAL, utente=utente,
+        )
+    return fornitore, creato, registrato
+
+
 def _imposta_ditta(iv: Intervento, fornitore, *, utente, autore: tuple[str, str] | None) -> str:
     """Se l'intervento non ha ancora una ditta, imposta quella dell'ingresso e lo
     scrive nello storico del ticket/OdL. Ritorna una frase per l'utente ("" se niente)."""
-    if fornitore is None or iv.fornitore is not None:
+    if fornitore is None or not iv.puo_prendere_ditta:
         return ""
     o = iv.oggetto
+    if iv.tipo == TIPO_ORDINARIA:
+        o.supplier = fornitore
+        o.save(update_fields=["supplier", "updated_at"])
+        return f"La manutenzione ora è affidata a «{fornitore.ragione_sociale}»."
+    if iv.tipo == TIPO_AMMINISTRATIVA:
+        o.issuer = fornitore.ragione_sociale[:200]
+        o.save(update_fields=["issuer", "updated_at"])
+        iv.ditta_letta = fornitore
+        return f"La scadenza ora riporta come ente «{fornitore.ragione_sociale}»."
+    if iv.tipo == TIPO_SCADENZA:
+        o.fornitore = fornitore
+        o.save(update_fields=["fornitore", "aggiornato_il"])
+        return f"L'attività ora è collegata a «{fornitore.ragione_sociale}»."
     nota = (f"Ditta impostata a «{fornitore.ragione_sociale}» collegando l'ingresso "
             "dal GuestPortal (Presenze in azienda).")
     if iv.tipo == TIPO_TICKET:
@@ -363,12 +506,8 @@ def collega(
         "modo": modo if modo in dict(IngressoIntervento.MODO_CHOICES) else IngressoIntervento.MODO_MANUALE,
         "collegato_da": utente if getattr(utente, "is_authenticated", False) else None,
     }
-    if iv.tipo == TIPO_TICKET:
-        dati["ticket"] = iv.oggetto
-    elif iv.tipo == TIPO_ODL:
-        dati["work_order"] = iv.oggetto
-    else:
-        dati["sessione_formazione"] = iv.oggetto
+    dati[_CAMPI_DESTINAZIONE[iv.tipo]] = iv.oggetto
+    if iv.formazione:
         imposta_ditta = False
     try:
         with transaction.atomic():
@@ -408,7 +547,7 @@ def fornitore_del_collegamento(link: IngressoIntervento, preferito=None):
 def ditta_dai_collegamenti(iv: Intervento, collegamenti: list[IngressoIntervento]):
     """Per un intervento senza ditta: ``(fornitore, link)`` del primo ingresso
     collegato la cui ditta oggi si riconosce, altrimenti None."""
-    if iv.fornitore is not None:
+    if not iv.puo_prendere_ditta:
         return None
     for link in collegamenti:
         fornitore = fornitore_del_collegamento(link)
@@ -422,7 +561,7 @@ def imposta_ditta_da_collegamento(iv: Intervento, link: IngressoIntervento, *, u
     fornitore creati dopo il collegamento). Ritorna la frase per l'utente."""
     if iv.chiuso:
         raise CollegamentoNonValido("L'intervento è chiuso.")
-    if iv.fornitore is not None:
+    if not iv.puo_prendere_ditta:
         raise CollegamentoNonValido("L'intervento ha già una ditta.")
     fornitore = fornitore_del_collegamento(link)
     if fornitore is None:
@@ -488,6 +627,119 @@ def interventi_aperti(
 
     esito.sort(key=_ordine)
     return esito
+
+
+def _apre_percorso(request, nome: str) -> bool:
+    from django.urls import NoReverseMatch, reverse
+
+    from core.middleware import acl_allows_path
+
+    try:
+        percorso = reverse(nome, args=[0])
+    except NoReverseMatch:
+        return False
+    return bool(acl_allows_path(percorso, django_user=request.user,
+                                legacy_user=getattr(request, "legacy_user", None), request=request))
+
+
+def puo_collegare_ordinaria(request) -> bool:
+    from assets.views_maintenance import can_execute_maintenance
+
+    return _apre_percorso(request, "assets:occurrence_complete") and bool(can_execute_maintenance(request))
+
+
+def puo_collegare_scadenza_asset(request) -> bool:
+    return _apre_percorso(request, "assets:asset_administrative_deadline_edit")
+
+
+def scadenze_da_collegare(request, *, testo: str = "", fornitore=None, accesso: gp.Accesso | None = None,
+                          ) -> tuple[list[Intervento], bool]:
+    """Manutenzioni aperte, scadenze degli asset e attività dello Scadenzario a cui l'utente può
+    collegare un ingresso: quelle della ditta e quelle intorno al giorno dell'ingresso; con una
+    ricerca, tutte quelle che corrispondono. Ritorna anche se l'elenco è stato tagliato."""
+    from django.db.models import Q
+
+    from assets.models import AssetAdministrativeDeadline, MaintenanceOccurrence
+    from assets.registro_permessi import MODULO_MANUTENZIONE, MODULO_VERIFICHE
+    from assets.services.visibilita import filtra_per_asset
+    from scadenzario.models import ScadenzaGenerica
+    from scadenzario.permessi import categorie_gestibili
+
+    testo = (testo or "").strip()
+    ingresso = _aware(accesso.ingresso) if accesso is not None else None
+    giorno = timezone.localtime(ingresso).date() if ingresso else timezone.localdate()
+    vicino = (giorno - timedelta(days=GIORNI_PRIMA_ELENCO), giorno + timedelta(days=GIORNI_DOPO_ELENCO))
+    esito: list[Intervento] = []
+    tagliato = False
+
+    def aggiungi(tipo, qs):
+        nonlocal tagliato
+        righe = list(qs[:ELENCO_MAX_SCADENZE + 1])
+        tagliato = tagliato or len(righe) > ELENCO_MAX_SCADENZE
+        esito.extend(Intervento(tipo, o) for o in righe[:ELENCO_MAX_SCADENZE])
+
+    if puo_collegare_ordinaria(request):
+        qs = filtra_per_asset(request, MaintenanceOccurrence.objects.all(), MODULO_MANUTENZIONE).select_related(
+            "plan", "asset", "supplier",
+        ).filter(Q(status=MaintenanceOccurrence.STATUS_OPEN) | Q(status=MaintenanceOccurrence.STATUS_DONE, completed_on=giorno))
+        if testo:
+            qs = qs.filter(Q(plan__label__icontains=testo) | Q(asset__name__icontains=testo) | Q(asset__asset_tag__icontains=testo))
+        else:
+            filtro = Q(due_date__range=vicino) | Q(completed_on=giorno)
+            if fornitore is not None:
+                filtro |= Q(supplier=fornitore)
+            qs = qs.filter(filtro)
+        aggiungi(TIPO_ORDINARIA, qs.order_by("due_date", "pk"))
+
+    if puo_collegare_scadenza_asset(request):
+        qs = filtra_per_asset(request, AssetAdministrativeDeadline.objects.filter(is_active=True), MODULO_VERIFICHE).select_related("asset")
+        if testo:
+            qs = qs.filter(Q(title__icontains=testo) | Q(issuer__icontains=testo) | Q(asset__name__icontains=testo)
+                           | Q(asset__asset_tag__icontains=testo))
+        else:
+            filtro = Q(due_date__range=vicino)
+            if fornitore is not None:
+                # Solo per restringere la lettura: il confronto vero è sulla chiave del nome.
+                chiavi = chiave_ditta(fornitore.ragione_sociale).split()
+                if chiavi:
+                    filtro |= Q(issuer__icontains=chiavi[0])
+            qs = qs.filter(filtro)
+        aggiungi(TIPO_AMMINISTRATIVA, qs.order_by("due_date", "pk"))
+
+    gestibili = categorie_gestibili(request)
+    if gestibili is None or gestibili:
+        qs = ScadenzaGenerica.objects.filter(is_active=True).select_related("categoria", "fornitore")
+        if gestibili is not None:
+            qs = qs.filter(categoria_id__in=gestibili)
+        if testo:
+            qs = qs.filter(Q(titolo__icontains=testo) | Q(categoria__nome__icontains=testo))
+        else:
+            filtro = Q(data_scadenza__range=vicino)
+            if fornitore is not None:
+                filtro |= Q(fornitore=fornitore)
+            qs = qs.filter(filtro)
+        aggiungi(TIPO_SCADENZA, qs.order_by("data_scadenza", "pk"))
+
+    # L'ente è un testo: si risolve una volta sola per tutto l'elenco.
+    from anagrafica.models import Fornitore
+
+    enti = [iv for iv in esito if iv.tipo == TIPO_AMMINISTRATIVA]
+    if enti:
+        attivi = list(Fornitore.objects.filter(is_active=True))
+        per_chiave: dict[str, list] = {}
+        for f in attivi:
+            per_chiave.setdefault(chiave_ditta(f.ragione_sociale), []).append(f)
+        for iv in enti:
+            trovati = per_chiave.get(chiave_ditta(iv.oggetto.issuer), [])
+            iv.ditta_letta = trovati[0] if len(trovati) == 1 else None
+    return esito, tagliato
+
+
+def stessa_ditta_prima(fornitore):
+    """Chiave di ordinamento: prima gli interventi della ditta dell'ingresso."""
+    def chiave(iv: Intervento) -> int:
+        return 0 if fornitore is not None and iv.fornitore and iv.fornitore.pk == fornitore.pk else 1
+    return chiave
 
 
 def sessioni_del_giorno(giorno: date, *, testo: str = "") -> list[Intervento]:
@@ -594,7 +846,8 @@ def interventi_per_visite(visita_ids: list[int]) -> dict[int, list[tuple[str, st
     if not visita_ids:
         return esito
     righe = IngressoIntervento.objects.filter(visita_gp_id__in=visita_ids).select_related(
-        "ticket", "work_order", "sessione_formazione",
+        "ticket", "work_order", "sessione_formazione", "occorrenza", "occorrenza__plan", "occorrenza__asset",
+        "scadenza_asset", "scadenza_asset__asset", "scadenza",
     )
     for link in righe:
         if link.ticket_id:
@@ -602,6 +855,9 @@ def interventi_per_visite(visita_ids: list[int]) -> dict[int, list[tuple[str, st
                     reverse("tickets:gestione_detail", args=[link.ticket_id]))
         elif link.work_order_id:
             voce = (f"OdL #{link.work_order.display_number}", reverse("assets:wo_view", args=[link.work_order_id]))
+        elif link.occorrenza_id or link.scadenza_asset_id or link.scadenza_id:
+            iv = intervento_del_link(link)
+            voce = (f"{iv.tipo_label}: {iv.etichetta}", iv.url)
         else:
             voce = (f"Formazione {link.sessione_formazione.codice_sessione}",
                     reverse("anagrafica:formazione_sessione_detail", args=[link.sessione_formazione_id]))

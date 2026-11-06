@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.urls import reverse
 from django.utils import timezone
 
@@ -37,6 +37,7 @@ CHIUSI_MOSTRATI = 10
 RICAMBI_MOSTRATI = 20
 TICKET_CHIUSI_MOSTRATI = 10
 SESSIONI_MOSTRATE = 10
+ORDINARIE_MOSTRATE = 30
 RINNOVI_MOSTRATI = 10
 TRIMESTRI_CON_ESITO = 8
 GIORNI_INGRESSI = 90
@@ -73,8 +74,10 @@ def sezioni_visibili(request) -> dict[str, bool]:
 # ---------------------------------------------------------------------------
 
 def dati_manutenzione(request, fornitore, oggi=None) -> dict:
-    from assets.models import PeriodicCheckSession, SoftwareLicenseRenewal, SparePart
+    from assets.models import MaintenanceOccurrence, PeriodicCheckSession, SoftwareLicenseRenewal, SparePart
+    from assets.registro_permessi import MODULO_MANUTENZIONE
     from assets.services.fornitore_manutenzione import rapporto_ditta
+    from assets.services.visibilita import filtra_per_asset
     from tickets.models import StatoTicket
     from tickets.services.accesso import utente_puo_gestire_ticket
 
@@ -99,9 +102,21 @@ def dati_manutenzione(request, fornitore, oggi=None) -> dict:
         n_rinnovi = qs.count()
         rinnovi = list(qs.order_by("-renewed_on", "-pk")[:RINNOVI_MOSTRATI])
 
+    # Manutenzioni ordinarie affidate alla ditta: la scadenza vive qui, non sull'OdL.
+    ordinarie, n_ordinarie, n_ordinarie_ritardo = [], 0, 0
+    if ing.puo_collegare_ordinaria(request):
+        qs = filtra_per_asset(
+            request, MaintenanceOccurrence.objects.filter(supplier=fornitore, status=MaintenanceOccurrence.STATUS_OPEN),
+            MODULO_MANUTENZIONE,
+        )
+        n_ordinarie = qs.count()
+        n_ordinarie_ritardo = qs.filter(due_date__lt=oggi).count()
+        ordinarie = list(qs.select_related("plan", "asset", "work_order").annotate(n_ingressi=Count("ingressi_esterni"))
+                         .order_by("due_date", "pk")[:ORDINARIE_MOSTRATE])
+
     vuota = not any((
         r.contracts, r.rules, r.verifications, r.workorders, ticket_aperti, ticket_chiusi,
-        ricambi.exists(), sessioni, rinnovi,
+        ricambi.exists(), sessioni, rinnovi, ordinarie,
     ))
     return {
         "r": r,
@@ -109,6 +124,9 @@ def dati_manutenzione(request, fornitore, oggi=None) -> dict:
         "piani_attivi": sum(1 for x in r.rules if x.is_active),
         "verifiche_attive": sum(1 for v in r.verifications if v.is_active),
         "chiusi_recenti": r.closed_wos[:CHIUSI_MOSTRATI],
+        "ordinarie": ordinarie,
+        "n_ordinarie": n_ordinarie,
+        "n_ordinarie_ritardo": n_ordinarie_ritardo,
         "ticket_aperti": ticket_aperti,
         "ticket_chiusi": ticket_chiusi[:TICKET_CHIUSI_MOSTRATI],
         "n_ticket_chiusi": len(ticket_chiusi),
@@ -242,9 +260,10 @@ def dati_scadenze(request, fornitore, oggi=None) -> dict:
     dettaglio = reverse("fornitori:fornitore_detail", args=[fornitore.pk])
     voci: list[dict] = []
 
-    def aggiungi(data, tipo, cosa, url):
+    def aggiungi(data, tipo, cosa, url, ingressi=None):
         stato, stato_label = _stato_data(data, oggi)
-        voci.append({"data": data, "tipo": tipo, "cosa": cosa, "url": url, "stato": stato, "stato_label": stato_label})
+        voci.append({"data": data, "tipo": tipo, "cosa": cosa, "url": url, "stato": stato, "stato_label": stato_label,
+                     "ingressi": ingressi})
 
     for d in documenti_con_scadenza(fornitore.documenti.filter(data_scadenza__isnull=False)):
         aggiungi(d.data_scadenza, "Documento", f"{d.get_tipo_display()} — {d.nome}", f"{dettaglio}#tab-docs")
@@ -259,14 +278,42 @@ def dati_scadenze(request, fornitore, oggi=None) -> dict:
                                                      next_verification_date__isnull=False):
             aggiungi(v.next_verification_date, "Verifica periodica", v.name, url)
 
+    if ing.puo_collegare_ordinaria(request):
+        from assets.models import MaintenanceOccurrence
+        from assets.registro_permessi import MODULO_MANUTENZIONE
+        from assets.services.visibilita import filtra_per_asset
+
+        qs = filtra_per_asset(
+            request, MaintenanceOccurrence.objects.filter(supplier=fornitore, status=MaintenanceOccurrence.STATUS_OPEN),
+            MODULO_MANUTENZIONE,
+        )
+        for o in qs.select_related("plan", "asset").annotate(n_ingressi=Count("ingressi_esterni")):
+            aggiungi(o.due_date, "Manutenzione", f"{o.plan.label} — {o.asset.name}",
+                     reverse("assets:occurrence_complete", args=[o.pk]), o.n_ingressi)
+
+    if ing.puo_collegare_scadenza_asset(request):
+        from assets.models import AssetAdministrativeDeadline
+        from assets.registro_permessi import MODULO_VERIFICHE
+        from assets.services.visibilita import filtra_per_asset
+
+        chiave = chiave_ditta(fornitore.ragione_sociale)
+        qs = filtra_per_asset(request, AssetAdministrativeDeadline.objects.filter(is_active=True).exclude(issuer=""), MODULO_VERIFICHE)
+        for d in qs.select_related("asset").annotate(n_ingressi=Count("ingressi_esterni")):
+            if chiave and chiave_ditta(d.issuer) == chiave:
+                aggiungi(d.due_date, d.get_deadline_type_display(), f"{d.title} — {d.asset.name}",
+                         reverse("assets:asset_administrative_deadline_edit", args=[d.pk]), d.n_ingressi)
+
     from scadenzario.permessi import puo_vedere_scadenza
 
     for t in fornitore.tecnici.filter(attivo=True, attestati_fino_al__isnull=False):
         aggiungi(t.attestati_fino_al, "Attestati tecnico", t.nome, f"{dettaglio}#tab-tecnici")
 
-    for s in fornitore.scadenze_generiche.filter(is_active=True).select_related("categoria"):
+    # Le attività senza data restano fuori: non hanno una scadenza da mostrare.
+    for s in (fornitore.scadenze_generiche.filter(is_active=True, data_scadenza__isnull=False)
+              .select_related("categoria").annotate(n_ingressi=Count("ingressi_esterni"))):
         if puo_vedere_scadenza(request, s):
-            aggiungi(s.data_scadenza, "Scadenzario", s.titolo, reverse("scadenzario:scadenza_dettaglio", args=[s.pk]))
+            aggiungi(s.data_scadenza, "Scadenzario", s.titolo, reverse("scadenzario:scadenza_dettaglio", args=[s.pk]),
+                     s.n_ingressi)
 
     voci.sort(key=lambda v: v["data"])
     return {
@@ -274,6 +321,7 @@ def dati_scadenze(request, fornitore, oggi=None) -> dict:
         "n_scadute": sum(1 for v in voci if v["stato"] == "scaduta"),
         "n_in_scadenza": sum(1 for v in voci if v["stato"] == "in_scadenza"),
         "giorni_preavviso": GIORNI_PREAVVISO,
+        "vede_ingressi": vede_ingressi(request),
     }
 
 
@@ -306,11 +354,13 @@ def _locale(valore: datetime | None) -> datetime | None:
 
 
 def collegamenti_del_fornitore(fornitore):
-    """Ingressi collegati a ticket e OdL della ditta: restano dopo la pulizia del GuestPortal."""
+    """Ingressi collegati a ticket, OdL, manutenzioni e scadenze della ditta: restano dopo la pulizia del GuestPortal."""
     return (
         IngressoIntervento.objects
-        .filter(Q(fornitore=fornitore) | Q(ticket__delegato_fornitore=fornitore) | Q(work_order__supplier=fornitore))
-        .select_related("ticket", "work_order", "sessione_formazione")
+        .filter(Q(fornitore=fornitore) | Q(ticket__delegato_fornitore=fornitore) | Q(work_order__supplier=fornitore)
+                | Q(occorrenza__supplier=fornitore) | Q(scadenza__fornitore=fornitore))
+        .select_related("ticket", "work_order", "sessione_formazione", "occorrenza", "occorrenza__plan",
+                        "occorrenza__asset", "scadenza_asset", "scadenza_asset__asset", "scadenza", "scadenza__categoria")
         .order_by("-ingresso", "-pk")
     )
 

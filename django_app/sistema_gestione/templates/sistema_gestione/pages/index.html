@@ -4,14 +4,46 @@
 
 {% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
 
-{% block content %}{% load sg_guida %}{% sg_guida_link %}
+{% block content %}{% load sg_guida %}{% sg_menu %}{% sg_guida_link %}
 <div class="rc-wrap">
   <div class="page-header">
     <div class="page-header-main">
       <div class="page-h">Sistema di gestione</div>
-      <div class="page-sub">Documenti di governo del Sistema di Gestione Integrato: SoA ISO/IEC 27001, threat intelligence e audit interni EN 9100.</div>
+      <div class="page-sub">Audit, certificazioni e riesame del Sistema di Gestione Integrato, collegati a Formazione e Scadenzario.</div>
     </div>
   </div>
+
+  {% if puo_audit or puo_riesame %}
+  <div class="sg-kpis">
+    <div class="sg-kpi"><span>Da gestire subito</span><strong>{{ n_urgenti }}</strong></div>
+    {% if puo_audit %}<div class="sg-kpi"><span>Audit {{ anno }}: chiusi su programmati</span><strong>{{ audit_chiusi }} / {{ audit_anno }}</strong></div>
+    <div class="sg-kpi"><span>Certificati in vigore</span><strong>{{ certificazioni|length }}</strong></div>{% endif %}
+  </div>
+
+  <section class="rc-card sg-section">
+    <h2>Da fare adesso</h2>
+    {% if da_fare %}<ul class="sg-todo">
+      {% for v in da_fare %}<li class="{% if v.tono %}is-{{ v.tono }}{% endif %}">
+        <a href="{{ v.url }}">{{ v.testo }}</a>
+        {% if v.dettaglio %}<span class="sg-muted">{{ v.dettaglio }}</span>{% endif %}
+        {% if v.data %}<time datetime="{{ v.data|date:'Y-m-d' }}">{{ v.data|date:"d/m/Y" }}</time>{% endif %}
+      </li>{% endfor %}
+    </ul>{% else %}<p class="sg-muted">Niente da gestire.</p>{% endif %}
+  </section>
+  {% endif %}
+
+  {% if puo_audit %}
+  <section class="rc-card sg-section">
+    <h2>Certificazioni</h2>
+    {% if certificazioni %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Norma</th><th>Ente</th><th>Prossima sorveglianza</th><th>Scadenza</th><th>Stato</th></tr></thead><tbody>
+      {% for c in certificazioni %}<tr>
+        <td><a href="{% url 'sistema_gestione:esterni_certificazione_scheda' c.pk %}">{{ c.nome_breve }}</a></td><td>{{ c.ente }}</td>
+        <td>{{ c.prossima_sorveglianza|date:"d/m/Y"|default:"—" }}</td><td>{{ c.scade_il|date:"d/m/Y" }}</td>
+        <td>{% if c.stato == "scaduta" %}<span class="sg-badge danger">Scaduto</span>{% elif c.stato == "in_scadenza" %}<span class="sg-badge warn">Scade tra {{ c.giorni_alla_scadenza }} giorni</span>{% else %}<span class="sg-badge ok">Valido</span>{% endif %}</td>
+      </tr>{% endfor %}
+    </tbody></table></div>{% else %}<p class="sg-muted">Nessun certificato registrato.{% if puo_modificare %} <a href="{% url 'sistema_gestione:esterni_certificazione_nuova' %}">Registra il primo</a>.{% endif %}</p>{% endif %}
+  </section>
+  {% endif %}
 
   {% if puo_soa %}
   <div class="sg-hero-grid">
@@ -33,18 +65,8 @@
       <div class="sg-actions"><a class="btn btn-secondary" href="{% url 'sistema_gestione:threat_intelligence' %}">Apri il registro</a></div>
     </section>
   </div>
-  {% else %}
-    <div class="rc-card rc-empty">Il tuo profilo non include la consultazione della SoA. L'accesso si assegna in Admin › ACL.</div>
   {% endif %}
 
-  {% if puo_audit %}
-  <div class="sg-hero-grid" style="margin-top:12px">
-    <section class="rc-card sg-card">
-      <h2>Audit interni EN 9100</h2>
-      <p>Programma MOD.034, piani MOD.035A, checklist e rapporti MOD.035B. Audit pianificati nell'anno: <strong>{{ audit_anno }}</strong>.</p>
-      <div class="sg-actions"><a class="btn" href="{% url 'sistema_gestione:audit_index' %}">Apri gli audit</a></div>
-    </section>
-  </div>
-  {% endif %}
+  {% if not puo_audit and not puo_soa and not puo_riesame %}<div class="rc-card rc-empty">Il tuo profilo non include audit, certificazioni o SoA. L'accesso si assegna in Admin › ACL.</div>{% endif %}
 </div>
 {% endblock %}

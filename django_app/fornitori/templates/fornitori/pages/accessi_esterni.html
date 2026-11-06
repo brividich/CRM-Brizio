@@ -30,6 +30,10 @@
 .ae-pill-pre { background:#dbeafe; color:#1e40af; }
 .ae-pill-sup { background:#ffedd5; color:#9a3412; }
 .ae-collega { font-size:12px; font-weight:600; white-space:nowrap; }
+.ae-crea { display:inline; margin-left:6px; }
+.ae-crea button { background:none; border:0; padding:0; font:inherit; font-size:12px; font-weight:600; color:var(--accent,#1d4ed8); cursor:pointer; white-space:nowrap; }
+.ae-crea button:hover { text-decoration:underline; }
+body.theme-dark .ae-crea button { color:#93c5fd; }
 .ae-empty { text-align:center; padding:32px; color:var(--text-light,#94a3b8); font-size:14px; }
 .ae-filtri { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; padding:16px 20px; }
 .ae-field { display:flex; flex-direction:column; gap:4px; min-width:140px; flex:1; }
@@ -96,7 +100,7 @@ body.theme-dark .ae-req-non_in_regola{background:rgba(229,62,62,.16);color:#fca5
         {% for a in presenti %}
           <tr>
             <td class="ae-nome">{{ a.nome }}</td>
-            <td>{% if a.fornitore_id %}<a href="{% url 'fornitori:fornitore_detail' a.fornitore_id %}">{{ a.azienda }}</a>{% else %}{{ a.azienda|default:"—" }}{% endif %}{% if a.requisiti and a.requisiti.esito != "non_richiesto" %}<span class="ae-req ae-req-{{ a.requisiti.esito }}" title="{{ a.requisiti.riassunto }}">{{ a.requisiti.etichetta }}</span>{% if a.requisiti.esito != "ok" %}<span class="ae-req-det">{{ a.requisiti.riassunto }}</span>{% endif %}{% endif %}</td>
+            <td>{% if a.fornitore_id %}<a href="{% url 'fornitori:fornitore_detail' a.fornitore_id %}">{{ a.azienda }}</a>{% else %}{{ a.azienda|default:"—" }}{% include "fornitori/components/crea_fornitore_btn.html" %}{% endif %}{% if a.requisiti and a.requisiti.esito != "non_richiesto" %}<span class="ae-req ae-req-{{ a.requisiti.esito }}" title="{{ a.requisiti.riassunto }}">{{ a.requisiti.etichetta }}</span>{% if a.requisiti.esito != "ok" %}<span class="ae-req-det">{{ a.requisiti.riassunto }}</span>{% endif %}{% endif %}</td>
             <td><span class="ae-pill {% if a.tipo == 'SUPPLIER' %}ae-pill-sup{% elif a.tipo == 'PREREG' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.tipo_label }}</span></td>
             <td>{{ a.referente|default:"—" }}</td>
             <td>{{ a.motivo|default:"—" }}</td>
@@ -156,7 +160,7 @@ body.theme-dark .ae-req-non_in_regola{background:rgba(229,62,62,.16);color:#fca5
         {% for a in storico %}
           <tr>
             <td class="ae-nome">{{ a.nome }}</td>
-            <td>{% if a.fornitore_id %}<a href="{% url 'fornitori:fornitore_detail' a.fornitore_id %}">{{ a.azienda }}</a>{% else %}{{ a.azienda|default:"—" }}{% endif %}</td>
+            <td>{% if a.fornitore_id %}<a href="{% url 'fornitori:fornitore_detail' a.fornitore_id %}">{{ a.azienda }}</a>{% else %}{{ a.azienda|default:"—" }}{% include "fornitori/components/crea_fornitore_btn.html" %}{% endif %}</td>
             <td><span class="ae-pill {% if a.tipo == 'SUPPLIER' %}ae-pill-sup{% elif a.tipo == 'PREREG' %}ae-pill-pre{% else %}ae-pill-out{% endif %}">{{ a.tipo_label }}</span></td>
             <td>{{ a.referente|default:"—" }}</td>
             <td>{{ a.motivo|default:"—" }}</td>

@@ -486,3 +486,55 @@ register(ReportDef(
     builder=_audit_interni,
     fonte="Sistema di gestione › Audit interni",
 ))
+
+
+# ---------------------------------------------------------------------------
+# Certificazioni e audit esterni (MT CN 19 §6.4 f: risultati dell'ente di certificazione)
+# ---------------------------------------------------------------------------
+
+def _certificazioni_audit_esterni(params: ReportParams) -> ReportResult:
+    from sistema_gestione.models import AuditEsterno, Certificazione
+    from sistema_gestione.services.audit_esterni import nc_aperte, rilievi
+
+    result = ReportResult()
+    in_vigore = list(Certificazione.objects.filter(attiva=True))
+    critici = [c for c in in_vigore if c.stato in ("scaduta", "in_scadenza")]
+    audit_periodo = list(AuditEsterno.objects.filter(data_inizio__range=(params.date_from, params.date_to))
+                         .order_by("data_inizio", "pk"))
+    righe = []
+    n_nc = n_aperte = 0
+    for audit in audit_periodo:
+        voci = list(rilievi(audit))
+        nc = sum(1 for v in voci if v.tipo == "NC")
+        aperte = nc_aperte(audit)
+        n_nc += nc
+        n_aperte += aperte
+        righe.append((audit, len(voci), nc, aperte))
+
+    result.kpis = [
+        Kpi("Certificati in vigore", len(in_vigore)),
+        Kpi("Scaduti o in scadenza (90 giorni)", len(critici), TONE_WARN if critici else TONE_OK),
+        Kpi("Audit esterni nel periodo", len(audit_periodo)),
+        Kpi("NC degli enti", n_nc, TONE_WARN if n_nc else TONE_OK),
+        Kpi("NC degli enti ancora aperte", n_aperte, TONE_DANGER if n_aperte else TONE_OK),
+    ]
+    result.columns = ["Data", "Tipo", "Ente / cliente", "Norme", "Stato", "Esito", "Rilievi", "NC", "NC aperte"]
+    for audit, n_rilievi, nc, aperte in righe:
+        tone = TONE_DANGER if aperte else TONE_OK if audit.stato == AuditEsterno.STATO_CHIUSO else TONE_WARN
+        result.add_row([d(audit.data_inizio), audit.get_tipo_display(), audit.ente, ", ".join(audit.norme_sigle),
+                        audit.get_stato_display(), audit.get_esito_display() or "n/d", n_rilievi, nc, aperte],
+                       tone, source=audit)
+    result.notes = ["Rilievi e NC sono le voci del Registro OFI MOD.174 originate dall'audit esterno."]
+    result.links = links(("Certificazioni e audit esterni", "sistema_gestione:esterni_elenco"))
+    return result
+
+
+register(ReportDef(
+    slug="certificazioni-audit-esterni",
+    title="Certificazioni e audit esterni",
+    area=AREA_QUALITA,
+    description="Stato dei certificati e risultati degli audit di enti, clienti e autorità.",
+    clausole=(c(ISO_9001, "9.3.2"), c(EN_9100, "9.3.2"), c(ISO_45001, "9.3"), c(ISO_27001, "9.3")),
+    builder=_certificazioni_audit_esterni,
+    fonte="Sistema di gestione › Certificazioni e audit esterni",
+))

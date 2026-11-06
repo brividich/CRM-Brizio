@@ -72,6 +72,8 @@ TIPI = {
         "efficacia": "Verifica di efficacia",
         "auditor": "Qualifica auditor",
         "soa": "Azione SoA",
+        "riesame": "Riesame della direzione",
+        "obiettivo_riesame": "Obiettivo del riesame",
         "rischio_ot": "Scenario di rischio OT",
     },
     SOURCE_QUALIFICHE: {
@@ -193,7 +195,7 @@ def _sgi_certificazioni(ctx) -> list:
         Q(prossima_sorveglianza__lte=ctx.orizzonte) | Q(scade_il__lte=ctx.orizzonte)
     ):
         norma = c.get_norma_display()
-        url = _url("sistema_gestione:esterni_certificazione", c.pk)
+        url = _url("sistema_gestione:esterni_certificazione_scheda", c.pk)
         for kind, data in (("sorveglianza", c.prossima_sorveglianza), ("certificato", c.scade_il)):
             if data and data <= ctx.orizzonte:
                 items.append(_item(ctx, SOURCE_SGI, kind, f"{norma} {c.descrizione}".strip(), c.ente, data, url,
@@ -274,8 +276,26 @@ def _sgi_soa(ctx) -> list:
     return items
 
 
+def _sgi_riesame(ctx) -> list:
+    if not _apre(ctx, "sistema_gestione:riesame_elenco"):
+        return []
+    from sistema_gestione.services.riesame import obiettivi_aperti, prossimo_riesame
+
+    items = []
+    prossimo = prossimo_riesame()
+    if prossimo and prossimo <= ctx.orizzonte:
+        items.append(_item(ctx, SOURCE_SGI, "riesame", "Riesame annuale della direzione", "", prossimo,
+                           _url("sistema_gestione:riesame_elenco")))
+    for o in obiettivi_aperti():
+        if o.scadenza and o.scadenza <= ctx.orizzonte:
+            items.append(_item(ctx, SOURCE_SGI, "obiettivo_riesame", o.descrizione[:90], _nome_utente(o.responsabile),
+                               o.scadenza, _url("sistema_gestione:riesame_dettaglio", o.riesame_id)))
+    return items
+
+
 def collect_sgi(ctx) -> list:
-    return _sicuro(ctx, _sgi_certificazioni) + _sicuro(ctx, _sgi_audit) + _sicuro(ctx, _sgi_soa)
+    return (_sicuro(ctx, _sgi_certificazioni) + _sicuro(ctx, _sgi_audit) + _sicuro(ctx, _sgi_soa)
+            + _sicuro(ctx, _sgi_riesame))
 
 
 # ---------------------------------------------------------------------------

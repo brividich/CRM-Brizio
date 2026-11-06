@@ -585,6 +585,7 @@ def scadenzario(request):
         cal_next = _helpers._add_months(primo, 1)
 
     return render(request, "anagrafica/pages/scadenzario.html", {
+        "filtro_centro": filtro_centro,
         "page_obj":      page_obj,
         "n_scadute":     n_scadute,
         "n_30gg":        n_30gg,

@@ -1,0 +1,1 @@
+{% if puo_creare_fornitore and a.azienda and a.nome != "Ospite anonimizzato" %}<form class="ae-crea" method="post" action="{% url 'fornitori:ingresso_crea_fornitore' a.visita_id %}">{% csrf_token %}<button type="submit" title="Crea il fornitore con questo nome e registra {{ a.nome }} tra i suoi tecnici">+ Crea fornitore</button></form>{% endif %}

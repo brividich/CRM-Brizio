@@ -27,6 +27,15 @@ GUIDA = {
                     ("Registro OFI / NC", "modulo a sé («Registro OFI» nel menu Qualità, con la sua guida): i rilievi "
                      "degli audit diventano voci del registro, che si legano ai processi del catalogo. Nella scheda del "
                      "processo la scheda «OFI / NC» mostra le voci del processo."),
+                    ("Panoramica", "la pagina iniziale del modulo: «Da fare adesso» mette in un solo elenco, dal più urgente, "
+                     "certificati, sorveglianze, piani azioni, audit in ritardo o in arrivo, CAR scadute e qualifiche. "
+                     "Il menu in alto porta a tutte le pagine del modulo e a Registro OFI, Qualifiche e Scadenzario."),
+                    ("Riesame", "verbale MOD.062: argomenti con gli indicatori del periodo, obiettivi precedenti da valutare, "
+                     "nuovi obiettivi con responsabile e scadenza; il DIG approva e il verbale non cambia più. Riesame "
+                     "annuale e obiettivi compaiono nello Scadenzario. Permessi separati: consulta, prepara, approva."),
+                    ("Scheda del certificato", "dal nome del certificato: date, copia in PDF con storico dei rinnovi, "
+                     "qualifiche del personale collegate con il conteggio di valide, in scadenza e scadute, audit del "
+                     "certificato e scadenze dello Scadenzario."),
                     ("Certificazioni e audit esterni", "certificati con scadenze e sorveglianze, audit di enti, clienti e "
                      "autorità con rapporto e rilievi che entrano nel Registro OFI; riepilogo settimanale a RSGI. Prima "
                      "dell'audit, «Preparazione all'audit» controlla copertura delle clausole, programma interno, NC e "

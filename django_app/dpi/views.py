@@ -28,6 +28,7 @@ from core.permessi.identita import anagrafiche_di_utenti, utente_da_anagrafica
 from core.permessi.negato import risposta_negata
 from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
 
+from . import badge as badge_dpi
 from . import dotazione as dotazione_dpi
 from . import flusso, magazzino
 from . import report as report_dpi
@@ -1259,7 +1260,7 @@ def _avviso_giacenza(request, richiesta: RichiestaDPI, residuo: int | None) -> N
 
 def _registra_consegna(request, richiesta: RichiestaDPI, *, data_consegna, note: str = "", firmato: bool = False,
                        firma_immagine: str = "", scadenza_override=None, motivo_giacenza: str = "",
-                       in_sospeso_dal=None) -> int | None:
+                       in_sospeso_dal=None, confermata_badge_il=None) -> int | None:
     """Registra la consegna di una richiesta approvata: consegna + stato + scarico di magazzino,
     poi sostituzione delle precedenti, PDF nei documenti del dipendente e notifiche.
     Con ``in_sospeso_dal`` la seconda parte aspetta ``_completa_in_sospeso``: la consegna e' gia'
@@ -1289,6 +1290,7 @@ def _registra_consegna(request, richiesta: RichiestaDPI, *, data_consegna, note:
                 "firmato_ricevuta": firmato,
                 "data_scadenza_stimata": scadenza,
                 "firma_immagine": firma_immagine,
+                "confermata_badge_il": confermata_badge_il,
                 "avvisi_in_sospeso_dal": in_sospeso_dal,
             },
         )
@@ -2248,6 +2250,34 @@ def _banco_annulla_consegne(request, tutte: bool):
     return _banco_redirect(tutte=tutte)
 
 
+def _banco_verifica_badge(request) -> JsonResponse:
+    """Verifica al momento della lettura: di chi e' il badge, nel perimetro di chi gestisce."""
+    from anagrafica.models import DipendenteAnagraficaAziendale
+
+    if badge_dpi.troppi_errori(request.user.pk):
+        return JsonResponse({"esito": "bloccato"}, status=429)
+    codice = badge_dpi.codice_da_messaggio(request.POST.get("messaggio", ""))
+    persone = DipendenteAnagraficaAziendale.objects.exclude(badge="")
+    if sistema_ruoli_attivo():
+        ids = _anagrafiche_visibili(request, "gestire")
+        if ids is not None:
+            persone = persone.filter(legacy_anagrafica_id__in=list(ids))
+    trovati = [
+        legacy for legacy, salvato in persone.values_list("legacy_anagrafica_id", "badge")
+        if legacy and codice and badge_dpi.codice_badge(salvato) == codice
+    ]
+    if len(trovati) != 1:
+        badge_dpi.conta_errore(request.user.pk)
+        log_action(request, "DPI_BADGE_NON_RICONOSCIUTO", "dpi", "Lettura di un badge non riconosciuto al banco")
+        return JsonResponse({"esito": "sconosciuto"})
+    legacy = trovati[0]
+    nome = next((d["nome"] for d in _dipendenti_selezionabili(request) if d["id"] == legacy), "")
+    return JsonResponse({
+        "esito": "ok", "chiave": f"p{legacy}", "id": legacy, "nome": nome,
+        "prova": badge_dpi.crea_prova(request.user.pk, legacy),
+    })
+
+
 def _banco_azione(request):
     azione = request.POST.get("azione", "")
     tutte = request.POST.get("tutte") == "1"
@@ -2290,6 +2320,7 @@ def _banco_azione(request):
             messages.error(request, firma_error)
             return _banco_redirect(chiave, tutte)
         firmato = bool(firma_immagine) or bool(request.POST.get("firmato_ricevuta"))
+        prova_badge = request.POST.get("prova_badge", "")
         note = request.POST.get("note_consegna", "").strip()
         motivo = request.POST.get("motivo_giacenza", "").strip()[:200]
         mancanze = magazzino.mancanze(richieste)
@@ -2298,6 +2329,14 @@ def _banco_azione(request):
             messages.error(request, _testo_manca_motivo(mancanze))
             return _banco_redirect(chiave, tutte)
         senza_giacenza = {m["modello_id"] for m in mancanze}
+        confermata_badge_il = None
+        if prova_badge:
+            persone = {r.richiedente_legacy_id for r in richieste}
+            if len(persone) != 1 or not badge_dpi.usa_prova(prova_badge, request.user.pk, persone.pop()):
+                messages.error(request, "Verifica del badge non valida o scaduta: consegna non registrata. Ripassa il badge.")
+                return _banco_redirect(chiave, tutte)
+            confermata_badge_il = timezone.now()
+            firmato = True
         # Dalla pagina aperta: mail e PDF aspettano qualche secondo, per poter annullare.
         differita = request.POST.get("differisci") == "1" and request.headers.get("X-Requested-With") == "XMLHttpRequest"
         adesso = timezone.now() if differita else None
@@ -2306,7 +2345,10 @@ def _banco_azione(request):
             residuo = _registra_consegna(
                 request, r, data_consegna=data_consegna, note=note, firmato=firmato, firma_immagine=firma_immagine,
                 motivo_giacenza=motivo if r.modello_dpi_id in senza_giacenza else "", in_sospeso_dal=adesso,
+                confermata_badge_il=confermata_badge_il,
             )
+            if confermata_badge_il:
+                log_action(request, "DPI_RICEVUTA_BADGE", "dpi", f"Ricevuta di {r.numero} confermata col badge di {r.richiedente_nome}")
             _avviso_giacenza(request, r, residuo)
             per_persona.setdefault(_chiave_persona(r), []).append(r.consegna)
         if differita:
@@ -2331,6 +2373,8 @@ def banco(request):
     # Dalla pagina aperta (fetch) torna solo la parte di lavoro: niente ricarica. Il toast
     # dei messaggi lo consegna FlashMessagesDeliveryMiddleware.
     parziale = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    if request.method == "POST" and request.POST.get("azione") == "verifica_badge":
+        return _banco_verifica_badge(request)
     if request.method == "POST":
         risposta = _banco_azione(request)
         if not parziale:
@@ -2362,7 +2406,6 @@ def banco(request):
         contesto["dipendenti"] = _dipendenti_selezionabili(request)
     contesto["cerca"] = request.GET.get("cerca", "").strip()[:80]
     contesto["catalogo_modelli"] = _banco_catalogo()
-    contesto["badge_persone"] = _banco_badge_persone(request)
     return render(request, "dpi/pages/banco.html", contesto)
 
 
@@ -2381,17 +2424,6 @@ def _banco_catalogo() -> dict[str, list[dict]]:
             "taglie": [{"id": t.pk, "valore": t.valore} for t in m.taglie.all() if t.is_active],
         })
     return catalogo
-
-
-def _banco_badge_persone(request) -> list[dict]:
-    """Badge delle persone selezionabili: una lettura riconosce anche chi non ha richieste aperte."""
-    from anagrafica.models import DipendenteAnagraficaAziendale
-
-    nomi = {d["id"]: d["nome"] for d in _dipendenti_selezionabili(request)}
-    righe = DipendenteAnagraficaAziendale.objects.exclude(badge="").filter(
-        legacy_anagrafica_id__in=list(nomi)
-    ).values_list("legacy_anagrafica_id", "badge")
-    return [{"id": legacy, "nome": nomi[legacy], "badge": badge} for legacy, badge in righe]
 
 
 def _prelievo_gruppi(qs, giac: dict) -> list[dict]:
@@ -2468,11 +2500,11 @@ def _banco_contesto(request, tutte: bool) -> dict:
     persone = _banco_persone(qs, giac)
     from anagrafica.models import DipendenteAnagraficaAziendale
 
-    badge = dict(DipendenteAnagraficaAziendale.objects.exclude(badge="").filter(
+    con_badge = set(DipendenteAnagraficaAziendale.objects.exclude(badge="").filter(
         legacy_anagrafica_id__in=[p["legacy_id"] for p in persone if p["legacy_id"]]
-    ).values_list("legacy_anagrafica_id", "badge"))
+    ).values_list("legacy_anagrafica_id", flat=True))
     for p in persone:
-        p["badge"] = badge.get(p["legacy_id"], "")
+        p["ha_badge"] = p["legacy_id"] in con_badge
 
     from .models import ConfermaConsegnaDPI
 
