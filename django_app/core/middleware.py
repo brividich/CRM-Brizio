@@ -47,6 +47,9 @@ API_ACL_GATE_PATHS = {
     # Storico di una richiesta: gate come «Le mie richieste» (tutti gli utenti del
     # modulo); la view lo mostra solo a chi gestisce la richiesta o la possiede.
     "/assenze/api/storico/": "/assenze/le-mie-richieste/",
+    # «Sollecita» di una propria richiesta: gate come «Le mie richieste»; la view
+    # accetta solo le richieste intestate a chi chiama.
+    "/assenze/api/sollecita/": "/assenze/le-mie-richieste/",
     # Controllo live della richiesta (saldo, contatori, chiusure): gate come il form.
     "/assenze/api/verifica-richiesta": "/assenze/richiesta_assenze",
     # API glossario tecnico: gate di consultazione come la lista. La gestione
