@@ -24,7 +24,7 @@ GUIDA = {
                     "Guarda «Da guardare adesso»: le cose più gravi sono in cima.",
                     "Apri un allarme: «Spiega con l'AI» lo spiega in parole semplici, «Cosa sappiamo» mostra lo storico.",
                     "«Proponi la soluzione» dà causa probabile, passi e verifica, e prepara il modulo di chiusura con esito e motivo: chiudi tu, dopo aver controllato.",
-                    "Apri Segnalazioni › «Proposte AI»: ogni 15 minuti l'AI confronta gli alert aperti con i report arrivati dopo e con le vostre decisioni, "
+                    "Apri Segnalazioni › «Proposte AI»: gli alert aperti sono raggruppati per tipo e per PC, job o utente, e con «Chiudi i N alert» decidi una volta per tutto il gruppo, con il motivo. Ogni 15 minuti l'AI confronta gli alert aperti con i report arrivati dopo e con le vostre decisioni, "
                     "e propone come chiuderli. «Conferma e chiudi» o «Scarta» (scrivendo perché): ogni decisione le insegna, e i tipi di alert "
                     "con 5 conferme di fila li chiude da sola (mai critici, minacce o CVE sfruttate). Se ne chiude uno per sbaglio, «Riapri».",
                     "Decidi: prendi in carico, chiudi come risolto o scarta come falso allarme (scrivendo il perché).",

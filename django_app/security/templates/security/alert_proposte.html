@@ -3,12 +3,26 @@
 {% block title %}Proposte AI | Security Center AI{% endblock %}
 {% block page_icon %}AI{% endblock %}
 {% block page_marker %}Proposte AI{% endblock %}
-{% block page_title %}Proposte di chiusura dell'AI{% endblock %}
+{% block page_title %}Alert da decidere, con l'AI{% endblock %}
 
 {% block soc_content %}
+<style>
+.agr-tipo{border:1px solid var(--border,#dbe3ef);border-radius:12px;background:var(--surface,#fff);padding:10px 14px;margin-bottom:10px}
+.agr-tipo>summary{cursor:pointer;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.agr-lista{display:grid;gap:10px;margin-top:10px}
+.agr-ai{margin:6px 0}
+.agr-esempi{margin:6px 0}
+.agr-esempi ul{margin:6px 0 0;padding-left:18px}
+.agr-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.agr-form input[type=text]{flex:1 1 240px;min-width:0}
+.agr-form-tipo{margin-top:10px}
+.agr-sev{text-transform:capitalize}
+.agr-sev-critical{background:#fee2e2;color:#991b1b}.agr-sev-high{background:#ffedd5;color:#9a3412}.agr-sev-medium,.agr-sev-warning{background:#fef9c3;color:#854d0e}
+body.theme-dark .agr-sev-critical{background:rgba(220,38,38,.2);color:#fca5a5}body.theme-dark .agr-sev-high{background:rgba(234,88,12,.18);color:#fdba74}body.theme-dark .agr-sev-medium,body.theme-dark .agr-sev-warning{background:rgba(202,138,4,.18);color:#fde047}
+</style>
 <section class="sec-panel">
   <p class="sec-muted sec-small">
-    Ogni 15 minuti l'AI locale controlla gli alert aperti contro i report arrivati dopo e contro le tue decisioni su alert dello stesso tipo, e propone come chiuderli.
+    Lo stesso problema sullo stesso PC, job o utente è un gruppo: si decide una volta sola. Ogni 15 minuti l'AI locale esamina i gruppi, dai più grandi, contro i report arrivati dopo e contro le tue decisioni su alert dello stesso tipo, e propone come chiuderli.
     Ogni conferma, correzione o riapertura le insegna: quando per un tipo di alert e un esito le ultime {{ soglia }} proposte sono state tutte confermate,
     {% if chiusura_auto %}le successive chiudono l'alert da sole (con confidenza almeno {{ confidenza_minima }}%, mai alert critici, minacce o CVE sfruttate).{% else %}potrebbero chiudere da sole, ma la chiusura automatica è spenta.{% endif %}
     <a href="{% url 'security:soc_settings' %}#ai_proposte">Impostazioni</a> ·
@@ -17,18 +31,15 @@
   </p>
   {% if not attivo %}<p class="sec-error sec-small">Le proposte automatiche sono spente: si accendono in Impostazioni › Avvisi e automatismi.</p>{% endif %}
   <div class="sec-kpi-strip sec-small">
-    <span><strong>{{ aperte|length }}</strong> da confermare</span> ·
+    <span><strong>{{ n_alert }}</strong> alert aperti in <strong>{{ n_gruppi }}</strong> grupp{{ n_gruppi|pluralize:"o,i" }}</span> ·
     <span><strong>{{ n_auto_7 }}</strong> alert chius{{ n_auto_7|pluralize:"o,i" }} dall'AI negli ultimi 7 giorni</span> ·
     <span><strong>{{ n_affidabili }}</strong> tip{{ n_affidabili|pluralize:"o,i" }} di alert che chiude da sola</span>
   </div>
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">
-  <div class="sec-section-head"><h2>Da confermare</h2></div>
-  <div class="prop-list">
-    {% for p in aperte %}{% include "security/partials/alert_proposta.html" with mostra_alert=True %}
-    {% empty %}<p class="sec-empty">Nessuna proposta da confermare.</p>{% endfor %}
-  </div>
+  <div class="sec-section-head"><h2>Da decidere</h2></div>
+  <div class="prop-list">{% include "security/partials/alert_gruppi.html" %}</div>
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">

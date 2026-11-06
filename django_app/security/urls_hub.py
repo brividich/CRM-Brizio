@@ -45,6 +45,7 @@ urlpatterns = [
     # B2 — Alert / Ticket / KPI
     path("alerts/", _guard(views.alerts_list), name="alerts_list"),
     path("alerts/proposte/", _guard(views.alert_proposte), name="alert_proposte"),
+    path("alerts/proposte/gruppo/chiudi/", _guard(views.alert_gruppo_chiudi), name="alert_gruppo_chiudi"),
     path("alerts/proposte/<int:pk>/<slug:azione>/", _guard(views.alert_proposta_azione), name="alert_proposta_azione"),
     path("alerts/<int:pk>/", _guard(views.alert_detail), name="alert_detail"),
     path("alerts/<int:pk>/actions/<slug:action>/", _guard(views.alert_action), name="alert_action"),
