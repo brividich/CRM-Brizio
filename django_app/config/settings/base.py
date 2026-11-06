@@ -131,6 +131,9 @@ LDAP_GROUP_ALLOWLIST = env_list("LDAP_GROUP_ALLOWLIST", [])
 GUESTPORTAL_ADMIN_URL = env("GUESTPORTAL_ADMIN_URL", "http://10.0.0.8/guestportal/public/admin/index.php")
 GUESTPORTAL_SSO_URL = env("GUESTPORTAL_SSO_URL", "http://10.0.0.8/guestportal/public/admin/sso.php")
 GUESTPORTAL_SSO_SECRET = env("GUESTPORTAL_SSO_SECRET", "")
+# Chiosco nell'HUB (/chiosco/, senza login): API del GuestPortal chiamate lato server e postazioni
+# ammesse (IP o reti CIDR). Elenco vuoto = chiosco chiuso. Vedi fornitori/chiosco.py.
+GUESTPORTAL_CHIOSCO_API_URL = env("GUESTPORTAL_CHIOSCO_API_URL", "http://10.0.0.8/guestportal/public/api/")
 GUESTPORTAL_DB_HOST = env("GUESTPORTAL_DB_HOST", "")
 GUESTPORTAL_DB_PORT = env("GUESTPORTAL_DB_PORT", "3306")
 GUESTPORTAL_DB_NAME = env("GUESTPORTAL_DB_NAME", "GuestManagement")
@@ -987,6 +990,9 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     "/2fa/",                       # 2FA verify/setup — gestiti internamente
     "/gestione-anomalie/mail-action/",  # token-based, no login required
     "/suggestion-corner/nuova/",  # form pubblico anonimo (§5), no login required
+    # Chiosco della reception: il visitatore non ha un utente. Allowlist IP nella view
+    # (CHIOSCO_ALLOWED_IPS, vuota = chiuso). Solo rete interna, MAI su Entra Application Proxy.
+    "/chiosco/",
     # Letture contatori dai collector (es. OPC UA delle CNC): token per collector +
     # allowlist IP nella view (ASSETS_METER_INGEST_ALLOWED_IPS). Solo rete interna,
     # MAI pubblicato su Entra Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md).
@@ -997,6 +1003,8 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     # Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md, dati_bi/api.py).
     "/api/v1/",
 )
+
+CHIOSCO_ALLOWED_IPS = env_list("CHIOSCO_ALLOWED_IPS", [])
 
 # API dati (dati_bi): client IP (o reti CIDR) da cui le applicazioni possono leggere.
 DATI_API_ALLOWED_IPS = env_list("DATI_API_ALLOWED_IPS", ["127.0.0.1", "::1"])

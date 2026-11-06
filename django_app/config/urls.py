@@ -71,6 +71,7 @@ urlpatterns = [
     path("monitoring/", include(("monitoring.urls", "monitoring"), namespace="monitoring")),
     path("anagrafica/", include(("anagrafica.urls", "anagrafica"), namespace="anagrafica")),
     path("fornitori/", include(("fornitori.urls", "fornitori"), namespace="fornitori")),
+    path("chiosco/", include(("fornitori.urls_chiosco", "chiosco"), namespace="chiosco")),
     path("scadenze/", include(("scadenzario.urls", "scadenzario"), namespace="scadenzario")),
     path("", include(("timbri.urls", "timbri"), namespace="timbri")),
     path("tickets/",    include(("tickets.urls",    "tickets"),    namespace="tickets")),
