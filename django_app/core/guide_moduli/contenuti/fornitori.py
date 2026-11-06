@@ -49,8 +49,11 @@ GUIDA = {
         },
         {
             "id": "scheda-collegamenti",
-            "titolo": "Manutenzione, copie, scadenze e tecnici della ditta",
+            "titolo": "Manutenzione, copie, scadenze, tecnici e riepilogo della ditta",
             "blocchi": [
+                ("p", "«Riepilogo annuale» conta un anno con la ditta (scegli tra gli ultimi 5): OdL chiusi e costo, ordinarie "
+                      "eseguite e in ritardo, ticket delegati, verifiche, ingressi e ore in azienda, ordini, fatture copie, medie "
+                      "delle valutazioni. Si guarda solo nel portale, non si esporta, e non dà giudizi. Ogni blocco segue il permesso del suo modulo."),
                 ("p", "Nella scheda del fornitore queste schede mostrano ciò che esiste già negli altri moduli: non c'è niente da compilare e una scheda vuota lo dice senza errori."),
                 ("def", [
                     ("Manutenzione", "ordini di lavoro, ticket delegati, contratti di assistenza, verifiche impianti, ricambi e rinnovi di licenze. «Scheda manutenzione completa →» apre la pagina di Asset, con gli stessi numeri."),
@@ -93,18 +96,36 @@ GUIDA = {
             ],
         },
         {
+            "id": "da-collegare",
+            "titolo": "Ingressi da collegare",
+            "blocchi": [
+                ("p", "In «Accessi esterni» una riga dice quanti ingressi di ditte degli ultimi 30 giorni non hanno un intervento. "
+                      "«Da collegare» mostra solo quelli: da ognuno «Collega…», oppure «Non serve» se la persona è venuta per una riunione o una consegna. "
+                      "«annulla» sulla riga, nell'elenco completo, lo rimette. È un promemoria: non blocca niente e i visitatori non contano."),
+            ],
+        },
+        {
             "id": "presenze-interventi",
             "titolo": "Collegare l'ingresso della ditta a ticket, OdL, manutenzione o scadenza",
             "blocchi": [
                 ("p", "Si può partire da due parti: dall'ingresso (Fornitori → «Accessi esterni» → «Collega…» sulla riga "
-                      "dell'esterno: si sceglie il ticket MAN, l'OdL, la manutenzione ordinaria o la scadenza e si clicca «Collega») oppure dall'intervento, "
-                      "con il riquadro «Presenze in azienda della ditta» nei ticket di manutenzione (scheda «Interventi» "
-                      "della gestione), in ogni ordine di lavoro aperto, in «Registra l'esecuzione» delle manutenzioni affidate a una ditta, "
+                      "dell'esterno: si sceglie il ticket, la manutenzione straordinaria o l'OdL, la manutenzione ordinaria o la scadenza e si clicca «Collega»; "
+                      "i filtri in alto mostrano un tipo solo e valgono anche per ticket e OdL già chiusi) oppure dall'intervento, "
+                      "con il riquadro «Presenze in azienda della ditta» nei ticket di manutenzione o delegati (scheda «Interventi» "
+                      "della gestione), negli ordini di lavoro aperti o chiusi, in «Chiudi intervento», in «Registra l'esecuzione» delle manutenzioni ordinarie, "
                       "nella pagina di modifica delle scadenze degli asset e nella scheda delle attività dello Scadenzario."),
                 ("p", "Il collegamento è una prova di presenza: non registra la manutenzione e non rinnova la scadenza. "
                       "Se la manutenzione, la scadenza o l'attività non ha ancora una ditta, prende quella dell'ingresso; "
                       "un ente già scritto a mano su una scadenza dell'asset non viene cambiato. "
-                      "Una manutenzione già eseguita si può collegare anche dopo."),
+                      "Una manutenzione eseguita, un ticket o un OdL chiusi si possono collegare anche dopo: "
+                      "non si collega solo ciò che è annullato, e un ticket o un OdL chiuso non cambia ditta."),
+                ("p", "Una visita può valere per più voci, per esempio più scadenze amministrative controllate lo stesso giorno: in «Collega…» "
+                      "spuntale, oppure «Spunta tutte», e premi «Collega le selezionate». Dal riquadro ci arrivi con «Anche su altre…» sulla riga dell'ingresso. "
+                      "Le ore in azienda di quella visita valgono per ogni voce; nel «Riepilogo annuale» contano una volta sola."),
+                ("p", "«Usa nel rapportino» compare nel riquadro quando c'è un ingresso collegato con l'uscita: le ore in "
+                      "azienda bastano per chiudere. In «Chiudi intervento» riempie «Tempo impiegato» e la data di chiusura; "
+                      "nel ticket apre «Registra intervento» con tecnico, inizio, fine e ore; in «Registra l'esecuzione» "
+                      "riempie «Eseguita il» e aggiunge tecnici e orari alle note. Non salva niente: controlli e salvi tu."),
                 ("p", "Se il ticket o l'OdL non ha ancora una ditta e quella dell'ingresso si riconosce, collegando la si "
                       "imposta: il ticket diventa «Delegato a fornitore» (con un commento interno), l'OdL passa a esecuzione "
                       "«Esterna» con quella ditta (scritto nel registro dell'OdL). Una ditta già impostata non viene cambiata. "
@@ -114,16 +135,16 @@ GUIDA = {
                     "Imposta la ditta: «Delegato a fornitore» nel ticket, il fornitore nell'OdL.",
                     "Il riquadro propone gli ingressi della ditta dal giorno prima dell'apertura fino alla chiusura (al massimo 90 giorni): sotto «Ingressi della ditta da collegare» clicca «Collega» su quelli giusti.",
                     "Se la ditta non compare (azienda scritta in modo diverso al chiosco), usa «Collega a mano un ingresso del giorno»: scegli il giorno, «Mostra ingressi», poi «Collega».",
-                    "«Togli» annulla un collegamento sbagliato finché l'intervento è aperto.",
+                    "«Togli» annulla un collegamento sbagliato, finché l'intervento non è annullato.",
                 ]),
                 ("def", [
                     ("Totale in azienda", "somma del tempo tra entrata e uscita degli ingressi collegati."),
-                    ("Avviso giallo sulle ore", "nei ticket: le ore registrate negli interventi superano di oltre 15 minuti la presenza in azienda. Controlla il rapportino prima di approvare la fattura."),
+                    ("Avviso giallo sulle ore", "nei ticket e negli OdL: le ore registrate negli interventi superano di oltre 15 minuti la presenza in azienda. Controlla il rapportino prima di approvare la fattura."),
                     ("Ancora dentro", "il tecnico non ha ancora fatto il check-out: l'uscita si completa da sola alla prossima apertura del riquadro."),
                 ]),
                 ("nota", "Al collegamento l'HUB salva giorno, entrata, uscita e nome del tecnico: restano nel ticket/OdL come prova "
                          "dell'intervento anche dopo la pulizia GDPR del GuestPortal. Il riquadro lo usano i gestori del ticket e chi "
-                         "esegue le manutenzioni; un intervento chiuso non si modifica più."),
+                         "esegue le manutenzioni."),
             ],
         },
         {

@@ -32,6 +32,7 @@ SEZIONE_MANUTENZIONE = "manutenzione"
 SEZIONE_COPIE = "copie"
 SEZIONE_SCADENZE = "scadenze"
 SEZIONE_TECNICI = "tecnici"
+SEZIONE_RIEPILOGO = "riepilogo"
 
 CHIUSI_MOSTRATI = 10
 RICAMBI_MOSTRATI = 20
@@ -43,6 +44,8 @@ TRIMESTRI_CON_ESITO = 8
 GIORNI_INGRESSI = 90
 INGRESSI_MOSTRATI = 50
 INTERVENTI_MOSTRATI = 20
+ANNI_RIEPILOGO = 5
+INGRESSI_RIEPILOGO_MAX = 2000
 
 
 def apre(request, route: str, *args) -> bool:
@@ -66,6 +69,7 @@ def sezioni_visibili(request) -> dict[str, bool]:
         SEZIONE_COPIE: apre(request, "contatori:fatture"),
         SEZIONE_SCADENZE: True,  # ogni voce controlla il proprio modulo in dati_scadenze
         SEZIONE_TECNICI: True,  # il registro segue la scheda; gli ingressi vedi vede_ingressi
+        SEZIONE_RIEPILOGO: True,  # ogni blocco controlla il proprio modulo in dati_riepilogo
     }
 
 
@@ -449,6 +453,126 @@ def dati_tecnici(fornitore, oggi=None, *, vede_ingressi: bool = True) -> dict:
 # ---------------------------------------------------------------------------
 # Cruscotto: cosa guardare oggi
 # ---------------------------------------------------------------------------
+
+def ditte_attese(request, oggi=None) -> list:
+    """Ditte attese con i documenti non in regola, per la pagina iniziale: stesso elenco degli avvisi."""
+    if not apre(request, "assets:maintenance_suppliers"):
+        return []
+    from .requisiti import ditte_attese_non_in_regola
+
+    return ditte_attese_non_in_regola(oggi)
+
+
+def _anno_riepilogo(valore, oggi) -> int:
+    anno = int(valore) if str(valore or "").isdigit() else oggi.year
+    return anno if oggi.year - ANNI_RIEPILOGO < anno <= oggi.year else oggi.year
+
+
+def dati_riepilogo(request, fornitore, anno=None, oggi=None) -> dict:
+    """Un anno con questa ditta, da guardare nel portale: conta quello che c'è, non dà giudizi.
+    Ogni blocco segue il permesso del modulo da cui vengono i dati, come le altre schede."""
+    from django.db.models import Avg, Sum
+
+    from anagrafica.models import FornitoreOrdine
+
+    from .requisiti import stato_fornitore
+
+    oggi = oggi or timezone.localdate()
+    anno = _anno_riepilogo(anno, oggi)
+    visibili = sezioni_visibili(request)
+    dati: dict = {
+        "anno": anno,
+        "anni": [oggi.year - i for i in range(ANNI_RIEPILOGO)],
+        "requisiti": stato_fornitore(fornitore, oggi),
+    }
+
+    ordini = fornitore.ordini.filter(data_ordine__year=anno).exclude(stato=FornitoreOrdine.STATO_ANNULLATO)
+    dati["ordini"] = {"n": ordini.count(), "importo": ordini.aggregate(t=Sum("importo"))["t"] or 0}
+    valutazioni = fornitore.valutazioni.filter(data__year=anno)
+    medie = valutazioni.aggregate(q=Avg("qualita"), p=Avg("puntualita"), c=Avg("comunicazione"))
+    dati["valutazioni"] = {"n": valutazioni.count(), **medie}
+
+    if visibili[SEZIONE_MANUTENZIONE]:
+        dati["manutenzione"] = _riepilogo_manutenzione(request, fornitore, anno, oggi)
+    if visibili[SEZIONE_COPIE]:
+        from contatori.models import Fattura
+
+        codici = [c["codice"] for c in codici_del_fornitore(fornitore)]
+        if codici:
+            dati["n_fatture_copie"] = Fattura.objects.filter(fornitore__in=codici, data__year=anno).count()
+    if vede_ingressi(request):
+        dati["presenze"] = _riepilogo_presenze(fornitore, anno, oggi)
+    return dati
+
+
+def _riepilogo_manutenzione(request, fornitore, anno: int, oggi) -> dict:
+    from decimal import Decimal
+
+    from assets.models import MaintenanceOccurrence, PeriodicCheckSession
+    from assets.registro_permessi import MODULO_MANUTENZIONE
+    from assets.services.fornitore_manutenzione import rapporto_ditta
+    from assets.services.visibilita import filtra_per_asset
+    from tickets.models import StatoTicket
+    from tickets.services.accesso import utente_puo_gestire_ticket
+
+    r = rapporto_ditta(fornitore, oggi)
+    chiusi = [wo for wo in r.closed_wos if wo.closed_at and timezone.localtime(wo.closed_at).year == anno]
+    costi = [wo.resolved_total_cost_eur or Decimal("0") for wo in chiusi]
+    esito = {
+        "odl_chiusi": len(chiusi),
+        "odl_aperti": len(r.open_wos),
+        "costo": sum(costi, Decimal("0")),
+        "odl_con_costo": sum(1 for c in costi if c > 0),
+    }
+    ticket = [t for t in fornitore.tickets_delegati.exclude(stato=StatoTicket.ANNULLATO)
+              if timezone.localtime(t.created_at).year == anno and utente_puo_gestire_ticket(request, t)]
+    esito["ticket"] = len(ticket)
+    esito["ticket_chiusi"] = sum(1 for t in ticket if t.stato == StatoTicket.CHIUSO)
+    if ing.puo_collegare_ordinaria(request):
+        eseguite = list(filtra_per_asset(
+            request,
+            MaintenanceOccurrence.objects.filter(
+                supplier=fornitore, status=MaintenanceOccurrence.STATUS_DONE, completed_on__year=anno,
+            ),
+            MODULO_MANUTENZIONE,
+        ).values_list("completed_on", "due_date"))
+        esito["ordinarie"] = len(eseguite)
+        esito["ordinarie_in_ritardo"] = sum(1 for fatta, dovuta in eseguite if fatta > dovuta)
+    if apre(request, "assets:periodic_check_list"):
+        esito["verifiche"] = PeriodicCheckSession.objects.filter(supplier=fornitore, performed_on__year=anno).count()
+    return esito
+
+
+def _riepilogo_presenze(fornitore, anno: int, oggi) -> dict:
+    """Ore in azienda degli ingressi collegati: un ingresso su due interventi vale una volta sola."""
+    inizio = timezone.make_aware(datetime(anno, 1, 1))
+    fine = timezone.make_aware(datetime(anno + 1, 1, 1))
+    collegati: dict[int, IngressoIntervento] = {}
+    for link in IngressoIntervento.objects.filter(fornitore=fornitore, ingresso__gte=inizio, ingresso__lt=fine):
+        collegati.setdefault(link.visita_gp_id, link)
+    minuti = sum(c.durata_minuti or 0 for c in collegati.values())
+    tecnici = {chiave_tecnico(c.tecnico_nome) for c in collegati.values() if c.tecnico_nome}
+    esito = {
+        "collegati": len(collegati),
+        "ore_label": ing.ore_label(minuti),
+        "tecnici": len(tecnici),
+        "totali": None,
+        "totali_troncati": False,
+    }
+    # Dal GuestPortal solo il totale: quello che è già stato cancellato per GDPR non si conta.
+    if gp.db_configurato():
+        try:
+            ditte_gp, nomi = ing.ditte_e_nomi(fornitore)
+            ingressi = gp.ingressi_ditta(ditte_gp=ditte_gp, nomi=nomi, dal=inizio.date(),
+                                         al=min(oggi, (fine - timedelta(days=1)).date()),
+                                         limite=INGRESSI_RIEPILOGO_MAX)
+        except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+            pass
+        else:
+            esito["totali"] = len(ingressi)
+            esito["totali_troncati"] = len(ingressi) >= INGRESSI_RIEPILOGO_MAX
+    return esito
+
 
 def da_guardare(request, oggi=None) -> list[dict]:
     """Voci con qualcosa da fare, per la pagina iniziale: solo quelle con almeno un elemento."""

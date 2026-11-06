@@ -223,6 +223,45 @@ class TecnicoFornitore(models.Model):
         super().save(*args, **kwargs)
 
 
+class IngressoSenzaIntervento(models.Model):
+    """«Non serve»: ingresso di una ditta che non va collegato a un intervento (riunione, consegna).
+
+    Solo il numero di visita, nessun dato della persona: toglie la riga da «Da collegare»."""
+
+    visita_gp_id = models.PositiveIntegerField(unique=True, help_text="Visits.VisitID del GuestPortal")
+    segnato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
+    segnato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-segnato_il"]
+        verbose_name = "Ingresso senza intervento"
+        verbose_name_plural = "Ingressi senza intervento"
+
+    def __str__(self) -> str:
+        return f"Visita {self.visita_gp_id}: nessun intervento"
+
+
+class AvvisoDittaInArrivo(models.Model):
+    """Ultimo avviso a RSPP/ASPP per una ditta attesa con i documenti non in regola (solo notifica).
+
+    Una riga per ditta: si ripete solo se i problemi cambiano o dopo ``GIORNI_RIPETI_AVVISO``
+    (``fornitori.tasks``); la riga sparisce quando la ditta è a posto o non è più attesa."""
+
+    fornitore = models.OneToOneField("anagrafica.Fornitore", on_delete=models.CASCADE, related_name="+")
+    problemi = models.CharField(max_length=500, blank=True)
+    destinatari = models.PositiveIntegerField(default=0)
+    ultimo_il = models.DateField()
+
+    class Meta:
+        verbose_name = "Avviso ditta attesa non in regola"
+        verbose_name_plural = "Avvisi ditte attese non in regola"
+
+    def __str__(self) -> str:
+        return f"{self.fornitore}: {self.problemi[:60]}"
+
+
 class AvvisoIngressoNonInRegola(models.Model):
     """Ingresso dal GuestPortal di una ditta con i documenti di sicurezza non in regola,
     già segnalato con una notifica a RSPP/ASPP (una sola volta per visita, mai mail)."""
