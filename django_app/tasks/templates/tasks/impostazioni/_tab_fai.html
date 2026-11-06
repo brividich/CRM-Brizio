@@ -35,7 +35,7 @@
       <span>Nome</span>
       {% if g.codice == "CAUSALE" %}<span>Descrizione</span><span>Tipo proposto</span><span>Motivo se Delta</span>
       {% elif g.codice == "PIANO" %}<span>Modulo</span><span>Stato OP</span><span>Numero PFCN automatico</span>
-      {% else %}<span>Significato</span>{% endif %}
+      {% elif g.codice == "STATO" %}<span>Significato</span>{% endif %}
       <span>Ordine</span><span>Attiva</span><span></span>
     </div>
     {% for o in g.opzioni %}

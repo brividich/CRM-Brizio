@@ -68,7 +68,7 @@ LETTURE = (
             "ogni mattina alle 06:20", "security.services.defender_software:run", ("defender.software.attivo",), "graph",
             "security:vulnerabilities", "Vulnerabilità"),
     Lettura("defender_vuln", "CVE viste da Defender", "Microsoft 365",
-            "Le vulnerabilità che Defender vede su ogni PC, da confrontare con il calcolo del SOC nel pannello CVE.",
+            "Le vulnerabilità che Defender vede su ogni PC: entrano nel calcolo del SOC e nel confronto del pannello CVE.",
             "ogni mattina alle 06:25", "security.services.defender_vuln:run", ("defender.vulnerabilita.attivo",), "graph",
             "security:vulnerabilities", "Vulnerabilità"),
     Lettura("intune", "Dispositivi Intune", "Microsoft 365",

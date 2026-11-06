@@ -116,7 +116,7 @@ def security_asset_vulns(context, asset):
     if not can_view_security_center(getattr(request, "user", None)) or not getattr(asset, "pk", None):
         return {"show": False}
     from security.models import SoftwareInstallation
-    from security.services import cve_pannello
+    from security.services import cve_pannello, software_catalog
 
     installs = SoftwareInstallation.objects.filter(hub_asset=asset, still_detected=True)
     if not installs.exists():
@@ -137,8 +137,21 @@ def security_asset_vulns(context, asset):
         "dati": dati,
         "top": top[:5],
         "software_count": installs.count(),
+        "copertura": software_catalog.copertura_asset(asset),
         "inventory_date": installs.aggregate(last=Max("last_inventory_date"))["last"],
     }
+
+
+@register.inclusion_tag("security/partials/asset_rischio.html", takes_context=True)
+def security_asset_rischio(context, asset):
+    """Riquadro «Rischio» di un PC o server: livello, CVE, fine supporto, backup, reparto e i motivi."""
+    request = context.get("request")
+    if not can_view_security_center(getattr(request, "user", None)) or not getattr(asset, "pk", None):
+        return {"show": False}
+    from security.services.rischio_asset import valuta
+
+    r = valuta(asset)
+    return {"show": r is not None, "asset": asset, "r": r}
 
 
 @register.inclusion_tag("security/partials/asset_patch.html", takes_context=True)

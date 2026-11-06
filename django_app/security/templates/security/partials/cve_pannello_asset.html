@@ -13,7 +13,7 @@
     <ul class="cvp-list">{% for r in s.colpiscono %}{% include "security/partials/cve_pannello_riga.html" %}{% endfor %}{% for r in s.da_verificare %}{% include "security/partials/cve_pannello_riga.html" %}{% endfor %}</ul>
   </details>
 {% empty %}
-  <p class="cvp-empty">Nessuna CVE nota colpisce i software di questo PC secondo l'ultimo calcolo.</p>
+  <p class="cvp-empty">Nessuna delle CVE note al SOC colpisce i programmi controllati di questo PC.</p>
 {% endfor %}
 {% if dati.defender %}
   <details class="cvp-more"><summary>Confronto con Defender · {{ dati.defender.comuni }} in comune{% if dati.defender.solo_soc %} · {{ dati.defender.solo_soc|length }} solo SOC{% endif %}{% if dati.defender.solo_defender_n %} · {{ dati.defender.solo_defender_n }} solo Defender{% endif %}</summary>

@@ -126,8 +126,8 @@ SEZIONI_TEAM: list[dict] = [
         "blocchi": [
             ("passi", [
                 "Clicca l'attività.",
-                "In «Aggiorna stato» scegli In corso o Completata.",
-                "Se cambiano le date, correggile con «Aggiorna».",
+                "In alto premi In corso o Completata.",
+                "Se cambiano le date, correggile in «Dettagli» e premi «Salva».",
                 "Lascia una nota in «Commenti» o carica un file in «Allegati».",
             ]),
             ("img", (_IMG + "attivita_scheda.jpg", "La scheda di un'attività")),

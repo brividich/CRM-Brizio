@@ -47,7 +47,7 @@ class PcCoperturaTests(TestCase):
         rows = svc.righe()
         self.assertEqual(rows[0]["key"], "pc-due")  # prima chi ha problemi Intune
         self.assertEqual(svc.conteggi(rows), {"tutti": 3, "da_collegare": 3, "backup_ko": 0, "con_cve": 0, "problemi": 1,
-                                              "non_intune": 1, "senza_edr": 1, "senza_backup": 2})
+                                              "non_intune": 1, "senza_edr": 1, "senza_backup": 2, "sistema_fuori": 0})
 
     def test_pagina_e_chip_coerenti(self):
         page = self.client.get(reverse("security:pc_copertura"))

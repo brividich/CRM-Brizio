@@ -85,6 +85,12 @@ def _filtri_elenco(request):
     }
 
 
+def metriche_copertura():
+    from .services.metriche import copertura_cpe
+
+    return copertura_cpe()
+
+
 def vulnerabilities_dashboard(request):
     if not can_view_security_center(request.user):
         return _denied(request)
@@ -96,6 +102,7 @@ def vulnerabilities_dashboard(request):
         "filtri_attivi": any(filtri.values()),
         "hosts": _con_apparati_snmp(cve_impact.most_exposed_hosts()),
         "unmapped": cve_impact.unmapped_software(limit=30),
+        "copertura": metriche_copertura(),
         "inventory_date": latest,
         "inventory_fresh": bool(latest and latest >= cve_impact.fresh_since()),
         "freshness_days": cve_impact.freshness_days(),
@@ -207,7 +214,34 @@ def cve_detail(request, cve_id):
         "record": record, "summary": cve_impact.summary(record), "impacts": impacts, "outcome": outcome,
         "outcomes": SecurityCveImpact.OUTCOME_CHOICES, "can_edit": can_manage_security_config(request.user),
         "proposte_ai": len(proposte), **_termini_record(record, impacts),
+        "lavoro": _lavoro(record),
     })
+
+
+def _lavoro(record):
+    from .services import cve_lavoro
+
+    return cve_lavoro.riepilogo(record)
+
+
+@require_POST
+def cve_lavoro_apri(request, cve_id):
+    """Dalla scheda della CVE: apre il caso con un'attività per PC colpito e ci porta dentro."""
+    from .services import cve_lavoro
+
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    cve_id = cve_id.upper()
+    if not CVE_RE.match(cve_id):
+        raise Http404
+    record = get_object_or_404(SecurityCveRecord, cve_id=cve_id)
+    try:
+        caso = cve_lavoro.apri_lavoro(record, request.user)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("security:cve_detail", cve_id=cve_id)
+    messages.success(request, "Lavoro di correzione aperto: le attività dei PC si spuntano da sole con l'inventario.")
+    return redirect("security:case_detail", pk=caso.pk)
 
 
 def _termini_record(record, impacts):
@@ -611,21 +645,33 @@ def _mapping_rows(q=""):
     """Prodotti dell'inventario (vendor+prodotto) con mappatura e proposte locali, i più diffusi prima."""
     from .services.cpe_auto import known_cpe_pairs, proposals
 
-    products = (
-        SoftwareInstallation.objects.filter(still_detected=True).values("vendor", "product").order_by()
-        .annotate(hosts=Count("host", distinct=True)).order_by("-hosts", "vendor", "product")
-    )
-    if q:
-        products = products.filter(Q(vendor__icontains=q) | Q(product__icontains=q))
+    from .services.software_catalog import indice_famiglie
+
+    # Una riga per programma: i nomi e le release si decidono insieme (vedi ``_set_mapping``).
+    canonici = indice_famiglie(con_unioni=False)[0]
+    programmi = {}
+    for vendor, product, host in SoftwareInstallation.objects.filter(still_detected=True).values_list("vendor", "product", "host").distinct():
+        canon = canonici.get((vendor, product), (vendor, product))
+        riga = programmi.setdefault(canon, {"vendor": canon[0], "product": canon[1], "pc": set(), "membri": set()})
+        riga["pc"].add(host)
+        riga["membri"].add((vendor, product))
+    needle = q.casefold()
     mappings = {(m.vendor, m.product): m for m in SoftwareCpeMapping.objects.select_related("na_rule")}
     known = known_cpe_pairs()
     proposte_ai = cpe_ai.proposte_cpe_aperte()
-    rows = list(products)
-    for row in rows:
-        row["mapping"] = mappings.get((row["vendor"], row["product"]))
+    rows = []
+    for riga in programmi.values():
+        if needle and not any(needle in v.casefold() or needle in p.casefold() for v, p in riga["membri"]):
+            continue
+        presenti = [mappings[m] for m in sorted(riga["membri"]) if m in mappings]
+        row = {"vendor": riga["vendor"], "product": riga["product"], "hosts": len(riga["pc"]), "nomi": len(riga["membri"])}
+        # Il nome con la decisione più forte: confermato, poi non applicabile, poi il primo.
+        row["mapping"] = next((m for m in presenti if m.confirmed), None) or next((m for m in presenti if m.not_applicable), None) or (presenti[0] if presenti else None)
         row["local_suggestions"] = proposals(row["vendor"], row["product"], known)
         # Una proposta dell'AI vale solo finché il software è ancora da decidere.
-        row["ai"] = proposte_ai.get((row["vendor"], row["product"])) if _is_open(row) or _excluded_by_rule(row) else None
+        row["ai"] = next((proposte_ai[m] for m in sorted(riga["membri"]) if m in proposte_ai), None) if _is_open(row) or _excluded_by_rule(row) else None
+        rows.append(row)
+    rows.sort(key=lambda r: (-r["hosts"], r["vendor"], r["product"]))
     return rows, known
 
 
@@ -675,19 +721,23 @@ def _is_na(row):
 
 def _set_mapping(request, vendor, product, *, cpe=None, note=""):
     """Conferma (``cpe`` = "vendor:product") o segna non applicabile (``cpe`` None), con audit."""
-    mapping, _ = SoftwareCpeMapping.objects.get_or_create(vendor=vendor[:120], product=product[:160])
-    old = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata={mapping.confirmed} n/a={mapping.not_applicable}"
-    if cpe:
-        mapping.cpe_vendor, mapping.cpe_product = cpe.split(":", 1)
-        mapping.confirmed, mapping.not_applicable = True, False
-    else:
-        mapping.confirmed, mapping.not_applicable = False, True
-    mapping.origin, mapping.na_rule = SoftwareCpeMapping.ORIGIN_MANUAL, None
-    mapping.confirmed_by, mapping.confirmed_at = request.user, timezone.now()
-    mapping.save()
-    new = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata" if cpe else "non applicabile"
-    audit_config_change(request.user, "update", mapping, field_name="cpe", old_value=old,
-                        new_value=f"{new} {note}".strip(), request=request)
+    # La decisione è per programma: vale per tutti i nomi con cui le fonti lo riportano.
+    from .services.software_catalog import membri_automatici
+
+    for membro_vendor, membro_product in sorted(membri_automatici(vendor[:120], product[:160])):
+        mapping, _ = SoftwareCpeMapping.objects.get_or_create(vendor=membro_vendor, product=membro_product)
+        old = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata={mapping.confirmed} n/a={mapping.not_applicable}"
+        if cpe:
+            mapping.cpe_vendor, mapping.cpe_product = cpe.split(":", 1)
+            mapping.confirmed, mapping.not_applicable = True, False
+        else:
+            mapping.confirmed, mapping.not_applicable = False, True
+        mapping.origin, mapping.na_rule = SoftwareCpeMapping.ORIGIN_MANUAL, None
+        mapping.confirmed_by, mapping.confirmed_at = request.user, timezone.now()
+        mapping.save()
+        new = f"{mapping.cpe_vendor}:{mapping.cpe_product} confermata" if cpe else "non applicabile"
+        audit_config_change(request.user, "update", mapping, field_name="cpe", old_value=old,
+                            new_value=f"{new} {note}".strip(), request=request)
 
 
 def _software_mapping_post(request):
@@ -893,6 +943,7 @@ def cve_pannello_programma(request):
         .values_list("product_raw", flat=True).first() or product
     )
     return render(request, "security/partials/cve_pannello_elenco.html", {
+        "stato_cve": software_catalog.stati_cve().get(software_catalog.inventory_key(vendor, product), software_catalog.NON_CONTROLLATO),
         "titolo": nome, "sottotitolo": "CVE sui PC che hanno oggi il programma",
         "dati": cve_pannello.per_programma(key), "qui": request.get_full_path(),
     })

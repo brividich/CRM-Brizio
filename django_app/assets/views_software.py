@@ -12,6 +12,7 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -19,7 +20,7 @@ from django.utils import timezone
 
 from core.audit import log_action
 
-from .models import SoftwareCatalogEntry, SoftwareLicense
+from .models import SoftwareCatalogEntry, SoftwareLicense, SoftwareProduttoreConsentito
 
 FILTERS = [
     ("all", "Tutti"),
@@ -29,6 +30,7 @@ FILTERS = [
     ("senza_licenza", "A pagamento senza licenza"),
     ("vecchi", "Sotto la versione minima"),
     ("cve", "Con CVE"),
+    ("non_controllato", "CVE non controllate"),
 ]
 
 
@@ -42,6 +44,12 @@ def _can_see_cve(request: HttpRequest) -> bool:
     from security.permissions import can_view_security_center
 
     return can_view_security_center(request.user)
+
+
+def _can_configure_soc(request: HttpRequest) -> bool:
+    from security.services.configuration import can_configure_soc
+
+    return can_configure_soc(request)
 
 
 def _run_software_policy() -> int:
@@ -63,6 +71,14 @@ def _detail_url(key: str) -> str:
     return f"{reverse('assets:software_catalog_detail')}?{urlencode({'k': key})}"
 
 
+def _produttore_regola(etichetta: str) -> str:
+    """La parola che identifica il produttore: «Microsoft Corporation» → «microsoft»."""
+    from security.services.software_inventory import _token
+
+    parole = _token(etichetta)
+    return parole[0][:120] if parole else ""
+
+
 def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
     """Una riga per prodotto presente: PC, versioni, decisioni, licenza collegata, CVE."""
     from security.services import software_catalog as sc
@@ -80,6 +96,8 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
     versions = sc.versions_by_key()
     cves = sc.cve_by_key() if with_cve else {}
     indice = sc.indice_famiglie()
+    stati_cve = sc.stati_cve(indice) if with_cve else {}
+    consentiti = set(SoftwareProduttoreConsentito.objects.values_list("produttore", flat=True))
     entry_keys = sc.chiavi_per_programma(entries, indice)
     license_keys = sc.chiavi_per_programma({*states, *seats}, indice)
     rows = []
@@ -90,6 +108,11 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
         entry = entries.get(key) or next((entries[m] for m in entry_keys.get(key, [])), None)
         members = sorted({*(item.get("member_keys") or [key]), *license_keys.get(key, [])})
         classification = entry.classification if entry else SoftwareCatalogEntry.CLASS_UNREVIEWED
+        produttore = _produttore_regola(item["vendor_label"])
+        # La regola decide solo ciò che nessuno ha deciso: la scelta sul singolo programma vince sempre.
+        da_regola = classification == SoftwareCatalogEntry.CLASS_UNREVIEWED and produttore in consentiti
+        if da_regola:
+            classification = SoftwareCatalogEntry.CLASS_ALLOWED
         licensing = entry.licensing if entry else SoftwareCatalogEntry.LICENSING_UNKNOWN
         min_version = entry.min_version if entry else ""
         old, unknown = sc.below_min_version(versions.get(key, {}), min_version)
@@ -104,6 +127,8 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
             "hosts": item["hosts"],
             "versions": len(versions.get(key, {})),
             "classification": classification,
+            "da_regola": da_regola,
+            "produttore": produttore,
             "classification_label": dict(SoftwareCatalogEntry.CLASSIFICATION_CHOICES)[classification],
             "licensing": licensing,
             "licensing_label": dict(SoftwareCatalogEntry.LICENSING_CHOICES)[licensing],
@@ -117,6 +142,7 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
             "outdated": old,
             "not_comparable": unknown,
             "cves": cves.get(key, 0),
+            "cve_stato": stati_cve.get(key, sc.NON_CONTROLLATO) if with_cve else "",
         })
     return rows
 
@@ -139,7 +165,77 @@ def _filter(rows: list[dict], code: str, q: str) -> list[dict]:
         return [r for r in rows if r["outdated"]]
     if code == "cve":
         return [r for r in rows if r["cves"]]
+    if code == "non_controllato":
+        return [r for r in rows if r.get("cve_stato") == "non_controllato"]
     return rows
+
+
+def _classifica_in_blocco(request: HttpRequest) -> HttpResponse:
+    """La stessa decisione su più programmi: una voce di registro con tutte le chiavi, il SOC ricontrolla una volta."""
+    from security.services import software_catalog as sc
+
+    classification = request.POST.get("classification") or ""
+    licensing = request.POST.get("licensing") or ""
+    chiavi = {k.strip()[:300] for k in request.POST.getlist("k")[:1000] if k.strip()}
+    if classification not in dict(SoftwareCatalogEntry.CLASSIFICATION_CHOICES) or (licensing and licensing not in dict(SoftwareCatalogEntry.LICENSING_CHOICES)):
+        messages.error(request, "Scegli una classificazione valida.")
+        return redirect(request.get_full_path())
+    righe = {r["key"]: r for r in catalog_rows(with_cve=False)}
+    chiavi &= set(righe)
+    if not chiavi:
+        messages.error(request, "Seleziona almeno un programma.")
+        return redirect(request.get_full_path())
+    entries = {e.inventory_key: e for e in SoftwareCatalogEntry.objects.all()}
+    per_programma = sc.chiavi_per_programma(entries)
+    with transaction.atomic():
+        for key in sorted(chiavi):
+            riga = righe[key]
+            entry = entries.get(key) or next((entries[m] for m in per_programma.get(key, [])), None) or SoftwareCatalogEntry(inventory_key=key)
+            entry.classification = classification
+            if licensing:
+                entry.licensing = licensing
+            entry.display_name = entry.display_name or riga["name"]
+            entry.vendor_name = entry.vendor_name or (riga["vendor"] or "")
+            entry.updated_by = request.user
+            entry.save()
+    log_action(request, "update_software_catalog_blocco", "assets", {"chiavi": sorted(chiavi), "classification": classification, "licensing": licensing})
+    alerts = _run_software_policy()
+    messages.success(request, f"{len(chiavi)} programmi classificati come «{dict(SoftwareCatalogEntry.CLASSIFICATION_CHOICES)[classification]}»."
+                     + (f" Il SOC ha segnalato {alerts} nuov{'o' if alerts == 1 else 'i'} problem{'a' if alerts == 1 else 'i'}." if alerts else ""))
+    return redirect(request.get_full_path())
+
+
+def _regola_produttore(request: HttpRequest, azione: str) -> HttpResponse:
+    if azione == "consenti_produttore":
+        produttore = _produttore_regola(request.POST.get("produttore") or "")
+        if not produttore:
+            messages.error(request, "Scegli un produttore.")
+            return redirect(request.get_full_path())
+        etichetta = (request.POST.get("produttore") or "").strip()[:255]
+        _regola, creata = SoftwareProduttoreConsentito.objects.get_or_create(produttore=produttore, defaults={"etichetta": etichetta, "creato_da": request.user})
+        if creata:
+            log_action(request, "software_catalog_produttore_consentito", "assets", {"produttore": produttore})
+        messages.success(request, f"«{etichetta}»: i programmi ancora da classificare ora risultano consentiti, anche i nuovi.")
+    else:
+        valore = (request.POST.get("regola") or "").strip()
+        regola = SoftwareProduttoreConsentito.objects.filter(pk=valore if valore.isdigit() else 0).first()
+        if regola is not None:
+            log_action(request, "software_catalog_produttore_rimosso", "assets", {"produttore": regola.produttore})
+            regola.delete()
+            messages.success(request, "Regola tolta: i suoi programmi tornano da classificare.")
+    return redirect(request.get_full_path())
+
+
+def _produttori_da_proporre(rows: list[dict]) -> list[dict]:
+    """I produttori del catalogo con i programmi ancora da classificare, dai più numerosi."""
+    gruppi = {}
+    for riga in rows:
+        if riga["produttore"] and riga["classification"] == SoftwareCatalogEntry.CLASS_UNREVIEWED:
+            gruppo = gruppi.setdefault(riga["produttore"], {"etichette": {}, "n": 0})
+            gruppo["n"] += 1
+            gruppo["etichette"][riga["vendor"]] = gruppo["etichette"].get(riga["vendor"], 0) + 1
+    out = [{"etichetta": max(g["etichette"], key=g["etichette"].get), "n": g["n"]} for g in gruppi.values()]
+    return sorted(out, key=lambda g: (-g["n"], g["etichetta"].casefold()))
 
 
 @login_required
@@ -148,25 +244,51 @@ def software_catalog(request: HttpRequest) -> HttpResponse:
 
     from .views import _assets_shell_context
 
+    if request.method == "POST":
+        if not _can_edit(request):
+            messages.error(request, "Solo gli amministratori del modulo Asset possono classificare il software.")
+            return redirect(request.get_full_path())
+        azione = request.POST.get("azione")
+        if azione == "classifica":
+            return _classifica_in_blocco(request)
+        if azione in {"consenti_produttore", "togli_produttore"}:
+            return _regola_produttore(request, azione)
+        messages.error(request, "Azione non valida.")
+        return redirect(request.get_full_path())
     with_cve = _can_see_cve(request)
     all_rows = catalog_rows(with_cve=with_cve)
+    # Lo stato delle CVE lo vede solo chi vede il SOC, come la colonna.
+    filtri = [f for f in FILTERS if with_cve or f[0] != "non_controllato"]
     code = request.GET.get("f") or "all"
-    code = code if code in dict(FILTERS) else "all"
+    code = code if code in dict(filtri) else "all"
     q = (request.GET.get("q") or "").strip()[:100]
     rows = _filter(all_rows, code, q)
-    counts = {c: len(_filter(all_rows, c, "")) for c, _label in FILTERS}
+    counts = {c: len(_filter(all_rows, c, "")) for c, _label in filtri}
     return render(request, "assets/pages/software_catalog.html", {
         **_assets_shell_context(request, search_placeholder="Cerca software"),
         "page_title": "Catalogo software",
         "rows": rows,
-        "filters": [{"code": c, "label": label, "count": counts[c], "active": c == code} for c, label in FILTERS],
+        "filters": [{"code": c, "label": label, "count": counts[c], "active": c == code} for c, label in filtri],
         "q": q,
         "filter_code": code,
         "show_cve": with_cve,
         "cve_panel_url": reverse("security:cve_pannello_programma") if with_cve else "",
         "inventory_date": latest_inventory_date(),
         "can_edit": _can_edit(request),
+        "avanzamento": _avanzamento(all_rows),
+        "classification_choices": SoftwareCatalogEntry.CLASSIFICATION_CHOICES,
+        "licensing_choices": SoftwareCatalogEntry.LICENSING_CHOICES,
+        "produttori_regola": SoftwareProduttoreConsentito.objects.all(),
+        "produttori_proposti": _produttori_da_proporre(all_rows),
     })
+
+
+def _avanzamento(rows: list[dict]) -> dict:
+    """Quanto è deciso: per programmi e pesato sui PC (un programma su 80 PC conta più di uno su 1)."""
+    decisi = [r for r in rows if r["classification"] != SoftwareCatalogEntry.CLASS_UNREVIEWED]
+    tot, tot_pc = len(rows), sum(r["hosts"] for r in rows)
+    pc = sum(r["hosts"] for r in decisi)
+    return {"decisi": len(decisi), "programmi": tot, "percento_pc": round(100 * pc / tot_pc) if tot_pc else 0}
 
 
 def _azione_raggruppamento(request: HttpRequest, key: str) -> HttpResponse:
@@ -320,6 +442,8 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
         "can_edit": can_edit,
         "show_cve": with_cve,
         "cve_count": (row or {}).get("cves", 0),
+        "cve_stato": (row or {}).get("cve_stato", ""),
+        "cpe_url": f"{reverse('security:software_mapping')}?{urlencode({'q': sc.split_key(key)[1]})}" if with_cve and _can_configure_soc(request) else "",
         "cve_panel_url": f"{reverse('security:cve_pannello_programma')}?{urlencode({'k': key})}" if with_cve else "",
         "catalog_url": reverse("assets:software_catalog"),
         "licenses_url": reverse("assets:software_license_list"),

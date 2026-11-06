@@ -2041,6 +2041,22 @@ def software_license_list(request: HttpRequest) -> HttpResponse:
                     q=q,
                 )
             )
+        elif action == "link_software_inventory_proposte":
+            from assets.services.software_licenze import collega_proposte
+
+            collegate = collega_proposte()
+            log_action(request, "link_software_inventory_proposte", "assets", {"licenze": collegate})
+            messages.success(request, f"{len(collegate)} licenze collegate al software installato.")
+            return redirect(
+                _software_licenses_page_url(
+                    asset_id=selected_asset.id if selected_asset else 0,
+                    anagrafica_id=selected_anagrafica_id,
+                    category=category_filter,
+                    status=status_filter,
+                    assignee=assignee_filter,
+                    q=q,
+                )
+            )
         elif action == "delete_software_license":
             license_row = SoftwareLicense.objects.filter(
                 pk=_as_int(request.POST.get("license_id"), default=0)

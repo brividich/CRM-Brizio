@@ -73,7 +73,7 @@ class PercorsoRenderTests(TestCase):
         t = Task.objects.create(title="Task UI", project=p, created_by=self.admin)
         resp = self.client.get(reverse("tasks:detail", args=[t.id]))
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("task-detail-layout", resp.content.decode("utf-8"))
+        self.assertIn("td-layout", resp.content.decode("utf-8"))
 
     def test_portfolio_page_renders(self):
         from tasks.models import Project

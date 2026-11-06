@@ -2,8 +2,13 @@
 
 Ogni mattina (con «Confronta le CVE con Defender» acceso in ``/soc/impostazioni/``) legge
 ``vulnerabilities/machinesVulnerabilities`` (CVE per PC, prodotto, versione, KB che la corregge) e
-``machines`` (nome del PC). Le righe finiscono in ``DefenderVulnerabilita``: non aprono alert, servono
-al pannello CVE per dire «Defender la vede anche lui» o «Defender non la vede su questo PC».
+``machines`` (nome del PC). Le righe finiscono in ``DefenderVulnerabilita`` e servono al pannello CVE per dire
+«Defender la vede anche lui» o «Defender non la vede su questo PC».
+
+**Calcolo ibrido** («Usa le CVE di Defender nel calcolo»): il SOC conosce solo le CVE arrivate dai report, quindi
+molti programmi non si potevano controllare. Così le CVE gravi di Defender entrano nell'elenco del SOC: NVD aggiunge
+i range di versione e l'inventario le controlla anche sui PC che Defender non vede; sui PC che Defender vede, la sua
+segnalazione vale da sola, anche senza CPE collegato (``cve_impact._aggiungi_defender``).
 
 Permessi applicativi dell'API «WindowsDefenderATP», con consenso amministratore:
 ``Vulnerability.Read.All`` e ``Machine.Read.All``.
@@ -24,6 +29,8 @@ PERMESSO = "Vulnerability.Read.All e Machine.Read.All (API WindowsDefenderATP)"
 URL_VULN = "https://api.securitycenter.microsoft.com/api/vulnerabilities/machinesVulnerabilities"
 URL_PC = "https://api.securitycenter.microsoft.com/api/machines"
 CHUNK = 500
+# Entrano nel calcolo solo le gravi: le altre restano nel confronto, per non moltiplicare CVE, NVD e ricalcoli.
+SEVERITA_CALCOLO = ("critical", "high")
 
 
 def leggi() -> tuple[list[dict], list[dict]]:
@@ -60,7 +67,48 @@ def sincronizza(*, pc: list[dict] | None = None, righe: list[dict] | None = None
         oggetti = list(nuove.values())
         for i in range(0, len(oggetti), CHUNK):
             DefenderVulnerabilita.objects.bulk_create(oggetti[i:i + CHUNK], batch_size=CHUNK)
-    return {"righe": len(righe), "salvate": len(nuove), "pc": len({k[0] for k in nuove})}
+    esito = {"righe": len(righe), "salvate": len(nuove), "pc": len({k[0] for k in nuove})}
+    if ibrido_attivo():
+        esito["cve_nuove"] = _porta_nel_calcolo()
+        from security.services.cve_feeds import queue_recompute
+
+        esito["recompute"] = queue_recompute()
+    return esito
+
+
+def ibrido_attivo() -> bool:
+    return bool(soc_settings.value("defender.vulnerabilita.attivo") and soc_settings.value("defender.vulnerabilita.ibrido"))
+
+
+def cve_per_calcolo() -> dict[str, str]:
+    """{CVE: severità} delle CVE gravi che Defender vede oggi, le critiche per prime."""
+    out = {}
+    for cve, severita in DefenderVulnerabilita.objects.values_list("cve_id", "severita").distinct():
+        severita = (severita or "").lower()
+        if severita in SEVERITA_CALCOLO and out.get(cve) != "critical":
+            out[cve] = severita
+    return dict(sorted(out.items(), key=lambda x: (x[1] != "critical", x[0])))
+
+
+def _porta_nel_calcolo() -> int:
+    """Crea le CVE che il SOC non conosce, con la severità di Defender finché NVD non dà la sua."""
+    from security.models import SecurityCveRecord
+
+    nuove = 0
+    for cve, severita in cve_per_calcolo().items():
+        _record, creata = SecurityCveRecord.objects.get_or_create(cve_id=cve, defaults={"severity": severita})
+        nuove += 1 if creata else 0
+    return nuove
+
+
+def programmi_coperti() -> set[tuple[str, str]]:
+    """(vendor, product) che Defender legge sui PC: se ha una CVE la dice lui, quindi sono controllati."""
+    from security.models import SoftwareInstallation
+
+    if not ibrido_attivo() or not dati_presenti():
+        return set()
+    return {(v, p) for v, p, fonti, kind in SoftwareInstallation.objects.filter(still_detected=True)
+            .values_list("vendor", "product", "fonti", "source_kind") if kind == "defender" or "defender" in (fonti or [])}
 
 
 def per_cve(cve_id: str) -> set[str]:

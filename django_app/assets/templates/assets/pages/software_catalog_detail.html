@@ -7,11 +7,25 @@
 {% block assets_shell_content %}
 <section class="sc-page">
   {% if show_cve %}
+  {% if not cve_count and cve_stato == "non_controllato" %}
+  <div class="sc-card sc-cve-strip is-unknown">
+    <div><strong>CVE non controllate per questo programma</strong>
+      <p class="sc-note">Non è collegato a un CPE: il SOC non può dire se ha vulnerabilità. Non vuol dire che sia a posto.</p></div>
+    {% if cpe_url %}<a class="cvp-open cvp-open--warn" href="{{ cpe_url }}">Collega il CPE</a>{% endif %}
+  </div>
+  {% elif not cve_count and cve_stato == "non_applicabile" %}
+  <div class="sc-card sc-cve-strip is-unknown">
+    <div><strong>CVE non applicabili a questo programma</strong>
+      <p class="sc-note">È segnato così in Software e CPE: il SOC non lo controlla.</p></div>
+    {% if cpe_url %}<a class="cvp-open cvp-open--warn" href="{{ cpe_url }}">Cambia</a>{% endif %}
+  </div>
+  {% else %}
   <div class="sc-card sc-cve-strip{% if cve_count %} has-cve{% endif %}">
-    <div><strong>{% if cve_count %}{{ cve_count }} CVE colpiscono questo programma{% else %}Nessuna CVE nota colpisce questo programma{% endif %}</strong>
-      <p class="sc-note">{% if cve_count %}Calcolate sui PC che lo hanno oggi, versione per versione: nella tabella «Versioni presenti» vedi quali versioni sono vulnerabili.{% else %}Secondo l'ultimo calcolo del SOC. Un programma non collegato a un CPE non si può controllare.{% endif %}</p></div>
+    <div><strong>{% if cve_count %}{{ cve_count }} CVE colpiscono questo programma{% else %}Nessuna delle CVE note al SOC colpisce questo programma{% endif %}</strong>
+      <p class="sc-note">{% if cve_count %}Calcolate sui PC che lo hanno oggi, versione per versione: nella tabella «Versioni presenti» vedi quali versioni sono vulnerabili.{% else %}Secondo l'ultimo calcolo. Il SOC confronta il programma con le CVE che conosce, non con tutte quelle esistenti.{% endif %}</p></div>
     <button type="button" class="cvp-open{% if not cve_count %} cvp-open--warn{% endif %}" data-preview="{{ cve_panel_url }}">{% if cve_count %}Vedi le CVE{% else %}Dettagli{% endif %}</button>
   </div>
+  {% endif %}
   {% endif %}
   <div class="sc-card">
     <h2 style="margin:0 0 10px;font-size:18px">Decisione dell'azienda</h2>
@@ -19,6 +33,7 @@
     <form method="post" class="sc-form" style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));align-items:end">
       {% csrf_token %}<input type="hidden" name="k" value="{{ key }}">
       <label style="display:grid;gap:6px;font-weight:700">Classificazione
+        {% if row.da_regola %}<small class="sc-meta">Ora «Consentito» per la regola sul produttore: una scelta qui vince sulla regola.</small>{% endif %}
         <select name="classification" class="sc-input">{% for value, label in classification_choices %}<option value="{{ value }}" {% if entry.classification == value or not entry and value == 'da_classificare' %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
       <label style="display:grid;gap:6px;font-weight:700">Licenza
         <select name="licensing" class="sc-input">{% for value, label in licensing_choices %}<option value="{{ value }}" {% if entry.licensing == value or not entry and value == 'da_verificare' %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
@@ -30,7 +45,7 @@
     </form>
     <p class="sc-note" style="margin-top:10px">«Non autorizzato» e «Da rimuovere» fanno comparire il software nei controlli del SOC; con la versione minima i PC più vecchi vengono segnalati. Le versioni scritte in modo non confrontabile (es. «2023 R2») non vengono mai contate come vecchie.</p>
     {% else %}
-    <p class="sc-note">Classificazione: <strong>{{ row.classification_label|default:"Da classificare" }}</strong> · Licenza: <strong>{{ row.licensing_label|default:"Da verificare" }}</strong>{% if entry.min_version %} · Versione minima: <strong>{{ entry.min_version }}</strong>{% endif %}. Solo gli amministratori del modulo Asset possono cambiarle.</p>
+    <p class="sc-note">Classificazione: <strong>{{ row.classification_label|default:"Da classificare" }}</strong>{% if row.da_regola %} (da regola sul produttore){% endif %} · Licenza: <strong>{{ row.licensing_label|default:"Da verificare" }}</strong>{% if entry.min_version %} · Versione minima: <strong>{{ entry.min_version }}</strong>{% endif %}. Solo gli amministratori del modulo Asset possono cambiarle.</p>
     {% if entry.notes %}<p class="sc-note">{{ entry.notes|linebreaksbr }}</p>{% endif %}
     {% endif %}
     {% if entry.updated_by %}<p class="sc-note" style="margin-top:6px">Ultima modifica: {{ entry.updated_at|date:"d/m/Y H:i" }}, {{ entry.updated_by }}.</p>{% endif %}
@@ -54,7 +69,7 @@
       <tbody>
       {% for v in version_rows %}
         <tr><td>{{ v.version }}{% if v.outdated %} <span class="sc-tag sc-tag--warn">sotto la minima</span>{% endif %}</td><td>{{ v.hosts }}</td><td>{{ v.fonti|join:", "|default:"—" }}</td>
-          {% if show_cve %}<td>{% if v.cves %}<button type="button" class="cvp-open" data-preview="{{ cve_panel_url }}" title="CVE che colpiscono la versione {{ v.version }}">{{ v.cves }} CVE</button>{% else %}<span class="sc-tag sc-tag--ok">nessuna nota</span>{% endif %}</td>{% endif %}</tr>
+          {% if show_cve %}<td>{% if v.cves %}<button type="button" class="cvp-open" data-preview="{{ cve_panel_url }}" title="CVE che colpiscono la versione {{ v.version }}">{{ v.cves }} CVE</button>{% elif cve_stato == "controllato" %}<span class="sc-tag sc-tag--ok">nessuna nota</span>{% else %}<span class="sc-tag sc-tag--muted">non controllato</span>{% endif %}</td>{% endif %}</tr>
       {% empty %}<tr><td colspan="4" class="sc-meta">Nessuna versione rilevata.</td></tr>{% endfor %}
       </tbody>
     </table>

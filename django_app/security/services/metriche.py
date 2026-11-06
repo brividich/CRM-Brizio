@@ -147,18 +147,18 @@ def cve_per_pc():
 
 
 def copertura_cpe():
-    """Quanti software presenti si possono controllare contro le CVE (collegati al CPE o dichiarati N/A)."""
-    from security.models import SoftwareCpeMapping, SoftwareInstallation
+    """Quanti programmi presenti hanno una decisione sulle CVE (collegati al CPE o dichiarati N/A)."""
+    from security.services.software_catalog import riepilogo_cve
 
-    presenti = set(SoftwareInstallation.objects.filter(still_detected=True).values_list("vendor", "product").distinct())
-    decisi = set(SoftwareCpeMapping.objects.filter(Q(confirmed=True) | Q(not_applicable=True)).values_list("vendor", "product"))
-    coperti = len(presenti & decisi)
-    totale = len(presenti)
+    conti = riepilogo_cve()
+    totale = conti["programmi"]
+    coperti = conti["controllati"] + conti["non_applicabili"]
     perc = round(100 * coperti / totale) if totale else 0
-    return Metrica("copertura_cpe", "software controllabili", "software", "adesso", "Software e CPE", perc,
+    return Metrica("copertura_cpe", "programmi controllabili", "programmi", "adesso", "Software e CPE", perc,
                    reverse("security:software_mapping") + "?stato=proposte", icon="shield",
                    tone="success" if perc >= 80 else ("warning" if perc >= 40 else "critical"),
-                   extra={"coperti": coperti, "totale": totale, "da_decidere": totale - coperti})
+                   extra={"coperti": coperti, "totale": totale, "da_decidere": totale - coperti,
+                          "controllati": conti["controllati"], "non_controllati": conti["non_controllati"]})
 
 
 # --- Gruppi usati dalle pagine ---------------------------------------------------------------
