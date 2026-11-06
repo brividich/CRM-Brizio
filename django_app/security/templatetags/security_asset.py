@@ -142,6 +142,18 @@ def security_asset_vulns(context, asset):
     }
 
 
+@register.inclusion_tag("security/partials/asset_rischio.html", takes_context=True)
+def security_asset_rischio(context, asset):
+    """Riquadro «Rischio» di un PC o server: livello, CVE, fine supporto, backup, reparto e i motivi."""
+    request = context.get("request")
+    if not can_view_security_center(getattr(request, "user", None)) or not getattr(asset, "pk", None):
+        return {"show": False}
+    from security.services.rischio_asset import valuta
+
+    r = valuta(asset)
+    return {"show": r is not None, "asset": asset, "r": r}
+
+
 @register.inclusion_tag("security/partials/asset_patch.html", takes_context=True)
 def security_asset_patch(context, asset):
     """Sezione «Patch» nella pagina di un asset HUB: patch WatchGuard mancanti con il termine e installate nell'ultimo anno."""

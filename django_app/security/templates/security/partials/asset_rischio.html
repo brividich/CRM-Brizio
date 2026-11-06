@@ -1,0 +1,16 @@
+{% if show %}
+<section class="af-card" id="asset-rischio" aria-labelledby="asset-rischio-title">
+  <div class="af-card-head"><div><div class="af-card-kicker">SECURITY CENTER</div><h2 class="af-card-title" id="asset-rischio-title">Rischio</h2></div>
+    <span class="af-pill{% if r.livello == 'alto' %} af-pill--danger{% elif r.livello == 'medio' %} af-pill--warn{% elif r.livello == 'nessuno' %} af-pill--ok{% endif %}">{{ r.etichetta }}</span>
+  </div>
+  <div class="cvp-card-stats">
+    <div class="cvp-card-stat{% if r.gravi %} is-critical{% elif r.cve %} is-danger{% endif %}"><strong>{{ r.cve }}</strong><span>CVE colpiscono</span></div>
+    <div class="cvp-card-stat{% if r.sistema.fuori %} is-critical{% elif r.sistema.in_scadenza %} is-danger{% endif %}"><strong>{% if r.sistema.fine %}{{ r.sistema.fine|date:"d/m/Y" }}{% else %}—{% endif %}</strong><span>{% if r.sistema %}fine supporto {{ r.sistema.nome }}{% else %}sistema non riconosciuto{% endif %}</span></div>
+    <div class="cvp-card-stat{% if r.backup == 'ko' or r.backup == 'vecchio' %} is-danger{% elif r.backup == 'ok' %} is-ok{% endif %}"><strong>{% if r.backup == 'assente' %}—{% else %}{{ r.backup_data }}{% endif %}</strong><span>{% if r.backup == 'ko' %}ultimo backup fallito{% elif r.backup == 'vecchio' %}ultimo backup, troppo vecchio{% elif r.backup == 'ok' %}ultimo backup riuscito{% else %}nessun backup nei report{% endif %}</span></div>
+    <div class="cvp-card-stat"><strong>{{ asset.reparto|default:"—" }}</strong><span>reparto</span></div>
+  </div>
+  {% if r.alti or r.medi %}<ul class="af-note">{% for m in r.alti %}<li><strong>{{ m }}</strong></li>{% endfor %}{% for m in r.medi %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}
+  {% if r.note %}<p class="af-note">Da tenere presente: {{ r.note|join:"; " }}.</p>{% endif %}
+  <p class="af-note"><a href="{% url 'assets:guida' %}#catalogo">? Come si calcola</a></p>
+</section>
+{% endif %}

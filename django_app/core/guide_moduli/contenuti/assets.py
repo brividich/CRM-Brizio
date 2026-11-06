@@ -413,6 +413,15 @@ GUIDA = {
             ],
         },
         {
+            "id": "rischio_asset",
+            "titolo": "Capire il rischio di un PC o server",
+            "blocchi": [
+                ("p", "La Panoramica dell'asset, per chi vede il SOC, ha il riquadro «Rischio»: alto per CVE gravi o sfruttate e sistema fuori supporto; "
+                      "medio per altre CVE, supporto in scadenza entro 90 giorni, backup fallito o vecchio, server senza backup. "
+                      "«Nessun problema noto» non vuol dire al sicuro: sotto dice quanti programmi non sono controllati."),
+            ],
+        },
+        {
             "id": "riconciliazione_inventario",
             "titolo": "Trovare i PC senza asset e gli asset senza inventario",
             "blocchi": [
