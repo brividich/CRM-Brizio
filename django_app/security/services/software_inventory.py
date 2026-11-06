@@ -20,6 +20,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from functools import lru_cache
 
 from django.db import transaction
 from django.utils import timezone
@@ -331,6 +332,59 @@ def base_name(vendor, product):
     del_produttore = set(_token(vendor))
     parole = [t for t in _token(product) if t not in del_produttore]
     return tuple(parole) or tuple(_token(product))
+
+
+# Tutto ciò che in un nome installato dice la release e non il programma. Solo per raggruppare e
+# mostrare: ``normalize_product`` e le chiavi ``vendor|product`` restano come sono.
+_RUMORE_PAREN = frozenset(
+    "x64 x86 amd64 arm64 64 32 bit bits 64-bit 32-bit 64bit 32bit edition installed for current user only all users "
+    "it en de fr es pt nl english italiano italian italien ita".split()
+)
+_PAREN = re.compile(r"\(([^()]*)\)")
+_DATA_DRIVER = re.compile(r"\(\s*\d{1,2}/\d{1,2}/\d{4}.*$")
+_LINGUA_PAREN = re.compile(r"[a-z]{2}-[a-z]{2}")
+_ARCH_BIT = re.compile(r"\b(?:x64|x86|amd64|arm64|(?:64|32)[- ]?bits?)\b(?!-)", re.I)
+_DICITURE_RELEASE = re.compile(r"\b(?:update\s+\d+(?![\d.])|sp\s?\d+(?:[_-]hf\d+)?|version\s+\S+|build\s+[\d.]+|\d+u\d+)\b", re.I)
+_ANNO_PUNTO = re.compile(r"(?<![\w.])((?:19|20)\d\d)(?:\.\d+)+(?!\w)")
+_VERSIONE_ATTACCATA = re.compile(r"(?<=[a-z])(?:-v?\d+(?:\.\d+)+|\.\d+(?:\.\d+)*)\b", re.I)
+_VERSIONE = re.compile(r"(?<![\w.])(?<!usb )v?\d+(?:\.\d+)+(?:-[a-z]?\d+)?(?!\w)", re.I)
+_LINGUA_CODA = re.compile(r"(?:\s+[-–]\s*|\s+)(?:(?:it|en|de|fr|es|pt|nl)-[a-z]{2}|ita|italiano|italian|italien|english)$", re.I)
+_CODA = re.compile(r"[\s\-–|,:;_]+$")
+
+
+def _parentesi_di_release(match):
+    testo = match.group(1).strip().lower()
+    if not testo or _VERSIONE.search(testo) or _LINGUA_PAREN.fullmatch(testo) or re.fullmatch(r"\d+u\d+", testo):
+        return " "
+    return " " if all(t in _RUMORE_PAREN for t in re.split(r"[\s,]+", testo)) else match.group(0)
+
+
+@lru_cache(maxsize=8192)
+def nome_programma(nome):
+    """Il nome del programma senza release: «7-Zip 26.05 (x64 edition)» → «7-Zip»,
+    «Java 8 Update 381» → «Java 8», «Microsoft 365 - it-it» → «Microsoft 365».
+
+    Si toglie la versione con il punto, non il numero che fa parte del nome: «Windows 10», «Office
+    2019», «SQL Server 2022», «Visual C++ 2013» restano prodotti distinti («hyperMILL 2023.2» →
+    «hyperMILL 2023», come «hyperMILL 2024»). Solo per raggruppare e mostrare.
+    """
+    originale = re.sub(r"\s+", " ", str(nome or "")).strip()
+    testo = re.sub(r"[®™©]", "", originale)
+    testo = _DATA_DRIVER.sub(" ", testo)
+    testo = _PAREN.sub(_parentesi_di_release, testo)
+    testo = _DICITURE_RELEASE.sub(" ", testo)
+    testo = _ARCH_BIT.sub(" ", testo)
+    testo = _ANNO_PUNTO.sub(r"\1", testo)
+    testo = _VERSIONE_ATTACCATA.sub(" ", testo)
+    testo = _VERSIONE.sub(" ", testo)
+    testo = _PAREN.sub(_parentesi_di_release, testo)
+    testo = _CODA.sub("", re.sub(r"\s+", " ", testo).strip())
+    while True:
+        accorciato = _CODA.sub("", _LINGUA_CODA.sub("", testo))
+        if accorciato == testo or not accorciato:
+            break
+        testo = accorciato
+    return testo or originale
 
 
 def _produttori_compatibili(v1, v2):

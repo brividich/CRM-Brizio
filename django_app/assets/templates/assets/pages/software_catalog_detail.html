@@ -58,8 +58,19 @@
       {% empty %}<tr><td colspan="4" class="sc-meta">Nessuna versione rilevata.</td></tr>{% endfor %}
       </tbody>
     </table>
-    <p class="sc-note" style="margin-top:8px">Il programma può comparire con nomi diversi nelle fonti (es. «chrome» e «Google Chrome»): qui sono raggruppati. L'elenco dei PC è qui sotto, con la versione di ciascuno.</p>
+    <p class="sc-note" style="margin-top:8px">L'elenco dei PC è più in basso, con la versione di ciascuno.</p>
   </div>
+
+  {% if name_rows|length > 1 %}
+  <details class="sc-card sc-table-wrap">
+    <summary style="cursor:pointer;font-weight:700">Nomi raggruppati in questo programma ({{ name_rows|length }})</summary>
+    <p class="sc-note" style="margin:8px 0">Così lo riportano le fonti: stesso nome a parte versione, architettura e lingua, oppure lo stesso programma scritto con un produttore diverso.</p>
+    <table class="sc-table">
+      <thead><tr><th>Nome nell'inventario</th><th>Produttore</th><th>PC</th></tr></thead>
+      <tbody>{% for n in name_rows %}<tr><td>{{ n.name }}</td><td>{{ n.vendor|default:"—" }}</td><td>{{ n.hosts }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </details>
+  {% endif %}
 
   <div class="sc-card sc-table-wrap">
     <h2 style="margin:0 0 10px;font-size:18px">Installato su {{ host_count }} PC</h2>
