@@ -58,6 +58,10 @@ GUIDA = {
                       "Con «Azione di recupero» l'anomalia si chiude solo registrando l'azione effettuata; dopo una "
                       "rilavorazione o riparazione serve «Pezzo riverificato conforme». In Statistiche i tempi per "
                       "capocommessa, nella scheda NC quelli delle sue anomalie."),
+                ("p", "«Non voglio più aggiornamenti su questo OP», in fondo alla mail di decisione e al riepilogo, "
+                      "chiede conferma nel portale e vale solo per chi è collegato e solo per quell'OP. La mail con il "
+                      "link di decisione continua ad arrivare a chi deve decidere. «Aggiornamenti per OP» nel Menu "
+                      "Anomalie elenca gli OP silenziati e permette di riattivarli."),
                 ("p", "Le decisioni prese nel portale partono in un'unica mail di riepilogo dopo 5 minuti senza "
                       "salvataggi sull'OP (Configurazione → Notifiche); la barra «N decisioni in attesa di invio» in "
                       "Gestione anomalie permette di mandarle subito con «Invia ora»."),
@@ -112,6 +116,10 @@ GUIDA = {
                     "solo i suoi. Capocommessa e CAR modificano sempre i propri OP (regole CC/CAR del modulo). Di "
                     "serie: Qualità modifica tutto, Caporeparto il suo team, Ingegneria e Controllo qualità aprono "
                     "segnalazioni ovunque ma modificano solo i propri OP (migrazione core 0106 del 02/11/2026).",
+                    "Configurazione → Notifiche → «OP silenziati dalle persone» elenca chi ha chiesto di non ricevere "
+                    "più gli aggiornamenti di un OP, con «Riattiva». Il silenzio non ferma la mail di decisione a chi "
+                    "deve decidere, la lista RDC e «Segnala a CAR». Un indirizzo delle liste senza utente nel portale "
+                    "non può silenziarsi da solo: si toglie dalla lista.",
                     "La mail al capocommessa parte una sola volta, a fine controllo; se il controllo resta fermo il "
                     "controllore riceve un promemoria (notifica + mail con riepilogo, default 15 minuti) e la mail parte "
                     "da sola dopo il tempo di invio automatico (default 1 ora). I due tempi si cambiano in "
@@ -162,6 +170,13 @@ GUIDA = {
                 "Configurazione → Log attività: cerca la mail, leggi l'errore e usa «Reinvia».",
                 "Controlla l'email di notifica del capocommessa in Anagrafica.",
                 "Se nessuna mail del portale parte, Manuale di emergenza → «Le mail non partono».",
+            ],
+        },
+        {
+            "sintomo": "Una persona in copia non riceve più le mail di un OP",
+            "fare": [
+                "Configurazione → Notifiche → «OP silenziati dalle persone»: se c'è, l'ha chiesto lei dalla mail.",
+                "«Riattiva» sulla sua riga, oppure lo fa da sé da Menu Anomalie → «Aggiornamenti per OP».",
             ],
         },
         {

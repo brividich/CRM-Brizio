@@ -129,7 +129,7 @@ class RegolaForm(forms.Form):
     persona = forms.TypedChoiceField(label="Persona", choices=(), coerce=int, required=False, empty_value=None)
     livello = forms.ChoiceField(label="Può", choices=RegolaVisibilita.LIVELLO_CHOICES, initial=RegolaVisibilita.LIVELLO_VEDE)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, persone=None, **kwargs):
         super().__init__(*args, **kwargs)
         from anagrafica.models import RuoloOperativo
         from core.models import AccessGroup
@@ -138,7 +138,8 @@ class RegolaForm(forms.Form):
         self.fields["ruolo_portale"].label_from_instance = lambda g: g.label
         self.fields["ruolo_aziendale"].queryset = RuoloOperativo.objects.filter(is_active=True).order_by("nome")
         self.fields["ruolo_aziendale"].label_from_instance = lambda r: r.nome
-        self.fields["persona"].choices = [("", "—")] + persone_choices()
+        # ``persone``: le scelte già lette, quando si aggiungono più regole insieme.
+        self.fields["persona"].choices = persone if persone is not None else [("", "—")] + persone_choices()
 
     def clean(self):
         dati = super().clean()

@@ -504,6 +504,12 @@ def _destinatari(op_id: str) -> tuple[dict | None, dict | None]:
     for rec in (cc_rec, car_rec):
         if rec and rec is not primary and (not primary or rec["email"].lower() != primary["email"].lower()):
             secondary = rec
+    # Chi deve decidere riceve sempre la mail; la copia no, se ha silenziato l'OP.
+    if secondary:
+        from .silenzia_op import email_silenziate
+
+        if secondary["email"].strip().lower() in email_silenziate(op_id):
+            secondary = None
     return primary, secondary
 
 
@@ -532,8 +538,12 @@ def destinatari_display(op_id: str, extra: list | None = None) -> dict:
     fisse di Configurazione → Notifiche che ricevono il riepilogo senza link
     (sempre «Riepilogo modifiche»; «RDC / segnalazione cliente» solo se serve)."""
     extra_out = [{"email": d.get("email", ""), "nome": d.get("nome", "")} for d in (extra or []) if isinstance(d, dict)]
+    from .silenzia_op import email_silenziate
+
+    silenziate = email_silenziate(op_id)
     liste = {
-        "riepilogo": _lista_config_persone("conferma_aggiornamenti"),
+        "riepilogo": [p for p in _lista_config_persone("conferma_aggiornamenti")
+                      if p["email"].strip().lower() not in silenziate],
         "riepilogo_rdc": _lista_config_persone("rdc_segnalazione"),
     }
     try:
@@ -730,6 +740,9 @@ def invia_mail_controllo(controllo) -> dict:
     primary, secondary = _destinatari(controllo.op_id)
     cc = [secondary["email"]] if secondary else []
     gia = {e.lower() for e in cc} | ({primary["email"].lower()} if primary else set())
+    from .silenzia_op import email_silenziate
+
+    gia |= email_silenziate(controllo.op_id)
     extra = []
     for d in controllo.destinatari_extra or []:
         email = str((d or {}).get("email") or "").strip() if isinstance(d, dict) else ""

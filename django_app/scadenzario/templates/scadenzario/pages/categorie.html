@@ -23,7 +23,7 @@
           <td><a href="{% url 'scadenzario:categoria_modifica' c.pk %}"><strong>{{ c.nome }}</strong></a>{% if not c.is_active %} <span class="sz-pill sz-off">non attiva</span>{% endif %}{% if c.descrizione %}<div class="sz-help">{{ c.descrizione|truncatechars:80 }}</div>{% endif %}</td>
           <td style="white-space:nowrap"><a href="{% url 'scadenzario:elenco' %}?categoria={{ c.pk }}">{{ c.n_attivita }}</a>{% if c.n_scadute %} <span class="sz-pill sz-scaduta">{{ c.n_scadute }} scadut{{ c.n_scadute|pluralize:"a,e" }}</span>{% endif %}</td>
           <td>
-            {% for r in c.regole %}<span class="sz-pill {% if r.livello == 'GESTISCE' %}sz-vicina{% else %}sz-blu{% endif %}" title="{{ r.get_livello_display }}">{{ r.destinatario_breve }}</span> {% empty %}<span class="sz-muted">solo chi gestisce il pannello</span>{% endfor %}
+            {% for r in c.regole %}<span class="sz-pill {% if r.livello == 'GESTISCE' %}sz-vicina{% else %}sz-blu{% endif %}" title="{{ r.get_livello_display }} · {{ r.get_ambito_display }}">{{ r.destinatario_breve }}{% if r.ambito != 'tutti' %} ({{ r.get_ambito_display|lower }}){% endif %}</span> {% empty %}<span class="sz-muted">solo chi gestisce il pannello</span>{% endfor %}
             {% if regole_fonte %}<div class="sz-help">più {{ regole_fonte|length }} regol{{ regole_fonte|length|pluralize:"a,e" }} su tutte le categorie</div>{% endif %}
           </td>
           <td>{% if c.destinatari %}<span title="{{ c.destinatari|join:', ' }}">{{ c.destinatari|length }} indirizz{{ c.destinatari|length|pluralize:"o,i" }}</span>{% else %}<span class="sz-pill sz-vicina">nessuno</span>{% endif %}</td>

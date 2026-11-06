@@ -429,6 +429,13 @@ SEZIONI: list[dict] = [
                   "aziendali entri in automatico con l'utente Windows; da telefono o fuori rete si apre il login e, dopo "
                   "l'accesso, arrivi comunque all'OP. Il pulsante non contiene credenziali: inoltrare la mail non dà "
                   "accesso a nessuno."),
+            ("p", "«Non voglio più aggiornamenti su questo OP», in fondo alla mail di decisione e al riepilogo, apre "
+                  "la pagina «Aggiornamenti per OP» con il tuo accesso: confermi lì e vale solo per te e solo per "
+                  "quell'OP. Non ricevi più copia della mail di decisione, riepilogo, decisioni, OP completato e "
+                  "resoconto giornaliero. Continuano ad arrivare la mail con il link di decisione se sei tu a dover "
+                  "decidere, «Segnala a CAR», le mail su RDC e segnalazione cliente se sei nella lista dedicata e le "
+                  "notifiche nel portale. «Riattiva» nella stessa pagina (dal Menu Anomalie, «Aggiornamenti per OP») "
+                  "annulla la scelta."),
             ("p", "Le mail inviate dal modulo sono registrate e si possono rispedire dalla configurazione (Log attività). "
                   "Compaiono anche in Automazioni → «Mail inviate» (tipo «Anomalie · …», richiesta «OP #…»), insieme alle "
                   "altre mail del portale."),
@@ -550,6 +557,7 @@ PAGINE = {
     "anomalie_nc_lista": "non-conformita",
     "anomalie_nc_dettaglio": "non-conformita",
     "anomalie_mail_action": "mail",
+    "anomalie_op_silenzia": "avvisi",
 }
 
 _SEZIONI_PER_ID = {sezione["id"]: sezione for sezione in SEZIONI}

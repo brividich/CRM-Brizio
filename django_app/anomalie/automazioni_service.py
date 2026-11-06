@@ -472,6 +472,7 @@ def notify_op_completati(op_ids: list[str] | None = None, *, now=None) -> int:
     """
     from anomalie.automation_models import AnomalieAutomazioneMarker as M
     from anomalie.mail_action_service import _fetch_pn_for_ops
+    from anomalie.silenzia_op import togli_silenziati
     from automazioni.services import _resolve_op_recipients
 
     now = now or timezone.now()
@@ -487,7 +488,7 @@ def notify_op_completati(op_ids: list[str] | None = None, *, now=None) -> int:
         if _marker_exists(M.Tipo.OP_COMPLETATO, chiave):
             continue
         recs = _resolve_op_recipients(op_id)
-        to = _dedup_emails(r.get("email") for r in recs)
+        to = togli_silenziati(op_id, _dedup_emails(r.get("email") for r in recs))
         if not to:
             # Nessun destinatario risolvibile: si marca comunque per non riprovare a ogni run.
             _marker_set(M.Tipo.OP_COMPLETATO, chiave, {"inviata": False})
@@ -625,9 +626,11 @@ def invia_decisioni_operatore(op_id: str, piano: list[dict], *, deciso_da: str =
     Ritorna il numero di mail inviate. Mai bloccante."""
     from core.models import Notifica
     from anomalie.mail_action_service import _fetch_pn_for_ops
+    from anomalie.silenzia_op import email_silenziate
 
     if not piano:
         return 0
+    silenziate = email_silenziate(op_id)
     pn = ""
     try:
         pn = _fetch_pn_for_ops([op_id]).get(str(op_id).strip().lower(), "")
@@ -649,6 +652,8 @@ def invia_decisioni_operatore(op_id: str, piano: list[dict], *, deciso_da: str =
             logger.warning("decisioni operatore: notifica fallita op=%s uid=%s", op_id, g["legacy_uid"], exc_info=True)
         if not g.get("email"):
             logger.info("decisioni operatore: uid=%s senza email di notifica, solo notifica in-app", g["legacy_uid"])
+            continue
+        if g["email"].strip().lower() in silenziate:
             continue
         subject = f"[Novicrom Hub] {f'P/N {pn} · ' if pn else ''}OP {op_id} — decisione su {cosa} che hai segnalato"
         lines = [f"{chi} ha registrato una decisione su {cosa} dell'OP {op_id}"
