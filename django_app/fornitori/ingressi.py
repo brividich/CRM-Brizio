@@ -295,6 +295,41 @@ def fornitore_da_accesso(accesso: gp.Accesso, preferito=None):
     return Fornitore.objects.filter(pk=pk).first() if pk else None
 
 
+def crea_fornitore_da_accesso(accesso: gp.Accesso, *, utente) -> tuple[object | None, bool, bool]:
+    """Fornitore e tecnico dall'ingresso di una ditta nuova: nome dell'azienda e nominativo del
+    GuestPortal. Una ditta già presente, anche non attiva, non si duplica: il tecnico va su quella.
+
+    Ritorna ``(fornitore, fornitore_creato, tecnico_registrato)``; fornitore None se il nome è
+    vuoto o corrisponde a più fornitori.
+    """
+    from anagrafica.models import Fornitore
+
+    from . import tecnici
+
+    chiave = chiave_ditta(accesso.azienda)
+    if not chiave:
+        return None, False, False
+    fornitore = fornitore_da_accesso(accesso)
+    if fornitore is None:
+        pk = {p for p, nome in Fornitore.objects.values_list("pk", "ragione_sociale") if chiave_ditta(nome) == chiave}
+        if len(pk) > 1:
+            return None, False, False
+        fornitore = Fornitore.objects.filter(pk__in=pk).first()
+    with transaction.atomic():
+        creato = fornitore is None
+        if creato:
+            fornitore = Fornitore.objects.create(ragione_sociale=accesso.azienda.strip()[:200])
+        if accesso.ditta_gp_id:
+            DittaGuestPortal.objects.get_or_create(
+                ditta_gp_id=accesso.ditta_gp_id,
+                defaults={"fornitore": fornitore, "ditta_gp_nome": accesso.azienda.strip()[:200], "creato_da": utente},
+            )
+        _tecnico, registrato = tecnici.registra(
+            fornitore.pk, accesso.nome, origine=TecnicoFornitore.ORIGINE_GUESTPORTAL, utente=utente,
+        )
+    return fornitore, creato, registrato
+
+
 def _imposta_ditta(iv: Intervento, fornitore, *, utente, autore: tuple[str, str] | None) -> str:
     """Se l'intervento non ha ancora una ditta, imposta quella dell'ingresso e lo
     scrive nello storico del ticket/OdL. Ritorna una frase per l'utente ("" se niente)."""
