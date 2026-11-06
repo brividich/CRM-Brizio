@@ -118,7 +118,7 @@ def _ospite(dati: dict) -> JsonResponse:
 
 def _ingresso(dati: dict) -> JsonResponse:
     if dati.get("gdpr_consent") is not True:
-        return _errore("Per continuare devi accettare l'informativa privacy.")
+        return _errore("Per continuare conferma di aver letto l'informativa.")
     host = chiosco.referente(_intero(dati, "referente_id"))
     motivo = _testo(dati, "motivo")
     if host is None:
@@ -140,6 +140,9 @@ def _ingresso(dati: dict) -> JsonResponse:
 
 
 def _ingresso_fornitore(dati: dict) -> JsonResponse:
+    # Anche il fornitore accreditato legge l'informativa: il GuestPortal registra comunque ConsentGDPR=1.
+    if dati.get("gdpr_consent") is not True:
+        return _errore("Per continuare conferma di aver letto l'informativa.")
     azienda_id, nominativo_id = _intero(dati, "azienda_id"), _intero(dati, "nominativo_id")
     azienda = next((a for a in chiosco.aziende() if a["id"] == azienda_id), None)
     if azienda is None:
@@ -204,7 +207,7 @@ def _prereg_entra(dati: dict) -> JsonResponse:
     if len(codice) != 8:
         return _errore("Il codice deve avere 8 caratteri.")
     if dati.get("gdpr_consent") is not True:
-        return _errore("Per continuare devi accettare l'informativa privacy.")
+        return _errore("Per continuare conferma di aver letto l'informativa.")
     stato, esito = chiosco.chiama("prereg_checkin", {"code": codice})
     if not esito.get("success") and stato == 200:
         return _errore("Codice non valido, scaduto o già utilizzato.")
