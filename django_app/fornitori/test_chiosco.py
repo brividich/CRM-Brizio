@@ -148,15 +148,27 @@ class IngressoTests(Base):
         self.assertFalse(self.api("ospite", email="non-valida").json()["found"])
 
     def test_fornitore_rilegge_azienda_e_nominativo(self):
-        risposta = self.api("ingresso-fornitore", azienda_id=5, nominativo_id=9, referente_id=3, company_name="Falsa", first_name="Falso")
+        risposta = self.api("ingresso-fornitore", azienda_id=5, nominativo_id=9, referente_id=3, gdpr_consent=True,
+                            company_name="Falsa", first_name="Falso")
         self.assertTrue(risposta.json()["success"])
         inviati = self.inviati("supplier_checkin")
         self.assertEqual(inviati["company_name"], "Impianti Esempio Srl")
         self.assertEqual(inviati["first_name"], "Mario")
 
     def test_fornitore_inesistente(self):
-        self.assertFalse(self.api("ingresso-fornitore", azienda_id=77, nominativo_id=9, referente_id=3).json()["success"])
-        self.assertFalse(self.api("ingresso-fornitore", azienda_id=5, nominativo_id=77, referente_id=3).json()["success"])
+        self.assertFalse(self.api("ingresso-fornitore", azienda_id=77, nominativo_id=9, referente_id=3, gdpr_consent=True).json()["success"])
+        self.assertFalse(self.api("ingresso-fornitore", azienda_id=5, nominativo_id=77, referente_id=3, gdpr_consent=True).json()["success"])
+
+    def test_fornitore_senza_informativa_non_entra(self):
+        risposta = self.api("ingresso-fornitore", azienda_id=5, nominativo_id=9, referente_id=3)
+        self.assertFalse(risposta.json()["success"])
+        self.assertNotIn("supplier_checkin", [n for n, _ in CHIAMATE])
+
+    def test_informativa_completa_e_senza_promesse_false(self):
+        pagina = self.client.get(reverse("chiosco:pagina")).content.decode()
+        self.assertIn("56025 Pontedera (PI)", pagina)
+        self.assertIn("come prova dell", pagina)
+        self.assertNotIn("automaticamente", pagina)
 
 
 class UscitaPreregTests(Base):
