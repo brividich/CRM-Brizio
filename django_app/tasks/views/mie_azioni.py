@@ -176,6 +176,9 @@ def mia_voce_stato(request, kind: str, pk: int):
         return back
 
     verb = (request.POST.get("action") or "").strip()
+    if kind == KIND_TECH and item.attivita_aperta:
+        messages.error(request, "Questa voce si chiude con la sua attività.")
+        return back
     if kind == KIND_TECH:
         if verb == "done":
             item.mark_done(user=request.user)

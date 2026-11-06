@@ -1094,10 +1094,14 @@ def _handle_tasks_categories_post(request):
         category.save()
         # Le attività aperte di questo tipo si allineano subito alla nuova regola.
         if category.richiede != richiede_prima:
-            from ..services.programmi import allinea_da_attivita
+            from ..models import ProjectTechRef
+            from ..services.programmi import allinea_da_attivita, sgancia
 
             for task in category.tasks.exclude(status__in=[TaskStatus.DONE, TaskStatus.CANCELED]):
                 allinea_da_attivita(task)
+            # Le attività già chiuse non si riaprono: perdono solo la richiesta che non vale più.
+            for ref in ProjectTechRef.objects.filter(task__category=category, task__status=TaskStatus.DONE):
+                sgancia(ref)
         log_action(request, "tipo_modificato", "tasks", {
             "message": f"Modificato tipo attivita '{category.name}'",
             "category_id": category.id,
@@ -1113,6 +1117,12 @@ def _handle_tasks_categories_post(request):
             return redirect(_url_for())
         name = category.name
         in_use = Task.objects.filter(category_id=category.id).count()
+        # Eliminare il tipo svuota il campo senza salvare le attività: la riga va staccata qui.
+        from ..models import ProjectTechRef
+        from ..services.programmi import sgancia
+
+        for ref in ProjectTechRef.objects.filter(task__category=category):
+            sgancia(ref)
         category.delete()
         log_action(request, "tipo_eliminato", "tasks", {
             "message": f"Eliminato tipo attivita '{name}' (attivita collegate: {in_use})",

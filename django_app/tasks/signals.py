@@ -50,7 +50,11 @@ def programma_da_attivita(sender, instance: Task, raw=False, **kwargs):
         return
     from .services.programmi import allinea_da_attivita
 
-    allinea_da_attivita(instance)
+    # Come per le voci d'incontro: un problema sulla riga non deve far perdere l'attività.
+    try:
+        allinea_da_attivita(instance)
+    except Exception:
+        logger.exception("Allineamento programma fallito (task=%s)", instance.pk)
 
 
 @receiver(pre_delete, sender=Task, dispatch_uid="tasks_programma_attivita_eliminata")

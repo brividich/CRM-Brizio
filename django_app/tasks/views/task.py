@@ -285,6 +285,15 @@ def da_gestire(request):
     )
 
 
+def _causale_fai(tech_ref) -> str:
+    if tech_ref is None or tech_ref.kind != "FAI" or tech_ref.project_id is None:
+        return ""
+    from ..services.fai import esito_progetto
+
+    esito = esito_progetto(tech_ref.project)
+    return esito.causale if esito else ""
+
+
 @task_permissions_required("tasks_view")
 def task_detail(request, task_id: int):
     task = get_object_or_404(_detail_queryset(request), pk=task_id)
@@ -322,6 +331,8 @@ def task_detail(request, task_id: int):
             # Chi deve scrivere un programma vede il programma, non la gestione attrezzatura.
             "attrezzatura_embedded_context": None if tech_ref else _build_task_attrezzatura_context(task),
             "task_tech_ref": tech_ref,
+            # La scheda FAI parte da ciò che la procedura prevede per questo P/N.
+            "task_fai_causale": _causale_fai(tech_ref),
             "task_tech_ref_modificabile": can_manage or task.assigned_to_id == request.user.pk,
         },
     )
@@ -1008,7 +1019,7 @@ def change_status(request, task_id: int):
             from ..models import ProjectTechRef
 
             mancante = ProjectTechRef.objects.filter(task=task, status="OPEN").first()
-            if task.status == TaskStatus.DONE and mancante:
+            if task.status == TaskStatus.DONE and mancante and not mancante.ha_contenuto:
                 messages.warning(
                     request, f"{mancante.get_kind_display()} non ancora inserito: resta da fare per {task.title}."
                 )

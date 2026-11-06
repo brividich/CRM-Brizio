@@ -1,6 +1,8 @@
 """Registro FAI: stessi dati del file «Situazione FAI-ISIR» (MT CN 15 §5.10), con la regola."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from django import forms
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
@@ -192,6 +194,7 @@ def _contesto_scheda(request, form, record, project, ref, *, modificabile: bool)
         "record": record,
         "fai_project": project,
         "fai_ref": ref,
+        "fai_attivita": (ref or (record.tech_ref if record else None) or SimpleNamespace(task=None)).task,
         "modificabile": modificabile,
         "puo_eliminare": bool(record and _gestisce(request, record)),
         "causali": opzioni_attive(FaiGruppo.CAUSALE, record.causale if record else None),
@@ -251,7 +254,10 @@ def fai_scheda(request, fai_id: int | None = None):
                 pk=int(sorgente["ref"]), project=project, kind=TechRefKind.FAI, fai_record__isnull=True
             ).first()
 
-    modificabile = _puo_modificare(request, record) if record else _puo_creare(request, project)
+    # Chi ha ricevuto la riga, o l'attività che la chiede, deve poter compilare la scheda.
+    modificabile = _puo_modificare(request, record) if record else (
+        _puo_creare(request, project) or bool(ref and ref.assigned_to_id == request.user.pk)
+    )
     if not record and not modificabile:
         raise PermissionDenied
 
@@ -285,7 +291,13 @@ def _elimina(request, record: FaiRecord):
     dettaglio = {"id": record.pk, "project_id": record.project_id, "part_number": articolo.part_number}
     with transaction.atomic():
         record.delete()
-        if riga is not None:
+        if riga is not None and riga.task_id:
+            # L'attività chiede ancora il FAI: la richiesta resta, vuota.
+            riga = ProjectTechRef.objects.get(pk=riga.pk)
+            riga.code, riga.path = "", ""
+            riga.reopen()
+            riga.save()
+        elif riga is not None:
             riga.delete()
         if not articolo.fai.exists():
             articolo.delete()

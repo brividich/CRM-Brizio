@@ -67,10 +67,11 @@
             <input class="input" name="piano_numero" maxlength="160" value="{{ form.piano_numero.value|default_if_none:'' }}" data-fai-numero>
           </label>
           <label class="fai-campo"><span>Responsabile</span>
-            <select class="input" name="responsabile">
+            <select class="input" name="responsabile"{% if fai_attivita %} disabled{% endif %}>
               <option value="">Da assegnare</option>
               {% with quick_users=utenti selected=responsabile_scelto %}{% include "tasks/_quick_user_options.html" %}{% endwith %}
             </select>
+            {% if fai_attivita %}<small>È il responsabile dell'attività «{{ fai_attivita.title }}»: si cambia da lì.</small>{% endif %}
             {% if form.responsabile.errors %}<small class="tr-err">{{ form.responsabile.errors|join:" " }}</small>{% endif %}
           </label>
           <label class="fai-campo"><span>Cartella o file di rete</span>

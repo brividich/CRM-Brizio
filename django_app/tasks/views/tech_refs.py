@@ -5,7 +5,6 @@ from datetime import date
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -26,7 +25,7 @@ from ..access import (
 from ..models import KickoffMeeting, ProjectTechRef, TechRefKind
 from ..services.fai import allinea_da_riga, esito_progetto
 from ..services.notify import notify_user
-from ..services.programmi import chiudi_se_pronta
+from ..services.programmi import allinea_stato_riga
 from ..tech_paths import normalizza_percorso
 from ._shared import _tasks_shell_context, _utenti_riga_rapida
 
@@ -125,7 +124,7 @@ def programmi_registro(request):
         {"ref": ref, "stato": stato, "classe": classe}
         for ref in ProjectTechRef.objects.filter(
             kind__in=[TechRefKind.CAM, TechRefKind.CMM], project__in=scoped_projects_queryset(request)
-        ).select_related("project", "assigned_to", "task").order_by("project__part_number", "kind", "id")
+        ).select_related("project", "assigned_to", "task", "fai_record").order_by("project__part_number", "kind", "id")
         for stato, classe in [_stato_programma(ref)]
     ]
     viste = (
@@ -186,7 +185,7 @@ def task_programma(request, task_id: int):
     ref.path = path
     ref.save(update_fields=["code", "path", "updated_at"])
     allinea_da_riga(ref)
-    chiudi_se_pronta(ref, request.user)
+    allinea_stato_riga(ref, request.user)
     log_action(request, "kickoff_programma_da_attivita", "tasks", {"id": ref.pk, "task_id": task.pk})
     messages.success(request, f"{ref.get_kind_display()} salvato.")
     return redirect("tasks:detail", task_id=task.pk)
@@ -262,7 +261,7 @@ def tech_ref_save(request, project_id: int):
     else:
         assegnato = ref.assigned_to
 
-    if not (code or path or assegnato):
+    if not (code or path or assegnato or (ref is not None and ref.task_id)):
         return _errore("Scrivi il codice, il percorso o il responsabile.")
 
     # Tipo, responsabile e data di una riga nata da un'attività si decidono sull'attività.
@@ -279,7 +278,7 @@ def tech_ref_save(request, project_id: int):
     ref.kind, ref.code, ref.path, ref.due_date, ref.assigned_to = kind, code, path, due_date, assegnato
     ref.save()
     allinea_da_riga(ref)
-    chiudi_se_pronta(ref, request.user)
+    allinea_stato_riga(ref, request.user)
     log_action(request, "kickoff_tech_ref_salva", "tasks", {
         "id": ref.pk, "project_id": project.pk, "kind": kind, "nuova": nuova,
     })

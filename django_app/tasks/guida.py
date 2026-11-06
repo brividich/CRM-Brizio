@@ -251,7 +251,7 @@ SEZIONI: list[dict] = [
             ("p", "La scheda «Programmi e FAI» della commessa raccoglie i codici e i percorsi di rete, con il responsabile di ognuno. "
                   "Non è obbligatoria e si può usare solo per quello che serve. Le stesse righe si vedono e si aggiungono anche nel dettaglio dell'incontro e in «Registra esito»: non vanno inserite due volte."),
             ("p", "Un'attività di tipo «Programmazione CAM» richiede il programma CAM, «Programmazione CMM» il programma CMM, «Esecuzione FAI» la scheda FAI: la scheda dell'attività chiede subito codice e cartella, e la stessa riga compare in «Programmi e FAI» con il responsabile e la data dell'attività. "
-                  "Se l'attività si chiude senza programma, si può chiudere, ma la riga resta «Da inserire» nelle attività del responsabile. La voce di menu «Programmi» mostra tutti i programmi CAM e CMM, con filtri, ricerca ed esportazione CSV."),
+                  "Se l'attività si chiude senza programma, si può chiudere, ma la riga resta «Da inserire» nelle attività del responsabile. Se il programma viene cancellato, torna «Da inserire». Eliminare il tipo o togliere «Richiede» stacca le righe: quelle vuote spariscono, i programmi già inseriti e le righe assegnate in riunione restano. Una scheda FAI chiesta da un'attività ha lo stesso responsabile dell'attività. La voce di menu «Programmi» mostra tutti i programmi CAM e CMM, con filtri, ricerca ed esportazione CSV."),
             ("passi", [
                 "Scegli il tipo: «Programma CAM», «Programma CMM» o «FAI».",
                 "Scrivi il codice e, se serve, il percorso, per esempio \\\\server\\cartella\\file.",

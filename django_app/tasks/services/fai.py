@@ -154,6 +154,10 @@ def allinea_riga(record: FaiRecord, user=None) -> None:
     ref = record.tech_ref or ProjectTechRef(project_id=record.project_id, kind=TechRefKind.FAI, created_by=user)
     ref.code = record.piano_numero[:120]
     ref.path = record.path
+    if ref.task_id:
+        # Una persona sola: il responsabile è quello dell'attività che chiede il FAI.
+        record.responsabile = ref.task.assigned_to
+        FaiRecord.objects.filter(pk=record.pk).update(responsabile=record.responsabile)
     ref.assigned_to = record.responsabile
     da_fare = record.stato.fase in FASI_DA_FARE
     if da_fare and ref.status != TechRefStatus.OPEN:

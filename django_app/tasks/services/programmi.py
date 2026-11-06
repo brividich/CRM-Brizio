@@ -13,8 +13,8 @@ def senza_attivita_aperta(righe):
 
 
 def sgancia(ref: ProjectTechRef) -> None:
-    """Una riga vuota sparisce con l'attività; un programma già inserito resta."""
-    if ref.ha_contenuto:
+    """Una riga vuota sparisce con l'attività; restano il programma inserito e l'assegnazione in riunione."""
+    if ref.ha_contenuto or ref.source_meeting_id:
         ref.task = None
         ref.save(update_fields=["task", "updated_at"])
     else:
@@ -37,6 +37,13 @@ def allinea_da_attivita(task: Task) -> ProjectTechRef | None:
     ref = ProjectTechRef.objects.filter(task=task).first()
     categoria = task.category if task.category_id else None
     kind = categoria.richiede if categoria and task.project_id and task.status != TaskStatus.CANCELED else ""
+    if ref is not None and ref.project_id != task.project_id and kind:
+        # Attività spostata: il programma la segue, la scheda FAI appartiene all'articolo di prima.
+        if getattr(ref, "fai_record", None):
+            sgancia(ref)
+            ref = None
+        else:
+            ref.source_meeting = None
     if ref is not None and ref.kind != kind:
         sgancia(ref)
         ref = None
@@ -49,7 +56,8 @@ def allinea_da_attivita(task: Task) -> ProjectTechRef | None:
     ref.task = task
     ref.project_id = task.project_id
     ref.assigned_to_id = task.assigned_to_id
-    ref.due_date = task.due_date
+    # Senza data sull'attività resta quella data in riunione.
+    ref.due_date = task.due_date or ref.due_date
     # Il FAI con la sua scheda ha un avanzamento proprio.
     if not (kind == TechRefKind.FAI and getattr(ref, "fai_record", None)):
         if task.status == TaskStatus.DONE:
@@ -62,8 +70,14 @@ def allinea_da_attivita(task: Task) -> ProjectTechRef | None:
     return ref
 
 
-def chiudi_se_pronta(ref: ProjectTechRef, user=None) -> None:
-    """Attività già chiusa e programma inserito dopo: ora la riga è a posto."""
-    if ref.task_id and ref.is_open and ref.task.status == TaskStatus.DONE and ref.ha_contenuto:
+def allinea_stato_riga(ref: ProjectTechRef, user=None) -> None:
+    """Attività già chiusa: la riga è a posto solo finché il programma c'è."""
+    if not ref.task_id or ref.task.status != TaskStatus.DONE or getattr(ref, "fai_record", None):
+        return
+    if ref.is_open and ref.ha_contenuto:
         ref.mark_done(user=user)
-        ref.save(update_fields=["status", "done_by", "done_at", "updated_at"])
+    elif not ref.is_open and not ref.ha_contenuto:
+        ref.reopen()
+    else:
+        return
+    ref.save(update_fields=["status", "done_by", "done_at", "updated_at"])
