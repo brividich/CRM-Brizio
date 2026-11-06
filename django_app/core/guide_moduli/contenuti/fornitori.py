@@ -3,7 +3,7 @@ GUIDA = {
     "titolo": "Fornitori",
     "area": "Produzione e operations",
     "sintesi": "Anagrafica fornitori con documenti a scadenza, requisiti di sicurezza per chi lavora in sede, ordini, valutazioni, asset, e per ogni ditta manutenzione, copie delle multifunzioni, scadenze e tecnici.",
-    "parole": "durc duvri visura idoneità tecnico professionale polizza rct art 26 appalto requisiti fornitore fornitori ordine ordini valutazione albo partita iva accessi esterni visitatori ospiti consulenti guestportal reception badge tecnici tecnico ditta manutenzione odl ticket contratto assistenza ricambi fattura fatture copie mfc multifunzione stampanti scadenze esporta csv",
+    "parole": "durc duvri visura idoneità tecnico professionale polizza rct art 26 appalto requisiti fornitore fornitori ordine ordini valutazione albo partita iva accessi esterni visitatori ospiti consulenti guestportal reception badge tecnici tecnico ditta manutenzione ordinaria scadenza amministrativa odl ticket contratto assistenza ricambi fattura fatture copie mfc multifunzione stampanti scadenze esporta csv",
     "url": "fornitori:index",
     "prefissi": ("/fornitori/",),
     "uso": [
@@ -94,12 +94,17 @@ GUIDA = {
         },
         {
             "id": "presenze-interventi",
-            "titolo": "Collegare l'ingresso della ditta al ticket o all'OdL",
+            "titolo": "Collegare l'ingresso della ditta a ticket, OdL, manutenzione o scadenza",
             "blocchi": [
                 ("p", "Si può partire da due parti: dall'ingresso (Fornitori → «Accessi esterni» → «Collega…» sulla riga "
-                      "dell'esterno: si sceglie il ticket MAN o l'OdL aperto e si clicca «Collega») oppure dall'intervento, "
+                      "dell'esterno: si sceglie il ticket MAN, l'OdL, la manutenzione ordinaria o la scadenza e si clicca «Collega») oppure dall'intervento, "
                       "con il riquadro «Presenze in azienda della ditta» nei ticket di manutenzione (scheda «Interventi» "
-                      "della gestione) e in ogni ordine di lavoro aperto."),
+                      "della gestione), in ogni ordine di lavoro aperto, in «Registra l'esecuzione» delle manutenzioni affidate a una ditta, "
+                      "nella pagina di modifica delle scadenze degli asset e nella scheda delle attività dello Scadenzario."),
+                ("p", "Il collegamento è una prova di presenza: non registra la manutenzione e non rinnova la scadenza. "
+                      "Se la manutenzione, la scadenza o l'attività non ha ancora una ditta, prende quella dell'ingresso; "
+                      "un ente già scritto a mano su una scadenza dell'asset non viene cambiato. "
+                      "Una manutenzione già eseguita si può collegare anche dopo."),
                 ("p", "Se il ticket o l'OdL non ha ancora una ditta e quella dell'ingresso si riconosce, collegando la si "
                       "imposta: il ticket diventa «Delegato a fornitore» (con un commento interno), l'OdL passa a esecuzione "
                       "«Esterna» con quella ditta (scritto nel registro dell'OdL). Una ditta già impostata non viene cambiata. "

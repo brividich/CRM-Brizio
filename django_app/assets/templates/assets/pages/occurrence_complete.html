@@ -118,6 +118,9 @@
     <a class="btn btn-secondary" href="{{ back_url }}">Annulla</a>
   </div>
 </form>
+{% if occurrence.is_external or occurrence.supplier_id or occurrence.ingressi_esterni.exists %}
+<div hx-get="{% url 'fornitori:presenze_intervento' 'ordinaria' occurrence.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="md-note">Caricamento presenze in azienda della ditta…</p></div>
+{% endif %}
 <script>
 document.addEventListener('click', function (event) {
   var button = event.target.closest('[data-md-copy-downtime]');

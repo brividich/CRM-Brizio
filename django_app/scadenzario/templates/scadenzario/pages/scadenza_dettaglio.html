@@ -88,6 +88,10 @@
   </details>
   {% endif %}
 
+  {% if gestisce or s.ingressi_esterni.exists %}
+  <div hx-get="{% url 'fornitori:presenze_intervento' 'scadenza' s.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="sz-muted">Caricamento presenze in azienda della ditta…</p></div>
+  {% endif %}
+
   <div class="sz-card sz-wrap">
     <h2>Storico dei rinnovi</h2>
     <table class="sz-table">

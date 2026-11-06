@@ -39,6 +39,17 @@ class DittaGuestPortal(models.Model):
         return f"{self.ditta_gp_nome} → {self.fornitore}"
 
 
+_DESTINAZIONI_INGRESSO = ("ticket", "work_order", "sessione_formazione", "occorrenza", "scadenza_asset", "scadenza")
+
+
+def _un_solo_intervento() -> Q:
+    """Un collegamento punta a una sola destinazione."""
+    esito = Q()
+    for scelta in _DESTINAZIONI_INGRESSO:
+        esito |= Q(**{f"{c}__isnull": c != scelta for c in _DESTINAZIONI_INGRESSO})
+    return esito
+
+
 class IngressoIntervento(models.Model):
     MODO_PROPOSTA = "PROPOSTA"
     MODO_MANUALE = "MANUALE"
@@ -57,6 +68,18 @@ class IngressoIntervento(models.Model):
     sessione_formazione = models.ForeignKey(
         "anagrafica.TrainingSession", null=True, blank=True, on_delete=models.CASCADE,
         related_name="ingressi_esterni", help_text="Sessione formativa: ingresso del docente esterno",
+    )
+    occorrenza = models.ForeignKey(
+        "assets.MaintenanceOccurrence", null=True, blank=True, on_delete=models.CASCADE,
+        related_name="ingressi_esterni", help_text="Manutenzione ordinaria eseguita dalla ditta",
+    )
+    scadenza_asset = models.ForeignKey(
+        "assets.AssetAdministrativeDeadline", null=True, blank=True, on_delete=models.CASCADE,
+        related_name="ingressi_esterni", help_text="Scadenza amministrativa dell'asset",
+    )
+    scadenza = models.ForeignKey(
+        "scadenzario.ScadenzaGenerica", null=True, blank=True, on_delete=models.CASCADE,
+        related_name="ingressi_esterni", help_text="Attività dello Scadenzario",
     )
     fornitore = models.ForeignKey(
         "anagrafica.Fornitore", null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
@@ -79,12 +102,7 @@ class IngressoIntervento(models.Model):
         verbose_name = "Ingresso esterno collegato"
         verbose_name_plural = "Ingressi esterni collegati"
         constraints = [
-            models.CheckConstraint(
-                condition=(Q(ticket__isnull=False, work_order__isnull=True, sessione_formazione__isnull=True)
-                           | Q(ticket__isnull=True, work_order__isnull=False, sessione_formazione__isnull=True)
-                           | Q(ticket__isnull=True, work_order__isnull=True, sessione_formazione__isnull=False)),
-                name="fornitori_ingresso_un_solo_intervento_v2",
-            ),
+            models.CheckConstraint(condition=_un_solo_intervento(), name="fornitori_ingresso_un_solo_intervento_v3"),
             models.UniqueConstraint(
                 fields=["visita_gp_id", "ticket"], condition=Q(ticket__isnull=False),
                 name="fornitori_ingresso_unico_per_ticket",
@@ -97,10 +115,24 @@ class IngressoIntervento(models.Model):
                 fields=["visita_gp_id", "sessione_formazione"], condition=Q(sessione_formazione__isnull=False),
                 name="fornitori_ingresso_unico_per_sessione",
             ),
+            models.UniqueConstraint(
+                fields=["visita_gp_id", "occorrenza"], condition=Q(occorrenza__isnull=False),
+                name="fornitori_ingresso_unico_per_occorrenza",
+            ),
+            models.UniqueConstraint(
+                fields=["visita_gp_id", "scadenza_asset"], condition=Q(scadenza_asset__isnull=False),
+                name="fornitori_ingresso_unico_per_scad_asset",
+            ),
+            models.UniqueConstraint(
+                fields=["visita_gp_id", "scadenza"], condition=Q(scadenza__isnull=False),
+                name="fornitori_ingresso_unico_per_scadenza",
+            ),
         ]
 
     def __str__(self) -> str:
-        return f"Visita {self.visita_gp_id} → {self.ticket or self.work_order or self.sessione_formazione}"
+        destinazione = (self.ticket or self.work_order or self.sessione_formazione or self.occorrenza
+                        or self.scadenza_asset or self.scadenza)
+        return f"Visita {self.visita_gp_id} → {destinazione}"
 
     @property
     def durata_minuti(self) -> int | None:

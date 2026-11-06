@@ -759,10 +759,31 @@ def _puo_presenze(request, iv, *, modifica: bool) -> bool:
         from tickets.services.accesso import utente_puo_gestire_ticket
 
         return utente_puo_gestire_ticket(request, iv.oggetto)
+    if iv.tipo == ing.TIPO_SCADENZA:
+        from scadenzario.permessi import puo_gestire_categoria, puo_vedere_scadenza
+
+        if modifica:
+            return puo_gestire_categoria(request, iv.oggetto.categoria_id)
+        return puo_vedere_scadenza(request, iv.oggetto)
     from django.urls import reverse
 
     from core.middleware import acl_allows_path
 
+    if iv.tipo in (ing.TIPO_ORDINARIA, ing.TIPO_AMMINISTRATIVA):
+        from assets.registro_permessi import MODULO_MANUTENZIONE, MODULO_VERIFICHE
+        from assets.services.visibilita import puo_vedere
+
+        ordinaria = iv.tipo == ing.TIPO_ORDINARIA
+        rotta = "assets:occurrence_complete" if ordinaria else "assets:asset_administrative_deadline_edit"
+        vede = acl_allows_path(
+            reverse(rotta, args=[iv.pk]), django_user=request.user,
+            legacy_user=getattr(request, "legacy_user", None), request=request,
+        ) and puo_vedere(request, iv.oggetto.asset, MODULO_MANUTENZIONE if ordinaria else MODULO_VERIFICHE)
+        if not vede or not modifica or not ordinaria:
+            return bool(vede)
+        from assets.views_maintenance import can_execute_maintenance
+
+        return bool(can_execute_maintenance(request))
     vede = acl_allows_path(
         reverse("assets:wo_view", args=[iv.pk]), django_user=request.user,
         legacy_user=getattr(request, "legacy_user", None), request=request,
@@ -799,7 +820,7 @@ def _render_presenze(request, iv, *, esito: str = "", errore: str = "", status: 
     # anche dopo (fornitore creato o ditta abbinata in un secondo momento).
     ditta_proposta = None
     aziende_sconosciute: list[str] = []
-    if puo_modificare and collegamenti and iv.tipo in ing.TIPI and iv.fornitore is None:
+    if puo_modificare and collegamenti and iv.puo_prendere_ditta:
         ditta_proposta = ing.ditta_dai_collegamenti(iv, collegamenti)
         if ditta_proposta is None:
             aziende_sconosciute = sorted({c.azienda for c in collegamenti if c.azienda})
@@ -943,7 +964,7 @@ def ingresso_collega(request, visita_id):
         pk_txt = request.POST.get("pk", "")
         iv = ing.intervento(request.POST.get("tipo", ""), int(pk_txt)) if pk_txt.isdigit() else None
         if iv is None:
-            messages.error(request, "Ticket o OdL non trovato.")
+            messages.error(request, "Intervento non trovato.")
         elif not _puo_presenze(request, iv, modifica=True):
             return HttpResponseForbidden("Permesso negato")
         else:
@@ -964,9 +985,13 @@ def ingresso_collega(request, visita_id):
     fornitore = ing.fornitore_da_accesso(accesso)
     testo = request.GET.get("q", "").strip()[:80]
     interventi = ing.interventi_aperti(request, testo=testo, fornitore=fornitore, accesso=accesso)
+    scadenze, elenco_tagliato = ing.scadenze_da_collegare(request, testo=testo, fornitore=fornitore, accesso=accesso)
+    interventi = sorted([*interventi, *scadenze], key=ing.stessa_ditta_prima(fornitore))
     collegati = list(IngressoIntervento.objects.filter(visita_gp_id=accesso.visita_id)
                      .select_related("ticket", "work_order", "work_order__asset", "sessione_formazione",
-                                     "sessione_formazione__corso", "collegato_da"))
+                                     "sessione_formazione__corso", "occorrenza", "occorrenza__plan", "occorrenza__asset",
+                                     "scadenza_asset", "scadenza_asset__asset", "scadenza", "scadenza__categoria",
+                                     "collegato_da"))
     for c in collegati:
         c.iv = ing.intervento_del_link(c)
     gia = {(c.iv.tipo, c.iv.pk) for c in collegati}
@@ -977,6 +1002,8 @@ def ingresso_collega(request, visita_id):
         "righe": righe,
         "collegati": collegati,
         "q": testo,
+        "elenco_tagliato": elenco_tagliato,
+        "elenco_max": ing.ELENCO_MAX_SCADENZE,
         "puo_odl": ing.puo_collegare_odl(request),
         "puo_formazione": ing.puo_collegare_formazione(request),
     })

@@ -35,6 +35,22 @@
 </table></div>
 {% endif %}
 
+{% if ordinarie %}
+<div class="fr-sez">Manutenzioni ordinarie affidate alla ditta <small>{{ n_ordinarie }} aperte{% if n_ordinarie_ritardo %} · {{ n_ordinarie_ritardo }} in ritardo{% endif %}{% if n_ordinarie > ordinarie|length %} · le prime {{ ordinarie|length }} per scadenza{% endif %}</small></div>
+<div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">
+  <thead><tr><th>Manutenzione</th><th>Asset</th><th>Scadenza</th><th>Appuntamento</th><th>Ingressi collegati</th></tr></thead>
+  <tbody>{% for o in ordinarie %}
+    <tr>
+      <td><a class="fr-link" href="{% url 'assets:occurrence_complete' o.pk %}">{{ o.plan.label }}</a></td>
+      <td>{{ o.asset.name }}</td>
+      <td>{{ o.due_date|date:"d-m-Y" }}{% if o.due_date < oggi %} <span class="ana-pill ana-pill-red">In ritardo</span>{% endif %}</td>
+      <td>{{ o.appointment_date|date:"d-m-Y"|default:"—" }}</td>
+      <td>{{ o.n_ingressi|default:"—" }}</td>
+    </tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+
 {% if ticket_aperti or ticket_chiusi %}
 <div class="fr-sez">Ticket delegati alla ditta{% if n_ticket_chiusi > ticket_chiusi|length %} <small>ultimi {{ ticket_chiusi|length }} chiusi su {{ n_ticket_chiusi }}</small>{% endif %}</div>
 <div class="ana-table-wrap"><table class="ana-table" data-fm-table-skip="1" data-table-enhanced="0">

@@ -48,6 +48,8 @@ SEZIONI = [
                               "importi in euro non ci sono: il modulo Contatori non li registra."),
                 ("Scadenze", "documenti, contratti, verifiche periodiche e attività dello Scadenzario della ditta, "
                              "in ordine di data. «In scadenza» = entro 30 giorni."),
+                ("Manutenzione", "tra le altre cose, anche le manutenzioni ordinarie aperte affidate alla ditta, con gli "
+                                 "ingressi collegati a ciascuna."),
                 ("Tecnici", "il registro dei tecnici della ditta con qualifica, contatti e attestati. Chi ha il permesso "
                             "di «Accessi esterni» vede anche ingressi, ore in azienda, ultimo ingresso, chi è dentro "
                             "ora e gli ingressi degli ultimi 90 giorni."),
@@ -119,6 +121,9 @@ SEZIONI = [
                 ("Fornitori e scheda", "chi ha il modulo Fornitori."),
                 ("Manutenzione, Copie MFC", "chi apre anche le manutenzioni delle ditte in Asset, o le fatture in "
                                             "Contatori; i ticket sono quelli che la persona può gestire."),
+                ("Collegare un ingresso a manutenzione o scadenza", "manutenzione ordinaria: chi la può registrare; "
+                                                                    "scadenza dell'asset: chi apre la modifica della scadenza; "
+                                                                    "attività dello Scadenzario: chi gestisce la categoria."),
                 ("Tecnici", "il registro con la scheda del fornitore; ingressi e ore con il permesso di «Accessi "
                             "esterni»; aggiungere, modificare ed eliminare con il permesso di modifica del fornitore."),
                 ("Accessi esterni", "chi ha il permesso del portale esterno (in produzione amministratori)."),
