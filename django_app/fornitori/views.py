@@ -684,7 +684,40 @@ def accessi_esterni(request):
         "limite": gp.STORICO_MAX_RIGHE,
         "errore": errore,
         "sso_attivo": gp.sso_configurato(),
+        "puo_creare_fornitore": col.apre(request, "fornitori:fornitore_create"),
     })
+
+
+@login_required
+@require_POST
+def ingresso_crea_fornitore(request, visita_id):
+    """Crea il fornitore dall'ingresso di una ditta nuova e ci registra il tecnico.
+    Nome e nominativo si rileggono dal GuestPortal, mai dal POST."""
+    if not (col.apre(request, "fornitori:fornitore_create") and col.vede_ingressi(request)):
+        return HttpResponseForbidden("Non puoi creare fornitori dagli accessi esterni.")
+    try:
+        accesso = gp.visita(visita_id)
+    except gp.GuestPortalNonConfigurato:
+        messages.error(request, "Collegamento al database del GuestPortal non configurato.")
+        return redirect("fornitori:accessi_esterni")
+    except gp.GuestPortalNonRaggiungibile:
+        messages.error(request, "Il database del GuestPortal non risponde: riprova tra poco.")
+        return redirect("fornitori:accessi_esterni")
+    if accesso is None:
+        messages.error(request, "Ingresso non trovato nel GuestPortal (forse già cancellato).")
+        return redirect("fornitori:accessi_esterni")
+    fornitore, creato, registrato = ing.crea_fornitore_da_accesso(accesso, utente=request.user)
+    if fornitore is None:
+        messages.error(request, f"«{accesso.azienda or 'Azienda vuota'}» non si può creare: il nome è vuoto o "
+                                "corrisponde a più fornitori. Abbina la ditta in «Ditte GuestPortal».")
+        return redirect("fornitori:accessi_esterni")
+    log_action(request, "fornitore_da_ingresso", "fornitori", {
+        "fornitore_id": fornitore.pk, "visita_id": visita_id, "fornitore_creato": creato, "tecnico_registrato": registrato,
+    })
+    ditta = f"Fornitore «{fornitore.ragione_sociale}» creato" if creato else f"«{fornitore.ragione_sociale}» esisteva già"
+    tecnico = f": {accesso.nome} registrato tra i tecnici." if registrato else "."
+    messages.success(request, ditta + tecnico)
+    return _torna_ai_tecnici(fornitore)
 
 
 @login_required

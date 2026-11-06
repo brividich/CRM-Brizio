@@ -148,6 +148,13 @@ _PULSANTI_DEFINITIONS = [
     },
     {
         "modulo": "fornitori",
+        "codice": "ingresso_crea_fornitore",
+        "label": "Fornitori - Crea fornitore da un ingresso del GuestPortal",
+        "url": "route:fornitori:ingresso_crea_fornitore",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
         "codice": "accessi_esterni",
         "label": "Fornitori - Accessi esterni (GuestPortal)",
         "url": "route:fornitori:accessi_esterni",
