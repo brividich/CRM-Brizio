@@ -204,6 +204,13 @@ body.theme-dark .tkt-error { background:rgba(220,38,38,.12); border-color:rgba(2
 .tkt-optional{font-weight:500;color:#64748b;font-size:11px}
 body.theme-dark .tkt-per-conto{background:var(--surface-alt);border-color:var(--border)}
 body.theme-dark .tkt-optional{color:var(--text-light)}
+.tkt-al-volo{margin-bottom:14px;padding:10px 12px;border:1px dashed #94a3b8;border-radius:10px;background:#f8fafc}
+.tkt-al-volo-check{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;cursor:pointer}
+.tkt-al-volo-check input{width:auto;margin:0}
+.tkt-al-volo-campi{margin-top:12px}
+.tkt-al-volo-campi input{padding:9px 12px;border-radius:10px;font-size:14px}
+.tkt-al-volo-campi[hidden]{display:none}
+body.theme-dark .tkt-al-volo{background:var(--surface-alt);border-color:var(--border)}
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .tkt-field label .req{color:#fca5a5}
 body.theme-dark .tkt-file-remove{color:#fca5a5}
@@ -331,7 +338,7 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
               <option value="{{ p.id }}"{% if form_data.per_conto_di == p.id|stringformat:"d" %} selected{% endif %}>{{ p.label }}</option>
               {% endfor %}
             </select>
-            <div class="tkt-field-hint">Riservato alla squadra manutenzione: il ticket risulta aperto dal collega scelto (lo vede nei suoi ticket e riceve gli aggiornamenti); tu resti registrato come chi l'ha compilato.</div>
+            <div class="tkt-field-hint">Riservato a {% if tipo == "IT" %}chi gestisce i ticket IT{% else %}squadra manutenzione e gestori{% endif %}: il ticket risulta aperto dal collega scelto (lo vede nei suoi ticket e riceve gli aggiornamenti); tu resti registrato come chi l'ha compilato.</div>
           </div>
           {% endif %}
 
@@ -440,6 +447,32 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
               placeholder="Descrivi il problema nel dettaglio: quando e iniziato, come si manifesta, cosa hai gia provato...">{{ form_data.descrizione|default:'' }}</textarea>
           </div>
 
+          {% if puo_aprire_per_altri %}
+          <div class="tkt-al-volo">
+            <label class="tkt-al-volo-check">
+              <input type="checkbox" name="chiudi_subito" id="tkt-chiudi-subito" value="1"{% if form_data.chiudi_subito == "1" %} checked{% endif %}>
+              Già risolto: registra l'intervento e chiudi il ticket
+            </label>
+            <div class="tkt-field-hint">Per i problemi sistemati al volo. Il ticket nasce chiuso e il team non riceve l'avviso di nuovo ticket (se incide sulla sicurezza gli avvisi partono comunque).</div>
+            <div class="tkt-al-volo-campi" id="tkt-al-volo-campi"{% if form_data.chiudi_subito != "1" %} hidden{% endif %}>
+              <div class="tkt-field">
+                <label for="tkt-intervento-svolto">Cosa è stato fatto <span class="req">*</span></label>
+                <textarea name="intervento_svolto" id="tkt-intervento-svolto" rows="3">{{ form_data.intervento_svolto|default:'' }}</textarea>
+              </div>
+              <div class="tkt-field-row">
+                <div class="tkt-field">
+                  <label for="tkt-intervento-quando">Concluso il <span class="tkt-optional">vuoto = adesso</span></label>
+                  <input type="datetime-local" name="intervento_quando" id="tkt-intervento-quando" value="{{ form_data.intervento_quando|default:'' }}">
+                </div>
+                <div class="tkt-field">
+                  <label for="tkt-intervento-ore">Ore di lavoro <span class="tkt-optional">facoltativo</span></label>
+                  <input type="number" name="intervento_ore" id="tkt-intervento-ore" min="0" max="9999" step="0.25" value="{{ form_data.intervento_ore|default:'' }}">
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
         </div>
 
         <div class="tkt-form-section">
@@ -453,7 +486,7 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
         </div>
 
         <div class="tkt-submit-row">
-          <button type="submit" class="tkt-btn-primary">Invia richiesta</button>
+          <button type="submit" class="tkt-btn-primary" id="tkt-invia">Invia richiesta</button>
           <a href="{% url 'tickets:dashboard' %}" class="tkt-btn-secondary">Annulla</a>
           <span style="font-size:12px;color:#94a3b8;margin-left:8px;">Tipo: <strong>{{ tipo }}</strong></span>
         </div>
@@ -950,6 +983,20 @@ if (dropzone) {
     updateFileInput();
     renderFiles();
   });
+}
+
+const chiudiSubito = document.getElementById('tkt-chiudi-subito');
+if (chiudiSubito) {
+  const campiVolo = document.getElementById('tkt-al-volo-campi');
+  const svolto = document.getElementById('tkt-intervento-svolto');
+  const invia = document.getElementById('tkt-invia');
+  const aggiornaVolo = () => {
+    campiVolo.hidden = !chiudiSubito.checked;
+    svolto.required = chiudiSubito.checked;
+    invia.textContent = chiudiSubito.checked ? 'Registra e chiudi' : 'Invia richiesta';
+  };
+  chiudiSubito.addEventListener('change', aggiornaVolo);
+  aggiornaVolo();
 }
 
 const ticketForm = document.getElementById('tkt-form');

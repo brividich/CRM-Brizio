@@ -21,6 +21,7 @@ from django.http import Http404, HttpResponse, HttpResponseForbidden, HttpRespon
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from anagrafica.models import (
@@ -35,7 +36,7 @@ from core.audit import log_action
 from . import collegamenti as col
 from . import guestportal as gp
 from . import ingressi as ing
-from .models import IngressoIntervento, TecnicoFornitore
+from .models import IngressoIntervento, IngressoSenzaIntervento, TecnicoFornitore
 from .nomi import chiave_ditta
 from . import tecnici as registro_tecnici
 from .forms import (
@@ -91,6 +92,7 @@ def index(request):
         "ultimi_fornitori": ultimi_fornitori,
         "spesa_categorie": spesa_categorie,
         "da_guardare": col.da_guardare(request),
+        "ditte_attese": col.ditte_attese(request),
     })
 
 
@@ -258,7 +260,9 @@ def fornitore_sezione(request, fornitore_id, sezione):
         raise Http404("Sezione inesistente")
     if not visibili[sezione]:
         return JsonResponse({"ok": False, "errore": "Non hai il permesso di vedere questi dati."}, status=403)
-    if sezione == col.SEZIONE_MANUTENZIONE:
+    if sezione == col.SEZIONE_RIEPILOGO:
+        dati = col.dati_riepilogo(request, fornitore, anno=request.GET.get("anno"))
+    elif sezione == col.SEZIONE_MANUTENZIONE:
         dati = col.dati_manutenzione(request, fornitore)
     elif sezione == col.SEZIONE_COPIE:
         from contatori.permessi import puo_gestire
@@ -634,7 +638,8 @@ def accessi_esterni(request):
     """Visitatori, fornitori e consulenti registrati al GuestPortal: chi è presente
     ora e lo storico del periodo. Lettura diretta, nessuna copia nell'HUB."""
     oggi = timezone.localdate()
-    dal = _data_param(request.GET.get("dal"), oggi - timedelta(days=6))
+    solo_da_collegare = request.GET.get("da_collegare") == "1"
+    dal = _data_param(request.GET.get("dal"), oggi - timedelta(days=ing.GIORNI_DA_COLLEGARE if solo_da_collegare else 6))
     al = _data_param(request.GET.get("al"), oggi)
     if al < dal:
         dal, al = al, dal
@@ -665,6 +670,23 @@ def accessi_esterni(request):
     collegati = ing.interventi_per_visite([a.visita_id for a in presenti + righe])
     for accesso in presenti + righe:
         accesso.interventi = collegati.get(accesso.visita_id, [])
+    # «Da collegare»: facoltativo, un promemoria. Se il GuestPortal non risponde qui, niente contatore.
+    da_collegare = {a.visita_id for a in ing.ingressi_da_collegare(righe)}
+    non_serve = set(IngressoSenzaIntervento.objects.filter(
+        visita_gp_id__in=[a.visita_id for a in righe]).values_list("visita_gp_id", flat=True))
+    for accesso in righe:
+        accesso.da_collegare = accesso.visita_id in da_collegare
+        accesso.non_serve = accesso.visita_id in non_serve
+    if solo_da_collegare:
+        righe = [a for a in righe if a.da_collegare]
+    n_da_collegare, da_collegare_troncato = 0, False
+    if configurato and not errore:
+        try:
+            ultimi, da_collegare_troncato = gp.storico(dal=oggi - timedelta(days=ing.GIORNI_DA_COLLEGARE), al=oggi)
+            abbina_fornitori(ultimi)
+            n_da_collegare = len(ing.ingressi_da_collegare(ultimi))
+        except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+            pass
     # Requisiti di sicurezza della ditta per chi è dentro adesso (art. 26 D.Lgs. 81/2008).
 
     stati = stati_per_fornitori([a.fornitore_id for a in presenti if a.fornitore_id])
@@ -685,7 +707,31 @@ def accessi_esterni(request):
         "errore": errore,
         "sso_attivo": gp.sso_configurato(),
         "puo_creare_fornitore": col.apre(request, "fornitori:fornitore_create"),
+        "solo_da_collegare": solo_da_collegare,
+        "n_da_collegare": n_da_collegare,
+        "da_collegare_troncato": da_collegare_troncato,
+        "giorni_da_collegare": ing.GIORNI_DA_COLLEGARE,
     })
+
+
+@login_required
+@require_POST
+def ingresso_non_serve(request, visita_id):
+    """Toglie un ingresso da «Da collegare» (riunione, consegna) o lo rimette. Non tocca il GuestPortal."""
+    if not col.vede_ingressi(request):
+        return HttpResponseForbidden("Permesso negato")
+    if request.POST.get("azione") == "togli":
+        IngressoSenzaIntervento.objects.filter(visita_gp_id=visita_id).delete()
+        azione = "ingresso_rimesso_da_collegare"
+    else:
+        IngressoSenzaIntervento.objects.get_or_create(visita_gp_id=visita_id, defaults={"segnato_da": request.user})
+        azione = "ingresso_senza_intervento"
+    log_action(request, azione, "fornitori", {"visita_gp_id": visita_id})
+    torna = request.POST.get("torna", "")
+    if not url_has_allowed_host_and_scheme(torna, allowed_hosts={request.get_host()},
+                                           require_https=request.is_secure()):
+        torna = reverse("fornitori:accessi_esterni")
+    return redirect(torna)
 
 
 @login_required
@@ -816,6 +862,7 @@ def _render_presenze(request, iv, *, esito: str = "", errore: str = "", status: 
             errore_gp = "Il GuestPortal non risponde: proposte non disponibili, i collegamenti già fatti restano."
     collegamenti = list(iv.collegamenti())
     confronto = ing.confronto_ore(iv, collegamenti)
+    rapportino = ing.dati_rapportino(iv, collegamenti) if puo_modificare else None
     # Intervento senza ditta con ingressi già collegati: la ditta si può impostare
     # anche dopo (fornitore creato o ditta abbinata in un secondo momento).
     ditta_proposta = None
@@ -841,6 +888,8 @@ def _render_presenze(request, iv, *, esito: str = "", errore: str = "", status: 
         "dal_al": iv.finestra(),
         "ditta_proposta": ditta_proposta,
         "aziende_sconosciute": aziende_sconosciute,
+        "rapportino": rapportino,
+        "puo_altri": not iv.formazione and col.vede_ingressi(request),
     }, status=status)
 
 
@@ -944,6 +993,40 @@ def presenze_imposta_ditta(request, tipo, pk):
 # Collegamento partendo dall'ingresso (pagina Accessi esterni → «Collega»)
 # ---------------------------------------------------------------------------
 
+SCELTE_MAX = 100
+
+
+def _collega_piu(request, accesso, scelte: list[str]):
+    """Una visita su più interventi insieme: ognuno con il suo permesso, uno che non va non ferma gli altri."""
+    fatti: list[str] = []
+    saltati: list[str] = []
+    for scelta in list(dict.fromkeys(scelte))[:SCELTE_MAX]:
+        tipo, _, pk = scelta.partition(":")
+        iv = ing.intervento(tipo, int(pk)) if pk.isdigit() else None
+        if iv is None:
+            saltati.append("intervento non trovato")
+            continue
+        if not _puo_presenze(request, iv, modifica=True):
+            saltati.append(f"{iv.etichetta}: permesso negato")
+            continue
+        try:
+            link = ing.collega(iv, accesso.visita_id, utente=request.user,
+                               modo=IngressoIntervento.MODO_MANUALE, autore=_autore(request))
+        except ing.CollegamentoNonValido as exc:
+            saltati.append(f"{iv.etichetta}: {exc}")
+        except (gp.GuestPortalNonConfigurato, gp.GuestPortalNonRaggiungibile):
+            saltati.append(f"{iv.etichetta}: il GuestPortal non risponde")
+        else:
+            log_action(request, "ingresso_esterno_collegato", "fornitori",
+                       {"intervento": f"{iv.tipo}:{iv.pk}", "visita_gp_id": link.visita_gp_id, "modo": "DA_INGRESSO_MULTIPLO"})
+            fatti.append(iv.etichetta)
+    if fatti:
+        messages.success(request, f"Ingresso collegato a {len(fatti)}: " + ", ".join(fatti))
+    if saltati:
+        messages.error(request, "Non collegati: " + "; ".join(saltati))
+    return redirect(request.get_full_path())
+
+
 @login_required
 def ingresso_collega(request, visita_id):
     """Sceglie il ticket MAN o l'OdL aperto a cui collegare un ingresso del GuestPortal.
@@ -961,6 +1044,9 @@ def ingresso_collega(request, visita_id):
         return redirect("fornitori:accessi_esterni")
 
     if request.method == "POST":
+        scelte = request.POST.getlist("scelta")
+        if scelte:
+            return _collega_piu(request, accesso, scelte)
         pk_txt = request.POST.get("pk", "")
         iv = ing.intervento(request.POST.get("tipo", ""), int(pk_txt)) if pk_txt.isdigit() else None
         if iv is None:
@@ -996,10 +1082,24 @@ def ingresso_collega(request, visita_id):
         c.iv = ing.intervento_del_link(c)
     gia = {(c.iv.tipo, c.iv.pk) for c in collegati}
     righe = [iv for iv in interventi if (iv.tipo, iv.pk) not in gia]
+    vede_ticket = any(iv.tipo == ing.TIPO_TICKET for iv in interventi)
+    # Filtro per tipo: i conteggi restano sull'elenco completo, così si vede dove guardare.
+    filtro_tipo = request.GET.get("tipo", "")
+    conteggi: dict[str, int] = {}
+    for iv in righe:
+        conteggi[iv.tipo] = conteggi.get(iv.tipo, 0) + 1
+    filtri_tipo = [{"val": v, "label": e, "n": conteggi[v]} for v, e in ing.FILTRI_TIPO if conteggi.get(v)]
+    if filtro_tipo in conteggi:
+        righe = [iv for iv in righe if iv.tipo == filtro_tipo]
+    else:
+        filtro_tipo = ""
     return render(request, "fornitori/pages/ingresso_collega.html", {
         "a": accesso,
         "fornitore": fornitore,
         "righe": righe,
+        "filtri_tipo": filtri_tipo,
+        "vede_ticket": vede_ticket,
+        "filtro_tipo": filtro_tipo,
         "collegati": collegati,
         "q": testo,
         "elenco_tagliato": elenco_tagliato,

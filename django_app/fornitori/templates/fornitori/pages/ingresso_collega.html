@@ -27,6 +27,12 @@
 .ic-pill-for { background:#ede9fe; color:#5b21b6; }
 body.theme-dark .ic-pill-for { background:rgba(124,58,237,.2); color:#c4b5fd; }
 .ic-muted { color:var(--text-light,#94a3b8); }
+.ic-filtri { display:flex; gap:6px; flex-wrap:wrap; padding:10px 20px 0; }
+.ic-filtro { display:inline-flex; gap:5px; padding:5px 11px; border-radius:999px; font-size:12px; font-weight:600; text-decoration:none; border:1px solid var(--border,#e2e8f0); color:var(--text-mid,#334155); background:var(--surface-alt,#f8fafc); }
+.ic-multi { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 20px; border-top:1px solid var(--border,#f1f5f9); font-size:13px; color:var(--text-mid,#334155); }
+.ic-multi button[disabled] { opacity:.5; cursor:default; }
+.ic-spunta { width:16px; height:16px; }
+.ic-filtro.is-on { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
 .ic-search { display:flex; gap:8px; flex-wrap:wrap; }
 .ic-input { border:1px solid var(--border,#e2e8f0); border-radius:8px; padding:7px 12px; font-size:13px; background:var(--surface-alt,#f8fafc); color:var(--text,#0f172a); min-width:220px; }
 .ic-empty { text-align:center; padding:28px; color:var(--text-light,#94a3b8); }
@@ -44,7 +50,7 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
   <div class="ic-top">
     <div>
       <div class="ic-title">Collega l'ingresso a un intervento</div>
-      <div class="ic-sub">Scegli il ticket, l'ordine di lavoro, la manutenzione ordinaria o la scadenza per cui la persona è entrata. Se non ha ancora una ditta, prende quella dell'ingresso.</div>
+      <div class="ic-sub">Scegli il ticket, la manutenzione straordinaria (OdL) o ordinaria, la scadenza amministrativa o l'attività per cui la persona è entrata: anche se è già chiusa, spesso il rapportino arriva dopo. Se è aperta e non ha ancora una ditta, prende quella dell'ingresso.</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <a class="ic-btn ic-btn-ghost" href="{% url 'guida_modulo' 'fornitori' %}#presenze-interventi">? Guida</a>
@@ -89,24 +95,41 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
 
   <div class="ic-card">
     <div class="ic-card-head">
-      <span>Ticket MAN, OdL, manutenzioni ordinarie e scadenze{% if puo_formazione %}, sessioni formative del giorno{% endif %}</span>
+      <span>Ticket, manutenzioni straordinarie e ordinarie, scadenze{% if puo_formazione %}, sessioni formative del giorno{% endif %}</span>
       <form method="get" class="ic-search">
+        {% if filtro_tipo %}<input type="hidden" name="tipo" value="{{ filtro_tipo }}">{% endif %}
         <input class="ic-input" type="text" name="q" value="{{ q }}" maxlength="80" placeholder="Titolo, macchina, scadenza…" aria-label="Cerca intervento">
         <button class="ic-btn ic-btn-ghost" type="submit">Cerca</button>
       </form>
     </div>
-    <div class="ic-note">Manutenzioni e scadenze: quelle della ditta e quelle a due mesi dal giorno dell'ingresso. Con la ricerca, tutte.{% if elenco_tagliato %} Per tipo se ne vedono al massimo {{ elenco_max }}: usa la ricerca per trovare le altre.{% endif %}</div>
+    {% if filtri_tipo %}
+    <div class="ic-filtri">
+      <a class="ic-filtro{% if not filtro_tipo %} is-on{% endif %}" href="?{% if q %}q={{ q|urlencode }}{% endif %}">Tutti</a>
+      {% for f in filtri_tipo %}<a class="ic-filtro{% if filtro_tipo == f.val %} is-on{% endif %}" href="?tipo={{ f.val }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ f.label }} <span>{{ f.n }}</span></a>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="ic-note">Ticket e OdL: quelli aperti e quelli chiusi fino a due mesi dopo l'ingresso. Manutenzioni e scadenze: quelle della ditta e quelle a due mesi dal giorno dell'ingresso. Con la ricerca, tutti.{% if elenco_tagliato %} Per tipo se ne vedono al massimo {{ elenco_max }}: usa la ricerca per trovare le altre.{% endif %}</div>
+    {% if not vede_ticket %}<div class="ic-note">Nessun ticket in elenco: si vedono quelli di manutenzione o delegati a una ditta, se sei gestore di quel tipo di ticket.</div>{% endif %}
     {% if not puo_odl %}<div class="ic-note">Gli ordini di lavoro non sono elencati: per collegarli serve il permesso di eseguire le manutenzioni.</div>{% endif %}
+    {% if righe %}
+    <form method="post" id="ic-piu" class="ic-multi">
+      {% csrf_token %}
+      <span>Stessa visita su più voci: spuntale e collegale insieme.</span>
+      <button type="button" class="ic-btn ic-btn-ghost" id="ic-tutte">Spunta tutte</button>
+      <button type="submit" class="ic-btn ic-btn-primary" id="ic-invia" disabled>Collega le selezionate (<span id="ic-n">0</span>)</button>
+    </form>
+    {% endif %}
     <div class="ic-wrap">
       <table class="ic-table">
-        <thead><tr><th>Intervento</th><th>Titolo / macchina / corso / categoria</th><th>Ditta / docente</th><th>Aperto / scade il</th><th></th></tr></thead>
+        <thead><tr><th><span class="sr-only" style="position:absolute;left:-9999px">Scegli</span></th><th>Intervento</th><th>Titolo / macchina / corso / categoria</th><th>Ditta / docente</th><th>Aperto / scade il</th><th></th></tr></thead>
         <tbody>
         {% for iv in righe %}
           <tr>
+            <td><input class="ic-spunta" type="checkbox" name="scelta" value="{{ iv.tipo }}:{{ iv.pk }}" form="ic-piu" aria-label="Scegli {{ iv.etichetta }}"></td>
             <td><span class="ic-pill {% if iv.tipo == 'ticket' %}ic-pill-man{% elif iv.tipo == 'odl' %}ic-pill-odl{% else %}ic-pill-for{% endif %}">{{ iv.tipo_label }}</span> <a href="{{ iv.url }}">{{ iv.etichetta }}</a></td>
             <td>{{ iv.titolo }}</td>
             <td>{% if iv.fornitore and fornitore and iv.fornitore.pk == fornitore.pk %}<span class="ic-pill ic-pill-ok">{{ iv.chi }}</span>{% else %}{{ iv.chi|default:"—" }}{% endif %}</td>
-            <td>{{ iv.aperto_il|date:"d/m/Y"|default:"—" }}</td>
+            <td>{{ iv.aperto_il|date:"d/m/Y"|default:"—" }}{% if iv.concluso %} <span class="ic-muted">· chiuso</span>{% endif %}</td>
             <td>
               <form method="post">
                 {% csrf_token %}
@@ -117,11 +140,31 @@ body.theme-dark .ic-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
             </td>
           </tr>
         {% empty %}
-          <tr><td colspan="5" class="ic-empty">Nessun ticket MAN, OdL aperto, manutenzione, scadenza o sessione formativa del giorno{% if q %} per «{{ q }}»{% endif %}.</td></tr>
+          <tr><td colspan="6" class="ic-empty">Nessun ticket, manutenzione, scadenza o sessione formativa del giorno{% if q %} per «{{ q }}»{% endif %}.</td></tr>
         {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 </div>
+<script>
+(function () {
+  var invia = document.getElementById('ic-invia');
+  if (!invia) { return; }
+  var spunte = Array.prototype.slice.call(document.querySelectorAll('.ic-spunta'));
+  var tutte = document.getElementById('ic-tutte');
+  function aggiorna() {
+    var n = spunte.filter(function (s) { return s.checked; }).length;
+    document.getElementById('ic-n').textContent = n;
+    invia.disabled = n === 0;
+    tutte.textContent = n === spunte.length ? 'Togli tutte' : 'Spunta tutte';
+  }
+  spunte.forEach(function (s) { s.addEventListener('change', aggiorna); });
+  tutte.addEventListener('click', function () {
+    var accese = spunte.every(function (s) { return s.checked; });
+    spunte.forEach(function (s) { s.checked = !accese; });
+    aggiorna();
+  });
+})();
+</script>
 {% endblock %}

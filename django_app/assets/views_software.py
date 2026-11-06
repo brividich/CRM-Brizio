@@ -7,6 +7,7 @@ Modificare: amministratori del modulo Asset, come per le licenze.
 """
 from __future__ import annotations
 
+import re
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -65,6 +66,7 @@ def _detail_url(key: str) -> str:
 def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
     """Una riga per prodotto presente: PC, versioni, decisioni, licenza collegata, CVE."""
     from security.services import software_catalog as sc
+    from security.services.software_inventory import nome_programma
 
     today = today or timezone.localdate()
     entries = {e.inventory_key: e for e in SoftwareCatalogEntry.objects.all()}
@@ -77,12 +79,16 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
             seats[lic.inventory_key] = seats.get(lic.inventory_key, 0) + lic.seats_total
     versions = sc.versions_by_key()
     cves = sc.cve_by_key() if with_cve else {}
+    indice = sc.indice_famiglie()
+    entry_keys = sc.chiavi_per_programma(entries, indice)
+    license_keys = sc.chiavi_per_programma({*states, *seats}, indice)
     rows = []
     for item in sc.catalog():
         key = item["key"]
-        members = item.get("member_keys") or [key]
-        # decisioni e licenze possono essere legate a uno qualsiasi dei nomi del programma: vale la prima trovata
-        entry = entries.get(key) or next((entries[m] for m in members if m in entries), None)
+        # decisioni e licenze possono essere legate a un altro nome del programma, anche uno sparito
+        # dall'inventario dopo un aggiornamento: vale quella sul nome canonico, poi la prima trovata
+        entry = entries.get(key) or next((entries[m] for m in entry_keys.get(key, [])), None)
+        members = sorted({*(item.get("member_keys") or [key]), *license_keys.get(key, [])})
         classification = entry.classification if entry else SoftwareCatalogEntry.CLASS_UNREVIEWED
         licensing = entry.licensing if entry else SoftwareCatalogEntry.LICENSING_UNKNOWN
         min_version = entry.min_version if entry else ""
@@ -93,7 +99,7 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
         rows.append({
             "key": key,
             "url": _detail_url(key),
-            "name": (entry.display_name if entry and entry.display_name else item["label"]),
+            "name": nome_programma(entry.display_name) if entry and entry.display_name else item["label"],
             "vendor": (entry.vendor_name if entry and entry.vendor_name else item["vendor_label"]),
             "hosts": item["hosts"],
             "versions": len(versions.get(key, {})),
@@ -104,7 +110,8 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
             "license_state": license_state,
             "seats": member_seats,
             "over_seats": bool(member_seats and item["hosts"] > member_seats),
-            "names": len(members),
+            "names": len(item.get("member_keys") or [key]),
+            "cerca": item.get("cerca", ""),
             "paid_without_license": licensing == SoftwareCatalogEntry.LICENSING_PAID and license_state != "coperta",
             "min_version": min_version,
             "outdated": old,
@@ -114,10 +121,16 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
     return rows
 
 
+def _compatto(testo: str) -> str:
+    return re.sub(r"[\W_]+", "", testo.casefold())
+
+
 def _filter(rows: list[dict], code: str, q: str) -> list[dict]:
     if q:
-        needle = q.lower()
-        rows = [r for r in rows if needle in r["name"].lower() or needle in (r["vendor"] or "").lower()]
+        # Ogni parola, senza badare a spazi e trattini: «7zip» trova «7-Zip», «acro writer» trova «CutePDF Writer» di
+        # «Acro Software»; si cerca anche nei nomi originali raggruppati («26.05», «x64»).
+        parole = [_compatto(p) for p in q.split() if _compatto(p)]
+        rows = [r for r in rows if all(p in _compatto(f"{r['name']} {r['vendor'] or ''} {r.get('cerca', '')}") for p in parole)]
     if code in {"da_classificare", "non_autorizzato", "da_rimuovere"}:
         return [r for r in rows if r["classification"] == code]
     if code == "senza_licenza":
@@ -162,10 +175,14 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
 
     from .views import _assets_shell_context
 
-    key = (request.GET.get("k") or request.POST.get("k") or "").strip()[:300]
+    richiesta = (request.GET.get("k") or request.POST.get("k") or "").strip()[:300]
+    # Un link a un altro nome o a una release vecchia porta al programma; la decisione è una sola per programma.
+    indice = sc.indice_famiglie()
+    key = sc.chiave_canonica(richiesta, indice)
     with_cve = _can_see_cve(request)
     row = next((r for r in catalog_rows(with_cve=with_cve) if r["key"] == key), None)
-    entry = SoftwareCatalogEntry.objects.filter(inventory_key=key).first()
+    entries = {e.inventory_key: e for e in SoftwareCatalogEntry.objects.all()}
+    entry = entries.get(key) or next((entries[m] for m in sc.chiavi_per_programma(entries, indice).get(key, [])), None)
     if row is None and entry is None:
         raise Http404("Software non presente nell'inventario.")
     can_edit = _can_edit(request)
@@ -198,11 +215,16 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
         return redirect(_detail_url(key))
     hosts = sc.product_hosts(key)
     outdated = {i.pk for i in sc.outdated_hosts(key, entry.min_version)} if entry and entry.min_version else set()
-    licenses = SoftwareLicense.objects.filter(inventory_key__in=sc.member_keys(key)).order_by("-is_active", "-expiry_date")
+    chiavi_licenze = SoftwareLicense.objects.exclude(inventory_key="").values_list("inventory_key", flat=True)
+    licenses = SoftwareLicense.objects.filter(
+        inventory_key__in=[*sc.member_keys(key), *sc.chiavi_per_programma(chiavi_licenze, indice).get(key, [])]
+    ).order_by("-is_active", "-expiry_date")
     # «Esplosione» per versione: quante PC hanno ciascuna versione e da quali fonti arriva
     per_version = {}
     for inst in hosts:
-        riga = per_version.setdefault(inst.version_raw or "", {"version": inst.version_raw or "—", "hosts": set(), "fonti": set(), "outdated": 0})
+        # «26.05», «26.05.0.0» e «26.05.00.0» sono la stessa versione scritta da fonti diverse
+        riga = per_version.setdefault(sc.versione_chiave(inst.version_raw), {"scritte": set(), "hosts": set(), "fonti": set(), "outdated": 0})
+        riga["scritte"].add(inst.version_raw or "")
         riga["hosts"].add(inst.host)
         riga["fonti"].update(inst.fonti_etichette)
         riga["outdated"] += 1 if inst.pk in outdated else 0
@@ -212,9 +234,18 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
 
         cve_versioni = cve_pannello.cve_per_versione(key)
     version_rows = [
-        {"version": r["version"], "hosts": len(r["hosts"]), "fonti": sorted(r["fonti"]), "outdated": bool(r["outdated"]),
-         "cves": cve_versioni.get("" if r["version"] == "—" else r["version"], 0)}
-        for r in sorted(per_version.values(), key=lambda r: (-len(r["hosts"]), r["version"]))
+        {"version": sc.versione_da_mostrare(r["scritte"]) or "—", "hosts": len(r["hosts"]), "fonti": sorted(r["fonti"]), "outdated": bool(r["outdated"]),
+         "cves": max(cve_versioni.get(v, 0) for v in r["scritte"])}
+        for r in per_version.values()
+    ]
+    version_rows.sort(key=lambda r: (-r["hosts"], r["version"]))
+    # Sotto quali nomi le fonti riportano il programma: chi legge vede cosa è stato raggruppato.
+    nomi = {}
+    for inst in hosts:
+        nomi.setdefault((inst.product_raw or inst.product, inst.vendor_raw or inst.vendor), set()).add(inst.host)
+    name_rows = [
+        {"name": n, "vendor": v, "hosts": len(h)}
+        for (n, v), h in sorted(nomi.items(), key=lambda x: (-len(x[1]), x[0]))
     ]
     return render(request, "assets/pages/software_catalog_detail.html", {
         **_assets_shell_context(request, search_placeholder="Cerca software"),
@@ -227,6 +258,7 @@ def software_catalog_detail(request: HttpRequest) -> HttpResponse:
         "key": key,
         "hosts": [{"install": i, "outdated": i.pk in outdated} for i in hosts],
         "version_rows": version_rows,
+        "name_rows": name_rows,
         "host_count": len({i.host for i in hosts}),
         "licenses": licenses,
         "classification_choices": SoftwareCatalogEntry.CLASSIFICATION_CHOICES,

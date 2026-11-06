@@ -152,7 +152,7 @@ class PagineTests(Base):
             self.client.post(reverse("fornitori:ingresso_collega", args=[7]), {"tipo": "ordinaria", "pk": self.occ.pk})
         self.assertEqual(IngressoIntervento.objects.get().occorrenza, self.occ)
         voce = ing.interventi_per_visite([7])[7][0]
-        self.assertEqual(voce[0], "Manutenzione: Controllo annuale")
+        self.assertEqual(voce[0], "Ordinaria: Controllo annuale")
 
     def test_riquadri_nelle_tre_pagine(self):
         with patch.object(gp, "db_configurato", return_value=False):
@@ -165,12 +165,11 @@ class PagineTests(Base):
         self.assertContains(self.client.get(reverse("assets:asset_administrative_deadline_edit", args=[self.dl.pk])), hx)
         self.assertContains(self.client.get(reverse("scadenzario:scadenza_dettaglio", args=[self.sc.pk])), hx)
 
-    def test_manutenzione_interna_senza_riquadro(self):
+    def test_manutenzione_senza_ditta_ha_il_riquadro(self):
         self.occ.supplier = None
         self.occ.save()
         r = self.client.get(reverse("assets:occurrence_complete", args=[self.occ.pk]))
-        if not self.occ.is_external:
-            self.assertNotContains(r, "fornitori/presenze/")
+        self.assertContains(r, "fornitori/presenze/")
 
     def test_permesso_negato_sulla_scadenza(self):
         with patch("scadenzario.permessi.puo_gestire_categoria", return_value=False), \

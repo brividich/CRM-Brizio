@@ -148,6 +148,13 @@ _PULSANTI_DEFINITIONS = [
     },
     {
         "modulo": "fornitori",
+        "codice": "ingresso_non_serve",
+        "label": "Fornitori - Segna un ingresso come senza intervento",
+        "url": "route:fornitori:ingresso_non_serve",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
         "codice": "ingresso_crea_fornitore",
         "label": "Fornitori - Crea fornitore da un ingresso del GuestPortal",
         "url": "route:fornitori:ingresso_crea_fornitore",

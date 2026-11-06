@@ -129,6 +129,16 @@ body.theme-dark .fn-btn-ghost:hover{background:var(--surface-alt,#0f1b2d)}
   </div>
   {% endif %}
 
+  {% if ditte_attese %}
+  <div class="fn-guarda">
+    <div class="fn-guarda-titolo">Ditte attese con i documenti non in regola</div>
+    {% for d in ditte_attese %}
+    <a class="fn-guarda-voce" href="{% url 'fornitori:fornitore_detail' d.fornitore_id %}"><span class="fn-guarda-n fn-guarda-danger">{{ d.n_interventi }}</span> {{ d.ragione_sociale }}, attesa entro il {{ d.entro_il|date:"d/m/Y" }}: {{ d.problemi }} <span aria-hidden="true">→</span></a>
+    {% endfor %}
+    <div class="fn-guarda-voce" style="color:var(--text-light,#64748b);font-size:12px">Il numero conta gli interventi aperti. È un avviso: nessun ingresso viene bloccato.</div>
+  </div>
+  {% endif %}
+
   <!-- KPI -->
   <div class="fn-kpi-row">
     <div class="fn-kpi green">

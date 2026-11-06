@@ -6,12 +6,17 @@ La chiave di collegamento è ``vendor|product`` normalizzati, la stessa della ma
 """
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 
 from django.db.models import Count, Max
 from django.utils import timezone
 
 from security.models import SecurityCveImpact, SoftwareInstallation
+
+
+# Le app dello Store hanno come produttore il pacchetto: «msteams_26288», «claude_3», «5319275a».
+_PRODUTTORE_PACCHETTO = re.compile(r"_\d+$|^[0-9a-f]{8}(?:-|$)", re.I)
 
 
 def inventory_key(vendor, product):
@@ -23,72 +28,179 @@ def split_key(key):
     return vendor, product
 
 
+def _per_confronto(parole):
+    # I nomi localizzati: «Browser per SQL Server 2022» = «Browser for SQL Server 2022».
+    return tuple("for" if p == "per" else p for p in parole)
+
+
 def _famiglia(vendor, product):
-    """Il «programma»: produttore + nome senza le parole del produttore («chrome» = «google chrome»).
+    """Il «programma»: produttore + nome senza release e senza le parole del produttore
+    («chrome» = «google chrome», «7-zip 25.01 (x64 edition)» = «7-zip 26.05 (x64)»).
 
     Solo per mostrare: le decisioni, le licenze e la mappatura CPE restano legate a ``vendor|product``.
     """
-    from security.services.software_inventory import _token, base_name
+    from security.services.software_inventory import _token, base_name, nome_programma
 
-    return (_token(vendor)[:1] and _token(vendor)[0] or "", base_name(vendor, product))
+    return (_token(vendor)[:1] and _token(vendor)[0] or "", _per_confronto(base_name(vendor, nome_programma(product))))
 
 
-def families():
-    """{(vendor, product): chiave canonica} per i prodotti presenti: i nomi dello stesso programma
-    puntano a quello più diffuso (a parità, il nome più corto). Un prodotto da solo punta a sé stesso."""
-    rows = (
+def _firma_nome(product):
+    """Il nome intero senza release, a prescindere dal produttore: le fonti scrivono lo stesso programma con
+    produttori diversi («CutePDF Writer» di «Acro Software Inc.» e di «acrosoftware», «7-Zip» di «Igor Pavlov» e
+    di «7-zip»). Il nome intero, non quello base: «Autodesk Access» e «Microsoft Access» restano due.
+    ``None`` per i nomi non risolti delle app dello Store («ms-resource:…»), che non dicono quale programma sono."""
+    from security.services.software_inventory import _token, nome_programma
+
+    if str(product or "").lower().startswith("ms-resource:"):
+        return None
+    return _per_confronto(_token(nome_programma(product))) or None
+
+
+def stesso_programma(v1, p1, v2, p2):
+    if (v1, p1) == (v2, p2) or _famiglia(v1, p1) == _famiglia(v2, p2):
+        return True
+    firma = _firma_nome(p1)
+    return firma is not None and firma == _firma_nome(p2)
+
+
+def _etichette(vendor, product):
+    firma = _firma_nome(product)
+    return [("famiglia", _famiglia(vendor, product))] + ([("nome", firma)] if firma else [])
+
+
+def _preferenza_canonico(riga):
+    """Il nome che rappresenta il programma: il più stabile nel tempo, così la chiave non cambia a ogni
+    aggiornamento. Prima senza release nel nome, poi con un produttore vero (non «msteams_26288»), poi il più diffuso."""
+    from security.services.software_inventory import nome_programma
+
+    return (
+        nome_programma(riga["product"]).lower() != riga["product"].lower(),
+        bool(_PRODUTTORE_PACCHETTO.search(riga["vendor"] or "")),
+        -riga["hosts"], len(riga["product"]), riga["product"], riga["vendor"],
+    )
+
+
+def indice_famiglie():
+    """(canonici, etichette): {(vendor, product): canonico} dei prodotti presenti e {etichetta: canonico} per
+    ritrovare il programma anche di una chiave non più presente (una decisione presa su «7-Zip 26.05» vale per
+    «7-Zip 26.07»). Due prodotti stanno insieme se hanno lo stesso produttore e nome base, oppure lo stesso nome intero."""
+    rows = list(
         SoftwareInstallation.objects.filter(still_detected=True)
         .values("vendor", "product").order_by().annotate(hosts=Count("host", distinct=True))
     )
+    genitore = list(range(len(rows)))
+
+    def radice(i):
+        while genitore[i] != i:
+            genitore[i] = genitore[genitore[i]]
+            i = genitore[i]
+        return i
+
+    primo = {}
+    for i, row in enumerate(rows):
+        for etichetta in _etichette(row["vendor"], row["product"]):
+            if etichetta in primo:
+                genitore[radice(i)] = radice(primo[etichetta])
+            else:
+                primo[etichetta] = i
     gruppi = defaultdict(list)
-    for row in rows:
-        gruppi[_famiglia(row["vendor"], row["product"])].append(row)
-    out = {}
+    for i, row in enumerate(rows):
+        gruppi[radice(i)].append(row)
+    canonici, per_etichetta = {}, {}
     for membri in gruppi.values():
-        canonico = min(membri, key=lambda r: (-r["hosts"], len(r["product"]), r["product"], r["vendor"]))
+        scelto = min(membri, key=_preferenza_canonico)
+        canon = (scelto["vendor"], scelto["product"])
         for r in membri:
-            out[(r["vendor"], r["product"])] = (canonico["vendor"], canonico["product"])
-    return out
+            canonici[(r["vendor"], r["product"])] = canon
+            for etichetta in _etichette(r["vendor"], r["product"]):
+                per_etichetta[etichetta] = canon
+    return canonici, per_etichetta
+
+
+def families():
+    """{(vendor, product): chiave canonica} per i prodotti presenti. Un prodotto da solo punta a sé stesso."""
+    return indice_famiglie()[0]
 
 
 def _canon(fam, vendor, product):
     return fam.get((vendor, product), (vendor, product))
 
 
+def chiave_canonica(key, indice=None):
+    """La chiave con cui il catalogo mostra il programma di ``key``, anche se ``key`` non è più nell'inventario."""
+    canonici, per_etichetta = indice or indice_famiglie()
+    vendor, product = split_key(key)
+    trovato = canonici.get((vendor, product))
+    if trovato is None:
+        trovato = next((per_etichetta[e] for e in _etichette(vendor, product) if e in per_etichetta), (vendor, product))
+    return inventory_key(*trovato)
+
+
 def member_keys(key):
     """Tutte le chiavi dei nomi che formano lo stesso programma di ``key`` (compresa ``key``)."""
-    target = _canon(families(), *split_key(key))
-    keys = {inventory_key(*m) for m, c in families().items() if c == target}
+    indice = indice_famiglie()
+    target = split_key(chiave_canonica(key, indice))
+    keys = {inventory_key(*m) for m, c in indice[0].items() if c == target}
     keys.add(key)
     return keys
 
 
+def chiavi_per_programma(keys, indice=None):
+    """{chiave canonica: [chiavi]} per decisioni e licenze: restano del programma anche quando il nome esatto su
+    cui sono state prese è sparito dall'inventario (aggiornamento a una versione con un altro nome)."""
+    indice = indice or indice_famiglie()
+    out = defaultdict(list)
+    for key in sorted({k for k in keys if k}):
+        out[chiave_canonica(key, indice)].append(key)
+    return out
+
+
+def _etichetta_preferita(contatore, *, scarta=None):
+    """La scritta più usata, meglio se con le maiuscole dell'originale («CutePDF Writer», non «cutepdf writer»)."""
+    candidate = Counter({k: v for k, v in contatore.items() if k and not (scarta and scarta(k))}) or contatore
+    con_maiuscole = Counter({k: v for k, v in candidate.items() if k != k.lower()})
+    return (con_maiuscole or candidate).most_common(1)[0][0] if candidate else ""
+
+
+def _produttore_finto(vendor, nomi):
+    """Non un produttore: il pacchetto di un'app dello Store, una cartella o il nome stesso del programma."""
+    from security.services.software_inventory import _token
+
+    if _PRODUTTORE_PACCHETTO.search(vendor) or "\\" in vendor:
+        return True
+    return any("".join(_token(vendor)) == "".join(_token(nome)) for nome in nomi)
+
+
 def catalog(limit=2000):
-    """Programmi presenti oggi (i nomi dello stesso programma sono una riga sola), con il nome più
-    usato nell'export e quanti PC li hanno."""
+    """Programmi presenti oggi: i nomi e le release dello stesso programma sono una riga sola, col nome pulito
+    («7-Zip») e quanti PC lo hanno. ``cerca`` tiene i nomi originali, per trovarlo con qualsiasi scritta."""
+    from security.services.software_inventory import nome_programma
+
     fam = families()
-    labels = defaultdict(Counter)
+    nomi = defaultdict(Counter)
+    produttori = defaultdict(Counter)
+    originali = defaultdict(set)
     hosts = defaultdict(set)
     members = defaultdict(set)
     for vendor, product, raw, vendor_raw, host in SoftwareInstallation.objects.filter(still_detected=True).values_list(
         "vendor", "product", "product_raw", "vendor_raw", "host"
     ):
         canon = _canon(fam, vendor, product)
-        labels[canon][(raw, vendor_raw)] += 1
+        nomi[canon][nome_programma(raw or product)] += 1
+        produttori[canon][vendor_raw or vendor] += 1
+        originali[canon].update({raw or product, vendor_raw or vendor})
         hosts[canon].add(host)
         members[canon].add(inventory_key(vendor, product))
     out = []
-    for canon in sorted(hosts, key=lambda c: (c[1], c[0]))[:limit]:
+    for canon in sorted(hosts, key=lambda c: (nome_programma(c[1]), c[0]))[:limit]:
         vendor, product = canon
-        # il nome mostrato è quello del prodotto canonico (il più diffuso), non quello di un membro minore
-        etichette = Counter({k: v for k, v in labels[canon].items()})
-        (raw, vendor_raw), _n = etichette.most_common(1)[0]
         out.append({
             "key": inventory_key(vendor, product),
-            "label": raw or product,
-            "vendor_label": vendor_raw or vendor,
+            "label": _etichetta_preferita(nomi[canon]),
+            "vendor_label": _etichetta_preferita(produttori[canon], scarta=lambda v, n=nomi[canon]: _produttore_finto(v, n)),
             "hosts": len(hosts[canon]),
             "member_keys": sorted(members[canon]),
+            "cerca": " ".join(sorted(x for x in originali[canon] if x)),
         })
     return out
 
@@ -102,8 +214,9 @@ def hosts_by_key(keys):
     wanted = {k for k in keys if k}
     if not wanted:
         return {}
-    fam = families()
-    targets = {k: _canon(fam, *split_key(k)) for k in wanted}
+    indice = indice_famiglie()
+    fam = indice[0]
+    targets = {k: split_key(chiave_canonica(k, indice)) for k in wanted}
     hosts = defaultdict(set)
     for vendor, product, host in SoftwareInstallation.objects.filter(still_detected=True).values_list("vendor", "product", "host").distinct():
         hosts[_canon(fam, vendor, product)].add(host)
@@ -112,6 +225,13 @@ def hosts_by_key(keys):
 
 def latest_inventory_date():
     return SoftwareInstallation.objects.aggregate(last=Max("last_inventory_date"))["last"]
+
+
+def _versioni_senza_doppioni(installazioni):
+    gruppi = defaultdict(set)
+    for i in installazioni:
+        gruppi[versione_chiave(i.version_raw)].add(i.version_raw)
+    return [versione_da_mostrare(v) for v in gruppi.values()]
 
 
 def software_for_hub_asset(asset, *, with_cve=False, license_states=None):
@@ -132,6 +252,8 @@ def software_for_hub_asset(asset, *, with_cve=False, license_states=None):
                 cve[inst_id]["impacts"].append(cve_id)
             else:
                 cve[inst_id]["to_verify"] += 1
+    from security.services.software_inventory import nome_programma
+
     fam = families()
     groups = defaultdict(list)
     for inst in installs:
@@ -145,9 +267,9 @@ def software_for_hub_asset(asset, *, with_cve=False, license_states=None):
         key = inventory_key(vendor, product)
         rows.append({
             "key": key,
-            "name": head.product_raw,
+            "name": nome_programma(head.product_raw),
             "vendor": head.vendor_raw or vendor,
-            "versions": [i.version_raw for i in current],
+            "versions": _versioni_senza_doppioni(current),
             "present": bool(current),
             "first_seen": min(i.seen_at for i in items),
             "last_seen": max(i.last_seen_at for i in items),
@@ -173,15 +295,32 @@ def product_hosts(key):
     return sorted((i for i in rows if (i.vendor, i.product) in pairs), key=lambda i: (i.host, i.version_raw))
 
 
+def versione_chiave(version):
+    """La stessa versione scritta da fonti diverse: «26.05», «26.05.0.0», «26.05.00.0» → «26.05»."""
+    testo = str(version or "").strip().casefold()
+    return re.sub(r"(?:\.0+)+$", "", testo) or testo
+
+
+def versione_da_mostrare(scritte):
+    return min(scritte, key=lambda v: (len(v), v)) if scritte else ""
+
+
 def versions_by_key():
-    """{chiave: Counter(versione → PC)} dei prodotti presenti."""
+    """{chiave: Counter(versione → PC)} dei prodotti presenti. Un PC visto da due fonti con la stessa
+    versione scritta in due modi conta una volta."""
     fam = families()
-    out = defaultdict(Counter)
-    for vendor, product, version, _host in SoftwareInstallation.objects.filter(still_detected=True).values_list(
+    pc = defaultdict(lambda: defaultdict(set))
+    scritte = defaultdict(lambda: defaultdict(set))
+    for vendor, product, version, host in SoftwareInstallation.objects.filter(still_detected=True).values_list(
         "vendor", "product", "version_raw", "host"
     ).distinct():
-        out[inventory_key(*_canon(fam, vendor, product))][version] += 1
-    return out
+        key = inventory_key(*_canon(fam, vendor, product))
+        pc[key][versione_chiave(version)].add(host)
+        scritte[key][versione_chiave(version)].add(version)
+    return {
+        key: Counter({versione_da_mostrare(scritte[key][v]): len(hosts) for v, hosts in per_versione.items()})
+        for key, per_versione in pc.items()
+    }
 
 
 def cve_by_key():
@@ -232,4 +371,13 @@ def license_states_for_keys(licenses, today=None):
             out[lic.inventory_key] = "coperta"
         else:
             out.setdefault(lic.inventory_key, "scaduta")
+    return out
+
+
+def license_states_per_programma(licenses, today=None):
+    """Come ``license_states_for_keys``, sulla chiave del programma: una licenza valida su un altro nome vale per tutti."""
+    stati = license_states_for_keys(licenses, today=today)
+    out = {}
+    for canon, keys in chiavi_per_programma(stati).items():
+        out[canon] = "coperta" if any(stati[k] == "coperta" for k in keys) else "scaduta"
     return out

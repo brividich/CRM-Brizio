@@ -10,7 +10,6 @@
       <div class="page-sub">Riunione del {{ riesame.data|date:"d/m/Y" }} · dati dal {{ riesame.periodo_dal|date:"d/m/Y" }} al {{ riesame.periodo_al|date:"d/m/Y" }}</div>
     </div>
     <div class="sg-actions">
-      <span class="sg-state is-{{ riesame.stato }}">{{ riesame.get_stato_display }}</span>
       <a class="btn btn-secondary" href="{% url 'sistema_gestione:riesame_pdf' riesame.pk %}">PDF</a>
       {% if puo_modificare %}<a class="btn btn-secondary" href="{% url 'sistema_gestione:riesame_modifica' riesame.pk %}">Dati del verbale</a>{% endif %}
       {% if riesame.stato == "BOZZA" and puo_proporre %}<form method="post" action="{% url 'sistema_gestione:riesame_proponi' riesame.pk %}">{% csrf_token %}<button class="btn" type="submit">Proponi alla Direzione</button></form>{% endif %}
@@ -18,6 +17,16 @@
       {% if riesame.stato == "PROPOSTO" and puo_approvare %}<form method="post" action="{% url 'sistema_gestione:riesame_approva' riesame.pk %}">{% csrf_token %}<button class="btn" type="submit">Approva</button></form>{% endif %}
     </div>
   </div>
+
+  <section class="rc-card sg-rz-stato" aria-label="Avanzamento del verbale">
+    <ol class="sg-passi">
+      <li class="{% if riesame.stato == 'BOZZA' %}is-attivo{% else %}is-fatto{% endif %}"><i aria-hidden="true">{% if riesame.stato == 'BOZZA' %}1{% else %}✓{% endif %}</i>Bozza</li>
+      <li class="{% if riesame.stato == 'PROPOSTO' %}is-attivo{% elif riesame.stato == 'APPROVATO' %}is-fatto{% endif %}"><i aria-hidden="true">{% if riesame.stato == 'APPROVATO' %}✓{% else %}2{% endif %}</i>Proposto alla Direzione</li>
+      <li class="{% if riesame.stato == 'APPROVATO' %}is-fatto{% endif %}"><i aria-hidden="true">{% if riesame.stato == 'APPROVATO' %}✓{% else %}3{% endif %}</i>Approvato</li>
+      <li class="{% if riesame.copia_firmata %}is-fatto{% elif riesame.stato == 'APPROVATO' %}is-attivo{% endif %}"><i aria-hidden="true">{% if riesame.copia_firmata %}✓{% else %}4{% endif %}</i>Copia firmata</li>
+    </ol>
+    {% if riesame.stato != "APPROVATO" %}<div class="sg-rz-avanz"><strong>{{ n_compilati }} di {{ n_argomenti }}</strong> argomenti compilati<progress value="{{ n_compilati }}" max="{{ n_argomenti }}" aria-label="Argomenti compilati"></progress></div>{% endif %}
+  </section>
 
   {% if problemi %}<div class="sg-alert warn"><strong>Prima di proporlo alla Direzione:</strong><ul>{% for p in problemi %}<li>{{ p }}</li>{% endfor %}</ul></div>{% endif %}
 
@@ -30,7 +39,7 @@
 
   <section class="rc-card sg-section" id="partecipanti">
     <h2>Riunioni e partecipanti</h2>
-    <p>Riesame intermedio: <strong>{{ riesame.data_intermedio|date:"d/m/Y"|default:"—" }}</strong> · Pianificazione strategica: <strong>{{ riesame.data_pianificazione|date:"d/m/Y"|default:"—" }}</strong> · Verbale: <strong>{{ riesame.data|date:"d/m/Y" }}</strong></p>
+    <p class="sg-rz-date"><span>Riesame intermedio: <strong>{{ riesame.data_intermedio|date:"d/m/Y"|default:"—" }}</strong></span><span>Pianificazione strategica: <strong>{{ riesame.data_pianificazione|date:"d/m/Y"|default:"—" }}</strong></span><span>Verbale: <strong>{{ riesame.data|date:"d/m/Y" }}</strong></span></p>
     <ul class="sg-rz-persone">
       {% for p in partecipanti %}<li><strong>{{ p.funzione }}</strong> {{ p.nominativo }}{% if puo_modificare %}<form method="post" action="{% url 'sistema_gestione:riesame_partecipante_togli' riesame.pk p.pk %}">{% csrf_token %}<button class="sg-rz-togli" type="submit" aria-label="Togli {{ p.nominativo }}">×</button></form>{% endif %}</li>
       {% empty %}<li class="sg-muted">Nessun partecipante.</li>{% endfor %}
@@ -50,7 +59,7 @@
   <section class="rc-card sg-section" id="precedenti">
     <h2>Obiettivi dei riesami precedenti</h2>
     {% if riesame.stato == "APPROVATO" %}
-      {% for o in riesame.fotografia_precedenti %}<div class="sg-rz-prec"><div><strong>{{ o.descrizione }}</strong> <span class="sg-muted">{{ o.verbale }}</span>{% if o.risultato_atteso %}<div class="sg-muted">Atteso: {{ o.risultato_atteso }}</div>{% endif %}</div><div><span class="sg-badge">{{ o.stato }}</span> {{ o.nota|linebreaksbr }}</div></div>
+      {% for o in riesame.fotografia_precedenti %}<div class="sg-rz-prec"><div><strong>{{ o.descrizione }}</strong> <span class="sg-muted">{{ o.verbale }}</span>{% if o.risultato_atteso %}<div class="sg-muted">Atteso: {{ o.risultato_atteso }}</div>{% endif %}</div><div>{% include "sistema_gestione/components/_obiettivo_stato.html" with testo=o.stato %} {{ o.nota|linebreaksbr }}</div></div>
       {% empty %}<p class="sg-muted">Nessun obiettivo da valutare.</p>{% endfor %}
     {% else %}
       {% for o in precedenti %}<div class="sg-rz-prec">
@@ -58,13 +67,13 @@
         {% if puo_modificare %}<div class="sg-rz-esito">
           <select name="stato_{{ o.pk }}" aria-label="Livello di raggiungimento">{% for valore, etichetta in stati_obiettivo %}<option value="{{ valore }}"{% if valore == o.stato %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}</select>
           <textarea name="nota_{{ o.pk }}" rows="2" placeholder="Livello raggiunto e motivi" aria-label="Livello raggiunto e motivi">{{ o.nota }}</textarea>
-        </div>{% else %}<div><span class="sg-badge">{{ o.get_stato_display }}</span> {{ o.nota|linebreaksbr }}</div>{% endif %}
+        </div>{% else %}<div>{% include "sistema_gestione/components/_obiettivo_stato.html" with testo=o.get_stato_display %} {{ o.nota|linebreaksbr }}</div>{% endif %}
       </div>{% empty %}<p class="sg-muted">Nessun obiettivo da valutare.</p>{% endfor %}
     {% endif %}
   </section>
 
   <section class="rc-card sg-section" id="argomenti">
-    <div class="sg-rz-testa"><h2>Argomenti in ingresso</h2><span class="sg-muted">Compilati {{ n_compilati }} di {{ n_argomenti }}{% if riesame.indicatori_aggiornati_il %} · indicatori del {{ riesame.indicatori_aggiornati_il|date:"d/m/Y H:i" }}{% endif %}</span></div>
+    <div class="sg-rz-testa"><h2>Argomenti in ingresso</h2>{% if riesame.indicatori_aggiornati_il %}<span class="sg-muted">Indicatori del {{ riesame.indicatori_aggiornati_il|date:"d/m/Y H:i" }}</span>{% endif %}</div>
     {% for a in ingresso %}{% include "sistema_gestione/components/_riesame_argomento.html" %}{% endfor %}
   </section>
 
@@ -73,17 +82,17 @@
     {% for a in uscita %}{% include "sistema_gestione/components/_riesame_argomento.html" %}{% endfor %}
   </section>
 
-  {% if puo_modificare %}<div class="sg-rz-salva"><button class="btn" type="submit">Salva il verbale</button></div></form>
+  {% if puo_modificare %}<div class="sg-rz-salva"><button class="btn" type="submit">Salva il verbale</button><span class="sg-muted">Salva insieme le valutazioni e le analisi qui sopra.</span></div></form>
   <form method="post" action="{% url 'sistema_gestione:riesame_aggiorna_indicatori' riesame.pk %}" class="sg-actions">{% csrf_token %}<button class="btn btn-secondary" type="submit">Aggiorna gli indicatori</button><span class="sg-muted">All'approvazione restano quelli dell'ultimo aggiornamento.</span></form>{% endif %}
 
   <section class="rc-card sg-section" id="obiettivi">
     <div class="sg-rz-testa"><h2>Nuovi obiettivi</h2>{% if puo_modificare %}<a class="btn btn-secondary" href="{% url 'sistema_gestione:riesame_obiettivo_nuovo' riesame.pk %}">Aggiungi obiettivo</a>{% endif %}</div>
     <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Obiettivo</th><th>Processo</th><th>Indicatore</th><th>Risultato atteso</th><th>Responsabile e risorse</th><th>Scadenza</th><th>Stato</th>{% if puo_proporre %}<th>Azioni</th>{% endif %}</tr></thead><tbody>
       {% for o in obiettivi %}<tr>
-        <td>{{ o.descrizione }}{% if o.origine_id %} <span class="sg-badge">Ripianificato</span>{% endif %}</td><td>{{ o.processo.codice|default:"—" }}</td><td>{{ o.indicatore|default:"—" }}</td><td>{{ o.risultato_atteso|default:"—" }}</td>
+        <td><strong>{{ o.descrizione }}</strong>{% if o.origine_id %} <span class="sg-badge">Ripianificato</span>{% endif %}</td><td>{{ o.processo.codice|default:"—" }}</td><td>{{ o.indicatore|default:"—" }}</td><td>{{ o.risultato_atteso|default:"—" }}</td>
         <td>{% if o.responsabile %}{{ o.responsabile.get_full_name|default:o.responsabile.username }}{% else %}<span class="sg-badge warn">Manca</span>{% endif %}{% if o.risorse %}<div class="sg-muted">{{ o.risorse }}</div>{% endif %}</td>
         <td>{{ o.scadenza|date:"d/m/Y"|default:"—" }}</td>
-        <td>{{ o.get_stato_display }}{% if o.nota and riesame.stato == "APPROVATO" %}<div class="sg-muted">{{ o.nota }}</div>{% endif %}</td>
+        <td>{% include "sistema_gestione/components/_obiettivo_stato.html" with testo=o.get_stato_display %}{% if o.nota and riesame.stato == "APPROVATO" %}<div class="sg-muted">{{ o.nota }}</div>{% endif %}</td>
         {% if puo_proporre %}<td class="sg-actions"><a href="{% url 'sistema_gestione:riesame_obiettivo' riesame.pk o.pk %}">{% if puo_modificare %}Modifica{% else %}Andamento{% endif %}</a>{% if puo_modificare %}<form method="post" action="{% url 'sistema_gestione:riesame_obiettivo_togli' riesame.pk o.pk %}">{% csrf_token %}<button class="sg-rz-togli" type="submit" aria-label="Togli l'obiettivo">×</button></form>{% endif %}</td>{% endif %}
       </tr>{% empty %}<tr><td colspan="8">Nessun obiettivo fissato.</td></tr>{% endfor %}
     </tbody></table></div>
