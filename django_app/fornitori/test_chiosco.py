@@ -15,7 +15,7 @@ REFERENTI = {"success": True, "data": [
 ]}
 
 
-def _finto(nome, dati=None):
+def _finto(nome, dati=None, ip=""):
     """Il GuestPortal finto: registra le chiamate in ``CHIAMATE``."""
     CHIAMATE.append((nome, dati))
     if nome == "employees":
@@ -126,13 +126,13 @@ class IngressoTests(Base):
         self.assertFalse(self.api("ingresso", **{**self.DATI, "referente_id": 99}).json()["success"])
 
     def test_nome_di_chi_usa_gia_l_email_non_si_vede(self):
-        with patch.object(chiosco, "chiama", side_effect=lambda n, d=None: _finto(n, d) if n == "employees" else (
+        with patch.object(chiosco, "chiama", side_effect=lambda n, d=None, **k: _finto(n, d) if n == "employees" else (
                 422, {"success": False, "email_conflict": True, "error": "L'email è già associata a Persona Riservata."})):
             risposta = self.api("ingresso", **self.DATI, email="m@example.local")
         self.assertNotIn("Riservata", risposta.content.decode())
 
     def test_errore_tecnico_non_arriva_allo_schermo(self):
-        with patch.object(chiosco, "chiama", side_effect=lambda n, d=None: _finto(n, d) if n == "employees" else (
+        with patch.object(chiosco, "chiama", side_effect=lambda n, d=None, **k: _finto(n, d) if n == "employees" else (
                 500, {"success": False, "error": "SQLSTATE dettaglio interno"})):
             risposta = self.api("ingresso", **self.DATI)
         self.assertNotIn("SQLSTATE", risposta.content.decode())
@@ -140,7 +140,7 @@ class IngressoTests(Base):
     def test_gia_dentro_e_cartellini_finiti(self):
         for risposta_gp, chiave in (((409, {"success": False, "already_in": True}), "already_in"),
                                     ((503, {"success": False, "no_badges": True}), "no_badges")):
-            with patch.object(chiosco, "chiama", side_effect=lambda n, d=None, r=risposta_gp: _finto(n, d) if n == "employees" else r):
+            with patch.object(chiosco, "chiama", side_effect=lambda n, d=None, r=risposta_gp, **k: _finto(n, d) if n == "employees" else r):
                 self.assertTrue(self.api("ingresso", **self.DATI).json()[chiave])
 
     def test_ospite_gia_noto(self):

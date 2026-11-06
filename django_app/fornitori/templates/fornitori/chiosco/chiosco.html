@@ -59,6 +59,10 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
 .ck-show { max-width:420px; margin:0 auto; min-height:76px; display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:800; letter-spacing:4px; background:var(--surface); border:2px solid var(--border); border-radius:12px; }
 .ck-center { display:flex; justify-content:center; margin-top:12px; }
 .ck-list { display:flex; flex-direction:column; gap:10px; margin:14px auto; max-width:640px; }
+.ck-ref-list { display:flex; flex-direction:column; gap:6px; max-height:260px; overflow:auto; }
+.ck-ref { min-height:52px; padding:10px 14px; font:inherit; font-size:17px; text-align:left; background:var(--surface); color:var(--text); border:2px solid var(--border); border-radius:10px; cursor:pointer; }
+.ck-ref.on { border-color:var(--blue); background:#eaf4fa; font-weight:700; }
+.ck-ref small { color:var(--muted); font-size:14px; margin-left:6px; }
 .ck-kb { position:fixed; inset:auto 0 0 0; z-index:20; display:none; padding:12px; background:#26394b; }
 .ck-kb.on { display:block; }
 .ck-kb-prev { display:flex; gap:10px; align-items:center; padding:8px 12px; margin-bottom:8px; background:#fff; color:var(--text); border-radius:8px; font-size:20px; min-height:48px; word-break:break-all; }
@@ -140,11 +144,10 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
       <h1 class="ck-title">Chi vieni a trovare?</h1>
       <p class="ck-sub">Seleziona il dipendente e il motivo della visita</p>
       <div class="ck-field">
-        <label class="ck-label" for="f-host">Dipendente referente *</label>
-        <select class="ck-input" id="f-host" data-referenti>
-          <option value="">Seleziona un dipendente</option>
-          {% for r in referenti %}<option value="{{ r.id }}">{{ r.nome }}{% if r.reparto %} – {{ r.reparto }}{% endif %}</option>{% endfor %}
-        </select>
+        <label class="ck-label" for="f-host-cerca">Dipendente referente * (scrivi il nome)</label>
+        <input class="ck-input" id="f-host-cerca" data-kb="text" data-kb-label="Referente" data-cerca-ref="f-host" readonly autocomplete="off" placeholder="Tocca e scrivi il nome">
+        <input type="hidden" id="f-host">
+        <div class="ck-ref-list" id="f-host-lista"></div>
       </div>
       <div class="ck-label">Motivo della visita *</div>
       <div class="ck-cards" id="motivi">
@@ -175,11 +178,10 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
       <p class="ck-sub">Azienda o nominativo non in elenco? Torna indietro e scegli «Prima visita», oppure rivolgiti alla reception.</p>
       <div class="ck-field"><label class="ck-label" for="f-persona">Nominativo *</label><select class="ck-input" id="f-persona"><option value="">Seleziona nominativo</option></select></div>
       <div class="ck-field">
-        <label class="ck-label" for="f-host-f">Referente interno *</label>
-        <select class="ck-input" id="f-host-f">
-          <option value="">Seleziona referente</option>
-          {% for r in referenti %}<option value="{{ r.id }}">{{ r.nome }}{% if r.reparto %} – {{ r.reparto }}{% endif %}</option>{% endfor %}
-        </select>
+        <label class="ck-label" for="f-host-f-cerca">Referente interno * (scrivi il nome)</label>
+        <input class="ck-input" id="f-host-f-cerca" data-kb="text" data-kb-label="Referente" data-cerca-ref="f-host-f" readonly autocomplete="off" placeholder="Tocca e scrivi il nome">
+        <input type="hidden" id="f-host-f">
+        <div class="ck-ref-list" id="f-host-f-lista"></div>
       </div>
       <div class="ck-err" id="e-fornitore"></div>
     </section>
@@ -256,9 +258,11 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
 </div>
 {% if disponibile %}
 <script src="{% static 'fornitori/chiosco/jsQR.js' %}" nonce="{{ csp_nonce }}"></script>
+{{ referenti|json_script:"dati-referenti" }}
 <script nonce="{{ csp_nonce }}">
 (function () {
   'use strict';
+  var REFERENTI = JSON.parse(document.getElementById('dati-referenti').textContent);
   var API = '{% url "chiosco:pagina" %}api/';
   var CSRF = document.querySelector('meta[name=csrf-token]').content;
   var IDLE_SEC = 120;
@@ -334,6 +338,7 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
     document.querySelectorAll('select.ck-input').forEach(function (s) { s.selectedIndex = 0; });
     document.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = false; });
     document.querySelectorAll('[data-motivo]').forEach(function (c) { c.classList.remove('on'); });
+    document.querySelectorAll('[data-cerca-ref]').forEach(function (i) { $(i.dataset.cercaRef).value = ''; disegnaReferenti(i); });
     $('visite').innerHTML = '';
     badge = ''; codice = '';
     mostraBadge(); mostraCodice();
@@ -357,7 +362,7 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
     if (d.success) {
       return successo({ badge: d.badge_number }, 'Check-in completato!',
         'Ritira il cartellino numero ' + d.badge_number + ' dal dispenser in reception.',
-        'Il dipendente referente è stato notificato e verrà a prenderti a breve.');
+        d.passa_reception ? 'Passa dalla reception prima di entrare.' : 'Il dipendente referente è stato notificato e verrà a prenderti a breve.');
     }
     if (d.already_in) {
       return successo({}, 'Già registrato', 'Risulti già presente in azienda: non puoi registrarti due volte prima del check-out.', 'La schermata torna alla home da sola.');
@@ -370,9 +375,8 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
 
   // ─── Ingresso ───
   function riepilogo() {
-    var host = $('f-host');
     var righe = [['Nome', val('f-nome') + ' ' + val('f-cognome')], ['Azienda', val('f-azienda')], ['Email', val('f-mail')],
-      ['Telefono', val('f-tel')], ['Referente', host.options[host.selectedIndex].textContent], ['Motivo', stato.motivo]];
+      ['Telefono', val('f-tel')], ['Referente', $('f-host').dataset.nome], ['Motivo', stato.motivo]];
     var c = $('riepilogo');
     c.innerHTML = '';
     righe.forEach(function (r) {
@@ -406,6 +410,34 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
       document.querySelectorAll('[data-motivo]').forEach(function (x) { x.classList.toggle('on', x === c); });
       stato.motivo = c.dataset.motivo;
     });
+  });
+
+  // ─── Ricerca del referente: si scrive il nome, si tocca la riga ───
+  function normalizza(s) { return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+  function disegnaReferenti(input) {
+    var nascosto = $(input.dataset.cercaRef), lista = $(input.dataset.cercaRef + '-lista');
+    var cerca = normalizza(input.value).trim();
+    lista.innerHTML = '';
+    REFERENTI.filter(function (r) {
+      return !cerca || normalizza(r.nome + ' ' + r.reparto).indexOf(cerca) !== -1;
+    }).slice(0, 30).forEach(function (r) {
+      var b = document.createElement('button'); b.type = 'button';
+      b.className = 'ck-ref' + (String(nascosto.value) === String(r.id) ? ' on' : '');
+      b.textContent = r.nome;
+      if (r.reparto) { var s = document.createElement('small'); s.textContent = r.reparto; b.appendChild(s); }
+      b.addEventListener('click', function () {
+        nascosto.value = r.id; nascosto.dataset.nome = r.nome;
+        input.value = r.nome;
+        chiudiTastiera();
+        disegnaReferenti(input);
+      });
+      lista.appendChild(b);
+    });
+    if (!lista.children.length) { var v = document.createElement('p'); v.className = 'ck-sub'; v.textContent = 'Nessun nome trovato. Rivolgiti alla reception.'; lista.appendChild(v); }
+  }
+  document.querySelectorAll('[data-cerca-ref]').forEach(function (i) {
+    i.addEventListener('input', function () { $(i.dataset.cercaRef).value = ''; disegnaReferenti(i); });
+    disegnaReferenti(i);
   });
 
   // ─── Fornitore ───
@@ -556,7 +588,8 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
     b.addEventListener('click', azione);
     return b;
   }
-  function scrivi(c) { kbCampo.value += c; $('kb-valore').textContent = kbCampo.value; if (kbCampo.dataset.kb === 'text' && kbMaiuscole && c !== ' ') { kbMaiuscole = false; disegna(); } if (c === ' ') { kbMaiuscole = true; disegna(); } }
+  function cambiato() { $('kb-valore').textContent = kbCampo.value; kbCampo.dispatchEvent(new Event('input')); }
+  function scrivi(c) { kbCampo.value += c; cambiato(); if (kbCampo.dataset.kb === 'text' && kbMaiuscole && c !== ' ') { kbMaiuscole = false; disegna(); } if (c === ' ') { kbMaiuscole = true; disegna(); } }
   function disegna() {
     var modo = kbCampo.dataset.kb, c = $('kb-righe');
     c.innerHTML = '';
@@ -571,7 +604,7 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
     var u = document.createElement('div'); u.className = 'ck-kb-row';
     if (modo === 'email') { ['.it', '.com'].forEach(function (s) { u.appendChild(tasto(s, '', function () { scrivi(s); })); }); }
     if (modo !== 'phone') { u.appendChild(tasto('Spazio', 'wide', function () { scrivi(' '); })); }
-    u.appendChild(tasto('⌫', '', function () { kbCampo.value = kbCampo.value.slice(0, -1); $('kb-valore').textContent = kbCampo.value; }));
+    u.appendChild(tasto('⌫', '', function () { kbCampo.value = kbCampo.value.slice(0, -1); cambiato(); }));
     u.appendChild(tasto('Fatto', 'ok', chiudiTastiera));
     c.appendChild(u);
   }

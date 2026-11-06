@@ -59,6 +59,7 @@ def pagina(request):
         logger.warning("Chiosco: postazione non ammessa %s", client_ip(request))
         return render(request, "fornitori/chiosco/non_ammesso.html", status=403)
     referenti, disponibile = [], chiosco.configurato()
+    # Nella pagina solo id, nome e reparto: l'email del referente resta sul server.
     if disponibile:
         try:
             referenti = [{"id": r["id"], "nome": r["nome"], "reparto": r["reparto"]} for r in chiosco.referenti()]
@@ -84,12 +85,36 @@ def _errore(testo: str, status: int = 200, **altro) -> JsonResponse:
     return JsonResponse({"success": False, "error": testo, **altro}, status=status)
 
 
-def _esito_ingresso(stato: int, esito: dict) -> JsonResponse:
+def _ditta_non_in_regola(azienda: str, ditta_id: int | None = None) -> bool:
+    """Interruttore in Reception → Impostazioni, spento di default. Non deve mai fermare un ingresso."""
+    from core.models import SiteConfig
+
+    if not azienda or SiteConfig.get("chiosco_avviso_requisiti", "0") != "1":
+        return False
+    try:
+        from .guestportal import Accesso
+        from .requisiti import ESITO_NON_IN_REGOLA, abbina_fornitori, stati_per_fornitori
+
+        accesso = Accesso(0, "", "", "", azienda, "", "", "", None, None, ditta_gp_id=ditta_id)
+        abbina_fornitori([accesso])
+        if not accesso.fornitore_id:
+            return False
+        stato = stati_per_fornitori([accesso.fornitore_id]).get(accesso.fornitore_id)
+        return bool(stato and stato.esito == ESITO_NON_IN_REGOLA)
+    except Exception:  # noqa: BLE001
+        logger.exception("Chiosco: controllo dei requisiti della ditta fallito")
+        return False
+
+
+def _esito_ingresso(stato: int, esito: dict, azienda: str = "", ditta_id: int | None = None) -> JsonResponse:
     """Esito di un check-in: solo i dati per lo schermo. Gli errori tecnici del GuestPortal
     e il nome di chi usa già un'email non arrivano al visitatore."""
     if esito.get("success"):
-        return JsonResponse({"success": True, "badge_number": esito.get("badge_number"),
-                             "guest_name": esito.get("guest_name"), "host_employee": esito.get("host_employee")})
+        risposta = {"success": True, "badge_number": esito.get("badge_number"),
+                    "guest_name": esito.get("guest_name"), "host_employee": esito.get("host_employee")}
+        if _ditta_non_in_regola(azienda, ditta_id):
+            risposta["passa_reception"] = True
+        return JsonResponse(risposta)
     if esito.get("already_in"):
         return _errore("Sei già registrato come presente in azienda.", already_in=True)
     if esito.get("no_badges"):
@@ -116,7 +141,7 @@ def _ospite(dati: dict) -> JsonResponse:
     }})
 
 
-def _ingresso(dati: dict) -> JsonResponse:
+def _ingresso(dati: dict, ip: str) -> JsonResponse:
     if dati.get("gdpr_consent") is not True:
         return _errore("Per continuare conferma di aver letto l'informativa.")
     host = chiosco.referente(_intero(dati, "referente_id"))
@@ -135,11 +160,11 @@ def _ingresso(dati: dict) -> JsonResponse:
         "first_name": nome, "last_name": cognome, "email": email, "phone": _testo(dati, "phone"),
         "company": _testo(dati, "company"), "host_employee": host["nome"], "host_email": host["email"],
         "purpose": motivo, "gdpr_consent": True,
-    })
-    return _esito_ingresso(stato, esito)
+    }, ip=ip)
+    return _esito_ingresso(stato, esito, azienda=_testo(dati, "company"))
 
 
-def _ingresso_fornitore(dati: dict) -> JsonResponse:
+def _ingresso_fornitore(dati: dict, ip: str) -> JsonResponse:
     # Anche il fornitore accreditato legge l'informativa: il GuestPortal registra comunque ConsentGDPR=1.
     if dati.get("gdpr_consent") is not True:
         return _errore("Per continuare conferma di aver letto l'informativa.")
@@ -157,8 +182,8 @@ def _ingresso_fornitore(dati: dict) -> JsonResponse:
         "supplier_id": azienda["id"], "contact_id": persona["id"], "company_name": azienda["nome"],
         "first_name": persona["nome"], "last_name": persona["cognome"],
         "host_employee": host["nome"], "host_email": host["email"],
-    })
-    return _esito_ingresso(stato, esito)
+    }, ip=ip)
+    return _esito_ingresso(stato, esito, azienda=azienda["nome"], ditta_id=azienda["id"])
 
 
 def _cerca_uscita(dati: dict) -> JsonResponse:
@@ -202,13 +227,13 @@ def _prereg_cerca(dati: dict) -> JsonResponse:
     }})
 
 
-def _prereg_entra(dati: dict) -> JsonResponse:
+def _prereg_entra(dati: dict, ip: str) -> JsonResponse:
     codice = _testo(dati, "code").upper()
     if len(codice) != 8:
         return _errore("Il codice deve avere 8 caratteri.")
     if dati.get("gdpr_consent") is not True:
         return _errore("Per continuare conferma di aver letto l'informativa.")
-    stato, esito = chiosco.chiama("prereg_checkin", {"code": codice})
+    stato, esito = chiosco.chiama("prereg_checkin", {"code": codice}, ip=ip)
     if not esito.get("success") and stato == 200:
         return _errore("Codice non valido, scaduto o già utilizzato.")
     return _esito_ingresso(stato, esito)
@@ -238,6 +263,9 @@ AZIONI = {
 }
 
 
+CON_IP = {_ingresso, _ingresso_fornitore, _prereg_entra}
+
+
 @require_POST
 @risposta_pubblica_con_form
 def api(request, azione):
@@ -253,6 +281,8 @@ def api(request, azione):
     if not isinstance(dati, dict):
         return _errore("Dati non validi.", status=400)
     try:
+        if gestore in CON_IP:
+            return gestore(dati, client_ip(request) or "")
         return gestore(dati)
     except chiosco.ChioscoNonDisponibile:
         return _errore(NON_DISPONIBILE, status=503)

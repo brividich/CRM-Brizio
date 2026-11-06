@@ -1,0 +1,23 @@
+{% extends "reception/_base.html" %}
+{% block title %}Registra ingresso | Reception{% endblock %}
+{% block rc_titolo %}Registra ingresso{% endblock %}
+{% block rc_sub %}Per chi non passa dal chiosco. Il referente riceve la stessa mail.{% endblock %}
+{% block rc_contenuto %}
+<div class="rc-card"><div class="rc-body">
+  <form method="post" class="rc-form">
+    {% csrf_token %}
+    <div class="rc-field"><label for="r-nome">Nome *</label><input class="rc-input" id="r-nome" name="nome" value="{{ dati.nome }}" maxlength="100" required></div>
+    <div class="rc-field"><label for="r-cognome">Cognome *</label><input class="rc-input" id="r-cognome" name="cognome" value="{{ dati.cognome }}" maxlength="100" required></div>
+    <div class="rc-field"><label for="r-azienda">Azienda</label><input class="rc-input" id="r-azienda" name="azienda" value="{{ dati.azienda }}" maxlength="255"></div>
+    <div class="rc-field"><label for="r-email">Email</label><input class="rc-input" id="r-email" type="email" name="email" value="{{ dati.email }}" maxlength="255"></div>
+    <div class="rc-field"><label for="r-ref">Referente *</label>
+      <select class="rc-input" id="r-ref" name="referente" required><option value="">Scegli</option>{% for r in referenti %}<option value="{{ r.pk }}">{{ r.nome_elenco }}{% if r.reparto %} – {{ r.reparto }}{% endif %}</option>{% endfor %}</select></div>
+    <div class="rc-field"><label for="r-motivo">Motivo</label>
+      <select class="rc-input" id="r-motivo" name="motivo">{% for c in categorie %}<option value="{{ c.nome }}">{{ c.nome }}</option>{% empty %}<option value="Altro">Altro</option>{% endfor %}</select></div>
+    <div class="rc-field"><label for="r-cart">Cartellino</label>
+      <select class="rc-input" id="r-cart" name="cartellino"><option value="">Senza cartellino</option>{% for n in liberi %}<option value="{{ n }}">{{ n }}</option>{% endfor %}</select></div>
+    <div class="rc-field"><label for="r-ora">Entrato alle (oggi)</label><input class="rc-input" id="r-ora" type="time" name="ora"></div>
+    <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit">Registra</button></div>
+  </form>
+</div></div>
+{% endblock %}

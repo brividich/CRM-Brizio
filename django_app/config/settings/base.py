@@ -134,6 +134,10 @@ GUESTPORTAL_SSO_SECRET = env("GUESTPORTAL_SSO_SECRET", "")
 # Chiosco nell'HUB (/chiosco/, senza login): API del GuestPortal chiamate lato server e postazioni
 # ammesse (IP o reti CIDR). Elenco vuoto = chiosco chiuso. Vedi fornitori/chiosco.py.
 GUESTPORTAL_CHIOSCO_API_URL = env("GUESTPORTAL_CHIOSCO_API_URL", "http://10.0.0.8/guestportal/public/api/")
+# Il passaggio: con 1 chiosco, Accessi esterni, Presenti e avvisi usano le tabelle dell'HUB (app reception)
+# e il GuestPortal non serve più. Prima si importa: manage.py importa_guestportal --apply.
+RECEPTION_NATIVA = env_bool("RECEPTION_NATIVA", False)
+RECEPTION_CONSERVAZIONE_MESI = int(env("RECEPTION_CONSERVAZIONE_MESI", "12"))
 GUESTPORTAL_DB_HOST = env("GUESTPORTAL_DB_HOST", "")
 GUESTPORTAL_DB_PORT = env("GUESTPORTAL_DB_PORT", "3306")
 GUESTPORTAL_DB_NAME = env("GUESTPORTAL_DB_NAME", "GuestManagement")
@@ -568,6 +572,7 @@ INSTALLED_APPS = [
     "notizie.apps.NotizieConfig",
     "anagrafica.apps.AnagraficaConfig",
     "fornitori.apps.FornitoriConfig",
+    "reception.apps.ReceptionConfig",
     "scadenzario.apps.ScadenzarioConfig",
     "timbri.apps.TimbriConfig",
     "planimetria.apps.PlanimetriaConfig",
