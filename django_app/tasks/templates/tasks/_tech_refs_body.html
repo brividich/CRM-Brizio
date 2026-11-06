@@ -58,12 +58,20 @@
 {% endif %}
 
 <h3 class="tr-sezione">FAI</h3>
-{% if fai_esito %}
+{% if fai_non_richiesto %}
+<div class="fai-regola">
+  <div><strong>FAI non richiesto per questo kickoff</strong> <span>Deciso{% if project.fai_non_richiesto_da %} da {{ project.fai_non_richiesto_da.get_full_name|default:project.fai_non_richiesto_da.username }}{% endif %} il {{ project.fai_non_richiesto_il|date:"d/m/Y" }}.</span></div>
+  {% if tech_can_assign %}<button type="button" class="btn btn-secondary btn-sm" data-tr-fai="0">Annulla</button>{% endif %}
+</div>
+{% elif fai_esito %}
 <div class="fai-regola fai-regola--{{ fai_esito.classe }}">
   <div><strong>{{ fai_esito.titolo }}</strong> <span>{{ fai_esito.nota }}</span></div>
+  <div class="tr-actions">
+  {% if tech_can_assign and fai_esito.causale and not tech_rows_fai %}<button type="button" class="btn btn-secondary btn-sm" data-tr-fai="1">Non richiesto per questo kickoff</button>{% endif %}
   {% if fai_puo_creare and not fai_esito.in_corso and not fai_ref_libera %}
   <a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_nuovo' %}?project={{ project.id }}{% if fai_esito.causale %}&amp;causale={{ fai_esito.causale }}{% endif %}{% if fai_ref_libera %}&amp;ref={{ fai_ref_libera.id }}{% endif %}">Apri un FAI</a>
   {% endif %}
+  </div>
 </div>
 {% endif %}
 {% if tech_rows_fai %}
@@ -110,6 +118,6 @@
     </tbody>
   </table>
 </div>
-{% elif not fai_esito %}
+{% elif not fai_esito and not fai_non_richiesto %}
 <p class="tr-hint">Ancora nessun FAI.{% if not project.part_number %} Con il P/N sulla commessa il portale indica quale serve.{% endif %}</p>
 {% endif %}

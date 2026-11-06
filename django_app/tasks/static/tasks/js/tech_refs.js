@@ -139,6 +139,13 @@
 
     block.addEventListener('click', function (e) {
       if (e.target.closest('[data-tr="save"]')) { salva(); return; }
+      var sceltaFai = e.target.closest('[data-tr-fai]');
+      if (sceltaFai) {
+        var valori = new FormData();
+        valori.append('valore', sceltaFai.getAttribute('data-tr-fai'));
+        invia(block.dataset.actionBase + 'fai-non-richiesto/', valori);
+        return;
+      }
       var riga = e.target.closest('[data-tr-ref]');
       if (!riga) { return; }
       if (e.target.closest('[data-tr-edit]')) { apriModifica(riga); return; }

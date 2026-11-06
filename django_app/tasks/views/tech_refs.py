@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
@@ -55,6 +56,8 @@ def tech_refs_context(request, project, meeting=None) -> dict:
         "tech_default_owner": _programmatore_id(project),
         "tech_meeting": meeting,
         "fai_esito": esito_progetto(project),
+        # Se poi qualcuno apre comunque un FAI, vale il FAI.
+        "fai_non_richiesto": project.fai_non_richiesto_il is not None and not righe_fai,
         "fai_puo_creare": puo_aggiungere,
         # Il FAI assegnato in riunione si completa, non se ne crea un altro.
         "fai_ref_libera": next((r["ref"] for r in righe_fai if getattr(r["ref"], "fai_record", None) is None), None),
@@ -168,6 +171,30 @@ def tech_ref_save(request, project_id: int):
     })
     if ref.assigned_to_id != prima:
         _avvisa(ref, request.user)
+    return _risposta(request, project, meeting)
+
+
+@require_POST
+@task_permissions_required("tasks_view", api=True)
+def fai_non_richiesto(request, project_id: int):
+    """Chi gestisce il kickoff segna che qui il FAI non serve, o torna indietro."""
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    if not can_manage_project(request, project):
+        return _errore("Solo chi gestisce la commessa può deciderlo.", 403)
+
+    meeting = None
+    if (request.POST.get("meeting_id") or "").isdigit():
+        meeting = KickoffMeeting.objects.filter(pk=int(request.POST["meeting_id"]), project=project).first()
+
+    non_richiesto = request.POST.get("valore") == "1"
+    if non_richiesto and project.tech_refs.filter(kind=TechRefKind.FAI).exists():
+        return _errore("Questa commessa ha già una riga FAI: eliminala prima.")
+    project.fai_non_richiesto_il = timezone.now() if non_richiesto else None
+    project.fai_non_richiesto_da = request.user if non_richiesto else None
+    project.save(update_fields=["fai_non_richiesto_il", "fai_non_richiesto_da"])
+    log_action(request, "kickoff_fai_non_richiesto", "tasks", {
+        "project_id": project.pk, "non_richiesto": non_richiesto,
+    })
     return _risposta(request, project, meeting)
 
 

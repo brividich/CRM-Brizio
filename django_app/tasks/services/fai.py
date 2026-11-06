@@ -106,14 +106,14 @@ def esito_progetto(project, oggi=None) -> EsitoProgetto | None:
     ultimo = articolo.fai.select_related("stato").first() if articolo else None
     if ultimo is None:
         return EsitoProgetto(
-            "FAI completo previsto", "Il P/N non è nel registro: se è davvero nuovo vale la prima produzione. Se qui non serve, non aprirlo.",
+            "FAI completo previsto", "Il P/N non è nel registro: se è davvero nuovo vale la prima produzione.",
             "warn", CAUSALE_NUOVO,
         )
     stato = stato_articolo(articolo, ultimo, oggi)
     if stato.codice == "in_corso":
         return EsitoProgetto("FAI in corso", ultimo.stato.etichetta, "info", "", in_corso=True)
     if stato.codice == "da_ripetere":
-        return EsitoProgetto("FAI completo previsto", f"{stato.nota} Se qui non serve, non aprirlo.", "warn", CAUSALE_FERMO)
+        return EsitoProgetto("FAI completo previsto", stato.nota, "warn", CAUSALE_FERMO)
     if stato.codice == "da_verificare":
         return EsitoProgetto("FAI valido, da segnalare", stato.nota, "warn", "")
     if stato.codice == "date_mancanti":

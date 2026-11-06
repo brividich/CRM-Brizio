@@ -81,6 +81,7 @@ urlpatterns = [
     path("tasks/projects/<int:project_id>/programmi/", views.project_tech_refs, name="project_tech_refs"),
     path("tasks/projects/<int:project_id>/programmi/salva/", views.tech_ref_save, name="tech_ref_save"),
     path("tasks/projects/<int:project_id>/programmi/<int:ref_id>/azione/", views.tech_ref_action, name="tech_ref_action"),
+    path("tasks/projects/<int:project_id>/programmi/fai-non-richiesto/", views.fai_non_richiesto, name="fai_non_richiesto"),
     path("tasks/projects/<int:project_id>/info-json/", views.project_info_json, name="project_info_json"),
     path("tasks/projects/<int:project_id>/comments/add/", views.add_project_comment, name="add_project_comment"),
     path("tasks/gestione/", views.gestione_admin, name="gestione_admin"),

@@ -241,6 +241,51 @@ class VisteTests(TasksBaseTestCase):
         self.assertContains(pagina, "Il P/N non è nel registro")
         self.assertContains(pagina, "causale=a")
 
+    def _non_richiesto(self, valore="1"):
+        return self.client.post(
+            reverse("tasks:fai_non_richiesto", args=[self.project.pk]), {"valore": valore},
+            HTTP_ACCEPT="application/json",
+        )
+
+    def test_fai_non_richiesto_e_annulla(self):
+        pagina = self.client.get(reverse("tasks:project_tech_refs", args=[self.project.pk]))
+        self.assertContains(pagina, "Non richiesto per questo kickoff")
+
+        risposta = self._non_richiesto()
+        self.assertEqual(risposta.status_code, 200)
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.fai_non_richiesto_da, self.user)
+        self.assertIsNotNone(self.project.fai_non_richiesto_il)
+        html = risposta.json()["html"]
+        self.assertIn("FAI non richiesto per questo kickoff", html)
+        self.assertNotIn("Apri un FAI", html)
+
+        html = self._non_richiesto("0").json()["html"]
+        self.project.refresh_from_db()
+        self.assertIsNone(self.project.fai_non_richiesto_il)
+        self.assertIsNone(self.project.fai_non_richiesto_da)
+        self.assertIn("Apri un FAI", html)
+
+    def test_non_richiesto_rifiutato_se_c_e_una_riga_fai(self):
+        ProjectTechRef.objects.create(project=self.project, kind=TechRefKind.FAI, code="X")
+        self.assertEqual(self._non_richiesto().status_code, 400)
+        self.project.refresh_from_db()
+        self.assertIsNone(self.project.fai_non_richiesto_il)
+
+    def test_riga_fai_aggiunta_dopo_prevale(self):
+        self._non_richiesto()
+        ProjectTechRef.objects.create(project=self.project, kind=TechRefKind.FAI, code="X")
+        pagina = self.client.get(reverse("tasks:project_tech_refs", args=[self.project.pk]))
+        self.assertNotContains(pagina, "FAI non richiesto per questo kickoff")
+
+    def test_non_richiesto_solo_per_chi_gestisce(self):
+        altro = _create_user_with_legacy(username="fai-altro", legacy_user_id=623, role_id=2, role_name="tasks")
+        self.client.force_login(altro)
+        risposta = self._non_richiesto()
+        self.assertIn(risposta.status_code, (403, 404))
+        self.project.refresh_from_db()
+        self.assertIsNone(self.project.fai_non_richiesto_il)
+
     def test_voce_di_menu_e_permessi(self):
         from .acl_bootstrap import _ROUTE_BINDINGS
 

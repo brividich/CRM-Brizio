@@ -261,4 +261,4 @@ from .mie_azioni import (  # noqa: F401
 )
 
 from .fai import fai_registro, fai_scheda  # noqa: F401,E402
-from .tech_refs import project_tech_refs, tech_ref_action, tech_ref_save  # noqa: F401,E402
+from .tech_refs import fai_non_richiesto, project_tech_refs, tech_ref_action, tech_ref_save  # noqa: F401,E402

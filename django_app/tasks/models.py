@@ -80,6 +80,11 @@ class Project(models.Model):
         max_length=20, choices=VRFDocStatus.choices, default=VRFDocStatus.PENDING,
         verbose_name="Stato documento VRF",
     )
+    # Valorizzata quando chi gestisce il kickoff decide che il FAI qui non serve.
+    fai_non_richiesto_il = models.DateTimeField(null=True, blank=True)
+    fai_non_richiesto_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
+    )
     phase = models.CharField(
         max_length=10, choices=ProjectPhase.choices,
         default=ProjectPhase.BOZZA, db_index=True, verbose_name="Fase",
