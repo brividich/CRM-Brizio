@@ -1,37 +1,133 @@
-{% comment %}Regole di una voce e modulo per aggiungerne. Parametri: regole, chiave, opzioni_chi, torna (facoltativo), con_livello.{% endcomment %}
+{% load scadenzario_tags %}{% comment %}Regole di una voce e modulo per aggiungerne più di una insieme. Parametri: regole, chiave, opzioni_chi, torna (facoltativo), con_livello, con_ambito.{% endcomment %}
 <div class="gz-righe">
   {% for r in regole %}
     <div class="gz-regola">
-      <span>{{ r.destinatario_label }} · <span class="sz-pill {% if r.livello == 'GESTISCE' %}sz-vicina{% else %}sz-blu{% endif %}">{{ r.get_livello_display }}</span></span>
-      <form method="post" action="{% url 'scadenzario:gestione_regola_togli' r.pk %}" data-hub-confirm="Togliere questa regola?">
-        {% csrf_token %}{% if torna %}<input type="hidden" name="next" value="{{ torna }}">{% endif %}
-        <button class="sz-btn sz-btn-danger" type="submit">Togli</button>
-      </form>
+      <span>{{ r.destinatario_label }}{% if not con_livello %} · <span class="sz-pill {% if r.livello == 'GESTISCE' %}sz-vicina{% else %}sz-blu{% endif %}">{{ r.get_livello_display }}</span>{% endif %}</span>
+      <div class="gz-regola-azioni">
+        {% if con_ambito %}
+        <form method="post" action="{% url 'scadenzario:gestione_regola_modifica' r.pk %}" class="gz-regola-mod" data-gz-auto>
+          {% csrf_token %}{% if torna %}<input type="hidden" name="next" value="{{ torna }}">{% endif %}
+          {% if con_livello %}
+          <select name="livello" aria-label="Cosa può fare {{ r.destinatario_breve }}">
+            <option value="VEDE"{% if r.livello == 'VEDE' %} selected{% endif %}>Solo vedere</option>
+            <option value="GESTISCE"{% if r.livello == 'GESTISCE' %} selected{% endif %}>Vedere e gestire</option>
+          </select>
+          {% endif %}
+          <select name="ambito" aria-label="Quali scadenze vede {{ r.destinatario_breve }}"{% if r.livello == 'GESTISCE' %} disabled title="Chi gestisce vede tutta la voce"{% endif %}>
+            <option value="propri"{% if r.ambito == 'propri' %} selected{% endif %}>Propri</option>
+            <option value="team"{% if r.ambito == 'team' %} selected{% endif %}>Propri e del team</option>
+            <option value="tutti"{% if r.ambito == 'tutti' %} selected{% endif %}>Tutti</option>
+          </select>
+        </form>
+        {% endif %}
+        <form method="post" action="{% url 'scadenzario:gestione_regola_togli' r.pk %}" data-hub-confirm="Togliere questa regola?">
+          {% csrf_token %}{% if torna %}<input type="hidden" name="next" value="{{ torna }}">{% endif %}
+          <button class="sz-btn sz-btn-danger" type="submit">Togli</button>
+        </form>
+      </div>
     </div>
   {% empty %}
     <div class="sz-muted">Nessuna regola qui.</div>
   {% endfor %}
 </div>
-<form method="post" action="{% url 'scadenzario:gestione_regola_aggiungi' %}" class="gz-form" style="margin-top:10px">
+<form method="post" action="{% url 'scadenzario:gestione_regola_aggiungi' %}" class="gz-form" style="margin-top:10px" data-gz-multi>
   {% csrf_token %}
   <input type="hidden" name="chiave" value="{{ chiave }}">
   {% if torna %}<input type="hidden" name="next" value="{{ torna }}">{% endif %}
-  <label class="gz-chi">Aggiungi
-    <select name="chi" required>
-      <option value="">Scegli ruolo o persona…</option>
-      {% for gruppo, opzioni in opzioni_chi %}
-        <optgroup label="{{ gruppo }}">{% for valore, etichetta in opzioni %}<option value="{{ valore }}">{{ etichetta }}</option>{% endfor %}</optgroup>
+  <div class="gz-multi">
+    <div class="gz-multi-testa">
+      <input type="search" placeholder="Cerca ruolo o persona…" aria-label="Cerca ruolo o persona" data-gz-cerca>
+      <span class="gz-multi-conta" data-gz-conta aria-live="polite">Nessuno scelto</span>
+      <button type="button" class="gz-multi-link" data-gz-azzera hidden>Azzera</button>
+    </div>
+    <div class="gz-multi-lista">
+      {% for gruppo, opzioni in opzioni_chi|senza_regole:regole %}
+        <fieldset class="gz-multi-gruppo" data-gz-gruppo>
+          <legend>{{ gruppo }} <button type="button" class="gz-multi-link" data-gz-tutti>Scegli tutti</button></legend>
+          <div class="gz-multi-voci">
+            {% for valore, etichetta in opzioni %}<label class="gz-multi-voce"><input type="checkbox" name="chi" value="{{ valore }}"><span>{{ etichetta }}</span></label>{% endfor %}
+          </div>
+        </fieldset>
+      {% empty %}
+        <div class="gz-multi-vuoto">Tutti hanno già una regola qui.</div>
       {% endfor %}
-    </select>
-  </label>
+      <div class="gz-multi-vuoto" data-gz-vuoto hidden>Nessun risultato.</div>
+    </div>
+  </div>
+  {% if con_ambito %}
+    <label>Quali scadenze
+      <select name="ambito" data-gz-ambito>
+        <option value="tutti">Tutti</option>
+        <option value="team">Propri e del team</option>
+        <option value="propri">Propri</option>
+      </select>
+    </label>
+  {% endif %}
   {% if con_livello %}
     <label>Può
-      <select name="livello">
+      <select name="livello" data-gz-livello>
         <option value="VEDE">Solo vedere</option>
         <option value="GESTISCE">Vedere e gestire</option>
       </select>
     </label>
   {% else %}<input type="hidden" name="livello" value="VEDE">{% endif %}
-  <button class="sz-btn sz-btn-primary" type="submit">Aggiungi</button>
+  <button class="sz-btn sz-btn-primary" type="submit" data-gz-invia>Aggiungi</button>
 </form>
-{% if con_livello %}<div class="sz-help" style="margin-top:4px">«Vedere e gestire»: inserisce, modifica e rinnova le attività.</div>{% endif %}
+{% if con_ambito %}<div class="sz-help" style="margin-top:4px">«Propri»: le scadenze legate alla persona (la sua visita, l'azione o l'attività di cui è responsabile, l'asset assegnato a lei o del reparto che guida). «Propri e del team»: anche quelle delle persone del suo team. Le scadenze senza una persona collegata (per esempio RENTRI o certificazioni) passano solo con «Tutti». Chi ha già il permesso del modulo continua a vedere ciò che il modulo gli mostra: per limitarlo davvero imposta «Solo chi è nelle regole».</div>{% endif %}
+{% if con_livello %}<div class="sz-help" style="margin-top:4px">«Vedere e gestire»: inserisce, modifica e rinnova le attività; vale sempre su tutta la voce.</div>{% endif %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  document.querySelectorAll("form[data-gz-auto] select").forEach(function (sel) {
+    sel.addEventListener("change", function () { sel.form.submit(); });
+  });
+  document.querySelectorAll("form[data-gz-multi]").forEach(function (form) {
+    var cerca = form.querySelector("[data-gz-cerca]"), conta = form.querySelector("[data-gz-conta]");
+    var azzera = form.querySelector("[data-gz-azzera]"), invia = form.querySelector("[data-gz-invia]");
+    var vuoto = form.querySelector("[data-gz-vuoto]"), gruppi = form.querySelectorAll("[data-gz-gruppo]");
+    var livello = form.querySelector("[data-gz-livello]"), ambito = form.querySelector("[data-gz-ambito]");
+    function aggiorna() {
+      var n = form.querySelectorAll("input[name=chi]:checked").length;
+      conta.textContent = n === 0 ? "Nessuno scelto" : (n === 1 ? "1 scelto" : n + " scelti");
+      azzera.hidden = n === 0;
+      invia.textContent = n > 1 ? "Aggiungi " + n : "Aggiungi";
+    }
+    function filtra() {
+      var q = cerca.value.trim().toLowerCase(), trovati = 0;
+      gruppi.forEach(function (g) {
+        var qui = 0;
+        g.querySelectorAll(".gz-multi-voce").forEach(function (v) {
+          v.hidden = !!q && v.textContent.toLowerCase().indexOf(q) === -1;
+          if (!v.hidden) qui++;
+        });
+        g.hidden = qui === 0;
+        trovati += qui;
+      });
+      vuoto.hidden = trovati > 0 || !gruppi.length;
+    }
+    cerca.addEventListener("input", filtra);
+    // Invio nella ricerca non deve mandare il modulo.
+    cerca.addEventListener("keydown", function (e) { if (e.key === "Enter") e.preventDefault(); });
+    form.addEventListener("change", function (e) { if (e.target.name === "chi") aggiorna(); });
+    form.querySelectorAll("[data-gz-tutti]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        b.closest("[data-gz-gruppo]").querySelectorAll(".gz-multi-voce:not([hidden]) input").forEach(function (c) { c.checked = true; });
+        aggiorna();
+      });
+    });
+    azzera.addEventListener("click", function () {
+      form.querySelectorAll("input[name=chi]").forEach(function (c) { c.checked = false; });
+      aggiorna();
+    });
+    form.addEventListener("submit", function (e) {
+      if (!form.querySelector("input[name=chi]:checked")) { e.preventDefault(); cerca.focus(); }
+    });
+    if (livello && ambito) {
+      livello.addEventListener("change", function () {
+        var gestisce = livello.value === "GESTISCE";
+        if (gestisce) ambito.value = "tutti";
+        ambito.disabled = gestisce;
+      });
+    }
+  });
+})();
+</script>

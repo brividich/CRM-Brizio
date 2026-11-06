@@ -5,12 +5,6 @@
 {% block extra_head %}
 {% include "scadenzario/components/stile.html" %}
 <style>
-.gz-righe { display:flex; flex-direction:column; gap:6px; }
-.gz-regola { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--border,#e2e8f0); border-radius:8px; font-size:13px; }
-.gz-form { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; }
-.gz-form label { display:flex; flex-direction:column; gap:3px; font-size:11px; font-weight:600; color:var(--text-mid,#475569); }
-.gz-chi { flex:1 1 260px; min-width:0; }
-.gz-chi select { width:100%; }
 </style>
 {% endblock %}
 
@@ -28,7 +22,7 @@
   <div class="sz-card">
     <h2>Chi la vede e chi la gestisce</h2>
     <div class="sz-sub" style="margin:0 0 10px">Oltre a chi gestisce il pannello e al responsabile di ogni attività.{% if regole_fonte %} Valgono anche {{ regole_fonte|length }} regol{{ regole_fonte|length|pluralize:"a,e" }} su tutte le categorie, in <a href="{% url 'scadenzario:gestione' %}?chiave=generiche">Gestione</a>.{% endif %}</div>
-    {% include "scadenzario/components/regole.html" with con_livello=True %}
+    {% include "scadenzario/components/regole.html" with con_livello=True con_ambito=True %}
   </div>
   {% endif %}
 

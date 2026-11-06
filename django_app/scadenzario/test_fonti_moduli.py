@@ -77,7 +77,7 @@ class FontiOperativeTests(TestCase):
 
         from scadenzario.models import VoceConfig
 
-        riga = SimpleNamespace(title="Taratura sintetica", asset_name="Macchina", asset_tag="", target_label="", due_date=timezone.localdate(),
+        riga = SimpleNamespace(title="Taratura sintetica", asset_id=None, asset_name="Macchina", asset_tag="", target_label="", due_date=timezone.localdate(),
                                detail_url="/x/", reparto="")
         with patch("assets.services.deadline_feed.collect", return_value=[riga]):
             self.assertEqual(fm.collect_manutenzione(_ctx(sistema=True)), [])
