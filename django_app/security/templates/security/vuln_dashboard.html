@@ -14,6 +14,11 @@
     {% if can_edit %}<a href="{% url 'security:inventory' %}">Importa inventario</a> · <a href="{% url 'security:software_mapping' %}">Software e CPE</a> ·{% endif %}
     <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#impatto-cve-sugli-asset">Guida</a>
   </p>
+  {% if copertura.extra.non_controllati %}
+  <p class="sec-small"><span class="sec-badge warning">{{ copertura.extra.non_controllati }} programmi su {{ copertura.extra.totale }} non controllati</span>
+    Non sono collegati a un CPE: il SOC non può dire se hanno CVE, e un PC senza CVE in elenco non è per forza a posto.
+    <a href="{{ copertura.url }}">Collegali in Software e CPE</a></p>
+  {% endif %}
 </section>
 
 {% if ciclo %}

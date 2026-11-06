@@ -433,7 +433,7 @@ GUIDA = {
             "titolo": "Vedere le CVE di un programma o di un PC",
             "blocchi": [
                 ("passi", [
-                    "Catalogo software: nella colonna CVE premi il bottone «N CVE» (lo vede solo chi ha accesso al Security Center).",
+                    "Catalogo software: nella colonna CVE premi il bottone «N CVE» (lo vede solo chi ha accesso al Security Center). «non controllato» vuol dire che il programma non è collegato a un CPE: il SOC non sa se ha CVE; il filtro «CVE non controllate» li raccoglie.",
                     "Si apre un pannello a destra con le CVE in ordine di pericolo: prima le sfruttate attivamente, poi per punteggio CVSS.",
                     "Premi una CVE: vedi «Cosa fare» (la versione da installare, se nota) e i PC colpiti. «Torna all'elenco» per tornare, Esc per chiudere.",
                     "Scheda di un PC: il riquadro «Vulnerabilità» mostra le cinque CVE più pericolose; «Vedi tutte le CVE» apre il pannello per software.",

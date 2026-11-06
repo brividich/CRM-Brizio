@@ -6,20 +6,6 @@
 {% block page_title %}Alert da decidere, con l'AI{% endblock %}
 
 {% block soc_content %}
-<style>
-.agr-tipo{border:1px solid var(--border,#dbe3ef);border-radius:12px;background:var(--surface,#fff);padding:10px 14px;margin-bottom:10px}
-.agr-tipo>summary{cursor:pointer;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.agr-lista{display:grid;gap:10px;margin-top:10px}
-.agr-ai{margin:6px 0}
-.agr-esempi{margin:6px 0}
-.agr-esempi ul{margin:6px 0 0;padding-left:18px}
-.agr-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.agr-form input[type=text]{flex:1 1 240px;min-width:0}
-.agr-form-tipo{margin-top:10px}
-.agr-sev{text-transform:capitalize}
-.agr-sev-critical{background:#fee2e2;color:#991b1b}.agr-sev-high{background:#ffedd5;color:#9a3412}.agr-sev-medium,.agr-sev-warning{background:#fef9c3;color:#854d0e}
-body.theme-dark .agr-sev-critical{background:rgba(220,38,38,.2);color:#fca5a5}body.theme-dark .agr-sev-high{background:rgba(234,88,12,.18);color:#fdba74}body.theme-dark .agr-sev-medium,body.theme-dark .agr-sev-warning{background:rgba(202,138,4,.18);color:#fde047}
-</style>
 <section class="sec-panel">
   <p class="sec-muted sec-small">
     Lo stesso problema sullo stesso PC, job o utente è un gruppo: si decide una volta sola. Ogni 15 minuti l'AI locale esamina i gruppi, dai più grandi, contro i report arrivati dopo e contro le tue decisioni su alert dello stesso tipo, e propone come chiuderli.
