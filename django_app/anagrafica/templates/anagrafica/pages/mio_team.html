@@ -11,6 +11,7 @@
 .mt-kpi { display:flex; gap:8px; flex-wrap:wrap; }
 .mt-table-wrap { overflow-x:auto; }
 .mt-mansione { color:var(--hr-muted); font-size:12px; }
+.mt-carico { color:var(--hr-warning, #b45309); font-size:12px; }
 @media (max-width:640px) {
   .mt-col-area { display:none; }
 }
@@ -35,19 +36,21 @@
         {% if conteggi.ko %}{% include "anagrafica/components/hr_pill.html" with tone="danger" dot=1 label=conteggi.ko|stringformat:"d"|add:" non conformi" %}{% endif %}
         {% if conteggi.warn %}{% include "anagrafica/components/hr_pill.html" with tone="warning" dot=1 label=conteggi.warn|stringformat:"d"|add:" in scadenza" %}{% endif %}
         {% if conteggi.ok %}{% include "anagrafica/components/hr_pill.html" with tone="ok" dot=1 label=conteggi.ok|stringformat:"d"|add:" in regola" %}{% endif %}
+        {% if conteggi.carico %}{% include "anagrafica/components/hr_pill.html" with tone="warning" label=conteggi.carico|stringformat:"d"|add:" con segnali di carico" %}{% endif %}
       </div>
     </div>
     <div class="mt-table-wrap">
       <table class="hr-table">
-        <thead><tr><th>Persona</th><th class="mt-col-area">Area / reparto</th><th>Conformità</th></tr></thead>
+        <thead><tr><th>Persona</th><th class="mt-col-area">Area / centro di costo</th><th>Conformità</th></tr></thead>
         <tbody>
           {% for r in righe %}
           <tr>
             <td>
               {% if r.scheda %}<a href="{% url 'anagrafica:dipendente_detail' r.id %}">{{ r.nome }}</a>{% else %}{{ r.nome }}{% endif %}{% pallino_presenza r.id %}
               {% if r.mansione %}<div class="mt-mansione">{{ r.mansione }}</div>{% endif %}
+              {% for s in r.carico %}<div class="mt-carico">{{ s }}</div>{% endfor %}
             </td>
-            <td class="mt-col-area">{{ r.area|default:r.reparto|default:"—" }}</td>
+            <td class="mt-col-area">{{ r.area|default:r.reparto|default:"—" }}{% if r.centro %}<div class="mt-mansione">{{ r.centro }}</div>{% endif %}</td>
             <td>{% include "anagrafica/components/hr_pill.html" with tone=r.tono dot=1 label=r.esito_label %}</td>
           </tr>
           {% endfor %}

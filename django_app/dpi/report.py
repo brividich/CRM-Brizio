@@ -207,7 +207,7 @@ def ricevuta(consegna: ConsegnaDPI) -> str:
     }.get(consegna.conferma.stato, DA_CONFERMARE)
 
 
-def consegne(*, da, a, scope=None, reparto: str = "", categoria_id: int | None = None, q: str = "", esito_ricevuta: str = ""):
+def consegne(*, da, a, scope=None, reparto: str = "", categoria_id: int | None = None, q: str = "", esito_ricevuta: str = "", filtro_centro=None):
     """Consegne del periodo nel perimetro di chi guarda. ``scope`` None = tutti.
 
     Ritorna (queryset, totali delle righe selezionate, conteggi per stato della ricevuta). I conteggi
@@ -218,6 +218,8 @@ def consegne(*, da, a, scope=None, reparto: str = "", categoria_id: int | None =
     )
     if scope is not None:
         qs = qs.filter(richiesta__richiedente_legacy_id__in=list(scope))
+    if filtro_centro is not None:
+        qs = filtro_centro.applica(qs, "richiesta__richiedente_legacy_id")
     if reparto:
         qs = qs.filter(richiesta__richiedente_reparto=reparto)
     if categoria_id:

@@ -47,6 +47,11 @@
       <div class="mns-stat mns-ko"><b>{{ stato.non_abilitati }}</b><span>non abilitat{{ stato.non_abilitati|pluralize:"o,i" }}</span></div>
       {% if stato.da_valutare %}<div class="mns-stat"><b>{{ stato.da_valutare }}</b><span>da valutare sulle competenze</span></div>{% endif %}
       {% if stato.sospese %}<div class="mns-stat"><b>{{ stato.sospese }}</b><span>sospes{{ stato.sospese|pluralize:"a,e" }}</span></div>{% endif %}
+      {% if carico_mansione and not mansione.is_responsabilita %}
+      <div class="mns-stat{% if carico_mansione.stato != 'ok' %} mns-ko{% endif %}" title="Livello sulla mansione e persone in forza: stesso conteggio di Prospetto e report"><b>{{ carico_mansione.operativi }}</b><span>operativ{{ carico_mansione.operativi|pluralize:"o,i" }} in forza{% if carico_mansione.stato != 'ok' %} · {{ carico_mansione.stato }}{% endif %}</span></div>
+      {% if carico_mansione.concentrazione is not None %}<div class="mns-stat{% if carico_mansione.concentrato %} mns-mid{% endif %}" title="Quanta parte del loro tempo danno qui gli operativi: un segnale dai coefficienti, non le ore"><b>{{ carico_mansione.concentrazione }}%</b><span>carico{% if carico_mansione.concentrato %} concentrato{% endif %}</span></div>{% endif %}
+      {% endif %}
+      {% if n_fuori_forza %}<div class="mns-stat mns-ko"><b>{{ n_fuori_forza }}</b><span>non più in forza: da togliere</span></div>{% endif %}
     </div>
 
     <section class="fmd-panel fmd-block" data-mns-tabs>
@@ -89,7 +94,7 @@
             <tbody>
               {% for p in persone %}
               <tr>
-                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}">{{ p.nome }}</a></td>
+                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}">{{ p.nome }}</a>{% if p.fuori_forza %} <span class="fmd-badge fmd-b-red">non più in forza</span>{% endif %}</td>
                 <td data-sort-value="{{ p.livello }}">{% if puo_valutare and not competenze %}<form method="post" action="{% url 'anagrafica:mansionario_livello' mansione.pk p.abilitazione.pk %}" class="mns-lv-form">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}#persone"><select name="livello" class="fm-input fm-select mns-lv-sel" data-mns-auto aria-label="Livello di {{ p.nome }}" title="Cambia il livello: si salva subito e resta nello storico">{% for k, v in livelli_label %}<option value="{{ k }}"{% if k == p.livello %} selected{% endif %}>{{ k }} · {{ v }}</option>{% endfor %}</select><noscript><button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Salva</button></noscript></form>{% else %}<span class="mns-lv mns-lv-{{ p.livello }}"><b>{{ p.livello|default:"—" }}</b>{{ p.livello_label }}</span>{% endif %}</td>
                 <td>{% if p.sospesa %}<span class="fmd-badge fmd-b-red">sospesa</span>{% elif p.da_valutare %}<span class="fmd-badge fmd-b-grey" title="Esito calcolato: {{ p.valutazione.esito_label|lower }}">da valutare</span>{% elif p.valutazione.esito == 'abilitato' %}<span class="fmd-badge fmd-b-green">abilitato</span>{% elif p.valutazione.esito == 'non_abilitato' %}<span class="fmd-badge fmd-b-red">non abilitato</span>{% else %}<span class="fmd-badge fmd-b-orange">in addestramento</span>{% endif %}</td>
                 <td class="mns-manca">

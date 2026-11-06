@@ -1,0 +1,6 @@
+{# Il menu dei centri di costo, da mettere dentro il form dei filtri di una pagina. #}
+{% if filtro_centro.scelte %}<select name="centro" class="fmd-select" aria-label="Filtra per centro di costo" onchange="this.form.submit()">
+  <option value="">Tutti i centri di costo</option>
+  {% for v, t in filtro_centro.scelte %}<option value="{{ v }}"{% if v == filtro_centro.valore %} selected{% endif %}>{{ t }}</option>{% endfor %}
+  <option value="senza"{% if filtro_centro.valore == "senza" %} selected{% endif %}>Senza centro di costo</option>
+</select>{% endif %}

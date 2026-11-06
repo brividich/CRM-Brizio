@@ -79,6 +79,7 @@
           <option value="{{ val }}" {% if filtro_stato == val %}selected{% endif %}>{{ lbl }}</option>
           {% endfor %}
         </select>
+        {% include "anagrafica/partials/_filtro_centro_select.html" %}
         <select name="corso" class="fmd-select" aria-label="Filtra per corso" onchange="this.form.submit()">
           <option value="" {% if not filtro_corso %}selected{% endif %}>Tutti i corsi</option>
           {% for c in corsi_list %}

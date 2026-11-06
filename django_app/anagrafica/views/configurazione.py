@@ -476,6 +476,10 @@ def scadenzario(request):
         filtro_reparto=filtro_reparto,
         periodo=periodo,
     )
+    from ..services import centro_filtro
+
+    filtro_centro = centro_filtro.leggi(request)
+    voci = [v for v in voci if filtro_centro.contiene(v.get("legacy_id"))]
 
     # KPI
     n_scadute = sum(1 for v in voci if v["scaduta"])
@@ -494,12 +498,14 @@ def scadenzario(request):
         resp["Content-Disposition"] = 'attachment; filename="scadenzario_anagrafica.csv"'
         resp.write(BOM)  # una volta sola: Excel riconosce l'UTF-8
         writer = safe_csv_writer(resp, delimiter=";")
-        writer.writerow(["Dipendente", "Reparto", "Tipo entità", "Descrizione", "Scadenza", "Stato"])
+        writer.writerow(["Dipendente", "Reparto", "Centro di costo", "Tipo entità", "Descrizione", "Scadenza", "Stato"])
+        centri = centro_filtro.centro_per_persona()
         for v in voci:
             stato = "Scaduta" if v["scaduta"] else f"Scade in {v['giorni']} giorni"
             writer.writerow([
                 naming.nome_completo(v["nome"], v["cognome"]),
                 v["reparto"],
+                centri.get(int(v.get("legacy_id") or 0), ""),
                 v["kind_label"],
                 v["tipo_nome"],
                 v["data_scadenza"].strftime("%d-%m-%Y") if v["data_scadenza"] else "",
@@ -521,7 +527,7 @@ def scadenzario(request):
             # Stesse righe della lista sotto (sorgente «formazione» dello scadenzario):
             # solo corsi obbligatori, senza ex dipendenti, nell'ambito del ruolo.
             # Prima contava anche i corsi facoltativi: 25 scaduti sopra, 9 righe sotto.
-            fm_qs = TrainingDeadline.objects.filter(is_required=True).exclude(
+            fm_qs = filtro_centro.applica(TrainingDeadline.objects.filter(is_required=True)).exclude(
                 legacy_anagrafica_id__in=_helpers._cessati_legacy_ids()
             )
             if _helpers._ruoli_attivi():

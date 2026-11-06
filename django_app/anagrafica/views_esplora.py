@@ -78,9 +78,14 @@ def _strade(request, ctx: dict) -> list[dict]:
 def esplora_struttura(request):
     if not _puo_vedere(request):
         return _nega(request, "Non hai accesso alla struttura organizzativa.")
-    ctx = svc.costruisci(request.GET)
+    from .views import _check_hr_permission
+
+    ctx = svc.costruisci(request.GET, riservati=_check_hr_permission(request))
     testo = " ".join((request.GET.get("q") or "").split())
     risultati = svc.cerca(ctx["dati"], testo) if len(testo) >= 2 else None
     ctx.update({"page_title": "Esplora la struttura", "q": testo, "risultati": risultati, "strade": _strade(request, ctx)})
     ctx.pop("dati")
+    # Nella pagina già aperta si cambia solo la parte viva: niente menu da ricaricare.
+    if request.GET.get("parziale") == "1":
+        return render(request, "anagrafica/partials/_esplora_vivo.html", ctx)
     return render(request, "anagrafica/pages/esplora_struttura.html", ctx)

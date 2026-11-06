@@ -10,6 +10,7 @@ from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
+from anagrafica.services import centro_filtro
 from core.excel_export import make_xlsx_response
 from core.table_pdf import render_table_pdf
 
@@ -68,6 +69,8 @@ def report_persone(request):
         scelti = [d for d in scelti if any(testo in str(d.get(k) or "").casefold() for k in ("nominativo", "reparto", "mansione", "matricola"))]
     if reparto:
         scelti = [d for d in scelti if str(d.get("reparto") or "").strip() == reparto]
+    filtro_centro = centro_filtro.leggi(request)
+    scelti = [d for d in scelti if filtro_centro.contiene(d.get("id"))]
 
     dati = report_dpi.conformita(scelti, categoria_id=categoria_id)
     persone = report_dpi.filtra_esito(dati["persone"], esito)
@@ -75,12 +78,13 @@ def report_persone(request):
     formato = request.GET.get("export", "")
     if formato in FORMATI:
         filtri = " · ".join(x for x in (
-            q and f"Ricerca: {q}", reparto and f"Reparto: {reparto}", esito and dict(report_dpi.FILTRI_ESITO)[esito],
+            q and f"Ricerca: {q}", reparto and f"Reparto: {reparto}", filtro_centro.etichetta, esito and dict(report_dpi.FILTRI_ESITO)[esito],
         ) if x)
+        centri = centro_filtro.centro_per_persona()
         return _esporta(
             request, formato, nome="conformita-dpi", titolo="Conformità DPI delle persone", filtri=filtri,
-            colonne=["Persona", "Reparto", "Mansione", "Esito", "Da sistemare"],
-            righe=[[p["nominativo"], p.get("reparto") or "", p.get("mansione") or "", p["esito_etichetta"], report_dpi.testo_da_sistemare(p)] for p in persone],
+            colonne=["Persona", "Reparto", "Centro di costo", "Mansione", "Esito", "Da sistemare"],
+            righe=[[p["nominativo"], p.get("reparto") or "", centri.get(int(p["id"]), ""), p.get("mansione") or "", p["esito_etichetta"], report_dpi.testo_da_sistemare(p)] for p in persone],
             azione="DPI_CONFORMITA_PERSONE_EXPORT",
         )
 
@@ -91,7 +95,7 @@ def report_persone(request):
     filtro_kpi = _parametri_pagina(request)
     filtro_kpi.pop("esito", None)
     return render(request, "dpi/pages/report_persone.html", {
-        "is_gestore": True, "page_obj": pagina, "conteggi": dati["conteggi"], "errore_requisiti": dati["errore_requisiti"],
+        "filtro_centro": filtro_centro, "is_gestore": True, "page_obj": pagina, "conteggi": dati["conteggi"], "errore_requisiti": dati["errore_requisiti"],
         "q": q, "reparto": reparto, "esito": esito, "categoria_id": categoria_id, "reparti": reparti, "categorie": categorie,
         "filtri_esito": report_dpi.FILTRI_ESITO, "querystring": _parametri_pagina(request).urlencode(),
         "querystring_base": filtro_kpi.urlencode(), "nessuna_categoria": not categorie,
@@ -122,23 +126,27 @@ def report_consegne(request):
         ricevuta = ""
 
     scope = _scope_report(request)
+    filtro_centro = centro_filtro.leggi(request)
     qs, totali, conteggi = report_dpi.consegne(
         da=inizio, a=fine, scope=scope, reparto=reparto, categoria_id=categoria_id, q=q, esito_ricevuta=ricevuta,
+        filtro_centro=filtro_centro,
     )
 
     formato = request.GET.get("export", "")
     if formato in FORMATI:
         filtri = " · ".join(x for x in (
-            f"Dal {inizio:%d-%m-%Y} al {fine:%d-%m-%Y}", q and f"Ricerca: {q}", reparto and f"Reparto: {reparto}", ricevuta and etichette[ricevuta],
+            f"Dal {inizio:%d-%m-%Y} al {fine:%d-%m-%Y}", q and f"Ricerca: {q}", reparto and f"Reparto: {reparto}", filtro_centro.etichetta, ricevuta and etichette[ricevuta],
         ) if x)
+        centri = centro_filtro.centro_per_persona()
         righe = [[
             f"{c.data_consegna:%d-%m-%Y}", c.richiesta.numero, c.richiesta.richiedente_nome, c.richiesta.richiedente_reparto,
+            centri.get(c.richiesta.richiedente_legacy_id, ""),
             c.richiesta.categoria.nome, report_dpi.descrizione_dpi(c.richiesta), c.richiesta.quantita, c.consegnato_da_nome,
             etichette[report_dpi.ricevuta(c)], f"{c.data_scadenza_stimata:%d-%m-%Y}" if c.data_scadenza_stimata else "",
         ] for c in qs]
         return _esporta(
             request, formato, nome="registro-consegne-dpi", titolo="Registro consegne DPI", filtri=filtri,
-            colonne=["Data", "Richiesta", "Persona", "Reparto", "Categoria", "DPI", "Pezzi", "Consegnato da", "Ricevuta", "Scadenza"],
+            colonne=["Data", "Richiesta", "Persona", "Reparto", "Centro di costo", "Categoria", "DPI", "Pezzi", "Consegnato da", "Ricevuta", "Scadenza"],
             righe=righe, azione="DPI_REGISTRO_CONSEGNE_EXPORT",
         )
 
@@ -153,7 +161,7 @@ def report_consegne(request):
     filtro_kpi = _parametri_pagina(request)
     filtro_kpi.pop("ricevuta", None)
     return render(request, "dpi/pages/report_consegne.html", {
-        "is_gestore": True, "page_obj": pagina, "totali": totali,
+        "filtro_centro": filtro_centro, "is_gestore": True, "page_obj": pagina, "totali": totali,
         "stati_ricevuta": [{"chiave": k, "etichetta": v, "n": conteggi[k]} for k, v in report_dpi.FILTRI_RICEVUTA],
         "da": inizio, "a": fine, "q": q, "reparto": reparto, "categoria_id": categoria_id, "ricevuta": ricevuta,
         "reparti": sorted(set(reparti_qs.values_list("richiedente_reparto", flat=True)), key=str.casefold),

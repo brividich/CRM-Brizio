@@ -1,0 +1,142 @@
+<script>
+// Esplora: si cambia solo la parte viva, l'indirizzo resta condivisibile e «Indietro» funziona.
+// Se qualcosa va storto si apre il link normale, che porta alla stessa vista.
+(function () {
+  var vivo = document.getElementById('es-vivo');
+  if (!vivo || !window.fetch || !window.history.pushState) return;
+  var PERCORSO = location.pathname, DURATA = 60000, cache = {}, turno = 0, timerPrima = null, filtri = {};
+
+  function interno(a) {
+    return a && a.pathname === PERCORSO && a.origin === location.origin && !a.target;
+  }
+  function scarica(url) {
+    var x = cache[url];
+    if (x && Date.now() - x.t < DURATA) return x.p;
+    var indirizzo = url + (url.indexOf('?') < 0 ? '?' : '&') + 'parziale=1';
+    var p = fetch(indirizzo, {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}}).then(function (r) {
+      if (!r.ok || r.redirected) throw new Error('risposta ' + r.status);
+      return r.text();
+    });
+    cache[url] = {t: Date.now(), p: p};
+    p.catch(function () { delete cache[url]; });
+    return p;
+  }
+  function inVista() {
+    vivo.querySelectorAll('.es-lista').forEach(function (lista) {
+      var s = lista.querySelector('.is-scelta');
+      if (!s) return;
+      var dentro = s.offsetTop - lista.offsetTop;
+      if (dentro < lista.scrollTop || dentro + s.offsetHeight > lista.scrollTop + lista.clientHeight) {
+        lista.scrollTop = Math.max(0, dentro - 40);
+      }
+    });
+  }
+  function filtraColonna(campo) {
+    var t = campo.value.trim().toLowerCase();
+    campo.parentNode.querySelectorAll('.es-lista li').forEach(function (li) {
+      li.hidden = !!t && li.textContent.toLowerCase().indexOf(t) < 0;
+    });
+  }
+  function filtraPersone() {
+    var tab = vivo.querySelector('[data-es-p-tab]');
+    if (!tab) return;
+    var q = vivo.querySelector('[data-es-p-q]'), seg = vivo.querySelector('[data-es-p-seg]');
+    var t = q ? q.value.trim().toLowerCase() : '', solo = !!(seg && seg.checked);
+    tab.querySelectorAll('tbody tr').forEach(function (r) {
+      r.hidden = (!!t && (r.getAttribute('data-q') || '').indexOf(t) < 0) || (solo && !r.getAttribute('data-seg'));
+    });
+  }
+  function applica(html, fuoco) {
+    var scroll = {};
+    vivo.querySelectorAll('[data-es-liv]').forEach(function (c) {
+      var l = c.querySelector('.es-lista');
+      if (l) scroll[c.getAttribute('data-es-liv')] = l.scrollTop;
+    });
+    vivo.innerHTML = html;
+    vivo.querySelectorAll('[data-es-liv]').forEach(function (c) {
+      var liv = c.getAttribute('data-es-liv'), l = c.querySelector('.es-lista'), campo = c.querySelector('[data-es-filtra]');
+      if (l && scroll[liv] !== undefined) l.scrollTop = scroll[liv];
+      if (campo && filtri[liv]) { campo.value = filtri[liv]; filtraColonna(campo); }
+    });
+    inVista();
+    if (fuoco) {
+      var col = vivo.querySelector('[data-es-liv="' + fuoco + '"]');
+      var voce = col && (col.querySelector('.is-scelta') || col.querySelector('.es-voce'));
+      if (voce) voce.focus({preventScroll: true});
+    }
+  }
+  function vai(url, opz) {
+    opz = opz || {};
+    var mio = ++turno, attesa = setTimeout(function () { vivo.classList.add('is-attesa'); }, 120);
+    scarica(url).then(function (html) {
+      clearTimeout(attesa);
+      if (mio !== turno) return;
+      vivo.classList.remove('is-attesa');
+      if (opz.spingi !== false) history.pushState(null, '', url);
+      applica(html, opz.fuoco);
+      // Da telefono si vede una colonna per volta: si riparte dalla sua cima.
+      if (window.innerWidth <= 900 && vivo.getBoundingClientRect().top < 0) vivo.scrollIntoView({block: 'start'});
+    }).catch(function () {
+      clearTimeout(attesa);
+      if (mio === turno) location.href = url;
+    });
+  }
+
+  vivo.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    var a = e.target.closest('a[href]');
+    if (!interno(a)) return;
+    e.preventDefault();
+    var col = a.closest('[data-es-liv]');
+    if (a.classList.contains('es-voce')) {
+      vivo.querySelectorAll('.is-in-corso').forEach(function (x) { x.classList.remove('is-in-corso'); });
+      a.classList.add('is-in-corso');
+      // Le liste a destra cambiano: i loro filtri non valgono più.
+      var livelli = ['centro', 'area', 'ruolo', 'mansione', 'competenza'], i = livelli.indexOf(col.getAttribute('data-es-liv'));
+      livelli.slice(i + 1).forEach(function (l) { delete filtri[l]; });
+    } else {
+      filtri = {};
+    }
+    vai(a.href, {fuoco: e.detail === 0 && col ? col.getAttribute('data-es-liv') : ''});
+  });
+  // Passando sopra una voce la vista si prepara: al clic è già pronta.
+  vivo.addEventListener('mouseover', function (e) {
+    var a = e.target.closest && e.target.closest('a.es-voce');
+    clearTimeout(timerPrima);
+    if (!interno(a) || (navigator.connection && navigator.connection.saveData)) return;
+    timerPrima = setTimeout(function () { scarica(a.href).catch(function () {}); }, 150);
+  });
+  vivo.addEventListener('input', function (e) {
+    if (e.target.matches('[data-es-filtra]')) {
+      filtri[e.target.closest('[data-es-liv]').getAttribute('data-es-liv')] = e.target.value;
+      filtraColonna(e.target);
+    } else if (e.target.matches('[data-es-p-q]')) {
+      filtraPersone();
+    }
+  });
+  vivo.addEventListener('change', function (e) {
+    if (e.target.matches('[data-es-p-seg]')) filtraPersone();
+  });
+  // Frecce: su e giù nella colonna, destra e sinistra tra le colonne, Invio sceglie.
+  vivo.addEventListener('keydown', function (e) {
+    var v = e.target.closest && e.target.closest('.es-voce');
+    if (!v || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(e.key) < 0) return;
+    e.preventDefault();
+    var col = v.closest('.es-col');
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      var voci = Array.prototype.filter.call(col.querySelectorAll('.es-voce'), function (x) { return !x.closest('li').hidden; });
+      var dopo = voci[voci.indexOf(v) + (e.key === 'ArrowDown' ? 1 : -1)];
+      if (dopo) dopo.focus();
+      return;
+    }
+    var altra = e.key === 'ArrowRight' ? col.nextElementSibling : col.previousElementSibling;
+    var meta = altra && (altra.querySelector('.is-scelta') || altra.querySelector('.es-voce'));
+    if (meta) { meta.focus(); return; }
+    if (e.key === 'ArrowRight') v.click();
+  });
+  window.addEventListener('popstate', function () {
+    if (location.pathname === PERCORSO) vai(location.href, {spingi: false});
+  });
+  inVista();
+})();
+</script>

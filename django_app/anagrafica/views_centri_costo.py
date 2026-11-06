@@ -49,11 +49,7 @@ def carico_oggi():
     """Il carico per le pagine di consultazione: senza anagrafica leggibile la pagina resta in piedi."""
     from .services import carico_mansioni
 
-    try:
-        return carico_mansioni.calcola()
-    except Exception:
-        logger.warning("centri di costo: carico sulle mansioni non calcolato", exc_info=True)
-        return None
+    return carico_mansioni.oggi()
 
 
 def _riga(area, persone, segnali=None) -> dict:

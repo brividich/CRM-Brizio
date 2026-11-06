@@ -256,3 +256,66 @@ class PermessiEIngressiTests(_Base):
         r = self.client.get(url, {"centro_costo": "LAVORAZIONI"})
         self.assertContains(r, "ROSSI")
         self.assertNotContains(r, "VERDI")
+
+
+class EsploraRiccaTests(_Base):
+    """Le persone e il passaggio rapido tra le voci."""
+
+    def _get(self, **parametri):
+        return self.client.get(reverse(URL), parametri)
+
+    def test_le_colonne_delle_persone_seguono_il_livello(self):
+        centro = self._get(centro=self.in1.centro_di_costo_id or svc.SENZA).context["dettaglio"]
+        self.assertTrue(centro["colonne_persone"]["reparto"])
+        self.assertTrue(centro["colonne_persone"]["ruolo"])
+        reparto = self._get(area=self.in1.pk).context["dettaglio"]
+        self.assertFalse(reparto["colonne_persone"]["reparto"])
+        self.assertTrue(reparto["colonne_persone"]["ruolo"])
+        mansione = self._get(mansione=self.fresa.pk).context["dettaglio"]
+        self.assertTrue(mansione["colonne_persone"]["nota"])
+        riga = mansione["persone"][0]
+        self.assertEqual(riga["id"], self.rossi)
+        self.assertTrue(riga["mansioni"])
+        self.assertTrue(riga["esito"])
+
+    def test_contratto_e_costi_solo_a_chi_lavora_sui_dati_hr(self):
+        chiesta = svc.costruisci({"area": str(self.in1.pk)}, riservati=True)["dettaglio"]
+        self.assertTrue(chiesta["colonne_persone"]["riservati"])
+        self.assertIn("contratto", chiesta["persone"][0])
+        senza = svc.costruisci({"area": str(self.in1.pk)}, riservati=False)["dettaglio"]
+        self.assertFalse(senza["colonne_persone"]["riservati"])
+        self.assertNotIn("contratto", senza["persone"][0])
+        self.assertNotIn("costo", senza["persone"][0])
+        self.assertNotIn("Costo orario medio", [k[0] for k in senza["kpi"]])
+
+    def test_vista_parziale_senza_la_pagina_intorno(self):
+        r = self._get(area=self.in1.pk, parziale=1)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "es-colonne")
+        self.assertNotContains(r, "<html")
+        self.assertNotContains(r, "parziale=1")
+        intera = self._get(area=self.in1.pk)
+        self.assertContains(intera, 'id="es-vivo"')
+
+    def test_cambiando_reparto_restano_ruolo_e_mansione_se_esistono(self):
+        r = self._get(area=self.in1.pk, ruolo=self.op.pk, mansione=self.fresa.pk)
+        reparti = next(c for c in r.context["colonne"] if c["livello"] == "area")["voci"]
+        scelta = next(v for v in reparti if v["scelta"])
+        self.assertNotIn("ruolo=", scelta["url"])
+        s = r.context["scelti"]
+        d = svc.Dati.carica()
+        for a in d.aree_centro(s["centro"]):
+            if a.pk == self.in1.pk:
+                continue
+            resta = svc._dove_si_resta(d, s, a)
+            info = d.ruoli_area(a).get(self.op.pk)
+            self.assertEqual("ruolo" in resta, info is not None)
+            if info is not None:
+                self.assertEqual("mansione" in resta, self.fresa in info["mansioni"])
+
+    def test_voce_precedente_e_successiva(self):
+        colonne = [{"titolo": "Reparti", "voci": [{"scelta": False, "nome": "A"}, {"scelta": True, "nome": "B"}, {"scelta": False, "nome": "C"}]},
+                   {"titolo": "Ruoli", "voci": None}]
+        v = svc._vicini(colonne)
+        self.assertEqual((v["prec"]["nome"], v["succ"]["nome"], v["posto"], v["totale"]), ("A", "C", 2, 3))
+        self.assertIsNone(svc._vicini([{"titolo": "Centri", "voci": [{"scelta": False, "nome": "A"}]}]))
