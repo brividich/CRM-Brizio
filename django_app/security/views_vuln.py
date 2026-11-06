@@ -214,7 +214,34 @@ def cve_detail(request, cve_id):
         "record": record, "summary": cve_impact.summary(record), "impacts": impacts, "outcome": outcome,
         "outcomes": SecurityCveImpact.OUTCOME_CHOICES, "can_edit": can_manage_security_config(request.user),
         "proposte_ai": len(proposte), **_termini_record(record, impacts),
+        "lavoro": _lavoro(record),
     })
+
+
+def _lavoro(record):
+    from .services import cve_lavoro
+
+    return cve_lavoro.riepilogo(record)
+
+
+@require_POST
+def cve_lavoro_apri(request, cve_id):
+    """Dalla scheda della CVE: apre il caso con un'attività per PC colpito e ci porta dentro."""
+    from .services import cve_lavoro
+
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    cve_id = cve_id.upper()
+    if not CVE_RE.match(cve_id):
+        raise Http404
+    record = get_object_or_404(SecurityCveRecord, cve_id=cve_id)
+    try:
+        caso = cve_lavoro.apri_lavoro(record, request.user)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("security:cve_detail", cve_id=cve_id)
+    messages.success(request, "Lavoro di correzione aperto: le attività dei PC si spuntano da sole con l'inventario.")
+    return redirect("security:case_detail", pk=caso.pk)
 
 
 def _termini_record(record, impacts):

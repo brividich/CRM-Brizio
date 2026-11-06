@@ -144,6 +144,7 @@ urlpatterns = [
     path("vulnerabilita/accettazioni/", views_vuln.rischio_accettazioni, name="accettazioni_rischio"),
     path("vulnerabilita/accettazioni/<int:pk>/revoca/", views_vuln.rischio_revoca, name="accettazione_rischio_revoca"),
     path("vulnerabilita/<str:cve_id>/accetta-rischio/", views_vuln.rischio_accetta, name="cve_accetta_rischio"),
+    path("vulnerabilita/<str:cve_id>/lavoro/", views_vuln.cve_lavoro_apri, name="cve_lavoro_apri"),
     path("vulnerabilita/<str:cve_id>/", views_vuln.cve_detail, name="cve_detail"),
     path("assets/", views_soc.assets_list, name="assets"),
     path("vpn/", views_soc.vpn_history, name="vpn_history"),

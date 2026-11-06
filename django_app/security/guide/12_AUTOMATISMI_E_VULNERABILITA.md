@@ -114,6 +114,10 @@ NVD, KEV ed EPSS vengono letti da un job in background ogni ora, solo se in **Co
 
 Il file caricato resta in un'area privata e cifrata solo fino all'import e non è mai scaricabile dal browser. Se abbandoni un'importazione a metà, **Annulla e elimina il file**; in ogni caso le anteprime non confermate vengono cancellate dopo 2 giorni.
 
+### Dalla CVE al lavoro di correzione
+
+Nella scheda di una CVE con PC colpiti, **Apri il lavoro di correzione** crea un caso a tuo nome con un'attività per PC e la versione a cui arrivare, se NVD la indica. A ogni ricalcolo degli impatti l'attività di un PC non più esposto si spunta da sola, quella di un PC di nuovo esposto si riapre e un PC nuovo aggiunge un'attività. Con l'ultimo PC il caso si chiude da solo, salvo attività aggiunte a mano ancora da fare. La scheda della CVE dice «N PC su M corretti».
+
 ### Collegare i software alle CVE (CPE)
 
 NVD descrive i prodotti con un codice chiamato **CPE** (produttore e prodotto, per esempio `7-zip:7-zip`). Per sapere se una CVE riguarda un software dell'inventario, ogni coppia produttore/prodotto va collegata al suo CPE una volta sola, in **Configurazione › Inventario software › Software e CPE**.
