@@ -268,8 +268,9 @@ SEZIONI: list[dict] = [
             ("passi", [
                 "Scadenzario → «Categorie»: la tabella mostra attività, chi vede ogni categoria, destinatari del riepilogo e impostazioni degli avvisi.",
                 "«Apri» sulla categoria.",
-                "In «Chi la vede e chi la gestisce» scegli dal menu «Aggiungi» un ruolo aziendale, un ruolo del portale o una persona.",
-                "In «Può» scegli «Solo vedere» o «Vedere e gestire», poi «Aggiungi». «Togli» rimuove.",
+                "In «Chi la vede e chi la gestisce» spunta nell'elenco uno o più ruoli aziendali, ruoli del portale o persone. «Cerca» restringe l'elenco e «Scegli tutti» spunta ciò che resta visibile.",
+                "In «Quali scadenze» scegli «Tutti», «Propri e del team» o «Propri»; in «Può» scegli «Solo vedere» o «Vedere e gestire», poi «Aggiungi». «Togli» rimuove.",
+                "Per cambiare una regola già presente usa i menu nella sua riga: si salva subito.",
                 "In «Avvisi e dati della categoria» controlla le email del riepilogo e «Salva».",
             ]),
             ("img", (_IMG + "categoria.jpg", "Scheda della categoria: chi la vede e impostazioni degli avvisi")),
@@ -292,12 +293,14 @@ SEZIONI: list[dict] = [
             ("p", "A sinistra l'albero: fonte → tipo → singolo elemento. Si aggiorna da solo; un elemento compare quando ha una scadenza scaduta o nei prossimi 90 giorni. "
                   "Il numero accanto è quante scadenze ci sono oggi. Clic su una voce: la frase in alto dice chi la vede oggi."),
             ("def", [
-                ("Regole", "aggiungono persone o ruoli alla voce e a tutto ciò che sta sotto."),
+                ("Regole", "aggiungono persone o ruoli alla voce e a tutto ciò che sta sotto. Nell'elenco puoi spuntarne più di uno insieme."),
+                ("Quali scadenze", "«Tutti»: ogni scadenza della voce. «Propri»: solo quelle legate alla persona (la sua visita, l'azione o l'attività di cui è responsabile, l'asset assegnato a lei o del reparto che guida). «Propri e del team»: anche quelle delle persone del suo team. Le scadenze senza una persona collegata (per esempio RENTRI o certificazioni) passano solo con «Tutti»."),
                 ("Compare nello scadenzario", "«No» la toglie a tutti, con ciò che sta sotto; un elemento sotto può riaccendersi con «Sì»."),
                 ("Chi la vede", "«Chi ha il permesso del modulo, più le regole» è il predefinito. «Solo chi è nelle regole» la limita alle regole e agli amministratori."),
-                ("Vedere e gestire", "ha effetto solo sulle scadenze generiche."),
+                ("Vedere e gestire", "ha effetto solo sulle scadenze generiche e vale sempre su tutta la voce: l'ambito resta «Tutti»."),
                 ("Chi gestisce questo pannello", "gli amministratori sempre; qui si aggiungono altri ruoli o persone."),
             ]),
+            ("nota", "«Propri» e «Propri e del team» limitano ciò che la regola aggiunge: chi ha già il permesso del modulo continua a vedere ciò che il modulo gli mostra. Per limitare anche lui imposta «Chi la vede» su «Solo chi è nelle regole»."),
             ("nota", "Le visite mediche sono dati sanitari: una regola le mostra anche a chi non apre il modulo. Concedile solo a medico competente, RSPP e HR. Ogni modifica resta nel registro attività."),
         ],
     },

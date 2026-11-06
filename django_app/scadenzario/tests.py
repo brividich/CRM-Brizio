@@ -137,7 +137,7 @@ class PannelloTests(TestCase):
         with patch("dashboard.scadenze_providers.collect_sistema", return_value=[_item()]):
             resp = self.client.get(reverse("scadenzario:gestione") + "?chiave=hr|qualifica")
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Scegli ruolo o persona")
+        self.assertContains(resp, "Cerca ruolo o persona")
         resp = self.client.post(reverse("scadenzario:gestione_voce"),
                                 {"chiave": "hr|qualifica", "attiva": "0", "modalita": ""})
         self.assertEqual(resp.status_code, 302)

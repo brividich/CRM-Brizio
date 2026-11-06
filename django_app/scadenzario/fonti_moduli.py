@@ -221,7 +221,8 @@ def _sgi_audit(ctx) -> list:
                                       data_inizio__lte=ctx.orizzonte).select_related("lead_auditor__user"):
             items.append(_item(ctx, SOURCE_SGI, "audit_interno", f"Audit {a.numero}".strip(), _nome_auditor(a.lead_auditor),
                                a.data_inizio, _url("sistema_gestione:audit_dettaglio", a.pk),
-                               elemento=a.modulo, elemento_label=a.get_modulo_display()))
+                               elemento=a.modulo, elemento_label=a.get_modulo_display(),
+                               extra={"utente_id": getattr(a.lead_auditor, "user_id", None)}))
         # Verifica di efficacia: l'ultima verifica di ogni rilievo con una data successiva.
         ultime = {}
         for v in AuditVerificaEfficacia.objects.select_related("esito").order_by("esito_id", "registrato_il", "pk"):
@@ -235,7 +236,8 @@ def _sgi_audit(ctx) -> list:
                                          qualifica_scadenza__lte=ctx.orizzonte).select_related("user"):
             nome = _nome_auditor(au)
             items.append(_item(ctx, SOURCE_SGI, "auditor", f"Qualifica auditor {nome}", nome, au.qualifica_scadenza,
-                               _url("sistema_gestione:auditor_modifica", au.pk), elemento=nome))
+                               _url("sistema_gestione:auditor_modifica", au.pk), elemento=nome,
+                               extra={"utente_id": au.user_id}))
     car = AzioneCorrettivaAudit.objects.filter(chiusa_il__isnull=True).select_related("responsabile", "registro")
     if not vede_tutto:
         uid = _utente_id(ctx)
@@ -247,10 +249,11 @@ def _sgi_audit(ctx) -> list:
         nome = _nome_utente(c.responsabile)
         titolo = f"CAR {getattr(c.registro, 'numero', '') or c.pk}".strip()
         if not c.analizzata_il and c.scadenza_analisi <= ctx.orizzonte:
-            items.append(_item(ctx, SOURCE_SGI, "car_analisi", titolo, nome, c.scadenza_analisi, url))
+            items.append(_item(ctx, SOURCE_SGI, "car_analisi", titolo, nome, c.scadenza_analisi, url,
+                               extra={"utente_id": c.responsabile_id}))
         if c.scadenza_chiusura <= ctx.orizzonte:
             items.append(_item(ctx, SOURCE_SGI, "car_chiusura", titolo, nome, c.scadenza_chiusura, url,
-                               extra={"prorogata": bool(c.proroga_al)}))
+                               extra={"prorogata": bool(c.proroga_al), "utente_id": c.responsabile_id}))
     return items
 
 
@@ -289,7 +292,8 @@ def _sgi_riesame(ctx) -> list:
     for o in obiettivi_aperti():
         if o.scadenza and o.scadenza <= ctx.orizzonte:
             items.append(_item(ctx, SOURCE_SGI, "obiettivo_riesame", o.descrizione[:90], _nome_utente(o.responsabile),
-                               o.scadenza, _url("sistema_gestione:riesame_dettaglio", o.riesame_id)))
+                               o.scadenza, _url("sistema_gestione:riesame_dettaglio", o.riesame_id),
+                               extra={"utente_id": o.responsabile_id}))
     return items
 
 
@@ -343,7 +347,8 @@ def _abilitazioni(ctx) -> list:
         nome, reparto = nomi.get(a.legacy_anagrafica_id, ("", ""))
         macchina = a.asset.name if a.asset_id else ""
         items.append(_item(ctx, SOURCE_QUALIFICHE, "abilitazione_macchina", f"Abilitazione {macchina}".strip(), nome,
-                           a.prossima_revisione, url, elemento=macchina, reparto=reparto))
+                           a.prossima_revisione, url, elemento=macchina, reparto=reparto,
+                           extra={"legacy_id": a.legacy_anagrafica_id}))
     return items
 
 
@@ -442,7 +447,7 @@ def collect_procedure(ctx) -> list:
         else:
             url = _url("procedure_refresh:assignment_detail", a.pk)
         items.append(_item(ctx, SOURCE_PROCEDURE, "assegnazione", str(a.revision) if a.revision_id else campagna,
-                           _nome_utente(a.user), a.due_date, url, elemento=campagna))
+                           _nome_utente(a.user), a.due_date, url, elemento=campagna, extra={"utente_id": a.user_id}))
     if gestore:
         for c in ProcedureCampaign.objects.filter(status="published", due_date__isnull=False, due_date__lte=ctx.orizzonte):
             items.append(_item(ctx, SOURCE_PROCEDURE, "campagna", c.name, "", c.due_date,
@@ -523,7 +528,8 @@ def collect_anomalie(ctx) -> list:
             return []
         azioni = azioni.filter(responsabile_legacy_id=legacy)
     items = [_item(ctx, SOURCE_ANOMALIE, "azione_nc", (a.descrizione or "")[:200], a.responsabile_nome, a.scadenza,
-                   _url("anomalie_nc_dettaglio", a.nc_id), elemento=a.get_tipo_display()) for a in azioni]
+                   _url("anomalie_nc_dettaglio", a.nc_id), elemento=a.get_tipo_display(),
+                   extra={"legacy_user_id": a.responsabile_legacy_id}) for a in azioni]
     if tutte:
         for nc in AnomaliaNC.objects.exclude(stato="CHIUSA").filter(verifica_prevista__isnull=False, verifica_data__isnull=True,
                                                                     verifica_prevista__lte=ctx.orizzonte):
@@ -630,7 +636,8 @@ def collect_manutenzione(ctx) -> list:
             return []
     righe = feed.collect(start=None, end=ctx.orizzonte, filters=feed.FeedFilters(kinds=frozenset({feed.KIND_ORDINARY})), today=ctx.oggi)
     return [_item(ctx, SOURCE_MANUTENZIONE, "ordinaria", r.title, (r.asset_name or r.asset_tag or r.target_label or "").strip(), r.due_date,
-                  r.detail_url, elemento=r.title or "", reparto=(r.reparto or "").strip(), extra={"asset_tag": r.asset_tag})
+                  r.detail_url, elemento=r.title or "", reparto=(r.reparto or "").strip(),
+                  extra={"asset_tag": r.asset_tag, "asset_id": r.asset_id})
             for r in righe if r.due_date]
 
 
