@@ -232,7 +232,7 @@ class ElencoTests(LavorazioneBase):
         return self.client.get(reverse("tickets:gestione_list") + query)
 
     def _titoli(self, pagina):
-        return [t.titolo for t in pagina.context["tickets_man"]]
+        return [t.titolo for t in pagina.context["tickets_lista"]]
 
     def test_si_apre_su_da_fare_con_prima_gli_urgenti(self):
         titoli = self._titoli(self._elenco())
@@ -262,3 +262,31 @@ class ElencoTests(LavorazioneBase):
         self.assertContains(pagina, reverse("tickets:gestione_detail", args=[self.mio.pk]) + "?azione=risolvi")
         self.assertNotContains(pagina, f"prendiInCaricoInline({self.altrui.pk},this)")
         self.assertNotContains(pagina, f"{reverse('tickets:gestione_detail', args=[self.altrui.pk])}?azione=risolvi")
+
+    def test_tutti_una_tabella_sola(self):
+        pagina = self._elenco("?tipo=TUTTI")
+        self.assertContains(pagina, 'data-table-id="tickets.gestione.tutti"')
+        self.assertNotContains(pagina, 'data-table-id="tickets.gestione.man"')
+        self.assertEqual(len(pagina.context["tickets_lista"]), 4)
+
+
+class SchedaUnicaTests(LavorazioneBase):
+    def test_niente_schede_e_tutto_in_pagina(self):
+        ticket = self._ticket(asset_descrizione_libera="Macchina sintetica")
+        pagina = self.client.get(reverse("tickets:gestione_detail", args=[ticket.pk]))
+        self.assertNotContains(pagina, "tkt-tab-btn")
+        for atteso in ('data-panel="overview"', 'data-panel="activity"', 'data-panel="interventi"',
+                       'id="ag-save"', 'id="an-save"', 'id="commento-interna"', "Ricambio ordinato", 'id="tkt-barra"'):
+            with self.subTest(atteso=atteso):
+                self.assertContains(pagina, atteso)
+        self.assertNotContains(pagina, "Cabina di regia")
+
+    def test_commento_interno_dalla_scheda(self):
+        ticket = self._ticket()
+        response = self.client.post(
+            reverse("tickets:api_commento"),
+            data=json.dumps({"ticket_id": ticket.pk, "testo": "Nota sintetica", "is_interno": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(ticket.commenti.filter(testo="Nota sintetica", is_interno=True).exists())

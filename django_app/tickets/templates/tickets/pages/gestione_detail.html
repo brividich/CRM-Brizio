@@ -10,8 +10,8 @@
 .tkt-back{display:inline-flex;align-items:center;gap:6px;color:#0369a1;font-size:13px;font-weight:600;text-decoration:none}.tkt-back:hover{text-decoration:underline}
 .tkt-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px 22px}.tkt-card-title{font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
 .tkt-hero{background:linear-gradient(135deg,#1e3a5f 0%,#0369a1 60%,#0284c7 100%);border-radius:20px;padding:24px 28px;color:#fff}
-.tkt-workspace{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}.tkt-main{min-width:0;display:flex;flex-direction:column;gap:16px}.tkt-side{display:flex;flex-direction:column;gap:14px;position:sticky;top:20px}
-.tkt-tabs{display:flex;gap:8px;flex-wrap:wrap;padding:6px;background:#fff;border:1px solid #e2e8f0;border-radius:16px}.tkt-tab-btn{border:none;background:transparent;color:#64748b;cursor:pointer;border-radius:12px;padding:10px 16px;font-size:13px;font-weight:700}.tkt-tab-btn.active{background:#eff6ff;color:#0369a1}.tkt-tab-panel{display:none}.tkt-tab-panel.active{display:block}
+.tkt-workspace{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}.tkt-main{min-width:0;display:flex;flex-direction:column;gap:16px}.tkt-side{display:flex;flex-direction:column;gap:14px;}
+
 .tkt-badge,.tkt-prio,.tkt-tipo{display:inline-block;font-weight:700}.tkt-badge{padding:4px 12px;border-radius:99px;font-size:12px}.tkt-prio,.tkt-tipo{padding:3px 10px;border-radius:8px;font-size:11px}
 .tkt-badge-APERTA{background:#dbeafe;color:#1e40af}.tkt-badge-IN_CARICO{background:#fef3c7;color:#92400e}.tkt-badge-RISOLTO{background:#d1fae5;color:#065f46}.tkt-badge-CHIUSO{background:#f1f5f9;color:#475569}.tkt-badge-ANNULLATO{background:#fee2e2;color:#991b1b}.tkt-badge-IN_ATTESA{background:#f3e8ff;color:#6b21a8}
 .tkt-prio-BASSA{background:#f0fdf4;color:#166534}.tkt-prio-MEDIA{background:#eff6ff;color:#1e40af}.tkt-prio-ALTA{background:#fff7ed;color:#9a3412}.tkt-prio-URGENTE{background:#fef2f2;color:#dc2626}.tkt-tipo-IT{background:#e0f2fe;color:#0369a1}.tkt-tipo-MAN{background:#f0fdf4;color:#15803d}
@@ -28,8 +28,6 @@ body.theme-dark .tkt-card { background:var(--surface); border-color:var(--border
 body.theme-dark .tkt-card-title { color:var(--text-light); }
 
 body.theme-dark .tkt-tabs { background:var(--surface); border-color:var(--border); }
-body.theme-dark .tkt-tab-btn { color:var(--text-mid); }
-body.theme-dark .tkt-tab-btn.active { background:rgba(29,78,216,.2); color:#60a5fa; }
 
 body.theme-dark .tkt-badge-APERTA     { background:rgba(29,78,216,.2);   color:#93c5fd; }
 body.theme-dark .tkt-badge-IN_CARICO  { background:rgba(146,64,14,.25);  color:#fcd34d; }
@@ -93,6 +91,27 @@ body.theme-dark .tkt-meta-val a{color:#93c5fd}
   {% include "tickets/components/subnav.html" %}
   <a href="{% url 'tickets:gestione_list' %}" class="tkt-back">&larr; Torna alla lista</a>
 <style>
+.tkt-sez{display:flex;flex-direction:column;gap:16px}
+.tkt-apri{background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:16px;padding:6px 22px}
+.tkt-apri>summary{min-height:44px;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--text-light,#64748b);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;list-style-position:inside}
+.tkt-apri>summary::before{content:"▸";font-size:13px}
+.tkt-apri[open]>summary::before{content:"▾"}
+.tkt-apri[open]{padding-bottom:18px}
+.tkt-apri>.tkt-card,.tkt-apri>.tka-card{border:0;padding:8px 0 0;background:transparent}
+.tkt-rapide{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.tkt-rapida{min-height:36px;padding:0 12px;border:1px solid var(--border,#cbd5e1);border-radius:999px;background:var(--surface,#fff);font-size:13px;color:var(--text-mid,#334155);cursor:pointer}
+.tkt-rapida:hover{background:var(--hover-bg,#f1f5f9)}
+.tkt-az-sec.tkt-solo-tel{display:none}
+@media(max-width:720px){
+  .tkt-az-sec.tkt-solo-tel{display:inline-flex}
+  .tkt-az-sec.tkt-solo-pc{display:none}
+  .tkt-barra-scheda{position:fixed;left:0;right:0;bottom:calc(61px + env(safe-area-inset-bottom,0px));z-index:80;margin:0;padding:10px 16px;background:var(--surface,#fff);border-top:1px solid var(--border,#cbd5e1);box-shadow:0 -4px 14px rgba(15,23,42,.08)}
+  .tkt-barra-scheda .tkt-az-prim{flex:1 1 auto;min-height:48px}
+  .tkt-barra-scheda.is-pannello{display:none}
+  #tkt-root{padding-bottom:84px}
+  .tkt-risolvi .tkt-barra-az{position:sticky;bottom:calc(61px + env(safe-area-inset-bottom,0px));padding:10px 0;background:var(--surface,#fff)}
+  .tkt-risolvi .tkt-az-prim{flex:1 1 auto;min-height:48px}
+}
 .tkt-barra-az{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 .tkt-barra-scheda{margin:0 0 16px}
 .tkt-az-prim,.tkt-az-sec{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 20px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;cursor:pointer}
@@ -141,17 +160,11 @@ body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
           {% endif %}
         </div>
       </div>
-      <div style="font-size:12px;color:rgba(255,255,255,.78);text-align:right;">Aperto da <strong style="color:#fff;">{% if ticket.aperto_da_nome %}{{ ticket.aperto_da_nome|upper }}</strong> per conto di <strong style="color:#fff;">{% endif %}{{ ticket.richiedente_nome|upper }}</strong><br>{{ ticket.created_at|date:"d-m-Y H:i" }}<br>{% if ticket.closed_at %}Chiuso: {{ ticket.closed_at|date:"d-m-Y H:i" }}{% endif %}</div>
-    </div>
-    <div style="margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 14px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.72);margin-bottom:6px;">Categoria</div><div style="font-size:14px;font-weight:800;">{{ ticket.label_categoria }}</div></div>
-      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 14px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.72);margin-bottom:6px;">Richiedente</div><div style="font-size:14px;font-weight:800;">{% if richiedente_anagrafica_id %}<a href="{% url 'anagrafica:dipendente_detail' richiedente_anagrafica_id %}" style="color:#fff;text-decoration:underline;">{{ ticket.richiedente_nome|upper }}</a>{% else %}{{ ticket.richiedente_nome|upper }}{% endif %}</div></div>
-      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 14px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.72);margin-bottom:6px;">Assegnato</div><div id="meta-assegnato-hero" style="font-size:14px;font-weight:800;">{{ ticket.assegnato_a|upper|default:"Non assegnato" }}</div></div>
-      <div style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px 14px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.72);margin-bottom:6px;">Presa in carico</div><div style="font-size:14px;font-weight:800;">{% if ticket.data_presa_in_carico %}{{ ticket.data_presa_in_carico|date:"d-m-Y H:i" }}{% else %}Non ancora{% endif %}</div></div>
+      <div style="font-size:12px;color:rgba(255,255,255,.78);text-align:right;">Aperto da <strong style="color:#fff;">{% if ticket.aperto_da_nome %}{{ ticket.aperto_da_nome|upper }}</strong> per conto di <strong style="color:#fff;">{% endif %}{{ ticket.richiedente_nome|upper }}</strong><br>{{ ticket.created_at|date:"d-m-Y H:i" }}<br>Assegnato a <strong style="color:#fff;" id="meta-assegnato-hero">{{ ticket.assegnato_a|upper|default:"nessuno" }}</strong><br>{% if ticket.closed_at %}Chiuso: {{ ticket.closed_at|date:"d-m-Y H:i" }}{% endif %}</div>
     </div>
   </div>
 
-  <div class="tkt-barra-az tkt-barra-scheda">
+  <div class="tkt-barra-az tkt-barra-scheda" id="tkt-barra">
     {% if puo_risolvere %}
       {% if e_mio %}
       <button type="button" class="tkt-az-prim" id="btn-risolvi">Risolvi</button>
@@ -162,7 +175,8 @@ body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
     {% elif ticket.is_chiuso %}
     <button type="button" class="tkt-az-sec" id="btn-riapri">Riapri</button>
     {% endif %}
-    <a class="tkt-az-sec" href="{% url 'tickets:pdf' ticket.pk %}" target="_blank" rel="noopener">PDF</a>
+    <a class="tkt-az-sec tkt-solo-tel" href="#allegati" aria-label="Aggiungi foto o allegati">Foto</a>
+    <a class="tkt-az-sec tkt-solo-pc" href="{% url 'tickets:pdf' ticket.pk %}" target="_blank" rel="noopener">PDF</a>
     <span id="barra-esito" class="tkt-risolvi-errore" role="alert"></span>
   </div>
 
@@ -198,28 +212,19 @@ body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
       {% endif %}
       {% if ticket.incide_sicurezza %}<div class="tkt-sicurezza">Problema segnalato come sicurezza sul lavoro. Dare priorita alla presa in carico e alla chiusura del rischio.</div>{% endif %}
 
-      <div class="tkt-tabs">
-        <button type="button" class="tkt-tab-btn" data-tab="overview">Panoramica{% if n_da_validare %} <span class="tka-pending-pill" title="Allegati da validare">{{ n_da_validare }}</span>{% endif %}</button>
-        <button type="button" class="tkt-tab-btn" data-tab="activity">Timeline ({{ activity_feed|length }})</button>
-        <button type="button" class="tkt-tab-btn" data-tab="interventi">Interventi ({{ interventi|length }})</button>
-        <button type="button" class="tkt-tab-btn" data-tab="asset">Asset e KPI</button>
-      </div>
-
-      <section class="tkt-tab-panel" data-panel="overview">
+      <section class="tkt-sez" data-panel="overview">
         <div class="tkt-card">
           <div class="tkt-card-title">Descrizione</div>
           <div style="font-size:14px;color:#374151;white-space:pre-wrap;line-height:1.7;">{{ ticket.descrizione }}</div>
         </div>
-        <div style="margin-top:16px;">
-          {% include "tickets/components/allegati_card.html" with can_validate=True can_upload=True %}
-        </div>
       </section>
 
-      <section class="tkt-tab-panel" data-panel="activity">
+      <section class="tkt-sez" data-panel="activity">
         {% if not ticket.is_chiuso %}
         <div class="tkt-card">
           <div class="tkt-card-title">Aggiungi aggiornamento</div>
-          <div class="tkt-field"><textarea id="commento-testo" rows="4" placeholder="Scrivi un aggiornamento pubblico o una nota interna..."></textarea></div>
+          <div class="tkt-field"><textarea id="commento-testo" rows="3" aria-label="Scrivi un aggiornamento" placeholder="Scrivi un aggiornamento per il richiedente o una nota interna..."></textarea></div>
+          <div class="tkt-rapide">{% for testo in risposte_rapide %}<button type="button" class="tkt-rapida" data-rapida="{{ testo }}">{{ testo }}</button>{% endfor %}<label class="tkt-risolvi-check" style="margin:0 0 0 auto;"><input type="checkbox" id="commento-interna"> Nota interna</label></div>
           <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;"><button type="button" class="tkt-btn-sm tkt-btn-blue" id="commento-invia">Aggiungi commento</button><span id="commento-status" style="font-size:12px;color:#64748b;"></span></div>
         </div>
 
@@ -231,7 +236,7 @@ body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
           </div>
 
           {% if not ticket.asset %}
-          <div style="font-size:13px;color:#64748b;padding:8px 0;">Per aprire un Ordine di Lavoro collega prima un asset dalla tab <strong>Asset e KPI</strong>.</div>
+          <div style="font-size:13px;color:#64748b;padding:8px 0;">Per aprire un Ordine di Lavoro collega prima un asset dal riquadro <strong>Asset collegato</strong>.</div>
           {% endif %}
 
           {% if workorders_generati %}
@@ -284,7 +289,12 @@ body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
         </div>
       </section>
 
-      <section class="tkt-tab-panel" data-panel="interventi">
+      <details class="tkt-apri" data-panel="allegati"{% if allegati %} open{% endif %}>
+        <summary>Allegati ({{ allegati|length }}){% if n_da_validare %} <span class="tka-pending-pill">{{ n_da_validare }} da validare</span>{% endif %}</summary>
+        {% include "tickets/components/allegati_card.html" with can_validate=True can_upload=True %}
+      </details>
+      <details class="tkt-apri" data-panel="interventi"{% if interventi %} open{% endif %}>
+        <summary>Interventi ({{ interventi|length }})</summary>
         <div class="tkt-card">
           <div class="tkt-card-title" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;"><span>Sessioni di intervento</span>{% if not ticket.is_chiuso %}<button type="button" class="tkt-btn-sm tkt-btn-blue" id="interv-toggle-form">+ Aggiungi intervento</button>{% endif %}</div>
           {% if not ticket.is_chiuso %}
@@ -376,12 +386,13 @@ body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
           <div style="margin-top:10px;font-size:12px;color:#64748b;text-align:right;">Totale ore registrate: <span id="interv-ore-totali" style="font-weight:800;color:#0f172a;">-</span></div>
           {% else %}<div id="interv-empty" class="tkt-empty">Nessun intervento registrato.</div>{% endif %}
         </div>
+      </details>
         {% if ticket.tipo == "MAN" or ticket.delegato_fornitore_id %}
         <div id="pz-casa"><div id="pz-segnaposto" hx-get="{% url 'fornitori:presenze_intervento' 'ticket' ticket.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="tkt-empty">Caricamento presenze in azienda della ditta…</p></div></div>
         {% endif %}
-      </section>
 
-      <section class="tkt-tab-panel" data-panel="asset">
+      <details class="tkt-apri" data-panel="asset">
+        <summary>Dati tecnici e costi</summary>
         {% if costo_totale %}
         <div class="tkt-card" style="border:1px solid #bbf7d0;background:#f0fdf4;margin-bottom:16px;">
           <div class="tkt-card-title" style="color:#15803d;">Riepilogo costi intervento</div>
@@ -406,21 +417,6 @@ body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
           {% endif %}
         </div>
         {% endif %}
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">
-          <div class="tkt-card">
-            <div class="tkt-card-title">Asset collegato</div>
-            <div id="asset-current" style="margin-bottom:12px;padding:12px 14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;">{% if ticket.asset %}<a href="{% url 'assets:asset_view' ticket.asset.pk %}" style="color:#0369a1;font-weight:700;text-decoration:none;">{{ ticket.asset.name }} [{{ ticket.asset.asset_tag }}]</a>{% elif ticket.asset_descrizione_libera %}<span style="color:#374151;">{{ ticket.asset_descrizione_libera }}</span> <span style="color:#94a3b8;font-size:11px;">(testo libero)</span>{% else %}<span style="color:#94a3b8;">Nessun asset collegato</span>{% endif %}{% if ticket.mappa_layout_id and not ticket.asset_id %}<div style="font-size:11px;color:#b45309;margin-top:6px;">Il richiedente ha indicato un punto sulla planimetria: collega l'asset scegliendolo sulla mappa qui sotto.</div>{% endif %}</div>
-            {% if my_assets_list %}<div style="margin-bottom:12px;"><div class="tkt-card-title" style="margin-bottom:8px;">{{ my_assets_label }}</div><div style="display:flex;flex-wrap:wrap;gap:6px;">{% for a in my_assets_list %}<button type="button" class="ag-my-chip" data-id="{{ a.id }}" data-name="{{ a.name }} [{{ a.asset_tag }}]" title="{{ a.asset_type_label }}{% if a.model %} | {{ a.model }}{% endif %}" style="padding:5px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid #bae6fd;background:#f0f9ff;color:#0e7490;cursor:pointer;">{{ a.name }} <span style="color:#64748b;">{{ a.asset_tag }}</span></button>{% endfor %}</div></div>{% endif %}
-            <div style="position:relative;"><div style="display:flex;gap:6px;margin-bottom:8px;"><button type="button" class="tkt-btn-sm tkt-btn-gray tkt-asset-tog-btn active" id="ag-tog-catalogo" onclick="agToggle('catalogo')" style="padding:6px 11px;border-radius:999px;">Da catalogo</button><button type="button" class="tkt-btn-sm tkt-btn-gray tkt-asset-tog-btn" id="ag-tog-libero" onclick="agToggle('libero')" style="padding:6px 11px;border-radius:999px;">Descrizione libera</button></div><div id="ag-catalogo"><input type="text" id="ag-search" style="width:100%;padding:9px 11px;border:1px solid #e2e8f0;border-radius:10px;font-size:13px;box-sizing:border-box;" placeholder="Nome, n. interno, tag, tipo, modello..." autocomplete="off"><div id="ag-results" style="display:none;position:absolute;z-index:100;left:0;right:0;border:1px solid #e2e8f0;border-radius:12px;background:#fff;margin-top:4px;max-height:220px;overflow-y:auto;font-size:13px;box-shadow:0 10px 30px rgba(15,23,42,.12);"></div></div><div id="ag-libero" style="display:none;"><input type="text" id="ag-libero-input" style="width:100%;padding:9px 11px;border:1px solid #e2e8f0;border-radius:10px;font-size:13px;box-sizing:border-box;" placeholder="Descrizione macchinario/dispositivo..." maxlength="300"></div></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;"><button class="tkt-btn-sm tkt-btn-blue" id="ag-save">Salva</button>{% if ticket.asset or ticket.asset_descrizione_libera %}<button class="tkt-btn-sm tkt-btn-gray" id="ag-clear">Rimuovi</button>{% endif %}<span id="ag-status" style="font-size:12px;color:#64748b;"></span></div>
-          </div>
-          {% if mappe_ticket %}
-          <div class="tkt-card" id="mappa-card" style="grid-column:1 / -1;order:10;">
-            <div class="tkt-card-title">Dove si trova</div>
-            <div style="font-size:12px;color:#64748b;margin-bottom:8px;">Tocca un punto per scegliere un altro asset, poi «Salva» nel riquadro «Asset collegato».</div>
-            <div id="tkt-mappa"></div>
-          </div>
-          {% endif %}
           <div class="tkt-card" id="analytics-card">
             <div class="tkt-card-title">Dati tecnici per KPI</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
@@ -436,17 +432,13 @@ body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><button type="button" class="tkt-btn-sm tkt-btn-blue" id="an-save">Salva dati tecnici</button><span id="an-status" style="font-size:12px;color:#64748b;"></span></div>
             </div>
           </div>
-        </div>
-      </section>
+      </details>
     </div>
 
     <aside class="tkt-side">
       <div class="tkt-card">
-        <div class="tkt-card-title">Cabina di regia</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;"><span style="color:#64748b;font-weight:700;">Stato corrente</span><span class="tkt-badge tkt-badge-{{ ticket.stato }}">{{ ticket.label_stato }}</span></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;margin-top:10px;"><span style="color:#64748b;font-weight:700;">Priorita</span><span class="tkt-prio tkt-prio-{{ ticket.priorita }}">{{ ticket.label_priorita }}</span></div>
         {% if not ticket.is_chiuso %}
-        <div style="padding-top:14px;margin-top:14px;border-top:1px solid #e2e8f0;">
+        <div>
           <div class="tkt-card-title" style="margin-bottom:10px;">Aggiorna stato</div>
           <div class="tkt-azioni">
             {% if puo_risolvere and ticket.stato != 'IN_ATTESA' %}<button class="tkt-azione-btn tkt-az-attesa" data-stato="IN_ATTESA">Metti in attesa</button>{% endif %}
@@ -465,6 +457,20 @@ body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
         {% else %}<div class="tkt-empty" style="margin-top:14px;">Ticket chiuso o annullato. Le azioni operative non sono piu disponibili.</div>{% endif %}
       </div>
 
+          <div class="tkt-card">
+            <div class="tkt-card-title">Asset collegato</div>
+            <div id="asset-current" style="margin-bottom:12px;padding:12px 14px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;">{% if ticket.asset %}<a href="{% url 'assets:asset_view' ticket.asset.pk %}" style="color:#0369a1;font-weight:700;text-decoration:none;">{{ ticket.asset.name }} [{{ ticket.asset.asset_tag }}]</a>{% elif ticket.asset_descrizione_libera %}<span style="color:#374151;">{{ ticket.asset_descrizione_libera }}</span> <span style="color:#94a3b8;font-size:11px;">(testo libero)</span>{% else %}<span style="color:#94a3b8;">Nessun asset collegato</span>{% endif %}{% if ticket.mappa_layout_id and not ticket.asset_id %}<div style="font-size:11px;color:#b45309;margin-top:6px;">Il richiedente ha indicato un punto sulla planimetria: collega l'asset scegliendolo sulla mappa qui sotto.</div>{% endif %}</div>
+            {% if my_assets_list %}<div style="margin-bottom:12px;"><div class="tkt-card-title" style="margin-bottom:8px;">{{ my_assets_label }}</div><div style="display:flex;flex-wrap:wrap;gap:6px;">{% for a in my_assets_list %}<button type="button" class="ag-my-chip" data-id="{{ a.id }}" data-name="{{ a.name }} [{{ a.asset_tag }}]" title="{{ a.asset_type_label }}{% if a.model %} | {{ a.model }}{% endif %}" style="padding:5px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid #bae6fd;background:#f0f9ff;color:#0e7490;cursor:pointer;">{{ a.name }} <span style="color:#64748b;">{{ a.asset_tag }}</span></button>{% endfor %}</div></div>{% endif %}
+            <div style="position:relative;"><div style="display:flex;gap:6px;margin-bottom:8px;"><button type="button" class="tkt-btn-sm tkt-btn-gray tkt-asset-tog-btn active" id="ag-tog-catalogo" onclick="agToggle('catalogo')" style="padding:6px 11px;border-radius:999px;">Da catalogo</button><button type="button" class="tkt-btn-sm tkt-btn-gray tkt-asset-tog-btn" id="ag-tog-libero" onclick="agToggle('libero')" style="padding:6px 11px;border-radius:999px;">Descrizione libera</button></div><div id="ag-catalogo"><input type="text" id="ag-search" style="width:100%;padding:9px 11px;border:1px solid #e2e8f0;border-radius:10px;font-size:13px;box-sizing:border-box;" placeholder="Nome, n. interno, tag, tipo, modello..." autocomplete="off"><div id="ag-results" style="display:none;position:absolute;z-index:100;left:0;right:0;border:1px solid #e2e8f0;border-radius:12px;background:#fff;margin-top:4px;max-height:220px;overflow-y:auto;font-size:13px;box-shadow:0 10px 30px rgba(15,23,42,.12);"></div></div><div id="ag-libero" style="display:none;"><input type="text" id="ag-libero-input" style="width:100%;padding:9px 11px;border:1px solid #e2e8f0;border-radius:10px;font-size:13px;box-sizing:border-box;" placeholder="Descrizione macchinario/dispositivo..." maxlength="300"></div></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap;"><button class="tkt-btn-sm tkt-btn-blue" id="ag-save">Salva</button>{% if ticket.asset or ticket.asset_descrizione_libera %}<button class="tkt-btn-sm tkt-btn-gray" id="ag-clear">Rimuovi</button>{% endif %}<span id="ag-status" style="font-size:12px;color:#64748b;"></span></div>
+          </div>
+          {% if mappe_ticket %}
+          <div class="tkt-card" id="mappa-card">
+            <div class="tkt-card-title">Dove si trova</div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:8px;">Tocca un punto per scegliere un altro asset, poi «Salva» nel riquadro «Asset collegato».</div>
+            <div id="tkt-mappa"></div>
+          </div>
+          {% endif %}
       {% if not ticket.is_chiuso %}
       <div class="tkt-card" id="copilota-card">
         <div class="tkt-card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
@@ -508,10 +514,10 @@ body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
 const ASSETS=(function(){try{return JSON.parse(document.getElementById("assets-list-data").textContent)||[]}catch(e){return[]}})();
 const TICKET_ID={{ ticket.pk }},CSRF="{{ csrf_token }}",API_COMM="{% url 'tickets:api_commento' %}",API_STATO="{% url 'tickets:api_stato' %}",API_ASSEGNA="{% url 'tickets:api_assegna' %}",API_ASSET="{% url 'tickets:api_asset' %}",API_ANALYTICS="{% url 'tickets:api_analytics' %}",API_INTERVENTO="{% url 'tickets:api_intervento' %}",API_COMPONENTE="{% url 'tickets:api_componente' %}",API_CREA_WORKORDER="{% url 'tickets:api_crea_workorder' %}",DETAIL_TAB_KEY="tickets:gestione-detail:tab";
 function escapeHtml(v){return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
-function activateTicketTab(t){document.querySelectorAll(".tkt-tab-btn").forEach(b=>b.classList.toggle("active",b.dataset.tab===t));document.querySelectorAll(".tkt-tab-panel").forEach(p=>p.classList.toggle("active",p.dataset.panel===t));sessionStorage.setItem(DETAIL_TAB_KEY,t)}
-document.querySelectorAll(".tkt-tab-btn").forEach(btn=>btn.addEventListener("click",()=>activateTicketTab(btn.dataset.tab)));(()=>{const tabs=[...document.querySelectorAll(".tkt-tab-btn")].map(b=>b.dataset.tab),stored=sessionStorage.getItem(DETAIL_TAB_KEY),fallback=tabs.includes("activity")?"activity":tabs[0];if(location.hash==="#allegati"&&tabs.includes("overview")){activateTicketTab("overview");document.getElementById("allegati")?.scrollIntoView({block:"start"});return}activateTicketTab(tabs.includes(stored)?stored:fallback)})();
+function activateTicketTab(t){const d=document.querySelector('details[data-panel="'+t+'"]');if(d)d.open=true}
+function apriAllegati(){activateTicketTab("allegati");document.getElementById("allegati")?.scrollIntoView({block:"start"})}if(location.hash==="#allegati")apriAllegati();document.querySelectorAll('a[href="#allegati"]').forEach(a=>a.addEventListener("click",apriAllegati));
 function renderActivityComment(d){return `<article class="tkt-feed-item tkt-feed-comment"><div class="tkt-feed-dot"></div><div class="tkt-feed-body"><div class="tkt-feed-head"><div><span class="tkt-feed-actor">${escapeHtml(d.autore_nome)}</span><span class="tkt-feed-badge">Commento</span><div class="tkt-feed-title">Commento</div></div><div class="tkt-feed-date">${escapeHtml(d.created_at)}</div></div><div class="tkt-feed-copy">${escapeHtml(d.testo).replace(/\n/g,"<br>")}</div></div></article>`}
-async function sendCommento(){const txt=document.getElementById("commento-testo").value.trim();if(!txt)return;const st=document.getElementById("commento-status");st.textContent="Invio...";try{const r=await fetch(API_COMM,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,testo:txt,is_interno:false})}),d=await r.json();if(d.ok){if(d.auto_in_carico){location.reload();return}document.getElementById("commento-testo").value="";st.textContent="Salvato.";document.getElementById("activity-feed")?.insertAdjacentHTML("afterbegin",renderActivityComment(d));activateTicketTab("activity")}else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}}
+async function sendCommento(){const txt=document.getElementById("commento-testo").value.trim();if(!txt)return;const st=document.getElementById("commento-status");st.textContent="Invio...";try{const r=await fetch(API_COMM,{method:"POST",headers:{"Content-Type":"application/json","X-CSRFToken":CSRF},body:JSON.stringify({ticket_id:TICKET_ID,testo:txt,is_interno:!!document.getElementById("commento-interna")?.checked})}),d=await r.json();if(d.ok){if(d.auto_in_carico){location.reload();return}document.getElementById("commento-testo").value="";st.textContent="Salvato.";document.getElementById("activity-feed")?.insertAdjacentHTML("afterbegin",renderActivityComment(d));activateTicketTab("activity")}else st.textContent=d.error||"Errore."}catch(e){st.textContent="Errore di rete."}}
 document.getElementById("commento-invia")?.addEventListener("click",()=>sendCommento());
 let _agMode="catalogo",_agSelectedId=null;document.querySelectorAll(".ag-my-chip").forEach(chip=>{chip.addEventListener("click",function(){document.querySelectorAll(".ag-my-chip").forEach(c=>{c.style.background="#f0f9ff";c.style.color="#0e7490"});this.style.background="#0e7490";this.style.color="#fff";_agSelectedId=parseInt(this.dataset.id,10);_agMode="catalogo";if(agSearch)agSearch.value=this.dataset.name;document.getElementById("ag-status").textContent=""})});
 function agToggle(mode){_agMode=mode;_agSelectedId=null;document.getElementById("ag-tog-catalogo").classList.toggle("active",mode==="catalogo");document.getElementById("ag-tog-libero").classList.toggle("active",mode==="libero");document.getElementById("ag-catalogo").style.display=mode==="catalogo"?"":"none";document.getElementById("ag-libero").style.display=mode==="libero"?"":"none"}
@@ -603,6 +609,7 @@ document.querySelectorAll(".interv-delete-btn").forEach(btn=>btn.addEventListene
   function apri() {
     if (!pannello) { return; }
     pannello.hidden = false;
+    document.getElementById('tkt-barra').classList.add('is-pannello');
     var slot = document.getElementById('rv-visita'), scheda = schedaPresenze();
     if (slot && scheda) { slot.appendChild(scheda); }
     pannello.scrollIntoView({block: 'nearest'});
@@ -610,6 +617,7 @@ document.querySelectorAll(".interv-delete-btn").forEach(btn=>btn.addEventListene
   }
   function chiudiPannello() {
     pannello.hidden = true;
+    document.getElementById('tkt-barra').classList.remove('is-pannello');
     var casa = document.getElementById('pz-casa'), scheda = schedaPresenze();
     if (casa && scheda) { casa.appendChild(scheda); }
   }
@@ -618,6 +626,13 @@ document.querySelectorAll(".interv-delete-btn").forEach(btn=>btn.addEventListene
   var annulla = document.getElementById('rv-annulla');
   if (annulla) { annulla.addEventListener('click', chiudiPannello); }
   if (pannello && !pannello.hidden) { apri(); }
+
+  document.querySelectorAll('[data-rapida]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var testo = document.getElementById('commento-testo');
+      if (testo) { testo.value = b.dataset.rapida; testo.focus(); }
+    });
+  });
 
   var prendo = document.getElementById('btn-prendo');
   if (prendo) {
@@ -695,7 +710,7 @@ document.querySelectorAll(".interv-delete-btn").forEach(btn=>btn.addEventListene
       return;
     }
     var form = document.getElementById('interv-form');
-    if (form) { form.style.display = ''; }
+    if (form) { form.style.display = ''; var sez = form.closest('details'); if (sez) { sez.open = true; } }
     [['if-tecnico', b.dataset.tecnici], ['if-inizio', b.dataset.dal], ['if-fine', b.dataset.al], ['if-ore', b.dataset.ore]].forEach(function (voce) {
       var campo = document.getElementById(voce[0]);
       if (campo && voce[1]) { campo.value = voce[1]; }

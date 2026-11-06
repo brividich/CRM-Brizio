@@ -407,33 +407,41 @@ class WorkorderCloseTicketTests(_TicketFixtureMixin, TestCase):
         )
         self.url = reverse("assets:wo_close", args=[self.wo.pk])
 
-    def test_checkbox_visibile_al_gestore_del_ticket(self):
+    def test_avviso_visibile_al_gestore_del_ticket(self):
         self.client.force_login(self.manager)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, f"Segna anche la segnalazione {self.ticket.numero_ticket} come Risolta")
+        self.assertContains(response, f"si chiude anche la segnalazione {self.ticket.numero_ticket}")
 
-    def test_chiusura_risolta_con_checkbox_risolve_il_ticket(self):
+    def test_chiusura_risolta_chiude_il_ticket(self):
         from tickets.models import TicketStatoLog
 
         self.client.force_login(self.manager)
         with mock.patch("tickets.views._update_ticket_sharepoint"):
-            response = self.client.post(self.url, _close_payload(resolve_ticket="on"))
+            response = self.client.post(self.url, _close_payload())
         self.assertEqual(response.status_code, 302)
         self.wo.refresh_from_db()
         self.ticket.refresh_from_db()
         self.assertEqual(self.wo.status, WorkOrder.STATUS_DONE)
-        self.assertEqual(self.ticket.stato, "RISOLTO")
+        self.assertEqual(self.ticket.stato, "CHIUSO")
         self.assertIsNotNone(self.ticket.closed_at)
+        self.assertTrue(self.ticket.risolto_da_nome)
         log = TicketStatoLog.objects.get(ticket=self.ticket)
-        self.assertEqual((log.da_stato, log.a_stato), ("IN_CARICO", "RISOLTO"))
-        self.assertIn("Risolta", WorkOrderLog.objects.filter(work_order=self.wo).latest("id").note)
+        self.assertEqual((log.da_stato, log.a_stato), ("IN_CARICO", "CHIUSO"))
+        self.assertIn("chiusa", WorkOrderLog.objects.filter(work_order=self.wo).latest("id").note)
 
-    def test_chiusura_risolta_senza_checkbox_lascia_il_ticket(self):
+    def test_altro_intervento_aperto_lascia_il_ticket(self):
+        WorkOrder.objects.create(
+            asset=self.asset, ticket=self.ticket, kind=WorkOrder.KIND_CORRECTIVE,
+            origin=WorkOrder.ORIGIN_TICKET, title="Secondo intervento",
+        )
         self.client.force_login(self.manager)
+        page = self.client.get(self.url)
+        self.assertContains(page, "resta aperta")
         self.client.post(self.url, _close_payload())
         self.ticket.refresh_from_db()
         self.assertEqual(self.ticket.stato, "IN_CARICO")
+        self.assertIn("altro intervento aperto", WorkOrderLog.objects.filter(work_order=self.wo).latest("id").note)
 
     def test_risolto_temporaneamente_non_tocca_il_ticket(self):
         from tickets.models import TicketStatoLog
@@ -463,15 +471,14 @@ class WorkorderCloseTicketTests(_TicketFixtureMixin, TestCase):
         self.assertEqual(self.wo.outcome, WorkOrder.OUTCOME_NOT_RESOLVED)
         self.assertEqual(self.ticket.stato, "IN_CARICO")
 
-    def test_senza_gestione_ticket_niente_checkbox_e_ticket_invariato(self):
+    def test_senza_gestione_ticket_niente_avviso_e_ticket_invariato(self):
         other = User.objects.create_user(username="a5-solo-assets", password="x", email="solo@example.com")
         _complete_onboarding(other)
         self.client.force_login(other)
         page = self.client.get(self.url)
         self.assertEqual(page.status_code, 200)
-        self.assertNotContains(page, "Segna anche la segnalazione")
-        self.assertNotContains(page, 'name="resolve_ticket"')
-        self.client.post(self.url, _close_payload(resolve_ticket="on"))
+        self.assertNotContains(page, "si chiude anche la segnalazione")
+        self.client.post(self.url, _close_payload())
         self.wo.refresh_from_db()
         self.ticket.refresh_from_db()
         self.assertEqual(self.wo.status, WorkOrder.STATUS_DONE)
