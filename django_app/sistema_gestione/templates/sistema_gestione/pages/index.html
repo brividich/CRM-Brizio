@@ -15,33 +15,34 @@
 
   {% if puo_audit or puo_riesame %}
   <div class="sg-kpis">
-    <div class="sg-kpi"><span>Da gestire subito</span><strong>{{ n_urgenti }}</strong></div>
+    <div class="sg-kpi {% if n_urgenti %}is-danger{% else %}is-ok{% endif %}"><span>Da gestire subito</span><strong>{{ n_urgenti }}</strong></div>
     {% if puo_audit %}<div class="sg-kpi"><span>Audit {{ anno }}: chiusi su programmati</span><strong>{{ audit_chiusi }} / {{ audit_anno }}</strong></div>
     <div class="sg-kpi"><span>Certificati in vigore</span><strong>{{ certificazioni|length }}</strong></div>{% endif %}
   </div>
 
   <section class="rc-card sg-section">
-    <h2>Da fare adesso</h2>
+    <h2>Da fare adesso{% if da_fare %}<span class="sg-conta">{{ da_fare|length }}</span>{% endif %}</h2>
     {% if da_fare %}<ul class="sg-todo">
-      {% for v in da_fare %}<li class="{% if v.tono %}is-{{ v.tono }}{% endif %}">
-        <a href="{{ v.url }}">{{ v.testo }}</a>
-        {% if v.dettaglio %}<span class="sg-muted">{{ v.dettaglio }}</span>{% endif %}
+      {% for v in da_fare %}<li class="sg-todo-riga{% if v.tono %} is-{{ v.tono }}{% endif %}">
+        <span class="sg-todo-punto" aria-hidden="true"></span>
+        <span class="sg-todo-testo"><a href="{{ v.url }}">{{ v.testo }}</a>{% if v.dettaglio %}<span class="sg-muted">{{ v.dettaglio }}</span>{% endif %}</span>
         {% if v.data %}<time datetime="{{ v.data|date:'Y-m-d' }}">{{ v.data|date:"d/m/Y" }}</time>{% endif %}
+        <span class="sg-todo-azione" aria-hidden="true">{{ v.azione }} ›</span>
       </li>{% endfor %}
-    </ul>{% else %}<p class="sg-muted">Niente da gestire.</p>{% endif %}
+    </ul>{% else %}<p class="sg-vuoto">Niente da gestire: è tutto in regola.</p>{% endif %}
   </section>
   {% endif %}
 
   {% if puo_audit %}
   <section class="rc-card sg-section">
-    <h2>Certificazioni</h2>
-    {% if certificazioni %}<div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Norma</th><th>Ente</th><th>Prossima sorveglianza</th><th>Scadenza</th><th>Stato</th></tr></thead><tbody>
-      {% for c in certificazioni %}<tr>
-        <td><a href="{% url 'sistema_gestione:esterni_certificazione_scheda' c.pk %}">{{ c.nome_breve }}</a></td><td>{{ c.ente }}</td>
-        <td>{{ c.prossima_sorveglianza|date:"d/m/Y"|default:"—" }}</td><td>{{ c.scade_il|date:"d/m/Y" }}</td>
-        <td>{% if c.stato == "scaduta" %}<span class="sg-badge danger">Scaduto</span>{% elif c.stato == "in_scadenza" %}<span class="sg-badge warn">Scade tra {{ c.giorni_alla_scadenza }} giorni</span>{% else %}<span class="sg-badge ok">Valido</span>{% endif %}</td>
-      </tr>{% endfor %}
-    </tbody></table></div>{% else %}<p class="sg-muted">Nessun certificato registrato.{% if puo_modificare %} <a href="{% url 'sistema_gestione:esterni_certificazione_nuova' %}">Registra il primo</a>.{% endif %}</p>{% endif %}
+    <div class="sg-testa"><h2>Certificazioni</h2><a class="sg-muted" href="{% url 'sistema_gestione:esterni_elenco' %}">Tutte e audit esterni ›</a></div>
+    {% if certificazioni %}<div class="sg-certs">
+      {% for c in certificazioni %}<a class="sg-cert{% if c.stato == "scaduta" %} is-danger{% elif c.stato == "in_scadenza" %} is-warn{% endif %}" href="{% url 'sistema_gestione:esterni_certificazione_scheda' c.pk %}">
+        <span class="sg-cert-testa"><strong>{{ c.nome_breve }}</strong>{% if c.stato == "scaduta" %}<span class="sg-badge danger">Scaduto</span>{% elif c.stato == "in_scadenza" %}<span class="sg-badge warn">Scade tra {{ c.giorni_alla_scadenza }} giorni</span>{% else %}<span class="sg-badge ok">Valido</span>{% endif %}</span>
+        <span class="sg-muted">{{ c.ente }}</span>
+        <span class="sg-cert-date"><span>Sorveglianza <b>{{ c.prossima_sorveglianza|date:"d/m/Y"|default:"—" }}</b></span><span>Scadenza <b>{{ c.scade_il|date:"d/m/Y" }}</b></span></span>
+      </a>{% endfor %}
+    </div>{% else %}<p class="sg-muted">Nessun certificato registrato.{% if puo_modificare %} <a href="{% url 'sistema_gestione:esterni_certificazione_nuova' %}">Registra il primo</a>.{% endif %}</p>{% endif %}
   </section>
   {% endif %}
 
