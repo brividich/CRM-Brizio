@@ -10,6 +10,8 @@ Area **Operations** · URL `/anagrafica/` · codice [`django_app/anagrafica/`](.
 
 ## Dettaglio
 
+- **Menu a due livelli (06/11/2026)**: prima riga con i pilastri Dashboard, Scadenzario, Persone, Organizzazione, Competenze, Salute e sicurezza, Amministrazione, Report e, a destra, Impostazioni. La seconda riga mostra sezioni e voci del pilastro acceso: niente tendine sul computer. Le voci restano in `SubnavCategoriaAnagrafica` / `SubnavLinkAnagrafica` (migrazione `0223`: nuovo pilastro Organizzazione, Skill Matrix diventa Abilitazioni); Salute e sicurezza usa `_SAFETY_GRUPPI`. Una sottopagina senza voce propria accende la voce col percorso più lungo. Numeri sui pilastri dalle stesse fonti di `safety_subnav`. Se una riga non entra, `data-fit` riduce aria, icone e testo e infine manda a capo; sul telefono resta il pannello di `mobile-nav.js`, che legge le voci da `.hrnav-dd-menu`.
+
 Anagrafica master HR del portale, integrata con Active Directory e tabelle legacy SQL Server. Gestione strutturata HR con livelli di visibilità differenziati. **L'anagrafica fornitori è ora un modulo dedicato — vedere `fornitori` qui sotto.**
 
 - **Escludi dai conteggi dell'organico e dati anagrafici modificabili** (02/11/2026, migrazione 0213): flag `DipendenteAnagraficaAziendale.escluso_dai_conteggi` (+ motivo) per amministratori, RSPP esterni, consulenti: fuori da persone in forza, «Attivi», organico per reparto, report organico/turnover/movimenti/PdR 125 e indici infortuni, dentro elenchi e obblighi. Contatori su righe legacy solo via `services/conteggi_organico.py`; reportistica via `Contesto.in_organico()`. Nome, cognome ed email notifica modificabili dalla scheda (`dipendente_dati_base_set`, admin anagrafica, audit, sync nome sull'account).

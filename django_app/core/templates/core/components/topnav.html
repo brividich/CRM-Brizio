@@ -31,6 +31,41 @@
       <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input type="search" placeholder="Cerca nel menu" autocomplete="off" aria-label="Cerca nel menu" data-nav-filter>
     </div>
+    {% if topbar_griglia.aree %}
+      <div class="nav-dropdown nav-moduli" id="nav-moduli">
+        <button class="nav-a nav-dropdown-btn nav-tool" type="button" aria-haspopup="true" aria-expanded="false" title="Tutti i moduli">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
+          <span class="nav-label">Moduli</span>
+        </button>
+        <div class="nav-dropdown-menu nav-moduli-menu" role="menu" aria-label="Tutti i moduli">
+          {% for area in topbar_griglia.aree %}
+            <div class="nav-dd-section" role="group" aria-label="{{ area.label }}">
+              <div class="nav-dd-head" aria-hidden="true">{{ area.label }}</div>
+              {% for v in area.voci %}{% include "core/components/_topnav_voce_stella.html" %}{% endfor %}
+            </div>
+          {% endfor %}
+          <div class="nav-moduli-piede">
+            {% for v in topbar_griglia.dirette %}{% include "core/components/_topnav_voce_stella.html" %}{% endfor %}
+            <span class="nav-moduli-nota" data-nav-star-msg>La stella mette il modulo nei tuoi preferiti.</span>
+          </div>
+        </div>
+      </div>
+      <div class="nav-dropdown nav-preferiti" id="nav-preferiti" data-preferito-url="{{ topbar_preferito_url }}">
+        <button class="nav-a nav-dropdown-btn nav-tool" type="button" aria-haspopup="true" aria-expanded="false" title="I tuoi preferiti">
+          <svg class="nav-svg nav-svg-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.3-5.5-3-5.5 3 1-6.3L3 9.7l6.2-.9z"/></svg>
+          <span class="nav-label">Preferiti</span>
+          <svg class="nav-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="nav-dropdown-menu nav-preferiti-menu" role="menu" aria-label="I tuoi preferiti">
+          <div class="nav-dd-head" aria-hidden="true">I tuoi preferiti</div>
+          <div class="nav-preferiti-lista" data-nav-preferiti>
+            {% for v in topbar_griglia.preferiti %}{% include "core/components/_topnav_voce_stella.html" %}{% endfor %}
+          </div>
+          <p class="nav-preferiti-vuoto" data-nav-preferiti-vuoto{% if topbar_griglia.preferiti %} hidden{% endif %}>Ancora nessuno: apri Moduli e clicca la stella.</p>
+        </div>
+      </div>
+      <span class="nav-links-sep" aria-hidden="true"></span>
+    {% endif %}
     {% for grp in topbar_groups %}
       {% if grp.type == "category" %}
         <div class="nav-dropdown{% if grp.active %} active{% endif %}" data-nav-top>
@@ -38,7 +73,7 @@
             <span class="nav-label">{{ grp.label }}</span>
             <svg class="nav-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
           </button>
-          <div class="nav-dropdown-menu{% if grp.cols > 1 %} nav-dropdown-menu--cols{% endif %}" role="menu" aria-label="{{ grp.label }}"{% if grp.cols > 1 %} style="--nav-cols: {{ grp.cols }}"{% endif %}>
+          <div class="nav-dropdown-menu{% if grp.cols_totali > 1 %} nav-dropdown-menu--cols{% endif %}" role="menu" aria-label="{{ grp.label }}"{% if grp.cols_totali > 1 %} style="--nav-cols: {{ grp.cols_totali }}"{% endif %}>
             {% if grp.sections %}
               {% for sec in grp.sections %}
                 <div class="nav-dd-section" role="group"{% if sec.label %} aria-label="{{ sec.label }}"{% endif %}>
@@ -47,10 +82,21 @@
                 </div>
               {% endfor %}
             {% else %}
-              {% for item in grp.items %}{% include "core/components/_topnav_dropdown_item.html" %}{% endfor %}
+              <div class="nav-dd-section" role="group">
+                {% for item in grp.items %}{% include "core/components/_topnav_dropdown_item.html" %}{% endfor %}
+              </div>
+            {% endif %}
+            {% if grp.dentro_anagrafica %}
+              <div class="nav-dd-section nav-dd-side" role="group" aria-label="Dentro Anagrafica">
+                <div class="nav-dd-head" aria-hidden="true">Dentro Anagrafica</div>
+                {% for d in grp.dentro_anagrafica %}<a class="nav-dropdown-item" href="{{ d.href }}" role="menuitem"><span class="nav-label">{{ d.label }}</span></a>{% endfor %}
+              </div>
             {% endif %}
           </div>
         </div>
+      {% elif grp.in_icona %}
+        {# Sul computer è l'icona a destra; nel menu a hamburger resta una voce con il nome. #}
+        <a class="nav-a nav-solo-menu" href="{{ grp.item.href }}"><span class="nav-label">{{ grp.item.label }}</span></a>
       {% elif not grp.is_home %}
         <a class="nav-a{% if grp.item.active %} active{% endif %}" href="{{ grp.item.href }}" data-nav-top{% if grp.item.active %} aria-current="page"{% endif %}>
           <span class="nav-label">{{ grp.item.label }}</span>
@@ -91,6 +137,12 @@
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>
           <span class="nav-pending-num">{{ car_pending_count }}</span>
           <span class="nav-pending-text">da approvare</span>
+        </a>
+      {% endif %}
+
+      {% if topbar_icona_suggerimenti %}
+        <a href="{{ topbar_icona_suggerimenti.href }}" class="nav-icon nav-icon-sc" title="{{ topbar_icona_suggerimenti.label }}" aria-label="{{ topbar_icona_suggerimenti.label }}">
+          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V16h8v-1.3A7 7 0 0 0 12 2z"/></svg>
         </a>
       {% endif %}
 
@@ -229,8 +281,10 @@
     /* Una tendina larga (colonne) vicino al bordo destro si apre verso sinistra. */
     var m = menuOf(host);
     if (m && !mqMobile.matches) {
-      m.classList.remove('nav-menu-flip');
+      m.classList.remove('nav-menu-flip', 'nav-menu-center');
       if (m.getBoundingClientRect().right > window.innerWidth - 8) m.classList.add('nav-menu-flip');
+      /* Troppo larga anche girata: si centra sullo schermo, così non esce mai. */
+      if (m.getBoundingClientRect().left < 8) { m.classList.remove('nav-menu-flip'); m.classList.add('nav-menu-center'); }
     }
     if (focusFirst) { var it = items(host); if (it.length) it[0].focus(); }
   }
@@ -386,12 +440,18 @@
     });
   }
 
+  /* Prima di spostare voci in «Altro» le dimensioni scendono da sole (data-fit 0→3, stili in theme.css):
+     si misura davvero, quindi vale per ogni schermo, zoom e «dimensione testo» delle preferenze. */
+  var FIT_MAX = 3;
+  function sfora() { return panel.scrollWidth > panel.clientWidth + 1; }
   function layout() {
     if (!more || !moreMenu) return;
     tops.forEach(function(el){ el.hidden = false; });
     more.hidden = true;
+    nav.setAttribute('data-fit', '0');
     if (mqMobile.matches) return;
-    if (panel.scrollWidth <= panel.clientWidth + 1) return;
+    for (var liv = 1; liv <= FIT_MAX && sfora(); liv++) nav.setAttribute('data-fit', String(liv));
+    if (!sfora()) return;
     more.hidden = false;
     var hidden = [];
     /* Nasconde dal fondo finché tutto entra; la voce attiva resta visibile se possibile. */
@@ -405,10 +465,17 @@
         if (!tops[j].hidden) { tops[j].hidden = true; hidden.unshift(tops[j]); }
       }
     }
-    hidden.sort(function(a, b){ return tops.indexOf(a) - tops.indexOf(b); });
-    fillMore(hidden);
-    more.classList.toggle('active', hidden.some(function(el){ return el.classList.contains('active'); }));
-    more.querySelector('.nav-dropdown-btn').classList.toggle('active', more.classList.contains('active'));
+    var aggiornaAltro = function(){
+      hidden.sort(function(a, b){ return tops.indexOf(a) - tops.indexOf(b); });
+      fillMore(hidden);
+      more.classList.toggle('active', hidden.some(function(el){ return el.classList.contains('active'); }));
+      more.querySelector('.nav-dropdown-btn').classList.toggle('active', more.classList.contains('active'));
+    };
+    aggiornaAltro();
+    /* «Altro» acceso è in grassetto, quindi più largo: se ora non entra, esce un'altra voce. */
+    for (var k = tops.length - 1; k >= 0 && sfora(); k--) {
+      if (!tops[k].hidden) { tops[k].hidden = true; hidden.push(tops[k]); aggiornaAltro(); }
+    }
   }
 
   var raf = 0;
@@ -420,6 +487,59 @@
   var right = nav.querySelector('.nav-right');
   if (right && window.ResizeObserver) new ResizeObserver(schedule).observe(right);
   layout();
+
+  /* ── Stelle: griglia «Moduli» e tendina «Preferiti» (stesso salvataggio della home) ── */
+  var preferiti = document.getElementById('nav-preferiti');
+  if (preferiti) {
+    var lista = preferiti.querySelector('[data-nav-preferiti]');
+    var vuoto = preferiti.querySelector('[data-nav-preferiti-vuoto]');
+    var griglia = document.getElementById('nav-moduli');
+    var msg = griglia ? griglia.querySelector('[data-nav-star-msg]') : null;
+    var msgBase = msg ? msg.textContent : '';
+    var stars = function(id){
+      return Array.prototype.filter.call(nav.querySelectorAll('[data-nav-star]'), function(b){ return b.getAttribute('data-nav-star') === id; });
+    };
+    var segna = function(id, on){
+      stars(id).forEach(function(b){
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.title = on ? 'Togli dai preferiti' : 'Metti nei preferiti';
+      });
+      var riga = Array.prototype.filter.call(lista.children, function(r){ return r.getAttribute('data-star-row') === id; })[0];
+      if (!on && riga) riga.remove();
+      if (on && !riga && griglia) {
+        var fonte = Array.prototype.filter.call(griglia.querySelectorAll('[data-star-row]'), function(r){ return r.getAttribute('data-star-row') === id; })[0];
+        if (fonte) lista.appendChild(fonte.cloneNode(true));
+      }
+      vuoto.hidden = lista.children.length > 0;
+    };
+    nav.addEventListener('click', function(e){
+      var b = e.target.closest('[data-nav-star]');
+      if (!b) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var id = b.getAttribute('data-nav-star');
+      var on = b.getAttribute('aria-pressed') !== 'true';
+      var meta = document.querySelector("meta[name='csrf-token']");
+      var dati = new FormData();
+      dati.append('azione', 'preferito');
+      dati.append('modulo', id);
+      dati.append('on', on ? '1' : '0');
+      segna(id, on);
+      if (msg) msg.textContent = msgBase;
+      fetch(preferiti.getAttribute('data-preferito-url'), {
+        method: 'POST',
+        headers: { 'X-CSRFToken': meta ? meta.getAttribute('content') : '', 'X-Requested-With': 'XMLHttpRequest' },
+        body: dati
+      }).then(function(r){ return r.json(); }).then(function(res){
+        if (res && res.ok) return;
+        segna(id, !on);
+        if (msg) msg.textContent = (res && res.error) || 'Preferito non salvato.';
+      }).catch(function(){
+        segna(id, !on);
+        if (msg) msg.textContent = 'Preferito non salvato.';
+      });
+    });
+  }
 
   /* ── Tema chiaro/scuro dal menu utente ────────────────────────────── */
   var themeBtn = nav.querySelector('[data-theme-toggle]');

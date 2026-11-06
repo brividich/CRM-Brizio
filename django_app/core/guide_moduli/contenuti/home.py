@@ -45,6 +45,11 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "La barra in alto contiene i moduli divisi per area. Vedi solo quelli che puoi usare.",
+                    "«Moduli» apre l'elenco completo. La stella accanto a un modulo lo aggiunge a «Preferiti», la tendina "
+                    "subito a fianco; le stelle della home sono le stesse.",
+                    "Se la barra non entra nello schermo si adatta da sola: testi un po' più piccoli, ricerca e strumenti "
+                    "solo con l'icona e, se serve, le ultime voci in «Altro».",
+                    "La lampadina in alto a destra apre il Suggestion Corner.",
                     "Sotto la barra c'è il menu del modulo in cui ti trovi.",
                     "Il logo in alto a sinistra riporta sempre alla home.",
                     "«Cerca o vai a…» (oppure Ctrl+K) trova una pagina, una persona o un documento scrivendo il nome.",

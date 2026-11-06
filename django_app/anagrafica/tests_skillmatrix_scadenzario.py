@@ -181,7 +181,7 @@ class ScadenzarioNavTests(TestCase):
     def test_voce_menu_scadenzario(self):
         link = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:skm_scadenzario").first()
         self.assertIsNotNone(link)
-        self.assertEqual(link.gruppo, "Skill Matrix")
+        self.assertEqual(link.gruppo, "Abilitazioni")
 
 
 class CoseDaGestireHelperTests(TestCase):

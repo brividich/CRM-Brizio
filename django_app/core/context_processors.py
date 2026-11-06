@@ -202,6 +202,7 @@ class NavItem:
     category_icon: str = ""
     category_order: int = 0
     children: list = field(default_factory=list)
+    descrizione: str = ""
 
 
 def _group_nav_items(items: list) -> list[dict]:
@@ -239,7 +240,8 @@ def _group_nav_items(items: list) -> list[dict]:
             })
     for grp in cat_map.values():
         grp["sections"] = _nav_sections(grp["items"])
-        grp["cols"] = min(len(grp["sections"]), 3) if len(grp["items"]) > 6 else 1
+        grp["cols"] = min(len(grp["sections"]), 3) if grp["sections"] else 1
+        grp["cols_totali"] = grp["cols"]
     merged = list(cat_map.values()) + direct
     merged.sort(key=lambda x: x["order"])
     return merged
@@ -846,6 +848,9 @@ def legacy_nav(request):
             registry_items.sort(key=lambda x: ((x.order_hint if x.order_hint is not None else 999999), x.label.lower()))
             result["nav_items"] = registry_items
             result["topbar_groups"] = _group_nav_items(registry_items)
+            from core.topbar_extra import arricchisci_topbar
+
+            arricchisci_topbar(request, result)
             result["topbar_color"] = next(
                 (item.category_color for item in registry_items if item.active and item.category_color),
                 "",
