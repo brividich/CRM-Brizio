@@ -7,6 +7,8 @@ from django.urls import reverse
 
 from .models import (
     DipendenteAnagraficaAziendale,
+    DipendenteQualifica,
+    TipoQualifica,
     TipoVisitaMedica,
     TrainingDeadline,
     VisitaMedica,
@@ -84,6 +86,12 @@ class DashboardTests(_Dati):
         self.assertContains(r, f"?stato=SCADUTO&amp;centro={self.lav.pk}")
         self.assertContains(r, "Togli il filtro")
 
+    def test_ogni_pagina_mostra_il_menu_dei_centri(self):
+        for nome in ("formazione_dashboard", "formazione_scadenzario", "visite_mediche_dashboard", "scadenzario", "qualifiche_dashboard", "qualifiche_scadenzario"):
+            self.assertContains(self._lav(nome), f'value="{self.lav.pk}" selected', msg_prefix=nome)
+        for nome in ("dpi:report_persone", "dpi:report_consegne", "dpi:gestione_list"):
+            self.assertContains(self.client.get(reverse(nome), {"centro": self.lav.pk}), f'value="{self.lav.pk}" selected', msg_prefix=nome)
+
     def test_il_numero_della_dashboard_e_la_lista_che_apre_coincidono(self):
         cruscotto = self._lav("formazione_dashboard")
         lista = self._lav("formazione_scadenzario", stato="SCADUTO")
@@ -104,6 +112,8 @@ class DashboardTests(_Dati):
         r = self._lav("scadenzario", tipo="formazione")
         self.assertEqual({v["legacy_id"] for v in r.context["page_obj"].object_list}, {self.rossi})
         self.assertEqual(r.context["fm_n_scaduti"], 1)
+        self.assertContains(r, 'name="centro"')
+        self.assertContains(r, f'value="{self.lav.pk}" selected')
         csv = self._lav("scadenzario", tipo="formazione", format="csv").content.decode("utf-8-sig")
         self.assertIn("Centro di costo", csv.splitlines()[0])
         self.assertIn("LAVORAZIONI", csv)
@@ -175,3 +185,63 @@ class TeamEHomeTests(_Base):
             r = self.client.get(reverse("anagrafica:index"))
         self.assertEqual(r.status_code, 200)
         self.assertIsNone(r.context["carico_home"])
+
+
+class QualificheTests(_Base):
+    def setUp(self):
+        super().setUp()
+        self.tipo = TipoQualifica.objects.create(nome="Patentino sintetico")
+        ieri = self.oggi - timedelta(days=1)
+        for pid in (self.rossi, self.verdi):
+            DipendenteQualifica.objects.create(legacy_anagrafica_id=pid, tipo=self.tipo, data_conseguimento=self.oggi - timedelta(days=400), data_scadenza=ieri)
+
+    def test_cruscotto_e_scadenzario_filtrati_con_gli_stessi_numeri(self):
+        tutti = self.client.get(reverse("anagrafica:qualifiche_dashboard"))
+        self.assertEqual(tutti.context["n_scadute"], 2)
+        r = self.client.get(reverse("anagrafica:qualifiche_dashboard"), {"centro": self.lav.pk})
+        self.assertEqual(r.context["n_scadute"], 1)
+        self.assertContains(r, f"?stato=scaduta&amp;centro={self.lav.pk}")
+        self.assertContains(r, f"stato=tutte&amp;centro={self.lav.pk}")
+        lista = self.client.get(reverse("anagrafica:qualifiche_scadenzario"), {"centro": self.lav.pk, "stato": "scaduta"})
+        self.assertEqual([v["legacy_id"] for v in lista.context["voci"]], [self.rossi])
+
+    def test_la_qualifica_superata_e_il_cessato_non_contano_nello_scadenzario(self):
+        DipendenteQualifica.objects.create(legacy_anagrafica_id=self.rossi, tipo=self.tipo, data_conseguimento=self.oggi,
+                                           data_scadenza=self.oggi + timedelta(days=300))
+        DipendenteAnagraficaAziendale.objects.update_or_create(
+            legacy_anagrafica_id=self.verdi, defaults={"data_cessazione": self.oggi - timedelta(days=1)})
+        cruscotto = self.client.get(reverse("anagrafica:qualifiche_dashboard"))
+        lista = self.client.get(reverse("anagrafica:qualifiche_scadenzario"), {"stato": "scaduta"})
+        self.assertEqual(cruscotto.context["n_scadute"], 0)
+        self.assertEqual(lista.context["voci"], [])
+
+    def test_export_filtrato_e_csv_col_centro(self):
+        from . import exports_qualifiche
+
+        req = RequestFactory().get("/", {"centro": str(self.lav.pk), "stato": "scaduta"})
+        req.user = self.admin
+        righe = exports_qualifiche._scadenzario_rows(req, "filtered")
+        self.assertEqual([x["centro_costo"] for x in righe], ["LAVORAZIONI"])
+        self.assertEqual(len(exports_qualifiche._scadenzario_rows(req, "full")), 2)
+        csv = self.client.get(reverse("anagrafica:qualifiche_scadenzario"), {"centro": self.lav.pk, "stato": "scaduta", "format": "csv"})
+        self.assertIn("Centro di costo", csv.content.decode("utf-8-sig").splitlines()[0])
+
+
+class ExportVisiteComeLaDashboardTests(_Base):
+    def test_il_rinnovo_non_lascia_la_vecchia_scaduta_nell_export(self):
+        from . import exports_hr
+
+        tipo = TipoVisitaMedica.objects.create(nome="Visita rinnovata", durata_mesi=12)
+        VisitaMedica.objects.create(legacy_anagrafica_id=self.rossi, tipo=tipo, data_svolgimento=self.oggi - timedelta(days=400),
+                                    data_scadenza=self.oggi - timedelta(days=5))
+        VisitaMedica.objects.create(legacy_anagrafica_id=self.rossi, tipo=tipo, data_svolgimento=self.oggi - timedelta(days=1),
+                                    data_scadenza=self.oggi + timedelta(days=30))
+        req = RequestFactory().get("/")
+        req.user = self.admin
+        righe = [x for x in exports_hr._visite_mediche_rows(req, "filtered") if x["tipo"] == tipo.nome]
+        self.assertFalse([x for x in righe if "Scaduta" in x["stato"]])
+        pagina = self.client.get(reverse("anagrafica:visite_mediche_dashboard"))
+        self.assertEqual(sum(1 for v in pagina.context["scad_o_in_scad"] if v.tipo_id == tipo.pk), len(righe))
+        copertura = next(x for x in exports_hr._visite_copertura_rows(req, "full") if x["tipologia"] == tipo.nome)
+        riga = next(x for x in pagina.context["tipologie_stats"] if x["tipo"].pk == tipo.pk)
+        self.assertEqual((copertura["valide"], copertura["scadute"]), (riga["valide_db"], riga["scadute_db"]))

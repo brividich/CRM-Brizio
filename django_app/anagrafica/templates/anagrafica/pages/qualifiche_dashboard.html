@@ -26,7 +26,7 @@
           <h1><svg class="fmd-ico fmd-cap"><use href="#i-cap"/></svg>Qualifiche &amp; Certificazioni</h1>
           <p class="fmd-sub">Punto unico di raccolta, gestione e controllo delle qualifiche e certificazioni aziendali. Aggregazione live delle stesse fonti usate da Formazione e Salute&amp;Sicurezza. Aggiornato al {{ oggi|date:"d-m-Y" }}.</p>
           <div class="fmd-hero-actions">
-            <a class="fmd-btn-template" href="{% url 'anagrafica:qualifiche_scadenzario' %}">
+            <a class="fmd-btn-template" href="{% url 'anagrafica:qualifiche_scadenzario' %}{{ filtro_centro.prefisso }}">
               <svg class="fmd-ico"><use href="#i-alarm"/></svg>Scadenzario qualifiche
             </a>
           </div>
@@ -50,20 +50,21 @@
     {% include "anagrafica/components/_fmd_ricerca.html" with ambito="qualifiche" placeholder="Cerca un tipo di qualifica o le qualifiche di una persona…" %}
 
     {# ── KPI ribbon ─────────────────────────────────────────────────────── #}
+    {% include "anagrafica/partials/_filtro_centro.html" with nota="Tipi a catalogo, processi MOD.128 e sessioni restano di tutta l'azienda." %}
     <section class="fmd-kpi">
-      <a class="fmd-mtr fmd-t-green" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=valide" style="text-decoration:none;">
+      <a class="fmd-mtr fmd-t-green" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=valide{{ filtro_centro.suffisso }}" style="text-decoration:none;">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_valide }}</span></div>
         <div class="fmd-mtr-lbl">Valide</div>
         <div class="fmd-mtr-sub">Di cui {{ n_permanenti }} senza scadenza</div>
       </a>
-      <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=60" style="text-decoration:none;">
+      <a class="fmd-mtr fmd-t-yellow" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=60{{ filtro_centro.suffisso }}" style="text-decoration:none;">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_in_scadenza }}</span></div>
         <div class="fmd-mtr-lbl">In scadenza ≤60gg</div>
         <div class="fmd-mtr-sub">{{ n_s30 }} entro 30 giorni</div>
       </a>
-      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=scaduta" style="text-decoration:none;">
+      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=scaduta{{ filtro_centro.suffisso }}" style="text-decoration:none;">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scadute }}</span></div>
         <div class="fmd-mtr-lbl">Scadute</div>
@@ -75,7 +76,7 @@
         <div class="fmd-mtr-lbl">Tipi a catalogo</div>
         <div class="fmd-mtr-sub">Sicurezza · Professionali · Gestionali</div>
       </a>
-      <a class="fmd-mtr fmd-t-violet" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=tutte" style="text-decoration:none;">
+      <a class="fmd-mtr fmd-t-violet" href="{% url 'anagrafica:qualifiche_scadenzario' %}?stato=tutte{{ filtro_centro.suffisso }}" style="text-decoration:none;">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-check"/></svg></span><span class="fmd-mtr-val">{{ n_da_verificare }}</span></div>
         <div class="fmd-mtr-lbl">Da verificare (HR){% info_hint "qualifica_verifica" %}</div>
@@ -157,7 +158,7 @@
       </div>
       <div class="fmd-tfoot">
         <span class="fmd-info">Anteprima dei 15 record più urgenti.</span>
-        <a href="{% url 'anagrafica:qualifiche_scadenzario' %}" class="fmd-btn fmd-btn-ghost">
+        <a href="{% url 'anagrafica:qualifiche_scadenzario' %}{{ filtro_centro.prefisso }}" class="fmd-btn fmd-btn-ghost">
           Vedi scadenzario completo <svg class="fmd-ico"><use href="#i-arrow-right"/></svg>
         </a>
       </div>

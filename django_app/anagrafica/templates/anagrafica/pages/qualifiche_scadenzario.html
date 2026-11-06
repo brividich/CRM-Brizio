@@ -63,6 +63,13 @@
             {% endfor %}
           </select>
         </label>
+        {% if filtro_centro.scelte %}<label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#64748b;">Centro di costo
+          <select name="centro" style="padding:7px 10px;border:1px solid #d8e1ec;border-radius:8px;max-width:220px;">
+            <option value="">Tutti</option>
+            {% for v, t in filtro_centro.scelte %}<option value="{{ v }}"{% if v == filtro_centro.valore %} selected{% endif %}>{{ t }}</option>{% endfor %}
+            <option value="senza"{% if filtro_centro.valore == "senza" %} selected{% endif %}>Senza centro di costo</option>
+          </select>
+        </label>{% endif %}
         <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:#64748b;">Reparto
           <select name="reparto" style="padding:7px 10px;border:1px solid #d8e1ec;border-radius:8px;">
             <option value="">Tutti</option>
@@ -73,7 +80,7 @@
         </label>
         <button type="submit" class="fmd-btn fmd-btn-primary"><svg class="fmd-ico"><use href="#i-filter"/></svg>Filtra</button>
         <a class="fmd-btn fmd-btn-ghost"
-           href="?format=csv&stato={{ filtro_stato }}&categoria={{ filtro_categoria }}&tipo={{ filtro_tipo }}&reparto={{ filtro_reparto|urlencode }}">
+           href="?format=csv&stato={{ filtro_stato }}&categoria={{ filtro_categoria }}&tipo={{ filtro_tipo }}&reparto={{ filtro_reparto|urlencode }}{{ filtro_centro.suffisso }}">
           <svg class="fmd-ico"><use href="#i-download"/></svg>Esporta CSV
         </a>
         <span class="fmd-spacer"></span>

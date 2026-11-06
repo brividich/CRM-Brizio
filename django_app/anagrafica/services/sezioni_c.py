@@ -127,7 +127,7 @@ def _ordina_per_indice(schede: list[dict], chiave: str) -> None:
 
 # ── Qualifiche ───────────────────────────────────────────────────────────────
 
-def schede_qualifiche(quals, *, oggi, soglia_30, soglia_60, prossime_per_tipo: dict) -> list[dict]:
+def schede_qualifiche(quals, *, oggi, soglia_30, soglia_60, prossime_per_tipo: dict, suffisso: str = "") -> list[dict]:
     """Una scheda per tipo di qualifica assegnato: valide, ≤60gg, ≤30gg, scadute.
 
     Stessa classificazione dei numeri del cruscotto (``qualifiche_dashboard``):
@@ -157,7 +157,7 @@ def schede_qualifiche(quals, *, oggi, soglia_30, soglia_60, prossime_per_tipo: d
         sessione = prossime_per_tipo.get(tipo.pk)
         out.append(scheda(
             titolo=tipo.nome,
-            href=reverse("anagrafica:qualifiche_scadenzario") + f"?tipo={tipo.pk}&stato=tutte",
+            href=reverse("anagrafica:qualifiche_scadenzario") + f"?tipo={tipo.pk}&stato=tutte{suffisso}",
             codice=tipo.get_categoria_display(),
             meta=f"{tipo.get_categoria_display()} · " + (f"validità {tipo.durata_mesi} mesi" if tipo.durata_mesi else "senza scadenza automatica"),
             tags=(tipo.categoria,),
