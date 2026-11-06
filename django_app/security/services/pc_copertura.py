@@ -21,6 +21,7 @@ FILTRI = [
     ("non_intune", "Non in Intune"),
     ("senza_edr", "Senza WatchGuard"),
     ("senza_backup", "Senza backup"),
+    ("sistema_fuori", "Sistema fuori supporto"),
 ]
 
 
@@ -30,7 +31,7 @@ def norm(host):
 
 def _riga(nome):
     return {"nome": nome, "intune": None, "watchguard": False, "defender": False, "backup": None, "asset": None,
-            "soc": [], "cve": None, "proposta": None, "motivo": ""}
+            "soc": [], "cve": None, "proposta": None, "motivo": "", "sistema": None}
 
 
 def righe(proposte=True):
@@ -54,6 +55,12 @@ def righe(proposte=True):
         r = pcs.setdefault(key, _riga(display or host))
         r["watchguard"] = r["watchguard"] or "watchguard" in fonti
         r["defender"] = r["defender"] or "defender" in fonti
+    from security.services.rischio_asset import sistemi_per_host
+
+    for host, stato in sistemi_per_host().items():
+        key = norm(host)
+        if key in pcs:
+            pcs[key]["sistema"] = stato
     for dev in overview(30)["devices"]:
         key = norm(dev["name"])
         if key:
@@ -117,6 +124,8 @@ def filtra(rows, codice):
         return [r for r in rows if not r["watchguard"]]
     if codice == "senza_backup":
         return [r for r in rows if not r["backup"]]
+    if codice == "sistema_fuori":
+        return [r for r in rows if r.get("sistema") and r["sistema"]["fuori"]]
     return rows
 
 
