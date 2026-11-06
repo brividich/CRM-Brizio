@@ -152,9 +152,9 @@ GUIDA = {
                     "risoluzione si scrive solo in «Chiudi intervento». Le foto scelte in «Allegati» si vedono subito in anteprima. Ogni intervento, anche già chiuso, si corregge "
                     "con «✎ Modifica» (in testa e nel riquadro Panoramica; su un chiuso anche «Cosa è stato fatto»); "
                     "stato ed esito non cambiano e ogni modifica finisce nel registro dell'intervento.",
-                    "Ditte esterne: in ogni OdL aperto il riquadro «Presenze in azienda della ditta» propone gli "
+                    "Ditte esterne: nell'OdL, anche chiuso, e in «Chiudi intervento» il riquadro «Presenze in azienda della ditta» propone gli "
                     "ingressi della ditta registrati al chiosco della reception; «Collega» li lega all'OdL come prova "
-                    "dell'intervento. Se l'OdL era Interno e la ditta si riconosce, passa a Esterno con quella ditta "
+                    "dell'intervento e «Usa nel rapportino» riempie «Tempo impiegato» e chiusura con le ore in azienda. Se l'OdL aperto era Interno e la ditta si riconosce, passa a Esterno con quella ditta "
                     "(guida Fornitori, «Collegare l'ingresso della ditta»).",
                     "«Scheda di lavoro» stampa macchina, dati dell'intervento, note, checklist dell'intervento e, se chiuso, "
                     "esito e «Cosa è stato fatto». Nello Scadenzario la colonna Asset mostra in grande il nome della macchina.",

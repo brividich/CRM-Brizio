@@ -1134,6 +1134,13 @@ SCHEDULES: list[dict] = [
         "func": "fornitori.tasks.run_avvisi_ingressi_non_in_regola",
         "schedule_type": "I", "minutes": 10, "repeats": -1, "kwargs": {},
     },
+    {
+        # FORNITORI — ditta attesa (manutenzione, OdL o ticket aperti) che non sarà in regola
+        # con i documenti di sicurezza: notifica in-app a RSPP/ASPP (mai mail), prima che entri.
+        "name": "fornitori_avvisi_ditte_attese",
+        "func": "fornitori.tasks.run_avvisi_ditte_attese",
+        "schedule_type": "C", "cron": "10 7 * * 1-5", "repeats": -1, "kwargs": {},
+    },
 ]
 
 
