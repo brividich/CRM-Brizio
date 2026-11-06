@@ -33,6 +33,7 @@
     <form method="post" class="sc-form" style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));align-items:end">
       {% csrf_token %}<input type="hidden" name="k" value="{{ key }}">
       <label style="display:grid;gap:6px;font-weight:700">Classificazione
+        {% if row.da_regola %}<small class="sc-meta">Ora «Consentito» per la regola sul produttore: una scelta qui vince sulla regola.</small>{% endif %}
         <select name="classification" class="sc-input">{% for value, label in classification_choices %}<option value="{{ value }}" {% if entry.classification == value or not entry and value == 'da_classificare' %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
       <label style="display:grid;gap:6px;font-weight:700">Licenza
         <select name="licensing" class="sc-input">{% for value, label in licensing_choices %}<option value="{{ value }}" {% if entry.licensing == value or not entry and value == 'da_verificare' %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
@@ -44,7 +45,7 @@
     </form>
     <p class="sc-note" style="margin-top:10px">«Non autorizzato» e «Da rimuovere» fanno comparire il software nei controlli del SOC; con la versione minima i PC più vecchi vengono segnalati. Le versioni scritte in modo non confrontabile (es. «2023 R2») non vengono mai contate come vecchie.</p>
     {% else %}
-    <p class="sc-note">Classificazione: <strong>{{ row.classification_label|default:"Da classificare" }}</strong> · Licenza: <strong>{{ row.licensing_label|default:"Da verificare" }}</strong>{% if entry.min_version %} · Versione minima: <strong>{{ entry.min_version }}</strong>{% endif %}. Solo gli amministratori del modulo Asset possono cambiarle.</p>
+    <p class="sc-note">Classificazione: <strong>{{ row.classification_label|default:"Da classificare" }}</strong>{% if row.da_regola %} (da regola sul produttore){% endif %} · Licenza: <strong>{{ row.licensing_label|default:"Da verificare" }}</strong>{% if entry.min_version %} · Versione minima: <strong>{{ entry.min_version }}</strong>{% endif %}. Solo gli amministratori del modulo Asset possono cambiarle.</p>
     {% if entry.notes %}<p class="sc-note">{{ entry.notes|linebreaksbr }}</p>{% endif %}
     {% endif %}
     {% if entry.updated_by %}<p class="sc-note" style="margin-top:6px">Ultima modifica: {{ entry.updated_at|date:"d/m/Y H:i" }}, {{ entry.updated_by }}.</p>{% endif %}

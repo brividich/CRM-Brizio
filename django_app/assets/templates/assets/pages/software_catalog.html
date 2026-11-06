@@ -17,6 +17,8 @@
 .sc-regola .sc-tag{white-space:normal}
 .sc-unisci{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;margin-top:14px}
 .sc-unisci label,.sc-unisci .sc-note{grid-column:1/-1}
+.sc-blocco{display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:64px;z-index:5}
+.sc-blocco select{border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 10px;font:inherit;background:var(--surface,#fff);color:inherit}
 .sc-search input{border:1px solid var(--border,#cbd5e1);border-radius:10px;padding:7px 10px;font:inherit;background:var(--surface,#fff);color:inherit;min-width:220px}
 .sc-table-wrap{overflow:auto}
 .sc-cve-strip{display:flex;gap:14px;align-items:center;justify-content:space-between;border-left:5px solid var(--success,#16a34a)}
@@ -43,25 +45,68 @@ body.theme-dark .sc-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body
 {% block assets_shell_subtitle %}<p>I programmi installati sui PC dell'azienda, con le decisioni su ognuno: consentito, da rimuovere, non autorizzato.</p>{% endblock %}
 
 {% block assets_shell_content %}
+{% if can_edit %}<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var tutti = document.getElementById("sc-tutti"), n = document.getElementById("sc-blocco-n"), ok = document.getElementById("sc-blocco-ok");
+  if (!tutti || !n || !ok) return;
+  function aggiorna() {
+    var c = document.querySelectorAll(".sc-scelta:checked").length;
+    n.textContent = c ? c + (c === 1 ? " programma selezionato" : " programmi selezionati") : "Nessun programma selezionato";
+    ok.disabled = !c;
+  }
+  document.addEventListener("change", function (e) {
+    if (e.target === tutti) {
+      // solo le righe che si vedono: la ricerca e i filtri della tabella restano validi
+      document.querySelectorAll(".sc-scelta").forEach(function (box) { if (box.offsetParent !== null) box.checked = tutti.checked; });
+    }
+    if (e.target === tutti || e.target.classList.contains("sc-scelta")) aggiorna();
+  });
+});
+</script>{% endif %}
 <section class="sc-page">
   <div class="sc-card">
     <p class="sc-note">Dati dall'inventario software importato nel SOC{% if inventory_date %}, ultimo import del {{ inventory_date|date:"d/m/Y" }}{% endif %}. Apri un software per vedere su quali PC è installato{% if can_edit %} e per classificarlo{% endif %}. <a href="{% url 'assets:guida' %}#catalogo">Come funziona</a></p>
+    <p class="sc-note"><strong>{{ avanzamento.decisi }} programmi su {{ avanzamento.programmi }} con una decisione</strong>, pari al {{ avanzamento.percento_pc }}% delle installazioni. Ordina per PC per partire dai più diffusi.</p>
   </div>
   <div class="sc-card">
     <nav class="sc-filters" aria-label="Filtri del catalogo">
       {% for f in filters %}<a href="?f={{ f.code }}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if f.active %} class="active" aria-current="page"{% endif %}>{{ f.label }}<span>{{ f.count }}</span></a>{% endfor %}
     </nav>
   </div>
+  {% if can_edit %}
+  <details class="sc-card"{% if produttori_regola %} open{% endif %}>
+    <summary style="cursor:pointer;font-weight:700">Regole per produttore{% if produttori_regola %} ({{ produttori_regola|length }}){% endif %}</summary>
+    <p class="sc-note" style="margin:8px 0">Tutti i programmi del produttore risultano «Consentito», anche quelli nuovi, finché non decidi diversamente sul singolo programma. Una regola può solo consentire: vietare si fa programma per programma.</p>
+    {% for r in produttori_regola %}
+    <form method="post" class="sc-regola">{% csrf_token %}<input type="hidden" name="azione" value="togli_produttore"><input type="hidden" name="regola" value="{{ r.pk }}">
+      <span class="sc-tag sc-tag--ok">{{ r }}</span><button type="submit" class="sc-mini-btn">Togli</button></form>
+    {% endfor %}
+    <form method="post" class="sc-unisci">{% csrf_token %}<input type="hidden" name="azione" value="consenti_produttore">
+      <select name="produttore" class="js-searchable" data-placeholder="Cerca il produttore" aria-label="Produttore da consentire" required>
+        <option value="">Scegli il produttore</option>
+        {% for p in produttori_proposti %}<option value="{{ p.etichetta }}">{{ p.etichetta }} ({{ p.n }} da classificare)</option>{% endfor %}
+      </select>
+      <button type="submit" class="sc-mini-btn">Consenti tutto</button>
+    </form>
+  </details>
+  <form method="post" id="sc-blocco" class="sc-card sc-blocco">{% csrf_token %}<input type="hidden" name="azione" value="classifica">
+    <strong id="sc-blocco-n">Nessun programma selezionato</strong>
+    <select name="classification" aria-label="Classificazione" required>{% for value, label in classification_choices %}{% if value != "da_classificare" %}<option value="{{ value }}">{{ label }}</option>{% endif %}{% endfor %}<option value="da_classificare">Da classificare</option></select>
+    <select name="licensing" aria-label="Licenza"><option value="">Licenza: non cambiare</option>{% for value, label in licensing_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+    <button type="submit" class="sc-mini-btn" id="sc-blocco-ok" disabled>Applica</button>
+  </form>
+  {% endif %}
   <div class="sc-card sc-table-wrap">
     <table class="sc-table">
-      <thead><tr><th>Software</th><th>PC</th><th>Versioni</th><th>Classificazione</th><th>Licenza</th><th>Versione minima</th>{% if show_cve %}<th>CVE</th>{% endif %}</tr></thead>
+      <thead><tr>{% if can_edit %}<th data-fm-no-sort="1"><input type="checkbox" id="sc-tutti" aria-label="Seleziona i programmi visibili" title="Seleziona i programmi visibili"></th>{% endif %}<th>Software</th><th>PC</th><th>Versioni</th><th>Classificazione</th><th>Licenza</th><th>Versione minima</th>{% if show_cve %}<th>CVE</th>{% endif %}</tr></thead>
       <tbody>
       {% for row in rows %}
         <tr>
+          {% if can_edit %}<td><input type="checkbox" name="k" value="{{ row.key }}" form="sc-blocco" class="sc-scelta" aria-label="Seleziona {{ row.name }}"></td>{% endif %}
           <td><a href="{{ row.url }}"><strong>{{ row.name }}</strong></a><br><span class="sc-meta">{{ row.vendor|default:"produttore n/d" }}{% if row.names > 1 %} · {{ row.names }} nomi raggruppati{% endif %}</span>{% if row.cerca %}<span hidden>{{ row.cerca }}</span>{% endif %}</td>
           <td>{{ row.hosts }}</td>
           <td>{{ row.versions }}</td>
-          <td><span class="sc-tag {% if row.classification == 'consentito' %}sc-tag--ok{% elif row.classification == 'non_autorizzato' %}sc-tag--danger{% elif row.classification == 'da_rimuovere' %}sc-tag--warn{% else %}sc-tag--muted{% endif %}">{{ row.classification_label }}</span></td>
+          <td><span class="sc-tag {% if row.classification == 'consentito' %}sc-tag--ok{% elif row.classification == 'non_autorizzato' %}sc-tag--danger{% elif row.classification == 'da_rimuovere' %}sc-tag--warn{% else %}sc-tag--muted{% endif %}">{{ row.classification_label }}</span>{% if row.da_regola %}<br><span class="sc-meta">da regola</span>{% endif %}</td>
           <td>
             <span class="sc-meta">{{ row.licensing_label }}</span>
             {% if row.license_state == "coperta" %}<br><span class="sc-tag sc-tag--ok">Licenza valida</span>{% if row.seats %} <span class="sc-meta">{{ row.hosts }}/{{ row.seats }} posti</span>{% endif %}
