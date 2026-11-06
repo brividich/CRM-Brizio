@@ -60,7 +60,7 @@ class Tipo:
 TIPI: dict[str, Tipo] = {t.codice: t for t in (
     Tipo("certificazione", "Certificazione", "sistema_gestione.Certificazione", "descrizione ente norma numero",
          lambda o: " ".join(p for p in (o.get_norma_display(), o.descrizione, o.ente) if p),
-         lambda o: _url("sistema_gestione:esterni_certificazione", o.pk),
+         lambda o: _url("sistema_gestione:esterni_certificazione_scheda", o.pk),
          data=lambda o: o.scade_il, filtro=(("attiva", True),)),
     Tipo("verifica", "Verifica impianto", "assets.PeriodicCheckType", "name",
          lambda o: o.name, lambda o: _url("assets:periodic_check_type_detail", o.pk),

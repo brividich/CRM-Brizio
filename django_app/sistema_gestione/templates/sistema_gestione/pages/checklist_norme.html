@@ -1,7 +1,7 @@
 {% extends "core/base.html" %}
 {% block title %}Checklist di audit{% endblock %}
 {% block extra_head %}{% include "sistema_gestione/components/_styles.html" %}{% endblock %}
-{% block content %}{% load sg_guida %}{% sg_guida_link %}
+{% block content %}{% load sg_guida %}{% sg_menu %}{% sg_guida_link %}
 <div class="rc-wrap">
   <a class="rc-back" href="{% url 'sistema_gestione:audit_index' %}">← Audit interni</a>
   <div class="page-header"><div class="page-header-main"><div class="page-h">Checklist di audit per norma</div><div class="page-sub">La revisione attiva di ogni norma viene caricata all'avvio degli audit che hanno quella norma spuntata.</div></div></div>

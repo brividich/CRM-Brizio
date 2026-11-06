@@ -7,7 +7,7 @@
 - **App**: `django_app/sistema_gestione/` — URL `/sistema-gestione/` — namespace `sistema_gestione`
 - **Voce di menu**: «Sistema di gestione», categoria **Qualità** (`riorganizza_topbar`, ordine 65)
 - **Modulo collegato**: `django_app/report_conformita/` (report di sola lettura, riesame della direzione)
-- **Ultimo aggiornamento**: 2026-10-27
+- **Ultimo aggiornamento**: 2026-11-06 (panoramica «Da fare», scheda certificato, collegamento a Formazione: migration 0022, vedi `docs/moduli/sistema_gestione.md`)
 
 ---
 
@@ -126,6 +126,7 @@ trattamento e threat intelligence.
 - [x] Registro OFI (portale) senza la spunta **UNI/PdR 125**: risolto nel portale (`gestione_specifiche` 0014, deployato).
 - [ ] MOD.168 / MT CN 276: le sigle dei rilievi **NC, COM, AP** non sono definite in nessun documento SGI. Nel portale: NC = non conformità (maggiore/minore), COM = commento, AP = area di miglioramento — **da confermare con l'RDD**.
 - [ ] MOD.168: intestazione «Applicazione controllo (1-4)» ma il modulo usa anche 0 (8.4, 8.28 «Non applicato»). Nel portale: scala 0-4 del MOD.165.
+- [ ] Requisiti dell'auditor interno: MT CN 12 §6 (diploma, conoscenza norme e tecniche, 4 audit, 2 anni di esperienza) contro MT CN 06 Rev.21 (corso di almeno 16 h, 3 anni in azienda, 3 anni nella gestione qualità, 2 cicli in affiancamento, 2 anni di audit di seconda/terza parte). Nel portale restano quelli della MT CN 12: da decidere con l'RDD quale vale.
 
 ---
 

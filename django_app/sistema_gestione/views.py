@@ -18,12 +18,13 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from .acl_bootstrap import PERM_AUDIT_VIEW, PERM_SOA_APPROVA, PERM_SOA_EDIT, PERM_SOA_VIEW, PERM_VIEW
+from .acl_bootstrap import PERM_AUDIT_EDIT, PERM_AUDIT_VIEW, PERM_SOA_APPROVA, PERM_SOA_EDIT, PERM_SOA_VIEW, PERM_VIEW
 from .catalogo_27002 import TEMI
 from .evidenze import evidenze_per
 from .exports import kpi_revisione, soa_pdf, soa_xlsx
 from .forms import CopiaFirmataForm, SoaVoceForm, ThreatIntelligenceForm
-from .models import Audit, SoaRevisione, SoaVoce, ThreatIntelligence
+from .models import Audit, Certificazione, SoaRevisione, SoaVoce, ThreatIntelligence
+from .services import panoramica
 from .services import soa as soa_service
 
 logger = logging.getLogger(__name__)
@@ -65,17 +66,25 @@ def index(request):
         ThreatIntelligence.objects.filter(data__gte=timezone.localdate().replace(month=1, day=1)).count()
         if puo_soa else 0
     )
+    oggi = timezone.localdate()
+    voci = panoramica.da_fare(oggi) if puo_audit else []
+    audit_anno = Audit.objects.filter(data_inizio__year=oggi.year).exclude(stato=Audit.STATO_ANNULLATO)
     return render(request, "sistema_gestione/pages/index.html", {
         "page_title": "Sistema di gestione",
         "puo_soa": puo_soa,
         "puo_audit": puo_audit,
+        "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
+        "da_fare": voci,
+        "n_urgenti": sum(1 for v in voci if v["priorita"] == panoramica.ALTA),
+        "anno": oggi.year,
+        "audit_chiusi": audit_anno.filter(stato=Audit.STATO_CHIUSO).count() if puo_audit else 0,
+        "certificazioni": list(Certificazione.objects.filter(attiva=True)) if puo_audit else [],
         "in_vigore": in_vigore,
         "di_lavoro": di_lavoro,
         "kpi_in_vigore": kpi_revisione(in_vigore) if in_vigore else [],
         "ti_anno": ti_anno,
         # Come «programmati» dell'indice audit: gli annullati non contano.
-        "audit_anno": Audit.objects.filter(data_inizio__year=timezone.localdate().year)
-        .exclude(stato=Audit.STATO_ANNULLATO).count() if puo_audit else 0,
+        "audit_anno": audit_anno.count() if puo_audit else 0,
     })
 
 

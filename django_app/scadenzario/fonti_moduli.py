@@ -193,7 +193,7 @@ def _sgi_certificazioni(ctx) -> list:
         Q(prossima_sorveglianza__lte=ctx.orizzonte) | Q(scade_il__lte=ctx.orizzonte)
     ):
         norma = c.get_norma_display()
-        url = _url("sistema_gestione:esterni_certificazione", c.pk)
+        url = _url("sistema_gestione:esterni_certificazione_scheda", c.pk)
         for kind, data in (("sorveglianza", c.prossima_sorveglianza), ("certificato", c.scade_il)):
             if data and data <= ctx.orizzonte:
                 items.append(_item(ctx, SOURCE_SGI, kind, f"{norma} {c.descrizione}".strip(), c.ente, data, url,

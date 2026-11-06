@@ -17,7 +17,7 @@ body.theme-dark .est-dl dt{ color:var(--text-light); }
 .est-box .sg-inline-form{ align-items:center; }
 @media (max-width:640px){ .est-dl{ grid-template-columns:1fr; gap:2px 0; } .est-dl dt{ margin-top:8px; } }
 </style>{% endblock %}
-{% block content %}{% load sg_guida %}{% sg_guida_link %}
+{% block content %}{% load sg_guida %}{% sg_menu %}{% sg_guida_link %}
 <div class="rc-wrap">
   <a class="rc-back" href="{% url 'sistema_gestione:esterni_elenco' %}">← Certificazioni e audit esterni</a>
   <div class="page-header"><div class="page-header-main"><div class="page-h">{{ audit.get_tipo_display }} · {{ audit.ente }}</div>
