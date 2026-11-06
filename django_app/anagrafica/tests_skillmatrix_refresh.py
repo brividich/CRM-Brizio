@@ -125,4 +125,4 @@ class RefreshNavTests(TestCase):
     def test_voce_menu_refresh(self):
         link = SubnavLinkAnagrafica.objects.filter(url_value="anagrafica:skm_refresh").first()
         self.assertIsNotNone(link)
-        self.assertEqual(link.gruppo, "Skill Matrix")
+        self.assertEqual(link.gruppo, "Abilitazioni")
