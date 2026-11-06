@@ -14,6 +14,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -59,15 +60,26 @@ def _torna(request, predefinito: str):
     return redirect(predefinito)
 
 
-def _dati_regola(post):
-    """Il menu unico «Aggiungi» manda ``chi=tipo:id``: lo traduce nei campi di RegolaForm."""
-    tipo, _, valore = (post.get("chi") or "").partition(":")
+def _dati_regola(post, chi: str = ""):
+    """La scelta multipla «Aggiungi» manda ``chi=tipo:id``: lo traduce nei campi di RegolaForm."""
+    tipo, _, valore = (chi or "").partition(":")
     if not tipo:
         return post
     dati = post.copy()
     dati["tipo"] = tipo
     dati[tipo] = valore
     return dati
+
+
+def _ambito_regola(chiave: str, livello: str, valore: str) -> str | None:
+    """Ambito da salvare, ``None`` se non valido.
+
+    Il pannello e «Vede e gestisce» valgono per tutta la voce: sempre «Tutti».
+    """
+    if chiave == CHIAVE_PANNELLO or livello == RegolaVisibilita.LIVELLO_GESTISCE:
+        return RegolaVisibilita.AMBITO_TUTTI
+    valore = valore or RegolaVisibilita.AMBITO_TUTTI
+    return valore if valore in dict(RegolaVisibilita.AMBITO_CHOICES) else None
 
 
 def _url_gestione(chiave: str = "") -> str:
@@ -165,12 +177,40 @@ def gestione_regola_aggiungi(request):
     if not _chiave_valida(chiave):
         messages.error(request, "Voce non valida.")
         return redirect(_url_gestione())
-    form = RegolaForm(_dati_regola(request.POST))
-    if not form.is_valid():
-        messages.error(request, "; ".join(e for errs in form.errors.values() for e in errs) or "Dati non validi.")
+    scelte = [c for c in request.POST.getlist("chi") if c] or ([""] if request.POST.get("tipo") else [])
+    if not scelte:
+        messages.error(request, "Scegli almeno un ruolo o una persona.")
         return _torna(request, _url_gestione(chiave))
+    salvate, persone = [], None
+    try:
+        with transaction.atomic():
+            for chi in scelte:
+                form = RegolaForm(_dati_regola(request.POST, chi), persone=persone)
+                persone = form.fields["persona"].choices
+                if not form.is_valid():
+                    raise _RegolaNonValida("; ".join(e for errs in form.errors.values() for e in errs) or "Dati non validi.")
+                ambito = _ambito_regola(chiave, form.cleaned_data["livello"], request.POST.get("ambito", ""))
+                if ambito is None:
+                    raise _RegolaNonValida("Ambito non valido.")
+                salvate.append(_salva_regola(request, chiave, form, ambito))
+    except _RegolaNonValida as errore:
+        messages.error(request, str(errore))
+        return _torna(request, _url_gestione(chiave))
+    if len(salvate) == 1:
+        messages.success(request, f"Regola salvata: {salvate[0].destinatario_label}.")
+    else:
+        messages.success(request, f"Regole salvate: {len(salvate)}.")
+    return _torna(request, _url_gestione(chiave))
+
+
+class _RegolaNonValida(Exception):
+    pass
+
+
+def _salva_regola(request, chiave: str, form, ambito: str):
+    """Crea la regola, o aggiorna livello e ambito se il destinatario c'è già."""
     tipo = form.cleaned_data["tipo"]
-    dati = {"chiave": chiave, "livello": form.cleaned_data["livello"], "creato_da": request.user}
+    dati = {"chiave": chiave, "livello": form.cleaned_data["livello"], "ambito": ambito, "creato_da": request.user}
     if tipo == "ruolo_portale":
         dati["ruolo_portale"] = form.cleaned_data["ruolo_portale"]
         doppione = RegolaVisibilita.objects.filter(chiave=chiave, ruolo_portale=dati["ruolo_portale"])
@@ -185,13 +225,33 @@ def gestione_regola_aggiungi(request):
     regola = doppione.first()
     if regola:
         regola.livello = dati["livello"]
-        regola.save(update_fields=["livello"])
+        regola.ambito = ambito
+        regola.save(update_fields=["livello", "ambito"])
     else:
         regola = RegolaVisibilita.objects.create(**dati)
     log_action(request, "scadenzario_regola_aggiunta", "scadenzario",
-               {"chiave": chiave, "regola": regola.destinatario_label, "livello": regola.livello})
-    messages.success(request, f"Regola salvata: {regola.destinatario_label}.")
-    return _torna(request, _url_gestione(chiave))
+               {"chiave": chiave, "regola": regola.destinatario_label, "livello": regola.livello, "ambito": regola.ambito})
+    return regola
+
+
+@login_required
+@require_POST
+def gestione_regola_modifica(request, regola_id: int):
+    """Cambia ambito e livello di una regola esistente, senza toglierla e rimetterla."""
+    if not puo_gestire_pannello(request):
+        return HttpResponseForbidden("Solo chi gestisce lo scadenzario.")
+    regola = get_object_or_404(RegolaVisibilita, pk=regola_id)
+    livello = request.POST.get("livello") or regola.livello
+    ambito = _ambito_regola(regola.chiave, livello, request.POST.get("ambito") or regola.ambito)
+    if ambito is None or livello not in dict(RegolaVisibilita.LIVELLO_CHOICES):
+        messages.error(request, "Valore non valido.")
+        return _torna(request, _url_gestione(regola.chiave))
+    regola.livello, regola.ambito = livello, ambito
+    regola.save(update_fields=["livello", "ambito"])
+    log_action(request, "scadenzario_regola_modificata", "scadenzario",
+               {"chiave": regola.chiave, "regola": regola.destinatario_label, "livello": livello, "ambito": ambito})
+    messages.success(request, f"Regola aggiornata: {regola.destinatario_label}.")
+    return _torna(request, _url_gestione(regola.chiave))
 
 
 @login_required
@@ -670,7 +730,7 @@ def categoria_modifica(request, pk: int):
 
 @login_required
 def avvisi(request):
-    visibili = categorie_visibili(request)
+    visibili = categorie_visibili(request, solo_intere=True)
     if visibili is not None and not visibili:
         return HttpResponseForbidden("Non hai scadenze generiche da vedere.")
     qs = AvvisoInviato.objects.select_related("scadenza", "categoria")

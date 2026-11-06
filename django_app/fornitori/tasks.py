@@ -6,6 +6,11 @@ documenti di sicurezza non in regola (``fornitori.requisiti``), manda una **noti
 in-app** (mai mail) a chi ricopre oggi i ruoli indicati in ``fornitori_requisiti_ruoli``
 (SiteConfig, predefinito «RSPP,ASPP»). Una sola notifica per visita. Nello stesso giro
 registra sul fornitore chi è entrato per una ditta riconosciuta (``fornitori.tecnici``).
+
+``run_avvisi_ditte_attese``: ogni mattina feriale avvisa le stesse persone, sempre solo con una
+notifica, delle ditte che devono ancora venire e che non saranno in regola
+(``requisiti.ditte_attese_non_in_regola``). Non blocca niente. Per ditta si ripete solo se i
+problemi cambiano o dopo ``GIORNI_RIPETI_AVVISO`` giorni.
 """
 from __future__ import annotations
 
@@ -17,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 CHIAVE_RUOLI = "fornitori_requisiti_ruoli"
 RUOLI_PREDEFINITI = "RSPP,ASPP"
+GIORNI_RIPETI_AVVISO = 14
 
 
 def _destinatari() -> list[int]:
@@ -97,6 +103,57 @@ def avvisa_ingressi_non_in_regola() -> dict:
         )
         esito["avvisati"] += 1
     return esito
+
+
+def avvisa_ditte_attese(oggi=None) -> dict:
+    from django.utils import timezone
+
+    from core.notifiche import invia_notifica
+
+    from .models import AvvisoDittaInArrivo
+    from .requisiti import ditte_attese_non_in_regola
+
+    oggi = oggi or timezone.localdate()
+    ditte = ditte_attese_non_in_regola(oggi)
+    AvvisoDittaInArrivo.objects.exclude(fornitore_id__in=[d.fornitore_id for d in ditte]).delete()
+    esito = {"ditte": len(ditte), "avvisate": 0, "destinatari": 0}
+    if not ditte:
+        return esito
+    gia = {a.fornitore_id: a for a in AvvisoDittaInArrivo.objects.filter(fornitore_id__in=[d.fornitore_id for d in ditte])}
+    da_avvisare = []
+    for d in ditte:
+        problemi = d.problemi[:500]
+        ultimo = gia.get(d.fornitore_id)
+        if ultimo is None or ultimo.problemi != problemi or (oggi - ultimo.ultimo_il).days >= GIORNI_RIPETI_AVVISO:
+            da_avvisare.append((d, problemi))
+    destinatari = _destinatari()
+    esito["destinatari"] = len(destinatari)
+    if not destinatari:
+        return esito  # nessuno da avvisare: si riprova domani, senza segnarlo come fatto
+    for d, problemi in da_avvisare:
+        testo = (f"{d.ragione_sociale} è attesa in azienda entro il {d.entro_il:%d/%m/%Y} ({d.n_interventi} "
+                 f"{'intervento aperto' if d.n_interventi == 1 else 'interventi aperti'}) con i documenti di "
+                 f"sicurezza non in regola: {problemi}.")
+        url = reverse("fornitori:fornitore_detail", args=[d.fornitore_id])
+        for uid in destinatari:
+            invia_notifica(legacy_user_id=uid, tipo="generico", messaggio=testo[:480], url_azione=url)
+        AvvisoDittaInArrivo.objects.update_or_create(
+            fornitore_id=d.fornitore_id,
+            defaults={"problemi": problemi, "destinatari": len(destinatari), "ultimo_il": oggi},
+        )
+        esito["avvisate"] += 1
+    return esito
+
+
+def run_avvisi_ditte_attese():
+    try:
+        esito = avvisa_ditte_attese()
+    except Exception:
+        logger.exception("Avvisi ditte attese non in regola falliti")
+        return {"ok": False}
+    if esito.get("avvisate"):
+        logger.info("Avvisi ditte attese non in regola: %s", esito)
+    return {"ok": True, **esito}
 
 
 def run_avvisi_ingressi_non_in_regola():

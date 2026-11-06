@@ -160,7 +160,7 @@ def collect_asset(ctx: ScadenzeContext) -> list[ScadenzaItem]:
                 data_scadenza=row.due_date,
                 giorni=_giorni(ctx.oggi, row.due_date),
                 url=row.detail_url,
-                extra={"asset_tag": row.asset_tag},
+                extra={"asset_tag": row.asset_tag, "asset_id": row.asset_id},
                 elemento=row.title or "",
                 elemento_label=row.title or "",
             )
@@ -333,7 +333,11 @@ def collect_dpi(ctx: ScadenzeContext) -> list[ScadenzaItem]:
                 data_scadenza=c.data_scadenza_stimata,
                 giorni=_giorni(ctx.oggi, c.data_scadenza_stimata),
                 url=url,
-                extra={"richiesta": getattr(req, "numero", "")},
+                extra={
+                    "richiesta": getattr(req, "numero", ""),
+                    "legacy_id": getattr(req, "richiedente_legacy_id", None),
+                    "utente_id": None if getattr(req, "richiedente_legacy_id", None) else getattr(req, "created_by_id", None),
+                },
                 elemento=getattr(tipo, "nome", "") or "",
                 elemento_label=getattr(tipo, "nome", "") or "",
             )
@@ -439,7 +443,7 @@ def collect_capa(ctx: ScadenzeContext) -> list[ScadenzaItem]:
             data_scadenza=a.data_scadenza,
             giorni=_giorni(ctx.oggi, a.data_scadenza),
             url=url,
-            extra={"origine": a.origine_label, "stato": a.get_stato_display()},
+            extra={"origine": a.origine_label, "stato": a.get_stato_display(), "utente_id": a.responsabile_id},
             elemento=a.source_code or "manuale",
             elemento_label=a.origine_label or "",
         ))

@@ -78,8 +78,9 @@ GUIDA = {
                     ("Frase in alto", "dice in parole semplici chi vede la voce oggi, contando anche le impostazioni delle voci superiori."),
                     ("Compare nello scadenzario", "in «Spegnere la voce o limitarla alle sole regole». «No» toglie la voce e tutto ciò che sta sotto, a tutti; un elemento sotto può riaccendersi con «Sì». Vuoto = come la voce superiore."),
                     ("Chi la vede", "«Chi ha il permesso del modulo, più le regole» (predefinito): le regole aggiungono persone. «Solo chi è nelle regole»: la vedono solo le regole e gli amministratori."),
-                    ("Regole", "ruolo del portale, ruolo aziendale dell'organigramma (chi lo ricopre oggi) o persona aggiunta a mano. Valgono per la voce e per tutto ciò che sta sotto: le regole che arrivano dalle voci superiori sono elencate a parte."),
-                    ("Vede e gestisce", "solo per le scadenze generiche: inserisce, modifica e rinnova le attività della categoria."),
+                    ("Regole", "ruolo del portale, ruolo aziendale dell'organigramma (chi lo ricopre oggi) o persona aggiunta a mano. Valgono per la voce e per tutto ciò che sta sotto: le regole che arrivano dalle voci superiori sono elencate a parte. Nell'elenco puoi spuntare più ruoli e persone insieme, con «Cerca» e «Scegli tutti»."),
+                    ("Quali scadenze", "«Tutti»: ogni scadenza della voce. «Propri»: quelle legate alla persona (la sua visita, l'azione o l'attività di cui è responsabile, l'asset assegnato a lei o del reparto che guida). «Propri e del team»: anche quelle del suo team. Le scadenze senza una persona collegata passano solo con «Tutti». Non toglie niente a chi ha già il permesso del modulo: per limitarlo usa «Solo chi è nelle regole»."),
+                    ("Vede e gestisce", "solo per le scadenze generiche: inserisce, modifica e rinnova le attività della categoria. Vale sempre su tutta la voce."),
                     ("Chi gestisce questo pannello", "gli amministratori sempre; qui si aggiungono altri ruoli o persone."),
                 ]),
                 ("nota", "Le visite mediche sono dati sanitari: una regola sulle visite le mostra anche a chi non apre il modulo, "

@@ -254,6 +254,14 @@ class RegolaVisibilita(models.Model):
     LIVELLO_GESTISCE = "GESTISCE"
     LIVELLO_CHOICES = [(LIVELLO_VEDE, "Vede"), (LIVELLO_GESTISCE, "Vede e gestisce")]
 
+    # Quali scadenze della voce concede la regola: stessi valori dell'ambito dei ruoli
+    # (core.permessi.registro). «Propri» e «team» guardano la persona a cui è legata la
+    # scadenza; una scadenza senza persona passa solo con «tutti».
+    AMBITO_PROPRI = "propri"
+    AMBITO_TEAM = "team"
+    AMBITO_TUTTI = "tutti"
+    AMBITO_CHOICES = [(AMBITO_PROPRI, "Propri"), (AMBITO_TEAM, "Propri e del team"), (AMBITO_TUTTI, "Tutti")]
+
     chiave = models.CharField(max_length=300, db_index=True)
     ruolo_portale = models.ForeignKey(
         "core.AccessGroup", null=True, blank=True, on_delete=models.CASCADE, related_name="regole_scadenzario",
@@ -264,6 +272,7 @@ class RegolaVisibilita(models.Model):
     persona_legacy_id = models.PositiveIntegerField(null=True, blank=True, db_index=True, help_text="utenti.id")
     persona_nome = models.CharField(max_length=200, blank=True, default="")
     livello = models.CharField(max_length=10, choices=LIVELLO_CHOICES, default=LIVELLO_VEDE)
+    ambito = models.CharField(max_length=10, choices=AMBITO_CHOICES, default=AMBITO_TUTTI)
     creato_da = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
@@ -294,6 +303,15 @@ class RegolaVisibilita(models.Model):
         if self.ruolo_aziendale_id:
             return f"Ruolo aziendale: {self.ruolo_aziendale.nome}"
         return f"Persona: {self.persona_nome or self.persona_legacy_id}"
+
+    @property
+    def chi_valore(self) -> str:
+        """Il destinatario nel formato del modulo «Aggiungi» (``tipo:id``)."""
+        if self.ruolo_portale_id:
+            return f"ruolo_portale:{self.ruolo_portale_id}"
+        if self.ruolo_aziendale_id:
+            return f"ruolo_aziendale:{self.ruolo_aziendale_id}"
+        return f"persona:{self.persona_legacy_id}"
 
     @property
     def destinatario_breve(self) -> str:

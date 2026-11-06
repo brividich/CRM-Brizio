@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 103
+**Totale automazioni disponibili:** 106
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -195,6 +195,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Cosa fa:** Asset IT — indirizzi IP dal DHCP e dal DNS di Windows Server (PowerShell locale, moduli RSAT). Senza RETE_DHCP_SERVERS / RETE_DNS_SERVER nel .env non fa nulla.
 
 ## DPI · Sicurezza
+
+### `dpi_avvisi_consegna`
+
+- **Quando gira:** ogni giorno, ogni ora al minuto */5
+- **Task eseguito:** `dpi.tasks.run_dpi_avvisi_consegna`
+- **Cosa fa:** DPI — mail e PDF delle consegne dal banco rimasti in sospeso perche' il browser si e' chiuso nei secondi dell'annullo. Senza lavoro non fa nulla.
 
 ### `dpi_expiry_reminders`
 
@@ -521,6 +527,18 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 06:25
 - **Task eseguito:** `security.tasks.run_defender_vulnerabilita_task`
 - **Cosa fa:** SOC — CVE viste da Defender, accanto al calcolo del SOC nel pannello CVE. Gira solo con «Confronta le CVE con Defender» acceso in /soc/impostazioni/.
+
+### `fornitori_avvisi_ditte_attese`
+
+- **Quando gira:** da lun a ven, alle 07:10
+- **Task eseguito:** `fornitori.tasks.run_avvisi_ditte_attese`
+- **Cosa fa:** FORNITORI — ditta attesa (manutenzione, OdL o ticket aperti) che non sarà in regola con i documenti di sicurezza: notifica in-app a RSPP/ASPP (mai mail), prima che entri.
+
+### `fornitori_avvisi_ingressi_non_in_regola`
+
+- **Quando gira:** ogni 10 minuti
+- **Task eseguito:** `fornitori.tasks.run_avvisi_ingressi_non_in_regola`
+- **Cosa fa:** FORNITORI — ditta entrata dal GuestPortal con documenti di sicurezza non in regola: notifica in-app a RSPP/ASPP (mai mail), una volta per visita.
 
 ### `presenti_avvisi_uscite`
 

@@ -22,6 +22,7 @@ from datetime import date, timedelta
 from django.utils import timezone
 
 GIORNI_PREAVVISO = 30
+GIORNI_DITTE_ATTESE = 30
 
 # (tipo documento, etichetta breve, obbligatorio)
 REQUISITI: list[tuple[str, str, bool]] = [
@@ -117,8 +118,9 @@ def _stato_da_documenti(accede_in_sede: bool, documenti: list[tuple[str, date | 
     return StatoRequisiti(esito, voci)
 
 
-def stati_per_fornitori(ids, oggi: date | None = None) -> dict[int, StatoRequisiti]:
-    """Stato dei requisiti per molti fornitori con due sole query."""
+def stati_per_fornitori(ids, oggi: date | None = None, al: dict[int, date] | None = None) -> dict[int, StatoRequisiti]:
+    """Stato dei requisiti per molti fornitori con due sole query. ``al``: la data a cui
+    valutare ogni fornitore, se diversa da ``oggi``."""
     from anagrafica.models import Fornitore, FornitoreDocumento
 
     ids = {int(i) for i in ids if i}
@@ -131,13 +133,79 @@ def stati_per_fornitori(ids, oggi: date | None = None) -> dict[int, StatoRequisi
             "fornitore_id", "tipo", "data_scadenza", "pk"):
         docs.setdefault(fid, []).append((tipo, scadenza, pk))
     return {
-        fid: _stato_da_documenti(sede, docs.get(fid, []), oggi)
+        fid: _stato_da_documenti(sede, docs.get(fid, []), (al or {}).get(fid, oggi))
         for fid, sede in Fornitore.objects.filter(pk__in=ids).values_list("pk", "accede_in_sede")
     }
 
 
 def stato_fornitore(fornitore, oggi: date | None = None) -> StatoRequisiti:
     return stati_per_fornitori([fornitore.pk], oggi).get(fornitore.pk) or StatoRequisiti(ESITO_NON_RICHIESTO)
+
+
+@dataclass
+class DittaAttesa:
+    fornitore_id: int
+    ragione_sociale: str
+    n_interventi: int
+    entro_il: date
+    problemi: str
+
+
+def ditte_attese_non_in_regola(oggi: date | None = None) -> list[DittaAttesa]:
+    """Ditte «Lavora nei nostri locali» che devono ancora venire e con i documenti che non
+    saranno in regola: manutenzioni aperte entro ``GIORNI_DITTE_ATTESE`` (anche in ritardo), OdL
+    aperti e ticket delegati aperti. Lo stato si guarda al giorno dell'ultimo intervento atteso:
+    un DURC che scade prima conta già adesso. Una manutenzione raccolta in un OdL aperto della
+    stessa ditta conta una volta sola."""
+    from anagrafica.models import Fornitore
+    from assets.models import MaintenanceOccurrence, WorkOrder
+    from tickets.models import StatoTicket, Ticket
+
+    oggi = oggi or timezone.localdate()
+    limite = oggi + timedelta(days=GIORNI_DITTE_ATTESE)
+    date_per_ditta: dict[int, list[date]] = {}
+
+    occorrenze = MaintenanceOccurrence.objects.filter(
+        status=MaintenanceOccurrence.STATUS_OPEN, due_date__lte=limite,
+        supplier__accede_in_sede=True, supplier__is_active=True,
+    ).values_list("supplier_id", "due_date", "work_order__supplier_id", "work_order__status")
+    for fid, scadenza, ditta_odl, stato_odl in occorrenze:
+        if ditta_odl == fid and stato_odl == WorkOrder.STATUS_OPEN:
+            continue
+        date_per_ditta.setdefault(fid, []).append(max(scadenza, oggi))
+    odl = WorkOrder.objects.filter(
+        status=WorkOrder.STATUS_OPEN, supplier__accede_in_sede=True, supplier__is_active=True,
+    ).values_list("supplier_id", "due_at")
+    for fid, entro in odl:
+        giorno = timezone.localtime(entro).date() if entro else oggi
+        if giorno <= limite:
+            date_per_ditta.setdefault(fid, []).append(max(giorno, oggi))
+    ticket = Ticket.objects.filter(
+        delegato_fornitore__accede_in_sede=True, delegato_fornitore__is_active=True,
+    ).exclude(stato__in=[StatoTicket.CHIUSO, StatoTicket.ANNULLATO]).values_list("delegato_fornitore_id", flat=True)
+    for fid in ticket:
+        date_per_ditta.setdefault(fid, []).append(oggi)
+    if not date_per_ditta:
+        return []
+
+    stati = stati_per_fornitori(date_per_ditta, oggi, al={fid: max(d) for fid, d in date_per_ditta.items()})
+    nomi = dict(Fornitore.objects.filter(pk__in=date_per_ditta).values_list("pk", "ragione_sociale"))
+    esito = []
+    for fid, giorni in date_per_ditta.items():
+        stato = stati.get(fid)
+        if stato is None or stato.esito != ESITO_NON_IN_REGOLA:
+            continue
+        problemi = []
+        for voce in stato.voci:
+            if not voce.obbligatorio or voce.stato not in ("mancante", "scaduto"):
+                continue
+            # «Scaduto» è calcolato alla data dell'intervento: oggi può essere ancora valido.
+            if voce.scadenza is not None and voce.scadenza >= oggi:
+                problemi.append(f"{voce.etichetta} scade il {voce.scadenza:%d/%m/%Y}")
+            else:
+                problemi.append(voce.descrizione)
+        esito.append(DittaAttesa(fid, nomi.get(fid, ""), len(giorni), max(giorni), "; ".join(problemi)))
+    return sorted(esito, key=lambda d: (d.entro_il, d.ragione_sociale))
 
 
 def documenti_con_scadenza(documenti) -> list:

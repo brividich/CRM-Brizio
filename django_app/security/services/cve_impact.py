@@ -269,15 +269,14 @@ APERTI = (SecurityCveImpact.IMPACTS, SecurityCveImpact.TO_VERIFY)
 
 def _risoluzione(record, prima, inst, ctx, now):
     """Perché il PC di ``prima`` (riga del giro precedente, installazione ``inst``) non è più esposto."""
-    from security.services.software_catalog import _famiglia
+    from security.services.software_catalog import stesso_programma
 
     attuali = ctx.per_host.get(prima.host, [])
     come, dopo = SecurityCveRisoluzione.PC_ASSENTE, ""
     if inst is not None and inst.still_detected:
         come, dopo = SecurityCveRisoluzione.RIVALUTATA, inst.version_raw
     elif inst is not None and attuali:
-        famiglia = _famiglia(inst.vendor, inst.product)
-        stesso = [i for i in attuali if (i.vendor, i.product) == (inst.vendor, inst.product) or _famiglia(i.vendor, i.product) == famiglia]
+        stesso = [i for i in attuali if stesso_programma(inst.vendor, inst.product, i.vendor, i.product)]
         if stesso:
             come = SecurityCveRisoluzione.AGGIORNATO
             dopo = ", ".join(sorted({i.version_raw for i in stesso if i.version_raw}))

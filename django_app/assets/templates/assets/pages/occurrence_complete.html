@@ -118,9 +118,21 @@
     <a class="btn btn-secondary" href="{{ back_url }}">Annulla</a>
   </div>
 </form>
-{% if occurrence.is_external or occurrence.supplier_id or occurrence.ingressi_esterni.exists %}
 <div hx-get="{% url 'fornitori:presenze_intervento' 'ordinaria' occurrence.pk %}" hx-trigger="load" hx-swap="outerHTML"><p class="md-note">Caricamento presenze in azienda della ditta…</p></div>
-{% endif %}
+<script>
+/* «Usa nel rapportino» del riquadro Presenze: data e note, a salvare resta la persona. */
+document.body.classList.add('pz-con-rapportino');
+document.addEventListener('click', function (event) {
+  var b = event.target.closest('[data-pz-usa]');
+  if (!b) { return; }
+  var data = document.getElementById('{{ form.completed_on.id_for_label }}');
+  var note = document.getElementById('{{ form.notes.id_for_label }}');
+  if (data) { data.value = b.dataset.giorno; }
+  if (note && note.value.indexOf(b.dataset.nota) === -1) { note.value = (note.value ? note.value + '\n' : '') + b.dataset.nota; }
+  b.textContent = 'Inserito: controlla e salva';
+  if (data) { data.scrollIntoView({block: 'center'}); }
+});
+</script>
 <script>
 document.addEventListener('click', function (event) {
   var button = event.target.closest('[data-md-copy-downtime]');

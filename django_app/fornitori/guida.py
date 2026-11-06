@@ -1,7 +1,8 @@
 """Guida in-app del modulo Fornitori (pulsante «? Guida», ``/fornitori/guida/``).
 
 Etichette e soglie prese dal codice: ``fornitori/requisiti.py`` (requisiti, 30 giorni
-di preavviso), ``fornitori/tasks.py`` (avviso ogni 10 minuti a RSPP/ASPP, solo notifica).
+di preavviso, ditte attese entro 30 giorni), ``fornitori/tasks.py`` (avviso ogni 10 minuti e
+ogni mattina feriale a RSPP/ASPP, solo notifica), ``fornitori/ingressi.py`` (da collegare, 30 giorni).
 """
 from __future__ import annotations
 
@@ -21,8 +22,8 @@ SEZIONI = [
                 ("Elenco fornitori", "ricerca per nome, P.IVA o città; nella colonna «Stato» anche lo stato dei "
                                      "documenti di sicurezza."),
                 ("Scheda fornitore", "dati, ordini, documenti, valutazioni, asset, il riquadro «Requisiti per "
-                                     "lavorare in sede» e le schede «Manutenzione», «Copie MFC», «Scadenze» e "
-                                     "«Tecnici»."),
+                                     "lavorare in sede» e le schede «Manutenzione», «Copie MFC», «Scadenze», "
+                                     "«Tecnici» e «Riepilogo annuale»."),
                 ("+ Crea fornitore", "in «Accessi esterni», accanto a un'azienda che non è tra i fornitori: crea il "
                                      "fornitore con il nome scritto nel GuestPortal e ci registra la persona tra i "
                                      "tecnici. Gli altri dati si completano dopo con «Modifica»; il tecnico non "
@@ -34,8 +35,12 @@ SEZIONI = [
     },
     {
         "id": "scheda-collegamenti",
-        "titolo": "Manutenzione, copie, scadenze e tecnici della ditta",
+        "titolo": "Manutenzione, copie, scadenze, tecnici e riepilogo della ditta",
         "blocchi": [
+            ("p", "«Riepilogo annuale» mette insieme un anno con la ditta: OdL chiusi e costo, ordinarie eseguite e in "
+                  "ritardo, ticket delegati, verifiche, ingressi e ore in azienda, ordini, fatture copie e medie delle "
+                  "valutazioni. Scegli l'anno dal menu (gli ultimi 5). Si guarda solo nel portale, non si esporta, e non "
+                  "dà giudizi: la valutazione resta nella scheda «Valutazioni»."),
             ("p", "Nella scheda del fornitore queste schede raccolgono ciò che esiste già negli altri moduli. Sono "
                   "tutte facoltative: non c'è niente da compilare e una scheda vuota lo dice senza errori."),
             ("def", [
@@ -110,7 +115,12 @@ SEZIONI = [
                 "ogni 10 minuti il portale manda una notifica (mai una mail) a chi ricopre oggi i ruoli RSPP o ASPP "
                 "nell'organigramma, una sola volta per ingresso, con il link alla scheda del fornitore.",
             ]),
-            ("nota", "L'avviso non blocca l'ingresso: decide chi è in portineria con l'RSPP."),
+            ("p", "Prima che la ditta entri: se ha una manutenzione aperta entro 30 giorni (anche in ritardo), un OdL o "
+                  "un ticket delegato aperti e a quella data i documenti non saranno in regola, ogni mattina dal lunedì "
+                  "al venerdì RSPP e ASPP ricevono una notifica. Per la stessa ditta si ripete solo se i problemi cambiano "
+                  "o dopo 14 giorni. Lo stesso elenco è in «Ditte attese con i documenti non in regola», nella pagina "
+                  "iniziale di Fornitori."),
+            ("nota", "Gli avvisi non bloccano l'ingresso: decide chi è in portineria con l'RSPP."),
         ],
     },
     {

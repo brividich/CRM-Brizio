@@ -11,7 +11,10 @@ Su ogni chiave il pannello «Gestione scadenzario» può dire:
 - **modalità**: «chi ha il permesso del modulo, più le regole» (predefinita)
   oppure «solo chi è nelle regole».
 - **regole**: ruoli del portale, ruoli aziendali (organigramma) e persone
-  aggiunte a mano che vedono la voce e tutto ciò che sta sotto.
+  aggiunte a mano che vedono la voce e tutto ciò che sta sotto. Ogni regola ha un
+  **ambito**: «tutti» (ogni scadenza della voce), «propri» (quelle legate alla
+  persona) o «team» (anche quelle delle persone del suo team). Una scadenza senza
+  una persona determinabile passa solo con «tutti».
 
 Decisione per una voce e una persona:
 
@@ -75,6 +78,16 @@ class Identita:
     ruoli_portale: frozenset[int] = frozenset()
     ruoli_aziendali: frozenset[int] = frozenset()
     amministratore: bool = False
+    _team: frozenset[int] | None = field(default=None, repr=False)
+
+    @property
+    def team(self) -> frozenset[int]:
+        """``utenti.id`` del team, letti una sola volta per richiesta."""
+        if self._team is None:
+            from core.permessi.team import team_di
+
+            self._team = team_di(self.legacy_user_id)
+        return self._team
 
 
 def ruoli_aziendali_di(legacy_user_id: int | None) -> frozenset[int]:
@@ -170,15 +183,31 @@ class Configurazione:
             esito.extend(self.regole.get(chiave, ()))
         return esito
 
-    def concede(self, ident: Identita, chiavi: list[str], *, gestione: bool = False) -> bool:
+    def concede(self, ident: Identita, chiavi: list[str], *, gestione: bool = False,
+                proprietari: frozenset[int] | None = None, ignora_ambito: bool = False) -> bool:
+        """Una regola concede la voce alla persona?
+
+        ``proprietari``: ``utenti.id`` della singola scadenza. Senza, la domanda è
+        sull'intera voce e contano solo le regole con ambito «tutti». ``ignora_ambito``:
+        basta una regola qualsiasi («vede almeno qualcosa qui sotto?»).
+        """
         from .models import RegolaVisibilita
 
         for r in self.regole_su(chiavi):
             if gestione and r.livello != RegolaVisibilita.LIVELLO_GESTISCE:
                 continue
-            if regola_vale_per(r, ident):
+            if regola_vale_per(r, ident) and (ignora_ambito or ambito_copre(r, ident, proprietari)):
                 return True
         return False
+
+    def ha_ambiti_limitati(self, ident: Identita) -> bool:
+        """La persona ha almeno una regola «propri» o «team»: servono i proprietari."""
+        from .models import RegolaVisibilita
+
+        return any(
+            r.ambito != RegolaVisibilita.AMBITO_TUTTI and regola_vale_per(r, ident)
+            for regole in self.regole.values() for r in regole
+        )
 
     def fonti_concesse(self, ident: Identita) -> set[str]:
         """Fonti in cui almeno una regola concede qualcosa alla persona."""
@@ -198,6 +227,93 @@ def regola_vale_per(regola, ident: Identita) -> bool:
         return int(regola.ruolo_aziendale_id) in ident.ruoli_aziendali
     return bool(regola.persona_legacy_id and ident.legacy_user_id
                 and int(regola.persona_legacy_id) == int(ident.legacy_user_id))
+
+
+def ambito_copre(regola, ident: Identita, proprietari: frozenset[int] | None) -> bool:
+    """Stessa logica di ``core.permessi.puo_fare``: senza proprietario, solo «tutti»."""
+    from .models import RegolaVisibilita
+
+    if regola.ambito == RegolaVisibilita.AMBITO_TUTTI:
+        return True
+    if not proprietari or not ident.legacy_user_id:
+        return False
+    if int(ident.legacy_user_id) in proprietari:
+        return True
+    return regola.ambito == RegolaVisibilita.AMBITO_TEAM and bool(proprietari & ident.team)
+
+
+# ---------------------------------------------------------------------------
+# A chi è legata una scadenza (per gli ambiti «propri» e «team»)
+# ---------------------------------------------------------------------------
+
+def _legacy_da_utenti(user_ids) -> dict[int, int]:
+    """{id utente Django: utenti.id}."""
+    ids = {int(u) for u in user_ids if u}
+    if not ids:
+        return {}
+    from core.models import Profile
+
+    return {int(u): int(leg) for u, leg in Profile.objects.filter(user_id__in=ids).values_list("user_id", "legacy_user_id") if leg}
+
+
+def _legacy_da_anagrafiche(anagrafica_ids) -> dict[int, int]:
+    """{id anagrafica: utenti.id}."""
+    ids = {int(a) for a in anagrafica_ids if a}
+    if not ids:
+        return {}
+    from core.legacy_models import AnagraficaDipendente
+
+    return {int(a): int(u) for a, u in AnagraficaDipendente.objects.filter(id__in=ids).values_list("id", "utente_id") if u}
+
+
+def _legacy_da_asset(asset_ids) -> dict[int, frozenset[int]]:
+    """{id asset: utenti.id}: la persona assegnata o i capi del reparto (come i permessi degli asset)."""
+    ids = {int(a) for a in asset_ids if a}
+    if not ids:
+        return {}
+    from assets.models import Asset
+    from assets.registro_permessi import proprietario_asset
+
+    esito, gia = {}, {}
+    for asset in Asset.objects.filter(pk__in=ids):
+        chiave = (asset.assigned_legacy_user_id, asset.assignment_to, asset.asset_type, asset.reparto, asset.assignment_reparto)
+        if chiave not in gia:
+            valore = proprietario_asset(asset)
+            if isinstance(valore, (set, frozenset, list, tuple)):
+                gia[chiave] = frozenset(int(v) for v in valore if v)
+            else:
+                gia[chiave] = frozenset({int(valore)}) if valore else frozenset()
+        esito[asset.pk] = gia[chiave]
+    return esito
+
+
+def proprietari_voci(voci) -> dict[int, frozenset[int]]:
+    """{id(voce): utenti.id delle persone a cui è legata}.
+
+    Dagli ``extra`` delle fonti: ``legacy_user_id`` (utenti.id), ``legacy_id`` (id
+    anagrafica), ``utente_id``/``responsabile_id`` (utente Django), ``asset_id``. Una
+    conversione che fallisce lascia la voce senza proprietario: passa solo con «tutti».
+    """
+    def _leggi(funzione, chiavi_extra):
+        valori = {(v.extra or {}).get(k) for v in voci for k in chiavi_extra}
+        try:
+            return funzione(valori)
+        except Exception:
+            logger.warning("scadenzario: proprietari non leggibili (%s)", chiavi_extra, exc_info=True)
+            return {}
+
+    da_utenti = _leggi(_legacy_da_utenti, ("utente_id", "responsabile_id"))
+    da_anagrafiche = _leggi(_legacy_da_anagrafiche, ("legacy_id",))
+    da_asset = _leggi(_legacy_da_asset, ("asset_id",))
+    esito = {}
+    for v in voci:
+        extra = v.extra or {}
+        persone = set(da_asset.get(extra.get("asset_id"), ()))
+        persone.update(da_utenti.get(extra.get(k)) for k in ("utente_id", "responsabile_id"))
+        persone.add(da_anagrafiche.get(extra.get("legacy_id")))
+        persone.add(extra.get("legacy_user_id"))
+        esito[id(v)] = frozenset(int(p) for p in persone if p)
+    return esito
 
 
 def configurazione_di(soggetto) -> Configurazione:
@@ -245,13 +361,16 @@ def applica(request, voci_modulo: list, *, raccogli_sistema, sources: set[str] |
         ident = identita_di(request)
         from .models import VoceConfig
 
+        # I proprietari servono (e si leggono) solo a chi ha una regola «propri» o «team».
+        limitati = conf.ha_ambiti_limitati(ident)
+        proprietari = proprietari_voci(voci_modulo) if limitati else {}
         esito, visti = [], set()
         for item in voci_modulo:
             chiavi = chiavi_voce(item)
             if not conf.attiva(chiavi):
                 continue
             if (conf.modalita(chiavi) == VoceConfig.MODALITA_REGOLE and not ident.amministratore
-                    and not conf.concede(ident, chiavi)):
+                    and not conf.concede(ident, chiavi, proprietari=proprietari.get(id(item)))):
                 continue
             esito.append(item)
             visti.add(_id_voce(item))
@@ -260,11 +379,13 @@ def applica(request, voci_modulo: list, *, raccogli_sistema, sources: set[str] |
         if sources is not None:
             fonti &= set(sources)
         if fonti:
-            for item in raccogli_sistema(fonti):
+            di_sistema = raccogli_sistema(fonti)
+            proprietari = proprietari_voci(di_sistema) if limitati else {}
+            for item in di_sistema:
                 if _id_voce(item) in visti:
                     continue
                 chiavi = chiavi_voce(item)
-                if conf.attiva(chiavi) and conf.concede(ident, chiavi):
+                if conf.attiva(chiavi) and conf.concede(ident, chiavi, proprietari=proprietari.get(id(item))):
                     esito.append(item)
                     visti.add(_id_voce(item))
         esito.sort(key=lambda it: (it.giorni is None, it.giorni if it.giorni is not None else 0))

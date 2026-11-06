@@ -27,7 +27,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from . import guestportal as gp
-from .models import DittaGuestPortal, IngressoIntervento, TecnicoFornitore
+from .models import DittaGuestPortal, IngressoIntervento, IngressoSenzaIntervento, TecnicoFornitore
 from .nomi import chiave_ditta, chiave_persona, unico
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,11 @@ FINESTRA_MAX_GIORNI = 90
 TOLLERANZA_MINUTI = 15
 GIORNI_PROPOSTE_SCADENZE = 30
 ELENCO_MAX_SCADENZE = 200
+GIORNI_DA_COLLEGARE = 30
+FILTRI_TIPO = (
+    (TIPO_TICKET, "Ticket"), (TIPO_ODL, "Straordinarie e OdL"), (TIPO_ORDINARIA, "Ordinarie"),
+    (TIPO_AMMINISTRATIVA, "Scadenze asset"), (TIPO_SCADENZA, "Scadenzario"), (TIPO_FORMAZIONE, "Formazione"),
+)
 GIORNI_PRIMA_ELENCO = 60
 GIORNI_DOPO_ELENCO = 60
 _CAMPI_DESTINAZIONE = {
@@ -89,6 +94,9 @@ class Intervento:
         """Senza ditta e con un posto libero: un ente già scritto a mano non si sovrascrive."""
         if self.tipo not in TIPI or self.fornitore is not None:
             return False
+        # Ticket e OdL già chiusi: l'ingresso si collega, ma il lavoro chiuso non cambia ditta.
+        if self.tipo in (TIPO_TICKET, TIPO_ODL) and self.concluso:
+            return False
         return not (self.tipo == TIPO_AMMINISTRATIVA and self.oggetto.issuer.strip())
 
     @property
@@ -113,8 +121,10 @@ class Intervento:
 
     @property
     def tipo_label(self) -> str:
+        if self.tipo == TIPO_ODL and self.oggetto.kind == self.oggetto.KIND_CORRECTIVE:
+            return "Straordinaria"
         return {
-            TIPO_TICKET: "Ticket", TIPO_ODL: "OdL", TIPO_FORMAZIONE: "Formazione", TIPO_ORDINARIA: "Manutenzione",
+            TIPO_TICKET: "Ticket", TIPO_ODL: "OdL", TIPO_FORMAZIONE: "Formazione", TIPO_ORDINARIA: "Ordinaria",
             TIPO_AMMINISTRATIVA: "Scadenza asset", TIPO_SCADENZA: "Scadenzario",
         }[self.tipo]
 
@@ -173,13 +183,22 @@ class Intervento:
         return self.oggetto.issuer if self.tipo == TIPO_AMMINISTRATIVA else ""
 
     @property
-    def chiuso(self) -> bool:
+    def concluso(self) -> bool:
+        """Lavoro finito: si possono ancora collegare ingressi, spesso il rapportino arriva dopo."""
         if self.tipo == TIPO_TICKET:
             return bool(self.oggetto.is_chiuso)
-        if self.tipo == TIPO_ODL:
-            return self.oggetto.status != self.oggetto.STATUS_OPEN
-        if self.tipo == TIPO_ORDINARIA:
-            # Eseguita resta collegabile: spesso l'ingresso si collega dopo aver registrato il lavoro.
+        if self.tipo in (TIPO_ODL, TIPO_ORDINARIA):
+            return self.oggetto.status == self.oggetto.STATUS_DONE
+        return False
+
+    @property
+    def chiuso(self) -> bool:
+        """Non si collega più niente: annullato o non più attivo. Eseguito o chiuso resta collegabile."""
+        if self.tipo == TIPO_TICKET:
+            from tickets.models import StatoTicket
+
+            return self.oggetto.stato == StatoTicket.ANNULLATO
+        if self.tipo in (TIPO_ODL, TIPO_ORDINARIA):
             return self.oggetto.status == self.oggetto.STATUS_CANCELED
         if self.tipo in (TIPO_AMMINISTRATIVA, TIPO_SCADENZA):
             return not self.oggetto.is_active
@@ -488,7 +507,7 @@ def collega(
     imposta (``link.nota_ditta`` dice cosa è cambiato).
     """
     if iv.chiuso:
-        raise CollegamentoNonValido("L'intervento è chiuso: non si possono più collegare ingressi.")
+        raise CollegamentoNonValido("L'intervento è annullato: non si possono più collegare ingressi.")
     accesso = gp.visita(visita_id)
     if accesso is None:
         raise CollegamentoNonValido("Ingresso non trovato nel GuestPortal (forse già cancellato).")
@@ -574,14 +593,31 @@ def imposta_ditta_da_collegamento(iv: Intervento, link: IngressoIntervento, *, u
 
 
 ODL_MAX_ELENCO = 300
+CHIUSI_MAX_ELENCO = 100
+GIORNI_CHIUSI_ELENCO = 60
+
+
+def _filtro_chiusi(accesso: gp.Accesso | None, testo: str):
+    """Quali ticket e OdL già chiusi proporre: con una ricerca tutti, altrimenti quelli chiusi
+    dal giorno prima dell'ingresso ai due mesi dopo. ``None``: nessuno."""
+    from django.db.models import Q
+
+    if testo:
+        return Q()
+    if accesso is None or not accesso.ingresso:
+        return None
+    giorno = timezone.localtime(_aware(accesso.ingresso)).date() - timedelta(days=1)
+    inizio = timezone.make_aware(datetime.combine(giorno, datetime.min.time()))
+    return Q(closed_at__gte=inizio, closed_at__lt=inizio + timedelta(days=GIORNI_CHIUSI_ELENCO + 2))
 
 
 def interventi_aperti(
     request, *, testo: str = "", fornitore=None, accesso: gp.Accesso | None = None,
 ) -> list[Intervento]:
-    """Ticket MAN e OdL aperti a cui l'utente può collegare un ingresso, per il
-    collegamento partendo dall'ingresso, più le sessioni formative in corso il
-    giorno dell'ingresso. Prima quelli della stessa ditta o con quel docente."""
+    """Ticket (MAN o delegati a una ditta) e OdL a cui l'utente può collegare un ingresso, per il
+    collegamento partendo dall'ingresso: gli aperti e i chiusi di quel periodo (vedi
+    ``_filtro_chiusi``), più le sessioni formative in corso il giorno dell'ingresso.
+    Prima quelli della stessa ditta o con quel docente."""
     from django.db.models import Q
 
     from assets.models import WorkOrder
@@ -590,25 +626,33 @@ def interventi_aperti(
     testo = (testo or "").strip()
     esito: list[Intervento] = []
 
-    tickets = Ticket.objects.filter(tipo=TipoTicket.MAN).exclude(
-        stato__in=[StatoTicket.CHIUSO, StatoTicket.ANNULLATO]
+    filtro_chiusi = _filtro_chiusi(accesso, testo)
+    tickets = Ticket.objects.filter(
+        Q(tipo=TipoTicket.MAN) | Q(delegato_fornitore__isnull=False)
     ).select_related("delegato_fornitore")
     if testo:
         tickets = tickets.filter(Q(numero_ticket__icontains=testo) | Q(titolo__icontains=testo))
     from tickets.services.accesso import utente_puo_gestire_ticket
 
-    for t in tickets.order_by("-created_at")[:200]:
-        if utente_puo_gestire_ticket(request, t):
-            esito.append(Intervento(TIPO_TICKET, t))
+    ticket_trovati = list(tickets.exclude(stato__in=[StatoTicket.CHIUSO, StatoTicket.ANNULLATO])
+                          .order_by("-created_at")[:200])
+    if filtro_chiusi is not None:
+        ticket_trovati += list(tickets.filter(filtro_chiusi, stato=StatoTicket.CHIUSO)
+                               .order_by("-closed_at")[:CHIUSI_MAX_ELENCO])
+    esito.extend(Intervento(TIPO_TICKET, t) for t in ticket_trovati if utente_puo_gestire_ticket(request, t))
 
     if puo_collegare_odl(request):
-        odl = WorkOrder.objects.filter(status=WorkOrder.STATUS_OPEN).select_related("asset", "supplier")
+        odl = WorkOrder.objects.select_related("asset", "supplier")
         if testo:
             filtro = Q(title__icontains=testo) | Q(asset__name__icontains=testo) | Q(asset__asset_tag__icontains=testo)
             if testo.isdigit():
                 filtro |= Q(pk=int(testo))
             odl = odl.filter(filtro)
-        esito.extend(Intervento(TIPO_ODL, w) for w in odl.order_by("-opened_at")[:ODL_MAX_ELENCO])
+        esito.extend(Intervento(TIPO_ODL, w) for w in
+                     odl.filter(status=WorkOrder.STATUS_OPEN).order_by("-opened_at")[:ODL_MAX_ELENCO])
+        if filtro_chiusi is not None:
+            esito.extend(Intervento(TIPO_ODL, w) for w in odl.filter(filtro_chiusi, status=WorkOrder.STATUS_DONE)
+                         .order_by("-closed_at")[:CHIUSI_MAX_ELENCO])
 
     docente_di: set[int] = set()
     if accesso is not None and accesso.ingresso and puo_collegare_formazione(request):
@@ -835,7 +879,52 @@ def confronto_ore(iv: Intervento, collegamenti: list[IngressoIntervento]) -> Con
         ore = [o for o in ore if o is not None]
         if ore:
             dichiarate = int(round(sum(ore) * 60))
+    elif iv.tipo == TIPO_ODL and iv.oggetto.intervention_duration_minutes:
+        dichiarate = int(iv.oggetto.intervention_duration_minutes)
     return ConfrontoOre(presenza_minuti=presenza, dichiarate_minuti=dichiarate, ingressi_aperti=aperti)
+
+
+def dati_rapportino(iv: Intervento, collegamenti: list[IngressoIntervento]) -> dict | None:
+    """Cosa propone «Usa nel rapportino»: ore, orari e tecnici dagli ingressi già usciti.
+
+    Il riquadro li mette nel form della pagina che lo ospita; a salvare resta la persona.
+    ``None`` se l'intervento non ha un rapportino da compilare o nessuno è ancora uscito."""
+    if iv.tipo not in (TIPO_TICKET, TIPO_ODL, TIPO_ORDINARIA) or iv.concluso:
+        return None
+    usciti = [c for c in collegamenti if c.ingresso and c.uscita]
+    if not usciti:
+        return None
+    minuti = sum(c.durata_minuti or 0 for c in usciti)
+    dal = timezone.localtime(min(c.ingresso for c in usciti))
+    al = timezone.localtime(max(c.uscita for c in usciti))
+    tecnici = list(dict.fromkeys(c.tecnico_nome for c in usciti if c.tecnico_nome))
+    righe = [
+        f"{c.tecnico_nome or 'Tecnico'} {timezone.localtime(c.ingresso):%d/%m %H:%M}"
+        f"-{timezone.localtime(c.uscita):%H:%M}" for c in usciti
+    ]
+    return {
+        "minuti": minuti,
+        "ore": f"{minuti / 60:.2f}",
+        "etichetta": _ore_label(minuti),
+        "dal": f"{dal:%Y-%m-%dT%H:%M}",
+        "al": f"{al:%Y-%m-%dT%H:%M}",
+        "giorno": f"{al:%Y-%m-%d}",
+        "tecnici": ", ".join(tecnici),
+        "nota": f"In azienda {_ore_label(minuti)}: " + "; ".join(righe) + ".",
+    }
+
+
+def ingressi_da_collegare(accessi: list[gp.Accesso]) -> list[gp.Accesso]:
+    """Tra questi ingressi, quelli di una ditta senza un intervento collegato e non segnati
+    «Non serve». Visitatori e dati anonimizzati restano fuori. ``fornitore_id`` è quello di
+    ``requisiti.abbina_fornitori``."""
+    candidati = [a for a in accessi if (a.tipo == "SUPPLIER" or a.fornitore_id) and a.nome != "Ospite anonimizzato"]
+    ids = [a.visita_id for a in candidati]
+    if not ids:
+        return []
+    fatti = set(IngressoIntervento.objects.filter(visita_gp_id__in=ids).values_list("visita_gp_id", flat=True))
+    fatti |= set(IngressoSenzaIntervento.objects.filter(visita_gp_id__in=ids).values_list("visita_gp_id", flat=True))
+    return [a for a in candidati if a.visita_id not in fatti]
 
 
 def interventi_per_visite(visita_ids: list[int]) -> dict[int, list[tuple[str, str]]]:

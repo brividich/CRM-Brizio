@@ -69,8 +69,8 @@ class CollegamentoTests(BaseIngressi):
                 ing.collega(iv, 11, utente=self.admin, modo="MANUALE")
         self.assertEqual(IngressoIntervento.objects.filter(work_order=self.odl).count(), 1)
 
-    def test_intervento_chiuso_rifiuta(self):
-        self.ticket.stato = StatoTicket.CHIUSO
+    def test_intervento_annullato_rifiuta(self):
+        self.ticket.stato = StatoTicket.ANNULLATO
         self.ticket.save()
         iv = ing.intervento(ing.TIPO_TICKET, self.ticket.pk)
         with patch.object(gp, "visita", return_value=_accesso()), self.assertRaises(ing.CollegamentoNonValido):

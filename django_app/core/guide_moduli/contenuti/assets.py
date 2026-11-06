@@ -152,9 +152,9 @@ GUIDA = {
                     "risoluzione si scrive solo in «Chiudi intervento». Le foto scelte in «Allegati» si vedono subito in anteprima. Ogni intervento, anche già chiuso, si corregge "
                     "con «✎ Modifica» (in testa e nel riquadro Panoramica; su un chiuso anche «Cosa è stato fatto»); "
                     "stato ed esito non cambiano e ogni modifica finisce nel registro dell'intervento.",
-                    "Ditte esterne: in ogni OdL aperto il riquadro «Presenze in azienda della ditta» propone gli "
+                    "Ditte esterne: nell'OdL, anche chiuso, e in «Chiudi intervento» il riquadro «Presenze in azienda della ditta» propone gli "
                     "ingressi della ditta registrati al chiosco della reception; «Collega» li lega all'OdL come prova "
-                    "dell'intervento. Se l'OdL era Interno e la ditta si riconosce, passa a Esterno con quella ditta "
+                    "dell'intervento e «Usa nel rapportino» riempie «Tempo impiegato» e chiusura con le ore in azienda. Se l'OdL aperto era Interno e la ditta si riconosce, passa a Esterno con quella ditta "
                     "(guida Fornitori, «Collegare l'ingresso della ditta»).",
                     "«Scheda di lavoro» stampa macchina, dati dell'intervento, note, checklist dell'intervento e, se chiuso, "
                     "esito e «Cosa è stato fatto». Nello Scadenzario la colonna Asset mostra in grande il nome della macchina.",
@@ -410,6 +410,22 @@ GUIDA = {
                       "fornisce, la scadenza. Nome, assegnatario e note restano quelli scritti nel portale; le licenze inserite a mano non "
                       "vengono toccate. Permessi Graph Organization.Read.All e, per le date, LicenseAssignment.Read.All. "
                       "Prova dal terminale: m365_licenze --prova."),
+            ],
+        },
+        {
+            "id": "catalogo_programmi",
+            "titolo": "Trovare un programma nel Catalogo software",
+            "blocchi": [
+                ("p", "Ogni programma è una riga sola: versioni, anno, architettura e lingua nel nome non lo dividono "
+                      "(«7-Zip 25.01 (x64)» e «7-Zip 26.05 (x64 edition)» sono «7-Zip», MUD 2024 e 2025 sono «MUD»), e nemmeno "
+                      "un produttore scritto diversamente dalle fonti. Il numero che fa parte del nome resta: Windows 10 e 11 "
+                      "sono righe separate, e anche Visual C++ 2013 e 2015."),
+                ("passi", [
+                    "Nella casella Cerca sopra la tabella scrivi programma, produttore o versione: filtra mentre scrivi e spazi e trattini non contano («7zip» trova 7-Zip).",
+                    "Apri il programma: la sezione «Nomi raggruppati in questo programma» dice come lo riportano le fonti.",
+                    "La decisione (classificazione, licenza, versione minima) vale per tutto il programma e resta dopo un aggiornamento.",
+                    "Raggruppamento sbagliato? Gli amministratori del modulo premono «Separa» accanto a un nome, oppure scelgono un programma in «Unisci a un altro programma». Si annulla dalla stessa sezione.",
+                ]),
             ],
         },
         {
