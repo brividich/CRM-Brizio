@@ -77,7 +77,7 @@ GUIDA = {
                     "Clicca «Le mie richieste».",
                     "Le schede in alto (In attesa, Approvate, Rifiutate, Tutte) filtrano l'elenco.",
                     "Una richiesta ancora «In attesa» si può correggere con «Modifica» o togliere con «Elimina».",
-                    "Se il capo non decide, con «Sollecita» gli mandi una mail di promemoria per quella richiesta. Dopo l'invio "
+                    "Se il capo non decide, con «Sollecita» gli rimandi la richiesta da approvare: la mail non dice che l'hai chiesto tu. Dopo l'invio "
                     "il pulsante diventa «Sollecitata» e resta fermo per i giorni di «Ripeti il sollecito ogni» (predefinito 2): "
                     "conta anche il promemoria automatico del mattino.",
                     "Ogni modifica (date, tipo, motivazione, «Certificato arrivato») manda una mail «Richiesta modificata» "
@@ -125,8 +125,10 @@ GUIDA = {
                       "del capo che le approva. Se una richiesta cambia l'evento si aggiorna, se viene rifiutata o eliminata "
                       "sparisce. Se cancelli tu un evento da Outlook, il portale non lo rimette. In questo caso le mail non "
                       "hanno più il pulsante «Aggiungi al calendario Outlook»."),
-                ("p", "Se una richiesta resta «In attesa» ricevi nei giorni feriali alle 08:15 un promemoria con l'elenco "
-                      "(di norma dopo 2 giorni, poi ogni 2 giorni finché non decidi)."),
+                ("p", "Se una richiesta resta «In attesa» ricevi nei giorni feriali alle 08:15 la mail «richieste di assenza da approvare» "
+                      "con l'elenco (di norma dopo 2 giorni, poi ogni 2 giorni finché non decidi). Accanto a ogni richiesta ci sono "
+                      "«Approva» e «Rifiuta»: si apre la conferma e con un clic hai deciso. Se la richiesta di approvazione è scaduta "
+                      "i pulsanti non ci sono: decidi da «Assenze del reparto»."),
                 ("p", "Dalla dashboard del reparto, «Il mio team» apre in Anagrafica l'elenco delle persone di cui sei "
                       "responsabile con il semaforo di conformità alla mansione (nessun dato sanitario)."),
                 ("p", "La dashboard del reparto conta le stesse persone di «Il mio team»: «Oggi», «Settimana» e "
@@ -475,6 +477,8 @@ GUIDA = {
             "fare": [
                 "Area HR → «Calendario aziendale» → «Orario, patrono e solleciti»: «Solleciti ai capi attivi» deve essere spuntato.",
                 "Il capo deve avere un'email in anagrafica: senza email la richiesta viene saltata.",
+                "Oggetto della mail: «Richiesta di assenza da approvare» o «N richieste di assenza da approvare». I pulsanti "
+                "«Approva» e «Rifiuta» compaiono se la richiesta di approvazione è ancora aperta (non scaduta) e il capo è fra i suoi approvatori.",
                 "Le richieste nate su SharePoint non vengono sollecitate: le gestisce il flusso Power Automate.",
                 "Monitoring → «Salute degli schedule»: controlla «assenze_solleciti».",
             ],
