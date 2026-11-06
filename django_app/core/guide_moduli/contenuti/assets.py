@@ -127,7 +127,7 @@ GUIDA = {
                 ("p", "Dal QR, «Segnala guasto ora» apre una pagina per il telefono: la macchina è già indicata, "
                       "scegli quanto è urgente e allega fino a 3 foto. La categoria è facoltativa."),
                 ("p", "Quando il manutentore crea l'intervento la segnalazione passa a «In carico»; chiudendo l'intervento "
-                      "con esito «Risolto» può segnarla anche come «Risolto»."),
+                      "con esito «Risolto» si chiude anche lei."),
             ],
         },
         {
@@ -168,8 +168,8 @@ GUIDA = {
                     "Negli altri interventi giorni di lavoro, codici guasto, costi, contratto e nota sono in «Altri dettagli». Se lo stesso "
                     "intervento è aperto su altri asset, «Stesso intervento su altri asset» li chiude insieme (stesso "
                     "esito, data, esecutore e descrizione; tempo, fermo, costi e allegati solo su quello aperto).",
-                    "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» la casella «Segna anche la "
-                    "segnalazione … come Risolta» si spunta da sola (solo per chi gestisce i ticket di manutenzione); "
+                    "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» si chiude anche la "
+                    "segnalazione (per chi gestisce i ticket di manutenzione, se non c'è un altro intervento aperto); "
                     "con «Risolto temporaneamente» o «Non risolto» la segnalazione non cambia. Il fermo parte da quello "
                     "indicato nella segnalazione.",
                     "Una manutenzione che non si riesce a fare in tempo si rinvia («Rinvia» nella pagina «Registra», "
@@ -862,10 +862,10 @@ GUIDA = {
             ],
         },
         {
-            "sintomo": "Chiudendo l'intervento non compare «Segna anche la segnalazione come Risolta»",
+            "sintomo": "Ho chiuso l'intervento ma la segnalazione è rimasta aperta",
             "fare": [
-                "La casella compare solo se la segnalazione è ancora aperta e solo a chi gestisce i ticket di manutenzione.",
-                "Chiudi l'intervento e chiedi a un gestore dei ticket di risolvere la segnalazione dal modulo Ticket.",
+                "Si chiude da sola solo con esito «Risolto», se chi chiude gestisce i ticket di manutenzione e non c'è un altro intervento aperto sulla stessa segnalazione.",
+                "Altrimenti chiudi gli altri interventi, o chiedi a un gestore di chiuderla dal modulo Ticket con «Risolvi».",
             ],
         },
         {

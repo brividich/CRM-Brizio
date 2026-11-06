@@ -147,6 +147,9 @@ def _persone_per_conto_di(escludi_id: int | None) -> list[dict]:
     return [{"id": u.pk, "label": u.get_full_name() or u.get_username()} for u in qs]
 
 
+# Testi pronti per l'aggiornamento al richiedente, nella scheda di gestione.
+RISPOSTE_RAPIDE = ("Ricambio ordinato", "Arrivo tra poco", "Serve fornitore esterno")
+
 # Viste dell'elenco di gestione: la prima è quella con cui si apre.
 VISTE_GESTIONE = {
     "fare": "Da fare",
@@ -1803,14 +1806,12 @@ def ticket_gestione_list(request):
     mostra_man = can_man and tipo_f in ("", TipoTicket.MAN)
     tipi_mostrati = [t for t, ok in ((TipoTicket.IT, mostra_it), (TipoTicket.MAN, mostra_man)) if ok]
 
-    def _elenco(tipo):
-        qs = base.filter(tipo=tipo)
+    tickets_lista = None
+    if tipi_mostrati:
+        qs_lista = base.filter(tipo__in=tipi_mostrati)
         if vista_attiva:
-            qs = qs.filter(_q_vista(vista_attiva))
-        return _apply_filters(qs)
-
-    tickets_it = _elenco(TipoTicket.IT) if mostra_it else None
-    tickets_man = _elenco(TipoTicket.MAN) if mostra_man else None
+            qs_lista = qs_lista.filter(_q_vista(vista_attiva))
+        tickets_lista = _apply_filters(qs_lista)
 
     # Stessi filtri dell'elenco, così il numero sulla vista è quello delle righe.
     parametri_viste = request.GET.copy()
@@ -1833,8 +1834,8 @@ def ticket_gestione_list(request):
     # solo IT non deve contare i ticket di manutenzione.
     kpi_qs = Ticket.objects.filter(tipo__in=[t for t, ok in ((TipoTicket.IT, can_it), (TipoTicket.MAN, can_man)) if ok])
     ctx = {
-        "tickets_it":    tickets_it,
-        "tickets_man":   tickets_man,
+        "tickets_lista": tickets_lista,
+        "tabella_id":    (tipo_f or "tutti").lower(),
         "tab_attivo":    tipo_f or "TUTTI",
         "viste_gestione": viste_gestione,
         "filtro_vista":   vista_f,
@@ -1946,6 +1947,7 @@ def ticket_gestione_detail(request, pk: int):
         "e_mio":            _e_mio(ticket, name, email),
         "puo_risolvere":    ticket.stato in STATI_APERTI,
         "ore_proposte":     _ore_proposte(ticket),
+        "risposte_rapide":  RISPOSTE_RAPIDE,
         "apri_risolvi":     request.GET.get("azione") == "risolvi",
         "appena_chiuso":    request.GET.get("chiuso") == "1" and ticket.stato == StatoTicket.CHIUSO,
     }
@@ -3546,7 +3548,7 @@ def api_crea_workorder_da_ticket(request):
         return denied
 
     if not ticket.asset_id:
-        return _json_err("Il ticket non ha un asset collegato. Collegare prima l'asset dalla tab 'Asset e KPI'.")
+        return _json_err("Il ticket non ha un asset collegato: collegalo prima dal riquadro «Asset collegato».")
 
     from assets.models import WorkOrder
 
