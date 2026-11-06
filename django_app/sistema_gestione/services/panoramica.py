@@ -28,6 +28,7 @@ ALTA, MEDIA, BASSA = 0, 1, 2
 TONI = {ALTA: "danger", MEDIA: "warn", BASSA: ""}
 GIORNI_VICINI = 30
 GIORNI_AUDITOR = 60
+GIORNI_RIESAME = 60
 
 
 def _voce(priorita: int, testo: str, url: str, azione: str, data=None, dettaglio: str = "") -> dict:
@@ -109,8 +110,33 @@ def _audit_interni(oggi) -> list[dict]:
     return voci
 
 
-def da_fare(oggi=None) -> list[dict]:
+def _riesame(oggi) -> list[dict]:
+    from ..models import Riesame
+    from .riesame import obiettivi_aperti, prossimo_riesame
+
+    elenco = reverse("sistema_gestione:riesame_elenco")
+    voci = []
+    prossimo = prossimo_riesame()
+    if prossimo is None:
+        voci.append(_voce(MEDIA, "Nessun verbale di riesame approvato (MOD.062)", elenco, "Apri"))
+    elif prossimo < oggi:
+        voci.append(_voce(ALTA, "Riesame della direzione oltre l'anno", elenco, "Apri", prossimo))
+    elif prossimo <= oggi + timedelta(days=GIORNI_RIESAME):
+        voci.append(_voce(BASSA, "Riesame della direzione da pianificare", elenco, "Apri", prossimo))
+    for r in Riesame.objects.filter(stato=Riesame.STATO_PROPOSTO):
+        voci.append(_voce(MEDIA, f"Verbale di riesame {r.anno} da approvare",
+                          reverse("sistema_gestione:riesame_dettaglio", args=[r.pk]), "Apri", r.data))
+    for o in obiettivi_aperti():
+        if o.scadenza and o.scadenza < oggi:
+            url = reverse("sistema_gestione:riesame_dettaglio", args=[o.riesame_id]) + "#obiettivi"
+            voci.append(_voce(MEDIA, f"Obiettivo del riesame oltre la scadenza: {o.descrizione[:70]}", url, "Apri", o.scadenza))
+    return voci
+
+
+def da_fare(oggi=None, *, audit: bool = True, riesame: bool = False) -> list[dict]:
     """Le cose da gestire, dalla più urgente; a parità di urgenza prima la data più vicina."""
     oggi = oggi or timezone.localdate()
-    voci = _certificazioni(oggi) + _audit_interni(oggi)
+    voci = _certificazioni(oggi) + _audit_interni(oggi) if audit else []
+    if riesame:
+        voci = voci + _riesame(oggi)
     return sorted(voci, key=lambda v: (v["priorita"], v["data"] is None, v["data"] or oggi, v["testo"]))

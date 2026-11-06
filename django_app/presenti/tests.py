@@ -339,6 +339,36 @@ class EsterniTests(TestCase):
         self.assertEqual(self.client.get(reverse("presenti:appello_stampa", args=[a.pk]))["Content-Type"],
                          "application/pdf")
 
+    def test_verbale_con_esterno_non_contato(self):
+        """Gli esterni salvati nell'appello non hanno il reparto: il verbale deve aprirsi lo stesso."""
+        self._con()
+        self.client.post(reverse("presenti:appello_avvia"))
+        a = Appello.objects.get()
+        self.client.post(reverse("presenti:appello_chiudi", args=[a.pk]))
+        r = self.client.get(reverse("presenti:appello_verbale", args=[a.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Non contati alla chiusura (4)")
+        self.assertContains(r, "PAOLO VERDI")
+        self.assertContains(r, "<td>Ditta Esempio Srl</td>", html=True)
+        self.assertContains(r, "<td>Esterno</td>", html=True)
+        # Dipendente: si legge il reparto, se c'è.
+        reparto = next(p["reparto"] for p in a.persone if p.get("reparto"))
+        self.assertContains(r, f"<td>{reparto}</td>", html=True)
+        self.assertTrue(self.client.get(reverse("presenti:appello_verbale_pdf", args=[a.pk])).content.startswith(b"%PDF"))
+
+    def test_verbale_con_esterno_senza_azienda(self):
+        self._con()
+        self.client.post(reverse("presenti:appello_avvia"))
+        a = Appello.objects.get()
+        for p in a.persone:
+            if p.get("esterno"):
+                p["azienda"] = ""
+        a.save(update_fields=["persone"])
+        self.client.post(reverse("presenti:appello_chiudi", args=[a.pk]))
+        r = self.client.get(reverse("presenti:appello_verbale", args=[a.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "<td>—</td>", html=True)
+
     def test_pdf_con_esterni(self):
         self._con()
         s = services.stato()

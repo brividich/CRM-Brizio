@@ -597,6 +597,27 @@ _PAGINE_AUDIT = [
         ],
     },
     {
+        "id": "pagina-riesame",
+        "titolo": "Pagina «Riesame» e verbale MOD.062",
+        "blocchi": [
+            ("p", "Il riesame si fa almeno una volta all'anno (MT CN 19). «Nuovo verbale» prepara gli argomenti, riprende i "
+                  "partecipanti dell'ultimo verbale e riporta gli indicatori del periodo scelto da Report conformità."),
+            ("ul", [
+                "«Salva il verbale» salva insieme le analisi degli argomenti e il livello di raggiungimento degli obiettivi "
+                "precedenti. Se un argomento non si applica, scrivilo.",
+                "Gli obiettivi dei verbali approvati tornano qui con In corso, Raggiunto, Raggiunto in parte, Non raggiunto o "
+                "Ripianificato; «Ripianificato» crea il nuovo obiettivo da completare con responsabile e scadenza.",
+                "«Aggiorna gli indicatori» li ricalcola finché il verbale è in bozza. Entrano solo le aree di Report conformità "
+                "che chi prepara può vedere.",
+                "«Proponi alla Direzione» richiede documenti esaminati, partecipanti, tutte le analisi e, per i nuovi obiettivi, "
+                "responsabile e scadenza; l'avviso in alto elenca cosa manca.",
+                "«Approva» spetta al DIG: dopo il verbale non cambia più. Si scarica il PDF, si fa firmare ai partecipanti e si "
+                "carica la copia firmata. Sugli obiettivi resta aggiornabile solo l'andamento.",
+                "Scadenze: il riesame annuale e gli obiettivi in corso compaiono nello Scadenzario e in «Da fare adesso».",
+            ]),
+        ],
+    },
+    {
         "id": "pagina-esterni",
         "titolo": "Pagina «Certificazioni e audit esterni»",
         "blocchi": [
@@ -884,6 +905,8 @@ GUIDA_OFI = {
 # così chi ha solo quel permesso non incontra un 403.
 PAGE_HELP = {
     "sistema_gestione:index": ("audit", "pagina-panoramica"),
+    "sistema_gestione:riesame_elenco": ("audit", "pagina-riesame"),
+    "sistema_gestione:riesame_dettaglio": ("audit", "pagina-riesame"),
     "sistema_gestione:audit_index": ("audit", "pagina-indice"),
     "sistema_gestione:processi_catalogo": ("audit", "pagina-catalogo"),
     "sistema_gestione:processo_dettaglio": ("audit", "pagina-catalogo"),

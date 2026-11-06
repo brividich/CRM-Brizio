@@ -18,7 +18,7 @@ from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
-from .acl_bootstrap import PERM_AUDIT_EDIT, PERM_AUDIT_VIEW, PERM_SOA_APPROVA, PERM_SOA_EDIT, PERM_SOA_VIEW, PERM_VIEW
+from .acl_bootstrap import PERM_AUDIT_EDIT, PERM_AUDIT_VIEW, PERM_RIESAME_VIEW, PERM_SOA_APPROVA, PERM_SOA_EDIT, PERM_SOA_VIEW, PERM_VIEW
 from .catalogo_27002 import TEMI
 from .evidenze import evidenze_per
 from .exports import kpi_revisione, soa_pdf, soa_xlsx
@@ -67,12 +67,14 @@ def index(request):
         if puo_soa else 0
     )
     oggi = timezone.localdate()
-    voci = panoramica.da_fare(oggi) if puo_audit else []
+    puo_riesame = _has_perm(request, PERM_RIESAME_VIEW)
+    voci = panoramica.da_fare(oggi, audit=puo_audit, riesame=puo_riesame)
     audit_anno = Audit.objects.filter(data_inizio__year=oggi.year).exclude(stato=Audit.STATO_ANNULLATO)
     return render(request, "sistema_gestione/pages/index.html", {
         "page_title": "Sistema di gestione",
         "puo_soa": puo_soa,
         "puo_audit": puo_audit,
+        "puo_riesame": puo_riesame,
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
         "da_fare": voci,
         "n_urgenti": sum(1 for v in voci if v["priorita"] == panoramica.ALTA),
