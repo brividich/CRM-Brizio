@@ -53,6 +53,10 @@
     var bottone = opzioni.bottone, stato = opzioni.stato;
     var porta = null, lettore = null, chiudendo = false;
     var ultimo = "", ultimoQuando = 0;
+    var inApertura = false, scollegatoAMano = false, ceduta = false;
+    var tentativi = 0, timerRiprova = null, chiusura = Promise.resolve();
+    // Il lettore lo apre una scheda alla volta: va a quella in uso, le altre lo cedono.
+    var canale = window.BroadcastChannel ? new BroadcastChannel("dpi-lettore-badge") : null;
 
     function mostra(testo, conErrore) {
       stato.textContent = testo;
@@ -92,57 +96,126 @@
       porta = null;
       lettore = null;
       var fatto = l ? l.cancel().catch(function () {}).then(function () { l.releaseLock(); }) : Promise.resolve();
-      return fatto.then(function () { return p ? p.close() : null; }).catch(function () {});
+      chiusura = chiusura.then(function () { return fatto; }).then(function () { return p ? p.close() : null; }).catch(function () {});
+      return chiusura;
+    }
+
+    function rilascia(testo) {
+      if (!porta) return Promise.resolve();
+      chiudendo = true;
+      return chiudi().then(function () {
+        chiudendo = false;
+        aspetto(false);
+        if (testo) mostra(testo);
+      });
+    }
+
+    function fermaRiprova() {
+      clearTimeout(timerRiprova);
+      timerRiprova = null;
+    }
+
+    function riprova() {
+      fermaRiprova();
+      if (scollegatoAMano) return;
+      // Subito dopo il cambio scheda la porta si libera in un attimo; poi si controlla con calma.
+      timerRiprova = setTimeout(ricollega, tentativi < 5 ? 600 : 3000);
+      tentativi++;
     }
 
     function apri(scelta) {
-      return scelta.open({baudRate: VELOCITA}).then(function () {
+      if (porta || inApertura) return Promise.resolve();
+      inApertura = true;
+      return chiusura.then(function () { return scelta.open({baudRate: VELOCITA}); }).then(function () {
+        inApertura = false;
         porta = scelta;
+        tentativi = 0;
+        fermaRiprova();
         aspetto(true);
         mostra("Lettore pronto: passa il badge.");
         leggi().catch(function () {
-          if (!chiudendo) mostra("Collegamento con il lettore interrotto.", true);
+          if (!chiudendo && porta === scelta) mostra("Collegamento con il lettore interrotto.", true);
         }).then(function () {
-          if (chiudendo) return;
+          if (chiudendo || porta !== scelta) return;
           chiudi();
           aspetto(false);
+          riprova();
         });
-      }).catch(function (e) {
+        if (document.hidden) rilascia();
+      }).catch(function () {
+        inApertura = false;
         aspetto(false);
-        if (e && e.name === "InvalidStateError") {
-          mostra("Lettore già aperto in questa pagina.", true);
-        } else {
-          mostra("Lettore occupato: chiudi le altre schede o i programmi che lo usano, poi riprova.", true);
-        }
+        mostra("Lettore in uso in un'altra scheda o in un altro programma: riprovo da solo.");
+        riprova();
+      });
+    }
+
+    // Lettore gia' autorizzato su questo indirizzo: si collega da solo, senza chiedere.
+    function ricollega() {
+      fermaRiprova();
+      if (porta || inApertura || scollegatoAMano || document.hidden || (ceduta && !document.hasFocus())) return;
+      navigator.serial.getPorts().then(function (porte) {
+        var nostre = porte.filter(function (p) { return p.getInfo().usbVendorId === SILICON_LABS; });
+        if (nostre.length === 1) { apri(nostre[0]); return; }
+        aspetto(false);
+        mostra(nostre.length
+          ? "Più lettori collegati: clicca «Collega lettore badge» e scegli quale usare."
+          : "Lettore non collegato o non ancora autorizzato su questo indirizzo: clicca «Collega lettore badge».");
+      }).catch(function () {});
+    }
+
+    function chiediLaPorta() {
+      if (canale && document.hasFocus()) canale.postMessage("cedi");
+    }
+
+    // Questa scheda torna in uso.
+    function attiva() {
+      if (document.hidden) return;
+      ceduta = false;
+      tentativi = 0;
+      if (porta || scollegatoAMano) return;
+      chiediLaPorta();
+      ricollega();
+    }
+
+    if (canale) {
+      canale.addEventListener("message", function () {
+        if (!porta || document.hasFocus()) return;
+        ceduta = true;
+        rilascia("Lettore in uso in un'altra scheda: torna qui per usarlo.");
       });
     }
 
     bottone.addEventListener("click", function () {
       if (porta) {
-        chiudendo = true;
-        chiudi().then(function () {
-          chiudendo = false;
-          aspetto(false);
-          mostra("Lettore scollegato.");
-        });
+        scollegatoAMano = true;
+        fermaRiprova();
+        rilascia("Lettore scollegato.");
         return;
       }
+      scollegatoAMano = false;
+      ceduta = false;
+      tentativi = 0;
+      chiediLaPorta();
       navigator.serial.requestPort({filters: [{usbVendorId: SILICON_LABS}]}).then(apri).catch(function (e) {
         // Finestra chiusa senza scegliere: nessun errore da segnalare.
         if (!e || e.name !== "NotFoundError") mostra("Non riesco a collegare il lettore.", true);
       });
     });
 
-    // Lettore gia' autorizzato: si ricollega da solo, anche quando si rimette il cavo.
-    function ricollega() {
-      if (porta) return;
-      navigator.serial.getPorts().then(function (porte) {
-        var nostre = porte.filter(function (p) { return p.getInfo().usbVendorId === SILICON_LABS; });
-        if (nostre.length === 1) apri(nostre[0]);
-      }).catch(function () {});
-    }
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) {
+        fermaRiprova();
+        rilascia("Lettore in pausa: questa scheda non è in uso.");
+      } else {
+        attiva();
+      }
+    });
+    window.addEventListener("focus", attiva);
+    window.addEventListener("pagehide", function () { if (porta) rilascia(); });
+    window.addEventListener("pageshow", function (e) { if (e.persisted) attiva(); });
 
-    navigator.serial.addEventListener("connect", ricollega);
+    navigator.serial.addEventListener("connect", attiva);
     navigator.serial.addEventListener("disconnect", function (e) {
       if (porta && e.target === porta) {
         chiudi();
@@ -152,7 +225,7 @@
     });
 
     aspetto(false);
-    ricollega();
+    attiva();
   }
 
   window.LettoreBadge = {
