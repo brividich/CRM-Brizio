@@ -190,3 +190,36 @@ class AnomaliaPendingNotification(models.Model):
 
     def __str__(self) -> str:
         return f"AnomaliaPendingNotification<{self.op_id}:notified={self.notified}>"
+
+
+class AnomaliaOpSilenziata(models.Model):
+    """Persona che ha chiesto di non ricevere più gli aggiornamenti di un OP.
+
+    Si registra dalla pagina con il login (l'identità è quella dell'utente collegato)
+    e vale sul singolo indirizzo: vedi ``anomalie.silenzia_op`` per cosa filtra e cosa no.
+    """
+
+    op_id = models.CharField(max_length=100)
+    # OP in minuscolo: i titoli OP si confrontano senza distinguere le maiuscole.
+    op_key = models.CharField(max_length=100, db_index=True)
+    email = models.CharField(max_length=254)
+    utente = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="anomalie_op_silenziati",
+    )
+    nome = models.CharField(max_length=200, blank=True, default="")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-creato_il", "-id"]
+        verbose_name = "OP silenziato"
+        verbose_name_plural = "OP silenziati"
+        constraints = [
+            models.UniqueConstraint(fields=["op_key", "email"], name="anomalia_op_silenziata_uniq"),
+        ]
+
+    def __str__(self) -> str:
+        return f"AnomaliaOpSilenziata<{self.op_id}:{self.email}>"

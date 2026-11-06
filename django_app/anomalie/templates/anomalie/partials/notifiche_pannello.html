@@ -87,6 +87,30 @@ Notifiche e in Automazioni → Notifiche di sistema: stessi dati, stesso salvata
   </div>
 
   <div>
+    <div class="ntf-sub">OP silenziati dalle persone</div>
+    <small class="ntf-muted">Chi preme «Non voglio più aggiornamenti su questo OP» nella mail non riceve più copia della mail di decisione, riepilogo, decisioni, OP completato e resoconto di quell'OP. Chi deve decidere riceve comunque la mail di decisione; la lista RDC e «Segnala a CAR» non cambiano.</small>
+    {% if notifiche.silenziati %}
+    <div class="ntf-wrap" style="margin-top:8px;">
+      <table class="ntf-table">
+        <thead><tr><th>OP</th><th>Persona</th><th>Dal</th>{% if notifiche_modificabile %}<th></th>{% endif %}</tr></thead>
+        <tbody>
+          {% for s in notifiche.silenziati %}
+          <tr>
+            <td>{{ s.op_id }}</td>
+            <td>{% if s.nome %}{{ s.nome }} · {% endif %}{{ s.email }}</td>
+            <td class="ntf-muted">{{ s.creato_il|date:"d/m/Y H:i" }}</td>
+            {% if notifiche_modificabile %}<td><button type="button" class="btn btn-secondary btn-sm" data-ntf-riattiva="{% url 'api_anomalie_op_silenziato_riattiva' s.pk %}">Riattiva</button></td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="ntf-muted" style="margin-top:8px;">Nessun OP silenziato.</div>
+    {% endif %}
+  </div>
+
+  <div>
     <div class="ntf-sub">Orari e soglie</div>
     <div class="ntf-params">
       <label class="field">Ora del resoconto e del digest
@@ -148,6 +172,11 @@ Notifiche e in Automazioni → Notifiche di sistema: stessi dati, stesso salvata
     const statusEl = document.getElementById('ntf-status');
     if (!panel || !btn) return;
     const getCsrf = () => (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
+    panel.querySelectorAll('[data-ntf-riattiva]').forEach(el => el.addEventListener('click', async () => {
+      el.disabled = true;
+      const r = await fetch(el.dataset.ntfRiattiva, { method: 'POST', headers: { 'X-CSRFToken': getCsrf() } }).catch(() => null);
+      if (r && r.ok) { el.closest('tr').remove(); } else { el.disabled = false; }
+    }));
     const setStatus = (ok, msg) => { statusEl.className = 'ntf-status ' + (ok ? 'ntf-ok' : 'ntf-ko'); statusEl.textContent = msg; };
     btn.addEventListener('click', async () => {
       const payload = { liste: {}, attivi: {}, parametri: {} };

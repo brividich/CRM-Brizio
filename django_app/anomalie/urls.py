@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import views
 from . import mail_action_views
+from . import silenzia_views
 from . import nc_views
 from . import controllo_views
 
@@ -11,6 +12,7 @@ urlpatterns = [
     path("gestione-anomalie/mail-action/<str:token>/fatto/", mail_action_views.mail_action_done_view, name="anomalie_mail_action_done"),
     path("gestione-anomalie/mail-action/<str:token>/allegato/", mail_action_views.mail_action_allegato_view, name="anomalie_mail_action_allegato"),
     path("gestione-anomalie", views.gestione_anomalie_page, name="gestione_anomalie_page"),
+    path("anomalie-op-silenzia", silenzia_views.op_silenzia_page, name="anomalie_op_silenzia"),
     path("gestione-anomalie/nuova-segnalazione", views.apertura_segnalazione_page, name="apertura_segnalazione"),
     path("gestione-anomalie/configurazione", views.anomalie_configurazione_page, name="anomalie_configurazione_page"),
     # Non conformita' per OP (ISO 9001 §10.2): sotto /gestione-anomalie per ereditare il gate ACL.
@@ -29,6 +31,8 @@ urlpatterns = [
     path("api/anomalie/db/ordini/crea", views.api_db_ordini_crea, name="api_anomalie_db_ordini_crea"),
     path("api/anomalie/config/liste", views.api_anomalie_config_liste, name="api_anomalie_config_liste"),
     path("api/anomalie/config/notifiche", views.api_anomalie_notifiche, name="api_anomalie_notifiche"),
+    path("api/anomalie/config/notifiche/silenziati/<int:pk>/riattiva", silenzia_views.api_op_silenziato_riattiva,
+         name="api_anomalie_op_silenziato_riattiva"),
     path("api/anomalie/config/logo", views.api_anomalie_config_logo, name="api_anomalie_config_logo"),
     path("api/anomalie/config/campi-controllo", views.api_anomalie_config_campi_controllo,
          name="api_anomalie_config_campi_controllo"),

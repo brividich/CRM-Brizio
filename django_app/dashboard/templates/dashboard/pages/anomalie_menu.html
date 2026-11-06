@@ -256,13 +256,14 @@
     {% endif %}
   </main>
 
-  {% if can_manage_anomalie_config %}
-    <div class="footer-right">
-      <a href="{% url 'anomalie_configurazione_page' %}" class="config-link">
-        Configurazione liste
-      </a>
-    </div>
-  {% endif %}
+  <div class="footer-right">
+    <a href="{% url 'anomalie_op_silenzia' %}" class="config-link">Aggiornamenti per OP</a>
+    {% if can_manage_anomalie_config %}
+    <a href="{% url 'anomalie_configurazione_page' %}" class="config-link">
+      Configurazione liste
+    </a>
+    {% endif %}
+  </div>
 
 {% include "anomalie/partials/_guida_btn.html" with sezione="menu" %}
 </body>
