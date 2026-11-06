@@ -12,6 +12,10 @@ dell'organigramma.
 Il dipendente può anche sollecitare da sé una propria richiesta con «Sollecita»
 in «Le mie richieste» (``sollecita_richiesta``): stesse esclusioni, stessa attesa
 fra un sollecito e l'altro, così manuale e automatico non si sommano.
+
+La mail al capo è la stessa nei due casi e non dice che è un sollecito né chi l'ha
+chiesto. Ha i pulsanti Approva/Rifiuta (link personali, come la mail di approvazione)
+per le richieste con un'approvazione ancora aperta di cui il capo è approvatore.
 """
 from __future__ import annotations
 
@@ -94,14 +98,49 @@ def richieste_da_sollecitare(now=None, imp=None) -> list[dict]:
     return out
 
 
-def _corpo_mail(
-    righe: list[dict],
-    *,
-    intro: str = "",
-    titolo: str = "Richieste di assenza in attesa",
-    badge: str = "Promemoria",
-    nota: str = "Messaggio automatico generato da NOVICROM HUB. Il promemoria si ripete finché la richiesta resta in attesa.",
-) -> tuple[str, str]:
+def _link_decisione(righe: list[dict], email: str) -> dict[int, tuple[str, str]]:
+    """Link personali Approva/Rifiuta di ``email`` per le richieste che hanno un'approvazione aperta.
+
+    Il link fa da credenziale (la decisione va a nome di chi lo riceve), quindi si
+    crea solo per chi è già fra gli approvatori di quella richiesta. Senza
+    un'approvazione valida la mail mostra solo il link al portale.
+    """
+    from automazioni.approval_links import build_link_urls, create_link
+    from automazioni.approval_security import normalize_actor_email
+    from automazioni.models import AutomationApproval
+
+    cercate = {str(r.get("id")): int(r["id"]) for r in righe if r.get("id") is not None}
+    me = normalize_actor_email(email)
+    out: dict[int, tuple[str, str]] = {}
+    if not cercate or not me:
+        return out
+    try:
+        aperte = AutomationApproval.objects.filter(
+            status=AutomationApproval.Status.PENDING, run_log__source_code="assenze",
+        ).order_by("-pk")
+        for approval in aperte:
+            payload = approval.resume_payload if isinstance(approval.resume_payload, dict) else {}
+            rid = cercate.get(str(payload.get("id") or ""))
+            if rid is None or rid in out or approval.is_expired():
+                continue
+            if me in {normalize_actor_email(e) for e in (approval.approver_emails or [])}:
+                out[rid] = build_link_urls(create_link(approval, email))
+    except Exception:
+        # La mail parte comunque: resta il link al portale.
+        logger.warning("assenze.solleciti: link di decisione non creati per %s", email, exc_info=True)
+    return out
+
+
+def _pulsante(url: str, etichetta: str, colore: str) -> str:
+    return (
+        f'<td bgcolor="{colore}" style="background:{colore};border-radius:8px;">'
+        f'<a href="{escape(url)}" style="display:inline-block;padding:9px 20px;color:#ffffff;'
+        f'text-decoration:none;font-size:14px;font-weight:800;">{etichetta}</a></td>'
+    )
+
+
+def _contenuto_mail(righe: list[dict], email: str) -> tuple[str, str, str]:
+    """``(oggetto, html, testo)`` della mail al capo: uguale per promemoria automatico e richiesta del dipendente."""
     from automazioni.calendario_outlook import evento_assenza, link_outlook
 
     from .views import _helpers
@@ -109,62 +148,78 @@ def _corpo_mail(
     from core.accounts.portal_links import portal_link
 
     link = portal_link("/assenze/car/dashboard") or "/assenze/car/dashboard"
-    voci = []
+    decisioni = _link_decisione(righe, email)
+    blocchi = []
+    testi = []
     for r in righe:
         tipo = _helpers._tipo_for_display(r.get("tipo_assenza"), r.get("motivazione_richiesta"))
         nome = str(r.get("copia_nome") or "").upper()
+        periodo = f"{_helpers._dt_label(r.get('data_inizio'))} - {_helpers._dt_label(r.get('data_fine'))}"
+        creata = _helpers._dt_label(r.get("created_datetime"))
         ev = evento_assenza("assenze", {**r, "dipendente_nome": nome, "tipo_assenza": tipo})
-        voci.append((
-            nome,
-            tipo,
-            f"{_helpers._dt_label(r.get('data_inizio'))} - {_helpers._dt_label(r.get('data_fine'))}",
-            _helpers._dt_label(r.get("created_datetime")),
-            link_outlook(ev) if ev else "",
-        ))
-    righe_html = "".join(
-        '<tr>'
-        f'<td style="padding:6px 10px 6px 0;color:#0f172a;font-weight:600;">{escape(nome)}</td>'
-        f'<td style="padding:6px 10px;color:#334155;">{escape(tipo)}</td>'
-        f'<td style="padding:6px 10px;color:#334155;">{escape(periodo)}</td>'
-        f'<td style="padding:6px 10px;color:#64748b;">{escape(creata)}</td>'
-        f'<td style="padding:6px 0 6px 10px;">'
-        + (f'<a href="{escape(outlook)}" style="color:#0f6cbd;font-weight:700;">Aggiungi a Outlook</a>' if outlook else "")
-        + '</td></tr>'
-        for nome, tipo, periodo, creata, outlook in voci
-    )
-    intro_html = escape(intro) if intro else (
-        f"Ci sono <strong>{len(voci)}</strong> richieste di assenza che aspettano la tua decisione:"
-    )
+        outlook = link_outlook(ev) if ev else ""
+        approva, rifiuta = decisioni.get(int(r["id"]), ("", "")) if r.get("id") is not None else ("", "")
+        pulsanti = ""
+        if approva:
+            pulsanti = (
+                '<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;margin:10px 0 0;"><tr>'
+                + _pulsante(approva, "Approva", "#38a169")
+                + '<td style="width:10px;font-size:0;">&nbsp;</td>'
+                + _pulsante(rifiuta, "Rifiuta", "#e53e3e")
+                + "</tr></table>"
+            )
+        calendario = (
+            f'<div style="margin-top:8px;font-size:13px;"><a href="{escape(outlook)}" '
+            'style="color:#0f6cbd;font-weight:700;">Aggiungi a Outlook</a></div>'
+        ) if outlook else ""
+        blocchi.append(
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+            'style="width:100%;border-collapse:separate;margin:0 0 10px;border:1px solid #d8e1ec;border-radius:10px;">'
+            '<tr><td style="padding:12px 14px;">'
+            f'<div style="color:#0f172a;font-size:15px;font-weight:700;">{escape(nome)}</div>'
+            f'<div style="color:#334155;font-size:14px;line-height:1.5;margin-top:2px;">{escape(tipo)} &middot; {escape(periodo)}</div>'
+            f'<div style="color:#64748b;font-size:12px;margin-top:2px;">Inviata il {escape(creata)}</div>'
+            f"{pulsanti}{calendario}"
+            "</td></tr></table>"
+        )
+        testi.append(
+            f"- {nome} | {tipo} | {periodo} | inviata il {creata}"
+            + (f"\n  Approva: {approva}\n  Rifiuta: {rifiuta}" if approva else "")
+            + (f"\n  Outlook: {outlook}" if outlook else "")
+        )
+
+    if len(righe) == 1:
+        oggetto = f"Richiesta di assenza da approvare: {str(righe[0].get('copia_nome') or '').upper()}"
+        titolo = "Richiesta di assenza da approvare"
+        intro_html = intro = "Questa richiesta di assenza aspetta la tua decisione:"
+    else:
+        oggetto = f"{len(righe)} richieste di assenza da approvare"
+        titolo = "Richieste di assenza da approvare"
+        intro = f"Ci sono {len(righe)} richieste di assenza che aspettano la tua decisione:"
+        intro_html = f"Ci sono <strong>{len(righe)}</strong> richieste di assenza che aspettano la tua decisione:"
+    apri = "Oppure apri «Assenze del reparto»" if decisioni else "Apri «Assenze del reparto» per approvare o rifiutare"
+    nota = "Messaggio automatico generato da NOVICROM HUB."
+    if decisioni:
+        nota += " Non inoltrare questa mail: i pulsanti sono personali e registrano la decisione a tuo nome."
     body_content = (
         f'<p style="color:#334155;line-height:1.6;margin:0 0 14px;">{intro_html}</p>'
-        '<table style="border-collapse:collapse;width:100%;margin:4px 0 14px;">'
-        '<tr><th align="left" style="padding:0 10px 6px 0;color:#64748b;">Dipendente</th>'
-        '<th align="left" style="padding:0 10px 6px;color:#64748b;">Tipo</th>'
-        '<th align="left" style="padding:0 10px 6px;color:#64748b;">Periodo</th>'
-        '<th align="left" style="padding:0 10px 6px;color:#64748b;">Inviata il</th>'
-        '<th align="left" style="padding:0 0 6px 10px;color:#64748b;">Calendario</th></tr>'
-        f"{righe_html}</table>"
-        f'<p style="margin:0;"><a href="{escape(link)}" style="color:#0f766e;font-weight:700;">'
-        "Apri «Assenze del reparto» per approvare o rifiutare</a></p>"
+        f"{''.join(blocchi)}"
+        f'<p style="margin:4px 0 0;"><a href="{escape(link)}" style="color:#0f766e;font-weight:700;">{apri}</a></p>'
     )
     html = render_to_string(
         "core/email/base_email.html",
         {
-            "email_type": "Automazioni",
-            "badge": badge,
+            "email_type": "Approvazione",
+            "badge": "Da approvare",
             "section_label": "Assenze e permessi",
             "title": titolo,
             "body_content": body_content,
-            "preheader": intro or f"{len(voci)} richieste di assenza aspettano la tua decisione.",
+            "preheader": intro,
             "footer_note": nota,
         },
     )
-    testo = "\n".join(
-        [intro or "Richieste di assenza che aspettano la tua decisione:", ""]
-        + [f"- {n} | {t} | {p} | inviata il {c}" + (f" | Outlook: {o}" if o else "") for n, t, p, c, o in voci]
-        + ["", f"Apri: {link}", "", nota]
-    )
-    return html, testo
+    testo = "\n".join([intro, ""] + testi + ["", f"{apri}: {link}", "", nota])
+    return oggetto, html, testo
 
 
 def _segna_invio(assenza_id: int, email: str, now) -> None:
@@ -247,15 +302,7 @@ def sollecita_richiesta(riga: dict, now=None) -> tuple[bool, str]:
     if not email:
         return False, "Non trovo il capo a cui mandare il sollecito: rivolgiti all'ufficio assenze."
 
-    nome = str(riga.get("copia_nome") or "").upper()
-    oggetto = f"Sollecito: richiesta di assenza di {nome} in attesa"
-    html, testo = _corpo_mail(
-        [riga],
-        intro=f"{nome} sollecita una decisione su questa richiesta di assenza:",
-        titolo="Sollecito richiesta di assenza",
-        badge="Sollecito",
-        nota="Sollecito chiesto dal dipendente da NOVICROM HUB.",
-    )
+    oggetto, html, testo = _contenuto_mail([riga], email)
     from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "") or "noreply@costruzioninovicrom.it"
     try:
         msg = EmailMultiAlternatives(subject=oggetto, body=testo, from_email=from_email, to=[email])
@@ -291,8 +338,7 @@ def invia_solleciti(now=None) -> dict:
     from automazioni.mail_inviate import registra
 
     for email, elenco in per_capo.items():
-        html, testo = _corpo_mail(elenco)
-        oggetto = f"Promemoria: {len(elenco)} richieste di assenza in attesa"
+        oggetto, html, testo = _contenuto_mail(elenco, email)
         ids = ", ".join(str(r["id"]) for r in elenco)
         try:
             msg = EmailMultiAlternatives(
