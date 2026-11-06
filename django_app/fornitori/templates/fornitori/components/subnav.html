@@ -7,6 +7,7 @@
   <div class="sub-sep"></div>
   <a class="sub-a{% if current == 'fornitori:accessi_esterni' or current == 'fornitori:ingresso_collega' %} active{% endif %}" href="{% url 'fornitori:accessi_esterni' %}">Accessi esterni</a>
   <a class="sub-a{% if current == 'fornitori:guestportal_ditte' %} active{% endif %}" href="{% url 'fornitori:guestportal_ditte' %}">Ditte GuestPortal</a>
+  <a class="sub-a" href="{% url 'reception:cruscotto' %}">Reception</a>
 </div>
 <div class="notice" style="margin-top: 10px;">
   {% if current == 'fornitori:index' %}

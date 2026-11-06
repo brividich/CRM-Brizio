@@ -1,0 +1,39 @@
+{% extends "reception/_base.html" %}
+{% block title %}Referenti | Reception{% endblock %}
+{% block rc_titolo %}Referenti{% endblock %}
+{% block rc_sub %}I dipendenti che i visitatori possono scegliere al chiosco. Ricevono la mail quando arriva il loro ospite.{% endblock %}
+{% block rc_contenuto %}
+<div class="rc-card">
+  <div class="rc-card-head">{% if modifica %}Modifica {{ modifica.nome_elenco }}{% else %}Nuovo referente{% endif %}</div>
+  <div class="rc-body">
+    <form method="post" class="rc-form">
+      {% csrf_token %}
+      {% if modifica %}<input type="hidden" name="pk" value="{{ modifica.pk }}">{% endif %}
+      <div class="rc-field"><label for="d-nome">Nome *</label><input class="rc-input" id="d-nome" name="nome" value="{{ modifica.nome|default:'' }}" maxlength="100" required></div>
+      <div class="rc-field"><label for="d-cognome">Cognome *</label><input class="rc-input" id="d-cognome" name="cognome" value="{{ modifica.cognome|default:'' }}" maxlength="100" required></div>
+      <div class="rc-field"><label for="d-email">Email *</label><input class="rc-input" id="d-email" type="email" name="email" value="{{ modifica.email|default:'' }}" maxlength="255" required></div>
+      <div class="rc-field"><label for="d-rep">Reparto</label><input class="rc-input" id="d-rep" name="reparto" value="{{ modifica.reparto|default:'' }}" maxlength="100"></div>
+      <div class="rc-field"><label for="d-tel">Telefono</label><input class="rc-input" id="d-tel" name="telefono" value="{{ modifica.telefono|default:'' }}" maxlength="50"></div>
+      <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit">Salva</button></div>
+    </form>
+  </div>
+</div>
+<div class="rc-card">
+  <div class="rc-wrap">
+    <table class="rc-table">
+      <thead><tr><th>Nome</th><th>Email</th><th>Reparto</th><th>Stato</th><th></th></tr></thead>
+      <tbody>
+      {% for r in righe %}
+        <tr>
+          <td>{{ r.nome_elenco }}</td><td>{{ r.email }}</td><td>{{ r.reparto|default:"—" }}</td>
+          <td><span class="rc-pill{% if r.attivo %} rc-pill-ok{% endif %}">{% if r.attivo %}Attivo{% else %}Non attivo{% endif %}</span></td>
+          <td><a class="rc-btn rc-btn-g" href="?modifica={{ r.pk }}">Modifica</a> <form class="rc-inline" method="post">{% csrf_token %}<input type="hidden" name="pk" value="{{ r.pk }}"><button class="rc-btn rc-btn-g" name="azione" value="stato">{% if r.attivo %}Disattiva{% else %}Riattiva{% endif %}</button></form></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="rc-empty">Nessun referente.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
