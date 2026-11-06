@@ -148,7 +148,14 @@ def _scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]:
     # Stato RAG dalla stessa fonte unica usata dalla pagina.
     from anagrafica.views import _build_nomi_map, _classifica_scadenza_qualifica
 
+    from anagrafica.services import centro_filtro
+    from anagrafica.views.qualifiche import _qualifica_nel_perimetro
+
     qs, oggi, soglia_30, soglia_60 = _scadenzario_qs(request, scope)
+    centri = centro_filtro.centro_per_persona()
+    # Stesse righe della pagina; «tutto» resta l'archivio completo di ogni assegnazione.
+    conta = _qualifica_nel_perimetro(request) if scope == "filtered" else None
+    filtro_centro = centro_filtro.leggi(request) if scope == "filtered" else centro_filtro.Filtro()
 
     try:
         dip_rows = fetch_anagrafica_rows(deduplicate=True)
@@ -162,6 +169,8 @@ def _scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]:
 
     rows: list[dict] = []
     for q in qs:
+        if (conta is not None and not conta(q)) or not filtro_centro.contiene(q.legacy_anagrafica_id):
+            continue
         dip = dip_map.get(q.legacy_anagrafica_id, {})
         reparto = str(dip.get("reparto") or "").strip()
         if filtered and filtro_reparto and reparto.casefold() != filtro_reparto.casefold():
@@ -172,6 +181,7 @@ def _scadenzario_rows(request: HttpRequest, scope: str) -> list[dict]:
         rows.append({
             "dipendente": nomi.get(q.legacy_anagrafica_id, f"#{q.legacy_anagrafica_id}"),
             "reparto": reparto,
+            "centro_costo": centri.get(q.legacy_anagrafica_id, ""),
             "qualifica": q.tipo.nome,
             "categoria": q.tipo.get_categoria_display(),
             "numero": q.numero or "",
@@ -216,6 +226,11 @@ def _scadenzario_filters(request: HttpRequest) -> str:
     reparto = (request.GET.get("reparto") or "").strip()
     if reparto:
         parts.append(f"Reparto: {reparto}")
+    from anagrafica.services import centro_filtro
+
+    centro = centro_filtro.leggi(request).etichetta
+    if centro:
+        parts.append(centro)
     return " · ".join(parts)
 
 
@@ -226,6 +241,7 @@ register(ExportSpec(
     columns=[
         ("Dipendente", "dipendente"),
         ("Reparto", "reparto"),
+        ("Centro di costo", "centro_costo"),
         ("Qualifica", "qualifica"),
         ("Categoria", "categoria"),
         ("N°", "numero"),
