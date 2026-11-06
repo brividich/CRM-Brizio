@@ -416,14 +416,15 @@ GUIDA = {
             "id": "catalogo_programmi",
             "titolo": "Trovare un programma nel Catalogo software",
             "blocchi": [
-                ("p", "Ogni programma è una riga sola: versioni, architettura e lingua nel nome non lo dividono "
-                      "(«7-Zip 25.01 (x64)» e «7-Zip 26.05 (x64 edition)» sono «7-Zip»), e nemmeno un produttore scritto "
-                      "diversamente dalle fonti. Il numero che fa parte del nome resta: Windows 10 e 11, Office 2016 e 2019 "
-                      "e le edizioni annuali come hyperMILL 2024 e 2025 sono righe separate."),
+                ("p", "Ogni programma è una riga sola: versioni, anno, architettura e lingua nel nome non lo dividono "
+                      "(«7-Zip 25.01 (x64)» e «7-Zip 26.05 (x64 edition)» sono «7-Zip», MUD 2024 e 2025 sono «MUD»), e nemmeno "
+                      "un produttore scritto diversamente dalle fonti. Il numero che fa parte del nome resta: Windows 10 e 11 "
+                      "sono righe separate, e anche Visual C++ 2013 e 2015."),
                 ("passi", [
                     "Nella casella Cerca sopra la tabella scrivi programma, produttore o versione: filtra mentre scrivi e spazi e trattini non contano («7zip» trova 7-Zip).",
                     "Apri il programma: la sezione «Nomi raggruppati in questo programma» dice come lo riportano le fonti.",
                     "La decisione (classificazione, licenza, versione minima) vale per tutto il programma e resta dopo un aggiornamento.",
+                    "Raggruppamento sbagliato? Gli amministratori del modulo premono «Separa» accanto a un nome, oppure scelgono un programma in «Unisci a un altro programma». Si annulla dalla stessa sezione.",
                 ]),
             ],
         },

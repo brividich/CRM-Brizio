@@ -346,6 +346,10 @@ _LINGUA_PAREN = re.compile(r"[a-z]{2}-[a-z]{2}")
 _ARCH_BIT = re.compile(r"\b(?:x64|x86|amd64|arm64|(?:64|32)[- ]?bits?)\b(?!-)", re.I)
 _DICITURE_RELEASE = re.compile(r"\b(?:update\s+\d+(?![\d.])|sp\s?\d+(?:[_-]hf\d+)?|version\s+\S+|build\s+[\d.]+|\d+u\d+)\b", re.I)
 _ANNO_PUNTO = re.compile(r"(?<![\w.])((?:19|20)\d\d)(?:\.\d+)+(?!\w)")
+# L'anno come parola a sé: «MUD 2024», «Office 2019». Non «2015-2022», non «mtb2011».
+_ANNO = re.compile(r"(?<![\w.\-])(?:19|20)\d\d(?![\w\-])")
+# Qui l'anno distingue componenti che convivono sullo stesso PC, non edizioni dello stesso programma.
+_ANNO_CHE_CONTA = re.compile(r"visual c\+\+", re.I)
 _VERSIONE_ATTACCATA = re.compile(r"(?<=[a-z])(?:-v?\d+(?:\.\d+)+|\.\d+(?:\.\d+)*)\b", re.I)
 _VERSIONE = re.compile(r"(?<![\w.])(?<!usb )v?\d+(?:\.\d+)+(?:-[a-z]?\d+)?(?!\w)", re.I)
 _LINGUA_CODA = re.compile(r"(?:\s+[-–]\s*|\s+)(?:(?:it|en|de|fr|es|pt|nl)-[a-z]{2}|ita|italiano|italian|italien|english)$", re.I)
@@ -362,11 +366,11 @@ def _parentesi_di_release(match):
 @lru_cache(maxsize=8192)
 def nome_programma(nome):
     """Il nome del programma senza release: «7-Zip 26.05 (x64 edition)» → «7-Zip»,
-    «Java 8 Update 381» → «Java 8», «Microsoft 365 - it-it» → «Microsoft 365».
+    «Java 8 Update 381» → «Java 8», «Microsoft 365 - it-it» → «Microsoft 365», «MUD 2024» → «MUD».
 
-    Si toglie la versione con il punto, non il numero che fa parte del nome: «Windows 10», «Office
-    2019», «SQL Server 2022», «Visual C++ 2013» restano prodotti distinti («hyperMILL 2023.2» →
-    «hyperMILL 2023», come «hyperMILL 2024»). Solo per raggruppare e mostrare.
+    Si toglie la versione con il punto e l'anno, non il numero che fa parte del nome: «Windows 10»,
+    «Microsoft 365», «PostgreSQL 15» restano interi, e «Visual C++ 2013» tiene l'anno.
+    Solo per raggruppare e mostrare; le correzioni a mano stanno in ``SoftwareProgrammaRegola``.
     """
     originale = re.sub(r"\s+", " ", str(nome or "")).strip()
     testo = re.sub(r"[®™©]", "", originale)
@@ -377,6 +381,8 @@ def nome_programma(nome):
     testo = _ANNO_PUNTO.sub(r"\1", testo)
     testo = _VERSIONE_ATTACCATA.sub(" ", testo)
     testo = _VERSIONE.sub(" ", testo)
+    if not _ANNO_CHE_CONTA.search(testo):
+        testo = _ANNO.sub(" ", testo)
     testo = _PAREN.sub(_parentesi_di_release, testo)
     testo = _CODA.sub("", re.sub(r"\s+", " ", testo).strip())
     while True:

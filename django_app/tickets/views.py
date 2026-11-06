@@ -1295,7 +1295,12 @@ def ticket_nuovo(request):
                     descrizione_lavoro=al_volo["lavoro"],
                     esito=EsitoIntervento.COMPLETATO,
                 )
-                ticket.data_primo_intervento = intervento.created_at
+                # Una data sola: apertura e chiusura sono quelle del lavoro reale. Il
+                # momento della registrazione resta nel log di stato e nell'audit.
+                Ticket.objects.filter(pk=ticket.pk).update(created_at=al_volo["inizio"])
+                ticket.created_at = al_volo["inizio"]
+                ticket.closed_at = al_volo["fine"]
+                ticket.data_primo_intervento = al_volo["inizio"]
                 ticket.save(update_fields=["data_primo_intervento", "updated_at"])
                 # Visibile anche a richiedente e compilatore: vedono solo i commenti non interni.
                 TicketCommento.objects.create(
