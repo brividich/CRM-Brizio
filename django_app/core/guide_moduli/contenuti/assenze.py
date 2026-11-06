@@ -142,6 +142,8 @@ GUIDA = {
             "titolo": "Il calendario",
             "blocchi": [
                 ("p", "«Calendario» mostra le assenze approvate con un colore per tipo. Con le frecce cambi mese."),
+                ("p", "Nell'elenco del giorno, accanto a «Permesso» c'è il totale delle ore (es. «Permesso - 8h»): sono le stesse "
+                      "ore che scala il saldo, quindi al massimo una giornata e zero se il giorno non è lavorativo."),
                 ("ul", [
                     "Cosa vedi dipende dal tuo ruolo: tutta l'azienda, solo il tuo reparto oppure solo le tue richieste.",
                     "Vedere le assenze degli altri non vuol dire poterle approvare.",

@@ -153,6 +153,32 @@ class SaldiTests(TestCase):
         self.assertEqual(hr.avviso_saldo(2, "Ferie", datetime(2026, 6, 8), datetime(2026, 6, 30)), "")
 
 
+class OrePermessoCalendarioTests(TestCase):
+    def _eventi(self, *righe):
+        from .views import eventi
+
+        righe = [
+            {"id": i, "dipendente": "ROSSI MARIO", "tipo_assenza": t, "data_inizio": a, "data_fine": b,
+             "consenso": "Approvato", "moderation_status": 0, "motivazione_richiesta": "", "capo": ""}
+            for i, (t, a, b) in enumerate(righe, start=1)
+        ]
+        with patch.object(eventi._helpers, "_table_exists", return_value=True),                 patch.object(eventi._helpers, "_has_assenze_column", return_value=False),                 patch.object(eventi._helpers, "_fetch_all_dict", return_value=righe),                 patch.object(eventi._helpers, "_applica_nominativo", side_effect=lambda r: r),                 patch.object(eventi._helpers, "_sharepoint_managed_ids", return_value=set()):
+            return eventi._load_events()
+
+    def test_permesso_mostra_le_ore_ferie_no(self):
+        permesso, parziale, ferie = self._eventi(
+            ("Permesso", datetime(2026, 11, 6, 6), datetime(2026, 11, 6, 14)),
+            ("Permesso", datetime(2026, 11, 5, 8), datetime(2026, 11, 5, 10, 30)),
+            ("Ferie", datetime(2026, 11, 9), datetime(2026, 11, 10, 23, 59)),
+        )
+        self.assertEqual(permesso["extendedProps"]["ore_label"], "8h")
+        self.assertEqual(parziale["extendedProps"]["ore_label"], "2,5h")
+        self.assertNotIn("ore_label", ferie["extendedProps"])
+
+    def test_nessuna_riga(self):
+        self.assertEqual(self._eventi(), [])
+
+
 @patch("assenze.availability._resolve_identities", side_effect=lambda ids: {i: IDENTITA[i] for i in ids if i in IDENTITA})
 class ContatoriECoperturaTests(TestCase):
     def test_contatore_assemblea_oltre_il_limite(self, _ident):
