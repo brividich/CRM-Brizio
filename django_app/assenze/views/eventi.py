@@ -374,6 +374,15 @@ def _load_events(
     rows = _helpers._applica_nominativo(_helpers._fetch_all_dict(sql, params))
     resolved_colors = colors or _load_colors()
 
+    # Calendario aziendale dell'intervallo delle righe, per le ore dei permessi.
+    date_righe = [
+        d.date()
+        for row in rows
+        for d in (calcoli_hr._as_dt(row.get("data_inizio")), calcoli_hr._as_dt(row.get("data_fine")))
+        if d is not None
+    ]
+    cal_ore = calcoli_hr.calendario(min(date_righe), max(date_righe)) if date_righe else None
+
     events: list[dict] = []
     for row in rows:
         tipo = _helpers._tipo_for_display(row.get("tipo_assenza"), row.get("motivazione_richiesta"))
@@ -386,6 +395,8 @@ def _load_events(
             "moderation_status": moderation_status,
             "capo": str(row.get("capo") or ""),
         }
+        if tipo == "Permesso" and cal_ore is not None:
+            props["ore_label"] = calcoli_hr.ore_label(row.get("data_inizio"), row.get("data_fine"), cal_ore)
         if include_sensitive:
             props["motivazione"] = _helpers._strip_tipo_metadata_from_motivazione(row.get("motivazione_richiesta"))
             props["certificato_medico"] = str(row.get("certificato_medico") or "")

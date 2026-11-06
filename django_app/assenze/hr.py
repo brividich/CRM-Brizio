@@ -491,6 +491,12 @@ def _fmt_ore(value: Decimal) -> str:
     return testo
 
 
+def ore_label(inizio, fine, cal: Calendario) -> str:
+    """Ore di una richiesta da mostrare a video (es. ``8h``): le stesse scalate dal saldo."""
+    ore, _giorni, _lavorativi = valore_richiesta(inizio, fine, cal)
+    return f"{_fmt_ore(ore)}h"
+
+
 def avviso_saldo(anagrafica_id: int | None, tipo: str, inizio, fine, *, escludi_id: int | None = None) -> str:
     """Avviso se la richiesta porta sotto zero ferie o permessi. Stringa vuota se va bene."""
     if anagrafica_id is None or tipo not in {"Ferie", "Permesso"}:

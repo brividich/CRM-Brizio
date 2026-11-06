@@ -692,11 +692,12 @@
           const tipo = item.extendedProps.tipo || "Altro";
           const consenso = item.extendedProps.consenso || "N/D";
           const capo = item.extendedProps.capo || "";
+          const oreLabel = item.extendedProps.ore_label || "";
           const uid = item.extendedProps.uid || "";
           return '<button type="button" class="agenda-item" data-event-uid="' + escapeHtml(uid) + '" style="border-left-color:' + escapeHtml(item.color || "#94a3b8") + ';">' +
             '<div class="agenda-head"><div class="agenda-name">' + escapeHtml(item.title || "N/D") + '</div><span class="status-chip ' + statusClass(consenso) + '">' + escapeHtml(consenso) + '</span></div>' +
             '<div class="agenda-time">' + escapeHtml(formatRange(item)) + '</div>' +
-            '<div class="agenda-meta">' + escapeHtml(tipo) + (capo ? " - Capo: " + escapeHtml(capo) : "") + '</div></button>';
+            '<div class="agenda-meta">' + escapeHtml(tipo) + (oreLabel ? " - " + escapeHtml(oreLabel) : "") + (capo ? " - Capo: " + escapeHtml(capo) : "") + '</div></button>';
         }).join("");
       }
 
