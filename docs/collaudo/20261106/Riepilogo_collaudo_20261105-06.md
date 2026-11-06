@@ -6,14 +6,14 @@ Versione completa con schermate: `Riepilogo_collaudo_20261105-06.pdf`.
 
 - **Periodo analizzato**: dal 05/11/2026 ore 08:38 al 06/11/2026 ore 12:45
 - **Quantità**: 64 commit di lavoro, 560 file, 30 migrazioni
-- **main**: 3a819e8c, contenuto identico a release/prod 6a060250
-- **Ultimo pacchetto**: 06/11 ore 12:00 da 67463dcf: non contiene Sistema di gestione (629607ad), Qualifiche per centro (34f1e78a), Approva/Rifiuta nella mail (b8515845), ingressi su manutenzione e scadenze (0c9a075a)
+- **main**: 01cb4c10, contenuto identico a release/prod 785fb085 (compresa la correzione D1)
+- **Ultimo pacchetto**: 06/11 ore 12:00 da 67463dcf: non contiene Sistema di gestione (629607ad), Qualifiche per centro (34f1e78a), Approva/Rifiuta nella mail (b8515845), ingressi su manutenzione e scadenze (0c9a075a), correzione del verbale D1
 - **Produzione**: Secondo gli appunti, tutto questo risulta non ancora deployato. Non verificato: l'unità Y: non è raggiungibile da questa sessione. Controlla Y:\current\BUILD_INFO.json.
 - **Fuori da questa prova**: feature/tasks-fai-storico (73129cb1): non è in main. Il server di sviluppo su :8000 può girare da quel ramo: per le prove serve un'installazione da release/prod.
 
 ## Difetti trovati
 
-- **D1** (ALTO · confermato): Il verbale di evacuazione dà errore 500 se un esterno non è stato contato. Il modello legge p.reparto come argomento del filtro default, ma nei dati degli esterni quella chiave non viene salvata. Basta un visitatore non spuntato alla chiusura: è proprio il caso che il verbale deve documentare. Provato con DEBUG spento su dati finti: 500 con un esterno non contato, 200 con tutti contati; PDF e stampa rispondono 200. I 36 test di presenti passano: il caso non è coperto. Dove: presenti/templates/presenti/verbale.html:51 e presenti/views.py:177. Non corretto: la richiesta era di analisi.
+- **D1** (ALTO · corretto): Il verbale di evacuazione dava errore 500 se un esterno non era stato contato. Il modello leggeva p.reparto come argomento del filtro default, ma gli esterni salvati nell'appello non hanno quella chiave. Provato con DEBUG spento su dati finti: 500 con un esterno non contato. Corretto in presenti/templates/presenti/verbale.html con due test nuovi. In main 01cb4c10 e release/prod 785fb085; vale anche per gli appelli già chiusi. Serve un pacchetto nuovo. Non serve migrazione né collectstatic.
 - **D2** (BASSO · confermato): Il titolo della scheda del browser su «Le mie richieste» dice «Impostazioni Assenze».
 - **D3** (BASSO · da guardare): /automazioni/mail-inviate/ risulta larga 1445 px con finestra da 1440: probabile piccolo scorrimento laterale della barra delle schede.
 - **D4** (AMBIENTE): 2 test di scadenzario sono rossi perché pymysql manca nel venv locale, non per il codice. In prod il pacchetto serve al GuestPortal: controllare che sia installato.
@@ -54,14 +54,13 @@ Versione completa con schermate: `Riepilogo_collaudo_20261105-06.pdf`.
 
 ### Cosa resta da fare
 
-- Correggere il difetto D1 sul verbale prima di usarlo in un'evacuazione vera.
 - Al deploy: variabili SOLARI_DB_* con un login in sola lettura, migrazioni, pianificazioni, riavvio di qcluster, import degli incarichi.
 - Dopo le prove: attivare la pubblicazione del PDF e spegnere il vecchio programma ReportPresenze.
 - Scelta rimandata: appello senza rete, da valutare più avanti.
 
 ### Checklist
 
-- [ ] PRE-01 [A] Chiudi un appello lasciando non contato un esterno, poi apri il verbale. → La pagina si apre. Oggi dà errore 500: difetto D1.
+- [ ] PRE-01 [A] Chiudi un appello lasciando non contato un esterno, poi apri il verbale. → La pagina si apre e l'esterno è fra i non contati con la sua ditta. Prima dava errore 500: corretto (D1).
 - [ ] PRE-02 [A] Avvia un appello da due dispositivi e spunta persone diverse. → Ognuno vede le spunte dell'altro entro pochi secondi; i contatori coincidono.
 - [ ] PRE-03 [A] Scarica il PDF del verbale e la stampa dell'appello. → Dati uguali alla pagina; esterni presenti con la ditta.
 - [ ] PRE-04 [M] Elimina un'esercitazione, poi prova con un appello che non è un'esercitazione. → La prima sparisce; per la seconda il comando non c'è. Chi non l'ha avviata non può eliminarla.
@@ -376,7 +375,7 @@ Versione completa con schermate: `Riepilogo_collaudo_20261105-06.pdf`.
 
 - Da confermare con la manutenzione: codici guasto e costi non si compilano più nella chiusura straordinaria, e «Modifica» non li ha.
 - La bozza non copre i modali di modifica con destinazione impostata da JS (formazione, retribuzioni, aree, mansioni, qualifiche, ruoli).
-- Nessuna schermata di «Da associare a mano» in questo report: l'unica disponibile mostra la pianta vera dello stabilimento.
+- «Da associare a mano» non è stata ricontrollata in questa analisi: va provata con un PDF vero.
 - Al deploy: migrazione tickets 0016, collectstatic. Test rosso: vedi D5.
 
 ### Checklist
