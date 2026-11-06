@@ -1,0 +1,48 @@
+{# Opzioni e soglie del Registro FAI. Il valore iniziale è quello della MT CN 15. #}
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Scadenze</h2>
+      <p class="ts-panel-subtitle">Quando il registro segnala un articolo.</p>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    <form method="post" action="" class="fai-opz-soglie">
+      {% csrf_token %}
+      <input type="hidden" name="tab" value="fai">
+      <input type="hidden" name="fai_action" value="soglie">
+      <label class="fai-campo"><span>Mesi dall'ultima spedizione per segnalarlo</span>
+        <input class="input" type="number" name="fai_mesi_verifica" min="1" max="240" required value="{{ cfg.fai_mesi_verifica }}">
+      </label>
+      <label class="fai-campo"><span>Mesi dall'ultima produzione per ripeterlo</span>
+        <input class="input" type="number" name="fai_mesi_ripetizione" min="1" max="240" required value="{{ cfg.fai_mesi_ripetizione }}">
+      </label>
+      <button type="submit" class="md-btn">Salva</button>
+    </form>
+  </div>
+</section>
+
+{% for g in fai_gruppi %}
+<section class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">{{ g.titolo }}</h2>
+      <p class="ts-panel-subtitle">{{ g.aiuto }}</p>
+    </div>
+  </div>
+  <div class="ts-panel-body fai-opz-elenco">
+    <div class="fai-opz-riga fai-opz-testa fai-opz-{{ g.codice|lower }}" aria-hidden="true">
+      <span>Nome</span>
+      {% if g.codice == "CAUSALE" %}<span>Descrizione</span><span>Tipo proposto</span><span>Motivo se Delta</span>
+      {% elif g.codice == "PIANO" %}<span>Modulo</span><span>Stato OP</span><span>Numero PFCN automatico</span>
+      {% else %}<span>Significato</span>{% endif %}
+      <span>Ordine</span><span>Attiva</span><span></span>
+    </div>
+    {% for o in g.opzioni %}
+      {% include "tasks/impostazioni/_fai_opzione.html" with gruppo=g.codice o=o %}
+    {% endfor %}
+    <h3 class="tr-sezione">Aggiungi</h3>
+    {% include "tasks/impostazioni/_fai_opzione.html" with gruppo=g.codice o=None %}
+  </div>
+</section>
+{% endfor %}

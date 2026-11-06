@@ -1,0 +1,58 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Programmi</span>{% endblock %}
+{% block tasks_shell_guide_anchor %}#programmi-fai{% endblock %}
+{% block tasks_shell_title %}Programmi{% endblock %}
+{% block tasks_shell_subtitle %}Tutti i programmi CAM e CMM delle commesse, con cartella e responsabile.{% endblock %}
+
+{% block tasks_shell_content %}
+<section class="ts-panel">
+  <div class="ts-panel-body fai-registro">
+    <div class="fai-viste" role="group" aria-label="Filtra i programmi">
+      {% for v in viste %}
+        <a class="fai-vista{% if vista == v.codice %} active{% endif %}{% if v.codice == 'ritardo' and v.conta %} danger{% endif %}{% if v.codice == 'da_inserire' and v.conta %} warn{% endif %}"
+           href="?vista={{ v.codice }}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if vista == v.codice %} aria-current="true"{% endif %}>
+          <strong>{{ v.conta }}</strong> {{ v.etichetta }}
+        </a>
+      {% endfor %}
+    </div>
+    <form method="get" class="fai-cerca">
+      <input type="hidden" name="vista" value="{{ vista }}">
+      <input class="input" type="search" name="q" value="{{ q }}" placeholder="Cerca codice, cartella, cliente, P/N o kickoff" aria-label="Cerca">
+      <button type="submit" class="btn btn-secondary">Cerca</button>
+      <a class="btn btn-secondary" href="?vista={{ vista }}&q={{ q|urlencode }}&formato=csv">Esporta CSV</a>
+    </form>
+    {% if righe %}
+    <div class="tl-table-wrap">
+      <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
+        <thead><tr><th>Programma</th><th>Cartella o file</th><th>Articolo</th><th>Kickoff</th><th>Responsabile</th><th>Stato</th></tr></thead>
+        <tbody>
+          {% for r in righe %}
+          {% with ref=r.ref %}
+          <tr class="{% if ref.is_overdue %}status-overdue{% elif not ref.is_open %}status-done{% endif %}">
+            <td>
+              <strong>{{ ref.kind }}</strong> {% if ref.code %}{{ ref.code }}{% else %}<span class="tr-empty">da inserire</span>{% endif %}
+              {% if ref.task_id %}<div class="tl-task-desc"><a class="tl-task-link" href="{% url 'tasks:detail' ref.task_id %}">{{ ref.task.title }}</a></div>{% endif %}
+            </td>
+            <td>{% include "tasks/_tech_ref_link.html" %}</td>
+            <td>{{ ref.project.part_number|default:"-" }}<div class="tl-task-desc">{{ ref.project.client_name }}</div></td>
+            <td><a class="tl-task-link" href="{% url 'tasks:project_tech_refs' ref.project_id %}">{{ ref.project.name }}</a></td>
+            <td>{% if ref.assigned_to %}{{ ref.assigned_to.get_full_name|default:ref.assigned_to.username }}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
+            <td>
+              <span class="ts-chip {{ r.classe }}">{{ r.stato }}</span>
+              {% if ref.due_date %}<div class="tl-task-desc">Entro il {{ ref.due_date|date:"d/m/Y" }}</div>{% endif %}
+            </td>
+          </tr>
+          {% endwith %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% elif q or vista %}
+      <p class="tr-hint">Nessun programma con questi filtri.</p>
+    {% else %}
+      <p class="tr-hint">Ancora nessun programma. Nascono dalle attività di programmazione o da «Programmi e FAI» della commessa.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

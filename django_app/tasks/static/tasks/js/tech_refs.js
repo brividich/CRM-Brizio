@@ -133,12 +133,24 @@
       f('path').value = riga.dataset.path;
       f('owner').value = riga.dataset.owner;
       f('due').value = riga.dataset.due;
+      /* Tipo, responsabile e data di una riga nata da un'attività si cambiano sull'attività. */
+      var collegata = Boolean(riga.dataset.task);
+      f('kind').disabled = collegata;
+      f('owner').disabled = collegata;
+      f('due').disabled = collegata;
       f('save').textContent = 'Salva';
       f('code').focus();
     }
 
     block.addEventListener('click', function (e) {
       if (e.target.closest('[data-tr="save"]')) { salva(); return; }
+      var sceltaFai = e.target.closest('[data-tr-fai]');
+      if (sceltaFai) {
+        var valori = new FormData();
+        valori.append('valore', sceltaFai.getAttribute('data-tr-fai'));
+        invia(block.dataset.actionBase + 'fai-non-richiesto/', valori);
+        return;
+      }
       var riga = e.target.closest('[data-tr-ref]');
       if (!riga) { return; }
       if (e.target.closest('[data-tr-edit]')) { apriModifica(riga); return; }

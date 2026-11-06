@@ -1,0 +1,53 @@
+<form method="post" action="" class="fai-opz-riga fai-opz-{{ gruppo|lower }}{% if o and not o.attiva %} fai-opz-spenta{% endif %}">
+  {% csrf_token %}
+  <input type="hidden" name="tab" value="fai">
+  <input type="hidden" name="gruppo" value="{{ gruppo }}">
+  {% if o %}<input type="hidden" name="opzione_id" value="{{ o.id }}">{% endif %}
+  <label class="fai-cella"><span class="fai-opz-tit">Nome</span>
+    <input class="input" type="text" name="etichetta" maxlength="120" required value="{{ o.etichetta|default:'' }}">
+  </label>
+  {% if gruppo == "CAUSALE" %}
+    <label class="fai-cella"><span class="fai-opz-tit">Descrizione</span>
+      <input class="input" type="text" name="descrizione" maxlength="255" value="{{ o.descrizione|default:'' }}" title="{{ o.descrizione|default:'' }}">
+    </label>
+    <label class="fai-cella"><span class="fai-opz-tit">Tipo proposto</span>
+      <select class="input" name="tipo_proposto">
+        {% for valore, etichetta in fai_tipi %}<option value="{{ valore }}"{% if o.tipo_proposto == valore %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="fai-cella fai-spunta"><span class="fai-opz-tit">Motivo se Delta</span>
+      <input type="checkbox" name="motivo_se_delta"{% if o.motivo_se_delta %} checked{% endif %}>
+    </label>
+  {% elif gruppo == "PIANO" %}
+    <label class="fai-cella"><span class="fai-opz-tit">Modulo</span>
+      <input class="input" type="text" name="modulo" maxlength="60" value="{{ o.modulo|default:'' }}">
+    </label>
+    <label class="fai-cella"><span class="fai-opz-tit">Stato OP</span>
+      <input class="input" type="text" name="stato_op" maxlength="20" value="{{ o.stato_op|default:'' }}">
+    </label>
+    <label class="fai-cella fai-spunta"><span class="fai-opz-tit">Numero PFCN automatico</span>
+      <input type="checkbox" name="numerazione_auto"{% if o.numerazione_auto %} checked{% endif %}>
+    </label>
+  {% else %}
+    <label class="fai-cella"><span class="fai-opz-tit">Significato</span>
+      <select class="input" name="fase">
+        {% for valore, etichetta in fai_fasi %}<option value="{{ valore }}"{% if o.fase == valore %} selected{% endif %}>{{ etichetta }}</option>{% endfor %}
+      </select>
+    </label>
+  {% endif %}
+  <label class="fai-cella"><span class="fai-opz-tit">Ordine</span>
+    <input class="input" type="number" name="ordine" min="0" value="{{ o.ordine|default:'' }}">
+  </label>
+  {% if o %}
+    <label class="fai-cella fai-spunta"><span class="fai-opz-tit">Attiva</span>
+      <input type="checkbox" name="attiva"{% if o.attiva %} checked{% endif %}>
+    </label>
+    <div class="fai-opz-azioni">
+      <button type="submit" class="md-btn" name="fai_action" value="aggiorna">Salva</button>
+      {% if not o.in_uso and not o.codice %}<button type="submit" class="md-btn danger-ghost" name="fai_action" value="elimina" formnovalidate data-hub-confirm="Eliminare «{{ o.etichetta }}»?">Elimina</button>{% endif %}
+    </div>
+  {% else %}
+    <span class="fai-cella" aria-hidden="true"></span>
+    <div class="fai-opz-azioni"><button type="submit" class="md-btn" name="fai_action" value="crea">Aggiungi</button></div>
+  {% endif %}
+</form>

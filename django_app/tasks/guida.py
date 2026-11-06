@@ -250,6 +250,8 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "La scheda «Programmi e FAI» della commessa raccoglie i codici e i percorsi di rete, con il responsabile di ognuno. "
                   "Non è obbligatoria e si può usare solo per quello che serve. Le stesse righe si vedono e si aggiungono anche nel dettaglio dell'incontro e in «Registra esito»: non vanno inserite due volte."),
+            ("p", "Un'attività di tipo «Programmazione CAM» richiede il programma CAM, «Programmazione CMM» il programma CMM, «Esecuzione FAI» la scheda FAI: la scheda dell'attività chiede subito codice e cartella, e la stessa riga compare in «Programmi e FAI» con il responsabile e la data dell'attività. "
+                  "Se l'attività si chiude senza programma, si può chiudere, ma la riga resta «Da inserire» nelle attività del responsabile. Se il programma viene cancellato, torna «Da inserire». Eliminare il tipo o togliere «Richiede» stacca le righe: quelle vuote spariscono, i programmi già inseriti e le righe assegnate in riunione restano. Una scheda FAI chiesta da un'attività ha lo stesso responsabile dell'attività. La voce di menu «Programmi» mostra tutti i programmi CAM e CMM, con filtri, ricerca ed esportazione CSV."),
             ("passi", [
                 "Scegli il tipo: «Programma CAM», «Programma CMM» o «FAI».",
                 "Scrivi il codice e, se serve, il percorso, per esempio \\\\server\\cartella\\file.",
@@ -263,6 +265,28 @@ SEZIONI: list[dict] = [
                 "Le lettere di unità come Y:\\ non si accettano, perché cambiano da PC a PC: serve il percorso di rete.",
                 "Cliccando un percorso di rete il portale lo copia. I browser non aprono direttamente le cartelle da una pagina web: premi Win+E, poi Ctrl+L, Ctrl+V e Invio.",
                 "«Modifica» è per chi gestisce la commessa e per il responsabile della riga; «Elimina» solo per chi gestisce la commessa. Il responsabile non può passare la riga a un altro.",
+            ]),
+        ],
+    },
+    {
+        "id": "registro-fai",
+        "titolo": "FAI e Registro FAI",
+        "blocchi": [
+            ("p", "In «Programmi e FAI» la parte FAI dice cosa prevede la procedura per il P/N della commessa. Il «Registro FAI» del menu tiene una riga per articolo con il FAI più recente: in alto quello che richiede una decisione."),
+            ("passi", [
+                "In «Programmi e FAI» premi «Apri un FAI». Se in riunione hai già assegnato una riga FAI, premi «Completa»: non si crea un doppione.",
+                "Scegli «Perché serve»: il portale propone FAI completo o Delta FAI.",
+                "È una proposta, non un obbligo: se per quella commessa il FAI non serve, chi gestisce il kickoff preme «Non richiesto per questo kickoff». Il portale registra chi l'ha deciso e quando; «Annulla» torna indietro.",
+                "Indica il piano e, se c'è, il numero. Per i piani con numerazione automatica lascialo vuoto.",
+                "Aggiorna lo «Stato» man mano e inserisci le date dell'articolo: servono a calcolare la scadenza.",
+            ]),
+            ("ul", [
+                "Se scegli un Delta FAI dove è previsto il completo il portale non ti ferma: chiede di scrivere il motivo.",
+                "«Da ripetere»: superati i mesi dalla fine dell'ultima produzione (24 in partenza), oppure la data chiesta dal cliente.",
+                "«Oltre 18 mesi»: ultima spedizione più vecchia della soglia. È l'elenco del controllo trimestrale da segnalare a IN1 e MSM; «Esporta CSV» lo scarica.",
+                "Il responsabile trova il FAI in «Le mie attività». Con «Fatto» il FAI passa al primo stato «Eseguito, in attesa di esito».",
+                "Vedi i FAI delle commesse a cui hai accesso. L'intero registro, compresi gli articoli senza commessa, è per chi gestisce il modulo.",
+                "Motivi, piani, stati e mesi si cambiano in Impostazioni, scheda «FAI».",
             ]),
         ],
     },
@@ -522,8 +546,9 @@ SEZIONI: list[dict] = [
                 ("Ruoli operativi", "catalogo dei ruoli e assegnazione delle persone: sono le liste del team. «Da anagrafica (Reparti)» legge i Caporeparto dai reparti; «Manuale» li assegna a mano."),
                 ("Accessi", "per ogni ruolo e per la singola persona: Vede tutto, Modifica solo i task assegnati, Modifica tutto."),
                 ("Promemoria", "i promemoria programmati delle attività: si eliminano, si rimandano o si inviano subito."),
-                ("Tipi attivita", "le tipologie di attività e i campi extra del form, con il ruolo dedicato."),
+                ("Tipi attivita", "le tipologie di attività e i campi extra del form, con il ruolo dedicato e «Richiede»: il programma CAM, il programma CMM o il FAI che l'attività deve produrre."),
                 ("Modelli ODG", "punti ricorrenti da caricare nella convocazione. Un punto per riga; per la durata scrivi «Titolo | 15»."),
+                ("FAI", "motivi per cui serve il FAI e tipo proposto, tipi di piano, stati e mesi delle scadenze. Una voce già usata non si elimina: si disattiva."),
                 ("Record", "ricerca ed eliminazione di kickoff e attività: serve una motivazione e non si torna indietro."),
                 ("Log attivita", "il registro delle operazioni del modulo."),
             ]),

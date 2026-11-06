@@ -21,6 +21,12 @@ class VRFDocStatus(models.TextChoices):
     NOT_REQUIRED = "NOT_REQUIRED", "Non richiesto"
 
 
+class TechRefKind(models.TextChoices):
+    CAM = "CAM", "Programma CAM"
+    CMM = "CMM", "Programma CMM"
+    FAI = "FAI", "FAI"
+
+
 class ProjectPhase(models.TextChoices):
     BOZZA = "BOZZA", "Bozza"
     VRF = "VRF", "VRF"
@@ -79,6 +85,11 @@ class Project(models.Model):
     vrf_status = models.CharField(
         max_length=20, choices=VRFDocStatus.choices, default=VRFDocStatus.PENDING,
         verbose_name="Stato documento VRF",
+    )
+    # Valorizzata quando chi gestisce il kickoff decide che il FAI qui non serve.
+    fai_non_richiesto_il = models.DateTimeField(null=True, blank=True)
+    fai_non_richiesto_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
     )
     phase = models.CharField(
         max_length=10, choices=ProjectPhase.choices,
@@ -692,6 +703,15 @@ class TaskImpostazioni(models.Model):
         help_text="Un indirizzo per riga, per chi non e' un utente del portale.",
     )
 
+    fai_mesi_verifica = models.PositiveSmallIntegerField(
+        default=18,
+        verbose_name="Mesi dall'ultima spedizione per segnalare il FAI",
+    )
+    fai_mesi_ripetizione = models.PositiveSmallIntegerField(
+        default=24,
+        verbose_name="Mesi dall'ultima produzione per ripetere il FAI",
+    )
+
     def get_cc_predefiniti(self) -> list[str]:
         """Indirizzi in copia di default (utenti portale + email libere)."""
         emails: list[str] = []
@@ -952,6 +972,14 @@ class TaskCategory(models.Model):
     )
     order_index = models.PositiveIntegerField(default=0, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
+    richiede = models.CharField(
+        max_length=3,
+        choices=TechRefKind.choices,
+        blank=True,
+        default="",
+        verbose_name="Richiede",
+        help_text="Cosa deve produrre un'attività di questo tipo.",
+    )
     is_machine_work = models.BooleanField(
         default=False,
         db_index=True,
@@ -2123,12 +2151,6 @@ class MeetingRoom(models.Model):
     def __str__(self) -> str:
         return self.nome
 
-class TechRefKind(models.TextChoices):
-    CAM = "CAM", "Programma CAM"
-    CMM = "CMM", "Programma CMM"
-    FAI = "FAI", "FAI"
-
-
 class TechRefStatus(models.TextChoices):
     OPEN = "OPEN", "Da fare"
     DONE = "DONE", "Fatto"
@@ -2155,6 +2177,10 @@ class ProjectTechRef(models.Model):
         verbose_name="Responsabile",
     )
     due_date = models.DateField(null=True, blank=True, verbose_name="Entro il")
+    # L'attività che deve produrre questo programma: responsabile, data e stato arrivano da lei.
+    task = models.OneToOneField(
+        Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="tech_ref", verbose_name="Attività"
+    )
     status = models.CharField(
         max_length=4, choices=TechRefStatus.choices, default=TechRefStatus.OPEN, db_index=True, verbose_name="Stato"
     )
@@ -2197,6 +2223,14 @@ class ProjectTechRef(models.Model):
         return bool(self.is_open and self.due_date and self.due_date < timezone.localdate())
 
     @property
+    def ha_contenuto(self) -> bool:
+        return bool(self.code or self.path or getattr(self, "fai_record", None))
+
+    @property
+    def attivita_aperta(self) -> bool:
+        return bool(self.task_id and self.task.status not in (TaskStatus.DONE, TaskStatus.CANCELED))
+
+    @property
     def is_web_path(self) -> bool:
         return self.path.lower().startswith(("http://", "https://"))
 
@@ -2215,3 +2249,108 @@ class ProjectTechRef(models.Model):
         self.status = TechRefStatus.OPEN
         self.done_by = None
         self.done_at = None
+
+
+class FaiTipo(models.TextChoices):
+    COMPLETO = "COMPLETO", "FAI completo"
+    DELTA = "DELTA", "Delta FAI"
+
+
+class FaiGruppo(models.TextChoices):
+    CAUSALE = "CAUSALE", "Perché serve"
+    PIANO = "PIANO", "Piano FAI"
+    STATO = "STATO", "Stato"
+
+
+class FaiFase(models.TextChoices):
+    """Cosa significa uno stato per il portale: il nome lo decide chi configura."""
+
+    DA_FARE = "DA_FARE", "Da eseguire: la voce del responsabile resta aperta"
+    IN_CORSO = "IN_CORSO", "Eseguito, in attesa di esito"
+    POSITIVO = "POSITIVO", "Concluso con esito positivo"
+    NON_COMPLETO = "NON_COMPLETO", "Non completo: la voce del responsabile si riapre"
+
+
+class FaiOpzione(models.Model):
+    """Voce configurabile in Impostazioni: perché serve, tipo di piano, stato."""
+
+    gruppo = models.CharField(max_length=10, choices=FaiGruppo.choices, db_index=True)
+    # Solo per le voci che il portale riconosce da solo (causali a e f); non si eliminano.
+    codice = models.CharField(max_length=20, blank=True, default="", editable=False)
+    etichetta = models.CharField(max_length=120, verbose_name="Nome")
+    descrizione = models.CharField(max_length=255, blank=True, default="", verbose_name="Descrizione")
+    ordine = models.PositiveIntegerField(default=0, db_index=True)
+    attiva = models.BooleanField(default=True, db_index=True)
+    tipo_proposto = models.CharField(max_length=8, choices=FaiTipo.choices, default=FaiTipo.COMPLETO)
+    motivo_se_delta = models.BooleanField(default=False, verbose_name="Motivo se Delta")
+    modulo = models.CharField(max_length=60, blank=True, default="")
+    stato_op = models.CharField(max_length=20, blank=True, default="")
+    numerazione_auto = models.BooleanField(default=False, verbose_name="Numero PFCN automatico")
+    fase = models.CharField(max_length=12, choices=FaiFase.choices, default=FaiFase.IN_CORSO)
+
+    class Meta:
+        ordering = ["gruppo", "ordine", "id"]
+        verbose_name = "Opzione FAI"
+        verbose_name_plural = "Opzioni FAI"
+
+    def __str__(self) -> str:
+        return self.etichetta
+
+
+class FaiArticolo(models.Model):
+    """Articolo del registro FAI: le date di scadenza sono del P/N, non del singolo FAI."""
+
+    client_name = models.CharField(max_length=180, blank=True, default="", verbose_name="Cliente")
+    part_number = models.CharField(max_length=120, verbose_name="P/N")
+    ultima_produzione = models.DateField(null=True, blank=True, verbose_name="Fine ultima produzione")
+    ultima_spedizione = models.DateField(null=True, blank=True, verbose_name="Ultima spedizione")
+    scadenza_cliente = models.DateField(null=True, blank=True, verbose_name="Ripetizione chiesta dal cliente entro")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["client_name", "part_number"]
+        verbose_name = "Articolo FAI"
+        verbose_name_plural = "Articoli FAI"
+        constraints = [
+            models.UniqueConstraint(fields=["client_name", "part_number"], name="tasks_fai_articolo_cliente_pn"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.part_number} ({self.client_name})" if self.client_name else self.part_number
+
+
+class FaiRecord(models.Model):
+    """Un FAI di un articolo. Con una commessa ha anche la sua riga in «Programmi e FAI»."""
+
+    articolo = models.ForeignKey(FaiArticolo, on_delete=models.CASCADE, related_name="fai", verbose_name="Articolo")
+    project = models.ForeignKey(
+        Project, on_delete=models.SET_NULL, null=True, blank=True, related_name="fai_records", verbose_name="Kickoff"
+    )
+    tech_ref = models.OneToOneField(
+        ProjectTechRef, on_delete=models.SET_NULL, null=True, blank=True, related_name="fai_record"
+    )
+    causale = models.ForeignKey(FaiOpzione, on_delete=models.PROTECT, related_name="+", verbose_name="Perché serve")
+    tipo = models.CharField(max_length=8, choices=FaiTipo.choices, verbose_name="Tipo")
+    motivo = models.CharField(max_length=1000, blank=True, default="", verbose_name="Motivo del Delta FAI")
+    piano = models.ForeignKey(FaiOpzione, on_delete=models.PROTECT, related_name="+", verbose_name="Piano FAI")
+    piano_numero = models.CharField(max_length=160, blank=True, default="", verbose_name="Numero piano")
+    stato = models.ForeignKey(FaiOpzione, on_delete=models.PROTECT, related_name="+", verbose_name="Stato")
+    data_invio = models.DateField(null=True, blank=True, verbose_name="Data invio FAI")
+    path = models.CharField(max_length=500, blank=True, default="", verbose_name="Cartella o file")
+    responsabile = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="tasks_fai", verbose_name="Responsabile",
+    )
+    note = models.TextField(blank=True, default="", verbose_name="Note")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-id"]
+        verbose_name = "FAI"
+        verbose_name_plural = "Registro FAI"
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()} {self.articolo.part_number}"
