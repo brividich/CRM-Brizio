@@ -90,7 +90,7 @@ GUIDA = {
                       "preparare e consegnare, raggruppate per persona. In alto i numeri: «Persone in attesa», «Da preparare», "
                       "«Pronti al ritiro» e «Giacenza insufficiente»."),
                 ("passi", [
-                    "Quando la persona arriva scrivi il nome in «Cerca la persona al banco» (vale anche il reparto, il numero della richiesta o il codice del modello). "
+                    "Quando la persona arriva scrivi il nome in «Cerca la persona al banco» (vale anche il reparto, il numero della richiesta o il codice del modello; il badge si passa solo sul lettore). "
                     "Se resta una sola persona la sua scheda si apre da sola; altrimenti cliccala nell'elenco.",
                     "Nella scheda tutti i DPI sono già spuntati: togli la spunta a quelli che non consegni adesso («Tutti» e «Nessuno» fanno prima). "
                     "Accanto a ogni DPI vedi quanti pezzi ci sono «in magazzino» (in rosso se non bastano). Se non bastano registra il carico, oppure scrivi "
@@ -123,6 +123,13 @@ GUIDA = {
                 ]),
                 ("p", "«Pronto per il ritiro (avvisa)» manda in un colpo l'avviso di ritiro per tutti i DPI spuntati della persona "
                       "(chi era già avvisato non riceve un secondo avviso). Non compare se in Impostazioni l'avviso parte già all'approvazione."),
+                ("p", "Lettore di badge: con Chrome o Edge clicca «Collega lettore badge» e scegli la porta CP210x (solo la prima volta, poi si "
+                      "ricollega da solo). Passando il badge il portale verifica subito di chi è e apre la sua scheda. Controlla i DPI spuntati e scegli: "
+                      "«Conferma con badge», poi la persona passa di nuovo il proprio badge entro 60 secondi: vale come ricevuta, senza mail (per qualche secondo puoi ancora «Annulla»); "
+                      "«Conferma con mail», per chi non ha il badge con sé: ritira subito e la conferma arriva per mail. Un badge di un'altra persona non conferma nulla. "
+                      "Il numero del badge non si può scrivere a mano e la ricerca non lo cerca: funziona solo la lettura dal lettore. "
+                      "Nel Registro consegne la ricevuta risulta «Confermata con badge». Se la persona non ha DPI da ritirare lo dice; «Badge non riconosciuto» vuol dire "
+                      "che il numero non è nell'Anagrafica, è su due persone o la persona è fuori dal tuo perimetro: cerca per nome. Dopo 20 badge non riconosciuti in 10 minuti la lettura si sospende per qualche minuto. Se il lettore è pronto ma al passaggio non succede nulla, sul lettore 3022L controlla la levetta 2 del blocchetto SW1 sulla piastra: con quella in posizione originale non trasmette."),
                 ("p", "Ogni consegna fatta dal banco vale come quella dalla scheda richiesta: PDF nei documenti del dipendente, "
                       "scarico del magazzino, sostituzione del DPI precedente dello stesso tipo, report al responsabile."),
                 ("p", "«Consegna diretta al banco» (solo se qualche categoria ha la spunta «Consegna diretta dal banco»): scegli "
@@ -239,7 +246,7 @@ GUIDA = {
                     "Una persona conta in ogni stato che ha: con un DPI scaduto e uno mancante è in entrambi i numeri, e l'esito mostra il più grave. Clicca un numero in alto per filtrare, un nome per aprire il dettaglio. «Da sistemare» dice cosa manca e se c'è già una richiesta in corso.",
                     "Un DPI è dovuto se la categoria ha «Obbligatoria nel report conformità» oppure se lo prevede la mansione di rischio della persona. "
                     "Nel dettaglio, la colonna «Perché» dice quale delle due: «Per tutti» o «Dalla mansione».",
-                    "«Registro consegne»: cosa è stato consegnato, a chi e quando, con la ricevuta: «Firmata», «Confermata via mail», «Da confermare», «Contestata» o «Senza firma». "
+                    "«Registro consegne»: cosa è stato consegnato, a chi e quando, con la ricevuta: «Firmata», «Confermata con badge», «Confermata via mail», «Da confermare», «Contestata» o «Senza firma». "
                     "Senza date scelte mostra gli ultimi 90 giorni.",
                     "Conformità, Registro consegne e Gestione richieste si filtrano anche per centro di costo; negli export di Conformità e Registro c'è la colonna.",
                     "«Consumi e magazzino»: consumi, coperture, cosa riordinare e consegne senza giacenza.",

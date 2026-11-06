@@ -183,7 +183,7 @@ body.theme-dark .dpi-cat-big-emoji{color:#86efac}
           </dd>
           {% endif %}
           <dt>Ricevuta firmata</dt>
-          <dd>{% if consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
+          <dd>{% if consegna.confermata_badge_il %}Confermata con badge il {{ consegna.confermata_badge_il|date:"d/m/Y H:i" }}{% elif consegna.firmato_ricevuta %}Si{% else %}No{% endif %}</dd>
           {% if consegna.note_consegna %}
           <dt>Note</dt>
           <dd>{{ consegna.note_consegna }}</dd>

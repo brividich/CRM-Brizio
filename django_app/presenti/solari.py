@@ -373,6 +373,29 @@ def leggi_uscite_mancanti(dal: date, al: date) -> list[dict]:
     return risultato
 
 
+def leggi_badge() -> dict[str, str]:
+    """{codice fiscale: ultimo badge con cui la persona ha timbrato}. Serve all'import dei badge."""
+    cfg = configurazione()
+    query = f"""
+        SELECT a.CODFISC, x.BADGE
+        FROM (
+            SELECT IDDIP, BADGE, ROW_NUMBER() OVER (PARTITION BY IDDIP ORDER BY DATAV DESC) AS riga
+            FROM [{cfg.db_timbrature}].[dbo].[TIMBRATURE]
+            WHERE BADGE IS NOT NULL
+        ) x
+        INNER JOIN [{cfg.db_anagrafico}].[dbo].[ANAGRAFICO_DATI] a ON a.ID = x.IDDIP
+        WHERE x.riga = 1
+    """
+    conn = _connetti(cfg)
+    try:
+        cur = conn.cursor()
+        cur.execute(query)
+        righe = cur.fetchall()
+    finally:
+        conn.close()
+    return {_pulisci(cf).upper(): _pulisci(b) for cf, b in righe if _pulisci(cf) and _pulisci(b)}
+
+
 def leggi_matricole() -> dict[str, str]:
     """{matricola senza zeri iniziali, maiuscola: codice fiscale} di tutta l'anagrafica Solari.
 

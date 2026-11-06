@@ -20,7 +20,7 @@
   <div class="banco-lista" role="listbox" aria-label="Persone in attesa">
     {% for p in persone %}
     <button type="button" class="banco-persona" role="option" data-chiave="{{ p.chiave }}"
-            data-badge="{{ p.badge }}" data-prep="{{ p.n_da_preparare }}" data-pronte="{{ p.n_pronte }}" data-manca="{{ p.n_mancanti }}"
+            data-prep="{{ p.n_da_preparare }}" data-pronte="{{ p.n_pronte }}" data-manca="{{ p.n_mancanti }}"
             data-cerca="{{ p.nome }} {{ p.reparto }}{% for riga in p.righe %} {{ riga.r.numero }}{% if riga.r.modello_dpi %} {{ riga.r.modello_dpi.codice }} {{ riga.r.modello_dpi.nome }}{% endif %}{% endfor %}">
       <span class="banco-persona-nome">{{ p.nome|upper }}</span>
       {% if p.reparto %}<span class="dpi-persona-rep">{{ p.reparto }}</span>{% endif %}
@@ -40,7 +40,7 @@
   <div class="banco-scheda">
     <div class="dpi-card dpi-empty" id="banco-invito">Scrivi il nome o clicca una persona.</div>
     {% for p in persone %}
-    <div class="dpi-card dpi-persona" id="{{ p.chiave }}" data-nome="{{ p.nome|upper }}" hidden>
+    <div class="dpi-card dpi-persona" id="{{ p.chiave }}" data-nome="{{ p.nome|upper }}"{% if p.ha_badge %} data-ha-badge="1"{% endif %} hidden>
       <form method="post">
         {% csrf_token %}
         {% if tutte %}<input type="hidden" name="tutte" value="1">{% endif %}
@@ -94,8 +94,10 @@
               <input type="text" name="motivo_giacenza" maxlength="200" placeholder="Es: carico non ancora registrato">
             </div>
           </div>
+          <div class="banco-badge-invito" data-badge-invito hidden></div>
           <div class="dpi-azioni">
-            <button type="submit" name="azione" value="consegna" class="dpi-btn dpi-btn-green" data-consegna>Consegna</button>
+            <button type="button" class="dpi-btn dpi-btn-green" data-conferma-badge>Conferma con badge</button>
+            <button type="submit" name="azione" value="consegna" class="dpi-btn dpi-btn-blue" data-consegna>Conferma con mail</button>
             {% if p.n_da_preparare and not avviso_all_approvazione %}
             <button type="submit" name="azione" value="pronta" class="dpi-btn dpi-btn-gray" formnovalidate data-pronto>Pronto per il ritiro (avvisa)</button>
             {% endif %}
@@ -103,7 +105,7 @@
             <button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta="{{ p.legacy_id }}">+ Consumabile</button>
             {% endif %}
           </div>
-          <p class="dpi-hint" style="margin:10px 0 0;">Parte la mail di conferma della ricevuta al dipendente (se ha la mail aziendale) o al suo caporeparto.</p>
+          <p class="dpi-hint" style="margin:10px 0 0;">«Conferma con badge»: la persona passa il proprio badge, senza mail. «Conferma con mail», per chi non ha il badge con sé: ritira subito e la conferma arriva al dipendente (se ha la mail aziendale) o al suo caporeparto.</p>
           <details class="dpi-firma-box">
             <summary>Firma sul tablet o ricevuta su carta (al posto della mail)</summary>
             <div class="dpi-field" style="margin-top:10px;">
