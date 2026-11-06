@@ -413,6 +413,17 @@ GUIDA = {
             ],
         },
         {
+            "id": "licenze_inventario",
+            "titolo": "Collegare le licenze all'inventario e contare i posti",
+            "blocchi": [
+                ("passi", [
+                    "Licenze software, riquadro «Da sistemare»: «Collega le N con il nome uguale» conferma quelle identiche; «Collega a …» le altre proposte, una per una; il resto con «Modifica». Gli abbonamenti per persona come Microsoft 365 non vanno collegati: si contano sulle persone, non sui PC.",
+                    "Una licenza collegata vale per tutto il programma, anche dopo un aggiornamento.",
+                    "Report › Licenze software: le colonne «PC con il software» e «Posti meno PC» dicono dove i PC superano i posti.",
+                ]),
+            ],
+        },
+        {
             "id": "catalogo_programmi",
             "titolo": "Trovare un programma nel Catalogo software",
             "blocchi": [

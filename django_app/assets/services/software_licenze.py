@@ -89,6 +89,20 @@ def suggest_inventory_key(lic, catalog_items):
     return hits[0] if len(hits) == 1 else None
 
 
+def collega_proposte():
+    """Collega le licenze il cui nome coincide con un programma. Le proposte per somiglianza restano da confermare una
+    per una: «Microsoft 365 Business Premium» somiglia a «Microsoft 365» ma è un abbonamento per persona, non i PC
+    che hanno quel programma. Ritorna gli id collegati."""
+    fatte = []
+    for riga in coverage_report()["unlinked"]:
+        if riga["esatta"]:
+            lic = riga["license"]
+            lic.inventory_key = riga["suggestion"]["key"]
+            lic.save(update_fields=["inventory_key", "updated_at"])
+            fatte.append(lic.pk)
+    return fatte
+
+
 def coverage_report(today=None):
     """Cosa non quadra tra licenze e software installato.
 
@@ -98,24 +112,26 @@ def coverage_report(today=None):
     - ``unused``: licenza valida collegata a un prodotto che non risulta più installato (possibile risparmio);
     - ``unlinked``: licenze attive senza chiave d'inventario, con proposta quando univoca.
     """
-    from security.services.software_catalog import catalog, hosts_by_key
+    from security.services.software_catalog import catalog, chiave_canonica, hosts_by_key, indice_famiglie
 
     today = today or timezone.localdate()
     licenses = list(SoftwareLicense.objects.select_related("asset"))
-    keys = {lic.inventory_key for lic in licenses if lic.inventory_key}
-    paid = {
-        e.inventory_key: e
-        for e in SoftwareCatalogEntry.objects.filter(licensing=SoftwareCatalogEntry.LICENSING_PAID)
-    }
+    # Per programma, non per nome: una licenza su «7-Zip 25.01» copre «7-Zip» anche dopo un aggiornamento.
+    indice = indice_famiglie()
+    keys = {chiave_canonica(lic.inventory_key, indice) for lic in licenses if lic.inventory_key}
+    paid = {}
+    for e in SoftwareCatalogEntry.objects.filter(licensing=SoftwareCatalogEntry.LICENSING_PAID):
+        paid.setdefault(chiave_canonica(e.inventory_key, indice), e)
     installed = hosts_by_key(keys | set(paid))
 
     valid_keys, by_key = set(), {}
     for lic in licenses:
         if not lic.inventory_key:
             continue
-        by_key.setdefault(lic.inventory_key, []).append(lic)
+        chiave = chiave_canonica(lic.inventory_key, indice)
+        by_key.setdefault(chiave, []).append(lic)
         if license_status(lic, today) in {"active", "expiring"}:
-            valid_keys.add(lic.inventory_key)
+            valid_keys.add(chiave)
 
     report = {"unlicensed": [], "over_seats": [], "expired_installed": [], "unused": [], "unlinked": []}
     for key, entry in paid.items():
@@ -141,8 +157,11 @@ def coverage_report(today=None):
     if unlinked:
         items = catalog()
         for lic in unlinked:
-            report["unlinked"].append({"license": lic, "suggestion": suggest_inventory_key(lic, items)})
+            proposta = suggest_inventory_key(lic, items)
+            report["unlinked"].append({"license": lic, "suggestion": proposta,
+                                       "esatta": bool(proposta and _norm(proposta["label"]) == _norm(lic.product_name))})
     for rows in report.values():
         rows.sort(key=lambda r: str(r.get("name") or r["license"]).lower())
-    report["total"] = sum(len(v) for k, v in report.items())
+    report["total"] = sum(len(v) for v in report.values())
+    report["proposte"] = sum(1 for r in report["unlinked"] if r["esatta"])
     return report
