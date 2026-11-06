@@ -274,6 +274,33 @@ class FlessibilitaAbilitato(models.Model):
         return self.nominativo or f"anagrafica {self.legacy_anagrafica_id}"
 
 
+class CambioCapoAbilitato(models.Model):
+    """Chi può cambiare il capo reparto proposto nella nuova richiesta.
+
+    Elenco vuoto = tutti possono cambiarlo. Con almeno un nome in elenco solo queste
+    persone possono farlo: per gli altri il campo resta sul capo assegnato. Identificato
+    per ``legacy_anagrafica_id`` di chi inserisce, come ``MalattiaAbilitato``.
+    """
+
+    legacy_anagrafica_id = models.IntegerField(unique=True, db_index=True)
+    nominativo = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Copia del nominativo al momento dell'abilitazione, per leggibilità dello storico.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Abilitato al cambio del capo reparto"
+        verbose_name_plural = "Abilitati al cambio del capo reparto"
+        ordering = ["nominativo", "legacy_anagrafica_id"]
+
+    def __str__(self):
+        return self.nominativo or str(self.legacy_anagrafica_id)
+
+
 class MalattiaAbilitato(models.Model):
     """Chi vede il pulsante «Malattia» nella nuova richiesta e la inserisce per tutti.
 

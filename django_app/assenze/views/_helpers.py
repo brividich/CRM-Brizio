@@ -840,10 +840,10 @@ def _assenze_permissions(request) -> dict:
     can_view_calendar = view_scope in {"all", "reparto"}
     can_delete_any = group == "AMMINISTRAZIONE"
     can_skip_approval = group in {"CAR", "AMMINISTRAZIONE"}
-    # Scelta del capo a cui inviare la richiesta: tutti possono cambiarlo. Il
-    # capo proposto resta quello dell'organigramma; se ne sceglie un altro, solo
-    # quello vede e approva la richiesta (``AssenzaCapoScelto``).
-    can_choose_capo = True
+    # Scelta del capo a cui inviare la richiesta: chi è nell'elenco di Impostazioni,
+    # tutti se l'elenco è vuoto. Il capo proposto resta quello dell'organigramma; se
+    # ne sceglie un altro, solo quello vede e approva la richiesta (``AssenzaCapoScelto``).
+    can_choose_capo = _puo_cambiare_capo(request)
     manager_name = ""
     manager_email = ""
     if legacy_user:
@@ -1075,6 +1075,44 @@ def _flessibilita_abilitata_per(anagrafica_id: int | None) -> bool:
     if anagrafica_id is None:
         return False
     return int(anagrafica_id) in _flessibilita_abilitati_ids()
+
+
+def _cambio_capo_abilitati_ids() -> set[int]:
+    from ..models import CambioCapoAbilitato
+
+    try:
+        return {
+            int(v)
+            for v in CambioCapoAbilitato.objects.values_list("legacy_anagrafica_id", flat=True)
+            if v is not None
+        }
+    except Exception:
+        logger.warning("[assenze] elenco abilitati al cambio capo non leggibile", exc_info=True)
+        return set()
+
+
+def _puo_cambiare_capo(request) -> bool:
+    """Può cambiare il capo proposto? Elenco vuoto = tutti.
+
+    Fail-closed con elenco attivo: senza un id anagrafica risolvibile non può.
+    """
+    cached = getattr(request, "_assenze_cambio_capo_cache", None)
+    if isinstance(cached, bool):
+        return cached
+    abilitati = _cambio_capo_abilitati_ids()
+    if not abilitati:
+        esito = True
+    else:
+        name, email, legacy_id = _legacy_identity(request)
+        mio_id = _resolve_anagrafica_employee_id_for_user(
+            legacy_user_id=legacy_id,
+            email=email,
+            username=request.user.get_username(),
+            name=name,
+        )
+        esito = mio_id is not None and int(mio_id) in abilitati
+    setattr(request, "_assenze_cambio_capo_cache", esito)
+    return esito
 
 
 def _malattia_abilitati_ids() -> set[int]:
