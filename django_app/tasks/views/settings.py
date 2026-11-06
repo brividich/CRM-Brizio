@@ -844,10 +844,13 @@ def _fai_settings_context() -> dict:
     testi = {
         FaiGruppo.CAUSALE: ("Perché serve il FAI", "I motivi della MT CN 15 §5.1. Ognuno propone il tipo; con «Motivo se Delta» chi sceglie il Delta deve spiegarlo."),
         FaiGruppo.PIANO: ("Tipi di piano FAI", "Modulo e stato OP si mostrano come promemoria nella scheda."),
+        FaiGruppo.CHIUSURA: ("Chiusura con", "Come si è chiuso il FAI."),
+        FaiGruppo.VERSIONE: ("Stato della versione", "Lo stato della versione di produzione."),
+        FaiGruppo.CROSS: ("Cross-correlation", "Lo stato della cross-correlation."),
         FaiGruppo.STATO: ("Stati del FAI", "Il nome è libero; il significato dice al portale se la voce del responsabile è aperta e se il FAI è concluso."),
     }
     in_uso = set()
-    for campo in ("causale_id", "piano_id", "stato_id"):
+    for campo in ("causale_id", "piano_id", "stato_id", "chiusura_con_id", "stato_versione_id", "cross_correlation_id"):
         in_uso.update(FaiRecord.objects.values_list(campo, flat=True).distinct())
     gruppi = []
     for gruppo, (titolo, aiuto) in testi.items():
@@ -869,7 +872,7 @@ def _fai_applica_campi(opzione: FaiOpzione, post) -> None:
         opzione.modulo = (post.get("modulo") or "").strip()[:60]
         opzione.stato_op = (post.get("stato_op") or "").strip()[:20]
         opzione.numerazione_auto = bool(post.get("numerazione_auto"))
-    else:
+    elif opzione.gruppo == FaiGruppo.STATO:
         fase = post.get("fase")
         opzione.fase = fase if fase in FaiFase.values else FaiFase.IN_CORSO
 

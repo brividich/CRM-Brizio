@@ -2260,6 +2260,9 @@ class FaiGruppo(models.TextChoices):
     CAUSALE = "CAUSALE", "Perché serve"
     PIANO = "PIANO", "Piano FAI"
     STATO = "STATO", "Stato"
+    CHIUSURA = "CHIUSURA", "Chiusura con"
+    VERSIONE = "VERSIONE", "Stato versione"
+    CROSS = "CROSS", "Cross-correlation"
 
 
 class FaiFase(models.TextChoices):
@@ -2269,6 +2272,13 @@ class FaiFase(models.TextChoices):
     IN_CORSO = "IN_CORSO", "Eseguito, in attesa di esito"
     POSITIVO = "POSITIVO", "Concluso con esito positivo"
     NON_COMPLETO = "NON_COMPLETO", "Non completo: la voce del responsabile si riapre"
+    ANNULLATO = "ANNULLATO", "Annullato: non conta per la scadenza dell'articolo"
+
+
+class FaiDocumento(models.TextChoices):
+    PRESENTE = "S", "Presente"
+    DA_VERIFICARE = "V", "Da verificare"
+    NON_APPLICABILE = "N", "Non applicabile"
 
 
 class FaiOpzione(models.Model):
@@ -2330,10 +2340,15 @@ class FaiRecord(models.Model):
     tech_ref = models.OneToOneField(
         ProjectTechRef, on_delete=models.SET_NULL, null=True, blank=True, related_name="fai_record"
     )
-    causale = models.ForeignKey(FaiOpzione, on_delete=models.PROTECT, related_name="+", verbose_name="Perché serve")
-    tipo = models.CharField(max_length=8, choices=FaiTipo.choices, verbose_name="Tipo")
+    # Vuoti solo sui FAI storici: il file non li indicava.
+    causale = models.ForeignKey(
+        FaiOpzione, on_delete=models.PROTECT, null=True, blank=True, related_name="+", verbose_name="Perché serve"
+    )
+    tipo = models.CharField(max_length=8, choices=FaiTipo.choices, blank=True, default="", verbose_name="Tipo")
     motivo = models.CharField(max_length=1000, blank=True, default="", verbose_name="Motivo del Delta FAI")
-    piano = models.ForeignKey(FaiOpzione, on_delete=models.PROTECT, related_name="+", verbose_name="Piano FAI")
+    piano = models.ForeignKey(
+        FaiOpzione, on_delete=models.PROTECT, null=True, blank=True, related_name="+", verbose_name="Piano FAI"
+    )
     piano_numero = models.CharField(max_length=160, blank=True, default="", verbose_name="Numero piano")
     stato = models.ForeignKey(FaiOpzione, on_delete=models.PROTECT, related_name="+", verbose_name="Stato")
     data_invio = models.DateField(null=True, blank=True, verbose_name="Data invio FAI")
@@ -2342,6 +2357,47 @@ class FaiRecord(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="tasks_fai", verbose_name="Responsabile",
     )
+    # Le colonne del file «Situazione FAI-ISIR», che dal portale si gestisce qui.
+    faldone = models.CharField(max_length=40, blank=True, default="", verbose_name="Faldone")
+    fai_numero = models.CharField(max_length=40, blank=True, default="", db_index=True, verbose_name="FAI CN n°")
+    fai_anno = models.CharField(max_length=20, blank=True, default="", verbose_name="Anno FAI CN")
+    cci_numero = models.CharField(max_length=40, blank=True, default="", verbose_name="CCI CN n°")
+    cci_anno = models.CharField(max_length=20, blank=True, default="", verbose_name="Anno CCI CN")
+    invito = models.CharField(max_length=120, blank=True, default="", verbose_name="N° invito")
+    linea = models.CharField(max_length=120, blank=True, default="", verbose_name="Linea")
+    pn_assy = models.CharField(max_length=120, blank=True, default="", verbose_name="P/N assy")
+    nome_particolare = models.CharField(max_length=255, blank=True, default="", verbose_name="Nome particolare")
+    revisione = models.CharField(max_length=60, blank=True, default="", verbose_name="Rev.")
+    pn_alternativo = models.CharField(max_length=120, blank=True, default="", verbose_name="P/N alternativo")
+    rev_alternativo = models.CharField(max_length=60, blank=True, default="", verbose_name="Rev. P/N alternativo")
+    criticita = models.CharField(max_length=120, blank=True, default="", verbose_name="Criticità")
+    descrizione_piano = models.CharField(max_length=500, blank=True, default="", verbose_name="Descrizione piano")
+    avanzamento = models.CharField(max_length=1000, blank=True, default="", verbose_name="Avanzamento piano")
+    op = models.CharField(max_length=120, blank=True, default="", db_index=True, verbose_name="OP")
+    oda_item = models.CharField(max_length=120, blank=True, default="", verbose_name="OdA / Item")
+    chiusura_con = models.ForeignKey(
+        FaiOpzione, on_delete=models.PROTECT, null=True, blank=True, related_name="+", verbose_name="Chiusura con"
+    )
+    data_chiusura = models.DateField(null=True, blank=True, verbose_name="Data chiusura FAI")
+    versione_produzione = models.CharField(max_length=120, blank=True, default="", verbose_name="Versione di produzione")
+    stato_versione = models.ForeignKey(
+        FaiOpzione, on_delete=models.PROTECT, null=True, blank=True, related_name="+", verbose_name="Stato versione"
+    )
+    data_versione = models.DateField(null=True, blank=True, verbose_name="Data versione")
+    codice_dip = models.CharField(max_length=120, blank=True, default="", verbose_name="Codice DIP")
+    data_approvazione_dip = models.DateField(null=True, blank=True, verbose_name="Data approvazione DIP")
+    invio_cq = models.CharField(max_length=255, blank=True, default="", verbose_name="Invio CQ")
+    cross_correlation = models.ForeignKey(
+        FaiOpzione, on_delete=models.PROTECT, null=True, blank=True, related_name="+", verbose_name="Cross-correlation"
+    )
+    doc_sdc = models.CharField(max_length=1, choices=FaiDocumento.choices, blank=True, default="", verbose_name="SDC")
+    doc_pfc = models.CharField(max_length=1, choices=FaiDocumento.choices, blank=True, default="", verbose_name="PFC")
+    doc_sintesi = models.CharField(max_length=1, choices=FaiDocumento.choices, blank=True, default="", verbose_name="Sintesi")
+    doc_fai = models.CharField(max_length=1, choices=FaiDocumento.choices, blank=True, default="", verbose_name="FAI")
+    # Migrazione dal file: la riga com'era e la chiave per riconoscerla se si importa di nuovo.
+    origine_excel = models.JSONField(default=dict, blank=True, editable=False)
+    chiave_import = models.CharField(max_length=64, blank=True, default="", db_index=True, editable=False)
+    importato_il = models.DateTimeField(null=True, blank=True, editable=False)
     note = models.TextField(blank=True, default="", verbose_name="Note")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -2353,4 +2409,4 @@ class FaiRecord(models.Model):
         verbose_name_plural = "Registro FAI"
 
     def __str__(self) -> str:
-        return f"{self.get_tipo_display()} {self.articolo.part_number}"
+        return f"{self.get_tipo_display() or 'FAI'} {self.articolo.part_number}".strip()
