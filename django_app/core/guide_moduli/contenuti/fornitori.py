@@ -102,7 +102,8 @@ GUIDA = {
                 ("p", "All'indirizzo /chiosco/ dell'HUB il visitatore registra ingresso e uscita senza login: «Entro», «Esco» o «Ho un codice», "
                       "come sul chiosco del GuestPortal, con la tastiera a schermo. Il pulsante «Chiosco» in Accessi esterni lo apre. "
                       "Si apre solo dalle postazioni abilitate: dalle altre dice «Chiosco non abilitato». Ingressi, cartellini e mail al referente "
-                      "restano quelli del GuestPortal, quindi le visite compaiono in Accessi esterni come sempre."),
+                      "restano quelli del GuestPortal, quindi le visite compaiono in Accessi esterni come sempre. "
+                      "Tutti, fornitori accreditati compresi, devono confermare di aver letto l'informativa privacy prima di entrare."),
                 ("nota", "Dopo 2 minuti senza tocchi torna alla schermata iniziale e cancella i dati scritti. La scansione del QR compare solo se l'HUB è in HTTPS: "
                          "altrimenti il browser non dà accesso alla fotocamera e si usano numero del cartellino e codice a mano."),
             ],

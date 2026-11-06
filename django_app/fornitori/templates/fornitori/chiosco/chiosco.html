@@ -155,9 +155,9 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
 
     <section class="ck-step" id="s-privacy">
       <h1 class="ck-title">Informativa Privacy</h1>
-      <p class="ck-sub">Leggi e accetta il trattamento dei dati personali</p>
+      <p class="ck-sub">Leggi l'informativa sul trattamento dei dati personali</p>
       {% include "fornitori/chiosco/_informativa.html" %}
-      <label class="ck-check"><input type="checkbox" id="f-gdpr"><span>Ho letto l'informativa e <strong>acconsento al trattamento dei miei dati personali</strong> per le finalità indicate.</span></label>
+      <label class="ck-check"><input type="checkbox" id="f-gdpr"><span><strong>Ho letto e compreso l'informativa</strong> sul trattamento dei miei dati personali.</span></label>
       <div class="ck-err" id="e-privacy"></div>
     </section>
 
@@ -222,7 +222,7 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
         <div class="ck-row"><span>Motivo</span><span id="prereg-motivo">–</span></div>
       </div>
       <div class="ck-gdpr" style="margin-top:14px">{% include "fornitori/chiosco/_informativa_testo.html" %}</div>
-      <label class="ck-check"><input type="checkbox" id="f-gdpr-p"><span>Ho letto l'informativa e <strong>acconsento al trattamento dei miei dati personali</strong> per le finalità indicate.</span></label>
+      <label class="ck-check"><input type="checkbox" id="f-gdpr-p"><span><strong>Ho letto e compreso l'informativa</strong> sul trattamento dei miei dati personali.</span></label>
       <div class="ck-center"><button type="button" class="ck-btn ck-btn-p ck-btn-w" id="b-prereg">Conferma e ritira il cartellino</button></div>
       <div class="ck-err" id="e-prereg"></div>
     </section>
@@ -271,15 +271,26 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
   var AVANTI = {
     's-dati': function () { if (!val('f-nome') || !val('f-cognome')) { return errore('e-dati', 'Nome e cognome sono obbligatori.'); } vai('s-chi'); },
     's-chi': function () {
+      stato.fornitore = false;
       if (!$('f-host').value) { return errore('e-chi', 'Scegli il dipendente che vieni a trovare.'); }
       if (!stato.motivo) { return errore('e-chi', 'Scegli il motivo della visita.'); }
       vai('s-privacy');
     },
-    's-privacy': function () { if (!$('f-gdpr').checked) { return errore('e-privacy', "Per continuare devi accettare l'informativa."); } riepilogo(); vai('s-riepilogo'); },
+    's-privacy': function () {
+      if (!$('f-gdpr').checked) { return errore('e-privacy', "Per continuare conferma di aver letto l'informativa."); }
+      if (stato.fornitore) { return inviaFornitore(); }
+      riepilogo(); vai('s-riepilogo');
+    },
     's-riepilogo': inviaIngresso,
-    's-fornitore': inviaFornitore
+    's-fornitore': function () {
+      if (!$('f-ditta').value) { return errore('e-fornitore', "Seleziona l'azienda."); }
+      if (!$('f-persona').value) { return errore('e-fornitore', 'Seleziona il nominativo.'); }
+      if (!$('f-host-f').value) { return errore('e-fornitore', 'Seleziona il referente interno.'); }
+      stato.fornitore = true;
+      vai('s-privacy');
+    }
   };
-  var ETICHETTA = { 's-riepilogo': 'Conferma check-in', 's-fornitore': 'Conferma check-in' };
+  var ETICHETTA = { 's-riepilogo': 'Conferma check-in' };
 
   function val(id) { return $(id).value.trim(); }
   function errore(id, testo) { var e = $(id); e.textContent = testo || ''; e.classList.toggle('on', !!testo); }
@@ -304,7 +315,7 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
     $('barra').style.display = conBarra ? '' : 'none';
     var avanti = AVANTI[id];
     $('b-avanti').style.visibility = avanti ? 'visible' : 'hidden';
-    $('b-avanti').textContent = ETICHETTA[id] || 'Avanti →';
+    $('b-avanti').textContent = (id === 's-privacy' && stato.fornitore) ? 'Conferma check-in' : (ETICHETTA[id] || 'Avanti →');
     window.scrollTo(0, 0);
     stato.corrente = id;
     pulisciErrori();
@@ -419,12 +430,11 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
     });
   });
   function inviaFornitore() {
-    if (!$('f-ditta').value) { return errore('e-fornitore', "Seleziona l'azienda."); }
-    if (!$('f-persona').value) { return errore('e-fornitore', 'Seleziona il nominativo.'); }
-    if (!$('f-host-f').value) { return errore('e-fornitore', 'Seleziona il referente interno.'); }
     $('b-avanti').disabled = true;
-    chiama('ingresso-fornitore', { azienda_id: $('f-ditta').value, nominativo_id: $('f-persona').value, referente_id: $('f-host-f').value })
-      .then(function (d) { $('b-avanti').disabled = false; esitoIngresso(d, 'e-fornitore'); });
+    chiama('ingresso-fornitore', {
+      azienda_id: $('f-ditta').value, nominativo_id: $('f-persona').value, referente_id: $('f-host-f').value,
+      gdpr_consent: $('f-gdpr').checked
+    }).then(function (d) { $('b-avanti').disabled = false; esitoIngresso(d, 'e-privacy'); });
   }
 
   // ─── Uscita ───
@@ -491,7 +501,7 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
   }
   $('b-codice').addEventListener('click', cercaCodice);
   $('b-prereg').addEventListener('click', function () {
-    if (!$('f-gdpr-p').checked) { return errore('e-prereg', "Per continuare devi accettare l'informativa."); }
+    if (!$('f-gdpr-p').checked) { return errore('e-prereg', "Per continuare conferma di aver letto l'informativa."); }
     chiama('prereg-entra', { code: codice, gdpr_consent: true }).then(function (d) { esitoIngresso(d, 'e-prereg'); });
   });
 
