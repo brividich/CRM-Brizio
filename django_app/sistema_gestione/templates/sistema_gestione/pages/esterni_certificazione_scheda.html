@@ -14,12 +14,12 @@
     </div>
   </div>
 
-  {% if cert.sorveglianza_superata %}<div class="sg-alert">La data della prossima sorveglianza ({{ cert.prossima_sorveglianza|date:"d/m/Y" }}) è passata: registra l'audit o aggiorna la data.</div>{% endif %}
+  {% if cert.sorveglianza_superata %}<div class="sg-alert warn">La data della prossima sorveglianza ({{ cert.prossima_sorveglianza|date:"d/m/Y" }}) è passata: registra l'audit o aggiorna la data.</div>{% endif %}
 
   <div class="sg-kpis">
     <div class="sg-kpi"><span>Emesso</span><strong>{{ cert.emesso_il|date:"d/m/Y"|default:"—" }}</strong></div>
-    <div class="sg-kpi"><span>Prossima sorveglianza</span><strong>{{ cert.prossima_sorveglianza|date:"d/m/Y"|default:"—" }}</strong></div>
-    <div class="sg-kpi"><span>Scadenza</span><strong>{{ cert.scade_il|date:"d/m/Y" }}</strong></div>
+    <div class="sg-kpi{% if cert.sorveglianza_superata %} is-warn{% endif %}"><span>Prossima sorveglianza</span><strong>{{ cert.prossima_sorveglianza|date:"d/m/Y"|default:"—" }}</strong></div>
+    <div class="sg-kpi{% if cert.stato == "scaduta" %} is-danger{% elif cert.stato == "in_scadenza" %} is-warn{% endif %}"><span>Scadenza</span><strong>{{ cert.scade_il|date:"d/m/Y" }}</strong></div>
   </div>
 
   {% if cert.campo_applicazione or cert.note %}<section class="rc-card sg-section">

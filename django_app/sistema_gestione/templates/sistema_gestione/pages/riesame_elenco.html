@@ -9,7 +9,7 @@
   </div>
 
   <div class="sg-kpis">
-    <div class="sg-kpi"><span>Prossimo riesame entro</span><strong>{% if prossimo %}{{ prossimo|date:"d/m/Y" }}{% else %}Nessuno approvato{% endif %}</strong></div>
+    <div class="sg-kpi{% if not prossimo %} is-warn{% elif prossimo < oggi %} is-danger{% endif %}"><span>Prossimo riesame entro</span><strong>{% if prossimo %}{{ prossimo|date:"d/m/Y" }}{% else %}Nessuno approvato{% endif %}</strong></div>
     <div class="sg-kpi"><span>Obiettivi in corso</span><strong>{{ obiettivi|length }}</strong></div>
   </div>
 
@@ -28,7 +28,7 @@
     <h2>Obiettivi in corso</h2>
     <div class="sg-table-scroll"><table class="sg-table"><thead><tr><th>Obiettivo</th><th>Processo</th><th>Risultato atteso</th><th>Responsabile</th><th>Scadenza</th><th>Verbale</th></tr></thead><tbody>
       {% for o in obiettivi %}<tr>
-        <td>{{ o.descrizione }}</td><td>{{ o.processo.codice|default:"—" }}</td><td>{{ o.risultato_atteso|default:"—" }}</td>
+        <td><strong>{{ o.descrizione }}</strong></td><td>{{ o.processo.codice|default:"—" }}</td><td>{{ o.risultato_atteso|default:"—" }}</td>
         <td>{% if o.responsabile %}{{ o.responsabile.get_full_name|default:o.responsabile.username }}{% else %}—{% endif %}</td>
         <td>{% if o.scadenza and o.scadenza < oggi %}<span class="sg-badge danger">{{ o.scadenza|date:"d/m/Y" }}</span>{% else %}{{ o.scadenza|date:"d/m/Y"|default:"—" }}{% endif %}</td>
         <td><a href="{% url 'sistema_gestione:riesame_dettaglio' o.riesame_id %}#obiettivi">{{ o.riesame.anno }}</a></td>

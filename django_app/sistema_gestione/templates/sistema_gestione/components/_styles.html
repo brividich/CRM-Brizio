@@ -154,6 +154,131 @@ form.sg-actions:has(> label) > button{grid-column:1 / -1;justify-self:start}}
 .sg-rz-aggiungi{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end;margin:10px 0}
 @media (max-width:760px){.sg-menu-collegati{margin-left:0}.sg-rz-prec{grid-template-columns:1fr}}
 
+/* ── Ritocco grafico: solo token del tema, così chiaro e scuro restano allineati ── */
+/* Il token non è definito dal tema: senza, i fondi tenui del modulo restavano trasparenti. */
+.rc-wrap{--surface-soft:color-mix(in srgb,var(--text) 5%,var(--surface))}
+.rc-wrap>.sg-kpis,.rc-wrap>.sg-section,.rc-wrap>.sg-alert{margin-top:0;margin-bottom:0}
+.rc-wrap>form>.sg-section+.sg-section{margin-top:18px}
+.rc-wrap>form>.sg-section:first-of-type{margin-top:0}
+.sg-muted{color:var(--text-mid)}
+.sg-section h2{font-size:var(--fs-md);font-weight:800;letter-spacing:-.005em}
+.sg-section h3{margin-top:18px;font-size:var(--fs-sm);font-weight:800}
+.sg-section>h2:first-child{margin-bottom:12px}
+.sg-testa{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;margin-bottom:12px}
+.sg-testa h2{margin:0}
+.sg-testa form{margin:0}
+.sg-conta{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;margin-left:6px;padding:0 7px;border-radius:999px;background:var(--surface-soft);color:var(--text-mid);font-size:var(--fs-xs);font-weight:800;vertical-align:1px}
+
+/* Numeri in testa */
+.sg-kpi{padding:14px 16px;border-radius:var(--radius,12px);box-shadow:var(--shadow)}
+.sg-kpi span{color:var(--text-mid);font-weight:600;text-transform:none}
+.sg-kpi strong{margin-top:6px;line-height:1.15;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.sg-kpi.is-danger{box-shadow:inset 3px 0 0 var(--danger),var(--shadow)}
+.sg-kpi.is-danger strong{color:var(--danger)}
+.sg-kpi.is-warn{box-shadow:inset 3px 0 0 var(--warning),var(--shadow)}
+.sg-kpi.is-ok{box-shadow:inset 3px 0 0 var(--success),var(--shadow)}
+
+/* Etichette di stato: testo più leggibile sul fondo chiaro e su quello scuro */
+.sg-badge.ok,.sg-state.is-APPROVATO,.sg-state.is-APPROVATA{color:color-mix(in srgb,var(--success) 72%,var(--text))}
+.sg-badge.warn,.sg-state.is-BOZZA{background:color-mix(in srgb,var(--warning) 16%,var(--surface));color:color-mix(in srgb,var(--warning) 62%,var(--text))}
+.sg-badge.danger{color:color-mix(in srgb,var(--danger) 80%,var(--text))}
+
+/* Tabelle: righe leggere. La griglia dei mesi e le tabelle ISMS con i campi restano quadrettate. */
+.rc-card .sg-table-scroll{border:0;border-radius:0}
+.sg-table:not(:has(.sg-month)):not(.sg-isms-table) th,
+.sg-table:not(:has(.sg-month)):not(.sg-isms-table) td{padding:10px 12px;border-width:0 0 1px}
+.sg-table:not(:has(.sg-month)):not(.sg-isms-table) th{background:transparent;color:var(--text-mid);font-size:var(--fs-xs);font-weight:700}
+.sg-table:not(:has(.sg-month)):not(.sg-isms-table) tbody tr:last-child td{border-bottom:0}
+.sg-table:not(:has(.sg-month)):not(.sg-isms-table) tbody tr:hover td{background:var(--surface-soft)}
+.sg-table td a{font-weight:600}
+.sg-table td[colspan]{padding:22px 12px;color:var(--text-mid);text-align:center}
+.sg-table td.sg-actions{display:table-cell}
+.sg-table td.sg-actions>*{margin-right:10px}
+
+/* Da fare adesso: tutta la riga porta alla voce */
+.sg-todo{gap:0;margin-top:0}
+.sg-todo li.sg-todo-riga{position:relative;flex-wrap:nowrap;align-items:center;gap:12px;padding:11px 12px;border:0;border-top:1px solid var(--border);border-radius:0;background:transparent}
+.sg-todo li.sg-todo-riga:first-child{border-top:0}
+.sg-todo li.sg-todo-riga:hover{background:var(--surface-soft)}
+.sg-todo-punto{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var(--text-light)}
+.is-danger>.sg-todo-punto{background:var(--danger);box-shadow:0 0 0 3px var(--danger-bg)}
+.is-warn>.sg-todo-punto{background:var(--warning);box-shadow:0 0 0 3px var(--warning-bg)}
+.sg-todo-testo{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px}
+.sg-todo-riga a{color:var(--text);font-weight:600;text-decoration:none}
+.sg-todo-riga a::after{content:"";position:absolute;inset:0}
+.sg-todo-riga a:focus-visible{outline:none}
+.sg-todo-riga a:focus-visible::after{outline:2px solid var(--primary-mid);outline-offset:-2px;border-radius:8px}
+.sg-todo-riga time{margin-left:0;flex:0 0 auto;font-variant-numeric:tabular-nums}
+.sg-todo-azione{flex:0 0 auto;min-width:88px;color:var(--primary-mid);font-size:var(--fs-xs);font-weight:700;text-align:right}
+body.theme-dark .sg-todo-azione{color:var(--text-mid)}
+.sg-todo-riga:hover .sg-todo-azione{text-decoration:underline}
+.sg-vuoto{display:flex;align-items:center;gap:10px;padding:8px 2px;color:var(--text-mid)}
+.sg-vuoto::before{content:"✓";display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--success-bg);color:var(--success);font-weight:800}
+
+/* Certificati in pagina iniziale */
+.sg-certs{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.sg-cert{display:grid;gap:8px;padding:12px 14px;border:1px solid var(--border);border-left:4px solid var(--success);border-radius:10px;background:var(--surface);color:var(--text);text-decoration:none}
+.sg-cert.is-warn{border-left-color:var(--warning)}
+.sg-cert.is-danger{border-left-color:var(--danger)}
+.sg-cert:hover{background:var(--surface-soft)}
+.sg-cert:focus-visible{outline:2px solid var(--primary-mid);outline-offset:1px}
+.sg-cert-testa{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.sg-cert-testa strong{font-size:var(--fs-md)}
+.sg-cert-testa .sg-badge{flex:0 0 auto}
+.sg-cert-date{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:var(--fs-xs);color:var(--text-mid)}
+.sg-cert-date b{display:block;color:var(--text);font-size:var(--fs-sm);font-variant-numeric:tabular-nums}
+
+/* I passi: percorso dell'audit e stato del verbale */
+.sg-flusso{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;list-style:none;margin:0 0 14px;padding:0!important;counter-reset:passo}
+.sg-flusso li{counter-increment:passo;display:flex;gap:10px;align-items:flex-start;font-size:var(--fs-sm);color:var(--text-mid);line-height:1.4}
+.sg-flusso li::before{content:counter(passo);flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--surface-soft);color:var(--text);font-size:var(--fs-xs);font-weight:800}
+.sg-passi{display:flex;flex-wrap:wrap;gap:6px 0;list-style:none;margin:0;padding:0!important}
+.sg-passi li{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--text-mid)}
+.sg-passi li:not(:last-child)::after{content:"";width:34px;height:2px;margin:0 10px 0 2px;background:var(--border)}
+.sg-passi li.is-fatto:not(:last-child)::after{background:var(--success)}
+.sg-passi i{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:2px solid var(--border);border-radius:50%;font-size:var(--fs-xs);font-style:normal;font-weight:800;background:var(--surface)}
+.sg-passi .is-fatto i{border-color:var(--success);background:var(--success);color:#fff}
+.sg-passi .is-attivo{color:var(--text);font-weight:800}
+.sg-passi .is-attivo i{border-color:var(--accent);background:var(--accent-light);color:var(--accent)}
+.sg-rz-stato{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 28px;margin:0;padding:14px 16px}
+.sg-rz-avanz{flex:1 1 220px;max-width:360px;font-size:var(--fs-xs);color:var(--text-mid)}
+.sg-rz-avanz strong{color:var(--text)}
+.sg-rz-avanz progress{display:block;width:100%;height:8px;margin-top:5px;accent-color:var(--success)}
+
+/* Verbale */
+.sg-section details.sg-rz-arg{padding:0;border-bottom:0}
+.sg-rz-arg summary{display:flex;align-items:center;gap:8px;padding:11px 4px;border-radius:8px;list-style:none}
+.sg-rz-arg summary::-webkit-details-marker{display:none}
+.sg-rz-arg summary::before{content:"›";flex:0 0 auto;width:14px;color:var(--text-mid);font-size:1.15em;line-height:1;text-align:center;transition:transform .12s ease}
+.sg-rz-arg[open] summary::before{transform:rotate(90deg)}
+.sg-rz-arg summary:hover{background:var(--surface-soft)}
+.sg-rz-arg summary .sg-badge{margin-left:auto}
+.sg-rz-arg>:not(summary){margin-left:22px}
+.sg-rz-arg>textarea{width:calc(100% - 22px);margin-bottom:12px}
+.sg-rz-arg>p:last-child{margin-bottom:12px}
+.sg-rz-codice{min-width:38px;padding:1px 6px;border-radius:6px;background:var(--surface-soft);color:var(--text-mid);font-weight:700;text-align:center}
+.sg-rz-indicatori>a{font-weight:600}
+.sg-rz-salva{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:14px 0;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius,12px);background:var(--surface);box-shadow:var(--shadow)}
+.sg-rz-prec:first-of-type{border-top:0}
+.sg-rz-persone{margin:12px 0!important}
+.sg-rz-persone li{border:1px solid var(--border);background:var(--surface)}
+.sg-rz-persone li strong{color:var(--text-mid);font-size:var(--fs-xs)}
+.sg-rz-togli{padding:0 2px;border-radius:4px}
+.sg-rz-togli:hover{color:var(--danger)}
+.sg-rz-date{display:flex;flex-wrap:wrap;gap:6px 22px;margin:0;font-size:var(--fs-sm);color:var(--text-mid)}
+.sg-rz-date strong{color:var(--text)}
+.sg-rz-arg textarea:focus-visible,.sg-rz-esito textarea:focus-visible,.sg-rz-esito select:focus-visible{outline:2px solid var(--primary-mid);outline-offset:0;border-color:transparent}
+@media (max-width:760px){
+  .sg-todo li.sg-todo-riga{flex-wrap:wrap;gap:4px 10px}
+  .sg-todo-testo{flex:1 1 calc(100% - 22px)}
+  .sg-todo-riga time{margin-left:19px}
+  .sg-todo-azione{min-width:0;margin-left:auto}
+  .sg-passi{flex-direction:column;align-items:flex-start}
+  .sg-passi li:not(:last-child)::after{display:none}
+  .sg-rz-avanz{max-width:none}
+}
+@media (prefers-reduced-motion:reduce){.sg-rz-arg summary::before{transition:none}}
+
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .sg-guida-link a:hover{color:#93c5fd}
 </style>
