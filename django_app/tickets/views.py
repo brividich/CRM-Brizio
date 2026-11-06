@@ -12,7 +12,7 @@ from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q, Case, When, Value, IntegerField, Count, OuterRef, Subquery
+from django.db.models import BooleanField, Q, Case, When, Value, IntegerField, Count, OuterRef, Subquery
 from django.contrib.auth.views import redirect_to_login
 from django.db import transaction
 from django.http import FileResponse, HttpResponse, JsonResponse
@@ -53,7 +53,8 @@ from core.upload_limits import DOCUMENT_MAX_BYTES
 
 from .registro_permessi import MODULO_PER_TIPO
 from .services.accesso import utente_puo_gestire_ticket
-from .services.stato import cambia_stato_ticket
+from .services.lavorazione import chiudi_con_intervento, prendi_in_carico
+from .services.stato import STATI_APERTI, cambia_stato_ticket
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +147,18 @@ def _persone_per_conto_di(escludi_id: int | None) -> list[dict]:
     return [{"id": u.pk, "label": u.get_full_name() or u.get_username()} for u in qs]
 
 
+# Testi pronti per l'aggiornamento al richiedente, nella scheda di gestione.
+RISPOSTE_RAPIDE = ("Ricambio ordinato", "Arrivo tra poco", "Serve fornitore esterno")
+
+# Viste dell'elenco di gestione: la prima è quella con cui si apre.
+VISTE_GESTIONE = {
+    "fare": "Da fare",
+    "miei": "I miei",
+    "liberi": "Non assegnati",
+    "chiusi": "Chiusi",
+}
+
+
 def _intervento_al_volo(post) -> tuple[dict | None, str]:
     """Dati dell'intervento già concluso scritti nel form: (dati, errore)."""
     lavoro = (post.get("intervento_svolto") or "").strip()
@@ -177,7 +190,59 @@ def _intervento_al_volo(post) -> tuple[dict | None, str]:
             return None, "Le ore di lavoro non sono valide."
 
     inizio = fine - timedelta(hours=float(ore)) if ore else fine
+    # Dalla visita collegata arrivano anche gli orari veri.
+    try:
+        dal = parse_datetime((post.get("intervento_dal") or "").strip())
+    except ValueError:
+        dal = None
+    if dal is not None:
+        dal = make_aware(dal) if is_naive(dal) else dal
+        if dal < fine:
+            inizio = dal
     return {"lavoro": lavoro, "inizio": inizio, "fine": fine, "ore": ore}, ""
+
+
+def _q_miei(name: str, email: str) -> Q:
+    """Ticket assegnati a me: per email se c'è, altrimenti per nome."""
+    miei = Q(assegnato_a__iexact=name) if name else Q(pk__in=[])
+    if email:
+        miei |= Q(assegnato_email__iexact=email)
+    return miei
+
+
+def _e_mio(ticket: Ticket, name: str, email: str) -> bool:
+    if email and (ticket.assegnato_email or "").strip().lower() == email.lower():
+        return True
+    return bool(name) and (ticket.assegnato_a or "").strip().lower() == name.lower()
+
+
+def _ore_proposte(ticket: Ticket) -> str:
+    """Ore dalla presa in carico, al quarto d'ora. Oltre le 8 non indovina: resta vuoto."""
+    if not ticket.data_presa_in_carico:
+        return ""
+    ore = (tz_now() - ticket.data_presa_in_carico).total_seconds() / 3600
+    if not 0 < ore <= 8:
+        return ""
+    return f"{max(round(ore * 4) / 4, 0.25):g}"
+
+
+def _prossimo_ticket(ticket: Ticket, name: str, email: str) -> Ticket | None:
+    """Il ticket dello stesso tipo da fare dopo: libero o mio, prima i più urgenti."""
+    return (
+        Ticket.objects.filter(tipo=ticket.tipo, stato__in=STATI_APERTI)
+        .filter(Q(assegnato_a="", delegato_fornitore__isnull=True) | _q_miei(name, email))
+        .exclude(pk=ticket.pk)
+        .annotate(_po=Case(
+            When(priorita="URGENTE", then=Value(0)),
+            When(priorita="ALTA", then=Value(1)),
+            When(priorita="MEDIA", then=Value(2)),
+            default=Value(3),
+            output_field=IntegerField(),
+        ))
+        .order_by("_po", "created_at")
+        .only("pk", "titolo", "numero_ticket")
+        .first()
+    )
 
 
 def _build_ticket_activity_feed(ticket: Ticket) -> list[dict[str, object]]:
@@ -1280,39 +1345,17 @@ def ticket_nuovo(request):
             aperto_da_user=aperto_da_user,
             aperto_da_nome=aperto_da_nome,
             include_in_maintenance_register=tipo_post == TipoTicket.MAN,
-            risolto_da_nome=name if al_volo else "",
         )
         with transaction.atomic():
             ticket.save()
             if al_volo:
-                intervento = TicketIntervento.objects.create(
-                    ticket=ticket,
-                    tecnico_nome=name[:200],
-                    tecnico_email=email[:200],
-                    data_inizio=al_volo["inizio"],
-                    data_fine=al_volo["fine"],
-                    ore_lavorate=al_volo["ore"],
-                    descrizione_lavoro=al_volo["lavoro"],
-                    esito=EsitoIntervento.COMPLETATO,
-                )
                 # Una data sola: apertura e chiusura sono quelle del lavoro reale. Il
                 # momento della registrazione resta nel log di stato e nell'audit.
                 Ticket.objects.filter(pk=ticket.pk).update(created_at=al_volo["inizio"])
                 ticket.created_at = al_volo["inizio"]
-                ticket.closed_at = al_volo["fine"]
-                ticket.data_primo_intervento = al_volo["inizio"]
-                ticket.save(update_fields=["data_primo_intervento", "updated_at"])
-                # Visibile anche a richiedente e compilatore: vedono solo i commenti non interni.
-                TicketCommento.objects.create(
-                    ticket=ticket,
-                    autore_nome=name,
-                    autore_email=email,
-                    testo=f"Intervento già eseguito: {al_volo['lavoro']}",
-                    is_interno=False,
-                )
-                cambia_stato_ticket(
-                    ticket, StatoTicket.CHIUSO, utente_nome=name, utente_email=email,
-                    nota="Registrato a intervento concluso.",
+                chiudi_con_intervento(
+                    ticket, nome=name, email=email, lavoro=al_volo["lavoro"], inizio=al_volo["inizio"],
+                    fine=al_volo["fine"], ore=al_volo["ore"], nota="Registrato a intervento concluso.",
                 )
                 # Niente da gestire: le regole «nuovo ticket» non devono chiamare il
                 # team. Se incide sulla sicurezza gli avvisi restano.
@@ -1653,6 +1696,22 @@ def ticket_gestione_list(request):
     ricorrente_f = request.GET.get("ricorrente", "").strip()
     ordine_f     = request.GET.get("ordine", "").strip()
     allegati_f   = request.GET.get("allegati", "").strip()
+    vista_f      = request.GET.get("vista", "").strip()
+    if vista_f not in VISTE_GESTIONE:
+        vista_f = "fare"
+    # Un filtro esplicito di stato (link da cruscotti e filtri) vale più della vista.
+    vista_attiva = "" if (stato_f or allegati_f) else vista_f
+    nome_io, email_io, _legacy_io = _legacy_identity(request)
+    miei_q = _q_miei(nome_io, email_io)
+
+    def _q_vista(codice: str) -> Q:
+        if codice == "miei":
+            return Q(stato__in=STATI_APERTI) & miei_q
+        if codice == "liberi":
+            return Q(stato__in=STATI_APERTI, assegnato_a="", delegato_fornitore__isnull=True)
+        if codice == "chiusi":
+            return ~Q(stato__in=STATI_APERTI)
+        return Q(stato__in=STATI_APERTI)
 
     _priority_order = Case(
         When(priorita="URGENTE", then=Value(0)),
@@ -1719,8 +1778,12 @@ def ticket_gestione_list(request):
             return qs.order_by("assegnato_a", "-created_at")
         elif ordine_f == "apertura_asc":
             return qs.order_by("created_at")
-        else:
+        elif ordine_f == "apertura_desc" or not vista_attiva:
             return qs.order_by("-created_at")
+        elif vista_attiva == "chiusi":
+            return qs.order_by("-closed_at", "-created_at")
+        # Lista di lavoro: prima gli urgenti, a pari priorità il più vecchio.
+        return qs.annotate(_po=_priority_order).order_by("_po", "created_at")
 
     from core.legacy_models import AnagraficaDipendente
     from .allegati import subquery_conteggio_allegati
@@ -1733,25 +1796,49 @@ def ticket_gestione_list(request):
             ).values("id")[:1]
         ),
         n_allegati_da_validare=subquery_conteggio_allegati(StatoValidazioneAllegato.DA_VALIDARE),
+        e_mio=Case(When(miei_q, then=Value(True)), default=Value(False), output_field=BooleanField()),
     )
     # Ogni team vede solo i ticket del tipo che gestisce: chi gestisce l'IT non
     # gestisce per questo la manutenzione (e viceversa).
     can_it = is_admin or _can_manage_tickets(request, TipoTicket.IT)
     can_man = is_admin or _can_manage_tickets(request, TipoTicket.MAN)
-    if tipo_f in (TipoTicket.IT, TipoTicket.MAN):
-        tickets_it  = _apply_filters(base.filter(tipo=TipoTicket.IT))  if tipo_f == TipoTicket.IT and can_it else None
-        tickets_man = _apply_filters(base.filter(tipo=TipoTicket.MAN)) if tipo_f == TipoTicket.MAN and can_man else None
-    else:
-        tickets_it  = _apply_filters(base.filter(tipo=TipoTicket.IT)) if can_it else None
-        tickets_man = _apply_filters(base.filter(tipo=TipoTicket.MAN)) if can_man else None
+    mostra_it = can_it and tipo_f in ("", TipoTicket.IT)
+    mostra_man = can_man and tipo_f in ("", TipoTicket.MAN)
+    tipi_mostrati = [t for t, ok in ((TipoTicket.IT, mostra_it), (TipoTicket.MAN, mostra_man)) if ok]
+
+    tickets_lista = None
+    if tipi_mostrati:
+        qs_lista = base.filter(tipo__in=tipi_mostrati)
+        if vista_attiva:
+            qs_lista = qs_lista.filter(_q_vista(vista_attiva))
+        tickets_lista = _apply_filters(qs_lista)
+
+    # Stessi filtri dell'elenco, così il numero sulla vista è quello delle righe.
+    parametri_viste = request.GET.copy()
+    for chiave in ("vista", "stato", "allegati"):
+        parametri_viste.pop(chiave, None)
+    parametri_viste["tipo"] = tipo_f or "TUTTI"
+    base_viste = _apply_filters(base.filter(tipo__in=tipi_mostrati))
+    viste_gestione = [
+        {
+            "codice": codice,
+            "etichetta": etichetta,
+            "conta": base_viste.filter(_q_vista(codice)).count(),
+            "attiva": codice == vista_attiva,
+            "url": f"?{parametri_viste.urlencode()}&vista={codice}",
+        }
+        for codice, etichetta in VISTE_GESTIONE.items()
+    ]
 
     # KPI sui soli tipi che l'utente gestisce (come le liste sotto): un gestore
     # solo IT non deve contare i ticket di manutenzione.
     kpi_qs = Ticket.objects.filter(tipo__in=[t for t, ok in ((TipoTicket.IT, can_it), (TipoTicket.MAN, can_man)) if ok])
     ctx = {
-        "tickets_it":    tickets_it,
-        "tickets_man":   tickets_man,
+        "tickets_lista": tickets_lista,
+        "tabella_id":    (tipo_f or "tutti").lower(),
         "tab_attivo":    tipo_f or "TUTTI",
+        "viste_gestione": viste_gestione,
+        "filtro_vista":   vista_f,
         "is_admin":      is_admin,
         "stati":         StatoTicket.choices,
         "priorita_list": PrioritaTicket.choices,
@@ -1857,7 +1944,15 @@ def ticket_gestione_detail(request, pk: int):
         "costo_materiali_tot":   round(costo_materiali_tot, 2) if costo_materiali_tot else None,
         "costo_totale":          round(costo_manodopera_tot + costo_materiali_tot, 2) if (costo_manodopera_tot or costo_materiali_tot) else None,
         "richiedente_anagrafica_id": richiedente_anagrafica_id,
+        "e_mio":            _e_mio(ticket, name, email),
+        "puo_risolvere":    ticket.stato in STATI_APERTI,
+        "ore_proposte":     _ore_proposte(ticket),
+        "risposte_rapide":  RISPOSTE_RAPIDE,
+        "apri_risolvi":     request.GET.get("azione") == "risolvi",
+        "appena_chiuso":    request.GET.get("chiuso") == "1" and ticket.stato == StatoTicket.CHIUSO,
     }
+    if ctx["appena_chiuso"]:
+        ctx["prossimo"] = _prossimo_ticket(ticket, name, email)
     if ticket.tipo == TipoTicket.MAN:
         ctx.update(_mappa_context(request, reparto))
     return render(request, "tickets/pages/gestione_detail.html", ctx)
@@ -2222,6 +2317,9 @@ def api_stato(request):
     except (json.JSONDecodeError, ValueError):
         return _json_err("Dati non validi")
 
+    if payload.get("azione"):
+        return _api_azione_tecnico(request, ticket_id, payload)
+
     if nuovo_stato not in dict(StatoTicket.choices):
         return _json_err("Stato non valido")
 
@@ -2241,6 +2339,71 @@ def api_stato(request):
     label_stato = dict(StatoTicket.choices).get(nuovo_stato, nuovo_stato)
 
     return JsonResponse({"ok": True, "stato": nuovo_stato, "label": label_stato})
+
+
+def _decimale_o_none(valore, massimo: int) -> tuple[Decimal | None, bool]:
+    """Numero facoltativo dal form: (valore, valido)."""
+    testo = str(valore if valore is not None else "").strip().replace(",", ".")
+    if not testo:
+        return None, True
+    try:
+        numero = Decimal(testo).quantize(Decimal("0.01"))
+    except InvalidOperation:
+        return None, False
+    return numero, Decimal("0") <= numero <= Decimal(massimo)
+
+
+def _api_azione_tecnico(request, ticket_id: int, payload: dict) -> JsonResponse:
+    """«Prendo io» e «Risolvi»: stessa rotta e stesso permesso del cambio di stato."""
+    ticket = get_object_or_404(Ticket, pk=ticket_id)
+    denied = _api_require_ticket_access(request, ticket)
+    if denied is not None:
+        return denied
+    if ticket.stato not in STATI_APERTI:
+        return _json_err("Questo ticket è già chiuso.", status=409)
+
+    name, email, _ = _legacy_identity(request)
+    azione = payload.get("azione")
+
+    if azione == "prendi":
+        # Dall'elenco: se un collega l'ha preso un attimo prima non glielo si toglie.
+        if payload.get("solo_se_libero") and (ticket.assegnato_a or ticket.delegato_fornitore_id):
+            chi = ticket.assegnato_a or "un fornitore"
+            return _json_err(f"L'ha appena preso {chi}.", status=409)
+        prendi_in_carico(ticket, nome=name, email=email)
+        return JsonResponse({"ok": True, "assegnato_a": ticket.assegnato_a, "stato": ticket.stato})
+
+    if azione != "risolvi":
+        return _json_err("Azione non valida")
+
+    dati, errore = _intervento_al_volo(payload)
+    if dati is None:
+        return _json_err(errore)
+    ore_fermo, fermo_ok = _decimale_o_none(payload.get("ore_fermo"), 99999)
+    materiali, materiali_ok = _decimale_o_none(payload.get("costo_materiali"), 99999999)
+    if not fermo_ok:
+        return _json_err("Le ore di fermo non sono valide.")
+    if not materiali_ok:
+        return _json_err("Il costo dei materiali non è valido.")
+
+    chiudi_con_intervento(
+        ticket,
+        nome=name,
+        email=email,
+        lavoro=dati["lavoro"],
+        inizio=dati["inizio"],
+        fine=dati["fine"],
+        ore=dati["ore"],
+        tecnico=(payload.get("tecnico") or "").strip(),
+        tipo_fermo=(payload.get("tipo_fermo") or "").strip(),
+        ore_fermo=ore_fermo,
+        componente=(payload.get("componente") or "").strip(),
+        causa=(payload.get("causa") or "").strip(),
+        ricorrente=bool(payload.get("ricorrente")),
+        materiali=materiali,
+        rapportino=(payload.get("rapportino") or "").strip(),
+    )
+    return JsonResponse({"ok": True, "stato": ticket.stato})
 
 
 # ---------------------------------------------------------------------------
@@ -3385,7 +3548,7 @@ def api_crea_workorder_da_ticket(request):
         return denied
 
     if not ticket.asset_id:
-        return _json_err("Il ticket non ha un asset collegato. Collegare prima l'asset dalla tab 'Asset e KPI'.")
+        return _json_err("Il ticket non ha un asset collegato: collegalo prima dal riquadro «Asset collegato».")
 
     from assets.models import WorkOrder
 
