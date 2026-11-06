@@ -38,7 +38,8 @@ GUIDA = {
                       "di lavoro», poi clicca «Registra e chiudi». Il ticket nasce «Chiuso» con l'intervento "
                       "registrato; per la manutenzione con asset entra nel registro. Il team non riceve l'avviso di "
                       "nuovo ticket, tranne quando incide sulla sicurezza. Vale anche senza «Per conto di». "
-                      "«Concluso il» resta sull'intervento: la data di chiusura del ticket è quella di registrazione."),
+                      "Apertura e chiusura del ticket, intervento e registro manutenzione riportano le date del lavoro "
+                      "(«Concluso il» meno le «Ore di lavoro»): l'ora in cui hai registrato resta nello storico."),
                 ("p", "Se l'invio torna con un errore i dati restano nei campi: correggi e invia di nuovo. "
                       "Gli allegati vanno riscelti (il browser non li conserva)."),
             ],
