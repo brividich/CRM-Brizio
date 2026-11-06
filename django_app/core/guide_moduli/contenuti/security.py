@@ -165,6 +165,20 @@ GUIDA = {
             ],
         },
         {
+            "id": "rischio-pc",
+            "titolo": "Il rischio di un PC e i programmi non controllati",
+            "blocchi": [
+                ("p", "La Panoramica di un asset ha il riquadro «Rischio», con un livello e i motivi. Alto: CVE gravi o sfruttate, "
+                      "oppure sistema fuori supporto. Medio: altre CVE, supporto che finisce entro 90 giorni, ultimo backup fallito "
+                      "o troppo vecchio, server senza backup nei report."),
+                ("p", "«Nessun problema noto» non vuol dire al sicuro: il riquadro dice quanti programmi non sono controllati. "
+                      "Un programma è «non controllato» se non ha un CPE né «non applicabile»: il SOC non sa se ha CVE. "
+                      "Il CPE si conferma una volta per programma e vale anche per le release nuove."),
+                ("p", "Dispositivi › Elenco, filtro «Sistema fuori supporto»: i PC Windows da aggiornare. La data dipende "
+                      "dall'edizione: Home e Pro finiscono prima di Enterprise e LTSC."),
+            ],
+        },
+        {
             "id": "tempi-di-correzione",
             "titolo": "Tempi di correzione e accettazione del rischio (ISO 27001 8.8)",
             "blocchi": [

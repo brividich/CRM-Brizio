@@ -67,7 +67,7 @@
   <div class="wrap">
     <h1>Assistente AI — Guida al funzionamento</h1>
     <p>Come è fatto, cosa sa rispondere e quali sono i suoi limiti. Documento interno NOVICROM HUB.</p>
-    <span class="badge">Ultimo aggiornamento: 2026-10-14 · Versione guida 2.8</span>
+    <span class="badge">Ultimo aggiornamento: 2026-11-06 · Versione guida 2.9</span>
   </div>
 </header>
 
@@ -140,6 +140,7 @@
     <tr><td>«Quali ticket aperti ho?» · «Quanti ticket ho aperto questo mese?»</td><td>Tool live <em>Ticket</em> (scope personale/gestione da ACL; periodo e conteggio)</td></tr>
     <tr><td>«Posso inserire un nuovo timbro?» · «Perché non vedo il pulsante Copia?»</td><td>Tool <em>Permessi dell'utente</em>: accesso al modulo e azioni con SÌ/NO dai permessi reali</td></tr>
     <tr><td>«Quante anomalie sono state aggiornate questo mese?» · «Quante richieste DPI ho fatto a settembre?»</td><td>Tool live <em>Anomalie</em>, <em>DPI</em>, <em>KICK-OFF</em>, <em>Ticket</em>: periodo e totale in risposta diretta</td></tr>
+    <tr><td>Una domanda scritta in «Cerca o vai a…»</td><td>Riquadro <em>Dalle guide e procedure</em> (stessi permessi della chat) e <em>Chiedi all'Assistente</em>, che apre la chat con la domanda</td></tr>
     <tr><td>«Come inserisco un nuovo timbro nel registro?»</td><td>Guida in-app del modulo (<em>Registro Timbri</em>) → passi e pulsanti + link alla guida</td></tr>
     <tr><td>«Chi è assente domani?»</td><td>Tool live <em>Assenze</em></td></tr>
     <tr><td>«Quali moduli posso usare?»</td><td>Tool <em>Catalogo moduli</em> (navigazione visibile)</td></tr>
@@ -243,6 +244,15 @@
     evento di sicurezza propone: classificazione tipo evento, causa radice, catena <strong>5-Why</strong> e azioni
     correttive. Pulsante «Proponi analisi» nella nuova rilevazione: pre-compila i 5-Why e le note, l'operatore rivede e firma.</li>
   </ul>
+  <h3>L'AI locale nel Security Center</h3>
+  <p>Fuori dalla chat, il SOC usa la stessa AI locale. Le risposte vengono dai dati del SOC e si vedono nelle sue pagine:</p>
+  <ul>
+    <li><strong>Sintesi del giorno</strong> nella Panoramica IT.</li>
+    <li><strong>Lettura assistita</strong> delle mail e dei report che i parser non capiscono: ogni valore proposto deve trovarsi nel testo.</li>
+    <li><strong>Proposte su CPE ed esiti «da verificare»</strong> delle CVE: una persona accetta o rifiuta.</li>
+    <li><strong>Spiegazione e risoluzione</strong> di alert, ticket, CVE e patch. La casella «Cerca anche sul web» funziona solo se accesa nelle Impostazioni: in uscita vanno solo identificativi come CVE e KB, in entrata solo i siti ammessi.</li>
+    <li><strong>Proposte di chiusura degli alert</strong> (Segnalazioni › Proposte AI): l'AI esamina un alert per gruppo, cita le prove e impara dalle decisioni confermate, corrette o annullate.</li>
+  </ul>
 </section>
 
 <section id="esempi">
@@ -270,6 +280,7 @@
   vede solo ciò che l'utente vedrebbe nei moduli. La visibilità del menu non è una barriera di sicurezza; lo è l'ACL.</div>
   <ul>
     <li><strong>Read-only</strong>: nessuna scrittura nei moduli, nessuna decisione automatica.</li>
+    <li><strong>Unica eccezione, solo nel SOC</strong>: la chiusura automatica delle proposte sugli alert. Serve l'interruttore acceso, almeno 5 conferme di fila, confidenza dell'80% e almeno una prova. Non vale per gli alert critici, le minacce, le CVE sfruttate e i tipi esclusi. Ogni chiusura ha come autore <code>system:ai</code> e si può riaprire.</li>
     <li><strong>Niente invenzioni</strong>: se un dato non c'è o non è autorizzato, lo dichiara.</li>
     <li><strong>Audit solo-metadati</strong>: si registra l'uso del tool, non i contenuti.</li>
     <li><strong>Storico chat personale</strong>: le conversazioni si salvano in «Le tue conversazioni» e le vede
@@ -299,6 +310,7 @@
   <h2>9. Storico della guida</h2>
   <table>
     <tr><th>Data</th><th>Versione</th><th>Modifica</th></tr>
+    <tr><td>2026-11-06</td><td>2.9</td><td><strong>AI locale nel Security Center</strong> (sintesi, lettura assistita, proposte CPE ed esiti, spiegazione con fonti web, proposte di chiusura a gruppi) e limiti della chiusura automatica. Domande dalla palette «Cerca o vai a…».</td></tr>
     <tr><td>2026-10-14</td><td>2.8</td><td><strong>Centro guide nell'assistente.</strong> L'assistente conosce le guide del Centro guide (<code>/guide/</code>): la parte «Come si usa» di ogni modulo per tutti; «Amministratore e configurazione», «Se qualcosa non va» e il Manuale di emergenza solo per gli amministratori del portale, gli stessi che le vedono nella pagina guida.</td></tr>
     <tr><td>2026-10-12</td><td>2.7</td><td><strong>L'assistente impara dai 👎.</strong> In Gestione AI → Suggerimenti FAQ i feedback negativi con domande simili sono raggruppati; «Genera bozza» fa scrivere all'AI una risposta dalle guide dei moduli e dalla knowledge base (mai da procedure e specifiche riservate), che l'amministratore corregge se serve e attiva con un clic. Da quel momento la FAQ entra nella memoria dell'assistente per tutti. Sotto le risposte senza fonti la chat invita a premere 👎. Il modello non viene riaddestrato e né l'audit né lo storico chat alimentano le FAQ.</td></tr>
     <tr><td>2026-10-12</td><td>2.6</td><td><strong>L'assistente conosce i tuoi permessi.</strong> Alle domande «posso…?» sul modulo nominato risponde con l'accesso al modulo e le azioni con SÌ/NO, letti dai permessi reali (controlli del modulo o permessi ACL canonici): niente più «non hai accesso» inventato. <strong>Periodo e totale</strong> anche per anomalie, DPI e attività KICK-OFF. Corretto un equivoco: «timbri» (Registro Timbri, MOD.130) non viene più scambiato per le timbrature di presenza bloccate per privacy. Gli admin vedono in <em>Gestione AI → Suggerimenti FAQ</em> su quali moduli gli utenti chiedono dati che l'assistente non sa ancora leggere.</td></tr>

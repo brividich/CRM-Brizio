@@ -99,6 +99,14 @@ Canale unico `core/eventi_sicurezza.py` → sorgente «Portale · accessi». `CA
 - **Pagina** `GET /soc/alerts/proposte/` (`alert_proposte`, menu Segnalazioni › Proposte AI): da confermare, cosa ha imparato, chiusi dall'AI negli ultimi 30 giorni. `POST /soc/alerts/proposte/<id>/<conferma|scarta|riapri>/`. Nella scheda alert la proposta aperta compare nel riquadro «Come risolverlo».
 - Deploy: migrate `security 0036`, schedule `security_ai_proposte` (sync degli schedule), riavvio qcluster, `collectstatic` (soc-design.css).
 
+## Lavoro sulle CVE, alert a gruppi, programmi non controllati, rischio del PC (06/11/2026)
+
+- **Dalla CVE al lavoro di correzione** (`services/cve_lavoro.py`, rotta `cve_lavoro_apri` su `/soc/vulnerabilita/<cve>/lavoro/`, migrazione `security 0038`): «Apri il lavoro di correzione» nella scheda della CVE crea un `SecurityRemediationTicket` con una `SecurityCaseTask` per PC (`cve_host`). `aggiorna(record)` segue l'inventario a ogni ricalcolo: PC non più esposto = attività fatta, di nuovo esposto = riaperta, PC nuovo = attività nuova. Senza PC esposti il caso si chiude, salvo attività aggiunte a mano ancora da fare. Attore `system:cve`.
+- **Alert aperti a gruppi** (`services/alert_gruppi.py`, pagina `alert_proposte`, chiusura `alert_gruppo_chiudi`): un gruppo è sorgente + tipo di evento + soggetto (PC, job di backup o utente); le CVE stanno nel gruppo del loro tipo; senza soggetto vale il titolo senza i numeri. L'AI locale esamina un alert per gruppo, il più recente. Motivo obbligatorio; `max_pk` lascia aperti gli alert arrivati dopo l'apertura della pagina. Una conferma su un gruppo conta una sola volta per la fiducia.
+- **Non controllato**: un programma senza CPE né «non applicabile» non conta più come verde nel Catalogo software, nella scheda del PC e nel cruscotto. Il CPE si decide una volta per programma (`cpe_auto.py`, `cpe_ai.py`): una release nuova prende quello già confermato; con due CPE diversi nello stesso programma non si estende nulla, e le unioni a mano del Catalogo non lo estendono.
+- **Riquadro «Rischio»** (`services/rischio_asset.py`, `partials/asset_rischio.html`): livello e motivi, senza punteggio. Alto: CVE gravi o sfruttate, sistema fuori supporto. Medio: altre CVE, supporto che finisce entro 90 giorni (`GIORNI_PREAVVISO`), ultimo backup fallito o troppo vecchio, server senza backup nei report. Altrimenti «Nessun problema noto» o, senza inventario, «Non valutabile». La tabella `FINE_HOME_PRO` tiene le date di Home e Pro e va aggiornata a ogni nuova release Windows. Filtro `sistema_fuori` in `pc_copertura`.
+- **Doppioni WatchGuard/Defender**: `software_inventory.py` unisce le righe dello stesso programma sullo stesso PC con la stessa versione, anche scritta diversamente.
+
 ## Soppressione appresa
 
 Quando lo stesso alert viene **disattivato** più volte a mano, il sistema impara a non disturbare più (`services/learned_suppression.py`).

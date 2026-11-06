@@ -91,6 +91,15 @@ Le colonne:
 
 I filtri **Senza asset**, **Backup ko**, **Con CVE**, **Problemi Intune**, **Non in Intune**, **Senza WatchGuard** e **Senza backup** mostrano accanto quanti dispositivi trovano; il numero è sempre uguale alle righe che si aprono. «Senza backup» non è un errore: non tutti i PC devono avere un backup, è un elenco da controllare.
 
+Il filtro **Sistema fuori supporto** elenca i PC Windows senza più aggiornamenti di sicurezza; nell'elenco hanno un'etichetta e, passando il mouse, la data di fine. La data tiene conto dell'edizione: Home e Pro finiscono prima di Enterprise e LTSC.
+
+Nella Panoramica della scheda asset il riquadro **Rischio** dà un livello con i motivi, senza punteggi:
+
+- **Rischio alto**: CVE gravi o sfruttate, oppure sistema fuori supporto;
+- **Rischio medio**: altre CVE, supporto che finisce entro 90 giorni, ultimo backup fallito o troppo vecchio, server senza backup nei report;
+- **Nessun problema noto**: non vuol dire al sicuro, perché sotto è scritto quanti programmi non sono controllati;
+- **Non valutabile**: il PC non ha un inventario software.
+
 In cima ci sono i dispositivi con backup ko, poi quelli con problemi Intune, poi quelli con CVE gravi, poi quelli visti da meno fonti. Il dispositivo si riconosce dal nome, senza dominio e senza maiuscole: «PC-01.dominio.local» e «pc-01» sono lo stesso. Gli apparati di rete letti via SNMP non compaiono, e nemmeno i dispositivi non più presenti in Intune.
 
 Un clic sulla riga apre l'anteprima; il nome apre la scheda completa del dispositivo. Le pagine **Backup** e **Vulnerabilità** restano per il lavoro trasversale (job di backup e log, CVE per programma), e ogni dispositivo lì porta alla stessa scheda.
