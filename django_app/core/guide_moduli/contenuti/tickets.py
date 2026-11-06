@@ -71,11 +71,12 @@ GUIDA = {
             "titolo": "Lavorare i ticket (tecnici)",
             "blocchi": [
                 ("passi", [
-                    "Apri «Gestione ticket». Puoi selezionare più ticket e usare «Assegna a…», «Cambia stato» o «Prendi in carico».",
-                    "Apri un ticket: «Prendi in carico» lo assegna a te.",
+                    "Apri «Gestione ticket»: parte da «Da fare», con prima gli urgenti. Ci sono anche «I miei», «Non assegnati» e «Chiusi». Puoi selezionare più ticket e usare «Assegna a…», «Cambia stato» o «Prendi in carico».",
+                    "«Prendo io», sulla riga o nella scheda, assegna il ticket a te e lo mette «In carico» con un clic.",
                     "Ogni volta che lavori sul ticket clicca «+ Aggiungi intervento», scrivi cosa hai fatto e il tempo, poi «Registra intervento».",
                     "Compila i dati tecnici (componente guasto, causa, ore di fermo macchina) e clicca «Salva dati tecnici».",
-                    "A lavoro finito clicca «Segna come risolto», poi «Chiudi ticket».",
+                    "A lavoro finito clicca «Risolvi»: scrivi «Cosa è stato fatto» (è l'unico dato obbligatorio), controlla le «Ore di lavoro» e, se c'è stato, il fermo. Se è venuto un tecnico esterno, collega la sua visita: «Usa nel rapportino» riempie le ore. Poi «Chiudi ticket»: registra l'intervento, chiude il ticket e propone il prossimo da fare.",
+                    "«Tecnico interno» e «Fornitore esterno» si salvano appena scegli. Se serve, un ticket chiuso si riapre con «Riapri».",
                 ]),
                 ("ul", [
                     "Ticket di manutenzione fatto da una ditta esterna: nella scheda «Interventi» il riquadro «Presenze in azienda della ditta» propone gli ingressi della ditta delegata registrati al chiosco della reception; «Collega» li lega al ticket e confronta le ore registrate con la presenza in azienda (guida Fornitori, «Collegare l'ingresso della ditta»).",
