@@ -1411,6 +1411,7 @@ def _get_assenza(item_id: int) -> dict | None:
         "moderation_status",
         _APPROVAZIONE_DATETIME_COL,
         "note_gestione",
+        "created_datetime",
     ]
     selected = [col for col in wanted if col in cols]
     if "id" not in selected:

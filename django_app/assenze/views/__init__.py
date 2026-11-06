@@ -75,6 +75,7 @@ from .richieste import (
     aggiorna_consenso_placeholder,
     api_car_aggiorna_consenso,
     api_mia_assenza_update,
+    api_sollecita_richiesta,
     car_dashboard,
     certificazione_presenza,
     export_assenze_car_csv,

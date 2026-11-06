@@ -358,6 +358,100 @@ class ModificaApprovataTests(TestCase):
         self.assertFalse(AssenzaModifica.objects.filter(assenza_id=42).exists())
 
 
+class SollecitaRichiestaTests(TestCase):
+    """Pulsante «Sollecita» di «Le mie richieste»."""
+
+    def setUp(self):
+        from core.models import UserOnboarding
+
+        self.user = get_user_model().objects.create_superuser(
+            username="mario.sollecito", email="mario.sollecito@example.com", password="x",
+        )
+        UserOnboarding.objects.update_or_create(user=self.user, defaults={"completed": True, "completed_at": timezone.now()})
+        self.client.force_login(self.user)
+        self.url = reverse("assenze_api_sollecita", args=[77])
+
+    def _riga(self, **extra):
+        fine = timezone.localtime().replace(tzinfo=None) + timedelta(days=3)
+        riga = {
+            "id": 77, "copia_nome": "Rossi Mario", "aliasusername": "mario.sollecito", "tipo_assenza": "Ferie",
+            "data_inizio": fine - timedelta(days=1), "data_fine": fine, "moderation_status": 2,
+            "created_datetime": fine - timedelta(days=5), "motivazione_richiesta": "",
+        }
+        riga.update(extra)
+        return riga
+
+    def _post(self, riga, capo="capo@example.com"):
+        with patch("assenze.views._helpers._get_assenza", return_value=riga), \
+                patch("assenze.views._helpers._legacy_identity", return_value=("Rossi Mario", "", None)), \
+                patch("assenze.views._helpers._sharepoint_managed_ids", return_value=set()), \
+                patch("assenze.views._helpers._capo_email_for_row", return_value=capo):
+            return self.client.post(self.url, content_type="application/json", data="{}")
+
+    def test_sollecito_al_capo(self):
+        resp = self._post(self._riga())
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, ["capo@example.com"])
+        self.assertEqual(msg.subject, "Sollecito: richiesta di assenza di ROSSI MARIO in attesa")
+        self.assertIn("ROSSI MARIO sollecita una decisione", msg.alternatives[0][0])
+        self.assertEqual(AssenzaSollecito.objects.get(assenza_id=77).invii, 1)
+
+    def test_richiesta_altrui_rifiutata(self):
+        resp = self._post(self._riga(aliasusername="altro.utente"))
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(mail.outbox, [])
+
+    def test_attesa_fra_due_solleciti_anche_col_promemoria_automatico(self):
+        AssenzaSollecito.objects.create(assenza_id=77, ultimo_invio=timezone.now() - timedelta(hours=5), invii=1)
+        resp = self._post(self._riga())
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("già stato sollecitato", resp.json()["error"])
+        self.assertEqual(mail.outbox, [])
+
+    def test_dopo_l_attesa_si_risollecita(self):
+        AssenzaSollecito.objects.create(assenza_id=77, ultimo_invio=timezone.now() - timedelta(days=3), invii=1)
+        self.assertEqual(self._post(self._riga()).status_code, 200)
+        self.assertEqual(AssenzaSollecito.objects.get(assenza_id=77).invii, 2)
+
+    def test_richiesta_gia_decisa(self):
+        self.assertEqual(self._post(self._riga(moderation_status=0)).status_code, 400)
+        self.assertEqual(mail.outbox, [])
+
+    def test_solleciti_spenti(self):
+        imp = AssenzeImpostazioniHR.get_solo()
+        imp.sollecito_attivo = False
+        imp.save()
+        self.assertEqual(self._post(self._riga()).status_code, 400)
+
+    def test_senza_capo_con_email(self):
+        resp = self._post(self._riga(), capo="")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("ufficio assenze", resp.json()["error"])
+
+    def test_gate_acl_come_le_mie_richieste(self):
+        from core.middleware import resolve_acl_gate_target_path
+
+        self.assertEqual(resolve_acl_gate_target_path(self.url), "/assenze/le-mie-richieste")
+
+    def test_pulsante_nell_elenco(self):
+        from . import solleciti
+
+        fine = (timezone.now() + timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        righe = [
+            {"id": 1, "moderation_status": 2, "fine_iso": fine},
+            {"id": 2, "moderation_status": 2, "fine_iso": fine},
+            {"id": 3, "moderation_status": 0, "fine_iso": fine},
+            {"id": 4, "moderation_status": 2, "fine_iso": fine, "gestita_sp": True},
+        ]
+        AssenzaSollecito.objects.create(assenza_id=2, ultimo_invio=timezone.now(), invii=1)
+        solleciti.annota_richieste_personali(righe)
+        self.assertEqual([r["sollecito_visibile"] for r in righe], [True, True, False, False])
+        self.assertEqual(righe[0]["sollecito_prossimo"], "")
+        self.assertTrue(righe[1]["sollecito_prossimo"])
+
+
 class SollecitiTests(TestCase):
     @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
                        DEFAULT_FROM_EMAIL="noreply@example.com")
