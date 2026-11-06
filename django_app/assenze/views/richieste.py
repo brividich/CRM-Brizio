@@ -1000,18 +1000,22 @@ def _render_richiesta(
         name=display_name,
     )
 
+    capo_proposto = _helpers._resolve_default_capo_for_user(
+        name=display_name,
+        email=email,
+        username=request.user.get_username(),
+        capi=capi,
+        legacy_user_id=_legacy_id,
+    )
+    # Non abilitato al cambio: campo fermo sul capo assegnato. Senza un capo assegnato
+    # resta libero, altrimenti la richiesta partirebbe senza nessuno che la approva.
+    capo_bloccato = not perms.get("can_choose_capo") and bool(capo_proposto)
     merged_form = {
         "tipoassenza": "",
         "motivazione": "",
         "certificato_medico": "",
         "dipendente_id": "",
-        "caporeparto": _helpers._resolve_default_capo_for_user(
-            name=display_name,
-            email=email,
-            username=request.user.get_username(),
-            capi=capi,
-            legacy_user_id=_legacy_id,
-        ),
+        "caporeparto": capo_proposto,
         # Date vuote: chi compila deve sceglierle, non partire da oggi per sbaglio.
         "date_start": "",
         "date_end": "",
@@ -1032,11 +1036,14 @@ def _render_richiesta(
         merged_form.update({k: str(v) for k, v in form_data.items() if v is not None})
     if not perms.get("can_skip_approval"):
         merged_form["salta_approvazione"] = "0"
+    if capo_bloccato:
+        merged_form["caporeparto"] = capo_proposto
 
     return _helpers.render(
         request,
         "assenze/pages/richiesta_assenze.html",
         {
+            "capo_bloccato": capo_bloccato,
             "tipi": list(TIPI_ASSENZA_UI),
             "nome": display_name,
             "capi": capi,
@@ -1635,9 +1642,17 @@ def invio_placeholder(request):
             request_day=giorno,
         )
         capo_final = capo_effective or capo_raw
+        # Non abilitato al cambio e senza capo assegnato: sceglie, ma solo dall'elenco.
+        if (
+            not perms.get("can_choose_capo")
+            and not capo_effective
+            and capo_raw
+            and _helpers._find_capo_dict_for_option(capo_raw, capi_options) is None
+        ):
+            return None
 
-        # Chi puo' scegliere il caporeparto (tutti tranne il ruolo UTENTE) invia al
-        # capo selezionato, purche' sia fra quelli configurati. Se lascia quello
+        # Chi puo' scegliere il caporeparto (elenco di Impostazioni, vuoto = tutti) invia
+        # al capo selezionato, purche' sia fra quelli configurati. Se lascia quello
         # assegnato, resta valida l'escalation al superiore per assenza del capo.
         capo_scelto = False
         if perms.get("can_choose_capo") and capo_raw:

@@ -9,7 +9,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import MalattiaAbilitato
+from .models import CambioCapoAbilitato, MalattiaAbilitato
 from .views.richieste import _CONFERMA_SESSION_KEY, _build_submit_token
 
 PERMS_UTENTE = {"can_insert": True, "can_skip_approval": False, "can_insert_for_others": False, "group": "UTENTI"}
@@ -203,3 +203,50 @@ class TemplateCommentiMonorigaTests(TestCase):
             if riga.count("{#") > riga.count("#}")
         ]
         self.assertEqual(fughe, [])
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class CambioCapoAbilitatiTests(_Base):
+    def _req(self):
+        return type("Req", (), {"user": self.user})()
+
+    def test_elenco_vuoto_tutti_possono(self):
+        from .views._helpers import _puo_cambiare_capo
+
+        self.assertTrue(_puo_cambiare_capo(self._req()))
+
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Anna", "anna@example.com", 7))
+    @patch("assenze.views._helpers._resolve_anagrafica_employee_id_for_user", return_value=500)
+    def test_con_elenco_solo_gli_abilitati(self, *_m):
+        from .views._helpers import _puo_cambiare_capo
+
+        CambioCapoAbilitato.objects.create(legacy_anagrafica_id=999)
+        self.assertFalse(_puo_cambiare_capo(self._req()))
+        CambioCapoAbilitato.objects.create(legacy_anagrafica_id=500)
+        self.assertTrue(_puo_cambiare_capo(self._req()))
+
+    @patch("assenze.views._helpers._legacy_identity", return_value=("Anna", "anna@example.com", 7))
+    @patch("assenze.views._helpers._resolve_anagrafica_employee_id_for_user", return_value=None)
+    def test_con_elenco_senza_anagrafica_non_puo(self, *_m):
+        from .views._helpers import _puo_cambiare_capo
+
+        CambioCapoAbilitato.objects.create(legacy_anagrafica_id=999)
+        self.assertFalse(_puo_cambiare_capo(self._req()))
+
+    @patch("assenze.views._helpers.puo_impostazioni_assenze", return_value=True)
+    @patch("assenze.views._helpers._load_dipendenti_attivi_list", return_value=[
+        {"id": 41, "full_name": "Anna Bianchi"}, {"id": 42, "full_name": "Luca Verdi"},
+    ])
+    def test_salva_elenco_e_lo_svuota(self, *_m):
+        url = reverse("assenze_impostazioni")
+        resp = self.client.post(url, {"form": "cambio_capo", "cambio_capo_abilitati": ["42"]})
+        self.assertRedirects(resp, f"{url}#cambio-capo", fetch_redirect_response=False)
+        self.assertEqual(list(CambioCapoAbilitato.objects.values_list("legacy_anagrafica_id", "nominativo")),
+                         [(42, "Luca Verdi")])
+        self.client.post(url, {"form": "cambio_capo"})
+        self.assertFalse(CambioCapoAbilitato.objects.exists())
+
+    @patch("assenze.views._helpers.puo_impostazioni_assenze", return_value=False)
+    def test_senza_permesso_impostazioni_non_salva(self, *_m):
+        self.client.post(reverse("assenze_impostazioni"), {"form": "cambio_capo", "cambio_capo_abilitati": ["42"]})
+        self.assertFalse(CambioCapoAbilitato.objects.exists())

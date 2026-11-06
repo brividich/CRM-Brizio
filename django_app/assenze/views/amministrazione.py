@@ -131,6 +131,8 @@ def impostazioni_admin(request):
             return _salva_impostazioni_flessibilita(request)
         if str(request.POST.get("form") or "").strip() == "malattia":
             return _salva_impostazioni_malattia(request)
+        if str(request.POST.get("form") or "").strip() == "cambio_capo":
+            return _salva_impostazioni_cambio_capo(request)
 
         branding_response = handle_module_branding_post(
             request,
@@ -185,6 +187,7 @@ def impostazioni_admin(request):
             **_visibilita_overview(),
             **_flessibilita_admin_context(),
             **_malattia_admin_context(),
+            **_cambio_capo_admin_context(),
             **get_module_branding_context("assenze", fallback_label="Assenze"),
             **_helpers._template_perm_context(request),
         },
@@ -228,11 +231,8 @@ def _flessibilita_admin_context() -> dict:
     }
 
 
-def _malattia_admin_context() -> dict:
-    """Dati della sezione «Inserimento malattia» di Impostazioni."""
-    from ..models import MalattiaAbilitato
-
-    abilitati_ids = _helpers._malattia_abilitati_ids()
+def _elenco_abilitati(modello, abilitati_ids: set[int]) -> list[dict]:
+    """Dipendenti attivi con la spunta di abilitazione, per le sezioni di Impostazioni."""
     elenco = [
         {
             "id": _helpers._as_int(d.get("id")),
@@ -244,7 +244,7 @@ def _malattia_admin_context() -> dict:
     ]
     # Abilitato ma non piu' fra gli attivi: resta visibile, altrimenti non si toglie.
     noti = {row["id"] for row in elenco}
-    for orfano in MalattiaAbilitato.objects.exclude(legacy_anagrafica_id__in=noti):
+    for orfano in modello.objects.exclude(legacy_anagrafica_id__in=noti):
         elenco.append(
             {
                 "id": orfano.legacy_anagrafica_id,
@@ -254,8 +254,78 @@ def _malattia_admin_context() -> dict:
             }
         )
     elenco.sort(key=lambda row: str(row.get("full_name") or "").casefold())
+    return elenco
+
+
+def _aggiorna_abilitati(request, modello, campo: str, precedenti: set[int]) -> set[int]:
+    """Riallinea un elenco di abilitati alle spunte del form. Ritorna i selezionati."""
+    selezionati: set[int] = set()
+    for raw in request.POST.getlist(campo):
+        value = _helpers._as_int(raw)
+        if value is not None and value > 0:
+            selezionati.add(value)
+
+    nomi = {
+        _helpers._as_int(d.get("id")): str(d.get("full_name") or "")
+        for d in _helpers._load_dipendenti_attivi_list()
+    }
+    with transaction.atomic():
+        modello.objects.exclude(legacy_anagrafica_id__in=selezionati).delete()
+        for ana_id in sorted(selezionati - precedenti):
+            modello.objects.update_or_create(
+                legacy_anagrafica_id=ana_id,
+                defaults={
+                    "nominativo": (nomi.get(ana_id) or "")[:200],
+                    "created_by": (request.user.get_username() or "")[:200],
+                },
+            )
+    return selezionati
+
+
+def _cambio_capo_admin_context() -> dict:
+    """Dati della sezione «Cambio capo reparto» di Impostazioni."""
+    from ..models import CambioCapoAbilitato
+
+    abilitati_ids = _helpers._cambio_capo_abilitati_ids()
     return {
-        "malattia_dipendenti": elenco,
+        "cambio_capo_dipendenti": _elenco_abilitati(CambioCapoAbilitato, abilitati_ids),
+        "cambio_capo_abilitati_count": len(abilitati_ids),
+    }
+
+
+def _salva_impostazioni_cambio_capo(request):
+    """Salva chi può cambiare il capo reparto proposto nella nuova richiesta."""
+    from django.contrib import messages
+    from django.shortcuts import redirect
+
+    from ..models import CambioCapoAbilitato
+
+    precedenti = _helpers._cambio_capo_abilitati_ids()
+    selezionati = _aggiorna_abilitati(request, CambioCapoAbilitato, "cambio_capo_abilitati", precedenti)
+    _helpers.log_action(
+        request,
+        "impostazioni_cambio_capo_salvate",
+        "assenze",
+        {
+            "abilitati": len(selezionati),
+            "aggiunti": sorted(selezionati - precedenti),
+            "rimossi": sorted(precedenti - selezionati),
+        },
+    )
+    if selezionati:
+        messages.success(request, f"Cambio capo reparto aggiornato: solo {len(selezionati)} persone possono cambiarlo.")
+    else:
+        messages.success(request, "Cambio capo reparto aggiornato: elenco vuoto, tutti possono cambiarlo come prima.")
+    return redirect(f"{reverse('assenze_impostazioni')}#cambio-capo")
+
+
+def _malattia_admin_context() -> dict:
+    """Dati della sezione «Inserimento malattia» di Impostazioni."""
+    from ..models import MalattiaAbilitato
+
+    abilitati_ids = _helpers._malattia_abilitati_ids()
+    return {
+        "malattia_dipendenti": _elenco_abilitati(MalattiaAbilitato, abilitati_ids),
         "malattia_abilitati_count": len(abilitati_ids),
     }
 
@@ -267,27 +337,8 @@ def _salva_impostazioni_malattia(request):
 
     from ..models import MalattiaAbilitato
 
-    selezionati: set[int] = set()
-    for raw in request.POST.getlist("malattia_abilitati"):
-        value = _helpers._as_int(raw)
-        if value is not None and value > 0:
-            selezionati.add(value)
-
-    nomi = {
-        _helpers._as_int(d.get("id")): str(d.get("full_name") or "")
-        for d in _helpers._load_dipendenti_attivi_list()
-    }
     precedenti = _helpers._malattia_abilitati_ids()
-    with transaction.atomic():
-        MalattiaAbilitato.objects.exclude(legacy_anagrafica_id__in=selezionati).delete()
-        for ana_id in sorted(selezionati - precedenti):
-            MalattiaAbilitato.objects.update_or_create(
-                legacy_anagrafica_id=ana_id,
-                defaults={
-                    "nominativo": (nomi.get(ana_id) or "")[:200],
-                    "created_by": (request.user.get_username() or "")[:200],
-                },
-            )
+    selezionati = _aggiorna_abilitati(request, MalattiaAbilitato, "malattia_abilitati", precedenti)
 
     _helpers.log_action(
         request,

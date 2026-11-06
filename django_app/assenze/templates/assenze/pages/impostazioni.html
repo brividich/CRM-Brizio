@@ -310,20 +310,76 @@
       </div>
     </section>
 
+    <section class="ms-card" id="cambio-capo">
+      <div class="ms-card-head">
+        <div class="ms-card-title-wrap">
+          <h2 class="ms-card-title">Cambio capo reparto</h2>
+          <p class="ms-card-subtitle">
+            Chi può cambiare il capo reparto proposto nella nuova richiesta. Tutti gli
+            altri vedono il capo assegnato e non possono modificarlo.
+          </p>
+        </div>
+        <span class="ms-card-badge">
+          {% if cambio_capo_abilitati_count %}{{ cambio_capo_abilitati_count }} abilitati{% else %}tutti{% endif %}
+        </span>
+      </div>
+      <div class="ms-card-body">
+        {% if not cambio_capo_abilitati_count %}
+          <div class="abs-alert abs-alert-warn" style="margin-bottom:14px;">
+            Nessuno in elenco: tutti possono cambiare il capo reparto. Spunta almeno
+            una persona per riservare la scelta.
+          </div>
+        {% endif %}
+        <form method="post" action="{% url 'assenze_impostazioni' %}">
+          {% csrf_token %}
+          <input type="hidden" name="form" value="cambio_capo">
+
+          <div class="ms-field">
+            <label for="abs-cambio-capo-filtro">Persone che possono cambiare il capo</label>
+            <input type="text" id="abs-cambio-capo-filtro" placeholder="Filtra per nominativo..." autocomplete="off">
+            <div class="ms-field-help">
+              La persona deve avere un utente collegato all'anagrafica. Chi non ha un capo
+              assegnato può comunque sceglierlo, altrimenti nessuno potrebbe approvare la richiesta.
+            </div>
+          </div>
+
+          <div class="abs-fless-list" id="abs-cambio-capo-list" role="group" aria-label="Persone abilitate al cambio del capo reparto">
+            {% for dip in cambio_capo_dipendenti %}
+              <label class="abs-fless-item" data-nome="{{ dip.full_name|lower }}">
+                <input type="checkbox" name="cambio_capo_abilitati" value="{{ dip.id }}" {% if dip.abilitato %}checked{% endif %}>
+                <span>{{ dip.full_name }}</span>
+                {% if dip.fuori_elenco %}<span class="abs-fless-tag">non più in elenco</span>{% endif %}
+              </label>
+            {% empty %}
+              <p class="ms-field-help">Nessun dipendente attivo trovato in anagrafica.</p>
+            {% endfor %}
+          </div>
+
+          <div class="abs-fless-actions">
+            <button type="submit" class="btn btn-primary">Salva cambio capo reparto</button>
+            <span class="ms-field-help" id="abs-cambio-capo-count"></span>
+          </div>
+        </form>
+      </div>
+    </section>
+
     {% include "assenze/partials/_gestione_admin_panel.html" %}
   </div>
 
   <script>
-  (function () {
-    var filtro = document.getElementById("abs-malattia-filtro");
-    var lista = document.getElementById("abs-malattia-list");
-    var contatore = document.getElementById("abs-malattia-count");
+  [
+    ["malattia", "malattia_abilitati", "Nessuno selezionato: tutti vedono «Malattia»"],
+    ["cambio-capo", "cambio_capo_abilitati", "Nessuno selezionato: tutti possono cambiarlo"]
+  ].forEach(function (sezione) {
+    var filtro = document.getElementById("abs-" + sezione[0] + "-filtro");
+    var lista = document.getElementById("abs-" + sezione[0] + "-list");
+    var contatore = document.getElementById("abs-" + sezione[0] + "-count");
     if (!lista) return;
     var voci = Array.prototype.slice.call(lista.querySelectorAll(".abs-fless-item"));
     function aggiornaContatore() {
       if (!contatore) return;
-      var n = lista.querySelectorAll('input[name="malattia_abilitati"]:checked').length;
-      contatore.textContent = n === 0 ? "Nessuno selezionato: tutti vedono «Malattia»"
+      var n = lista.querySelectorAll('input[name="' + sezione[1] + '"]:checked').length;
+      contatore.textContent = n === 0 ? sezione[2]
         : (n === 1 ? "1 persona selezionata" : n + " persone selezionate");
     }
     if (filtro) {
@@ -338,7 +394,7 @@
     }
     lista.addEventListener("change", aggiornaContatore);
     aggiornaContatore();
-  })();
+  });
   </script>
 
   <script>

@@ -560,7 +560,7 @@ class AssenzeSubmitTokenTests(TestCase):
         self.assertEqual(payload["tipo_assenza"], "Malattia")
         self.assertEqual(payload["certificato_medico"], "Arrivato")
 
-    def _post_invio_con_capo(self, perms, capo_value):
+    def _post_invio_con_capo(self, perms, capo_value, capo_effettivo="capo1@example.com"):
         capi = [
             {"Value": "Capo Uno", "Email": "capo1@example.com", "LookupId": 1},
             {"Value": "Capo Due", "Email": "capo2@example.com", "LookupId": 2},
@@ -580,7 +580,7 @@ class AssenzeSubmitTokenTests(TestCase):
                 patch("assenze.views.richieste._render_richiesta", return_value=HttpResponse("ok")) as mock_render, \
                 patch("assenze.views._helpers._load_capi_options", return_value=capi), \
                 patch("assenze.views._helpers._resolve_default_capo_for_user", return_value="capo1@example.com"), \
-                patch("assenze.views._helpers._effective_capo_option", return_value=("capo1@example.com", False)):
+                patch("assenze.views._helpers._effective_capo_option", return_value=(capo_effettivo, False)):
             self.client.post(
                 reverse("assenze_invio"),
                 {
@@ -604,6 +604,17 @@ class AssenzeSubmitTokenTests(TestCase):
         perms = {"can_insert": True, "can_skip_approval": False, "can_choose_capo": False}
         mock_capo_local, _render = self._post_invio_con_capo(perms, "capo2@example.com")
         self.assertEqual(mock_capo_local.call_args.args[0], "capo1@example.com")
+
+    def test_invio_non_abilitato_senza_capo_assegnato_solo_dall_elenco(self):
+        perms = {"can_insert": True, "can_skip_approval": False, "can_choose_capo": False}
+        mock_capo_local, mock_render = self._post_invio_con_capo(perms, "estraneo@example.com", capo_effettivo="")
+        mock_capo_local.assert_not_called()
+        self.assertEqual(mock_render.call_args.kwargs.get("error"), "Caporeparto selezionato non valido.")
+
+    def test_invio_non_abilitato_senza_capo_assegnato_sceglie_dall_elenco(self):
+        perms = {"can_insert": True, "can_skip_approval": False, "can_choose_capo": False}
+        mock_capo_local, _render = self._post_invio_con_capo(perms, "capo2@example.com", capo_effettivo="")
+        self.assertEqual(mock_capo_local.call_args.args[0], "capo2@example.com")
 
     def test_invio_capo_scelto_fuori_elenco_rifiutato(self):
         perms = {"can_insert": True, "can_skip_approval": False, "can_choose_capo": True}
