@@ -250,6 +250,8 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "La scheda «Programmi e FAI» della commessa raccoglie i codici e i percorsi di rete, con il responsabile di ognuno. "
                   "Non è obbligatoria e si può usare solo per quello che serve. Le stesse righe si vedono e si aggiungono anche nel dettaglio dell'incontro e in «Registra esito»: non vanno inserite due volte."),
+            ("p", "Un'attività di tipo «Programmazione CAM» richiede il programma CAM, «Programmazione CMM» il programma CMM, «Esecuzione FAI» la scheda FAI: la scheda dell'attività chiede subito codice e cartella, e la stessa riga compare in «Programmi e FAI» con il responsabile e la data dell'attività. "
+                  "Se l'attività si chiude senza programma, si può chiudere, ma la riga resta «Da inserire» nelle attività del responsabile. La voce di menu «Programmi» mostra tutti i programmi CAM e CMM, con filtri, ricerca ed esportazione CSV."),
             ("passi", [
                 "Scegli il tipo: «Programma CAM», «Programma CMM» o «FAI».",
                 "Scrivi il codice e, se serve, il percorso, per esempio \\\\server\\cartella\\file.",
@@ -544,7 +546,7 @@ SEZIONI: list[dict] = [
                 ("Ruoli operativi", "catalogo dei ruoli e assegnazione delle persone: sono le liste del team. «Da anagrafica (Reparti)» legge i Caporeparto dai reparti; «Manuale» li assegna a mano."),
                 ("Accessi", "per ogni ruolo e per la singola persona: Vede tutto, Modifica solo i task assegnati, Modifica tutto."),
                 ("Promemoria", "i promemoria programmati delle attività: si eliminano, si rimandano o si inviano subito."),
-                ("Tipi attivita", "le tipologie di attività e i campi extra del form, con il ruolo dedicato."),
+                ("Tipi attivita", "le tipologie di attività e i campi extra del form, con il ruolo dedicato e «Richiede»: il programma CAM, il programma CMM o il FAI che l'attività deve produrre."),
                 ("Modelli ODG", "punti ricorrenti da caricare nella convocazione. Un punto per riga; per la durata scrivi «Titolo | 15»."),
                 ("FAI", "motivi per cui serve il FAI e tipo proposto, tipi di piano, stati e mesi delle scadenze. Una voce già usata non si elimina: si disattiva."),
                 ("Record", "ricerca ed eliminazione di kickoff e attività: serve una motivazione e non si torna indietro."),

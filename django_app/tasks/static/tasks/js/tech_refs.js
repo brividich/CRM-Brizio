@@ -133,6 +133,11 @@
       f('path').value = riga.dataset.path;
       f('owner').value = riga.dataset.owner;
       f('due').value = riga.dataset.due;
+      /* Tipo, responsabile e data di una riga nata da un'attività si cambiano sull'attività. */
+      var collegata = Boolean(riga.dataset.task);
+      f('kind').disabled = collegata;
+      f('owner').disabled = collegata;
+      f('due').disabled = collegata;
       f('save').textContent = 'Salva';
       f('code').focus();
     }

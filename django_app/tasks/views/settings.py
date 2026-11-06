@@ -47,6 +47,7 @@ from ..models import (
     TaskRoleDefinition,
     TaskRoleType,
     TaskStatus,
+    TechRefKind,
     TaskUserAccessRule,
 )
 from ..services.agenda import (
@@ -466,6 +467,7 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
             "tipi_categories": categories,
             "tipi_focus_category": focus_category,
             "tipi_field_types": TaskCategoryFieldType.choices,
+            "tipi_richiede_choices": TechRefKind.choices,
             "tipi_role_choices": [("", "Nessun ruolo dedicato")] + [
                 (role.code, role.name) for role in role_definitions if role.is_active
             ],
@@ -1038,6 +1040,10 @@ def _handle_tasks_categories_post(request):
         raw_role = (request.POST.get("role_type") or "").strip()
         return raw_role if raw_role in valid_role_codes else ""
 
+    def _clean_category_richiede() -> str:
+        valore = (request.POST.get("richiede") or "").strip()
+        return valore if valore in TechRefKind.values else ""
+
     if action == "category_create":
         name = (request.POST.get("name") or "").strip()
         if not name:
@@ -1054,6 +1060,7 @@ def _handle_tasks_categories_post(request):
             role_type=_clean_category_role(),
             order_index=max_order + 10,
             is_machine_work=bool(request.POST.get("is_machine_work")),
+            richiede=_clean_category_richiede(),
         )
         log_action(request, "tipo_creato", "tasks", {
             "message": f"Creato tipo attivita '{category.name}'",
@@ -1078,11 +1085,19 @@ def _handle_tasks_categories_post(request):
         category.role_type = _clean_category_role()
         category.is_active = bool(request.POST.get("is_active"))
         category.is_machine_work = bool(request.POST.get("is_machine_work"))
+        richiede_prima = category.richiede
+        category.richiede = _clean_category_richiede()
         try:
             category.order_index = max(0, int(request.POST.get("order_index") or 0))
         except (TypeError, ValueError):
             pass
         category.save()
+        # Le attività aperte di questo tipo si allineano subito alla nuova regola.
+        if category.richiede != richiede_prima:
+            from ..services.programmi import allinea_da_attivita
+
+            for task in category.tasks.exclude(status__in=[TaskStatus.DONE, TaskStatus.CANCELED]):
+                allinea_da_attivita(task)
         log_action(request, "tipo_modificato", "tasks", {
             "message": f"Modificato tipo attivita '{category.name}'",
             "category_id": category.id,

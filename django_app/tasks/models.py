@@ -21,6 +21,12 @@ class VRFDocStatus(models.TextChoices):
     NOT_REQUIRED = "NOT_REQUIRED", "Non richiesto"
 
 
+class TechRefKind(models.TextChoices):
+    CAM = "CAM", "Programma CAM"
+    CMM = "CMM", "Programma CMM"
+    FAI = "FAI", "FAI"
+
+
 class ProjectPhase(models.TextChoices):
     BOZZA = "BOZZA", "Bozza"
     VRF = "VRF", "VRF"
@@ -966,6 +972,14 @@ class TaskCategory(models.Model):
     )
     order_index = models.PositiveIntegerField(default=0, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
+    richiede = models.CharField(
+        max_length=3,
+        choices=TechRefKind.choices,
+        blank=True,
+        default="",
+        verbose_name="Richiede",
+        help_text="Cosa deve produrre un'attività di questo tipo.",
+    )
     is_machine_work = models.BooleanField(
         default=False,
         db_index=True,
@@ -2137,12 +2151,6 @@ class MeetingRoom(models.Model):
     def __str__(self) -> str:
         return self.nome
 
-class TechRefKind(models.TextChoices):
-    CAM = "CAM", "Programma CAM"
-    CMM = "CMM", "Programma CMM"
-    FAI = "FAI", "FAI"
-
-
 class TechRefStatus(models.TextChoices):
     OPEN = "OPEN", "Da fare"
     DONE = "DONE", "Fatto"
@@ -2169,6 +2177,10 @@ class ProjectTechRef(models.Model):
         verbose_name="Responsabile",
     )
     due_date = models.DateField(null=True, blank=True, verbose_name="Entro il")
+    # L'attività che deve produrre questo programma: responsabile, data e stato arrivano da lei.
+    task = models.OneToOneField(
+        Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="tech_ref", verbose_name="Attività"
+    )
     status = models.CharField(
         max_length=4, choices=TechRefStatus.choices, default=TechRefStatus.OPEN, db_index=True, verbose_name="Stato"
     )
@@ -2209,6 +2221,14 @@ class ProjectTechRef(models.Model):
     @property
     def is_overdue(self) -> bool:
         return bool(self.is_open and self.due_date and self.due_date < timezone.localdate())
+
+    @property
+    def ha_contenuto(self) -> bool:
+        return bool(self.code or self.path or getattr(self, "fai_record", None))
+
+    @property
+    def attivita_aperta(self) -> bool:
+        return bool(self.task_id and self.task.status not in (TaskStatus.DONE, TaskStatus.CANCELED))
 
     @property
     def is_web_path(self) -> bool:

@@ -1,0 +1,44 @@
+{% if task_tech_ref %}
+{% with ref=task_tech_ref %}
+<article class="ts-panel prog-attivita{% if not ref.ha_contenuto %} prog-attivita--manca{% endif %}" id="programma-attivita">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">{{ ref.get_kind_display }}{% if not ref.ha_contenuto %} da inserire{% endif %}</h2>
+      <p class="ts-panel-subtitle">
+        {% if ref.ha_contenuto %}È il risultato di questa attività.
+        {% elif ref.kind == "FAI" %}Questa attività richiede la scheda FAI.
+        {% else %}Questa attività richiede il {{ ref.get_kind_display|lower }}: scrivi il codice e la cartella.{% endif %}
+      </p>
+    </div>
+    <div class="ts-panel-meta">
+      {% if ref.ha_contenuto %}<span class="ts-chip ok">Inserito</span>{% else %}<span class="ts-chip warn">Manca</span>{% endif %}
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    {% if ref.kind == "FAI" %}
+      {% if ref.fai_record %}
+        <p class="prog-riga">{{ ref.fai_record.get_tipo_display }} · {{ ref.fai_record.stato.etichetta }}{% if ref.code %} · {{ ref.code }}{% endif %}</p>
+        <a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_scheda' ref.fai_record.id %}">Apri la scheda FAI</a>
+      {% elif task_tech_ref_modificabile %}
+        <a class="btn btn-sm" href="{% url 'tasks:fai_nuovo' %}?project={{ ref.project_id }}&amp;ref={{ ref.id }}">Compila la scheda FAI</a>
+      {% endif %}
+    {% elif task_tech_ref_modificabile %}
+      <form method="post" action="{% url 'tasks:task_programma' task.id %}" class="prog-form">
+        {% csrf_token %}
+        <label class="fai-campo"><span>Codice</span>
+          <input class="input" type="text" name="code" maxlength="120" value="{{ ref.code }}">
+        </label>
+        <label class="fai-campo"><span>Cartella o file</span>
+          <input class="input" type="text" name="path" maxlength="500" value="{{ ref.path }}" placeholder="\\server\cartella o file">
+        </label>
+        <button type="submit" class="btn btn-sm">Salva</button>
+      </form>
+      {% if ref.path %}<p class="prog-riga">Apri: {% include "tasks/_tech_ref_link.html" %}</p>{% endif %}
+    {% else %}
+      <p class="prog-riga">{{ ref.code|default:"Codice non ancora inserito" }}</p>
+      {% if ref.path %}<p class="prog-riga">{% include "tasks/_tech_ref_link.html" %}</p>{% endif %}
+    {% endif %}
+  </div>
+</article>
+{% endwith %}
+{% endif %}

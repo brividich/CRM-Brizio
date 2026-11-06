@@ -14,6 +14,7 @@ from core.audit import log_action
 
 from ..services.fai import allinea_da_riga
 from ..access import can_manage_project, scoped_projects_queryset, task_permissions_required
+from ..services.programmi import senza_attivita_aperta
 from ..models import (
     MeetingActionItem,
     MeetingActionStatus,
@@ -77,9 +78,9 @@ def mie_voci_aperte_count(request) -> int:
         + MeetingIssue.objects.filter(
             assigned_to=user, status=MeetingIssueStatus.OPEN, project_id__in=projects
         ).count()
-        + ProjectTechRef.objects.filter(
+        + senza_attivita_aperta(ProjectTechRef.objects.filter(
             assigned_to=user, status=TechRefStatus.OPEN, project_id__in=projects
-        ).count()
+        )).count()
     )
 
 
@@ -97,7 +98,7 @@ def mie_azioni(request):
     common = {"assigned_to": request.user, "project_id__in": projects.values("id")}
     actions = MeetingActionItem.objects.filter(**common)
     issues = MeetingIssue.objects.filter(**common)
-    refs = ProjectTechRef.objects.filter(**common)
+    refs = senza_attivita_aperta(ProjectTechRef.objects.filter(**common))
     if stato == "aperte":
         actions = actions.filter(status=MeetingActionStatus.OPEN)
         issues = issues.filter(status=MeetingIssueStatus.OPEN)

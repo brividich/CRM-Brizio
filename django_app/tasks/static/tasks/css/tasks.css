@@ -4458,3 +4458,9 @@ body.theme-dark .fai-tipo input:checked+span{background:rgba(249,115,22,.14)}
   .fai-cella[aria-hidden="true"]{display:none}
   .fai-opz-azioni{grid-column:1/-1;justify-content:flex-end}
 }
+.prog-attivita--manca{border-left:4px solid var(--warning,#b45309)}
+.prog-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:10px;align-items:end}
+.prog-form .input{width:100%}
+.prog-riga{margin:10px 0 0}
+.prog-attivita .btn+.prog-riga{margin-top:10px}
+@media (max-width:700px){.prog-form{grid-template-columns:minmax(0,1fr)}}
