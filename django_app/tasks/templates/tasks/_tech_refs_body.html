@@ -92,7 +92,7 @@
           {% if ref.path %}<div class="tl-task-desc">{% include "tasks/_tech_ref_link.html" %}</div>{% endif %}
         </td>
         <td>
-          {% if fai %}{{ fai.get_tipo_display }}<div class="tl-task-desc">{{ fai.causale.etichetta }}</div>
+          {% if fai %}{{ fai.get_tipo_display|default:"FAI" }}{% if fai.causale %}<div class="tl-task-desc">{{ fai.causale.etichetta }}</div>{% endif %}
           {% else %}<span class="tr-empty">scheda da completare</span>{% endif %}
         </td>
         <td>

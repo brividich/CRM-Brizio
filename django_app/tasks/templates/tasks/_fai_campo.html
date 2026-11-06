@@ -1,0 +1,4 @@
+<label class="fai-campo s{{ s|default:'3' }}"><span>{{ c.etichetta }}</span>
+  <input class="input" name="{{ c.nome }}" maxlength="{{ c.massimo }}" value="{{ c.valore|default_if_none:'' }}">
+  {% if c.errori %}<small class="tr-err">{{ c.errori|join:" " }}</small>{% endif %}
+</label>
