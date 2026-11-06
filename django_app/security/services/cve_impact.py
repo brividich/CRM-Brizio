@@ -330,6 +330,12 @@ def recompute(record, today=None, ctx=None):
             cve_chiusura.aggiorna_alert(record, risolte)
         except Exception:  # noqa: BLE001 - l'alert è un di più: il ricalcolo non deve fallire per lui
             logger.exception("Aggiornamento dell'alert della CVE %s non riuscito", record.cve_id)
+        try:
+            from security.services import cve_lavoro
+
+            cve_lavoro.aggiorna(record)
+        except Exception:  # noqa: BLE001 - come sopra: il caso è un di più
+            logger.exception("Aggiornamento del lavoro della CVE %s non riuscito", record.cve_id)
     return len(rows)
 
 

@@ -821,6 +821,8 @@ class SecurityCaseTask(models.Model):
 
     ticket = models.ForeignKey(SecurityRemediationTicket, on_delete=models.CASCADE, related_name="tasks")
     title = models.CharField(max_length=255)
+    # PC di una CVE (cve_lavoro): l'attività si spunta da sola quando l'inventario non lo vede più esposto.
+    cve_host = models.CharField(max_length=255, blank=True, default="")
     done = models.BooleanField(default=False, db_index=True)
     done_at = models.DateTimeField(null=True, blank=True)
     done_by = models.ForeignKey(
