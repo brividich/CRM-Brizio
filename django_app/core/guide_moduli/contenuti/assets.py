@@ -127,7 +127,7 @@ GUIDA = {
                 ("p", "Dal QR, «Segnala guasto ora» apre una pagina per il telefono: la macchina è già indicata, "
                       "scegli quanto è urgente e allega fino a 3 foto. La categoria è facoltativa."),
                 ("p", "Quando il manutentore crea l'intervento la segnalazione passa a «In carico»; chiudendo l'intervento "
-                      "con esito «Risolto» può segnarla anche come «Risolto»."),
+                      "con esito «Risolto» si chiude anche lei."),
             ],
         },
         {
@@ -168,8 +168,8 @@ GUIDA = {
                     "Negli altri interventi giorni di lavoro, codici guasto, costi, contratto e nota sono in «Altri dettagli». Se lo stesso "
                     "intervento è aperto su altri asset, «Stesso intervento su altri asset» li chiude insieme (stesso "
                     "esito, data, esecutore e descrizione; tempo, fermo, costi e allegati solo su quello aperto).",
-                    "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» la casella «Segna anche la "
-                    "segnalazione … come Risolta» si spunta da sola (solo per chi gestisce i ticket di manutenzione); "
+                    "Chiudendo un intervento nato da una segnalazione, con esito «Risolto» si chiude anche la "
+                    "segnalazione (per chi gestisce i ticket di manutenzione, se non c'è un altro intervento aperto); "
                     "con «Risolto temporaneamente» o «Non risolto» la segnalazione non cambia. Il fermo parte da quello "
                     "indicato nella segnalazione.",
                     "Una manutenzione che non si riesce a fare in tempo si rinvia («Rinvia» nella pagina «Registra», "
@@ -413,6 +413,37 @@ GUIDA = {
             ],
         },
         {
+            "id": "rischio_asset",
+            "titolo": "Capire il rischio di un PC o server",
+            "blocchi": [
+                ("p", "La Panoramica dell'asset, per chi vede il SOC, ha il riquadro «Rischio»: alto per CVE gravi o sfruttate e sistema fuori supporto; "
+                      "medio per altre CVE, supporto in scadenza entro 90 giorni, backup fallito o vecchio, server senza backup. "
+                      "«Nessun problema noto» non vuol dire al sicuro: sotto dice quanti programmi non sono controllati."),
+            ],
+        },
+        {
+            "id": "riconciliazione_inventario",
+            "titolo": "Trovare i PC senza asset e gli asset senza inventario",
+            "blocchi": [
+                ("passi", [
+                    "IT e rete › Licenze software o scheda asset › Riconciliazione dispositivi IT: i PC dell'inventario software senza asset stanno con gli altri dispositivi, col modulo «Inventario software». Spunta la proposta e premi «Collega selezionati».",
+                    "Scheda «PC e server senza inventario»: PC, notebook e server in uso senza programmi rilevati. Scegli il motivo e premi «Segna»; «Togli» lo rimette in lista.",
+                    "Chi resta senza motivo è un PC da controllare: di solito manca l'agente WatchGuard.",
+                ]),
+            ],
+        },
+        {
+            "id": "licenze_inventario",
+            "titolo": "Collegare le licenze all'inventario e contare i posti",
+            "blocchi": [
+                ("passi", [
+                    "Licenze software, riquadro «Da sistemare»: «Collega le N con il nome uguale» conferma quelle identiche; «Collega a …» le altre proposte, una per una; il resto con «Modifica». Gli abbonamenti per persona come Microsoft 365 non vanno collegati: si contano sulle persone, non sui PC.",
+                    "Una licenza collegata vale per tutto il programma, anche dopo un aggiornamento.",
+                    "Report › Licenze software: le colonne «PC con il software» e «Posti meno PC» dicono dove i PC superano i posti.",
+                ]),
+            ],
+        },
+        {
             "id": "catalogo_programmi",
             "titolo": "Trovare un programma nel Catalogo software",
             "blocchi": [
@@ -424,6 +455,7 @@ GUIDA = {
                     "Nella casella Cerca sopra la tabella scrivi programma, produttore o versione: filtra mentre scrivi e spazi e trattini non contano («7zip» trova 7-Zip).",
                     "Apri il programma: la sezione «Nomi raggruppati in questo programma» dice come lo riportano le fonti.",
                     "La decisione (classificazione, licenza, versione minima) vale per tutto il programma e resta dopo un aggiornamento.",
+                    "Per decidere su molti programmi: spunta le righe, scegli la classificazione e premi «Applica». «Regole per produttore › Consenti tutto» consente ogni programma ancora da classificare di quel produttore, anche i nuovi.",
                     "Raggruppamento sbagliato? Gli amministratori del modulo premono «Separa» accanto a un nome, oppure scelgono un programma in «Unisci a un altro programma». Si annulla dalla stessa sezione.",
                 ]),
             ],
@@ -433,7 +465,7 @@ GUIDA = {
             "titolo": "Vedere le CVE di un programma o di un PC",
             "blocchi": [
                 ("passi", [
-                    "Catalogo software: nella colonna CVE premi il bottone «N CVE» (lo vede solo chi ha accesso al Security Center).",
+                    "Catalogo software: nella colonna CVE premi il bottone «N CVE» (lo vede solo chi ha accesso al Security Center). «non controllato» vuol dire che il programma non è collegato a un CPE: il SOC non sa se ha CVE; il filtro «CVE non controllate» li raccoglie.",
                     "Si apre un pannello a destra con le CVE in ordine di pericolo: prima le sfruttate attivamente, poi per punteggio CVSS.",
                     "Premi una CVE: vedi «Cosa fare» (la versione da installare, se nota) e i PC colpiti. «Torna all'elenco» per tornare, Esc per chiudere.",
                     "Scheda di un PC: il riquadro «Vulnerabilità» mostra le cinque CVE più pericolose; «Vedi tutte le CVE» apre il pannello per software.",
@@ -830,10 +862,10 @@ GUIDA = {
             ],
         },
         {
-            "sintomo": "Chiudendo l'intervento non compare «Segna anche la segnalazione come Risolta»",
+            "sintomo": "Ho chiuso l'intervento ma la segnalazione è rimasta aperta",
             "fare": [
-                "La casella compare solo se la segnalazione è ancora aperta e solo a chi gestisce i ticket di manutenzione.",
-                "Chiudi l'intervento e chiedi a un gestore dei ticket di risolvere la segnalazione dal modulo Ticket.",
+                "Si chiude da sola solo con esito «Risolto», se chi chiude gestisce i ticket di manutenzione e non c'è un altro intervento aperto sulla stessa segnalazione.",
+                "Altrimenti chiudi gli altri interventi, o chiedi a un gestore di chiuderla dal modulo Ticket con «Risolvi».",
             ],
         },
         {

@@ -74,6 +74,16 @@ SEZIONI = [
         ],
     },
     {
+        "id": "chiosco",
+        "titolo": "Chiosco della reception",
+        "blocchi": [
+            ("p", "Il pulsante «Chiosco» in Accessi esterni apre /chiosco/: il visitatore registra ingresso e uscita senza login, "
+                  "e le visite compaiono qui come sempre. Si apre solo dalle postazioni abilitate dall'amministratore. "
+                  "Il referente si cerca scrivendo il nome. Il pannello per gestire presenti, storico, pre-registrazioni e "
+                  "cartellini è «Reception», nel menu di Fornitori."),
+        ],
+    },
+    {
         "id": "requisiti",
         "titolo": "Requisiti per lavorare in sede",
         "blocchi": [

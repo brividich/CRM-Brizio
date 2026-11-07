@@ -1,0 +1,104 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Registro FAI</span>{% endblock %}
+{% block tasks_shell_guide_anchor %}#report-fai{% endblock %}
+{% block tasks_shell_title %}Report FAI{% endblock %}
+{% block tasks_shell_subtitle %}Situazione degli articoli, scadenze e controllo trimestrale, da leggere o scaricare.{% endblock %}
+{% block tasks_shell_actions %}<a class="ts-hero-action" href="{% url 'tasks:fai_registro' %}">Registro FAI</a>{% endblock %}
+
+{% block tasks_shell_content %}
+<section class="ts-panel">
+  <div class="ts-panel-body fai-registro">
+    {% include "tasks/_fai_schede_registro.html" with per_report=True %}
+    <form method="get" class="fai-cerca">
+      <select class="input fai-filtro" name="cliente" aria-label="Cliente" data-invia-al-cambio>
+        <option value="">Tutti i clienti</option>
+        {% for c in clienti %}<option value="{{ c }}"{% if c == cliente %} selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+      <noscript><button type="submit" class="btn btn-secondary">Applica</button></noscript>
+    </form>
+    <div class="fai-viste">
+      {% for v in viste %}
+        <a class="fai-vista{% if v.codice == 'da_ripetere' and v.conta %} danger{% endif %}{% if v.codice == 'da_verificare' and v.conta %} warn{% endif %}" href="{% url 'tasks:fai_registro' %}?vista={{ v.codice }}{% if cliente %}&amp;q={{ cliente|urlencode }}{% endif %}">
+          <strong>{{ v.conta }}</strong> {{ v.etichetta }}
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="ts-panel">
+  <div class="ts-panel-head"><h2 class="ts-panel-title">Da scaricare</h2></div>
+  <div class="tl-table-wrap">
+    <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
+      <thead><tr><th>Report</th><th class="fai-num">Righe</th><th>Scarica</th></tr></thead>
+      <tbody>
+        {% for r in report %}
+        <tr>
+          <td>{{ r.nome }}<div class="tl-task-desc">{{ r.descrizione }}</div></td>
+          <td class="fai-num">{{ r.righe }}</td>
+          <td class="fai-scarica">
+            <a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_report_scarica' %}?report={{ r.chiave }}&amp;formato=xlsx{% if cliente %}&amp;cliente={{ cliente|urlencode }}{% endif %}">Excel</a>
+            {% if r.pdf %}<a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_report_scarica' %}?report={{ r.chiave }}&amp;formato=pdf{% if cliente %}&amp;cliente={{ cliente|urlencode }}{% endif %}">PDF</a>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="ts-panel">
+  <div class="ts-panel-head"><h2 class="ts-panel-title">Articoli per cliente</h2></div>
+  <div class="tl-table-wrap">
+    <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
+      <thead><tr><th>Cliente</th><th class="fai-num">Articoli</th><th class="fai-num">Da ripetere</th><th class="fai-num">Oltre {{ mesi_verifica }} mesi</th><th class="fai-num">In corso</th><th class="fai-num">In regola</th><th class="fai-num">Senza date</th></tr></thead>
+      <tbody>
+        {% for r in per_cliente %}
+        <tr>
+          <td><a class="tl-task-link" href="?cliente={{ r.cliente|urlencode }}">{{ r.cliente }}</a></td>
+          <td class="fai-num">{{ r.totale }}</td><td class="fai-num">{{ r.da_ripetere }}</td><td class="fai-num">{{ r.da_verificare }}</td><td class="fai-num">{{ r.in_corso }}</td><td class="fai-num">{{ r.in_regola }}</td><td class="fai-num">{{ r.date_mancanti }}</td>
+        </tr>
+        {% empty %}<tr><td colspan="7">Nessun FAI.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="fai-report-due">
+  <section class="ts-panel">
+    <div class="ts-panel-head"><h2 class="ts-panel-title">FAI per stato</h2></div>
+    <div class="tl-table-wrap">
+      <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
+        <thead><tr><th>Stato</th><th class="fai-num">FAI</th></tr></thead>
+        <tbody>
+          {% for r in per_stato %}
+          <tr><td><a class="tl-task-link" href="{% url 'tasks:fai_registro' %}?per=fai&amp;stato={{ r.id }}{% if cliente %}&amp;cliente={{ cliente|urlencode }}{% endif %}">{{ r.etichetta }}</a></td><td class="fai-num">{{ r.conta }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section class="ts-panel">
+    <div class="ts-panel-head"><h2 class="ts-panel-title">FAI per anno di invio</h2></div>
+    <div class="tl-table-wrap">
+      <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
+        <thead><tr><th>Anno</th><th class="fai-num">Inviati</th><th class="fai-num">Chiusi</th><th class="fai-num">Giorni medi alla chiusura</th></tr></thead>
+        <tbody>
+          {% for r in per_anno %}
+          <tr><td>{{ r.anno }}</td><td class="fai-num">{{ r.inviati }}</td><td class="fai-num">{{ r.chiusi }}</td><td class="fai-num">{{ r.giorni|default_if_none:"-" }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script>
+document.querySelectorAll('[data-invia-al-cambio]').forEach(function (campo) {
+  campo.addEventListener('change', function () { campo.form.requestSubmit(); });
+});
+</script>
+{% endblock %}

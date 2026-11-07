@@ -7,28 +7,83 @@ from django import forms
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 
 from core.audit import log_action
 from core.csv_export import csv_download_response
+from core.paginazione import pagina_elenco
 
 from ..access import can_manage_project, has_task_permission, scoped_projects_queryset, task_permissions_required
-from ..models import FaiGruppo, FaiOpzione, FaiRecord, FaiTipo, ProjectTechRef, TechRefKind
+from ..fai_regole import aggiungi_mesi
+from ..models import FaiDocumento, FaiFase, FaiGruppo, FaiOpzione, FaiRecord, FaiTipo, ProjectTechRef, TechRefKind
 from ..services.fai import (
     allinea_riga,
     causale_proposta,
+    ripetizione_entro,
+    stato_articolo,
     numero_piano_automatico,
+    prossimo_numero_fai,
     opzioni_attive,
     righe_registro,
     soglie,
     stato_iniziale,
     trova_o_crea_articolo,
 )
+from ..services.fai_report import conta_situazioni
 from ..services.notify import notify_user
 from ..tech_paths import normalizza_percorso
 from ._shared import _tasks_shell_context, _utenti_riga_rapida
+
+
+# Le colonne del file, per blocco della scheda: (campo, etichetta, lunghezza massima).
+CAMPI_ARTICOLO = (
+    ("nome_particolare", "Nome particolare", 255),
+    ("revisione", "Rev.", 60),
+    ("linea", "Linea", 120),
+    ("criticita", "Criticità", 120),
+)
+CAMPI_CODICI = (
+    ("pn_assy", "P/N assy", 120),
+    ("pn_alternativo", "P/N alternativo", 120),
+    ("rev_alternativo", "Rev. P/N alternativo", 60),
+)
+CAMPI_RIFERIMENTI = (
+    ("fai_numero", "FAI CN n°", 40),
+    ("fai_anno", "Anno FAI CN", 20),
+    ("op", "OP", 120),
+    ("oda_item", "OdA / Item", 120),
+    ("invito", "N° invito", 120),
+    ("faldone", "Faldone", 40),
+    ("cci_numero", "CCI CN n°", 40),
+    ("cci_anno", "Anno CCI CN", 20),
+)
+CAMPI_PIANO = (
+    ("descrizione_piano", "Descrizione piano", 500),
+    ("avanzamento", "Avanzamento piano", 1000),
+)
+CAMPI_VERSIONE = (
+    ("versione_produzione", "Versione di produzione", 120),
+    ("codice_dip", "Codice DIP", 120),
+)
+CAMPI_TESTO_FILE = CAMPI_ARTICOLO + CAMPI_CODICI + CAMPI_RIFERIMENTI + CAMPI_PIANO + CAMPI_VERSIONE + (
+    ("invio_cq", "Invio CQ", 255),
+)
+CAMPI_DATA_FILE = ("data_chiusura", "data_versione", "data_approvazione_dip")
+CAMPI_OPZIONE_FILE = (
+    ("chiusura_con", FaiGruppo.CHIUSURA),
+    ("stato_versione", FaiGruppo.VERSIONE),
+    ("cross_correlation", FaiGruppo.CROSS),
+)
+CAMPI_DOCUMENTO = (("doc_sdc", "SDC"), ("doc_pfc", "PFC"), ("doc_sintesi", "Sintesi"), ("doc_fai", "FAI"))
+# Il blocco piegato della scheda si apre da solo se contiene qualcosa.
+NOMI_VERSIONE = (
+    "versione_produzione", "stato_versione", "data_versione", "codice_dip", "data_approvazione_dip",
+    "invio_cq", "cross_correlation", "doc_sdc", "doc_pfc", "doc_sintesi", "doc_fai",
+)
 
 
 class FaiForm(forms.Form):
@@ -47,6 +102,21 @@ class FaiForm(forms.Form):
     ultima_spedizione = forms.DateField(required=False)
     scadenza_cliente = forms.DateField(required=False)
     note = forms.CharField(required=False, max_length=4000)
+
+    def __init__(self, *args, storico: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        for nome, _etichetta, massimo in CAMPI_TESTO_FILE:
+            self.fields[nome] = forms.CharField(required=False, max_length=massimo)
+        for nome in CAMPI_DATA_FILE:
+            self.fields[nome] = forms.DateField(required=False)
+        for nome, gruppo in CAMPI_OPZIONE_FILE:
+            self.fields[nome] = forms.ModelChoiceField(queryset=FaiOpzione.objects.filter(gruppo=gruppo), required=False)
+        for nome, _etichetta in CAMPI_DOCUMENTO:
+            self.fields[nome] = forms.ChoiceField(choices=[("", "")] + FaiDocumento.choices, required=False)
+        # Il file non diceva il perché né il tipo: su un FAI storico non si possono pretendere.
+        if storico:
+            for nome in ("causale", "tipo", "piano"):
+                self.fields[nome].required = False
 
     def clean_path(self):
         try:
@@ -110,7 +180,8 @@ def _esporta(righe):
     for riga in righe:
         fai, articolo = riga["fai"], riga["articolo"]
         writer.writerow([
-            articolo.client_name, articolo.part_number, fai.piano_numero, fai.get_tipo_display(), fai.causale.etichetta,
+            articolo.client_name, articolo.part_number, fai.piano_numero, fai.get_tipo_display(),
+            fai.causale.etichetta if fai.causale else "",
             fai.stato.etichetta, fai.data_invio or "", articolo.ultima_produzione or "",
             articolo.ultima_spedizione or "", riga["situazione"].etichetta,
             (fai.responsabile.get_full_name() or fai.responsabile.username) if fai.responsabile else "",
@@ -118,13 +189,93 @@ def _esporta(righe):
     return response
 
 
+_TESTO_TUTTI = [c for c in CAMPI_TESTO_FILE if c[0] != "invio_cq"]
+
+
+def colonne_tutti() -> list[str]:
+    return (
+        ["Cliente", "P/N", "Numero piano", "Tipo", "Stato", "Data invio", "Chiusura con", "Data chiusura"]
+        + [c[1] for c in _TESTO_TUTTI]
+        + ["Stato versione", "Data versione", "Data approvazione DIP", "Invio CQ", "Cross-correlation"]
+        + [c[1] for c in CAMPI_DOCUMENTO]
+        + ["Note"]
+    )
+
+
+def righe_tutti(records) -> list[list]:
+    """Le stesse colonne del file, per chi deve ancora passargli i dati."""
+    return [
+        [
+            f.articolo.client_name, f.articolo.part_number, f.piano_numero, f.get_tipo_display(), f.stato.etichetta,
+            f.data_invio or "", f.chiusura_con.etichetta if f.chiusura_con else "", f.data_chiusura or "",
+        ]
+        + [getattr(f, c[0]) for c in _TESTO_TUTTI]
+        + [
+            f.stato_versione.etichetta if f.stato_versione else "", f.data_versione or "",
+            f.data_approvazione_dip or "", f.invio_cq, f.cross_correlation.etichetta if f.cross_correlation else "",
+        ]
+        + [getattr(f, f"get_{c[0]}_display")() for c in CAMPI_DOCUMENTO]
+        + [f.note]
+        for f in records.select_related("chiusura_con", "stato_versione", "cross_correlation")
+    ]
+
+
+def _esporta_tutti(records):
+    response, writer = csv_download_response("situazione_fai.csv", delimiter=";")
+    writer.writerow(colonne_tutti())
+    writer.writerows(righe_tutti(records))
+    return response
+
+
+def _tutti_i_fai(request):
+    """Una riga per FAI, come il file: filtri sul server, il resto lo fa la tabella del portale."""
+    records = _fai_visibili(request).select_related("chiusura_con")
+    clienti = list(
+        records.exclude(articolo__client_name="").order_by("articolo__client_name")
+        .values_list("articolo__client_name", flat=True).distinct()
+    )
+    stati = FaiOpzione.objects.filter(gruppo=FaiGruppo.STATO)
+    cliente = (request.GET.get("cliente") or "").strip()
+    stato = request.GET.get("stato", "")
+    q = (request.GET.get("q") or "").strip()
+    if cliente:
+        records = records.filter(articolo__client_name=cliente)
+    if stato.isdigit():
+        records = records.filter(stato_id=int(stato))
+    if q:
+        records = records.filter(
+            Q(articolo__part_number__icontains=q) | Q(articolo__client_name__icontains=q) | Q(piano_numero__icontains=q)
+            | Q(op__icontains=q) | Q(oda_item__icontains=q) | Q(nome_particolare__icontains=q)
+            | Q(fai_numero__icontains=q) | Q(pn_assy__icontains=q) | Q(pn_alternativo__icontains=q)
+        )
+    if request.GET.get("formato") == "csv":
+        log_action(request, "kickoff_fai_esporta", "tasks", {"elenco": "tutti", "righe": records.count()})
+        return _esporta_tutti(records)
+    pagina = pagina_elenco(request, records)
+    mesi = soglie().mesi_ripetizione
+    for fai in pagina:
+        fai.scadenza = aggiungi_mesi(fai.data_chiusura, mesi) if fai.data_chiusura else None
+    return render(request, "tasks/fai_tutti.html", {
+        **_tasks_shell_context(request, active="fai"),
+        "page_title": "Registro FAI",
+        "page_obj": pagina,
+        "totale": pagina.paginator.count,
+        "clienti": clienti,
+        "stati": stati,
+        "cliente": cliente,
+        "stato_scelto": int(stato) if stato.isdigit() else None,
+        "q": q,
+        "fai_puo_creare": _vede_tutto(request),
+    })
+
+
 @task_permissions_required("tasks_view")
 def fai_registro(request):
+    if request.GET.get("per") == "fai":
+        return _tutti_i_fai(request)
     tutte = righe_registro(_fai_visibili(request))
     limiti = soglie()
-    conteggi: dict[str, int] = {}
-    for riga in tutte:
-        conteggi[riga["situazione"].codice] = conteggi.get(riga["situazione"].codice, 0) + 1
+    conteggi = conta_situazioni(tutte)
 
     viste = (
         ("", "Tutti"),
@@ -185,9 +336,49 @@ def _iso(giorno) -> str:
     return giorno.isoformat() if giorno else ""
 
 
+def _dati_originali(record) -> list[tuple[str, str]]:
+    """La riga del file con nomi leggibili, non con quelli interni."""
+    nomi = {"cliente": "Cliente", "pn": "P/N", "stato": "Stato piano FAI"}
+    for campo in FaiRecord._meta.fields:
+        nomi.setdefault(campo.name, str(campo.verbose_name))
+    return [(nomi.get(nome, nome), valore) for nome, valore in record.origine_excel.items()]
+
+
+def _campi(form) -> dict[str, dict]:
+    return {
+        nome: {"nome": nome, "etichetta": etichetta, "massimo": massimo, "valore": form[nome].value(), "errori": form[nome].errors}
+        for nome, etichetta, massimo in CAMPI_TESTO_FILE
+    }
+
+
+def _campi_opzione(form, record, nome, etichetta, gruppo) -> dict:
+    corrente = getattr(record, nome) if record else None
+    return {
+        "nome": nome, "etichetta": etichetta, "scelta": _intero(form[nome].value()),
+        "opzioni": opzioni_attive(gruppo, corrente),
+    }
+
+
 def _contesto_scheda(request, form, record, project, ref, *, modificabile: bool) -> dict:
     articolo = record.articolo if record else None
+    limiti = soglie()
+    annullato = bool(record and record.stato.fase == FaiFase.ANNULLATO)
     return {
+        "f": _campi(form),
+        "situazione": stato_articolo(articolo, record, limiti=limiti) if record and not annullato else None,
+        "ripetizione": ripetizione_entro(articolo, record, limiti) if record and not annullato else None,
+        "ha_versione": any(form[nome].value() for nome in NOMI_VERSIONE),
+        "campo_chiusura": _campi_opzione(form, record, "chiusura_con", "Chiusura con", FaiGruppo.CHIUSURA),
+        "campo_versione": _campi_opzione(form, record, "stato_versione", "Stato versione", FaiGruppo.VERSIONE),
+        "campo_cross": _campi_opzione(form, record, "cross_correlation", "Cross-correlation", FaiGruppo.CROSS),
+        "campi_documento": [
+            {"nome": nome, "etichetta": etichetta, "valore": form[nome].value() or ""}
+            for nome, etichetta in CAMPI_DOCUMENTO
+        ],
+        "scelte_documento": FaiDocumento.choices,
+        "valore_invio_cq": form["invio_cq"].value() or "",
+        "fai_storico": bool(record and record.chiave_import),
+        "dati_originali": _dati_originali(record) if record else [],
         **_tasks_shell_context(request, active="tech_refs" if project else "fai", project=project),
         "page_title": "Scheda FAI",
         "form": form,
@@ -220,6 +411,10 @@ def _iniziali(record, project, ref, richiesta) -> dict:
             "path": record.path, "responsabile": record.responsabile_id,
             "ultima_produzione": _iso(articolo.ultima_produzione), "ultima_spedizione": _iso(articolo.ultima_spedizione),
             "scadenza_cliente": _iso(articolo.scadenza_cliente), "note": record.note,
+            **{c[0]: getattr(record, c[0]) for c in CAMPI_TESTO_FILE},
+            **{nome: _iso(getattr(record, nome)) for nome in CAMPI_DATA_FILE},
+            **{nome: getattr(record, f"{nome}_id") for nome, _g in CAMPI_OPZIONE_FILE},
+            **{c[0]: getattr(record, c[0]) for c in CAMPI_DOCUMENTO},
         }
     causale = causale_proposta(richiesta.GET.get("causale", ""))
     piani = opzioni_attive(FaiGruppo.PIANO)
@@ -234,6 +429,8 @@ def _iniziali(record, project, ref, richiesta) -> dict:
         "stato": stato.pk if stato else None,
         "path": ref.path if ref else "",
         "responsabile": ref.assigned_to_id if ref else None,
+        "fai_anno": str(timezone.localdate().year),
+        "fai_numero": prossimo_numero_fai(timezone.localdate().year),
     }
 
 
@@ -268,13 +465,13 @@ def fai_scheda(request, fai_id: int | None = None):
             return _elimina(request, record)
         if not modificabile:
             raise PermissionDenied
-        form = FaiForm(request.POST)
+        form = FaiForm(request.POST, storico=bool(record and record.chiave_import))
         if form.is_valid():
             record = _salva(request, form.cleaned_data, record, project, ref)
             messages.success(request, f"FAI di {record.articolo.part_number} salvato.")
             return _torna(project)
     else:
-        form = FaiForm(initial=_iniziali(record, project, ref, request))
+        form = FaiForm(initial=_iniziali(record, project, ref, request), storico=bool(record and record.chiave_import))
     return render(
         request, "tasks/fai_scheda.html", _contesto_scheda(request, form, record, project, ref, modificabile=modificabile)
     )
@@ -322,16 +519,24 @@ def _salva(request, dati, record, project, ref) -> FaiRecord:
         for campo in ("causale", "tipo", "motivo", "piano", "stato", "path", "note"):
             setattr(record, campo, dati[campo])
         record.data_invio = dati["data_invio"]
+        for nome, _etichetta, _massimo in CAMPI_TESTO_FILE:
+            setattr(record, nome, dati[nome].strip())
+        for nome in CAMPI_DATA_FILE:
+            setattr(record, nome, dati[nome])
+        for nome, _gruppo in CAMPI_OPZIONE_FILE:
+            setattr(record, nome, dati[nome])
+        for nome, _etichetta in CAMPI_DOCUMENTO:
+            setattr(record, nome, dati[nome])
         record.responsabile = dati["responsabile"]
         record.piano_numero = dati["piano_numero"].strip()
-        if not record.piano_numero and record.piano.numerazione_auto:
+        if not record.piano_numero and record.piano and record.piano.numerazione_auto:
             record.piano_numero = numero_piano_automatico(articolo)
         record.save()
         allinea_riga(record, request.user)
 
     log_action(request, "kickoff_fai_salva", "tasks", {
         "id": record.pk, "project_id": record.project_id, "nuovo": nuovo, "tipo": record.tipo,
-        "causale": record.causale.etichetta, "stato": record.stato.etichetta,
+        "causale": record.causale.etichetta if record.causale else "", "stato": record.stato.etichetta,
     })
     if record.responsabile and record.responsabile_id not in (prima, request.user.pk):
         notify_user(

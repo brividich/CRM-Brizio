@@ -1,0 +1,72 @@
+{% extends "core/base.html" %}
+
+{% block extra_head %}
+<style>
+.rc-page { display:flex; flex-direction:column; gap:16px; }
+.rc-top { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.rc-title { font-size:24px; font-weight:800; color:var(--text,#0f172a); letter-spacing:-.02em; }
+.rc-sub { font-size:13px; color:var(--text-light,#64748b); margin-top:2px; max-width:820px; }
+.rc-card { background:var(--surface,#fff); border:1px solid var(--border,#e2e8f0); border-radius:14px; overflow:hidden; }
+.rc-card-head { padding:14px 20px; border-bottom:1px solid var(--border,#f1f5f9); font-size:15px; font-weight:700; color:var(--text,#1e293b); }
+.rc-body { padding:16px 20px; }
+.rc-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+.rc-kpi { background:var(--surface,#fff); border:1px solid var(--border,#e2e8f0); border-radius:12px; padding:14px 18px; }
+.rc-kpi b { display:block; font-size:24px; color:var(--text,#0f172a); }
+.rc-kpi span { font-size:12px; color:var(--text-light,#64748b); }
+.rc-wrap { overflow-x:auto; }
+.rc-table { width:100%; border-collapse:collapse; font-size:13px; }
+.rc-table th { padding:10px 16px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-light,#64748b); background:var(--thead-bg,#f8fafc); border-bottom:1px solid var(--border,#e2e8f0); white-space:nowrap; }
+.rc-table td { padding:10px 16px; border-bottom:1px solid var(--border,#f1f5f9); color:var(--text-mid,#334155); vertical-align:middle; }
+.rc-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; align-items:end; }
+.rc-field { display:flex; flex-direction:column; gap:4px; }
+.rc-field label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-light,#64748b); }
+.rc-input { width:100%; box-sizing:border-box; border:1px solid var(--border,#e2e8f0); border-radius:8px; padding:8px 12px; font-size:13px; color:var(--text,#0f172a); background:var(--surface-alt,#f8fafc); }
+.rc-btn { display:inline-flex; align-items:center; justify-content:center; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:600; border:1px solid transparent; cursor:pointer; text-decoration:none; white-space:nowrap; }
+.rc-btn-p { background:#1d4ed8; color:#fff; }
+.rc-btn-g { background:var(--surface-alt,#f1f5f9); color:var(--text-mid,#334155); border-color:var(--border,#e2e8f0); }
+.rc-btn-d { background:#fee2e2; color:#991b1b; }
+.rc-inline { display:inline; }
+.rc-muted { color:var(--text-light,#94a3b8); }
+.rc-empty { text-align:center; padding:28px; color:var(--text-light,#94a3b8); }
+.rc-note { font-size:13px; color:var(--text-mid,#475569); margin:0 0 10px; }
+.rc-avviso { padding:12px 16px; border-radius:12px; background:#fef9c3; color:#854d0e; border:1px solid #fde68a; font-size:13px; }
+.rc-pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; background:var(--surface-alt,#f1f5f9); color:var(--text-mid,#334155); white-space:nowrap; }
+.rc-pill-ok { background:#dcfce7; color:#166534; }
+.rc-etichette { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; padding:16px 20px; }
+.rc-etichetta { border:1px dashed var(--border,#94a3b8); border-radius:8px; padding:8px; text-align:center; font-weight:800; font-size:18px; color:#0f172a; background:#fff; }
+.rc-etichetta img { width:100%; max-width:130px; display:block; margin:0 auto; }
+body.theme-dark .rc-avviso { background:rgba(133,77,14,.2); color:#fde68a; border-color:rgba(253,230,138,.25); }
+body.theme-dark .rc-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
+body.theme-dark .rc-btn-d { background:rgba(229,62,62,.16); color:#fca5a5; }
+@media print { .subnav, .notice, .rc-top, .rc-noprint, header, nav { display:none !important; } }
+</style>
+{% endblock %}
+
+{% block subnav %}
+<div class="subnav">
+  <a class="sub-a{% if sezione == 'cruscotto' %} active{% endif %}" href="{% url 'reception:cruscotto' %}">Presenti</a>
+  <a class="sub-a{% if sezione == 'registra' %} active{% endif %}" href="{% url 'reception:registra' %}">Registra ingresso</a>
+  <a class="sub-a{% if sezione == 'storico' %} active{% endif %}" href="{% url 'reception:storico' %}">Storico</a>
+  <a class="sub-a{% if sezione == 'preregistrazioni' %} active{% endif %}" href="{% url 'reception:preregistrazioni' %}">Pre-registrazioni</a>
+  <div class="sub-sep"></div>
+  <a class="sub-a{% if sezione == 'referenti' %} active{% endif %}" href="{% url 'reception:referenti' %}">Referenti</a>
+  <a class="sub-a{% if sezione == 'ditte' %} active{% endif %}" href="{% url 'reception:ditte' %}">Ditte accreditate</a>
+  <a class="sub-a{% if sezione == 'cartellini' %} active{% endif %}" href="{% url 'reception:cartellini' %}">Cartellini</a>
+  <a class="sub-a{% if sezione == 'impostazioni' %} active{% endif %}" href="{% url 'reception:impostazioni' %}">Impostazioni</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="rc-page">
+  <div class="rc-top">
+    <div>
+      <div class="rc-title">{% block rc_titolo %}{% endblock %}</div>
+      <div class="rc-sub">{% block rc_sub %}{% endblock %}</div>
+    </div>
+    <a class="rc-btn rc-btn-g" href="{% url 'guida_modulo' 'fornitori' %}#reception">? Guida</a>
+  </div>
+  {% include "fornitori/components/flash_messages.html" %}
+  {% if not nativa %}<div class="rc-avviso"><strong>Pannello non ancora in uso:</strong> fino al passaggio i dati veri restano nel GuestPortal. Qui si vedono solo le tabelle dell'HUB, vuote o di prova.</div>{% endif %}
+  {% block rc_contenuto %}{% endblock %}
+</div>
+{% endblock %}

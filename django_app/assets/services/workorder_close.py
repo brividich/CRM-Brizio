@@ -111,6 +111,13 @@ def ticket_resolvable(workorder: WorkOrder) -> bool:
     return bool(ticket is not None and ticket.stato in STATI_APERTI)
 
 
+def altri_interventi_aperti(workorder: WorkOrder) -> bool:
+    """Sulla stessa segnalazione c'e' un altro intervento ancora aperto."""
+    return WorkOrder.objects.filter(
+        ticket_id=workorder.ticket_id, status=WorkOrder.STATUS_OPEN
+    ).exclude(pk=workorder.pk).exists()
+
+
 def _delete_stored_files(attachments: list) -> None:
     for attachment in attachments:
         try:
@@ -272,32 +279,39 @@ def _close_locked(workorder_id, *, data: CloseData, user, identity: RequestIdent
                 author=author,
             )
 
-    # Segnalazione collegata: si risolve solo con esito "Risolto", su richiesta
-    # esplicita e se chi chiude puo' gestire quel ticket.
+    # Segnalazione collegata: si chiude con esito "Risolto" se chi chiude puo' gestire
+    # quel ticket e non restano altri interventi aperti sulla stessa segnalazione.
     ticket_resolved = False
     ticket_note = ""
     if workorder.ticket_id and ticket_resolvable(workorder):
         ticket = workorder.ticket
+        altri_aperti = altri_interventi_aperti(workorder)
         if (
             workorder.status == WorkOrder.STATUS_DONE
             and esito == WorkOrder.OUTCOME_RESOLVED
             and data.resolve_ticket
             and identity.can_manage_ticket
+            and not altri_aperti
         ):
             from tickets.models import StatoTicket
             from tickets.services.stato import cambia_stato_ticket
 
+            nome = identity.name or _user_label(author)
+            ticket.closed_at = max(data.closed_at or timezone.now(), ticket.created_at)
+            ticket.risolto_da_nome = ticket.risolto_da_nome or nome
+            ticket.save(update_fields=["closed_at", "risolto_da_nome", "updated_at"])
             cambia_stato_ticket(
                 ticket,
-                StatoTicket.RISOLTO,
-                utente_nome=identity.name or _user_label(author),
+                StatoTicket.CHIUSO,
+                utente_nome=nome,
                 utente_email=identity.email,
-                nota=f"Risolto con la chiusura dell'intervento #{workorder.display_number}.",
+                nota=f"Chiuso con la chiusura dell'intervento #{workorder.display_number}.",
             )
             ticket_resolved = True
-            ticket_note = f"Segnalazione {ticket.numero_ticket} segnata come Risolta."
+            ticket_note = f"Segnalazione {ticket.numero_ticket} chiusa."
         elif workorder.status != WorkOrder.STATUS_CANCELED:
-            ticket_note = f"Segnalazione {ticket.numero_ticket} invariata ({ticket.get_stato_display()})."
+            motivo = "; c'e' un altro intervento aperto" if altri_aperti else ""
+            ticket_note = f"Segnalazione {ticket.numero_ticket} invariata ({ticket.get_stato_display()}){motivo}."
 
     if workorder.status == WorkOrder.STATUS_DONE:
         closure_note = f"Intervento chiuso · esito: {workorder.get_outcome_display()}."
@@ -349,7 +363,7 @@ def _close_locked(workorder_id, *, data: CloseData, user, identity: RequestIdent
     if follow_up is not None:
         success = f"{success} Creato l'intervento di verifica #{follow_up.id}."
     if ticket_resolved:
-        success = f"{success} La segnalazione {workorder.ticket.numero_ticket} e' ora Risolta."
+        success = f"{success} La segnalazione {workorder.ticket.numero_ticket} e' ora Chiusa."
     messages = [success]
 
     # Chiudere l'intervento non registra le manutenzioni raccolte: se ne restano

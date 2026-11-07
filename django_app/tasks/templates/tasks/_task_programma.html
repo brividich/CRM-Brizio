@@ -17,7 +17,7 @@
   <div class="ts-panel-body">
     {% if ref.kind == "FAI" %}
       {% if ref.fai_record %}
-        <p class="prog-riga">{{ ref.fai_record.get_tipo_display }} · {{ ref.fai_record.stato.etichetta }}{% if ref.code %} · {{ ref.code }}{% endif %}</p>
+        <p class="prog-riga">{{ ref.fai_record.get_tipo_display|default:"FAI" }} · {{ ref.fai_record.stato.etichetta }}{% if ref.code %} · {{ ref.code }}{% endif %}</p>
         <a class="btn btn-secondary btn-sm" href="{% url 'tasks:fai_scheda' ref.fai_record.id %}">Apri la scheda FAI</a>
       {% elif task_tech_ref_modificabile %}
         <a class="btn btn-sm" href="{% url 'tasks:fai_nuovo' %}?project={{ ref.project_id }}&amp;ref={{ ref.id }}{% if task_fai_causale %}&amp;causale={{ task_fai_causale }}{% endif %}">Compila la scheda FAI</a>

@@ -769,7 +769,10 @@ def ingresso_crea_fornitore(request, visita_id):
 @login_required
 def guestportal_apri(request):
     """Apre il pannello admin del GuestPortal già autenticato (token firmato, 60 s,
-    uso singolo). Senza SSO configurato porta al login normale del pannello."""
+    uso singolo). Senza SSO configurato porta al login normale del pannello. Dopo il passaggio
+    il pannello è quello dell'HUB."""
+    if gp.nativa():
+        return redirect("reception:cruscotto")
     if gp.sso_configurato():
         try:
             token = gp.firma_token(request.user.get_username())

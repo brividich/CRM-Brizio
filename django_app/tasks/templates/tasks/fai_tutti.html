@@ -1,0 +1,61 @@
+{% extends "tasks/base_shell.html" %}
+
+{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Registro FAI</span>{% endblock %}
+{% block tasks_shell_guide_anchor %}#registro-fai{% endblock %}
+{% block tasks_shell_title %}Registro FAI{% endblock %}
+{% block tasks_shell_subtitle %}Tutti i FAI, uno per riga.{% endblock %}
+{% block tasks_shell_actions %}
+  {% if fai_puo_creare %}<a class="ts-hero-action primary" href="{% url 'tasks:fai_nuovo' %}">+ Nuovo FAI</a>{% endif %}
+{% endblock %}
+
+{% block tasks_shell_content %}
+<section class="ts-panel">
+  <div class="ts-panel-body fai-registro">
+    {% include "tasks/_fai_schede_registro.html" with per_fai=True %}
+    <form method="get" class="fai-cerca">
+      <input type="hidden" name="per" value="fai">
+      <select class="input fai-filtro" name="cliente" aria-label="Cliente">
+        <option value="">Tutti i clienti</option>
+        {% for c in clienti %}<option value="{{ c }}"{% if c == cliente %} selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+      <select class="input fai-filtro" name="stato" aria-label="Stato">
+        <option value="">Tutti gli stati</option>
+        {% for s in stati %}<option value="{{ s.pk }}"{% if s.pk == stato_scelto %} selected{% endif %}>{{ s.etichetta }}</option>{% endfor %}
+      </select>
+      <input class="input" type="search" name="q" value="{{ q }}" placeholder="P/N, piano, OP, OdA, FAI CN, particolare" aria-label="Cerca">
+      <button type="submit" class="btn btn-secondary">Cerca</button>
+      <a class="btn btn-secondary" href="?per=fai&cliente={{ cliente|urlencode }}&stato={{ stato_scelto|default:'' }}&q={{ q|urlencode }}&formato=csv">Esporta CSV</a>
+    </form>
+    <p class="fai-nota">{{ totale }} FAI con questi filtri.</p>
+    {% if page_obj.object_list %}
+    <div class="tl-table-wrap">
+      <table class="tl-table">
+        <thead><tr><th>P/N</th><th>Cliente</th><th>Particolare</th><th>Rev.</th><th>FAI CN</th><th>Piano</th><th>Stato</th><th>OP</th><th>Invio</th><th>Chiusura</th><th>{{ "Scadenza" }}</th></tr></thead>
+        <tbody>
+          {% for f in page_obj %}
+          <tr>
+            <td><a class="tl-task-link" href="{% url 'tasks:fai_scheda' f.id %}">{{ f.articolo.part_number }}</a></td>
+            <td>{{ f.articolo.client_name }}</td>
+            <td>{{ f.nome_particolare }}</td>
+            <td>{{ f.revisione }}</td>
+            <td>{{ f.fai_numero }}{% if f.fai_anno %}/{{ f.fai_anno }}{% endif %}</td>
+            <td>{{ f.piano_numero }}</td>
+            <td>{{ f.stato.etichetta }}</td>
+            <td>{{ f.op }}</td>
+            <td>{{ f.data_invio|date:"d/m/Y" }}</td>
+            <td>{{ f.data_chiusura|date:"d/m/Y" }}{% if f.chiusura_con %}<div class="tl-task-desc">{{ f.chiusura_con.etichetta }}</div>{% endif %}</td>
+            <td>{{ f.scadenza|date:"d/m/Y" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "core/components/_pager_passo_passo.html" with page_obj=page_obj %}
+    {% elif q or cliente or stato_scelto %}
+      <p class="tr-hint">Nessun FAI con questi filtri.</p>
+    {% else %}
+      <p class="tr-hint">Il registro è vuoto.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

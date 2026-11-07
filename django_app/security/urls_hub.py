@@ -45,6 +45,7 @@ urlpatterns = [
     # B2 — Alert / Ticket / KPI
     path("alerts/", _guard(views.alerts_list), name="alerts_list"),
     path("alerts/proposte/", _guard(views.alert_proposte), name="alert_proposte"),
+    path("alerts/proposte/gruppo/chiudi/", _guard(views.alert_gruppo_chiudi), name="alert_gruppo_chiudi"),
     path("alerts/proposte/<int:pk>/<slug:azione>/", _guard(views.alert_proposta_azione), name="alert_proposta_azione"),
     path("alerts/<int:pk>/", _guard(views.alert_detail), name="alert_detail"),
     path("alerts/<int:pk>/actions/<slug:action>/", _guard(views.alert_action), name="alert_action"),
@@ -143,6 +144,7 @@ urlpatterns = [
     path("vulnerabilita/accettazioni/", views_vuln.rischio_accettazioni, name="accettazioni_rischio"),
     path("vulnerabilita/accettazioni/<int:pk>/revoca/", views_vuln.rischio_revoca, name="accettazione_rischio_revoca"),
     path("vulnerabilita/<str:cve_id>/accetta-rischio/", views_vuln.rischio_accetta, name="cve_accetta_rischio"),
+    path("vulnerabilita/<str:cve_id>/lavoro/", views_vuln.cve_lavoro_apri, name="cve_lavoro_apri"),
     path("vulnerabilita/<str:cve_id>/", views_vuln.cve_detail, name="cve_detail"),
     path("assets/", views_soc.assets_list, name="assets"),
     path("vpn/", views_soc.vpn_history, name="vpn_history"),

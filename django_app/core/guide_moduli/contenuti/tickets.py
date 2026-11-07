@@ -71,18 +71,22 @@ GUIDA = {
             "titolo": "Lavorare i ticket (tecnici)",
             "blocchi": [
                 ("passi", [
-                    "Apri «Gestione ticket». Puoi selezionare più ticket e usare «Assegna a…», «Cambia stato» o «Prendi in carico».",
-                    "Apri un ticket: «Prendi in carico» lo assegna a te.",
+                    "Apri «Gestione ticket»: parte da «Da fare», con prima gli urgenti. Ci sono anche «I miei», «Non assegnati» e «Chiusi». Puoi selezionare più ticket e usare «Assegna a…», «Cambia stato» o «Prendi in carico».",
+                    "«Prendo io», sulla riga o nella scheda, assegna il ticket a te e lo mette «In carico» con un clic.",
                     "Ogni volta che lavori sul ticket clicca «+ Aggiungi intervento», scrivi cosa hai fatto e il tempo, poi «Registra intervento».",
                     "Compila i dati tecnici (componente guasto, causa, ore di fermo macchina) e clicca «Salva dati tecnici».",
-                    "A lavoro finito clicca «Segna come risolto», poi «Chiudi ticket».",
+                    "A lavoro finito clicca «Risolvi»: scrivi «Cosa è stato fatto» (è l'unico dato obbligatorio), controlla le «Ore di lavoro» e, se c'è stato, il fermo. Se è venuto un tecnico esterno, collega la sua visita: «Usa nel rapportino» riempie le ore. Poi «Chiudi ticket»: registra l'intervento, chiude il ticket e propone il prossimo da fare.",
+                    "«Tecnico interno» e «Fornitore esterno» si salvano appena scegli. Se serve, un ticket chiuso si riapre con «Riapri».",
+                    "La scheda è una pagina sola: problema e allegati, aggiornamenti con le risposte rapide e la spunta «Nota interna», poi «Interventi» e «Dati tecnici e costi» da aprire quando servono. A destra gestione, «Asset collegato» e riepilogo.",
+                    "Da smartphone «Prendo io» o «Risolvi» e «Foto» restano sempre in basso.",
+                    "Se lavori con un OdL: «Apri OdL» riprende titolo e descrizione dal ticket. Chiudendolo con esito «Risolto» si chiude anche il ticket, se non ci sono altri OdL aperti.",
                 ]),
                 ("ul", [
                     "Ticket di manutenzione fatto da una ditta esterna: nella scheda «Interventi» il riquadro «Presenze in azienda della ditta» propone gli ingressi della ditta delegata registrati al chiosco della reception; «Collega» li lega al ticket e confronta le ore registrate con la presenza in azienda (guida Fornitori, «Collegare l'ingresso della ditta»).",
                     "Per un lavoro di manutenzione programmato usa «+ Apri OdL» (ordine di lavoro nel modulo Asset).",
                     "Gli allegati caricati dal QR della macchina vanno controllati: «Valida» oppure «Rifiuta» con motivo.",
                     "Per cambiare l'asset del ticket (riquadro «Asset collegato» → «Da catalogo») scrivi nome, n. interno, tag, modello o reparto: ogni risultato mostra n. interno, tag e il badge «Reparto …» per distinguere asset con lo stesso nome.",
-                    "Ticket di manutenzione, scheda «Asset e KPI»: il riquadro «Dove si trova» mostra l'asset sulla planimetria "
+                    "Ticket di manutenzione, colonna a destra: il riquadro «Dove si trova» mostra l'asset sulla planimetria "
                     "(o il punto indicato dal richiedente). Tocca un altro punto per scegliere un asset diverso e premi «Salva»; "
                     "«Apri la mappa completa» porta alla mappa officina.",
                 ]),

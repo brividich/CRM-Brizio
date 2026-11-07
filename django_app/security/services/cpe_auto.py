@@ -21,6 +21,7 @@ from collections import defaultdict
 from django.utils import timezone
 
 from security.models import SecurityCveRecord, SoftwareCpeMapping, SoftwareInstallation
+from security.services.software_inventory import nome_programma
 
 MIN_PRODUCT_ONLY_LEN = 4
 
@@ -68,7 +69,7 @@ def auto_link(pairs=None):
     """Collega i prodotti presenti nell'inventario dove il nome è certo. Ritorna quanti collegamenti nuovi."""
     pairs = known_cpe_pairs() if pairs is None else pairs
     if not pairs:
-        return 0
+        return propaga_ai_programmi()
     by_product = _by_product(pairs)
     existing = {(m.vendor, m.product): m for m in SoftwareCpeMapping.objects.all()}
     products = SoftwareInstallation.objects.filter(still_detected=True).values_list("vendor", "product").distinct()
@@ -78,7 +79,8 @@ def auto_link(pairs=None):
         mapping = existing.get((vendor, product))
         if mapping and (mapping.confirmed or mapping.not_applicable or mapping.origin == SoftwareCpeMapping.ORIGIN_AUTO_REJECTED):
             continue
-        found = match(vendor, product, pairs, by_product)
+        # Prima il nome com'è, poi senza release: «7-zip 26.05 ( edition)» è «7-zip».
+        found = match(vendor, product, pairs, by_product) or match(vendor, nome_programma(product), pairs, by_product)
         if not found:
             continue
         mapping = mapping or SoftwareCpeMapping(vendor=vendor, product=product)
@@ -88,7 +90,44 @@ def auto_link(pairs=None):
         mapping.confirmed_by, mapping.confirmed_at = None, now
         mapping.save()
         linked += 1
-    return linked
+    return linked + propaga_ai_programmi()
+
+
+def propaga_ai_programmi():
+    """Un CPE per programma: i nomi ancora da decidere prendono quello già confermato su un altro nome dello stesso
+    programma, così una release nuova è coperta senza chiedere niente. Con due CPE diversi nel programma non si
+    tocca niente: decide una persona. Annullamenti e decisioni delle persone restano. Ritorna quanti ne ha collegati."""
+    from security.services import software_catalog as sc
+
+    mappature = {(m.vendor, m.product): m for m in SoftwareCpeMapping.objects.all()}
+    membri = defaultdict(set)
+    for membro, canon in sc.indice_famiglie(con_unioni=False)[0].items():
+        membri[canon].add(membro)
+    fatti = 0
+    now = timezone.now()
+    for nomi in membri.values():
+        if len(nomi) < 2:
+            continue
+        presenti = [mappature[n] for n in nomi if n in mappature]
+        cpe = {(m.cpe_vendor, m.cpe_product) for m in presenti if m.confirmed}
+        escluso = any(m.not_applicable for m in presenti)
+        if len(cpe) > 1 or (not cpe and not escluso):
+            continue
+        for nome in nomi:
+            mapping = mappature.get(nome)
+            if mapping and (mapping.confirmed or mapping.not_applicable or mapping.origin == SoftwareCpeMapping.ORIGIN_AUTO_REJECTED):
+                continue
+            mapping = mapping or SoftwareCpeMapping(vendor=nome[0], product=nome[1])
+            if cpe:
+                mapping.cpe_vendor, mapping.cpe_product = next(iter(cpe))
+                mapping.confirmed, mapping.not_applicable = True, False
+            else:
+                mapping.confirmed, mapping.not_applicable = False, True
+            mapping.origin = SoftwareCpeMapping.ORIGIN_AUTO
+            mapping.confirmed_by, mapping.confirmed_at = None, now
+            mapping.save()
+            fatti += 1
+    return fatti
 
 
 def proposals(vendor, product, pairs):

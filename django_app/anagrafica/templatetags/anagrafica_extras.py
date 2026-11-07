@@ -79,6 +79,8 @@ def subnav_svg_icon(label):
         return ""
     rules = [
         ("impostazion", "i-gear"),
+        ("dashboard", "i-grid"),
+        ("organizzazion", "i-building"),
         ("chiedi", "i-search"),
         ("report", "i-clipboard"),
         ("persone", "i-users"),
@@ -424,13 +426,115 @@ def subnav_anagrafica(context):
                 "icona": cat.icona,
                 "id": cat.pk,
                 "landing_url": landing,
+                # Il pilastro è un link: alla sua dashboard o, senza, alla prima voce che si può aprire.
+                "url": landing or built_children[0]["url"],
+                "is_sicurezza": (getattr(cat, "landing_url_value", "") or "").strip() == _SAFETY_LANDING,
                 "active": landing_active or any(c["active"] for c in built_children),
                 "links": built_children,
                 "groups": groups,
                 "has_headers": has_headers,
             })
 
-    return {"items": items}
+    _accendi_per_percorso(items, current_path)
+    seconda = _completa_barra(context, request, items)
+    return {"items": items, "seconda": seconda}
+
+
+def _accendi_per_percorso(items: list[dict], percorso: str) -> None:
+    """Sottopagina senza voce propria: si accende la voce col percorso più lungo che la contiene.
+
+    Così una pagina nuova o una sotto-scheda resta dentro il suo pilastro senza registrarla a
+    mano; la voce dichiarata con ``active_view_names`` ha sempre la precedenza.
+    """
+    if not percorso or any(i["active"] for i in items):
+        return
+    try:
+        radice = reverse("anagrafica:index")
+    except NoReverseMatch:
+        radice = "/"
+    candidati = []
+    for item in items:
+        for voce in item.get("links") or [item]:
+            url = (voce.get("url") or "").split("?", 1)[0]
+            if url.startswith("/") and url != radice and percorso.startswith(url):
+                candidati.append((len(url), voce, item))
+    if candidati:
+        _lunghezza, voce, item = max(candidati, key=lambda c: c[0])
+        voce["active"] = True
+        item["active"] = True
+
+
+def _seconda_riga_da_voci(cat: dict) -> dict | None:
+    """Seconda riga di un pilastro: sezioni (i gruppi delle voci) e voci della sezione accesa."""
+    links = cat["links"]
+    if len(links) < 2:
+        return None
+    gruppi: dict[str, list[dict]] = {}
+    for voce in links:
+        gruppi.setdefault(voce.get("gruppo") or "", []).append(voce)
+    accesa = next((g for g, voci in gruppi.items() if any(v["active"] for v in voci)), next(iter(gruppi)))
+    sezioni = []
+    if len(gruppi) > 1:
+        sezioni = [
+            {"titolo": g or cat["label"], "url": voci[0]["url"], "active": g == accesa, "n": 0}
+            for g, voci in gruppi.items()
+        ]
+    voci = [{"label": v["label"], "url": v["url"], "active": v["active"], "n": 0, "target": v["target"]}
+            for v in gruppi[accesa]]
+    return {"aria": cat["label"], "sezioni": sezioni, "voci": voci}
+
+
+def _seconda_riga_sicurezza(gruppi: list[dict]) -> dict | None:
+    if not gruppi:
+        return None
+    accesa = next(g for g in gruppi if g["active"])
+    return {
+        "aria": "Salute e sicurezza",
+        "sezioni": [{"titolo": g["titolo"], "url": g["url"], "active": g["active"], "n": g["n"]} for g in gruppi],
+        "voci": [{"label": v["label"], "url": v["url"], "active": v["active"], "n": v["n"], "target": "_self"}
+                 for v in accesa["voci"]],
+    }
+
+
+def _completa_barra(context, request, items: list[dict]) -> dict | None:
+    """Numeri sui pilastri, voce a destra e seconda riga del pilastro acceso.
+
+    I numeri sono quelli di Salute e sicurezza (``safety_subnav``), nessun conteggio nuovo. Sul
+    pilastro non si somma per sezione: le visite scadute sono già dentro le scadenze scadute.
+    """
+    gruppi: list[dict] = []
+    if request is not None:
+        try:
+            gruppi = safety_subnav(context, "")
+        except Exception:
+            logger.warning("Subnav anagrafica: sezioni di sicurezza non disponibili", exc_info=True)
+    numeri = {v["contatore"]: v["n"] for g in gruppi for v in g["voci"] if v["contatore"]}
+    try:
+        url_scadenzario = reverse("anagrafica:scadenzario")
+        url_impostazioni = reverse("anagrafica:impostazioni")
+    except NoReverseMatch:
+        url_scadenzario = url_impostazioni = ""
+    sicurezza = None
+    for item in items:
+        item["fine"] = bool(url_impostazioni) and item.get("url") == url_impostazioni
+        if item.get("is_sicurezza"):
+            sicurezza = item
+            item["n"] = sum(numeri.get(k, 0) for k in ("adempimenti", "scadute", "referti"))
+        elif url_scadenzario and item.get("url") == url_scadenzario:
+            item["n"] = numeri.get("scadute", 0)
+
+    attiva = next((i for i in items if i["type"] == "category" and i["active"]), None)
+    if attiva is None and request is not None and _pagina_di_sicurezza(request):
+        # Pagine della sezione senza una voce propria nel menu (es. Esposizioni); lo Scadenzario
+        # ha la sua voce diretta, che resta quella accesa, e mostra comunque le sezioni.
+        if sicurezza is not None and not any(i["active"] for i in items):
+            sicurezza["active"] = True
+        return _seconda_riga_sicurezza(gruppi)
+    if attiva is None:
+        return None
+    if attiva is sicurezza:
+        return _seconda_riga_sicurezza(gruppi)
+    return _seconda_riga_da_voci(attiva)
 
 
 @register.simple_tag(name="nominativo")
@@ -477,6 +581,7 @@ def _nome_cognome_da(oggetto):
 # ── Subnav «Salute e sicurezza» (prompt 04, obiettivo C) ─────────────────────
 # Gruppi logici in ordine di frequenza d'uso. Ogni voce: (chiave, etichetta,
 # url name, view che la tengono accesa anche nelle sottopagine, contatore).
+_SAFETY_LANDING = "anagrafica:sicurezza_hub"
 _SAFETY_GRUPPI = (
     ("Operatività", (
         ("hub", "Cruscotto sicurezza", "anagrafica:sicurezza_hub", ("anagrafica:sicurezza_ricerca",), None),
@@ -632,17 +737,6 @@ def _pagina_di_sicurezza(request) -> bool:
                 # L'elenco qualifiche e' di sicurezza solo filtrato su quella categoria.
                 return chiave != "qualifiche" or request.GET.get("categoria") == "SICUREZZA"
     return False
-
-
-@register.simple_tag(takes_context=True)
-def safety_subnav_corrente(context):
-    """Secondo livello della subnav dal DB: le sezioni di Salute e sicurezza, solo
-    sulle pagine che ne fanno parte (riconosciute dalla view). Sostituisce la barra
-    «Salute e sicurezza» che ogni pagina includeva a mano."""
-    request = context.get("request")
-    if request is None or not _pagina_di_sicurezza(request):
-        return []
-    return safety_subnav(context, "")
 
 
 @register.simple_tag(takes_context=True)

@@ -1,0 +1,20 @@
+{% extends "reception/_base.html" %}
+{% block title %}Impostazioni | Reception{% endblock %}
+{% block rc_titolo %}Impostazioni{% endblock %}
+{% block rc_sub %}Avviso al chiosco e conservazione dei dati.{% endblock %}
+{% block rc_contenuto %}
+<div class="rc-card">
+  <div class="rc-card-head">Ditte con i documenti non in regola</div>
+  <div class="rc-body">
+    <p class="rc-note">Se è acceso, dopo il check-in di una ditta con i documenti di sicurezza non in regola il chiosco dice «Passa dalla reception prima di entrare». Non blocca l'ingresso. Stato: <strong>{% if avviso %}acceso{% else %}spento{% endif %}</strong>.</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="azione" value="avviso"><input type="hidden" name="avviso" value="{% if avviso %}0{% else %}1{% endif %}"><button class="rc-btn rc-btn-g" type="submit">{% if avviso %}Spegni{% else %}Accendi{% endif %}</button></form>
+  </div>
+</div>
+<div class="rc-card">
+  <div class="rc-card-head">Conservazione: {{ mesi }} mesi</div>
+  <div class="rc-body">
+    <p class="rc-note">Ogni notte le visite concluse oltre il termine vengono cancellate, con i relativi ospiti rimasti senza visite. I collegamenti agli interventi restano. Oltre il termine adesso: <strong>{{ n_oltre }}</strong>.</p>
+    {% if n_oltre %}<form method="post">{% csrf_token %}<input type="hidden" name="azione" value="pulisci"><button class="rc-btn rc-btn-d" type="submit">Cancella adesso</button></form>{% endif %}
+  </div>
+</div>
+{% endblock %}

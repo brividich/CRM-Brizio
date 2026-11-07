@@ -124,6 +124,7 @@ Questi path bypassano completamente l'`ACLMiddleware`:
 /schede-sicurezza/s/         (scheda SDS mobile via QR fisico, sola lettura)
 /gestione-anomalie/mail-action/  (azioni dalla mail anomalie, token monouso)
 /suggestion-corner/nuova/    (form pubblico anonimo, rate-limit per IP + honeypot)
+/chiosco/                    (chiosco reception senza login, solo IP in CHIOSCO_ALLOWED_IPS, vuoto = chiuso; MAI su Entra Application Proxy)
 /automazioni/approvazione/   (token-based, no login required)
 /admin-portale/automazioni/approvazione/
 /approval-actions/           (token-based, Entra Application Proxy frontend)

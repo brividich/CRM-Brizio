@@ -179,6 +179,10 @@ body.theme-dark .sl-empty{color:var(--text-light)}
       </section>{% endif %}
       {% if coverage.unlinked %}<section class="sl-cov-group">
         <h3>Non collegate all'inventario <span class="as-badge">{{ coverage.unlinked|length }}</span></h3>
+        {% if can_manage_licenses and coverage.proposte > 1 %}
+        <form method="post" style="margin-bottom:8px">{% csrf_token %}<input type="hidden" name="action" value="link_software_inventory_proposte">
+          <button type="submit" class="btn btn-primary btn-sm">Collega le {{ coverage.proposte }} con il nome uguale</button></form>
+        {% endif %}
         <ul class="sl-cov-list">{% for r in coverage.unlinked %}<li><span>{{ r.license }}</span>
           {% if r.suggestion and can_manage_licenses %}
             <form method="post">{% csrf_token %}

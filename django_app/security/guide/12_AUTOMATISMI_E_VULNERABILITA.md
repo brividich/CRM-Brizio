@@ -114,9 +114,17 @@ NVD, KEV ed EPSS vengono letti da un job in background ogni ora, solo se in **Co
 
 Il file caricato resta in un'area privata e cifrata solo fino all'import e non è mai scaricabile dal browser. Se abbandoni un'importazione a metà, **Annulla e elimina il file**; in ogni caso le anteprime non confermate vengono cancellate dopo 2 giorni.
 
+### Dalla CVE al lavoro di correzione
+
+Nella scheda di una CVE con PC colpiti, **Apri il lavoro di correzione** crea un caso a tuo nome con un'attività per PC e la versione a cui arrivare, se NVD la indica. A ogni ricalcolo degli impatti l'attività di un PC non più esposto si spunta da sola, quella di un PC di nuovo esposto si riapre e un PC nuovo aggiunge un'attività. Con l'ultimo PC il caso si chiude da solo, salvo attività aggiunte a mano ancora da fare. La scheda della CVE dice «N PC su M corretti».
+
 ### Collegare i software alle CVE (CPE)
 
 NVD descrive i prodotti con un codice chiamato **CPE** (produttore e prodotto, per esempio `7-zip:7-zip`). Per sapere se una CVE riguarda un software dell'inventario, ogni coppia produttore/prodotto va collegata al suo CPE una volta sola, in **Configurazione › Inventario software › Software e CPE**.
+
+**Una volta per programma.** Software e CPE ha una riga per programma, non per nome: la decisione vale per tutti i nomi e le release del programma, e una release nuova prende da sola il CPE già confermato. Con due CPE diversi nello stesso programma non si estende nulla. Le unioni fatte a mano nel Catalogo software non estendono il CPE.
+
+**Non controllato.** Un programma senza CPE né «non applicabile» compare come «non controllato» nel Catalogo software, nella scheda del PC e nel cruscotto. Il SOC confronta i programmi collegati con le CVE che ha già scaricato, non con tutte quelle esistenti.
 
 **Collegamento automatico.** Dopo ogni giro dell'arricchimento CVE e dopo ogni import dell'inventario il sistema collega **da solo** i software il cui nome coincide senza dubbi con un CPE delle CVE scaricate:
 
@@ -243,6 +251,8 @@ Il pannello si apre dal bottone rosso «N CVE» (arancione per «da verificare»
 KEV ed EPSS si leggono con «Arricchisci le CVE da NVD e CISA KEV» e «Leggi anche il punteggio EPSS» (Impostazioni › Avvisi e automatismi › Impatto CVE sugli asset): senza, la priorità usa solo il CVSS.
 
 **Patch WatchGuard.** Con la lettura delle patch accesa (vedi «Patch e protezione (WatchGuard)»), la riga della CVE dice «patch WatchGuard pronta su N PC», «Cosa fare» lo ripete e ogni PC ha l'etichetta della patch con il suo stato (da installare, attende il riavvio, errore di installazione…).
+
+**Calcolo ibrido con Defender.** Con «Confronta le CVE con Defender» e «Usa le CVE di Defender nel calcolo» accese, le CVE critiche e alte che Defender vede entrano nell'elenco del SOC. Su un PC che Defender vede, la sua segnalazione vale «impatta» anche senza CPE collegato; se il calcolo sulle versioni dice che il PC è a posto, l'esito è «da verificare». NVD aggiunge i range di versione, così il SOC controlla la stessa CVE anche sui PC che Defender non vede. I programmi letti da Defender risultano «controllati». Se Defender nomina un programma che sul PC non si riconosce, resta nel confronto come «solo Defender». Le CVE medie e basse restano solo nel confronto.
 
 **Confronto con Defender.** Con «Confronta le CVE con Defender» acceso (riquadro Microsoft Defender), ogni PC della scheda breve dice «Defender conferma» o «Defender non la vede»; un gruppo chiuso elenca i PC su cui Defender la vede e il SOC no. Il pannello di un PC ha «Confronto con Defender»: in comune, solo SOC, solo Defender. Dove i due non coincidono la CVE va guardata: di solito è un programma fuori dall'inventario WatchGuard, un CPE sbagliato o una versione letta male. Il confronto vale solo per i PC che Defender conosce.
 

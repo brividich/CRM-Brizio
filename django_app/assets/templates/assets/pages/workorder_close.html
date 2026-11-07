@@ -126,10 +126,9 @@ body.theme-dark .woc-gate h2 { color:#fca5a5; }
       {% include "assets/components/_md_field.html" with field=form.follow_up_date %}
       <span class="md-sub">Viene creato un intervento di verifica collegato, con questa scadenza.</span>
     </div>
-    {% if form.resolve_ticket %}
+    {% if form.resolvable_ticket %}
       <div class="md-field">
-        <label class="woc-check" for="{{ form.resolve_ticket.id_for_label }}">{{ form.resolve_ticket }} <span>{{ form.resolve_ticket.label }}</span></label>
-        <span class="helptext">{{ form.resolve_ticket.help_text }}</span>
+        <span class="helptext">{% if form.altri_odl_aperti %}La segnalazione {{ form.resolvable_ticket.numero_ticket }} resta aperta: c'è un altro intervento aperto.{% else %}Con esito «Risolto» si chiude anche la segnalazione {{ form.resolvable_ticket.numero_ticket }}. Con «Risolto temporaneamente» o «Non risolto» resta com'è.{% endif %}</span>
       </div>
     {% endif %}
   </fieldset>
@@ -304,8 +303,6 @@ document.addEventListener('click', function (event) {
   const daysHidden=document.getElementById("id_execution_days");
   const daysList=document.getElementById("executionDaysList");
   const addDayButton=document.getElementById("addExecutionDay");
-  const resolveTicketBox=document.getElementById("id_resolve_ticket");
-  let resolveTicketTouched=false;
 
   function selectedEsito(){const c=document.querySelector("input[name=esito]:checked");return c?c.value:"";}
   function closureDate(){return closedAtField&&closedAtField.value?closedAtField.value.slice(0,10):"";}
@@ -325,13 +322,7 @@ document.addEventListener('click', function (event) {
   function syncDayLimits(){if(!daysList)return;daysList.querySelectorAll("input[type=date]").forEach(function(i){i.max=closureDate();});syncDays();}
   function syncCoverage(){if(!coveredField)return;const active=Boolean(String(contractField?contractField.value:"").trim());coveredField.disabled=!active;if(!active)coveredField.checked=false;}
   // Casella del ticket collegato: vale solo con «Risolto»; si spunta da sola finche' l'utente non la tocca.
-  function syncResolveTicket(){
-    if(!resolveTicketBox)return;
-    const allowed=selectedEsito()==="RESOLVED";
-    resolveTicketBox.disabled=!allowed;
-    if(!allowed){resolveTicketBox.checked=false;}else if(!resolveTicketTouched){resolveTicketBox.checked=true;}
-  }
-  function syncEsito(){
+    function syncEsito(){
     const esito=selectedEsito();
     const canceled=esito==="CANCELED";
     if(followUpField)followUpField.hidden=esito!=="RESOLVED_TEMP";
@@ -344,10 +335,8 @@ document.addEventListener('click', function (event) {
     const extra=document.querySelectorAll('[data-insieme] [data-insieme-days]:not([hidden]) input[name=also_close]:checked').length;
     const label=canceled?"Annulla l'intervento":(esito==="NOT_RESOLVED"?"Registra e lascia aperto":"Chiudi definitivamente");
     if(submitButton)submitButton.textContent=extra?label+" (+"+extra+")":label;
-    syncResolveTicket();
   }
 
-  if(resolveTicketBox)resolveTicketBox.addEventListener("change",function(){resolveTicketTouched=true;});
   (daysHidden&&daysHidden.value?daysHidden.value.split(",").filter(Boolean):[]).forEach(addDay);
   if(addDayButton)addDayButton.addEventListener("click",function(){addDay("");});
   if(closedAtField)closedAtField.addEventListener("change",syncDayLimits);

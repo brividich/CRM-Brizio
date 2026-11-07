@@ -21,8 +21,9 @@
     {% endwith %}{% endfor %}
     </ul>
   {% else %}
-    <p class="af-note">Nessuna CVE nota colpisce questo PC secondo l'ultimo calcolo{% if dati.da_verificare %} ({{ dati.da_verificare }} da verificare){% endif %}.</p>
+    <p class="af-note">Nessuna delle CVE note al SOC colpisce i programmi controllati di questo PC{% if dati.da_verificare %} ({{ dati.da_verificare }} da verificare){% endif %}.</p>
   {% endif %}
+  {% if copertura.non_controllati %}<p class="af-note"><strong>{{ copertura.non_controllati }} programmi su {{ copertura.programmi }} non controllati</strong>: non sono collegati a un CPE e il SOC non può dire se hanno CVE.</p>{% endif %}
   <p class="af-note">{{ software_count }} software rilevati, inventario del {{ inventory_date|date:"d/m/Y" }}. Clic su una CVE per i dettagli. <a href="{% url 'security:vulnerabilities' %}">Cruscotto vulnerabilità</a></p>
 </section>
 {% include "security/partials/cve_pannello_risorse.html" %}

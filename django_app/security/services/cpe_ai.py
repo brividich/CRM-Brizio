@@ -287,6 +287,8 @@ def casi_cpe(limit=50):
     """Software ancora senza decisione con almeno un CPE candidato, i più diffusi prima."""
     from security.services.cpe_auto import known_cpe_pairs
 
+    from security.services.software_catalog import indice_famiglie
+
     pairs = known_cpe_pairs()
     if not pairs:
         return []
@@ -294,13 +296,19 @@ def casi_cpe(limit=50):
     decisi = {}
     for m in SoftwareCpeMapping.objects.all():
         decisi[(m.vendor, m.product)] = m
+    # Una domanda per programma: il CPE si estende da solo agli altri nomi (cpe_auto.propaga_ai_programmi).
+    canonici = indice_famiglie(con_unioni=False)[0]
+    gia_deciso = {c for k, c in canonici.items() if k in decisi and (decisi[k].confirmed or decisi[k].not_applicable)}
     rows = (
         SoftwareInstallation.objects.filter(still_detected=True).values("vendor", "product").order_by()
         .annotate(hosts=Count("host", distinct=True)).order_by("-hosts", "vendor", "product")
     )
     out = []
     for row in rows:
-        mapping = decisi.get((row["vendor"], row["product"]))
+        chiave = (row["vendor"], row["product"])
+        if canonici.get(chiave, chiave) != chiave or chiave in gia_deciso:
+            continue
+        mapping = decisi.get(chiave)
         if mapping and (mapping.confirmed or mapping.not_applicable or mapping.origin == SoftwareCpeMapping.ORIGIN_AUTO_REJECTED):
             continue
         candidati = candidati_cpe(row["vendor"], row["product"], pairs, by_token)

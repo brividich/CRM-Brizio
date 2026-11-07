@@ -19,6 +19,19 @@
 
 {% include "security/partials/cve_impact_summary.html" with summary=summary record=record %}
 
+{% if lavoro %}
+<section class="sec-panel" style="margin-top: 12px;" id="lavoro-correzione">
+  <div class="sec-section-head"><h2>Lavoro di correzione</h2><a class="sec-button sec-button-primary" href="{% url 'security:case_detail' lavoro.caso.pk %}">Apri il caso #{{ lavoro.caso.pk }}</a></div>
+  <p class="sec-small"><strong>{{ lavoro.fatti }} PC su {{ lavoro.totale }}</strong> corretti. Le attività si spuntano da sole quando l'inventario vede la versione corretta; il caso si chiude con l'ultimo PC.</p>
+</section>
+{% elif summary.impacts %}
+<section class="sec-panel" style="margin-top: 12px;" id="lavoro-correzione">
+  <div class="sec-section-head"><h2>Lavoro di correzione</h2>
+    <form method="post" action="{% url 'security:cve_lavoro_apri' record.cve_id %}">{% csrf_token %}<button type="submit" class="sec-button sec-button-primary">Apri il lavoro di correzione</button></form></div>
+  <p class="sec-small">Crea un caso a tuo nome con un'attività per ognuno dei {{ summary.impacts }} PC colpiti e la versione a cui arrivare. Le attività si spuntano da sole quando l'inventario vede la correzione.</p>
+</section>
+{% endif %}
+
 {% if termine %}
 <section class="sec-panel" style="margin-top: 12px;" id="termini-correzione">
   <div class="sec-section-head"><h2>Tempi di correzione e accettazione del rischio</h2><a class="sec-small" href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#tempi-di-correzione">? Guida</a></div>

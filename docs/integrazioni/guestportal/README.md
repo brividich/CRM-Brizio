@@ -5,6 +5,8 @@ Il **GuestPortal** (chiosco visitatori in reception, PHP + MySQL su IIS) resta u
 1. **legge** le visite dal database MySQL `GuestManagement` in sola lettura (pagina Fornitori → Accessi esterni);
 2. **apre** il pannello admin del GuestPortal già autenticato (voce «Accessi azienda» / «Apri GuestPortal»).
 
+3. **mostra il chiosco** in `/chiosco/` senza login, solo dalle postazioni in `CHIOSCO_ALLOWED_IPS`, chiamando lato server le API `public/api/*.php`.
+
 Codice HUB: [`django_app/fornitori/guestportal.py`](../../../django_app/fornitori/guestportal.py). Scheda modulo: [docs/moduli/fornitori.md](../../moduli/fornitori.md).
 
 ## Lato GuestPortal (installato il 04/11/2026)
@@ -31,6 +33,21 @@ Per disattivare l'accesso automatico basta rinominare `public/admin/sso.php`: il
 ### Segreto
 
 Il segreto è stato generato a caso e scritto solo in `config/sso.php` sul server GuestPortal. Va copiato **a mano** nel `.env` persistente dell'HUB (`GUESTPORTAL_SSO_SECRET`), senza passare da chat, mail o ticket. Per ruotarlo: nuovo valore in entrambi i posti, poi riavvio dell'HUB.
+
+## Passaggio dei dati su SQL Server (app `reception`)
+
+1. Permesso di lettura per l'importazione (un utente dedicato, da togliere a passaggio finito):
+
+```sql
+GRANT SELECT ON GuestManagement.* TO 'hub_readonly'@'<IP server HUB>';
+```
+
+2. `manage.py importa_guestportal`: prova, stampa solo i conteggi.
+3. A chiosco fermo: `manage.py importa_guestportal --apply`, confronta i conteggi.
+4. `RECEPTION_NATIVA=1` nel `.env`, `setup_q_schedules`, riavvio di HUB e qcluster.
+5. Spegni il sito PHP e le sue attività pianificate; MySQL resta in sola lettura come riserva. Di ritorno: `RECEPTION_NATIVA=0`.
+
+Attenzione: la prima notte con `RECEPTION_NATIVA=1` si cancellano le visite concluse più vecchie di `RECEPTION_CONSERVAZIONE_MESI` (12).
 
 ## Utente MySQL in sola lettura per l'HUB
 

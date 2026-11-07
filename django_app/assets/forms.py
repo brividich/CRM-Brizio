@@ -3423,7 +3423,6 @@ class WorkOrderCloseForm(forms.Form):
     assistance_contract = forms.ModelChoiceField(required=False, queryset=AssistanceContract.objects.none(), label="Contratto assistenza")
     covered_by_contract = forms.BooleanField(required=False, label="Coperto da contratto")
     log_note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}), label="Nota di chiusura")
-    resolve_ticket = forms.BooleanField(required=False, label="Segna anche la segnalazione come Risolta")
     failure_problem = forms.ModelChoiceField(required=False, queryset=None, label="Problema", empty_label="Non specificato")
     failure_cause_code = forms.ModelChoiceField(required=False, queryset=None, label="Causa", empty_label="Non specificata")
     failure_remedy = forms.ModelChoiceField(required=False, queryset=None, label="Rimedio", empty_label="Non specificato")
@@ -3432,19 +3431,14 @@ class WorkOrderCloseForm(forms.Form):
         self.asset = kwargs.pop("asset", None)
         self.workorder = kwargs.pop("workorder", None)
         # Ticket collegato ancora aperto E gestibile da chi chiude: solo allora la
-        # casella esiste. Senza, il campo non c'e' e il ticket non si tocca.
+        # pagina avvisa che con esito «Risolto» si chiude anche lui.
         self.resolvable_ticket = kwargs.pop("resolvable_ticket", None)
         super().__init__(*args, **kwargs)
-        if self.resolvable_ticket is None:
-            del self.fields["resolve_ticket"]
-        else:
-            self.fields["resolve_ticket"].label = (
-                f"Segna anche la segnalazione {self.resolvable_ticket.numero_ticket} come Risolta"
-            )
-            self.fields["resolve_ticket"].help_text = (
-                "Vale solo con esito «Risolto». Con «Risolto temporaneamente» o «Non risolto» "
-                "la segnalazione resta com'è."
-            )
+        self.altri_odl_aperti = False
+        if self.resolvable_ticket is not None and self.workorder is not None:
+            from .services.workorder_close import altri_interventi_aperti
+
+            self.altri_odl_aperti = altri_interventi_aperti(self.workorder)
         # Codici guasto: globali + categoria dell'asset e sue antenate.
         from .models import FailureCode
         from .services.failure_codes import codes_for_category
@@ -3513,8 +3507,6 @@ class WorkOrderCloseForm(forms.Form):
                 self.initial["execution_days"] = ",".join(day.isoformat() for day in existing_days)
         _attach_input_css(self)
         self.fields["covered_by_contract"].widget.attrs["class"] = ""
-        if "resolve_ticket" in self.fields:
-            self.fields["resolve_ticket"].widget.attrs["class"] = ""
 
     def clean(self):
         cleaned_data = super().clean()
