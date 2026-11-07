@@ -6,18 +6,24 @@ from django.utils.html import format_html
 register = template.Library()
 
 
-@register.simple_tag(takes_context=True)
-def sg_guida_link(context):
-    request = context.get("request")
+def _url_guida(request) -> str:
     match = getattr(request, "resolver_match", None)
     if not match:
         return ""
     from sistema_gestione.guida import link_pagina
 
     try:
-        url = link_pagina(match.view_name)
+        return link_pagina(match.view_name) or ""
     except NoReverseMatch:
         return ""
+
+
+@register.simple_tag(takes_context=True)
+def sg_guida_link(context):
+    request = context.get("request")
+    if getattr(request, "_sg_guida_nel_menu", False):
+        return ""
+    url = _url_guida(request)
     if not url:
         return ""
     return format_html(
@@ -29,7 +35,7 @@ def sg_guida_link(context):
 _SEZIONI = [
     ("panoramica", "Panoramica", "sistema_gestione:index"),
     ("audit", "Audit interni", "sistema_gestione:audit_index"),
-    ("certificazioni", "Certificazioni e audit esterni", "sistema_gestione:esterni_elenco"),
+    ("certificazioni", "Certificazioni", "sistema_gestione:esterni_elenco"),
     ("riesame", "Riesame", "sistema_gestione:riesame_elenco"),
     ("auditor", "Auditor", "sistema_gestione:auditor_elenco"),
     ("processi", "Processi", "sistema_gestione:processi_catalogo"),
@@ -45,7 +51,6 @@ _SOTTO = {
         ("Cruscotto", "sistema_gestione:audit_cruscotto"),
         ("I miei rilievi", "sistema_gestione:audit_miei_rilievi"),
         ("Indicatori MT CN 13", "sistema_gestione:procedura_kpi"),
-        ("Guida", "sistema_gestione:audit_guida"),
         ("Impostazioni", "sistema_gestione:audit_impostazioni"),
     ],
     "soa": [
@@ -108,7 +113,8 @@ def sg_menu(context):
             return False
 
     sezioni = [{"etichetta": e, "url": reverse(r), "attiva": s == sezione} for s, e, r in _SEZIONI if puo(r)]
-    sotto = [{"etichetta": e, "url": reverse(r), "attiva": r == vista} for e, r in _SOTTO.get(sezione, []) if puo(r)]
+    sotto = [{"etichetta": e, "url": reverse(r), "attiva": r == vista, "destra": e == "Impostazioni"}
+             for e, r in _SOTTO.get(sezione, []) if puo(r)]
     collegati = []
     for etichetta, rotta, query in _COLLEGATI:
         try:
@@ -117,4 +123,10 @@ def sg_menu(context):
             continue
         if puo_aprire_altrove(url):
             collegati.append({"etichetta": etichetta, "url": url + query})
-    return {"sezioni": sezioni, "sotto": sotto, "collegati": collegati}
+    # Le pagine senza un capitolo proprio aprono la guida dall'inizio.
+    guida = _url_guida(request) or (reverse("sistema_gestione:audit_guida") if puo("sistema_gestione:audit_guida") else "")
+    # Le pagine col menu hanno la guida nella sua riga: sg_guida_link, che segue, non la ripete.
+    if request is not None:
+        request._sg_guida_nel_menu = True
+    return {"sezioni": sezioni, "sotto": sotto, "collegati": collegati, "guida": guida,
+            "sezione_nome": next((e for s, e, _ in _SEZIONI if s == sezione), "")}

@@ -106,8 +106,27 @@ class DaFareTests(BaseTest):
     def test_la_pagina_iniziale_mostra_le_voci(self):
         _cert(scade_il=timezone.localdate() - timedelta(days=1))
         html = self.client.get(reverse("sistema_gestione:index")).content.decode()
-        self.assertIn("Da fare adesso", html)
+        self.assertIn("In ritardo · 1", html)
         self.assertIn("Certificato EN 9100 scaduto", html)
+
+    def test_colonne_ogni_voce_in_una_sola_per_data(self):
+        oggi = timezone.localdate()
+        voce = panoramica._voce
+        voci = [voce(panoramica.MEDIA, "ieri", "/a", "Apri", oggi - timedelta(days=1)),
+                voce(panoramica.ALTA, "alta senza data", "/a", "Apri"),
+                voce(panoramica.BASSA, "oggi", "/a", "Apri", oggi),
+                voce(panoramica.BASSA, "limite", "/a", "Apri", oggi + timedelta(days=30)),
+                voce(panoramica.MEDIA, "oltre", "/a", "Apri", oggi + timedelta(days=31)),
+                voce(panoramica.MEDIA, "senza", "/a", "Apri")]
+        testi = {c["chiave"]: [v["testo"] for v in c["voci"]] for c in panoramica.colonne(voci, oggi)}
+        self.assertEqual(testi, {"ritardo": ["ieri", "alta senza data"], "vicino": ["oggi", "limite"],
+                                 "avanti": ["oltre"], "senza": ["senza"]})
+
+    def test_piu_certificati_senza_copia_in_una_voce_sola(self):
+        _cert()
+        _cert(norma="ISO45001")
+        voci = [v for v in panoramica.da_fare() if "copia in PDF" in v["testo"]]
+        self.assertEqual([v["testo"] for v in voci], ["Manca la copia in PDF di 2 certificati"])
 
 
 class SchedaCertificatoTests(BaseTest):

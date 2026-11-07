@@ -63,7 +63,11 @@ def _certificazioni(oggi) -> list[dict]:
         voci.append(_voce(BASSA, f"{a.get_tipo_display()}: {a.ente}", url, "Prepara", a.data_inizio))
     senza_copia = [c for c in Certificazione.objects.filter(attiva=True).prefetch_related("documenti")
                    if c.documento_corrente is None]
-    for c in senza_copia:
+    if len(senza_copia) > 1:
+        voci.append(_voce(BASSA, f"Manca la copia in PDF di {len(senza_copia)} certificati",
+                          reverse("sistema_gestione:esterni_elenco"), "Carica", None,
+                          ", ".join(c.nome_breve for c in senza_copia)))
+    for c in senza_copia if len(senza_copia) == 1 else []:
         url = reverse("sistema_gestione:esterni_certificazione_scheda", args=[c.pk])
         voci.append(_voce(BASSA, f"Certificato {c.nome_breve}: manca la copia in PDF", url, "Carica", None, c.ente))
     from anagrafica.models import TipoQualifica
@@ -140,3 +144,30 @@ def da_fare(oggi=None, *, audit: bool = True, riesame: bool = False) -> list[dic
     if riesame:
         voci = voci + _riesame(oggi)
     return sorted(voci, key=lambda v: (v["priorita"], v["data"] is None, v["data"] or oggi, v["testo"]))
+
+
+def colonne(voci: list[dict], oggi=None) -> list[dict]:
+    """Le voci di ``da_fare`` divise per data, ciascuna in una sola colonna.
+
+    Una voce ad alta priorità senza data (es. CAR oltre la scadenza) è comunque in ritardo.
+    """
+    oggi = oggi or timezone.localdate()
+    limite = oggi + timedelta(days=GIORNI_VICINI)
+    gruppi = {"ritardo": [], "vicino": [], "avanti": [], "senza": []}
+    for v in voci:
+        data = v["data"]
+        if v["priorita"] == ALTA or (data and data < oggi):
+            gruppi["ritardo"].append(v)
+        elif data is None:
+            gruppi["senza"].append(v)
+        elif data <= limite:
+            gruppi["vicino"].append(v)
+        else:
+            gruppi["avanti"].append(v)
+    return [
+        {"chiave": "ritardo", "titolo": "In ritardo", "voci": gruppi["ritardo"]},
+        {"chiave": "vicino", "titolo": f"Entro {GIORNI_VICINI} giorni", "voci": gruppi["vicino"]},
+        {"chiave": "avanti", "titolo": "Più avanti", "voci": gruppi["avanti"]},
+        {"chiave": "senza", "titolo": "Senza data", "voci": gruppi["senza"]},
+    ]
+

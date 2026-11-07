@@ -1,8 +1,8 @@
-{% comment %}Menu unico del modulo. Le voci arrivano già filtrate per permesso dal tag sg_menu; decide comunque il server su ogni pagina.{% endcomment %}
-<nav class="sg-menu" aria-label="Sistema di gestione">
+{% comment %}Menu unico del modulo. Le voci arrivano già filtrate per permesso dal tag sg_menu; decide comunque il server su ogni pagina. Su telefono data-mnav lo trasforma nel pannello dal basso del portale.{% endcomment %}
+<nav class="sg-menu" aria-label="Sistema di gestione" data-mnav="Sistema di gestione">
   <div class="sg-menu-riga">
-    {% for v in sezioni %}<a href="{{ v.url }}"{% if v.attiva %} class="is-attiva" aria-current="true"{% endif %}>{{ v.etichetta }}</a>{% endfor %}
-    {% if collegati %}<span class="sg-menu-collegati">{% for v in collegati %}<a href="{{ v.url }}">{{ v.etichetta }}</a>{% endfor %}</span>{% endif %}
+    <div class="sg-menu-sezioni" data-mnav-group="Sezioni">{% for v in sezioni %}<a href="{{ v.url }}"{% if v.attiva %} class="is-attiva" aria-current="true"{% endif %}>{{ v.etichetta }}</a>{% endfor %}</div>
+    {% if collegati or guida %}<div class="sg-menu-collegati" data-mnav-group="Collegati">{% for v in collegati %}<a href="{{ v.url }}">{{ v.etichetta }}</a>{% endfor %}{% if guida %}<a class="sg-menu-guida" href="{{ guida }}" target="_blank" rel="noopener" aria-label="Guida di questa pagina" title="Apre in una nuova scheda il capitolo della guida che spiega questa pagina"><span aria-hidden="true">?</span> Guida</a>{% endif %}</div>{% endif %}
   </div>
-  {% if sotto %}<div class="sg-menu-sotto">{% for v in sotto %}<a href="{{ v.url }}"{% if v.attiva %} class="is-attiva" aria-current="page"{% endif %}>{{ v.etichetta }}</a>{% endfor %}</div>{% endif %}
+  {% if sotto %}<div class="sg-menu-sotto" data-mnav-group="{{ sezione_nome }}">{% for v in sotto %}<a href="{{ v.url }}" class="{% if v.attiva %}is-attiva{% endif %}{% if v.destra %} sg-menu-destra{% endif %}"{% if v.attiva %} aria-current="page"{% endif %}>{{ v.etichetta }}</a>{% endfor %}</div>{% endif %}
 </nav>

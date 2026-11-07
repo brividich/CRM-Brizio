@@ -9,6 +9,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from core.models import UserOnboarding
 from scadenzario import fonti_moduli
 
 from .acl_bootstrap import _ROUTE_BINDINGS, PERM_RIESAME_APPROVA, PERM_RIESAME_EDIT, PERM_RIESAME_VIEW
@@ -211,3 +212,24 @@ class VisteTests(TestCase):
         r = self.client.post(reverse("sistema_gestione:riesame_obiettivo_togli", args=[b.pk, o.pk]))
         self.assertEqual(r.status_code, 404)
         self.assertTrue(RiesameObiettivo.objects.filter(pk=o.pk).exists())
+
+
+class PannelloDopoSalvataggioTests(TestCase):
+    def setUp(self):
+        self.admin = get_user_model().objects.create_user(username="rz_pannello", password="x", is_superuser=True, is_staff=True)
+        UserOnboarding.objects.update_or_create(user=self.admin, defaults={"completed": True})
+        self.client.force_login(self.admin)
+        oggi = timezone.localdate()
+        self.riesame = Riesame.objects.create(anno=oggi.year, data=oggi, periodo_dal=oggi, periodo_al=oggi)
+        self.url = reverse("sistema_gestione:riesame_salva_analisi", args=[self.riesame.pk])
+        self.dettaglio = reverse("sistema_gestione:riesame_dettaglio", args=[self.riesame.pk])
+
+    def test_torna_sul_pannello_richiesto(self):
+        r = self.client.post(self.url, {"next": "arg-12"})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r.url, self.dettaglio + "#arg-12")
+
+    def test_un_valore_estraneo_non_finisce_nel_redirect(self):
+        for valore in ("https://esempio.invalid/", "//esempio.invalid", "arg-1#x", "ARG"):
+            r = self.client.post(self.url, {"next": valore})
+            self.assertEqual(r.url, self.dettaglio, valore)

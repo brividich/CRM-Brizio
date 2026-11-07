@@ -1,6 +1,7 @@
 """Riesame della direzione: verbali MOD.062 e obiettivi."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from django.contrib import messages
@@ -88,6 +89,15 @@ def modifica(request, pk: int):
         "indietro": reverse("sistema_gestione:riesame_dettaglio", args=[pk])})
 
 
+def _al_pannello(request, pk: int):
+    """Torna al verbale sul pannello richiesto: conta solo un identificativo, mai un indirizzo."""
+    url = reverse("sistema_gestione:riesame_dettaglio", args=[pk])
+    pannello = request.POST.get("next", "")
+    if re.fullmatch(r"[a-z]+(-\d+)?", pannello):
+        url += f"#{pannello}"
+    return redirect(url)
+
+
 @login_required
 def dettaglio(request, pk: int):
     if not _has_perm(request, PERM_RIESAME_VIEW):
@@ -95,6 +105,7 @@ def dettaglio(request, pk: int):
     riesame = get_object_or_404(Riesame.objects.select_related("preparato_da", "approvato_da"), pk=pk)
     argomenti = list(riesame.argomenti.all())
     puo_modificare = _has_perm(request, PERM_RIESAME_EDIT) and riesame.modificabile
+    precedenti = None if riesame.stato == Riesame.STATO_APPROVATO else list(service.obiettivi_precedenti(riesame))
     return render(request, "sistema_gestione/pages/riesame_dettaglio.html", {
         "page_title": str(riesame),
         "riesame": riesame,
@@ -103,7 +114,10 @@ def dettaglio(request, pk: int):
         "n_compilati": sum(1 for a in argomenti if a.analisi.strip()),
         "n_argomenti": len(argomenti),
         "partecipanti": riesame.partecipanti.select_related("utente"),
-        "precedenti": None if riesame.stato == Riesame.STATO_APPROVATO else service.obiettivi_precedenti(riesame),
+        "precedenti": precedenti,
+        "n_precedenti": len(riesame.fotografia_precedenti) if precedenti is None else len(precedenti),
+        "n_prec_valutati": (len(riesame.fotografia_precedenti) if precedenti is None
+                            else sum(1 for o in precedenti if o.nota.strip())),
         "stati_obiettivo": RiesameObiettivo.STATO_CHOICES,
         "obiettivi": riesame.obiettivi.select_related("responsabile", "processo", "origine"),
         "problemi": service.problemi_proposta(riesame) if riesame.modificabile else [],
@@ -136,7 +150,7 @@ def salva_analisi(request, pk: int):
             service.valuta_precedente(riesame, obiettivo, stato=stato, nota=request.POST.get(f"nota_{obiettivo.pk}", ""))
     log_action(request, "riesame_analisi_salvata", MODULE, {"id": riesame.pk}, oggetto=riesame)
     messages.success(request, "Verbale salvato.")
-    return redirect("sistema_gestione:riesame_dettaglio", pk=pk)
+    return _al_pannello(request, pk)
 
 
 @login_required
@@ -149,7 +163,7 @@ def aggiorna_indicatori(request, pk: int):
     service.aggiorna_indicatori(riesame, _aree(request))
     log_action(request, "riesame_indicatori_aggiornati", MODULE, {"id": riesame.pk}, oggetto=riesame)
     messages.success(request, "Indicatori aggiornati.")
-    return redirect("sistema_gestione:riesame_dettaglio", pk=pk)
+    return _al_pannello(request, pk)
 
 
 @login_required
