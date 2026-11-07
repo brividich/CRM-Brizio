@@ -134,5 +134,5 @@ class SkillMatrixNavTests(TestCase):
             link = SubnavLinkAnagrafica.objects.filter(url_value=url_value).first()
             self.assertIsNotNone(link, f"voce subnav mancante: {url_value}")
             self.assertTrue(link.is_active)
-            self.assertEqual(link.gruppo, "Skill Matrix")
+            self.assertEqual(link.gruppo, "Abilitazioni")
             self.assertEqual(link.categoria.nome, "Competenze")

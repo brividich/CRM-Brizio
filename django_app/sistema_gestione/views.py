@@ -69,7 +69,6 @@ def index(request):
     oggi = timezone.localdate()
     puo_riesame = _has_perm(request, PERM_RIESAME_VIEW)
     voci = panoramica.da_fare(oggi, audit=puo_audit, riesame=puo_riesame)
-    audit_anno = Audit.objects.filter(data_inizio__year=oggi.year).exclude(stato=Audit.STATO_ANNULLATO)
     return render(request, "sistema_gestione/pages/index.html", {
         "page_title": "Sistema di gestione",
         "puo_soa": puo_soa,
@@ -77,16 +76,12 @@ def index(request):
         "puo_riesame": puo_riesame,
         "puo_modificare": _has_perm(request, PERM_AUDIT_EDIT),
         "da_fare": voci,
-        "n_urgenti": sum(1 for v in voci if v["priorita"] == panoramica.ALTA),
-        "anno": oggi.year,
-        "audit_chiusi": audit_anno.filter(stato=Audit.STATO_CHIUSO).count() if puo_audit else 0,
+        "colonne": panoramica.colonne(voci, oggi),
         "certificazioni": list(Certificazione.objects.filter(attiva=True)) if puo_audit else [],
         "in_vigore": in_vigore,
         "di_lavoro": di_lavoro,
         "kpi_in_vigore": kpi_revisione(in_vigore) if in_vigore else [],
         "ti_anno": ti_anno,
-        # Come «programmati» dell'indice audit: gli annullati non contano.
-        "audit_anno": audit_anno.count() if puo_audit else 0,
     })
 
 

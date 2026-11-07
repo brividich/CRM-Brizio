@@ -1,0 +1,6 @@
+<div class="nav-mod-row" data-star-row="{{ v.star }}">
+  <a class="nav-dropdown-item{% if v.active %} active{% endif %}" href="{{ v.href }}" role="menuitem"{% if v.active %} aria-current="page"{% endif %}><span class="nav-label">{{ v.label }}</span></a>
+  <button type="button" class="nav-star" data-nav-star="{{ v.star }}" aria-pressed="{% if v.preferito %}true{% else %}false{% endif %}" title="{% if v.preferito %}Togli dai preferiti{% else %}Metti nei preferiti{% endif %}" aria-label="Preferito: {{ v.label }}">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.8 5.8 6.2.9-4.5 4.4 1 6.3-5.5-3-5.5 3 1-6.3L3 9.7l6.2-.9z"/></svg>
+  </button>
+</div>

@@ -17,11 +17,18 @@ GUIDA = {
             "titolo": "Come è organizzato il menu",
             "blocchi": [
                 ("def", [
-                    ("Persone", "elenco dipendenti, nuovo dipendente, ex dipendenti, documenti, organigramma, reparti."),
-                    ("Competenze", "formazione (corsi, sessioni, e-learning, copertura) e skill matrix."),
-                    ("Salute e sicurezza", "cruscotto sicurezza, visite mediche, idoneità, mansioni di rischio. Sulle pagine "
-                                           "della sezione, sotto il menu compare una seconda riga con le sue parti "
-                                           "(Operatività, Sorveglianza sanitaria, Rischi e mansioni, Formazione e DPI)."),
+                    ("Due righe", "la prima riga ha le grandi sezioni: un clic apre la sezione. La seconda riga mostra "
+                                  "le sue parti a sinistra e le pagine della parte scelta a destra. Il numero arancione "
+                                  "indica le cose da gestire. Se lo schermo è stretto, le righe si adattano da sole."),
+                    ("Persone", "Dipendenti (elenco, il mio team, nuovo dipendente, ex dipendenti, documenti) e Ingressi "
+                                "(recruiting, posizioni aperte, onboarding)."),
+                    ("Organizzazione", "Struttura (struttura organizzativa, esplora la struttura, organigramma, prospetto "
+                                       "dei cambiamenti, mansionario) e Reparti e costi (reparti, centri di costo)."),
+                    ("Competenze", "Formazione (corsi, sessioni, e-learning, copertura), Qualifiche e Abilitazioni "
+                                   "(matrice competenze, abilitazioni macchina, refresh semestrale)."),
+                    ("Salute e sicurezza", "le parti Operatività, Sorveglianza sanitaria, Rischi e mansioni, Formazione e DPI. "
+                                           "Il numero sulla sezione somma adempimenti aperti, scadenze scadute e referti "
+                                           "da rivedere; le visite scadute sono già tra le scadenze."),
                     ("Numeri della dashboard", "dashboard HR, «In elenco» dei Dipendenti e cruscotto qualifiche contano solo "
                                                "le persone che il tuo ruolo vede (propri, team o tutti); la formazione "
                                                "compare solo a chi ha il permesso formazione. Le qualifiche contano solo "
@@ -36,7 +43,7 @@ GUIDA = {
                 ("p", "Vedi solo le voci per cui hai il permesso. Le voci con un codice di modulo (es. «Processi "
                       "qualificati» = MOD.128, «Abilitazioni macchina» = MOD.187) lo spiegano al passaggio del mouse."),
                 ("p", "Sul telefono il menu è un pulsante sotto la barra in alto che mostra la pagina aperta: "
-                      "toccandolo si apre dal basso l'elenco di tutte le voci, divise come le tendine "
+                      "toccandolo si apre dal basso l'elenco di tutte le voci, divise per sezione "
                       "(Persone, Salute e sicurezza…), con «Filtra le voci» in cima."),
                 ("p", "Prima di eliminare, togliere o chiudere qualcosa il portale chiede conferma in una finestra al "
                       "centro della pagina: il titolo dice cosa succede, sotto c'è cosa resta. Il pulsante rosso "
