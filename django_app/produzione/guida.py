@@ -32,8 +32,11 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "«Ordini di produzione» nel menu Produzione. La tabella mostra gli OP dal più recente, con P/N, "
                   "capocommessa, CAR, stato e quanti documenti, FAI e anomalie aperte hanno. Cerca per OP, P/N, "
-                  "capocommessa o CAR e filtra per stato; un clic sulla riga apre la scheda."),
-            ("p", "Gli OP nuovi si creano da Gestione anomalie con «+ Nuovo OP»: qui compaiono subito."),
+                  "capocommessa o CAR e filtra per stato; un clic sull'OP apre la sua scheda."),
+            ("p", "«+ Nuovo OP» apre un pannello a lato: causale (OP, OG…), anno, numero, P/N, fase, capocommessa, CAR, "
+                  "collaudo di benestare e note. Il titolo è causale/anno/numero e non può esistere già. Creato l'OP, si apre "
+                  "la sua scheda. Le regole e le liste di capicommessa e CAR sono quelle di Gestione anomalie, che crea "
+                  "nello stesso elenco. Serve il permesso «Ordini di produzione - Nuovo OP» (di default solo admin)."),
         ],
     },
     {
@@ -44,7 +47,8 @@ SEZIONI: list[dict] = [
                 "In alto: P/N, capocommessa, CAR e stato dell'OP, con il link alle anomalie.",
                 "«Documenti registrati»: premi «Aggiungi documento», scegli il tipo e indica titolo o numero, revisione, "
                 "data e cartella o file di rete (\\\\server\\cartella). «Modifica» e «Elimina» su ogni riga.",
-                "«FAI»: «Nuovo FAI per questo OP» apre la scheda FAI con OP e P/N già compilati.",
+                "«FAI»: «Nuovo FAI per questo OP» apre la scheda FAI con OP e P/N già compilati. Nella scheda FAI, "
+                "«+ Nuovo OP» accanto al campo OP apre lo stesso pannello col P/N del FAI e mette l'OP creato nel campo.",
                 "«Programmi CAM e CMM» e «KICK-OFF del P/N»: si aprono e si cambiano dal KICK-OFF.",
                 "«Altri OP dello stesso P/N»: per passare a un OP precedente o successivo.",
             ]),

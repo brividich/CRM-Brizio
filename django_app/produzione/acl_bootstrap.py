@@ -7,6 +7,8 @@ Permessi:
 - ``PERM_DOCUMENTI``: aggiungere, cambiare ed eliminare i documenti di produzione. Solo admin
   di default, si assegna in Admin › ACL.
 - ``PERM_IMPOSTAZIONI``: tipi di documento. Solo admin.
+- ``PERM_OP``: creare un OP (elenco degli OP e pannello «+ Nuovo OP» della scheda FAI).
+  Solo admin di default, si assegna in Admin › ACL.
 
 Solo creazione: le modifiche fatte in Admin › ACL restano.
 """
@@ -21,11 +23,12 @@ from core.acl_bootstrap_base import run_bootstrap
 logger = logging.getLogger(__name__)
 
 MODULE = "produzione"
-_BOOTSTRAP_CACHE_KEY = "produzione_acl_bootstrap_v1"
+_BOOTSTRAP_CACHE_KEY = "produzione_acl_bootstrap_v2"
 
 PERM_VIEW = "produzione.op.view"
 PERM_DOCUMENTI = "produzione.documenti.manage"
 PERM_IMPOSTAZIONI = "produzione.impostazioni.manage"
+PERM_OP = "produzione.op.manage"
 
 _CANONICAL = {
     PERM_VIEW: {"label": "Ordini di produzione - Elenco e scheda OP",
@@ -34,6 +37,8 @@ _CANONICAL = {
                      "description": "Aggiungere, cambiare ed eliminare i documenti di produzione di un OP."},
     PERM_IMPOSTAZIONI: {"label": "Ordini di produzione - Impostazioni",
                         "description": "Tipi di documento di produzione."},
+    PERM_OP: {"label": "Ordini di produzione - Nuovo OP",
+              "description": "Creare un OP dall'elenco degli OP e dalla scheda FAI."},
 }
 
 _ROUTE_BINDINGS = {
@@ -43,6 +48,7 @@ _ROUTE_BINDINGS = {
     "produzione:documento": PERM_DOCUMENTI,
     "produzione:documento_elimina": PERM_DOCUMENTI,
     "produzione:impostazioni": PERM_IMPOSTAZIONI,
+    "produzione:op_nuovo": PERM_OP,
 }
 
 # A tutti i ruoli (True) o solo ad admin (False).
@@ -50,6 +56,7 @@ _DEFAULT_TUTTI = {
     PERM_VIEW: True,
     PERM_DOCUMENTI: False,
     PERM_IMPOSTAZIONI: False,
+    PERM_OP: False,
 }
 
 _NAV_CODE = "produzione_op"

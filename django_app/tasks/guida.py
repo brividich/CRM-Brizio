@@ -297,7 +297,7 @@ SEZIONI: list[dict] = [
                 "Scegli «Perché serve»: il portale propone FAI completo o Delta FAI.",
                 "È una proposta, non un obbligo: se per quella commessa il FAI non serve, chi gestisce il kickoff preme «Non richiesto per questo kickoff». Il portale registra chi l'ha deciso e quando; «Annulla» torna indietro.",
                 "Indica il piano e, se c'è, il numero. Per i piani con numerazione automatica lascialo vuoto.",
-                "Nel campo OP scrivi almeno due caratteri dell'OP o del P/N: il portale propone gli OP dell'elenco unico, lo stesso di Gestione anomalie. Sotto compaiono P/N, capocommessa, CAR, stato e le anomalie dell'OP, con il link per aprirle; se il P/N dell'OP è diverso da quello del FAI lo segnala. Un OP che non è nell'elenco si salva lo stesso: per collegarlo va creato da Gestione anomalie.",
+                "Nel campo OP scrivi almeno due caratteri dell'OP o del P/N: il portale propone gli OP dell'elenco unico, lo stesso di Gestione anomalie. Sotto compaiono P/N, capocommessa, CAR, stato e le anomalie dell'OP, con il link per aprirle; se il P/N dell'OP è diverso da quello del FAI lo segnala. Un OP che non è nell'elenco si salva lo stesso; per crearlo, «+ Nuovo OP» accanto al campo apre un pannello a lato col P/N del FAI e mette l'OP creato nel campo (permesso «Ordini di produzione - Nuovo OP»).",
                 "Aggiorna lo «Stato» man mano e inserisci le date dell'articolo: servono a calcolare la scadenza.",
             ]),
             ("ul", [
