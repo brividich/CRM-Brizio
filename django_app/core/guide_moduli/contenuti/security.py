@@ -55,6 +55,7 @@ GUIDA = {
                       "quante CVE lo colpiscono (e quante gravi) e a quale asset del registro è collegato."),
                 ("passi", [
                     "Usa i filtri «Backup ko», «Con CVE» e «Senza asset» per trovare cosa sistemare: il numero accanto è uguale alle righe.",
+                    "La colonna «Sistema» dice la release di Windows (verde supportata, rosso fuori supporto, giallo in scadenza); la striscia gialla sotto i filtri «N PC con Windows da aggiornare» ha il pulsante «Apri il piano» e, a caso aperto, la barra «N su M PC aggiornati».",
                     "Se nella colonna «Asset del registro» c'è «Proposto», controlla e premi «Conferma» (serve il permesso di configurazione del SOC).",
                     "Il nome del dispositivo apre la sua scheda con backup, alert, vulnerabilità e protezione endpoint.",
                     "Sotto il nome c'è l'indirizzo IP letto dal DHCP/DNS e, se noto, lo switch e la porta: un clic apre «Rete (IP)».",

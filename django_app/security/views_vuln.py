@@ -170,6 +170,14 @@ def _termini_cve(giorni=90):
         dati["prima"], dati["differenze"] = andamento["prima"], andamento["differenze"]
         dati["aperte_scadute"] = dati["aperte_scadute"][:15]
         dati["attivo"] = cve_sla.soc_settings.value("cve.sla.attivo")
+        settimane = cve_sla.serie_settimanale(8)
+        dati["settimane"] = settimane
+        dati["spark"] = {
+            "percentuale_in_tempo": cve_sla.punti_sparkline([s["percentuale_in_tempo"] for s in settimane]),
+            "giorni_mediani": cve_sla.punti_sparkline([s["giorni_mediani"] for s in settimane]),
+        }
+        for c in dati["classi"]:
+            c["pct_in_tempo"] = round(100 * c["in_tempo"] / c["corrette"]) if c["corrette"] else None
         return dati
     except Exception:  # noqa: BLE001
         logger.exception("Tempi di correzione delle CVE non disponibili")

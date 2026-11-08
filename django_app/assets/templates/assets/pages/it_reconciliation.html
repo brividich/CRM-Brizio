@@ -43,6 +43,41 @@ body.theme-dark .rc-mod.mfc { background:rgba(21,128,61,.22); color:#86efac; }
 body.theme-dark .rc-mod.intune { background:rgba(91,33,182,.25); color:#c4b5fd; }
 body.theme-dark .rc-mod.inv { background:rgba(157,23,77,.25); color:#f9a8d4; }
   
+/* Hardware a fine vita: contatori-filtro, barra dell'età con i segni alle soglie, motivi a tag */
+.rc-fv-counts { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:8px; }
+.rc-fv-count { display:grid; gap:2px; padding:10px 12px; border:1px solid var(--border,#dbe3f0); border-radius:10px; background:var(--surface,#fff); color:inherit; text-decoration:none; min-width:0; }
+.rc-fv-count strong { font-size:22px; line-height:1.1; font-variant-numeric:tabular-nums; }
+.rc-fv-count span { font-size:var(--fs-xs); color:var(--text-light,#64748b); }
+.rc-fv-count:hover { border-color:var(--primary-mid,#2f5f89); }
+.rc-fv-count.active { box-shadow:inset 0 0 0 1px var(--primary-mid,#2f5f89); border-color:var(--primary-mid,#2f5f89); }
+.rc-fv-count--danger { border-color:color-mix(in srgb,var(--danger,#e53e3e) 45%,transparent); background:color-mix(in srgb,var(--danger,#e53e3e) 7%,var(--surface,#fff)); }
+.rc-fv-count--danger strong { color:var(--danger,#e53e3e); }
+.rc-fv-count--warn { border-color:color-mix(in srgb,var(--warning,#d69e2e) 50%,transparent); background:color-mix(in srgb,var(--warning,#d69e2e) 9%,var(--surface,#fff)); }
+.rc-fv-count--warn strong { color:#b45309; }
+.rc-fv-count--ok { border-color:color-mix(in srgb,var(--success,#38a169) 45%,transparent); background:color-mix(in srgb,var(--success,#38a169) 7%,var(--surface,#fff)); }
+.rc-fv-count--ok strong { color:#15803d; }
+.rc-fv-soglie summary { cursor:pointer; font-weight:700; }
+.rc-fv-eta-col { width:26%; }
+.rc-fv-eta { display:flex; align-items:center; gap:10px; min-width:160px; padding-bottom:10px; }
+.rc-fv-track { position:relative; flex:1; height:8px; border-radius:999px; background:#eef2f7; box-shadow:inset 0 0 0 1px #e2e8f0; }
+.rc-fv-track i { position:absolute; top:0; bottom:0; left:0; border-radius:999px; background:var(--success,#38a169); }
+.rc-fv-track i.is-warn { background:var(--warning,#d69e2e); }
+.rc-fv-track i.is-danger { background:var(--danger,#e53e3e); }
+.rc-fv-track b { position:absolute; top:-3px; width:1px; height:14px; background:#94a3b8; }
+.rc-fv-track b::after { content:attr(data-anni); position:absolute; top:13px; left:-3px; font-size:9px; font-weight:500; color:#94a3b8; line-height:1; }
+.rc-fv-anni { min-width:52px; text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.rc-fv-gar--scaduta { color:#b91c1c; font-weight:600; }
+.rc-fv-gar--scadenza { color:#b45309; font-weight:600; }
+.rc-fv-motivi { display:flex; flex-wrap:wrap; gap:4px; }
+.rc-fv-motivi .rc-tag { white-space:normal; }
+@media (max-width:720px) { .rc-fv-counts { grid-template-columns:1fr 1fr; } }
+body.theme-dark .rc-fv-count--warn strong { color:#fdba74; }
+body.theme-dark .rc-fv-count--ok strong { color:#86efac; }
+body.theme-dark .rc-fv-count--danger strong { color:#fca5a5; }
+body.theme-dark .rc-fv-track { background:var(--surface-alt); box-shadow:inset 0 0 0 1px var(--border); }
+body.theme-dark .rc-fv-gar--scaduta { color:#fca5a5; }
+body.theme-dark .rc-fv-gar--scadenza { color:#fdba74; }
+
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .rc-empty{color:var(--text-light)}
 </style>
@@ -61,27 +96,34 @@ body.theme-dark .rc-empty{color:var(--text-light)}
     <a class="rc-tab" href="{% url 'assets:device_list' %}?copertura=scoperti">Asset senza monitoraggio</a>
   </nav>
   {% if view == 'fine_vita' %}
+  <div class="rc-fv-counts" role="group" aria-label="Filtra per giudizio">
+    <a class="rc-fv-count rc-fv-count--danger{% if fine_vita_giudizio == 'sostituire' %} active{% endif %}" href="?vista=fine_vita{% if fine_vita_giudizio != 'sostituire' %}&amp;giudizio=sostituire{% endif %}"><strong>{{ fine_vita_conteggi.sostituire }}</strong><span>da sostituire</span></a>
+    <a class="rc-fv-count rc-fv-count--warn{% if fine_vita_giudizio == 'pianificare' %} active{% endif %}" href="?vista=fine_vita{% if fine_vita_giudizio != 'pianificare' %}&amp;giudizio=pianificare{% endif %}"><strong>{{ fine_vita_conteggi.pianificare }}</strong><span>da pianificare</span></a>
+    <a class="rc-fv-count rc-fv-count--ok{% if fine_vita_giudizio == 'ok' %} active{% endif %}" href="?vista=fine_vita{% if fine_vita_giudizio != 'ok' %}&amp;giudizio=ok{% endif %}"><strong>{{ fine_vita_conteggi.ok }}</strong><span>a posto</span></a>
+    <a class="rc-fv-count{% if fine_vita_giudizio == 'non_valutabile' %} active{% endif %}" href="?vista=fine_vita{% if fine_vita_giudizio != 'non_valutabile' %}&amp;giudizio=non_valutabile{% endif %}" title="Senza «Data acquisto», «Fine garanzia» e dati Intune"><strong>{{ fine_vita_conteggi.non_valutabile }}</strong><span>senza dati</span></a>
+  </div>
   <div class="rc-card">
-    <div class="rc-bar"><span class="rc-sub">PC, notebook e server non dismessi: <strong>da sostituire</strong> con {{ fine_vita_soglie.sostituzione }} anni o più, garanzia scaduta e almeno {{ fine_vita_soglie.guasti }} ticket in 12 mesi, o meno di {{ fine_vita_soglie.ram }} GB di RAM; <strong>da pianificare</strong> da {{ fine_vita_soglie.pianifica }} anni, garanzia scaduta o in scadenza entro 90 giorni, disco oltre il {{ fine_vita_soglie.disco }}%, {{ fine_vita_soglie.guasti }} ticket in 12 mesi. Età da «Data acquisto», garanzia da «Fine garanzia» della scheda asset, RAM e disco da Intune. {{ fine_vita_conteggi.sostituire }} da sostituire, {{ fine_vita_conteggi.pianificare }} da pianificare, {{ fine_vita_conteggi.non_valutabile }} senza dati.</span></div>
+    <div class="rc-bar"><span class="rc-sub">{% if fine_vita_giudizio %}{{ fine_vita|length }} su {{ fine_vita_totale }} PC, notebook e server non dismessi · <a href="?vista=fine_vita">tutti</a>{% else %}{{ fine_vita_totale }} PC, notebook e server non dismessi, i peggiori prima.{% endif %} La barra dell'età è piena a {{ fine_vita_soglie.scala }} anni, con i segni a {{ fine_vita_soglie.pianifica }} e {{ fine_vita_soglie.sostituzione }}.</span>
+      <details class="rc-fv-soglie"><summary class="rc-sub">Come giudico</summary><p class="rc-sub" style="margin:6px 0 0;max-width:720px"><strong>Da sostituire</strong>: {{ fine_vita_soglie.sostituzione }} anni o più, garanzia scaduta e almeno {{ fine_vita_soglie.guasti }} ticket in 12 mesi, oppure meno di {{ fine_vita_soglie.ram }} GB di RAM. <strong>Da pianificare</strong>: da {{ fine_vita_soglie.pianifica }} anni, garanzia scaduta o in scadenza entro 90 giorni, disco oltre il {{ fine_vita_soglie.disco }}%, {{ fine_vita_soglie.guasti }} ticket in 12 mesi. Età da «Data acquisto», garanzia da «Fine garanzia» della scheda asset, RAM e disco da Intune.</p></details></div>
     {% if fine_vita %}
-    <table class="rc-table">
-      <thead><tr><th>Asset</th><th>Giudizio</th><th>Età</th><th>Garanzia</th><th>RAM</th><th>Disco</th><th>Ticket 12 mesi</th><th>Motivi</th></tr></thead>
+    <table class="rc-table rc-fv-table">
+      <thead><tr><th>Asset</th><th>Giudizio</th><th class="rc-fv-eta-col">Età</th><th>Garanzia</th><th>RAM</th><th>Disco</th><th title="Ticket aperti negli ultimi 12 mesi, esclusi gli annullati">Ticket</th><th>Perché</th></tr></thead>
       <tbody>
       {% for r in fine_vita %}
         <tr>
           <td><a href="{% url 'assets:asset_view' r.asset.pk %}">{{ r.asset.name }}</a><div class="rc-sub">#{{ r.asset.asset_tag }} · {{ r.asset.get_asset_type_display }}{% if r.asset.reparto %} · {{ r.asset.reparto }}{% endif %}{% if r.intune %} · {{ r.intune.produttore }} {{ r.intune.modello }}{% endif %}</div></td>
           <td><span class="rc-tag {% if r.giudizio == 'sostituire' %}rc-tag--danger{% elif r.giudizio == 'pianificare' %}rc-tag--warn{% elif r.giudizio == 'ok' %}rc-tag--ok{% else %}rc-tag--muted{% endif %}">{{ r.etichetta }}</span></td>
-          <td>{% if r.eta is not None %}{{ r.eta|floatformat:1 }} anni<div class="rc-sub">{{ r.data|date:"d/m/Y" }}</div>{% else %}<span class="rc-sub">data acquisto mancante</span>{% endif %}</td>
-          <td>{% if r.garanzia %}{{ r.garanzia|date:"d/m/Y" }}{% if r.garanzia_stato == 'scaduta' %}<div class="rc-sub">scaduta</div>{% elif r.garanzia_stato == 'in_scadenza' %}<div class="rc-sub">in scadenza</div>{% endif %}{% else %}<span class="rc-sub">—</span>{% endif %}</td>
+          <td>{% if r.eta is not None %}<div class="rc-fv-eta" title="Acquistato il {{ r.data|date:'d/m/Y' }}"><span class="rc-fv-track"><i class="{% if r.giudizio == 'sostituire' %}is-danger{% elif r.giudizio == 'pianificare' %}is-warn{% endif %}" style="width:{{ r.eta_pct }}%"></i><b style="left:{{ fine_vita_soglie.segno_pianifica }}%" data-anni="{{ fine_vita_soglie.pianifica }}"></b><b style="left:{{ fine_vita_soglie.segno_sostituzione }}%" data-anni="{{ fine_vita_soglie.sostituzione }}"></b></span><span class="rc-fv-anni">{{ r.eta|floatformat:1 }} anni</span></div>{% else %}<span class="rc-sub">data acquisto mancante</span>{% endif %}</td>
+          <td>{% if r.garanzia %}{% if r.garanzia_stato == 'scaduta' %}<span class="rc-fv-gar rc-fv-gar--scaduta">scaduta il {{ r.garanzia|date:"d/m/Y" }}</span>{% elif r.garanzia_stato == 'in_scadenza' %}<span class="rc-fv-gar rc-fv-gar--scadenza">fino al {{ r.garanzia|date:"d/m/Y" }}</span>{% else %}fino al {{ r.garanzia|date:"d/m/Y" }}{% endif %}{% else %}<span class="rc-sub">—</span>{% endif %}</td>
           <td>{% if r.ram_gb is not None %}{{ r.ram_gb|floatformat:0 }} GB{% else %}<span class="rc-sub">—</span>{% endif %}</td>
           <td>{% if r.disco_pct is not None %}{{ r.disco_pct }}%{% else %}<span class="rc-sub">—</span>{% endif %}</td>
           <td>{{ r.guasti }}</td>
-          <td>{{ r.motivi|join:"; "|default:"—" }}</td>
+          <td>{% if r.motivi %}<div class="rc-fv-motivi">{% for m in r.motivi %}<span class="rc-tag rc-tag--muted">{{ m }}</span>{% endfor %}</div>{% else %}<span class="rc-sub">—</span>{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
-    {% else %}<div class="rc-empty">Nessun PC, notebook o server nel registro.</div>{% endif %}
+    {% else %}<div class="rc-empty">{% if fine_vita_giudizio %}Nessun asset con questo giudizio.{% else %}Nessun PC, notebook o server nel registro.{% endif %}</div>{% endif %}
   </div>
   {% elif view == 'inventario' %}
   <div class="rc-card">

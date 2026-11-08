@@ -445,7 +445,7 @@ Ogni PC esposto (esito **Impatta**) ha un **termine di correzione** che parte da
 
 I giorni si cambiano in **Impostazioni › Avvisi e automatismi › Vulnerabilità: tempi di correzione (ISO 27001 8.8)**. Gli esiti «da verificare» non hanno termine: prima si decide se impattano (a mano o accettando una proposta dell'AI).
 
-**Stiamo migliorando?** Il riquadro «Tempi di correzione» della pagina Vulnerabilità confronta gli ultimi 90 giorni con i 90 precedenti: percentuale di PC corretti nel termine, **giorni mediani** da «esposto dal» alla correzione (metà dei PC corretti ci ha messo meno di così: la mediana non si sposta per un solo PC dimenticato per mesi, la media sì) e PC corretti. Verde = meglio, giallo = peggio. La colonna **Mediana** della tabella dà lo stesso numero per classe. Se in uno dei due periodi non c'è nessuna correzione il confronto non si fa.
+**Stiamo migliorando?** Il riquadro «Tempi di correzione» della pagina Vulnerabilità si apre con tre tessere: **PC corretti nel termine** (percentuale, verde da 80%, rosso sotto 50%), **giorni mediani** da «esposto dal» alla correzione (metà dei PC corretti ci ha messo meno di così: la mediana non si sposta per un solo PC dimenticato per mesi, la media sì) e **PC oltre il termine** sulle esposizioni aperte. Sotto il numero, la variazione rispetto ai 90 giorni precedenti (▲ ▼, verde = meglio, giallo = peggio; «senza confronto» se in uno dei due periodi non ci sono correzioni; il periodo esatto compare passando il mouse) e una linea delle ultime 8 settimane. Nella tabella per classe la colonna **Nel termine** è una barra verde/rossa con «nel termine / corrette» e la colonna **Mediana** dà lo stesso numero per classe.
 
 Dove si vede:
 

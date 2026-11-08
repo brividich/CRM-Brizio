@@ -422,7 +422,11 @@ GUIDA = {
                 ("p", "Il riquadro segnala anche i programmi della dotazione attesa che mancano (Catalogo software › Dotazione attesa), gli "
                       "accessi di account amministratore negli ultimi 30 giorni letti dal Registro log (alto se l'account è di una persona "
                       "cessata) e l'hardware da sostituire o da pianificare (età, garanzia, RAM, disco, ticket: scheda «Hardware a fine vita» "
-                      "in Inventario software; età da Data acquisto, garanzia dal campo Fine garanzia della scheda asset)."),
+                      "in Inventario software; età da Data acquisto, garanzia dal campo Fine garanzia della scheda asset). Hardware e "
+                      "account amministratori sono due tessere nella griglia del riquadro; i motivi sotto hanno un'icona per livello "
+                      "(triangolo rosso, cerchio giallo, cerchio vuoto per le note). In «Hardware a fine vita» i quattro contatori in cima "
+                      "filtrano la tabella e la colonna Età è una barra con i segni a 5 e 6 anni; nel Catalogo software ogni regola della "
+                      "dotazione ha la barra di copertura e i PC mancanti come etichette cliccabili."),
                 ("p", "Nel Catalogo software l'etichetta «nuovo dal gg/mm» e il filtro «Nuovi» segnano i programmi comparsi per la prima "
                       "volta negli ultimi 14 giorni e ancora senza decisione: il SOC apre un alert per programma, che si chiude quando lo "
                       "classifichi. In Dispositivi del SOC «Apri il piano di aggiornamento» crea un caso con un'attività per ogni PC con "
