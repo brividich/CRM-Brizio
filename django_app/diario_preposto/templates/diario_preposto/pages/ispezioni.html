@@ -55,6 +55,7 @@ body.theme-dark .dpi-pill-ko{background:rgba(229,62,62,.16);color:#fca5a5}
     </div>
     <div class="dpi-actions">
       <a href="{% url 'diario_preposto:lista' %}" class="dpi-btn dpi-btn-soft">Diario preposto</a>
+      <a href="{% url 'diario_preposto:guida' %}#ispezioni" class="dpi-btn dpi-btn-soft">? Guida</a>
       {% if can_write %}
       <a href="{% url 'diario_preposto:ispezione_nuova' %}" class="dpi-btn dpi-btn-white">Nuova ispezione</a>
       {% endif %}

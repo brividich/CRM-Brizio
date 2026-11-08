@@ -12,6 +12,7 @@ urlpatterns = [
     path("<int:pk>/", views.dettaglio, name="dettaglio"),
     path("<int:pk>/modifica/", views.modifica, name="modifica"),
     path("<int:pk>/elimina/", views.elimina, name="elimina"),
+    path("<int:pk>/ripristina/", views.ripristina, name="ripristina"),
     path("<int:pk>/export-pdf/", views.export_pdf, name="export_pdf"),
     path("export-excel/", views.export_excel, name="export_excel"),
     path("api/allegato/upload/", views.api_allegato_upload, name="api_allegato_upload"),
@@ -23,4 +24,5 @@ urlpatterns = [
     ),
     path("api/cerca-utenti/", views.api_cerca_utenti, name="api_cerca_utenti"),
     path("impostazioni/", views.impostazioni, name="impostazioni"),
+    path("guida/", views.guida, name="guida"),
 ]
