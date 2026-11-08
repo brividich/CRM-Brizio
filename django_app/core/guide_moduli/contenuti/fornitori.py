@@ -249,7 +249,7 @@ GUIDA = {
             "titolo": "Collegare il GuestPortal",
             "blocchi": [
                 ("ul", [
-                    "Chi vede «Accessi esterni»: il permesso «Portale esterno ospiti» (legacy.portale_esterno.portale_esterno) in Amministrazione → Accessi. Mostra dati personali dei visitatori: darlo solo a reception, sicurezza e responsabili.",
+                    "Permessi: in Amministrazione → «Ruoli e permessi», riga «Reception e visitatori» (area Persone). «Vedere» apre Accessi esterni, Presenti, Storico, scheda della visita e Richieste; «Creare» / «Modificare» / «Cancellare» registrano ingressi e uscite, pre-registrazioni, richieste, referenti, ditte e cartellini; «Impostazioni» apre Reception → Impostazioni. Il menu del pannello mostra solo le voci che la persona può aprire. Mostra dati personali dei visitatori: darlo solo a reception, sicurezza e responsabili. Dopo una modifica premi «Sincronizza i permessi delle pagine».",
                     "Il link «Apri GuestPortal» / «Accessi azienda» è aperto a chi ha fatto l'accesso all'HUB, come il vecchio link diretto: chi entra nel pannello lo decide il GuestPortal (Utenti admin del pannello).",
                     "Database: sul MySQL del GuestPortal crea un utente con solo SELECT su Visits, Guests e Suppliers e metti host, nome database, utente e password in GUESTPORTAL_DB_* del .env dell'HUB (vedi docs/integrazioni/guestportal/README.md). Dal server HUB deve essere aperta la porta 3306.",
                     "Accesso automatico: GUESTPORTAL_SSO_SECRET nel .env dell'HUB deve essere uguale a GP_SSO_SECRET in config/sso.php del GuestPortal. Senza segreto il link apre il login normale del pannello.",

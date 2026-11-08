@@ -15,6 +15,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -36,8 +37,36 @@ def _autore(request) -> str:
     return request.user.get_username()
 
 
+VOCI_MENU = (
+    ("cruscotto", "Presenti"), ("registra", "Registra ingresso"), ("storico", "Storico"),
+    ("preregistrazioni", "Pre-registrazioni"), ("richieste", "Richieste"), (None, None),
+    ("referenti", "Referenti"), ("ditte", "Ditte accreditate"), ("cartellini", "Cartellini"), ("impostazioni", "Impostazioni"),
+)
+
+
+def _menu(request) -> list[dict]:
+    """Voci del pannello che l'utente può aprire (Vedere / Creare-Modificare / Impostazioni in «Ruoli e permessi»)."""
+    from core.middleware import acl_allows_path
+
+    voci = []
+    for nome, etichetta in VOCI_MENU:
+        if nome is None:
+            voci.append({"separatore": True})
+            continue
+        url = reverse(f"reception:{nome}")
+        try:
+            ammessa = request.user.is_superuser or bool(acl_allows_path(url, django_user=request.user, request=request))
+        except Exception:  # noqa: BLE001 - nel dubbio la voce resta: decide comunque il server all'apertura
+            ammessa = True
+        if ammessa:
+            voci.append({"nome": nome, "etichetta": etichetta, "url": url})
+    while voci and voci[-1].get("separatore"):
+        voci.pop()
+    return voci
+
+
 def _ctx(request, sezione: str, **dati) -> dict:
-    return {"sezione": sezione, "nativa": bool(getattr(settings, "RECEPTION_NATIVA", False)),
+    return {"sezione": sezione, "nativa": bool(getattr(settings, "RECEPTION_NATIVA", False)), "menu": _menu(request),
             "n_richieste": RichiestaAppuntamento.objects.filter(stato=RichiestaAppuntamento.IN_ATTESA).count(), **dati}
 
 
