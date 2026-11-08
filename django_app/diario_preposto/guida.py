@@ -26,8 +26,17 @@ SEZIONI: list[dict] = [
                 ("Storia della segnalazione", "a destra nella scheda (sotto, da telefono): dal fatto a oggi, chi ha "
                  "registrato, modificato (campo per campo), eliminato o ripristinato la segnalazione, chi ha aggiunto, "
                  "tolto o scaricato allegati e quali notifiche sono partite o non sono partite."),
+                ("Situazione della segnalazione", "in cima alla scheda: esito complessivo («Tutto in ordine», "
+                 "«da controllare» o «problemi»), riquadri di sintesi, percorso e controlli."),
                 ("Riquadri della scheda", "giorni dal fatto, giorni impiegati a registrarla (giallo oltre 2), allegati, "
                  "modifiche, notifiche e ultima attività."),
+                ("Percorso", "le tappe Fatto → Registrata → Documentata → Notificata → Oggi (o Eliminata), con data e "
+                 "giorni trascorsi dal fatto. ✓ fatto, ! da controllare, ✕ problema, – non avvenuto."),
+                ("Controlli", "registrata in tempo (entro 2 giorni), documentata con allegati, impronta degli allegati, "
+                 "allegati integri ai download, notifiche partite, dati completi, presenza nel registro."),
+                ("Il preposto", "le altre segnalazioni dello stesso preposto che puoi vedere: ultimi 12 mesi, stesso "
+                 "mese, posizione nel registro, grafico mensile col mese di questa segnalazione (▲) e i link a "
+                 "precedente e successiva."),
             ]),
         ],
     },

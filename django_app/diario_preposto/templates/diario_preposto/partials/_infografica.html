@@ -1,0 +1,184 @@
+{% comment %}
+Infografica della singola segnalazione (diario_preposto/scheda.py): esito dei controlli,
+riquadri di sintesi, percorso dal fatto a oggi, controlli e contesto del preposto.
+Stati sempre con icona + testo, mai solo colore.
+{% endcomment %}
+{% with c=infografica.controlli ctx=infografica.contesto %}
+<section class="dpi" aria-label="Situazione della segnalazione">
+  <div class="dpi-head">
+    <div>
+      <div class="dpi-title">Situazione della segnalazione</div>
+      <div class="dpi-sub">{{ segnalazione.codice_identificativo|default:"-" }} · {{ c.superati }} controll{% if c.superati == 1 %}o superato{% else %}i superati{% endif %} su {{ c.valutati }}</div>
+    </div>
+    {% if c.critici %}
+    <span class="dpi-esito is-critico">✕ {{ c.critici }} problem{% if c.critici == 1 %}a{% else %}i{% endif %}{% if c.avvisi %} · {{ c.avvisi }} da controllare{% endif %}</span>
+    {% elif c.avvisi %}
+    <span class="dpi-esito is-avviso">! {{ c.avvisi }} da controllare</span>
+    {% else %}
+    <span class="dpi-esito is-ok">✓ Tutto in ordine</span>
+    {% endif %}
+  </div>
+
+  {% include "diario_preposto/partials/_storyline.html" with parte="sintesi" %}
+
+  <ol class="dpi-percorso" aria-label="Percorso della segnalazione">
+    {% for t in infografica.percorso %}
+    <li class="dpi-tappa is-{{ t.stato }}">
+      <span class="dpi-tappa-dot" aria-hidden="true">{% if t.stato == "ok" %}✓{% elif t.stato == "avviso" %}!{% elif t.stato == "critico" %}✕{% else %}–{% endif %}</span>
+      <div class="dpi-tappa-body">
+        <div class="dpi-tappa-title">{{ t.titolo }}<span class="sr-only"> ({% if t.stato == "ok" %}fatto{% elif t.stato == "avviso" %}da controllare{% elif t.stato == "critico" %}problema{% else %}non avvenuto{% endif %})</span></div>
+        {% if t.quando %}<div class="dpi-tappa-quando">{{ t.quando|date:"d/m/Y H:i" }}</div>{% endif %}
+        {% if t.dopo %}<div class="dpi-tappa-dopo">{{ t.dopo }}</div>{% endif %}
+        {% if t.nota %}<div class="dpi-tappa-nota">{{ t.nota|truncatechars:60 }}</div>{% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+
+  <div class="dpi-grid">
+    <div class="dpi-box">
+      <div class="dpi-box-title">Controlli</div>
+      <ul class="dpi-check">
+        {% for v in c.voci %}
+        <li class="is-{{ v.stato }}">
+          <span class="dpi-check-ico" aria-hidden="true">{% if v.stato == "ok" %}✓{% elif v.stato == "avviso" %}!{% elif v.stato == "critico" %}✕{% else %}–{% endif %}</span>
+          <span><strong>{{ v.titolo }}</strong><span class="sr-only"> ({% if v.stato == "ok" %}superato{% elif v.stato == "avviso" %}da controllare{% elif v.stato == "critico" %}problema{% else %}non applicabile{% endif %})</span><br><span class="dpi-check-det">{{ v.dettaglio }}</span></span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="dpi-box">
+      <div class="dpi-box-title">Il preposto{% if ctx %}: {{ ctx.preposto }}{% endif %}</div>
+      {% if ctx %}
+      <div class="dpi-ctx-nums">
+        <div><span class="dpi-ctx-val">{{ ctx.ultimi_12_mesi }}</span><span class="dpi-ctx-lbl">segnalazion{% if ctx.ultimi_12_mesi == 1 %}e{% else %}i{% endif %} negli ultimi 12 mesi</span></div>
+        <div><span class="dpi-ctx-val">{{ ctx.stesso_mese }}</span><span class="dpi-ctx-lbl">nello stesso mese di questa</span></div>
+        {% if ctx.numero %}<div><span class="dpi-ctx-val">{{ ctx.numero }}ª</span><span class="dpi-ctx-lbl">di {{ ctx.totale }} in tutto il registro</span></div>{% endif %}
+      </div>
+      <div class="dpi-bars" role="img" aria-label="Segnalazioni di {{ ctx.preposto }} per mese, ultimi 12 mesi">
+        {% for b in ctx.andamento %}
+        <div class="dpi-bar-col{% if b.questa %} is-questa{% endif %}" tabindex="0" data-tip="{{ b.descrizione }}{% if b.questa %} (mese di questa segnalazione){% endif %}">
+          <span class="dpi-bar-val">{% if b.valore %}{{ b.valore }}{% endif %}</span>
+          <div class="dpi-bar" style="height:{{ b.percento }}%"></div>
+          <span class="dpi-bar-lbl">{{ b.etichetta }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="dpi-bars-note">{% if ctx.in_finestra %}▲ il mese di questa segnalazione{% else %}Questa segnalazione è più vecchia di 12 mesi.{% endif %}</div>
+      <details class="dpi-numeri">
+        <summary>Vedi i numeri</summary>
+        <table><thead><tr><th scope="col">Mese</th><th scope="col">Segnalazioni</th></tr></thead><tbody>
+        {% for b in ctx.andamento %}<tr><td>{{ b.mese }}</td><td>{{ b.valore }}</td></tr>{% endfor %}
+        </tbody></table>
+      </details>
+      <div class="dpi-nav">
+        {% if ctx.precedente %}<a href="{% url 'diario_preposto:dettaglio' ctx.precedente.pk %}">← Precedente · {{ ctx.precedente.codice|default:"-" }} del {{ ctx.precedente.quando|date:"d/m/Y" }}</a>{% else %}<span>Nessuna precedente</span>{% endif %}
+        {% if ctx.successiva %}<a href="{% url 'diario_preposto:dettaglio' ctx.successiva.pk %}">Successiva · {{ ctx.successiva.codice|default:"-" }} del {{ ctx.successiva.quando|date:"d/m/Y" }} →</a>{% else %}<span>Nessuna successiva</span>{% endif %}
+      </div>
+      {% else %}
+      <p class="dpi-check-det">Preposto non indicato: nessun confronto possibile.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endwith %}
+
+<style>
+.dpi { --dpi-bar:#0d9488; --dpi-ok:#0f766e; --dpi-avviso:#b45309; --dpi-critico:#b91c1c; --dpi-muted:#64748b;
+  background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 22px; display:flex; flex-direction:column; gap:16px; }
+.dpi .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.dpi-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+.dpi-title { font-size:16px; font-weight:800; color:#0f172a; }
+.dpi-sub { font-size:12px; color:var(--dpi-muted); margin-top:2px; }
+.dpi-esito { font-size:13px; font-weight:800; border-radius:999px; padding:5px 12px; border:1px solid; white-space:nowrap; }
+.dpi-esito.is-ok { color:var(--dpi-ok); background:#f0fdfa; border-color:#99f6e4; }
+.dpi-esito.is-avviso { color:var(--dpi-avviso); background:#fffbeb; border-color:#fcd34d; }
+.dpi-esito.is-critico { color:var(--dpi-critico); background:#fef2f2; border-color:#fecaca; }
+
+.dpi-percorso { list-style:none; margin:0; padding:0; display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:0; }
+.dpi-tappa { position:relative; display:flex; flex-direction:column; align-items:center; text-align:center; padding:0 6px; }
+.dpi-tappa::before { content:""; position:absolute; top:14px; left:-50%; width:100%; height:2px; background:#cbd5e1; z-index:0; }
+.dpi-tappa:first-child::before { display:none; }
+.dpi-tappa-dot { position:relative; z-index:1; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:900; color:#fff; background:var(--dpi-ok); border:3px solid #fff; box-shadow:0 0 0 1px #cbd5e1; }
+.dpi-tappa.is-avviso .dpi-tappa-dot { background:#d97706; }
+.dpi-tappa.is-critico .dpi-tappa-dot { background:#dc2626; }
+.dpi-tappa.is-assente .dpi-tappa-dot { background:#fff; color:var(--dpi-muted); box-shadow:0 0 0 1px #94a3b8; }
+.dpi-tappa-body { margin-top:6px; display:flex; flex-direction:column; gap:1px; }
+.dpi-tappa-title { font-size:13px; font-weight:800; color:#0f172a; }
+.dpi-tappa.is-assente .dpi-tappa-title { color:var(--dpi-muted); }
+.dpi-tappa-quando { font-size:12px; color:#334155; font-variant-numeric:tabular-nums; }
+.dpi-tappa-dopo { font-size:11px; font-weight:700; color:var(--dpi-muted); }
+.dpi-tappa.is-avviso .dpi-tappa-dopo, .dpi-tappa.is-avviso .dpi-tappa-nota { color:var(--dpi-avviso); }
+.dpi-tappa.is-critico .dpi-tappa-dopo, .dpi-tappa.is-critico .dpi-tappa-nota { color:var(--dpi-critico); }
+.dpi-tappa-nota { font-size:11px; color:var(--dpi-muted); word-break:break-word; }
+
+.dpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:14px; }
+.dpi-box { border:1px solid #e2e8f0; border-radius:12px; padding:14px 16px; background:#f8fafc; min-width:0; }
+.dpi-box-title { font-size:12px; font-weight:800; color:#475569; text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px; }
+.dpi-check { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; font-size:13px; color:#0f172a; }
+.dpi-check li { display:flex; gap:10px; align-items:flex-start; }
+.dpi-check-ico { flex:none; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; color:#fff; background:var(--dpi-ok); margin-top:1px; }
+.dpi-check li.is-avviso .dpi-check-ico { background:#d97706; }
+.dpi-check li.is-critico .dpi-check-ico { background:#dc2626; }
+.dpi-check li.is-assente .dpi-check-ico { background:#fff; color:var(--dpi-muted); border:1px solid #94a3b8; }
+.dpi-check li.is-assente strong { color:var(--dpi-muted); }
+.dpi-check-det { font-size:12px; color:var(--dpi-muted); }
+.dpi-check li.is-avviso .dpi-check-det { color:var(--dpi-avviso); }
+.dpi-check li.is-critico .dpi-check-det { color:var(--dpi-critico); }
+
+.dpi-ctx-nums { display:flex; gap:18px; flex-wrap:wrap; margin-bottom:12px; }
+.dpi-ctx-nums > div { display:flex; flex-direction:column; }
+.dpi-ctx-val { font-size:20px; font-weight:900; color:#0f172a; line-height:1.1; font-variant-numeric:tabular-nums; }
+.dpi-ctx-lbl { font-size:11px; color:#475569; font-weight:600; }
+.dpi-bars { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:2px; align-items:end; height:110px; }
+.dpi-bar-col { height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; position:relative; outline:none; }
+.dpi-bar { width:100%; max-width:26px; min-height:2px; background:var(--dpi-bar); border-radius:4px 4px 0 0; }
+.dpi-bar-val { font-size:11px; color:#334155; font-variant-numeric:tabular-nums; min-height:14px; }
+.dpi-bar-lbl { font-size:10px; color:var(--dpi-muted); margin-top:3px; }
+.dpi-bar-col.is-questa .dpi-bar-lbl { color:#0f172a; font-weight:900; }
+.dpi-bar-col.is-questa .dpi-bar-lbl::before { content:"▲"; display:block; font-size:9px; line-height:1; }
+.dpi-bar-col:focus-visible { box-shadow:0 0 0 2px var(--dpi-bar); border-radius:4px; }
+.dpi-bar-col[data-tip]:hover::after, .dpi-bar-col[data-tip]:focus::after {
+  content:attr(data-tip); position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%);
+  background:#0f172a; color:#fff; font-size:11px; padding:4px 8px; border-radius:6px; white-space:nowrap; z-index:5; pointer-events:none; }
+.dpi-bar-col:first-child[data-tip]:hover::after, .dpi-bar-col:first-child[data-tip]:focus::after { left:0; transform:none; }
+.dpi-bar-col:last-child[data-tip]:hover::after, .dpi-bar-col:last-child[data-tip]:focus::after { left:auto; right:0; transform:none; }
+.dpi-bars-note { font-size:11px; color:var(--dpi-muted); margin-top:4px; }
+.dpi-numeri { margin-top:6px; font-size:12px; }
+.dpi-numeri summary { cursor:pointer; color:#0f766e; font-weight:700; }
+.dpi-numeri table { border-collapse:collapse; margin-top:6px; }
+.dpi-numeri td, .dpi-numeri th { padding:2px 10px 2px 0; text-align:left; font-variant-numeric:tabular-nums; }
+.dpi-nav { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:12px; padding-top:10px; border-top:1px solid #e2e8f0; font-size:12px; }
+.dpi-nav a { color:#0f766e; font-weight:700; text-decoration:none; }
+.dpi-nav a:hover { text-decoration:underline; }
+.dpi-nav span { color:var(--dpi-muted); }
+
+@media (max-width:760px) {
+  .dpi { padding:16px; }
+  .dpi-percorso { grid-auto-flow:row; gap:10px; }
+  .dpi-tappa { flex-direction:row; align-items:flex-start; text-align:left; gap:10px; padding:0; }
+  .dpi-tappa::before { top:-10px; left:14px; width:2px; height:12px; }
+  .dpi-tappa-body { margin-top:4px; }
+}
+
+body.theme-dark .dpi { --dpi-bar:#0fa596; --dpi-ok:#2dd4bf; --dpi-avviso:#fbbf24; --dpi-critico:#fca5a5; --dpi-muted:var(--text-light);
+  background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpi-title, body.theme-dark .dpi-tappa-title, body.theme-dark .dpi-check, body.theme-dark .dpi-ctx-val,
+body.theme-dark .dpi-bar-col.is-questa .dpi-bar-lbl { color:var(--text); }
+body.theme-dark .dpi-tappa-quando, body.theme-dark .dpi-bar-val, body.theme-dark .dpi-ctx-lbl, body.theme-dark .dpi-box-title { color:var(--text-mid); }
+body.theme-dark .dpi-box { background:var(--surface-alt,#0f1b2d); border-color:var(--border); }
+body.theme-dark .dpi-tappa::before { background:var(--border); }
+body.theme-dark .dpi-tappa-dot { border-color:var(--surface); box-shadow:0 0 0 1px var(--border); background:#0f766e; }
+body.theme-dark .dpi-check-ico { background:#0f766e; }
+body.theme-dark .dpi-tappa.is-avviso .dpi-tappa-dot, body.theme-dark .dpi-check li.is-avviso .dpi-check-ico { background:#b45309; }
+body.theme-dark .dpi-tappa.is-critico .dpi-tappa-dot, body.theme-dark .dpi-check li.is-critico .dpi-check-ico { background:#b91c1c; }
+body.theme-dark .dpi-tappa.is-assente .dpi-tappa-dot, body.theme-dark .dpi-check li.is-assente .dpi-check-ico { background:var(--surface); color:var(--text-light); }
+body.theme-dark .dpi-esito.is-ok { background:rgba(15,118,110,.2); border-color:rgba(153,246,228,.3); }
+body.theme-dark .dpi-esito.is-avviso { background:rgba(251,191,36,.12); border-color:rgba(251,191,36,.35); }
+body.theme-dark .dpi-esito.is-critico { background:rgba(229,62,62,.16); border-color:rgba(252,165,165,.35); }
+body.theme-dark .dpi-numeri summary, body.theme-dark .dpi-nav a { color:#2dd4bf; }
+body.theme-dark .dpi-nav { border-color:var(--border); }
+body.theme-dark .dpi-bar-col[data-tip]:hover::after, body.theme-dark .dpi-bar-col[data-tip]:focus::after { background:#e2e8f0; color:#0f172a; }
+</style>

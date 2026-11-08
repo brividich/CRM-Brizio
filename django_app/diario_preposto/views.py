@@ -587,6 +587,7 @@ def ispezione_nuova(request):
 
 @login_required
 def dettaglio(request, pk):
+    from .scheda import infografica
     from .storyline import costruisci_storyline
 
     segnalazione = _get_segnalazione_visibile(request, pk)
@@ -601,6 +602,7 @@ def dettaglio(request, pk):
         can_delete = puo_fare(request, MODULO, "cancellare", segnalazione)
     if segnalazione.is_eliminata:
         can_write = can_delete = False
+    storyline = costruisci_storyline(segnalazione)
     return render(
         request,
         "diario_preposto/pages/dettaglio.html",
@@ -610,7 +612,8 @@ def dettaglio(request, pk):
             "can_write": can_write,
             "can_delete": can_delete,
             "can_manage_settings": _can_manage_settings(request),
-            "storyline": costruisci_storyline(segnalazione),
+            "storyline": storyline,
+            "infografica": infografica(segnalazione, storyline, _base_registro(request)),
         },
     )
 

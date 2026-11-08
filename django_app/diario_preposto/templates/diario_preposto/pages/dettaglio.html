@@ -125,6 +125,8 @@ body.theme-dark .dp-allegato-meta{color:var(--text-light)}
     <span>{{ segnalazione.titolo|truncatechars:60 }}</span>
   </div>
 
+  {% include "diario_preposto/partials/_infografica.html" %}
+
   <div class="dp-det-grid">
   <div class="dp-card">
     <div class="dp-card-header">
@@ -138,8 +140,6 @@ body.theme-dark .dp-allegato-meta{color:var(--text-light)}
     </div>
 
     <div class="dp-card-body">
-
-      {% include "diario_preposto/partials/_storyline.html" with parte="sintesi" %}
 
       {% if segnalazione.is_eliminata %}
       <div class="dp-eliminata">
