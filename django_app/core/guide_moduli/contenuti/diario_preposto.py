@@ -30,6 +30,7 @@ GUIDA = {
             "blocchi": [
                 ("ul", [
                     "Nella scheda la «Storia della segnalazione» mostra tutto in ordine dal fatto a oggi: registrazione, modifiche campo per campo, allegati aggiunti, tolti e scaricati, eliminazione e ripristino, notifiche partite o non partite.",
+                    "In cima alla scheda «Situazione della segnalazione» dà l'esito dei controlli (registrata entro 2 giorni, allegati, impronte, download integri, notifiche, dati completi, presenza nel registro), il percorso Fatto → Registrata → Documentata → Notificata → Oggi con i giorni trascorsi e il confronto con le altre segnalazioni dello stesso preposto, con i link a precedente e successiva.",
                     "I riquadri in cima alla scheda dicono da quanti giorni c'è il fatto, quanto si è aspettato a registrarlo (giallo oltre 2 giorni), quanti allegati e modifiche ci sono e se le notifiche sono partite.",
                     "Se un collega salva la stessa segnalazione mentre la modifichi, il tuo salvataggio viene rifiutato: riapri la scheda e rifai la modifica.",
                     "«Elimina» chiede il motivo (almeno 5 caratteri). La segnalazione esce dall'elenco ma non viene cancellata: chi gestisce il modulo la ritrova e la può ripristinare.",

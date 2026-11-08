@@ -168,3 +168,58 @@ class VisteTests(TestCase):
         self.assertContains(resp, "Storia della segnalazione")
         self.assertContains(resp, "giorni per registrarla")
         self.assertContains(resp, "Fatto segnalato")
+        self.assertContains(resp, "Situazione della segnalazione")
+        self.assertContains(resp, "Il preposto: Verdi")
+
+    def test_infografica_percorso_e_controlli(self):
+        from automazioni.models import EmailInviata
+
+        from .scheda import infografica
+
+        EmailInviata.objects.create(origine="automazione", sorgente="diario_preposto",
+                                    record_id=str(self.segnalazione.pk), destinatari="rspp@example.com",
+                                    oggetto="Nuova segnalazione", esito=EmailInviata.ESITO_ERRORE, errore="SMTP giù")
+        info = infografica(self.segnalazione, costruisci_storyline(self.segnalazione),
+                           SegnalazionePreposto.objects.attive())
+        tappe = {t["chiave"]: t for t in info["percorso"]}
+        self.assertEqual(list(tappe), ["fatto", "registrata", "documentata", "notificata", "oggi"])
+        self.assertEqual(tappe["documentata"]["stato"], "avviso")       # nessun allegato
+        self.assertEqual(tappe["notificata"]["stato"], "critico")       # mail in errore
+        self.assertEqual(tappe["oggi"]["dopo"], "1 giorno dal fatto")
+        voci = {v["titolo"]: v["stato"] for v in info["controlli"]["voci"]}
+        self.assertEqual(voci["Registrata in tempo"], "ok")
+        self.assertEqual(voci["Notifiche partite"], "critico")
+        self.assertEqual(voci["Allegati integri"], "assente")
+        self.assertEqual(info["controlli"]["critici"], 1)
+
+    def test_infografica_contesto_preposto(self):
+        from .scheda import contesto_preposto
+
+        prima = _crea("prima", 40, preposto="Verdi")
+        _crea("altro preposto", 5, preposto="Neri")
+        dopo = SegnalazionePreposto.objects.create(titolo="dopo", data_segnalazione=timezone.now(),
+                                                   descrizione="x", preposto="Verdi")
+        ctx = contesto_preposto(SegnalazionePreposto.objects.attive(), self.segnalazione,
+                                oggi=timezone.localdate())
+        self.assertEqual(ctx["totale"], 3)
+        self.assertEqual(ctx["numero"], 2)
+        self.assertEqual(ctx["precedente"]["pk"], prima.pk)
+        self.assertEqual(ctx["successiva"]["pk"], dopo.pk)
+        self.assertEqual(sum(1 for b in ctx["andamento"] if b["questa"]), 1)
+        # Fuori dal perimetro visibile non si conta.
+        ctx = contesto_preposto(SegnalazionePreposto.objects.exclude(pk=prima.pk), self.segnalazione)
+        self.assertEqual(ctx["totale"], 2)
+        self.assertIsNone(ctx["precedente"])
+
+    def test_infografica_eliminata(self):
+        from .scheda import infografica
+
+        self.client.post(reverse("diario_preposto:elimina", args=[self.segnalazione.pk]), {"motivo": "Doppione"})
+        self.segnalazione.refresh_from_db()
+        info = infografica(self.segnalazione, costruisci_storyline(self.segnalazione),
+                           SegnalazionePreposto.objects.attive())
+        self.assertEqual(info["percorso"][-1]["chiave"], "eliminata")
+        self.assertEqual(info["percorso"][-1]["nota"], "Doppione")
+        self.assertIsNone(info["contesto"]["numero"])
+        resp = self.client.get(reverse("diario_preposto:dettaglio", args=[self.segnalazione.pk]))
+        self.assertEqual(resp.status_code, 200)
