@@ -9,6 +9,21 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+- **KICK-OFF, secondo giro (09/11/2026): form attività rifatto, date non più perse, numeri coerenti, tutto in italiano** (`tasks/forms.py`, `tasks/templates/tasks/form.html`, `_form_kickoff_card.html`, `detail.html`, `projects.html`, `project_overview.html`, `list.html`, `_meeting_alerts.html`, `project_meeting_detail.html`, `project_actions.html`, `incontri_calendario.html`, `base.html`, `base_shell.html` e altri testi, `tasks/static/tasks/css/tasks.css`, `tasks/views/_shared.py`, `projects.py`, `overview.py`, `gantt.py`, `task.py`, `mie_azioni.py`, `tasks/meeting_alerts.py`, `tasks/tasks.py`, `tasks/services/meeting_tasks.py`, migrazione `core/0112_tasks_subnav_mie_azioni.py`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`, test `tests_revisione_presentazione.py` e aggiornati `tests_project_overview.py`, `tests_percorso_render.py`, `tests_projects.py`, `tests_presa_in_carico.py`):
+  - **Bug: il form «Modifica attività» mostrava Inizio e Fine vuoti** (widget data senza formato ISO) e salvando le cancellava. Corretti tutti i campi data del modulo.
+  - **Bug: fuori da una commessa il form nascondeva la scelta del kickoff** (lo script leggeva solo i radio, il campo è nascosto): ora compare «In quale kickoff?».
+  - **Form attività rifatto**: colonna principale (Cosa va fatto, Responsabile, Priorità, Stato, Inizio → Fine con i giorni calcolati, Note, Tipo) e colonna laterale fissa (kickoff, persone in copia da spuntare con ricerca, Salva). Tutto il resto in «Altre opzioni», chiuso. In modifica sparisce il pannello di aggancio vuoto.
+  - **Bug: il portfolio dava «Scaduta da N gg» per attività già completate**: la scadenza della card guarda solo le aperte («In ritardo di N gg» / «Prossima scadenza tra N gg»). Barra di avanzamento nelle card; ordinamento «Avanzamento» per percentuale.
+  - **Avanzamento unico** (`percentuale_avanzamento`: completate sulle non annullate) per portfolio, panoramica (nuovo riquadro con barra) e Gantt, che prima contava anche le annullate.
+  - **Scheda attività**: il responsabile senza permesso di modifica ha «Inizia / Fatta / Riapri»; avanzamento e «In ritardo dal …» accanto allo stato.
+  - **Chi ha assegnato sa che è fatta**: notifica nel portale al creatore quando l'attività passa a Completata.
+  - **Digest del lunedì** all'`email_notifica` dell'anagrafica, come la mail di assegnazione.
+  - **Riquadro «Le mie azioni» in dashboard** con attività e programmi: «Tutte (N)» torna con la pagina; il numero rosso dice «N scadute».
+  - **Dashboard**: attività aperte prima delle completate.
+  - **Menu**: voce «Le mie azioni» nella barra KICK-OFF (migrazione `core 0112`).
+  - **Testi in italiano**: via «Control room», «overdue», «scope», «next step», «backlog», «Workflow operativo»; accenti corretti.
+  - Dettaglio incontro senza «+ Nuovo kickoff» e senza il pannello «Proposte» vuoto a incontro svolto; calendario con il titolo dell'incontro; registro azioni senza la doppia ricerca.
+
 - **KICK-OFF: chi riceve un'attività la trova e la gestisce; Gantt e form nuova attività ripuliti** (`tasks/services/meeting_tasks.py`, `tasks/tasks.py`, `tasks/views/mie_azioni.py`, `tasks/services/da_fare.py`, `tasks/static/tasks/js/project_gantt.js`, template `project_gantt.html`, `form.html`, `mie_azioni.html`, `list.html`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`, test `tests_presa_in_carico.py`, `tests_gantt.py`, `tests_projects.py`, `tests_task.py`):
   - **Mail di assegnazione**: chi riceve un'attività (form, riga rapida del Gantt, incontri) ora riceve anche una mail, all'`email_notifica` dell'anagrafica o all'email dell'account, con il pulsante verso «Le mie azioni». Prima c'era solo la notifica nel portale, persa da chi non ha l'id legacy collegato.
   - **Digest del lunedì**: la mail «Scadenze KICK-OFF» comprende anche le attività del piano scadute e in scadenza nei 7 giorni; prima solo azioni e problemi d'incontro.

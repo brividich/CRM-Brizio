@@ -48,6 +48,7 @@ from ..services.notify import (
     _project_notify_users_queryset,
 )
 from ._shared import (
+    percentuale_avanzamento,
     _safe_int,
     _prossimo_inizio,
     _utenti_riga_rapida,
@@ -169,7 +170,9 @@ def project_gantt(request, project_id: int):
     )
     invalid_range_total = sum(1 for row in gantt_meta["rows"] if row.get("invalid_range"))
     absence_conflict_total = sum(1 for row in gantt_meta["rows"] if row.get("has_absence_conflicts"))
-    progress_percent = int(round((done_total / total_tasks) * 100)) if total_tasks else 0
+    progress_percent = percentuale_avanzamento(
+        done_total, sum(1 for task in tasks if task.status != TaskStatus.CANCELED)
+    )
     project_summary = {
         "total_tasks": total_tasks,
         "open_tasks": open_total,

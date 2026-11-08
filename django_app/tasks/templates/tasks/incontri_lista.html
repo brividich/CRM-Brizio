@@ -19,7 +19,7 @@
         <a class="ml-scope-btn{% if not filter_mine %} active{% endif %}" href="?mine=0{% if filter_stato %}&stato={{ filter_stato }}{% endif %}{% if filter_periodo %}&periodo={{ filter_periodo }}{% endif %}{% if filter_q %}&q={{ filter_q|urlencode }}{% endif %}">Tutti</a>
       </div>
       <input type="hidden" name="mine" value="{% if filter_mine %}1{% else %}0{% endif %}">
-      <input class="input" type="search" name="q" value="{{ filter_q }}" placeholder="Cerca in titolo, verbale, next steps…">
+      <input class="input" type="search" name="q" value="{{ filter_q }}" placeholder="Cerca in titolo, verbale, prossimi passi…">
       <select class="input" name="stato">
         <option value="">Tutti gli stati</option>
         {% for value, label in stato_choices %}

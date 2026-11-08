@@ -14,9 +14,9 @@ from ..access import (
 )
 from ..action_register import ACTION_ORIGIN_CHOICES, build_project_actions, filter_action_rows
 from ..identity import normalize_client_name, normalize_part_number
-from ..models import MeetingStatus
+from ..models import MeetingStatus, TaskStatus
 from ..readiness import annotate_readiness_qs, compute_project_readiness
-from ._shared import _tasks_shell_context
+from ._shared import _tasks_shell_context, percentuale_avanzamento
 
 
 _IDENTITY_FIELDS = {
@@ -139,6 +139,8 @@ def project_overview(request, project_id: int):
     task_counts = project.tasks.aggregate(
         total=Count("id"),
         planned=Count("id", filter=Q(due_date__isnull=False)),
+        done=Count("id", filter=Q(status=TaskStatus.DONE)),
+        attive=Count("id", filter=~Q(status=TaskStatus.CANCELED)),
     )
     recent_meetings = list(project.meetings.order_by("-numero", "-id")[:3])
     # Data di inizio della commessa: primo incontro non annullato.
@@ -171,6 +173,10 @@ def project_overview(request, project_id: int):
             "first_meeting_date": first_meeting_date,
             "planned_task_count": task_counts["planned"],
             "total_task_count": task_counts["total"],
+            "done_task_count": task_counts["done"],
+            "unplanned_task_count": task_counts["total"] - task_counts["planned"],
+            "active_task_count": task_counts["attive"],
+            "progress_pct": percentuale_avanzamento(task_counts["done"], task_counts["attive"]),
             "recent_meetings": recent_meetings,
             "can_manage": can_manage,
             "hide_readiness_actions": not can_manage,

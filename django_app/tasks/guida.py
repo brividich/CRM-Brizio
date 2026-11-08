@@ -227,7 +227,7 @@ SEZIONI: list[dict] = [
                 ("Riga del Piano", "titolo, responsabile, Inizio, Fine. Per scrivere un piano intero."),
                 ("«Attività di questo incontro»", "nel dettaglio e nell'esito dell'incontro: Invio salva senza ricaricare la pagina."),
                 ("Conduci incontro", "«Cattura rapida» con tipo Attività, o «+ Nuova attività» sul punto, che la collega al punto."),
-                ("Form completo", "«+ Attività completa» nel Piano, «+ Nuova attività» in Panoramica. In cima «Cosa, chi e quando»: titolo, responsabile, priorità, inizio e fine. Descrizione, persone in copia, stato, etichette e prossimo passo stanno in «Descrizione, persone in copia e altri dettagli»; attrezzatura e Outlook in «Altre opzioni»."),
+                ("Form completo", "«+ Attività completa» nel Piano, «+ Nuova attività» in Panoramica. A sinistra «Cosa va fatto», Responsabile, Priorità, Stato, Inizio → Fine (con i giorni calcolati), «Note per il responsabile» e Tipo; a destra il kickoff, le «Persone in copia» da spuntare (con ricerca) e il pulsante di salvataggio. Etichette, prossimo passo, impegni sovrapposti, attrezzatura, Outlook e promemoria stanno in «Altre opzioni». Fuori da una commessa il form chiede prima «In quale kickoff?»."),
             ]),
             ("img", (_IMG + "attivita_form.jpg", "Il form completo: attrezzatura, Outlook e promemoria stanno in «Altre opzioni»")),
             ("ul", [
@@ -317,7 +317,8 @@ SEZIONI: list[dict] = [
             ("p", "Cliccando un'attività si apre la sua scheda: a sinistra il lavoro da fare, a destra responsabile, date, kickoff e allegati."),
             ("img", (_IMG + "attivita_scheda.jpg", "La scheda di un'attività")),
             ("def", [
-                ("Stato", "i pulsanti in alto cambiano lo stato con un clic."),
+                ("Stato", "i pulsanti in alto cambiano lo stato con un clic. Il responsabile senza permesso di modifica vede «Inizia», «Fatta» e «Riapri». Accanto: priorità, «In ritardo dal …» e la barra dell'avanzamento."),
+                ("Completamento", "quando l'attività passa a Completata, chi l'ha creata riceve una notifica nel portale (non se la chiude da sé)."),
                 ("Inizio e Fine richiesta", "si correggono in «Dettagli»: cambiando la data compare «Salva»."),
                 ("Sotto-attività", "con responsabile, data e ordine, per spezzare il lavoro: si aggiungono con «+ Aggiungi sotto-attività»."),
                 ("Commenti", "note sull'attività; «Avvisa» manda la notifica a una persona. Sotto, «Storico» elenca tutte le modifiche."),

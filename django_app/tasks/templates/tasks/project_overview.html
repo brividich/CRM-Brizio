@@ -62,8 +62,9 @@
       <span class="ko-metric-label">Azioni aperte</span>
     </a>
     <a class="ko-metric ko-metric--plan" href="{% url 'tasks:project_gantt' project.id %}">
-      <span class="ko-metric-value">{{ planned_task_count }}/{{ total_task_count }}</span>
-      <span class="ko-metric-label">Attività a piano</span>
+      <span class="ko-metric-value">{{ progress_pct }}%</span>
+      <span class="ko-metric-label">Avanzamento · {{ done_task_count }}/{{ active_task_count }} attività completate{% if unplanned_task_count %} · {{ unplanned_task_count }} senza data fine{% endif %}</span>
+      <span class="ko-metric-bar"><i style="width:{{ progress_pct }}%"></i></span>
     </a>
   </section>
 

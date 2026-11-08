@@ -140,7 +140,10 @@ class ProjectOverviewTests(TasksBaseTestCase):
             [meeting.pk for meeting in response.context["recent_meetings"]],
             [self.next_meeting.pk, self.completed_meeting.pk],
         )
-        self.assertContains(response, "2/2")
+        # Il riquadro mostra l'avanzamento (completate sulle non annullate), non più «a piano».
+        self.assertEqual(response.context["active_task_count"], 2)
+        self.assertContains(response, f'{response.context["done_task_count"]}/2 attività completate')
+        self.assertContains(response, f'{response.context["progress_pct"]}%')
         self.assertContains(response, "Pronto 4/4")
 
     def test_tab_action_counter_uses_one_count_query_per_source(self):

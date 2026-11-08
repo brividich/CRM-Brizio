@@ -86,6 +86,18 @@ def run_meetings_digest(**kwargs) -> dict:
     from core.email_utils import send_hub_mail
     from core.notifiche import invia_notifica, legacy_user_ids_for_email
     from tasks.minute_email import meeting_url
+    from tasks.outlook_reminder import _notification_email_for_user
+
+    # Stesso indirizzo della mail di assegnazione: email_notifica dell'anagrafica,
+    # poi l'email dell'account. Prima il digest usava solo l'email dell'account.
+    _indirizzi: dict = {}
+
+    def _mail_notifica(user) -> str:
+        if user is None:
+            return ""
+        if user.pk not in _indirizzi:
+            _indirizzi[user.pk] = (_notification_email_for_user(user) or "").strip()
+        return _indirizzi[user.pk]
     from tasks.models import (
         KickoffMeeting,
         MeetingActionItem,
@@ -132,7 +144,7 @@ def run_meetings_digest(**kwargs) -> dict:
                     )
                 except (TypeError, ValueError):
                     logger.exception("run_meetings_digest: legacy_id non valido per user=%s", user.pk)
-            email = (getattr(user, "email", "") or "").strip()
+            email = _mail_notifica(user)
             if email:
                 recipients.add(email)
         for line in (meeting.partecipanti_email_extra or "").splitlines():
@@ -154,7 +166,7 @@ def run_meetings_digest(**kwargs) -> dict:
         )
         by_issue_email: dict[str, list] = defaultdict(list)
         for issue in issues:
-            email = (getattr(issue.assigned_to, "email", "") or "").strip()
+            email = _mail_notifica(issue.assigned_to)
             if email:
                 by_issue_email[email].append(issue)
                 by_email[email]["issues"].append(issue)
@@ -169,7 +181,7 @@ def run_meetings_digest(**kwargs) -> dict:
             ).select_related("assigned_to", "project")
         )
         for action in actions:
-            email = (getattr(action.assigned_to, "email", "") or "").strip()
+            email = _mail_notifica(action.assigned_to)
             if email:
                 by_email[email]["actions"].append(action)
 
@@ -187,7 +199,7 @@ def run_meetings_digest(**kwargs) -> dict:
             .select_related("assigned_to", "project")
         )
         for item in sorted(upcoming, key=lambda i: i.due_date):
-            email = (getattr(item.assigned_to, "email", "") or "").strip()
+            email = _mail_notifica(item.assigned_to)
             if email:
                 by_email[email]["upcoming"].append(item)
 
@@ -200,7 +212,7 @@ def run_meetings_digest(**kwargs) -> dict:
             assigned_to__isnull=False,
         ).select_related("assigned_to", "project").order_by("due_date", "id")
         for task in open_tasks:
-            email = (getattr(task.assigned_to, "email", "") or "").strip()
+            email = _mail_notifica(task.assigned_to)
             if email:
                 chiave = "tasks_overdue" if task.due_date < today else "tasks_upcoming"
                 by_email[email][chiave].append(task)

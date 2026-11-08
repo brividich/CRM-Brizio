@@ -6,7 +6,7 @@
     </div>
     <div class="ts-panel-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-light);">
       <span><strong style="color:var(--primary-mid);">{{ promemoria_count_pending }}</strong> pending</span>
-      <span><strong style="color:var(--danger);">{{ promemoria_count_overdue }}</strong> overdue</span>
+      <span><strong style="color:var(--danger);">{{ promemoria_count_overdue }}</strong> scaduti</span>
       <span><strong style="color:#d97706;">{{ promemoria_count_next7 }}</strong> in 7gg</span>
       <span><strong style="color:var(--success);">{{ promemoria_count_fired }}</strong> fired</span>
     </div>
@@ -46,7 +46,7 @@
                 {% if r.fired %}
                   <span style="background:var(--success-bg); color:#166534; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">FIRED</span>
                 {% elif r.overdue %}
-                  <span style="background:var(--danger-bg); color:var(--danger); padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">OVERDUE</span>
+                  <span style="background:var(--danger-bg); color:var(--danger); padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">SCADUTO</span>
                 {% else %}
                   <span style="background:#dbeafe; color:var(--primary-mid); padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700;">PENDING</span>
                 {% endif %}

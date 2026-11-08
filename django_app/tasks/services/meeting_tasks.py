@@ -150,6 +150,29 @@ def notify_task_assignment(task: Task, *, actor=None) -> None:
     _mail_assegnazione(task, actor=actor)
 
 
+def notify_task_completed(task: Task, *, actor=None) -> None:
+    """Chi ha assegnato l'attivita' sa che e' fatta (notifica nel portale, niente mail).
+
+    Prima il giro si fermava al responsabile: chi pianificava doveva riaprire
+    il Gantt per accorgersene. Non avvisa chi la chiude da se'.
+    """
+    creatore = task.created_by
+    if creatore is None or creatore.pk == _user_pk(actor):
+        return
+    chi = ""
+    if actor is not None and getattr(actor, "is_authenticated", False):
+        chi = (actor.get_full_name() or actor.get_username() or "").strip()
+    progetto = f" [{task.project.name}]" if task.project_id else ""
+    try:
+        notify_user(
+            creatore,
+            f"{chi or 'Il responsabile'} ha completato l'attività «{task.title}»{progetto}.",
+            reverse("tasks:detail", kwargs={"task_id": task.pk}),
+        )
+    except Exception:
+        logger.exception("Notifica completamento attivita' fallita (task=%s)", task.pk)
+
+
 def _mail_assegnazione(task: Task, *, actor=None) -> None:
     """Mail al responsabile: prima l'assegnazione arrivava solo nel portale.
 

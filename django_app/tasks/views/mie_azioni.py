@@ -292,6 +292,10 @@ def _mia_attivita_stato(request, pk: int, back):
     task.save()
     if vecchio != nuovo:
         _log_event(task, request.user, TaskEventType.STATUS_CHANGE, {"from": vecchio, "to": nuovo})
+        if nuovo == TaskStatus.DONE:
+            from ..services.meeting_tasks import notify_task_completed
+
+            notify_task_completed(task, actor=request.user)
         try:
             from gestione_carichi_macchina.integrations import sync_kickoff_task_to_pianificazione
 

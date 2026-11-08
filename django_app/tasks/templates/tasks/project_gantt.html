@@ -249,7 +249,7 @@ body.tk-wide .content sta in tasks.css.
               </div>
             </div>
             <div class="grow ghead">
-              <div class="gmac">Attivita</div>
+              <div class="gmac">Attività</div>
               <div class="gtrack" style="width:calc(var(--cw) * {{ gantt_days|length }});">
                 {% for day in gantt_days %}<div class="gday{% if day.is_weekend %} we{% endif %}{% if day.is_holiday %} hol{% endif %}{% if day.is_today %} td{% endif %}" style="width:var(--cw);">{{ day.date|date:"d" }}</div>{% endfor %}
               </div>
@@ -287,11 +287,11 @@ body.tk-wide .content sta in tasks.css.
           </div>
       {% else %}
         <div class="ts-empty" style="margin:16px;">
-          <strong>Nessuna attivita nel kickoff.</strong>
-          <div>Aggiungi la prima attivita direttamente da questa vista.</div>
+          <strong>Nessuna attività nel kickoff.</strong>
+          <div>Aggiungi la prima attività direttamente da questa vista.</div>
           {% if can_add_project_task %}
             <div class="ts-actions">
-              <a class="btn btn-sm" href="{% url 'tasks:create' %}?project={{ project.id }}">Aggiungi attivita</a>
+              <a class="btn btn-sm" href="{% url 'tasks:create' %}?project={{ project.id }}">Aggiungi attività</a>
             </div>
           {% endif %}
         </div>
@@ -311,7 +311,7 @@ body.tk-wide .content sta in tasks.css.
       <div class="ts-panel-body">
         <div class="quick-edit-grid">
           <div class="quick-edit-placeholder" id="quick-edit-placeholder">
-            Clicca un'attivita nel diagramma per aprire il form di modifica rapida.
+            Clicca un'attività nel diagramma per aprire la modifica rapida.
           </div>
           {% for row in gantt_rows %}
             {% if row.can_edit and row.update_form %}

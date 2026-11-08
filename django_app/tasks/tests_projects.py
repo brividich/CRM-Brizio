@@ -289,7 +289,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Scheda VRF")
         self.assertNotContains(response, "Contenuto operativo")
-        self.assertContains(response, "Cosa, chi e quando")
+        self.assertContains(response, "Cosa va fatto")
 
     def test_create_form_from_kickoff_context_hides_kickoff_selection(self):
         self.client.force_login(self.user)
@@ -303,10 +303,10 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         response = self.client.get(f"{reverse('tasks:create')}?project={project.id}")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Attività collegata a questo kickoff")
+        self.assertContains(response, 'class="tf2-card tf2-ko"')
         self.assertContains(response, project.name)
         self.assertNotContains(response, "Come nasce questa attivita")
-        self.assertNotContains(response, "Aggancio e anagrafica kickoff")
+        self.assertNotContains(response, "In quale kickoff?")
 
     def test_create_form_from_kickoff_context_forces_task_into_that_kickoff(self):
         self.client.force_login(self.user)
