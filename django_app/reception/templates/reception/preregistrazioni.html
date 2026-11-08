@@ -1,26 +1,51 @@
 {% extends "reception/_base.html" %}
+{% load static %}
 {% block title %}Pre-registrazioni | Reception{% endblock %}
 {% block rc_titolo %}Pre-registrazioni{% endblock %}
 {% block rc_sub %}L'ospite riceve il codice e il QR per entrare dal chiosco. Se indichi il giorno, ospite e referente ricevono anche l'invito in calendario.{% endblock %}
 {% block rc_contenuto %}
-<div class="rc-card">
-  <div class="rc-card-head">Nuova</div>
-  <div class="rc-body">
-    <form method="post" class="rc-form">
-      {% csrf_token %}
+{{ referenti_json|json_script:"referenti-dati" }}
+<form method="post" class="rc-card rc-scheda">
+  {% csrf_token %}
+  <div class="rc-sez">
+    <div class="rc-sez-titolo"><span class="rc-sez-num">1</span> Ospite</div>
+    <p class="rc-sez-nota">Se è già venuto, cercalo: nome, azienda ed email si compilano da soli.</p>
+    <div class="rc-field rc-cerca-ospite">
+      <div class="rc-cerca"><input class="rc-input" id="p-cerca" type="search" placeholder="Cerca tra chi è già venuto…" aria-label="Cerca tra chi è già venuto"
+             data-cerca-url="{% url 'reception:api_ospiti' %}" data-formato="ospite" data-svuota data-poi="#p-ref-cerca"
+             data-vuoto="Nessuno con questo nome: compila i campi qui sotto."
+             data-riempi='{"nome_completo":"#p-nome","azienda":"#p-azienda","email":"#p-email"}'></div>
+    </div>
+    <div class="rc-griglia">
       <div class="rc-field"><label for="p-nome">Nome e cognome *</label><input class="rc-input" id="p-nome" name="nome" maxlength="200" required></div>
-      <div class="rc-field"><label for="p-email">Email *</label><input class="rc-input" id="p-email" type="email" name="email" maxlength="255" required></div>
+      <div class="rc-field"><label for="p-email">Email * <span class="rc-muted">(riceve codice e QR)</span></label><input class="rc-input" id="p-email" type="email" name="email" maxlength="255" required></div>
       <div class="rc-field"><label for="p-azienda">Azienda</label><input class="rc-input" id="p-azienda" name="azienda" maxlength="200"></div>
-      <div class="rc-field"><label for="p-ref">Referente *</label><select class="rc-input" id="p-ref" name="referente" required><option value="">Scegli</option>{% for r in referenti %}<option value="{{ r.pk }}">{{ r.nome_elenco }}</option>{% endfor %}</select></div>
-      <div class="rc-field"><label for="p-motivo">Motivo</label><select class="rc-input" id="p-motivo" name="motivo">{% for c in categorie %}<option value="{{ c.nome }}">{{ c.nome }}</option>{% endfor %}</select></div>
+    </div>
+  </div>
+  <div class="rc-sez">
+    <div class="rc-sez-titolo"><span class="rc-sez-num">2</span> Chi lo aspetta</div>
+    <div class="rc-griglia">
+      <div class="rc-field"><label for="p-ref-cerca">Referente *</label>
+        <div class="rc-cerca"><input class="rc-input" id="p-ref-cerca" type="search" placeholder="Nome o reparto…"
+               data-scegli="#referenti-dati" data-valore="#p-ref" data-formato="referente" data-poi="#p-data"></div>
+        <input type="hidden" id="p-ref" name="referente"></div>
+    </div>
+  </div>
+  <div class="rc-sez">
+    <div class="rc-sez-titolo"><span class="rc-sez-num">3</span> Quando e perché</div>
+    <p class="rc-sez-nota">Con il giorno, ospite e referente ricevono anche l'invito in calendario.</p>
+    <div class="rc-griglia">
       <div class="rc-field"><label for="p-data">Giorno</label><input class="rc-input" id="p-data" type="date" name="data_visita"></div>
       <div class="rc-field"><label for="p-ini">Dalle</label><input class="rc-input" id="p-ini" type="time" name="ora_inizio"></div>
       <div class="rc-field"><label for="p-fine">Alle</label><input class="rc-input" id="p-fine" type="time" name="ora_fine"></div>
-      <div class="rc-field"><label for="p-scade">Valido fino al (7 giorni se vuoto)</label><input class="rc-input" id="p-scade" type="date" name="scade"></div>
-      <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit">Crea e invia</button></div>
-    </form>
+      <div class="rc-field"><label for="p-scade">Codice valido fino al</label><input class="rc-input" id="p-scade" type="date" name="scade"><span class="rc-muted">Vuoto: 7 giorni.</span></div>
+    </div>
+    <div class="rc-field rc-motivo"><label>Motivo</label>
+      <div class="rc-chips">{% for c in categorie %}<label class="rc-chip"><input type="radio" name="motivo" value="{{ c.nome }}"{% if forloop.first %} checked{% endif %}><span>{% if c.icona %}{{ c.icona }}&nbsp;{% endif %}{{ c.nome }}</span></label>{% endfor %}</div>
+    </div>
   </div>
-</div>
+  <div class="rc-azioni"><button class="rc-btn rc-btn-p" type="submit">Crea e invia il codice</button></div>
+</form>
 <div class="rc-card">
   <div class="rc-card-head">Elenco</div>
   <div class="rc-wrap">
@@ -42,3 +67,4 @@
   </div>
 </div>
 {% endblock %}
+{% block extra_scripts %}<script src="{% static 'reception/ricerca.js' %}" defer></script>{% endblock %}

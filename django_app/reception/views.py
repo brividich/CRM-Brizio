@@ -41,6 +41,11 @@ def _ctx(request, sezione: str, **dati) -> dict:
             "n_richieste": RichiestaAppuntamento.objects.filter(stato=RichiestaAppuntamento.IN_ATTESA).count(), **dati}
 
 
+def _elenco_referenti() -> list[dict]:
+    """Per la scelta del referente con ricerca nella pagina (json_script): solo id, nome e reparto."""
+    return [{"id": r.pk, "nome": r.nome_elenco, "reparto": r.reparto} for r in Referente.objects.filter(attivo=True)]
+
+
 def _data_ora(data: str, ora: str):
     try:
         return timezone.make_aware(datetime.strptime(f"{data} {ora}", "%Y-%m-%d %H:%M"))
@@ -84,8 +89,9 @@ def registra(request):
             messages.error(request, "Nome, cognome e referente sono obbligatori.")
         else:
             try:
-                ospite = servizi.ospite_da_dati(nome=nome, cognome=cognome, email=dati.get("email", "")[:255],
-                                                azienda=dati.get("azienda", "")[:255], ip="")
+                ospite = servizi.ospite_da_dati(nome=nome, cognome=cognome, email=dati.get("email", "").strip()[:255],
+                                                telefono=dati.get("telefono", "").strip()[:50],
+                                                azienda=dati.get("azienda", "").strip()[:255], ip="")
                 visita = servizi.registra_ingresso(
                     ospite, referente_nome=referente.nome_elenco, referente_email=referente.email,
                     motivo=dati.get("motivo", "Altro"), creata_da="PANNELLO",
@@ -102,8 +108,9 @@ def registra(request):
                 messages.success(request, f"Ingresso registrato, cartellino {visita.cartellino}.")
                 return redirect("reception:cruscotto")
     return render(request, "reception/registra.html", _ctx(
-        request, "registra", referenti=referenti, categorie=CategoriaVisita.objects.filter(attiva=True),
+        request, "registra", referenti_json=_elenco_referenti(), categorie=CategoriaVisita.objects.filter(attiva=True),
         liberi=servizi.cartellini_liberi(), dati=request.POST,
+        referente_scelto=referenti.filter(pk=request.POST.get("referente") or 0).first(),
     ))
 
 
@@ -179,7 +186,7 @@ def preregistrazioni(request):
                 messages.success(request, f"Codice {pre.codice} creato e inviato a {pre.ospite_email}.")
             return redirect("reception:preregistrazioni")
     return render(request, "reception/preregistrazioni.html", _ctx(
-        request, "preregistrazioni", referenti=Referente.objects.filter(attivo=True),
+        request, "preregistrazioni", referenti_json=_elenco_referenti(),
         categorie=CategoriaVisita.objects.filter(attiva=True),
         righe=Preregistrazione.objects.filter(Q(scade_il__gte=timezone.now()) | Q(usata_il__isnull=False))[:100],
     ))
@@ -216,30 +223,78 @@ def preregistrazione_azione(request, pk):
 
 @login_required
 def referenti(request):
+    from .views_ricerca import dati_dipendenti
+
     if request.method == "POST":
         dati = request.POST
         pk = dati.get("pk") or None
-        nome, cognome, email = dati.get("nome", "").strip()[:100], dati.get("cognome", "").strip()[:100], dati.get("email", "").strip()[:255]
-        if dati.get("azione") == "stato":
+        nome, cognome, email = dati.get("nome", "").strip()[:100], dati.get("cognome", "").strip()[:100], dati.get("email", "").strip().lower()[:255]
+        azione = dati.get("azione")
+        if azione == "stato":
             r = get_object_or_404(Referente, pk=pk)
             r.attivo = not r.attivo
             r.save(update_fields=["attivo"])
+        elif azione == "aggiorna":
+            esito = _aggiorna_da_anagrafica(dati_dipendenti)
+            log_action(request, "reception_referenti_aggiornati", "reception", esito)
+            messages.success(request, f"Aggiornati dall'anagrafica: {esito['aggiornati']}. Non più in forza, disattivati: {esito['disattivati']}.")
         elif not nome or not cognome or "@" not in email:
-            messages.error(request, "Nome, cognome ed email sono obbligatori.")
-        elif Referente.objects.filter(email__iexact=email).exclude(pk=pk).exists():
-            messages.error(request, "Questa email è già di un altro referente.")
+            messages.error(request, "Nome, cognome ed email sono obbligatori. Se il dipendente non ha l'email di notifica in anagrafica, scrivila a mano.")
         else:
+            try:
+                dipendente_id = int(dati.get("dipendente_id") or 0) or None
+            except ValueError:
+                dipendente_id = None
+            if not pk and dipendente_id:
+                # Dipendente scelto dall'anagrafica e già tra i referenti (stessa scheda, o stessa email non
+                # collegata ad altri): si aggiorna, non si duplica. A mano un'email doppia resta un errore.
+                gia = Referente.objects.filter(
+                    Q(dipendente_id=dipendente_id) | Q(email__iexact=email, dipendente_id__isnull=True)).first()
+                pk = gia.pk if gia else None
+            if Referente.objects.filter(email__iexact=email).exclude(pk=pk).exists():
+                messages.error(request, "Questa email è già di un altro referente.")
+                return redirect("reception:referenti")
             campi = {"nome": nome, "cognome": cognome, "email": email, "reparto": dati.get("reparto", "").strip()[:100],
-                     "telefono": dati.get("telefono", "").strip()[:50]}
+                     "telefono": dati.get("telefono", "").strip()[:50], "dipendente_id": dipendente_id}
             if pk:
                 Referente.objects.filter(pk=pk).update(**campi)
             else:
                 Referente.objects.create(**campi)
-            messages.success(request, "Referente salvato.")
+            messages.success(request, f"{cognome} {nome} salvato tra i referenti.")
         return redirect("reception:referenti")
+    righe = list(Referente.objects.all())
+    collegati = {d["id"]: d for d in dati_dipendenti(ids=[r.dipendente_id for r in righe if r.dipendente_id])}
+    for r in righe:
+        r.cessato = bool(r.dipendente_id and collegati.get(r.dipendente_id, {}).get("cessato"))
     return render(request, "reception/referenti.html", _ctx(
-        request, "referenti", righe=Referente.objects.all(), modifica=Referente.objects.filter(pk=request.GET.get("modifica") or 0).first(),
+        request, "referenti", righe=righe, modifica=Referente.objects.filter(pk=request.GET.get("modifica") or 0).first(),
+        n_collegati=sum(1 for r in righe if r.dipendente_id),
     ))
+
+
+def _aggiorna_da_anagrafica(dati_dipendenti) -> dict:
+    """Riprende dall'anagrafica i referenti collegati; chi non è più in forza viene disattivato. L'email resta se manca."""
+    esito = {"aggiornati": 0, "disattivati": 0}
+    righe = list(Referente.objects.exclude(dipendente_id__isnull=True))
+    dati = {d["id"]: d for d in dati_dipendenti(ids=[r.dipendente_id for r in righe])}
+    for r in righe:
+        d = dati.get(r.dipendente_id)
+        if d is None:
+            continue
+        if d["cessato"]:
+            if r.attivo:
+                r.attivo = False
+                r.save(update_fields=["attivo"])
+                esito["disattivati"] += 1
+            continue
+        nuovi = {"nome": d["nome"] or r.nome, "cognome": d["cognome"] or r.cognome, "reparto": d["reparto"][:100] or r.reparto,
+                 "telefono": d["telefono"][:50] or r.telefono}
+        if d["email"] and not Referente.objects.filter(email__iexact=d["email"]).exclude(pk=r.pk).exists():
+            nuovi["email"] = d["email"]
+        if any(getattr(r, k) != v for k, v in nuovi.items()):
+            Referente.objects.filter(pk=r.pk).update(**nuovi)
+            esito["aggiornati"] += 1
+    return esito
 
 
 @login_required
