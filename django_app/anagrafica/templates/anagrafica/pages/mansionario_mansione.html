@@ -58,6 +58,7 @@
       <div class="mns-tabs" role="tablist" aria-label="Sezioni della mansione">
         <a class="mns-tab" role="tab" id="tab-persone" href="#persone" aria-controls="persone" aria-selected="true"><svg class="fmd-ico"><use href="#i-users"/></svg>Persone <span class="fmd-count">{{ persone|length }}</span></a>
         <a class="mns-tab" role="tab" id="tab-competenze" href="#competenze" aria-controls="competenze" aria-selected="false"><svg class="fmd-ico"><use href="#i-cap"/></svg>Competenze richieste <span class="fmd-count">{{ competenze|length }}</span></a>
+        <a class="mns-tab" role="tab" id="tab-formazione" href="#formazione" aria-controls="formazione" aria-selected="false"><svg class="fmd-ico"><use href="#i-book"/></svg>Formazione <span class="fmd-count">{{ corsi_mansione|length }}</span></a>
         {% if is_admin %}<a class="mns-tab" role="tab" id="tab-impostazioni" href="#impostazioni" aria-controls="impostazioni" aria-selected="false"><svg class="fmd-ico"><use href="#i-gear"/></svg>Impostazioni</a>{% endif %}
       </div>
 
@@ -208,14 +209,96 @@
         </details>
         {% endif %}
 
-        {# Formazione obbligatoria per chi è in lista: regole di obbligatorietà con target «Mansione lavorativa». #}
-        <h3 style="margin:18px 0 6px;font-size:14px;">Formazione obbligatoria per chi fa questa mansione</h3>
-        {% if regole_formazione %}
-        <ul style="margin:0 0 6px;padding-left:18px;font-size:13px;">
-          {% for r in regole_formazione %}<li>{% if r.corso %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso.pk %}">{{ r.corso.titolo }}</a>{% elif r.piano %}Piano «{{ r.piano }}»{% endif %}{% if r.note %} <span class="fmd-muted">· {{ r.note|truncatechars:60 }}</span>{% endif %}</li>{% endfor %}
-        </ul>
+      </div>
+
+      {# ── Formazione: corsi della mansione, obbligatori o consigliati ─────── #}
+      <div class="mns-pane" id="formazione" role="tabpanel" aria-labelledby="tab-formazione">
+        <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">
+          I corsi di chi fa questa mansione. <b>Obbligatorio</b>: entra in scadenzario, copertura e onboarding di chi è in lista (anche in addestramento).
+          <b>Consigliato</b>: resta qui come proposta, senza scadenze. I corsi richiesti da una competenza bloccano il livello oltre «I» finché mancano.
+        </p>
+        {% if corsi_mansione %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Corso</th><th>Come</th><th>Chi è in lista</th><th class="fmd-r">Azioni</th></tr></thead>
+            <tbody>
+              {% for r in corsi_mansione %}
+              <tr>
+                <td>
+                  <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' r.corso.pk %}">{{ r.corso.titolo }}</a>
+                  <div class="fmd-muted" style="font-size:11px;">{{ r.corso.codice }}{% if r.corso.validita_mesi %} · rinnovo ogni {{ r.corso.validita_mesi }} mesi{% else %} · una tantum{% endif %}</div>
+                </td>
+                <td>
+                  {% if r.regola %}
+                    {% if r.obbligatorio %}<span class="fmd-badge fmd-b-orange">obbligatorio</span>{% else %}<span class="fmd-badge fmd-b-cyan">consigliato</span>{% endif %}
+                  {% endif %}
+                  {% if r.da_competenze %}<div class="fmd-muted" style="font-size:11px;margin-top:2px;">richiesto da {{ r.da_competenze|join:", " }}</div>{% endif %}
+                </td>
+                <td>
+                  {% if n_persone_lista %}
+                    {% if r.mancanti %}<span class="fmd-badge {% if r.obbligatorio %}fmd-b-red{% else %}fmd-b-amber{% endif %}" title="{{ r.nomi_mancanti|join:', ' }}">{{ r.mancanti|length }} da fare</span>{% endif %}
+                    <span class="fmd-muted" style="font-size:12px;">{{ r.n_in_regola }}/{{ n_persone_lista }} in regola</span>
+                  {% else %}<span class="fmd-muted">nessuno in lista</span>{% endif %}
+                </td>
+                <td class="fmd-r fmd-nowrap">
+                  <span class="mns-actions">
+                    {% if puo_iscrivere and r.mancanti %}
+                    <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form">
+                      {% csrf_token %}
+                      <input type="hidden" name="corso_id" value="{{ r.corso.pk }}">
+                      {% for lid in r.mancanti %}<input type="hidden" name="dipendenti_selezionati" value="{{ lid }}">{% endfor %}
+                      <input type="hidden" name="back" value="{{ request.path }}#formazione">
+                      <button type="submit" class="fmd-act" title="Crea una sessione del corso con {{ r.nomi_mancanti|join:', ' }} già iscritti">↻ Iscrivi chi manca</button>
+                    </form>
+                    {% endif %}
+                    {% if puo_collegare_corsi and r.regola %}
+                    <form method="post" action="{% url 'anagrafica:mansionario_corso_tipo' mansione.pk r.regola.pk %}" class="fmd-act-form">
+                      {% csrf_token %}<input type="hidden" name="tipo" value="{% if r.obbligatorio %}consigliato{% else %}obbligatorio{% endif %}">
+                      <button type="submit" class="fmd-act fmd-act-ghost" title="{% if r.obbligatorio %}Non genera più scadenze: resta come proposta{% else %}Entra in scadenzario e copertura di chi è in lista{% endif %}">{% if r.obbligatorio %}Rendi consigliato{% else %}Rendi obbligatorio{% endif %}</button>
+                    </form>
+                    <form method="post" action="{% url 'anagrafica:mansionario_corso_scollega' mansione.pk r.regola.pk %}" class="fmd-act-form" data-hub-confirm="Scollegare «{{ r.corso.titolo }}» dalla mansione? I completamenti già registrati restano.">
+                      {% csrf_token %}<button type="submit" class="fmd-btn fmd-btn-ghost fmd-btn-mini">Scollega</button>
+                    </form>
+                    {% elif puo_collegare_corsi and not r.regola %}
+                    <form method="post" action="{% url 'anagrafica:mansionario_corso_collega' mansione.pk %}" class="fmd-act-form">
+                      {% csrf_token %}<input type="hidden" name="corso" value="{{ r.corso.pk }}"><input type="hidden" name="tipo" value="obbligatorio">
+                      <button type="submit" class="fmd-act fmd-act-ghost" title="Oggi blocca solo il livello della competenza: rendilo anche una scadenza per chi è in lista">Rendi obbligatorio</button>
+                    </form>
+                    {% endif %}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
         {% else %}
-        <p class="fmd-muted" style="margin:0;font-size:12.5px;">Nessuna regola. Si aggiunge dalla scheda del corso, «Regole di obbligatorietà», scegliendo questa mansione lavorativa: vale per tutti quelli in lista, anche in addestramento, e compare nei fabbisogni e nell'onboarding di chi riceve un ruolo con questa mansione.</p>
+        <div class="fmd-empty"><span class="fmd-et">Nessun corso collegato</span><span class="fmd-em">Collega qui sotto i corsi di chi fa questa mansione.</span></div>
+        {% endif %}
+        {% for r in piani_mansione %}<p class="fmd-muted" style="margin:8px 0 0;font-size:12px;">Piano «{{ r.piano }}» {% if r.is_mandatory %}obbligatorio{% else %}consigliato{% endif %}: vale come tutti i suoi corsi attivi.</p>{% endfor %}
+
+        {% if puo_collegare_corsi %}
+        <form method="post" action="{% url 'anagrafica:mansionario_corso_collega' mansione.pk %}" class="mns-add" style="margin-top:14px;">
+          {% csrf_token %}
+          <div class="mns-add-title"><svg class="fmd-ico"><use href="#i-plus"/></svg>Collega un corso</div>
+          <div class="mns-corso-row">
+            <select name="corso" class="fm-input fm-select js-searchable" data-placeholder="Cerca il corso per titolo o codice…" required>
+              <option value="">— Cerca il corso —</option>
+              {% for c in corsi_opzioni %}<option value="{{ c.pk }}">[{{ c.codice }}] {{ c.titolo }}</option>{% endfor %}
+            </select>
+            <span class="mns-corso-tipo">
+              <label><input type="radio" name="tipo" value="obbligatorio" checked> Obbligatorio</label>
+              <label><input type="radio" name="tipo" value="consigliato"> Consigliato</label>
+            </span>
+            <button type="submit" class="fmd-btn fmd-btn-primary">Collega</button>
+          </div>
+        </form>
+        <style>
+          .mns-corso-row{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;margin-top:8px;}
+          .mns-corso-tipo{display:inline-flex;gap:14px;font-size:12.5px;white-space:nowrap;}
+          .mns-corso-tipo label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;}
+          @media(max-width:700px){.mns-corso-row{grid-template-columns:1fr;}}
+        </style>
         {% endif %}
       </div>
 
