@@ -69,6 +69,9 @@ class DotazioneTests(_Base):
         pagina = self.client.get(url)
         self.assertContains(pagina, "manca su 1 PC")
         self.assertContains(pagina, "PC officina 1")
+        self.assertContains(pagina, "copertura 0%")  # pc1 è l'unico PC del reparto Officina con inventario e non ha il CAM
+        self.assertContains(pagina, 'class="sc-dot-bar"')
+        self.assertContains(pagina, 'class="sc-chip"')
         self.client.post(url, {"azione": "dotazione_togli", "regola": regola.pk})
         self.assertFalse(SoftwareDotazioneAttesa.objects.exists())
 
@@ -122,6 +125,18 @@ class FineVitaTests(_Base):
         self.assertContains(pagina, "Hardware a fine vita")
         self.assertContains(pagina, "Da sostituire")
         self.assertContains(pagina, "PC officina 1")
+        self.assertContains(pagina, 'class="rc-fv-track"')
+        self.assertContains(pagina, "Come giudico")
+        # i contatori filtrano la tabella
+        solo = self.client.get(reverse("assets:it_reconciliation") + "?vista=fine_vita&giudizio=sostituire")
+        self.assertContains(solo, "PC officina 1")
+        self.assertNotContains(solo, "PC ufficio")
+        self.assertContains(solo, "1 su 4 PC, notebook e server")
+        nessuno = self.client.get(reverse("assets:it_reconciliation") + "?vista=fine_vita&giudizio=pianificare")
+        self.assertContains(nessuno, "Nessun asset con questo giudizio")
+        self.assertEqual(hardware_vita.filtra(righe, "farlocco"), righe)
+        self.assertEqual((hardware_vita.eta_percento(None), hardware_vita.eta_percento(0.05), hardware_vita.eta_percento(4), hardware_vita.eta_percento(12)),
+                         (None, 2, 50, 100))
 
     def test_campo_fine_garanzia_nel_form(self):
         from assets.forms import AssetForm

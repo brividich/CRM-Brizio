@@ -78,7 +78,7 @@ def per_asset(asset, giorni=GIORNI, oggi=None) -> dict | None:
         if sam not in ultimo or quando > ultimo[sam]:
             ultimo[sam] = quando
     if not conteggi:
-        return {"giorni": giorni, "accessi": 0, "account": []}
+        return {"giorni": giorni, "accessi": 0, "account": [], "cessati": 0}
     schede = {a.sam.casefold(): a for a in AccountAD.objects.filter(sam__in=list(conteggi))}
     account = []
     for sam, n in conteggi.most_common():
@@ -90,4 +90,5 @@ def per_asset(asset, giorni=GIORNI, oggi=None) -> dict | None:
             "cessato": bool(scheda and scheda.persona_cessata),
             "nome": scheda.anagrafica_nome or scheda.nome if scheda else "",
         })
-    return {"giorni": giorni, "accessi": sum(conteggi.values()), "account": account}
+    return {"giorni": giorni, "accessi": sum(conteggi.values()), "account": account,
+            "cessati": sum(1 for a in account if a["cessato"])}

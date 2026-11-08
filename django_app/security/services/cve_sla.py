@@ -229,6 +229,58 @@ def andamento(giorni=90, oggi=None):
     }
 
 
+def serie_settimanale(settimane=8, oggi=None) -> list[dict]:
+    """Una voce per settimana, la più vecchia prima: PC corretti, % nel termine e giorni mediani di quella settimana.
+
+    Serve agli sparkline del riquadro «Tempi di correzione»: una sola lettura delle correzioni, poi
+    si raggruppa per settimana di correzione. Le settimane senza correzioni hanno ``None``.
+    """
+    from security.services.cve_gestione import correzioni_valide
+
+    oggi = oggi or timezone.localdate()
+    inizio = oggi - timedelta(days=7 * settimane - 1)
+    secchi = [{"dal": inizio + timedelta(days=7 * i), "al": inizio + timedelta(days=7 * i + 6),
+               "corrette": 0, "in_tempo": 0, "durate": []} for i in range(settimane)]
+    for r in correzioni_valide(_aware(inizio), _aware(oggi, fine=True)):
+        if r.aperta_dal is None:
+            continue
+        indice = min((_giorno(r.risolta_il) - inizio).days // 7, settimane - 1)
+        if indice < 0:
+            continue
+        secchio = secchi[indice]
+        secchio["corrette"] += 1
+        secchio["durate"].append((r.risolta_il - r.aperta_dal).total_seconds() / 86400)
+        if _giorno(r.risolta_il) <= scadenza(r.cve, r.aperta_dal):
+            secchio["in_tempo"] += 1
+    for s in secchi:
+        s["percentuale_in_tempo"] = round(100 * s["in_tempo"] / s["corrette"]) if s["corrette"] else None
+        s["giorni_mediani"] = _mediana(s.pop("durate"))
+    return secchi
+
+
+def punti_sparkline(valori, larghezza=120, altezza=26, margine=3) -> dict | None:
+    """Coordinate SVG per una linea da ``valori`` (``None`` = buco, saltato). ``None`` se meno di due valori.
+
+    Ritorna ``{"punti": "x,y x,y …", "ultimo": (x, y), "min", "max"}`` con la scala calcolata sui soli valori
+    presenti, così la linea occupa tutta l'altezza anche quando i numeri sono vicini.
+    """
+    coppie = [(i, v) for i, v in enumerate(valori) if v is not None]
+    if len(coppie) < 2:
+        return None
+    minimo, massimo = min(v for _, v in coppie), max(v for _, v in coppie)
+    passo = (larghezza - 2 * margine) / max(len(valori) - 1, 1)
+    utile = altezza - 2 * margine
+
+    def y(v):
+        if massimo == minimo:
+            return altezza / 2
+        return margine + utile * (1 - (v - minimo) / (massimo - minimo))
+
+    punti = [(round(margine + i * passo, 1), round(y(v), 1)) for i, v in coppie]
+    return {"punti": " ".join(f"{x},{y_}" for x, y_ in punti), "ultimo": punti[-1], "min": minimo, "max": massimo,
+            "larghezza": larghezza, "altezza": altezza}
+
+
 # --- Automatismo: evento oltre il termine, chiusura al rientro -------------------------------
 
 def _dedup(source, voce):

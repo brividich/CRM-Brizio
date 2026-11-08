@@ -79,10 +79,11 @@ class PaginaTests(_Base):
     def test_pulsante_e_apertura_dalla_pagina(self):
         with patch("security.services.rischio_asset.timezone.localdate", return_value=OGGI):
             risposta = self.client.get(reverse("security:pc_copertura"))
-            self.assertContains(risposta, "Apri il piano di aggiornamento Windows (2 PC)")
+            self.assertContains(risposta, "2 PC con Windows da aggiornare")
+            self.assertContains(risposta, "Apri il piano")
             risposta = self.client.post(reverse("security:pc_copertura"), {"action": "windows_lavoro"})
             caso = SecurityRemediationTicket.objects.get(affected_product=windows_lavoro.MARCATORE)
             self.assertRedirects(risposta, reverse("security:case_detail", kwargs={"pk": caso.pk}), fetch_redirect_response=False)
             risposta = self.client.get(reverse("security:pc_copertura"))
-            self.assertContains(risposta, "0 PC su 2 aggiornati")
-            self.assertNotContains(risposta, "Apri il piano di aggiornamento")
+            self.assertContains(risposta, "0 su 2 PC aggiornati")
+            self.assertNotContains(risposta, "Apri il piano</button>")

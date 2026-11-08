@@ -132,4 +132,5 @@ def riepilogo():
     if caso is None:
         return None
     attivita = list(caso.tasks.exclude(cve_host=""))
-    return {"caso": caso, "fatti": sum(1 for t in attivita if t.done), "totale": len(attivita)}
+    fatti, totale = sum(1 for t in attivita if t.done), len(attivita)
+    return {"caso": caso, "fatti": fatti, "totale": totale, "percento": round(100 * fatti / totale) if totale else 0}

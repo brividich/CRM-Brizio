@@ -106,6 +106,23 @@ def elenco(oggi=None) -> list[dict]:
     return righe
 
 
+ETA_SCALA = 8  # anni: la barra dell'età è piena a questa età, con i segni alle soglie
+
+
+def filtra(righe, giudizio):
+    """Le righe con quel giudizio (``sostituire``, ``pianificare``, ``non_valutabile``, ``ok``); tutte se non è un giudizio."""
+    if giudizio not in ETICHETTE:
+        return righe
+    return [r for r in righe if r["giudizio"] == giudizio]
+
+
+def eta_percento(eta) -> int | None:
+    """Larghezza della barra dell'età in percentuale della scala (``ETA_SCALA`` anni), tra 2 e 100."""
+    if eta is None:
+        return None
+    return max(2, min(100, round(100 * eta / ETA_SCALA)))
+
+
 def conteggi(righe) -> dict:
     out = {k: 0 for k in ETICHETTE}
     for r in righe:

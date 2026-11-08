@@ -142,6 +142,28 @@ class ScaduteERiepilogoTests(_Base):
         vuoto = cve_sla.andamento(5)
         self.assertIsNone(vuoto["differenze"]["percentuale_in_tempo"])
 
+    def test_serie_settimanale_e_sparkline(self):
+        ora = timezone.now()
+        SecurityCveRisoluzione.objects.create(cve=self.record, host="pc-a", come=SecurityCveRisoluzione.AGGIORNATO,
+                                              aperta_dal=ora - timedelta(days=12), risolta_il=ora - timedelta(days=2))
+        SecurityCveRisoluzione.objects.create(cve=self.record, host="pc-b", come=SecurityCveRisoluzione.AGGIORNATO,
+                                              aperta_dal=ora - timedelta(days=60), risolta_il=ora - timedelta(days=20))
+        serie = cve_sla.serie_settimanale(8)
+        self.assertEqual(len(serie), 8)
+        self.assertEqual(serie[-1]["corrette"], 1)  # pc-a corretto 2 giorni fa: ultima settimana
+        self.assertEqual(serie[-1]["percentuale_in_tempo"], 100)
+        self.assertEqual(serie[-1]["giorni_mediani"], 10.0)
+        self.assertEqual(sum(s["corrette"] for s in serie), 2)
+        self.assertEqual(serie[-3]["corrette"], 1)  # 20 giorni fa: terza settimana dalla fine
+        self.assertIsNone(serie[0]["percentuale_in_tempo"])
+        # sparkline: i buchi si saltano, la scala è sui valori presenti, l'ultimo punto è a destra
+        punti = cve_sla.punti_sparkline([None, 50, None, 100], larghezza=120, altezza=26)
+        self.assertEqual(punti["punti"].count(" ") + 1, 2)
+        self.assertEqual(punti["ultimo"][0], 117.0)
+        self.assertEqual((punti["min"], punti["max"]), (50, 100))
+        self.assertIsNone(cve_sla.punti_sparkline([None, 7]))
+        self.assertEqual(cve_sla.punti_sparkline([3, 3])["ultimo"][1], 13.0)  # valori uguali: linea a metà
+
 
 class AutomatismoTerminiTests(_Base):
     def test_evento_e_alert_per_esposizione_oltre_il_termine(self):
@@ -321,7 +343,9 @@ class PagineTests(_Base):
         self._retrodata(20)
         r = self.client.get(reverse("security:vulnerabilities"))
         self.assertContains(r, "Tempi di correzione")
-        self.assertContains(r, "2 oltre il termine")
+        self.assertContains(r, "PC oltre il termine")
+        self.assertContains(r, "<strong>2 <small>su 2 esposizioni aperte</small></strong>", html=False)
+        self.assertContains(r, "nessuna correzione")  # nessuna correzione nel periodo: niente barra per classe
 
     def test_pannello_cve_mostra_il_termine(self):
         self._retrodata(20, "pc-sla-02")
