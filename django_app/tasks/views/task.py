@@ -553,21 +553,21 @@ def attrezzatura_action(request, task_id: int):
 def _suggest_task_start_date(project) -> date:
     """Return the automatic start date for a new task in ``project``.
 
-    Day after the last existing task's end date (due_date or next_step_due),
-    or today if the project has no tasks yet.
+    Day after the latest end date among the project's tasks (due_date or
+    next_step_due), or today if the project has no dated tasks yet. Same rule
+    as the Gantt quick row: before it took the last *created* task, so the two
+    entry points proposed different dates.
     """
     today = timezone.localdate()
     if project is None:
         return today
-    last_task = (
-        Task.objects.filter(project=project)
-        .order_by("-id")
-        .first()
-    )
-    if last_task:
-        last_end = last_task.due_date or last_task.next_step_due
-        if last_end:
-            return max(last_end + timedelta(days=1), today)
+    fini = [
+        due or start
+        for due, start in Task.objects.filter(project=project).values_list("due_date", "next_step_due")
+        if due or start
+    ]
+    if fini:
+        return max(max(fini) + timedelta(days=1), today)
     return today
 
 

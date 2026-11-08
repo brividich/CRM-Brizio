@@ -93,14 +93,18 @@ def run_meetings_digest(**kwargs) -> dict:
         MeetingIssue,
         MeetingIssueStatus,
         MeetingStatus,
+        Task,
+        TaskStatus,
     )
+
+    OPEN_STATUSES = (TaskStatus.TODO, TaskStatus.IN_PROGRESS)
 
     today = timezone.localdate()
     include_overdue_issues = today.weekday() == 0  # lunedi
     reminder_dates = meeting_reminder_dates(today)
 
     by_email: dict[str, dict] = defaultdict(
-        lambda: {"meetings": [], "issues": [], "actions": [], "upcoming": []}
+        lambda: {"meetings": [], "issues": [], "actions": [], "upcoming": [], "tasks_overdue": [], "tasks_upcoming": []}
     )
 
     meetings = list(
@@ -187,6 +191,20 @@ def run_meetings_digest(**kwargs) -> dict:
             if email:
                 by_email[email]["upcoming"].append(item)
 
+        # Le attivita' del piano (Gantt) non avevano alcun sollecito via mail:
+        # scadute e in scadenza entrano nella stessa email del lunedi'.
+        open_tasks = Task.objects.filter(
+            status__in=OPEN_STATUSES,
+            due_date__isnull=False,
+            due_date__lte=week_end,
+            assigned_to__isnull=False,
+        ).select_related("assigned_to", "project").order_by("due_date", "id")
+        for task in open_tasks:
+            email = (getattr(task.assigned_to, "email", "") or "").strip()
+            if email:
+                chiave = "tasks_overdue" if task.due_date < today else "tasks_upcoming"
+                by_email[email][chiave].append(task)
+
         for email, issue_list in by_issue_email.items():
             try:
                 for luid in legacy_user_ids_for_email(email):
@@ -231,10 +249,22 @@ def run_meetings_digest(**kwargs) -> dict:
                 for i in data["upcoming"]
             ]
             parts.append("In scadenza questa settimana:\n" + "\n".join(rows))
+        if data["tasks_overdue"]:
+            rows = [
+                f"- {t.title} [{getattr(t.project, 'name', '') or '-'}] (scadenza {t.due_date:%d/%m/%Y})"
+                for t in data["tasks_overdue"]
+            ]
+            parts.append("Attività scadute a te assegnate:\n" + "\n".join(rows))
+        if data["tasks_upcoming"]:
+            rows = [
+                f"- {t.title} [{getattr(t.project, 'name', '') or '-'}] (entro il {t.due_date:%d/%m/%Y})"
+                for t in data["tasks_upcoming"]
+            ]
+            parts.append("Attività in scadenza questa settimana:\n" + "\n".join(rows))
         if not parts:
             continue
 
-        has_deadlines = data["issues"] or data["actions"] or data["upcoming"]
+        has_deadlines = any(data[k] for k in ("issues", "actions", "upcoming", "tasks_overdue", "tasks_upcoming"))
         if data["meetings"] and has_deadlines:
             subject = "Promemoria KICK-OFF: prossimo incontro e scadenze"
         elif data["meetings"]:
@@ -242,7 +272,7 @@ def run_meetings_digest(**kwargs) -> dict:
             first_label = first.titolo or f"Incontro {first.numero}"
             subject = f"Promemoria incontro {_quando(first.data, today).lower()} — {first_label}"
         else:
-            scadenze = len(data["issues"]) + len(data["actions"]) + len(data["upcoming"])
+            scadenze = sum(len(data[k]) for k in ("issues", "actions", "upcoming", "tasks_overdue", "tasks_upcoming"))
             subject = f"Scadenze KICK-OFF ({scadenze})"
 
         try:

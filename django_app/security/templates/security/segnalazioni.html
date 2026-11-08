@@ -7,7 +7,7 @@
 {% block page_title %}Segnalazioni{% endblock %}
 
 {% block soc_content %}
-{% include "security/partials/tip.html" with tip_id="segnalazioni-v1" tip="<strong>Un elenco solo</strong> per alert, ticket e incidenti, dal più urgente: prima le notifiche NIS2/GDPR in scadenza, poi la gravità, poi le più vecchie. <strong>Clic su una riga</strong> per l'anteprima con le azioni; il titolo apre la pagina completa. Gli eventi letti dai report hanno la loro scheda." %}
+{% include "security/partials/tip.html" with tip_id="segnalazioni-v1" tip="<strong>Un elenco solo</strong> per alert, ticket e incidenti, dal più urgente: prima le notifiche NIS2/GDPR in scadenza, poi la gravità, poi le più vecchie. <strong>Clic su una riga</strong> per l'anteprima con le azioni; il titolo apre la pagina completa. <strong>Le caselle</strong> selezionano più righe dello stesso tipo: la barra in basso le lavora insieme. Gli eventi letti dai report hanno la loro scheda." %}
 <section class="sec-panel">
   <div class="sec-chip-row" aria-label="Tipo di segnalazione">
     {% for chip in chips_tipo %}
@@ -42,12 +42,17 @@
     <span class="sec-badge">{{ righe_totali }} segnalazion{{ righe_totali|pluralize:"e,i" }}</span>
   </div>
   {% if troncata %}<p class="sec-muted">Mostrate le {{ limite_per_tipo }} più recenti per tipo: i numeri sui filtri sono il totale. Usa ricerca o gravità per restringere.</p>{% endif %}
+  <form method="post" action="{% url 'security:alerts_bulk' %}" data-bulk data-bulk-kinds
+        data-action-alert="{% url 'security:alerts_bulk' %}" data-action-ticket="{% url 'security:tickets_bulk' %}" data-action-incident="{% url 'security:incidents_bulk' %}">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
   <div class="sec-table-wrap">
-    <table class="sec-table">
-      <thead><tr><th>Tipo</th><th>Gravità</th><th>Cosa</th><th>Dove</th><th>Stato</th><th>Aperta da</th><th>Chi se ne occupa</th></tr></thead>
+    <table class="sec-table soc-pick-table">
+      <thead><tr><th class="soc-pick-col"><label class="soc-pick"><input type="checkbox" data-bulk-all aria-label="Seleziona tutte le righe visibili dello stesso tipo"><span></span></label></th><th>Tipo</th><th>Gravità</th><th>Cosa</th><th>Dove</th><th>Stato</th><th>Aperta da</th><th>Chi se ne occupa</th></tr></thead>
       <tbody>
       {% for r in page.object_list %}
         <tr class="soc-sev-row sev-{{ r.severity }}{% if not r.active %} is-closed{% endif %}" data-preview="{{ r.preview }}">
+          <td class="soc-pick-col"><label class="soc-pick" title="Seleziona"><input type="checkbox" class="sec-bulk-item" data-kind="{{ r.kind }}" name="{{ r.kind }}_ids" value="{{ r.pk }}" aria-label="Seleziona {{ r.kind_label }} {{ r.title|truncatechars:60 }}"><span></span></label></td>
           <td><span class="soc-kind kind-{{ r.kind }}"><svg class="soc-ico" aria-hidden="true"><use href="#soc-i-{% if r.kind == 'alert' %}bell{% elif r.kind == 'ticket' %}ticket{% else %}flame{% endif %}"/></svg>{{ r.kind_label }}</span></td>
           <td><span class="sec-badge {{ r.severity }}">{{ r.severity|ui_label }}</span></td>
           <td class="sec-title-cell"><a href="{{ r.url }}"><strong>{{ r.title|truncatechars:90 }}</strong></a>{% if r.deadline %}<small><span class="sec-badge sec-badge-{{ r.deadline.tone }}">{{ r.deadline.state_label }}</span> {{ r.deadline.label }} · entro {{ r.deadline.due_at|date:"d/m H:i" }}</small>{% endif %}</td>
@@ -57,14 +62,36 @@
           <td>{{ r.who|default:"—" }}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="7" class="sec-empty">{% if q or gravita or tipo or urgenti or scadenza or stato != "aperte" %}Nessuna segnalazione corrisponde ai filtri.{% else %}Niente da gestire: nessun alert, ticket o incidente aperto.{% endif %}</td></tr>
+        <tr><td colspan="8" class="sec-empty">{% if q or gravita or tipo or urgenti or scadenza or stato != "aperte" %}Nessuna segnalazione corrisponde ai filtri.{% else %}Niente da gestire: nessun alert, ticket o incidente aperto.{% endif %}</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+  {# Barra delle azioni: compare in basso quando c'è una selezione; le azioni cambiano col tipo selezionato #}
+  <div class="soc-selbar" role="region" aria-label="Azioni sulle righe selezionate">
+    <span class="soc-selbar-count"><strong data-bulk-count>0</strong> <span data-bulk-kind-label>selezionati</span></span>
+    <select name="action" aria-label="Azione sulle righe selezionate">
+      <option value="acknowledge" data-kind="alert">Prendi in carico</option>
+      <option value="close" data-kind="alert">Chiudi</option>
+      <option value="false_positive" data-kind="alert">Segna falso positivo</option>
+      <option value="open_case" data-kind="alert">Apri un ticket con i selezionati</option>
+      <option value="assign_me" data-kind="ticket">Assegna a me</option>
+      <option value="status" data-kind="ticket">Cambia stato</option>
+      <option value="owner_me" data-kind="incident">Diventa responsabile</option>
+      <option value="status" data-kind="incident">Cambia stato</option>
+    </select>
+    <input type="text" name="reason" placeholder="Motivo (obbligatorio per falso positivo)" data-show-for="acknowledge close false_positive" data-kind="alert">
+    <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" data-show-for="open_case" data-kind="alert">
+    <select name="status" aria-label="Nuovo stato del ticket" data-show-for="status" data-kind="ticket">{% for value, label in ticket_stati %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+    <input type="text" name="reason" placeholder="Esito (obbligatorio per chiudere)" data-show-for="status" data-kind="ticket">
+    <select name="status" aria-label="Nuovo stato dell'incidente" data-show-for="status" data-kind="incident">{% for value, label in incident_stati %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+    <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Applica</button>
+    <button type="button" class="sec-button" data-bulk-clear>Annulla</button>
+  </div>
+  </form>
   {% if page.has_other_pages %}
     <div class="sec-actions">{% if pagina_prec %}<a class="sec-button" href="{{ pagina_prec }}">‹ Precedenti</a>{% endif %}<span class="sec-small">pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>{% if pagina_succ %}<a class="sec-button" href="{{ pagina_succ }}">Successive ›</a>{% endif %}</div>
   {% endif %}
-  <p class="sec-muted sec-small" style="margin-top:10px">Per le azioni su più elementi insieme (prendi in carico, chiudi, apri un ticket) usa le pagine <a href="{% url 'security:alerts_list' %}">Alert</a>, <a href="{% url 'security:tickets_list' %}">Ticket</a> e <a href="{% url 'security:incidents' %}">Incidenti</a>. Gli <a href="{% url 'security:events' %}">Eventi</a> letti dai report sono a parte.</p>
+  <p class="sec-muted sec-small" style="margin-top:10px">Seleziona più righe dello stesso tipo con le caselle (Maiusc+clic per un intervallo) e agisci dalla barra in basso. Dall'anteprima di un alert puoi chiudere insieme i simili: stessa CVE, stesso software, stesso PC. Gli <a href="{% url 'security:events' %}">Eventi</a> letti dai report sono a parte.</p>
 </section>
 {% endblock %}

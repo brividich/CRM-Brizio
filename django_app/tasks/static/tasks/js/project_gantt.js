@@ -16,6 +16,20 @@
   function leftCalc(idx) { return 'calc(var(--cw) * ' + idx + ')'; }
   function widthCalc(span) { return 'calc(var(--cw) * ' + span + ' - 4px)'; }
 
+  // Il periodo riempie la larghezza disponibile: prima a schermo largo restava mezzo pannello vuoto.
+  (function fit() {
+    var head = scroll.querySelector('.ghead .gtrack');
+    var mac = scroll.querySelector('.ghead .gmac');
+    var giorni = head ? head.children.length : 0;
+    if (!giorni || !mac) return;
+    var libero = scroll.clientWidth - mac.offsetWidth - 2;
+    var ideale = Math.min(64, Math.floor(libero / giorni));
+    if (ideale > cw()) {
+      scroll.style.setProperty('--cw', ideale + 'px');
+      if (zoom) zoom.value = ideale;
+    }
+  })();
+
   // Zoom live (non ricarica)
   if (zoom) zoom.addEventListener('input', function () { scroll.style.setProperty('--cw', zoom.value + 'px'); });
 
@@ -84,14 +98,15 @@
   scroll.addEventListener('click', function (e) {
     if (e.target.closest('a') || e.target.classList.contains('ghandle')) return;
     var row = e.target.closest('.grow.gbody');
-    if (!row || !e.target.closest('.gbar')) return;
+    // Tutta la riga apre la modifica rapida, non solo la barra (prima bisognava centrarla).
+    if (!row) return;
     var taskId = row.getAttribute('data-task-id');
     if (!document.querySelector('.quick-edit-item[data-task-id="' + String(taskId) + '"]')) return;
     var already = row.classList.contains('is-selected');
     selectTask(already ? null : taskId);
     if (!already) {
-      var sec = document.querySelector('.quick-edit-grid');
-      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      var sec = document.querySelector('.quick-edit-item.is-visible') || document.querySelector('.quick-edit-grid');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   });
 

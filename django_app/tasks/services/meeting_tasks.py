@@ -147,6 +147,57 @@ def notify_task_assignment(task: Task, *, actor=None) -> None:
         )
     except Exception:
         logger.exception("Notifica assegnazione attivita' fallita (task=%s)", task.pk)
+    _mail_assegnazione(task, actor=actor)
+
+
+def _mail_assegnazione(task: Task, *, actor=None) -> None:
+    """Mail al responsabile: prima l'assegnazione arrivava solo nel portale.
+
+    Indirizzo: ``email_notifica`` dell'anagrafica (la mailbox vera), poi
+    l'email dell'account. Un errore di invio non blocca il salvataggio.
+    """
+    from django.conf import settings
+
+    from core.email_utils import email_cta, email_facts_table, send_hub_mail
+
+    from ..outlook_reminder import _notification_email_for_user
+
+    assignee = task.assigned_to
+    email = _notification_email_for_user(assignee)
+    if not email or "@" not in email:
+        return
+    base = (getattr(settings, "SITE_URL", "") or "").rstrip("/")
+    url = base + reverse("tasks:mie_azioni") if base else ""
+    chi = ""
+    if actor is not None and getattr(actor, "is_authenticated", False):
+        chi = (actor.get_full_name() or actor.get_username() or "").strip()
+    righe = [("Attività", task.title)]
+    if task.project_id:
+        righe.append(("Commessa", task.project.name))
+    if task.next_step_due:
+        righe.append(("Inizio", f"{task.next_step_due:%d/%m/%Y}"))
+    if task.due_date:
+        righe.append(("Entro il", f"{task.due_date:%d/%m/%Y}"))
+    if chi:
+        righe.append(("Assegnata da", chi))
+    testo = "\n".join(f"{k}: {v}" for k, v in righe)
+    if url:
+        testo += f"\n\nLa trovi in «Le mie azioni»: {url}"
+    html = email_facts_table(righe)
+    if url:
+        html += '<div style="height:18px"></div>' + email_cta("Apri «Le mie azioni»", url, "Da lì la segni come fatta.")
+    try:
+        send_hub_mail(
+            f"Nuova attività per te: {task.title}"[:180],
+            testo,
+            [email],
+            title="Ti è stata assegnata un'attività",
+            email_type="VRF - KICK-OFF",
+            body_html_fragment=html,
+            fail_silently=True,
+        )
+    except Exception:
+        logger.exception("Mail assegnazione attivita' fallita (task=%s)", task.pk)
 
 
 def notify_meeting_item_assignment(item, *, actor=None) -> None:

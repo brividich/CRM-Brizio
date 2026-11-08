@@ -289,7 +289,7 @@ class TaskProjectsAndAttachmentsTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Scheda VRF")
         self.assertNotContains(response, "Contenuto operativo")
-        self.assertContains(response, "Dettaglio attività")
+        self.assertContains(response, "Cosa, chi e quando")
 
     def test_create_form_from_kickoff_context_hides_kickoff_selection(self):
         self.client.force_login(self.user)
