@@ -86,6 +86,8 @@ Report `/tasks/fai/report/` (voce di menu, `core 0111`): conteggi da `righe_regi
 
 Il file `Situazione FAI-ISIR.xlsm` si migra con `manage.py importa_situazione_fai <file> [--apply] [--report <csv>]` (`tasks/services/fai_import.py`, migrazioni `tasks 0057-0058`): senza `--apply` non scrive; rilanciandolo aggiorna solo le righe non modificate nel portale. `/tasks/fai/?per=fai` elenca tutti i FAI. Scadenza: ultima produzione; se manca, chiusura del FAI.
 
+Il campo OP della scheda FAI legge l'elenco unico degli OP, la tabella `ordini_produzione` che usa Gestione anomalie (`core/ordini_produzione.py`, solo lettura): `/tasks/fai/op/?q=` propone gli OP per titolo o P/N, `?op=` restituisce l'OP con le anomalie (stesso legame di Gestione anomalie: id SharePoint o titolo). Il FAI salva il titolo dell'OP; un OP fuori elenco si salva lo stesso.
+
 `TaskCategory.richiede` (CAM, CMM, FAI) lega il tipo attività a ciò che deve produrre: l'attività crea o adotta la sua riga `ProjectTechRef.task`, responsabile, data e stato vengono dall'attività (`tasks/services/programmi.py`, migrazioni `tasks 0055-0056`). Vista generale `/tasks/programmi/` (voce di menu, `core 0110`). La scheda dell'attività scrive codice e cartella con `POST /tasks/<id>/programma/`.
 
 Il FAI previsto è una proposta: chi gestisce il kickoff può segnarlo «Non richiesto per questo kickoff» (`POST /tasks/projects/<id>/programmi/fai-non-richiesto/`, migrazione `tasks 0054`). Restano chi e quando; se poi si apre un FAI, vale il FAI.

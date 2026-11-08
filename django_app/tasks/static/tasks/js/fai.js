@@ -62,4 +62,99 @@
 
   aggiornaTipo();
   aggiornaPiano();
+
+  // OP: suggerimenti dall'elenco unico degli OP e riquadro dell'OP scelto.
+  var op = form.querySelector("[data-fai-op]");
+  var elenco = document.getElementById("fai-op-elenco");
+  var scheda = form.querySelector("[data-fai-op-scheda]");
+  if (!op || !elenco || !scheda) return;
+  var attesa = null;
+  var ultimo = op.value.trim();
+
+  function chiedi(parametri) {
+    return fetch(op.dataset.url + "?" + new URLSearchParams(parametri).toString(), {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  }
+
+  function el(tag, testo, classe) {
+    var nodo = document.createElement(tag);
+    if (testo) nodo.textContent = testo;
+    if (classe) nodo.className = classe;
+    return nodo;
+  }
+
+  function voce(etichetta, valore) {
+    var span = el("span", etichetta + " ");
+    span.appendChild(el("strong", valore));
+    return span;
+  }
+
+  function plurale(n, singolare, plurale) {
+    return n + " " + (n === 1 ? singolare : plurale);
+  }
+
+  function mostra(dati, titolo) {
+    scheda.replaceChildren();
+    if (!titolo || !dati || dati.disponibile === false) return;
+    if (!dati.op) {
+      scheda.appendChild(el("p", titolo + " non è nell'elenco OP di Gestione anomalie. Si salva lo stesso; per collegarlo, crea l'OP da Gestione anomalie.", "fai-nota"));
+      return;
+    }
+    var o = dati.op;
+    var riga = el("p", "", "fai-op-riga");
+    var nome = el(o.url_scheda ? "a" : "span", o.op, "fai-op-nome");
+    if (o.url_scheda) { nome.href = o.url_scheda; nome.title = "Scheda dell'OP in Ordini di produzione"; }
+    riga.appendChild(nome);
+    if (o.pn) riga.appendChild(voce("P/N", o.pn));
+    if (o.capocommessa) riga.appendChild(voce("Capocommessa", o.capocommessa));
+    if (o.car) riga.appendChild(voce("CAR", o.car));
+    if (o.stato) riga.appendChild(el("span", o.stato, "ts-chip soft"));
+    var a = o.anomalie || { totale: 0, aperte: 0 };
+    var link = el("a", (a.totale
+      ? plurale(a.totale, "anomalia", "anomalie") + (a.aperte ? ", " + plurale(a.aperte, "aperta", "aperte") : "")
+      : "Nessuna anomalia") + " in Gestione anomalie");
+    link.href = o.url_anomalie;
+    riga.appendChild(link);
+    scheda.appendChild(riga);
+    if (o.pn_diverso) {
+      scheda.appendChild(el("p", "L'OP è del P/N " + o.pn + ", diverso da quello del FAI.", "fai-nota fai-op-avviso"));
+    }
+  }
+
+  function controlla() {
+    var titolo = op.value.trim();
+    if (titolo === ultimo) return;
+    ultimo = titolo;
+    if (!titolo) { mostra(null, ""); return; }
+    chiedi({ op: titolo, pn: pn.value.trim() }).then(function (dati) {
+      if (op.value.trim() === titolo) mostra(dati, titolo);
+    });
+  }
+
+  op.addEventListener("input", function () {
+    clearTimeout(attesa);
+    var testo = op.value.trim();
+    // Scelto un suggerimento: il valore coincide con una voce dell'elenco.
+    if (Array.prototype.some.call(elenco.options, function (o) { return o.value === testo; })) {
+      controlla();
+      return;
+    }
+    if (testo.length < 2) return;
+    attesa = setTimeout(function () {
+      chiedi({ q: testo }).then(function (dati) {
+        if (!dati || op.value.trim() !== testo) return;
+        elenco.replaceChildren();
+        (dati.risultati || []).forEach(function (r) {
+          var opzione = document.createElement("option");
+          opzione.value = r.op;
+          opzione.label = [r.pn, r.stato].filter(Boolean).join(" · ");
+          elenco.appendChild(opzione);
+        });
+      });
+    }, 250);
+  });
+  op.addEventListener("change", controlla);
+  pn.addEventListener("change", function () { ultimo = null; controlla(); });
 })();
