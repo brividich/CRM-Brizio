@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Guida · Ordini di produzione{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261108a">{% endblock %}
+
+{% block content %}
+<div class="prod">
+  <div class="prod-head">
+    <div><h1>Guida · {{ titolo }}</h1><p>{{ sottotitolo }}</p></div>
+    <a class="prod-btn" href="{% url 'produzione:guida' %}?formato=pdf">Scarica PDF</a>
+  </div>
+
+  {% include "produzione/_nav.html" %}
+
+  {% for sez in sezioni %}
+  <section class="prod-card prod-guida-sec" id="{{ sez.id }}">
+    <h2>{{ forloop.counter }}. {{ sez.titolo }}</h2>
+    {% for tipo, contenuto in sez.blocchi %}
+      {% if tipo == "p" %}<p>{{ contenuto }}</p>
+      {% elif tipo == "ul" %}<ul>{% for v in contenuto %}<li>{{ v }}</li>{% endfor %}</ul>
+      {% elif tipo == "passi" %}<ol>{% for v in contenuto %}<li>{{ v }}</li>{% endfor %}</ol>
+      {% elif tipo == "nota" %}<div class="prod-avviso">{{ contenuto }}</div>
+      {% elif tipo == "def" %}<dl>{% for t, d in contenuto %}<dt>{{ t }}</dt><dd>{{ d }}</dd>{% endfor %}</dl>
+      {% endif %}
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

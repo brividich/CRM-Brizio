@@ -39,6 +39,7 @@ _MODULI = (
     "notizie",
     "tickets",
     "tasks",
+    "produzione",
     "anomalie",
     "assets",
     "attrezzature",

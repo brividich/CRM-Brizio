@@ -1,0 +1,8 @@
+<tr>
+  <td><a class="prod-op" href="{% url 'tasks:fai_scheda' f.id %}">{{ f.piano_numero|default:"Senza numero" }}</a></td>
+  <td>{{ f.get_tipo_display|default:"—" }}</td>
+  <td><span class="prod-stato">{{ f.stato.etichetta }}</span></td>
+  <td>{{ f.data_invio|date:"d/m/Y"|default:"—" }}</td>
+  <td>{{ f.data_chiusura|date:"d/m/Y"|default:"—" }}</td>
+  <td>{{ f.op|default:"—" }}</td>
+</tr>

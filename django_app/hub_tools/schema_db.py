@@ -32,6 +32,8 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
                 "saldi, calendario aziendale, contatori, copertura reparti, storico richieste, solleciti, "
                 "permessi ripetuti (serie di richieste con una sola approvazione)"),
     "timbri": ("Persone e HR", "#64748b", "Registro timbri, firme e sigle"),
+    "produzione": ("Operations", "#0d9488", "Ordini di produzione: scheda dell'OP (tabella legacy ordini_produzione, letta) con i documenti "
+                   "di produzione registrati e i tipi decisi in Impostazioni; FAI, programmi CAM/CMM e anomalie letti dai loro moduli"),
     "presenti": ("Persone e HR", "#16a34a", "Presenti in azienda dalle timbrature Solari e esterni dal GuestPortal (letti, non copiati): "
                  "appelli di evacuazione con le persone contate, avvisi delle uscite non timbrate"),
     "notizie": ("Persone e HR", "#fbbf24", "Comunicazioni e letture"),
