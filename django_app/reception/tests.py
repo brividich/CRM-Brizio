@@ -192,7 +192,7 @@ class LettureTests(Base):
         c = ContattoDitta.objects.create(ditta=d, nome="Mario", cognome="Esempio")
         v = self.entra(tipo=Visita.FORNITORE, ditta=d, contatto=c, quando=timezone.now() - timedelta(hours=2))
         servizi.registra_uscita(v.pk)
-        oggi = timezone.localdate()
+        oggi = timezone.localdate(v.ingresso)  # il giorno dell'ingresso: fra le 00 e le 02 «2 ore fa» è ieri
         self.assertEqual(len(gp.ingressi_ditta(ditte_gp=[d.pk], nomi=[], dal=oggi, al=oggi)), 1)
         self.assertEqual(len(gp.ingressi_ditta(ditte_gp=[], nomi=["impianti esempio srl"], dal=oggi, al=oggi)), 1)
         self.assertEqual(gp.ingressi_ditta(ditte_gp=[], nomi=[], dal=oggi, al=oggi), [])

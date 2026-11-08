@@ -6,16 +6,7 @@
 
 {% block subnav %}
 <div class="subnav">
-  <a class="sub-a{% if sezione == 'cruscotto' %} active{% endif %}" href="{% url 'reception:cruscotto' %}">Presenti</a>
-  <a class="sub-a{% if sezione == 'registra' %} active{% endif %}" href="{% url 'reception:registra' %}">Registra ingresso</a>
-  <a class="sub-a{% if sezione == 'storico' %} active{% endif %}" href="{% url 'reception:storico' %}">Storico</a>
-  <a class="sub-a{% if sezione == 'preregistrazioni' %} active{% endif %}" href="{% url 'reception:preregistrazioni' %}">Pre-registrazioni</a>
-  <a class="sub-a{% if sezione == 'richieste' %} active{% endif %}" href="{% url 'reception:richieste' %}">Richieste{% if n_richieste %} ({{ n_richieste }}){% endif %}</a>
-  <div class="sub-sep"></div>
-  <a class="sub-a{% if sezione == 'referenti' %} active{% endif %}" href="{% url 'reception:referenti' %}">Referenti</a>
-  <a class="sub-a{% if sezione == 'ditte' %} active{% endif %}" href="{% url 'reception:ditte' %}">Ditte accreditate</a>
-  <a class="sub-a{% if sezione == 'cartellini' %} active{% endif %}" href="{% url 'reception:cartellini' %}">Cartellini</a>
-  <a class="sub-a{% if sezione == 'impostazioni' %} active{% endif %}" href="{% url 'reception:impostazioni' %}">Impostazioni</a>
+  {% for v in menu %}{% if v.separatore %}<div class="sub-sep"></div>{% else %}<a class="sub-a{% if sezione == v.nome %} active{% endif %}" href="{{ v.url }}">{{ v.etichetta }}{% if v.nome == "richieste" and n_richieste %} ({{ n_richieste }}){% endif %}</a>{% endif %}{% endfor %}
 </div>
 {% endblock %}
 
