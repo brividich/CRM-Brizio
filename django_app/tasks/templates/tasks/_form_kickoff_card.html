@@ -1,0 +1,8 @@
+{# Riquadro della commessa nella colonna laterale del form attività. Richiede «p». #}
+<section class="tf2-card tf2-ko">
+  <span class="tf2-kicker">Kickoff</span>
+  <a class="tf2-ko-name" href="{% url 'tasks:project_overview' p.id %}">{{ p.name }}</a>
+  <div class="tf2-ko-sub">{{ p.client_name|default:"Cliente non indicato" }}{% if p.part_number %} · P/N {{ p.part_number }}{% if p.revisione %} Rev. {{ p.revisione }}{% endif %}{% endif %}</div>
+  {% if locked_project_vrf_detail %}<div class="tf2-ko-vrf {{ locked_project_vrf_detail.status|default:'pending' }}">{{ locked_project_vrf_detail.label }}</div>{% endif %}
+  <div class="tf2-ko-sub">{% if locked_project_task_total %}{{ locked_project_task_total }} attività già in piano · {% endif %}<a href="{% url 'tasks:project_gantt' p.id %}">Apri il Gantt</a></div>
+</section>

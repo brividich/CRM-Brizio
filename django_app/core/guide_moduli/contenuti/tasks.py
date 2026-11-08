@@ -82,7 +82,7 @@ GUIDA = {
             "titolo": "Dove guardare",
             "blocchi": [
                 ("def", [
-                    ("Portfolio", "le commesse in card, board per fase (Bozza, VRF, In esecuzione, Completata) o timeline."),
+                    ("Portfolio", "le commesse in card, board per fase (Bozza, VRF, In esecuzione, Completata) o timeline. Ogni card mostra l'avanzamento (attività completate sul totale, annullate escluse, come in Panoramica e nel Gantt) e la prossima scadenza fra le attività aperte («In ritardo di N gg» se è passata)."),
                     ("Da gestire", "VRF mancanti, commesse non pronte, attività critiche, incontri con problemi aperti. «Le mie» filtra su di te."),
                     ("Calendario / Incontri", "tutti gli incontri del mese o in elenco, con i filtri per commessa, esito/minuta e prossimi 7 giorni."),
                     ("Programmi e FAI", "scheda della commessa con codici e percorsi di rete di programmi CAM, programmi CMM e FAI, ognuno col suo responsabile. Si compila anche dentro l'incontro."),

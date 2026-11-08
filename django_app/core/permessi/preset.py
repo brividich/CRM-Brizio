@@ -193,13 +193,13 @@ PRESETS: tuple[Preset, ...] = (
     ),
     Preset(
         "tecnico-it", "IT", 560,
-        "Ticket IT, asset, contatori, Security Center operativo, Wi-Fi ospiti.",
+        "Ticket IT, asset, contatori, Security Center operativo, reception e visitatori.",
         celle=_posizione(
             ticket_it={"vedere": A, "creare": A, "modificare": A, "gestire": A, "esportare": A},
             assets=_tutte(senza=("approvare",)),
             contatori=_tutte(senza=("approvare",)),
             soc=_tutte(senza=("approvare", "cancellare")),
-            portale_ospiti={"vedere": A, "gestire": A},
+            portale_ospiti={"vedere": A, "creare": A, "modificare": A, "cancellare": A, "gestire": A},
         ),
     ),
     Preset(

@@ -136,5 +136,5 @@ class GanttPaginaTests(TasksBaseTestCase):
 
     def test_form_nuova_attivita_mette_prima_l_essenziale(self):
         html = self.client.get(reverse("tasks:create") + f"?project={self.project.id}").content.decode()
-        self.assertIn("Cosa, chi e quando", html)
+        self.assertIn("Cosa va fatto", html)
         self.assertLess(html.index('name="assigned_to"'), html.index('name="description"'))

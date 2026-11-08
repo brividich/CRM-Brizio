@@ -10,7 +10,7 @@
 {% endblock %}
 
 {% block tasks_shell_title %}
-  {% if active_project %}{{ active_project.name }}{% else %}Control room KICK-OFF{% endif %}
+  {% if active_project %}{{ active_project.name }}{% else %}KICK-OFF: il quadro{% endif %}
 {% endblock %}
 
 {% block tasks_shell_subtitle %}
@@ -19,9 +19,9 @@
     {% if active_project.part_number %} &middot; P/N: {{ active_project.part_number }}{% endif %}
     {% if active_project.revisione %} &middot; Rev. {{ active_project.revisione }}{% endif %}
   {% elif is_scope_admin %}
-    Vista completa sul backlog del modulo KICK-OFF.
+    Le attività di tutte le commesse che puoi vedere: cosa è in ritardo, cosa scade, chi è libero.
   {% else %}
-    Le attivita kickoff nel tuo scope operativo configurato.
+    Le tue attività KICK-OFF e quelle delle commesse che segui.
   {% endif %}
 {% endblock %}
 
@@ -30,16 +30,16 @@
     <span class="ts-hero-pill">{{ dashboard_stats.total }} attivita</span>
     <span class="ts-hero-pill" style="background:rgba(34,197,94,.18);border-color:rgba(34,197,94,.3);">{{ done_pct }}% completato</span>
     {% if dashboard_stats.overdue > 0 %}
-      <span class="ts-hero-pill" style="background:rgba(239,68,68,.22);border-color:rgba(239,68,68,.35);">{{ dashboard_stats.overdue }} overdue</span>
+      <span class="ts-hero-pill" style="background:rgba(239,68,68,.22);border-color:rgba(239,68,68,.35);">{{ dashboard_stats.overdue }} scadut{{ dashboard_stats.overdue|pluralize:"a,e" }}</span>
     {% endif %}
   {% else %}
-    <span class="ts-hero-pill">{% if is_scope_admin %}Scope completo{% else %}Scope personale{% endif %}</span>
+    <span class="ts-hero-pill">{% if is_scope_admin %}Tutte le commesse{% else %}Le commesse che segui{% endif %}</span>
     <span class="ts-hero-pill">{{ dashboard_stats.total }} attivita</span>
     {% if dashboard_stats.overdue > 0 %}
-      <span class="ts-hero-pill" style="background:rgba(239,68,68,.22);border-color:rgba(239,68,68,.35);">{{ dashboard_stats.overdue }} overdue</span>
+      <span class="ts-hero-pill" style="background:rgba(239,68,68,.22);border-color:rgba(239,68,68,.35);">{{ dashboard_stats.overdue }} scadut{{ dashboard_stats.overdue|pluralize:"a,e" }}</span>
     {% endif %}
     {% if showing_mine_default %}
-      <span class="ts-hero-pill">Solo mie</span>
+      <span class="ts-hero-pill">Solo le mie</span>
     {% endif %}
   {% endif %}
 {% endblock %}
@@ -48,7 +48,7 @@
   {% if active_project %}
     <a class="ts-hero-action primary" href="{% url 'tasks:project_gantt' active_project.id %}">Diagramma Gantt</a>
     {% if can_create %}
-      <a class="ts-hero-action" href="{% url 'tasks:create' %}?project={{ active_project.id }}">+ Nuova attivita</a>
+      <a class="ts-hero-action" href="{% url 'tasks:create' %}?project={{ active_project.id }}">+ Nuova attività</a>
     {% endif %}
     <a class="ts-hero-action" href="{% url 'tasks:project_list' %}">Portfolio kickoff</a>
   {% else %}
@@ -67,7 +67,7 @@
 {% block tasks_shell_kpis %}
 <section class="ts-kpis">
   <article class="ts-kpi blue">
-    <div class="ts-kpi-label">{% if active_project %}Attivita kickoff{% else %}In scope{% endif %}</div>
+    <div class="ts-kpi-label">{% if active_project %}Attivita kickoff{% else %}Attività{% endif %}</div>
     <div class="ts-kpi-value">{{ dashboard_stats.total }}</div>
     <div class="ts-kpi-note">{% if active_project %}Totale in questo kickoff.{% else %}Attivita nel perimetro.{% endif %}</div>
     <div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:100%"></div></div>
@@ -85,7 +85,7 @@
     {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.todo dashboard_stats.total 100 %}%"></div></div>{% endif %}
   </article>
   <article class="ts-kpi red">
-    <div class="ts-kpi-label">Overdue</div>
+    <div class="ts-kpi-label">Scadute</div>
     <div class="ts-kpi-value">{{ dashboard_stats.overdue }}</div>
     <div class="ts-kpi-note">Scadute e ancora aperte.</div>
     {% if dashboard_stats.total %}<div class="ts-kpi-bar"><div class="ts-kpi-bar-fill" style="width:{% widthratio dashboard_stats.overdue dashboard_stats.total 100 %}%"></div></div>{% endif %}
@@ -221,7 +221,7 @@
             </div>
           </div>
           <div class="ts-checkline-group">
-            <label class="ts-checkline">{{ filter_form.overdue }} Solo overdue</label>
+            <label class="ts-checkline">{{ filter_form.overdue }} Solo scadute</label>
             <label class="ts-checkline">{{ filter_form.unassigned }} Non assegnate</label>
             <label class="ts-checkline">{{ filter_form.without_due_date }} Senza data fine</label>
           </div>
@@ -429,7 +429,7 @@
         {% if is_scope_admin %}
           <div class="tl-scope-toggle">
             <a class="tl-scope-btn{% if showing_mine_default %} active{% endif %}" href="{% url 'tasks:list' %}">Le mie</a>
-            <a class="tl-scope-btn{% if not showing_mine_default %} active{% endif %}" href="{% url 'tasks:list' %}?mine=0">Tutto lo scope</a>
+            <a class="tl-scope-btn{% if not showing_mine_default %} active{% endif %}" href="{% url 'tasks:list' %}?mine=0">Tutte</a>
           </div>
         {% endif %}
         <button class="tl-filter-toggle" id="tl-toggle-btn" type="button" onclick="toggleFilters()">
@@ -439,7 +439,7 @@
           Filtri
         </button>
         <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?status=IN_PROGRESS{% if is_scope_admin %}&mine=0{% endif %}">In corso</a>
-        <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?overdue=on{% if is_scope_admin %}&mine=0{% endif %}">Overdue</a>
+        <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?overdue=on{% if is_scope_admin %}&mine=0{% endif %}">Scadute</a>
       </div>
     </div>
 
@@ -484,8 +484,8 @@
             </div>
           </div>
           <div class="ts-checkline-group">
-            <label class="ts-checkline">{{ filter_form.mine }} Solo mie</label>
-            <label class="ts-checkline">{{ filter_form.overdue }} Solo overdue</label>
+            <label class="ts-checkline">{{ filter_form.mine }} Solo le mie</label>
+            <label class="ts-checkline">{{ filter_form.overdue }} Solo scadute</label>
             <label class="ts-checkline">{{ filter_form.unassigned }} Non assegnate</label>
             <label class="ts-checkline">{{ filter_form.without_due_date }} Senza data fine</label>
           </div>
@@ -515,7 +515,7 @@
                   </td>
                   <td>
                     {% if task.is_overdue %}
-                      <span class="ts-badge danger">Overdue</span>
+                      <span class="ts-badge danger">Scaduta</span>
                     {% else %}
                       <span class="ts-badge ts-badge--{{ task.status|lower }}">{{ task.get_status_display }}</span>
                     {% endif %}
@@ -558,7 +558,7 @@
           <div class="ts-actions">
             <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}">Reset filtri</a>
             {% if is_scope_admin %}
-              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?mine=0">Tutte le attivita in scope</a>
+              <a class="btn btn-secondary btn-sm" href="{% url 'tasks:list' %}?mine=0">Tutte le attività</a>
             {% endif %}
             {% if can_create %}
               <a class="btn btn-sm" href="{% url 'tasks:project_list' %}">Vai ai kickoff</a>

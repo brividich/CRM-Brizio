@@ -64,7 +64,8 @@ class PercorsoRenderTests(TestCase):
         self.assertNotIn("Attivita singola", body)
         self.assertNotIn('value="single"', body)
         # il pannello di aggancio kickoff è presente (task sempre dentro un kickoff)
-        self.assertIn("Aggancio e anagrafica kickoff", body)
+        self.assertIn("In quale kickoff?", body)
+        self.assertIn('id="project-workspace"', body)
 
     def test_task_detail_renders(self):
         from tasks.models import Project, Task

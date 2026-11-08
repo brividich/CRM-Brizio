@@ -77,7 +77,7 @@ Lo scope e' gia' filtrato in tasks/meeting_alerts.py (ACL + «i miei»).
       <span class="ka-col-title">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
         Le mie azioni
-        {% if meeting_alerts.mie_voci_scadute %}<span class="ka-count">{{ meeting_alerts.mie_voci_scadute }}</span>{% endif %}
+        {% if meeting_alerts.mie_voci_scadute %}<span class="ka-count" title="Scadute">{{ meeting_alerts.mie_voci_scadute }} scadut{{ meeting_alerts.mie_voci_scadute|pluralize:"a,e" }}</span>{% endif %}
       </span>
       <a class="ka-col-link" href="{% url 'tasks:mie_azioni' %}">Tutte ({{ meeting_alerts.mie_voci_total }}) &rarr;</a>
     </header>
@@ -98,7 +98,7 @@ Lo scope e' gia' filtrato in tasks/meeting_alerts.py (ACL + «i miei»).
         {% endfor %}
       </ul>
     {% else %}
-      <p class="ka-empty">Nessuna azione o problema aperto a tuo nome.</p>
+      <p class="ka-empty">Niente di aperto a tuo nome.</p>
     {% endif %}
   </article>
 

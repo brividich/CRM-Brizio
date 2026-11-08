@@ -40,6 +40,13 @@ class PagineImpostazioni:
 
 
 IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
+    # Reception → Impostazioni (avviso al chiosco, cancellazione dei dati oltre il termine): reception 0006.
+    "portale_ospiti": PagineImpostazioni(
+        codici=("reception.impostazioni.manage",),
+        rotte=("reception:impostazioni",),
+        nuovo="Reception · impostazioni",
+        modulo_acl="portale_esterno",
+    ),
     "assenze": PagineImpostazioni(
         codici=("assenze.impostazioni.manage",),
         rotte=("assenze_impostazioni",),

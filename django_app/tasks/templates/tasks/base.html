@@ -4,12 +4,12 @@
 {% block title %}{{ page_title|default:"KICK-OFF" }} - NOVICROM HUB{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261102">
+<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261109">
 {% block tasks_head %}{% endblock %}
 {% endblock %}
 
 {% block content %}
-  {% include "core/components/page_header.html" with eyebrow=page_eyebrow|default:"Workflow operativo" title=page_title|default:"KICK-OFF" subtitle=page_subtitle only %}
+  {% include "core/components/page_header.html" with eyebrow=page_eyebrow|default:"KICK-OFF" title=page_title|default:"KICK-OFF" subtitle=page_subtitle only %}
   {% block page_actions %}{% endblock %}
 
 

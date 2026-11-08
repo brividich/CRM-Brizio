@@ -525,11 +525,11 @@ class TaskForm(forms.ModelForm):
             "status": forms.Select(attrs={"class": "input"}),
             "priority": forms.Select(attrs={"class": "input"}),
             "progress": forms.NumberInput(attrs={"class": "input", "min": 0, "max": 100, "step": 5}),
-            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}),
+            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "next_step_text": forms.TextInput(attrs={"class": "input", "maxlength": 300}),
-            "next_step_due": forms.DateInput(attrs={"class": "input", "type": "date"}),
+            "next_step_due": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "assigned_to": forms.Select(attrs={"class": "input"}),
-            "subscribers": forms.SelectMultiple(attrs={"class": "input"}),
+            "subscribers": forms.CheckboxSelectMultiple(),
         }
 
     def __init__(self, *args, user=None, project_queryset=None, locked_project=None, **kwargs):
@@ -950,11 +950,11 @@ class TaskFilterForm(forms.Form):
     without_due_date = forms.BooleanField(required=False)
     due_from = forms.DateField(
         required=False,
-        widget=forms.DateInput(attrs={"class": "input", "type": "date"}),
+        widget=forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
     )
     due_to = forms.DateField(
         required=False,
-        widget=forms.DateInput(attrs={"class": "input", "type": "date"}),
+        widget=forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
     )
     assigned_to = forms.ModelChoiceField(
         required=False,
@@ -1082,7 +1082,7 @@ class SubTaskForm(forms.ModelForm):
         widgets = {
             "title": forms.TextInput(attrs={"class": "input", "maxlength": 200}),
             "assigned_to": forms.Select(attrs={"class": "input"}),
-            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}),
+            "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "order_index": forms.NumberInput(attrs={"class": "input", "min": 0}),
         }
 

@@ -39,6 +39,7 @@ from ..services.notify import (
 )
 from ._shared import (
     OPEN_STATUSES,
+    percentuale_avanzamento,
     _tasks_shell_context,
     _vrf_status_detail,
 )
@@ -283,8 +284,10 @@ def project_list(request):
     # campo non aggregato su una relazione multi-riga forza Django a raggruppare
     # anche gli altri Count() per quel valore, sdoppiando il progetto in una riga
     # per ogni due_date distinta tra i suoi task.
+    # Solo attivita' aperte: prima contava anche le completate, e una commessa in
+    # regola risultava «Scaduta da 15gg» per un'attivita' chiusa da tempo.
     earliest_due_sq = (
-        Task.objects.filter(project=OuterRef("pk"), due_date__isnull=False)
+        Task.objects.filter(project=OuterRef("pk"), due_date__isnull=False, status__in=OPEN_STATUSES)
         .order_by()
         .values("project")
         .annotate(v=Min("due_date"))
@@ -304,6 +307,7 @@ def project_list(request):
     projects_qs = projects_base_qs.annotate(
         data_inizio=Subquery(first_meeting_sq),
         task_done=Count("tasks", filter=Q(tasks__status=TaskStatus.DONE), distinct=True),
+        task_total=Count("tasks", filter=~Q(tasks__status=TaskStatus.CANCELED), distinct=True),
         task_overdue=Count(
             "tasks",
             filter=Q(tasks__status__in=OPEN_STATUSES, tasks__due_date__lt=today),
@@ -341,6 +345,12 @@ def project_list(request):
         p.can_manage = can_manage_project(request, p)
         p.readiness = compute_project_readiness(p)
         p.days_to_delivery = (p.earliest_due - today).days if p.earliest_due else None
+        p.progress_pct = percentuale_avanzamento(p.task_done, p.task_total)
+
+    if q_sort == "progress_desc":
+        # Per percentuale, come la barra della card: il conteggio assoluto delle
+        # chiuse premiava le commesse con piu' attivita'.
+        projects.sort(key=lambda p: (-p.progress_pct, p.name.casefold()))
 
     # Filtro VRF applicato lato Python (usa vrf_detail già calcolato)
     if q_vrf:

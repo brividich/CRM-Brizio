@@ -197,10 +197,29 @@ def _vrf_bozza(project) -> dict | None:
     return {"tr": totali["tr"], "livello": totali["level"]["label"], "mancanti": totali["missing"]}
 
 
+def percentuale_avanzamento(completate: int, totale_non_annullate: int) -> int:
+    """Avanzamento di una commessa: completate sul totale, annullate escluse.
+
+    Unica regola per portfolio, panoramica e Gantt: prima il Gantt contava anche
+    le annullate e le tre pagine davano percentuali diverse.
+    """
+    return round(completate * 100 / totale_non_annullate) if totale_non_annullate else 0
+
+
 def _apply_default_ordering(qs):
-    return qs.order_by(
-        F("next_step_due").asc(nulls_last=True),
+    """Aperte prima, poi per scadenza: prima le completate stavano in cima."""
+    from django.db.models import Case, IntegerField, Value, When
+
+    return qs.annotate(
+        _chiusa=Case(
+            When(status__in=(TaskStatus.DONE, TaskStatus.CANCELED), then=Value(1)),
+            default=Value(0),
+            output_field=IntegerField(),
+        )
+    ).order_by(
+        "_chiusa",
         F("due_date").asc(nulls_last=True),
+        F("next_step_due").asc(nulls_last=True),
         "-updated_at",
     )
 

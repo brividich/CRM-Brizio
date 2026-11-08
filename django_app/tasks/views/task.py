@@ -334,6 +334,8 @@ def task_detail(request, task_id: int):
             # La scheda FAI parte da ciò che la procedura prevede per questo P/N.
             "task_fai_causale": _causale_fai(tech_ref),
             "task_tech_ref_modificabile": can_manage or task.assigned_to_id == request.user.pk,
+            # Il responsabile arriva qui dalla notifica: deve poter prendere in carico e chiudere.
+            "is_assignee": task.assigned_to_id == request.user.pk,
         },
     )
 
@@ -1015,7 +1017,11 @@ def change_status(request, task_id: int):
                 TaskEventType.STATUS_CHANGE,
                 {"from": old_status, "to": task.status},
             )
-            messages.success(request, "Stato task aggiornato.")
+            messages.success(request, "Stato aggiornato.")
+            if task.status == TaskStatus.DONE:
+                from ..services.meeting_tasks import notify_task_completed
+
+                notify_task_completed(task, actor=request.user)
             from ..models import ProjectTechRef
 
             mancante = ProjectTechRef.objects.filter(task=task, status="OPEN").first()

@@ -904,6 +904,60 @@ body.tk-wide .content { width: 100%; max-width: none; }
 .ko-metric-value--date { font-size: var(--hub-font-xl); }
 .ko-metric-value--empty { color: var(--hub-color-text-soft); }
 .ko-metric-label { color: var(--hub-color-text-muted); font-size: var(--hub-font-sm); }
+/* ── Form attività (09/11/2026): colonna principale + colonna laterale ── */
+.tf2 { max-width: 1180px; margin: 0 auto; width: 100%; }
+.tf2-form { display: grid; gap: 16px; }
+.tf2-cols { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.tf2-main { display: grid; gap: 16px; min-width: 0; }
+.tf2-side { display: grid; gap: 16px; position: sticky; top: calc(var(--nav-h, 60px) + 16px); }
+.tf2-card { display: grid; gap: 16px; padding: 20px 22px; background: var(--hub-color-surface); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg, 14px); box-shadow: var(--hub-shadow-sm); }
+.tf2-card .ts-field { margin: 0; }
+.tf2-h { margin: 0; font-size: 16px; }
+.tf2-h3 { margin: 6px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--hub-color-text-muted); }
+.tf2-title-field input { font-size: 18px; font-weight: 600; padding: 12px 14px; }
+.tf2-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.tf2-row > .ts-field { flex: 1 1 150px; min-width: 0; }
+.tf2-row > .tf2-grow { flex: 2 1 220px; }
+.tf2-dates > .ts-field { flex: 0 1 200px; }
+.tf2-arrow { padding-bottom: 10px; color: var(--hub-color-text-muted); font-weight: 700; }
+.tf2-durata { padding-bottom: 10px; font-size: 13px; font-weight: 700; color: var(--success, #15803d); }
+.tf2-durata.errore { color: var(--danger, #dc2626); }
+.tf2-opt { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--hub-color-text-muted); font-size: 11px; margin-left: 4px; }
+.tf2-note { margin: 0; font-size: 12px; color: var(--hub-color-text-muted); }
+.tf2-card textarea { min-height: 80px; }
+.tf2-card select[multiple] { min-height: 150px; }
+.tf2-copia { max-height: 220px; overflow-y: auto; border: 1px solid var(--hub-color-border); border-radius: 10px; padding: 6px 10px; }
+.tf2-copia label { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--hub-color-text); cursor: pointer; }
+.tf2-copia-cerca { margin-bottom: 6px; }
+.tf2-copia div { margin: 0; padding: 0; }
+.tf2-copia input[type=checkbox] { width: 16px; height: 16px; margin: 0; flex: 0 0 auto; }
+.tf2-more { background: var(--hub-color-surface); border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg, 14px); }
+.tf2-more > summary { cursor: pointer; padding: 14px 22px; font-weight: 700; list-style: none; }
+.tf2-more > summary::-webkit-details-marker { display: none; }
+.tf2-more > summary::before { content: "▸ "; color: var(--hub-color-text-muted); }
+.tf2-more[open] > summary::before { content: "▾ "; }
+.tf2-more > summary span { font-weight: 400; font-size: 12px; color: var(--hub-color-text-muted); margin-left: 6px; }
+.tf2-more-body { display: grid; gap: 14px; padding: 0 22px 20px; }
+.tf2-check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.tf2-check small { display: block; font-size: 12px; color: var(--hub-color-text-muted); font-weight: 400; }
+.tf2-ko { gap: 6px; border-left: 4px solid var(--accent, #f97316); }
+.tf2-kicker { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--hub-color-text-muted); }
+.tf2-ko-name { font-size: 16px; font-weight: 700; color: var(--hub-color-text); text-decoration: none; }
+.tf2-ko-sub { font-size: 12px; color: var(--hub-color-text-muted); }
+.tf2-ko-vrf { font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px; background: var(--hub-color-surface-alt, #f1f5f9); }
+.tf2-ko-vrf.blocked { background: #fee2e2; color: #991b1b; }
+.tf2-ko-vrf.warning { background: #fef3c7; color: #92400e; }
+.tf2-save { gap: 10px; }
+.tf2-save .btn { width: 100%; justify-content: center; text-align: center; }
+@media (max-width: 960px) {
+  .tf2-cols { grid-template-columns: 1fr; }
+  .tf2-side { position: static; }
+}
+.td-avanz { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--hub-color-text-muted); }
+.td-avanz-bar { display: inline-block; width: 70px; height: 6px; border-radius: 99px; background: var(--hub-color-border); overflow: hidden; }
+.td-avanz-bar i { display: block; height: 100%; background: var(--success, #16a34a); }
+.ko-metric-bar { display: block; height: 5px; margin-top: 4px; border-radius: 99px; background: var(--hub-color-border); overflow: hidden; }
+.ko-metric-bar i { display: block; height: 100%; background: var(--success, #16a34a); }
 .ko-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--hub-space-4); margin-bottom: var(--hub-space-4); }
 .ko-panel { overflow: hidden; border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg); background: var(--hub-color-surface); box-shadow: var(--hub-shadow-sm); }
 .ko-panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--hub-space-3); padding: var(--hub-space-4); border-bottom: 1px solid var(--hub-color-border); background: var(--hub-color-surface-raised); }
@@ -1330,6 +1384,12 @@ body.theme-dark .vrf-id-chip.ver { background:rgba(154,52,18,.2); border-color:r
 .pf-pill--overdue { background: var(--hub-status-danger-bg); color: var(--hub-status-danger); }
 
 .pf-card-sep { border-top: 1px solid var(--hub-color-border); }
+.pf-progress { display: grid; gap: 5px; }
+.pf-progress-head { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--text-light); }
+.pf-progress-head strong { color: var(--text); font-size: 14px; }
+.pf-progress-n { margin-left: auto; }
+.pf-progress-bar { height: 6px; border-radius: 99px; background: var(--hub-color-border); overflow: hidden; }
+.pf-progress-bar i { display: block; height: 100%; background: var(--success, #16a34a); border-radius: 99px; }
 
 .pf-card-team {
   display: flex;

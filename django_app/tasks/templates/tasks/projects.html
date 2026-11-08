@@ -7,16 +7,16 @@
 {% block tasks_shell_title %}Portfolio kickoff{% endblock %}
 
 {% block tasks_shell_subtitle %}
-  Vista sintetica dei kickoff nel tuo scope — P/N, cliente, avanzamento e stato documento VRF.
+  Le commesse che puoi vedere: P/N, cliente, avanzamento e stato del documento VRF.
 {% endblock %}
 
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">{{ projects|length }} kickoff</span>
-  <span class="ts-hero-pill">{% if is_scope_admin %}Scope completo{% else %}Scope personale{% endif %}</span>
+  <span class="ts-hero-pill">{% if is_scope_admin %}Tutte le commesse{% else %}Le commesse che segui{% endif %}</span>
 {% endblock %}
 
 {% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard attivita</a>
+  <a class="ts-hero-action" href="{% url 'tasks:list' %}">Dashboard attività</a>
   {% if tasks_shell_can_create %}
     <a class="ts-hero-action" href="{% url 'tasks:import_excel' %}">Import Excel</a>
     <a class="ts-hero-action primary" href="{% url 'tasks:project_create' %}">+ Nuovo kickoff</a>
@@ -28,11 +28,11 @@
   <div class="ts-panel-head">
     <div class="ts-panel-title-wrap">
       <h2 class="ts-panel-title">Elenco kickoff</h2>
-      <p class="ts-panel-subtitle">Ogni card rappresenta un kickoff con identita P/N, avanzamento attivita e stato VRF.</p>
+      <p class="ts-panel-subtitle">Ogni card è un kickoff: identità P/N, avanzamento delle attività e stato VRF.</p>
     </div>
     <div class="ts-panel-meta">
-      <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?status=IN_PROGRESS">Attivita in corso</a>
-      <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?overdue=on">Attivita overdue</a>
+      <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?status=IN_PROGRESS">Attività in corso</a>
+      <a class="ts-chip soft" style="text-decoration:none;font-size:11px;" href="{% url 'tasks:list' %}?overdue=on">Attività scadute</a>
     </div>
   </div>
   {# ── Toolbar filtri ── #}
@@ -101,11 +101,11 @@
                 <a class="pf-card-name" href="{% url 'tasks:project_overview' project.id %}">
                   {% if project.kickoff_number %}<span class="pf-ko-number">KO-{{ project.kickoff_number }}</span>{% endif %}<span>{{ project.name }}</span>
                 </a>
-                <span class="pf-card-days{% if project.days_to_delivery is not None and project.days_to_delivery < 0 %} danger{% endif %}">
-                  {% if project.days_to_delivery is None %}Nessuna scadenza
-                  {% elif project.days_to_delivery < 0 %}Scaduta da {{ project.days_to_delivery|cut:"-" }}gg
+                <span class="pf-card-days{% if project.days_to_delivery is not None and project.days_to_delivery < 0 %} danger{% endif %}" title="Prossima scadenza fra le attività aperte">
+                  {% if project.days_to_delivery is None %}{% if project.task_total %}Nessuna scadenza aperta{% else %}Piano da scrivere{% endif %}
+                  {% elif project.days_to_delivery < 0 %}In ritardo di {{ project.days_to_delivery|cut:"-" }}gg
                   {% elif project.days_to_delivery == 0 %}Scade oggi
-                  {% else %}Tra {{ project.days_to_delivery }}gg{% endif %}
+                  {% else %}Prossima scadenza tra {{ project.days_to_delivery }}gg{% endif %}
                 </span>
               </div>
 
@@ -143,6 +143,12 @@
                 {% if project.readiness and project.readiness.level != 'ready' %}
                   {% include "tasks/_readiness_badge.html" with readiness=project.readiness %}
                 {% endif %}
+              </div>
+
+              {# Avanzamento: attività completate sul totale (annullate escluse). #}
+              <div class="pf-progress" title="{{ project.task_done }} attività completate su {{ project.task_total }}">
+                <div class="pf-progress-head"><span>Avanzamento</span><strong>{{ project.progress_pct }}%</strong><span class="pf-progress-n">{{ project.task_done }}/{{ project.task_total }} attività</span></div>
+                <div class="pf-progress-bar"><i style="width:{{ project.progress_pct }}%"></i></div>
               </div>
 
               <div class="pf-card-sep"></div>
@@ -199,7 +205,7 @@
       </div><!-- /.pf-grid -->
     {% else %}
       <div class="ts-empty">
-        <strong>Nessun kickoff disponibile nel tuo scope.</strong>
+        <strong>Nessun kickoff da mostrare.</strong>
         <div>Inizia creando un kickoff (le attivita' si aggiungono dentro il kickoff), oppure importa da Excel.</div>
         {% if tasks_shell_can_create %}
           <div class="ts-actions">

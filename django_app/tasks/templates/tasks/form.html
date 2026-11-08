@@ -3,33 +3,15 @@
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / {% if mode == "edit" %}Modifica{% else %}Creazione{% endif %}</span>{% endblock %}
 {% block tasks_shell_title %}{% if mode == "edit" %}Modifica attività{% elif locked_project %}Nuova attività in {{ locked_project.name }}{% else %}Nuova attività{% endif %}{% endblock %}
-{% block tasks_shell_subtitle %}{% if mode == "edit" %}Aggiorna contesto, kickoff e pianificazione mantenendo la scheda coerente con il resto del portale.{% elif locked_project %}Titolo, date e responsabile bastano: l'attività entra nel Gantt del kickoff.{% else %}Inserisci una nuova attivita kickoff con un flusso guidato: prima il contesto, poi il kickoff P/N, quindi pianificazione e responsabilita operative.{% endif %}{% endblock %}
+{% block tasks_shell_subtitle %}{% if mode == "edit" %}Cambia titolo, responsabile, date e stato. Se cambi il responsabile, il nuovo riceve notifica e mail.{% elif locked_project %}Titolo, date e responsabile bastano: l'attività entra nel Gantt del kickoff.{% else %}Scegli il kickoff, poi cosa va fatto, chi lo fa e quando.{% endif %}{% endblock %}
 {% block tasks_shell_meta %}
-  <span class="ts-hero-pill">{% if mode == "edit" %}Modalita modifica{% else %}Modalita creazione{% endif %}</span>
-  {% if task and task.project %}<span class="ts-hero-pill">{{ task.project.name }}</span>{% if task.project.part_number %}<span class="ts-hero-pill">P/N {{ task.project.part_number }}</span>{% endif %}{% elif locked_project %}<span class="ts-hero-pill">Dentro il kickoff</span>{% elif suggested_project_id %}<span class="ts-hero-pill">Kickoff preselezionato</span>{% else %}<span class="ts-hero-pill">Attività in kickoff</span>{% endif %}
+  {% if task and task.project %}<span class="ts-hero-pill">{{ task.project.name }}</span>{% if task.project.part_number %}<span class="ts-hero-pill">P/N {{ task.project.part_number }}</span>{% endif %}{% endif %}
   {% if task %}<span class="ts-hero-pill">{{ task.get_status_display }}</span>{% endif %}
 {% endblock %}
 {% block tasks_shell_actions %}{% if task %}<a class="ts-hero-action" href="{% url 'tasks:detail' task.id %}">Torna al dettaglio</a>{% elif locked_project %}<a class="ts-hero-action" href="{% url 'tasks:project_gantt' locked_project.id %}">Torna al Gantt kickoff</a>{% else %}<a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna alla dashboard</a>{% endif %}{% endblock %}
 {% block tasks_shell_content %}
-<div class="tf-wrap">
-  {% if locked_project %}
-  <section class="tf-kickoff-strip">
-    <div class="tf-kickoff-strip-left">
-      <span class="tf-kicker">Kickoff</span>
-      <div class="tf-kickoff-strip-name">{{ locked_project.name }}</div>
-      <div class="tf-kickoff-strip-sub">Attività collegata a questo kickoff</div>
-      <div class="tf-kickoff-strip-sub">{{ locked_project.client_name|default:"Cliente non indicato" }}{% if locked_project_task_total %} &middot; {{ locked_project_task_total }} attivita gia collegate{% endif %}</div>
-    </div>
-    <div class="tf-kickoff-strip-chips">
-      {% if locked_project.part_number %}<span class="tf-id-chip pn"><span class="lbl">P/N</span>{{ locked_project.part_number }}</span>{% endif %}
-      {% if locked_project.revisione %}<span class="tf-id-chip rev"><span class="lbl">Rev</span>{{ locked_project.revisione }}</span>{% endif %}
-      {% if locked_project.versione %}<span class="tf-id-chip ver"><span class="lbl">Ver</span>{{ locked_project.versione }}</span>{% endif %}
-      {% if locked_project_vrf_detail %}<span class="tf-kickoff-strip-vrf tf-banner {{ locked_project_vrf_detail.status|default:'pending' }}">{{ locked_project_vrf_detail.label }}</span>{% endif %}
-    </div>
-  </section>
-  {% endif %}
-
-  <form method="post" class="tf-grid">
+<div class="tf2">
+  <form method="post" class="tf2-form" novalidate>
     {% csrf_token %}
     {% if form.non_field_errors %}<div class="ts-message danger">{{ form.non_field_errors }}</div>{% endif %}
     {% comment %}Errori dei campi legacy 'nuovo kickoff inline' (hidden nel template): li mostriamo qui per non perdere il messaggio.{% endcomment %}
@@ -38,163 +20,165 @@
     {% if form.project_new_revisione.errors %}<div class="ts-message danger">{{ form.project_new_revisione.errors|join:" " }}</div>{% endif %}
     {% if form.project_new_versione.errors %}<div class="ts-message danger">{{ form.project_new_versione.errors|join:" " }}</div>{% endif %}
 
+    {# ── Aggancio al kickoff: fisso se si arriva da una commessa o si modifica, a scelta altrimenti ── #}
     {% if locked_project %}
-    <input type="hidden" name="{{ form.task_scope.html_name }}" value="project">
-    <input type="hidden" name="{{ form.project_link_mode.html_name }}" value="existing">
-    <input type="hidden" name="{{ form.project_choice.html_name }}" value="{{ locked_project.id }}">
+      <input type="hidden" name="{{ form.task_scope.html_name }}" value="project">
+      <input type="hidden" name="{{ form.project_link_mode.html_name }}" value="existing">
+      <input type="hidden" name="{{ form.project_choice.html_name }}" value="{{ locked_project.id }}">
+    {% elif task and not task.project_id %}
+      {# Attività legacy senza kickoff: resta tale. #}
+      <input type="hidden" name="{{ form.task_scope.html_name }}" value="single">
+      <input type="hidden" name="{{ form.project_link_mode.html_name }}" value="existing">
+    {% elif task %}
+      {# In modifica il kickoff non cambia da qui: prima c'era un pannello vuoto. #}
+      <input type="hidden" name="{{ form.task_scope.html_name }}" value="project">
+      <input type="hidden" name="{{ form.project_link_mode.html_name }}" value="existing">
+      <input type="hidden" name="{{ form.project_choice.html_name }}" value="{{ task.project_id }}">
     {% else %}
-    {% if task and not task.project_id %}
-    {# Modifica di un'attività legacy senza kickoff: resta tale, nessun kickoff forzato. #}
-    <input type="hidden" name="{{ form.task_scope.html_name }}" value="single">
-    <input type="hidden" name="{{ form.project_link_mode.html_name }}" value="existing">
-    {% else %}
-    {# Ogni nuova attività nasce dentro un kickoff. #}
-    <input type="hidden" name="{{ form.task_scope.html_name }}" value="project">
-
-    <section class="tf-panel">
-      <div class="tf-head">
-        <div><span class="tf-kicker">Kickoff</span><h2 class="tf-title">Aggancio e anagrafica kickoff</h2><p class="tf-copy">Scegli se collegarti a un kickoff esistente oppure aprirne uno nuovo. Il focus e sull'identificativo P/N.</p></div>
-        <div class="tf-aside">Quando inserisci una nuova anagrafica con lo stesso P/N, revisione e versione di un kickoff gia esistente, il sistema riusa il kickoff corretto invece di crearne uno duplicato.</div>
-      </div>
-
-      <div id="project-workspace" class="tf-grid">
-        {# Il form richiede sempre un kickoff esistente. Per creare un nuovo kickoff usare il flusso dedicato. #}
+      <input type="hidden" name="{{ form.task_scope.html_name }}" value="project">
+      <section class="tf2-card" id="project-workspace">
+        <h2 class="tf2-h">In quale kickoff?</h2>
         <input type="hidden" name="project_link_mode" value="existing">
-
-        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 16px; background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; margin-bottom:10px;">
-          <div style="flex:1; min-width:220px; font-size:13px; color:#9a3412;">
-            <strong>Serve creare un nuovo kickoff?</strong>
-            Dalla pagina dedicata compili anagrafica, scheda VRF e pianifichi le attivita' in un percorso guidato.
-          </div>
-          <a href="{% url 'tasks:project_create' %}" class="btn btn-sm">+ Nuovo kickoff</a>
-        </div>
-
         <div id="project-existing-panel" class="tf-project-box">
-          <div class="tf-search"><span class="tf-search-tag">P/N</span><input id="project-choice-filter" class="input" type="text" placeholder="Cerca kickoff per nome, cliente, P/N, revisione o versione"></div>
-          <div class="ts-field"><label for="{{ form.project_choice.id_for_label }}">{{ form.project_choice.label }}</label>{{ form.project_choice }}{% if form.project_choice.errors %}<div class="ts-field-error">{{ form.project_choice.errors }}</div>{% endif %}{% if form.project_choice.help_text %}<div class="ts-field-help">{{ form.project_choice.help_text }}</div>{% endif %}</div>
+          <div class="tf-search"><span class="tf-search-tag">Cerca</span><input id="project-choice-filter" class="input" type="text" placeholder="Nome, cliente, P/N, revisione o versione"></div>
+          <div class="ts-field"><label for="{{ form.project_choice.id_for_label }}">{{ form.project_choice.label }}</label>{{ form.project_choice }}{% if form.project_choice.errors %}<div class="ts-field-error">{{ form.project_choice.errors }}</div>{% endif %}</div>
           <div id="project-info-panel" class="tf-project-info" data-info-url="{% url 'tasks:project_info_json' 0 %}" hidden></div>
-          <div id="project-info-empty" class="tf-empty">Seleziona un kickoff esistente per vedere subito P/N, referenti, stato documento VRF e sequenza delle attivita gia presenti.</div>
+          <div id="project-info-empty" class="tf-empty">Scegli il kickoff: compaiono P/N, referenti, stato VRF e le attività già in piano.</div>
         </div>
-
-        {# Campi legacy del ramo 'nuovo kickoff inline' mantenuti hidden per compat form backend #}
-        <div id="project-new-panel" class="tf-project-box" hidden>
-          {{ form.project_new_name.as_hidden }}
-          {{ form.project_new_description.as_hidden }}
-          {{ form.project_new_client.as_hidden }}
-          {{ form.project_new_control_method.as_hidden }}
-          {{ form.project_new_part_number.as_hidden }}
-          {{ form.project_new_revisione.as_hidden }}
-          {{ form.project_new_versione.as_hidden }}
-          {{ form.project_new_manager.as_hidden }}
-          {{ form.project_new_capo_commessa.as_hidden }}
-          {{ form.project_new_programmer.as_hidden }}
-          {{ form.project_similar_choice.as_hidden }}
-          {{ form.project_similar_new_note.as_hidden }}
+        <p class="tf2-note">Il kickoff non c'è ancora? <a href="{% url 'tasks:project_create' %}">Crealo dalla pagina dedicata</a>.</p>
+        <div id="project-new-panel" hidden>
+          {{ form.project_new_name.as_hidden }}{{ form.project_new_description.as_hidden }}{{ form.project_new_client.as_hidden }}
+          {{ form.project_new_control_method.as_hidden }}{{ form.project_new_part_number.as_hidden }}{{ form.project_new_revisione.as_hidden }}
+          {{ form.project_new_versione.as_hidden }}{{ form.project_new_manager.as_hidden }}{{ form.project_new_capo_commessa.as_hidden }}
+          {{ form.project_new_programmer.as_hidden }}{{ form.project_similar_choice.as_hidden }}{{ form.project_similar_new_note.as_hidden }}
         </div>
-      </div>
-    </section>
-    {% endif %}
+      </section>
     {% endif %}
 
-
-    {# L'essenziale in un pannello solo: prima titolo, date e responsabile erano sparsi su quattro sezioni. #}
-    <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Attività</span><h2 class="tf-title">Cosa, chi e quando</h2><p class="tf-copy">Basta questo: il responsabile riceve la notifica e la mail, e la trova in «Le mie azioni».</p></div></div>
-      {% if suggested_start_from_previous and not task %}<div id="date-suggestion-banner" class="date-suggestion-banner"><div>Inizio proposto il <strong>{{ suggested_start_date|date:"d-m-Y" }}</strong>, il giorno dopo la fine dell'ultima attività del kickoff. Puoi cambiarlo.</div></div>{% endif %}
-      <div class="tf-grid">
-        <div class="ts-field"><label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>{{ form.title }}{% if form.title.errors %}<div class="ts-field-error">{{ form.title.errors }}</div>{% endif %}</div>
-      </div>
-      <div class="tf-grid-2" style="margin-top:12px;">
-        <div class="ts-field"><label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }}</label>{{ form.assigned_to }}{% if form.assigned_to.errors %}<div class="ts-field-error">{{ form.assigned_to.errors }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.priority.id_for_label }}">{{ form.priority.label }}</label>{{ form.priority }}{% if form.priority.errors %}<div class="ts-field-error">{{ form.priority.errors }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.next_step_due.id_for_label }}">{{ form.next_step_due.label }}</label>{{ form.next_step_due }}{% if form.next_step_due.errors %}<div class="ts-field-error">{{ form.next_step_due.errors }}</div>{% endif %}{% if form.next_step_due.help_text %}<div class="ts-field-help">{{ form.next_step_due.help_text }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.due_date.id_for_label }}">{{ form.due_date.label }}</label>{{ form.due_date }}{% if form.due_date.errors %}<div class="ts-field-error">{{ form.due_date.errors }}</div>{% endif %}{% if form.due_date.help_text %}<div class="ts-field-help">{{ form.due_date.help_text }}</div>{% endif %}</div>
-        {% if mode == "edit" %}
-        <div class="ts-field"><label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>{{ form.status }}{% if form.status.errors %}<div class="ts-field-error">{{ form.status.errors }}</div>{% endif %}</div>
-        {% endif %}
-      </div>
-    </section>
-
-    {% if form.category.field.queryset.exists %}
-    <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Tipo</span><h2 class="tf-title">Tipo attività (facoltativo)</h2><p class="tf-copy">Con un tipo (es. Programmazione, Collaudo) compaiono i campi dedicati configurati dall'amministratore.</p></div></div>
-      <div class="tf-grid-2">
-        <div class="ts-field full">
-          <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
-          {{ form.category }}
-          {% if form.category.help_text %}<div class="ts-field-help">{{ form.category.help_text }}</div>{% endif %}
-          {% if form.category.errors %}<div class="ts-field-error">{{ form.category.errors }}</div>{% endif %}
-        </div>
-      </div>
-      <div id="tf-category-fields" style="margin-top:12px;" data-initial='{{ task_extra_data_json|default:"{}" }}'></div>
-    </section>
-    {% endif %}
-
-    <details class="tf-more"{% if mode == "edit" or form.description.errors or form.tags.errors or form.next_step_text.errors or form.subscribers.errors or form.status.errors or form.assignment_conflict_action.errors %} open{% endif %}>
-      <summary>Descrizione, persone in copia e altri dettagli</summary>
-    <section class="tf-panel">
-      <div class="tf-grid">
-        <div class="ts-field"><label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>{{ form.description }}{% if form.description.errors %}<div class="ts-field-error">{{ form.description.errors }}</div>{% endif %}</div>
-      </div>
-      <div class="tf-grid-2" style="margin-top:12px;">
-        <div class="ts-field"><label for="{{ form.subscribers.id_for_label }}">{{ form.subscribers.label }}</label>{{ form.subscribers }}{% if form.subscribers.errors %}<div class="ts-field-error">{{ form.subscribers.errors }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.assignment_conflict_action.id_for_label }}">{{ form.assignment_conflict_action.label }}</label>{{ form.assignment_conflict_action }}{% if form.assignment_conflict_action.errors %}<div class="ts-field-error">{{ form.assignment_conflict_action.errors }}</div>{% endif %}{% if form.assignment_conflict_action.help_text %}<div class="ts-field-help">{{ form.assignment_conflict_action.help_text }}</div>{% endif %}</div>
-        {% if mode != "edit" %}
-        <div class="ts-field"><label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>{{ form.status }}{% if form.status.errors %}<div class="ts-field-error">{{ form.status.errors }}</div>{% endif %}</div>
-        {% endif %}
-        <div class="ts-field"><label for="{{ form.tags.id_for_label }}">{{ form.tags.label }}</label>{{ form.tags }}{% if form.tags.errors %}<div class="ts-field-error">{{ form.tags.errors }}</div>{% endif %}{% if form.tags.help_text %}<div class="ts-field-help">{{ form.tags.help_text }}</div>{% endif %}</div>
-        <div class="ts-field full"><label for="{{ form.next_step_text.id_for_label }}">{{ form.next_step_text.label }}</label>{{ form.next_step_text }}{% if form.next_step_text.errors %}<div class="ts-field-error">{{ form.next_step_text.errors }}</div>{% endif %}</div>
-      </div>
-    </section>
-    </details>
-
-    <details class="tf-more"{% if mode == "edit" or form.tooling_mode.errors or form.tooling_existing_attrezzatura.errors or form.tooling_part_number.errors or form.tooling_code.errors or form.tooling_description.errors or form.outlook_target_email.errors %} open{% endif %}>
-      <summary>Altre opzioni: attrezzatura, Outlook e promemoria</summary>
-    <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Attrezzatura</span><h2 class="tf-title">Gestione Attrezzatura</h2><p class="tf-copy">Collega un attrezzo esistente o apri la richiesta operativa per il P/N senza duplicare la scheda KICK-OFF.</p></div></div>
-      <div class="tf-grid-2">
-        <div class="ts-field"><label for="{{ form.tooling_mode.id_for_label }}">{{ form.tooling_mode.label }}</label>{{ form.tooling_mode }}{% if form.tooling_mode.errors %}<div class="ts-field-error">{{ form.tooling_mode.errors }}</div>{% endif %}{% if form.tooling_mode.help_text %}<div class="ts-field-help">{{ form.tooling_mode.help_text }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.tooling_existing_attrezzatura.id_for_label }}">{{ form.tooling_existing_attrezzatura.label }}</label>{{ form.tooling_existing_attrezzatura }}{% if form.tooling_existing_attrezzatura.errors %}<div class="ts-field-error">{{ form.tooling_existing_attrezzatura.errors }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.tooling_part_number.id_for_label }}">{{ form.tooling_part_number.label }}</label>{{ form.tooling_part_number }}{% if form.tooling_part_number.errors %}<div class="ts-field-error">{{ form.tooling_part_number.errors }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.tooling_code.id_for_label }}">{{ form.tooling_code.label }}</label>{{ form.tooling_code }}{% if form.tooling_code.errors %}<div class="ts-field-error">{{ form.tooling_code.errors }}</div>{% endif %}</div>
-        <div class="ts-field full"><label for="{{ form.tooling_description.id_for_label }}">{{ form.tooling_description.label }}</label>{{ form.tooling_description }}{% if form.tooling_description.errors %}<div class="ts-field-error">{{ form.tooling_description.errors }}</div>{% endif %}</div>
-      </div>
-    </section>
-    <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Promemoria</span><h2 class="tf-title">Calendario Outlook e notifiche portale</h2><p class="tf-copy">Scegli se sincronizzare l'attivita' con il calendario Outlook dell'assegnatario e se mostrare un promemoria nel centro notifiche prima della scadenza.</p></div></div>
-      <div class="tf-grid-2">
-        <div class="ts-field" style="display:flex; gap:10px; align-items:flex-start;">
-          {{ form.add_to_outlook }}
-          <div>
-            <label for="{{ form.add_to_outlook.id_for_label }}" style="cursor:pointer;"><strong>{{ form.add_to_outlook.label }}</strong></label>
-            {% if form.add_to_outlook.help_text %}<div class="ts-field-help">{{ form.add_to_outlook.help_text }}</div>{% endif %}
+    <div class="tf2-cols">
+      {# ── Colonna principale: cosa, chi, quando ── #}
+      <div class="tf2-main">
+        <section class="tf2-card">
+          <div class="ts-field tf2-title-field">
+            <label for="{{ form.title.id_for_label }}">Cosa va fatto</label>
+            {{ form.title }}
+            {% if form.title.errors %}<div class="ts-field-error">{{ form.title.errors }}</div>{% endif %}
           </div>
-        </div>
-        <div class="ts-field" style="display:flex; gap:10px; align-items:flex-start;">
-          {{ form.reminder_portal_enabled_field }}
-          <div>
-            <label for="{{ form.reminder_portal_enabled_field.id_for_label }}" style="cursor:pointer;"><strong>{{ form.reminder_portal_enabled_field.label }}</strong></label>
-            {% if form.reminder_portal_enabled_field.help_text %}<div class="ts-field-help">{{ form.reminder_portal_enabled_field.help_text }}</div>{% endif %}
-          </div>
-        </div>
-        <div class="ts-field full">
-          <label for="{{ form.outlook_target_email.id_for_label }}">{{ form.outlook_target_email.label }}</label>
-          {{ form.outlook_target_email }}
-          {% if form.outlook_target_email.help_text %}<div class="ts-field-help">{{ form.outlook_target_email.help_text }}</div>{% endif %}
-          {% if form.outlook_target_email.errors %}<div class="ts-field-error">{{ form.outlook_target_email.errors }}</div>{% endif %}
-        </div>
-      </div>
-    </section>
-    </details>
 
-    <div class="ts-field-actions">
-      <button type="submit" class="btn">{% if mode == "edit" %}Salva modifiche{% else %}Crea attività{% endif %}</button>
-      {% if task %}<a class="btn btn-secondary" href="{% url 'tasks:detail' task.id %}">Annulla</a>{% elif locked_project %}<a class="btn btn-secondary" href="{% url 'tasks:project_gantt' locked_project.id %}">Annulla</a>{% else %}<a class="btn btn-secondary" href="{% url 'tasks:list' %}">Annulla</a>{% endif %}
+          <div class="tf2-row">
+            <div class="ts-field tf2-grow"><label for="{{ form.assigned_to.id_for_label }}">Responsabile</label>{{ form.assigned_to }}{% if form.assigned_to.errors %}<div class="ts-field-error">{{ form.assigned_to.errors }}</div>{% endif %}</div>
+            <div class="ts-field"><label for="{{ form.priority.id_for_label }}">Priorità</label>{{ form.priority }}{% if form.priority.errors %}<div class="ts-field-error">{{ form.priority.errors }}</div>{% endif %}</div>
+            <div class="ts-field"><label for="{{ form.status.id_for_label }}">Stato</label>{{ form.status }}{% if form.status.errors %}<div class="ts-field-error">{{ form.status.errors }}</div>{% endif %}</div>
+          </div>
+
+          <div class="tf2-row tf2-dates">
+            <div class="ts-field"><label for="{{ form.next_step_due.id_for_label }}">Inizio</label>{{ form.next_step_due }}{% if form.next_step_due.errors %}<div class="ts-field-error">{{ form.next_step_due.errors }}</div>{% endif %}</div>
+            <span class="tf2-arrow" aria-hidden="true">→</span>
+            <div class="ts-field"><label for="{{ form.due_date.id_for_label }}">Fine</label>{{ form.due_date }}{% if form.due_date.errors %}<div class="ts-field-error">{{ form.due_date.errors }}</div>{% endif %}</div>
+            <span class="tf2-durata" id="tf2-durata" aria-live="polite"></span>
+          </div>
+          {% if suggested_start_from_previous and not task %}<p class="tf2-note" id="date-suggestion-banner">Inizio proposto: il giorno dopo l'ultima attività in piano ({{ suggested_start_date|date:"d/m/Y" }}).</p>{% endif %}
+
+          <div class="ts-field">
+            <label for="{{ form.description.id_for_label }}">Note per il responsabile <span class="tf2-opt">facoltativo</span></label>
+            {{ form.description }}
+            {% if form.description.errors %}<div class="ts-field-error">{{ form.description.errors }}</div>{% endif %}
+          </div>
+
+          {% if form.category.field.queryset.exists %}
+          <div class="ts-field">
+            <label for="{{ form.category.id_for_label }}">Tipo <span class="tf2-opt">facoltativo: aggiunge i campi del tipo (es. programma CAM)</span></label>
+            {{ form.category }}
+            {% if form.category.errors %}<div class="ts-field-error">{{ form.category.errors }}</div>{% endif %}
+          </div>
+          <div id="tf-category-fields" data-initial='{{ task_extra_data_json|default:"{}" }}'></div>
+          {% endif %}
+        </section>
+
+        <details class="tf2-more"{% if form.tags.errors or form.next_step_text.errors or form.assignment_conflict_action.errors or form.tooling_mode.errors or form.tooling_existing_attrezzatura.errors or form.tooling_part_number.errors or form.tooling_code.errors or form.tooling_description.errors or form.outlook_target_email.errors %} open{% endif %}>
+          <summary>Altre opzioni <span>etichette, prossimo passo, impegni sovrapposti, attrezzatura, Outlook, promemoria</span></summary>
+          <div class="tf2-more-body">
+            <div class="tf2-row">
+              <div class="ts-field tf2-grow"><label for="{{ form.next_step_text.id_for_label }}">{{ form.next_step_text.label }}</label>{{ form.next_step_text }}{% if form.next_step_text.errors %}<div class="ts-field-error">{{ form.next_step_text.errors }}</div>{% endif %}</div>
+              <div class="ts-field tf2-grow"><label for="{{ form.tags.id_for_label }}">{{ form.tags.label }}</label>{{ form.tags }}{% if form.tags.errors %}<div class="ts-field-error">{{ form.tags.errors }}</div>{% endif %}</div>
+            </div>
+            <div class="ts-field"><label for="{{ form.assignment_conflict_action.id_for_label }}">{{ form.assignment_conflict_action.label }}</label>{{ form.assignment_conflict_action }}{% if form.assignment_conflict_action.errors %}<div class="ts-field-error">{{ form.assignment_conflict_action.errors }}</div>{% endif %}</div>
+
+            <h3 class="tf2-h3">Attrezzatura</h3>
+            <div class="tf2-row">
+              <div class="ts-field tf2-grow"><label for="{{ form.tooling_mode.id_for_label }}">{{ form.tooling_mode.label }}</label>{{ form.tooling_mode }}{% if form.tooling_mode.errors %}<div class="ts-field-error">{{ form.tooling_mode.errors }}</div>{% endif %}</div>
+              <div class="ts-field tf2-grow"><label for="{{ form.tooling_existing_attrezzatura.id_for_label }}">{{ form.tooling_existing_attrezzatura.label }}</label>{{ form.tooling_existing_attrezzatura }}{% if form.tooling_existing_attrezzatura.errors %}<div class="ts-field-error">{{ form.tooling_existing_attrezzatura.errors }}</div>{% endif %}</div>
+            </div>
+            <div class="tf2-row">
+              <div class="ts-field tf2-grow"><label for="{{ form.tooling_part_number.id_for_label }}">{{ form.tooling_part_number.label }}</label>{{ form.tooling_part_number }}{% if form.tooling_part_number.errors %}<div class="ts-field-error">{{ form.tooling_part_number.errors }}</div>{% endif %}</div>
+              <div class="ts-field tf2-grow"><label for="{{ form.tooling_code.id_for_label }}">{{ form.tooling_code.label }}</label>{{ form.tooling_code }}{% if form.tooling_code.errors %}<div class="ts-field-error">{{ form.tooling_code.errors }}</div>{% endif %}</div>
+            </div>
+            <div class="ts-field"><label for="{{ form.tooling_description.id_for_label }}">{{ form.tooling_description.label }}</label>{{ form.tooling_description }}{% if form.tooling_description.errors %}<div class="ts-field-error">{{ form.tooling_description.errors }}</div>{% endif %}</div>
+
+            <h3 class="tf2-h3">Calendario e promemoria</h3>
+            <label class="tf2-check">{{ form.add_to_outlook }} <span><strong>{{ form.add_to_outlook.label }}</strong>{% if form.add_to_outlook.help_text %}<small>{{ form.add_to_outlook.help_text }}</small>{% endif %}</span></label>
+            <div class="ts-field"><label for="{{ form.outlook_target_email.id_for_label }}">{{ form.outlook_target_email.label }}</label>{{ form.outlook_target_email }}{% if form.outlook_target_email.help_text %}<div class="ts-field-help">{{ form.outlook_target_email.help_text }}</div>{% endif %}{% if form.outlook_target_email.errors %}<div class="ts-field-error">{{ form.outlook_target_email.errors }}</div>{% endif %}</div>
+            <label class="tf2-check">{{ form.reminder_portal_enabled_field }} <span><strong>{{ form.reminder_portal_enabled_field.label }}</strong>{% if form.reminder_portal_enabled_field.help_text %}<small>{{ form.reminder_portal_enabled_field.help_text }}</small>{% endif %}</span></label>
+          </div>
+        </details>
+      </div>
+
+      {# ── Colonna laterale: dove, chi è informato, salva ── #}
+      <aside class="tf2-side">
+        {% if locked_project %}{% with p=locked_project %}{% include "tasks/_form_kickoff_card.html" %}{% endwith %}
+        {% elif task.project %}{% with p=task.project %}{% include "tasks/_form_kickoff_card.html" %}{% endwith %}{% endif %}
+
+        <section class="tf2-card">
+          <div class="ts-field">
+            <label>Persone in copia <span class="tf2-opt">vedono l'attività e possono ricevere gli avvisi dei commenti</span></label>
+            <input type="search" class="input tf2-copia-cerca" placeholder="Cerca una persona" aria-label="Cerca una persona">
+            <div class="tf2-copia">{{ form.subscribers }}</div>
+            {% if form.subscribers.errors %}<div class="ts-field-error">{{ form.subscribers.errors }}</div>{% endif %}
+          </div>
+        </section>
+
+        <section class="tf2-card tf2-save">
+          <p class="tf2-note">{% if mode == "edit" %}Se cambi il responsabile, il nuovo riceve notifica e mail.{% else %}Il responsabile riceve notifica e mail, e la trova in «Le mie azioni».{% endif %}</p>
+          <button type="submit" class="btn">{% if mode == "edit" %}Salva modifiche{% else %}Crea attività{% endif %}</button>
+          {% if task %}<a class="btn btn-secondary" href="{% url 'tasks:detail' task.id %}">Annulla</a>{% elif locked_project %}<a class="btn btn-secondary" href="{% url 'tasks:project_gantt' locked_project.id %}">Annulla</a>{% else %}<a class="btn btn-secondary" href="{% url 'tasks:list' %}">Annulla</a>{% endif %}
+        </section>
+      </aside>
     </div>
   </form>
 </div>
 {% endblock %}
 {% block tasks_shell_scripts %}
+<script>
+// Persone in copia: filtro per nome, le spuntate restano sempre visibili.
+(function(){
+  const q=document.querySelector(".tf2-copia-cerca");
+  const box=document.querySelector(".tf2-copia");
+  if(!q||!box){return;}
+  q.addEventListener("input",function(){
+    const n=q.value.trim().toLowerCase();
+    box.querySelectorAll("label").forEach(function(l){
+      const c=l.querySelector("input");
+      const ok=!n||(c&&c.checked)||l.textContent.toLowerCase().includes(n);
+      (l.parentElement.tagName==="DIV"&&l.parentElement!==box?l.parentElement:l).style.display=ok?"":"none";
+    });
+  });
+})();
+// Durata fra Inizio e Fine, aggiornata mentre si scrivono le date.
+(function(){
+  const s=document.getElementById("{{ form.next_step_due.id_for_label }}");
+  const e=document.getElementById("{{ form.due_date.id_for_label }}");
+  const out=document.getElementById("tf2-durata");
+  if(!s||!e||!out){return;}
+  function aggiorna(){
+    out.classList.remove("errore");
+    if(!s.value||!e.value){out.textContent="";return;}
+    const g=Math.round((new Date(e.value)-new Date(s.value))/86400000)+1;
+    if(g<1){out.textContent="La fine è prima dell'inizio";out.classList.add("errore");return;}
+    out.textContent=g===1?"1 giorno":g+" giorni";
+  }
+  s.addEventListener("input",aggiorna);e.addEventListener("input",aggiorna);aggiorna();
+})();
+</script>
 <script>
 document.addEventListener("DOMContentLoaded",function(){const s=document.getElementById("{{ form.next_step_due.id_for_label }}");if(s){s.addEventListener("input",function(){s.dataset.userOverride="1";});s.addEventListener("change",function(){s.dataset.userOverride="1";});}});
 (function(){
@@ -218,10 +202,10 @@ const previewRow=document.getElementById("project-identity-preview-row");
 const previewCopy=document.getElementById("project-identity-preview-copy");
 if(!workspace||!scopeInputs.length||!modeInputs.length){return;}
 function esc(v){return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#39;");}
-function currentScope(){let v="single";scopeInputs.forEach(function(i){if(i.checked){v=i.value;}});return v;}
-function currentMode(){let v="new";modeInputs.forEach(function(i){if(i.checked){v=i.value;}});return v;}
+function currentScope(){let v="single";scopeInputs.forEach(function(i){if(i.checked||i.type==="hidden"){v=i.value;}});return v;}
+function currentMode(){let v="new";modeInputs.forEach(function(i){if(i.checked||i.type==="hidden"){v=i.value;}});return v;}
 function chip(label,value,extra){if(!value){return"";}return '<span class="tf-id-chip '+(extra||"")+'"><span class="lbl">'+esc(label)+'</span>'+esc(value)+'</span>';}
-function toggleWorkspace(){const isProject=currentScope()==="project";const mode=currentMode();workspace.style.display=isProject?"grid":"none";existingPanel.hidden=!isProject||mode!=="existing";newPanel.hidden=!isProject||mode!=="new";if(isProject&&mode==="existing"&&projectChoice){updateProjectInfo(projectChoice.value);}if(isProject&&mode==="new"){renderPreview();}}
+function toggleWorkspace(){const isProject=currentScope()==="project";const mode=currentMode();workspace.style.display=isProject?"":"none";existingPanel.hidden=!isProject||mode!=="existing";newPanel.hidden=!isProject||mode!=="new";if(isProject&&mode==="existing"&&projectChoice){updateProjectInfo(projectChoice.value);}if(isProject&&mode==="new"){renderPreview();}}
 const statusLabels={todo:"Da fare",in_progress:"In corso",done:"Fatto",canceled:"Annullata"};
 function statusBadge(status){const n=String(status||"").toLowerCase();return '<span class="status-badge '+n+'">'+esc(statusLabels[n]||n||"-")+'</span>';}
 function applySuggestedStart(iso){
@@ -234,13 +218,13 @@ function renderInfo(data){
   applySuggestedStart(data.suggested_start_date);
   const ids=[chip("P/N",data.part_number,"pn"),chip("Rev",data.revisione,"rev"),chip("Ver",data.versione,"ver")].join("");
   const meta=[["Cliente",data.client_name],["Project manager",data.project_manager],["Capo commessa",data.capo_commessa],["Programmatore",data.programmer],["Caporeparto",data.caporeparto]].map(function(item){return '<div class="tf-meta-item"><div class="lbl">'+esc(item[0])+'</div><div class="val">'+esc(item[1]||"-")+'</div></div>';}).join("");
-  let tasksHtml='<div class="tf-empty">Nessuna attivita ancora presente in questo kickoff.</div>';
+  let tasksHtml='<div class="tf-empty">Nessuna attività ancora presente in questo kickoff.</div>';
   if(data.tasks&&data.tasks.length){
     const rows=data.tasks.map(function(row){return "<tr>"+'<td style="text-align:center;font-weight:800;color:var(--text-light);">'+esc(row.wbs)+'</td>'+"<td>"+esc(row.title)+"</td>"+"<td>"+statusBadge(row.status)+"</td>"+"<td>"+esc(row.next_step_due||"-")+"</td>"+"<td>"+esc(row.due_date||"-")+"</td>"+"<td>"+esc(row.assignee||"-")+"</td>"+"</tr>";}).join("");
-    tasksHtml='<div class="tf-table-wrap"><table class="tf-table"><thead><tr><th style="width:52px;">WBS</th><th>Attivita</th><th>Stato</th><th>Inizio</th><th>Fine prevista</th><th>Assegnatario</th></tr></thead><tbody>'+rows+"</tbody></table></div>";
+    tasksHtml='<div class="tf-table-wrap"><table class="tf-table"><thead><tr><th style="width:52px;">WBS</th><th>Attività</th><th>Stato</th><th>Inizio</th><th>Fine prevista</th><th>Assegnatario</th></tr></thead><tbody>'+rows+"</tbody></table></div>";
   }
   const action=data.vrf_upload_url?'<div><a class="btn btn-secondary btn-sm" href="'+esc(data.vrf_upload_url)+'">Documento VRF</a></div>':"";
-  projectInfo.innerHTML='<div class="tf-project-top"><div><div class="tf-project-name">'+esc(data.name)+'</div><div class="tf-project-sub">'+esc((data.task_total||0)+" attivita gia collegate")+'</div></div><div class="tf-id-row">'+ids+"</div></div>"+(data.vrf_label?'<div class="tf-banner '+esc(data.vrf_status||"pending")+'">'+esc(data.vrf_label)+"</div>":"")+'<div class="tf-meta">'+meta+"</div>"+action+tasksHtml;
+  projectInfo.innerHTML='<div class="tf-project-top"><div><div class="tf-project-name">'+esc(data.name)+'</div><div class="tf-project-sub">'+esc((data.task_total||0)+" attività già collegate")+'</div></div><div class="tf-id-row">'+ids+"</div></div>"+(data.vrf_label?'<div class="tf-banner '+esc(data.vrf_status||"pending")+'">'+esc(data.vrf_label)+"</div>":"")+'<div class="tf-meta">'+meta+"</div>"+action+tasksHtml;
 }
 function updateProjectInfo(projectId){
   if(!projectInfo||!projectInfoEmpty){return;}
