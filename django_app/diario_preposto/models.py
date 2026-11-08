@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 
 from django.conf import settings
@@ -37,7 +38,25 @@ def _extract_codice_sequence(code: str, year: int) -> int | None:
         return None
 
 
+class SegnalazioneQuerySet(models.QuerySet):
+    def attive(self):
+        """Le segnalazioni non eliminate: quelle che il registro mostra."""
+        return self.filter(eliminata_il__isnull=True)
+
+    def eliminate(self):
+        return self.filter(eliminata_il__isnull=False)
+
+
 class SegnalazionePreposto(models.Model):
+    """Segnalazione di sicurezza del preposto (registro D.Lgs. 81/2008 art. 19).
+
+    Integrità: il codice non si riusa mai e l'eliminazione è un'archiviazione con
+    motivo (``eliminata_il``/``eliminata_da``/``motivo_eliminazione``): record e
+    allegati restano, fuori dall'elenco, e chi gestisce il modulo può ripristinarli.
+    Il manager di default restituisce anche le eliminate (serve al calcolo del
+    codice e all'import): per il registro usare ``.attive()``.
+    """
+
     codice_identificativo = models.CharField(
         max_length=20,
         unique=True,
@@ -59,6 +78,18 @@ class SegnalazionePreposto(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    eliminata_il = models.DateTimeField("Eliminata il", null=True, blank=True, db_index=True)
+    eliminata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Eliminata da",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="segnalazioni_preposto_eliminate",
+    )
+    motivo_eliminazione = models.CharField("Motivo eliminazione", max_length=500, blank=True)
+
+    objects = SegnalazioneQuerySet.as_manager()
 
     class Meta:
         ordering = ["-data_segnalazione", "-created_at"]
@@ -100,6 +131,13 @@ class SegnalazionePreposto(models.Model):
                 if not self._state.adding or attempt == max_attempts - 1:
                     raise
 
+    @property
+    def is_eliminata(self) -> bool:
+        return self.eliminata_il is not None
+
+    def allegati_attivi(self):
+        return self.allegati.filter(rimosso_il__isnull=True)
+
     def __str__(self) -> str:
         label = self.codice_identificativo or f"pk:{self.pk}"
         return f"[{label}] {self.titolo} - {self.chi_segnala or self.preposto}"
@@ -117,6 +155,29 @@ class SegnalazioneAllegato(models.Model):
         storage=PrivateDiarioPrepostoStorage,
     )
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    # Impronta del contenuto al caricamento: il download la ricontrolla, cosi' un
+    # file sostituito o alterato sul disco non passa per una prova originale.
+    # Vuota sugli allegati caricati prima del 08/11/2026.
+    sha256 = models.CharField("Impronta SHA-256", max_length=64, blank=True)
+    dimensione = models.PositiveBigIntegerField("Dimensione (byte)", null=True, blank=True)
+    caricato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Caricato da",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="allegati_preposto_caricati",
+    )
+    # Rimozione = archiviazione: il file resta sul disco per la tracciabilita'.
+    rimosso_il = models.DateTimeField("Rimosso il", null=True, blank=True)
+    rimosso_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Rimosso da",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="allegati_preposto_rimossi",
+    )
 
     class Meta:
         ordering = ["nome_file"]
@@ -125,6 +186,21 @@ class SegnalazioneAllegato(models.Model):
 
     def __str__(self) -> str:
         return self.nome_file
+
+
+def impronta_file(file_obj) -> tuple[str, int]:
+    """SHA-256 e dimensione di un file (upload o file aperto), letto a blocchi."""
+    digest = hashlib.sha256()
+    size = 0
+    if hasattr(file_obj, "seek"):
+        file_obj.seek(0)
+    chunks = file_obj.chunks() if hasattr(file_obj, "chunks") else iter(lambda: file_obj.read(65536), b"")
+    for chunk in chunks:
+        digest.update(chunk)
+        size += len(chunk)
+    if hasattr(file_obj, "seek"):
+        file_obj.seek(0)
+    return digest.hexdigest(), size
 
 
 class DiarioPrepostoImpostazioni(models.Model):

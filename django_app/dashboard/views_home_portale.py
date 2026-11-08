@@ -319,7 +319,7 @@ def _tile_kpi_counts(legacy_user, is_admin: bool, request_user=None, request=Non
     # ── DIARIO PREPOSTO ───────────────────────────────────────────────
     try:
         from diario_preposto.models import SegnalazionePreposto
-        qs_diario = SegnalazionePreposto.objects.all()
+        qs_diario = SegnalazionePreposto.objects.attive()
         ambito = _ambito_kpi(request_user, is_admin, "diario_preposto")
         if ambito is not _TUTTI:
             qs_diario = qs_diario.filter(creato_da_id__in=_user_ids_da_legacy(ambito))

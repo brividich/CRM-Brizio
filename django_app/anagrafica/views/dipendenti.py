@@ -1385,7 +1385,7 @@ def _compute_widget_counts(dip: dict) -> dict[str, int]:
     # Diario preposto
     try:
         from diario_preposto.models import SegnalazionePreposto
-        counts["diario_preposto"] = SegnalazionePreposto.objects.filter(
+        counts["diario_preposto"] = SegnalazionePreposto.objects.attive().filter(
             Q(chi_segnala__icontains=nome_completo) | Q(preposto__icontains=nome_completo)
         ).count()
     except Exception:

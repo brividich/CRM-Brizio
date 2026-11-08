@@ -13,8 +13,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import redirect_to_login
 from django.db import transaction
-from django.db.models import Q
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.db.models import Count, Q
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -33,8 +33,8 @@ from core.upload_mime import (
 )
 
 from .acl_bootstrap import PERM_IMPOSTAZIONI_MANAGE
-from .forms import SegnalazioneForm
-from .models import DiarioPrepostoImpostazioni, SegnalazioneAllegato, SegnalazionePreposto
+from .forms import EliminaSegnalazioneForm, SegnalazioneForm
+from .models import DiarioPrepostoImpostazioni, SegnalazioneAllegato, SegnalazionePreposto, impronta_file
 from core import naming
 from core.upload_limits import DOCUMENT_MAX_BYTES
 
@@ -94,6 +94,45 @@ def _validate_diario_allegato(uploaded_file):
         allow_empty=False,
     )
     return safe_name or "allegato"
+
+
+def _valida_allegati(files) -> tuple[list[tuple[object, str]], list[str]]:
+    """Valida tutti i file prima di salvare qualcosa: o passano tutti o nessuno.
+
+    Prima la segnalazione veniva salvata e i file non validi scartati con un
+    avviso: chi non leggeva il messaggio credeva di aver allegato la prova.
+    """
+    validi: list[tuple[object, str]] = []
+    errori: list[str] = []
+    for uploaded_file in files:
+        try:
+            validi.append((uploaded_file, _validate_diario_allegato(uploaded_file)))
+        except UploadMimeValidationError as exc:
+            errori.append(str(exc))
+    return validi, errori
+
+
+def _crea_allegato(request, segnalazione, uploaded_file, safe_name: str) -> SegnalazioneAllegato:
+    """Salva l'allegato con impronta SHA-256, dimensione e autore; traccia nello storico."""
+    from core.audit import log_action
+
+    sha256, dimensione = impronta_file(uploaded_file)
+    allegato = SegnalazioneAllegato.objects.create(
+        segnalazione=segnalazione,
+        nome_file=safe_name,
+        file=uploaded_file,
+        sha256=sha256,
+        dimensione=dimensione,
+        caricato_da=request.user if request.user.is_authenticated else None,
+    )
+    log_action(
+        request,
+        "allegato_aggiunto",
+        MODULO,
+        {"file": safe_name, "sha256": sha256[:16], "byte": dimensione},
+        oggetto=segnalazione,
+    )
+    return allegato
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +300,18 @@ def _can_view(request) -> bool:
     return bool(decision.get("allowed", False))
 
 
+def _get_segnalazione_visibile(request, pk):
+    """La segnalazione, o 404 se eliminata e l'utente non gestisce il modulo.
+
+    Le eliminate restano consultabili (con il motivo) solo da chi gestisce il
+    modulo, che le puo' ripristinare; per gli altri non esistono piu'.
+    """
+    segnalazione = get_object_or_404(SegnalazionePreposto.objects.select_related("eliminata_da"), pk=pk)
+    if segnalazione.is_eliminata and not _can_manage_settings(request):
+        raise Http404("Segnalazione non trovata.")
+    return segnalazione
+
+
 def _write_required(view_func):
     @wraps(view_func)
     def _wrapped(request, *args, **kwargs):
@@ -332,9 +383,18 @@ def _checklist_value_from_post(voce: ChecklistVoce, post) -> str:
 
 
 def _ispezione_actor(request) -> tuple[int, str]:
+    """Id legacy (``utenti.id``) e nome di chi registra l'ispezione.
+
+    Mai l'id dell'utente Django al posto di quello legacy: sono due numerazioni
+    diverse e la visibilita' per ruolo filtra su ``legacy_user_id``, quindi
+    l'ispezione finiva attribuita (e mostrata) a un'altra persona. Senza utente
+    legacy collegato resta 0 = nessuna persona.
+    """
+    from core.permessi import legacy_id_da_user_id
+
     legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
     name, _email = _legacy_identity(request)
-    actor_id = legacy_user.id if legacy_user else request.user.id
+    actor_id = legacy_user.id if legacy_user else (legacy_id_da_user_id(request.user.id) or 0)
     return actor_id, name
 
 
@@ -351,9 +411,18 @@ def _prepare_ispezione_rows(esecuzioni) -> list[ChecklistEsecuzione]:
 # Views
 # ---------------------------------------------------------------------------
 
+def _base_registro(request, azione: str = "vedere", *, eliminate: bool = False):
+    qs = SegnalazionePreposto.objects.eliminate() if eliminate else SegnalazionePreposto.objects.attive()
+    return _filtra_visibili(request, qs, azione)
+
+
 @login_required
 def lista(request):
-    qs = _filtra_visibili(request, SegnalazionePreposto.objects.all())
+    can_manage = _can_manage_settings(request)
+    mostra_eliminate = can_manage and request.GET.get("eliminate") == "1"
+    qs = _base_registro(request, eliminate=mostra_eliminate).annotate(
+        n_allegati=Count("allegati", filter=Q(allegati__rimosso_il__isnull=True))
+    )
 
     q = request.GET.get("q", "").strip()
     if q:
@@ -370,7 +439,7 @@ def lista(request):
         qs = qs.filter(preposto__icontains=filtro_preposto)
 
     preposti = (
-        _filtra_visibili(request, SegnalazionePreposto.objects.all()).exclude(preposto="")
+        _base_registro(request).exclude(preposto="")
         .values_list("preposto", flat=True)
         .distinct()
         .order_by("preposto")
@@ -385,7 +454,9 @@ def lista(request):
             "filtro_preposto": filtro_preposto,
             "preposti": preposti,
             "can_write": _can_write(request),
-            "can_manage_settings": _can_manage_settings(request),
+            "can_manage_settings": can_manage,
+            "mostra_eliminate": mostra_eliminate,
+            "n_eliminate": _base_registro(request, eliminate=True).count() if can_manage else 0,
             "totale": qs.count(),
         },
     )
@@ -499,14 +570,20 @@ def ispezione_nuova(request):
 
 @login_required
 def dettaglio(request, pk):
-    segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
+    from core.audit import storico_leggibile, storico_oggetto
+
+    segnalazione = _get_segnalazione_visibile(request, pk)
     negata = _nega_record(request, segnalazione, "vedere")
     if negata is not None:
         return negata
-    allegati = segnalazione.allegati.all()
+    allegati = segnalazione.allegati_attivi().select_related("caricato_da")
     can_write = _can_write(request)
+    can_delete = can_write
     if sistema_ruoli_attivo():
         can_write = puo_fare(request, MODULO, "modificare", segnalazione)
+        can_delete = puo_fare(request, MODULO, "cancellare", segnalazione)
+    if segnalazione.is_eliminata:
+        can_write = can_delete = False
     return render(
         request,
         "diario_preposto/pages/dettaglio.html",
@@ -514,6 +591,9 @@ def dettaglio(request, pk):
             "segnalazione": segnalazione,
             "allegati": allegati,
             "can_write": can_write,
+            "can_delete": can_delete,
+            "can_manage_settings": _can_manage_settings(request),
+            "storico": storico_leggibile(storico_oggetto(segnalazione)),
         },
     )
 
@@ -525,28 +605,19 @@ def nuovo(request):
     nome, email = _legacy_identity(request)
     if request.method == "POST":
         form = SegnalazioneForm(request.POST)
+        validi, errori_allegati = _valida_allegati(request.FILES.getlist("allegati"))
+        for err in errori_allegati:
+            form.add_error(None, f"{err} Nessun dato salvato: correggi o togli il file e riprova.")
         if form.is_valid():
-            segnalazione = form.save(commit=False)
-            segnalazione.creato_da = request.user
-            segnalazione.preposto = nome
-            segnalazione.chi_segnala = nome
-            segnalazione.save()
-            errori_allegati: list[str] = []
-            for uploaded_file in request.FILES.getlist("allegati"):
-                try:
-                    safe_name = _validate_diario_allegato(uploaded_file)
-                except UploadMimeValidationError as exc:
-                    errori_allegati.append(str(exc))
-                    continue
-                SegnalazioneAllegato.objects.create(
-                    segnalazione=segnalazione,
-                    nome_file=safe_name,
-                    file=uploaded_file,
-                )
-            if errori_allegati:
-                for err in errori_allegati:
-                    messages.warning(request, err)
-            messages.success(request, "Segnalazione inserita con successo.")
+            with transaction.atomic():
+                segnalazione = form.save(commit=False)
+                segnalazione.creato_da = request.user
+                segnalazione.preposto = nome
+                segnalazione.chi_segnala = nome
+                segnalazione.save()
+                for uploaded_file, safe_name in validi:
+                    _crea_allegato(request, segnalazione, uploaded_file, safe_name)
+            messages.success(request, f"Segnalazione {segnalazione.codice_identificativo} inserita.")
             return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
     else:
         now_local = timezone.localtime(timezone.now())
@@ -567,35 +638,40 @@ def nuovo(request):
     )
 
 
+def _versione(segnalazione) -> str:
+    return segnalazione.updated_at.isoformat() if segnalazione.updated_at else ""
+
+
 @_write_required
 def modifica(request, pk):
-    segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
+    segnalazione = _get_segnalazione_visibile(request, pk)
     negata = _nega_record(request, segnalazione, "modificare")
     if negata is not None:
         return negata
+    if segnalazione.is_eliminata:
+        messages.error(request, "La segnalazione è eliminata: va ripristinata prima di modificarla.")
+        return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
     if request.method == "POST":
         form = SegnalazioneForm(request.POST, instance=segnalazione)
+        validi, errori_allegati = _valida_allegati(request.FILES.getlist("allegati"))
+        for err in errori_allegati:
+            form.add_error(None, f"{err} Nessuna modifica salvata: correggi o togli il file e riprova.")
         if form.is_valid():
-            form.save()
-            errori_allegati: list[str] = []
-            for uploaded_file in request.FILES.getlist("allegati"):
-                try:
-                    safe_name = _validate_diario_allegato(uploaded_file)
-                except UploadMimeValidationError as exc:
-                    errori_allegati.append(str(exc))
-                    continue
-                SegnalazioneAllegato.objects.create(
-                    segnalazione=segnalazione,
-                    nome_file=safe_name,
-                    file=uploaded_file,
-                )
-            if errori_allegati:
-                for err in errori_allegati:
-                    messages.warning(request, err)
-            messages.success(request, "Segnalazione aggiornata.")
-            return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
+            with transaction.atomic():
+                # Ricontrollo sotto lock: due salvataggi quasi contemporanei non
+                # devono sovrascriversi a vicenda senza che nessuno se ne accorga.
+                corrente = SegnalazionePreposto.objects.select_for_update().get(pk=segnalazione.pk)
+                if _versione(corrente) != form.cleaned_data.get("versione"):
+                    form.add_error(None, SegnalazioneForm.MSG_CONFLITTO)
+                else:
+                    form.save()
+                    for uploaded_file, safe_name in validi:
+                        _crea_allegato(request, segnalazione, uploaded_file, safe_name)
+            if not form.errors:
+                messages.success(request, "Segnalazione aggiornata.")
+                return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
     else:
-        initial = {}
+        initial = {"versione": _versione(segnalazione)}
         if segnalazione.data_segnalazione:
             local_dt = timezone.localtime(segnalazione.data_segnalazione)
             initial["data_segnalazione"] = local_dt.strftime("%Y-%m-%dT%H:%M")
@@ -608,7 +684,7 @@ def modifica(request, pk):
             "action": "modifica",
             "title": "Modifica segnalazione",
             "segnalazione": segnalazione,
-            "allegati": segnalazione.allegati.all(),
+            "allegati": segnalazione.allegati_attivi(),
         },
     )
 
@@ -616,19 +692,46 @@ def modifica(request, pk):
 @_write_required
 @require_POST
 def elimina(request, pk):
-    segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
+    """Elimina = archivia con motivo: record e allegati restano, fuori dal registro.
+
+    Prima la riga e i file venivano cancellati: una segnalazione di sicurezza
+    spariva senza traccia del contenuto. Ora chi gestisce il modulo la ritrova
+    (filtro «Eliminate») e la puo' ripristinare; lo storico dice chi e perche'.
+    """
+    segnalazione = _get_segnalazione_visibile(request, pk)
     negata = _nega_record(request, segnalazione, "cancellare")
     if negata is not None:
         return negata
-    for allegato in segnalazione.allegati.all():
-        try:
-            if allegato.file and allegato.file.name:
-                allegato.file.storage.delete(allegato.file.name)
-        except Exception:
-            pass
-    segnalazione.delete()
-    messages.success(request, "Segnalazione eliminata.")
+    if segnalazione.is_eliminata:
+        messages.info(request, "La segnalazione era già eliminata.")
+        return redirect("diario_preposto:lista")
+    form = EliminaSegnalazioneForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Per eliminare la segnalazione scrivi il motivo (almeno 5 caratteri).")
+        return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
+    segnalazione.eliminata_il = timezone.now()
+    segnalazione.eliminata_da = request.user
+    segnalazione.motivo_eliminazione = form.cleaned_data["motivo"]
+    segnalazione.save(update_fields=["eliminata_il", "eliminata_da", "motivo_eliminazione", "updated_at"])
+    messages.success(request, f"Segnalazione {segnalazione.codice_identificativo} eliminata.")
     return redirect("diario_preposto:lista")
+
+
+@login_required
+@require_POST
+def ripristina(request, pk):
+    """Riporta nel registro una segnalazione eliminata (solo chi gestisce il modulo)."""
+    if not _can_manage_settings(request):
+        return risposta_negata(request, "Solo chi gestisce il modulo può ripristinare una segnalazione.",
+                               pagina="Diario preposto")
+    segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
+    if segnalazione.is_eliminata:
+        segnalazione.eliminata_il = None
+        segnalazione.eliminata_da = None
+        segnalazione.motivo_eliminazione = ""
+        segnalazione.save(update_fields=["eliminata_il", "eliminata_da", "motivo_eliminazione", "updated_at"])
+        messages.success(request, f"Segnalazione {segnalazione.codice_identificativo} ripristinata.")
+    return redirect("diario_preposto:dettaglio", pk=segnalazione.pk)
 
 
 @login_required
@@ -644,7 +747,9 @@ def export_excel(request):
 
         if sistema_ruoli_attivo() and not puo_fare(request, MODULO, "esportare"):
             return risposta_negata(request, pagina="Diario preposto")
-        qs = _filtra_visibili(request, SegnalazionePreposto.objects.all(), "esportare")
+        qs = _base_registro(request, "esportare").select_related("creato_da").annotate(
+            n_allegati=Count("allegati", filter=Q(allegati__rimosso_il__isnull=True))
+        )
 
         q = request.GET.get("q", "").strip()
         if q:
@@ -711,7 +816,7 @@ def export_excel(request):
             write_cell(ws, row_num, 5, segnalazione.preposto or "")
             write_cell(ws, row_num, 6, segnalazione.chi_segnala or "")
             write_cell(ws, row_num, 7, creato_da)
-            write_cell(ws, row_num, 8, segnalazione.allegati.count())
+            write_cell(ws, row_num, 8, segnalazione.n_allegati)
             write_cell(ws, row_num, 9, created_at)
             write_cell(ws, row_num, 10, updated_at)
 
@@ -747,11 +852,11 @@ def export_excel(request):
 
 @login_required
 def export_pdf(request, pk):
-    segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
+    segnalazione = _get_segnalazione_visibile(request, pk)
     negata = _nega_record(request, segnalazione, "esportare")
     if negata is not None:
         return negata
-    allegati = list(segnalazione.allegati.all())
+    allegati = list(segnalazione.allegati_attivi())
 
     try:
         from reportlab.lib.units import mm
@@ -789,7 +894,14 @@ def export_pdf(request, pk):
             Paragraph(_pdf_safe_text(value), styles["value"]),
         ]
 
-    story: list = [
+    story: list = []
+    if segnalazione.is_eliminata:
+        eliminata_il = timezone.localtime(segnalazione.eliminata_il).strftime("%d-%m-%Y %H:%M")
+        story.append(Paragraph(
+            _pdf_safe_text(f"SEGNALAZIONE ELIMINATA il {eliminata_il} - motivo: {segnalazione.motivo_eliminazione}"),
+            styles["body"],
+        ))
+    story += [
         Paragraph(_pdf_safe_text(segnalazione.titolo), styles["title"]),
         Paragraph(
             "Report della segnalazione di sicurezza con riepilogo dati, descrizione completa e allegati collegati.",
@@ -820,13 +932,19 @@ def export_pdf(request, pk):
         rows: list = [[
             Paragraph("#", styles["table_header"]),
             Paragraph("File", styles["table_header"]),
+            Paragraph("Impronta SHA-256", styles["table_header"]),
         ]]
         rows.extend(
-            [Paragraph(str(index), styles["cell"]), Paragraph(_pdf_safe_text(allegato.nome_file), styles["cell"])]
+            [
+                Paragraph(str(index), styles["cell"]),
+                Paragraph(_pdf_safe_text(allegato.nome_file), styles["cell"]),
+                Paragraph(_pdf_safe_text(f"{allegato.sha256[:16]}..." if allegato.sha256 else "non registrata"),
+                          styles["cell"]),
+            ]
             for index, allegato in enumerate(allegati, start=1)
         )
         story.append(
-            data_table(rows, theme, col_widths=[14 * mm, content_width - 14 * mm], header=True)
+            data_table(rows, theme, col_widths=[14 * mm, content_width - 64 * mm, 50 * mm], header=True)
         )
     else:
         story.append(Paragraph("Nessun allegato associato.", styles["body"]))
@@ -850,7 +968,9 @@ def api_allegato_upload(request):
     pk = request.POST.get("segnalazione_id")
     if not pk:
         return _json_err("segnalazione_id obbligatorio")
-    segnalazione = get_object_or_404(SegnalazionePreposto, pk=pk)
+    segnalazione = SegnalazionePreposto.objects.attive().filter(pk=pk).first()
+    if segnalazione is None:
+        return _json_err("Segnalazione non trovata o eliminata.", status=404)
     if sistema_ruoli_attivo() and not puo_fare(request, MODULO, "modificare", segnalazione):
         return _json_err("Il tuo ruolo non consente di modificare questa segnalazione.", status=403)
     uploaded_file = request.FILES.get("file")
@@ -860,11 +980,7 @@ def api_allegato_upload(request):
         safe_name = _validate_diario_allegato(uploaded_file)
     except UploadMimeValidationError as exc:
         return _json_err(str(exc))
-    allegato = SegnalazioneAllegato.objects.create(
-        segnalazione=segnalazione,
-        nome_file=safe_name,
-        file=uploaded_file,
-    )
+    allegato = _crea_allegato(request, segnalazione, uploaded_file, safe_name)
     return JsonResponse(
         {
             "ok": True,
@@ -881,15 +997,29 @@ def api_allegato_delete(request):
     pk = request.POST.get("allegato_id")
     if not pk:
         return _json_err("allegato_id obbligatorio")
-    allegato = get_object_or_404(SegnalazioneAllegato, pk=pk)
+    allegato = (
+        SegnalazioneAllegato.objects.select_related("segnalazione")
+        .filter(pk=pk, rimosso_il__isnull=True, segnalazione__eliminata_il__isnull=True)
+        .first()
+    )
+    if allegato is None:
+        return _json_err("Allegato non trovato.", status=404)
     if sistema_ruoli_attivo() and not puo_fare(request, MODULO, "modificare", allegato.segnalazione):
         return _json_err("Il tuo ruolo non consente di modificare questa segnalazione.", status=403)
-    try:
-        if allegato.file and allegato.file.name:
-            allegato.file.storage.delete(allegato.file.name)
-    except Exception:
-        pass
-    allegato.delete()
+    # Rimozione = archiviazione: il file resta sul disco e nello storico, la
+    # segnalazione non lo mostra piu'. Una prova non si cancella dal portale.
+    from core.audit import log_action
+
+    allegato.rimosso_il = timezone.now()
+    allegato.rimosso_da = request.user
+    allegato.save(update_fields=["rimosso_il", "rimosso_da"])
+    log_action(
+        request,
+        "allegato_rimosso",
+        MODULO,
+        {"file": allegato.nome_file, "sha256": (allegato.sha256 or "")[:16]},
+        oggetto=allegato.segnalazione,
+    )
     return JsonResponse({"ok": True})
 
 
@@ -925,6 +1055,9 @@ def allegato_download(request, allegato_id: int):
         SegnalazioneAllegato.objects.select_related("segnalazione"),
         pk=allegato_id,
     )
+    archiviato = allegato.rimosso_il is not None or allegato.segnalazione.is_eliminata
+    if archiviato and not _can_manage_settings(request):
+        return HttpResponse("Allegato non trovato.", status=404)
     negata = _nega_record(request, allegato.segnalazione, "vedere")
     if negata is not None:
         return negata
@@ -945,6 +1078,32 @@ def allegato_download(request, allegato_id: int):
             },
         )
         return HttpResponse("Allegato non trovato.", status=404)
+
+    if allegato.sha256:
+        try:
+            with storage.open(allegato.file.name, "rb") as fh:
+                sha256_attuale, _size = impronta_file(fh)
+        except Exception:
+            sha256_attuale = ""
+        if sha256_attuale != allegato.sha256:
+            # Il file sul disco non e' piu' quello caricato: non lo si serve come prova.
+            logger.error("Diario preposto: impronta allegato %s non corrisponde", allegato.id)
+            log_action(
+                request,
+                "download_allegato",
+                "diario_preposto",
+                {
+                    "allegato_id": allegato.id,
+                    "segnalazione_id": allegato.segnalazione_id,
+                    "esito": "integrita_ko",
+                },
+                oggetto=allegato.segnalazione,
+            )
+            return HttpResponse(
+                "Il file sul server non corrisponde a quello caricato (impronta diversa): "
+                "download bloccato. Avvisa l'amministratore del portale.",
+                status=409,
+            )
 
     filename = allegato.nome_file or Path(allegato.file.name).name
     content_type = (
@@ -1045,11 +1204,25 @@ def impostazioni(request):
             frequenza = int(raw_frequenza)
         except (TypeError, ValueError):
             frequenza = cfg.ispezione_frequenza_giorni
+        prima = {
+            "acl_scrittura": list(cfg.acl_scrittura or []),
+            "ispezione_frequenza_giorni": cfg.ispezione_frequenza_giorni,
+        }
         cfg.ispezione_frequenza_giorni = min(max(frequenza, 1), 365)
         cfg.acl_scrittura = entries
         cfg.save()
+        dopo = {"acl_scrittura": entries, "ispezione_frequenza_giorni": cfg.ispezione_frequenza_giorni}
         from core.audit import log_action
-        log_action(request, "modifica", "diario_preposto", "Aggiornate impostazioni Diario Preposto")
+        log_action(
+            request,
+            "modifica",
+            "diario_preposto",
+            {
+                "dettaglio": "Aggiornate impostazioni Diario Preposto",
+                "modifiche": {k: {"old": prima[k], "new": dopo[k]} for k in dopo if prima[k] != dopo[k]},
+            },
+            oggetto=cfg,
+        )
         messages.success(request, "Impostazioni salvate.")
         return redirect("diario_preposto:impostazioni")
 
@@ -1058,4 +1231,26 @@ def impostazioni(request):
         "cfg": cfg,
         "acl_text": acl_text,
         **get_module_branding_context("diario_preposto", fallback_label="Diario Preposto"),
+    })
+
+
+@login_required
+def guida(request):
+    """Guida d'uso del modulo (pulsante «? Guida»): pagina o PDF."""
+    from . import guida as guida_mod
+
+    if (request.GET.get("formato") or "") == "pdf":
+        from core.guida_pdf import render_guida_pdf
+
+        contenuto = render_guida_pdf(
+            titolo=guida_mod.TITOLO, sottotitolo=guida_mod.SOTTOTITOLO, sezioni=guida_mod.SEZIONI,
+            generato_da=request.user.get_username(), generato_il=timezone.localdate().strftime("%d-%m-%Y"),
+        )
+        resp = HttpResponse(contenuto, content_type="application/pdf")
+        resp["Content-Disposition"] = 'attachment; filename="Guida_Diario_preposto.pdf"'
+        return resp
+    return render(request, "diario_preposto/pages/guida.html", {
+        "sezioni": guida_mod.SEZIONI,
+        "titolo": guida_mod.TITOLO,
+        "sottotitolo": guida_mod.SOTTOTITOLO,
     })
