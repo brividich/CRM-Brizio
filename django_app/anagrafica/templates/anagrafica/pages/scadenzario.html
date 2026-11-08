@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -134,7 +134,7 @@
                     {% elif v.giorni <= 30 %}<span class="fmd-badge fmd-b-orange">{{ v.giorni }}gg</span>
                     {% else %}<span class="fmd-badge fmd-b-amber">{{ v.giorni }}gg</span>{% endif %}
                   </td>
-                  <td class="scad-act-cell">{% include "anagrafica/partials/_scadenza_azione.html" %}</td>
+                  <td class="fmd-act-cell">{% include "anagrafica/partials/_scadenza_azione.html" %}</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -185,7 +185,7 @@
                 {% elif v.giorni <= 30 %}<span class="fmd-badge fmd-b-orange">{{ v.giorni }}gg</span>
                 {% else %}<span class="fmd-badge fmd-b-amber">{{ v.giorni }}gg</span>{% endif %}
               </td>
-              <td class="scad-act-cell">{% include "anagrafica/partials/_scadenza_azione.html" %}</td>
+              <td class="fmd-act-cell">{% include "anagrafica/partials/_scadenza_azione.html" %}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -224,7 +224,7 @@
               <td>{% nominativo v %}</td>
               <td>{{ v.tipo_nome }}</td>
               <td class="fmd-nowrap fmd-num">{{ v.data_scadenza|date:"d-m-Y" }}</td>
-              <td class="scad-act-cell">{% include "anagrafica/partials/_scadenza_azione.html" %}</td>
+              <td class="fmd-act-cell">{% include "anagrafica/partials/_scadenza_azione.html" %}</td>
             </tr>
             {% empty %}<tr><td colspan="4" class="fmd-muted">Nessuna visita in scadenza.</td></tr>{% endfor %}
           </tbody></table>
@@ -241,7 +241,7 @@
               <td>{% nominativo v %}</td>
               <td>{{ v.tipo_nome }}</td>
               <td class="fmd-nowrap fmd-num">{{ v.data_scadenza|date:"d-m-Y" }}</td>
-              <td class="scad-act-cell">{% include "anagrafica/partials/_scadenza_azione.html" %}</td>
+              <td class="fmd-act-cell">{% include "anagrafica/partials/_scadenza_azione.html" %}</td>
             </tr>
             {% empty %}<tr><td colspan="4" class="fmd-muted">Nessuna scadenza formazione.</td></tr>{% endfor %}
           </tbody></table>
@@ -354,12 +354,6 @@
   {% endif %}
 </div>{# .fmd #}
 <style>
-  .scad-act{display:inline-block;font:700 11px/1.2 inherit;color:var(--fmd-cyan);background:transparent;border:1px solid currentColor;border-radius:999px;padding:3px 9px;text-decoration:none;white-space:nowrap;cursor:pointer;}
-  .scad-act:hover{background:var(--fmd-cyan);color:#fff;}
-  .scad-act-ghost{color:#64748b;}
-  .scad-act-ghost:hover{background:#64748b;}
-  .scad-act-form{display:inline;margin:0;}
-  .scad-act-cell{text-align:right;white-space:nowrap;}
   .scad-dlg{border:0;border-radius:12px;padding:18px 20px;max-width:640px;width:calc(100% - 32px);box-shadow:0 20px 60px rgba(15,23,42,.25);}
   .scad-dlg::backdrop{background:rgba(15,23,42,.45);}
   .scad-dlg-head{display:flex;align-items:baseline;gap:10px;margin-bottom:6px;font-size:16px;}

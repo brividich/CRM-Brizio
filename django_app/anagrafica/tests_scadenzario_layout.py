@@ -340,5 +340,5 @@ class RinnovoContrattoDaScadenzarioTests(TestCase):
         self.client.force_login(self.su)
         resp = self.client.get(reverse("anagrafica:scadenzario"), {"tipo": "formazione"})
         body = resp.content.decode()
-        self.assertIn('class="scad-act-form"', body)
+        self.assertIn('class="fmd-act-form"', body)
         self.assertIn(f'name="dipendenti_selezionati" value="{self.legacy_id}"', body)
