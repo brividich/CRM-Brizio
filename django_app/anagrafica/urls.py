@@ -361,6 +361,7 @@ urlpatterns = [
 
     # Scadenzario unificato qualifiche + visite + formazione + contratti
     path("scadenzario/", views.scadenzario, name="scadenzario"),
+    path("scadenzario/contratti/<int:legacy_id>/rinnova", views.scadenzario_contratto_rinnova, name="scadenzario_contratto_rinnova"),
 
     # Organigramma visuale (aree → reparti → capi → dipendenti)
     path("il-mio-team/", views_mio_team.mio_team, name="mio_team"),

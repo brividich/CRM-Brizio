@@ -212,6 +212,7 @@ from .dipendenti import (
     dipendente_contratto_add,
     dipendente_contratto_delete,
     dipendente_contratto_edit,
+    scadenzario_contratto_rinnova,
     dipendente_create,
     dipendente_detail,
     dipendente_esposizione_rischio_add,

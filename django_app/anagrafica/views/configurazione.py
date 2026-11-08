@@ -552,6 +552,19 @@ def scadenzario(request):
     voci_visite = [v for v in voci if v["kind"] == "visita"]
     voci_formazione = [v for v in voci if v["kind"] == "formazione"]
 
+    # «Rinnova» sul contratto: il dialog in pagina usa gli stessi cataloghi della
+    # scheda; chi non è HR non vede né le voci contratto né il dialog.
+    can_edit_formazione = can_view_formazione and _helpers._can_edit_formazione(request)
+    tipologie_contratto: list = []
+    livelli_catalogo: list = []
+    tipi_qualifica_prof: list = []
+    if can_view_contratti and any(v["kind"] == "contratto" for v in voci):
+        tipologie_contratto = list(TipologiaContratto.objects.filter(is_active=True).order_by("ordine", "codice"))
+        livelli_catalogo = list(LivelloContrattuale.objects.filter(is_active=True).order_by("ordine", "codice"))
+        tipi_qualifica_prof = list(
+            TipoQualifica.objects.filter(is_active=True, categoria=TipoQualifica.CAT_PROFESSIONALE).order_by("nome")
+        )
+
     cal_settimane = cal_label = cal_prev = cal_next = None
     if layout == "calendario":
         try:
@@ -604,6 +617,10 @@ def scadenzario(request):
         "can_view_formazione": can_view_formazione,
         "can_view_contratti": can_view_contratti,
         "is_qual_admin": _helpers._qualifiche_can_edit(request),
+        "can_edit_formazione": can_edit_formazione,
+        "tipologie_contratto": tipologie_contratto,
+        "livelli_catalogo": livelli_catalogo,
+        "tipi_qualifica_prof": tipi_qualifica_prof,
         "fm_n_scaduti":  fm_n_scaduti,
         "fm_n_30gg":     fm_n_30gg,
         "fm_n_90gg":     fm_n_90gg,
