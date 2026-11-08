@@ -1,0 +1,54 @@
+{% load static %}{# Pannello laterale «Nuovo OP»: si apre dai pulsanti con data-nuovo-op. Richiede il contesto nuovo_op. #}
+<link rel="stylesheet" href="{% static 'produzione/css/nuovo_op.css' %}?v=20261108a">
+<div class="nop-velo" data-nop-velo hidden></div>
+<aside class="nop" data-nop role="dialog" aria-modal="true" aria-labelledby="nop-titolo" hidden>
+  <form class="nop-form" method="post" action="{{ nuovo_op.url }}" data-nop-form novalidate>
+    {% csrf_token %}
+    <header class="nop-testa">
+      <div>
+        <h2 id="nop-titolo">Nuovo OP</h2>
+        <p>Entra nell'elenco unico degli OP: lo vedono anche Gestione anomalie e il Registro FAI.</p>
+      </div>
+      <button type="button" class="nop-chiudi" data-nop-chiudi aria-label="Chiudi">×</button>
+    </header>
+    <div class="nop-corpo">
+      <p class="nop-errore" data-nop-errore hidden></p>
+      <div class="nop-riga">
+        <label class="nop-campo nop-stretto"><span>Causale</span>
+          <input name="causale_doc" list="nop-causali" value="{{ nuovo_op.causali.0|default:'OP' }}" maxlength="20" autocomplete="off">
+        </label>
+        <label class="nop-campo nop-stretto"><span>Anno *</span>
+          <input name="anno" inputmode="numeric" maxlength="10" value="{% now 'Y' %}" required>
+        </label>
+        <label class="nop-campo"><span>Numero *</span>
+          <input name="numero" maxlength="30" required autocomplete="off">
+          <small class="nop-err" data-nop-err="numero"></small>
+        </label>
+      </div>
+      <p class="nop-anteprima">Titolo: <strong data-nop-titolo>—</strong></p>
+      <label class="nop-campo"><span>P/N *</span>
+        <input name="pn" maxlength="200" required autocomplete="off">
+        <small class="nop-err" data-nop-err="pn"></small>
+      </label>
+      <label class="nop-campo"><span>Fase</span><input name="fase" maxlength="30" placeholder="Facoltativa"></label>
+      <label class="nop-campo"><span>Capocommessa *</span>
+        <input name="capocommessa" list="nop-capicommessa" maxlength="255" required autocomplete="off">
+        <small class="nop-err" data-nop-err="capocommessa"></small>
+      </label>
+      <label class="nop-campo"><span>CAR *</span>
+        <input name="car" list="nop-car" maxlength="255" required autocomplete="off">
+        <small class="nop-err" data-nop-err="car"></small>
+      </label>
+      <label class="nop-spunta"><input type="checkbox" name="collaudo_benestare" value="1"> Collaudo di benestare</label>
+      <label class="nop-campo"><span>Note</span><textarea name="note" rows="2" maxlength="180"></textarea></label>
+      <datalist id="nop-causali">{% for v in nuovo_op.causali %}<option value="{{ v }}"></option>{% endfor %}</datalist>
+      <datalist id="nop-capicommessa">{% for v in nuovo_op.capicommessa %}<option value="{{ v }}"></option>{% endfor %}</datalist>
+      <datalist id="nop-car">{% for v in nuovo_op.car %}<option value="{{ v }}"></option>{% endfor %}</datalist>
+    </div>
+    <footer class="nop-piede">
+      <button type="submit" class="nop-btn nop-btn-primario" data-nop-crea>Crea OP</button>
+      <button type="button" class="nop-btn" data-nop-chiudi>Annulla</button>
+    </footer>
+  </form>
+</aside>
+<script src="{% static 'produzione/js/nuovo_op.js' %}?v=20261108a" defer></script>

@@ -20,6 +20,9 @@ GUIDA = {
                 ("p", "«Ordini di produzione» nel menu Produzione. Gli OP sono quelli di Gestione anomalie, letti e non "
                       "copiati, dal più recente. Per ogni OP: P/N, capocommessa, CAR, stato e quanti documenti, FAI e "
                       "anomalie aperte ha. Cerca per OP, P/N, capocommessa o CAR, filtra per stato."),
+                ("p", "«+ Nuovo OP» apre un pannello a lato (causale, anno, numero, P/N, fase, capocommessa, CAR, collaudo "
+                      "di benestare, note): stesse regole di Gestione anomalie, titolo causale/anno/numero non ripetibile. "
+                      "Lo stesso pannello si apre dalla scheda FAI e mette l'OP creato nel campo OP."),
             ],
         },
         {
@@ -46,11 +49,12 @@ GUIDA = {
             "titolo": "Configurazione",
             "blocchi": [
                 ("def", [
-                    ("Permessi", "«Elenco e scheda OP» a tutti i ruoli; «Documenti» e «Impostazioni» solo admin "
+                    ("Permessi", "«Elenco e scheda OP» a tutti i ruoli; «Documenti», «Impostazioni» e «Nuovo OP» solo admin "
                      "(Accessi › permessi del modulo Ordini di produzione). FAI, programmi e KICK-OFF seguono i "
                      "permessi del KICK-OFF."),
                     ("Tipi di documento", "Ordini di produzione › Impostazioni: nome, descrizione, ordine, attivo."),
-                    ("Elenco OP", "tabella ordini_produzione, la stessa di Gestione anomalie; gli OP nuovi si creano lì."),
+                    ("Elenco OP", "tabella ordini_produzione, la stessa di Gestione anomalie; gli OP nuovi si creano qui, "
+                     "dalla scheda FAI o da Gestione anomalie, con la stessa funzione."),
                 ]),
             ],
         },

@@ -16,6 +16,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core import ordini_produzione
+from produzione import nuovo_op
 from core.audit import log_action
 from core.csv_export import csv_download_response
 from core.paginazione import pagina_elenco
@@ -405,6 +406,7 @@ def _contesto_scheda(request, form, record, project, ref, *, modificabile: bool)
     return {
         "f": _campi(form),
         "op_collegato": _op_collegato(form),
+        "nuovo_op": nuovo_op.contesto(request) if modificabile else None,
         "situazione": stato_articolo(articolo, record, limiti=limiti) if record and not annullato else None,
         "ripetizione": ripetizione_entro(articolo, record, limiti) if record and not annullato else None,
         "ha_versione": any(form[nome].value() for nome in NOMI_VERSIONE),

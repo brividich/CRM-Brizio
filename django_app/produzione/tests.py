@@ -8,7 +8,7 @@ from core.legacy_utils import legacy_table_columns
 from tasks.models import FaiArticolo, FaiFase, FaiGruppo, FaiOpzione, FaiRecord, ProjectTechRef, TechRefKind
 from tasks.tests_utils import TasksBaseTestCase, _create_user_with_legacy, _ensure_role, make_project
 
-from .acl_bootstrap import PERM_DOCUMENTI, PERM_VIEW
+from .acl_bootstrap import PERM_DOCUMENTI, PERM_OP, PERM_VIEW
 from .models import DocumentoOP, TipoDocumento
 
 
@@ -174,3 +174,49 @@ class PermessiTest(ProduzioneBase):
         risposta = self.client.post(reverse("produzione:documento", args=[self.pk]), {"tipo": self.tipo.pk})
         self.assertEqual(risposta.status_code, 403)
         self.assertFalse(DocumentoOP.objects.exists())
+
+
+class NuovoOpTest(ProduzioneBase):
+    """Creazione con la funzione di Gestione anomalie (qui finta: usa SQL di SQL Server)."""
+
+    DATI = {"causale_doc": "OP", "anno": "2026", "numero": "200", "pn": "PN-GAMMA-3",
+            "capocommessa": "Capo Uno", "car": "Car Uno"}
+
+    def _finta(self, request, dati):
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO ordini_produzione (title, sharepoint_item_id, part_number, capocomessa, incaricato, stato) "
+                "VALUES (%s, '-9', %s, %s, %s, 'Aperto')",
+                [f"{dati['causale_doc']}/{dati['anno']}/{dati['numero']}", dati["pn"], dati["capocommessa"], dati["car"]],
+            )
+        return {"success": True, "op": {}, "error": "", "status": 200}
+
+    def test_crea_e_restituisce_la_scheda(self):
+        from unittest.mock import patch
+
+        with patch("anomalie.views.crea_op_da_dati", side_effect=self._finta) as crea:
+            risposta = self.client.post(reverse("produzione:op_nuovo"), self.DATI, HTTP_ACCEPT="application/json")
+        self.assertEqual(risposta.status_code, 200, risposta.content)
+        op = risposta.json()["op"]
+        self.assertEqual((op["op"], op["pn"]), ("OP/2026/200", "PN-GAMMA-3"))
+        self.assertEqual(op["url"], reverse("produzione:scheda", args=[op["id"]]))
+        self.assertFalse(crea.call_args.args[1]["collaudo_benestare"])
+
+    def test_campi_obbligatori_e_doppione(self):
+        url = reverse("produzione:op_nuovo")
+        errori = self.client.post(url, {"anno": "2026"}, HTTP_ACCEPT="application/json").json()["errori"]
+        self.assertEqual(set(errori), {"numero", "pn", "capocommessa", "car"})
+        doppio = self.client.post(url, {**self.DATI, "numero": "100"}, HTTP_ACCEPT="application/json")
+        self.assertEqual(doppio.status_code, 400)
+        self.assertIn("esiste già", doppio.json()["errori"]["numero"])
+
+    def test_pannello_nell_elenco_e_nella_scheda_fai(self):
+        self.assertContains(self.client.get(reverse("produzione:elenco")), "data-nuovo-op")
+        self.assertContains(self.client.get(reverse("tasks:fai_nuovo")), "data-fai-nuovo-op")
+
+    def test_senza_permesso_niente_pannello_e_403(self):
+        PermessiTest._utente(self, {PERM_VIEW: True, PERM_OP: False})
+        self.assertNotContains(self.client.get(reverse("produzione:elenco")), "data-nuovo-op")
+        risposta = self.client.post(reverse("produzione:op_nuovo"), self.DATI, HTTP_ACCEPT="application/json")
+        self.assertEqual(risposta.status_code, 403)
+        self.assertEqual(risposta["Content-Type"], "application/json")

@@ -112,7 +112,7 @@
       <section class="fai-blocco">
         <h2 class="fai-titolo">Riferimenti</h2>
         <div class="fai-griglia">
-          <label class="fai-campo s3"><span>OP</span>
+          <label class="fai-campo s3"><span class="fai-op-etichetta">OP{% if nuovo_op and modificabile %}<button type="button" class="nop-apri" data-nuovo-op data-fai-nuovo-op>+ Nuovo OP</button>{% endif %}</span>
             <input class="input" name="op" maxlength="{{ f.op.massimo }}" value="{{ f.op.valore|default_if_none:'' }}" list="fai-op-elenco" autocomplete="off" placeholder="Cerca OP o P/N" data-fai-op data-url="{% url 'tasks:fai_op' %}">
             <datalist id="fai-op-elenco"></datalist>
             {% if f.op.errori %}<small class="tr-err">{{ f.op.errori|join:" " }}</small>{% endif %}
@@ -199,5 +199,6 @@
   </dl>
 </details>
 {% endif %}
-<script src="{% static 'tasks/js/fai.js' %}?v=20261108b" defer></script>
+{% if nuovo_op and modificabile %}{% include "produzione/_nuovo_op.html" %}{% endif %}
+<script src="{% static 'tasks/js/fai.js' %}?v=20261108c" defer></script>
 {% endblock %}

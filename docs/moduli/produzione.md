@@ -4,7 +4,7 @@ URL: `/produzione/`. Voce «Ordini di produzione» nel menu Produzione.
 
 ## Cosa fa
 
-Ogni OP con i suoi documenti di produzione. Gli OP sono la tabella legacy `ordini_produzione`, la stessa di Gestione anomalie: la sezione la legge (`core/ordini_produzione.py`) e non la copia. Gli OP nuovi si creano da Gestione anomalie con «+ Nuovo OP».
+Ogni OP con i suoi documenti di produzione. Gli OP sono la tabella legacy `ordini_produzione`, la stessa di Gestione anomalie: la sezione la legge (`core/ordini_produzione.py`) e non la copia. Gli OP nuovi si creano da qui con «+ Nuovo OP» (pannello laterale, `produzione/_nuovo_op.html` + `produzione/js/nuovo_op.js`, POST JSON `/produzione/op/nuovo/`), dalla scheda FAI (stesso pannello, l'OP creato va nel campo OP con l'evento `op:creato`) o da Gestione anomalie: tutti usano `anomalie.views.crea_op_da_dati`, con il controllo del titolo già esistente in `produzione/nuovo_op.py`.
 
 - **Elenco** (`/produzione/`): OP dal più recente con P/N, capocommessa, CAR, stato, numero di documenti, FAI e anomalie aperte; ricerca per OP, P/N, capocommessa o CAR, filtro per stato, 100 per pagina.
 - **Scheda** (`/produzione/op/<id>/`, id della tabella `ordini_produzione`):
@@ -24,6 +24,7 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 | `produzione.op.view` | tutti i ruoli | elenco, scheda, guida |
 | `produzione.documenti.manage` | admin | documento, documento_elimina |
 | `produzione.impostazioni.manage` | admin | impostazioni |
+| `produzione.op.manage` | admin | op_nuovo (risponde in JSON 401/403/400) |
 
 ## Tabelle
 
@@ -31,4 +32,4 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 
 ## Deploy
 
-`migrate produzione`, `collectstatic` (CSS `produzione/css/produzione.css`).
+`migrate produzione`, `collectstatic` (`produzione/css/produzione.css`, `produzione/css/nuovo_op.css`, `produzione/js/nuovo_op.js`).
