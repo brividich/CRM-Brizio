@@ -206,6 +206,16 @@ def pc_copertura(request):
 
         if not can_manage:
             messages.error(request, "Serve il permesso di configurazione del Security Center.")
+        elif request.POST.get("action") == "windows_lavoro":
+            from .services import windows_lavoro
+
+            try:
+                caso = windows_lavoro.apri_lavoro(request.user)
+            except ValueError as exc:
+                messages.error(request, str(exc))
+                return redirect(request.get_full_path())
+            messages.success(request, "Piano di aggiornamento aperto: le attività dei PC si spuntano da sole quando passano a una release supportata.")
+            return redirect("security:case_detail", pk=caso.pk)
         else:
             _assets_post(request, link, suggest_hub_asset)
         return redirect(request.get_full_path())
@@ -220,8 +230,12 @@ def pc_copertura(request):
         visibili = [r for r in visibili if needle in r["nome"].casefold() or (r["intune"] and needle in (r["intune"].utente_nome or "").casefold())
                     or (r["rete"] and needle in (r["rete"].ip, r["rete"].mac))]
     counts = svc.conteggi(rows)
+    from .services import windows_lavoro
+
     return render(request, "security/pc_copertura.html", {
         "rows": visibili, "totale": len(rows), "q": q, "codice": codice, "can_manage": can_manage,
+        "windows_da_aggiornare": counts["sistema_fuori"] + counts["sistema_in_scadenza"],
+        "windows_lavoro": windows_lavoro.riepilogo(),
         "filtri": [{"code": c, "label": label, "count": counts[c], "active": c == codice} for c, label in svc.FILTRI],
         "intune_totale": sum(1 for r in rows if r["intune"]),
         "collegati": sum(1 for r in rows if r["asset"]),

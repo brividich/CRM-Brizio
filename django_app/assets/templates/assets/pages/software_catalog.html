@@ -89,6 +89,29 @@ document.addEventListener("DOMContentLoaded", function () {
       <button type="submit" class="sc-mini-btn">Consenti tutto</button>
     </form>
   </details>
+  <details class="sc-card" id="dotazione"{% if dotazione_mancanti %} open{% endif %}>
+    <summary style="cursor:pointer;font-weight:700">Dotazione attesa{% if dotazione %} ({{ dotazione|length }} regole{% if dotazione_mancanti %}, manca su {{ dotazione_mancanti }} PC{% endif %}){% endif %}</summary>
+    <p class="sc-note" style="margin:8px 0">Che cosa deve esserci sui PC di un tipo o di un reparto: antivirus, agente di backup, il CAM dell'officina. Il confronto con l'inventario dice dove manca; i PC senza inventario non contano. Lo stesso scostamento compare nel riquadro Rischio del PC.</p>
+    {% for d in dotazione %}
+    <div class="sc-regola" style="flex-wrap:wrap">
+      <span class="sc-tag {% if d.mancanti %}sc-tag--warn{% else %}sc-tag--ok{% endif %}">{{ d.regola }}</span>
+      <span class="sc-meta">{% if d.mancanti %}manca su {{ d.mancanti|length }} PC{% else %}presente{% endif %} · {{ d.coperti }} con il programma{% if d.senza_inventario %} · {{ d.senza_inventario }} senza inventario{% endif %}{% if d.regola.nota %} · {{ d.regola.nota }}{% endif %}</span>
+      <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="azione" value="dotazione_togli"><input type="hidden" name="regola" value="{{ d.regola.pk }}"><button type="submit" class="sc-mini-btn">Togli</button></form>
+      {% if d.mancanti %}<details style="flex-basis:100%"><summary class="sc-meta" style="cursor:pointer">PC senza {{ d.regola.etichetta|default:d.regola.programma }}</summary><p class="sc-meta" style="margin:4px 0 0">{% for a in d.mancanti %}<a href="{% url 'assets:asset_view' a.pk %}">{{ a.name }}</a>{% if a.reparto %} ({{ a.reparto }}){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</p></details>{% endif %}
+    </div>
+    {% endfor %}
+    <form method="post" class="sc-unisci" style="flex-wrap:wrap">{% csrf_token %}<input type="hidden" name="azione" value="dotazione_aggiungi">
+      <select name="programma" class="js-searchable" data-placeholder="Cerca il programma" aria-label="Programma atteso" required>
+        <option value="">Scegli il programma</option>
+        {% for value, label in dotazione_scelte %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+      <select name="ambito" aria-label="Su quali asset">{% for value, label in dotazione_ambiti %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+      <input type="text" name="reparto" list="sc-reparti" placeholder="Reparto (vuoto = tutti)" aria-label="Reparto" maxlength="120">
+      <datalist id="sc-reparti">{% for r in dotazione_reparti %}<option value="{{ r }}"></option>{% endfor %}</datalist>
+      <input type="text" name="nota" placeholder="Nota (facoltativa)" aria-label="Nota" maxlength="255">
+      <button type="submit" class="sc-mini-btn">Aggiungi alla dotazione</button>
+    </form>
+  </details>
   <form method="post" id="sc-blocco" class="sc-card sc-blocco">{% csrf_token %}<input type="hidden" name="azione" value="classifica">
     <strong id="sc-blocco-n">Nessun programma selezionato</strong>
     <select name="classification" aria-label="Classificazione" required>{% for value, label in classification_choices %}{% if value != "da_classificare" %}<option value="{{ value }}">{{ label }}</option>{% endif %}{% endfor %}<option value="da_classificare">Da classificare</option></select>
@@ -103,7 +126,7 @@ document.addEventListener("DOMContentLoaded", function () {
       {% for row in rows %}
         <tr>
           {% if can_edit %}<td><input type="checkbox" name="k" value="{{ row.key }}" form="sc-blocco" class="sc-scelta" aria-label="Seleziona {{ row.name }}"></td>{% endif %}
-          <td><a href="{{ row.url }}"><strong>{{ row.name }}</strong></a><br><span class="sc-meta">{{ row.vendor|default:"produttore n/d" }}{% if row.names > 1 %} · {{ row.names }} nomi raggruppati{% endif %}</span>{% if row.cerca %}<span hidden>{{ row.cerca }}</span>{% endif %}</td>
+          <td><a href="{{ row.url }}"><strong>{{ row.name }}</strong></a>{% if row.nuovo_dal %} <span class="sc-tag sc-tag--warn" title="Mai visto prima del {{ row.nuovo_dal|date:'d/m/Y' }} e ancora senza decisione">nuovo dal {{ row.nuovo_dal|date:"d/m" }}</span>{% endif %}<br><span class="sc-meta">{{ row.vendor|default:"produttore n/d" }}{% if row.names > 1 %} · {{ row.names }} nomi raggruppati{% endif %}</span>{% if row.cerca %}<span hidden>{{ row.cerca }}</span>{% endif %}</td>
           <td>{{ row.hosts }}</td>
           <td>{{ row.versions }}</td>
           <td><span class="sc-tag {% if row.classification == 'consentito' %}sc-tag--ok{% elif row.classification == 'non_autorizzato' %}sc-tag--danger{% elif row.classification == 'da_rimuovere' %}sc-tag--warn{% else %}sc-tag--muted{% endif %}">{{ row.classification_label }}</span>{% if row.da_regola %}<br><span class="sc-meta">da regola</span>{% endif %}</td>

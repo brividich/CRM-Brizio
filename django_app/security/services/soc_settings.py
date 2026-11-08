@@ -209,6 +209,11 @@ SECTIONS = [
             Option("software.da_rimuovere.alert", True, "Alert per software da rimuovere"),
             Option("software.versione_minima.alert", True, "Alert per versioni sotto la minima",
                    "Solo per i software «Consentiti» con una versione minima; le versioni non confrontabili non vengono mai segnalate."),
+            Option("software.nuovo.alert", True, "Alert per un programma mai visto prima",
+                   "Un programma che compare per la prima volta su un PC e non ha una decisione nel catalogo (shadow IT). Un alert per "
+                   "programma, una volta sola; si chiude da solo quando il programma riceve una decisione."),
+            Option("software.nuovo.giorni", 14, "Un programma è «nuovo» per", "Giorni dalla prima comparsa su un PC; vale anche per il "
+                   "filtro «Nuovi» del Catalogo software.", "int", min_value=1, max_value=90, unit="giorni"),
         ],
     },
     {
