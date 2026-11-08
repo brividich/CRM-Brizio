@@ -235,6 +235,7 @@ def pc_copertura(request):
     return render(request, "security/pc_copertura.html", {
         "rows": visibili, "totale": len(rows), "q": q, "codice": codice, "can_manage": can_manage,
         "windows_da_aggiornare": counts["sistema_fuori"] + counts["sistema_in_scadenza"],
+        "windows_fuori": counts["sistema_fuori"], "windows_in_scadenza": counts["sistema_in_scadenza"],
         "windows_lavoro": windows_lavoro.riepilogo(),
         "filtri": [{"code": c, "label": label, "count": counts[c], "active": c == codice} for c, label in svc.FILTRI],
         "intune_totale": sum(1 for r in rows if r["intune"]),

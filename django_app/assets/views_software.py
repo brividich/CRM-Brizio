@@ -308,9 +308,15 @@ def _dotazione_contesto(rows: list[dict]) -> dict:
         regole = []
     reparti = sorted({r for r in Asset.objects.filter(asset_type__in=SoftwareDotazioneAttesa.TIPI_PER_AMBITO["tutti"])
                       .exclude(reparto="").values_list("reparto", flat=True).distinct()}, key=str.casefold)
+    for r in regole:
+        confrontati = r["coperti"] + len(r["mancanti"])
+        r["confrontati"] = confrontati
+        r["percento"] = round(100 * r["coperti"] / confrontati) if confrontati else None
+    confrontati = sum(r["confrontati"] for r in regole)
     return {
         "dotazione": regole,
         "dotazione_mancanti": sum(len(r["mancanti"]) for r in regole),
+        "dotazione_percento": round(100 * sum(r["coperti"] for r in regole) / confrontati) if confrontati else None,
         "dotazione_scelte": [(r["key"], f"{r['name']} · {r['vendor'] or 'produttore n/d'} ({r['hosts']} PC)") for r in rows],
         "dotazione_ambiti": SoftwareDotazioneAttesa.AMBITO_CHOICES,
         "dotazione_reparti": reparti,

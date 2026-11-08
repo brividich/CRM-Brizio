@@ -217,6 +217,17 @@ body.theme-dark .cvp-card-stat.is-ok strong { color: #86efac; }
 .soc-drawer .cvp-btn--primary:hover { background: var(--primary, #1d4ed8); }
 body.theme-dark .soc-drawer a.cvp-btn:not(.cvp-btn--primary) { color: var(--text); }
 @media (max-width: 520px) { .cvp-card-stats { grid-template-columns: 1fr 1fr; } }
+/* Riquadro Rischio della scheda asset: tessere che si adattano al numero e motivi con icona per livello */
+.cvp-card-stats--auto { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.cvp-card-stat--link { color: inherit; text-decoration: none; transition: box-shadow .12s ease; }
+.cvp-card-stat--link:hover, .cvp-card-stat--link:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-mid, #2f5f89) 18%, transparent); outline: none; }
+.cvp-card-stat strong { overflow-wrap: anywhere; }
+.ris-motivi { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 7px; }
+.ris-motivi li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; font-size: var(--fs-base, 13px); line-height: 1.45; color: var(--text, #1a202c); }
+.ris-motivi li.is-nota { color: var(--text-mid, #64748b); }
+.ris-motivi svg { width: 16px; height: 16px; margin-top: 2px; flex: none; }
+.ris-motivi li.is-nota svg { color: var(--text-light, #94a3b8); }
+@media (max-width: 520px) { .cvp-card-stats--auto { grid-template-columns: 1fr 1fr; } }
 /* Pannello CVE: spiegazione dell'AI (anche fuori dal SOC, negli Asset) */
 .soc-drawer .cvp-ai { margin: 12px 0 0; }
 .soc-drawer .cvp-ai .ai-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }

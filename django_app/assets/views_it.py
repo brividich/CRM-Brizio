@@ -279,6 +279,11 @@ def it_reconciliation(request: HttpRequest) -> HttpResponse:
     from .views import _assets_shell_context
 
     fine_vita = hardware_vita.elenco()
+    fine_vita_conteggi = hardware_vita.conteggi(fine_vita)
+    giudizio = request.GET.get("giudizio") or ""
+    fine_vita_mostrati = hardware_vita.filtra(fine_vita, giudizio)
+    for r in fine_vita_mostrati:
+        r["eta_pct"] = hardware_vita.eta_percento(r["eta"])
     return render(request, "assets/pages/it_reconciliation.html", {
         **_assets_shell_context(request),
         "page_title": "Riconciliazione dispositivi IT",
@@ -288,8 +293,13 @@ def it_reconciliation(request: HttpRequest) -> HttpResponse:
         "da_spiegare": da_spiegare,
         "spiegati": spiegati,
         "motivi": AssetSenzaInventario.MOTIVO_CHOICES,
-        "fine_vita": fine_vita,
-        "fine_vita_conteggi": hardware_vita.conteggi(fine_vita),
+        "fine_vita": fine_vita_mostrati,
+        "fine_vita_totale": len(fine_vita),
+        "fine_vita_giudizio": giudizio if giudizio in hardware_vita.ETICHETTE else "",
+        "fine_vita_conteggi": fine_vita_conteggi,
         "fine_vita_soglie": {"sostituzione": hardware_vita.ETA_SOSTITUZIONE, "pianifica": hardware_vita.ETA_PIANIFICA,
-                             "ram": hardware_vita.RAM_MINIMA_GB, "disco": hardware_vita.DISCO_PIENO_PCT, "guasti": hardware_vita.GUASTI_SOGLIA},
+                             "ram": hardware_vita.RAM_MINIMA_GB, "disco": hardware_vita.DISCO_PIENO_PCT, "guasti": hardware_vita.GUASTI_SOGLIA,
+                             "scala": hardware_vita.ETA_SCALA,
+                             "segno_pianifica": round(100 * hardware_vita.ETA_PIANIFICA / hardware_vita.ETA_SCALA),
+                             "segno_sostituzione": round(100 * hardware_vita.ETA_SOSTITUZIONE / hardware_vita.ETA_SCALA)},
     })
