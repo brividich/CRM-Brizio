@@ -1,6 +1,6 @@
 {% if op.trovato %}
 <p class="fai-op-riga">
-  <span class="fai-op-nome">{{ op.op }}</span>
+  {% if op.url_scheda %}<a class="fai-op-nome" href="{{ op.url_scheda }}" title="Scheda dell'OP in Ordini di produzione">{{ op.op }}</a>{% else %}<span class="fai-op-nome">{{ op.op }}</span>{% endif %}
   {% if op.pn %}<span>P/N <strong>{{ op.pn }}</strong></span>{% endif %}
   {% if op.capocommessa %}<span>Capocommessa <strong>{{ op.capocommessa }}</strong></span>{% endif %}
   {% if op.car %}<span>CAR <strong>{{ op.car }}</strong></span>{% endif %}

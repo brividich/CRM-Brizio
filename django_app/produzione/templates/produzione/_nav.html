@@ -1,0 +1,5 @@
+<nav class="prod-nav" aria-label="Menu Ordini di produzione">
+  <a href="{% url 'produzione:elenco' %}"{% if prod_corrente == "elenco" or prod_corrente == "scheda" %} class="is-on"{% endif %}>Elenco OP</a>
+  {% if prod_puo_impostazioni %}<a href="{% url 'produzione:impostazioni' %}"{% if prod_corrente == "impostazioni" %} class="is-on"{% endif %}>Impostazioni</a>{% endif %}
+  <a class="prod-nav-guida{% if prod_corrente == 'guida' %} is-on{% endif %}" href="{% url 'produzione:guida' %}">? Guida</a>
+</nav>

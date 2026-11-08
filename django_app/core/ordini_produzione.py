@@ -31,7 +31,7 @@ def _select(colonne: set[str]) -> str:
         return f"{nome} AS {alias}" if nome and nome in colonne else f"NULL AS {alias}"
 
     return ", ".join((
-        "title AS op", col("sharepoint_item_id", "item_id"), col("part_number", "pn"),
+        "id AS id", "title AS op", col("sharepoint_item_id", "item_id"), col("part_number", "pn"),
         col(_colonna_capo(colonne), "capocommessa"), col("incaricato", "car"), col("stato", "stato"),
     ))
 
@@ -77,6 +77,51 @@ def per_titolo(titolo: str) -> dict | None:
         [titolo.lower()], 1,
     )
     return righe[0] if righe else None
+
+
+def per_id(pk: int) -> dict | None:
+    colonne = legacy_table_columns(TABELLA)
+    if "title" not in colonne:
+        return None
+    righe = _righe(f"SELECT {_select(colonne)} FROM {TABELLA} WHERE id = %s", [int(pk)], 1)
+    return righe[0] if righe else None
+
+
+def elenco(testo: str = "", stato: str = "") -> list[dict]:
+    """Tutti gli OP, filtrati per testo (titolo, P/N, capocommessa, CAR) e stato, i più recenti prima."""
+    colonne = legacy_table_columns(TABELLA)
+    if "title" not in colonne:
+        return []
+    filtri, parametri = [], []
+    testo = (testo or "").strip()[:100].lower()
+    if testo:
+        campi = ["title"] + [c for c in ("part_number", _colonna_capo(colonne), "incaricato") if c and c in colonne]
+        filtri.append("(" + " OR ".join(f"LOWER({c}) LIKE %s" for c in campi) + ")")
+        parametri += [f"%{testo}%"] * len(campi)
+    if stato and "stato" in colonne:
+        filtri.append("stato = %s")
+        parametri.append(stato[:50])
+    where = f"WHERE {' AND '.join(filtri)}" if filtri else ""
+    return _righe(f"SELECT {_select(colonne)} FROM {TABELLA} {where} ORDER BY id DESC", parametri)
+
+
+def stati() -> list[str]:
+    if "stato" not in legacy_table_columns(TABELLA):
+        return []
+    righe = _righe(f"SELECT DISTINCT stato AS stato FROM {TABELLA} WHERE stato IS NOT NULL AND stato <> ''", [])
+    return sorted({r["stato"] for r in righe if r["stato"]})
+
+
+def anomalie_aperte_per_op() -> dict[str, int]:
+    """Anomalie aperte per titolo OP (in minuscolo), per l'elenco."""
+    colonne = legacy_table_columns("anomalie")
+    if "ex_op_nominativo" not in colonne:
+        return {}
+    aperte = "WHERE COALESCE(chiudere, 0) = 0" if "chiudere" in colonne else ""
+    righe = _righe(
+        f"SELECT LOWER(ex_op_nominativo) AS op, COUNT(*) AS n FROM anomalie {aperte} GROUP BY LOWER(ex_op_nominativo)", []
+    )
+    return {r["op"]: int(r["n"] or 0) for r in righe if r["op"]}
 
 
 def conta_anomalie(op: dict) -> dict:

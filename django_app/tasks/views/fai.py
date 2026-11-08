@@ -370,6 +370,7 @@ def _dati_op(op: dict, part_number: str = "") -> dict:
         **op,
         "anomalie": ordini_produzione.conta_anomalie(op),
         "url_anomalie": f"{reverse('gestione_anomalie_page')}?{urlencode({'op': op['op'], 'filter': 'tutti'})}",
+        "url_scheda": reverse("produzione:scheda", args=[op["id"]]) if str(op.get("id", "")).isdigit() else "",
         "pn_diverso": bool(pn_op and part_number and pn_op != normalize_part_number(part_number)),
     }
 
@@ -460,7 +461,9 @@ def _iniziali(record, project, ref, richiesta) -> dict:
     stato = stato_iniziale()
     return {
         "client_name": project.client_name if project else "",
-        "part_number": project.part_number if project else "",
+        # Dalla scheda dell'OP (Ordini di produzione) arrivano OP e P/N.
+        "part_number": project.part_number if project else richiesta.GET.get("pn", "")[:120],
+        "op": richiesta.GET.get("op", "")[:120],
         "causale": causale.pk if causale else None,
         "tipo": causale.tipo_proposto if causale else "",
         "piano": piani[0].pk if piani else None,

@@ -54,6 +54,7 @@ urlpatterns = [
     path("ofi-registro/", include(("registro_ofi.urls", "registro_ofi"), namespace="registro_ofi")),
     # Presenti in azienda (timbrature Solari): lista live, appello di evacuazione, uscite non timbrate.
     path("presenti/", include(("presenti.urls", "presenti"), namespace="presenti")),
+    path("produzione/", include(("produzione.urls", "produzione"), namespace="produzione")),
     path("suggestion-corner/", include(("suggestion_corner.urls", "suggestion_corner"), namespace="suggestion_corner")),
     path("notizie/", include("notizie.urls")),
     path(
