@@ -44,6 +44,7 @@
         </div>
         {% if can_view_contratti %}<a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:conformita_report' %}"><svg class="fmd-ico"><use href="#i-check"/></svg>Conformità mansione</a>{% endif %}
         <a class="fmd-btn fmd-btn-ghost" href="?{% for k,v in request.GET.items %}{% if k != 'format' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}format=csv"><svg class="fmd-ico"><use href="#i-download"/></svg>Esporta CSV</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#scadenzario" title="Come funziona questa pagina">? Guida</a>
       </div>
     </div>
 
