@@ -8,17 +8,21 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
-from django.http import Http404
+from urllib.parse import urlencode
+
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from core import ordini_produzione
 from core.audit import log_action
 from core.csv_export import csv_download_response
 from core.paginazione import pagina_elenco
 
 from ..access import can_manage_project, has_task_permission, scoped_projects_queryset, task_permissions_required
 from ..fai_regole import aggiungi_mesi
+from ..identity import normalize_part_number
 from ..models import FaiDocumento, FaiFase, FaiGruppo, FaiOpzione, FaiRecord, FaiTipo, ProjectTechRef, TechRefKind
 from ..services.fai import (
     allinea_riga,
@@ -359,12 +363,47 @@ def _campi_opzione(form, record, nome, etichetta, gruppo) -> dict:
     }
 
 
+def _dati_op(op: dict, part_number: str = "") -> dict:
+    """L'OP dell'elenco unico, con le sue anomalie e il controllo del P/N."""
+    pn_op = normalize_part_number(op.get("pn"))
+    return {
+        **op,
+        "anomalie": ordini_produzione.conta_anomalie(op),
+        "url_anomalie": f"{reverse('gestione_anomalie_page')}?{urlencode({'op': op['op'], 'filter': 'tutti'})}",
+        "pn_diverso": bool(pn_op and part_number and pn_op != normalize_part_number(part_number)),
+    }
+
+
+def _op_collegato(form) -> dict | None:
+    titolo = (form["op"].value() or "").strip()
+    if not titolo or not ordini_produzione.disponibile():
+        return None
+    op = ordini_produzione.per_titolo(titolo)
+    if op is None:
+        return {"trovato": False, "op": titolo}
+    return {"trovato": True, **_dati_op(op, form["part_number"].value() or "")}
+
+
+@task_permissions_required("tasks_view", api=True)
+def fai_op(request):
+    """OP dell'elenco unico per il campo OP della scheda: ``?q=`` cerca, ``?op=`` legge uno."""
+    if not ordini_produzione.disponibile():
+        return JsonResponse({"ok": True, "disponibile": False, "risultati": []})
+    titolo = (request.GET.get("op") or "").strip()
+    if titolo:
+        op = ordini_produzione.per_titolo(titolo)
+        dati = _dati_op(op, request.GET.get("pn", "")) if op else None
+        return JsonResponse({"ok": True, "disponibile": True, "op": dati})
+    return JsonResponse({"ok": True, "disponibile": True, "risultati": ordini_produzione.cerca(request.GET.get("q", ""))})
+
+
 def _contesto_scheda(request, form, record, project, ref, *, modificabile: bool) -> dict:
     articolo = record.articolo if record else None
     limiti = soglie()
     annullato = bool(record and record.stato.fase == FaiFase.ANNULLATO)
     return {
         "f": _campi(form),
+        "op_collegato": _op_collegato(form),
         "situazione": stato_articolo(articolo, record, limiti=limiti) if record and not annullato else None,
         "ripetizione": ripetizione_entro(articolo, record, limiti) if record and not annullato else None,
         "ha_versione": any(form[nome].value() for nome in NOMI_VERSIONE),

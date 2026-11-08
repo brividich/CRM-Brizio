@@ -112,12 +112,17 @@
       <section class="fai-blocco">
         <h2 class="fai-titolo">Riferimenti</h2>
         <div class="fai-griglia">
-          {% include "tasks/_fai_campo.html" with c=f.op s="3" %}
+          <label class="fai-campo s3"><span>OP</span>
+            <input class="input" name="op" maxlength="{{ f.op.massimo }}" value="{{ f.op.valore|default_if_none:'' }}" list="fai-op-elenco" autocomplete="off" placeholder="Cerca OP o P/N" data-fai-op data-url="{% url 'tasks:fai_op' %}">
+            <datalist id="fai-op-elenco"></datalist>
+            {% if f.op.errori %}<small class="tr-err">{{ f.op.errori|join:" " }}</small>{% endif %}
+          </label>
           {% include "tasks/_fai_campo.html" with c=f.oda_item s="3" %}
           {% include "tasks/_fai_campo.html" with c=f.invito s="2" %}
           {% include "tasks/_fai_campo.html" with c=f.faldone s="2" %}
           {% include "tasks/_fai_campo.html" with c=f.cci_numero s="1" %}
           {% include "tasks/_fai_campo.html" with c=f.cci_anno s="1" %}
+          <div class="fai-op s12" data-fai-op-scheda aria-live="polite">{% if op_collegato %}{% include "tasks/_fai_op.html" with op=op_collegato %}{% endif %}</div>
         </div>
       </section>
 
@@ -194,5 +199,5 @@
   </dl>
 </details>
 {% endif %}
-<script src="{% static 'tasks/js/fai.js' %}?v=20261106a" defer></script>
+<script src="{% static 'tasks/js/fai.js' %}?v=20261108a" defer></script>
 {% endblock %}

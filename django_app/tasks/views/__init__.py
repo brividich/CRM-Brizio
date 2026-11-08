@@ -260,7 +260,7 @@ from .mie_azioni import (  # noqa: F401
     mie_azioni,
 )
 
-from .fai import fai_registro, fai_scheda  # noqa: F401,E402
+from .fai import fai_op, fai_registro, fai_scheda  # noqa: F401,E402
 from .fai_report import fai_report, fai_report_scarica  # noqa: F401,E402
 from .tech_refs import (  # noqa: F401,E402
     fai_non_richiesto,

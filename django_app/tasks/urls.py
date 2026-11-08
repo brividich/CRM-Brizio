@@ -15,6 +15,7 @@ urlpatterns = [
     path("tasks/fai/report/", views.fai_report, name="fai_report"),
     path("tasks/fai/report/scarica/", views.fai_report_scarica, name="fai_report_scarica"),
     path("tasks/fai/nuovo/", views.fai_scheda, name="fai_nuovo"),
+    path("tasks/fai/op/", views.fai_op, name="fai_op"),
     path("tasks/fai/<int:fai_id>/", views.fai_scheda, name="fai_scheda"),
     path("tasks/mie-azioni/<str:kind>/<int:pk>/stato/", views.mia_voce_stato, name="mia_voce_stato"),
     path("tasks/guida/", views.guida, name="guida"),

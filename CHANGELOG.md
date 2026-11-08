@@ -9,6 +9,7 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+- **Registro FAI: campo OP collegato all'elenco unico degli OP** (`core/ordini_produzione.py` nuovo, `tasks/views/fai.py`, `tasks/views/__init__.py`, `tasks/urls.py`, `tasks/acl_bootstrap.py` v16, template `tasks/fai_scheda.html`, `tasks/_fai_op.html` nuovo, `tasks/static/tasks/js/fai.js`, `tasks/static/tasks/css/tasks.css`, `tasks/templates/tasks/base_shell.html`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`, `tasks/tests_fai_op.py` nuovo): mentre scrivi, il campo OP propone gli OP della tabella `ordini_produzione`, la stessa di Gestione anomalie, cercando per titolo o P/N (`/tasks/fai/op/`). Sotto i riferimenti la scheda mostra P/N, capocommessa, CAR, stato e anomalie dell'OP, con il link a Gestione anomalie già filtrata, e avvisa se il P/N dell'OP è diverso da quello del FAI. Un OP fuori elenco si salva lo stesso. Nessuna migrazione.
 - **Diario preposto: infografica della singola segnalazione** (`diario_preposto/scheda.py`, `views.py`, `guida.py`, `tests_vista.py`, template `pages/dettaglio.html`, `partials/_infografica.html`, `core/guide_moduli/contenuti/diario_preposto.py`, `docs/moduli/diario_preposto.md`). In cima alla scheda «Situazione della segnalazione» con:
   - l'esito complessivo dei controlli;
   - il percorso Fatto → Registrata → Documentata → Notificata → Oggi/Eliminata, con i giorni trascorsi;
