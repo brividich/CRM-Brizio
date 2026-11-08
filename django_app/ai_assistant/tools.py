@@ -4075,10 +4075,10 @@ def _sicurezza_context(request, prompt: str) -> RuntimeContext:
     }
 
     if can_diario:
-        diario_qs = SegnalazionePreposto.objects.filter(data_segnalazione__date__gte=year_start)
+        diario_qs = SegnalazionePreposto.objects.attive().filter(data_segnalazione__date__gte=year_start)
         diario_year_count = diario_qs.count()
         diario_last30_count = diario_qs.filter(data_segnalazione__gte=last_30).count()
-        diario_with_attachments = diario_qs.filter(allegati__isnull=False).distinct().count()
+        diario_with_attachments = diario_qs.filter(allegati__isnull=False, allegati__rimosso_il__isnull=True).distinct().count()
         latest_diario = diario_qs.order_by("-data_segnalazione").values_list("data_segnalazione", flat=True).first()
         sections.append(
             "Diario Preposto:\n"
