@@ -91,7 +91,7 @@
 
   {# ── Scadenze urgenti ─────────────────────────────────────────────────── #}
   {% if fm_scadenze_urgenti %}
-  <div style="padding:10px 16px 4px;">
+  <div style="padding:10px 16px 4px;" id="formazione-scadenze">
     <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">
       Corsi da rinnovare / mai frequentati
     </div>
@@ -103,6 +103,7 @@
             <th>Piano</th>
             <th>Scadenza</th>
             <th>Stato</th>
+            {% if can_edit_formazione %}<th></th>{% endif %}
           </tr>
         </thead>
         <tbody>
@@ -126,6 +127,19 @@
                 <span class="fm-pill fm-pill-missing">{{ sc.stato_scadenza }}</span>
               {% endif %}
             </td>
+            {% if can_edit_formazione %}
+            <td class="fmd-act-cell">
+              {% if sc.corso_id %}
+              <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form">
+                {% csrf_token %}
+                <input type="hidden" name="corso_id" value="{{ sc.corso_id }}">
+                <input type="hidden" name="dipendenti_selezionati" value="{{ legacy_id }}">
+                <input type="hidden" name="back" value="{{ request.get_full_path }}">
+                <button type="submit" class="fmd-act" title="Crea la sessione di rinnovo con questa persona già iscritta">↻ Rinnova</button>
+              </form>
+              {% endif %}
+            </td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>

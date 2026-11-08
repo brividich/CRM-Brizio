@@ -165,7 +165,7 @@ body.theme-dark .org-nm-link:hover{color:#93c5fd}
           <a href="{% url 'anagrafica:dipendente_detail' b.capo.id %}">{% nominativo b.capo %}</a>
         </div>
         {% else %}
-        <div class="org-capo-missing">⚠ Caporeparto non assegnato</div>
+        <div class="org-capo-missing">⚠ Caporeparto non assegnato <a class="fmd-act" href="{% url 'anagrafica:aree_list' %}#rep-{{ b.reparto.pk }}" title="Assegna il responsabile del reparto">Assegna</a></div>
         {% endif %}
         {% if b.membri %}
         <details class="org-membri">

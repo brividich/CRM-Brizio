@@ -1,0 +1,6 @@
+{% comment %}
+Pulsante «↻ Rinnova» per una riga dello scadenzario formazione: POST a
+formazione_rinnovo_da_scadenzario con un solo dipendente, poi il flusso
+standard di creazione sessione già precompilato (corso + iscritto).
+Parametri: corso_id, legacy_id, back (nome url di ritorno), titolo_corso.
+{% endcomment %}<form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form">{% csrf_token %}<input type="hidden" name="corso_id" value="{{ corso_id }}"><input type="hidden" name="dipendenti_selezionati" value="{{ legacy_id }}"><input type="hidden" name="back" value="{{ back }}"><button type="submit" class="fmd-act" title="Crea una sessione di rinnovo di «{{ titolo_corso }}» con questa persona già iscritta">↻ Rinnova</button></form>

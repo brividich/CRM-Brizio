@@ -51,7 +51,7 @@
         </div>
       </form>
       {% else %}
-      <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">{% if ruoli_persona %}Nessuna altra mansione attiva da assegnare per {{ ruoli_persona|join:" e " }}.{% else %}Nessun ruolo in essere: le mansioni si assegnano solo a chi ricopre il loro ruolo. Dai prima un ruolo alla persona.{% endif %}</p>
+      <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">{% if ruoli_persona %}Nessuna altra mansione attiva da assegnare per {{ ruoli_persona|join:" e " }}.{% else %}Nessun ruolo in essere: le mansioni si assegnano solo a chi ricopre il loro ruolo. <a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' legacy_id %}#spostamenti-organizzativi" title="Apri la scheda agli spostamenti organizzativi per registrare il ruolo">↻ Dai prima un ruolo alla persona</a>{% endif %}</p>
       {% endif %}
       {% endif %}
       {% if scheda.righe %}

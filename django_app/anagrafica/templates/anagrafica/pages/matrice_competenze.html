@@ -113,7 +113,7 @@ body.theme-dark .mc-dip a{color:#93c5fd}
             <td class="mc-dip"><a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}">{% nominativo r %}</a>{% if r.reparto %}<br><small>{{ r.reparto }}</small>{% endif %}</td>
             {% for c in r.celle %}
             <td class="mc-cell-{{ c.stato }}" title="{% if c.data %}scadenza {{ c.data|date:'d/m/Y' }}{% elif c.stato == 'valido' %}valido{% else %}non posseduto{% endif %}">
-              {% if c.stato == 'valido' %}✓{% elif c.stato == 'in_scadenza' %}⚠{% elif c.stato == 'scaduto' %}✗{% else %}—{% endif %}
+              {% if c.stato == 'valido' %}✓{% elif c.stato == 'in_scadenza' %}<a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}?rinnova={{ c.tipo_id }}" title="Rinnova: apre la scheda con il rinnovo precompilato" style="color:inherit;text-decoration:none;">⚠</a>{% elif c.stato == 'scaduto' %}<a href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}?rinnova={{ c.tipo_id }}" title="Rinnova: apre la scheda con il rinnovo precompilato" style="color:inherit;text-decoration:none;">✗</a>{% else %}—{% endif %}
             </td>
             {% endfor %}
           </tr>

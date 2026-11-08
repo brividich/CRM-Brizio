@@ -31,8 +31,8 @@
     <section class="fmd-kpi fmd-k4">
       <div class="fmd-mtr fmd-t-amber"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ n_dip }}</span></div><div class="fmd-mtr-lbl">Dipendenti con gap</div><div class="fmd-mtr-sub">Almeno un obbligo non soddisfatto</div></div>
       <div class="fmd-mtr fmd-t-orange"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ n_gap }}</span></div><div class="fmd-mtr-lbl">Gap totali</div><div class="fmd-mtr-sub">Coppie dipendente × corso</div></div>
-      <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div><div class="fmd-mtr-lbl">Scaduti</div><div class="fmd-mtr-sub">Da rinnovare con urgenza</div></div>
-      <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span><span class="fmd-mtr-val">{{ n_mai }}</span></div><div class="fmd-mtr-lbl">Mai frequentati</div><div class="fmd-mtr-sub">Primo rilascio da pianificare</div></div>
+      <a class="fmd-mtr fmd-t-navy" href="?stato=SCADUTO{% if filtro_reparto %}&amp;reparto={{ filtro_reparto|urlencode }}{% endif %}{% if filtro_corso %}&amp;corso={{ filtro_corso }}{% endif %}" title="Mostra solo i corsi scaduti"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div><div class="fmd-mtr-lbl">Scaduti</div><div class="fmd-mtr-sub">Da rinnovare con urgenza</div></a>
+      <a class="fmd-mtr fmd-t-cyan" href="?stato=MAI_FREQUENTATO{% if filtro_reparto %}&amp;reparto={{ filtro_reparto|urlencode }}{% endif %}{% if filtro_corso %}&amp;corso={{ filtro_corso }}{% endif %}" title="Mostra solo i corsi mai frequentati"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span><span class="fmd-mtr-val">{{ n_mai }}</span></div><div class="fmd-mtr-lbl">Mai frequentati</div><div class="fmd-mtr-sub">Primo rilascio da pianificare</div></a>
     </section>
 
     <section class="fmd-panel">
@@ -71,6 +71,7 @@
                   data-col-options='[["SCADUTO","Scaduto"],["IN_SCADENZA_30","≤30gg"],["IN_SCADENZA_90","≤90gg"],["MAI_FREQUENTATO","Mai frequentato"]]'
                   data-col-sortable="1" data-col-filterable="1">Stato</th>
               <th class="fmd-nowrap" data-col="scadenza" data-col-label="Scadenza" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Scadenza</th>
+              {% if is_editor %}<th class="fmd-act-cell" data-col-nosort="1">Azione</th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -87,6 +88,7 @@
                 {% else %}<span class="fmd-badge fmd-b-grey">Mai frequentato</span>{% endif %}
               </td>
               <td class="fmd-nowrap fmd-muted" data-sort-value="{{ r.data_scadenza|date:'Y-m-d' }}">{{ r.data_scadenza|date:"d-m-Y"|default:"—" }}</td>
+              {% if is_editor %}<td class="fmd-act-cell">{% include "anagrafica/partials/_formazione_rinnova_btn.html" with corso_id=r.corso.pk legacy_id=r.legacy_id back="anagrafica:formazione_copertura" titolo_corso=r.corso.titolo %}</td>{% endif %}
             </tr>
             {% endfor %}
           </tbody>
