@@ -35,5 +35,45 @@
 body.theme-dark .rc-avviso { background:rgba(133,77,14,.2); color:#fde68a; border-color:rgba(253,230,138,.25); }
 body.theme-dark .rc-pill-ok { background:rgba(56,161,105,.18); color:#86efac; }
 body.theme-dark .rc-btn-d { background:rgba(229,62,62,.16); color:#fca5a5; }
+/* Form a sezioni con ricerca live (registra, pre-registrazioni, referenti) */
+.rc-scheda { display:grid; grid-template-columns:minmax(0,1fr); gap:0; }
+.rc-sez { padding:20px 24px; border-bottom:1px solid var(--border,#eef2f6); }
+.rc-sez:last-child { border-bottom:0; }
+.rc-sez-titolo { display:flex; align-items:center; gap:10px; font-size:14px; font-weight:800; color:var(--text,#0f172a); margin:0 0 4px; }
+.rc-sez-num { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-size:12px; font-weight:800; }
+.rc-sez-nota { font-size:12px; color:var(--text-light,#64748b); margin:0 0 14px 34px; }
+.rc-griglia { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px 16px; }
+.rc-griglia .rc-largo { grid-column:1/-1; }
+.rc-scheda .rc-field label { font-size:12px; text-transform:none; letter-spacing:0; font-weight:600; color:var(--text-mid,#334155); }
+.rc-scheda .rc-input { padding:10px 12px; font-size:14px; border-radius:10px; background:var(--surface,#fff); transition:border-color .12s, box-shadow .12s; }
+.rc-scheda .rc-input:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.18); }
+.rc-input.rc-errore { border-color:#dc2626; box-shadow:0 0 0 3px rgba(220,38,38,.15); }
+.rc-cerca { position:relative; }
+.rc-cerca .rc-input { padding-left:40px; font-size:15px; min-height:46px; background:var(--surface-alt,#f8fafc); }
+.rc-cerca::before { content:""; position:absolute; left:14px; top:50%; width:15px; height:15px; margin-top:-8px; border:2px solid var(--text-light,#94a3b8); border-radius:50%; box-sizing:border-box; pointer-events:none; }
+.rc-cerca::after { content:""; position:absolute; left:26px; top:50%; width:7px; height:2px; margin-top:6px; background:var(--text-light,#94a3b8); transform:rotate(45deg); pointer-events:none; }
+.rc-cerca-wrap { position:relative; }
+.rc-sugg { position:absolute; z-index:40; left:0; right:0; top:calc(100% + 4px); background:var(--surface,#fff); border:1px solid var(--border,#e2e8f0); border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,.14); overflow:hidden; max-height:340px; overflow-y:auto; }
+.rc-sugg-riga { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; text-align:left; padding:10px 14px; border:0; border-bottom:1px solid var(--border,#f1f5f9); background:transparent; cursor:pointer; font:inherit; color:var(--text,#0f172a); }
+.rc-sugg-riga:last-child { border-bottom:0; }
+.rc-sugg-riga:hover, .rc-sugg-riga.on { background:var(--surface-alt,#eff6ff); }
+.rc-sugg-titolo { font-size:14px; font-weight:700; display:flex; gap:8px; align-items:center; }
+.rc-sugg-sotto { font-size:12px; color:var(--text-light,#64748b); }
+.rc-sugg-badge { font-size:10px; font-weight:700; padding:1px 8px; border-radius:999px; background:#fef3c7; color:#92400e; text-transform:uppercase; letter-spacing:.04em; }
+.rc-sugg-vuoto { padding:12px 14px; font-size:13px; color:var(--text-light,#64748b); }
+.rc-chips { display:flex; flex-wrap:wrap; gap:8px; }
+.rc-chip input { position:absolute; opacity:0; pointer-events:none; }
+.rc-chip span { display:inline-flex; align-items:center; padding:8px 14px; border-radius:999px; border:1px solid var(--border,#e2e8f0); background:var(--surface,#fff); font-size:13px; font-weight:600; color:var(--text-mid,#334155); cursor:pointer; }
+.rc-chip input:checked + span { background:#1d4ed8; border-color:#1d4ed8; color:#fff; }
+.rc-chip input:focus-visible + span { box-shadow:0 0 0 3px rgba(59,130,246,.3); }
+.rc-azioni { display:flex; justify-content:flex-end; align-items:center; gap:12px; padding:16px 24px; background:var(--thead-bg,#f8fafc); border-top:1px solid var(--border,#e2e8f0); }
+.rc-azioni .rc-btn-p { padding:11px 22px; font-size:14px; border-radius:10px; }
+.rc-cerca-ospite { margin-bottom:16px; }
+.rc-motivo { margin:10px 0 14px; }
+.rc-info { font-size:12px; color:#92400e; background:#fef3c7; border-radius:8px; padding:6px 10px; margin-top:8px; }
+body.theme-dark .rc-sez-num { background:rgba(59,130,246,.2); color:#93c5fd; }
+body.theme-dark .rc-sugg-badge, body.theme-dark .rc-info { background:rgba(146,64,14,.25); color:#fcd34d; }
+body.theme-dark .rc-sugg { box-shadow:0 12px 32px rgba(0,0,0,.45); }
+@media (max-width:640px) { .rc-sez { padding:16px; } .rc-sez-nota { margin-left:0; } .rc-azioni { padding:14px 16px; } .rc-azioni .rc-btn-p { width:100%; } }
 @media print { .subnav, .notice, .rc-top, .rc-noprint, header, nav { display:none !important; } }
 </style>

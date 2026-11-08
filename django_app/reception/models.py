@@ -34,7 +34,7 @@ class Ospite(models.Model):
 
 
 class Referente(models.Model):
-    """Dipendente che riceve i visitatori. Elenco a parte, come nel GuestPortal."""
+    """Dipendente che riceve i visitatori: elenco scelto al chiosco, preso di norma dall'anagrafica Novicrom."""
 
     nome = models.CharField(max_length=100)
     cognome = models.CharField(max_length=100)
@@ -42,6 +42,9 @@ class Referente(models.Model):
     reparto = models.CharField(max_length=100, blank=True)
     telefono = models.CharField(max_length=50, blank=True)
     attivo = models.BooleanField(default=True)
+    # Dipendente dell'anagrafica Novicrom da cui è stato preso (anagrafica_dipendenti.id): «Aggiorna
+    # dall'anagrafica» riprende nome, email di notifica, reparto e telefono aziendale.
+    dipendente_id = models.IntegerField(null=True, blank=True, db_index=True)
 
     class Meta:
         ordering = ["cognome", "nome"]

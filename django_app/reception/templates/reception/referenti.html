@@ -1,39 +1,51 @@
 {% extends "reception/_base.html" %}
+{% load static %}
 {% block title %}Referenti | Reception{% endblock %}
 {% block rc_titolo %}Referenti{% endblock %}
-{% block rc_sub %}I dipendenti che i visitatori possono scegliere al chiosco. Ricevono la mail quando arriva il loro ospite.{% endblock %}
+{% block rc_sub %}I dipendenti che i visitatori possono scegliere al chiosco. Ricevono la mail quando arriva il loro ospite. Si prendono dall'anagrafica Novicrom; «Aggiorna dall'anagrafica» riallinea i dati e disattiva chi non è più in forza.{% endblock %}
 {% block rc_contenuto %}
-<div class="rc-card">
-  <div class="rc-card-head">{% if modifica %}Modifica {{ modifica.nome_elenco }}{% else %}Nuovo referente{% endif %}</div>
-  <div class="rc-body">
-    <form method="post" class="rc-form">
-      {% csrf_token %}
-      {% if modifica %}<input type="hidden" name="pk" value="{{ modifica.pk }}">{% endif %}
+<form method="post" class="rc-card rc-scheda">
+  {% csrf_token %}
+  {% if modifica %}<input type="hidden" name="pk" value="{{ modifica.pk }}">{% endif %}
+  <input type="hidden" id="d-dip" name="dipendente_id" value="{{ modifica.dipendente_id|default:'' }}">
+  <div class="rc-sez">
+    <div class="rc-sez-titolo"><span class="rc-sez-num">1</span> {% if modifica %}Modifica {{ modifica.nome_elenco }}{% else %}Cerca nell'anagrafica Novicrom{% endif %}</div>
+    <p class="rc-sez-nota">Scrivi nome, cognome o reparto: nome, email di notifica, reparto e telefono aziendale arrivano dall'anagrafica. Compaiono solo i dipendenti in forza.</p>
+    <div class="rc-field rc-cerca-ospite">
+      <div class="rc-cerca"><input class="rc-input" id="d-cerca" type="search" placeholder="Cerca un dipendente…" aria-label="Cerca un dipendente"
+             data-cerca-url="{% url 'reception:api_dipendenti' %}" data-formato="dipendente" data-svuota data-avviso="#d-avviso" data-poi="#d-email"
+             data-vuoto="Nessun dipendente in forza con questo nome."
+             data-riempi='{"nome":"#d-nome","cognome":"#d-cognome","email":"#d-email","reparto":"#d-rep","telefono":"#d-tel","id":"#d-dip"}'></div>
+      <div class="rc-info" id="d-avviso" hidden></div>
+    </div>
+    <div class="rc-griglia">
       <div class="rc-field"><label for="d-nome">Nome *</label><input class="rc-input" id="d-nome" name="nome" value="{{ modifica.nome|default:'' }}" maxlength="100" required></div>
       <div class="rc-field"><label for="d-cognome">Cognome *</label><input class="rc-input" id="d-cognome" name="cognome" value="{{ modifica.cognome|default:'' }}" maxlength="100" required></div>
-      <div class="rc-field"><label for="d-email">Email *</label><input class="rc-input" id="d-email" type="email" name="email" value="{{ modifica.email|default:'' }}" maxlength="255" required></div>
+      <div class="rc-field"><label for="d-email">Email * <span class="rc-muted">(riceve gli avvisi)</span></label><input class="rc-input" id="d-email" type="email" name="email" value="{{ modifica.email|default:'' }}" maxlength="255" required></div>
       <div class="rc-field"><label for="d-rep">Reparto</label><input class="rc-input" id="d-rep" name="reparto" value="{{ modifica.reparto|default:'' }}" maxlength="100"></div>
       <div class="rc-field"><label for="d-tel">Telefono</label><input class="rc-input" id="d-tel" name="telefono" value="{{ modifica.telefono|default:'' }}" maxlength="50"></div>
-      <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit">Salva</button></div>
-    </form>
+    </div>
   </div>
-</div>
+  <div class="rc-azioni">{% if modifica %}<a class="rc-btn rc-btn-g" href="{% url 'reception:referenti' %}">Annulla</a>{% endif %}<button class="rc-btn rc-btn-p" type="submit">{% if modifica %}Salva le modifiche{% else %}Aggiungi ai referenti{% endif %}</button></div>
+</form>
 <div class="rc-card">
+  <div class="rc-card-head rc-top">Elenco ({{ righe|length }}){% if n_collegati %}<form method="post" class="rc-inline">{% csrf_token %}<button class="rc-btn rc-btn-g" name="azione" value="aggiorna">Aggiorna dall'anagrafica ({{ n_collegati }})</button></form>{% endif %}</div>
   <div class="rc-wrap">
     <table class="rc-table">
-      <thead><tr><th>Nome</th><th>Email</th><th>Reparto</th><th>Stato</th><th></th></tr></thead>
+      <thead><tr><th>Nome</th><th>Email</th><th>Reparto</th><th>Telefono</th><th>Stato</th><th></th></tr></thead>
       <tbody>
       {% for r in righe %}
         <tr>
-          <td>{{ r.nome_elenco }}</td><td>{{ r.email }}</td><td>{{ r.reparto|default:"—" }}</td>
-          <td><span class="rc-pill{% if r.attivo %} rc-pill-ok{% endif %}">{% if r.attivo %}Attivo{% else %}Non attivo{% endif %}</span></td>
+          <td><strong>{{ r.nome_elenco }}</strong>{% if r.dipendente_id %} <span class="rc-pill">Anagrafica</span>{% endif %}</td><td>{{ r.email }}</td><td>{{ r.reparto|default:"—" }}</td><td>{{ r.telefono|default:"—" }}</td>
+          <td><span class="rc-pill{% if r.attivo %} rc-pill-ok{% endif %}">{% if r.attivo %}Attivo{% else %}Non attivo{% endif %}</span>{% if r.cessato and r.attivo %} <span class="rc-sugg-badge">Non più in forza</span>{% endif %}</td>
           <td><a class="rc-btn rc-btn-g" href="?modifica={{ r.pk }}">Modifica</a> <form class="rc-inline" method="post">{% csrf_token %}<input type="hidden" name="pk" value="{{ r.pk }}"><button class="rc-btn rc-btn-g" name="azione" value="stato">{% if r.attivo %}Disattiva{% else %}Riattiva{% endif %}</button></form></td>
         </tr>
       {% empty %}
-        <tr><td colspan="5" class="rc-empty">Nessun referente.</td></tr>
+        <tr><td colspan="6" class="rc-empty">Nessun referente: cercalo nell'anagrafica qui sopra.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 {% endblock %}
+{% block extra_scripts %}<script src="{% static 'reception/ricerca.js' %}" defer></script>{% endblock %}
