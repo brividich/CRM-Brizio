@@ -16,6 +16,9 @@ from core.legacy_utils import get_legacy_user, legacy_auth_enabled
 
 API_ACL_GATE_PATHS = {
     "/api/anomalie/": "/gestione-anomalie",
+    # Ricerche live del pannello Reception (ospiti già venuti, dipendenti dell'anagrafica):
+    # stesso permesso del pannello (Presenti, binding copiato da Accessi esterni).
+    "/reception/api/": "/reception/",
     # Copilota AI incidenti: gate come il modulo Rilevazione Incidenti (rilev_inc_lista);
     # il gate fine preposti/RSPP resta dentro la view (_can_create / _can_manage_rspp).
     "/rilevazione-incidenti/api/": "/rilevazione-incidenti/",
