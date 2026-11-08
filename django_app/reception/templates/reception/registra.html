@@ -1,23 +1,52 @@
 {% extends "reception/_base.html" %}
+{% load static %}
 {% block title %}Registra ingresso | Reception{% endblock %}
 {% block rc_titolo %}Registra ingresso{% endblock %}
-{% block rc_sub %}Per chi non passa dal chiosco. Il referente riceve la stessa mail.{% endblock %}
+{% block rc_sub %}Per chi non passa dal chiosco. Se è già venuto, cercalo: i dati si compilano da soli. Il referente riceve la stessa mail del chiosco.{% endblock %}
 {% block rc_contenuto %}
-<div class="rc-card"><div class="rc-body">
-  <form method="post" class="rc-form">
-    {% csrf_token %}
-    <div class="rc-field"><label for="r-nome">Nome *</label><input class="rc-input" id="r-nome" name="nome" value="{{ dati.nome }}" maxlength="100" required></div>
-    <div class="rc-field"><label for="r-cognome">Cognome *</label><input class="rc-input" id="r-cognome" name="cognome" value="{{ dati.cognome }}" maxlength="100" required></div>
-    <div class="rc-field"><label for="r-azienda">Azienda</label><input class="rc-input" id="r-azienda" name="azienda" value="{{ dati.azienda }}" maxlength="255"></div>
-    <div class="rc-field"><label for="r-email">Email</label><input class="rc-input" id="r-email" type="email" name="email" value="{{ dati.email }}" maxlength="255"></div>
-    <div class="rc-field"><label for="r-ref">Referente *</label>
-      <select class="rc-input" id="r-ref" name="referente" required><option value="">Scegli</option>{% for r in referenti %}<option value="{{ r.pk }}">{{ r.nome_elenco }}{% if r.reparto %} – {{ r.reparto }}{% endif %}</option>{% endfor %}</select></div>
-    <div class="rc-field"><label for="r-motivo">Motivo</label>
-      <select class="rc-input" id="r-motivo" name="motivo">{% for c in categorie %}<option value="{{ c.nome }}">{{ c.nome }}</option>{% empty %}<option value="Altro">Altro</option>{% endfor %}</select></div>
-    <div class="rc-field"><label for="r-cart">Cartellino</label>
-      <select class="rc-input" id="r-cart" name="cartellino"><option value="">Senza cartellino</option>{% for n in liberi %}<option value="{{ n }}">{{ n }}</option>{% endfor %}</select></div>
-    <div class="rc-field"><label for="r-ora">Entrato alle (oggi)</label><input class="rc-input" id="r-ora" type="time" name="ora"></div>
-    <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit">Registra</button></div>
-  </form>
-</div></div>
+{{ referenti_json|json_script:"referenti-dati" }}
+<form method="post" class="rc-card rc-scheda">
+  {% csrf_token %}
+  <div class="rc-sez">
+    <div class="rc-sez-titolo"><span class="rc-sez-num">1</span> Chi entra</div>
+    <p class="rc-sez-nota">Scrivi nome, cognome, azienda o email di chi è già venuto. Per una persona nuova compila i campi qui sotto.</p>
+    <div class="rc-field rc-cerca-ospite">
+      <div class="rc-cerca"><input class="rc-input" id="r-cerca" type="search" placeholder="Cerca tra chi è già venuto…" aria-label="Cerca tra chi è già venuto"
+             data-cerca-url="{% url 'reception:api_ospiti' %}" data-formato="ospite" data-svuota data-avviso="#r-avviso" data-poi="#r-ref-cerca"
+             data-vuoto="Nessuno con questo nome: compila i campi qui sotto."
+             data-riempi='{"nome":"#r-nome","cognome":"#r-cognome","azienda":"#r-azienda","email":"#r-email","telefono":"#r-tel"}'></div>
+      <div class="rc-info" id="r-avviso" hidden></div>
+    </div>
+    <div class="rc-griglia">
+      <div class="rc-field"><label for="r-nome">Nome *</label><input class="rc-input" id="r-nome" name="nome" value="{{ dati.nome }}" maxlength="100" required></div>
+      <div class="rc-field"><label for="r-cognome">Cognome *</label><input class="rc-input" id="r-cognome" name="cognome" value="{{ dati.cognome }}" maxlength="100" required></div>
+      <div class="rc-field"><label for="r-azienda">Azienda</label><input class="rc-input" id="r-azienda" name="azienda" value="{{ dati.azienda }}" maxlength="255"></div>
+      <div class="rc-field"><label for="r-email">Email</label><input class="rc-input" id="r-email" type="email" name="email" value="{{ dati.email }}" maxlength="255"></div>
+      <div class="rc-field"><label for="r-tel">Telefono</label><input class="rc-input" id="r-tel" type="tel" name="telefono" value="{{ dati.telefono }}" maxlength="50"></div>
+    </div>
+  </div>
+  <div class="rc-sez">
+    <div class="rc-sez-titolo"><span class="rc-sez-num">2</span> Chi lo riceve</div>
+    <p class="rc-sez-nota">Scrivi il nome del dipendente e scegli dall'elenco.</p>
+    <div class="rc-griglia">
+      <div class="rc-field"><label for="r-ref-cerca">Referente *</label>
+        <div class="rc-cerca"><input class="rc-input" id="r-ref-cerca" type="search" placeholder="Nome o reparto…" value="{{ referente_scelto.nome_elenco|default:'' }}"
+               data-scegli="#referenti-dati" data-valore="#r-ref" data-formato="referente" data-poi="#r-cart"></div>
+        <input type="hidden" id="r-ref" name="referente" value="{{ referente_scelto.pk|default:'' }}"></div>
+    </div>
+  </div>
+  <div class="rc-sez">
+    <div class="rc-sez-titolo"><span class="rc-sez-num">3</span> Visita</div>
+    <div class="rc-field rc-motivo"><label>Motivo</label>
+      <div class="rc-chips">{% for c in categorie %}<label class="rc-chip"><input type="radio" name="motivo" value="{{ c.nome }}"{% if dati.motivo == c.nome or not dati.motivo and forloop.first %} checked{% endif %}><span>{% if c.icona %}{{ c.icona }}&nbsp;{% endif %}{{ c.nome }}</span></label>{% empty %}<label class="rc-chip"><input type="radio" name="motivo" value="Altro" checked><span>Altro</span></label>{% endfor %}</div>
+    </div>
+    <div class="rc-griglia">
+      <div class="rc-field"><label for="r-cart">Cartellino</label>
+        <select class="rc-input" id="r-cart" name="cartellino">{% for n in liberi %}<option value="{{ n }}"{% if forloop.first %} selected{% endif %}>{{ n }}</option>{% endfor %}<option value="">Senza cartellino</option></select></div>
+      <div class="rc-field"><label for="r-ora">Entrato alle (oggi, vuoto = adesso)</label><input class="rc-input" id="r-ora" type="time" name="ora"></div>
+    </div>
+  </div>
+  <div class="rc-azioni"><span class="rc-muted">{{ liberi|length }} cartellini liberi</span><button class="rc-btn rc-btn-p" type="submit">Registra ingresso</button></div>
+</form>
 {% endblock %}
+{% block extra_scripts %}<script src="{% static 'reception/ricerca.js' %}" defer></script>{% endblock %}
