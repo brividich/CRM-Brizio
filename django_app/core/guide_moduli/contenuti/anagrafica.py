@@ -737,8 +737,8 @@ GUIDA = {
                       "operative e da assegnare e porta alla scheda. La vede chi vede il Mansionario e chi gestisce la "
                       "skill matrix. Report: «Excel per persona» nella Struttura organizzativa (o dalla scheda di un "
                       "reparto, solo quel reparto), anche nel Centro report."),
-                ("p", "Formazione per mansione lavorativa: nella scheda di un corso, «Regole di obbligatorietà» → "
-                      "«+ Aggiungi regola» → campo «Mansione lavorativa». Il corso diventa obbligatorio per chi è in lista "
+                ("p", "Formazione per mansione lavorativa: nella scheda di un corso, «A chi serve questo corso» → "
+                      "«+ Collega a mansione, ruolo, area o persona» → «Si applica a: Mansione lavorativa (skill matrix)». Il corso diventa obbligatorio per chi è in lista "
                       "sulla mansione nella skill matrix (anche in addestramento): scadenzario, fabbisogni, candidati del "
                       "corso, onboarding di chi riceve un ruolo con quella mansione e scheda della mansione («Formazione "
                       "obbligatoria per chi fa questa mansione»). Gli altri moduli leggono la struttura: scheda macchina "

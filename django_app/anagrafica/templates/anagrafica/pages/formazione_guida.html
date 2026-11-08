@@ -67,6 +67,17 @@
       <p class="elg-nota">Numeri e schede vengono dallo scadenzario formazione, lo stesso dei KPI: si aggiorna quando si registra un completamento; se sembra fermo, un amministratore lo ricalcola con <code>refresh_training_deadlines --all</code>.</p>
     </section>
 
+    <section class="fmd-panel elg-sec" id="scheda-corso">
+      <h2><svg class="fmd-ico"><use href="#i-book"/></svg>La scheda del corso</h2>
+      <ol>
+        <li>La scheda è divisa in quattro schede: <strong>Panoramica</strong> (a chi serve il corso, sessioni, iscritti), <strong>Persone</strong> (assegnare dipendenti, registrare un completamento senza sessione), <strong>Contenuti</strong> (programma, materiale, prerequisiti, versioni) e <strong>Regola di superamento</strong>. I moduli di aggiunta sono chiusi dietro «+ Aggiungi…» finché non servono.</li>
+        <li><strong>Versioni automatiche</strong>: non si inseriscono più a mano. Quando cambiano titolo, durata, validità, qualifica, categoria o programma, la versione corrente si aggiorna; se qualcuno ha già completato quella versione ne nasce una nuova (1.0 → 1.1), la vecchia si chiude con la data del giorno e i completamenti restano sulla versione frequentata. La colonna «Cosa è cambiato» lo scrive per esteso. I corsi e-learning seguono il versionamento dei contenuti (slide e quiz).</li>
+        <li><strong>Modifica corso</strong> apre la stessa pagina a tappe della creazione (Identificazione, Classificazione, Durata e validità, E-learning, Pubblicazione): i campi sono già compilati e un errore resta accanto al campo. «Annulla» torna alla scheda.</li>
+        <li><strong>A chi serve questo corso → + Collega a mansione, ruolo, area o persona</strong> (in cima alla colonna destra; quando il corso non è collegato a nessuno il pannello è già aperto): ogni collegamento ha un solo destinatario. Si sceglie in «Si applica a» (mansione di rischio, mansione lavorativa della skill matrix, ruolo, area o una persona) e compare solo quel campo; la persona si cerca per nome. Il corso è quello della scheda, non va riscelto. «Obbligatoria» spenta = corso consigliato; «Regola attiva» spenta = regola sospesa.</li>
+        <li><strong>Prerequisiti, assegnazioni e completamenti</strong>: le tendine lunghe (corsi, persone, mansioni) si cercano scrivendo: dalla decima voce in su ogni tendina del portale diventa ricercabile da sola.</li>
+      </ol>
+    </section>
+
     <section class="fmd-panel elg-sec" id="ciclo">
       <h2><svg class="fmd-ico"><use href="#i-grid"/></svg>Il ciclo di un'edizione</h2>
       <ol>

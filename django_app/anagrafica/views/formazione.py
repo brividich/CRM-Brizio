@@ -1309,6 +1309,8 @@ def formazione_corso_create(request):
                     corso.created_by = request.user
                     corso.save()
                     form.salva_processi(corso)
+                    from ..services.corso_versioni import registra as _registra_versione
+                    _registra_versione(corso, user=request.user)
                     if sess_form.cleaned_data.get("pianifica"):
                         from ..services.formazione_pianificazione import crea_sessione_unica
                         cd = sess_form.cleaned_data
@@ -1634,22 +1636,30 @@ def formazione_corso_detail(request, corso_id: int):
 
 
 @login_required
-@require_POST
 def formazione_corso_edit(request, corso_id: int):
     if not _helpers._can_edit_formazione(request):
         messages.error(request, "Non hai i permessi per modificare corsi formativi.")
         return redirect("anagrafica:formazione_corsi_list")
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
-    form = TrainingCourseForm(request.POST, instance=corso)
-    if form.is_valid():
-        corso = form.save()
-        form.salva_processi(corso)
-        messages.success(request, f'Corso "{corso.titolo}" aggiornato.')
+    # Stessa pagina a tappe della creazione (prima: modale piatta con venti
+    # campi in fila). Gli errori restano accanto al campo, non in un toast.
+    if request.method == "POST":
+        form = TrainingCourseForm(request.POST, instance=corso)
+        if form.is_valid():
+            corso = form.save()
+            form.salva_processi(corso)
+            messages.success(request, f'Corso "{corso.titolo}" aggiornato.')
+            from ..services.corso_versioni import registra_con_messaggio
+            registra_con_messaggio(request, corso)
+            return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     else:
-        for field_errors in form.errors.values():
-            for err in field_errors:
-                messages.error(request, err)
-    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+        form = TrainingCourseForm(instance=corso)
+    return render(request, "anagrafica/pages/formazione_corso_form.html", {
+        "form": form,
+        "sess_form": None,
+        "modo": "modifica",
+        "corso": corso,
+    })
 
 
 @login_required
@@ -1750,7 +1760,9 @@ def formazione_corso_argomento_add(request, corso_id: int):
         riferimento=(request.POST.get("riferimento") or "").strip()[:200],
     )
     messages.success(request, "Argomento aggiunto al programma del corso.")
-    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    from ..services.corso_versioni import registra_con_messaggio
+    registra_con_messaggio(request, corso)
+    return redirect(f"{reverse('anagrafica:formazione_corso_detail', args=[corso_id])}#contenuti")
 
 
 @login_required
@@ -1760,10 +1772,13 @@ def formazione_corso_argomento_delete(request, corso_id: int, arg_id: int):
         messages.error(request, "Non hai i permessi per modificare corsi formativi.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     voce = get_object_or_404(TrainingCourseArgomento, pk=arg_id, corso_id=corso_id)
+    corso = voce.corso
     voce.delete()
     messages.success(request, "Argomento rimosso dal programma del corso. "
                               "Le edizioni già erogate non sono state toccate.")
-    return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    from ..services.corso_versioni import registra_con_messaggio
+    registra_con_messaggio(request, corso)
+    return redirect(f"{reverse('anagrafica:formazione_corso_detail', args=[corso_id])}#contenuti")
 
 
 @login_required
@@ -1919,7 +1934,12 @@ def formazione_corso_req_rule_add(request, corso_id: int):
         messages.error(request, "Non hai i permessi per modificare corsi formativi.")
         return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
     corso = get_object_or_404(TrainingCourse, pk=corso_id)
-    form = TrainingRequirementRuleForm(request.POST)
+    # Il corso è quello della scheda: non va riscelto nel form (prima il form
+    # mostrava di nuovo «Corso» e «Piano», e senza sceglierli la regola falliva).
+    dati = request.POST.copy()
+    dati["corso"] = str(corso.pk)
+    dati["piano"] = ""
+    form = TrainingRequirementRuleForm(dati)
     if form.is_valid():
         rule = form.save(commit=False)
         rule.corso = corso

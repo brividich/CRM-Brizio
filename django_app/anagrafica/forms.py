@@ -425,7 +425,7 @@ class TrainingCourseForm(forms.ModelForm):
             "obbligatorio", "obbligatoria_ccnl", "costo_unitario",
             "fonte_obbligo", "riferimento_fonte", "articolo_fonte",
             "is_elearning", "quiz_punteggio_minimo",
-            "stato", "note", "versione", "is_active",
+            "stato", "note", "is_active",
         ]
         widgets = {
             "piano":              forms.Select(attrs=_FM_SELECT),
@@ -446,7 +446,6 @@ class TrainingCourseForm(forms.ModelForm):
             "quiz_punteggio_minimo": forms.NumberInput(attrs={**_FM_NUMBER, "step": "1", "min": "0", "max": "100"}),
             "stato":              forms.Select(attrs=_FM_SELECT),
             "note":               forms.Textarea(attrs=_FM_TEXTAREA),
-            "versione":           forms.TextInput(attrs=_FM),
             "is_active":          forms.CheckboxInput(attrs=_FM_CHECK),
         }
 
@@ -468,6 +467,9 @@ class TrainingCourseForm(forms.ModelForm):
         self.fields["ente_formativo"].required = False
         self.fields["ente_formativo"].empty_label = "— Nessuno —"
 
+        # Etichette in italiano dove il modello le lascia in inglese.
+        self.fields["is_elearning"].label = "Corso e-learning"
+        self.fields["is_active"].label = "Corso attivo"
         # Origine dell'obbligo: mai bloccante, i corsi storici non la compilano.
         self.fields["fonte_obbligo"].required = False
         self.fields["fonte_obbligo"].widget.choices = (
@@ -644,6 +646,23 @@ class TrainingRequirementRuleForm(forms.ModelForm):
         campo.queryset = CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, attiva=True).order_by("display")
         campo.label_from_instance = lambda c: c.display or c.competenza_key
         campo.help_text = "Vale per chi è in lista sulla mansione nella skill matrix, anche in addestramento."
+        # La persona si sceglie per nome (tendina ricercabile), non digitando l'id
+        # legacy: il valore salvato resta l'intero del modello.
+        self.fields["is_mandatory"].label = "Obbligatoria"
+        self.fields["is_active"].label = "Regola attiva"
+        self.fields["note"].widget.attrs["rows"] = 2
+        persona = self.fields["legacy_anagrafica_id"]
+        persona.label = "Persona"
+        persona.help_text = ""
+        try:
+            from .views._helpers import _dipendenti_picker_rows
+            scelte = [(r["id"], r["label"]) for r in _dipendenti_picker_rows()]
+        except Exception:  # pragma: no cover - anagrafica legacy non raggiungibile
+            scelte = []
+        attuale = self.initial.get("legacy_anagrafica_id") or getattr(self.instance, "legacy_anagrafica_id", None)
+        if attuale and attuale not in {v for v, _ in scelte}:
+            scelte.append((attuale, f"#{attuale}"))
+        persona.widget = forms.Select(choices=[("", "— Scegli la persona —")] + scelte, attrs=_FM_SELECT)
 
     def clean(self):
         cd = super().clean()
