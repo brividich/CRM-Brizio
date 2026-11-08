@@ -49,6 +49,11 @@ GRANT SELECT ON GuestManagement.* TO 'hub_readonly'@'<IP server HUB>';
 
 Attenzione: la prima notte con `RECEPTION_NATIVA=1` si cancellano le visite concluse più vecchie di `RECEPTION_CONSERVAZIONE_MESI` (12).
 
+Dopo il passaggio, facoltativi:
+
+- «Annuncia una visita» per tutti: «Sincronizza i permessi delle pagine» (permesso `reception.annuncia.view` nella dotazione base).
+- Modulo pubblico delle richieste di appuntamento: `RECEPTION_RICHIESTE_PUBBLICHE=1` e riavvio; da internet solo pubblicando `/richiesta-visita/` su Entra Application Proxy, e se il link della mail di conferma esce con l'indirizzo interno `RECEPTION_RICHIESTE_URL_PUBBLICO=<indirizzo pubblico>`.
+
 ## Utente MySQL in sola lettura per l'HUB
 
 Da eseguire sul MySQL del GuestPortal con un account amministrativo (scegliere la password e l'host da cui si collega il server HUB):

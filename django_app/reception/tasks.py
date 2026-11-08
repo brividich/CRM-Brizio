@@ -60,12 +60,13 @@ def run_avvisi_referenti():
 
 
 def run_pulizia():
-    """Ogni notte: pre-registrazioni passate e dati oltre il termine dell'informativa."""
+    """Ogni notte: pre-registrazioni passate, richieste di appuntamento scadute e dati oltre il termine dell'informativa."""
     if not _attiva():
         return {"ok": True, "saltato": "reception non attiva"}
     try:
         mesi = int(getattr(settings, "RECEPTION_CONSERVAZIONE_MESI", 12))
-        esito = {"preregistrazioni_passate": servizi.pulizia_preregistrazioni(), **servizi.pulizia_conservazione(mesi)}
+        esito = {"preregistrazioni_passate": servizi.pulizia_preregistrazioni(), "richieste": servizi.pulizia_richieste(),
+                 **servizi.pulizia_conservazione(mesi)}
     except Exception:
         logger.exception("Pulizia della reception fallita")
         return {"ok": False}

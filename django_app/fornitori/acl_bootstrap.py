@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "fornitori_acl_bootstrap_v5"
+_BOOTSTRAP_CACHE_KEY = "fornitori_acl_bootstrap_v6"
 
 _PULSANTI_DEFINITIONS = [
     {
@@ -221,6 +221,20 @@ _PULSANTI_DEFINITIONS = [
         "codice": "reception_impostazioni",
         "label": "Reception - Impostazioni",
         "url": "route:reception:impostazioni",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_richieste",
+        "label": "Reception - Richieste di appuntamento",
+        "url": "route:reception:richieste",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
+        "codice": "reception_richiesta_azione",
+        "label": "Reception - Accetta o rifiuta una richiesta",
+        "url": "route:reception:richiesta_azione",
         "visible_topbar": False,
     },
     {

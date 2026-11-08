@@ -105,12 +105,27 @@ GUIDA = {
                     ("Registra ingresso", "per chi non passa dal chiosco; il cartellino si sceglie tra quelli liberi."),
                     ("Storico", "le visite con i filtri; aprendone una correggi l'uscita, oppure «Riapri» entro 7 giorni. Le correzioni restano scritte nella visita."),
                     ("Pre-registrazioni", "«Crea e invia» manda all'ospite codice e QR; se indichi il giorno, ospite e referente ricevono anche l'invito in calendario."),
+                    ("Richieste", "le richieste di appuntamento arrivate dal modulo pubblico dopo che l'esterno ha confermato l'email. «Accetta» manda all'esterno codice e QR (se la persona indicata non è riconosciuta scegli prima il referente); «Rifiuta» gli manda una mail con la nota. Le decise restano visibili 30 giorni."),
                     ("Referenti", "i dipendenti che i visitatori possono scegliere al chiosco."),
                     ("Ditte accreditate", "ditte e nominativi che si scelgono al chiosco."),
                     ("Cartellini", "stato, «Aggiungi» ed «Etichette con QR» da stampare."),
                     ("Impostazioni", "l'avviso «Passa dalla reception» per le ditte non in regola, spento di default, e la cancellazione dei dati oltre 12 mesi."),
                 ]),
                 ("p", "A fine giornata, dal lunedì al venerdì alle 19, chi ha il ruolo indicato in «reception_usciti_ruoli» (per ora l'Information Technology Manager) riceve una notifica con chi risulta ancora dentro."),
+            ],
+        },
+        {
+            "id": "annuncia",
+            "titolo": "Annuncia una visita",
+            "blocchi": [
+                ("p", "«Annuncia una visita», nella barra in alto, è per tutti i dipendenti: scrivi nome, email dell'ospite e giorno e premi «Annuncia e invia». "
+                      "L'ospite riceve una mail con il codice e il QR per entrare dal chiosco, valido fino alla fine di quel giorno; tu ricevi l'invito in calendario "
+                      "e, quando arriva, la mail di avviso. Al primo annuncio entri nell'elenco dei referenti scelti al chiosco."),
+                ("p", "In «Richieste per te» trovi le richieste di appuntamento degli esterni che hanno indicato te: «Accetta» (puoi cambiare l'ora e aggiungere una nota) "
+                      "manda codice e QR, «Rifiuta» manda una mail con la nota. Puoi decidere solo le richieste rivolte a te; le altre le assegna la reception."),
+                ("p", "Il modulo pubblico per gli esterni è all'indirizzo /richiesta-visita/: chiede nome, email, chi vogliono incontrare, giorno (da domani a 90 giorni) e motivo. "
+                      "La richiesta arriva solo dopo che l'esterno ha confermato l'email entro 48 ore."),
+                ("nota", "Funziona dopo il passaggio della reception all'HUB: prima la pagina mostra un avviso giallo e i pulsanti sono spenti, perché il codice non varrebbe al chiosco."),
             ],
         },
         {
@@ -219,6 +234,12 @@ GUIDA = {
                     "Passaggio dal GuestPortal: dai all'utente MySQL il permesso di lettura su tutte le tabelle (docs/integrazioni/guestportal/README.md).",
                     "Lancia manage.py importa_guestportal: è una prova e mostra solo i conteggi. Poi, a chiosco fermo, manage.py importa_guestportal --apply.",
                     "Imposta RECEPTION_NATIVA=1 nel .env e riavvia HUB e qcluster.",
+                ]),
+                ("passi", [
+                    "Richieste di appuntamento dagli esterni: RECEPTION_RICHIESTE_PUBBLICHE=1 nel .env (serve anche RECEPTION_NATIVA=1) e riavvio. Spento, /richiesta-visita/ risponde «pagina non trovata».",
+                    "Da internet: pubblica solo /richiesta-visita/ su Entra Application Proxy, in preautenticazione «Passthrough», dopo il via libera di chi gestisce la sicurezza. Se il link nella mail di conferma porta all'indirizzo interno, scrivi quello pubblico in RECEPTION_RICHIESTE_URL_PUBBLICO.",
+                    "Chi riceve nell'HUB la notifica delle richieste confermate: i ruoli nell'impostazione reception_richieste_ruoli (per ora l'Information Technology Manager). Il referente riconosciuto riceve anche la mail.",
+                    "«Annuncia una visita» si apre con il permesso reception.annuncia.view, nella dotazione base di ogni ruolo: dopo il deploy premi «Sincronizza i permessi delle pagine».",
                 ]),
                 ("nota", "Con CHIOSCO_ALLOWED_IPS vuoto il chiosco resta chiuso per tutti. Serve anche l'IP vero del client: se l'HUB vede 127.0.0.1, controlla il proxy fidato di Waitress. Non pubblicare /chiosco/ su Entra Application Proxy."),
             ],

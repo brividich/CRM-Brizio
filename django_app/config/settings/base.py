@@ -138,6 +138,11 @@ GUESTPORTAL_CHIOSCO_API_URL = env("GUESTPORTAL_CHIOSCO_API_URL", "http://10.0.0.
 # e il GuestPortal non serve più. Prima si importa: manage.py importa_guestportal --apply.
 RECEPTION_NATIVA = env_bool("RECEPTION_NATIVA", False)
 RECEPTION_CONSERVAZIONE_MESI = int(env("RECEPTION_CONSERVAZIONE_MESI", "12"))
+# Modulo pubblico «Richiedi un appuntamento» (/richiesta-visita/, senza login). Spento di default; serve anche
+# RECEPTION_NATIVA. Da internet solo dopo la pubblicazione su Entra Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md).
+RECEPTION_RICHIESTE_PUBBLICHE = env_bool("RECEPTION_RICHIESTE_PUBBLICHE", False)
+# Indirizzo pubblico (es. quello di Entra) per il link di conferma nella mail; vuoto = quello da cui arriva la richiesta.
+RECEPTION_RICHIESTE_URL_PUBBLICO = env("RECEPTION_RICHIESTE_URL_PUBBLICO", "")
 GUESTPORTAL_DB_HOST = env("GUESTPORTAL_DB_HOST", "")
 GUESTPORTAL_DB_PORT = env("GUESTPORTAL_DB_PORT", "3306")
 GUESTPORTAL_DB_NAME = env("GUESTPORTAL_DB_NAME", "GuestManagement")
@@ -998,6 +1003,10 @@ MIDDLEWARE_EXEMPT_PREFIXES = (
     # Chiosco della reception: il visitatore non ha un utente. Allowlist IP nella view
     # (CHIOSCO_ALLOWED_IPS, vuota = chiuso). Solo rete interna, MAI su Entra Application Proxy.
     "/chiosco/",
+    # Richiesta di appuntamento degli esterni: form pubblico per scelta, spento finché
+    # RECEPTION_RICHIESTE_PUBBLICHE non vale 1 (404). Email da confermare, limite per IP e
+    # globale, campo trappola. Unica parte della reception pensata per Entra Application Proxy.
+    "/richiesta-visita/",
     # Letture contatori dai collector (es. OPC UA delle CNC): token per collector +
     # allowlist IP nella view (ASSETS_METER_INGEST_ALLOWED_IPS). Solo rete interna,
     # MAI pubblicato su Entra Application Proxy (docs/ai/05_SECURITY_BOUNDARIES.md).

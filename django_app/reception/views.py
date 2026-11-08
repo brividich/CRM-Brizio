@@ -23,7 +23,10 @@ from core.models import SiteConfig
 from core.net import client_ip
 
 from . import mail, servizi
-from .models import Cartellino, CategoriaVisita, ContattoDitta, DittaAccreditata, EventoVisita, Preregistrazione, Referente, Visita
+from .models import (
+    Cartellino, CategoriaVisita, ContattoDitta, DittaAccreditata, EventoVisita, Preregistrazione, Referente,
+    RichiestaAppuntamento, Visita,
+)
 
 CHIAVE_AVVISO_REQUISITI = "chiosco_avviso_requisiti"
 STORICO_MAX = 500
@@ -34,7 +37,8 @@ def _autore(request) -> str:
 
 
 def _ctx(request, sezione: str, **dati) -> dict:
-    return {"sezione": sezione, "nativa": bool(getattr(settings, "RECEPTION_NATIVA", False)), **dati}
+    return {"sezione": sezione, "nativa": bool(getattr(settings, "RECEPTION_NATIVA", False)),
+            "n_richieste": RichiestaAppuntamento.objects.filter(stato=RichiestaAppuntamento.IN_ATTESA).count(), **dati}
 
 
 def _data_ora(data: str, ora: str):
@@ -164,10 +168,10 @@ def preregistrazioni(request):
         else:
             data_visita = _data_ora(dati.get("data_visita", ""), "00:00")
             scade = _data_ora(dati.get("scade", ""), "23:59") or timezone.now() + timedelta(days=servizi.GIORNI_VALIDITA_CODICE)
-            pre = Preregistrazione.objects.create(
-                codice=servizi.nuovo_codice(), ospite_nome=nome, ospite_email=email, ospite_azienda=dati.get("azienda", "").strip()[:200],
-                referente_nome=referente.nome_elenco, referente_email=referente.email, motivo=dati.get("motivo", "")[:500],
-                creata_da=_autore(request), scade_il=scade, data_visita=data_visita.date() if data_visita else None,
+            pre = servizi.crea_preregistrazione(
+                ospite_nome=nome, ospite_email=email, ospite_azienda=dati.get("azienda", ""), referente=referente,
+                motivo=dati.get("motivo", ""), creata_da=_autore(request), scade_il=scade,
+                data_visita=data_visita.date() if data_visita else None,
                 ora_inizio=_ora(dati.get("ora_inizio")), ora_fine=_ora(dati.get("ora_fine")),
             )
             log_action(request, "reception_preregistrazione", "reception", {"preregistrazione": pre.pk})

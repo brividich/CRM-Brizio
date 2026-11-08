@@ -57,3 +57,53 @@ def invia_invito(pre) -> None:
         send_hub_mail(f"Visita ospite: {pre.ospite_nome}", f"{pre.ospite_nome} è atteso il {pre.data_visita:%d/%m/%Y}. Codice: {pre.codice}.",
                       [pre.referente_email], title="Visita in programma", email_type="Reception",
                       attachments=[("visita.ics", avviso, "text/calendar")])
+
+
+# --- Richieste di appuntamento dal modulo pubblico ---------------------------------------------
+
+
+def invia_conferma_richiesta(richiesta, link: str) -> None:
+    """All'esterno: link per confermare l'email. Senza conferma la richiesta non arriva a nessuno."""
+    from core.email_utils import send_hub_mail
+
+    from .servizi import ORE_CONFERMA_RICHIESTA
+
+    testo = (f"Gentile {richiesta.nome_completo},\nabbiamo ricevuto la sua richiesta di visita a {ORGANIZZAZIONE} "
+             f"per il {richiesta.data_visita:%d/%m/%Y}.\n\nPer inoltrarla apra questo link e confermi entro "
+             f"{ORE_CONFERMA_RICHIESTA} ore:\n{link}\n\nSe non ha fatto lei la richiesta, ignori questo messaggio: "
+             "senza conferma viene cancellata.")
+    send_hub_mail(f"Confermi la richiesta di visita a {ORGANIZZAZIONE}", testo, [richiesta.email],
+                  title="Conferma la richiesta", email_type="Reception")
+
+
+def avvisa_nuova_richiesta(richiesta, link_referente: str, link_pannello: str) -> None:
+    """Richiesta confermata: mail al referente riconosciuto, notifica nell'HUB a chi gestisce la reception."""
+    from core.email_utils import send_hub_mail
+    from core.notifiche import invia_notifica
+    from fornitori.tasks import _destinatari
+
+    from .servizi import CHIAVE_RUOLI_RICHIESTE, RUOLI_RICHIESTE_PREDEFINITI
+
+    quando = f"{richiesta.data_visita:%d/%m/%Y}" + (f" alle {richiesta.ora_inizio:%H:%M}" if richiesta.ora_inizio else "")
+    riepilogo = (f"{richiesta.nome_completo}{f' ({richiesta.azienda})' if richiesta.azienda else ''} chiede di venire "
+                 f"il {quando}. Motivo: {richiesta.motivo or 'non indicato'}.")
+    if richiesta.referente and "@" in richiesta.referente.email:
+        send_hub_mail(f"Richiesta di visita: {richiesta.nome_completo}",
+                      f"{riepilogo}\n{('Messaggio: ' + richiesta.messaggio) if richiesta.messaggio else ''}\n\n"
+                      f"Approva o rifiuta da qui: {link_referente}",
+                      [richiesta.referente.email], title="Una richiesta di visita per te", email_type="Reception")
+    testo = riepilogo + (f" Per {richiesta.referente.nome_elenco}." if richiesta.referente
+                         else f" Persona indicata: «{richiesta.referente_indicato}», da assegnare.")
+    for uid in _destinatari(CHIAVE_RUOLI_RICHIESTE, RUOLI_RICHIESTE_PREDEFINITI):
+        invia_notifica(legacy_user_id=uid, tipo="generico", messaggio=testo[:480], url_azione=link_pannello)
+
+
+def invia_rifiuto(richiesta) -> None:
+    from core.email_utils import send_hub_mail
+
+    nota = f"\nNota: {richiesta.nota_decisione}\n" if richiesta.nota_decisione else ""
+    testo = (f"Gentile {richiesta.nome_completo},\nla sua richiesta di visita a {ORGANIZZAZIONE} per il "
+             f"{richiesta.data_visita:%d/%m/%Y} non è stata accolta.{nota}\nPer accordarsi su un'altra data può "
+             "rispondere a questa mail o contattare direttamente la persona che voleva incontrare.")
+    send_hub_mail(f"La sua richiesta di visita a {ORGANIZZAZIONE}", testo, [richiesta.email],
+                  title="Richiesta non accolta", email_type="Reception")

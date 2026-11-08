@@ -9,11 +9,19 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import Cartellino, EventoVisita, Ospite, Preregistrazione, Visita
+from .models import Cartellino, EventoVisita, Ospite, Preregistrazione, Referente, RichiestaAppuntamento, Visita
 
 GIORNI_RIAPERTURA = 7
 CARATTERI_CODICE = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # niente O, 0, 1, I: si confondono
 GIORNI_VALIDITA_CODICE = 7
+# Richieste di appuntamento dal modulo pubblico (gli stessi numeri sono scritti nel modulo e nell'informativa).
+ORE_CONFERMA_RICHIESTA = 48
+GIORNI_CONSERVAZIONE_RICHIESTE = 30
+GIORNI_MAX_ANTICIPO_RICHIESTA = 90
+MAX_RICHIESTE_APERTE_PER_EMAIL = 3
+# Chi riceve nell'HUB la notifica delle richieste confermate (nomi di ruolo, come reception_usciti_ruoli).
+CHIAVE_RUOLI_RICHIESTE = "reception_richieste_ruoli"
+RUOLI_RICHIESTE_PREDEFINITI = "Information Technology Manager"
 
 
 class GiaDentro(Exception):
@@ -247,3 +255,136 @@ def pulizia_preregistrazioni(oggi=None) -> int:
     """Pre-registrazioni mai usate con la visita ormai passata."""
     oggi = oggi or timezone.localdate()
     return Preregistrazione.objects.filter(usata_il__isnull=True, data_visita__lt=oggi).delete()[0]
+
+
+# --- Pre-registrazioni e richieste di appuntamento ---------------------------------------------
+
+
+def crea_preregistrazione(*, ospite_nome: str, ospite_email: str, referente: Referente, creata_da: str,
+                          ospite_azienda: str = "", motivo: str = "", data_visita=None, ora_inizio=None,
+                          ora_fine=None, scade_il=None) -> Preregistrazione:
+    """Unico punto che crea le pre-registrazioni: pannello, «Annuncia una visita», richieste approvate.
+
+    Senza scadenza vale fino a fine giornata della visita, o ``GIORNI_VALIDITA_CODICE`` giorni.
+    """
+    if scade_il is None:
+        if data_visita:
+            scade_il = timezone.make_aware(datetime.combine(data_visita, datetime.max.time().replace(microsecond=0)))
+        else:
+            scade_il = timezone.now() + timedelta(days=GIORNI_VALIDITA_CODICE)
+    return Preregistrazione.objects.create(
+        codice=nuovo_codice(), ospite_nome=ospite_nome.strip()[:200], ospite_email=ospite_email.strip().lower()[:255],
+        ospite_azienda=(ospite_azienda or "").strip()[:200], referente_nome=referente.nome_elenco,
+        referente_email=referente.email, motivo=(motivo or "")[:500], creata_da=(creata_da or "")[:100],
+        scade_il=scade_il, data_visita=data_visita, ora_inizio=ora_inizio, ora_fine=ora_fine,
+    )
+
+
+def referente_per_utente(user, *, crea: bool = False) -> Referente | None:
+    """Il referente che corrisponde all'utente collegato, per email. ``crea``: lo aggiunge all'elenco."""
+    email = (getattr(user, "email", "") or "").strip().lower()
+    if "@" not in email:
+        return None
+    referente = Referente.objects.filter(email__iexact=email).first()
+    if referente is None and crea:
+        nome = (getattr(user, "first_name", "") or "").strip() or user.get_username()
+        referente = Referente.objects.create(nome=nome[:100], cognome=(getattr(user, "last_name", "") or "").strip()[:100],
+                                             email=email[:255])
+    return referente
+
+
+def trova_referente(testo: str) -> Referente | None:
+    """Il referente scritto dall'esterno, solo se non ci sono dubbi: email esatta, o nome e cognome di uno solo."""
+    testo = " ".join((testo or "").split()).lower()
+    if not testo:
+        return None
+    attivi = Referente.objects.filter(attivo=True)
+    if "@" in testo:
+        return attivi.filter(email__iexact=testo).first()
+    parole = set(testo.split())
+    if len(parole) < 2:
+        return None
+    filtro = Q()
+    for parola in parole:
+        filtro |= Q(cognome__iexact=parola) | Q(nome__iexact=parola)
+    candidati = [r for r in attivi.filter(filtro)
+                 if set(f"{r.nome} {r.cognome}".lower().split()) == parole]
+    return candidati[0] if len(candidati) == 1 else None
+
+
+def nuova_richiesta(*, nome: str, cognome: str, email: str, data_visita, referente_indicato: str, azienda: str = "",
+                    telefono: str = "", ora_inizio=None, motivo: str = "", messaggio: str = "", ip: str = "") -> RichiestaAppuntamento:
+    email = email.strip().lower()
+    aperte = RichiestaAppuntamento.objects.filter(
+        email__iexact=email, stato__in=[RichiestaAppuntamento.DA_CONFERMARE, RichiestaAppuntamento.IN_ATTESA]).count()
+    if aperte >= MAX_RICHIESTE_APERTE_PER_EMAIL:
+        raise OperazioneNonValida("Ci sono già richieste in attesa con questa email: aspetti la risposta prima di farne altre.")
+    return RichiestaAppuntamento.objects.create(
+        nome=nome.strip()[:100], cognome=cognome.strip()[:100], email=email[:255], azienda=azienda.strip()[:200],
+        telefono=telefono.strip()[:50], data_visita=data_visita, ora_inizio=ora_inizio, motivo=motivo[:200],
+        messaggio=messaggio.strip()[:1000], referente_indicato=referente_indicato.strip()[:200],
+        token=secrets.token_urlsafe(32), ip=ip[:45], informativa_letta_il=timezone.now(),
+    )
+
+
+def richiesta_da_confermare(token: str) -> RichiestaAppuntamento | None:
+    limite = timezone.now() - timedelta(hours=ORE_CONFERMA_RICHIESTA)
+    return RichiestaAppuntamento.objects.filter(token=token or "-", stato=RichiestaAppuntamento.DA_CONFERMARE,
+                                                creata_il__gte=limite).first()
+
+
+def conferma_richiesta(token: str) -> RichiestaAppuntamento | None:
+    """L'esterno ha confermato l'email: passa a «Da decidere» e cerca il referente. ``None`` se non vale più."""
+    with transaction.atomic():
+        trovata = richiesta_da_confermare(token)
+        if trovata is None:
+            return None
+        richiesta = RichiestaAppuntamento.objects.select_for_update().get(pk=trovata.pk)
+        if richiesta.stato != RichiestaAppuntamento.DA_CONFERMARE:
+            return None
+        richiesta.stato, richiesta.confermata_il = RichiestaAppuntamento.IN_ATTESA, timezone.now()
+        richiesta.referente = trova_referente(richiesta.referente_indicato)
+        richiesta.save(update_fields=["stato", "confermata_il", "referente"])
+    return richiesta
+
+
+def approva_richiesta(richiesta_id: int, *, autore: str, referente: Referente | None = None,
+                      ora_inizio=None, nota: str = "") -> RichiestaAppuntamento:
+    with transaction.atomic():
+        richiesta = RichiestaAppuntamento.objects.select_for_update().get(pk=richiesta_id)
+        if richiesta.stato != RichiestaAppuntamento.IN_ATTESA:
+            raise OperazioneNonValida("La richiesta è già stata decisa.")
+        referente = referente or richiesta.referente
+        if referente is None:
+            raise OperazioneNonValida("Scegli il referente prima di approvare.")
+        richiesta.preregistrazione = crea_preregistrazione(
+            ospite_nome=richiesta.nome_completo, ospite_email=richiesta.email, ospite_azienda=richiesta.azienda,
+            referente=referente, creata_da=autore, motivo=richiesta.motivo, data_visita=richiesta.data_visita,
+            ora_inizio=ora_inizio or richiesta.ora_inizio,
+        )
+        richiesta.referente, richiesta.stato = referente, RichiestaAppuntamento.APPROVATA
+        richiesta.decisa_il, richiesta.decisa_da, richiesta.nota_decisione = timezone.now(), autore[:150], nota.strip()[:500]
+        richiesta.save()
+    return richiesta
+
+
+def rifiuta_richiesta(richiesta_id: int, *, autore: str, nota: str = "") -> RichiestaAppuntamento:
+    with transaction.atomic():
+        richiesta = RichiestaAppuntamento.objects.select_for_update().get(pk=richiesta_id)
+        if richiesta.stato != RichiestaAppuntamento.IN_ATTESA:
+            raise OperazioneNonValida("La richiesta è già stata decisa.")
+        richiesta.stato = RichiestaAppuntamento.RIFIUTATA
+        richiesta.decisa_il, richiesta.decisa_da, richiesta.nota_decisione = timezone.now(), autore[:150], nota.strip()[:500]
+        richiesta.save(update_fields=["stato", "decisa_il", "decisa_da", "nota_decisione"])
+    return richiesta
+
+
+def pulizia_richieste(adesso=None) -> int:
+    """Non confermate dopo 48 ore, decise dopo 30 giorni, in attesa a 7 giorni dal giorno chiesto."""
+    adesso = adesso or timezone.now()
+    oggi = timezone.localdate(adesso)
+    return RichiestaAppuntamento.objects.filter(
+        Q(stato=RichiestaAppuntamento.DA_CONFERMARE, creata_il__lt=adesso - timedelta(hours=ORE_CONFERMA_RICHIESTA))
+        | Q(decisa_il__lt=adesso - timedelta(days=GIORNI_CONSERVAZIONE_RICHIESTE))
+        | Q(stato=RichiestaAppuntamento.IN_ATTESA, data_visita__lt=oggi - timedelta(days=7))
+    ).delete()[0]
