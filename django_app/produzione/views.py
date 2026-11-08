@@ -5,7 +5,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
@@ -17,7 +17,7 @@ from core.paginazione import pagina_elenco
 from tasks.tech_paths import normalizza_percorso
 
 from . import guida as guida_mod
-from . import services
+from . import nuovo_op, services
 from .acl_bootstrap import PERM_DOCUMENTI, PERM_IMPOSTAZIONI
 from .models import DocumentoOP, TipoDocumento
 
@@ -47,7 +47,7 @@ def elenco(request):
     righe = services.righe_elenco(request, testo, stato) if disponibile else []
     return render(request, "produzione/elenco.html", _ctx(
         request, "elenco", disponibile=disponibile, pagina=pagina_elenco(request, righe), totale=len(righe),
-        q=testo, stato=stato, stati=op_db.stati() if disponibile else [],
+        q=testo, stato=stato, stati=op_db.stati() if disponibile else [], nuovo_op=nuovo_op.contesto(request),
     ))
 
 
@@ -157,6 +157,20 @@ def impostazioni(request):
     return render(request, "produzione/impostazioni.html", _ctx(
         request, "impostazioni", tipi=TipoDocumento.objects.all(),
     ))
+
+
+@require_POST
+def op_nuovo(request):
+    """Crea un OP dal pannello laterale: risponde sempre in JSON."""
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "error": "Autenticazione richiesta."}, status=401)
+    if not nuovo_op.puo_creare(request):
+        return JsonResponse({"ok": False, "error": "Non hai il permesso di creare OP."}, status=403)
+    op, errori = nuovo_op.crea(request, request.POST)
+    if errori:
+        return JsonResponse({"ok": False, "errori": errori, "error": errori.get("__all__", "")}, status=400)
+    log_action(request, "produzione_op_crea", "produzione", {"op": op["op"], "id": op["id"]})
+    return JsonResponse({"ok": True, "op": op})
 
 
 @login_required

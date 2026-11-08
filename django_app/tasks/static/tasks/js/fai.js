@@ -99,7 +99,7 @@
     scheda.replaceChildren();
     if (!titolo || !dati || dati.disponibile === false) return;
     if (!dati.op) {
-      scheda.appendChild(el("p", titolo + " non è nell'elenco OP di Gestione anomalie. Si salva lo stesso; per collegarlo, crea l'OP da Gestione anomalie.", "fai-nota"));
+      scheda.appendChild(el("p", titolo + " non è nell'elenco OP di Gestione anomalie. Si salva lo stesso; per collegarlo, crealo con «+ Nuovo OP».", "fai-nota"));
       return;
     }
     var o = dati.op;
@@ -156,5 +156,15 @@
     }, 250);
   });
   op.addEventListener("change", controlla);
+  // «+ Nuovo OP» dal pannello laterale: l'OP creato va nel campo, col P/N del FAI.
+  var apriNuovo = form.querySelector("[data-fai-nuovo-op]");
+  if (apriNuovo) {
+    apriNuovo.addEventListener("click", function () { apriNuovo.dataset.pn = pn.value.trim(); }, true);
+  }
+  document.addEventListener("op:creato", function (e) {
+    op.value = e.detail.op;
+    ultimo = null;
+    controlla();
+  });
   pn.addEventListener("change", function () { ultimo = null; controlla(); });
 })();

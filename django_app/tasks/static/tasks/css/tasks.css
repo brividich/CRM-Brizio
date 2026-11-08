@@ -4409,6 +4409,7 @@ body.theme-dark .mf-recap a{color:#93c5fd}
 .fai-nota{margin:0;font-size:13px;font-weight:400;color:var(--text-mid)}
 .fai-nota:empty{display:none}
 .fai-op:empty{display:none}
+.fai-op-etichetta{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .fai-op{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
 .fai-op-riga{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:0;font-size:13px;color:var(--text-mid)}
 .fai-op-riga strong{color:var(--text);font-weight:600}

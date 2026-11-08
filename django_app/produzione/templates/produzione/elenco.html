@@ -11,6 +11,7 @@
       <h1>Ordini di produzione</h1>
       <p>Ogni OP con i suoi documenti di produzione: FAI, programmi CAM e CMM, documenti registrati e anomalie.</p>
     </div>
+    {% if nuovo_op %}<button type="button" class="prod-btn prod-btn-primary" data-nuovo-op data-vai="1">+ Nuovo OP</button>{% endif %}
   </div>
 
   {% include "produzione/_nav.html" %}
@@ -63,7 +64,8 @@
     {% if pagina.has_next %}<a class="prod-btn prod-btn-piccolo" href="?q={{ q|urlencode }}&amp;stato={{ stato|urlencode }}&amp;page={{ pagina.next_page_number }}">Successivi →</a>{% endif %}
   </div>
   {% endif %}
-  <p class="prod-nota prod-nota-sotto">Gli OP nuovi si creano da Gestione anomalie con «+ Nuovo OP».</p>
+  <p class="prod-nota prod-nota-sotto">Gli OP nuovi si creano qui, dalla scheda FAI o da Gestione anomalie: è lo stesso elenco.</p>
   {% endif %}
 </div>
+{% if nuovo_op %}{% include "produzione/_nuovo_op.html" %}{% endif %}
 {% endblock %}
