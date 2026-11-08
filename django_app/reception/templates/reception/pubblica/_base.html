@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}Richiesta di visita{% endblock %} | Costruzioni Novicrom</title>
+<style nonce="{{ csp_nonce }}">
+:root { --bg:#eef2f6; --card:#fff; --text:#1c2b3a; --muted:#5b6b7b; --border:#d5dde6; --accent:#1d4ed8; --err-bg:#fee2e2; --err:#991b1b; --field:#f8fafc; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --border:#334155; --accent:#3b82f6; --err-bg:rgba(229,62,62,.18); --err:#fca5a5; --field:#0f172a; } }
+* { box-sizing:border-box; }
+body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; padding:24px 16px; }
+.pb-wrap { max-width:720px; margin:0 auto; }
+.pb-brand { font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+.pb-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px; }
+h1 { font-size:24px; margin:0 0 6px; }
+.pb-sub { color:var(--muted); font-size:15px; margin:0 0 18px; line-height:1.5; }
+.pb-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+.pb-field { display:flex; flex-direction:column; gap:5px; }
+.pb-full { grid-column:1/-1; }
+label { font-size:13px; font-weight:600; }
+input, select, textarea { width:100%; font:inherit; font-size:15px; color:var(--text); background:var(--field); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+textarea { min-height:90px; resize:vertical; }
+.pb-hint { font-size:12px; color:var(--muted); }
+.pb-check { display:flex; gap:10px; align-items:flex-start; font-size:14px; font-weight:400; margin-top:16px; }
+.pb-check input { width:auto; margin-top:3px; }
+.pb-btn { display:inline-block; margin-top:18px; background:var(--accent); color:#fff; border:0; border-radius:8px; padding:12px 22px; font-size:15px; font-weight:600; cursor:pointer; }
+.pb-errori { background:var(--err-bg); color:var(--err); border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:14px; }
+.pb-errori ul { margin:0; padding-left:18px; }
+details { margin-top:14px; font-size:13px; color:var(--muted); line-height:1.5; }
+details p { margin:6px 0; }
+summary { cursor:pointer; font-weight:600; color:var(--text); }
+.pb-trappola { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
+</style>
+</head>
+<body>
+<div class="pb-wrap">
+  <div class="pb-brand">Costruzioni Novicrom</div>
+  <div class="pb-card">{% block corpo %}{% endblock %}</div>
+</div>
+</body>
+</html>

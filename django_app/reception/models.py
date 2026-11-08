@@ -202,3 +202,52 @@ class EventoVisita(models.Model):
 
     def __str__(self) -> str:
         return f"{self.visita_id_rif}: {self.azione}"
+
+
+class RichiestaAppuntamento(models.Model):
+    """Richiesta di visita fatta da un esterno dal modulo pubblico (``/richiesta-visita/``).
+
+    Prima l'esterno conferma l'email, poi referente o reception approvano o rifiutano.
+    Approvata diventa una ``Preregistrazione`` con codice e QR. Si cancella dopo
+    ``servizi.GIORNI_CONSERVAZIONE_RICHIESTE`` dalla decisione; non confermata, dopo 48 ore.
+    """
+
+    DA_CONFERMARE = "DA_CONFERMARE"
+    IN_ATTESA = "IN_ATTESA"
+    APPROVATA = "APPROVATA"
+    RIFIUTATA = "RIFIUTATA"
+    STATI = [(DA_CONFERMARE, "Email da confermare"), (IN_ATTESA, "Da decidere"), (APPROVATA, "Approvata"), (RIFIUTATA, "Rifiutata")]
+
+    stato = models.CharField(max_length=20, choices=STATI, default=DA_CONFERMARE, db_index=True)
+    nome = models.CharField(max_length=100)
+    cognome = models.CharField(max_length=100)
+    azienda = models.CharField(max_length=200, blank=True)
+    email = models.CharField(max_length=255, db_index=True)
+    telefono = models.CharField(max_length=50, blank=True)
+    data_visita = models.DateField()
+    ora_inizio = models.TimeField(null=True, blank=True)
+    motivo = models.CharField(max_length=200, blank=True)
+    messaggio = models.CharField(max_length=1000, blank=True)
+    referente_indicato = models.CharField(max_length=200, help_text="Come l'esterno ha scritto la persona da incontrare.")
+    referente = models.ForeignKey(Referente, null=True, blank=True, on_delete=models.SET_NULL, related_name="richieste")
+    token = models.CharField(max_length=64, unique=True)
+    ip = models.CharField(max_length=45, blank=True)
+    informativa_letta_il = models.DateTimeField(null=True, blank=True)
+    creata_il = models.DateTimeField(auto_now_add=True, db_index=True)
+    confermata_il = models.DateTimeField(null=True, blank=True)
+    decisa_il = models.DateTimeField(null=True, blank=True, db_index=True)
+    decisa_da = models.CharField(max_length=150, blank=True)
+    nota_decisione = models.CharField(max_length=500, blank=True)
+    preregistrazione = models.ForeignKey(Preregistrazione, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    class Meta:
+        ordering = ["-creata_il"]
+        verbose_name = "Richiesta di appuntamento"
+        verbose_name_plural = "Richieste di appuntamento"
+
+    def __str__(self) -> str:
+        return f"Richiesta {self.pk}"
+
+    @property
+    def nome_completo(self) -> str:
+        return f"{self.nome} {self.cognome}".strip()

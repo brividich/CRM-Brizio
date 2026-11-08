@@ -26,7 +26,9 @@ TUTTE = AZIONI_STANDARD
 # preferenze, notifiche, rubrica, organigramma, cambio password (modulo
 # «bacheca») e lettura delle notizie. Un ruolo assegnato da solo deve gia'
 # far entrare la persona nel portale, senza dipendere dal ruolo base.
-_DOTAZIONE_BASE = {"bacheca": {"vedere": P, "creare": P, "modificare": P}, "notizie": {"vedere": A}}
+# «Annuncia una visita» (reception): pagina personale, i dati li filtra la view; «tutti» come le notizie,
+# perche' una cella «propri» restringerebbe chi «vede tutto» (Direzione).
+_DOTAZIONE_BASE = {"bacheca": {"vedere": P, "creare": P, "modificare": P}, "notizie": {"vedere": A}, "visite_ospiti": {"vedere": A}}
 
 
 def _con_impostazioni(celle: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:

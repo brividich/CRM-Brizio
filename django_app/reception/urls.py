@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import views, views_richieste
 
 app_name = "reception"
 
@@ -16,4 +16,9 @@ urlpatterns = [
     path("ditte/", views.ditte, name="ditte"),
     path("cartellini/", views.cartellini, name="cartellini"),
     path("impostazioni/", views.impostazioni, name="impostazioni"),
+    path("richieste/", views_richieste.richieste, name="richieste"),
+    path("richieste/<int:pk>/azione/", views_richieste.richiesta_azione, name="richiesta_azione"),
+    # Pagina personale di ogni dipendente (permesso reception.annuncia.view)
+    path("annuncia/", views_richieste.annuncia, name="annuncia"),
+    path("annuncia/richieste/<int:pk>/", views_richieste.annuncia_decidi, name="annuncia_decidi"),
 ]
