@@ -4408,6 +4408,14 @@ body.theme-dark .mf-recap a{color:#93c5fd}
 .fai-cerca .input{flex:1 1 240px;min-width:0}
 .fai-nota{margin:0;font-size:13px;font-weight:400;color:var(--text-mid)}
 .fai-nota:empty{display:none}
+.fai-op:empty{display:none}
+.fai-op{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.fai-op-riga{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:0;font-size:13px;color:var(--text-mid)}
+.fai-op-riga strong{color:var(--text);font-weight:600}
+.fai-op-nome{font-weight:700;color:var(--text);text-decoration:none}
+.fai-op-riga a:last-child{margin-left:auto;font-weight:600}
+a.fai-op-nome:hover{text-decoration:underline}
+.fai-op-avviso{margin-top:6px;color:var(--warning)}
 .fai-date{white-space:nowrap;font-size:13px}
 .fai-campi{min-width:0;margin:0;padding:0;border:0}
 .fai-titolo{margin:0;font-size:15px;font-weight:700}

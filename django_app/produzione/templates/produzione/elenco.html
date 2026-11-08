@@ -1,0 +1,69 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Ordini di produzione{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261108a">{% endblock %}
+
+{% block content %}
+<div class="prod">
+  <div class="prod-head">
+    <div>
+      <h1>Ordini di produzione</h1>
+      <p>Ogni OP con i suoi documenti di produzione: FAI, programmi CAM e CMM, documenti registrati e anomalie.</p>
+    </div>
+  </div>
+
+  {% include "produzione/_nav.html" %}
+
+  {% if not disponibile %}
+    <div class="prod-avviso">L'elenco degli OP non è disponibile: manca la tabella degli ordini di produzione.</div>
+  {% else %}
+  <form class="prod-filtri" method="get" role="search">
+    <input type="search" name="q" value="{{ q }}" placeholder="Cerca OP, P/N, capocommessa o CAR" aria-label="Cerca">
+    <select name="stato" aria-label="Stato">
+      <option value="">Tutti gli stati</option>
+      {% for s in stati %}<option value="{{ s }}"{% if s == stato %} selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+    <button class="prod-btn" type="submit">Cerca</button>
+    {% if q or stato %}<a class="prod-btn" href="{% url 'produzione:elenco' %}">Azzera</a>{% endif %}
+    <span class="prod-tot">{{ totale }} OP</span>
+  </form>
+
+  <div class="prod-card prod-scorri prod-card-tab">
+    <table class="prod-tab">
+      <thead>
+        <tr>
+          <th>OP</th><th>P/N</th><th>Capocommessa</th><th>CAR</th><th>Stato</th>
+          <th class="prod-n">Documenti</th><th class="prod-n">FAI</th><th class="prod-n">Anomalie aperte</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for op in pagina %}
+        <tr>
+          <td><a class="prod-op" href="{% url 'produzione:scheda' op.id %}">{{ op.op }}</a></td>
+          <td>{{ op.pn|default:"—" }}</td>
+          <td>{{ op.capocommessa|default:"—" }}</td>
+          <td>{{ op.car|default:"—" }}</td>
+          <td>{% if op.stato %}<span class="prod-stato">{{ op.stato }}</span>{% endif %}</td>
+          <td class="prod-n{% if not op.n_documenti %} prod-zero{% endif %}">{{ op.n_documenti }}</td>
+          <td class="prod-n{% if not op.n_fai %} prod-zero{% endif %}">{{ op.n_fai }}</td>
+          <td class="prod-n{% if op.n_anomalie_aperte %} prod-allerta{% else %} prod-zero{% endif %}">{{ op.n_anomalie_aperte }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="prod-vuoto">{% if q or stato %}Nessun OP con questi filtri.{% else %}Nessun OP nell'elenco.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if pagina.has_other_pages %}
+  <div class="prod-pagine">
+    {% if pagina.has_previous %}<a class="prod-btn prod-btn-piccolo" href="?q={{ q|urlencode }}&amp;stato={{ stato|urlencode }}&amp;page={{ pagina.previous_page_number }}">← Precedenti</a>{% endif %}
+    <span>Pagina {{ pagina.number }} di {{ pagina.paginator.num_pages }}</span>
+    {% if pagina.has_next %}<a class="prod-btn prod-btn-piccolo" href="?q={{ q|urlencode }}&amp;stato={{ stato|urlencode }}&amp;page={{ pagina.next_page_number }}">Successivi →</a>{% endif %}
+  </div>
+  {% endif %}
+  <p class="prod-nota prod-nota-sotto">Gli OP nuovi si creano da Gestione anomalie con «+ Nuovo OP».</p>
+  {% endif %}
+</div>
+{% endblock %}
