@@ -29,7 +29,9 @@ GUIDA = {
             "titolo": "Modifiche, eliminazione e storico",
             "blocchi": [
                 ("ul", [
-                    "In fondo alla scheda lo «Storico della segnalazione» dice chi ha creato, modificato, eliminato o ripristinato e chi ha aggiunto o tolto allegati.",
+                    "Nella scheda la «Storia della segnalazione» mostra tutto in ordine dal fatto a oggi: registrazione, modifiche campo per campo, allegati aggiunti, tolti e scaricati, eliminazione e ripristino, notifiche partite o non partite.",
+                    "In cima alla scheda «Situazione della segnalazione» dà l'esito dei controlli (registrata entro 2 giorni, allegati, impronte, download integri, notifiche, dati completi, presenza nel registro), il percorso Fatto → Registrata → Documentata → Notificata → Oggi con i giorni trascorsi e il confronto con le altre segnalazioni dello stesso preposto, con i link a precedente e successiva.",
+                    "I riquadri in cima alla scheda dicono da quanti giorni c'è il fatto, quanto si è aspettato a registrarlo (giallo oltre 2 giorni), quanti allegati e modifiche ci sono e se le notifiche sono partite.",
                     "Se un collega salva la stessa segnalazione mentre la modifichi, il tuo salvataggio viene rifiutato: riapri la scheda e rifai la modifica.",
                     "«Elimina» chiede il motivo (almeno 5 caratteri). La segnalazione esce dall'elenco ma non viene cancellata: chi gestisce il modulo la ritrova e la può ripristinare.",
                     "La «X» su un allegato lo toglie dalla segnalazione; il file resta archiviato sul server.",
@@ -54,7 +56,8 @@ GUIDA = {
             "titolo": "Cercare ed esportare",
             "blocchi": [
                 ("ul", [
-                    "Usa la ricerca e il filtro per preposto, poi «Filtra».",
+                    "Usa la ricerca e il filtro per preposto, poi «Filtra»: anche il cruscotto sopra la tabella segue i filtri.",
+                    "Il cruscotto mostra ultimi 7 e 30 giorni, segnalazioni senza allegati o registrate in ritardo, la prossima ispezione, l'andamento degli ultimi 12 mesi, i giorni della settimana, i preposti con più segnalazioni e le attività recenti.",
                     "«Esporta Excel» scarica l'elenco con i filtri attivi.",
                     "Il preposto vede le proprie segnalazioni, il responsabile quelle del suo team, la Sicurezza tutte.",
                 ]),

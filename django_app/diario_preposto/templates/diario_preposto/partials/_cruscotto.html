@@ -1,0 +1,239 @@
+{% comment %}
+Cruscotto del Diario preposto (numeri da diario_preposto/cruscotto.py).
+Grafici a barre a una serie: colore unico validato (#0d9488 chiaro, #0fa596 scuro),
+valore sulla barra massima, tutti i valori al passaggio del mouse/focus e nella
+tabella «Vedi i numeri». Stati (scaduta, errori) con icona + testo, mai solo colore.
+{% endcomment %}
+<section class="dpc" aria-label="Cruscotto del diario">
+  <div class="dpc-tiles">
+    <div class="dpc-tile">
+      <div class="dpc-val">{{ cruscotto.totale }}</div>
+      <div class="dpc-lbl">Segnalazioni{% if cruscotto.filtrato %} (filtrate){% endif %}</div>
+    </div>
+    <div class="dpc-tile">
+      <div class="dpc-val">{{ cruscotto.ultimi_7 }}</div>
+      <div class="dpc-lbl">Ultimi 7 giorni</div>
+    </div>
+    <div class="dpc-tile">
+      <div class="dpc-val">{{ cruscotto.ultimi_30 }}</div>
+      <div class="dpc-lbl">Ultimi 30 giorni</div>
+      <div class="dpc-sub">
+        {% if cruscotto.delta_30 > 0 %}▲ {{ cruscotto.delta_30_abs }} in più dei 30 precedenti ({{ cruscotto.precedenti_30 }})
+        {% elif cruscotto.delta_30 < 0 %}▼ {{ cruscotto.delta_30_abs }} in meno dei 30 precedenti ({{ cruscotto.precedenti_30 }})
+        {% else %}come i 30 precedenti{% endif %}
+      </div>
+    </div>
+    <div class="dpc-tile">
+      <div class="dpc-val">{{ cruscotto.mese_corrente }}</div>
+      <div class="dpc-lbl">Mese di {{ cruscotto.mese_corrente_label }}</div>
+    </div>
+    <div class="dpc-tile{% if cruscotto.senza_allegati %} is-avviso{% endif %}">
+      <div class="dpc-val">{{ cruscotto.senza_allegati }}</div>
+      <div class="dpc-lbl">{% if cruscotto.senza_allegati %}! {% endif %}Senza allegati</div>
+      <div class="dpc-sub">nessuna foto o documento di prova</div>
+    </div>
+    <div class="dpc-tile{% if cruscotto.in_ritardo %} is-avviso{% endif %}">
+      <div class="dpc-val">{{ cruscotto.in_ritardo }}</div>
+      <div class="dpc-lbl">{% if cruscotto.in_ritardo %}! {% endif %}Registrate in ritardo</div>
+      <div class="dpc-sub">inserite oltre {{ cruscotto.giorni_ritardo }} giorni dopo il fatto</div>
+    </div>
+    {% with isp=cruscotto.ispezioni %}
+    <a class="dpc-tile dpc-tile-link{% if isp.scaduta or not isp.ultima %} is-critico{% elif isp.giorni_alla_scadenza <= 2 %} is-avviso{% endif %}"
+       href="{% url 'diario_preposto:ispezioni' %}">
+      {% if not isp.ultima %}
+        <div class="dpc-val">✕</div>
+        <div class="dpc-lbl">Nessuna ispezione</div>
+        <div class="dpc-sub">frequenza attesa: {{ isp.frequenza_giorni }} gg</div>
+      {% elif isp.scaduta %}
+        <div class="dpc-val">✕ {{ isp.prossima_scadenza|date:"d/m" }}</div>
+        <div class="dpc-lbl">Ispezione scaduta</div>
+        <div class="dpc-sub">ultima il {{ isp.ultima.data_esecuzione|date:"d/m/Y" }}</div>
+      {% else %}
+        <div class="dpc-val">{% if isp.giorni_alla_scadenza <= 2 %}! {% else %}✓ {% endif %}{{ isp.prossima_scadenza|date:"d/m" }}</div>
+        <div class="dpc-lbl">Prossima ispezione</div>
+        <div class="dpc-sub">{% if isp.giorni_alla_scadenza == 0 %}scade oggi{% else %}tra {{ isp.giorni_alla_scadenza }} gg{% endif %} · ultima il {{ isp.ultima.data_esecuzione|date:"d/m/Y" }}</div>
+      {% endif %}
+    </a>
+    {% endwith %}
+    {% if can_manage_settings %}
+    {% if cruscotto.notifiche_ko %}
+    <div class="dpc-tile is-critico">
+      <div class="dpc-val">✕ {{ cruscotto.notifiche_ko }}</div>
+      <div class="dpc-lbl">Notifiche non partite</div>
+      <div class="dpc-sub">ultimi 30 giorni · Automazioni → Mail inviate</div>
+    </div>
+    {% endif %}
+    <a class="dpc-tile dpc-tile-link" href="{% url 'diario_preposto:lista' %}?eliminate=1">
+      <div class="dpc-val">{{ n_eliminate }}</div>
+      <div class="dpc-lbl">Eliminate</div>
+      <div class="dpc-sub">archiviate con motivo</div>
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="dpc-grid">
+    <div class="dpc-card dpc-span2">
+      <div class="dpc-card-head">
+        <div class="dpc-card-title">Andamento ultimi 12 mesi</div>
+        <div class="dpc-card-meta">{{ cruscotto.andamento_totale }} segnalazioni per data del fatto</div>
+      </div>
+      <div class="dpc-cols" role="img" aria-label="Segnalazioni per mese negli ultimi 12 mesi">
+        {% for b in cruscotto.andamento %}
+        <div class="dpc-col{% if b.anno_nuovo %} is-anno{% endif %}" tabindex="0" data-tip="{{ b.descrizione }}">
+          <div class="dpc-col-track">
+            {% if b.massimo %}<span class="dpc-col-val">{{ b.valore }}</span>{% endif %}
+            <div class="dpc-col-bar" style="height:{{ b.percento }}%"></div>
+          </div>
+          <div class="dpc-col-lbl">{{ b.etichetta }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <details class="dpc-numeri"><summary>Vedi i numeri</summary>
+        <table><tbody>{% for b in cruscotto.andamento %}<tr><td>{{ b.descrizione }}</td></tr>{% endfor %}</tbody></table>
+      </details>
+    </div>
+
+    <div class="dpc-card">
+      <div class="dpc-card-head">
+        <div class="dpc-card-title">Giorno della settimana</div>
+        <div class="dpc-card-meta">ultimi 12 mesi</div>
+      </div>
+      <div class="dpc-cols dpc-cols-small" role="img" aria-label="Segnalazioni per giorno della settimana">
+        {% for b in cruscotto.giorni_settimana %}
+        <div class="dpc-col" tabindex="0" data-tip="{{ b.descrizione }}">
+          <div class="dpc-col-track">
+            {% if b.massimo %}<span class="dpc-col-val">{{ b.valore }}</span>{% endif %}
+            <div class="dpc-col-bar" style="height:{{ b.percento }}%"></div>
+          </div>
+          <div class="dpc-col-lbl">{{ b.etichetta }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="dpc-card dpc-span2">
+      <div class="dpc-card-head">
+        <div class="dpc-card-title">Segnalazioni per preposto</div>
+        <div class="dpc-card-meta">ultimi 12 mesi · primi {{ cruscotto.preposti|length }}</div>
+      </div>
+      {% if cruscotto.preposti %}
+      <ul class="dpc-rows">
+        {% for b in cruscotto.preposti %}
+        <li class="dpc-row" tabindex="0" data-tip="{{ b.descrizione }}">
+          <a class="dpc-row-lbl" href="?preposto={{ b.etichetta|urlencode }}">{{ b.etichetta }}</a>
+          <div class="dpc-row-track"><div class="dpc-row-bar" style="width:{{ b.percento }}%"></div></div>
+          <span class="dpc-row-val">{{ b.valore }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="dpc-vuoto">Nessuna segnalazione negli ultimi 12 mesi.</div>
+      {% endif %}
+    </div>
+    <div class="dpc-card dpc-feed">
+      <div class="dpc-card-head"><div class="dpc-card-title">Attività recenti</div></div>
+      {% if cruscotto.attivita %}
+      <ol class="dpc-feed-list">
+        {% for a in cruscotto.attivita %}
+        <li class="dpc-feed-item dpc-feed-{{ a.azione }}">
+          <div class="dpc-feed-riga">
+            <span class="dpc-feed-azione">{{ a.etichetta }}</span>
+            <span class="dpc-feed-quando" title="{{ a.quando|date:'d/m/Y H:i' }}">{{ a.quando|timesince }} fa</span>
+          </div>
+          <div class="dpc-feed-ogg">
+            {% if a.eliminata and not can_manage_settings %}{{ a.codice }}
+            {% else %}<a href="{% url 'diario_preposto:dettaglio' a.pk %}">{{ a.codice }}</a>{% endif %}
+            · {{ a.titolo|truncatechars:48 }}
+          </div>
+          <div class="dpc-feed-chi">{{ a.utente|default:"Processo automatico" }}</div>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <div class="dpc-vuoto">Nessuna attività registrata.</div>
+      {% endif %}
+    </div>
+
+  </div>
+</section>
+
+<style>
+.dpc { --dpc-bar:#0d9488; --dpc-avviso:#b45309; --dpc-avviso-bg:#fffbeb; --dpc-avviso-bd:#fcd34d;
+       --dpc-critico:#b91c1c; --dpc-critico-bg:#fef2f2; --dpc-critico-bd:#fecaca;
+       display:flex; flex-direction:column; gap:14px; }
+.dpc-tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(122px,1fr)); gap:10px; }
+.dpc-tile { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:3px; text-decoration:none; color:inherit; }
+.dpc-tile-link:hover { border-color:var(--dpc-bar); }
+.dpc-val { font-size:28px; font-weight:900; line-height:1.05; color:#0f172a; font-variant-numeric:tabular-nums; }
+.dpc-lbl { font-size:11px; color:#475569; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+.dpc-sub { font-size:11px; color:#64748b; }
+.dpc-tile.is-avviso { background:var(--dpc-avviso-bg); border-color:var(--dpc-avviso-bd); }
+.dpc-tile.is-avviso .dpc-val, .dpc-tile.is-avviso .dpc-lbl { color:var(--dpc-avviso); }
+.dpc-tile.is-critico { background:var(--dpc-critico-bg); border-color:var(--dpc-critico-bd); }
+.dpc-tile.is-critico .dpc-val, .dpc-tile.is-critico .dpc-lbl { color:var(--dpc-critico); }
+
+.dpc-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+.dpc-span2 { grid-column:span 2; }
+.dpc-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:14px 16px; min-width:0; }
+.dpc-card-head { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.dpc-card-title { font-size:13px; font-weight:800; color:#0f172a; }
+.dpc-card-meta { font-size:11px; color:#64748b; }
+.dpc-feed .dpc-feed-list { max-height:260px; overflow:auto; }
+
+.dpc-cols { display:flex; align-items:stretch; gap:2px; height:150px; }
+.dpc-cols-small { height:120px; }
+.dpc-col { flex:1; display:flex; flex-direction:column; min-width:0; position:relative; outline:none; }
+.dpc-col-track { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; padding:0 3px; }
+.dpc-col-bar { width:100%; max-width:34px; min-height:2px; background:var(--dpc-bar); border-radius:4px 4px 0 0; }
+.dpc-col-val { font-size:11px; font-weight:700; color:#334155; margin-bottom:2px; }
+.dpc-col-lbl { font-size:10px; color:#64748b; text-align:center; padding-top:4px; border-top:1px solid #e2e8f0; white-space:nowrap; }
+.dpc-col.is-anno .dpc-col-lbl { font-weight:800; color:#334155; }
+.dpc-col:hover .dpc-col-bar, .dpc-col:focus .dpc-col-bar,
+.dpc-row:hover .dpc-row-bar, .dpc-row:focus .dpc-row-bar { filter:brightness(1.12); }
+
+[data-tip] { position:relative; }
+[data-tip]:hover::after, [data-tip]:focus::after {
+  content:attr(data-tip); position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%);
+  background:#0f172a; color:#fff; font-size:11px; font-weight:600; padding:4px 8px; border-radius:6px;
+  white-space:nowrap; pointer-events:none; z-index:5;
+}
+.dpc-row[data-tip]:hover::after, .dpc-row[data-tip]:focus::after { left:auto; right:0; transform:none; }
+
+.dpc-rows { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.dpc-row { display:grid; grid-template-columns:minmax(110px,200px) minmax(0,1fr) 32px; align-items:center; gap:10px; outline:none; }
+.dpc-row-lbl { font-size:12px; color:#334155; font-weight:600; text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dpc-row-lbl:hover { text-decoration:underline; }
+.dpc-row-track { height:14px; }
+.dpc-row-bar { height:100%; min-width:2px; background:var(--dpc-bar); border-radius:0 4px 4px 0; }
+.dpc-row-val { font-size:12px; font-weight:700; color:#334155; text-align:right; font-variant-numeric:tabular-nums; }
+
+.dpc-feed-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+.dpc-feed-item { border-left:2px solid #e2e8f0; padding-left:10px; }
+.dpc-feed-auto_insert { border-left-color:var(--dpc-bar); }
+.dpc-feed-riga { display:flex; justify-content:space-between; gap:8px; font-size:12px; }
+.dpc-feed-azione { font-weight:700; color:#0f172a; }
+.dpc-feed-quando { color:#64748b; white-space:nowrap; }
+.dpc-feed-ogg { font-size:12px; color:#334155; }
+.dpc-feed-ogg a { color:#0f766e; font-weight:700; text-decoration:none; }
+.dpc-feed-chi { font-size:11px; color:#64748b; }
+.dpc-vuoto { font-size:12px; color:#64748b; }
+.dpc-numeri { margin-top:8px; font-size:12px; color:#475569; }
+.dpc-numeri summary { cursor:pointer; font-weight:600; }
+.dpc-numeri table { margin-top:6px; border-collapse:collapse; }
+.dpc-numeri td { padding:2px 0; }
+
+@media (max-width:980px) { .dpc-grid { grid-template-columns:1fr; } .dpc-span2 { grid-column:auto; } }
+@media (max-width:520px) { .dpc-row { grid-template-columns:minmax(80px,120px) minmax(0,1fr) 28px; } .dpc-col-lbl { font-size:9px; } }
+
+body.theme-dark .dpc { --dpc-bar:#0fa596; --dpc-avviso:#fbbf24; --dpc-avviso-bg:rgba(251,191,36,.12); --dpc-avviso-bd:rgba(251,191,36,.35);
+                       --dpc-critico:#fca5a5; --dpc-critico-bg:rgba(229,62,62,.16); --dpc-critico-bd:rgba(252,165,165,.35); }
+body.theme-dark .dpc-tile, body.theme-dark .dpc-card { background:var(--surface); border-color:var(--border); }
+body.theme-dark .dpc-val, body.theme-dark .dpc-card-title, body.theme-dark .dpc-feed-azione { color:var(--text); }
+body.theme-dark .dpc-lbl, body.theme-dark .dpc-col-val, body.theme-dark .dpc-row-lbl, body.theme-dark .dpc-row-val,
+body.theme-dark .dpc-feed-ogg, body.theme-dark .dpc-col.is-anno .dpc-col-lbl, body.theme-dark .dpc-numeri { color:var(--text-mid); }
+body.theme-dark .dpc-sub, body.theme-dark .dpc-card-meta, body.theme-dark .dpc-col-lbl, body.theme-dark .dpc-feed-quando,
+body.theme-dark .dpc-feed-chi, body.theme-dark .dpc-vuoto { color:var(--text-light); }
+body.theme-dark .dpc-col-lbl, body.theme-dark .dpc-feed-item { border-color:var(--border); }
+body.theme-dark .dpc-feed-ogg a { color:#2dd4bf; }
+body.theme-dark [data-tip]:hover::after, body.theme-dark [data-tip]:focus::after { background:#e2e8f0; color:#0f172a; }
+</style>

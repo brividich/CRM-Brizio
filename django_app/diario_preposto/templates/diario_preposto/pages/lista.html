@@ -98,22 +98,6 @@ body.theme-dark .dp-filters-reset{background:var(--surface-alt,#0f1b2d);color:va
     </div>
   </div>
 
-  <div class="dp-kpi-row">
-    <div class="dp-kpi">
-      <div class="dp-kpi-val">{{ totale }}</div>
-      <div class="dp-kpi-lbl">{% if mostra_eliminate %}Segnalazioni eliminate{% else %}Segnalazioni{% endif %}{% if q or filtro_preposto %} (filtrate){% endif %}</div>
-    </div>
-    {% if can_manage_settings %}
-    <div class="dp-kpi">
-      <div class="dp-kpi-val">{{ n_eliminate }}</div>
-      <div class="dp-kpi-lbl">
-        {% if mostra_eliminate %}<a href="{% url 'diario_preposto:lista' %}">Torna al registro</a>
-        {% else %}<a href="{% url 'diario_preposto:lista' %}?eliminate=1">Eliminate</a>{% endif %}
-      </div>
-    </div>
-    {% endif %}
-  </div>
-
   <form method="get" class="dp-filters">
     {% if mostra_eliminate %}<input type="hidden" name="eliminate" value="1">{% endif %}
     <label>Cerca
@@ -138,6 +122,26 @@ body.theme-dark .dp-filters-reset{background:var(--surface-alt,#0f1b2d);color:va
     <a href="{% url 'diario_preposto:lista' %}{% if mostra_eliminate %}?eliminate=1{% endif %}" class="dp-filters-reset">Reset</a>
     {% endif %}
   </form>
+
+  {% if cruscotto %}
+  {% include "diario_preposto/partials/_cruscotto.html" %}
+  {% else %}
+  <div class="dp-kpi-row">
+    <div class="dp-kpi">
+      <div class="dp-kpi-val">{{ totale }}</div>
+      <div class="dp-kpi-lbl">{% if mostra_eliminate %}Segnalazioni eliminate{% else %}Segnalazioni{% endif %}{% if q or filtro_preposto %} (filtrate){% endif %}</div>
+    </div>
+    {% if can_manage_settings %}
+    <div class="dp-kpi">
+      <div class="dp-kpi-val">{{ n_eliminate }}</div>
+      <div class="dp-kpi-lbl">
+        {% if mostra_eliminate %}<a href="{% url 'diario_preposto:lista' %}">Torna al registro</a>
+        {% else %}<a href="{% url 'diario_preposto:lista' %}?eliminate=1">Eliminate</a>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
 
   <div class="dp-table-wrap">
     {% if segnalazioni %}

@@ -9,6 +9,13 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+- **Diario preposto: infografica della singola segnalazione** (`diario_preposto/scheda.py`, `views.py`, `guida.py`, `tests_vista.py`, template `pages/dettaglio.html`, `partials/_infografica.html`, `core/guide_moduli/contenuti/diario_preposto.py`, `docs/moduli/diario_preposto.md`). In cima alla scheda «Situazione della segnalazione» con:
+  - l'esito complessivo dei controlli;
+  - il percorso Fatto → Registrata → Documentata → Notificata → Oggi/Eliminata, con i giorni trascorsi;
+  - sette controlli: tempi, allegati, impronte, download integri, notifiche, dati completi, registro;
+  - il confronto con le altre segnalazioni visibili dello stesso preposto (grafico mensile, precedente e successiva).
+  Nessuna migrazione.
+- **Diario preposto: cruscotto nell'elenco e storia della segnalazione** (`diario_preposto/cruscotto.py`, `storyline.py`, `views.py`, `guida.py`, `tests_vista.py`, `tests_integrita.py`, template `lista.html`, `dettaglio.html`, `partials/_cruscotto.html`, `partials/_storyline.html`, `core/guide_moduli/contenuti/diario_preposto.py`, `docs/moduli/diario_preposto.md`) — sopra la tabella: ultimi 7/30 giorni con confronto, senza allegati, registrate in ritardo, prossima ispezione, notifiche non partite, andamento 12 mesi, giorno della settimana, preposti, attività recenti; i numeri seguono i filtri. Nella scheda: riquadri di sintesi e la storia dal fatto a oggi (registrazione, modifiche campo per campo, allegati, download, eliminazione, ripristino, mail partite e non partite). Nessuna migrazione.
 - **Asset e SOC: sei miglioramenti dal catalogo alla scheda del PC** (migrazione `assets 0166`: `Asset.warranty_end`, `SoftwareDotazioneAttesa`).
   1. **Tempi di correzione, andamento** (`security/services/cve_sla.py` `riepilogo` con `giorni_mediani` per classe, `andamento(giorni)`; `views_vuln._termini_cve`, `vuln_dashboard.html`): colonna «Mediana» e confronto degli ultimi 90 giorni con i 90 precedenti (nel termine, mediana, PC corretti).
   2. **Programma mai visto prima** (`security/services/software_nuovo.py`, evento `software_nuovo` in `rule_engine`, opzioni `software.nuovo.alert` e `software.nuovo.giorni`, giro in `software_policy.run`): un alert per programma comparso per la prima volta e senza decisione, chiuso alla decisione; etichetta «nuovo dal» e filtro «Nuovi» nel Catalogo software (`assets/views_software.py`).

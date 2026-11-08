@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import json
 import mimetypes
-from datetime import timedelta
 from functools import wraps
 from io import BytesIO
 from pathlib import Path
@@ -398,6 +397,15 @@ def _ispezione_actor(request) -> tuple[int, str]:
     return actor_id, name
 
 
+def _ispezioni_visibili(request):
+    qs = ChecklistEsecuzione.objects.filter(tipo_checklist=CHECKLIST_ISPEZIONE_PREPOSTO)
+    if sistema_ruoli_attivo():
+        ammessi = utenti_visibili(request, MODULO, "vedere")
+        if ammessi is not None:
+            qs = qs.filter(legacy_user_id__in=list(ammessi))
+    return qs
+
+
 def _prepare_ispezione_rows(esecuzioni) -> list[ChecklistEsecuzione]:
     rows = list(esecuzioni)
     for esecuzione in rows:
@@ -445,10 +453,25 @@ def lista(request):
         .order_by("preposto")
     )
 
+    from .cruscotto import attivita_recenti, calcola_cruscotto, notifiche_non_partite, stato_ispezioni
+
+    cruscotto = None
+    if not mostra_eliminate:
+        cfg = DiarioPrepostoImpostazioni.get_singleton()
+        id_visibili = set(_base_registro(request).values_list("pk", flat=True))
+        cruscotto = {
+            **calcola_cruscotto(qs),
+            "ispezioni": stato_ispezioni(_ispezioni_visibili(request), cfg.ispezione_frequenza_giorni),
+            "attivita": attivita_recenti(id_visibili),
+            "notifiche_ko": notifiche_non_partite() if can_manage else 0,
+            "filtrato": bool(q or filtro_preposto),
+        }
+
     return render(
         request,
         "diario_preposto/pages/lista.html",
         {
+            "cruscotto": cruscotto,
             "segnalazioni": qs,
             "q": q,
             "filtro_preposto": filtro_preposto,
@@ -465,23 +488,17 @@ def lista(request):
 @login_required
 def ispezioni(request):
     voci = _ensure_ispezione_voci()
+    from .cruscotto import stato_ispezioni
+
     cfg = DiarioPrepostoImpostazioni.get_singleton()
-    esecuzioni_qs = ChecklistEsecuzione.objects.filter(tipo_checklist=CHECKLIST_ISPEZIONE_PREPOSTO)
-    if sistema_ruoli_attivo():
-        ammessi = utenti_visibili(request, MODULO, "vedere")
-        if ammessi is not None:
-            esecuzioni_qs = esecuzioni_qs.filter(legacy_user_id__in=list(ammessi))
+    esecuzioni_qs = _ispezioni_visibili(request)
     esecuzioni = _prepare_ispezione_rows(
         esecuzioni_qs.prefetch_related("risposte").order_by("-data_esecuzione")[:50]
     )
+    stato = stato_ispezioni(esecuzioni_qs, cfg.ispezione_frequenza_giorni)
     ultima = esecuzioni[0] if esecuzioni else None
-    prossima_scadenza = None
-    ispezione_scaduta = False
-    if ultima:
-        prossima_scadenza = timezone.localtime(ultima.data_esecuzione).date() + timedelta(
-            days=cfg.ispezione_frequenza_giorni
-        )
-        ispezione_scaduta = prossima_scadenza < timezone.localdate()
+    prossima_scadenza = stato["prossima_scadenza"]
+    ispezione_scaduta = stato["scaduta"]
 
     return render(
         request,
@@ -570,7 +587,8 @@ def ispezione_nuova(request):
 
 @login_required
 def dettaglio(request, pk):
-    from core.audit import storico_leggibile, storico_oggetto
+    from .scheda import infografica
+    from .storyline import costruisci_storyline
 
     segnalazione = _get_segnalazione_visibile(request, pk)
     negata = _nega_record(request, segnalazione, "vedere")
@@ -584,6 +602,7 @@ def dettaglio(request, pk):
         can_delete = puo_fare(request, MODULO, "cancellare", segnalazione)
     if segnalazione.is_eliminata:
         can_write = can_delete = False
+    storyline = costruisci_storyline(segnalazione)
     return render(
         request,
         "diario_preposto/pages/dettaglio.html",
@@ -593,7 +612,8 @@ def dettaglio(request, pk):
             "can_write": can_write,
             "can_delete": can_delete,
             "can_manage_settings": _can_manage_settings(request),
-            "storico": storico_leggibile(storico_oggetto(segnalazione)),
+            "storyline": storyline,
+            "infografica": infografica(segnalazione, storyline, _base_registro(request)),
         },
     )
 
@@ -1076,6 +1096,7 @@ def allegato_download(request, allegato_id: int):
                 "segnalazione_id": allegato.segnalazione_id,
                 "esito": "not_found",
             },
+            oggetto=allegato.segnalazione,
         )
         return HttpResponse("Allegato non trovato.", status=404)
 
@@ -1119,6 +1140,7 @@ def allegato_download(request, allegato_id: int):
             "filename": filename,
             "esito": "success",
         },
+        oggetto=allegato.segnalazione,
     )
     return FileResponse(
         storage.open(allegato.file.name, "rb"),
