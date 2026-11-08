@@ -97,9 +97,27 @@
     {% endif %}
 
 
+    {# L'essenziale in un pannello solo: prima titolo, date e responsabile erano sparsi su quattro sezioni. #}
+    <section class="tf-panel">
+      <div class="tf-head"><div><span class="tf-kicker">Attività</span><h2 class="tf-title">Cosa, chi e quando</h2><p class="tf-copy">Basta questo: il responsabile riceve la notifica e la mail, e la trova in «Le mie azioni».</p></div></div>
+      {% if suggested_start_from_previous and not task %}<div id="date-suggestion-banner" class="date-suggestion-banner"><div>Inizio proposto il <strong>{{ suggested_start_date|date:"d-m-Y" }}</strong>, il giorno dopo la fine dell'ultima attività del kickoff. Puoi cambiarlo.</div></div>{% endif %}
+      <div class="tf-grid">
+        <div class="ts-field"><label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>{{ form.title }}{% if form.title.errors %}<div class="ts-field-error">{{ form.title.errors }}</div>{% endif %}</div>
+      </div>
+      <div class="tf-grid-2" style="margin-top:12px;">
+        <div class="ts-field"><label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }}</label>{{ form.assigned_to }}{% if form.assigned_to.errors %}<div class="ts-field-error">{{ form.assigned_to.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.priority.id_for_label }}">{{ form.priority.label }}</label>{{ form.priority }}{% if form.priority.errors %}<div class="ts-field-error">{{ form.priority.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.next_step_due.id_for_label }}">{{ form.next_step_due.label }}</label>{{ form.next_step_due }}{% if form.next_step_due.errors %}<div class="ts-field-error">{{ form.next_step_due.errors }}</div>{% endif %}{% if form.next_step_due.help_text %}<div class="ts-field-help">{{ form.next_step_due.help_text }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.due_date.id_for_label }}">{{ form.due_date.label }}</label>{{ form.due_date }}{% if form.due_date.errors %}<div class="ts-field-error">{{ form.due_date.errors }}</div>{% endif %}{% if form.due_date.help_text %}<div class="ts-field-help">{{ form.due_date.help_text }}</div>{% endif %}</div>
+        {% if mode == "edit" %}
+        <div class="ts-field"><label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>{{ form.status }}{% if form.status.errors %}<div class="ts-field-error">{{ form.status.errors }}</div>{% endif %}</div>
+        {% endif %}
+      </div>
+    </section>
+
     {% if form.category.field.queryset.exists %}
     <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Tipo</span><h2 class="tf-title">Tipo attivita e campi specifici</h2><p class="tf-copy">Selezionando un tipo (es. Programmazione, Collaudo) vengono mostrati i campi dedicati configurati dall'amministratore.</p></div></div>
+      <div class="tf-head"><div><span class="tf-kicker">Tipo</span><h2 class="tf-title">Tipo attività (facoltativo)</h2><p class="tf-copy">Con un tipo (es. Programmazione, Collaudo) compaiono i campi dedicati configurati dall'amministratore.</p></div></div>
       <div class="tf-grid-2">
         <div class="ts-field full">
           <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
@@ -112,35 +130,23 @@
     </section>
     {% endif %}
 
+    <details class="tf-more"{% if mode == "edit" or form.description.errors or form.tags.errors or form.next_step_text.errors or form.subscribers.errors or form.status.errors or form.assignment_conflict_action.errors %} open{% endif %}>
+      <summary>Descrizione, persone in copia e altri dettagli</summary>
     <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Attivita kickoff</span><h2 class="tf-title">Dettaglio attività</h2><p class="tf-copy">Cosa si deve fare.</p></div></div>
       <div class="tf-grid">
-        <div class="ts-field"><label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>{{ form.title }}{% if form.title.errors %}<div class="ts-field-error">{{ form.title.errors }}</div>{% endif %}</div>
         <div class="ts-field"><label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>{{ form.description }}{% if form.description.errors %}<div class="ts-field-error">{{ form.description.errors }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.tags.id_for_label }}">{{ form.tags.label }}</label>{{ form.tags }}{% if form.tags.errors %}<div class="ts-field-error">{{ form.tags.errors }}</div>{% endif %}{% if form.tags.help_text %}<div class="ts-field-help">{{ form.tags.help_text }}</div>{% endif %}</div>
       </div>
-    </section>
-
-    <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Pianificazione</span><h2 class="tf-title">Timeline e avanzamento</h2><p class="tf-copy">Le date alimentano Gantt e avvisi di sovraccarico.</p></div></div>
-      {% if suggested_start_from_previous and not task %}<div id="date-suggestion-banner" class="date-suggestion-banner"><div>Data di inizio impostata automaticamente al <strong>{{ suggested_start_date|date:"d-m-Y" }}</strong> (giorno successivo alla fine dell'ultima attivita del kickoff). Puoi modificarla liberamente.</div></div>{% endif %}
-      <div class="tf-grid-2">
+      <div class="tf-grid-2" style="margin-top:12px;">
+        <div class="ts-field"><label for="{{ form.subscribers.id_for_label }}">{{ form.subscribers.label }}</label>{{ form.subscribers }}{% if form.subscribers.errors %}<div class="ts-field-error">{{ form.subscribers.errors }}</div>{% endif %}</div>
+        <div class="ts-field"><label for="{{ form.assignment_conflict_action.id_for_label }}">{{ form.assignment_conflict_action.label }}</label>{{ form.assignment_conflict_action }}{% if form.assignment_conflict_action.errors %}<div class="ts-field-error">{{ form.assignment_conflict_action.errors }}</div>{% endif %}{% if form.assignment_conflict_action.help_text %}<div class="ts-field-help">{{ form.assignment_conflict_action.help_text }}</div>{% endif %}</div>
+        {% if mode != "edit" %}
         <div class="ts-field"><label for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>{{ form.status }}{% if form.status.errors %}<div class="ts-field-error">{{ form.status.errors }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.priority.id_for_label }}">{{ form.priority.label }}</label>{{ form.priority }}{% if form.priority.errors %}<div class="ts-field-error">{{ form.priority.errors }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.next_step_due.id_for_label }}">{{ form.next_step_due.label }}</label>{{ form.next_step_due }}{% if form.next_step_due.errors %}<div class="ts-field-error">{{ form.next_step_due.errors }}</div>{% endif %}{% if form.next_step_due.help_text %}<div class="ts-field-help">{{ form.next_step_due.help_text }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.due_date.id_for_label }}">{{ form.due_date.label }}</label>{{ form.due_date }}{% if form.due_date.errors %}<div class="ts-field-error">{{ form.due_date.errors }}</div>{% endif %}{% if form.due_date.help_text %}<div class="ts-field-help">{{ form.due_date.help_text }}</div>{% endif %}</div>
+        {% endif %}
+        <div class="ts-field"><label for="{{ form.tags.id_for_label }}">{{ form.tags.label }}</label>{{ form.tags }}{% if form.tags.errors %}<div class="ts-field-error">{{ form.tags.errors }}</div>{% endif %}{% if form.tags.help_text %}<div class="ts-field-help">{{ form.tags.help_text }}</div>{% endif %}</div>
         <div class="ts-field full"><label for="{{ form.next_step_text.id_for_label }}">{{ form.next_step_text.label }}</label>{{ form.next_step_text }}{% if form.next_step_text.errors %}<div class="ts-field-error">{{ form.next_step_text.errors }}</div>{% endif %}</div>
       </div>
     </section>
-
-    <section class="tf-panel">
-      <div class="tf-head"><div><span class="tf-kicker">Persone</span><h2 class="tf-title">Responsabile e persone in copia</h2><p class="tf-copy">Chi la fa e chi deve restare informato.</p></div></div>
-      <div class="tf-grid-3">
-        <div class="ts-field"><label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }}</label>{{ form.assigned_to }}{% if form.assigned_to.errors %}<div class="ts-field-error">{{ form.assigned_to.errors }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.assignment_conflict_action.id_for_label }}">{{ form.assignment_conflict_action.label }}</label>{{ form.assignment_conflict_action }}{% if form.assignment_conflict_action.errors %}<div class="ts-field-error">{{ form.assignment_conflict_action.errors }}</div>{% endif %}{% if form.assignment_conflict_action.help_text %}<div class="ts-field-help">{{ form.assignment_conflict_action.help_text }}</div>{% endif %}</div>
-        <div class="ts-field"><label for="{{ form.subscribers.id_for_label }}">{{ form.subscribers.label }}</label>{{ form.subscribers }}{% if form.subscribers.errors %}<div class="ts-field-error">{{ form.subscribers.errors }}</div>{% endif %}</div>
-      </div>
-    </section>
+    </details>
 
     <details class="tf-more"{% if mode == "edit" or form.tooling_mode.errors or form.tooling_existing_attrezzatura.errors or form.tooling_part_number.errors or form.tooling_code.errors or form.tooling_description.errors or form.outlook_target_email.errors %} open{% endif %}>
       <summary>Altre opzioni: attrezzatura, Outlook e promemoria</summary>

@@ -205,14 +205,14 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "Trascina il centro di una barra per spostare inizio e fine insieme.",
                 "Trascina un bordo per allungare o accorciare.",
-                "Clicca una riga per aprire «Modifica rapida»: date, stato e avanzamento.",
-                "«Cascata» acceso: spostando un'attività si spostano anche quelle successive.",
-                "«Finestra», «Densità giorni», «Larghezza nome» e le caselle WBS, Durata, Inizio, Fine cambiano la vista; poi «Applica». «Reset» torna ai valori iniziali.",
-                "Le assenze dei responsabili sono in rosso con una X.",
+                "Clicca una riga (in qualsiasi punto) per aprire «Modifica rapida»: date, stato e avanzamento. «Responsabile e dettagli» apre il form completo.",
+                "«Sposta anche le successive» acceso: spostando un'attività si spostano anche quelle che dipendono da lei.",
+                "Una sola barra sopra il Gantt: «Finestra» cambia il periodo mostrato, «Zoom» la larghezza dei giorni.",
+                "Sotto il nome di ogni attività: responsabile («da assegnare» in rosso se manca), date, giorni di assenza del responsabile nel periodo e, con la baseline, lo scostamento della data fine.",
             ]),
             ("def", [
-                ("Dipendenze tra attività", "scegli predecessore e successore per numero (WBS), il tipo e l'eventuale ritardo «Lag (gg)». Tipi: Fine → Inizio (FS), Inizio → Inizio (SS), Fine → Fine (FF), Inizio → Fine (SF)."),
-                ("Fissa baseline", "salva le date di oggi come riferimento. Da quel momento i badge BL nelle righe mostrano di quanti giorni si è spostata la data fine."),
+                ("Dipendenze tra attività", "pannello richiudibile sotto il Gantt: scegli predecessore e successore per numero (WBS), il tipo e l'eventuale ritardo «Lag (gg)». Tipi: Fine → Inizio (FS), Inizio → Inizio (SS), Fine → Fine (FF), Inizio → Fine (SF)."),
+                ("Fissa baseline", "salva le date di oggi come riferimento. Da quel momento sotto ogni riga compare di quanti giorni si è spostata la data fine (+N gg in rosso se in ritardo)."),
                 ("Commenti kickoff", "note di coordinamento della commessa, con notifica a una persona se serve."),
             ]),
             ("p", "I riquadri in alto contano Attività, Avanzamento, Scadute, In 7 giorni, Senza responsabile e Da controllare (conflitti con assenze e date non valide). Con un piano vuoto non compaiono."),
@@ -227,15 +227,18 @@ SEZIONI: list[dict] = [
                 ("Riga del Piano", "titolo, responsabile, Inizio, Fine. Per scrivere un piano intero."),
                 ("«Attività di questo incontro»", "nel dettaglio e nell'esito dell'incontro: Invio salva senza ricaricare la pagina."),
                 ("Conduci incontro", "«Cattura rapida» con tipo Attività, o «+ Nuova attività» sul punto, che la collega al punto."),
-                ("Form completo", "«+ Attività completa» nel Piano, «+ Nuova attività» in Panoramica: tipo, descrizione, etichette, priorità, persone in copia, attrezzatura e Outlook."),
+                ("Form completo", "«+ Attività completa» nel Piano, «+ Nuova attività» in Panoramica. In cima «Cosa, chi e quando»: titolo, responsabile, priorità, inizio e fine. Descrizione, persone in copia, stato, etichette e prossimo passo stanno in «Descrizione, persone in copia e altri dettagli»; attrezzatura e Outlook in «Altre opzioni»."),
             ]),
             ("img", (_IMG + "attivita_form.jpg", "Il form completo: attrezzatura, Outlook e promemoria stanno in «Altre opzioni»")),
             ("ul", [
                 "Gli stati sono Da fare, In corso, Completata e Annullata; le priorità Bassa, Media e Alta.",
                 "Data inizio e data fine possono coincidere: un'attività di una sola giornata è ammessa. "
                 "La data fine non può precedere la data inizio.",
-                "Chi riceve un'attività, alla creazione o quando cambia il responsabile, riceve una notifica nel portale. "
+                "Chi riceve un'attività, alla creazione o quando cambia il responsabile, riceve una notifica nel portale e una mail "
+                "(all'indirizzo di notifica dell'anagrafica) con il collegamento a «Le mie azioni». "
                 "Chi si assegna un'attività da solo non viene avvisato.",
+                "Il responsabile gestisce le sue attività da «Le mie azioni»: «Inizia» la porta In corso, «Fatta» la chiude, «Riapri» la riporta Da fare.",
+                "Ogni lunedì la mail «Scadenze KICK-OFF» elenca anche le attività scadute e quelle che scadono nei 7 giorni.",
                 "Se la persona ha altri impegni nello stesso periodo, il form completo lo segnala e «Se l'operatore ha altri impegni nello stesso periodo» decide cosa fare della priorità.",
                 "Portando un'attività a «Completata» l'avanzamento passa al 100%.",
                 "Un'attività completata chiude da sola le azioni e i problemi d'incontro collegati a lei; "
@@ -455,12 +458,14 @@ SEZIONI: list[dict] = [
         "id": "mie-azioni",
         "titolo": "Le mie azioni",
         "blocchi": [
-            ("p", "La pagina «Le mie azioni» raccoglie le azioni e i problemi di cui sei responsabile, su tutte le commesse che puoi vedere. "
-                  "Nella dashboard la colonna «Le mie azioni» mostra le prime, scadute in testa."),
+            ("p", "La pagina «Le mie azioni» raccoglie tutto quello di cui sei responsabile, su tutte le commesse che puoi vedere: "
+                  "attività del piano, azioni e problemi degli incontri, programmi e FAI. È il punto dove chi riceve un'attività la gestisce; "
+                  "ci porta il pulsante della mail di assegnazione. Nella dashboard la colonna «Le mie azioni» mostra le prime, scadute in testa."),
             ("ul", [
-                "Filtri: Aperte, Chiuse, Tutte; tipo (azioni o problemi); scadenza (Scadute, In scadenza entro 7 giorni, Senza scadenza); "
+                "Filtri: Aperte, Chiuse, Tutte; tipo (attività del piano, azioni, problemi, programmi e FAI); scadenza (Scadute, In scadenza entro 7 giorni, Senza scadenza); "
                 "commessa; ricerca nel testo.",
-                "«Fatta» o «Risolto» chiudono la voce, «Riapri» la riporta aperta.",
+                "Per le attività: «Inizia» la porta In corso, «Fatta» la chiude con avanzamento al 100%, «Riapri» la riporta Da fare. Il titolo apre la scheda, «Gantt» il piano della commessa.",
+                "«Fatta» o «Risolto» chiudono le azioni e i problemi, «Riapri» li riporta aperti.",
             ]),
             ("img", (_IMG + "mie_azioni.jpg", "Le mie azioni")),
         ],

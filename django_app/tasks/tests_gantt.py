@@ -248,4 +248,4 @@ class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
         response = self.client.get(reverse("tasks:project_gantt", args=[self.project.id]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "is-invalid-range")
-        self.assertContains(response, "Range non valido")
+        self.assertContains(response, "La fine è prima dell'inizio")

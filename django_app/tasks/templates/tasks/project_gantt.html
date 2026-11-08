@@ -50,6 +50,24 @@ body.tk-wide .content sta in tasks.css.
   #riga-rapida { scroll-margin-top: calc(var(--nav-h, 60px) + 16px); }
   .g-quick-off { margin: 0; padding: 10px 14px; color: var(--text-light); font-size: 13px; }
   @media (max-width: 900px) { .g-quick { grid-template-columns: 1fr 1fr; } .g-quick-title { grid-column: 1 / -1; } }
+  .g-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .g-bar-group { display: flex; align-items: center; gap: 8px; margin: 0; }
+  .g-bar-group form { margin: 0; }
+  .g-bar-label { font-size: 12px; font-weight: 700; color: var(--text-light); }
+  .g-bar-select { width: auto; min-width: 120px; padding-top: 4px; padding-bottom: 4px; }
+  .g-bar-end { margin-left: auto; }
+  .g-bar .g-flag { font-size: 13px; cursor: pointer; }
+  .gmac small .g-noresp { color: var(--danger); font-weight: 700; }
+  .gmac small .g-warn { color: var(--warning, #b45309); font-weight: 700; }
+  .gmac small .g-bl { font-weight: 700; color: var(--success, #15803d); }
+  .gmac small .g-bl.late { color: var(--danger); }
+  .grow.gbody.can-edit .gtrack { cursor: pointer; }
+  .ts-gantt-cm .gbar.is-overdue { background: var(--danger, #dc2626); box-shadow: 0 0 0 2px rgba(220, 38, 38, .25); }
+  details.g-fold > summary { list-style: none; cursor: pointer; }
+  details.g-fold > summary::-webkit-details-marker { display: none; }
+  details.g-fold > summary .ts-panel-title::before { content: "▸ "; color: var(--text-light); }
+  details.g-fold[open] > summary .ts-panel-title::before { content: "▾ "; }
+  #modifica-rapida { scroll-margin-top: calc(var(--nav-h, 60px) + 16px); }
 </style>
 {% endblock %}
 
@@ -172,7 +190,7 @@ body.tk-wide .content sta in tasks.css.
         <h2 class="ts-panel-title">Diagramma Gantt</h2>
         <p class="ts-panel-subtitle">
           {% if can_edit_schedule %}Trascina le barre o clicca una riga: vale per le attività che puoi modificare.{% else %}Vista sola lettura.{% endif %}
-          Assenze in rosso con X.
+          In rosso le attività scadute.
         </p>
       </div>
       <div class="ts-panel-meta">
@@ -180,125 +198,49 @@ body.tk-wide .content sta in tasks.css.
       </div>
     </div>
 
-    {# Toolbar opzioni #}
-    <form method="get">
-    <div class="g-toolbar">
-      <div class="ts-field">
-        <label for="id_window_days">Finestra</label>
-        <select id="id_window_days" name="window_days" class="input">
+    {# Una sola barra: finestra, zoom, cascata, baseline. I form baseline stanno fuori dal form GET (prima erano annidati e non partivano). #}
+    <div class="g-bar">
+      <form method="get" class="g-bar-group" id="g-finestra">
+        <label class="g-bar-label" for="id_window_days">Finestra</label>
+        <select id="id_window_days" name="window_days" class="input g-bar-select" onchange="this.form.submit()">
           {% for value, label in gantt_window_choices %}
             <option value="{{ value }}" {% if value == gantt_option_window_days %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
-      </div>
-      <div class="ts-field">
-        <label for="id_cell_size">Densità giorni</label>
-        <select id="id_cell_size" name="cell_size" class="input">
-          {% for value, label in gantt_cell_choices %}
-            <option value="{{ value }}" {% if value == gantt_option_cell_size %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="ts-field">
-        <label for="id_name_width">Larghezza nome</label>
-        <select id="id_name_width" name="name_width" class="input">
-          {% for value, label in gantt_name_width_choices %}
-            <option value="{{ value }}" {% if value == gantt_option_name_width %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="g-toolbar-sep"></div>
-
-      <div class="g-range-group">
-        <span class="g-range-label">Zoom giorni</span>
-        <div class="g-range-row">
-          <input id="id_day_width_live" class="input-range" type="range" min="18" max="58" step="1" value="{{ gantt_day_cell_px }}" aria-label="Zoom giorni">
-          <span class="g-range-val" id="id_width_val">{{ gantt_day_cell_px }}px</span>
+        <noscript><button type="submit" class="btn btn-sm">Applica</button></noscript>
+      </form>
+      {% if gantt_rows %}
+        <div class="g-bar-group">
+          <label class="g-bar-label" for="g_zoom_cm">Zoom</label>
+          <input type="range" id="g_zoom_cm" min="16" max="64" step="2" value="{{ gantt_day_cell_px|default:30 }}" aria-label="Zoom giorni">
         </div>
-      </div>
-
-      <div class="g-range-group">
-        <span class="g-range-label">Altezza righe</span>
-        <div class="g-range-row">
-          <input id="id_day_height_live" class="input-range" type="range" min="16" max="58" step="1" value="28" aria-label="Altezza righe">
-          <span class="g-range-val" id="id_height_val">28px</span>
-        </div>
-      </div>
-
-      <div class="g-toolbar-sep"></div>
-
-      <div class="g-toolbar-group">
-        <input type="hidden" name="show_wbs" value="0">
-        <label class="g-flag"><input type="checkbox" name="show_wbs" value="1" {% if gantt_show_wbs %}checked{% endif %}> WBS</label>
-        <input type="hidden" name="show_duration" value="0">
-        <label class="g-flag"><input type="checkbox" name="show_duration" value="1" {% if gantt_show_duration %}checked{% endif %}> Durata</label>
-        <input type="hidden" name="show_start" value="0">
-        <label class="g-flag"><input type="checkbox" name="show_start" value="1" {% if gantt_show_start %}checked{% endif %}> Inizio</label>
-        <input type="hidden" name="show_end" value="0">
-        <label class="g-flag"><input type="checkbox" name="show_end" value="1" {% if gantt_show_end %}checked{% endif %}> Fine</label>
         {% if can_edit_schedule %}
-          <label class="g-flag" title="Sposta anche le attivita successive">
-            <input type="checkbox" id="id_cascade_shift" checked> Cascata
+          <label class="g-bar-group g-flag" title="Spostando una barra si spostano anche le attività che dipendono da lei">
+            <input type="checkbox" id="g_cascade_cm" checked> Sposta anche le successive
           </label>
         {% endif %}
-      </div>
-
-      <div class="g-toolbar-sep"></div>
-
-      <button type="submit" class="btn btn-sm">Applica</button>
-      <a class="btn btn-secondary btn-sm" href="{% url 'tasks:project_gantt' project.id %}">Reset</a>
-
-      {% if can_edit_schedule %}
-        <div class="g-toolbar-sep"></div>
-        {% if gantt_baseline %}
-          <form method="post" action="{% url 'tasks:project_gantt_fix_baseline' project.id %}">
-            {% csrf_token %}
-            <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}" aria-hidden="true">
-            <button type="submit" class="btn btn-secondary btn-sm" title="Aggiorna la baseline con le date attuali">Aggiorna baseline</button>
-          </form>
-          <form method="post" action="{% url 'tasks:project_gantt_clear_baseline' project.id %}">
-            {% csrf_token %}
-            <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}" aria-hidden="true">
-            <button type="submit" class="btn btn-secondary btn-sm">Rimuovi baseline</button>
-          </form>
-        {% else %}
-          <form method="post" action="{% url 'tasks:project_gantt_fix_baseline' project.id %}">
-            {% csrf_token %}
-            <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}" aria-hidden="true">
-            <button type="submit" class="btn btn-secondary btn-sm" title="Salva le date attuali come baseline di riferimento">Fissa baseline</button>
-          </form>
-        {% endif %}
       {% endif %}
-
-      {# campo invisibile per sincronizzare il valueLabel legacy #}
-      <div id="id_day_height_value" style="display:none;"></div>
+      {% if can_edit_schedule and gantt_rows %}
+        <div class="g-bar-group g-bar-end">
+          <form method="post" action="{% url 'tasks:project_gantt_fix_baseline' project.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}">
+            <button type="submit" class="btn btn-secondary btn-sm" title="Salva le date di oggi come piano di riferimento: poi vedi di quanti giorni slitta ogni attività">{% if gantt_baseline %}Aggiorna baseline{% else %}Fissa baseline{% endif %}</button>
+          </form>
+          {% if gantt_baseline %}
+            <form method="post" action="{% url 'tasks:project_gantt_clear_baseline' project.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}">
+              <button type="submit" class="btn btn-secondary btn-sm">Rimuovi baseline</button>
+            </form>
+          {% endif %}
+        </div>
+      {% endif %}
     </div>
-    </form>
-
-    {% if can_edit_schedule and gantt_rows %}
-    <div class="g-hint-bar">
-      <span class="g-hint"><span class="g-hint-key">trascina</span> centro barra per spostare date</span>
-      <span class="g-hint" style="opacity:.5;margin:0 2px;">Â·</span>
-      <span class="g-hint"><span class="g-hint-key">trascina</span> bordo barra per allungare/accorciare</span>
-      <span class="g-hint" style="opacity:.5;margin:0 2px;">·</span>
-      <span class="g-hint"><span class="g-hint-key">clic</span> riga per la modifica rapida</span>
-      <span class="g-hint" style="opacity:.5;margin:0 2px;">·</span>
-      <span class="g-hint"><span class="g-hint-key">trascina</span> header per ridimensionare colonne</span>
-    </div>
-    {% endif %}
 
     <div class="ts-panel-body no-pad">
       {% if gantt_rows %}
         <div class="ts-gantt-cm">
-
-          <div class="g-toolbar2">
-            <div class="gzoom"><span class="gzlbl">Zoom giorni</span>
-              <input type="range" id="g_zoom_cm" min="16" max="64" step="2" value="{{ gantt_day_cell_px|default:30 }}" aria-label="Zoom giorni"></div>
-            {% if can_edit_schedule %}<label class="gcasc" title="Sposta anche le attivita successive"><input type="checkbox" id="g_cascade_cm" checked> Cascata</label>{% endif %}
-            <span class="gzlbl" style="margin-left:auto;">Trascina le barre per ripianificare</span>
-          </div>
-
           <div class="gscroll" data-oggi-idx="{{ gantt_today_index|default_if_none:'-1' }}" style="--cw:{{ gantt_day_cell_px|default:30 }}px;">
             <div class="grow gweeks">
               <div class="gmac">Settimana</div>
@@ -317,13 +259,13 @@ body.tk-wide .content sta in tasks.css.
                    {% if row.can_edit %}data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}"{% endif %}>
                 <div class="gmac">
                   <a class="gmac-title" href="{% url 'tasks:detail' row.task.id %}">{{ row.wbs }}. {{ row.task.title }}</a>
-                  <small>{{ row.task.get_status_display }} · {% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}non assegnata{% endif %}{% if row.has_absence_conflicts %} · assenze {{ row.absence_days }}gg{% endif %}</small>
-                  {% if row.invalid_range %}<small style="color:var(--danger);font-weight:800;">Range non valido</small>{% endif %}
+                  <small>{% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}<span class="g-noresp">da assegnare</span>{% endif %} · {{ row.start|date:"d/m" }} → {{ row.end|date:"d/m" }}{% if row.task.is_overdue %} · <span class="g-noresp">scaduta</span>{% endif %}{% if row.has_absence_conflicts %} · <span class="g-warn">assente {{ row.absence_days }}gg</span>{% endif %}{% if row.baseline_delta.end %} · <span class="g-bl{% if row.baseline_delta.end > 0 %} late{% endif %}" title="Scostamento della data fine dalla baseline">{% if row.baseline_delta.end > 0 %}+{% endif %}{{ row.baseline_delta.end }}gg</span>{% endif %}</small>
+                  {% if row.invalid_range %}<small style="color:var(--danger);font-weight:800;">La fine è prima dell'inizio</small>{% endif %}
                   <div class="gmac-prog"><i style="width:{{ row.task.progress }}%"></i></div>
                 </div>
                 <div class="gtrack" style="width:calc(var(--cw) * {{ gantt_days|length }});">
                   {% if gantt_today_index >= 0 %}<div class="gtoday" style="left:calc(var(--cw) * {{ gantt_today_index }});"></div>{% endif %}
-                  <div class="gbar status-{{ row.task.status|lower }}{% if row.invalid_range %} is-invalid-range{% endif %}"
+                  <div class="gbar status-{{ row.task.status|lower }}{% if row.invalid_range %} is-invalid-range{% endif %}{% if row.task.is_overdue %} is-overdue{% endif %}"
                        data-start="{{ row.start_index }}" data-span="{{ row.span }}"
                        title="{{ row.task.title }} · {{ row.start|date:'d/m/Y' }} -> {{ row.end|date:'d/m/Y' }} · {{ row.task.progress }}%"
                        style="left:calc(var(--cw) * {{ row.start_index }}); width:calc(var(--cw) * {{ row.span }} - 4px);">
@@ -341,7 +283,7 @@ body.tk-wide .content sta in tasks.css.
             <span><i class="gdot status-in_progress"></i>In corso</span>
             <span><i class="gdot status-done"></i>Completata</span>
             <span><i class="gdot status-canceled"></i>Annullata</span>
-            <span style="color:var(--text-light);">· linea arancio = oggi · trascina centro barra per spostare, bordi per allungare/accorciare</span>
+            <span style="color:var(--text-light);">· linea arancio = oggi{% if can_edit_schedule %} · trascina la barra per spostarla, i bordi per allungarla · clic sulla riga per cambiare date, stato e avanzamento{% endif %}</span>
           </div>
       {% else %}
         <div class="ts-empty" style="margin:16px;">
@@ -359,11 +301,11 @@ body.tk-wide .content sta in tasks.css.
 
   {# ── Quick edit ── #}
   {% if can_edit_schedule and gantt_rows %}
-    <section class="ts-panel">
+    <section class="ts-panel" id="modifica-rapida">
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
           <h2 class="ts-panel-title">Modifica rapida</h2>
-          <p class="ts-panel-subtitle">Clicca una riga del Gantt per modificare date e stato qui.</p>
+          <p class="ts-panel-subtitle">Clicca una riga del Gantt: qui cambi date, stato e avanzamento.</p>
         </div>
       </div>
       <div class="ts-panel-body">
@@ -379,8 +321,9 @@ body.tk-wide .content sta in tasks.css.
                 {% csrf_token %}
                 <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}">
                 <div class="quick-edit-head">
-                  <a href="{% url 'tasks:detail' row.task.id %}">{{ row.task.title }}</a>
+                  <a href="{% url 'tasks:detail' row.task.id %}">{{ row.wbs }}. {{ row.task.title }}</a>
                   <span class="ts-badge ts-badge--{{ row.task.status|lower }}">{{ row.task.get_status_display }}</span>
+                  <a class="btn btn-secondary btn-sm" style="margin-left:auto;" href="{% url 'tasks:edit' row.task.id %}">Responsabile e dettagli</a>
                 </div>
                 <div class="quick-edit-row">
                   <div class="ts-field">
@@ -413,16 +356,16 @@ body.tk-wide .content sta in tasks.css.
 
   {# ── Dipendenze task ── #}
   {% if gantt_rows %}
-    <section class="ts-panel">
-      <div class="ts-panel-head">
+    <details class="ts-panel g-fold"{% if gantt_deps %} open{% endif %}>
+      <summary class="ts-panel-head">
         <div class="ts-panel-title-wrap">
           <h2 class="ts-panel-title">Dipendenze tra attività</h2>
-          <p class="ts-panel-subtitle">Relazioni FS/SS/FF/SF tra le attività del kickoff. Visibili come freccia nella colonna nome.</p>
+          <p class="ts-panel-subtitle">Quale attività aspetta quale: spostando una barra con «Sposta anche le successive» le dipendenti seguono. FS = la successiva parte quando la precedente finisce.</p>
         </div>
         <div class="ts-panel-meta">
           <span class="ts-chip soft">{{ gantt_deps|length }} dipendenze</span>
         </div>
-      </div>
+      </summary>
       <div class="ts-panel-body">
         <div class="g-dep-panel">
 
@@ -491,7 +434,7 @@ body.tk-wide .content sta in tasks.css.
 
         </div>
       </div>
-    </section>
+    </details>
   {% endif %}
 
   {# ── Commenti kickoff ── #}
@@ -554,7 +497,7 @@ body.tk-wide .content sta in tasks.css.
 {% endblock %}
 
 {% block tasks_shell_scripts %}
-<script src="{% static 'tasks/js/project_gantt.js' %}?v=20261026"></script>
+<script src="{% static 'tasks/js/project_gantt.js' %}?v=20261108"></script>
 <script>
   // Dopo un'aggiunta si riparte dal titolo: il piano si scrive una riga dopo l'altra.
   if (location.hash === "#riga-rapida") {

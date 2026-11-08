@@ -4,7 +4,7 @@
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Le mie azioni</span>{% endblock %}
 {% block tasks_shell_guide_anchor %}#mie-azioni{% endblock %}
 {% block tasks_shell_title %}Le mie azioni{% endblock %}
-{% block tasks_shell_subtitle %}Azioni, problemi, programmi e FAI di cui sei responsabile, su tutte le commesse.{% endblock %}
+{% block tasks_shell_subtitle %}Tutto quello che è assegnato a te, su tutte le commesse: attività del piano, azioni e problemi degli incontri, programmi e FAI. Lo chiudi da qui.{% endblock %}
 
 {% block tasks_shell_meta %}
   <span class="ts-hero-pill">{{ open_count }} aperte</span>
@@ -29,6 +29,7 @@
       <input class="input" type="search" name="q" value="{{ filters.q }}" placeholder="Cerca in titolo, codice, commessa…">
       <select class="input" name="tipo" aria-label="Tipo">
         <option value="">Tutte le voci</option>
+        <option value="attivita"{% if filters.tipo == "attivita" %} selected{% endif %}>Solo attività del piano</option>
         <option value="azione"{% if filters.tipo == "azione" %} selected{% endif %}>Solo azioni</option>
         <option value="problema"{% if filters.tipo == "problema" %} selected{% endif %}>Solo problemi</option>
         <option value="programma"{% if filters.tipo == "programma" %} selected{% endif %}>Solo programmi e FAI</option>
@@ -64,8 +65,11 @@
             {% for row in rows %}
               <tr class="{% if row.is_overdue %}status-overdue{% elif not row.is_open %}status-done{% endif %}">
                 <td>
-                  <span class="ts-chip {% if row.kind == 'problema' %}warn{% else %}info{% endif %} ma-kind">{% if row.kind == "problema" %}Problema{% elif row.kind == "programma" %}{{ row.obj.kind }}{% else %}Azione{% endif %}</span>
-                  {% if row.kind == "programma" %}
+                  <span class="ts-chip {% if row.kind == 'problema' %}warn{% elif row.kind == 'attivita' %}ok{% else %}info{% endif %} ma-kind">{% if row.kind == "problema" %}Problema{% elif row.kind == "programma" %}{{ row.obj.kind }}{% elif row.kind == "attivita" %}Attività{% else %}Azione{% endif %}</span>
+                  {% if row.kind == "attivita" %}
+                    <a class="tl-task-link" href="{% url 'tasks:detail' row.obj.id %}">{{ row.title }}</a>
+                    <div class="tl-task-desc">{% if row.start_date %}Dal {{ row.start_date|date:"d-m-Y" }} · {% endif %}{{ row.obj.get_status_display }}{% if row.obj.progress %} · {{ row.obj.progress }}%{% endif %}{% if row.project %} · <a href="{% url 'tasks:project_gantt' row.project.id %}">Gantt</a>{% endif %}</div>
+                  {% elif row.kind == "programma" %}
                     <a class="tl-task-link" href="{% url 'tasks:project_tech_refs' row.project.id %}">{{ row.title }}</a>
                     {% if row.obj.path %}<div class="tl-task-desc">{% include "tasks/_tech_ref_link.html" with ref=row.obj %}</div>{% endif %}
                   {% elif row.meeting %}
@@ -76,15 +80,23 @@
                   {% endif %}
                   {% if row.linked_task %}<div class="tl-task-desc">Attività collegata: <a href="{% url 'tasks:detail' row.linked_task.id %}">{{ row.linked_task.title }}</a></div>{% endif %}
                 </td>
-                <td><a class="tl-ko-link" href="{% url 'tasks:project_actions' row.project.id %}">{{ row.project.name }}</a></td>
+                <td>{% if row.project %}<a class="tl-ko-link" href="{% url 'tasks:project_actions' row.project.id %}">{{ row.project.name }}</a>{% else %}&mdash;{% endif %}</td>
                 <td>
                   {% if row.due_date %}<span class="tl-date{% if row.is_overdue %} overdue{% endif %}">{{ row.due_date|date:"d-m-Y" }}</span>{% else %}<span class="tl-date">&mdash;</span>{% endif %}
                 </td>
                 <td>
-                  {% if row.is_overdue %}<span class="ts-chip danger">Scaduta</span>{% elif row.is_open %}<span class="ts-chip ok">Aperta</span>{% else %}<span class="ts-chip soft">Chiusa</span>{% endif %}
+                  {% if row.is_overdue %}<span class="ts-chip danger">Scaduta</span>{% elif row.kind == "attivita" and row.obj.status == "IN_PROGRESS" %}<span class="ts-chip info">In corso</span>{% elif row.is_open %}<span class="ts-chip ok">Aperta</span>{% else %}<span class="ts-chip soft">Chiusa</span>{% endif %}
                 </td>
                 <td>
-                  <div class="ma-actions">
+                  <div class="ma-actions" style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
+                    {% if row.kind == "attivita" and row.obj.status == "TODO" %}
+                    <form method="post" action="{% url 'tasks:mia_voce_stato' row.kind row.obj.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <input type="hidden" name="action" value="start">
+                      <button type="submit" class="md-btn">Inizia</button>
+                    </form>
+                    {% endif %}
                     <form method="post" action="{% url 'tasks:mia_voce_stato' row.kind row.obj.id %}">
                       {% csrf_token %}
                       <input type="hidden" name="next" value="{{ request.get_full_path }}">

@@ -54,7 +54,7 @@ def voci_kickoff(request) -> dict:
 
     voci: list[dict] = []
     for t in Task.objects.filter(status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS], **comuni).select_related("project"):
-        voci.append(_voce("Attività", t.title, t.project, t.due_date, reverse("tasks:detail", args=[t.pk]), oggi))
+        voci.append(_voce("Attività", t.title, t.project, t.due_date, reverse("tasks:detail", args=[t.pk]), oggi, done=("attivita", t.pk)))
     for a in MeetingActionItem.objects.filter(status=MeetingActionStatus.OPEN, **comuni).select_related("project"):
         voci.append(_voce("Azione", a.title, a.project, a.due_date, reverse("tasks:mie_azioni"), oggi, done=("azione", a.pk)))
     for i in MeetingIssue.objects.filter(status=MeetingIssueStatus.OPEN, **comuni).select_related("project"):
