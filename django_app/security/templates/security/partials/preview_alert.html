@@ -1,12 +1,20 @@
 {% load security_i18n %}
 <header class="pv-head">
-  <div class="pv-badges"><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span><span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span></div>
+  <div class="pv-badges"><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span><span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span>{% if ctx.kev %}<span class="sec-badge critical" title="Nel catalogo CISA delle vulnerabilità sfruttate davvero">Sfruttata (KEV)</span>{% endif %}</div>
   <h2>{{ alert.title }}</h2>
   <p class="pv-sub">Alert #{{ alert.pk }} · {{ alert.source.name }} · creato {{ alert.created_at|date:"d/m/Y H:i" }}</p>
 </header>
+{% if simili_esito %}<p class="sec-action-result sec-success">{{ simili_esito }}</p>{% endif %}
 <dl class="pv-facts">
-  <div><dt>Dispositivo</dt><dd>{% if alert.event.asset %}<a href="{% url 'security:pc_detail' %}?nome={{ alert.event.asset.hostname|urlencode }}">{{ alert.event.asset.hostname }}</a>{% else %}—{% endif %}</dd></div>
+  <div><dt>Dispositivo</dt><dd>{% if ctx.host %}<a href="{% url 'security:pc_detail' %}?nome={{ ctx.host|urlencode }}">{{ ctx.host }}</a>{% else %}—{% endif %}</dd></div>
   <div><dt>Responsabile</dt><dd>{{ alert.owner|default:"nessuno" }}</dd></div>
+  {% if ctx.cve %}
+  <div><dt>CVE</dt><dd><a href="{% url 'security:cve_detail' ctx.cve %}">{{ ctx.cve }}</a>{% if ctx.cvss %} · CVSS {{ ctx.cvss|stringformat:"s" }}{% endif %}</dd></div>
+  <div><dt>Software</dt><dd>{% if ctx.software %}<a href="{% url 'security:segnalazioni' %}?q={{ ctx.software|urlencode }}&amp;stato=tutte" title="Tutte le segnalazioni di questo software">{{ ctx.software }}</a>{% else %}—{% endif %}</dd></div>
+  {% endif %}
+  {% if ctx.classe %}
+  <div><dt>Termine di correzione</dt><dd>classe {{ ctx.classe|lower }}{% if ctx.giorni_termine %}, {{ ctx.giorni_termine }} giorni{% endif %}{% if ctx.scadenza %} · scaduto il {{ ctx.scadenza }}{% endif %}{% if ctx.giorni_ritardo %} · <strong>{{ ctx.giorni_ritardo }} giorn{{ ctx.giorni_ritardo|pluralize:"o,i" }} di ritardo</strong>{% endif %}</dd></div>
+  {% endif %}
   <div><dt>Ticket</dt><dd>{% if case %}<a href="{% url 'security:case_detail' case.pk %}">#{{ case.pk }} {{ case.status|ui_label }}</a>{% else %}nessuno{% endif %}</dd></div>
   <div><dt>Regola</dt><dd>{{ rule }}</dd></div>
 </dl>
@@ -14,12 +22,45 @@
 <div class="pv-actions">
   <form method="post" action="{% url 'security:alert_action' alert.pk 'acknowledge' %}" data-drawer-form>{% csrf_token %}<button type="submit" class="sec-button">Prendi in carico</button></form>
   <form method="post" action="{% url 'security:alert_action' alert.pk 'false-positive' %}" data-drawer-form>{% csrf_token %}<input type="hidden" name="reason" value="Falso positivo (dall'anteprima)"><button type="submit" class="sec-button">Falso positivo</button></form>
-  <form method="post" action="{% url 'security:alert_action' alert.pk 'close' %}" data-drawer-form class="pv-reason">{% csrf_token %}<input type="text" name="reason" placeholder="Motivo della chiusura" aria-label="Motivo della chiusura"><button type="submit" class="sec-button">Chiudi</button></form>
+  <form method="post" action="{% url 'security:alert_action' alert.pk 'close' %}" data-drawer-form class="pv-reason">{% csrf_token %}<input type="text" name="reason" placeholder="Motivo della chiusura" aria-label="Motivo della chiusura"><button type="submit" class="sec-button">Chiudi solo questo</button></form>
 </div>
+{% endif %}
+{% if simili %}
+<section class="pv-simili" aria-label="Alert simili">
+  <h3 class="pv-h">Alert simili</h3>
+  <ul class="pv-list pv-simili-list">
+  {% for c in simili %}
+    <li>
+      <div class="pv-simili-row"><span>{{ c.label }}</span><small>{% if c.n_aperti %}<strong class="pv-n-aperti">{{ c.n_aperti }} apert{{ c.n_aperti|pluralize:"o,i" }}</strong>{% else %}nessun altro aperto{% endif %}{% if c.n_chiusi %} · {{ c.n_chiusi }} già chius{{ c.n_chiusi|pluralize:"o,i" }}{% endif %}</small></div>
+      {% if c.n_chiusi %}
+        <div class="pv-simili-come">
+          {% for esito, n in c.per_esito %}<span class="sec-badge">{{ n }} {{ esito|lower }}</span>{% endfor %}
+          {% for u in c.ultime %}<p class="pv-simili-ultima"><a href="{% url 'security:alert_detail' u.pk %}" data-drawer-load="{% url 'security:preview' 'alert' u.pk %}" title="{{ u.title }}">{% if u.host %}{{ u.host }}{% else %}#{{ u.pk }}{% endif %}</a> · {{ u.esito }}{% if u.chi %} · {{ u.chi }}{% endif %} · {{ u.quando|date:"d/m H:i" }}{% if u.motivo %}<br><em>«{{ u.motivo|truncatechars:160 }}»</em>{% endif %}</p>{% endfor %}
+        </div>
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+  {% if active and simili_aperti %}
+  <form method="post" action="{% url 'security:alert_simili_chiudi' alert.pk %}" data-drawer-form data-drawer-replace class="pv-simili-form">
+    {% csrf_token %}
+    <input type="hidden" name="max_pk" value="{{ simili_max_pk }}">
+    {% if simili_errore %}<p class="sec-action-result sec-error">{{ simili_errore }}</p>{% endif %}
+    <label>Chiudi questo e gli alert
+      <select name="criterio">{% for c in simili %}{% if c.n_aperti %}<option value="{{ c.codice }}">{{ c.label }} · {{ c.n_aperti }} apert{{ c.n_aperti|pluralize:"o,i" }}</option>{% endif %}{% endfor %}</select>
+    </label>
+    <label>Come
+      <select name="esito">{% for value, label in esiti %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+    </label>
+    <input type="text" name="motivo" maxlength="500" required placeholder="Motivo: resta su ogni alert chiuso (es. Chrome aggiornato il 08/11 su tutti i PC)" aria-label="Motivo della chiusura">
+    <button type="submit" class="sec-button sec-button-primary" data-busy-label="Chiusura in corso…">Chiudi insieme</button>
+  </form>
+  {% endif %}
+</section>
 {% endif %}
 <section class="pv-ai">
   <form method="post" action="{% url 'security:alert_explain' alert.pk %}" data-drawer-form data-drawer-target="#pv-ai-out">{% csrf_token %}<button type="submit" class="sec-button sec-button-primary" data-busy-label="L'AI sta leggendo l'alert…">Spiega con l'AI</button></form>
   <div id="pv-ai-out" class="pv-ai-out" aria-live="polite"></div>
 </section>
-{% if logs %}<h3 class="pv-h">Ultime azioni</h3><ul class="pv-list">{% for log in logs %}<li><span>{{ log.action|action_label }}</span><small>{{ log.created_at|date:"d/m H:i" }} · {{ log.actor }}</small></li>{% endfor %}</ul>{% endif %}
+{% if logs %}<h3 class="pv-h">Ultime azioni</h3><ul class="pv-list">{% for log in logs %}<li><span>{{ log.action|action_label }}{% if log.details.reason %} <small class="pv-inline-reason">«{{ log.details.reason|truncatechars:120 }}»</small>{% endif %}</span><small>{{ log.created_at|date:"d/m H:i" }} · {{ log.actor }}</small></li>{% endfor %}</ul>{% endif %}
 <footer class="pv-foot"><a class="sec-button sec-button-primary" href="{% url 'security:alert_detail' alert.pk %}">Apri la scheda completa</a></footer>
