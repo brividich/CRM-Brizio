@@ -13,14 +13,28 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "Apri Diario preposto e clicca «+ Nuova segnalazione».",
-                    "Controlla la «Data segnalazione» (è già quella di adesso).",
+                    "Controlla la «Data segnalazione» (è già quella di adesso; non può essere nel futuro).",
                     "Scrivi un «Titolo» breve, per esempio «Carrello senza cintura in reparto 2».",
                     "Nella «Descrizione» scrivi cosa hai visto, dove e chi era coinvolto.",
                     "Aggiungi le foto o i documenti negli allegati.",
                     "Clicca «Salva segnalazione».",
                 ]),
-                ("p", "Ogni segnalazione riceve un codice. Dal dettaglio puoi «Modifica», «Elimina» o «Apri PDF» per stamparla."),
+                ("p", "Ogni segnalazione riceve un codice DP-anno-numero che non viene mai riusato. Dal dettaglio puoi «Modifica», «Elimina» o «Apri PDF» per stamparla."),
+                ("nota", "Se un allegato non è valido (formato non ammesso, vuoto o troppo grande) non viene salvato niente: togli il file indicato e riprova."),
                 ("nota", "Al salvataggio parte una mail a RSPP, preposti e RLS con titolo, descrizione e il link alla segnalazione."),
+            ],
+        },
+        {
+            "id": "integrita",
+            "titolo": "Modifiche, eliminazione e storico",
+            "blocchi": [
+                ("ul", [
+                    "In fondo alla scheda lo «Storico della segnalazione» dice chi ha creato, modificato, eliminato o ripristinato e chi ha aggiunto o tolto allegati.",
+                    "Se un collega salva la stessa segnalazione mentre la modifichi, il tuo salvataggio viene rifiutato: riapri la scheda e rifai la modifica.",
+                    "«Elimina» chiede il motivo (almeno 5 caratteri). La segnalazione esce dall'elenco ma non viene cancellata: chi gestisce il modulo la ritrova e la può ripristinare.",
+                    "La «X» su un allegato lo toglie dalla segnalazione; il file resta archiviato sul server.",
+                    "Ogni allegato ha un'impronta digitale (SHA-256): se il file sul server viene alterato, il download si blocca con un avviso.",
+                ]),
             ],
         },
         {
@@ -29,8 +43,8 @@ GUIDA = {
             "blocchi": [
                 ("passi", [
                     "Clicca «Ispezioni periodiche», poi «Nuova ispezione».",
-                    "Scegli l'area o la macchina da controllare: compaiono le voci della checklist.",
-                    "Per ogni voce indica l'esito e, se serve, una nota.",
+                    "Scrivi l'«Area» (obbligatoria) e, se serve, la «Macchina / impianto».",
+                    "Spunta le voci della checklist conformi (le non spuntate contano come non conformi) e compila le voci di testo.",
                     "Clicca «Registra ispezione».",
                 ]),
             ],
@@ -65,7 +79,7 @@ GUIDA = {
             "id": "checklist",
             "titolo": "Voci delle ispezioni",
             "blocchi": [
-                ("p", "Nelle Impostazioni si definiscono le voci della checklist per area o macchina e la frequenza delle ispezioni."),
+                ("p", "Nelle Impostazioni si sceglie la frequenza delle ispezioni (da 1 a 365 giorni, di base 7). Le voci della checklist sono quelle di partenza (area, protezioni macchina, DPI, note) e per ora non si modificano dal portale."),
             ],
         },
         {
@@ -90,6 +104,23 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Una segnalazione è sparita dall'elenco",
+            "perche": "è stata eliminata: resta archiviata con il motivo.",
+            "fare": [
+                "Chi gestisce il modulo apre l'elenco e clicca «Eliminate».",
+                "Nella scheda legge chi l'ha eliminata e perché e, se serve, clicca «Ripristina».",
+            ],
+        },
+        {
+            "sintomo": "Il download di un allegato dice «impronta diversa»",
+            "perche": "il file sul server non è più quello caricato (sostituito, danneggiato o ripristinato da un backup diverso).",
+            "fare": [
+                "Non usare il file come prova: avvisa l'amministratore del portale.",
+                "Nel Registro attività cerca «download_allegato» con esito integrita_ko.",
+                "Recupera il file originale dal backup della cartella DIARIO_PREPOSTO_PRIVATE_ROOT.",
+            ],
+        },
         {
             "sintomo": "Un preposto non riesce a creare segnalazioni",
             "fare": [

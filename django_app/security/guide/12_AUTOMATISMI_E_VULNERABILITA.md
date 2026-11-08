@@ -445,6 +445,8 @@ Ogni PC esposto (esito **Impatta**) ha un **termine di correzione** che parte da
 
 I giorni si cambiano in **Impostazioni › Avvisi e automatismi › Vulnerabilità: tempi di correzione (ISO 27001 8.8)**. Gli esiti «da verificare» non hanno termine: prima si decide se impattano (a mano o accettando una proposta dell'AI).
 
+**Stiamo migliorando?** Il riquadro «Tempi di correzione» della pagina Vulnerabilità confronta gli ultimi 90 giorni con i 90 precedenti: percentuale di PC corretti nel termine, **giorni mediani** da «esposto dal» alla correzione (metà dei PC corretti ci ha messo meno di così: la mediana non si sposta per un solo PC dimenticato per mesi, la media sì) e PC corretti. Verde = meglio, giallo = peggio. La colonna **Mediana** della tabella dà lo stesso numero per classe. Se in uno dei due periodi non c'è nessuna correzione il confronto non si fa.
+
 Dove si vede:
 
 - **Scheda CVE**: il riquadro «Tempi di correzione e accettazione del rischio» dice la classe e i giorni; la colonna **Termine** della tabella degli host dice per ogni PC «entro il …» con i giorni che restano, **«Oltre il termine di N giorni»** o «Rischio accettato fino al …».
@@ -476,6 +478,8 @@ Nel modulo Asset il **Catalogo software** raccoglie le decisioni dell'azienda su
 - Riepilogo nella pagina **Vulnerabilità**, riquadro **Software non conforme**, con il link al catalogo già filtrato.
 
 Si accendono e si spengono in **Configurazione › Avvisi e automatismi › Software non conforme** (tre interruttori, accesi di default). Senza software classificati nel catalogo non nasce nessun alert.
+
+**Programma mai visto prima.** Un programma che compare per la prima volta su un PC dell'azienda e che non ha una decisione nel catalogo (né sul programma né da una regola per produttore) è un possibile caso di shadow IT: dopo ogni import nasce **un alert per programma**, severità avviso, una volta sola («Programma nuovo: X su N PC»), raggruppato in Proposte AI come gli altri. Si chiude da solo quando il programma riceve una decisione nel catalogo o sparisce da tutti i PC. Un programma è «nuovo» per 14 giorni dalla prima comparsa (**Un programma è «nuovo» per**, stessa sezione delle impostazioni); una versione nuova di un programma già visto non conta. Nel Catalogo software gli stessi programmi hanno l'etichetta «nuovo dal gg/mm» e il filtro **Nuovi**.
 
 ## Domande frequenti
 

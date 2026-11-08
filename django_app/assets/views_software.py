@@ -8,6 +8,7 @@ Modificare: amministratori del modulo Asset, come per le licenze.
 from __future__ import annotations
 
 import re
+from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -20,11 +21,12 @@ from django.utils import timezone
 
 from core.audit import log_action
 
-from .models import SoftwareCatalogEntry, SoftwareLicense, SoftwareProduttoreConsentito
+from .models import Asset, SoftwareCatalogEntry, SoftwareLicense, SoftwareProduttoreConsentito
 
 FILTERS = [
     ("all", "Tutti"),
     ("da_classificare", "Da classificare"),
+    ("nuovi", "Nuovi"),
     ("non_autorizzato", "Non autorizzati"),
     ("da_rimuovere", "Da rimuovere"),
     ("senza_licenza", "A pagamento senza licenza"),
@@ -81,7 +83,7 @@ def _produttore_regola(etichetta: str) -> str:
 
 def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
     """Una riga per prodotto presente: PC, versioni, decisioni, licenza collegata, CVE."""
-    from security.services import software_catalog as sc
+    from security.services import software_catalog as sc, software_nuovo
     from security.services.software_inventory import nome_programma
 
     today = today or timezone.localdate()
@@ -100,6 +102,8 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
     consentiti = set(SoftwareProduttoreConsentito.objects.values_list("produttore", flat=True))
     entry_keys = sc.chiavi_per_programma(entries, indice)
     license_keys = sc.chiavi_per_programma({*states, *seats}, indice)
+    comparse = software_nuovo.prime_comparse(indice)
+    soglia_nuovo = timezone.now() - timedelta(days=software_nuovo.giorni())
     rows = []
     for item in sc.catalog():
         key = item["key"]
@@ -119,8 +123,10 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
         member_states = [states[m] for m in members if m in states]
         license_state = "coperta" if "coperta" in member_states else (member_states[0] if member_states else "")
         member_seats = sum(seats.get(m, 0) for m in members) or None
+        comparso = comparse.get(key)
         rows.append({
             "key": key,
+            "nuovo_dal": comparso if comparso and comparso >= soglia_nuovo and classification == SoftwareCatalogEntry.CLASS_UNREVIEWED else None,
             "url": _detail_url(key),
             "name": nome_programma(entry.display_name) if entry and entry.display_name and not item.get("separato") else item["label"],
             "vendor": (entry.vendor_name if entry and entry.vendor_name else item["vendor_label"]),
@@ -159,6 +165,8 @@ def _filter(rows: list[dict], code: str, q: str) -> list[dict]:
         rows = [r for r in rows if all(p in _compatto(f"{r['name']} {r['vendor'] or ''} {r.get('cerca', '')}") for p in parole)]
     if code in {"da_classificare", "non_autorizzato", "da_rimuovere"}:
         return [r for r in rows if r["classification"] == code]
+    if code == "nuovi":
+        return [r for r in rows if r["nuovo_dal"]]
     if code == "senza_licenza":
         return [r for r in rows if r["paid_without_license"]]
     if code == "vecchi":
@@ -253,6 +261,8 @@ def software_catalog(request: HttpRequest) -> HttpResponse:
             return _classifica_in_blocco(request)
         if azione in {"consenti_produttore", "togli_produttore"}:
             return _regola_produttore(request, azione)
+        if azione in {"dotazione_aggiungi", "dotazione_togli"}:
+            return _regola_dotazione(request, azione)
         messages.error(request, "Azione non valida.")
         return redirect(request.get_full_path())
     with_cve = _can_see_cve(request)
@@ -280,7 +290,59 @@ def software_catalog(request: HttpRequest) -> HttpResponse:
         "licensing_choices": SoftwareCatalogEntry.LICENSING_CHOICES,
         "produttori_regola": SoftwareProduttoreConsentito.objects.all(),
         "produttori_proposti": _produttori_da_proporre(all_rows),
+        **_dotazione_contesto(all_rows),
     })
+
+
+def _dotazione_contesto(rows: list[dict]) -> dict:
+    """Regole della dotazione attesa con i PC dove manca il programma, e le scelte per aggiungerne una."""
+    from .models import SoftwareDotazioneAttesa
+    from .services.software_dotazione import scostamenti
+
+    try:
+        regole = scostamenti()
+    except Exception:  # noqa: BLE001 - la scheda è un di più del catalogo
+        import logging
+
+        logging.getLogger(__name__).exception("Dotazione attesa non calcolata")
+        regole = []
+    reparti = sorted({r for r in Asset.objects.filter(asset_type__in=SoftwareDotazioneAttesa.TIPI_PER_AMBITO["tutti"])
+                      .exclude(reparto="").values_list("reparto", flat=True).distinct()}, key=str.casefold)
+    return {
+        "dotazione": regole,
+        "dotazione_mancanti": sum(len(r["mancanti"]) for r in regole),
+        "dotazione_scelte": [(r["key"], f"{r['name']} · {r['vendor'] or 'produttore n/d'} ({r['hosts']} PC)") for r in rows],
+        "dotazione_ambiti": SoftwareDotazioneAttesa.AMBITO_CHOICES,
+        "dotazione_reparti": reparti,
+    }
+
+
+def _regola_dotazione(request: HttpRequest, azione: str) -> HttpResponse:
+    from .models import SoftwareDotazioneAttesa
+
+    if azione == "dotazione_togli":
+        regola = SoftwareDotazioneAttesa.objects.filter(pk=request.POST.get("regola")).first()
+        if regola:
+            log_action(request, "software_dotazione_togli", "assets", {"programma": regola.programma, "ambito": regola.ambito, "reparto": regola.reparto})
+            regola.delete()
+            messages.success(request, f"Regola tolta: {regola}.")
+        return redirect(f"{request.path}#dotazione")
+    key = (request.POST.get("programma") or "").strip()[:300]
+    ambito = request.POST.get("ambito") or SoftwareDotazioneAttesa.AMBITO_PC
+    reparto = (request.POST.get("reparto") or "").strip()[:120]
+    nota = (request.POST.get("nota") or "").strip()[:255]
+    etichetta = next((r["name"] for r in catalog_rows(with_cve=False) if r["key"] == key), "")
+    if not key or not etichetta or ambito not in dict(SoftwareDotazioneAttesa.AMBITO_CHOICES):
+        messages.error(request, "Scegli un programma del catalogo e un ambito.")
+        return redirect(f"{request.path}#dotazione")
+    regola, creata = SoftwareDotazioneAttesa.objects.get_or_create(
+        programma=key, ambito=ambito, reparto=reparto, defaults={"etichetta": etichetta, "nota": nota, "creato_da": request.user})
+    if creata:
+        log_action(request, "software_dotazione_aggiungi", "assets", {"programma": key, "ambito": ambito, "reparto": reparto})
+        messages.success(request, f"Dotazione attesa: {regola}.")
+    else:
+        messages.info(request, "Questa regola c'era già.")
+    return redirect(f"{request.path}#dotazione")
 
 
 def _avanzamento(rows: list[dict]) -> dict:

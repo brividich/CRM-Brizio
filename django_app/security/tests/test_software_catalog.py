@@ -97,7 +97,7 @@ class SoftwareCatalogPageTests(TestCase):
         self.assertContains(response, "Da classificare")
         SoftwareCatalogEntry.objects.create(inventory_key=self.key, classification="non_autorizzato")
         self.assertContains(self.client.get(reverse("assets:software_catalog") + "?f=non_autorizzato"), "7-Zip")
-        self.assertNotContains(self.client.get(reverse("assets:software_catalog") + "?f=da_rimuovere"), "7-Zip")
+        self.assertNotContains(self.client.get(reverse("assets:software_catalog") + "?f=da_rimuovere"), "Seleziona 7-Zip")
 
     def test_detail_saves_decision(self):
         url = reverse("assets:software_catalog_detail")
@@ -233,4 +233,4 @@ class ProgrammiRaggruppatiTests(TestCase):
         SoftwareCatalogEntry.objects.create(inventory_key=software_catalog.inventory_key("google", "chrome"), classification="non_autorizzato")
         page = self.client.get(reverse("assets:software_catalog") + "?f=non_autorizzato")
         self.assertContains(page, "hrome")
-        self.assertNotContains(page, "Chromium")
+        self.assertNotContains(page, "Seleziona Chromium")

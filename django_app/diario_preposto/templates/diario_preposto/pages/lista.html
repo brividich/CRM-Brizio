@@ -87,6 +87,7 @@ body.theme-dark .dp-filters-reset{background:var(--surface-alt,#0f1b2d);color:va
       <div class="dp-hero-sub">RSPP · ASPP · RLS - Registro segnalazioni sicurezza</div>
     </div>
     <div class="dp-hero-actions">
+      <a href="{% url 'diario_preposto:guida' %}" class="dp-hbtn dp-hbtn-white">? Guida</a>
       <a href="{% url 'diario_preposto:ispezioni' %}" class="dp-hbtn dp-hbtn-white">Ispezioni periodiche</a>
       {% if can_manage_settings %}
       <a href="{% url 'diario_preposto:impostazioni' %}" class="dp-hbtn dp-hbtn-white">&#9881; Impostazioni</a>
@@ -100,11 +101,21 @@ body.theme-dark .dp-filters-reset{background:var(--surface-alt,#0f1b2d);color:va
   <div class="dp-kpi-row">
     <div class="dp-kpi">
       <div class="dp-kpi-val">{{ totale }}</div>
-      <div class="dp-kpi-lbl">Segnalazioni{% if q or filtro_preposto %} (filtrate){% endif %}</div>
+      <div class="dp-kpi-lbl">{% if mostra_eliminate %}Segnalazioni eliminate{% else %}Segnalazioni{% endif %}{% if q or filtro_preposto %} (filtrate){% endif %}</div>
     </div>
+    {% if can_manage_settings %}
+    <div class="dp-kpi">
+      <div class="dp-kpi-val">{{ n_eliminate }}</div>
+      <div class="dp-kpi-lbl">
+        {% if mostra_eliminate %}<a href="{% url 'diario_preposto:lista' %}">Torna al registro</a>
+        {% else %}<a href="{% url 'diario_preposto:lista' %}?eliminate=1">Eliminate</a>{% endif %}
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <form method="get" class="dp-filters">
+    {% if mostra_eliminate %}<input type="hidden" name="eliminate" value="1">{% endif %}
     <label>Cerca
       <input type="text" name="q" value="{{ q }}" placeholder="ID, titolo, descrizione, nominativo...">
     </label>
@@ -117,12 +128,14 @@ body.theme-dark .dp-filters-reset{background:var(--surface-alt,#0f1b2d);color:va
       </select>
     </label>
     <button type="submit" class="dp-filters-btn">Filtra</button>
-    <a href="{% url 'diario_preposto:export_excel' %}{% if q %}?q={{ q }}{% endif %}{% if filtro_preposto %}{% if q %}&{% else %}?{% endif %}preposto={{ filtro_preposto }}{% endif %}"
+    {% if not mostra_eliminate %}
+    <a href="{% url 'diario_preposto:export_excel' %}?q={{ q|urlencode }}&amp;preposto={{ filtro_preposto|urlencode }}"
        class="dp-filters-btn" style="background:#10b981;">
       &#128196; Esporta Excel
     </a>
+    {% endif %}
     {% if q or filtro_preposto %}
-    <a href="{% url 'diario_preposto:lista' %}" class="dp-filters-reset">Reset</a>
+    <a href="{% url 'diario_preposto:lista' %}{% if mostra_eliminate %}?eliminate=1{% endif %}" class="dp-filters-reset">Reset</a>
     {% endif %}
   </form>
 
@@ -149,11 +162,9 @@ body.theme-dark .dp-filters-reset{background:var(--surface-alt,#0f1b2d);color:va
           <td>{{ s.chi_segnala|default:"-" }}</td>
           <td style="white-space:nowrap;">{{ s.data_segnalazione|date:"d-m-Y H:i" }}</td>
           <td>
-            {% with n=s.allegati.count %}
-            {% if n %}
-            <span style="background:#f0fdfa;color:#0f766e;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;">{{ n }} file</span>
+            {% if s.n_allegati %}
+            <span style="background:#f0fdfa;color:#0f766e;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;">{{ s.n_allegati }} file</span>
             {% else %}-{% endif %}
-            {% endwith %}
           </td>
           <td>
             <a href="{% url 'diario_preposto:export_pdf' s.pk %}" target="_blank"

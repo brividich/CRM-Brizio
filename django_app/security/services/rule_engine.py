@@ -284,6 +284,33 @@ def _evaluate_cve_impact(event):
         notify_alert_created(alert)
 
 
+def _evaluate_software_nuovo(event):
+    """Programma mai visto prima nell'inventario e senza decisione nel Catalogo software (``software_nuovo``)."""
+    payload = event.payload
+    rule = _get_rule("software_nuovo")
+    if rule and not rule.enabled:
+        event.decision_trace = {"decision": "kpi_only", "reason": "Software nuovo rule disabled", "rule": rule.code}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Inventario software: programma mai visto prima, senza decisione nel catalogo => alert",
+        "product": payload.get("product"), "vendor": payload.get("vendor"),
+        "host_count": payload.get("host_count"), "hosts": payload.get("hosts"), "dal": payload.get("dal"),
+    }
+    title = f"Programma nuovo: {payload.get('product')} su {payload.get('host_count')} PC"[:255]
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source, event=event, title=title,
+        severity=(rule.severity if rule else event.severity), dedup_hash=event.dedup_hash, decision_trace=trace,
+    )
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(alert=alert, action="alert_created" if alert_created else "alert_reused", details=trace)
+
+
 def _evaluate_software_policy(event):
     """Software non autorizzato, da rimuovere o sotto la versione minima secondo il Catalogo software."""
     payload = event.payload
@@ -1051,6 +1078,7 @@ _HANDLERS = {
     "possible_sender_spoofing": _evaluate_sender_spoofing,
     "cve_impact_confirmed": _evaluate_cve_impact,
     "software_policy": _evaluate_software_policy,
+    "software_nuovo": _evaluate_software_nuovo,
     "defender_alert": _evaluate_defender_alert,
     "defender_incident": _evaluate_defender_incident,
     "accesso_nuovo_dispositivo": _evaluate_accesso_nuovo_dispositivo,

@@ -22,6 +22,7 @@ import logging
 import threading
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta
+from statistics import median
 
 from django.utils import timezone
 
@@ -165,7 +166,7 @@ def riepilogo(dal, al) -> dict:
     """
     oggi = timezone.localdate()
     righe = {cls: {"classe": cls, "etichetta": ETICHETTE[cls], "giorni": giorni(cls), "corrette": 0, "in_tempo": 0,
-                   "in_ritardo": 0, "aperte": 0, "aperte_scadute": 0} for cls in CLASSI}
+                   "in_ritardo": 0, "aperte": 0, "aperte_scadute": 0, "durate": []} for cls in CLASSI}
     from security.services.cve_gestione import correzioni_valide
 
     # Stessa regola della pagina Correzioni CVE: ultima uscita per CVE + PC, PC non di nuovo esposto.
@@ -173,6 +174,7 @@ def riepilogo(dal, al) -> dict:
     for r in corrette:
         riga = righe[classe(r.cve)]
         riga["corrette"] += 1
+        riga["durate"].append((r.risolta_il - r.aperta_dal).total_seconds() / 86400)
         if _giorno(r.risolta_il) <= scadenza(r.cve, r.aperta_dal):
             riga["in_tempo"] += 1
         else:
@@ -184,13 +186,46 @@ def riepilogo(dal, al) -> dict:
             righe[v["classe"]]["aperte_scadute"] += 1
     totale = sum(r["corrette"] for r in righe.values())
     in_tempo = sum(r["in_tempo"] for r in righe.values())
+    durate = []
+    for riga in righe.values():
+        riga["giorni_mediani"] = _mediana(riga.pop("durate"), durate)
     return {
         "dal": _giorno(dal), "al": _giorno(al),
         "classi": [righe[cls] for cls in CLASSI],
         "aperte_scadute": [v for v in aperte if v["giorni_ritardo"] > 0],
         "percentuale_in_tempo": round(100 * in_tempo / totale) if totale else None,
+        "giorni_mediani": _mediana(durate),
         "corrette": totale, "in_tempo": in_tempo, "in_ritardo": totale - in_tempo,
         "aperte": len(aperte), "accettate": sum(1 for v in aperte if v["accettata"]),
+    }
+
+
+def _mediana(durate, accumula=None):
+    """Giorni mediani (metà delle correzioni ci ha messo meno): la media la sposta un PC dimenticato per mesi."""
+    if accumula is not None:
+        accumula.extend(durate)
+    return round(median(durate), 1) if durate else None
+
+
+def andamento(giorni=90, oggi=None):
+    """Gli ultimi ``giorni`` giorni contro i ``giorni`` precedenti: stiamo migliorando o no?
+
+    ``adesso`` e ``prima`` sono due ``riepilogo``; ``differenze`` ha, per percentuale nel termine, giorni mediani
+    e PC oltre il termine, il valore di adesso meno quello di prima (``None`` se uno dei due manca). Le
+    esposizioni aperte sono sempre quelle di oggi: per «prima» contano solo le correzioni del periodo.
+    """
+    oggi = oggi or timezone.localdate()
+    adesso = riepilogo(oggi - timedelta(days=giorni), oggi)
+    prima = riepilogo(oggi - timedelta(days=2 * giorni), oggi - timedelta(days=giorni + 1))
+
+    def diff(chiave):
+        a, b = adesso.get(chiave), prima.get(chiave)
+        return None if a is None or b is None else round(a - b, 1)
+
+    return {
+        "giorni": giorni, "adesso": adesso, "prima": prima,
+        "differenze": {"percentuale_in_tempo": diff("percentuale_in_tempo"), "giorni_mediani": diff("giorni_mediani"),
+                       "corrette": adesso["corrette"] - prima["corrette"]},
     }
 
 

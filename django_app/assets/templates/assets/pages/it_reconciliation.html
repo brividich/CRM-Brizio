@@ -16,6 +16,10 @@
 .rc-table { width:100%; border-collapse:collapse; font-size:var(--fs-sm); }
 .rc-table th, .rc-table td { padding:9px 12px; border-bottom:1px solid #eef2f7; text-align:left; vertical-align:top; }
 .rc-table th { font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:.04em; color:#64748b; background:#fbfdff; }
+.rc-tag { display:inline-block; padding:2px 8px; border-radius:999px; font-size:var(--fs-xs); font-weight:700; white-space:nowrap; }
+.rc-tag--ok{color:#15803d;background:#dcfce7}.rc-tag--warn{color:#9a3412;background:#ffedd5}.rc-tag--danger{color:#991b1b;background:#fee2e2}.rc-tag--muted{color:#475569;background:#f1f5f9}
+body.theme-dark .rc-tag--ok{color:#86efac;background:rgba(22,163,74,.18)}body.theme-dark .rc-tag--warn{color:#fdba74;background:rgba(234,88,12,.18)}
+body.theme-dark .rc-tag--danger{color:#fca5a5;background:rgba(220,38,38,.2)}body.theme-dark .rc-tag--muted{color:#cbd5e1;background:rgba(148,163,184,.16)}
 .rc-mod { display:inline-block; padding:2px 8px; border-radius:999px; font-size:var(--fs-xs); font-weight:800; background:#eef4ff; color:#1d4ed8; }
 .rc-mod.soc { background:#fef3c7; color:#92400e; }
 .rc-mod.mfc { background:#dcfce7; color:#166534; }
@@ -53,9 +57,33 @@ body.theme-dark .rc-empty{color:var(--text-light)}
     <a class="rc-tab {% if view == 'proposte' %}active{% endif %}" href="?vista=proposte">Con proposta <strong>{{ counts.proposte }}</strong></a>
     <a class="rc-tab {% if view == 'senza' %}active{% endif %}" href="?vista=senza">Senza proposta <strong>{{ counts.ambigue|add:counts.senza }}</strong></a>
     <a class="rc-tab {% if view == 'inventario' %}active{% endif %}" href="?vista=inventario">PC e server senza inventario <strong>{{ da_spiegare|length }}</strong></a>
+    <a class="rc-tab {% if view == 'fine_vita' %}active{% endif %}" href="?vista=fine_vita">Hardware a fine vita <strong>{{ fine_vita_conteggi.sostituire|add:fine_vita_conteggi.pianificare }}</strong></a>
     <a class="rc-tab" href="{% url 'assets:device_list' %}?copertura=scoperti">Asset senza monitoraggio</a>
   </nav>
-  {% if view == 'inventario' %}
+  {% if view == 'fine_vita' %}
+  <div class="rc-card">
+    <div class="rc-bar"><span class="rc-sub">PC, notebook e server non dismessi: <strong>da sostituire</strong> con {{ fine_vita_soglie.sostituzione }} anni o più, garanzia scaduta e almeno {{ fine_vita_soglie.guasti }} ticket in 12 mesi, o meno di {{ fine_vita_soglie.ram }} GB di RAM; <strong>da pianificare</strong> da {{ fine_vita_soglie.pianifica }} anni, garanzia scaduta o in scadenza entro 90 giorni, disco oltre il {{ fine_vita_soglie.disco }}%, {{ fine_vita_soglie.guasti }} ticket in 12 mesi. Età da «Data acquisto», garanzia da «Fine garanzia» della scheda asset, RAM e disco da Intune. {{ fine_vita_conteggi.sostituire }} da sostituire, {{ fine_vita_conteggi.pianificare }} da pianificare, {{ fine_vita_conteggi.non_valutabile }} senza dati.</span></div>
+    {% if fine_vita %}
+    <table class="rc-table">
+      <thead><tr><th>Asset</th><th>Giudizio</th><th>Età</th><th>Garanzia</th><th>RAM</th><th>Disco</th><th>Ticket 12 mesi</th><th>Motivi</th></tr></thead>
+      <tbody>
+      {% for r in fine_vita %}
+        <tr>
+          <td><a href="{% url 'assets:asset_view' r.asset.pk %}">{{ r.asset.name }}</a><div class="rc-sub">#{{ r.asset.asset_tag }} · {{ r.asset.get_asset_type_display }}{% if r.asset.reparto %} · {{ r.asset.reparto }}{% endif %}{% if r.intune %} · {{ r.intune.produttore }} {{ r.intune.modello }}{% endif %}</div></td>
+          <td><span class="rc-tag {% if r.giudizio == 'sostituire' %}rc-tag--danger{% elif r.giudizio == 'pianificare' %}rc-tag--warn{% elif r.giudizio == 'ok' %}rc-tag--ok{% else %}rc-tag--muted{% endif %}">{{ r.etichetta }}</span></td>
+          <td>{% if r.eta is not None %}{{ r.eta|floatformat:1 }} anni<div class="rc-sub">{{ r.data|date:"d/m/Y" }}</div>{% else %}<span class="rc-sub">data acquisto mancante</span>{% endif %}</td>
+          <td>{% if r.garanzia %}{{ r.garanzia|date:"d/m/Y" }}{% if r.garanzia_stato == 'scaduta' %}<div class="rc-sub">scaduta</div>{% elif r.garanzia_stato == 'in_scadenza' %}<div class="rc-sub">in scadenza</div>{% endif %}{% else %}<span class="rc-sub">—</span>{% endif %}</td>
+          <td>{% if r.ram_gb is not None %}{{ r.ram_gb|floatformat:0 }} GB{% else %}<span class="rc-sub">—</span>{% endif %}</td>
+          <td>{% if r.disco_pct is not None %}{{ r.disco_pct }}%{% else %}<span class="rc-sub">—</span>{% endif %}</td>
+          <td>{{ r.guasti }}</td>
+          <td>{{ r.motivi|join:"; "|default:"—" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<div class="rc-empty">Nessun PC, notebook o server nel registro.</div>{% endif %}
+  </div>
+  {% elif view == 'inventario' %}
   <div class="rc-card">
     <div class="rc-bar"><span class="rc-sub">PC, notebook e server in uso senza programmi rilevati da WatchGuard o Defender: o manca l'agente, o c'è un motivo. Scrivilo, così non resta un dubbio. I dismessi non compaiono.</span></div>
     {% if da_spiegare %}
