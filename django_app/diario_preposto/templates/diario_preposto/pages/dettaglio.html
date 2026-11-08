@@ -4,7 +4,9 @@
 
 {% block extra_head %}
 <style>
-#dp-det-root { display:flex; flex-direction:column; gap:20px; max-width:860px; }
+#dp-det-root { display:flex; flex-direction:column; gap:20px; max-width:1320px; }
+.dp-det-grid { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(320px,1fr); gap:20px; align-items:start; }
+@media (max-width:1100px) { .dp-det-grid { grid-template-columns:1fr; } }
 
 .dp-breadcrumb { font-size:13px; color:#64748b; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
 .dp-breadcrumb a { color:#0f766e; text-decoration:none; font-weight:600; }
@@ -123,6 +125,7 @@ body.theme-dark .dp-allegato-meta{color:var(--text-light)}
     <span>{{ segnalazione.titolo|truncatechars:60 }}</span>
   </div>
 
+  <div class="dp-det-grid">
   <div class="dp-card">
     <div class="dp-card-header">
       <a class="dp-head-link" href="{% url 'diario_preposto:guida' %}" title="Guida del Diario preposto">? Guida</a>
@@ -135,6 +138,8 @@ body.theme-dark .dp-allegato-meta{color:var(--text-light)}
     </div>
 
     <div class="dp-card-body">
+
+      {% include "diario_preposto/partials/_storyline.html" with parte="sintesi" %}
 
       {% if segnalazione.is_eliminata %}
       <div class="dp-eliminata">
@@ -226,7 +231,8 @@ body.theme-dark .dp-allegato-meta{color:var(--text-light)}
     </div>
   </div>
 
-  {% include "core/components/_storico_modifiche.html" with storico=storico titolo="Storico della segnalazione" vuoto="Nessuna operazione registrata su questa segnalazione." %}
+  {% include "diario_preposto/partials/_storyline.html" with parte="storia" %}
+  </div>
 
 </div>
 

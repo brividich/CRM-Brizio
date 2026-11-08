@@ -23,8 +23,30 @@ SEZIONI: list[dict] = [
                 ("Codice", "ogni segnalazione riceve un codice DP-anno-numero (es. DP-2026-0012). Non cambia mai "
                  "e non viene mai riusato, neanche se la segnalazione è eliminata."),
                 ("Preposto / Chi segnala", "la persona che ha inserito la segnalazione, presa dal tuo accesso."),
-                ("Storico modifiche", "in fondo alla scheda: chi ha creato, modificato, eliminato o ripristinato la "
-                 "segnalazione e chi ha aggiunto o tolto allegati, con data e ora."),
+                ("Storia della segnalazione", "a destra nella scheda (sotto, da telefono): dal fatto a oggi, chi ha "
+                 "registrato, modificato (campo per campo), eliminato o ripristinato la segnalazione, chi ha aggiunto, "
+                 "tolto o scaricato allegati e quali notifiche sono partite o non sono partite."),
+                ("Riquadri della scheda", "giorni dal fatto, giorni impiegati a registrarla (giallo oltre 2), allegati, "
+                 "modifiche, notifiche e ultima attività."),
+            ]),
+        ],
+    },
+    {
+        "id": "cruscotto",
+        "titolo": "Il cruscotto dell'elenco",
+        "blocchi": [
+            ("p", "Sopra la tabella il cruscotto riassume il registro. I numeri seguono la ricerca e il filtro "
+                  "«Preposto»: filtrando un preposto si vedono solo i suoi."),
+            ("def", [
+                ("Ultimi 7 / 30 giorni", "segnalazioni per data del fatto; sotto i 30 giorni il confronto con i 30 precedenti."),
+                ("Senza allegati", "segnalazioni senza foto o documenti (in giallo se ce ne sono)."),
+                ("Registrate in ritardo", "inserite nel diario più di 2 giorni dopo il fatto."),
+                ("Ispezione", "prossima scadenza dell'ispezione periodica; in rosso se scaduta o se non ce n'è nessuna."),
+                ("Notifiche non partite", "solo per chi gestisce il modulo: mail automatiche del diario andate in errore negli ultimi 30 giorni."),
+                ("Andamento ultimi 12 mesi", "segnalazioni per mese; passando sopra una barra si legge il numero, «Vedi i numeri» li mostra tutti."),
+                ("Giorno della settimana", "in quali giorni si concentrano i fatti negli ultimi 12 mesi."),
+                ("Segnalazioni per preposto", "i primi 6 degli ultimi 12 mesi; il nome porta all'elenco filtrato."),
+                ("Attività recenti", "le ultime operazioni sulle segnalazioni che puoi vedere: nuove, modifiche, allegati, eliminazioni."),
             ]),
         ],
     },
