@@ -257,7 +257,8 @@ class DiarioIntegritaTests(TestCase):
         self.segnalazione.refresh_from_db()
         self.assertEqual(self.segnalazione.titolo, "Titolo corretto")
         det = self.client.get(reverse("diario_preposto:dettaglio", args=[self.segnalazione.pk]))
-        self.assertContains(det, "Storico della segnalazione")
+        self.assertContains(det, "Storia della segnalazione")
+        self.assertContains(det, "Modificata: titolo")
 
     # ── Ispezioni ─────────────────────────────────────────────────────────
     def test_ispezione_senza_utente_legacy_non_usa_id_django(self):
