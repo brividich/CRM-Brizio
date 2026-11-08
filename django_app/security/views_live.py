@@ -50,12 +50,7 @@ def preview(request, kind, pk=None):
         from .services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 
         alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event", "event__asset"), pk=pk)
-        return render(request, "security/partials/preview_alert.html", {
-            "alert": alert, "active": alert.status in ACTIVE_ALERT_STATUSES,
-            "rule": (alert.decision_trace or {}).get("rule") or (alert.decision_trace or {}).get("decision") or "—",
-            "logs": alert.action_logs.order_by("-created_at")[:5],
-            "case": alert.linked_remediation_tickets.order_by("-updated_at").first() or alert.tickets.order_by("-updated_at").first(),
-        })
+        return render(request, "security/partials/preview_alert.html", _preview_alert_context(alert, alert.status in ACTIVE_ALERT_STATUSES))
     if kind == "ticket":
         from .services.cases import ACTIVE_CASE_STATUSES, case_alerts, case_timeline
 
@@ -88,6 +83,64 @@ def preview(request, kind, pk=None):
             raise Http404("Nessun dato SOC per questo dispositivo.")
         return render(request, "security/partials/preview_pc.html", {"pc": data, "name_q": quote(data["name"])})
     raise Http404("Anteprima non disponibile.")
+
+
+def _preview_alert_context(alert, active):
+    from .services import alert_simili
+
+    dati = alert_simili.simili(alert)
+    return {
+        "alert": alert, "active": active,
+        "rule": (alert.decision_trace or {}).get("rule") or (alert.decision_trace or {}).get("decision") or "—",
+        "logs": alert.action_logs.order_by("-created_at")[:5],
+        "case": alert.linked_remediation_tickets.order_by("-updated_at").first() or alert.tickets.order_by("-updated_at").first(),
+        "ctx": dati["contesto"], "simili": dati["criteri"], "simili_max_pk": dati["max_pk"],
+        "simili_aperti": sum(c["n_aperti"] for c in dati["criteri"]), "esiti": alert_simili.ESITI,
+    }
+
+
+@require_POST
+def alert_simili_chiudi(request, pk):
+    """Dal pannello laterale: chiude l'alert e i simili aperti (stessa CVE, stesso software, stesso PC o stesso problema)."""
+    if not can_view_security_center(request.user):
+        return HttpResponseForbidden("Accesso negato")
+    from .services import alert_simili
+    from .services.alert_lifecycle import ACTIVE_ALERT_STATUSES
+
+    alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event", "event__asset"), pk=pk)
+    motivo = request.POST.get("motivo", "").strip()[:500]
+    esito = request.POST.get("esito", "")
+    criterio = request.POST.get("criterio", "")
+    max_pk = request.POST.get("max_pk", "")
+    errore = ""
+    if not motivo:
+        errore = "Scrivi il motivo: resta su ogni alert chiuso."
+    elif esito not in dict(alert_simili.ESITI):
+        errore = "Scegli come chiudere."
+    else:
+        try:
+            fatti = alert_simili.chiudi_simili(alert, criterio=criterio, esito=esito, motivo=motivo, user=request.user,
+                                               max_pk=int(max_pk) if max_pk.isdigit() else None)
+        except ValueError:
+            errore = "Criterio non valido."
+        else:
+            esito_label = dict(alert_simili.ESITI)[esito]
+            messaggio = f"{fatti} alert chius{'o' if fatti == 1 else 'i'} come «{esito_label}»." if fatti else "Nessun alert da chiudere: erano già stati gestiti."
+    if errore:
+        if request.headers.get("HX-Request") or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            alert.refresh_from_db()
+            context = _preview_alert_context(alert, alert.status in ACTIVE_ALERT_STATUSES)
+            context["simili_errore"] = errore
+            return render(request, "security/partials/preview_alert.html", context)
+        messages.error(request, errore)
+        return redirect("security:alert_detail", pk=alert.pk)
+    if request.headers.get("HX-Request") or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        alert.refresh_from_db()
+        context = _preview_alert_context(alert, alert.status in ACTIVE_ALERT_STATUSES)
+        context["simili_esito"] = messaggio
+        return render(request, "security/partials/preview_alert.html", context)
+    messages.success(request, messaggio)
+    return redirect("security:segnalazioni")
 
 
 # --- Controlli AI --------------------------------------------------------------------------

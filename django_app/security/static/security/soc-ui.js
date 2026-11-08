@@ -1,13 +1,16 @@
 /* Interazioni comuni del SOC. Niente framework: attributi data-* nel markup.
 
-   Selezione multipla   form[data-bulk]: .sec-bulk-item, [data-bulk-all], [data-bulk-count], [data-bulk-go],
+   Selezione multipla   form[data-bulk]: .sec-bulk-item, [data-bulk-all], [data-bulk-count], [data-bulk-go], [data-bulk-clear],
                         campi opzionali [data-show-for="azione1 azione2"] mostrati solo per quelle azioni.
+                        Liste miste [data-bulk-kinds]: righe e opzioni con data-kind, un tipo alla volta, il form
+                        va a data-action-<tipo>; i campi nascosti sono anche disabilitati (non si spediscono).
    Anteprima a pannello [data-preview="/url/"] su righe o elementi: clic (fuori da link e caselle) apre il
                         pannello laterale; un bottone/link con data-preview lo apre lui stesso (Ctrl+clic su un
                         link apre invece la pagina). ← → scorrono le righe della stessa lista, Esc chiude.
                         Nel pannello i link [data-drawer-load] cambiano il contenuto senza chiuderlo. Nel pannello i
                         form [data-drawer-form] si inviano senza lasciare la pagina; [data-drawer-target] mette
-                        la risposta in un riquadro del pannello (es. risposta dell'AI).
+                        la risposta in un riquadro del pannello (es. risposta dell'AI); [data-drawer-replace] sostituisce
+                        tutto il pannello con la risposta (es. chiusura dei simili, con l'esito dentro).
    Barra di stato live  [data-live-url] si ricarica ogni [data-live-every] secondi (pagina visibile).
    Sezioni vive         [data-autorefresh="120"] con id: rilette dalla pagina stessa ogni N secondi.
    Suggerimenti         [data-tip-id]: il pulsante [data-tip-close] li nasconde per sempre (localStorage).
@@ -41,29 +44,69 @@
     var go = form.querySelector("[data-bulk-go]");
     var action = form.querySelector("select[name='action']");
     var dependants = form.querySelectorAll("[data-show-for]");
+    var clear = form.querySelector("[data-bulk-clear]");
+    // Liste miste (alert, ticket, incidenti): si seleziona un tipo alla volta, le azioni e l'indirizzo
+    // del form seguono il tipo scelto ([data-bulk-kinds], righe con data-kind, data-action-<tipo>).
+    var kinds = form.hasAttribute("data-bulk-kinds");
+    var kindLabel = form.querySelector("[data-bulk-kind-label]");
+    var KIND_NAMES = { alert: "alert", ticket: "ticket", incident: "incidenti" };
+    function kindOf() {
+      var first = form.querySelector(".sec-bulk-item:checked");
+      return first ? (first.getAttribute("data-kind") || "") : "";
+    }
+    function selectable(box, kind) { return !kind || (box.getAttribute("data-kind") || "") === kind; }
+    function syncKind() {
+      if (!kinds) return;
+      var kind = kindOf();
+      form.setAttribute("data-kind", kind);
+      items.forEach(function (box) { box.disabled = !selectable(box, kind); });
+      var url = kind ? form.getAttribute("data-action-" + kind) : "";
+      if (url) form.setAttribute("action", url);
+      if (kindLabel) kindLabel.textContent = kind ? (KIND_NAMES[kind] || kind) + " selezionat" + (form.querySelectorAll(".sec-bulk-item:checked").length === 1 ? "o" : "i") : "selezionati";
+      if (action) {
+        var visible = null;
+        action.querySelectorAll("option[data-kind]").forEach(function (opt) {
+          var ok = !kind || opt.getAttribute("data-kind") === kind;
+          opt.hidden = !ok; opt.disabled = !ok;
+          if (ok && !visible) visible = opt;
+        });
+        if (action.selectedOptions[0] && action.selectedOptions[0].disabled && visible) action.value = visible.value;
+      }
+    }
     function refresh() {
       var n = form.querySelectorAll(".sec-bulk-item:checked").length;
       if (count) count.textContent = n;
       if (go) go.disabled = n === 0;
       form.classList.toggle("has-selection", n > 0);
+      syncKind();
       if (all) {
-        all.checked = n > 0 && n === items.length;
-        all.indeterminate = n > 0 && n < items.length;
+        var pool = Array.prototype.filter.call(items, function (box) { return !box.disabled; });
+        all.checked = n > 0 && n === pool.length;
+        all.indeterminate = n > 0 && n < pool.length;
       }
+      sync();
     }
     function sync() {
       var value = action ? action.value : "";
+      var kind = kinds ? form.getAttribute("data-kind") || "" : "";
       dependants.forEach(function (el) {
-        el.hidden = (" " + el.getAttribute("data-show-for") + " ").indexOf(" " + value + " ") === -1;
+        var forKind = el.getAttribute("data-kind");
+        var off = (" " + el.getAttribute("data-show-for") + " ").indexOf(" " + value + " ") === -1 || (forKind && kind && forKind !== kind);
+        el.hidden = off;
+        // Un campo nascosto non va spedito: due «status» o due «reason» nello stesso form si pesterebbero.
+        if (el.matches("input, select, textarea")) el.disabled = off;
+        else el.querySelectorAll("input, select, textarea").forEach(function (f) { f.disabled = off; });
       });
     }
     if (all) {
       all.addEventListener("change", function () {
-        // Solo le righe visibili: la ricerca della tabella nasconde le altre.
-        items.forEach(function (box) { if (box.offsetParent !== null || !all.checked) box.checked = all.checked; });
+        // Solo le righe visibili e selezionabili: la ricerca della tabella nasconde le altre, il tipo scelto blocca gli altri tipi.
+        var kind = kinds ? kindOf() : "";
+        items.forEach(function (box) { if (!all.checked) box.checked = false; else if (box.offsetParent !== null && selectable(box, kind)) box.checked = true; });
         refresh();
       });
     }
+    if (clear) clear.addEventListener("click", function () { items.forEach(function (box) { box.checked = false; }); refresh(); });
     items.forEach(function (box) { box.addEventListener("change", refresh); });
     if (action) action.addEventListener("change", sync);
     // Maiusc+clic seleziona l'intervallo, come nei client di posta.
@@ -184,6 +227,8 @@
       .then(function (html) {
         if (target) { target.innerHTML = html; if (button) { button.disabled = false; if (button.dataset.label) button.textContent = button.dataset.label; } return; }
         changed = true;
+        // [data-drawer-replace]: la risposta è il pannello rifatto, con l'esito dell'azione dentro.
+        if (form.hasAttribute("data-drawer-replace")) { drawerBody.innerHTML = html; drawerBody.scrollTop = 0; return; }
         return load(current ? current.getAttribute("data-preview") : form.getAttribute("data-reload"));
       })
       .catch(function () {

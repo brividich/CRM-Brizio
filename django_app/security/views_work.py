@@ -186,9 +186,16 @@ def segnalazioni(request):
             {"value": "tutte", "label": "Tutte", "active": stato == "tutte", "url": link(stato="tutte", page="")},
         ],
         "gravita_choices": svc.GRAVITA,
+        "ticket_stati": _stati_ticket_bulk(), "incident_stati": SecurityIncident.STATUS_CHOICES,
         "pagina_prec": link(page=page.previous_page_number()) if page.has_previous() else "",
         "pagina_succ": link(page=page.next_page_number()) if page.has_next() else "",
     })
+
+
+def _stati_ticket_bulk():
+    from .templatetags.security_i18n import ui_label
+
+    return [(v, ui_label(v)) for v in ("in_progress", "resolved", "closed", "false_positive")]
 
 
 # --- Copertura dei PC ----------------------------------------------------------------------
