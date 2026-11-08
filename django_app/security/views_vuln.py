@@ -164,9 +164,10 @@ def _termini_cve(giorni=90):
     try:
         from .services import cve_sla
 
-        oggi = timezone.localdate()
-        dati = cve_sla.riepilogo(oggi - timezone.timedelta(days=giorni), oggi)
+        andamento = cve_sla.andamento(giorni)
+        dati = andamento["adesso"]
         dati["giorni"] = giorni
+        dati["prima"], dati["differenze"] = andamento["prima"], andamento["differenze"]
         dati["aperte_scadute"] = dati["aperte_scadute"][:15]
         dati["attivo"] = cve_sla.soc_settings.value("cve.sla.attivo")
         return dati

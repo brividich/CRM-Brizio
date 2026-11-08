@@ -8,6 +8,7 @@ Modificare: amministratori del modulo Asset, come per le licenze.
 from __future__ import annotations
 
 import re
+from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -25,6 +26,7 @@ from .models import SoftwareCatalogEntry, SoftwareLicense, SoftwareProduttoreCon
 FILTERS = [
     ("all", "Tutti"),
     ("da_classificare", "Da classificare"),
+    ("nuovi", "Nuovi"),
     ("non_autorizzato", "Non autorizzati"),
     ("da_rimuovere", "Da rimuovere"),
     ("senza_licenza", "A pagamento senza licenza"),
@@ -81,7 +83,7 @@ def _produttore_regola(etichetta: str) -> str:
 
 def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
     """Una riga per prodotto presente: PC, versioni, decisioni, licenza collegata, CVE."""
-    from security.services import software_catalog as sc
+    from security.services import software_catalog as sc, software_nuovo
     from security.services.software_inventory import nome_programma
 
     today = today or timezone.localdate()
@@ -100,6 +102,8 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
     consentiti = set(SoftwareProduttoreConsentito.objects.values_list("produttore", flat=True))
     entry_keys = sc.chiavi_per_programma(entries, indice)
     license_keys = sc.chiavi_per_programma({*states, *seats}, indice)
+    comparse = software_nuovo.prime_comparse(indice)
+    soglia_nuovo = timezone.now() - timedelta(days=software_nuovo.giorni())
     rows = []
     for item in sc.catalog():
         key = item["key"]
@@ -119,8 +123,10 @@ def catalog_rows(*, with_cve: bool, today=None) -> list[dict]:
         member_states = [states[m] for m in members if m in states]
         license_state = "coperta" if "coperta" in member_states else (member_states[0] if member_states else "")
         member_seats = sum(seats.get(m, 0) for m in members) or None
+        comparso = comparse.get(key)
         rows.append({
             "key": key,
+            "nuovo_dal": comparso if comparso and comparso >= soglia_nuovo and classification == SoftwareCatalogEntry.CLASS_UNREVIEWED else None,
             "url": _detail_url(key),
             "name": nome_programma(entry.display_name) if entry and entry.display_name and not item.get("separato") else item["label"],
             "vendor": (entry.vendor_name if entry and entry.vendor_name else item["vendor_label"]),
@@ -159,6 +165,8 @@ def _filter(rows: list[dict], code: str, q: str) -> list[dict]:
         rows = [r for r in rows if all(p in _compatto(f"{r['name']} {r['vendor'] or ''} {r.get('cerca', '')}") for p in parole)]
     if code in {"da_classificare", "non_autorizzato", "da_rimuovere"}:
         return [r for r in rows if r["classification"] == code]
+    if code == "nuovi":
+        return [r for r in rows if r["nuovo_dal"]]
     if code == "senza_licenza":
         return [r for r in rows if r["paid_without_license"]]
     if code == "vecchi":

@@ -419,6 +419,10 @@ GUIDA = {
                 ("p", "La Panoramica dell'asset, per chi vede il SOC, ha il riquadro «Rischio»: alto per CVE gravi o sfruttate e sistema fuori supporto; "
                       "medio per altre CVE, supporto in scadenza entro 90 giorni, backup fallito o vecchio, server senza backup. "
                       "«Nessun problema noto» non vuol dire al sicuro: sotto dice quanti programmi non sono controllati."),
+                ("p", "Nel Catalogo software l'etichetta «nuovo dal gg/mm» e il filtro «Nuovi» segnano i programmi comparsi per la prima "
+                      "volta negli ultimi 14 giorni e ancora senza decisione: il SOC apre un alert per programma, che si chiude quando lo "
+                      "classifichi. In Dispositivi del SOC «Apri il piano di aggiornamento» crea un caso con un'attività per ogni PC con "
+                      "Windows fuori supporto o in scadenza; le attività si spuntano da sole quando il PC passa a una release supportata."),
             ],
         },
         {

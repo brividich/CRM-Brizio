@@ -40,13 +40,20 @@
   <div class="sec-section-head"><h2>Tempi di correzione (ISO 27001 8.8, ultimi {{ termini.giorni }} giorni)</h2><span class="sec-small"><a href="{% url 'security:accettazioni_rischio' %}">Rischi accettati</a> · <a href="{% url "security:doc_detail" "12-automatismi-e-vulnerabilita" %}#tempi-di-correzione">Guida</a></span></div>
   <p class="sec-small">
     PC corretti nel termine: <strong>{% if termini.percentuale_in_tempo is not None %}{{ termini.percentuale_in_tempo }}%{% else %}—{% endif %}</strong> ({{ termini.in_tempo }} su {{ termini.corrette }}) ·
-    esposizioni aperte {{ termini.aperte }}, di cui <strong>{{ termini.aperte_scadute|length }} oltre il termine</strong>{% if termini.accettate %}, {{ termini.accettate }} con rischio accettato{% endif %}.
+    esposizioni aperte {{ termini.aperte }}, di cui <strong>{{ termini.aperte_scadute|length }} oltre il termine</strong>{% if termini.accettate %}, {{ termini.accettate }} con rischio accettato{% endif %} ·
+    giorni mediani da «esposto dal» alla correzione: <strong>{% if termini.giorni_mediani is not None %}{{ termini.giorni_mediani }}{% else %}—{% endif %}</strong>.
+  </p>
+  <p class="sec-small sec-muted" title="Stesso calcolo sui {{ termini.giorni }} giorni prima di questi: dal {{ termini.prima.dal|date:'d/m/Y' }} al {{ termini.prima.al|date:'d/m/Y' }}">
+    Rispetto ai {{ termini.giorni }} giorni precedenti ({{ termini.prima.corrette }} PC corretti, {% if termini.prima.percentuale_in_tempo is not None %}{{ termini.prima.percentuale_in_tempo }}% nel termine{% else %}nessuno{% endif %}{% if termini.prima.giorni_mediani is not None %}, mediana {{ termini.prima.giorni_mediani }} giorni{% endif %}):
+    {% if termini.differenze.percentuale_in_tempo is not None %}{% if termini.differenze.percentuale_in_tempo > 0 %}<span class="sec-badge ok">nel termine +{{ termini.differenze.percentuale_in_tempo }} punti</span>{% elif termini.differenze.percentuale_in_tempo < 0 %}<span class="sec-badge warning">nel termine {{ termini.differenze.percentuale_in_tempo }} punti</span>{% else %}<span class="sec-badge">nel termine uguale</span>{% endif %}{% endif %}
+    {% if termini.differenze.giorni_mediani is not None %}{% if termini.differenze.giorni_mediani < 0 %}<span class="sec-badge ok">mediana {{ termini.differenze.giorni_mediani }} giorni</span>{% elif termini.differenze.giorni_mediani > 0 %}<span class="sec-badge warning">mediana +{{ termini.differenze.giorni_mediani }} giorni</span>{% else %}<span class="sec-badge">mediana uguale</span>{% endif %}{% endif %}
+    {% if termini.differenze.percentuale_in_tempo is None and termini.differenze.giorni_mediani is None %}non confrontabile: in uno dei due periodi non ci sono correzioni.{% endif %}
     {% if not termini.attivo %}<span class="sec-badge warning">Segnalazione oltre il termine spenta</span>{% endif %}
   </p>
   <div class="sec-table-wrap">
     <table class="sec-table sec-table-compact" data-fm-table-skip="1">
-      <thead><tr><th>Classe</th><th class="sec-num">Termine</th><th class="sec-num">Corrette</th><th class="sec-num">Nel termine</th><th class="sec-num">In ritardo</th><th class="sec-num">Aperte</th><th class="sec-num">Oltre il termine</th></tr></thead>
-      <tbody>{% for c in termini.classi %}<tr><td>{{ c.etichetta }}</td><td class="sec-num">{{ c.giorni }} gg</td><td class="sec-num">{{ c.corrette }}</td><td class="sec-num">{{ c.in_tempo }}</td><td class="sec-num">{{ c.in_ritardo }}</td><td class="sec-num">{{ c.aperte }}</td><td class="sec-num">{% if c.aperte_scadute %}<strong>{{ c.aperte_scadute }}</strong>{% else %}0{% endif %}</td></tr>{% endfor %}</tbody>
+      <thead><tr><th>Classe</th><th class="sec-num">Termine</th><th class="sec-num">Corrette</th><th class="sec-num">Nel termine</th><th class="sec-num">In ritardo</th><th class="sec-num" title="Metà dei PC corretti ci ha messo meno di così">Mediana</th><th class="sec-num">Aperte</th><th class="sec-num">Oltre il termine</th></tr></thead>
+      <tbody>{% for c in termini.classi %}<tr><td>{{ c.etichetta }}</td><td class="sec-num">{{ c.giorni }} gg</td><td class="sec-num">{{ c.corrette }}</td><td class="sec-num">{{ c.in_tempo }}</td><td class="sec-num">{{ c.in_ritardo }}</td><td class="sec-num">{% if c.giorni_mediani is not None %}{{ c.giorni_mediani }} gg{% else %}—{% endif %}</td><td class="sec-num">{{ c.aperte }}</td><td class="sec-num">{% if c.aperte_scadute %}<strong>{{ c.aperte_scadute }}</strong>{% else %}0{% endif %}</td></tr>{% endfor %}</tbody>
     </table>
   </div>
   {% if termini.aperte_scadute %}

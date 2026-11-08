@@ -22,6 +22,7 @@ FILTRI = [
     ("senza_edr", "Senza WatchGuard"),
     ("senza_backup", "Senza backup"),
     ("sistema_fuori", "Sistema fuori supporto"),
+    ("sistema_in_scadenza", "Supporto in scadenza"),
 ]
 
 
@@ -126,6 +127,8 @@ def filtra(rows, codice):
         return [r for r in rows if not r["backup"]]
     if codice == "sistema_fuori":
         return [r for r in rows if r.get("sistema") and r["sistema"]["fuori"]]
+    if codice == "sistema_in_scadenza":
+        return [r for r in rows if r.get("sistema") and r["sistema"]["in_scadenza"]]
     return rows
 
 

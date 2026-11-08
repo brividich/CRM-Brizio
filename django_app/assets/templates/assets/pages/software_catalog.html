@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", function () {
       {% for row in rows %}
         <tr>
           {% if can_edit %}<td><input type="checkbox" name="k" value="{{ row.key }}" form="sc-blocco" class="sc-scelta" aria-label="Seleziona {{ row.name }}"></td>{% endif %}
-          <td><a href="{{ row.url }}"><strong>{{ row.name }}</strong></a><br><span class="sc-meta">{{ row.vendor|default:"produttore n/d" }}{% if row.names > 1 %} · {{ row.names }} nomi raggruppati{% endif %}</span>{% if row.cerca %}<span hidden>{{ row.cerca }}</span>{% endif %}</td>
+          <td><a href="{{ row.url }}"><strong>{{ row.name }}</strong></a>{% if row.nuovo_dal %} <span class="sc-tag sc-tag--warn" title="Mai visto prima del {{ row.nuovo_dal|date:'d/m/Y' }} e ancora senza decisione">nuovo dal {{ row.nuovo_dal|date:"d/m" }}</span>{% endif %}<br><span class="sc-meta">{{ row.vendor|default:"produttore n/d" }}{% if row.names > 1 %} · {{ row.names }} nomi raggruppati{% endif %}</span>{% if row.cerca %}<span hidden>{{ row.cerca }}</span>{% endif %}</td>
           <td>{{ row.hosts }}</td>
           <td>{{ row.versions }}</td>
           <td><span class="sc-tag {% if row.classification == 'consentito' %}sc-tag--ok{% elif row.classification == 'non_autorizzato' %}sc-tag--danger{% elif row.classification == 'da_rimuovere' %}sc-tag--warn{% else %}sc-tag--muted{% endif %}">{{ row.classification_label }}</span>{% if row.da_regola %}<br><span class="sc-meta">da regola</span>{% endif %}</td>

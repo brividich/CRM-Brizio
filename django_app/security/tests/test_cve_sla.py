@@ -122,8 +122,25 @@ class ScaduteERiepilogoTests(_Base):
                          (2, 1, 1, 2, 1))
         self.assertEqual(critica["giorni"], 15)
         self.assertEqual(dati["percentuale_in_tempo"], 50)
+        self.assertEqual(critica["giorni_mediani"], 24.0)  # mediana di 9 e 39 giorni
+        self.assertEqual(dati["giorni_mediani"], 24.0)
         self.assertEqual([v["host"] for v in dati["aperte_scadute"]], ["pc-sla-02"])
         self.assertIsNone(cve_sla.riepilogo(oggi - timedelta(days=400), oggi - timedelta(days=300))["percentuale_in_tempo"])
+
+
+    def test_andamento_confronta_con_il_periodo_prima(self):
+        ora = timezone.now()
+        SecurityCveRisoluzione.objects.create(cve=self.record, host="pc-a", come=SecurityCveRisoluzione.AGGIORNATO,
+                                              aperta_dal=ora - timedelta(days=12), risolta_il=ora - timedelta(days=2))
+        SecurityCveRisoluzione.objects.create(cve=self.record, host="pc-b", come=SecurityCveRisoluzione.AGGIORNATO,
+                                              aperta_dal=ora - timedelta(days=160), risolta_il=ora - timedelta(days=120))
+        dati = cve_sla.andamento(90)
+        self.assertEqual((dati["adesso"]["corrette"], dati["prima"]["corrette"]), (1, 1))
+        self.assertEqual(dati["differenze"]["percentuale_in_tempo"], 100)  # 10 giorni nel termine, 40 fuori
+        self.assertEqual(dati["differenze"]["giorni_mediani"], -30.0)
+        self.assertEqual(dati["differenze"]["corrette"], 0)
+        vuoto = cve_sla.andamento(5)
+        self.assertIsNone(vuoto["differenze"]["percentuale_in_tempo"])
 
 
 class AutomatismoTerminiTests(_Base):

@@ -398,6 +398,13 @@ def recompute_all(today=None):
 
             evaluate_security_rules()
         try:
+            # Il piano di aggiornamento Windows segue lo stesso inventario: PC aggiornati = attività spuntate.
+            from security.services import windows_lavoro
+
+            windows_lavoro.aggiorna(today)
+        except Exception:  # noqa: BLE001 - il caso è un di più: il ricalcolo non deve fallire per lui
+            logger.exception("Aggiornamento del piano Windows non riuscito")
+        try:
             # Chiusura con prove degli alert «PC con versione vulnerabile» (regola cve_impatto_risolto).
             from security.services.auto_resolution import run_cve_impatto_risolto
 
