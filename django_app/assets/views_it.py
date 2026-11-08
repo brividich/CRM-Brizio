@@ -275,8 +275,10 @@ def it_reconciliation(request: HttpRequest) -> HttpResponse:
     view = request.GET.get("vista") or "proposte"
     shown = [r for r in rows if (r["asset"] is not None) == (view == "proposte")]
     da_spiegare, spiegati = _senza_inventario()
+    from .services import hardware_vita
     from .views import _assets_shell_context
 
+    fine_vita = hardware_vita.elenco()
     return render(request, "assets/pages/it_reconciliation.html", {
         **_assets_shell_context(request),
         "page_title": "Riconciliazione dispositivi IT",
@@ -286,4 +288,8 @@ def it_reconciliation(request: HttpRequest) -> HttpResponse:
         "da_spiegare": da_spiegare,
         "spiegati": spiegati,
         "motivi": AssetSenzaInventario.MOTIVO_CHOICES,
+        "fine_vita": fine_vita,
+        "fine_vita_conteggi": hardware_vita.conteggi(fine_vita),
+        "fine_vita_soglie": {"sostituzione": hardware_vita.ETA_SOSTITUZIONE, "pianifica": hardware_vita.ETA_PIANIFICA,
+                             "ram": hardware_vita.RAM_MINIMA_GB, "disco": hardware_vita.DISCO_PIENO_PCT, "guasti": hardware_vita.GUASTI_SOGLIA},
     })

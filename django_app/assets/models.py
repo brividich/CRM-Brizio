@@ -103,6 +103,7 @@ class Asset(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_IN_USE)
     purchase_date = models.DateField(null=True, blank=True)
     production_date = models.DateField(null=True, blank=True)
+    warranty_end = models.DateField(null=True, blank=True, verbose_name="Fine garanzia")
     notes = models.TextField(blank=True, default="")
     foto_targhetta = models.ImageField(
         upload_to="assets/targhette/",
@@ -1810,6 +1811,47 @@ class SoftwareProduttoreConsentito(models.Model):
 
     def __str__(self) -> str:
         return self.etichetta or self.produttore
+
+
+class SoftwareDotazioneAttesa(models.Model):
+    """«Questi PC devono avere questo programma»: la dotazione attesa, da confrontare con l'inventario.
+
+    ``programma`` è la chiave canonica del Catalogo software (``vendor|product``): vale per tutti i nomi e le
+    release dello stesso programma. L'ambito è il tipo di asset (PC e notebook, server, tutti) con un reparto
+    opzionale. I PC senza inventario non contano: non si sa cosa hanno (stanno in «PC e server senza inventario»).
+    """
+
+    AMBITO_PC = "pc"
+    AMBITO_SERVER = "server"
+    AMBITO_TUTTI = "tutti"
+    AMBITO_CHOICES = [(AMBITO_PC, "PC e notebook"), (AMBITO_SERVER, "Server"), (AMBITO_TUTTI, "PC, notebook e server")]
+    TIPI_PER_AMBITO = {
+        AMBITO_PC: (Asset.TYPE_PC, Asset.TYPE_NOTEBOOK),
+        AMBITO_SERVER: (Asset.TYPE_SERVER,),
+        AMBITO_TUTTI: (Asset.TYPE_PC, Asset.TYPE_NOTEBOOK, Asset.TYPE_SERVER),
+    }
+
+    programma = models.CharField(max_length=300)
+    etichetta = models.CharField(max_length=255, blank=True, default="")
+    ambito = models.CharField(max_length=10, choices=AMBITO_CHOICES, default=AMBITO_PC)
+    reparto = models.CharField(max_length=120, blank=True, default="", help_text="Vuoto = tutti i reparti.")
+    nota = models.CharField(max_length=255, blank=True, default="")
+    creato_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    creato_il = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["etichetta", "programma", "ambito", "reparto"]
+        constraints = [models.UniqueConstraint(fields=["programma", "ambito", "reparto"], name="uniq_software_dotazione_attesa")]
+        verbose_name = "Dotazione software attesa"
+        verbose_name_plural = "Dotazioni software attese"
+
+    def __str__(self) -> str:
+        dove = self.get_ambito_display() + (f" del reparto {self.reparto}" if self.reparto else "")
+        return f"{self.etichetta or self.programma} su {dove}"
+
+    @property
+    def tipi(self):
+        return self.TIPI_PER_AMBITO.get(self.ambito, self.TIPI_PER_AMBITO[self.AMBITO_PC])
 
 
 class WorkMachine(models.Model):

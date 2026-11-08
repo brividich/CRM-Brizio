@@ -71,5 +71,5 @@ class CatalogoTests(TestCase):
         _sw("pc-01", "acme", "old tool", giorni_fa=60)
         risposta = self.client.get(reverse("assets:software_catalog") + "?f=nuovi")
         self.assertContains(risposta, "nuovo dal")
-        self.assertContains(risposta, "Fresh Tool")
-        self.assertNotContains(risposta, "Old Tool")
+        self.assertContains(risposta, "Seleziona Fresh Tool")
+        self.assertNotContains(risposta, "Seleziona Old Tool")  # fuori dal filtro (resta solo nella scelta della dotazione)

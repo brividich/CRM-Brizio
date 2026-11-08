@@ -398,6 +398,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "status",
             "purchase_date",
             "production_date",
+            "warranty_end",
             "assignment_to",
             "assignment_reparto",
             "assignment_location",
@@ -417,6 +418,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "status": "Stato",
             "purchase_date": "Data acquisto",
             "production_date": "Data fabbricazione",
+            "warranty_end": "Fine garanzia",
             "assignment_to": "Assegnato a",
             "assignment_reparto": "Reparto assegnazione",
             "assignment_location": "Posizione assegnazione",
@@ -428,6 +430,7 @@ class AssetForm(AssetAssignmentChooserMixin, AssetCategoryFieldMixin, forms.Mode
             "notes": forms.Textarea(attrs={"rows": 4}),
             "purchase_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "production_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "warranty_end": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "foto_targhetta": forms.ClearableFileInput(attrs={"accept": "image/*"}),
         }
 

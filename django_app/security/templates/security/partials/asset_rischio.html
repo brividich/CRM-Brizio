@@ -11,6 +11,8 @@
   </div>
   {% if r.alti or r.medi %}<ul class="af-note">{% for m in r.alti %}<li><strong>{{ m }}</strong></li>{% endfor %}{% for m in r.medi %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}
   {% if r.note %}<p class="af-note">Da tenere presente: {{ r.note|join:"; " }}.</p>{% endif %}
+  {% if r.hardware and r.hardware.giudizio != "non_valutabile" %}<p class="af-note"><strong>Hardware: {{ r.hardware.etichetta|lower }}</strong>{% if r.hardware.eta is not None %} · {{ r.hardware.eta|floatformat:1 }} anni{% endif %}{% if r.hardware.garanzia %} · garanzia fino al {{ r.hardware.garanzia|date:"d/m/Y" }}{% endif %}{% if r.hardware.ram_gb is not None %} · {{ r.hardware.ram_gb|floatformat:0 }} GB RAM{% endif %}{% if r.hardware.disco_pct is not None %} · disco al {{ r.hardware.disco_pct }}%{% endif %}{% if r.hardware.guasti %} · {{ r.hardware.guasti }} ticket in 12 mesi{% endif %}. <a href="{% url 'assets:it_reconciliation' %}?vista=fine_vita">Hardware a fine vita</a></p>{% endif %}
+  {% if r.admin and r.admin.account %}<p class="af-note"><strong>Amministratori negli ultimi {{ r.admin.giorni }} giorni:</strong> {% for a in r.admin.account %}{{ a.sam }} ({{ a.accessi }}{% if a.gruppi %}, {{ a.gruppi|join:", " }}{% endif %}{% if a.cessato %}, persona cessata{% endif %}){% if not forloop.last %}; {% endif %}{% endfor %}. <a href="{% url 'security:registro_log_account' %}?q={{ r.admin.account.0.sam|urlencode }}">Account AD</a></p>{% endif %}
   <p class="af-note"><a href="{% url 'assets:guida' %}#catalogo">? Come si calcola</a></p>
 </section>
 {% endif %}

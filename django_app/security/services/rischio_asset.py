@@ -1,7 +1,8 @@
-"""Il rischio di un PC o server in una riga: CVE, sistema operativo, backup, con il motivo di ogni giudizio.
+"""Il rischio di un PC o server in una riga: CVE, sistema operativo, backup, dotazione, amministratori, hardware.
 
 Niente punteggio: un livello e l'elenco dei motivi, così si capisce da dove viene e cosa fare. I numeri
-vengono dalle stesse funzioni delle altre pagine (``cve_pannello``, ``software_catalog``).
+vengono dalle stesse funzioni delle altre pagine (``cve_pannello``, ``software_catalog``, ``software_dotazione``,
+``accessi_admin``, ``hardware_vita``).
 
 Fine del supporto: ``windows_build.BUILD_RELEASE`` tiene la data più lunga (LTSC, ESU), che serve a non
 escludere CVE. Qui serve la data che vale davvero per il PC, quindi Home e Pro hanno la propria.
@@ -124,8 +125,57 @@ def valuta(asset, oggi=None):
         note.append(f"{dati['da_verificare']} CVE da verificare")
     if copertura["non_controllati"]:
         note.append(f"programmi non controllati per le CVE: {copertura['non_controllati']} su {copertura['programmi']}")
+    dotazione = _dotazione(asset)
+    if dotazione:
+        medi.append("manca dalla dotazione attesa: " + ", ".join(dotazione))
+    admin = _amministratori(asset)
+    if admin and admin["accessi"]:
+        nomi = ", ".join(a["sam"] for a in admin["account"][:4]) + (" e altri" if len(admin["account"]) > 4 else "")
+        cessati = [a["sam"] for a in admin["account"] if a["cessato"]]
+        if cessati:
+            alti.append(f"accessi con l'account di una persona cessata: {', '.join(cessati)}")
+        testo = f"{admin['accessi']} accessi di account amministratore negli ultimi {admin['giorni']} giorni ({nomi})"
+        if asset.asset_type == Asset.TYPE_SERVER:
+            note.append(testo)
+        else:
+            medi.append(testo + ": le credenziali di dominio restano in memoria sul PC")
+        if any(a["password_non_scade"] for a in admin["account"]):
+            note.append("fra questi, account con password che non scade: " + ", ".join(a["sam"] for a in admin["account"] if a["password_non_scade"]))
+    hardware = _hardware(asset, oggi)
+    if hardware and hardware["giudizio"] == "sostituire":
+        medi.append("hardware da sostituire: " + ", ".join(hardware["motivi"]))
+    elif hardware and hardware["giudizio"] == "pianificare":
+        note.append("sostituzione da pianificare: " + ", ".join(hardware["motivi"]))
     livello = ALTO if alti else MEDIO if medi else NESSUNO if installazioni else NON_VALUTABILE
     return {
         "livello": livello, "etichetta": ETICHETTE[livello], "alti": alti, "medi": medi, "note": note, "cve": dati["colpiscono"],
         "gravi": dati["gravi"], "sistema": sistema, "backup": backup, "backup_data": backup_data,
+        "dotazione": dotazione, "admin": admin, "hardware": hardware,
     }
+
+
+def _dotazione(asset):
+    try:
+        from assets.services.software_dotazione import mancanti_per_asset
+
+        return mancanti_per_asset(asset)
+    except Exception:  # noqa: BLE001 - un pezzo del riquadro, non il riquadro
+        return []
+
+
+def _amministratori(asset):
+    try:
+        from security.services.accessi_admin import per_asset
+
+        return per_asset(asset)
+    except Exception:  # noqa: BLE001 - senza Registro log il riquadro resta leggibile
+        return None
+
+
+def _hardware(asset, oggi):
+    try:
+        from assets.services.hardware_vita import valuta as hw
+
+        return hw(asset, oggi)
+    except Exception:  # noqa: BLE001
+        return None
