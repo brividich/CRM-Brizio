@@ -1490,6 +1490,14 @@ def formazione_corso_detail(request, corso_id: int):
     versioni = list(
         TrainingCourseVersion.objects.filter(corso=corso).order_by("-created_at")
     )
+    # Mansioni che chiedono il corso tramite una competenza (requisito formale):
+    # stessa informazione della scheda mansione, vista dal lato del corso.
+    from ..models_skillmatrix import VoceMacchinaCatalogo
+    mansioni_da_competenze: dict[int, dict] = {}
+    for v in (VoceMacchinaCatalogo.objects.filter(corso=corso, mansione__isnull=False, mansione__attiva=True)
+              .select_related("mansione").order_by("mansione__display", "nome")):
+        voce = mansioni_da_competenze.setdefault(v.mansione_id, {"mansione": v.mansione, "competenze": []})
+        voce["competenze"].append(v.nome)
     regole = list(
         TrainingRequirementRule.objects.filter(corso=corso, is_active=True)
         .select_related("mansione", "area", "ruolo_operativo", "competenza")
@@ -1615,6 +1623,7 @@ def formazione_corso_detail(request, corso_id: int):
         "programma": list(corso.programma.all()),
         "moduli": moduli,
         "versioni": versioni,
+        "mansioni_da_competenze": list(mansioni_da_competenze.values()),
         "regole": regole,
         "completion_rule": completion_rule,
         "n_sessioni": n_sessioni,
@@ -1957,6 +1966,21 @@ def formazione_corso_req_rule_add(request, corso_id: int):
             for err in field_errors:
                 messages.error(request, err)
     return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+
+
+@login_required
+@require_POST
+def formazione_corso_req_rule_tipo(request, corso_id: int, rule_id: int):
+    """Obbligatorio ↔ consigliato dalla scheda corso (stessa regola della scheda mansione)."""
+    if not _helpers._can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per modificare corsi formativi.")
+        return redirect("anagrafica:formazione_corso_detail", corso_id=corso_id)
+    rule = get_object_or_404(TrainingRequirementRule, pk=rule_id, corso_id=corso_id)
+    rule.is_mandatory = request.POST.get("tipo") != "consigliato"
+    rule.save(update_fields=["is_mandatory"])
+    messages.success(request, "Collegamento ora " + ("obbligatorio: entra in scadenzario e copertura."
+                                                     if rule.is_mandatory else "consigliato: proposta senza scadenze."))
+    return redirect(f"{reverse('anagrafica:formazione_corso_detail', args=[corso_id])}#panoramica")
 
 
 @login_required

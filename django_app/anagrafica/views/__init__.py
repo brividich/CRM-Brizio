@@ -316,6 +316,7 @@ from .formazione import (
     formazione_corso_report_iscritti_csv,
     formazione_corso_req_rule_add,
     formazione_corso_req_rule_delete,
+    formazione_corso_req_rule_tipo,
     formazione_corso_version_add,
     formazione_corso_version_delete,
     formazione_dashboard,

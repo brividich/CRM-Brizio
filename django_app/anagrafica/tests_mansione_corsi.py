@@ -175,3 +175,35 @@ class CorsoAChiServeTests(TestCase):
         body = self.client.get(reverse("anagrafica:mansionario_mansione", args=[self.m2.pk])).content.decode()
         self.assertIn(corso.titolo, body)
         self.assertIn("consigliato", body)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class SchedaCorsoAChiServeTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser("sca_admin", "sca@example.invalid", "x")
+        self.client.force_login(self.admin)
+        self.m = CompetenzaSkm.objects.create(competenza_key="P-SC", display="Verniciatura", tipo=CompetenzaSkm.TIPO_PROCESSO)
+        piano = TrainingPlan.objects.create(codice="P-SC", nome="Piano sintetico")
+        self.corso = TrainingCourse.objects.create(piano=piano, codice="C-SC", titolo="Vernici sicure",
+                                                   durata_ore_teorica=4, is_active=True)
+
+    def test_cambia_tipo_dalla_scheda_corso(self):
+        r = TrainingRequirementRule.objects.create(corso=self.corso, competenza=self.m, is_mandatory=True)
+        url = reverse("anagrafica:formazione_corso_detail", args=[self.corso.pk])
+        self.assertIn("Rendi consigliato", self.client.get(url).content.decode())
+        self.client.post(reverse("anagrafica:formazione_corso_req_rule_tipo", args=[self.corso.pk, r.pk]),
+                         {"tipo": "consigliato"})
+        r.refresh_from_db()
+        self.assertFalse(r.is_mandatory)
+        self.assertIn("Rendi obbligatorio", self.client.get(url).content.decode())
+
+    def test_mansioni_da_competenza_visibili_sul_corso(self):
+        from .models_skillmatrix import VoceMacchinaCatalogo
+        VoceMacchinaCatalogo.objects.create(mansione=self.m, nome="Verniciatura a spruzzo", corso=self.corso)
+        body = self.client.get(reverse("anagrafica:formazione_corso_detail", args=[self.corso.pk])).content.decode()
+        self.assertIn("Richiesto anche come requisito di una competenza", body)
+        self.assertIn("Verniciatura a spruzzo", body)

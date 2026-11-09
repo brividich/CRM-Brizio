@@ -95,7 +95,7 @@
           <thead>
             <tr>
               <th>Collegato a</th>
-              <th>Obbligatorio</th>
+              <th>Come</th>
               <th>Note</th>
               <th class="nowrap"></th>
             </tr>
@@ -112,7 +112,15 @@
                   <span class="muted">Dip.</span> {% if r.dipendente_nome %}{{ r.dipendente_nome|upper }}{% else %}#{{ r.legacy_anagrafica_id }}{% endif %}
                 {% endif %}
               </td>
-              <td>{% if r.is_mandatory %}<span class="fm-pill fm-pill-enrolled">Sì</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+              <td class="nowrap">
+                {% if r.is_mandatory %}<span class="fmd-badge fmd-b-orange">obbligatorio</span>{% else %}<span class="fmd-badge fmd-b-cyan">consigliato</span>{% endif %}
+                {% if is_editor %}
+                <form method="post" action="{% url 'anagrafica:formazione_corso_req_rule_tipo' corso.pk r.pk %}" class="fmd-act-form">
+                  {% csrf_token %}<input type="hidden" name="tipo" value="{% if r.is_mandatory %}consigliato{% else %}obbligatorio{% endif %}">
+                  <button type="submit" class="fmd-act fmd-act-ghost" title="{% if r.is_mandatory %}Non genera più scadenze: resta come proposta{% else %}Entra in scadenzario e copertura{% endif %}">{% if r.is_mandatory %}Rendi consigliato{% else %}Rendi obbligatorio{% endif %}</button>
+                </form>
+                {% endif %}
+              </td>
               <td class="muted">{{ r.note|truncatechars:40|default:"—" }}</td>
               <td class="nowrap">
                 {% if is_editor %}
@@ -131,6 +139,16 @@
         </div>
         {% else %}
         <div class="fm-empty">Non ancora collegato a nessuno: il corso non risulta obbligatorio, quindi non entra in scadenzario, copertura e onboarding.</div>
+        {% endif %}
+        {% if mansioni_da_competenze %}
+        <div style="padding:8px 16px 0;font-size:12px;">
+          <div class="muted" style="margin-bottom:4px;">Richiesto anche come requisito di una competenza (blocca il livello oltre «I» finché manca):</div>
+          <ul style="margin:0;padding-left:18px;">
+            {% for m in mansioni_da_competenze %}
+            <li><a class="fm-link" href="{% url 'anagrafica:mansionario_mansione' m.mansione.pk %}#formazione">{{ m.mansione.display|default:m.mansione.competenza_key }}</a> <span class="muted">· {{ m.competenze|join:", " }}</span></li>
+            {% endfor %}
+          </ul>
+        </div>
         {% endif %}
         {% if is_editor %}
         <div style="padding:10px 16px;">

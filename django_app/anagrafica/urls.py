@@ -552,6 +552,7 @@ urlpatterns = [
     # Regole obbligatorietà
     path("formazione/corsi/<int:corso_id>/regole-obbligo/add", views.formazione_corso_req_rule_add, name="formazione_corso_req_rule_add"),
     path("formazione/corsi/<int:corso_id>/regole-obbligo/<int:rule_id>/rimuovi", views.formazione_corso_req_rule_delete, name="formazione_corso_req_rule_delete"),
+    path("formazione/corsi/<int:corso_id>/regole-obbligo/<int:rule_id>/tipo", views.formazione_corso_req_rule_tipo, name="formazione_corso_req_rule_tipo"),
     # Assegnazione dipendenti al corso (TrainingAssignment) — primo anello corso→sessione
     path("formazione/corsi/<int:corso_id>/assegna", views.formazione_corso_assegna, name="formazione_corso_assegna"),
     # Completamento registrato senza sessione (corso frequentato altrove / storico)
