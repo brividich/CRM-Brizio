@@ -728,8 +728,6 @@ Guida completa: [`deployment/README_DEPLOY_IIS_WINDOWS.md`](deployment/README_DE
 
 `deployment\scripts\package-release.ps1` esporta il **branch di release** (`release/prod` di default, `-Branch` per cambiarlo), **non** la cartella di lavoro: il codice non committato non finisce mai in un pacchetto.
 
-`-SourcePath` impacchetta una cartella e richiede `-Force`; il release guard blocca anche le vulnerabilità note delle dipendenze (pip-audit), salvo `-AllowVulnerabilities` motivato nella RFC. Modelli e registro del processo di rilascio (RFC MOD.172, collaudo, go-live, riesame): [docs/release/README.md](docs/release/README.md).
-
 Il percorso obbligatorio di integrazione è **feature → main → release/prod**: prima integrare e verificare in `main`, poi promuovere `main` nella release. Non integrare feature direttamente in `release/prod`.
 
 Un **pre-flight** lo rende esplicito invece di lasciarlo scoprire al deploy:
@@ -738,7 +736,7 @@ Un **pre-flight** lo rende esplicito invece di lasciarlo scoprire al deploy:
 - **commit assenti dal branch di export** (`git rev-list --count release/prod..HEAD`) → `exit 1`, elencandoli: esistono, ma il pacchetto non li conterrà;
 - `-FromWorkingTree` richiede `-Force` (emergenza, non scorciatoia); `-Force` bypassa entrambi i controlli.
 
-Ogni pacchetto contiene un **`BUILD_INFO.json`** alla radice (commit e branch effettivamente esportati, data, autore, `source: branch | working-tree | folder`, `delta_vs_export_branch`). Il portale lo legge a runtime e ne mostra il contenuto in **Centrale di comando** (`/admin-portale/monitoring/status/`), con banner rosso se il pacchetto non corrisponde a un commit pulito. In sviluppo (`DEBUG=True`) un badge in alto a destra tiene sotto gli occhi i file non committati e i commit non ancora in `release/prod`.
+Ogni pacchetto contiene un **`BUILD_INFO.json`** alla radice (commit e branch effettivamente esportati, data, autore, `source: branch | working-tree`, `delta_vs_export_branch`). Il portale lo legge a runtime e ne mostra il contenuto in **Centrale di comando** (`/admin-portale/monitoring/status/`), con banner rosso se il pacchetto non corrisponde a un commit pulito. In sviluppo (`DEBUG=True`) un badge in alto a destra tiene sotto gli occhi i file non committati e i commit non ancora in `release/prod`.
 
 ---
 
