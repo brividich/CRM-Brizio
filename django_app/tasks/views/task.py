@@ -811,6 +811,16 @@ def task_create(request):
     )
 
 
+def _blocca_priorita(request, task, form) -> None:
+    """Stessa regola del Gantt: la priorità la cambiano il responsabile del kickoff e chi ha creato l'attività."""
+    from ..access import can_set_task_priority
+
+    campo = form.fields.get("priority")
+    if campo is not None and not can_set_task_priority(request, task):
+        campo.disabled = True
+        campo.help_text = "La cambiano il responsabile del kickoff e chi ha creato l'attività."
+
+
 @task_permissions_required("tasks_view")
 def task_edit(request, task_id: int):
     task = get_object_or_404(scoped_tasks_queryset(request).prefetch_related("subscribers"), pk=task_id)
@@ -826,6 +836,7 @@ def task_edit(request, task_id: int):
 
     if request.method == "POST":
         form = TaskForm(request.POST, instance=task, user=request.user, project_queryset=projects_qs)
+        _blocca_priorita(request, task, form)
         if form.is_valid():
             updated_task = form.save(commit=False)
             updated_task.project = form.resolve_project(created_by=request.user)
@@ -910,6 +921,7 @@ def task_edit(request, task_id: int):
             return redirect("tasks:detail", task_id=updated_task.id)
     else:
         form = TaskForm(instance=task, user=request.user, project_queryset=projects_qs)
+        _blocca_priorita(request, task, form)
 
     return render(
         request,

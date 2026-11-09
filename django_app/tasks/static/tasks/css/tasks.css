@@ -3396,7 +3396,7 @@ body.theme-dark .md-docbar .md-btn.white:hover { background: rgba(147,197,253,.1
 
   .quick-edit-row {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 80px auto;
+    grid-template-columns: 1fr 1fr 1fr 118px 110px auto;
     gap: 8px;
     align-items: end;
   }
@@ -3513,7 +3513,6 @@ body.theme-dark .md-docbar .md-btn.white:hover { background: rgba(147,197,253,.1
     .g-health-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .quick-edit-row { grid-template-columns: 1fr 1fr; }
     .quick-edit-row > div:last-child { grid-column: 1 / -1; }
-    .quick-edit-row > div:nth-child(4) { grid-column: 1 / 3; }
   }
 
   body.theme-dark .g-vrf-banner.blocked { background:rgba(153,27,27,.15); border-color:rgba(252,165,165,.2); color:#fca5a5; }
@@ -3592,6 +3591,26 @@ body.theme-dark .md-docbar .md-btn.white:hover { background: rgba(147,197,253,.1
             .ts-gantt-cm .glg-meet, .ts-gantt-cm .glg-mile { display:inline-block; width:11px; height:11px; margin-right:5px; vertical-align:-1px; }
             .ts-gantt-cm .glg-meet { border-radius:50%; background:#7c3aed; }
             .ts-gantt-cm .glg-mile { background:#0ea5e9; transform:rotate(45deg); border-radius:2px; }
+            /* Ordine, priorità, dipendenze e sovrapposizioni sulla riga (09/11/2026) */
+            .ts-gantt-cm .grow.gbody .gmac { position:sticky; }
+            .ts-gantt-cm .gord { float:right; display:flex; flex-direction:column; gap:1px; margin:-2px -6px 0 6px; }
+            .ts-gantt-cm .gord button { width:20px; height:16px; padding:0; font-size:.55rem; line-height:1; border:1px solid var(--border); border-radius:4px; background:var(--surface); color:var(--text-light); cursor:pointer; }
+            .ts-gantt-cm .gord button:hover:not(:disabled) { background:var(--primary); color:#fff; border-color:var(--primary); }
+            .ts-gantt-cm .gord button:disabled { opacity:.3; cursor:default; }
+            .ts-gantt-cm .gprio { display:inline-block; font-size:.58rem; font-weight:800; padding:0 5px; border-radius:999px; vertical-align:1px; }
+            .ts-gantt-cm .gprio--alta { background:#fee2e2; color:#991b1b; }
+            .ts-gantt-cm .gprio--bassa { background:var(--surface-alt, #f1f5f9); color:var(--text-light); }
+            .ts-gantt-cm .gmac small.gmac-rel { margin-top:1px; }
+            .ts-gantt-cm .gdopo { color:#5b21b6; font-weight:700; }
+            body.theme-dark .ts-gantt-cm .gdopo { color:#c4b5fd; }
+            .quick-edit-row--stato { display:flex; gap:8px; flex-wrap:wrap; }
+            .quick-edit-note { margin:6px 0 0; font-size:.74rem; color:var(--text-light); }
+            .quick-edit-ro { display:inline-flex; align-items:center; min-height:34px; font-weight:700; color:var(--text); }
+            .ts-label-static { display:block; font-size:.72rem; font-weight:700; color:var(--text-light); margin-bottom:4px; }
+            .g-livelli { margin:0; padding-left:20px; display:grid; gap:6px; }
+            .g-livelli li { padding:6px 10px; border-radius:8px; }
+            .g-livelli li span:last-child { display:block; color:var(--text-light); font-size:.8rem; }
+            .g-livelli li.is-me { background:var(--surface-alt, #f1f5f9); outline:1px solid var(--border); }
             .ts-gantt-cm .gtoday { position:absolute; top:0; bottom:0; width:2px; background:#ff8a1f; z-index:1; pointer-events:none; }
             .ts-gantt-cm .gbar { position:absolute; top:8px; height:26px; border-radius:7px; color:#fff; font-size:.66rem; font-weight:700; box-sizing:border-box; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; box-shadow:0 2px 6px rgba(12,37,69,.18); user-select:none; display:flex; align-items:center; }
             .ts-gantt-cm .grow.can-edit .gbar { cursor:grab; }
@@ -4763,3 +4782,4 @@ body.theme-dark .fai-tipo input:checked+span{background:rgba(249,115,22,.14)}
 .fl-passo-testo small{font-size:12px;color:var(--text-mid)}
 .fl-passo-azione{font-weight:700;font-size:13px;white-space:nowrap}
 @media (max-width:640px){.fl-passo{flex-direction:column;align-items:flex-start}}
+.mf-send-invite[hidden]{display:none !important}

@@ -96,7 +96,7 @@
     scroll.querySelectorAll('.grow.gbody').forEach(function (r) { r.classList.toggle('is-selected', taskId !== null && r.getAttribute('data-task-id') === String(taskId)); });
   }
   scroll.addEventListener('click', function (e) {
-    if (e.target.closest('a') || e.target.classList.contains('ghandle')) return;
+    if (e.target.closest('a, button, .gord') || e.target.classList.contains('ghandle')) return;
     var row = e.target.closest('.grow.gbody');
     // Tutta la riga apre la modifica rapida, non solo la barra (prima bisognava centrarla).
     if (!row) return;

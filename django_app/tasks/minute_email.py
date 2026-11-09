@@ -358,6 +358,8 @@ def build_invite_email(meeting, *, aggiornamento: bool = False) -> tuple[str, st
         if aggiornamento
         else "Sei convocato/a al seguente incontro di avvio commessa."
     )
+    if getattr(meeting, "outlook_event_id", ""):
+        apertura += " L'invito Outlook da accettare ti è arrivato a parte: qui trovi l'ordine del giorno."
     html_parts = [f"<p>{apertura}</p>", email_facts_table(facts)]
     text_parts = [apertura] + [f"{k}: {v}" for k, v in facts]
     sec_html, sec_text = _sections_html_text(meeting, sections)
@@ -708,11 +710,13 @@ def send_meeting_invite(meeting, *, sent_by=None) -> dict:
     subject, body_text, body_html = build_invite_email(meeting, aggiornamento=aggiornamento)
     cc = _cc_management(meeting, exclude=recipients)
     attachments = None
-    try:
-        ics = build_meeting_ics(meeting)
-        attachments = [("convocazione-incontro.ics", ics, "text/calendar")]
-    except Exception:
-        attachments = None  # .ics opzionale: un errore non blocca l'invio
+    # Con l'invito Outlook già partito il file .ics farebbe un secondo appuntamento: si allega solo senza Outlook.
+    if not getattr(meeting, "outlook_event_id", ""):
+        try:
+            ics = build_meeting_ics(meeting)
+            attachments = [("convocazione-incontro.ics", ics, "text/calendar")]
+        except Exception:
+            attachments = None  # .ics opzionale: un errore non blocca l'invio
     sent_count = send_hub_mail(
         subject,
         body_text,

@@ -243,3 +243,61 @@ class DurataTests(SaleBase):
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form.cleaned_data["durata_minuti"], 90)
         self.assertContains(self.client.get(reverse("tasks:project_meeting_create", args=[self.project.pk])), "Dall&#x27;ordine del giorno")
+
+
+class InvitoOutlookTests(SaleBase):
+    def test_invito_vale_come_convocazione_e_non_si_ripete(self):
+        from .meeting_outlook import sync_meeting_outlook_event
+
+        m = self.incontro(sync_outlook=True, partecipanti_email_extra="esterno@example.com")
+        with patch("tasks.meeting_outlook.graph_ready", return_value=True), \
+                patch("tasks.meeting_outlook.create_event", return_value={"id": "EV1"}):
+            livello, testo = sync_meeting_outlook_event(request=None, meeting=m)
+        self.assertIn("Invito Outlook inviato", testo)
+        m.refresh_from_db()
+        self.assertTrue(m.convocazione_inviata)
+        self.assertFalse(m.convocazione_da_reinviare)
+        with patch("tasks.meeting_outlook.graph_ready", return_value=True), \
+                patch("tasks.meeting_outlook.update_event", return_value={}) as aggiorna:
+            self.assertEqual(sync_meeting_outlook_event(request=None, meeting=m), ("", ""))
+            aggiorna.assert_not_called()
+            m.ora = time(11, 0)
+            m.save()
+            livello, _ = sync_meeting_outlook_event(request=None, meeting=m)
+            aggiorna.assert_called_once()
+        self.assertEqual(livello, "success")
+
+    def test_mail_senza_ics_se_c_e_l_invito(self):
+        from .minute_email import send_meeting_invite
+
+        m = self.incontro(outlook_event_id="EV1", partecipanti_email_extra="esterno@example.com")
+        with patch("core.email_utils.send_hub_mail", return_value=1) as invio:
+            send_meeting_invite(m)
+        self.assertIsNone(invio.call_args.kwargs["attachments"])
+        self.assertIn("invito Outlook", invio.call_args.args[1])
+
+    def test_mail_con_ics_senza_outlook(self):
+        from .minute_email import send_meeting_invite
+
+        m = self.incontro(partecipanti_email_extra="esterno@example.com")
+        with patch("core.email_utils.send_hub_mail", return_value=1) as invio:
+            send_meeting_invite(m)
+        self.assertEqual(invio.call_args.kwargs["attachments"][0][0], "convocazione-incontro.ics")
+
+    def test_pulsante_invia_invito_outlook(self):
+        m = self.incontro(partecipanti_email_extra="esterno@example.com")
+        with patch("tasks.views.meetings._outlook_pronto", return_value=True):
+            pagina = self.client.get(reverse("tasks:project_meeting_detail", args=[self.project.pk, m.pk]))
+        self.assertContains(pagina, "Invia invito Outlook")
+        with patch("tasks.meeting_outlook.graph_ready", return_value=True), \
+                patch("tasks.meeting_outlook.create_event", return_value={"id": "EV9"}) as crea:
+            self.client.post(reverse("tasks:project_meeting_send_outlook", args=[self.project.pk, m.pk]))
+        crea.assert_called_once()
+        m.refresh_from_db()
+        self.assertTrue(m.sync_outlook)
+        self.assertEqual(m.outlook_event_id, "EV9")
+
+    def test_firma_invariata_per_incontri_senza_sala_e_durata(self):
+        m = self.incontro(sala=None)
+        self.assertNotIn("sala", m.dati_convocazione())
+        self.assertNotIn("durata", m.dati_convocazione())

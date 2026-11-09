@@ -190,8 +190,8 @@ body.tk-wide .content sta in tasks.css.
       <div class="ts-panel-title-wrap">
         <h2 class="ts-panel-title">Diagramma Gantt</h2>
         <p class="ts-panel-subtitle">
-          {% if can_edit_schedule %}Trascina le barre o clicca una riga: vale per le attività che puoi modificare.{% else %}Vista sola lettura.{% endif %}
-          In rosso le attività scadute.
+          {% if can_edit_schedule %}Trascina le barre o clicca una riga: vale per le attività che puoi modificare.{% elif can_open_quick_edit %}Clicca la tua attività per aggiornarne lo stato.{% else %}Vista sola lettura.{% endif %}
+          Le attività possono sovrapporsi; in rosso quelle scadute.
         </p>
       </div>
       <div class="ts-panel-meta">
@@ -216,8 +216,8 @@ body.tk-wide .content sta in tasks.css.
           <input type="range" id="g_zoom_cm" min="16" max="64" step="2" value="{{ gantt_day_cell_px|default:30 }}" aria-label="Zoom giorni">
         </div>
         {% if can_edit_schedule %}
-          <label class="g-bar-group g-flag" title="Spostando una barra si spostano anche le attività che dipendono da lei">
-            <input type="checkbox" id="g_cascade_cm" checked> Sposta anche le successive
+          <label class="g-bar-group g-flag" title="Spostando una barra seguono solo le attività legate da una dipendenza («dopo …»); le altre restano dove sono">
+            <input type="checkbox" id="g_cascade_cm" checked> Sposta anche chi dipende
           </label>
         {% endif %}
       {% endif %}
@@ -271,11 +271,20 @@ body.tk-wide .content sta in tasks.css.
             </div>
             {% endif %}
             {% for row in gantt_rows %}
-              <div class="grow gbody{% if row.can_edit %} can-edit{% endif %}" data-task-id="{{ row.task.id }}"
+              <div class="grow gbody{% if row.can_edit %} can-edit{% endif %}" id="riga-{{ row.task.id }}" data-task-id="{{ row.task.id }}"
                    {% if row.can_edit %}data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}"{% endif %}>
                 <div class="gmac">
+                  {% if can_manage_plan %}
+                    <form method="post" action="{% url 'tasks:project_gantt_move_task' project.id row.task.id %}" class="gord" aria-label="Posizione nel piano">
+                      {% csrf_token %}
+                      <input type="hidden" name="return_qs" value="{{ gantt_return_qs }}">
+                      <button type="submit" name="direzione" value="su" title="Sposta su"{% if forloop.first %} disabled{% endif %}>▲</button>
+                      <button type="submit" name="direzione" value="giu" title="Sposta giù"{% if forloop.last %} disabled{% endif %}>▼</button>
+                    </form>
+                  {% endif %}
                   <a class="gmac-title" href="{% url 'tasks:detail' row.task.id %}">{{ row.wbs }}. {{ row.task.title }}</a>
-                  <small>{% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}<span class="g-noresp">da assegnare</span>{% endif %} · {{ row.start|date:"d/m" }} → {{ row.end|date:"d/m" }}{% if row.task.is_overdue %} · <span class="g-noresp">scaduta</span>{% endif %}{% if row.has_absence_conflicts %} · <span class="g-warn">assente {{ row.absence_days }}gg</span>{% endif %}{% if row.baseline_delta.end %} · <span class="g-bl{% if row.baseline_delta.end > 0 %} late{% endif %}" title="Scostamento della data fine dalla baseline">{% if row.baseline_delta.end > 0 %}+{% endif %}{{ row.baseline_delta.end }}gg</span>{% endif %}</small>
+                  <small>{% if row.task.priority == "HIGH" %}<span class="gprio gprio--alta" title="Priorità alta">Alta</span> {% elif row.task.priority == "LOW" %}<span class="gprio gprio--bassa" title="Priorità bassa">Bassa</span> {% endif %}{% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}<span class="g-noresp">da assegnare</span>{% endif %} · {{ row.start|date:"d/m" }} → {{ row.end|date:"d/m" }}{% if row.task.is_overdue %} · <span class="g-noresp">scaduta</span>{% endif %}{% if row.has_absence_conflicts %} · <span class="g-warn">assente {{ row.absence_days }}gg</span>{% endif %}{% if row.baseline_delta.end %} · <span class="g-bl{% if row.baseline_delta.end > 0 %} late{% endif %}" title="Scostamento della data fine dalla baseline">{% if row.baseline_delta.end > 0 %}+{% endif %}{{ row.baseline_delta.end }}gg</span>{% endif %}</small>
+                  {% if row.dopo or row.sovrapposte %}<small class="gmac-rel">{% if row.dopo %}<span class="gdopo" title="Parte dopo queste attività: spostandole, questa segue">dopo {{ row.dopo|join:", " }}</span>{% endif %}{% if row.dopo and row.sovrapposte %} · {% endif %}{% if row.sovrapposte %}<span class="g-warn" title="Stessa persona, stesso periodo: è ammesso, controlla che ce la faccia">insieme a {{ row.sovrapposte|join:", " }}</span>{% endif %}</small>{% endif %}
                   {% if row.invalid_range %}<small style="color:var(--danger);font-weight:800;">La fine è prima dell'inizio</small>{% endif %}
                   {% if row.voci %}<span class="gvoci-chips">{% for v in row.voci %}<a class="gchip gchip--{{ v.chiave }}{% if v.scaduta %} scaduta{% endif %}" href="{{ v.url }}" title="{{ v.tipo }}: {{ v.titolo }}{% if v.chi %} · {{ v.chi }}{% endif %}{% if v.scadenza %} · entro il {{ v.scadenza|date:'d/m/Y' }}{% endif %}">{{ v.tipo }} {{ v.titolo|truncatechars:18 }}</a>{% endfor %}</span>{% endif %}
                   <div class="gmac-prog"><i style="width:{{ row.task.progress }}%"></i></div>
@@ -324,7 +333,7 @@ body.tk-wide .content sta in tasks.css.
             <span><i class="gdot status-canceled"></i>Annullata</span>
             {% if gantt_incontri %}<span><i class="glg-meet"></i>Incontro</span>{% endif %}
             {% if gantt_voci %}<span><i class="glg-mile"></i>Scadenza di azione, problema, programma o FAI</span>{% endif %}
-            <span style="color:var(--text-light);">· linea arancio = oggi{% if can_edit_schedule %} · trascina la barra per spostarla, i bordi per allungarla · clic sulla riga per cambiare date, stato e avanzamento{% endif %}</span>
+            <span style="color:var(--text-light);">· linea arancio = oggi · «dopo 2» = parte dopo l'attività 2 · «insieme a 3» = stessa persona nello stesso periodo{% if can_edit_schedule %} · trascina la barra per spostarla, i bordi per allungarla · clic sulla riga per date, stato, avanzamento e priorità{% endif %}{% if can_manage_plan %} · ▲▼ cambiano l'ordine delle righe{% endif %}</span>
           </div>
       {% else %}
         <div class="ts-empty" style="margin:16px;">
@@ -341,12 +350,12 @@ body.tk-wide .content sta in tasks.css.
   </section>
 
   {# ── Quick edit ── #}
-  {% if can_edit_schedule and gantt_rows %}
+  {% if can_open_quick_edit and gantt_rows %}
     <section class="ts-panel" id="modifica-rapida">
       <div class="ts-panel-head">
         <div class="ts-panel-title-wrap">
           <h2 class="ts-panel-title">Modifica rapida</h2>
-          <p class="ts-panel-subtitle">Clicca una riga del Gantt: qui cambi date, stato e avanzamento.</p>
+          <p class="ts-panel-subtitle">Clicca una riga del Gantt: qui cambi quello che il tuo ruolo consente (vedi «Chi può modificare cosa»).</p>
         </div>
       </div>
       <div class="ts-panel-body">
@@ -383,10 +392,39 @@ body.tk-wide .content sta in tasks.css.
                     <label for="{{ row.update_form.progress.id_for_label }}">Avanzamento %</label>
                     {{ row.update_form.progress }}
                   </div>
+                  {% if row.update_form.priority %}
+                    <div class="ts-field">
+                      <label for="{{ row.update_form.priority.id_for_label }}">Priorità</label>
+                      {{ row.update_form.priority }}
+                    </div>
+                  {% else %}
+                    <div class="ts-field">
+                      <span class="ts-label-static">Priorità</span>
+                      <span class="quick-edit-ro" title="La cambiano il responsabile del kickoff e chi ha creato l'attività">{{ row.task.get_priority_display }}</span>
+                    </div>
+                  {% endif %}
                   <div class="ts-field">
                     <button type="submit" class="btn btn-sm">Salva</button>
                   </div>
                 </div>
+                {% if row.dopo %}<p class="quick-edit-note">Parte dopo {{ row.dopo|join:", " }}: non puoi anticiparla oltre quel vincolo. Se cambi le date, chi dipende da lei si sposta in avanti da solo.</p>{% endif %}
+              </form>
+            {% elif row.permessi.solo_stato %}
+              {# Il responsabile senza permesso di modifica: stessi passi di «Le mie azioni». #}
+              <form class="quick-edit-item" data-task-id="{{ row.task.id }}" method="post"
+                    action="{% url 'tasks:mia_voce_stato' 'attivita' row.task.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <div class="quick-edit-head">
+                  <a href="{% url 'tasks:detail' row.task.id %}">{{ row.wbs }}. {{ row.task.title }}</a>
+                  <span class="ts-badge ts-badge--{{ row.task.status|lower }}">{{ row.task.get_status_display }}</span>
+                </div>
+                <div class="quick-edit-row quick-edit-row--stato">
+                  {% if row.task.status == "TODO" %}<button type="submit" name="action" value="start" class="btn btn-secondary btn-sm">Inizia</button>{% endif %}
+                  {% if row.task.status == "TODO" or row.task.status == "IN_PROGRESS" %}<button type="submit" name="action" value="done" class="btn btn-sm">Fatta</button>{% endif %}
+                  {% if row.task.status == "DONE" %}<button type="submit" name="action" value="reopen" class="btn btn-secondary btn-sm">Riapri</button>{% endif %}
+                </div>
+                <p class="quick-edit-note">Sei il responsabile di questa attività: ne aggiorni lo stato. Date e priorità le decide il responsabile del kickoff.</p>
               </form>
             {% endif %}
           {% endfor %}
@@ -401,7 +439,7 @@ body.tk-wide .content sta in tasks.css.
       <summary class="ts-panel-head">
         <div class="ts-panel-title-wrap">
           <h2 class="ts-panel-title">Dipendenze tra attività</h2>
-          <p class="ts-panel-subtitle">Quale attività aspetta quale: spostando una barra con «Sposta anche le successive» le dipendenti seguono. FS = la successiva parte quando la precedente finisce.</p>
+          <p class="ts-panel-subtitle">Le attività senza dipendenze sono libere e possono sovrapporsi. Una dipendenza dice chi aspetta chi: la successiva non può partire prima e, se la precedente slitta, la segue. FS = parte quando la precedente finisce · SS = partono insieme · FF = finiscono insieme · SF = finisce quando la precedente parte. Lag = giorni di attesa (negativo = anticipo).</p>
         </div>
         <div class="ts-panel-meta">
           <span class="ts-chip soft">{{ gantt_deps|length }} dipendenze</span>
@@ -478,6 +516,31 @@ body.tk-wide .content sta in tasks.css.
     </details>
   {% endif %}
 
+  {# ── Chi può modificare cosa: la scala vale dall'alto in basso, con più ruoli vale il più alto ── #}
+  {% if gantt_rows %}
+    <details class="ts-panel g-fold" id="chi-modifica">
+      <summary class="ts-panel-head">
+        <div class="ts-panel-title-wrap">
+          <h2 class="ts-panel-title">Chi può modificare cosa</h2>
+          <p class="ts-panel-subtitle">Dall'alto in basso: chi ha più ruoli usa il più alto. Il server applica le stesse regole.</p>
+        </div>
+        <div class="ts-panel-meta">
+          {% for code, nome, _cosa in gantt_livelli %}{% if code == gantt_livello %}<span class="ts-chip">Tu: {{ nome }}</span>{% endif %}{% endfor %}
+        </div>
+      </summary>
+      <div class="ts-panel-body">
+        <ol class="g-livelli">
+          {% for code, nome, cosa in gantt_livelli %}
+            <li class="{% if code == gantt_livello %}is-me{% endif %}">
+              <strong>{{ nome }}</strong>{% if code == gantt_livello %} <span class="ts-chip soft">tu</span>{% endif %}
+              <span>{{ cosa }}</span>
+            </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </details>
+  {% endif %}
+
   {# ── Commenti kickoff ── #}
   <section class="ts-panel">
     <div class="ts-panel-head">
@@ -538,7 +601,7 @@ body.tk-wide .content sta in tasks.css.
 {% endblock %}
 
 {% block tasks_shell_scripts %}
-<script src="{% static 'tasks/js/project_gantt.js' %}?v=20261108"></script>
+<script src="{% static 'tasks/js/project_gantt.js' %}?v=20261109b"></script>
 <script>
   // Dopo un'aggiunta si riparte dal titolo: il piano si scrive una riga dopo l'altra.
   if (location.hash === "#riga-rapida") {

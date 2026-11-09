@@ -235,11 +235,6 @@ def _project_gantt_rows(tasks: list[Task], *, min_window_days: int = 31, extra_d
         row["duration_working_days"] = _count_working_days(row["active_start"], row["active_end"], holidays)
         rows.append(row)
 
-    # Predecessore implicito (WBS order): ogni task conosce l'end_index del task precedente
-    # per consentire il vincolo "task N non può iniziare prima della fine di task N-1" nel Gantt.
-    for i, row in enumerate(rows):
-        row["prev_end_index"] = rows[i - 1]["end_index"] if i > 0 else -1
-
     # Indice colonna di "oggi" (per la linea verticale) e bande settimana (stile
     # Gantt Carichi Macchina): -1 se oggi è fuori finestra.
     today_index = (today - timeline_start).days

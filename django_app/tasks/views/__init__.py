@@ -144,6 +144,7 @@ from .gantt import (  # noqa: F401
     project_gantt_clear_baseline,
     project_gantt_fix_baseline,
     project_gantt_remove_dependency,
+    project_gantt_move_task,
     project_gantt_shift_task,
     project_gantt_update_task,
 )
@@ -272,3 +273,4 @@ from .tech_refs import (  # noqa: F401,E402
 )
 from .tappe import tappa_anteprima, tappa_azione  # noqa: F401,E402
 from .sale import sala_verifica, sale_disponibilita  # noqa: F401,E402
+from .meetings import project_meeting_send_outlook  # noqa: F401,E402

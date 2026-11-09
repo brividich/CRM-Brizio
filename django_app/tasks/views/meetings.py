@@ -317,6 +317,10 @@ def _send_invite_if_requested(request, form, meeting: KickoffMeeting) -> None:
     """Spunta «Invia la convocazione» del form: parte subito dopo il salvataggio."""
     if not form.cleaned_data.get("invia_convocazione") or meeting.stato != MeetingStatus.PIANIFICATO:
         return
+    meeting.refresh_from_db(fields=["outlook_event_id", "convocazione_inviata_at", "convocazione_firma"])
+    if meeting.outlook_event_id:
+        # L'invito Outlook è già la convocazione: una seconda mail sarebbe un doppione.
+        return
     from ..minute_email import send_meeting_invite
 
     try:
@@ -710,6 +714,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             **tappe_context(request, project, meeting),
             "sala_stato": _sala_stato(meeting),
             "can_edit_after_end": can_edit_after_end(request, project),
+            "outlook_pronto": _outlook_pronto(),
         },
     )
 
@@ -899,6 +904,29 @@ def project_meeting_send_invite(request, project_id: int, meeting_id: int):
         request, "kickoff_meeting_send_invite", "tasks",
         {"meeting_id": meeting.pk, "project_id": project_id, "sent": bool(outcome.get("sent"))},
     )
+    return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_send_outlook(request, project_id: int, meeting_id: int):
+    """Dal dettaglio: manda (o riallinea) l'invito Outlook ai partecipanti, con la sala."""
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not can_manage_project(request, project):
+        messages.error(request, "Non hai i permessi per invitare i partecipanti di questo incontro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    if meeting.stato != MeetingStatus.PIANIFICATO:
+        messages.info(request, "L'invito si manda solo per un incontro pianificato.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    if not meeting.sync_outlook:
+        meeting.sync_outlook = True
+        meeting.save(update_fields=["sync_outlook", "updated_at"])
+    # Forza l'invio anche se nulla è cambiato (es. un partecipante l'ha cancellato per errore).
+    KickoffMeeting.objects.filter(pk=meeting.pk).update(convocazione_firma="")
+    meeting.convocazione_firma = ""
+    _sync_meeting_outlook(request, meeting)
+    log_action(request, "kickoff_meeting_send_outlook", "tasks", {"meeting_id": meeting.pk, "project_id": project_id})
     return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
 
 
