@@ -1,0 +1,18 @@
+{# Pannello laterale di un dispositivo SNMP (contatori:anteprima, kind=snmp): solo dati salvati. #}
+<header class="pv-head">
+  <div class="pv-badges"><span class="pill {% if d.snmp_stato == 'OK' %}ok{% elif d.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ d.get_snmp_stato_display }}</span><span class="pill">{{ d.get_categoria_display }}</span>{% if not d.verificato %}<span class="pill warn">non verificato</span>{% endif %}{% if not d.attivo %}<span class="pill">non interrogato</span>{% endif %}</div>
+  <h2>{{ d.nome }}</h2>
+  <p class="pv-sub"><span class="mono">{{ d.host }}{% if d.porta %}:{{ d.porta }}{% endif %}</span>{% if d.posizione %} · {{ d.posizione }}{% endif %}</p>
+</header>
+{% if d.snmp_ultimo_errore %}<p class="health-error pv-text">{{ d.snmp_ultimo_errore|truncatechars:160 }}</p>{% endif %}
+<dl class="pv-facts">
+  <div><dt>Ultimo controllo</dt><dd>{% if d.snmp_ultimo_controllo %}{{ d.snmp_ultimo_controllo|date:"d/m/Y H:i" }}{% else %}mai{% endif %}</dd></div>
+  <div><dt>Latenza</dt><dd>{% if d.snmp_tempo_risposta_ms is not None %}{{ d.snmp_tempo_risposta_ms }} ms{% else %}—{% endif %}</dd></div>
+  <div><dt>Risposte 24 h</dt><dd>{% if disponibilita.pct is None %}nessuna interrogazione{% else %}<span class="pill {% if disponibilita.pct >= 100 %}ok{% elif disponibilita.pct >= 95 %}warn{% else %}danger{% endif %}">{{ disponibilita.pct }}%</span><div class="muted">{{ disponibilita.ok }} su {{ disponibilita.totale }}</div>{% endif %}</dd></div>
+  <div><dt>Lettori OID</dt><dd>{{ n_sonde }}{% if d.profilo_snmp %}<div class="muted">profilo {{ d.profilo_snmp }}</div>{% endif %}</dd></div>
+  <div><dt>Asset HUB</dt><dd>{% if d.asset %}<a class="plain" href="{% url 'assets:asset_view' d.asset.pk %}">{{ d.asset.asset_tag }}</a><div class="muted">{{ d.asset.name }}</div>{% else %}<span class="pill warn">non collegato</span>{% endif %}</dd></div>
+  {% if mfc %}<div><dt>MFC a contratto</dt><dd><a class="plain" href="{% url 'contatori:macchina' mfc.pk %}">{{ mfc.reparto }}</a></dd></div>{% endif %}
+</dl>
+{% if n_avvisi %}<h3 class="pv-h">Avvisi aperti ({{ n_avvisi }})</h3>
+<ul class="pv-list">{% for a in avvisi %}<li><span{% if a.critico %} class="health-error"{% endif %}>{{ a.testo|truncatechars:70 }}</span><small>dal {{ a.aperto_il|date:"d/m H:i" }}</small></li>{% endfor %}</ul>{% endif %}
+<footer class="pv-foot"><a class="btn" href="{% url 'contatori:snmp_dispositivo' d.pk %}{% if mfc %}?tecnico=1{% endif %}">Apri la scheda del dispositivo</a>{% if d.asset %}<a class="btn ghost" href="{% url 'assets:asset_view' d.asset.pk %}">Asset nel portale</a>{% endif %}</footer>

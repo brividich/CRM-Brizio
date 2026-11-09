@@ -1,0 +1,88 @@
+/* Selezione multipla e pannello laterale di anteprima, per tutto il portale (nati nel SOC).
+   Comportamento in core/js/hub-bulk-pannello.js. Nomi di classe storici del SOC (sec-*, soc-drawer, pv-*)
+   tenuti così i template esistenti funzionano senza modifiche. Tema scuro: gemelli scritti a mano in fondo. */
+
+/* ── Selezione multipla ── */
+.sec-check-col { width: 34px; text-align: center; }
+.sec-check-col input[type="checkbox"] { width: 16px; height: 16px; }
+.sec-bulk-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 8px; color: var(--text-mid); }
+.has-selection .sec-bulk-bar { border-style: solid; border-color: var(--primary-mid); background: var(--surface-alt, var(--bg)); color: var(--text); }
+form[data-bulk] .sec-bulk-bar select, form[data-bulk] .sec-bulk-bar input[type="text"] { width: auto; min-width: 180px; }
+.sec-bulk-count { min-width: 110px; }
+/* Barra compatta finché non c'è una selezione. */
+form[data-bulk]:not(.has-selection) .sec-bulk-bar { padding: 5px 12px; }
+form[data-bulk]:not(.has-selection) .sec-bulk-bar > :not(.sec-bulk-count) { display: none; }
+form[data-bulk]:not(.has-selection) .sec-bulk-count::after { content: " \00B7  seleziona le righe per agire su più elementi insieme"; color: var(--text-light); }
+/* I campi che dipendono dall'azione scelta restano nascosti anche se il loro stile imposta un display. */
+[data-show-for][hidden] { display: none !important; }
+table tr:has(.sec-bulk-item:checked) > td { background: var(--accent-light); }
+table tr:has(.sec-bulk-item:disabled) { opacity: .55; }
+
+/* ── Righe con anteprima ── */
+.has-preview { cursor: pointer; }
+tr.has-preview:hover > td { background: var(--hover-bg, rgba(0, 43, 92, 0.04)); }
+tr.is-previewed > td { background: var(--accent-light); }
+.has-preview:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ── Pannello laterale ── */
+.soc-drawer { position: fixed; inset: 0; z-index: 1200; pointer-events: none; }
+.soc-drawer.is-open { pointer-events: auto; }
+.soc-drawer-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .28); opacity: 0; transition: opacity .18s ease; }
+.soc-drawer.is-open .soc-drawer-backdrop { opacity: 1; }
+.soc-drawer-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(520px, 100vw); display: flex; flex-direction: column; background: var(--card-bg, #fff); color: var(--text); box-shadow: -12px 0 32px rgba(15, 23, 42, .18); transform: translateX(100%); transition: transform .2s ease; }
+.soc-drawer.is-open .soc-drawer-panel { transform: none; }
+@media (prefers-reduced-motion: reduce) { .soc-drawer-panel, .soc-drawer-backdrop { transition: none; } }
+.soc-drawer-bar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.soc-drawer-nav, .soc-drawer-close { width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); font-size: 18px; line-height: 1; cursor: pointer; }
+.soc-drawer-nav:disabled { opacity: .35; cursor: default; }
+.soc-drawer-close { margin-left: auto; }
+.soc-drawer-pos { color: var(--text-light); font-size: var(--fs-sm); }
+.soc-drawer-body { flex: 1; overflow-y: auto; padding: 16px 18px 24px; display: grid; gap: 14px; align-content: start; outline: none; }
+.soc-drawer-loading { color: var(--text-light); }
+html.soc-drawer-open { overflow: hidden; }
+.soc-drawer .sec-action-result { margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--success); border-radius: 8px; }
+.soc-drawer .sec-action-result.sec-error { border-left-color: var(--danger); color: var(--danger); }
+
+/* Contenuto del pannello: intestazione, fatti, elenchi, piede. */
+.soc-drawer .pv-head h2 { margin: 6px 0 2px; font-size: var(--fs-lg, 18px); line-height: 1.3; }
+.soc-drawer .pv-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.soc-drawer .pv-sub, .soc-drawer .pv-text { margin: 0; color: var(--text-mid); font-size: var(--fs-sm); }
+.soc-drawer .pv-text { color: var(--text); }
+.soc-drawer .pv-facts, .soc-drawer .pv-kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.soc-drawer .pv-facts > div, .soc-drawer .pv-kv > div { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+.soc-drawer dt { color: var(--text-light); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+.soc-drawer dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.soc-drawer .pv-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.soc-drawer .pv-actions form { margin: 0; }
+.soc-drawer .pv-reason { display: flex; gap: 6px; flex: 1 1 100%; }
+.soc-drawer .pv-reason input { flex: 1; min-width: 0; }
+.soc-drawer .pv-h { margin: 4px 0 0; font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: .4px; color: var(--text-mid); }
+.soc-drawer .pv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.soc-drawer .pv-list li { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.soc-drawer .pv-list li:last-child { border-bottom: 0; }
+.soc-drawer .pv-list li.is-done span { color: var(--text-light); text-decoration: line-through; }
+.soc-drawer .pv-list small { color: var(--text-light); white-space: nowrap; }
+.soc-drawer .pv-foot { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.soc-drawer .pv-foot form { margin: 0; }
+.soc-drawer .pv-empty { margin: 0; color: var(--text-light); font-size: var(--fs-sm); }
+.soc-drawer a { color: var(--primary-mid); }
+/* Barra percentuale nei pannelli (consumabili, riempimenti). */
+.soc-drawer .pv-bar { display: inline-block; width: 70px; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; vertical-align: middle; margin-right: 6px; }
+.soc-drawer .pv-bar > span { display: block; height: 100%; background: var(--success); }
+.soc-drawer .pv-bar.is-warning > span { background: var(--warning); }
+.soc-drawer .pv-bar.is-critical > span { background: var(--danger); }
+
+@media (max-width: 520px) {
+  .soc-drawer .pv-facts, .soc-drawer .pv-kv { grid-template-columns: 1fr; }
+  form[data-bulk] .sec-bulk-bar select, form[data-bulk] .sec-bulk-bar input[type="text"] { min-width: 0; flex: 1 1 100%; }
+}
+
+/* ── Tema scuro (gemelli scritti a mano) ── */
+body.theme-dark .has-selection .sec-bulk-bar { background: var(--surface-alt, #0f1b2d); border-color: #60a5fa; }
+body.theme-dark tr.has-preview:hover > td { background: rgba(147, 197, 253, .06); }
+body.theme-dark tr.is-previewed > td,
+body.theme-dark table tr:has(.sec-bulk-item:checked) > td { background: rgba(59, 130, 246, .16); }
+body.theme-dark .soc-drawer-backdrop { background: rgba(0, 0, 0, .5); }
+body.theme-dark .soc-drawer-panel { background: var(--surface, #111827); box-shadow: -12px 0 32px rgba(0, 0, 0, .5); }
+body.theme-dark .soc-drawer a:not(.sec-button):not(.sec-button-primary):not(.btn) { color: #93c5fd; }
+body.theme-dark .soc-drawer .sec-action-result.sec-error { color: #fca5a5; }

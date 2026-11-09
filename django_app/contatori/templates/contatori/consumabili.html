@@ -1,6 +1,6 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block title %}Consumabili flotta{% endblock %}
-{% block modulo %}
+{% block modulo %}{% load contatori_acl %}{% puo_gestire as g %}
 <h1>Consumabili flotta</h1>
 <p class="sub">Ultimo livello letto di toner, tamburi e fusore per ogni MFC attiva con IP. La lettura automatica gira ogni mattina; «Leggi ora» aggiorna una macchina subito. La stima dei giorni usa il consumo dall'ultima sostituzione.</p>
 
@@ -14,9 +14,17 @@
 </div>
 {% if solo_critici %}<div class="banner warn filtro-attivo"><span>Solo le MFC con un consumabile sotto il {{ soglia }}%: {{ righe|length }} su {{ totale }}.</span><a class="btn ghost small" href="{% url 'contatori:consumabili' %}">Mostra tutte</a></div>{% endif %}
 <section class="panel">
+  {# Caselle nelle righe collegate con form="cons-bulk": le righe hanno già i loro pulsanti HTMX. #}
+  <form method="post" action="{% url 'contatori:consumabili_azioni' %}" id="cons-bulk" data-bulk>{% csrf_token %}
+    <div class="sec-bulk-bar">
+      <span class="sec-bulk-count"><strong data-bulk-count>0</strong> <span data-bulk-label data-one="selezionata" data-many="selezionate">selezionate</span></span>
+      {% if g %}<button type="submit" class="btn small" name="azione" value="leggi" data-bulk-go disabled>Leggi ora le selezionate</button>{% endif %}
+      <button type="submit" class="btn ghost small" name="azione" value="ordine" data-bulk-go disabled title="CSV con modello, matricola, consumabili sotto soglia, livello e giorni stimati">Prepara richiesta ordine</button>
+    </div>
+  </form>
   <div class="table-wrap"><table class="cons-table">
-    <thead><tr><th>MFC</th><th>Livelli</th><th>Ultima lettura</th></tr></thead>
-    <tbody>{% for r in righe %}{% include "contatori/_consumabili_riga.html" %}{% empty %}<tr><td colspan="3" class="empty">Nessuna MFC con consumabili sotto soglia.</td></tr>{% endfor %}</tbody>
+    <thead><tr><th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all form="cons-bulk" aria-label="Seleziona tutte"></th><th>MFC</th><th>Livelli</th><th>Ultima lettura</th></tr></thead>
+    <tbody>{% for r in righe %}{% include "contatori/_consumabili_riga.html" with in_coda=r.in_coda stato_url=r.stato_url %}{% empty %}<tr><td colspan="4" class="empty">Nessuna MFC con consumabili sotto soglia.</td></tr>{% endfor %}</tbody>
   </table></div>
 </section>
 {% endif %}

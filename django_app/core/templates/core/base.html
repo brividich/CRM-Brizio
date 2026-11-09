@@ -30,6 +30,7 @@
   <link rel="stylesheet" href="{% static 'core/css/hub.css' %}">
   <link rel="stylesheet" href="{% static 'monitoring/css/monitoring.css' %}?v=20261101">
   <link rel="stylesheet" href="{% static 'core/css/fm-table-enhanced.css' %}?v=20261028a">
+  <link rel="stylesheet" href="{% static 'core/css/hub-bulk-pannello.css' %}?v=20261109b">
   <link rel="stylesheet" href="{% static 'core/vendor/tom-select/tom-select.min.css' %}">
   <link rel="stylesheet" href="{% static 'core/vendor/flatpickr/flatpickr.min.css' %}">
   <link rel="stylesheet" href="{% static 'core/css/command-palette.css' %}">
@@ -147,6 +148,8 @@ window.portalReadJsonResponse = async function (response, opts) {
 {% block extra_scripts %}{% endblock %}
 {# Sistema tabelle personalizzabili: auto-bind su data-table-id e tabelle dati semplici. #}
 <script src="{% static 'core/js/fm-table-enhanced.js' %}?v=20261105a" defer></script>
+{# Selezione multipla (form[data-bulk]) e pannello laterale di anteprima ([data-preview]) per tutto il portale. #}
+<script src="{% static 'core/js/hub-bulk-pannello.js' %}?v=20261109b" defer></script>
 {# Tom Select: select ricercabili sui <select class="js-searchable"> (opt-in, fallback nativo). #}
 <script src="{% static 'core/vendor/tom-select/tom-select.complete.min.js' %}" defer></script>
 <script src="{% static 'core/js/tomselect-init.js' %}?v=5" defer></script>

@@ -14,11 +14,15 @@
 </section>
 
 {% if proposte %}
-<form method="post" class="panel">{% csrf_token %}<input type="hidden" name="trimestre" value="{{ trimestre }}">
-  <div class="table-wrap"><table data-fm-table-skip="1">
-    <thead><tr><th><input type="checkbox" id="tutte" checked aria-label="Seleziona tutte"></th><th>MFC</th><th>Lettura mensile</th><th class="num">A4 B/N</th><th class="num">A3 B/N</th><th class="num">A4 col</th><th class="num">A3 col</th><th class="num">Totale</th><th>Controllo</th></tr></thead>
+<form method="post" class="panel" id="lp-form" data-bulk>{% csrf_token %}<input type="hidden" name="trimestre" value="{{ trimestre }}">
+  <div class="sec-bulk-bar">
+    <span class="sec-bulk-count"><strong data-bulk-count>0</strong> <span data-bulk-label data-one="selezionata" data-many="selezionate">selezionate</span></span>
+    <button class="btn small" type="submit" data-bulk-go disabled>Conferma le letture selezionate</button>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all aria-label="Seleziona tutte"></th><th>MFC</th><th>Lettura mensile</th><th class="num">A4 B/N</th><th class="num">A3 B/N</th><th class="num">A4 col</th><th class="num">A3 col</th><th class="num">Totale</th><th>Controllo</th></tr></thead>
     <tbody>{% for p in proposte %}<tr>
-      <td>{% if not p.incoerente %}<input type="checkbox" name="macchina" value="{{ p.macchina.pk }}" checked aria-label="Conferma {{ p.macchina.reparto }}">{% endif %}</td>
+      <td class="sec-check-col">{% if not p.incoerente %}<input type="checkbox" class="sec-bulk-item" name="macchina" value="{{ p.macchina.pk }}" aria-label="Conferma {{ p.macchina.reparto }}">{% endif %}</td>
       <td><a class="plain" href="{% url 'contatori:macchina' p.macchina.pk %}">{{ p.macchina.reparto }}</a><div class="muted">{{ p.macchina.matricola }}</div></td>
       <td>{{ p.mensile.rilevata_il|date:"d/m/Y H:i" }}{% if p.mensile.ritardo_testo %} <span class="pill warn" title="Letta dopo la chiusura del giorno 1 alle 00:00">{{ p.mensile.ritardo_testo }}</span>{% endif %}<div class="muted">mese {{ p.mensile.mese|date:"m/Y" }}</div></td>
       <td class="num">{{ p.mensile.a4_bn }}</td><td class="num">{{ p.mensile.a3_bn }}</td><td class="num">{{ p.mensile.a4_col }}</td><td class="num">{{ p.mensile.a3_col }}</td>
@@ -26,17 +30,7 @@
       <td>{% if p.incoerente %}<span class="pill danger">{{ p.motivo }}</span><div class="muted"><a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ p.macchina.pk }}&amp;trimestre={{ trimestre }}">Inserisci a mano</a></div>{% elif p.precedente %}<span class="pill ok">+{{ p.delta }} copie</span><div class="muted">sul {{ p.precedente.trimestre }}</div>{% else %}<span class="pill">prima lettura</span>{% endif %}</td>
     </tr>{% endfor %}</tbody>
   </table></div>
-  <div class="form-actions"><button class="btn" type="submit">Conferma le letture selezionate</button></div>
 </form>
-<script>
-(function () {
-  var tutte = document.getElementById("tutte");
-  if (!tutte) return;
-  tutte.addEventListener("change", function () {
-    document.querySelectorAll('input[name="macchina"]').forEach(function (c) { c.checked = tutte.checked; });
-  });
-})();
-</script>
 {% else %}
 <section class="panel"><div class="banner clean">Nessuna proposta per il {{ trimestre }}: tutte le MFC attive hanno già la lettura, oppure non ci sono letture mensili nel periodo.</div></section>
 {% endif %}

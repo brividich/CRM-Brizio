@@ -60,3 +60,20 @@ def registra_esito(pk: int, *, ok: bool) -> None:
     if cache.get(_key(pk)) is None:
         return  # lettura del job pianificato, nessuno sta aspettando
     cache.set(_key(pk), {"stato": OK if ok else ERRORE, "concluso_il": timezone.now().isoformat()}, STATO_SECONDI)
+
+
+def in_coda(pks) -> set:
+    """MFC con una lettura ancora in coda (non scaduta), con una sola lettura della cache."""
+    chiavi = {_key(pk): pk for pk in pks}
+    adesso = timezone.now()
+    out = set()
+    for chiave, corrente in cache.get_many(list(chiavi)).items():
+        if not corrente or corrente.get("stato") != IN_CODA:
+            continue
+        try:
+            richiesta = datetime.fromisoformat(corrente["richiesta_il"])
+        except (KeyError, ValueError):
+            continue
+        if (adesso - richiesta).total_seconds() <= SCADENZA_SECONDI:
+            out.add(chiavi[chiave])
+    return out
