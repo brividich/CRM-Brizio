@@ -118,7 +118,7 @@ def percorso(request, dati: dict) -> list[dict]:
             passi.append(_passo("kickoff", "KICK-OFF del P/N", "fatto", f"{progetti[0].name} · {progetti[0].get_phase_display()}",
                                 "Apri il KICK-OFF", reverse("tasks:project_overview", args=[progetti[0].id])))
         else:
-            passi.append(_passo("kickoff", "KICK-OFF del P/N", "dafare", f"Nessun KICK-OFF per il P/N {pn}.",
+            passi.append(_passo("kickoff", "KICK-OFF del P/N", "dafare", "Nessun KICK-OFF per questo P/N.",
                                 "Nuovo KICK-OFF", f"{reverse('tasks:project_create')}?{urlencode({'pn': pn})}"))
 
         url_prog = reverse("tasks:project_tech_refs", args=[progetti[0].id]) if progetti else ""
@@ -172,8 +172,17 @@ def percorso(request, dati: dict) -> list[dict]:
                             "Tutte chiuse." if anomalie["totale"] else "Nessuna anomalia.",
                             "Vedi le anomalie" if anomalie["totale"] else "", dati["url_anomalie"] if anomalie["totale"] else ""))
 
+    # Il testo del passo si mostra solo se sotto non c'è già una tabella con gli stessi dati.
+    in_tabella = {
+        "kickoff": len(progetti) > 1,
+        "programmi": bool(programmi),
+        "documenti": bool(documenti),
+        "fai": bool(dati["fai_op"] or dati["fai_pn"]),
+        "anomalie": False,
+    }
     for n, p in enumerate(passi, 1):
         p["n"] = n
+        p["in_tabella"] = in_tabella[p["chiave"]]
     return passi
 
 

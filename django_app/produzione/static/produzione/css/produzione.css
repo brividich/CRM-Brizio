@@ -25,7 +25,6 @@
 .prod-filtri{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
 .prod-filtri input,.prod-filtri select{min-height:36px;padding:0 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);font-size:13.5px;font-family:inherit}
 .prod-filtri input[type=search]{flex:1 1 260px}
-.prod-filtri .prod-tot{margin-left:auto;font-size:12.5px;color:var(--text-mid)}
 .prod-scorri{min-width:0}
 .prod-tab{width:100%;border-collapse:collapse;font-size:13.5px}
 .prod-tab th{text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-mid);padding:8px 10px;border-bottom:1px solid var(--border);background:var(--thead-bg);white-space:nowrap}
@@ -82,7 +81,6 @@
   .prod-campo,.prod-campo.s2,.prod-campo.s4,.prod-campo.s6{grid-column:span 12}
   .prod-guida-sec dl{grid-template-columns:1fr}
   .prod-nav .prod-nav-guida{margin-left:0}
-  .prod-filtri .prod-tot{margin-left:0}
 }
 .prod-card-tab{padding:0}
 .prod-nota-sotto{margin-top:10px}
@@ -113,13 +111,6 @@
 .prod-prossimo.is-attesa .prod-prossimo-etichetta{color:var(--warning)}
 .prod-prossimo.is-fatto{border-color:var(--success)}
 .prod-prossimo.is-fatto .prod-prossimo-etichetta{color:var(--success)}
-.prod-passi{list-style:none;margin:0 0 16px;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
-.prod-passi a{display:flex;align-items:flex-start;gap:10px;height:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);text-decoration:none}
-.prod-passi a:hover{border-color:var(--accent)}
-.prod-passi .is-corrente a{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
-.prod-passo-t{display:flex;flex-direction:column;gap:2px;min-width:0}
-.prod-passo-t b{font-size:13px}
-.prod-passo-t small{font-size:12px;color:var(--text-mid);overflow-wrap:anywhere}
 .prod-passo-n{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;flex:0 0 26px;box-sizing:border-box;border-radius:999px;border:2px solid var(--border);font-size:12.5px;font-weight:800;color:var(--text-mid);background:var(--surface)}
 .is-fatto .prod-passo-n{border-color:var(--success);background:var(--success);color:#fff}
 .is-dafare .prod-passo-n{border-color:var(--accent);color:var(--accent)}
@@ -127,5 +118,4 @@
 .is-attesa .prod-passo-n{border-color:var(--warning);color:var(--warning)}
 .prod-passo{scroll-margin-top:80px}
 .prod-passo .prod-card-head{margin-bottom:4px}
-.prod-passo-testo{margin-bottom:10px}
 .prod-passo-altro{margin:0 0 10px;font-size:13px;font-weight:700}

@@ -26,7 +26,7 @@
     <div>
       <span class="prod-prossimo-etichetta">{% if prossimo.stato == "attesa" %}In attesa{% else %}Prossimo passo{% endif %}</span>
       <b>{{ prossimo.n }} · {{ prossimo.titolo }}</b>
-      <p>{{ prossimo.testo }}</p>
+      {% if not prossimo.in_tabella %}<p>{{ prossimo.testo }}</p>{% endif %}
     </div>
     {% if prossimo.url %}<a class="prod-btn prod-btn-primary" href="{{ prossimo.url }}">{{ prossimo.azione }}</a>{% else %}<a class="prod-btn" href="#passo-{{ prossimo.chiave }}">Vai al passo</a>{% endif %}
   </div>
@@ -36,24 +36,13 @@
   </div>
   {% endif %}
 
-  <ol class="prod-passi" aria-label="Percorso dell'OP">
-    {% for p in passi %}
-    <li class="is-{{ p.stato }}{% if p == prossimo %} is-corrente{% endif %}">
-      <a href="#passo-{{ p.chiave }}">
-        <span class="prod-passo-n">{% if p.stato == "fatto" %}✓{% else %}{{ p.n }}{% endif %}</span>
-        <span class="prod-passo-t"><b>{{ p.titolo }}</b><small>{% if p.stato == "fatto" %}Fatto{% elif p.stato == "attesa" %}In attesa{% elif p.stato == "allerta" %}Da gestire{% else %}Da fare{% endif %}</small></span>
-      </a>
-    </li>
-    {% endfor %}
-  </ol>
-
   {% for p in passi %}
   <section class="prod-card prod-passo is-{{ p.stato }}" id="passo-{{ p.chiave }}">
     <div class="prod-card-head">
       <h2><span class="prod-passo-n">{% if p.stato == "fatto" %}✓{% else %}{{ p.n }}{% endif %}</span> {{ p.titolo }}</h2>
       {% if p.url and p.chiave != "documenti" and p != prossimo %}<a class="prod-btn prod-btn-piccolo" href="{{ p.url }}">{{ p.azione }}</a>{% endif %}
     </div>
-    {% if p.chiave == "anomalie" or p.chiave == "kickoff" and progetti|length < 2 or p.chiave == "programmi" and not programmi or p.chiave == "documenti" and not documenti or p.chiave == "fai" and not fai_op and not fai_pn %}<p class="prod-nota prod-passo-testo">{{ p.testo }}</p>{% endif %}
+    {% if not p.in_tabella and p != prossimo %}<p class="prod-nota prod-passo-testo">{{ p.testo }}</p>{% endif %}
 
     {% if p.chiave == "kickoff" %}
       {% if progetti|length > 1 %}
@@ -66,7 +55,7 @@
       {% if programmi %}
       <div class="prod-scorri">
         <table class="prod-tab">
-          <thead><tr><th>Tipo</th><th>Codice</th><th>Cartella o file</th><th>Responsabile</th><th>Stato</th><th>KICK-OFF</th></tr></thead>
+          <thead><tr><th>Tipo</th><th>Codice</th><th>Cartella o file</th><th>Responsabile</th><th>Stato</th>{% if progetti|length > 1 %}<th>KICK-OFF</th>{% endif %}</tr></thead>
           <tbody>
             {% for r in programmi %}
             <tr>
@@ -75,7 +64,7 @@
               <td>{% if r.path %}<a class="prod-percorso" href="{{ r.path }}">{{ r.path }}</a>{% else %}—{% endif %}</td>
               <td>{% if r.assigned_to %}{{ r.assigned_to.get_full_name|default:r.assigned_to.username }}{% else %}—{% endif %}</td>
               <td><span class="prod-stato">{{ r.get_status_display }}</span></td>
-              <td><a href="{% url 'tasks:project_tech_refs' r.project_id %}">{{ r.project.name|truncatechars:40 }}</a></td>
+              {% if progetti|length > 1 %}<td><a href="{% url 'tasks:project_tech_refs' r.project_id %}">{{ r.project.name|truncatechars:40 }}</a></td>{% endif %}
             </tr>
             {% endfor %}
           </tbody>
@@ -147,7 +136,7 @@
           <tbody>
             {% if fai_op %}<tr><td colspan="6" class="prod-gruppo">Di questo OP</td></tr>{% endif %}
             {% for f in fai_op %}{% include "produzione/_riga_fai.html" %}{% endfor %}
-            {% if fai_pn %}<tr><td colspan="6" class="prod-gruppo">Altri FAI del P/N {{ op.pn }}</td></tr>{% endif %}
+            {% if fai_pn %}<tr><td colspan="6" class="prod-gruppo">Altri FAI dello stesso P/N</td></tr>{% endif %}
             {% for f in fai_pn %}{% include "produzione/_riga_fai.html" %}{% endfor %}
           </tbody>
         </table>
