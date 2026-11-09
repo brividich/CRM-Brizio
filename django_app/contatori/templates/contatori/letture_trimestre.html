@@ -1,7 +1,7 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block title %}Letture {{ trimestre }} di tutte le MFC{% endblock %}
 {% block modulo %}
-<div class="row"><div class="eyebrow">Letture trimestrali</div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:riconciliazione_guida' %}#registro-letture">? Guida</a></div>
+<div class="row"><div class="eyebrow">Letture trimestrali</div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:guida' %}#registro-letture">? Guida</a></div>
 <h1>Letture {{ trimestre }} di tutte le MFC</h1>
 <p class="sub">Una riga per MFC attiva: compila solo quelle che hai, le righe vuote non vengono salvate. La data va dal {{ inizio|date:"d/m/Y" }} ai 45 giorni dopo la fine del trimestre. Sotto ogni MFC trovi l'ultima lettura prima del trimestre: un contatore più basso viene fermato e chiede conferma (azzeramento o macchina sostituita).</p>
 
@@ -14,7 +14,7 @@
 
 <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="trimestre" value="{{ trimestre }}">
   <div class="table-wrap"><table class="letture-massive" data-fm-table-skip="1">
-    <thead><tr><th>MFC</th><th>Data</th><th class="num">A4 B/N</th><th class="num">A3 B/N</th><th class="num">A4 colore</th><th class="num">A3 colore</th><th>Fonte</th></tr></thead>
+    <thead><tr><th>MFC</th><th>Data</th><th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th><th>Fonte</th></tr></thead>
     <tbody>{% for r in righe %}{% with f=r.form p=r.precedente %}
       <tr{% if f and f.errors %} class="riga-calo"{% endif %}>
         <td><a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a><div class="muted">{{ r.macchina.matricola }}{% if r.macchina.contratto %} · {{ r.macchina.contratto }}{% endif %}</div>

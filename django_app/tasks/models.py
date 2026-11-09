@@ -101,6 +101,15 @@ class Project(models.Model):
         verbose_name="Stato documento VRF",
     )
     # Valorizzata quando chi gestisce il kickoff decide che il FAI qui non serve.
+    data_consegna = models.DateField(null=True, blank=True, verbose_name="Consegna al cliente")
+    modello = models.ForeignKey(
+        "ModelloCommessa", on_delete=models.SET_NULL, null=True, blank=True, related_name="commesse", verbose_name="Modello",
+    )
+    chiuso_il = models.DateTimeField(null=True, blank=True, verbose_name="Kickoff chiuso il")
+    chiuso_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    chiusura_nota = models.TextField(blank=True, default="", verbose_name="Nota di chiusura")
     # Tappe del percorso che per questo kickoff non servono (es. niente terzista).
     tappe_escluse = models.JSONField(default=list, blank=True, verbose_name="Tappe che non servono")
     fai_non_richiesto_il = models.DateTimeField(null=True, blank=True)
@@ -2707,3 +2716,32 @@ class ProjectUtensile(models.Model):
     @property
     def pronto(self) -> bool:
         return self.stato in (UtensileStato.ARRIVATO, UtensileStato.DISPONIBILE)
+
+
+class ModelloCommessa(models.Model):
+    """Tipo di commessa (es. «Particolare nuovo con FAI»): quali tappe servono e quanti giorni prima della consegna."""
+
+    nome = models.CharField(max_length=120, unique=True)
+    descrizione = models.CharField(max_length=255, blank=True, default="")
+    # [{"tappa": "CAM", "giorni": 20}, ...]: tappe che servono e scadenza proposta (giorni prima della consegna).
+    tappe = models.JSONField(default=list, blank=True)
+    attivo = models.BooleanField(default=True)
+    ordine = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name = "Modello di commessa"
+        verbose_name_plural = "Modelli di commessa"
+
+    def __str__(self) -> str:
+        return self.nome
+
+    def giorni_per(self, tappa: str):
+        for voce in self.tappe or []:
+            if isinstance(voce, dict) and voce.get("tappa") == tappa:
+                return voce.get("giorni")
+        return None
+
+    @property
+    def chiavi(self) -> list[str]:
+        return [v.get("tappa") for v in self.tappe or [] if isinstance(v, dict) and v.get("tappa")]

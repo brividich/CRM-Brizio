@@ -46,7 +46,16 @@ GUIDA = {
                     "Backup: clic su un PC o su un job apre il pannello laterale con gli alert di backup aperti, «Prendo in carico» e «Chiudi» (esito e motivo); "
                     "seleziona più PC, job o righe del Log per aprire un ticket, prendere in carico o chiudere insieme i loro alert.",
                     "Dispositivi e Installazioni non riuscite: seleziona più PC e «Apri un ticket per questi PC» (un'attività per PC). "
-                    "Soppressioni e Rischi accettati: seleziona e revoca insieme con un motivo unico. Accessi VPN: clic su una riga = pannello dell'utente.",
+                    "Soppressioni e Rischi accettati: seleziona e revoca insieme con un motivo unico. Accessi VPN: clic su una riga = pannello dell'utente; "
+                    "«Tutti i suoi accessi» filtra sul nome esatto.",
+                    "Dispositivi: «Collega gli asset proposti» collega all'asset proposto solo i PC selezionati (serve il permesso di configurazione). "
+                    "Tempi delle patch › Patch ferme e Vulnerabilità › Asset più esposti: seleziona e «Apri un ticket per questi PC».",
+                    "Scheda CVE, tabella «Esito per host»: clic sulla riga = pannello del PC; seleziona più PC per aprire un ticket, «Accetta il rischio» "
+                    "(stessi campi e permesso dell'accettazione singola) o «Conferma le proposte dell'AI».",
+                    "Alert: nella barra della selezione «Rimanda fino al…» rimanda gli alert al giorno scelto. Proposte AI › Chiusi dall'AI: "
+                    "«Riapri le selezionate» con il perché obbligatorio. Da fare: alert e ticket per gravità, clic sulla riga = pannello.",
+                    "Pannelli: nel ticket «Cambia stato» (per chiudere serve l'esito), nell'incidente «Assegna a me», nel PC «Apri un ticket per questo PC». "
+                    "Storico › Falsi positivi ricorrenti: «Crea soppressione» apre il modulo già compilato, da rivedere prima di salvare.",
                 ]),
                 ("p", "Ruoli e contatti per gli incidenti (responsabile, sostituto, CSIRT/ACN, fornitore) si scrivono in Impostazioni › Gestione degli incidenti e compaiono nella scheda e nel PDF dell'incidente."),
             ],

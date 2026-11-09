@@ -120,13 +120,20 @@ def my_work(request):
     incidents.sort(key=lambda i: (i.next_deadline is None, i.next_deadline["due_at"] if i.next_deadline else i.detected_at))
     tickets_qs = SecurityRemediationTicket.objects.filter(status__in=ACTIVE_CASE_STATUSES)
     alerts_qs = SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES)
-    tickets = list(tickets_qs.select_related("source").order_by("-updated_at")[:50])
-    alerts = list(alerts_qs.select_related("source").order_by("-updated_at")[:30])
-    # Totali pieni (come «segnalazioni aperte»): le liste mostrano solo le più recenti.
+    # Per urgenza: prima la gravità, poi il più recente.
+    from django.db.models import Case, IntegerField, Value, When
+
+    from .models import Severity
+
+    rank = Case(*[When(severity=v, then=Value(i)) for i, (v, _l) in enumerate(Severity.choices)], default=Value(-1), output_field=IntegerField())
+    tickets = list(tickets_qs.select_related("source").annotate(_rank=rank).order_by("-_rank", "-updated_at")[:50])
+    alerts = list(alerts_qs.select_related("source").annotate(_rank=rank).order_by("-_rank", "-updated_at")[:30])
+    # Totali pieni (come «segnalazioni aperte»): le liste mostrano solo le più urgenti.
     n_tickets, n_alerts = tickets_qs.count(), alerts_qs.count()
     return render(request, "security/my_work.html", {
         "incidents": incidents, "tickets": tickets, "alerts": alerts,
         "n_tickets": n_tickets, "n_alerts": n_alerts,
+        "altri_ticket": n_tickets - len(tickets), "altri_alert": n_alerts - len(alerts),
         "total": len(incidents) + n_tickets + n_alerts,
     })
 
@@ -225,6 +232,18 @@ def pc_copertura(request):
                 return redirect(request.get_full_path())
             messages.success(request, "Piano di aggiornamento aperto: le attività dei PC si spuntano da sole quando passano a una release supportata.")
             return redirect("security:case_detail", pk=caso.pk)
+        elif request.POST.get("action") == "confirm_selected":
+            # «Collega gli asset proposti» sui PC spuntati: la stessa proposta e lo stesso collegamento di «Conferma» della riga.
+            scelti = {n.strip().casefold() for n in request.POST.getlist("devices") if n.strip()}
+            fatti = 0
+            for r in svc.righe():
+                if r["nome"].casefold() in scelti and r["soc_da_collegare"] and r["proposta"]:
+                    link(r["soc_da_collegare"], r["proposta"], actor=request.user, request=request)
+                    fatti += 1
+            if fatti:
+                messages.success(request, f"{fatti} dispositiv{'o collegato' if fatti == 1 else 'i collegati'} all'asset proposto.")
+            if len(scelti) > fatti:
+                messages.warning(request, f"{len(scelti) - fatti} dei selezionati senza una proposta di collegamento: lasciati com'erano.")
         else:
             _assets_post(request, link, suggest_hub_asset)
         return redirect(request.get_full_path())

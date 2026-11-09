@@ -14,7 +14,7 @@
     {% elif not in_coda %}<span class="muted">Mai letta: premi «Leggi ora».</span>{% endif %}
   </td>
   <td class="cons-azioni">
-    {% if r.stato %}<div class="muted">{{ r.stato.rilevata_il|date:"d/m H:i" }}</div>{% endif %}
+    {% if r.stato %}{% if r.stato.recente %}<div class="muted">{{ r.stato.rilevata_il|date:"d/m H:i" }}</div>{% else %}<div class="health-warning" title="Nessuna lettura negli ultimi giorni: la MFC non risponde o è spenta">{{ r.stato.rilevata_il|date:"d/m/Y" }}</div>{% endif %}{% endif %}
     {% if g %}<button class="btn ghost small" hx-post="{% url 'contatori:consumabili_aggiorna' r.macchina.pk %}" hx-target="#cons-{{ r.macchina.pk }}" hx-swap="outerHTML" hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}' hx-disabled-elt="this"{% if in_coda %} disabled{% endif %}>Leggi ora</button>{% endif %}
   </td>
 </tr>

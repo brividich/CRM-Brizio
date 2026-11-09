@@ -215,15 +215,21 @@ def riconcilia(trimestre):
     return righe_out, riepilogo
 
 
-def controllo_monotonia():
+def controllo_monotonia(tipo="trimestrale"):
     """
     Per ogni macchina x contatore, verifica che le letture non scendano mai nel
-    tempo. Ritorna la lista dei cali rilevati.
+    tempo. Ritorna la lista dei cali rilevati (una voce per contatore sceso).
+
+    `tipo`: "trimestrale" (LetturaContatori) o "mensile" (LetturaMensileContatori).
+    Un calo segnato come spiegato (azzeramento o sostituzione, ``calo_spiegato_il``)
+    non si riporta piu': il confronto successivo riparte dal suo valore.
     """
+    mensile = tipo == "mensile"
+    modello, ordine = (LetturaMensileContatori, "mese") if mensile else (LetturaContatori, "trimestre")
     problemi = []
     # Una query sola per tutte le letture, raggruppate qui (prima: una query per macchina).
     per_macchina = defaultdict(list)
-    for lettura in LetturaContatori.objects.order_by("macchina_id", "trimestre"):
+    for lettura in modello.objects.order_by("macchina_id", ordine):
         per_macchina[lettura.macchina_id].append(lettura)
     for macchina in Macchina.objects.all():
         letture = per_macchina.get(macchina.pk, [])
@@ -233,18 +239,39 @@ def controllo_monotonia():
             prec = None
             for l in letture:
                 val = getattr(l, campo)
-                if prec is not None and val < prec[1]:
+                periodo = f"{l.mese:%m/%Y}" if mensile else l.trimestre
+                if prec is not None and val < prec[1] and l.calo_spiegato_il is None:
                     problemi.append({
+                        "tipo": tipo,
+                        "lettura_id": l.pk,
+                        "macchina_id": macchina.pk,
                         "macchina": str(macchina),
                         "matricola": macchina.matricola,
                         "contatore": etichetta,
                         "da_trim": prec[0],
                         "da_val": prec[1],
-                        "a_trim": l.trimestre,
+                        "a_trim": periodo,
                         "a_val": val,
                     })
-                prec = (l.trimestre, val)
+                prec = (periodo, val)
     return problemi
+
+
+def segna_calo_spiegato(lettura, *, motivo, utente):
+    """Segna il calo della lettura come spiegato (azzeramento, sostituzione): esce da «Da fare»."""
+    lettura.calo_spiegato_il = timezone.now()
+    lettura.calo_spiegato_da = (getattr(utente, "username", "") or "")[:150]
+    lettura.calo_spiegato_motivo = motivo[:200]
+    lettura.save(update_fields=["calo_spiegato_il", "calo_spiegato_da", "calo_spiegato_motivo"])
+    return lettura
+
+
+def azzera_calo_spiegato(lettura):
+    """Contatori corretti a mano: la spiegazione del calo precedente non vale piu'."""
+    if lettura.calo_spiegato_il is None:
+        return
+    lettura.calo_spiegato_il, lettura.calo_spiegato_da, lettura.calo_spiegato_motivo = None, "", ""
+    lettura.save(update_fields=["calo_spiegato_il", "calo_spiegato_da", "calo_spiegato_motivo"])
 
 
 def storico_macchina(macchina):
@@ -1330,18 +1357,17 @@ def cruscotto_operativo(oggi=None):
                       .values_list("macchina_id", flat=True))
     senza_lettura = [m for m in attive if m.id not in con_lettura]
     non_raggiungibili = [m for m in attive if m.host and m.snmp_stato == StatoSNMP.ERROR]
-    dispositivi = dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True))
-    disp_errore = dispositivi.filter(snmp_stato=StatoSNMP.ERROR).count()
-    disp_attenzione = dispositivi.filter(snmp_stato=StatoSNMP.WARNING).count()
+    # Stessa funzione dei riquadri «Stato flotta»: i numeri della voce e della lista coincidono.
+    dispositivi = flotta_monitorata()[1]
+    disp_errore = filtra_flotta(dispositivi, "errore").count()
+    disp_attenzione = filtra_flotta(dispositivi, "attenzione").count()
 
     fattura_prec = Fattura.objects.filter(trimestre=prec).exists()
     riconc = riconcilia(prec)[1] if fattura_prec else None
     letture_prec = LetturaContatori.objects.filter(trimestre=prec).exists()
 
     # Raccolta il giorno 1 alle 00:00, poi recupero ogni 15 minuti fino al giorno 7.
-    mese = oggi.replace(day=1)
-    lette = set(LetturaMensileContatori.objects.filter(mese=mese).values_list("macchina_id", flat=True))
-    mensili_mancanti = [m for m in attive if m.host and m.id not in lette]
+    mancanti_mese = mensili_mancanti(oggi)
 
     consumo, _ = consumo_per_trimestre()
     # Solo trimestri chiusi: il corrente ha poche letture e falserebbe il confronto.
@@ -1353,6 +1379,7 @@ def cruscotto_operativo(oggi=None):
             and not ultimo["parziale"] and not precedente["parziale"]):
         variazione = round((ultimo["totale"] - precedente["totale"]) * 100 / precedente["totale"])
     cali = controllo_monotonia()
+    cali_mensili = controllo_monotonia("mensile")
 
     def nomi(macchine, n=4):
         testo = ", ".join(m.reparto for m in macchine[:n])
@@ -1376,15 +1403,20 @@ def cruscotto_operativo(oggi=None):
         da_fare.append({"livello": "danger" if riconc["anomalie"] else "warn",
                         "titolo": f"Riconciliazione {prec} da verificare", "dettaglio": ", ".join(parti),
                         "azione": "Apri riconciliazione", "url": reverse("contatori:riconciliazione_trim", args=[prec])})
-    if cali:
-        da_fare.append({"livello": "danger",
-                        "titolo": "1 calo di lettura" if len(cali) == 1 else f"{len(cali)} cali di lettura",
-                        "dettaglio": "Un contatore è sceso tra due trimestri: refuso o azzeramento.",
-                        "azione": "Vedi elenco", "url": "#cali"})
+    for elenco, tra in ((cali, "due trimestri"), (cali_mensili, "due letture mensili")):
+        n = len({p["lettura_id"] for p in elenco})
+        if n:
+            tipo = "trimestrali" if elenco is cali else "mensili"
+            da_fare.append({"livello": "danger",
+                            "titolo": (f"1 lettura {tipo[:-1]}e con un calo" if n == 1
+                                       else f"{n} letture {tipo} con un calo"),
+                            "dettaglio": f"Un contatore è sceso tra {tra}: refuso da correggere, oppure "
+                                         "azzeramento o sostituzione da segnare come spiegati.",
+                            "azione": "Vedi elenco", "url": "#cali"})
     if non_raggiungibili:
         da_fare.append({"livello": "danger", "titolo": f"{len(non_raggiungibili)} MFC non raggiungibili",
                         "dettaglio": nomi(non_raggiungibili), "azione": "Verifica stampanti",
-                        "url": reverse("contatori:macchine")})
+                        "url": reverse("contatori:macchine") + "?stato=ERROR"})
     proposte = proposte_letture_trimestrali(prec)
     pronte = [p for p in proposte if not p["incoerente"]]
     if proposte:
@@ -1408,22 +1440,24 @@ def cruscotto_operativo(oggi=None):
         da_fare.append({"livello": "warn", "titolo": f"{len(da_ordinare)} MFC con consumabili da ordinare",
                         "dettaglio": ", ".join(dettagli) + (f" e altre {len(da_ordinare) - 4}" if len(da_ordinare) > 4 else ""),
                         "azione": "Vedi consumabili", "url": reverse("contatori:consumabili")})
-    if mensili_mancanti and oggi.day > GIORNI_RECUPERO_MENSILE:
-        da_fare.append({"livello": "warn", "titolo": f"{len(mensili_mancanti)} letture mensili saltate",
-                        "dettaglio": f"{oggi:%m/%Y}: {nomi(mensili_mancanti)}. Nessuna risposta dal giorno 1 al "
+    url_mensili = reverse("contatori:macchine") + "?lettura=mensile_mancante"
+    if mancanti_mese and oggi.day > GIORNI_RECUPERO_MENSILE:
+        da_fare.append({"livello": "warn", "titolo": f"{len(mancanti_mese)} letture mensili saltate",
+                        "dettaglio": f"{oggi:%m/%Y}: {nomi(mancanti_mese)}. Nessuna risposta dal giorno 1 al "
                                      f"{GIORNI_RECUPERO_MENSILE}: controlla che siano accese e in rete.",
-                        "azione": "Verifica stampanti", "url": reverse("contatori:macchine")})
-    elif mensili_mancanti and oggi.day >= 2:  # il giorno 1 la raccolta e' in corso
-        da_fare.append({"livello": "warn", "titolo": f"{len(mensili_mancanti)} letture mensili in attesa",
-                        "dettaglio": f"{oggi:%m/%Y}: {nomi(mensili_mancanti)}. Spente o non raggiungibili: "
+                        "azione": "Verifica stampanti", "url": url_mensili})
+    elif mancanti_mese and oggi.day >= 2:  # il giorno 1 la raccolta e' in corso
+        da_fare.append({"livello": "warn", "titolo": f"{len(mancanti_mese)} letture mensili in attesa",
+                        "dettaglio": f"{oggi:%m/%Y}: {nomi(mancanti_mese)}. Spente o non raggiungibili: "
                                      f"il portale riprova ogni 15 minuti fino al giorno {GIORNI_RECUPERO_MENSILE}.",
-                        "azione": "Verifica stampanti", "url": reverse("contatori:macchine")})
+                        "azione": "Verifica stampanti", "url": url_mensili})
     if disp_errore or disp_attenzione:
         da_fare.append({"livello": "danger" if disp_errore else "warn",
                         "titolo": f"{disp_errore + disp_attenzione} dispositivi SNMP da verificare",
                         "dettaglio": f"{disp_errore} in errore, {disp_attenzione} in attenzione.",
                         "azione": "Apri monitor",
-                        "url": reverse("contatori:snmp_centrale") + ("?stato=ERROR" if disp_errore else "?stato=WARNING")})
+                        "url": reverse("contatori:snmp_centrale") + ("?flotta=errore" if disp_errore
+                                                                     else "?flotta=attenzione")})
     da_fare.sort(key=lambda x: x["livello"] != "danger")
 
     return {
@@ -1434,10 +1468,17 @@ def cruscotto_operativo(oggi=None):
         "con_host": sum(1 for m in attive if m.host),
         "consumo_ultimo": ultimo, "consumo_precedente": precedente, "variazione": variazione,
         "riconciliazione": riconc, "fattura_prec": fattura_prec,
-        "cali": cali, "da_fare": da_fare,
+        "cali": cali + cali_mensili, "da_fare": da_fare,
         "proposte_pronte": len(pronte), "proposte_totali": len(proposte),
         "consumabili_critici": len(da_ordinare),
     }
+
+
+def mensili_mancanti(oggi=None):
+    """MFC attive con IP senza la lettura mensile del mese corrente (Centrale ed elenco MFC)."""
+    mese = (oggi or timezone.localdate()).replace(day=1)
+    lette = LetturaMensileContatori.objects.filter(mese=mese).values("macchina_id")
+    return list(Macchina.objects.filter(attiva=True, host__isnull=False).exclude(pk__in=lette).order_by("reparto"))
 
 
 def produzione_macchina(macchina, ultimi=8):
@@ -1472,7 +1513,9 @@ def produzione_macchina(macchina, ultimi=8):
 # --- Consumabili: storico e stima -------------------------------------------
 
 SOGLIA_CONSUMABILE_PCT = 15          # sotto questa soglia il consumabile va ordinato
-_FINESTRA_STIMA_GIORNI = 60          # storico usato per il ritmo di consumo
+_FINESTRA_STIMA_GIORNI = 60          # storico usato per il ritmo di consumo (solo la stima)
+# La lettura gira ogni mattina: oltre una settimana senza lettura la MFC non risponde da giorni.
+CONSUMABILI_RECENTE_GIORNI = 7
 
 
 def leggi_consumabili_macchina(macchina):
@@ -1535,16 +1578,25 @@ def stato_consumabili(macchine, ora=None):
     Solo dati a DB: nessuna interrogazione SNMP.
     """
     from datetime import timedelta
+
+    from django.db.models import Max, Q
     ora = ora or timezone.now()
     ids = [m.pk for m in macchine]
+    # L'ultima lettura vale sempre, anche se vecchia: la finestra serve solo alla stima.
+    # .order_by() vuoto: con l'ordering del Meta SQL Server rifiuta il GROUP BY (errore 8127).
+    ultima = dict(LetturaConsumabile.objects.filter(macchina_id__in=ids).order_by().values("macchina_id")
+                  .annotate(u=Max("rilevata_il")).values_list("macchina_id", "u"))
+    inizio_stima = ora - timedelta(days=_FINESTRA_STIMA_GIORNI)
+    filtro = Q(macchina_id__in=ids, rilevata_il__gte=inizio_stima)
+    for macchina_id, quando in ultima.items():
+        if quando < inizio_stima:
+            filtro |= Q(macchina_id=macchina_id, rilevata_il=quando)
     storico = defaultdict(lambda: defaultdict(list))
-    ultima = {}
     for macchina_id, nome, pct, quando in (
-            LetturaConsumabile.objects.filter(macchina_id__in=ids,
-                                              rilevata_il__gte=ora - timedelta(days=_FINESTRA_STIMA_GIORNI))
-            .order_by("rilevata_il").values_list("macchina_id", "nome", "pct", "rilevata_il")):
+            LetturaConsumabile.objects.filter(filtro) if ultima else LetturaConsumabile.objects.none()
+    ).order_by("rilevata_il").values_list("macchina_id", "nome", "pct", "rilevata_il"):
         storico[macchina_id][nome].append((quando, pct))
-        ultima[macchina_id] = max(ultima.get(macchina_id, quando), quando)
+    recente_da = ora - timedelta(days=CONSUMABILI_RECENTE_GIORNI)
     out = {}
     for macchina_id, per_nome in storico.items():
         quando = ultima[macchina_id]
@@ -1557,7 +1609,7 @@ def stato_consumabili(macchine, ora=None):
                          "critico": pct is not None and pct <= SOGLIA_CONSUMABILE_PCT})
         misurabili = [v for v in voci if v["pct"] is not None]
         out[macchina_id] = {
-            "rilevata_il": quando, "voci": voci,
+            "rilevata_il": quando, "voci": voci, "recente": quando >= recente_da,
             "critici": [v for v in voci if v["critico"]],
             "peggiore": min(misurabili, key=lambda v: v["pct"]) if misurabili else None,
         }
@@ -1841,6 +1893,14 @@ def fatture_macchina(macchina, ultimi=6):
             if gruppo["contratto"] == macchina.contratto:
                 out.append({"trimestre": t, **gruppo})
     return out
+
+
+def trimestri_fatturati_contratto(contratto):
+    """Quanti trimestri hanno una fattura con righe del contratto (la scheda MFC ne mostra gli ultimi)."""
+    if not contratto:
+        return 0
+    return (RigaFattura.objects.filter(contratto=contratto).order_by()
+            .values("fattura__trimestre").distinct().count())
 
 
 def archivio_fatture():

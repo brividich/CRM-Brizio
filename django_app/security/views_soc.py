@@ -117,12 +117,15 @@ def vpn_history(request):
 
         return _security_center_denied(request)
     qs = SecurityVpnAccess.objects.select_related("source")
-    filters = {key: (request.GET.get(key) or "").strip() for key in ("user", "ip", "action", "from", "to")}
+    # «user» cerca una parte del nome; «utente» è il nome esatto (link «Tutti i suoi accessi» del pannello utente).
+    filters = {key: (request.GET.get(key) or "").strip() for key in ("user", "utente", "ip", "action", "from", "to")}
     # Di default solo le VPN: il report Authentication contiene anche i login «Firewall».
     filters["kind"] = (request.GET.get("kind") or "vpn").strip()
     if filters["kind"] in ("vpn", "firewall", "guest", "other"):
         qs = qs.filter(kind=filters["kind"])
-    if filters["user"]:
+    if filters["utente"]:
+        qs = qs.filter(username=filters["utente"][:255])
+    elif filters["user"]:
         qs = qs.filter(username__icontains=filters["user"])
     if filters["ip"]:
         qs = qs.filter(source_ip__startswith=filters["ip"])

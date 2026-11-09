@@ -216,8 +216,13 @@ def percorso(project, *, con_nomi: bool = False) -> dict:
             elif key == TappaKickoff.MACCHINA:
                 voce["macchina"] = dettaglio_macchina(t, con_nomi=con_nomi)
             voci.append(voce)
+        entro_proposto = None
+        if project.data_consegna and project.modello_id:
+            giorni = project.modello.giorni_per(key)
+            if giorni is not None:
+                entro_proposto = project.data_consegna - timedelta(days=int(giorni))
         righe.append({
-            "key": key, "label": label, "aiuto": AIUTO.get(key, ""), "tipo": tipo, "voci": voci,
+            "key": key, "label": label, "aiuto": AIUTO.get(key, ""), "tipo": tipo, "voci": voci, "entro_proposto": entro_proposto,
             "stato": stato, "stato_label": stato_label, "chip": chip,
             "puo_aggiungere": key not in escluse and (not elenco or key in MULTIPLE),
             "puo_escludere": not elenco and key not in escluse,
@@ -470,3 +475,19 @@ def aggiungi_utensile(project, user, testo: str, *, quantita: int = 1, entro=Non
     return ProjectUtensile.objects.create(
         project=project, utensile=utensile, quantita=max(1, min(int(quantita or 1), 999)), entro=entro, created_by=user,
     )
+
+
+
+def carico(user_ids, inizio: date, fine: date) -> dict[int, int]:
+    """Attività aperte di ogni persona che si sovrappongono al periodo, su tutte le commesse."""
+    from django.db.models import Count, Q
+
+    if not user_ids:
+        return {}
+    qs = (
+        Task.objects.filter(assigned_to_id__in=list(user_ids), status__in=[TaskStatus.TODO, TaskStatus.IN_PROGRESS])
+        .filter(Q(due_date__gte=inizio) | Q(due_date__isnull=True))
+        .filter(Q(next_step_due__lte=fine) | Q(next_step_due__isnull=True))
+        .values("assigned_to_id").annotate(n=Count("id"))
+    )
+    return {r["assigned_to_id"]: r["n"] for r in qs}

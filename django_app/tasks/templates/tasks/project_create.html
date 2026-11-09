@@ -168,6 +168,20 @@
           </div>
           <div class="kp-body">
             <input type="hidden" name="tappe_presenti" value="1">
+            <div class="kp-grid fl-modello">
+              <div class="kp-field">
+                <label for="fl-modello">Tipo di commessa</label>
+                <select class="input" id="fl-modello" name="modello" data-modelli='{{ filo_modelli_json|safe }}'>
+                  <option value="">Nessun modello</option>
+                  {% for m in filo_modelli %}<option value="{{ m.pk }}"{% if filo_modello_id == m.pk|stringformat:"s" %} selected{% endif %}>{{ m.nome }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="kp-field">
+                <label for="fl-consegna">Consegna al cliente</label>
+                <input class="input" type="date" id="fl-consegna" name="data_consegna" value="{{ filo_consegna }}">
+              </div>
+            </div>
+            <p class="kp-hint">Il tipo di commessa spunta le tappe che servono; con la consegna, ogni tappa propone la sua scadenza. I tipi si preparano in Impostazioni → Modelli di commessa.</p>
             <div class="fl-tappe">
               {% for t in filo_tappe %}
               <label class="fl-tappa">
@@ -227,6 +241,20 @@
 {% endblock %}
 
 {% block tasks_shell_scripts %}
+<script>
+  /* Tipo di commessa: spunta le tappe del modello scelto. */
+  (function () {
+    var sel = document.getElementById('fl-modello');
+    if (!sel) { return; }
+    var modelli = {};
+    try { modelli = JSON.parse(sel.dataset.modelli || '{}'); } catch (e) { modelli = {}; }
+    sel.addEventListener('change', function () {
+      var tappe = modelli[sel.value];
+      if (!tappe) { return; }
+      document.querySelectorAll('input[name="tappe_servono"]').forEach(function (c) { c.checked = tappe.indexOf(c.value) !== -1; });
+    });
+  })();
+</script>
 <script>
 (function () {
   'use strict';

@@ -556,6 +556,11 @@ def most_exposed_hosts(limit=20):
     )
 
 
+def exposed_hosts_count():
+    """Quanti host hanno almeno una CVE che impatta (il totale dietro «Asset più esposti»)."""
+    return SecurityCveImpact.objects.filter(outcome=SecurityCveImpact.IMPACTS).values("host").order_by().distinct().count()
+
+
 def unmapped_software(limit=50):
     mapped = set(SoftwareCpeMapping.objects.filter(Q(confirmed=True) | Q(not_applicable=True)).values_list("vendor", "product"))
     rows = (

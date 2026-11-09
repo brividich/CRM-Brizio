@@ -12,6 +12,7 @@
 {% block tasks_shell_meta %}
   <span class="ko-phase">{{ project.get_phase_display }}</span>
   {% if first_meeting_date %}<span class="ts-hero-pill">Inizio {{ first_meeting_date|date:"d/m/Y" }}</span>{% endif %}
+  {% if consegna %}<span class="ts-hero-pill{% if consegna.a_rischio %} fl-rischio{% endif %}">Consegna {{ consegna.data|date:"d/m/Y" }}{% if consegna.giorni >= 0 %} · tra {{ consegna.giorni }} gg{% else %} · passata{% endif %}{% if consegna.a_rischio %} · a rischio{% endif %}</span>{% endif %}
   {% include "tasks/_readiness_badge.html" with readiness=readiness %}
 {% endblock %}
 
@@ -82,6 +83,25 @@
   </section>
 
   {% include "tasks/_tappe.html" %}
+
+  {% if project.chiuso_il %}
+  <section class="fl-chiuso" id="chiusura">
+    <div><strong>Kickoff chiuso il {{ project.chiuso_il|date:"d/m/Y" }}</strong>{% if project.chiuso_da %} da {{ project.chiuso_da.get_full_name|default:project.chiuso_da.username }}{% endif %}.{% if project.chiusura_nota %}<p>{{ project.chiusura_nota|linebreaksbr }}</p>{% endif %}</div>
+    {% if puo_chiudere %}<form method="post" action="{% url 'tasks:project_chiudi' project.id %}">{% csrf_token %}<input type="hidden" name="azione" value="riapri"><button type="submit" class="btn btn-secondary btn-sm">Riapri</button></form>{% endif %}
+  </section>
+  {% elif puo_chiudere and tappe.a_posto == tappe.totale %}
+  <section class="fl-chiudi" id="chiusura">
+    <form method="post" action="{% url 'tasks:project_chiudi' project.id %}">
+      {% csrf_token %}
+      <strong>Chiudi il kickoff</strong>
+      <p class="tp-hint">Tutte le tappe del Percorso sono a posto{% if attivita_aperte %}, ma ci sono ancora {{ attivita_aperte }} attività aperte{% endif %}. La commessa passa a «Completata»; resta consultabile e si può riaprire.</p>
+      <textarea class="input" name="nota" rows="2" placeholder="Nota di chiusura (facoltativa): com'è andata, cosa portarsi dietro"></textarea>
+      {% if attivita_aperte %}<label class="pt-scelta"><input type="checkbox" name="conferma" value="1"> Chiudi anche con attività aperte</label>{% endif %}
+      <button type="submit" class="btn btn-sm">Chiudi il kickoff</button>
+    </form>
+  </section>
+  {% endif %}
+
 
   <div class="ko-grid">
     <section class="ko-panel">
