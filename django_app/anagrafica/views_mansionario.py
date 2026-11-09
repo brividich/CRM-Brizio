@@ -378,6 +378,10 @@ def mansionario_mansione(request, mansione_id: int):
         candidati = sorted((p for lid, p in _persone_in_forza().items()
                             if lid not in in_lista and p["ruoli"] & ruoli_mansione),
                            key=lambda c: c["nome"].casefold())
+    formazione = _formazione_mansione(request, mansione, competenze, persone)
+    for p in persone:
+        p["corsi_mancanti"] = [r["corso"] for r in formazione["corsi_mansione"]
+                               if r["regola"] and r["obbligatorio"] and p["legacy_id"] in r["mancanti"]]
     return render(request, "anagrafica/pages/mansionario_mansione.html", {
         "page_title": mansione.nome,
         "mansione": mansione,
@@ -400,7 +404,7 @@ def mansionario_mansione(request, mansione_id: int):
         "regole": svc.regole_correnti(),
         "catalogo_nomi": list(CompetenzaCatalogo.objects.filter(attiva=True).order_by("nome")
                               .values_list("nome", flat=True)) if is_admin else [],
-        **_formazione_mansione(request, mansione, competenze, persone),
+        **formazione,
         "is_admin": is_admin,
         "puo_valutare": puo_valutare,
     })
@@ -832,12 +836,16 @@ def mansionario_persona(request, legacy_id: int):
         ruoli_persona = [f"«{a.ruolo.nome}»" for a in ruoli_in_essere([legacy_id]).get(legacy_id, [])]
         assegnabili = [{"id": m.pk, "nome": m.nome, "reparto": m.reparto_effettivo,
                         "ruoli": ", ".join(r.nome for r in m.ruoli.all())} for m in mansioni_assegnabili(legacy_id)]
+    scheda = comp_svc.scheda_persona(legacy_id)
+    _corsi_da_fare_persona(legacy_id, scheda)
+    from .views import _helpers as _h
     return render(request, "anagrafica/pages/mansionario_persona.html", {
         "page_title": naming.nome_completo(dip.get("nome"), dip.get("cognome")),
+        "puo_iscrivere": _h._can_edit_formazione(request),
         "legacy_id": legacy_id,
         "nome": naming.nome_completo(dip.get("nome"), dip.get("cognome")),
         "mansione_anagrafica": (dip.get("mansione") or "").strip(),
-        "scheda": comp_svc.scheda_persona(legacy_id),
+        "scheda": scheda,
         "storico": storico_persona(legacy_id),
         "storico_mansioni": svc.storico_mansioni_persona(legacy_id),
         "puo_valutare": puo_valutare,
@@ -846,6 +854,32 @@ def mansionario_persona(request, legacy_id: int):
         "livelli_label": list(LIVELLO_LABEL.items()),
         **_rischi_persona(legacy_id, (dip.get("mansione") or "").strip()),
     })
+
+
+def _corsi_da_fare_persona(legacy_id: int, scheda) -> None:
+    """Su ogni riga della scheda persona: i corsi della mansione che la persona
+    non ha validi, divisi in obbligatori (mancanza) e consigliati (proposta)."""
+    from .models_formazione import TrainingDeadline, TrainingRequirementRule
+    from .services.skillmatrix_qualifica import _STATI_VALIDI
+
+    righe = list(getattr(scheda, "righe", None) or (scheda.get("righe", []) if isinstance(scheda, dict) else []))
+    ids_mansioni = [r["mansione"].pk if isinstance(r, dict) else r.mansione.pk for r in righe]
+    if not ids_mansioni:
+        return
+    regole = list(TrainingRequirementRule.objects.filter(competenza_id__in=ids_mansioni, is_active=True,
+                                                         corso__isnull=False, corso__is_active=True)
+                  .select_related("corso").order_by("corso__titolo"))
+    validi = set(TrainingDeadline.objects.filter(legacy_anagrafica_id=legacy_id, stato_scadenza__in=_STATI_VALIDI,
+                                                 corso_id__in={r.corso_id for r in regole})
+                 .values_list("corso_id", flat=True))
+    for riga in righe:
+        mid = riga["mansione"].pk if isinstance(riga, dict) else riga.mansione.pk
+        obbl = [r.corso for r in regole if r.competenza_id == mid and r.is_mandatory and r.corso_id not in validi]
+        cons = [r.corso for r in regole if r.competenza_id == mid and not r.is_mandatory and r.corso_id not in validi]
+        if isinstance(riga, dict):
+            riga["corsi_obbligatori"], riga["corsi_consigliati"] = obbl, cons
+        else:
+            riga.corsi_obbligatori, riga.corsi_consigliati = obbl, cons
 
 
 @login_required

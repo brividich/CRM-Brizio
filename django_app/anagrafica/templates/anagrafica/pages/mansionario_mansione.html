@@ -103,7 +103,9 @@
                   {% elif p.valutazione.mancanze %}
                   <ul>{% for m in p.valutazione.mancanze|slice:":2" %}<li>{{ m }}</li>{% endfor %}</ul>
                   {% if p.valutazione.mancanze|length > 2 %}<span class="fmd-muted" title="{{ p.valutazione.mancanze|join:' · ' }}">e altre {{ p.valutazione.mancanze|length|add:"-2" }}</span>{% endif %}
-                  {% else %}<span class="fmd-muted">—</span>{% endif %}
+                  {% elif not p.corsi_mancanti %}<span class="fmd-muted">—</span>{% endif %}
+                  {% for c in p.corsi_mancanti %}<div class="mns-corso-manca">Corso «<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a>»{% if puo_iscrivere %}
+                    <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form">{% csrf_token %}<input type="hidden" name="corso_id" value="{{ c.pk }}"><input type="hidden" name="dipendenti_selezionati" value="{{ p.legacy_id }}"><input type="hidden" name="back" value="{{ request.path }}#persone"><button type="submit" class="fmd-act" title="Crea una sessione del corso con {{ p.nome }} già iscritto">↻ Iscrivi</button></form>{% endif %}</div>{% endfor %}
                 </td>
                 <td class="fmd-nowrap fmd-muted">{{ p.data_assegnazione|date:"d-m-Y"|default:"—" }}</td>
                 {% if puo_valutare %}

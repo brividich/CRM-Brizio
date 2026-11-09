@@ -207,3 +207,31 @@ class SchedaCorsoAChiServeTests(TestCase):
         body = self.client.get(reverse("anagrafica:formazione_corso_detail", args=[self.corso.pk])).content.decode()
         self.assertIn("Richiesto anche come requisito di una competenza", body)
         self.assertIn("Verniciatura a spruzzo", body)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class CosaMancaCorsiTests(MansioneCorsiTests):
+    """«Cosa manca»: i corsi obbligatori della mansione non fatti, con «↻ Iscrivi»;
+    i consigliati compaiono come proposta solo nella scheda persona."""
+
+    def test_scheda_mansione_persona_senza_corso(self):
+        self._collega("obbligatorio")
+        TrainingDeadline.objects.filter(corso=self.corso).delete()
+        TrainingDeadline.objects.create(legacy_anagrafica_id=self.p1.pk, corso=self.corso, is_required=True,
+                                        data_scadenza=timezone.localdate().replace(year=timezone.localdate().year + 2),
+                                        stato_scadenza="VALIDO")
+        body = self.client.get(self.url).content.decode()
+        self.assertIn('class="mns-corso-manca"', body)
+        self.assertEqual(body.count('class="mns-corso-manca"'), 1)  # solo p2
+
+    def test_scheda_persona_obbligatorio_e_consigliato(self):
+        altro = TrainingCourse.objects.create(piano=self.corso.piano, codice="C-SAL2", titolo="Saldatura avanzata",
+                                              durata_ore_teorica=4, is_active=True)
+        self._collega("obbligatorio")
+        TrainingRequirementRule.objects.create(corso=altro, competenza=self.mansione, is_mandatory=False)
+        TrainingDeadline.objects.filter(legacy_anagrafica_id=self.p2.pk).delete()
+        body = self.client.get(reverse("anagrafica:mansionario_persona", args=[self.p2.pk])).content.decode()
+        self.assertIn("Corso obbligatorio «", body)
+        self.assertIn("Saldatura sicura", body)
+        self.assertIn("Consigliato: «", body)
+        self.assertIn("Saldatura avanzata", body)
