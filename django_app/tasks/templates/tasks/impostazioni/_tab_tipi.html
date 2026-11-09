@@ -87,6 +87,15 @@
                   {% endfor %}
                 </select>
               </div>
+              <div>
+                <label style="font-size:11px; color:var(--text-light); text-transform:uppercase;">Tappa del kickoff</label>
+                <select name="tappa" class="input" style="width:100%;">
+                  <option value="">Nessuna</option>
+                  {% for value, label in tipi_tappa_choices %}
+                    <option value="{{ value }}" {% if tipi_focus_category.tappa == value %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
               <label style="display:flex; align-items:center; gap:6px; font-size:12px; padding-bottom:8px;">
                 <input type="checkbox" name="is_active" {% if tipi_focus_category.is_active %}checked{% endif %}> Attivo
               </label>

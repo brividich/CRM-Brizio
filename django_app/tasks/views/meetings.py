@@ -78,6 +78,7 @@ from ..services.meeting_tasks import (
     notify_task_assignment,
     titolo_attivita,
 )
+from .tappe import tappe_context
 from .tech_refs import tech_refs_context
 from ..services.notify import (
     notify_user,
@@ -667,6 +668,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             **_meeting_task_modal_context(project, project_id=project_id, meeting_id=meeting_id),
             **_quick_task_context(project, meeting),
             **tech_refs_context(request, project, meeting),
+            **tappe_context(request, project, meeting),
         },
     )
 

@@ -1,0 +1,60 @@
+<div class="tp-head">
+  <strong>Percorso del kickoff</strong>
+  <span class="ts-chip{% if tappe.a_posto == tappe.totale %} ok{% else %} info{% endif %}">{{ tappe.a_posto }}/{{ tappe.totale }} a posto</span>
+  <span class="tp-hint">Ogni tappa assegnata diventa un'attività: chi la riceve ha notifica e mail e la trova in «Le mie azioni» e nel Gantt.</span>
+</div>
+<p class="tr-err" data-tp="err" role="alert" hidden></p>
+<ul class="tp-list">
+  {% for r in tappe.righe %}
+  <li class="tp-row tp-row--{{ r.stato }}" data-tp-row="{{ r.key }}">
+    <span class="tp-ic" aria-hidden="true">{% if r.stato == "fatta" or r.stato == "esclusa" %}&#10003;{% else %}&#9675;{% endif %}</span>
+    <div class="tp-main">
+      <div class="tp-title">{{ r.label }} <span class="ts-chip {{ r.chip }}">{{ r.stato_label }}</span></div>
+      {% if not r.voci and r.stato != "esclusa" %}<div class="tp-hint">{{ r.aiuto }}</div>{% endif %}
+      {% for v in r.voci %}
+      <div class="tp-voce">
+        <span class="tp-meta">{% if v.task.title != r.tipo.name %}<a class="tp-link" href="{{ v.url }}">{{ v.titolo_breve }}</a> · {% endif %}{% if v.task.assigned_to %}{{ v.task.assigned_to.get_full_name|default:v.task.assigned_to.username }}{% else %}da assegnare{% endif %}{% if v.task.due_date %} · entro il {{ v.task.due_date|date:"d/m/Y" }}{% endif %}{% if v.dettaglio and r.key != "TERZISTA" and r.key != "PROCESSI" %} · {{ v.dettaglio }}{% endif %}{% if r.voci|length > 1 %} · {{ v.task.get_status_display }}{% endif %} · <a class="tp-link" href="{{ v.url }}">Apri</a></span>
+        {% if v.macchina %}{% with m=v.macchina %}
+        <div class="tp-macchina">
+          <span>Dal {{ m.inizio|date:"d/m" }} al {{ m.fine|date:"d/m" }}:</span>
+          {% if m.abilitati is None %}<span class="tp-meta">skill matrix non disponibile</span>
+          {% elif m.abilitati == 0 %}<span class="ts-chip danger">Nessun abilitato operativo</span>
+          {% else %}<span class="ts-chip {% if m.disponibili == 0 %}danger{% elif m.abilitati == 1 or m.assenti %}warn{% else %}ok{% endif %}">{{ m.disponibili }} su {{ m.abilitati }} abilitati disponibili</span>{% endif %}
+          {% for a in m.assenti %}<span class="tp-meta">{% if a.nome %}{{ a.nome }}{% else %}1 abilitato{% endif %} assente{% for p in a.periodi %} {{ p.0|date:"d/m" }}–{{ p.1|date:"d/m" }}{% endfor %}</span>{% endfor %}
+          {% for i in m.impegni %}<span class="ts-chip {% if i.grave %}danger{% else %}warn{% endif %}">{% if i.url %}<a href="{{ i.url }}">{{ i.titolo }}</a>{% else %}{{ i.titolo }}{% endif %}{% if i.quando %} · {{ i.quando }}{% endif %}</span>{% empty %}<span class="ts-chip ok">Nessuna manutenzione o impegno</span>{% endfor %}
+        </div>
+        {% endwith %}{% endif %}
+      </div>
+      {% endfor %}
+      {% if tappe_puo_assegnare and r.puo_aggiungere %}
+      <div class="tp-form" data-tp-form hidden>
+        {% if r.key == "MACCHINA" %}
+        <select class="input" data-tp="asset" aria-label="Macchina">
+          <option value="">Macchina…</option>
+          {% for a in tappe_macchine %}<option value="{{ a.id }}">{{ a.asset_tag }} {{ a.name }}</option>{% endfor %}
+        </select>
+        {% elif r.key == "TERZISTA" %}
+        <input class="input" type="text" data-tp="testo" list="tp-fornitori-{{ project.id }}" maxlength="200" placeholder="Fornitore" aria-label="Fornitore">
+        <datalist id="tp-fornitori-{{ project.id }}">{% for f in tappe_fornitori %}<option value="{{ f }}">{% endfor %}</datalist>
+        {% elif r.key == "PROCESSI" %}
+        <input class="input" type="text" data-tp="testo" list="tp-processi-{{ project.id }}" maxlength="200" placeholder="Processo" aria-label="Processo speciale">
+        <datalist id="tp-processi-{{ project.id }}">{% for p in tappe_processi %}<option value="{{ p }}">{% endfor %}</datalist>
+        {% endif %}
+        <select class="input" data-tp="owner" aria-label="Responsabile">
+          <option value="">Responsabile…</option>
+          {% with quick_users=tappe_utenti %}{% include "tasks/_quick_user_options.html" %}{% endwith %}
+        </select>
+        <input class="input" type="date" data-tp="due" aria-label="Entro il">
+        <button type="button" class="btn btn-sm" data-tp-action="assegna">Salva</button>
+      </div>
+      {% endif %}
+    </div>
+    <div class="tr-actions">
+      {% if tappe_puo_assegnare and r.puo_aggiungere %}<button type="button" class="btn btn-secondary btn-sm" data-tp-apri>{% if r.voci %}+ Altra{% else %}Assegna{% endif %}</button>{% endif %}
+      {% if tappe_puo_escludere and r.puo_escludere %}<button type="button" class="btn btn-secondary btn-sm" data-tp-action="escludi">Non serve</button>{% endif %}
+      {% if tappe_puo_escludere and r.stato == "esclusa" %}<button type="button" class="btn btn-secondary btn-sm" data-tp-action="ripristina">Serve</button>{% endif %}
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% if not tappe.righe %}<p class="tp-hint">Nessuna tappa configurata: in Impostazioni → Tipi attività, campo «Tappa del kickoff».</p>{% endif %}

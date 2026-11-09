@@ -17,6 +17,7 @@ from ..identity import normalize_client_name, normalize_part_number
 from ..models import MeetingStatus, TaskStatus
 from ..readiness import annotate_readiness_qs, compute_project_readiness
 from ._shared import _tasks_shell_context, percentuale_avanzamento
+from .tappe import tappe_context
 
 
 _IDENTITY_FIELDS = {
@@ -166,6 +167,7 @@ def project_overview(request, project_id: int):
             "page_title": f"Panoramica - {project.name}",
             "project": project,
             "readiness": readiness,
+            **tappe_context(request, project),
             "actions": actions,
             "top_actions": actions[:5],
             "action_open_count": action_open_count,

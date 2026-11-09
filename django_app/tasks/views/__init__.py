@@ -270,3 +270,4 @@ from .tech_refs import (  # noqa: F401,E402
     tech_ref_action,
     tech_ref_save,
 )
+from .tappe import tappa_azione  # noqa: F401,E402

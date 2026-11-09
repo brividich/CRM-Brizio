@@ -63,8 +63,12 @@
   </div>
 
   {% if can_manage and not meeting.is_annullato %}
+    {% include "tasks/_tappe.html" %}
     {% include "tasks/_quick_task_bar.html" %}
-    {% include "tasks/_tech_refs.html" %}
+    <details class="tp-altri">
+      <summary>Codici, cartelle e schede FAI</summary>
+      {% include "tasks/_tech_refs.html" %}
+    </details>
   {% endif %}
 
   {% if can_manage and meeting.stato == "PIANIFICATO" %}

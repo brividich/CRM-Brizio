@@ -27,6 +27,7 @@ from ..forms import (
     task_active_users_queryset,
 )
 from ..models import (
+    TappaKickoff,
     FaiFase,
     FaiGruppo,
     FaiOpzione,
@@ -468,6 +469,7 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
             "tipi_focus_category": focus_category,
             "tipi_field_types": TaskCategoryFieldType.choices,
             "tipi_richiede_choices": TechRefKind.choices,
+            "tipi_tappa_choices": TappaKickoff.choices,
             "tipi_role_choices": [("", "Nessun ruolo dedicato")] + [
                 (role.code, role.name) for role in role_definitions if role.is_active
             ],
@@ -1090,6 +1092,9 @@ def _handle_tasks_categories_post(request):
         category.is_machine_work = bool(request.POST.get("is_machine_work"))
         richiede_prima = category.richiede
         category.richiede = _clean_category_richiede()
+        if "tappa" in request.POST:
+            tappa = (request.POST.get("tappa") or "").strip()
+            category.tappa = tappa if tappa in TappaKickoff.values else ""
         try:
             category.order_index = max(0, int(request.POST.get("order_index") or 0))
         except (TypeError, ValueError):

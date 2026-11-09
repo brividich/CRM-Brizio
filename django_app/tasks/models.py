@@ -27,6 +27,17 @@ class TechRefKind(models.TextChoices):
     FAI = "FAI", "FAI"
 
 
+class TappaKickoff(models.TextChoices):
+    """Le attività base di ogni kickoff, nell'ordine in cui si preparano."""
+    MATERIALI = "MATERIALI", "Arrivo materiali"
+    CAM = "CAM", "Programma CAM"
+    CMM = "CMM", "Programma CMM"
+    MACCHINA = "MACCHINA", "Macchina"
+    TERZISTA = "TERZISTA", "Terzista"
+    PROCESSI = "PROCESSI", "Processi speciali"
+    FAI = "FAI", "FAI"
+
+
 class ProjectPhase(models.TextChoices):
     BOZZA = "BOZZA", "Bozza"
     VRF = "VRF", "VRF"
@@ -87,6 +98,8 @@ class Project(models.Model):
         verbose_name="Stato documento VRF",
     )
     # Valorizzata quando chi gestisce il kickoff decide che il FAI qui non serve.
+    # Tappe del percorso che per questo kickoff non servono (es. niente terzista).
+    tappe_escluse = models.JSONField(default=list, blank=True, verbose_name="Tappe che non servono")
     fai_non_richiesto_il = models.DateTimeField(null=True, blank=True)
     fai_non_richiesto_da = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+",
@@ -979,6 +992,15 @@ class TaskCategory(models.Model):
         default="",
         verbose_name="Richiede",
         help_text="Cosa deve produrre un'attività di questo tipo.",
+    )
+    tappa = models.CharField(
+        max_length=10,
+        choices=TappaKickoff.choices,
+        blank=True,
+        default="",
+        db_index=True,
+        verbose_name="Tappa del kickoff",
+        help_text="Attività base del percorso del kickoff che questo tipo rappresenta.",
     )
     is_machine_work = models.BooleanField(
         default=False,

@@ -4655,3 +4655,27 @@ body.theme-dark .fai-tipo input:checked+span{background:rgba(249,115,22,.14)}
   .td-sotto-spunta{grid-row:span 4}
   .td-sotto-stato{width:auto}
 }
+
+/* Percorso del kickoff (_tappe.html) */
+.tp-block{display:grid;gap:8px;margin:12px 0;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.tp-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tp-hint{font-size:12px;color:var(--text-mid)}
+.tp-list{list-style:none;margin:0;padding:0;display:grid}
+.tp-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 0;border-top:1px solid var(--border)}
+.tp-row:first-child{border-top:0}
+.tp-ic{font-size:15px;line-height:22px;color:var(--text-mid)}
+.tp-row--fatta .tp-ic,.tp-row--esclusa .tp-ic{color:var(--success,#15803d)}
+.tp-row--esclusa .tp-title{color:var(--text-mid)}
+.tp-main{display:grid;gap:4px;min-width:0}
+.tp-title{font-weight:600;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tp-voce{display:grid;gap:3px}
+.tp-meta{font-size:12px;color:var(--text-mid)}
+.tp-macchina{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px}
+.tp-macchina a{color:inherit}
+.tp-form{display:grid;grid-template-columns:minmax(160px,1.4fr) minmax(150px,1fr) 150px auto;gap:8px;align-items:center;margin-top:4px}
+.tp-form[hidden]{display:none}
+.tp-form>*{min-width:0}
+@media (max-width:900px){.tp-row{grid-template-columns:22px minmax(0,1fr)}.tp-row .tr-actions{grid-column:2}.tp-form{grid-template-columns:minmax(0,1fr)}}
+.tp-altri{margin:0 0 12px}
+.tp-altri>summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--text-mid);padding:6px 2px}
+.tp-link{display:inline;font-weight:600;color:var(--text);text-decoration:underline;text-underline-offset:2px}
