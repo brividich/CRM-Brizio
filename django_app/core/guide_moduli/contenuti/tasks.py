@@ -108,6 +108,7 @@ GUIDA = {
                     ("Modelli", "modelli di ordine del giorno: un punto per riga, «Titolo | 15» per la durata in minuti."),
                     ("Ruoli operativi e Accessi", "chi vede tutto, chi modifica solo le proprie attività, chi modifica tutto."),
                     ("Promemoria", "i promemoria automatici."),
+                    ("Flussi del Percorso del kickoff", "Automazioni → Eventi applicativi: «KICK-OFF — promemoria prima della scadenza delle tappe» e «KICK-OFF — evento nel calendario Outlook del responsabile». Nascono spenti: si accendono dal designer della regola dopo l'installazione dei flussi (install_managed_flows). Il promemoria usa i giorni di preavviso della scheda Promemoria."),
                     ("Record", "eliminare un kickoff o un'attività: la motivazione è obbligatoria e resta nell'audit."),
                     ("Log attivita", "chi ha fatto cosa."),
                 ]),

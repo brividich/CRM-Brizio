@@ -15,14 +15,7 @@
       <div class="tp-voce">
         <span class="tp-meta">{% if v.task.title != r.tipo.name %}<a class="tp-link" href="{{ v.url }}">{{ v.titolo_breve }}</a> · {% endif %}{% if v.task.assigned_to %}{{ v.task.assigned_to.get_full_name|default:v.task.assigned_to.username }}{% else %}da assegnare{% endif %}{% if v.task.due_date %} · entro il {{ v.task.due_date|date:"d/m/Y" }}{% endif %}{% if v.dettaglio and r.key != "TERZISTA" and r.key != "PROCESSI" %} · {{ v.dettaglio }}{% endif %}{% if r.voci|length > 1 %} · {{ v.task.get_status_display }}{% endif %} · <a class="tp-link" href="{{ v.url }}">Apri</a></span>
         {% if v.macchina %}{% with m=v.macchina %}
-        <div class="tp-macchina">
-          <span>Dal {{ m.inizio|date:"d/m" }} al {{ m.fine|date:"d/m" }}:</span>
-          {% if m.abilitati is None %}<span class="tp-meta">skill matrix non disponibile</span>
-          {% elif m.abilitati == 0 %}<span class="ts-chip danger">Nessun abilitato operativo</span>
-          {% else %}<span class="ts-chip {% if m.disponibili == 0 %}danger{% elif m.abilitati == 1 or m.assenti %}warn{% else %}ok{% endif %}">{{ m.disponibili }} su {{ m.abilitati }} abilitati disponibili</span>{% endif %}
-          {% for a in m.assenti %}<span class="tp-meta">{% if a.nome %}{{ a.nome }}{% else %}1 abilitato{% endif %} assente{% for p in a.periodi %} {{ p.0|date:"d/m" }}–{{ p.1|date:"d/m" }}{% endfor %}</span>{% endfor %}
-          {% for i in m.impegni %}<span class="ts-chip {% if i.grave %}danger{% else %}warn{% endif %}">{% if i.url %}<a href="{{ i.url }}">{{ i.titolo }}</a>{% else %}{{ i.titolo }}{% endif %}{% if i.quando %} · {{ i.quando }}{% endif %}</span>{% empty %}<span class="ts-chip ok">Nessuna manutenzione o impegno</span>{% endfor %}
-        </div>
+        {% include "tasks/_tappe_macchina.html" %}
         {% endwith %}{% endif %}
       </div>
       {% endfor %}
@@ -44,8 +37,11 @@
           <option value="">Responsabile…</option>
           {% with quick_users=tappe_utenti %}{% include "tasks/_quick_user_options.html" %}{% endwith %}
         </select>
-        <input class="input" type="date" data-tp="due" aria-label="Entro il">
+        <label class="tp-data"><span>Inizio</span><input class="input" type="date" data-tp="start" value="{{ tappe_oggi|date:'Y-m-d' }}"></label>
+        <label class="tp-data"><span>Entro il</span><input class="input" type="date" data-tp="due" min="{{ tappe_oggi|date:'Y-m-d' }}"></label>
+        {% if tappe_outlook %}<label class="tp-check"><input type="checkbox" data-tp="outlook" value="1"> Anche in Outlook</label>{% endif %}
         <button type="button" class="btn btn-sm" data-tp-action="assegna">Salva</button>
+        <div class="tp-anteprima" data-tp-anteprima aria-live="polite"></div>
       </div>
       {% endif %}
     </div>

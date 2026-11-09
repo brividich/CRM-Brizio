@@ -211,6 +211,31 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "source": "suggestion_corner/notifications.py",
         "func": "notifica_team_nuova_segnalazione",
     },
+    # Flussi nuovi spenti finché qualcuno non li accende dal designer.
+    {
+        "code": "kickoff_promemoria_scadenza",
+        "label": "KICK-OFF — promemoria prima della scadenza delle tappe",
+        "module": "KICK-OFF",
+        "trigger": (
+            "Una tappa del «Percorso del kickoff» o una riga di «Programmi e FAI» diventa un'attività "
+            "con data «Entro il»: prepara il promemoria nel portale con i giorni di preavviso delle "
+            "Impostazioni KICK-OFF."
+        ),
+        "destinatari": "Responsabile dell'attività (campanella del portale)",
+        "source": "tasks/services/tappe.py",
+        "func": "promemoria_scadenza",
+        "attivo_di_default": False,
+    },
+    {
+        "code": "kickoff_evento_outlook",
+        "label": "KICK-OFF — evento nel calendario Outlook del responsabile",
+        "module": "KICK-OFF",
+        "trigger": "Una tappa del «Percorso del kickoff» viene assegnata con data «Entro il» e la spunta «Anche in Outlook».",
+        "destinatari": "Calendario Outlook del responsabile (email di notifica dell'anagrafica), via Microsoft Graph",
+        "source": "tasks/services/tappe.py",
+        "func": "evento_outlook",
+        "attivo_di_default": False,
+    },
 ]
 
 
