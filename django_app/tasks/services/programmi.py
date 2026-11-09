@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from django.db.models import Q
+from django.utils import timezone
 
-from ..models import ProjectTechRef, Task, TaskStatus, TechRefKind, TechRefStatus
+from ..models import ProjectTechRef, Task, TaskCategory, TaskPriority, TaskStatus, TechRefKind, TechRefStatus
 from .fai import allinea_da_riga
 
 
@@ -50,7 +51,8 @@ def allinea_da_attivita(task: Task) -> ProjectTechRef | None:
     if not kind:
         return None
     if ref is None:
-        ref = _riga_libera(task, kind) or ProjectTechRef(
+        # La riga che ha chiesto l'attività (vedi ``attivita_per_riga``) viene prima di ogni altra libera.
+        ref = getattr(task, "_riga_programma", None) or _riga_libera(task, kind) or ProjectTechRef(
             project_id=task.project_id, kind=kind, created_by=task.created_by
         )
     ref.task = task
@@ -81,3 +83,55 @@ def allinea_stato_riga(ref: ProjectTechRef, user=None) -> None:
     else:
         return
     ref.save(update_fields=["status", "done_by", "done_at", "updated_at"])
+
+
+def tipo_per(kind: str) -> TaskCategory | None:
+    """Il tipo di attività che produce questo programma (Impostazioni → Tipi, «Richiede»)."""
+    return TaskCategory.objects.filter(is_active=True, richiede=kind).order_by("order_index", "id").first()
+
+
+def attivita_per_riga(ref: ProjectTechRef, user=None, *, notifica: bool = True) -> Task | None:
+    """Riga assegnata in «Programmi e FAI»: diventa un'attività del kickoff.
+
+    Prima la riga restava una voce a parte: niente Gantt, niente «In corso», niente
+    mail a chi la riceveva. Ora nasce l'attività del tipo che «richiede» quel
+    programma, con stesso responsabile e stessa data; la riga si chiude con lei.
+    Non crea nulla se la riga non ha responsabile, è già chiusa o collegata, se
+    nessun tipo attivo la richiede o se il kickoff è bloccato per VRF.
+    """
+    from .meeting_tasks import kickoff_bloccato_vrf, meeting_task_marker, notify_task_assignment, titolo_attivita
+
+    if ref.task_id or not ref.assigned_to_id or not ref.is_open or not ref.project_id:
+        return None
+    tipo = tipo_per(ref.kind)
+    if tipo is None or kickoff_bloccato_vrf(ref.project):
+        return None
+    autore = user if getattr(user, "is_authenticated", False) else (ref.created_by or ref.project.created_by)
+    if autore is None:
+        return None
+    oggi = timezone.localdate()
+    inizio = min(oggi, ref.due_date) if ref.due_date else oggi
+    meeting = ref.source_meeting
+    if meeting is not None:
+        data = f"{meeting.data:%d-%m-%Y}" if hasattr(meeting.data, "strftime") else str(meeting.data or "")
+        descrizione = f"{meeting_task_marker(meeting)}{data}). Riga di «Programmi e FAI»."
+    else:
+        descrizione = "Dalla scheda «Programmi e FAI» della commessa."
+    task = Task(
+        title=titolo_attivita(f"{tipo.name} {ref.code}".strip()),
+        project_id=ref.project_id,
+        assigned_to_id=ref.assigned_to_id,
+        category=tipo,
+        next_step_due=inizio,
+        due_date=ref.due_date,
+        priority=TaskPriority.MEDIUM,
+        status=TaskStatus.TODO,
+        created_by=autore,
+        description=descrizione,
+    )
+    task._riga_programma = ref
+    task.save()
+    ref.refresh_from_db()
+    if notifica:
+        notify_task_assignment(task, actor=user)
+    return task

@@ -143,11 +143,24 @@ class TechRefViewTests(TasksBaseTestCase):
 
     def test_notifica_al_responsabile(self):
         self.client.force_login(self.manager)
-        with patch("tasks.views.tech_refs.notify_user") as notify:
+        # La riga assegnata diventa un'attività: l'avviso è quello dell'attività (portale + mail).
+        with patch("tasks.services.meeting_tasks.notify_user") as notify,                 patch("tasks.services.meeting_tasks._mail_assegnazione") as mail:
             self.assertEqual(self._salva(code="O1", assigned_to=self.programmatore.pk).status_code, 200)
             self.assertEqual(self._salva(code="O2", assigned_to=self.manager.pk).status_code, 200)
         notify.assert_called_once()
+        mail.assert_called_once()
         self.assertIn("O1", notify.call_args.args[1])
+
+    def test_notifica_riga_senza_tipo_attivita(self):
+        """Nessun tipo «richiede» CAM: resta la riga semplice con l'avviso di prima."""
+        from .models import TaskCategory
+
+        TaskCategory.objects.filter(richiede="CAM").update(richiede="")
+        self.client.force_login(self.manager)
+        with patch("tasks.views.tech_refs.notify_user") as notify:
+            self.assertEqual(self._salva(code="O1", assigned_to=self.programmatore.pk).status_code, 200)
+        notify.assert_called_once()
+        self.assertIsNone(self.project.tech_refs.get().task_id)
 
     def test_rotte_con_binding_canonico(self):
         """Con ACL_STRICT_CANONICAL una rotta senza binding viene negata in produzione."""
