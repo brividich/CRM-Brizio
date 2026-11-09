@@ -127,6 +127,7 @@ urlpatterns = [
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/sala/verifica/", views.sala_verifica, name="sala_verifica"),
     path("tasks/sale/disponibilita/", views.sale_disponibilita, name="sale_disponibilita"),
     path("tasks/spostamenti/<int:sp_id>/decidi/", views.spostamento_decidi, name="spostamento_decidi"),
+    path("tasks/<int:task_id>/azione-rapida/", views.task_azione_rapida, name="task_azione_rapida"),
     path("tasks/spostamenti/<int:sp_id>/annulla/", views.spostamento_annulla, name="spostamento_annulla"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/invito-outlook/", views.project_meeting_send_outlook, name="project_meeting_send_outlook"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/edit/", views.project_meeting_edit, name="project_meeting_edit"),

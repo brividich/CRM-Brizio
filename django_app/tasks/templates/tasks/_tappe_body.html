@@ -13,7 +13,7 @@
       {% if not r.voci and r.stato != "esclusa" %}<div class="tp-hint">{{ r.aiuto }}</div>{% endif %}
       {% for v in r.voci %}
       <div class="tp-voce">
-        <span class="tp-meta">{% if v.task.title != r.tipo.name %}<a class="tp-link" href="{{ v.url }}">{{ v.titolo_breve }}</a> · {% endif %}{% if v.task.assigned_to %}{{ v.task.assigned_to.get_full_name|default:v.task.assigned_to.username }}{% else %}da assegnare{% endif %}{% if v.task.due_date %} · entro il {{ v.task.due_date|date:"d/m/Y" }}{% endif %}{% if v.dettaglio and r.key != "TERZISTA" and r.key != "PROCESSI" %} · {{ v.dettaglio }}{% endif %}{% if r.voci|length > 1 %} · {{ v.task.get_status_display }}{% endif %} · <a class="tp-link" href="{{ v.url }}">Apri</a></span>
+        <span class="tp-meta">{% if v.task.title != r.tipo.name %}<a class="tp-link" href="{{ v.url }}">{{ v.titolo_breve }}</a> · {% endif %}{% if v.task.assigned_to %}{{ v.task.assigned_to.get_full_name|default:v.task.assigned_to.username }}{% else %}da assegnare{% endif %}{% if v.task.due_date %} · entro il {{ v.task.due_date|date:"d/m/Y" }}{% endif %}{% if v.dettaglio and r.key != "TERZISTA" and r.key != "PROCESSI" %} · {{ v.dettaglio }}{% endif %}{% if r.voci|length > 1 %} · {{ v.task.get_status_display }}{% endif %} · <a class="tp-link" href="{{ v.url }}">Apri</a>{% include "tasks/_azioni_rapide_btn.html" with ar_task_id=v.task.pk %}</span>
         {% if v.macchina %}{% with m=v.macchina %}
         {% include "tasks/_tappe_macchina.html" %}
         {% endwith %}{% endif %}

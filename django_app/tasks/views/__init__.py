@@ -275,3 +275,4 @@ from .tappe import tappa_anteprima, tappa_azione  # noqa: F401,E402
 from .sale import sala_verifica, sale_disponibilita  # noqa: F401,E402
 from .meetings import project_meeting_send_outlook  # noqa: F401,E402
 from .spostamenti import spostamento_annulla, spostamento_decidi  # noqa: F401,E402
+from .azioni_rapide import task_azione_rapida  # noqa: F401,E402

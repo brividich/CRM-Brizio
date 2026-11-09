@@ -70,7 +70,7 @@ Contesto: quick_users, quick_start, quick_bloccato, meeting_tasks, task_from_ste
   {% endif %}
   <ul class="qt-log" data-qt="log">
     {% for t in meeting_tasks %}
-      <li><a href="{% url 'tasks:detail' t.pk %}">{{ t.title }}</a>{% if t.assigned_to %} · {{ t.assigned_to.get_full_name|default:t.assigned_to.username }}{% endif %}{% if t.due_date %} · entro {{ t.due_date|date:"d/m/Y" }}{% endif %}</li>
+      <li><a href="{% url 'tasks:detail' t.pk %}">{{ t.title }}</a>{% if t.assigned_to %} · {{ t.assigned_to.get_full_name|default:t.assigned_to.username }}{% endif %}{% if t.due_date %} · entro {{ t.due_date|date:"d/m/Y" }}{% endif %} {% include "tasks/_azioni_rapide_btn.html" with ar_task_id=t.pk %}</li>
     {% endfor %}
   </ul>
 </section>
