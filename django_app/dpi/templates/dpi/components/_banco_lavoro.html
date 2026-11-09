@@ -4,6 +4,7 @@
   <button type="button" class="dpi-kpi-box" data-filtro="prep"><span class="dpi-kpi-n">{{ n_da_preparare }}</span><span class="dpi-kpi-l">Da preparare</span></button>
   <button type="button" class="dpi-kpi-box" data-filtro="pronte"><span class="dpi-kpi-n">{{ n_pronte }}</span><span class="dpi-kpi-l">Pronti al ritiro</span></button>
   <button type="button" class="dpi-kpi-box{% if n_mancanti %} warn{% endif %}" data-filtro="manca"><span class="dpi-kpi-n">{{ n_mancanti }}</span><span class="dpi-kpi-l">Giacenza insufficiente</span></button>
+  <button type="button" class="dpi-kpi-box" data-filtro="attesa"><span class="dpi-kpi-n">{{ n_attesa }}</span><span class="dpi-kpi-l">In attesa di approvazione</span></button>
 </div>
 
 <div class="banco-strumenti">
@@ -20,20 +21,21 @@
   <div class="banco-lista" role="listbox" aria-label="Persone in attesa">
     {% for p in persone %}
     <button type="button" class="banco-persona" role="option" data-chiave="{{ p.chiave }}"
-            data-prep="{{ p.n_da_preparare }}" data-pronte="{{ p.n_pronte }}" data-manca="{{ p.n_mancanti }}"
-            data-cerca="{{ p.nome }} {{ p.reparto }}{% for riga in p.righe %} {{ riga.r.numero }}{% if riga.r.modello_dpi %} {{ riga.r.modello_dpi.codice }} {{ riga.r.modello_dpi.nome }}{% endif %}{% endfor %}">
+            data-prep="{{ p.n_da_preparare }}" data-pronte="{{ p.n_pronte }}" data-manca="{{ p.n_mancanti }}" data-attesa="{{ p.n_attesa }}"
+            data-cerca="{{ p.nome }} {{ p.reparto }}{% for riga in p.righe %} {{ riga.r.numero }}{% if riga.r.modello_dpi %} {{ riga.r.modello_dpi.codice }} {{ riga.r.modello_dpi.nome }}{% endif %}{% endfor %}{% for a in p.attese %} {{ a.r.numero }}{% endfor %}">
       <span class="banco-persona-nome">{{ p.nome|upper }}</span>
       {% if p.reparto %}<span class="dpi-persona-rep">{{ p.reparto }}</span>{% endif %}
       <span class="banco-persona-pill">
         {% if p.n_pronte %}<span class="dpi-pill dpi-pill-pronta">{{ p.n_pronte }} pront{{ p.n_pronte|pluralize:"o,i" }}</span>{% endif %}
         {% if p.n_da_preparare %}<span class="dpi-pill dpi-pill-prep">{{ p.n_da_preparare }} da preparare</span>{% endif %}
         {% if p.n_mancanti %}<span class="dpi-pill dpi-pill-manca">{{ p.n_mancanti }} senza giacenza</span>{% endif %}
+        {% if p.n_attesa %}<span class="dpi-pill dpi-pill-attesa">{{ p.n_attesa }} da approvare</span>{% endif %}
       </span>
     </button>
     {% endfor %}
     <div class="dpi-empty" id="banco-nessuno" hidden>
       <span id="banco-nessuno-testo">Nessuna persona trovata.</span>
-      {% if ha_diretta %}<br><button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta style="margin-top:10px;">Consegna diretta</button>{% endif %}
+      {% if ha_diretta %}<br><button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta style="margin-top:10px;">Consegna senza richiesta</button>{% endif %}
     </div>
   </div>
 
@@ -77,9 +79,35 @@
           {% endwith %}{% endfor %}
         </ul>
 
+        {% if p.attese %}
+        <ul class="dpi-righe dpi-attese">
+          {% for a in p.attese %}{% with r=a.r %}
+          <li>
+            <div class="dpi-riga dpi-riga-attesa">
+              {% if r.categoria.immagine %}<img src="{{ r.categoria.immagine.url }}" alt="" class="dpi-riga-ico" style="object-fit:contain;">{% else %}<svg class="dpi-riga-ico"><use href="#i-dpi-{{ r.categoria.icona_emoji|dpi_icon_key }}"/></svg>{% endif %}
+              <span class="dpi-riga-main">
+                <span class="dpi-riga-dpi">{% if r.modello_dpi %}{{ r.modello_dpi.nome }}{% elif r.tipo_dpi %}{{ r.tipo_dpi.nome }}{% else %}{{ r.categoria.nome }}{% endif %}{% if r.taglia_dpi %} · taglia {{ r.taglia_dpi.valore }}{% endif %}</span>
+                <span class="dpi-riga-meta" style="display:block;">
+                  {{ r.categoria.nome }}{% if r.modello_dpi %} · {{ r.modello_dpi.codice }}{% endif %} ·
+                  <a href="{% url 'dpi:gestione_detail' r.pk %}">{{ r.numero }}</a> · richiesta il {{ r.created_at|date:"d-m" }} ·
+                  <strong>in attesa di approvazione{% if a.approvatori %} di {{ a.approvatori|join:", " }}{% endif %}</strong>
+                </span>
+              </span>
+              <span class="dpi-riga-qta">× {{ r.quantita }}</span>
+              {% if a.puo_approvare %}<button type="submit" name="azione" value="approva" class="dpi-btn dpi-btn-gray dpi-btn-sm" formnovalidate data-approva data-richiesta="{{ r.pk }}">Approva</button>{% endif %}
+            </div>
+          </li>
+          {% endwith %}{% endfor %}
+        </ul>
+        <input type="hidden" name="approva_richiesta" value="">
+        {% endif %}
+
         <div class="banco-avviso" data-avviso-giacenza hidden>Giacenza insufficiente per un DPI spuntato: <a href="{% url 'dpi:magazzino' %}">registra il carico</a> oppure scrivi il motivo per consegnare lo stesso.</div>
 
-        <div class="dpi-consegna">
+        {% if not p.righe and ha_diretta and p.legacy_id %}
+        <div class="dpi-azioni"><button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta="{{ p.legacy_id }}">+ DPI senza richiesta</button></div>
+        {% endif %}
+        <div class="dpi-consegna"{% if not p.righe %} hidden{% endif %}>
           <div class="dpi-consegna-grid">
             <div class="dpi-field">
               <label>Data consegna</label>
@@ -102,7 +130,7 @@
             <button type="submit" name="azione" value="pronta" class="dpi-btn dpi-btn-gray" formnovalidate data-pronto>Pronto per il ritiro (avvisa)</button>
             {% endif %}
             {% if ha_diretta and p.legacy_id %}
-            <button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta="{{ p.legacy_id }}">+ Consumabile</button>
+            <button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta="{{ p.legacy_id }}">+ DPI senza richiesta</button>
             {% endif %}
           </div>
           <p class="dpi-hint" style="margin:10px 0 0;">«Conferma con badge»: la persona passa il proprio badge, senza mail. «Conferma con mail», per chi non ha il badge con sé: ritira subito e la conferma arriva al dipendente (se ha la mail aziendale) o al suo caporeparto.</p>
@@ -125,7 +153,9 @@
   </div>
 </div>
 {% else %}
-<div class="dpi-card dpi-empty">Nessun DPI da consegnare: le richieste approvate compaiono qui.</div>
+<div class="dpi-card dpi-empty">Nessun DPI da consegnare: le richieste approvate e quelle in attesa del responsabile compaiono qui.
+  {% if ha_diretta %}<br><button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta style="margin-top:10px;">Consegna senza richiesta</button>{% endif %}
+</div>
 {% endif %}
 
 {% if conferme_contestate or n_conferme_attesa %}

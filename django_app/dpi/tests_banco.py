@@ -1,5 +1,5 @@
 """Banco consegne: coda del magazzino per persona, consegna multipla con una firma,
-consegna diretta dei consumabili, chi consegna per categoria (scarpe escluse)."""
+consegna senza richiesta, richieste in attesa del responsabile, chi consegna per categoria (scarpe escluse)."""
 
 from __future__ import annotations
 
@@ -345,19 +345,84 @@ class BancoConsegneTests(TestCase):
         a.refresh_from_db()
         self.assertIsNotNone(a.pronta_ritiro_il)
 
-    def test_consegna_diretta_solo_categorie_abilitate(self):
+    def test_consegna_senza_richiesta_per_ogni_categoria_tranne_le_scarpe_al_negozio(self):
+        self.scarpe.si_ordina_al_negozio = True
+        self.scarpe.save()
         with mock.patch("dpi.views._dipendenti_selezionabili", return_value=[{"id": 101, "nome": "Mario Rossi"}]):
-            self.client.post(self.url, {"azione": "diretta", "dipendente": 101, "modello_dpi_id": self.mod_guanti.pk})
-            self.assertFalse(RichiestaDPI.objects.exists())
-            self.guanti.consegna_diretta = True
-            self.guanti.save()
+            self.client.post(self.url, {"azione": "diretta", "dipendente": 101, "modello_dpi_id": self.mod_scarpe.pk})
+            self.assertFalse(RichiestaDPI.objects.exists())  # scarpe: si ordinano al negozio
             resp = self.client.post(self.url, {
                 "azione": "diretta", "dipendente": 101, "modello_dpi_id": self.mod_guanti.pk, "quantita": "3",
             })
         r = RichiestaDPI.objects.get()
         self.assertEqual((r.stato, r.quantita, r.richiedente_legacy_id), (StatoRichiesta.APPROVATA, 3, 101))
-        self.assertIn("Consegna diretta al banco", r.note_gestione)
+        self.assertIn("Consegna diretta al banco senza richiesta", r.note_gestione)
+        self.assertIn("di norma passa dall'approvazione", r.commenti.get().testo)  # categoria non consumabile: resta scritto
         self.assertTrue(resp["Location"].endswith("#apri-p101"))
+
+    def test_consegna_senza_richiesta_consumabile_lo_dice(self):
+        self.guanti.consegna_diretta = True
+        self.guanti.save()
+        with mock.patch("dpi.views._dipendenti_selezionabili", return_value=[{"id": 101, "nome": "Mario Rossi"}]):
+            self.client.post(self.url, {"azione": "diretta", "dipendente": 101, "modello_dpi_id": self.mod_guanti.pk})
+        self.assertIn("senza approvazione", RichiestaDPI.objects.get().commenti.get().testo)
+
+    def test_catalogo_della_consegna_senza_richiesta_esclude_le_scarpe_al_negozio(self):
+        self.scarpe.si_ordina_al_negozio = True
+        self.scarpe.save()
+        resp = self.client.get(self.url)
+        self.assertTrue(resp.context["ha_diretta"])
+        self.assertEqual([m.pk for m in resp.context["modelli_banco"]], [self.mod_guanti.pk])
+        self.assertContains(resp, "Consegna senza richiesta")
+
+    def _inviata(self, modello, nome="Mario Rossi", legacy=101):
+        r = self._richiesta(modello, nome=nome, legacy=legacy)
+        r.stato = StatoRichiesta.INVIATA
+        r.save(update_fields=["stato"])
+        return r
+
+    def test_richieste_in_attesa_mostrate_nella_scheda_ma_non_spuntabili(self):
+        approvata = self._richiesta(self.mod_guanti)
+        attesa = self._inviata(self.mod_guanti)
+        self._inviata(self.mod_scarpe)  # categoria non del magazzino: solo con «tutte»
+        solo_attesa = self._inviata(self.mod_guanti, nome="Luigi Verdi", legacy=102)
+        with mock.patch.object(flusso, "approvatori_di", return_value={7}),              mock.patch("dpi.views._nomi_anagrafiche", return_value={7: "Anna Capo"}):
+            resp = self.client.get(self.url)
+        persone = {p["nome"]: p for p in resp.context["persone"]}
+        self.assertEqual(resp.context["n_attesa"], 2)
+        self.assertEqual([a["r"].pk for a in persone["Mario Rossi"]["attese"]], [attesa.pk])
+        self.assertEqual([riga["r"].pk for riga in persone["Mario Rossi"]["righe"]], [approvata.pk])
+        self.assertEqual(persone["Mario Rossi"]["n_attesa"], 1)
+        self.assertEqual(persone["Luigi Verdi"]["righe"], [])  # scheda anche con la sola richiesta in attesa
+        self.assertEqual([a["r"].pk for a in persone["Luigi Verdi"]["attese"]], [solo_attesa.pk])
+        self.assertContains(resp, "in attesa di approvazione di Anna Capo")
+        self.assertContains(resp, 'data-attesa="1"')
+        self.assertNotContains(resp, f'name="ids" value="{attesa.pk}"')
+        tutte = self.client.get(self.url + "?tutte=1")
+        self.assertEqual(tutte.context["n_attesa"], 3)
+
+    def test_approva_dal_banco_e_poi_si_consegna(self):
+        attesa = self._inviata(self.mod_guanti)
+        with mock.patch.object(flusso, "notifica_approvata") as avviso:
+            resp = self.client.post(self.url, {"azione": "approva", "approva_richiesta": attesa.pk})
+        attesa.refresh_from_db()
+        self.assertEqual(attesa.stato, StatoRichiesta.APPROVATA)
+        self.assertEqual(avviso.call_count, 1)
+        self.assertIn("Approvata al Banco consegne", attesa.commenti.get().testo)
+        self.assertTrue(resp["Location"].endswith("#p101"))
+        self.client.post(self.url, {"azione": "consegna", "ids": [attesa.pk], "data_consegna": "2026-11-09"})
+        attesa.refresh_from_db()
+        self.assertEqual(attesa.stato, StatoRichiesta.CONSEGNATA)
+
+    def test_approva_dal_banco_negata_a_chi_non_approva(self):
+        attesa = self._inviata(self.mod_guanti)
+        with mock.patch("dpi.views._can_approve", return_value=False):
+            self.client.post(self.url, {"azione": "approva", "approva_richiesta": attesa.pk})
+            resp = self.client.get(self.url)
+        attesa.refresh_from_db()
+        self.assertEqual(attesa.stato, StatoRichiesta.INVIATA)
+        self.assertFalse(resp.context["persone"][0]["attese"][0]["puo_approvare"])
+        self.assertNotContains(resp, "data-approva data-richiesta")
 
     def test_consegna_diretta_dipendente_non_selezionabile(self):
         self.guanti.consegna_diretta = True
