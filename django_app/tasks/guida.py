@@ -404,7 +404,7 @@ SEZIONI: list[dict] = [
             ("p", "È la pagina di riferimento di un incontro: da qui parte tutto il resto."),
             ("img", (_IMG + "incontro.jpg", "Il dettaglio di un incontro pianificato")),
             ("def", [
-                ("In alto", "«Conduci incontro», «Registra esito», «Convocazione», «Annulla incontro», «Elimina»."),
+                ("In alto", "«Conduci incontro», «Registra esito», «Modifica incontro» (data, ora, sala, partecipanti, ordine del giorno), «Annulla incontro», «Elimina»."),
                 ("Attività di questo incontro", "scrivi il titolo e premi Invio: la pagina non si ricarica, il responsabile resta e si riparte dal titolo. Sotto, l'elenco delle attività nate dall'incontro. «Più opzioni» apre sotto la riga tipo, priorità e attrezzatura, oppure «Aggiorna un'attività già creata» per correggerne date e responsabile senza crearne un'altra."),
                 ("Documenti", "«Invia convocazione», «Invia minuta», «Scarica minuta PDF», «Approva e chiudi minuta»."),
                 ("Partecipanti", "convocati, email esterne e, a incontro svolto, presenti e assenti."),
@@ -421,7 +421,7 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "«Annulla incontro» (solo per incontri pianificati) chiede il motivo, toglie l'evento dal calendario Outlook "
                 "e, se la casella «Avvisa i convocati via email» resta spuntata, manda ai convocati l'avviso di annullamento con il motivo.",
-                "Un incontro annullato si riprogramma da «Convocazione», riportando lo stato a «Pianificato»: "
+                "Un incontro annullato si riprogramma da «Modifica incontro», riportando lo stato a «Pianificato»: "
                 "la convocazione torna «da inviare», perché i convocati hanno ricevuto l'annullamento.",
                 "«Elimina» compare solo per gli incontri mai svolti e senza decisioni. Un incontro svolto non si elimina: "
                 "con lui sparirebbero verbale e decisioni.",
