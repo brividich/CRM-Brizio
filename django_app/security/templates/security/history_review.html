@@ -47,7 +47,7 @@
   <div class="sec-panel">
     <div class="sec-section-head"><h2>Falsi positivi ricorrenti</h2><a href="{% url 'security:admin_config_suppressions' %}">Regole di soppressione</a></div>
     {% for row in review.false_positives %}
-      <div class="inv-fact tone-warn"><div class="inv-fact-head"><strong>{{ row.example|truncatechars:70 }}</strong><a href="{{ row.url }}">apri</a></div>
+      <div class="inv-fact tone-warn"><div class="inv-fact-head"><strong>{{ row.example|truncatechars:70 }}</strong><span><a href="{{ row.url }}">apri</a>{% if can_configure %} · <a href="{% url 'security:admin_config_suppressions' %}?{{ row.soppressione }}#cfg-form">Crea soppressione</a>{% endif %}</span></div>
         <ul><li>{{ row.false_positive }} falsi positivi su {{ row.total }}: candidato a una regola di soppressione</li>{% for r in row.reasons %}<li>«{{ r }}»</li>{% endfor %}</ul></div>
     {% empty %}<p class="sec-muted">Nessun falso positivo che si ripete.</p>{% endfor %}
 

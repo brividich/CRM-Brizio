@@ -398,6 +398,32 @@ def alert_proposta_azione(request, pk, azione):
 
 
 @require_POST
+def alert_proposte_riapri(request):
+    """«Riapri le selezionate» tra i chiusi dall'AI: come «Riapri» della riga, con la nota obbligatoria."""
+    from security.models import SecurityAlertProposta
+    from security.services import ai_proposte
+
+    if not can_view_security_center(request.user):
+        return _security_center_denied(request)
+    ids = [int(v) for v in request.POST.getlist("proposta_ids") if str(v).isdigit()]
+    nota = request.POST.get("nota", "").strip()[:500]
+    if not ids:
+        messages.error(request, "Nessun alert selezionato.")
+    elif not nota:
+        messages.error(request, "Scrivi perché le chiusure sono sbagliate: resta su ogni alert riaperto e insegna all'AI.")
+    else:
+        proposte = list(SecurityAlertProposta.objects.filter(pk__in=ids, stato=SecurityAlertProposta.CHIUSA_AUTO).select_related("alert"))
+        for proposta in proposte:
+            ai_proposte.riapri(proposta, request.user, nota)
+        n = len(proposte)
+        if n:
+            messages.success(request, f"{n} alert riapert{'o' if n == 1 else 'i'}: l'AI non chiuderà più da sola questi tipi finché non riguadagna la fiducia.")
+        if len(ids) > n:
+            messages.warning(request, f"{len(ids) - n} già riapert{'o' if len(ids) - n == 1 else 'i'} o non più chius{'o' if len(ids) - n == 1 else 'i'} dall'AI.")
+    return redirect("security:alert_proposte")
+
+
+@require_POST
 def overview_brief(request):
     """Sintesi del giorno della Panoramica, dall'AI locale."""
     from security.services.ai_explain import daily_brief
@@ -420,7 +446,8 @@ def history_page(request):
     except ValueError:
         days = 30
     days = days if days in (7, 30, 90) else 30
-    return render(request, "security/history_review.html", {"review": build_review(days), "days": days})
+    return render(request, "security/history_review.html", {"review": build_review(days), "days": days,
+                                                            "can_configure": can_configure_soc(request)})
 
 
 @require_POST
@@ -763,8 +790,10 @@ def admin_config_alert_rules(request):
 
 @ensure_csrf_cookie
 def admin_config_suppressions(request):
+    # «Crea soppressione» dallo Storico apre il modulo già compilato (?name=…&source=…&event_type=…&reason=…).
     return _config_model_page(request, SecurityAlertSuppressionRule, SecurityAlertSuppressionRuleForm, "security/admin_config/suppressions.html", "admin_config_suppressions",
-                              extra_context={"section_help": CONFIG_SECTION_HELP["suppressions"]}, toggle_field="is_active")
+                              extra_context={"section_help": CONFIG_SECTION_HELP["suppressions"]}, toggle_field="is_active",
+                              initial_from_get=("name", "source", "event_type", "severity", "reason"))
 
 
 @ensure_csrf_cookie
@@ -900,7 +929,8 @@ def admin_addon_detail(request, code):
     return render(request, "security/admin_addon_detail.html", {"addon": addon})
 
 
-def _config_model_page(request, model, form_class, template, redirect_name, extra_context=None, toggle_field=None, deletable=True, before_save=None, ordering=None):
+def _config_model_page(request, model, form_class, template, redirect_name, extra_context=None, toggle_field=None, deletable=True, before_save=None, ordering=None,
+                       initial_from_get=()):
     """Pagina elenco di configurazione: crea, MODIFICA, attiva/disattiva, elimina.
 
     Prima c'era solo «aggiungi»: una regola esistente non si poteva correggere (stesso codice =
@@ -950,6 +980,11 @@ def _config_model_page(request, model, form_class, template, redirect_name, extr
     elif request.GET.get("edit"):
         editing = get_object_or_404(model, pk=request.GET.get("edit"))
         form = form_class(instance=editing)
+    elif initial_from_get:
+        # Solo valori iniziali (il modulo non è legato): si salva solo con «Crea», dopo la revisione.
+        initial = {k: request.GET[k][:500] for k in initial_from_get if request.GET.get(k)}
+        if initial:
+            form = form_class(initial=initial)
     objects = model.objects.all()
     if ordering:
         objects = objects.order_by(*ordering)

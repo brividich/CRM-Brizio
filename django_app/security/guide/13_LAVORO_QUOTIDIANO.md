@@ -46,9 +46,9 @@ La casella **Cerca** nel menu del SOC trova incidenti, ticket, alert, PC e serve
 
 ## Anteprime e selezione multipla
 
-- **Anteprima**: nelle liste (alert, ticket, incidenti, eventi, PC) un clic sulla riga (non sul link né sulla casella) apre il dettaglio in un pannello laterale, senza perdere la lista. Con le frecce **←** e **→** passi alla riga precedente o successiva, con **Esc** chiudi. Le azioni del pannello (prendere in carico, chiudere…) restano sulla lista.
+- **Anteprima**: nelle liste (alert, ticket, incidenti, eventi, PC, Da fare, alert collegati a un ticket o a un incidente, chiusi dall'AI) un clic sulla riga (non sul link né sulla casella) apre il dettaglio in un pannello laterale, senza perdere la lista. Con le frecce **←** e **→** passi alla riga precedente o successiva, con **Esc** chiudi. Le azioni del pannello (prendere in carico, chiudere…) restano sulla lista. Nel pannello del **ticket** c'è anche **Cambia stato** (per chiudere scrivi l'esito, come nella scheda); in quello dell'**incidente** **Assegna a me**; in quello del **PC** **Apri un ticket per questo PC**. Nelle tabelle delle patch e nella scheda CVE il nome del PC apre il suo pannello (Ctrl+clic: la scheda PC).
 - **Raggruppa**: sopra ogni tabella del SOC, **Raggruppa ▾** divide le righe per una colonna (per PC, per patch, per CVE, per stato, per responsabile…). Ogni gruppo mostra quante righe ha e si apre o chiude con un clic; la sua casella seleziona tutte le righe del gruppo per le azioni multiple. Una patch che corregge più CVE compare sotto ognuna (le copie sono più chiare e non selezionabili). La scelta resta salvata per te.
-- **Dove si selezionano più righe**: Segnalazioni, Alert, Ticket, Incidenti, Eventi, Backup (PC, job, log), **Dispositivi** e **Patch e protezione › Installazioni non riuscite** (un ticket per i PC scelti, con un'attività per PC), **Soppressioni** e **Rischi accettati** (revoca insieme, con un motivo unico). In Rischi accettati un clic sulla riga apre il pannello della CVE.
+- **Dove si selezionano più righe**: Segnalazioni, Alert, Ticket, Incidenti, Eventi, Backup (PC, job, log), **Dispositivi** (ticket per i PC scelti, e **Collega gli asset proposti** per chi configura il SOC), **Patch e protezione › Installazioni non riuscite**, **Tempi delle patch › Patch ferme** (un ticket con un'attività per ogni PC delle patch scelte), **Vulnerabilità › Asset più esposti** e la tabella **Esito per host** della scheda CVE (ticket, **Accetta il rischio** sui PC scelti, **Conferma le proposte dell'AI**), **Proposte AI › Chiusi dall'AI** (**Riapri le selezionate**, con il perché obbligatorio), **Soppressioni** e **Rischi accettati** (revoca insieme, con un motivo unico). In Rischi accettati un clic sulla riga apre il pannello della CVE.
 - **Selezione multipla**: la casella in testa alla riga seleziona; la casella nell'intestazione seleziona tutte le righe della pagina. In fondo compare la barra con le azioni possibili e il conto dei selezionati. Le righe in uno stato non compatibile vengono saltate e il messaggio finale lo dice.
 
 ## Le segnalazioni
@@ -82,7 +82,7 @@ Più in basso: il ticket collegato, la timeline di tutto ciò che è successo al
 | Azione | Quando usarla |
 | --- | --- |
 | Prendi in carico | Te ne occupi tu: nell'alert resta scritto chi l'ha preso in carico |
-| Posticipa | Non si può fare nulla adesso: l'alert torna da gestire alla data scelta |
+| Posticipa (in coda: **Rimanda fino al…**) | Non si può fare nulla adesso: l'alert torna da gestire alla data scelta. Dalla coda si rimandano più alert insieme fino al giorno scelto |
 | Chiudi con esito «Risolto» | Il problema era vero ed è stato sistemato |
 | Chiudi con esito «Non rilevante» o «Rischio accettato» | Il problema c'è ma non va gestito, con il motivo |
 | Falso positivo | Non era un problema |
@@ -110,7 +110,7 @@ Un alert viene riesaminato solo quando cambia qualcosa: un report nuovo, una dec
 | **Conferma e chiudi** | L'alert si chiude a tuo nome con l'esito proposto e il motivo (che puoi correggere). Conta come conferma |
 | Chiudere l'alert in un altro modo | Dalla scheda dell'alert, con un altro esito: la proposta risulta «chiusa con un altro esito» e conta come errore |
 | **Scarta** | L'alert resta aperto. Scrivi perché: la nota entra nelle decisioni passate dei prossimi alert dello stesso tipo |
-| **Riapri** (tra i chiusi dall'AI) | L'alert torna aperto; anche la riapertura dalla scheda dell'alert vale. Conta come errore grave |
+| **Riapri** (tra i chiusi dall'AI) | L'alert torna aperto; anche la riapertura dalla scheda dell'alert vale. Conta come errore grave. Con **Riapri le selezionate** se ne riaprono più insieme: il perché è obbligatorio e resta su ognuno |
 
 ### Quando chiude da sola
 
@@ -164,7 +164,7 @@ Nella lista ticket il filtro **Responsabile › Non assegnati** mostra i ticket 
 La pagina **Storico** (Analisi dello storico) guarda indietro di 30, 90 o più giorni e mostra cosa migliorare:
 
 - **Alert che si ripetono** e come sono finiti;
-- **Falsi positivi ricorrenti**: candidati a una regola di soppressione;
+- **Falsi positivi ricorrenti**: candidati a una regola di soppressione; **Crea soppressione** (per chi configura il SOC) apre il modulo della soppressione manuale già compilato con nome, sorgente, tipo di evento e motivo, da rivedere prima di salvare;
 - **Scartati dal motore** e **Allarmi mancati** (eventi promossi a mano);
 - **Fermi**: alert aperti da più di 7 giorni, ticket fermi da più di 14;
 - **Come sono stati chiusi**: i motivi scritti da chi li ha gestiti.

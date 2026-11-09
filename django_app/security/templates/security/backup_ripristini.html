@@ -47,7 +47,7 @@
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">
-  <div class="sec-section-head"><h2>Registro delle prove</h2><span class="sec-badge">{{ prove|length }}</span></div>
+  <div class="sec-section-head"><h2>Registro delle prove</h2><span class="sec-badge">{{ prove.paginator.count }}</span></div>
   <div class="sec-table-wrap">
     <table class="sec-table">
       <thead><tr><th>Data</th><th>Esito</th><th>Sistema</th><th>Cosa è stato ripristinato</th><th class="sec-num">Durata</th><th>Eseguita da</th><th>Note</th></tr></thead>
@@ -68,5 +68,6 @@
       </tbody>
     </table>
   </div>
+  {% include "core/components/_pager_passo_passo.html" with page_obj=prove %}
 </section>
 {% endblock %}
