@@ -60,15 +60,16 @@ def _periodic_recoveries():
 
 
 def _termini_correzione_cve():
-    """Termini di correzione (ISO 27001 8.8): accettazioni scadute o in scadenza, esposizioni oltre il termine.
+    """Termini di correzione (ISO 27001 8.8): accettazioni scadute o in scadenza, esposizioni oltre il termine, soppressioni in scadenza.
 
     Gira prima della valutazione delle regole dopo l'heartbeat, così gli eventi diventano alert nello stesso giro.
     """
-    from security.services import accettazione_rischio, cve_sla
+    from security.services import accettazione_rischio, cve_sla, soppressioni_scadenza
 
     accettazioni = accettazione_rischio.controlla_scadenze()
     eventi, chiusi = cve_sla.segnala_scadute()
-    return {**accettazioni, "oltre_termine": eventi, "rientrati": chiusi}
+    soppressioni = soppressioni_scadenza.controlla_scadenze()
+    return {**accettazioni, "oltre_termine": eventi, "rientrati": chiusi, "soppressioni_in_scadenza": soppressioni}
 
 
 def _termini_patch():

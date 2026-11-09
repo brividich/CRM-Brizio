@@ -50,6 +50,7 @@
   <label>Al <input type="date" name="to" value="{{ filters.to }}"></label>
   <button class="sec-button-primary" type="submit">Filtra</button>
   <a class="sec-button" href="{% url 'security:vpn_history' %}">Reimposta</a>
+  <a class="sec-button" href="{% querystring formato='csv' page=None %}">Scarica CSV</a>
 </form>
 
 <section class="vpn-row">

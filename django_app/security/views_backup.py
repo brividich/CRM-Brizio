@@ -60,6 +60,8 @@ def backup_device(request):
 def backup_log(request):
     if not can_view_security_center(request.user):
         return _denied(request)
+    if request.GET.get("formato") == "csv":
+        return _log_csv(request, svc.log_rows(request.GET, limit=None))
     rows = svc.log_rows(request.GET)
     jobs = BackupJobRecord.objects.order_by().values_list("job_name", flat=True).distinct()
     return render(request, "security/backup_log.html", {
@@ -70,6 +72,34 @@ def backup_log(request):
         "periods": svc.PERIODS,
         "esiti": ESITI,
     })
+
+
+def _log_csv(request, rows):
+    """Tutte le esecuzioni del filtro (la pagina si ferma alle prime 300)."""
+    from .services import esporta_csv
+
+    return esporta_csv.risposta(
+        request, "log-backup",
+        ["Quando", "Esito", "Oggetti in errore", "Job", "Prodotto", "NAS", "Dispositivi", "Dati (GB)", "Durata (minuti)", "Report"],
+        ([esporta_csv.data_ora(r["at"]), r["label"], r["objects_error"] or "", r["record"].job_name, (r["vendor"] or "").capitalize(),
+          (r["record"].payload or {}).get("nas_name") or "", ", ".join(r["devices"]), esporta_csv.numero(r["gb"]),
+          esporta_csv.numero(r["minutes"], 0), r["record"].source.name] for r in rows),
+        azione="soc_backup_log_export", filtri=esporta_csv.filtri_get(request, "esito", "job", "giorni", "q"),
+    )
+
+
+def _ripristini_csv(request, prove):
+    """Registro completo delle prove di ripristino: evidenza ISO 27001 8.13."""
+    from .services import esporta_csv
+
+    return esporta_csv.risposta(
+        request, "prove-ripristino",
+        ["Data", "Esito", "Sistema", "Job", "Cosa è stato ripristinato", "Durata (minuti)", "Eseguita da", "Note", "Allegato",
+         "Alert", "Registrata il"],
+        ([esporta_csv.data(p.data), p.get_esito_display(), p.sistema, p.job, p.cosa_ripristinato, p.durata_minuti or "", p.eseguito_da, p.note,
+          esporta_csv.si_no(p.allegato), f"#{p.alert_id}" if p.alert_id else "", esporta_csv.data_ora(p.created_at)] for p in prove),
+        azione="soc_prove_ripristino_export",
+    )
 
 
 def backup_ripristini(request):
@@ -97,6 +127,8 @@ def backup_ripristini(request):
                 messages.success(request, "Prova di ripristino registrata.")
             return redirect("security:backup_ripristini")
     else:
+        if request.GET.get("formato") == "csv":
+            return _ripristini_csv(request, BackupRestoreTest.objects.all())
         form = BackupRestoreTestForm(initial={"eseguito_da": request.user.get_full_name() or request.user.username})
     return render(request, "security/backup_ripristini.html", {
         "form": form,
