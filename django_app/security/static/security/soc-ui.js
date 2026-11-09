@@ -38,8 +38,15 @@
 
   /* ---------- Selezione multipla ---------- */
   function initBulk(form) {
-    var items = form.querySelectorAll(".sec-bulk-item");
+    // Le caselle possono stare fuori dal form (righe che hanno già un loro form dentro):
+    // si collegano con l'attributo form="<id del form>".
+    var items = Array.prototype.slice.call(form.querySelectorAll(".sec-bulk-item"));
     var all = form.querySelector("[data-bulk-all]");
+    if (form.id) {
+      items = items.concat(Array.prototype.slice.call(document.querySelectorAll('.sec-bulk-item[form="' + form.id + '"]')));
+      all = all || document.querySelector('[data-bulk-all][form="' + form.id + '"]');
+    }
+    function checked() { return items.filter(function (box) { return box.checked; }); }
     var count = form.querySelector("[data-bulk-count]");
     var go = form.querySelector("[data-bulk-go]");
     var action = form.querySelector("select[name='action']");
@@ -51,7 +58,7 @@
     var kindLabel = form.querySelector("[data-bulk-kind-label]");
     var KIND_NAMES = { alert: "alert", ticket: "ticket", incident: "incidenti" };
     function kindOf() {
-      var first = form.querySelector(".sec-bulk-item:checked");
+      var first = checked()[0];
       return first ? (first.getAttribute("data-kind") || "") : "";
     }
     function selectable(box, kind) { return !kind || (box.getAttribute("data-kind") || "") === kind; }
@@ -62,7 +69,7 @@
       items.forEach(function (box) { box.disabled = !selectable(box, kind); });
       var url = kind ? form.getAttribute("data-action-" + kind) : "";
       if (url) form.setAttribute("action", url);
-      if (kindLabel) kindLabel.textContent = kind ? (KIND_NAMES[kind] || kind) + " selezionat" + (form.querySelectorAll(".sec-bulk-item:checked").length === 1 ? "o" : "i") : "selezionati";
+      if (kindLabel) kindLabel.textContent = kind ? (KIND_NAMES[kind] || kind) + " selezionat" + (checked().length === 1 ? "o" : "i") : "selezionati";
       if (action) {
         var visible = null;
         action.querySelectorAll("option[data-kind]").forEach(function (opt) {
@@ -74,7 +81,7 @@
       }
     }
     function refresh() {
-      var n = form.querySelectorAll(".sec-bulk-item:checked").length;
+      var n = checked().length;
       if (count) count.textContent = n;
       if (go) go.disabled = n === 0;
       form.classList.toggle("has-selection", n > 0);

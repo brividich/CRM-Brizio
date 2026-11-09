@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -82,3 +83,28 @@ def suppression_revoke(request, pk):
     else:
         messages.info(request, "La soppressione era già spenta.")
     return redirect("security:suppressions")
+
+
+@require_POST
+def suppressions_bulk(request):
+    """Revoca insieme le soppressioni selezionate, con un motivo unico che resta su ognuna."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    if not can_configure_soc(request):
+        messages.error(request, "Per revocare una soppressione serve il permesso di configurazione del SOC.")
+        return redirect("security:suppressions")
+    ids = [int(v) for v in request.POST.getlist("rule_ids") if str(v).isdigit()]
+    reason = request.POST.get("reason", "").strip()[:500]
+    back = request.POST.get("next", "")
+    back = back if back.startswith("/soc/") and "//" not in back else reverse("security:suppressions")
+    if not ids:
+        messages.error(request, "Nessuna soppressione selezionata.")
+        return redirect(back)
+    if not reason:
+        messages.error(request, "Scrivi il motivo della revoca: resta su ogni soppressione.")
+        return redirect(back)
+    fatte = sum(1 for rule in SecurityAlertSuppressionRule.objects.filter(pk__in=ids)
+                if revoke_rule(rule, user=request.user, reason=f"Revocata da {request.user.get_username()}: {reason}"))
+    messages.success(request, f"{fatte} soppression{'e revocata' if fatte == 1 else 'i revocate'}: le prossime occorrenze torneranno a creare alert."
+                     if fatte else "Le soppressioni selezionate erano già spente.")
+    return redirect(back)
