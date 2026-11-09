@@ -26,6 +26,8 @@ Un documento cita l'OP col suo titolo, come anomalie e FAI. FAI, programmi e KIC
 | `produzione.impostazioni.manage` | admin | impostazioni |
 | `produzione.op.manage` | admin | op_nuovo (risponde in JSON 401/403/400) |
 
+Nella matrice di Ruoli e permessi il modulo è «Ordini di produzione» (area Produzione, `produzione/registro_permessi.py`): «Vedere» accende `op.view`, «Creare/Modificare/Cancellare» accendono `documenti.manage` e `op.manage` (capacità forzate a modifica), «Impostazioni del modulo» accende `impostazioni.manage` (`core/permessi/impostazioni.py`). Dopo il deploy: «Sincronizza i permessi delle pagine».
+
 ## Tabelle
 
 `produzione_tipodocumento`, `produzione_documentoop` (migrazioni `0001-0002`). Legge `ordini_produzione` e `anomalie`.
