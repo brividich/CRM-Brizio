@@ -40,11 +40,33 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "percorso",
+        "titolo": "Il percorso dell'OP",
+        "blocchi": [
+            ("p", "La scheda dell'OP è un percorso in cinque passi, nell'ordine in cui si lavora. Ogni passo dice "
+                  "se è «Fatto», «Da fare», «In attesa» (tocca ad altri) o «Da gestire», e ha un solo pulsante che "
+                  "porta all'azione già compilata."),
+            ("def", [
+                ("1 · KICK-OFF del P/N", "fatto se c'è un KICK-OFF dello stesso P/N; altrimenti «Nuovo KICK-OFF» con il P/N già scritto."),
+                ("2 · Programmi CAM e CMM", "fatto quando tutte le righe CAM/CMM del KICK-OFF sono «Fatto»; in attesa se qualcuna è «Da fare»."),
+                ("3 · Documenti di produzione", "fatto con almeno un documento registrato; «Aggiungi documento» apre il modulo."),
+                ("4 · FAI", "fatto con un FAI dell'OP in uno stato a esito positivo; in attesa se è eseguito e aspetta l'esito; "
+                 "senza FAI, «Nuovo FAI» con OP e P/N compilati. I FAI annullati non contano."),
+                ("5 · Anomalie", "da gestire finché ci sono anomalie aperte sull'OP."),
+            ]),
+            ("p", "In cima, «Prossimo passo» mostra il primo passo da fare (o da gestire) con il suo pulsante; se restano "
+                  "solo attese mostra la prima attesa; quando è tutto a posto compare «Percorso completo». FAI, programmi e "
+                  "KICK-OFF compaiono solo a chi ha i permessi del KICK-OFF."),
+            ("p", "Nell'elenco, «Da sistemare» filtra gli OP con anomalie aperte, senza documenti o senza FAI; nelle colonne "
+                  "«Manca» e il numero delle anomalie aperte portano dritti al passo della scheda."),
+        ],
+    },
+    {
         "id": "scheda",
         "titolo": "La scheda dell'OP",
         "blocchi": [
             ("passi", [
-                "In alto: P/N, capocommessa, CAR e stato dell'OP, con il link alle anomalie.",
+                "In alto: P/N, capocommessa, CAR e stato dell'OP, poi «Prossimo passo» e i cinque passi.",
                 "«Documenti registrati»: premi «Aggiungi documento», scegli il tipo e indica titolo o numero, revisione, "
                 "data e cartella o file di rete (\\\\server\\cartella). «Modifica» e «Elimina» su ogni riga.",
                 "«FAI»: «Nuovo FAI per questo OP» apre la scheda FAI con OP e P/N già compilati. Nella scheda FAI, "

@@ -3,7 +3,7 @@
 GUIDA = {
     "slug": "produzione",
     "titolo": "Ordini di produzione",
-    "area": "Produzione",
+    "area": "Produzione e operations",
     "sintesi": "Ogni OP con i suoi documenti di produzione: FAI, programmi CAM e CMM, documenti registrati e anomalie.",
     "parole": "op ordine di produzione ordini documenti di produzione fai programmi cam cmm ciclo disegno dip "
               "piano di controllo certificato materiale collaudo conformità coc anomalie p/n",
@@ -23,6 +23,18 @@ GUIDA = {
                 ("p", "«+ Nuovo OP» apre un pannello a lato (causale, anno, numero, P/N, fase, capocommessa, CAR, collaudo "
                       "di benestare, note): stesse regole di Gestione anomalie, titolo causale/anno/numero non ripetibile. "
                       "Lo stesso pannello si apre dalla scheda FAI e mette l'OP creato nel campo OP."),
+            ],
+        },
+        {
+            "id": "percorso",
+            "titolo": "Il percorso dell'OP",
+            "blocchi": [
+                ("p", "La scheda segue cinque passi: KICK-OFF del P/N, programmi CAM e CMM, documenti di produzione, FAI, "
+                      "anomalie. Ognuno è «Fatto», «Da fare», «In attesa» o «Da gestire» e ha un solo pulsante con l'azione "
+                      "già compilata (Nuovo KICK-OFF col P/N, Aggiungi documento, Nuovo FAI con OP e P/N…). «Prossimo passo» "
+                      "in cima dice da dove ripartire; a fine giro compare «Percorso completo»."),
+                ("p", "Nell'elenco «Da sistemare» filtra gli OP con anomalie aperte, senza documenti o senza FAI, e «Manca» "
+                      "nelle colonne porta al passo giusto della scheda."),
             ],
         },
         {

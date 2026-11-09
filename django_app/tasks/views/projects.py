@@ -247,7 +247,9 @@ def project_create(request):
             )
             return redirect("tasks:project_vrf_compile", project_id=project.id)
     else:
-        form = ProjectKickoffForm(project_queryset=projects_qs)
+        # Dalla scheda OP («Nuovo KICK-OFF»): P/N già compilato.
+        pn = (request.GET.get("pn") or "").strip()[:120]
+        form = ProjectKickoffForm(project_queryset=projects_qs, initial={"part_number": pn} if pn else None)
 
     return render(
         request,

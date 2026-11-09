@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block title %}{{ op.op }} · Ordini di produzione{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261108a">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'produzione/css/produzione.css' %}?v=20261109a">{% endblock %}
 
 {% block content %}
 <div class="prod">
@@ -10,7 +10,7 @@
     <div>
       <span class="prod-eyebrow"><a href="{% url 'produzione:elenco' %}">Ordini di produzione</a></span>
       <h1>{{ op.op }}{% if op.stato %} <span class="prod-stato">{{ op.stato }}</span>{% endif %}</h1>
-      <p>Documenti di produzione, FAI, programmi e anomalie di questo OP.</p>
+      <p>Il percorso dell'OP, un passo alla volta: KICK-OFF, programmi, documenti di produzione, FAI e anomalie.</p>
     </div>
   </div>
 
@@ -20,152 +20,155 @@
     <div class="prod-dato"><span>P/N</span><b>{{ op.pn|default:"—" }}</b></div>
     <div class="prod-dato"><span>Capocommessa</span><b>{{ op.capocommessa|default:"—" }}</b></div>
     <div class="prod-dato"><span>CAR</span><b>{{ op.car|default:"—" }}</b></div>
-    <div class="prod-dato{% if anomalie.aperte %} is-allerta{% endif %}"><span>Anomalie</span>
-      <b>{{ anomalie.totale }}{% if anomalie.aperte %} · {{ anomalie.aperte }} apert{{ anomalie.aperte|pluralize:"a,e" }}{% endif %}</b>
-    </div>
   </div>
 
-  <div class="prod-layout">
+  {% if prossimo %}
+  <div class="prod-prossimo is-{{ prossimo.stato }}">
     <div>
-      <section class="prod-card" id="documenti">
-        <div class="prod-card-head">
-          <h2>Documenti registrati <span class="prod-conta">{{ documenti|length }}</span></h2>
-        </div>
-
-        {% if prod_puo_documenti %}
-        <details class="prod-aggiungi"{% if modifica or apri_form %} open{% endif %}>
-          <summary class="prod-btn prod-btn-primary">{% if modifica %}Modifica documento{% else %}Aggiungi documento{% endif %}</summary>
-          <form class="prod-form" method="post" action="{% url 'produzione:documento' op.id %}">
-            {% csrf_token %}
-            {% if modifica %}<input type="hidden" name="documento" value="{{ modifica.id }}">{% endif %}
-            <label class="prod-campo s4"><span>Tipo</span>
-              <select name="tipo" required>
-                <option value="">Scegli</option>
-                {% for t in form.fields.tipo.queryset %}<option value="{{ t.id }}"{% if form.tipo.value|stringformat:"s" == t.id|stringformat:"s" %} selected{% endif %}>{{ t.etichetta }}</option>{% endfor %}
-              </select>
-              {% if form.tipo.errors %}<small class="prod-err">Scegli il tipo.</small>{% endif %}
-            </label>
-            <label class="prod-campo s4"><span>Titolo o numero</span><input name="titolo" maxlength="200" value="{{ form.titolo.value|default_if_none:'' }}"></label>
-            <label class="prod-campo s2"><span>Rev.</span><input name="revisione" maxlength="40" value="{{ form.revisione.value|default_if_none:'' }}"></label>
-            <label class="prod-campo s2"><span>Data</span><input type="date" name="data" value="{% if form.data.value %}{{ form.data.value|date:'Y-m-d'|default:form.data.value }}{% endif %}"></label>
-            <label class="prod-campo s12"><span>Cartella o file di rete</span>
-              <input name="percorso" maxlength="500" value="{{ form.percorso.value|default_if_none:'' }}" placeholder="\\server\cartella\file.pdf">
-              {% if form.percorso.errors %}<small class="prod-err">{{ form.percorso.errors|join:" " }}</small>{% endif %}
-            </label>
-            <label class="prod-campo s12"><span>Note</span><textarea name="note" maxlength="2000" rows="2">{{ form.note.value|default_if_none:'' }}</textarea></label>
-            <div class="prod-form-azioni">
-              <button class="prod-btn prod-btn-primary" type="submit">Salva</button>
-              {% if modifica %}<a class="prod-btn" href="{% url 'produzione:scheda' op.id %}">Annulla</a>{% endif %}
-            </div>
-          </form>
-        </details>
-        {% endif %}
-
-        {% if documenti %}
-        <div class="prod-scorri">
-          <table class="prod-tab">
-            <thead><tr><th>Tipo</th><th>Titolo o numero</th><th>Rev.</th><th>Data</th><th>Cartella o file</th>{% if prod_puo_documenti %}<th></th>{% endif %}</tr></thead>
-            <tbody>
-              {% for d in documenti %}
-              <tr>
-                <td><b>{{ d.tipo.etichetta }}</b></td>
-                <td>{{ d.titolo|default:"—" }}{% if d.note %}<span class="prod-sub">{{ d.note|truncatechars:120 }}</span>{% endif %}</td>
-                <td>{{ d.revisione|default:"—" }}</td>
-                <td>{{ d.data|date:"d/m/Y"|default:"—" }}</td>
-                <td>{% if d.percorso %}<a class="prod-percorso" href="{{ d.percorso }}">{{ d.percorso }}</a>{% else %}—{% endif %}</td>
-                {% if prod_puo_documenti %}
-                <td class="prod-azioni">
-                  <a class="prod-btn prod-btn-piccolo" href="?documento={{ d.id }}#documenti">Modifica</a>
-                  <form method="post" action="{% url 'produzione:documento_elimina' op.id d.id %}">{% csrf_token %}<button class="prod-btn prod-btn-piccolo prod-btn-link" type="submit" data-hub-confirm="Eliminare questo documento?">Elimina</button></form>
-                </td>
-                {% endif %}
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-          <p class="prod-vuoto">Nessun documento registrato per questo OP.</p>
-        {% endif %}
-      </section>
-
-      {% if vede_kickoff %}
-      <section class="prod-card" id="fai">
-        <div class="prod-card-head">
-          <h2>FAI <span class="prod-conta">{{ fai_op|length }}</span></h2>
-          <a class="prod-btn prod-btn-piccolo" href="{{ url_nuovo_fai }}">Nuovo FAI per questo OP</a>
-        </div>
-        {% if fai_op or fai_pn %}
-        <div class="prod-scorri">
-          <table class="prod-tab">
-            <thead><tr><th>Piano</th><th>Tipo</th><th>Stato</th><th>Invio</th><th>Chiusura</th><th>OP</th></tr></thead>
-            <tbody>
-              {% if fai_op %}<tr><td colspan="6" class="prod-gruppo">Di questo OP</td></tr>{% endif %}
-              {% for f in fai_op %}{% include "produzione/_riga_fai.html" %}{% endfor %}
-              {% if fai_pn %}<tr><td colspan="6" class="prod-gruppo">Altri FAI del P/N {{ op.pn }}</td></tr>{% endif %}
-              {% for f in fai_pn %}{% include "produzione/_riga_fai.html" %}{% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-          <p class="prod-vuoto">Nessun FAI per questo OP né per il suo P/N.</p>
-        {% endif %}
-      </section>
-
-      <section class="prod-card" id="programmi">
-        <div class="prod-card-head"><h2>Programmi CAM e CMM <span class="prod-conta">{{ programmi|length }}</span></h2></div>
-        {% if programmi %}
-        <div class="prod-scorri">
-          <table class="prod-tab">
-            <thead><tr><th>Tipo</th><th>Codice</th><th>Cartella o file</th><th>Responsabile</th><th>Stato</th><th>KICK-OFF</th></tr></thead>
-            <tbody>
-              {% for r in programmi %}
-              <tr>
-                <td><b>{{ r.kind }}</b></td>
-                <td>{{ r.code|default:"—" }}</td>
-                <td>{% if r.path %}<a class="prod-percorso" href="{{ r.path }}">{{ r.path }}</a>{% else %}—{% endif %}</td>
-                <td>{% if r.assigned_to %}{{ r.assigned_to.get_full_name|default:r.assigned_to.username }}{% else %}—{% endif %}</td>
-                <td><span class="prod-stato">{{ r.get_status_display }}</span></td>
-                <td><a href="{% url 'tasks:project_tech_refs' r.project_id %}">{{ r.project.name|truncatechars:40 }}</a></td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-          <p class="prod-vuoto">Nessun programma CAM o CMM nei KICK-OFF del P/N{% if op.pn %} {{ op.pn }}{% endif %}.</p>
-        {% endif %}
-      </section>
-      {% endif %}
+      <span class="prod-prossimo-etichetta">{% if prossimo.stato == "attesa" %}In attesa{% else %}Prossimo passo{% endif %}</span>
+      <b>{{ prossimo.n }} · {{ prossimo.titolo }}</b>
+      <p>{{ prossimo.testo }}</p>
     </div>
+    {% if prossimo.url %}<a class="prod-btn prod-btn-primary" href="{{ prossimo.url }}">{{ prossimo.azione }}</a>{% else %}<a class="prod-btn" href="#passo-{{ prossimo.chiave }}">Vai al passo</a>{% endif %}
+  </div>
+  {% else %}
+  <div class="prod-prossimo is-fatto">
+    <div><span class="prod-prossimo-etichetta">Percorso completo</span><b>Questo OP ha tutto in ordine.</b></div>
+  </div>
+  {% endif %}
 
-    <aside class="prod-lato">
-      <section class="prod-card">
-        <h2>Anomalie</h2>
-        <p class="prod-nota">{% if anomalie.totale %}{{ anomalie.totale }} anomali{{ anomalie.totale|pluralize:"a,e" }}{% if anomalie.aperte %}, {{ anomalie.aperte }} apert{{ anomalie.aperte|pluralize:"a,e" }}{% else %}, tutte chiuse{% endif %}.{% else %}Nessuna anomalia su questo OP.{% endif %}</p>
-        <p><a class="prod-btn prod-btn-piccolo" href="{{ url_anomalie }}">Apri in Gestione anomalie</a></p>
-      </section>
+  <ol class="prod-passi" aria-label="Percorso dell'OP">
+    {% for p in passi %}
+    <li class="is-{{ p.stato }}{% if p == prossimo %} is-corrente{% endif %}">
+      <a href="#passo-{{ p.chiave }}">
+        <span class="prod-passo-n">{% if p.stato == "fatto" %}✓{% else %}{{ p.n }}{% endif %}</span>
+        <span class="prod-passo-t"><b>{{ p.titolo }}</b><small>{{ p.testo }}</small></span>
+      </a>
+    </li>
+    {% endfor %}
+  </ol>
 
-      {% if vede_kickoff %}
-      <section class="prod-card">
-        <h2>KICK-OFF del P/N</h2>
-        {% if progetti %}
-        <ul class="prod-lista">
-          {% for p in progetti %}<li><a href="{% url 'tasks:project_overview' p.id %}">{{ p.name|truncatechars:48 }}</a><span class="prod-sub">{{ p.get_phase_display }}</span></li>{% endfor %}
-        </ul>
-        {% else %}<p class="prod-nota">Nessun KICK-OFF per questo P/N.</p>{% endif %}
-      </section>
+  {% for p in passi %}
+  <section class="prod-card prod-passo is-{{ p.stato }}" id="passo-{{ p.chiave }}">
+    <div class="prod-card-head">
+      <h2><span class="prod-passo-n">{% if p.stato == "fatto" %}✓{% else %}{{ p.n }}{% endif %}</span> {{ p.titolo }}
+        <span class="prod-pill is-{{ p.stato }}">{% if p.stato == "fatto" %}Fatto{% elif p.stato == "attesa" %}In attesa{% elif p.stato == "allerta" %}Da gestire{% else %}Da fare{% endif %}</span></h2>
+      {% if p.url and p.chiave != "documenti" %}<a class="prod-btn prod-btn-piccolo{% if p == prossimo %} prod-btn-primary{% endif %}" href="{{ p.url }}">{{ p.azione }}</a>{% endif %}
+    </div>
+    <p class="prod-nota prod-passo-testo">{{ p.testo }}</p>
+
+    {% if p.chiave == "kickoff" %}
+      {% if progetti|length > 1 %}
+      <ul class="prod-lista">
+        {% for k in progetti %}<li><a href="{% url 'tasks:project_overview' k.id %}">{{ k.name|truncatechars:60 }}</a><span class="prod-sub">{{ k.get_phase_display }}</span></li>{% endfor %}
+      </ul>
       {% endif %}
 
-      <section class="prod-card">
-        <h2>Altri OP dello stesso P/N</h2>
-        {% if altri_op %}
-        <ul class="prod-lista">
-          {% for o in altri_op %}<li><a href="{% url 'produzione:scheda' o.id %}">{{ o.op }}</a>{% if o.stato %} <span class="prod-stato">{{ o.stato }}</span>{% endif %}</li>{% endfor %}
-        </ul>
-        {% else %}<p class="prod-nota">Nessun altro OP per questo P/N.</p>{% endif %}
-      </section>
-    </aside>
-  </div>
+    {% elif p.chiave == "programmi" %}
+      {% if programmi %}
+      <div class="prod-scorri">
+        <table class="prod-tab">
+          <thead><tr><th>Tipo</th><th>Codice</th><th>Cartella o file</th><th>Responsabile</th><th>Stato</th><th>KICK-OFF</th></tr></thead>
+          <tbody>
+            {% for r in programmi %}
+            <tr>
+              <td><b>{{ r.kind }}</b></td>
+              <td>{{ r.code|default:"—" }}</td>
+              <td>{% if r.path %}<a class="prod-percorso" href="{{ r.path }}">{{ r.path }}</a>{% else %}—{% endif %}</td>
+              <td>{% if r.assigned_to %}{{ r.assigned_to.get_full_name|default:r.assigned_to.username }}{% else %}—{% endif %}</td>
+              <td><span class="prod-stato">{{ r.get_status_display }}</span></td>
+              <td><a href="{% url 'tasks:project_tech_refs' r.project_id %}">{{ r.project.name|truncatechars:40 }}</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+    {% elif p.chiave == "documenti" %}
+      {% if prod_puo_documenti %}
+      <details class="prod-aggiungi"{% if modifica or apri_form %} open{% endif %}>
+        <summary class="prod-btn prod-btn-primary">{% if modifica %}Modifica documento{% else %}Aggiungi documento{% endif %}</summary>
+        <form class="prod-form" method="post" action="{% url 'produzione:documento' op.id %}">
+          {% csrf_token %}
+          {% if modifica %}<input type="hidden" name="documento" value="{{ modifica.id }}">{% endif %}
+          <label class="prod-campo s4"><span>Tipo</span>
+            <select name="tipo" required>
+              <option value="">Scegli</option>
+              {% for t in form.fields.tipo.queryset %}<option value="{{ t.id }}"{% if form.tipo.value|stringformat:"s" == t.id|stringformat:"s" %} selected{% endif %}>{{ t.etichetta }}</option>{% endfor %}
+            </select>
+            {% if form.tipo.errors %}<small class="prod-err">Scegli il tipo.</small>{% endif %}
+          </label>
+          <label class="prod-campo s4"><span>Titolo o numero</span><input name="titolo" maxlength="200" value="{{ form.titolo.value|default_if_none:'' }}"></label>
+          <label class="prod-campo s2"><span>Rev.</span><input name="revisione" maxlength="40" value="{{ form.revisione.value|default_if_none:'' }}"></label>
+          <label class="prod-campo s2"><span>Data</span><input type="date" name="data" value="{% if form.data.value %}{{ form.data.value|date:'Y-m-d'|default:form.data.value }}{% endif %}"></label>
+          <label class="prod-campo s12"><span>Cartella o file di rete</span>
+            <input name="percorso" maxlength="500" value="{{ form.percorso.value|default_if_none:'' }}" placeholder="\\server\cartella\file.pdf">
+            {% if form.percorso.errors %}<small class="prod-err">{{ form.percorso.errors|join:" " }}</small>{% endif %}
+          </label>
+          <label class="prod-campo s12"><span>Note</span><textarea name="note" maxlength="2000" rows="2">{{ form.note.value|default_if_none:'' }}</textarea></label>
+          <div class="prod-form-azioni">
+            <button class="prod-btn prod-btn-primary" type="submit">Salva</button>
+            {% if modifica %}<a class="prod-btn" href="{% url 'produzione:scheda' op.id %}">Annulla</a>{% endif %}
+          </div>
+        </form>
+      </details>
+      {% endif %}
+
+      {% if documenti %}
+      <div class="prod-scorri">
+        <table class="prod-tab">
+          <thead><tr><th>Tipo</th><th>Titolo o numero</th><th>Rev.</th><th>Data</th><th>Cartella o file</th>{% if prod_puo_documenti %}<th></th>{% endif %}</tr></thead>
+          <tbody>
+            {% for d in documenti %}
+            <tr>
+              <td><b>{{ d.tipo.etichetta }}</b></td>
+              <td>{{ d.titolo|default:"—" }}{% if d.note %}<span class="prod-sub">{{ d.note|truncatechars:120 }}</span>{% endif %}</td>
+              <td>{{ d.revisione|default:"—" }}</td>
+              <td>{{ d.data|date:"d/m/Y"|default:"—" }}</td>
+              <td>{% if d.percorso %}<a class="prod-percorso" href="{{ d.percorso }}">{{ d.percorso }}</a>{% else %}—{% endif %}</td>
+              {% if prod_puo_documenti %}
+              <td class="prod-azioni">
+                <a class="prod-btn prod-btn-piccolo" href="?documento={{ d.id }}#passo-documenti">Modifica</a>
+                <form method="post" action="{% url 'produzione:documento_elimina' op.id d.id %}">{% csrf_token %}<button class="prod-btn prod-btn-piccolo prod-btn-link" type="submit" data-hub-confirm="Eliminare questo documento?">Elimina</button></form>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+    {% elif p.chiave == "fai" %}
+      {% if p.url != url_nuovo_fai %}<p class="prod-passo-altro"><a href="{{ url_nuovo_fai }}">+ Nuovo FAI per questo OP</a></p>{% endif %}
+      {% if fai_op or fai_pn %}
+      <div class="prod-scorri">
+        <table class="prod-tab">
+          <thead><tr><th>Piano</th><th>Tipo</th><th>Stato</th><th>Invio</th><th>Chiusura</th><th>OP</th></tr></thead>
+          <tbody>
+            {% if fai_op %}<tr><td colspan="6" class="prod-gruppo">Di questo OP</td></tr>{% endif %}
+            {% for f in fai_op %}{% include "produzione/_riga_fai.html" %}{% endfor %}
+            {% if fai_pn %}<tr><td colspan="6" class="prod-gruppo">Altri FAI del P/N {{ op.pn }}</td></tr>{% endif %}
+            {% for f in fai_pn %}{% include "produzione/_riga_fai.html" %}{% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+
+    {% elif p.chiave == "anomalie" %}
+      {% if anomalie.totale %}<p class="prod-nota">{{ anomalie.totale }} anomali{{ anomalie.totale|pluralize:"a,e" }} in tutto: la gestione resta in Gestione anomalie, filtrata su questo OP.</p>{% endif %}
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  {% if altri_op %}
+  <section class="prod-card">
+    <div class="prod-card-head"><h2>Altri OP dello stesso P/N</h2></div>
+    <div class="prod-chips">
+      {% for o in altri_op %}<a class="prod-chip" href="{% url 'produzione:scheda' o.id %}">{{ o.op }}{% if o.stato %} · {{ o.stato }}{% endif %}</a>{% endfor %}
+    </div>
+  </section>
+  {% endif %}
 </div>
 {% endblock %}

@@ -91,3 +91,49 @@
 .prod-aggiungi>summary::-webkit-details-marker{display:none}
 .prod-tab td.prod-gruppo{padding-top:12px;background:none}
 .prod-lato .prod-card p{margin:6px 0 0}
+/* Filo conduttore: percorso dell'OP, prossimo passo, «Da sistemare» */
+.prod-guida-passi{list-style:none;margin:0 0 14px;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.prod-guida-passi li{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-size:13px;color:var(--text-mid)}
+.prod-guida-passi b{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:0 0 24px;border-radius:999px;background:var(--accent);color:#fff;font-size:12.5px}
+.prod-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:12px}
+.prod-chips-etichetta{font-size:12.5px;font-weight:700;color:var(--text-mid);margin-right:2px}
+.prod-chip{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:700;text-decoration:none}
+.prod-chip b{color:var(--text-mid)}
+.prod-chip:hover{border-color:var(--accent)}
+.prod-chip.is-on{border-color:var(--accent);background:var(--accent);color:#fff}
+.prod-chip.is-on b{color:#fff}
+.prod-chip.is-allerta:not(.is-on) b{color:var(--danger)}
+.prod-manca{display:inline-block;padding:1px 9px;border-radius:999px;border:1px dashed var(--border);color:var(--text-mid);font-size:11.5px;font-weight:700;text-decoration:none;white-space:nowrap}
+.prod-manca:hover{border-color:var(--accent);color:var(--text)}
+.prod-manca.is-allerta{border:1px solid var(--danger);color:var(--danger);font-size:12.5px;font-weight:800}
+.prod-prossimo{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;margin-bottom:14px;border-radius:14px;border:1px solid var(--accent);border-left-width:5px;background:var(--surface)}
+.prod-prossimo b{display:block;font-size:16px;font-weight:800}
+.prod-prossimo p{margin:3px 0 0;font-size:13.5px;color:var(--text-mid)}
+.prod-prossimo-etichetta{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:2px}
+.prod-prossimo.is-allerta{border-color:var(--danger)}
+.prod-prossimo.is-allerta .prod-prossimo-etichetta{color:var(--danger)}
+.prod-prossimo.is-attesa{border-color:var(--warning)}
+.prod-prossimo.is-attesa .prod-prossimo-etichetta{color:var(--warning)}
+.prod-prossimo.is-fatto{border-color:var(--success)}
+.prod-prossimo.is-fatto .prod-prossimo-etichetta{color:var(--success)}
+.prod-passi{list-style:none;margin:0 0 16px;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.prod-passi a{display:flex;align-items:flex-start;gap:10px;height:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);text-decoration:none}
+.prod-passi a:hover{border-color:var(--accent)}
+.prod-passi .is-corrente a{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.prod-passo-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.prod-passo-t b{font-size:13px}
+.prod-passo-t small{font-size:12px;color:var(--text-mid);overflow-wrap:anywhere}
+.prod-passo-n{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;flex:0 0 26px;box-sizing:border-box;border-radius:999px;border:2px solid var(--border);font-size:12.5px;font-weight:800;color:var(--text-mid);background:var(--surface)}
+.is-fatto .prod-passo-n{border-color:var(--success);background:var(--success);color:#fff}
+.is-dafare .prod-passo-n{border-color:var(--accent);color:var(--accent)}
+.is-allerta .prod-passo-n{border-color:var(--danger);color:var(--danger)}
+.is-attesa .prod-passo-n{border-color:var(--warning);color:var(--warning)}
+.prod-passo{scroll-margin-top:80px}
+.prod-passo .prod-card-head{margin-bottom:4px}
+.prod-passo-testo{margin-bottom:10px}
+.prod-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;border:1px solid var(--border);color:var(--text-mid)}
+.prod-pill.is-fatto{border-color:var(--success);color:var(--success)}
+.prod-pill.is-dafare{border-color:var(--accent);color:var(--accent)}
+.prod-pill.is-allerta{border-color:var(--danger);color:var(--danger)}
+.prod-pill.is-attesa{border-color:var(--warning);color:var(--warning)}
+.prod-passo-altro{margin:0 0 10px;font-size:13px;font-weight:700}
