@@ -128,3 +128,13 @@ class MeetingIssueAdmin(admin.ModelAdmin):
         "linked_task",
     )
     readonly_fields = ("created_at", "updated_at", "resolved_at")
+
+
+from .models import Utensile  # noqa: E402
+
+
+@admin.register(Utensile)
+class UtensileAdmin(admin.ModelAdmin):
+    list_display = ("codice", "descrizione", "tipo", "fornitore", "attivo")
+    search_fields = ("codice", "descrizione", "fornitore")
+    list_filter = ("attivo", "tipo")

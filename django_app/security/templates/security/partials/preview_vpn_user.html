@@ -1,0 +1,16 @@
+{% load security_i18n %}
+<header class="pv-head">
+  <h2>{{ utente }}</h2>
+  <p class="pv-sub">Accessi VPN degli ultimi {{ days }} giorni</p>
+</header>
+<dl class="pv-facts">
+  <div><dt>Accessi</dt><dd>{{ summary.total }}</dd></div>
+  <div><dt>Negati</dt><dd>{{ summary.denied }}{% if summary.denied %} <small>({{ summary.denied_pct }}%)</small>{% endif %}</dd></div>
+  <div><dt>IP diversi</dt><dd>{{ n_ips }}</dd></div>
+  <div><dt>Sessione media</dt><dd>{% if summary.avg %}{{ summary.avg|duration_hms }}{% else %}—{% endif %}</dd></div>
+</dl>
+{% if segnali %}<h3 class="pv-h">Da controllare</h3><ul class="pv-list">{% for f in segnali %}<li><span><strong>{{ f.title }}</strong><br><small class="sec-muted">{{ f.detail }}</small></span></li>{% endfor %}</ul>{% endif %}
+{% if ips %}<h3 class="pv-h">IP di origine{% if n_ips > ips|length %} (i {{ ips|length }} più usati){% endif %}</h3><ul class="pv-list">{% for ip in ips %}<li><a href="{% url 'security:vpn_history' %}?ip={{ ip.source_ip|urlencode }}&amp;giorni={{ days }}">{{ ip.source_ip }}</a><small>{{ ip.total }}{% if ip.denied %} · {{ ip.denied }} negati{% endif %}</small></li>{% endfor %}</ul>{% endif %}
+<h3 class="pv-h">Ultimi accessi</h3>
+<ul class="pv-list">{% for a in ultimi %}<li><span>{{ a.login_at|date:"d/m H:i" }}{% if a.logout_at %} – {{ a.logout_at|date:"H:i" }}{% endif %} <small class="sec-muted">{{ a.source_ip }}</small></span><span class="sec-badge {% if a.action == 'denied' %}high{% else %}info{% endif %}">{{ a.get_action_display }}</span></li>{% endfor %}</ul>
+<footer class="pv-foot"><a class="sec-button sec-button-primary" href="{% url 'security:vpn_history' %}?user={{ user_q }}&amp;giorni={{ days }}">Tutti i suoi accessi</a></footer>

@@ -33,6 +33,8 @@ class TappaKickoff(models.TextChoices):
     CAM = "CAM", "Programma CAM"
     CMM = "CMM", "Programma CMM"
     MACCHINA = "MACCHINA", "Macchina"
+    ATTREZZATURA = "ATTREZZATURA", "Attrezzatura"
+    UTENSILI = "UTENSILI", "Utensili"
     TERZISTA = "TERZISTA", "Terzista"
     PROCESSI = "PROCESSI", "Processi speciali"
     FAI = "FAI", "FAI"
@@ -1024,7 +1026,7 @@ class TaskCategory(models.Model):
         help_text="Cosa deve produrre un'attività di questo tipo.",
     )
     tappa = models.CharField(
-        max_length=10,
+        max_length=14,
         choices=TappaKickoff.choices,
         blank=True,
         default="",
@@ -1397,8 +1399,10 @@ class KickoffMeeting(models.Model):
             pending = cache
         rows = MeetingAgendaItem.rows_from_dicts(self, pending)
         with transaction.atomic():
+            prima = set(MeetingAgendaItem.objects.filter(meeting=self).values_list("titolo", flat=True))
             MeetingAgendaItem.objects.filter(meeting=self).delete()
             MeetingAgendaItem.objects.bulk_create(rows)
+        self._catalogo_odg(rows, prima)
         # La lista del chiamante resta quella viva (come col campo JSON), ma con
         # i valori normalizzati: id univoci, collegamenti validi.
         pending[:] = [row.as_agenda_dict() for row in rows]
@@ -1406,6 +1410,21 @@ class KickoffMeeting(models.Model):
         prefetched = getattr(self, "_prefetched_objects_cache", None)
         if prefetched:
             prefetched.pop("agenda_rows", None)
+
+    @staticmethod
+    def _catalogo_odg(rows, prima) -> None:
+        """I punti nuovi scritti a mano entrano nel catalogo (le righe si ricreano a ogni salvataggio)."""
+        try:
+            from .services.catalogo import chiave, registra_uso
+
+            gia = {chiave(t) for t in prima}
+            for row in rows:
+                if row.issue_id or row.action_id or str(row.source or "").startswith(("tappa:", "meeting_issue", "meeting_action")):
+                    continue
+                if chiave(row.titolo) not in gia:
+                    registra_uso("ODG", row.titolo, nota=row.nota, durata=row.durata_minuti)
+        except Exception:
+            pass
 
     def refresh_from_db(self, *args, **kwargs):
         super().refresh_from_db(*args, **kwargs)
@@ -2252,6 +2271,14 @@ class MeetingRoom(models.Model):
     def __str__(self) -> str:
         return self.nome
 
+class ProgrammaFase(models.TextChoices):
+    """Il lavoro vero di un programma CAM/CMM: si scrive, si prova in macchina, si valida."""
+    DA_SCRIVERE = "DA_SCRIVERE", "Da scrivere"
+    IN_SCRITTURA = "IN_SCRITTURA", "In scrittura"
+    DA_PROVARE = "DA_PROVARE", "Da provare in macchina"
+    VALIDATO = "VALIDATO", "Validato"
+
+
 class TechRefStatus(models.TextChoices):
     OPEN = "OPEN", "Da fare"
     DONE = "DONE", "Fatto"
@@ -2285,6 +2312,15 @@ class ProjectTechRef(models.Model):
     status = models.CharField(
         max_length=4, choices=TechRefStatus.choices, default=TechRefStatus.OPEN, db_index=True, verbose_name="Stato"
     )
+    # Solo programmi CAM/CMM: fase del lavoro, revisione, macchina su cui gira, note.
+    fase = models.CharField(
+        max_length=14, choices=ProgrammaFase.choices, default=ProgrammaFase.DA_SCRIVERE, db_index=True, verbose_name="Fase",
+    )
+    revisione = models.CharField(max_length=10, blank=True, default="", verbose_name="Revisione")
+    macchina = models.ForeignKey(
+        "assets.Asset", on_delete=models.SET_NULL, null=True, blank=True, related_name="programmi_kickoff", verbose_name="Macchina",
+    )
+    note = models.TextField(blank=True, default="", verbose_name="Note")
     source_meeting = models.ForeignKey(
         KickoffMeeting,
         on_delete=models.SET_NULL,
@@ -2345,11 +2381,34 @@ class ProjectTechRef(models.Model):
         self.status = TechRefStatus.DONE
         self.done_by = user
         self.done_at = timezone.now()
+        # Per i programmi «fatto» vuol dire validato.
+        if self.kind != TechRefKind.FAI:
+            self.fase = ProgrammaFase.VALIDATO
 
     def reopen(self) -> None:
         self.status = TechRefStatus.OPEN
         self.done_by = None
         self.done_at = None
+        if self.kind != TechRefKind.FAI and self.fase == ProgrammaFase.VALIDATO:
+            self.fase = ProgrammaFase.IN_SCRITTURA if self.code else ProgrammaFase.DA_SCRIVERE
+
+    def save(self, *args, **kwargs):
+        # Un programma nato già con il codice non è «da scrivere».
+        if self.pk is None and self.kind in (TechRefKind.CAM, TechRefKind.CMM) and self.code:
+            if self.fase == ProgrammaFase.DA_SCRIVERE:
+                self.fase = ProgrammaFase.VALIDATO if self.status == TechRefStatus.DONE else ProgrammaFase.IN_SCRITTURA
+            self.revisione = self.revisione or "A"
+        super().save(*args, **kwargs)
+
+    @property
+    def is_programma(self) -> bool:
+        return self.kind in (TechRefKind.CAM, TechRefKind.CMM)
+
+    @property
+    def etichetta_breve(self) -> str:
+        """«O1234 rev. B», per leggere il programma in una riga."""
+        testo = self.code or "da inserire"
+        return f"{testo} rev. {self.revisione}" if self.code and self.revisione else testo
 
 
 class FaiTipo(models.TextChoices):
@@ -2547,3 +2606,104 @@ class TaskSpostamento(models.Model):
     @property
     def in_attesa(self) -> bool:
         return self.stato == SpostamentoStato.IN_ATTESA
+
+
+class ProgrammaStorico(models.Model):
+    """Ogni passaggio di un programma: fase, revisione, codice. Non si cancella."""
+
+    ref = models.ForeignKey(ProjectTechRef, on_delete=models.CASCADE, related_name="storico")
+    fase = models.CharField(max_length=14, choices=ProgrammaFase.choices)
+    revisione = models.CharField(max_length=10, blank=True, default="")
+    code = models.CharField(max_length=120, blank=True, default="")
+    nota = models.CharField(max_length=500, blank=True, default="")
+    utente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Passaggio del programma"
+        verbose_name_plural = "Storico dei programmi"
+
+    def __str__(self) -> str:
+        return f"{self.ref_id} {self.fase} {self.revisione}"
+
+
+class CatalogoTipo(models.TextChoices):
+    ODG = "ODG", "Punto all'ordine del giorno"
+    AZIONE = "AZIONE", "Azione"
+    ATTIVITA = "ATTIVITA", "Attività"
+    PROBLEMA = "PROBLEMA", "Problema"
+
+
+class CatalogoVoce(models.Model):
+    """Voce ricorrente: si riempie da sola con quello che si scrive e torna come suggerimento."""
+
+    tipo = models.CharField(max_length=10, choices=CatalogoTipo.choices, db_index=True)
+    testo = models.CharField(max_length=220)
+    chiave = models.CharField(max_length=220, db_index=True)
+    nota = models.CharField(max_length=500, blank=True, default="", verbose_name="Nota predefinita")
+    durata_minuti = models.PositiveSmallIntegerField(null=True, blank=True)
+    usi = models.PositiveIntegerField(default=0)
+    ultimo_uso = models.DateTimeField(null=True, blank=True)
+    attiva = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ["tipo", "-usi", "testo"]
+        constraints = [models.UniqueConstraint(fields=["tipo", "chiave"], name="tasks_catalogo_tipo_chiave")]
+        verbose_name = "Voce del catalogo"
+        verbose_name_plural = "Catalogo voci ricorrenti"
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()}: {self.testo}"
+
+
+class Utensile(models.Model):
+    """Catalogo utensili del portale: si riempie usandolo; più avanti arriverà la lettura dall'ERP."""
+
+    codice = models.CharField(max_length=80, unique=True)
+    descrizione = models.CharField(max_length=255, blank=True, default="")
+    tipo = models.CharField(max_length=80, blank=True, default="", verbose_name="Tipo")
+    fornitore = models.CharField(max_length=120, blank=True, default="")
+    attivo = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["codice"]
+        verbose_name = "Utensile"
+        verbose_name_plural = "Utensili"
+
+    def __str__(self) -> str:
+        return f"{self.codice} {self.descrizione}".strip()
+
+
+class UtensileStato(models.TextChoices):
+    DA_ORDINARE = "DA_ORDINARE", "Da ordinare"
+    ORDINATO = "ORDINATO", "Ordinato"
+    ARRIVATO = "ARRIVATO", "Arrivato"
+    DISPONIBILE = "DISPONIBILE", "Disponibile a magazzino"
+
+
+class ProjectUtensile(models.Model):
+    """Utensile che serve alla commessa: quanti, se c'è o va ordinato, entro quando."""
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="utensili")
+    utensile = models.ForeignKey(Utensile, on_delete=models.PROTECT, related_name="commesse")
+    quantita = models.PositiveSmallIntegerField(default=1)
+    stato = models.CharField(max_length=12, choices=UtensileStato.choices, default=UtensileStato.DA_ORDINARE, db_index=True)
+    entro = models.DateField(null=True, blank=True)
+    note = models.CharField(max_length=255, blank=True, default="")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["stato", "utensile__codice", "id"]
+        verbose_name = "Utensile della commessa"
+        verbose_name_plural = "Utensili delle commesse"
+
+    def __str__(self) -> str:
+        return f"{self.project_id} {self.utensile_id} x{self.quantita}"
+
+    @property
+    def pronto(self) -> bool:
+        return self.stato in (UtensileStato.ARRIVATO, UtensileStato.DISPONIBILE)

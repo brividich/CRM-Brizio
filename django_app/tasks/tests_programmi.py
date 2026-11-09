@@ -130,7 +130,8 @@ class VisteTests(ProgrammiBase):
         self.client.post(reverse("tasks:task_programma", args=[task.pk]), {"code": "O9", "path": r"\\server\cam\pn1"})
         ref = ProjectTechRef.objects.get(task=task)
         self.assertEqual((ref.code, ref.path), ("O9", r"\\server\cam\pn1"))
-        self.assertContains(self.client.get(reverse("tasks:detail", args=[task.pk])), "Inserito")
+        # Con il codice scritto il programma passa da «Da scrivere» a «In scrittura».
+        self.assertContains(self.client.get(reverse("tasks:detail", args=[task.pk])), "In scrittura")
 
     def test_percorso_non_valido(self):
         task = self.attivita()
@@ -203,9 +204,9 @@ class RegistroTests(ProgrammiBase):
 
     def test_viste_e_ricerca(self):
         conta = lambda **q: len(self.client.get(self.url, q).context["righe"])  # noqa: E731
-        self.assertEqual(conta(vista="cam"), 1)
-        self.assertEqual(conta(vista="cmm"), 1)
-        self.assertEqual(conta(vista="da_inserire"), 1)
+        self.assertEqual(conta(tipo="CAM"), 1)
+        self.assertEqual(conta(tipo="CMM"), 1)
+        self.assertEqual(conta(vista="da_scrivere"), 1)
         self.assertEqual(conta(vista="ritardo"), 1)
         self.assertEqual(conta(q="o1"), 1)
         self.assertEqual(conta(q="pn-1"), 2)

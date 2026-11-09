@@ -114,6 +114,7 @@
                 </td>
                 <td>
                   <div class="ma-actions" style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
+                    {% if row.kind == "attivita" %}{% include "tasks/_azioni_rapide_btn.html" with ar_task_id=row.obj.id %}{% endif %}
                     {% if row.kind == "attivita" and row.obj.status == "TODO" %}
                     <form method="post" action="{% url 'tasks:mia_voce_stato' row.kind row.obj.id %}">
                       {% csrf_token %}

@@ -82,6 +82,8 @@ def preview(request, kind, pk=None):
         if data is None:
             raise Http404("Nessun dato SOC per questo dispositivo.")
         return render(request, "security/partials/preview_pc.html", _preview_pc_context(data))
+    if kind == "vpn_utente":
+        return _preview_vpn_user(request)
     if kind == "backup_job":
         context = _preview_job_context(request.GET.get("nome", "").strip(), request.GET.get("giorni", ""))
         if context is None:
@@ -409,3 +411,49 @@ def backup_pannello_azione(request):
         raise Http404("Nessun dato per questo elemento.")
     context["azione_esito"], context["azione_errore"] = messaggio, errore
     return render(request, template, context)
+
+
+@require_POST
+def pc_bulk(request):
+    """Ticket per i PC selezionati in Dispositivi o in Patch e protezione."""
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    from .services.cases import open_pc_case
+
+    back = _back(request, "security:pc_copertura")
+    names = request.POST.getlist("devices")
+    if request.POST.get("action", "case") != "case":
+        messages.error(request, "Azione non supportata.")
+        return redirect(back)
+    if not [n for n in names if n.strip()]:
+        messages.error(request, "Nessun PC selezionato.")
+        return redirect(back)
+    case = open_pc_case(names, user=request.user, title=request.POST.get("title", ""), pagina=request.POST.get("pagina", "")[:60])
+    if case is None:
+        messages.error(request, "Il SOC non ha ancora nessuna sorgente dati a cui collegare il ticket.")
+        return redirect(back)
+    messages.success(request, f"Ticket #{case.pk} aperto con {case.tasks.count()} PC e assegnato a te.")
+    return redirect("security:case_detail", pk=case.pk)
+
+
+def _preview_vpn_user(request):
+    """Pannello laterale di un utente negli Accessi VPN: numeri del periodo, IP, ultimi accessi e segnali."""
+    from datetime import timedelta
+
+    from .models import SecurityVpnAccess
+    from .services.vpn_history import vpn_findings, vpn_history_summary
+
+    user = request.GET.get("utente", "").strip()[:255]
+    days = int(request.GET.get("giorni")) if request.GET.get("giorni", "").isdigit() and int(request.GET.get("giorni")) in (7, 30, 90) else 30
+    if not user:
+        raise Http404("Utente mancante.")
+    qs = SecurityVpnAccess.objects.filter(username=user, kind="vpn", login_at__gte=timezone.now() - timedelta(days=days))
+    if not qs.exists():
+        raise Http404("Nessun accesso VPN di questo utente nel periodo.")
+    summary = vpn_history_summary(qs)
+    return render(request, "security/partials/preview_vpn_user.html", {
+        "utente": user, "days": days, "summary": summary, "ips": summary["top_ips"][:5],
+        "n_ips": qs.exclude(source_ip="").order_by().values("source_ip").distinct().count(),
+        "ultimi": list(qs.order_by("-login_at")[:8]), "segnali": vpn_findings(qs)[:4],
+        "user_q": quote(user),
+    })

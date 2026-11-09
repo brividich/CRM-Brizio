@@ -147,7 +147,7 @@
   <input type="hidden" name="next" value="{{ request.get_full_path }}">
 {% include "security/partials/backup_bulk_bar.html" with cosa="PC" %}
   <div class="sec-table-wrap">
-    <table class="sec-table" data-table-enhanced="0">
+    <table class="sec-table">
       <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all aria-label="Seleziona tutti"></th><th>Dispositivo</th><th>Ultimo esito</th><th>Ultimo riuscito</th><th>Ultime esecuzioni</th><th class="sec-num">Riuscite</th><th class="sec-num">Dati</th><th class="sec-num">Durata media</th><th>Job</th></tr></thead>
       <tbody>
       {% for d in devices %}
@@ -179,7 +179,7 @@
   <input type="hidden" name="next" value="{{ request.get_full_path }}#job">
   {% include "security/partials/backup_bulk_bar.html" with cosa="job" %}
   <div class="sec-table-wrap">
-    <table class="sec-table" data-table-enhanced="0">
+    <table class="sec-table">
       <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all aria-label="Seleziona tutti i job"></th><th>Job</th><th>Ultimo esito</th><th>Ultimo riuscito</th><th class="sec-num">Esecuzioni</th><th class="sec-num">Riuscite</th><th class="sec-num">Dati medi</th><th class="sec-num">Durata media</th><th class="sec-num">Dispositivi</th></tr></thead>
       <tbody>
       {% for j in jobs %}

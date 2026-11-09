@@ -10,7 +10,7 @@
 <script src="{% static 'security/soc-ui.js' %}" defer></script>
 {% endblock %}
 {% block content %}
-<div class="soc-module">
+<div class="soc-module" data-fm-groupable="1">
   {% include "security/_icons.html" %}
   {% with url_name=request.resolver_match.url_name %}
   <header class="soc-head">

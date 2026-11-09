@@ -35,7 +35,7 @@ class TappeTests(_TappeBase):
 
     def test_percorso_vuoto(self):
         dati = svc.percorso(self.project)
-        self.assertEqual(dati["totale"], 7)
+        self.assertEqual(dati["totale"], 9)
         self.assertEqual(dati["a_posto"], 0)
         self.assertTrue(all(r["stato"] == "vuota" for r in dati["righe"]))
 
@@ -192,3 +192,48 @@ class TappeDateFlussiTests(_TappeBase):
         pagina = self.client.get(reverse("tasks:project_overview", args=[self.project.pk]))
         self.assertNotContains(pagina, "Anche in Outlook")
         self.assertContains(pagina, 'data-tp="start"')
+
+
+
+class AttrezzaturaUtensiliTests(_TappeBase):
+    def test_attrezzatura_esistente_collegata(self):
+        from attrezzature.models import Attrezzatura, AttrezzaturaKickoffLink
+
+        self.project.part_number = "PN-ATT-1"
+        self.project.save()
+        att = Attrezzatura.objects.create(codice="ATT-9", descrizione="Maschera di prova", part_number="PN-ATT-1")
+        riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "ATTREZZATURA")
+        self.assertEqual([a["obj"] for a in riga["attrezzature"]], [att])
+        self.assertEqual(self._post(tappa="ATTREZZATURA", action="assegna").status_code, 400)
+        risposta = self._post(tappa="ATTREZZATURA", action="assegna", attrezzatura=str(att.pk), assigned_to=self.altro.pk)
+        self.assertEqual(risposta.status_code, 200, risposta.content)
+        task = Task.objects.get(project=self.project)
+        self.assertIn("ATT-9", task.title)
+        self.assertTrue(AttrezzaturaKickoffLink.objects.filter(attrezzatura=att, project=self.project, task=task).exists())
+
+    def test_attrezzatura_nuova_crea_bozza(self):
+        from attrezzature.models import Attrezzatura
+
+        self.project.part_number = "PN-ATT-2"
+        self.project.save()
+        self._post(tappa="ATTREZZATURA", action="assegna", attrezzatura="nuova", testo="Staffaggio fresatura")
+        self.assertTrue(Attrezzatura.objects.filter(part_number="PN-ATT-2", descrizione="Staffaggio fresatura").exists())
+
+    def test_utensili_aggiungi_stato_togli(self):
+        from .models import ProjectUtensile, Utensile
+
+        url = reverse("tasks:utensili_azione", args=[self.project.pk])
+        self.client.post(url, {"action": "aggiungi", "utensile": "FR12 Fresa D12", "quantita": "2"}, HTTP_ACCEPT="application/json")
+        self.client.post(url, {"action": "aggiungi", "utensile": "fr12", "quantita": "1"}, HTTP_ACCEPT="application/json")
+        self.assertEqual(Utensile.objects.count(), 1, "il codice già in catalogo non si duplica")
+        righe = list(ProjectUtensile.objects.filter(project=self.project))
+        self.assertEqual(len(righe), 2)
+        riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "UTENSILI")
+        self.assertEqual(riga["stato_label"], "2 da ordinare")
+        for r in righe:
+            self.client.post(url, {"action": "stato", "riga": r.pk, "stato": "ARRIVATO"}, HTTP_ACCEPT="application/json")
+        riga = next(r for r in svc.percorso(self.project)["righe"] if r["key"] == "UTENSILI")
+        self.assertEqual(riga["stato"], "fatta")
+        risposta = self.client.post(url, {"action": "togli", "riga": righe[0].pk}, HTTP_ACCEPT="application/json")
+        self.assertIn("FR12", risposta.json()["html"])
+        self.assertEqual(ProjectUtensile.objects.filter(project=self.project).count(), 1)

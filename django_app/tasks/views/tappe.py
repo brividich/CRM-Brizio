@@ -48,6 +48,12 @@ def _con_nomi(request) -> bool:
         return False
 
 
+def _utensili_catalogo():
+    from ..models import Utensile
+
+    return list(Utensile.objects.filter(attivo=True).order_by("codice")[:500])
+
+
 def tappe_context(request, project, meeting=None) -> dict:
     gestisce = can_manage_project(request, project)
     dati = svc.percorso(project, con_nomi=_con_nomi(request))
@@ -63,6 +69,7 @@ def tappe_context(request, project, meeting=None) -> dict:
         "tappe_fornitori": _fornitori() if TappaKickoff.TERZISTA in serve else [],
         "tappe_processi": _processi() if TappaKickoff.PROCESSI in serve else [],
         "tappe_outlook": svc.outlook_disponibile(),
+        "tappe_utensili_catalogo": _utensili_catalogo() if TappaKickoff.UTENSILI in {r["key"] for r in dati["righe"]} else [],
         "tappe_oggi": timezone.localdate(),
     }
 
@@ -114,6 +121,7 @@ def tappa_azione(request, project_id: int):
                 project, key, request.user, assigned_to=assegnato, due_date=due, start_date=inizio, asset=asset,
                 testo=(post.get("testo") or "").strip(), meeting=meeting,
                 outlook=post.get("outlook") == "1" and svc.outlook_disponibile(), request=request,
+                attrezzatura=(post.get("attrezzatura") or "").strip() or None,
             )
             log_action(request, "kickoff_tappa_assegna", "tasks", {"project_id": project.pk, "tappa": key, "task_id": task.pk})
         elif azione in ("escludi", "ripristina"):
@@ -159,4 +167,45 @@ def tappa_anteprima(request, project_id: int):
     html = render_to_string("tasks/_tappe_anteprima.html", {
         "inizio": inizio, "fine": fine, "persona": persona, "assenze": assenze, "m": macchina,
     }, request=request)
+    return JsonResponse({"ok": True, "html": html})
+
+
+@require_POST
+@task_permissions_required("tasks_view", api=True)
+def utensili_azione(request, project_id: int):
+    """Utensili della commessa: aggiungi, cambia stato, togli. Risponde con il Percorso aggiornato."""
+    from ..models import ProjectUtensile, UtensileStato
+
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    if not (can_manage_project(request, project) or request.user.pk in project.team_user_ids):
+        return _errore("Solo chi fa parte del team aggiorna gli utensili.", 403)
+    azione = (request.POST.get("action") or "").strip()
+    meeting = None
+    if (request.POST.get("meeting_id") or "").isdigit():
+        meeting = KickoffMeeting.objects.filter(pk=int(request.POST["meeting_id"]), project=project).first()
+    try:
+        if azione == "aggiungi":
+            raw_q = (request.POST.get("quantita") or "1").strip()
+            svc.aggiungi_utensile(
+                project, request.user, request.POST.get("utensile", ""),
+                quantita=int(raw_q) if raw_q.isdigit() else 1, entro=_data(request.POST.get("entro")),
+            )
+        elif azione in ("stato", "togli"):
+            riga = ProjectUtensile.objects.filter(pk=int(request.POST.get("riga") or 0), project=project).first()
+            if riga is None:
+                return _errore("Utensile non trovato.", 404)
+            if azione == "togli":
+                riga.delete()
+            else:
+                stato = (request.POST.get("stato") or "").strip()
+                if stato not in UtensileStato.values:
+                    return _errore("Stato non valido.")
+                riga.stato = stato
+                riga.save(update_fields=["stato", "updated_at"])
+        else:
+            return _errore("Azione non valida.")
+    except (svc.TappaNonValida, ValueError) as exc:
+        return _errore(str(exc) or "Dati non validi.")
+    log_action(request, f"kickoff_utensili_{azione}", "tasks", {"project_id": project.pk})
+    html = render_to_string("tasks/_tappe_body.html", tappe_context(request, project, meeting), request=request)
     return JsonResponse({"ok": True, "html": html})

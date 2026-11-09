@@ -29,12 +29,14 @@ AIUTO = {
     TappaKickoff.CAM: "Chi scrive il programma CAM e per quando.",
     TappaKickoff.CMM: "Chi scrive il programma di misura e per quando.",
     TappaKickoff.MACCHINA: "Su quale macchina gira: il portale controlla abilitati, assenze e manutenzione.",
+    TappaKickoff.ATTREZZATURA: "Attrezzature del P/N: collega quelle che ci sono o chiedine una nuova.",
+    TappaKickoff.UTENSILI: "Utensili che servono: disponibili a magazzino o da ordinare, entro quando.",
     TappaKickoff.TERZISTA: "Lavorazione esterna: fornitore e data di rientro.",
     TappaKickoff.PROCESSI: "Processo speciale qualificato: quale e per quando.",
     TappaKickoff.FAI: "Chi esegue il FAI e per quando.",
 }
 # Una sola attività per tappa, tranne dove ha senso averne più di una.
-MULTIPLE = {TappaKickoff.MACCHINA, TappaKickoff.TERZISTA, TappaKickoff.PROCESSI}
+MULTIPLE = {TappaKickoff.MACCHINA, TappaKickoff.ATTREZZATURA, TappaKickoff.TERZISTA, TappaKickoff.PROCESSI}
 CAMPO_TESTO = {TappaKickoff.TERZISTA: "fornitore", TappaKickoff.PROCESSI: "processo"}
 CAMPO_MACCHINA = "macchina"
 TIPI_MACCHINA = ("CNC", "WORK_MACHINE")
@@ -184,6 +186,18 @@ def percorso(project, *, con_nomi: bool = False) -> dict:
             continue
         elenco = attivita.get(key, [])
         stato, stato_label, chip = _stato_tappa(elenco, key in escluse)
+        extra = {}
+        if key == TappaKickoff.ATTREZZATURA:
+            extra["attrezzature"] = attrezzature_commessa(project)
+        elif key == TappaKickoff.UTENSILI:
+            utensili = list(project.utensili.select_related("utensile"))
+            mancano = sum(1 for u in utensili if not u.pronto)
+            extra.update(utensili=utensili, utensili_mancano=mancano)
+            # Utensili tutti pronti e nessuna attività aperta: la tappa è a posto.
+            if utensili and not mancano and stato in ("vuota", "fatta"):
+                stato, stato_label, chip = "fatta", "Fatto", ""
+            elif mancano and stato == "vuota":
+                stato_label = f"{mancano} da ordinare"
         voci = []
         for t in elenco:
             # Il nome del tipo è già il titolo della riga: si mostra solo quello che aggiunge.
@@ -193,7 +207,12 @@ def percorso(project, *, con_nomi: bool = False) -> dict:
                 voce["dettaglio"] = str((t.extra_data or {}).get(CAMPO_TESTO[key]) or "")
             elif key in (TappaKickoff.CAM, TappaKickoff.CMM, TappaKickoff.FAI):
                 ref = getattr(t, "tech_ref", None)
-                voce["dettaglio"] = ref.code if ref is not None else ""
+                if ref is not None and ref.is_programma:
+                    # «O1234 rev. B · Validato · CNC-901»: il programma si legge nella riga della tappa.
+                    pezzi = [ref.etichetta_breve if ref.code else "", ref.get_fase_display(), ref.macchina.asset_tag if ref.macchina_id else ""]
+                    voce["dettaglio"] = " · ".join(p for p in pezzi if p)
+                else:
+                    voce["dettaglio"] = ref.code if ref is not None else ""
             elif key == TappaKickoff.MACCHINA:
                 voce["macchina"] = dettaglio_macchina(t, con_nomi=con_nomi)
             voci.append(voce)
@@ -202,6 +221,7 @@ def percorso(project, *, con_nomi: bool = False) -> dict:
             "stato": stato, "stato_label": stato_label, "chip": chip,
             "puo_aggiungere": key not in escluse and (not elenco or key in MULTIPLE),
             "puo_escludere": not elenco and key not in escluse,
+            **extra,
         })
     a_posto = sum(1 for r in righe if r["stato"] in ("fatta", "esclusa"))
     assegnate = sum(1 for r in righe if r["stato"] != "vuota")
@@ -210,7 +230,15 @@ def percorso(project, *, con_nomi: bool = False) -> dict:
 
 # --- Scrittura --------------------------------------------------------------
 
-def _titolo(key: str, tipo: TaskCategory, *, asset=None, testo: str = "") -> str:
+def _titolo(key: str, tipo: TaskCategory, *, asset=None, testo: str = "", attrezzatura=None) -> str:
+    if key == TappaKickoff.ATTREZZATURA and attrezzatura and attrezzatura != "nuova":
+        from attrezzature.models import Attrezzatura
+
+        a = Attrezzatura.objects.filter(pk=int(attrezzatura)).first() if str(attrezzatura).isdigit() else None
+        if a is not None:
+            return f"{tipo.name} {a.codice}".strip()
+    if key == TappaKickoff.ATTREZZATURA and attrezzatura == "nuova":
+        return f"{tipo.name} nuova" + (f" - {testo}" if testo else "")
     if key == TappaKickoff.MACCHINA and asset is not None:
         return f"Macchina {asset.asset_tag} {asset.name}".strip()
     if key in CAMPO_TESTO and testo:
@@ -221,7 +249,7 @@ def _titolo(key: str, tipo: TaskCategory, *, asset=None, testo: str = "") -> str
 @transaction.atomic
 def assegna(
     project, key: str, user, *, assigned_to=None, due_date=None, start_date=None, asset=None, testo: str = "",
-    meeting=None, outlook: bool = False, request=None,
+    meeting=None, outlook: bool = False, request=None, attrezzatura=None,
 ) -> Task:
     from .meeting_tasks import (
         KickoffBloccatoVRF,
@@ -236,6 +264,8 @@ def assegna(
         raise TappaNonValida("Tappa non configurata: controlla i tipi attività in Impostazioni.")
     if key == TappaKickoff.MACCHINA and asset is None:
         raise TappaNonValida("Scegli la macchina.")
+    if key == TappaKickoff.ATTREZZATURA and not attrezzatura:
+        raise TappaNonValida("Scegli l'attrezzatura o «Nuova da chiedere».")
     if key in CAMPO_TESTO and not testo:
         raise TappaNonValida("Scegli il fornitore." if key == TappaKickoff.TERZISTA else "Scegli il processo.")
     if key not in MULTIPLE and Task.objects.filter(project=project, category=tipo).exclude(status=TaskStatus.CANCELED).exists():
@@ -257,7 +287,7 @@ def assegna(
     if key in CAMPO_TESTO:
         extra[CAMPO_TESTO[key]] = testo[:200]
     task = Task.objects.create(
-        title=titolo_attivita(_titolo(key, tipo, asset=asset, testo=testo)),
+        title=titolo_attivita(_titolo(key, tipo, asset=asset, testo=testo, attrezzatura=attrezzatura)),
         project=project,
         assigned_to=assigned_to,
         category=tipo,
@@ -274,6 +304,8 @@ def assegna(
     if key in _escluse(project):
         project.tappe_escluse = [v for v in project.tappe_escluse if v != key]
         project.save(update_fields=["tappe_escluse"])
+    if key == TappaKickoff.ATTREZZATURA:
+        collega_attrezzatura(task, attrezzatura, user, descrizione=testo)
     notify_task_assignment(task, actor=user)
     dopo_assegnazione(task, outlook=outlook, request=request)
     return task
@@ -378,3 +410,63 @@ def agenda_items(project) -> list[dict]:
             "done": False,
         })
     return voci
+
+
+
+def attrezzature_commessa(project) -> list[dict]:
+    """Attrezzature collegate alla commessa o allo stesso P/N, con stato, disponibilità e consegna."""
+    try:
+        from attrezzature.models import Attrezzatura, AttrezzaturaKickoffLink
+        from attrezzature.services.kickoff_integration import get_attrezzature_for_part_number
+    except Exception:
+        return []
+    collegate = set(AttrezzaturaKickoffLink.objects.filter(project=project).values_list("attrezzatura_id", flat=True))
+    strumenti = {a.pk: a for a in Attrezzatura.objects.filter(pk__in=collegate)}
+    for a in get_attrezzature_for_part_number(project.part_number or "")[:30]:
+        strumenti.setdefault(a.pk, a)
+    return [
+        {
+            "obj": a, "collegata": a.pk in collegate,
+            "stato": a.get_stato_display(), "disponibilita": a.get_disponibilita_stato_display(),
+            "pronta": a.disponibilita_stato == "disponibile" or a.stato in ("available", "ready_for_production"),
+            "consegna": a.data_consegna_prevista,
+        }
+        for a in sorted(strumenti.values(), key=lambda x: (x.codice or "", x.pk))
+    ]
+
+
+def collega_attrezzatura(task, scelta, user, *, descrizione: str = ""):
+    """Dopo l'assegnazione della tappa: collega un'attrezzatura esistente o ne chiede una nuova (bozza)."""
+    from attrezzature.models import Attrezzatura, AttrezzaturaKickoffRelationType
+    from attrezzature.services import kickoff_integration as ki
+
+    project = task.project
+    if scelta == "nuova":
+        return ki.create_draft_attrezzatura_from_kickoff(
+            part_number=project.part_number or "", description=descrizione or task.title,
+            kickoff_ref=project.pk, kickoff_activity_ref=task.pk, user=user,
+        )
+    attrezzatura = Attrezzatura.objects.filter(pk=int(scelta)).first() if str(scelta).isdigit() else None
+    if attrezzatura is not None:
+        ki.upsert_kickoff_link(
+            attrezzatura=attrezzatura, kickoff_ref=project.pk, kickoff_activity_ref=task.pk,
+            relationship_type=AttrezzaturaKickoffRelationType.LINKED_EXISTING, user=user,
+        )
+    return attrezzatura
+
+
+def aggiungi_utensile(project, user, testo: str, *, quantita: int = 1, entro=None):
+    """«codice descrizione» scritto o scelto: se il codice non c'è nel catalogo, nasce."""
+    from ..models import ProjectUtensile, Utensile
+
+    testo = (testo or "").strip()
+    if not testo:
+        raise TappaNonValida("Scrivi il codice dell'utensile.")
+    codice, _, descrizione = testo.partition(" ")
+    codice = codice.strip()[:80]
+    utensile = Utensile.objects.filter(codice__iexact=codice).first()
+    if utensile is None:
+        utensile = Utensile.objects.create(codice=codice, descrizione=descrizione.strip()[:255])
+    return ProjectUtensile.objects.create(
+        project=project, utensile=utensile, quantita=max(1, min(int(quantita or 1), 999)), entro=entro, created_by=user,
+    )

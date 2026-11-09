@@ -409,7 +409,7 @@
       // Solo le righe dirette del tbody: una tabella annidata dentro una
       // riga di dettaglio non deve finire nel conteggio né nei filtri.
       // Le righe di gruppo (a tutta larghezza) non sono dati.
-      ? Array.from(table.tBodies[0].rows).filter(tr => !isDetailRow(tr) && !isGroupRow(tr))
+      ? Array.from(table.tBodies[0].rows).filter(tr => !isDetailRow(tr) && !isGroupRow(tr) && !isGroupingRow(tr))
       : [];
   }
 
@@ -764,6 +764,7 @@
         filters: persistOpts.persistFilters ? state.filters : {},
         q:       persistOpts.persistSearch  ? state.q       : "",
         widths:  state.widths || {},
+        group:   state.group || "",
       };
       try {
         const r = await fetch(API_BASE + encodeURIComponent(tableId) + "/", {
@@ -846,6 +847,7 @@
         sort: state.sort.map(s => s.slice()),
         filters: Object.assign({}, state.filters),
         q: state.q || "",
+        group: state.group || "",
       };
     }
 
@@ -980,6 +982,7 @@
       filters: {},
       q:       "",
       widths:  {},          // { key: px } solo per le colonne allargate/strette a mano
+      group:   "",          // colonna per cui raggruppare (menu «Raggruppa ▾»)
     };
   }
 
@@ -1005,6 +1008,7 @@
     if (Array.isArray(saved.sort)) out.sort = saved.sort.filter(s => Array.isArray(s) && s.length === 2);
     if (saved.filters && typeof saved.filters === "object") out.filters = saved.filters;
     if (typeof saved.q === "string") out.q = saved.q;
+    if (typeof saved.group === "string" && defaults.order.includes(saved.group)) out.group = saved.group;
     if (saved.widths && typeof saved.widths === "object") {
       const known = new Set(defaults.order);
       Object.keys(saved.widths).forEach((k) => {
@@ -1062,6 +1066,10 @@
     colsWrap.appendChild(colsMenu);
     bar.appendChild(colsWrap);
 
+    // Raggruppa ▾ (dove è attivo: vedi groupingEnabled)
+    const groupCols = groupingEnabled(table) ? groupableColumns(table, cols) : [];
+    if (groupCols.length) bar.appendChild(buildGroupMenu(table, groupCols, state, onChange));
+
     // Viste ▾ (salvate per utente, con nome)
     const viewsBtn = document.createElement("button");
     viewsBtn.type = "button";
@@ -1114,6 +1122,81 @@
 
     if (statusEl) bar.appendChild(statusEl);
     return bar;
+  }
+
+  function buildGroupMenu(table, groupCols, state, onChange) {
+    const wrap = document.createElement("div");
+    wrap.className = "fm-tbl-menu-wrap";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "fm-tbl-btn fm-tbl-btn-group";
+    btn.title = "Raggruppa le righe per una colonna";
+    const menu = document.createElement("div");
+    menu.className = "fm-tbl-menu fm-tbl-group-menu";
+    function label() {
+      const col = groupCols.find(c => c.key === state.group);
+      btn.textContent = col ? "Per " + col.label.toLowerCase() + " ▾" : "Raggruppa ▾";
+      btn.classList.toggle("is-active", !!col);
+    }
+    function choose(key) {
+      state.group = key;
+      table._fmGrpCollapsed = new Set();
+      menu.classList.remove("fm-tbl-menu-open");
+      render();
+      label();
+      onChange();
+    }
+    function item(text, key) {
+      const b = document.createElement("button");
+      b.type = "button";
+      const current = (state.group || "") === key;
+      b.className = "fm-tbl-group-item" + (current ? " is-current" : "");
+      b.setAttribute("aria-pressed", current ? "true" : "false");
+      b.textContent = text;
+      b.addEventListener("click", (e) => { e.stopPropagation(); choose(key); });
+      return b;
+    }
+    function setAll(collapse) {
+      const tbody = table.tBodies[0];
+      table._fmGrpCollapsed = collapse
+        ? new Set(Array.from(tbody.rows).filter(r => r.classList.contains("fm-grp-row")).map(r => r.dataset.fmGrpKey))
+        : new Set();
+      if (table._fmReapply) table._fmReapply();
+    }
+    function render() {
+      menu.innerHTML = "";
+      const title = document.createElement("div");
+      title.className = "fm-tbl-views-title";
+      title.textContent = "Raggruppa per";
+      menu.appendChild(title);
+      menu.appendChild(item("Nessun raggruppamento", ""));
+      groupCols.forEach(c => menu.appendChild(item(c.label, c.key)));
+      if (state.group) {
+        const row = document.createElement("div");
+        row.className = "fm-tbl-group-all";
+        [["Apri tutti", false], ["Chiudi tutti", true]].forEach(([text, collapse]) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = text;
+          b.addEventListener("click", (e) => { e.stopPropagation(); setAll(collapse); });
+          row.appendChild(b);
+        });
+        menu.appendChild(row);
+      }
+    }
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".fm-tbl-menu-open").forEach(m => { if (m !== menu) m.classList.remove("fm-tbl-menu-open"); });
+      menu.classList.toggle("fm-tbl-menu-open");
+    });
+    document.addEventListener("click", (e) => {
+      if (!menu.contains(e.target) && e.target !== btn) menu.classList.remove("fm-tbl-menu-open");
+    });
+    render();
+    label();
+    wrap.appendChild(btn);
+    wrap.appendChild(menu);
+    return wrap;
   }
 
   // «Ordina per» compatto: su smartphone le tabelle diventano schede e
@@ -1575,6 +1658,177 @@
     return out;
   }
 
+  // ─── Raggruppa per colonna ───────────────────────────────────────────────
+  //
+  // «Raggruppa ▾» nella barra: le righe che passano ricerca e filtri si
+  // dividono per valore di una colonna, con una riga d'intestazione per
+  // gruppo (nome, quante righe, apri/chiudi e, se la tabella ha le caselle
+  // della selezione multipla, «seleziona il gruppo»). Attivo dove un antenato
+  // ha data-fm-groupable="1" (es. il modulo SOC) o sulla tabella stessa;
+  // spento con data-fm-groupable="0". Una colonna si esclude con
+  // data-col-group="0" sull'intestazione. Il valore del gruppo è, in ordine:
+  // data-fm-group della cella (più valori separati da «|»: la riga compare in
+  // ogni gruppo, le copie sono di sola lettura), il testo del primo badge
+  // della cella, la data (giorno) per le colonne data, il testo della cella.
+
+  function isGroupingRow(row) {
+    return !!(row && row.classList && (row.classList.contains("fm-grp-row") || row.classList.contains("fm-grp-clone")));
+  }
+
+  function groupingEnabled(table) {
+    if (table.dataset.fmGroupable === "0") return false;
+    return table.dataset.fmGroupable === "1" || !!table.closest("[data-fm-groupable='1']");
+  }
+
+  // Colonne proponibili nel menu. Calcolate una volta per tabella: escluse le
+  // numeriche, quelle senza un nome vero («#») e quelle con un valore diverso
+  // su ogni riga (titoli, codici): un gruppo per riga non raggruppa niente.
+  // data-col-group="1" la propone comunque, "0" la esclude.
+  function groupableColumns(table, cols) {
+    if (table._fmGroupCols) return table._fmGroupCols;
+    const rows = bodyRows(table);
+    table._fmGroupCols = cols.filter((c) => {
+      if (!c.key || c.th.dataset.colGroup === "0") return false;
+      if (c.th.dataset.colGroup === "1") return true;
+      const label = cleanText(c.label || "");
+      if (c.type === "number" || !/[a-zà-ù]{2}/i.test(label) || isActionLabel(label)) return false;
+      if (rows.length < 3) return true;
+      const seen = new Set();
+      rows.forEach(r => groupValues(r.cells[c.idx], c).forEach(v => seen.add(v)));
+      return seen.size < rows.length;
+    });
+    return table._fmGroupCols;
+  }
+
+  const GROUP_BADGE = "[class*='badge'], [class*='chip'], [class*='pill']";
+
+  function groupValues(cell, col) {
+    if (!cell) return [""];
+    if (cell.dataset && cell.dataset.fmGroup !== undefined) {
+      const many = cell.dataset.fmGroup.split("|").map(v => cleanText(v)).filter(Boolean);
+      return many.length ? many : [""];
+    }
+    const badge = cell.querySelector(GROUP_BADGE);
+    if (badge && cleanText(badge.textContent)) return [cleanText(badge.textContent)];
+    const text = cellPlainText(cell);
+    if (col.type === "date") {
+      const m = text.match(/\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{2}-\d{2}/);
+      if (m) return [m[0]];
+    }
+    return [text];
+  }
+
+  function clearGrouping(table) {
+    const tbody = table.tBodies && table.tBodies[0];
+    if (!tbody) return;
+    Array.from(tbody.rows).filter(isGroupingRow).forEach(r => r.remove());
+  }
+
+  function visibleColCount(table, cols) {
+    return Math.max(1, cols.filter(c => c.th.style.display !== "none").length);
+  }
+
+  function makeClone(row) {
+    const copy = row.cloneNode(true);
+    copy.classList.add("fm-grp-clone");
+    copy.removeAttribute("id");
+    copy.querySelectorAll("[id]").forEach(el => el.removeAttribute("id"));
+    // Copia di sola lettura: niente caselle della selezione né campi da spedire.
+    copy.querySelectorAll("input, select, textarea, button").forEach((el) => {
+      el.disabled = true;
+      el.removeAttribute("name");
+      el.classList.remove("sec-bulk-item");
+    });
+    copy.style.display = "";
+    return copy;
+  }
+
+  function groupHeader(table, cols, group, collapsed) {
+    const tr = document.createElement("tr");
+    tr.className = "fm-grp-row" + (collapsed ? " is-collapsed" : "");
+    tr.dataset.fmGrpKey = group.key;
+    const td = document.createElement("td");
+    td.colSpan = visibleColCount(table, cols);
+    const realBoxes = group.rows.map(r => r.querySelector(".sec-bulk-item")).filter(Boolean);
+    if (realBoxes.length) {
+      const pick = document.createElement("input");
+      pick.type = "checkbox";
+      pick.className = "fm-grp-pick";
+      pick.setAttribute("aria-label", "Seleziona il gruppo " + (group.key || "senza valore"));
+      const on = realBoxes.filter(b => b.checked).length;
+      pick.checked = on > 0 && on === realBoxes.length;
+      pick.indeterminate = on > 0 && on < realBoxes.length;
+      pick.addEventListener("change", () => {
+        realBoxes.forEach((b) => {
+          if (b.disabled || b.checked === pick.checked) return;
+          b.checked = pick.checked;
+          b.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+      });
+      td.appendChild(pick);
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "fm-grp-toggle";
+    btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    btn.innerHTML = '<span class="fm-grp-chev" aria-hidden="true"></span><span class="fm-grp-label"><small></small><strong></strong></span><span class="fm-grp-n"></span>';
+    btn.querySelector("small").textContent = group.colLabel;
+    btn.querySelector("strong").textContent = group.key || "senza valore";
+    btn.querySelector(".fm-grp-n").textContent = formatInt(group.count);
+    btn.title = collapsed ? "Mostra le righe del gruppo" : "Nascondi le righe del gruppo";
+    btn.addEventListener("click", () => {
+      const set = table._fmGrpCollapsed || (table._fmGrpCollapsed = new Set());
+      if (set.has(group.key)) set.delete(group.key); else set.add(group.key);
+      if (table._fmReapply) table._fmReapply();
+    });
+    td.appendChild(btn);
+    tr.appendChild(td);
+    return tr;
+  }
+
+  // Riordina il tbody per gruppi. Ritorna l'insieme delle righe dati nei
+  // gruppi chiusi (da non mostrare) oppure null se non si raggruppa.
+  function applyGrouping(table, cols, state, matched, dataRows) {
+    clearGrouping(table);
+    const tbody = table.tBodies && table.tBodies[0];
+    const col = state.group && groupingEnabled(table) ? groupableColumns(table, cols).find(c => c.key === state.group) : null;
+    if (!col || !tbody) return null;
+    const groups = new Map();
+    matched.forEach((tr) => {
+      groupValues(tr.cells[col.idx], col).forEach((key, i) => {
+        if (!groups.has(key)) groups.set(key, { key, colLabel: col.label, rows: [], clones: [], count: 0 });
+        const g = groups.get(key);
+        g.count += 1;
+        if (i === 0) g.rows.push(tr); else g.clones.push(tr);
+      });
+    });
+    const collapsedSet = table._fmGrpCollapsed || new Set();
+    const hidden = new Set();
+    const frag = document.createDocumentFragment();
+    groups.forEach((g) => {
+      const collapsed = collapsedSet.has(g.key);
+      frag.appendChild(groupHeader(table, cols, g, collapsed));
+      g.rows.forEach((r) => {
+        if (collapsed) hidden.add(r);
+        rowWithDetails(r).forEach(x => frag.appendChild(x));
+      });
+      g.clones.forEach((r) => {
+        const copy = makeClone(r);
+        if (collapsed) copy.style.display = "none";
+        frag.appendChild(copy);
+      });
+    });
+    const matchedSet = new Set(matched);
+    dataRows.filter(r => !matchedSet.has(r)).sort((a, b) => a._fmOrig - b._fmOrig)
+      .forEach(r => rowWithDetails(r).forEach(x => frag.appendChild(x)));
+    Array.from(tbody.rows).filter(isGroupRow).forEach(r => frag.appendChild(r));
+    tbody.appendChild(frag);
+    // Le righe di gruppo del server spariscono e l'ordine d'origine torna
+    // quando si toglie il raggruppamento (stessa strada dell'ordinamento).
+    table._fmSorted = true;
+    return hidden;
+  }
+
   function applyState(table, cols, state) {
     stampRowOrder(table);
     // Righe dati reali (escluse le detail-row di espansione, controllate da JS esterno)
@@ -1630,6 +1884,7 @@
       table._fmSorted = true;
     } else if (table._fmSorted && tbody) {
       // Ordinamento tolto: le righe tornano nell'ordine in cui le ha date il server.
+      clearGrouping(table);
       const all = Array.from(tbody.rows).sort((a, b) => (a._fmOrig || 0) - (b._fmOrig || 0));
       const frag = document.createDocumentFragment();
       all.forEach(r => frag.appendChild(r));
@@ -1642,8 +1897,10 @@
     // disegnano solo le prime `_fmWindow`; le altre arrivano scorrendo.
     // Le detail-row seguono il padre: nascoste se il padre lo è, altrimenti
     // restano come le ha lasciate il loro toggle.
-    const limit = progressiveLimit(table, dataRows.length);
-    const shownSet = new Set(matched.slice(0, limit));
+    const grpHidden = applyGrouping(table, cols, state, matched, dataRows);
+    // Coi gruppi la tabella si disegna intera: un gruppo a metà ingannerebbe sul conteggio.
+    const limit = grpHidden ? Infinity : progressiveLimit(table, dataRows.length);
+    const shownSet = new Set(matched.slice(0, limit).filter(r => !(grpHidden && grpHidden.has(r))));
     dataRows.forEach((tr) => {
       const show = shownSet.has(tr);
       tr.style.display = show ? "" : "none";
@@ -2668,6 +2925,8 @@
       table._fmViewName = pendingView.nome;
     }
     const state = mergeState(defaults, saved);
+    if (state.group && !(groupingEnabled(table) && groupableColumns(table, cols).some(c => c.key === state.group))) state.group = "";
+    table._fmReapply = () => applyState(table, cols, state);
 
     const statusEl = document.createElement("span");
     statusEl.className = "fm-tbl-status";

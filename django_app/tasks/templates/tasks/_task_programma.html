@@ -11,7 +11,9 @@
       </p>
     </div>
     <div class="ts-panel-meta">
-      {% if ref.ha_contenuto %}<span class="ts-chip ok">Inserito</span>{% else %}<span class="ts-chip warn">Manca</span>{% endif %}
+      {% if ref.is_programma %}
+        <span class="ts-chip {% if ref.fase == 'VALIDATO' %}ok{% elif ref.fase == 'DA_PROVARE' %}warn{% elif ref.fase == 'DA_SCRIVERE' %}warn{% else %}info{% endif %}">{{ ref.get_fase_display }}</span>
+      {% elif ref.ha_contenuto %}<span class="ts-chip ok">Inserito</span>{% else %}<span class="ts-chip warn">Manca</span>{% endif %}
     </div>
   </div>
   <div class="ts-panel-body">
@@ -34,6 +36,15 @@
         <button type="submit" class="btn btn-sm">Salva</button>
       </form>
       {% if ref.path %}<p class="prog-riga">Apri: {% include "tasks/_tech_ref_link.html" %}</p>{% endif %}
+      {% if ref.is_programma %}
+        <p class="prog-riga">{{ ref.etichetta_breve }}{% if ref.macchina %} · {{ ref.macchina.asset_tag }} {{ ref.macchina.name }}{% endif %}</p>
+        {% include "tasks/_programma_azioni.html" with azioni=task_programma_azioni %}
+        {% if task_programma_storico %}
+        <ul class="pg-storico">
+          {% for s in task_programma_storico %}<li>{{ s.created_at|date:"d/m H:i" }} · {{ s.get_fase_display }}{% if s.revisione %} · rev. {{ s.revisione }}{% endif %}{% if s.utente %} · {{ s.utente.get_full_name|default:s.utente.username }}{% endif %}{% if s.nota %} · {{ s.nota }}{% endif %}</li>{% endfor %}
+        </ul>
+        {% endif %}
+      {% endif %}
     {% else %}
       <p class="prog-riga">{{ ref.code|default:"Codice non ancora inserito" }}</p>
       {% if ref.path %}<p class="prog-riga">{% include "tasks/_tech_ref_link.html" %}</p>{% endif %}

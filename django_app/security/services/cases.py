@@ -111,6 +111,29 @@ def open_manual_case(*, source, title, user, description="", severity=Severity.W
     return case
 
 
+def open_pc_case(names, *, user, title="", pagina=""):
+    """Un ticket per i PC selezionati in una pagina del SOC, con un'attività per PC, assegnato a chi lo apre.
+
+    Il ticket vuole una sorgente: si usa quella dell'ultimo evento letto. Ritorna None se il SOC
+    non ha ancora nessuna sorgente.
+    """
+    from security.models import SecurityEventRecord, SecuritySource
+
+    names = [n for n in dict.fromkeys(str(n).strip() for n in names) if n][:100]
+    if not names:
+        return None
+    last = SecurityEventRecord.objects.select_related("source").order_by("-id").first()
+    source = last.source if last else SecuritySource.objects.order_by("id").first()
+    if source is None:
+        return None
+    title = (title or "").strip() or (f"Da sistemare: {names[0]}" if len(names) == 1 else f"Da sistemare su {len(names)} PC")
+    return open_manual_case(
+        source=source, title=title, user=user, assignee=user,
+        description=(f"PC selezionati da «{pagina}»: " if pagina else "PC selezionati: ") + ", ".join(names),
+        tasks=[f"Verificare e sistemare {n}" for n in names],
+    )
+
+
 def add_alerts_to_case(case, alerts, *, user):
     actor = actor_name(user)
     added = 0

@@ -192,6 +192,14 @@ def _agenda_title_suggestions() -> list[dict]:
     aperte): non sono testo scritto da qualcuno, e come suggerimento
     riproporrebbero il problema di un'altra commessa.
     """
+    from .catalogo import suggerimenti
+
+    dal_catalogo = suggerimenti("ODG", AGENDA_SUGGESTIONS_MAX)
+    if dal_catalogo:
+        return [
+            {"titolo": v.testo, "nota": v.nota, "durata_minuti": v.durata_minuti, "usi": v.usi}
+            for v in dal_catalogo
+        ]
     meeting_ids = list(
         KickoffMeeting.objects.order_by("-id").values_list("id", flat=True)[:AGENDA_SUGGESTIONS_SCAN_LIMIT]
     )

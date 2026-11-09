@@ -4809,3 +4809,56 @@ body.theme-dark .fai-tipo input:checked+span{background:rgba(249,115,22,.14)}
 .pt-scelta{text-transform:none;letter-spacing:normal;font-weight:500}
 .pt-scelta input{width:auto;height:auto;margin:0}
 .pt-utenti{padding:8px 10px;border:1px solid var(--border);border-radius:8px}
+
+/* Menu «⋯» delle azioni rapide sugli incarichi */
+.ar-btn{display:inline-grid;place-items:center;min-width:28px;height:26px;padding:0 6px;margin-left:6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-weight:700;line-height:1;cursor:pointer;vertical-align:middle}
+.ar-btn:hover,.ar-btn[aria-expanded=true]{border-color:var(--primary,#2563eb);color:var(--primary,#2563eb)}
+.ar-velo{position:fixed;inset:0;z-index:1199;background:rgba(15,23,42,.35)}
+.ar-pop{position:fixed;z-index:1200;top:0;right:0;bottom:0;width:min(400px,100%);overflow-y:auto;display:grid;align-content:start;gap:12px;padding:18px 18px 24px;background:var(--surface);border-left:1px solid var(--border);box-shadow:-12px 0 32px rgba(15,23,42,.22)}
+html.ar-aperto{overflow:hidden}
+.ar-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.ar-x{background:none;border:0;font-size:18px;line-height:1;cursor:pointer;color:var(--text-mid)}
+.ar-sez{display:grid;gap:6px;padding-top:8px;border-top:1px solid var(--border)}
+.ar-tit{font-size:11px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.03em}
+.ar-riga{display:flex;gap:6px;align-items:flex-end}
+.ar-riga label{display:grid;gap:2px;font-size:11px;color:var(--text-mid);flex:1}
+.ar-riga select,.ar-riga input[type=text]{flex:1;min-width:0}
+.ar-chips{display:flex;gap:6px}
+.ar-chip{padding:4px 10px;border:1px solid var(--border);border-radius:99px;background:var(--bg);font-size:12px;cursor:pointer;color:var(--text)}
+.ar-chip.is-on{background:var(--primary,#2563eb);border-color:var(--primary,#2563eb);color:#fff}
+.ar-danger{color:var(--danger,#b91c1c)}
+.ar-nota{margin:0;font-size:12px;color:var(--text-mid)}
+.ar-err{margin:0;font-size:12px;color:var(--danger,#b91c1c);font-weight:600}
+.ar-link{font-size:12px}
+.ar-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:1300;padding:10px 16px;border-radius:10px;background:#0f172a;color:#fff;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+
+/* Programmi CAM/CMM: fasi */
+.pg-tipo{display:inline-block;padding:1px 6px;border-radius:4px;background:var(--bg);border:1px solid var(--border);font-size:11px;font-weight:700}
+.pg-rev{font-size:11px;color:var(--text-mid);font-weight:600}
+.pg-azioni{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.pg-filtri{flex-wrap:wrap}
+.pg-filtri select{max-width:220px}
+.pg-storico{margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--text-mid);display:grid;gap:2px}
+
+/* Impostazioni: catalogo delle voci ricorrenti */
+.ct-lista{display:grid;gap:6px}
+.ct-riga{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--border)}
+.ct-riga.is-nascosta{opacity:.55}
+.ct-form{display:flex;gap:6px;align-items:center;min-width:0}
+.ct-form input[name=testo]{flex:2;min-width:0}
+.ct-form input[name=nota]{flex:2;min-width:0}
+.ct-form input[name=durata]{width:70px}
+.ct-usi{font-size:12px;color:var(--text-mid);white-space:nowrap}
+.ct-unisci{display:flex;gap:6px;align-items:center;min-width:0}
+.ct-unisci select{flex:1;min-width:0}
+@media (max-width:900px){.ct-riga{grid-template-columns:1fr}.ct-form{flex-wrap:wrap}}
+
+/* Percorso: attrezzature e utensili */
+.tp-elenco{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:4px;font-size:13px}
+.tp-elenco li{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tp-ut-stato{width:auto;padding:2px 6px;font-size:12px}
+.tp-x{background:none;border:0;font-size:16px;line-height:1;cursor:pointer;color:var(--text-mid)}
+.tp-ut-add{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.tp-ut-add input[type=text]{flex:1 1 240px}
+.tp-ut-add input[type=number]{width:70px}
+.tp-ut-add input[type=date]{width:150px}

@@ -264,7 +264,7 @@ SEZIONI: list[dict] = [
         "id": "percorso-kickoff",
         "titolo": "Percorso del kickoff: le attività base",
         "blocchi": [
-            ("p", "In «Panoramica» e nel dettaglio dell'incontro il riquadro «Percorso del kickoff» elenca le attività che ogni commessa deve avere a posto: Arrivo materiali, Programma CAM, Programma CMM, Macchina, Terzista, Processi speciali e FAI. In alto il conteggio «N/7 a posto»: una tappa è a posto quando la sua attività è completata o quando è segnata «Non serve»."),
+            ("p", "In «Panoramica» e nel dettaglio dell'incontro il riquadro «Percorso del kickoff» elenca le attività che ogni commessa deve avere a posto: Arrivo materiali, Programma CAM, Programma CMM, Macchina, Attrezzatura, Utensili, Terzista, Processi speciali e FAI. In alto il conteggio «N/9 a posto»: una tappa è a posto quando la sua attività è completata o quando è segnata «Non serve»."),
             ("passi", [
                 "Premi «Assegna» sulla tappa.",
                 "Per la Macchina scegli la macchina (CNC e macchine di lavoro), per il Terzista il fornitore, per i Processi speciali il processo: l'elenco propone i fornitori attivi e i processi qualificati, ma puoi scrivere un nome.",
@@ -281,13 +281,16 @@ SEZIONI: list[dict] = [
                 ("Non serve", "deciso da chi gestisce la commessa; «Serve» torna indietro. Non si può dire «Non serve» a una tappa che ha già un'attività: prima va annullata."),
             ]),
             ("p", "Con una data «Entro il» l'attività entra anche nello scadenzario personale del responsabile. Il promemoria nel portale qualche giorno prima della scadenza e l'evento nel calendario Outlook del responsabile (spunta «Anche in Outlook») sono flussi di automazione spenti finché un amministratore non li accende: la spunta compare solo con il flusso acceso."),
-            ("p", "Macchina, Terzista e Processi speciali ammettono più attività («+ Altra»), le altre tappe una sola. Le tappe sono tipi attività: in Impostazioni → Tipi attività il campo «Tappa del kickoff» dice quale tipo rappresenta ogni tappa; un tipo disattivato toglie la tappa dal percorso."),
+            ("p", "Attrezzatura: la riga elenca le attrezzature collegate alla commessa e quelle con lo stesso P/N, con stato, disponibilità e consegna prevista. «Assegna» chiede quale collegare oppure «Nuova da chiedere» con una descrizione: nasce la richiesta nel modulo Attrezzature. Utensili: scrivi codice e descrizione (il portale propone quelli già usati; un codice nuovo entra nel catalogo utensili), quantità ed entro quando; per ogni utensile scegli Da ordinare, Ordinato, Arrivato o Disponibile a magazzino. La tappa è a posto quando tutti gli utensili sono arrivati o disponibili."),
+            ("p", "Macchina, Attrezzatura, Terzista e Processi speciali ammettono più attività («+ Altra»), le altre tappe una sola. Le tappe sono tipi attività: in Impostazioni → Tipi attività il campo «Tappa del kickoff» dice quale tipo rappresenta ogni tappa; un tipo disattivato toglie la tappa dal percorso."),
         ],
     },
     {
         "id": "programmi-fai",
         "titolo": "Programmi CAM, CMM e FAI",
         "blocchi": [
+            ("p", "Ogni programma CAM o CMM ha la sua fase: Da scrivere → In scrittura → Da provare in macchina → Validato. Un clic sul passo successivo («Inizia a scrivere», «Pronto da provare», «Validato in macchina»; «Da correggere» se la prova va male; «Nuova revisione» su un programma validato) dalla pagina «Programmi», dalla tabella della commessa o dalla scheda dell'attività. Scrivere il codice porta da solo a «In scrittura» con revisione A; «Nuova revisione» passa alla lettera successiva. La macchina viene presa dalla tappa Macchina del Percorso. «Validato» chiude l'attività collegata, una nuova revisione la riapre. Ogni passo resta nello storico del programma, visibile nella scheda dell'attività."),
+            ("p", "La pagina «Programmi» ha i conteggi per fase (Da scrivere, In scrittura, Da provare, Validati, In ritardo) e i filtri per tipo (CAM, CMM) e macchina; l'esportazione CSV riporta anche revisione e macchina."),
             ("p", "La scheda «Programmi e FAI» della commessa raccoglie i codici e i percorsi di rete, con il responsabile di ognuno. "
                   "Non è obbligatoria e si può usare solo per quello che serve. Le stesse righe si vedono e si aggiungono anche nel dettaglio dell'incontro e in «Registra esito»: non vanno inserite due volte."),
             ("p", "Un'attività di tipo «Programmazione CAM» richiede il programma CAM, «Programmazione CMM» il programma CMM, «Esecuzione FAI» la scheda FAI: la scheda dell'attività chiede subito codice e cartella, e la stessa riga compare in «Programmi e FAI» con il responsabile e la data dell'attività. "
@@ -383,6 +386,7 @@ SEZIONI: list[dict] = [
             ("p", "Nel dettaglio dell'incontro, accanto al luogo, c'è lo stato della prenotazione: «Richiesta inviata alla sala», «Sala confermata», «Sala in forse», «Sala rifiutata: è già occupata». «Verifica» lo chiede di nuovo a Outlook. Una sala senza casella Microsoft 365 vale solo nel portale: si vede nella disponibilità ma non si prenota in Outlook. Se un'altra riunione del portale occupa la stessa sala nello stesso orario, al salvataggio compare un avviso."),
             ("img", (_IMG + "convocazione.jpg", "La convocazione: informazioni, partecipanti e ordine del giorno")),
             ("ul", [
+                "Mentre scrivi un punto, un'azione, un'attività o un problema, il portale propone le voci del catalogo: tutto quello che è già stato scritto, con le più usate in cima. I punti dell'ordine del giorno portano con sé nota e durata predefinite.",
                 "L'ordine del giorno parte già con i problemi e le azioni ancora aperti, con i punti non trattati nell'incontro precedente e con le tappe del Percorso da assegnare, in corso o in ritardo.",
                 "«Pianifica prossimo incontro», dal dettaglio di un incontro svolto, riprende convocati, persone in copia, luogo, "
                 "ora e impostazioni Outlook del precedente, con la data una settimana dopo.",
@@ -597,6 +601,7 @@ SEZIONI: list[dict] = [
             ("p", "Vedi le commesse del tuo perimetro: quelle dove sei nel team o convocato a un incontro, più quelle che i tuoi permessi aprono."),
             ("p", "Pieni poteri: il capocommessa e il project manager della commessa (i ruoli si scelgono in Impostazioni → Configurazione → «Poteri e avvisi») e le persone indicate lì modificano tutto, date comprese, senza chiedere a nessuno."),
             ("p", "Chi ha un'attività senza pieni poteri la porta avanti (Inizia, Fatta, avanzamento, note, programma), ma non cambia responsabile, priorità o commessa e non la annulla. Le date le chiede: cambia «Inizio» o «Fine richiesta» nella scheda (o trascina la barra nel Gantt), scrive il motivo e preme «Chiedi». Le date restano com'erano finché un capocommessa non decide dalla scheda o da «Le mie azioni» → «Spostamenti da decidere»: approva (anche con date diverse) o rifiuta, con una nota. Decide il primo che risponde; tutto resta nello «Storico» dell'attività."),
+            ("p", "Il pulsante «⋯» accanto a ogni attività (nel Percorso, tra le attività dell'incontro, in «Le mie azioni») apre il pannello laterale delle azioni rapide: date (per chi non ha pieni poteri diventa «Chiedi lo spostamento», con il motivo), responsabile, priorità (Bassa, Media, Alta), annulla con un motivo obbligatorio che resta nei commenti, riapri. Il menu mostra solo quello che puoi fare."),
             ("p", "Quando cambiano date, priorità, stato o responsabile di un incarico, ricevono la notifica (e la mail, se il flusso è acceso) l'incaricato e il capocommessa, o chi è scelto in «Poteri e avvisi». Chi perde un incarico riceve «Non sei più responsabile». Chi fa la modifica non viene avvisato."),
             ("def", [
                 ("Chi gestisce la commessa", "chi l'ha creata, chi ha i permessi di amministrazione del modulo e i ruoli con «Modifica tutto»: modifica dati e team, VRF, incontri, minute e piano."),

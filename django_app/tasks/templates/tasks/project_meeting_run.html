@@ -12,6 +12,7 @@
 {% block tasks_shell_guide_anchor %}#conduzione{% endblock %}
 
 {% block tasks_shell_content %}
+{% load catalogo %}{% catalogo_datalist "ATTIVITA" %}{% catalogo_datalist "AZIONE" %}
 <div class="run-wrap">
 
   {# Token per le chiamate JSON di questa pagina (nessun form tradizionale) #}
@@ -72,7 +73,7 @@
             <button type="button" class="mf-btn-sm {% if item.source|slice:':6' == 'tappa:' and not item.task_id %}primary{% else %}ghost{% endif %}" data-role="task-new-toggle">{% if item.source|slice:':6' == 'tappa:' %}Assegna la tappa{% else %}+ Nuova attività{% endif %}</button>
           </div>
           <div class="run-item-task-new" data-role="task-new" hidden>
-            <input class="input" type="text" data-role="task-new-title" maxlength="200" placeholder="Titolo della nuova attività"{% if item.source|slice:':6' == 'tappa:' %} hidden{% endif %}>
+            <input class="input" type="text" data-role="task-new-title" maxlength="200" list="cat-attivita" placeholder="Titolo della nuova attività"{% if item.source|slice:':6' == 'tappa:' %} hidden{% endif %}>
             {% if item.source == "tappa:MACCHINA" %}
             <select class="input" data-role="task-new-asset" aria-label="Macchina"><option value="">Macchina…</option>{% for a in run_macchine %}<option value="{{ a.id }}">{{ a.asset_tag }} {{ a.name }}</option>{% endfor %}</select>
             {% elif item.source == "tappa:TERZISTA" %}
@@ -127,7 +128,7 @@
       <button type="button" class="mf-btn-sm ghost" data-role="task-new-toggle">+ Nuova attività</button>
     </div>
     <div class="run-item-task-new" data-role="task-new" hidden>
-      <input class="input" type="text" data-role="task-new-title" maxlength="200" placeholder="Titolo della nuova attività">
+      <input class="input" type="text" data-role="task-new-title" maxlength="200" list="cat-attivita" placeholder="Titolo della nuova attività">
       <select class="input" data-role="task-new-owner">
         <option value="">Responsabile</option>
         {% include "tasks/_quick_user_options.html" %}
@@ -175,7 +176,7 @@
           <option value="decision">Decisione</option>
           <option value="issue">Problema</option>
         </select>
-        <input class="input" type="text" id="capture-titolo" maxlength="400" placeholder="Scrivi e premi Invio: cosa fare, cosa è stato deciso, cosa non torna">
+        <input class="input" type="text" id="capture-titolo" maxlength="400" list="cat-azione" placeholder="Scrivi e premi Invio: cosa fare, cosa è stato deciso, cosa non torna">
         <select class="input" id="capture-owner">
           <option value="">Responsabile</option>
           {% include "tasks/_quick_user_options.html" %}

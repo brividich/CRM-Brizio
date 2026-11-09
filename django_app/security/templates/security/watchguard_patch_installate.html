@@ -48,10 +48,10 @@
       {% for x in d.righe_mostrate %}
         <tr>
           <td class="sec-nowrap" data-sort-value="{{ x.p.chiusa_il|date:'Y-m-d H:i' }}">{{ x.p.chiusa_il|date:"d/m/Y H:i" }}</td>
-          <td>{% if x.p.hub_asset %}<a href="{% url 'assets:asset_view' x.p.hub_asset.pk %}">{{ x.p.host_display|default:x.p.host }}</a>{% else %}{{ x.p.host_display|default:x.p.host }}{% endif %}</td>
-          <td><strong>{{ x.p.nome }}</strong>{% if x.p.programma or x.p.di_sistema %}<br><small class="sec-muted">{{ x.p.programma }}{% if x.p.versione %} {{ x.p.versione }}{% endif %}{% if x.p.di_sistema %}{% if x.p.programma %} · {% endif %}sistema operativo{% endif %}</small>{% endif %}</td>
+          <td data-fm-group="{{ x.p.host_display|default:x.p.host }}">{% if x.p.hub_asset %}<a href="{% url 'assets:asset_view' x.p.hub_asset.pk %}">{{ x.p.host_display|default:x.p.host }}</a>{% else %}{{ x.p.host_display|default:x.p.host }}{% endif %}</td>
+          <td data-fm-group="{{ x.p.nome }}"><strong>{{ x.p.nome }}</strong>{% if x.p.programma or x.p.di_sistema %}<br><small class="sec-muted">{{ x.p.programma }}{% if x.p.versione %} {{ x.p.versione }}{% endif %}{% if x.p.di_sistema %}{% if x.p.programma %} · {% endif %}sistema operativo{% endif %}</small>{% endif %}</td>
           <td>{% if x.p.criticita_label %}<span class="sec-badge {% if x.p.criticita == 201 %}high{% elif x.p.criticita == 202 %}medium{% else %}muted{% endif %}">{{ x.p.criticita_label }}</span>{% endif %}</td>
-          <td><div class="wgp-cve-cell">
+          <td data-fm-group="{{ x.cve|join:'|' }}"><div class="wgp-cve-cell">
             {% if x.kev %}<span class="sec-badge critical" title="{{ x.kev|join:', ' }}">CVE sfruttata</span><br>{% endif %}
             {% for c in x.cve|slice:":3" %}<a href="{% url 'security:cve_detail' c %}" data-preview="{% url 'security:cve_pannello_cve' c %}">{{ c }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="sec-muted">—</span>{% endfor %}
             {% if x.cve|length > 3 %}<small class="sec-muted"> e altre {{ x.cve|length|add:"-3" }}</small>{% endif %}

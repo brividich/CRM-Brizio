@@ -74,11 +74,21 @@
 {% if errori %}
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head"><h2>Installazioni non riuscite (14 giorni)</h2></div>
-  <div class="sec-table-wrap"><table class="sec-table sec-table-compact" data-table-enhanced="0">
-    <thead><tr><th>PC</th><th>Patch</th><th>Esito</th><th>Quando</th></tr></thead>
-    <tbody>{% for p in errori %}<tr>
-      <td>{% if p.hub_asset %}<a href="{% url 'assets:asset_view' p.hub_asset.pk %}">{{ p.host_display|default:p.host }}</a>{% else %}{{ p.host_display|default:p.host }}{% endif %}</td>
-      <td>{{ p.nome }}</td><td><span class="sec-badge high">{{ p.esito_label }}</span></td><td class="sec-nowrap">{{ p.esito_il|date:"d/m/Y H:i" }}</td>
+<form method="post" action="{% url 'security:pc_bulk' %}" id="wgp-err-bulk" data-bulk>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="pagina" value="Installazioni non riuscite"><input type="hidden" name="action" value="case">
+  <div class="sec-bulk-bar">
+    <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
+    <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" aria-label="Titolo del ticket">
+    <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Apri un ticket per questi PC</button>
+  </div>
+</form>
+  <div class="sec-table-wrap"><table class="sec-table sec-table-compact">
+    <thead><tr><th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all form="wgp-err-bulk" aria-label="Seleziona tutte"></th><th>PC</th><th>Patch</th><th>Esito</th><th>Quando</th></tr></thead>
+    <tbody>{% for p in errori %}<tr class="sec-row-link" data-preview="{% url 'security:preview_pc' %}?nome={{ p.host_display|default:p.host|urlencode }}">
+      <td class="sec-check-col"><input type="checkbox" name="devices" value="{{ p.host_display|default:p.host }}" form="wgp-err-bulk" class="sec-bulk-item" aria-label="Seleziona {{ p.host_display|default:p.host }}"></td>
+      <td data-fm-group="{{ p.host_display|default:p.host }}">{% if p.hub_asset %}<a href="{% url 'assets:asset_view' p.hub_asset.pk %}">{{ p.host_display|default:p.host }}</a>{% else %}{{ p.host_display|default:p.host }}{% endif %}</td>
+      <td data-fm-group="{{ p.nome }}">{{ p.nome }}</td><td><span class="sec-badge high">{{ p.esito_label }}</span></td><td class="sec-nowrap">{{ p.esito_il|date:"d/m/Y H:i" }}</td>
     </tr>{% endfor %}</tbody>
   </table></div>
 </section>

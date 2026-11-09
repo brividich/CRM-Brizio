@@ -1,0 +1,52 @@
+<div class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Catalogo delle voci ricorrenti</h2>
+      <p class="ts-panel-subtitle">Si riempie da solo con quello che si scrive: punti all'ordine del giorno, azioni, attività, problemi. Le voci tornano come suggerimento mentre si scrive; qui si correggono, si uniscono i doppioni e si nasconde quello che non serve.</p>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    <div class="fai-viste" role="group" aria-label="Tipo di voce">
+      {% for codice, etichetta, conta in catalogo_tipi %}
+        <a class="fai-vista{% if catalogo_tipo == codice %} active{% endif %}" href="?tab=catalogo&tipo={{ codice }}"><strong>{{ conta }}</strong> {{ etichetta }}</a>
+      {% endfor %}
+    </div>
+    <form method="get" class="fai-cerca">
+      <input type="hidden" name="tab" value="catalogo"><input type="hidden" name="tipo" value="{{ catalogo_tipo }}">
+      <input class="input" type="search" name="q" value="{{ catalogo_q }}" placeholder="Cerca una voce" aria-label="Cerca">
+      <label class="pt-scelta"><input type="checkbox" name="nascoste" value="1" {% if catalogo_nascoste %}checked{% endif %}> Anche le nascoste</label>
+      <button type="submit" class="btn btn-secondary">Cerca</button>
+    </form>
+    {% if catalogo_voci %}
+    <div class="ct-lista">
+      {% for v in catalogo_voci %}
+      <div class="ct-riga{% if not v.attiva %} is-nascosta{% endif %}">
+        <form method="post" class="ct-form">
+          {% csrf_token %}
+          <input type="hidden" name="tab" value="catalogo"><input type="hidden" name="voce_id" value="{{ v.pk }}">
+          <input class="input" name="testo" value="{{ v.testo }}" maxlength="220" aria-label="Testo">
+          {% if catalogo_tipo == "ODG" %}
+          <input class="input" name="nota" value="{{ v.nota }}" maxlength="500" placeholder="Nota predefinita" aria-label="Nota predefinita">
+          <input class="input" type="number" name="durata" value="{{ v.durata_minuti|default:'' }}" min="1" max="480" placeholder="min" aria-label="Durata in minuti">
+          {% endif %}
+          <span class="ct-usi" title="Volte in cui è stata usata">{{ v.usi }}×</span>
+          <button type="submit" class="btn btn-secondary btn-sm">Salva</button>
+          <button type="submit" name="azione" value="{% if v.attiva %}nascondi{% else %}mostra{% endif %}" class="btn btn-secondary btn-sm">{% if v.attiva %}Nascondi{% else %}Mostra{% endif %}</button>
+        </form>
+        <form method="post" class="ct-unisci">
+          {% csrf_token %}
+          <input type="hidden" name="tab" value="catalogo"><input type="hidden" name="voce_id" value="{{ v.pk }}">
+          <select class="input" name="dentro" aria-label="Unisci in">
+            <option value="">Unisci in…</option>
+            {% for altra in catalogo_voci %}{% if altra.pk != v.pk %}<option value="{{ altra.pk }}">{{ altra.testo|truncatechars:60 }}</option>{% endif %}{% endfor %}
+          </select>
+          <button type="submit" name="azione" value="unisci" class="btn btn-secondary btn-sm">Unisci</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+      <p class="ts-field-help">Nessuna voce{% if catalogo_q %} con «{{ catalogo_q }}»{% endif %}.</p>
+    {% endif %}
+  </div>
+</div>
