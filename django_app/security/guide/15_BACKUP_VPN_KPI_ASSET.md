@@ -19,7 +19,21 @@ L'elenco delle cose da sistemare: job attesi mancanti, PC con l'ultimo backup fa
 
 ### Per PC e server
 
-Una riga per dispositivo, con in cima i casi peggiori. La **striscia** mostra le ultime esecuzioni, dalla più vecchia a sinistra alla più recente a destra, con i colori della legenda (riuscito, con avvisi, fallito). Selezionando più PC, **Apri un ticket per questi PC** crea un solo ticket per tutti.
+Una riga per dispositivo, con in cima i casi peggiori. La **striscia** mostra le ultime esecuzioni, dalla più vecchia a sinistra alla più recente a destra, con i colori della legenda (riuscito, con avvisi, fallito). Un clic su una riga apre il **pannello laterale** del PC con i suoi alert di backup aperti.
+
+### Per job
+
+Una riga per job di backup. Un clic su una riga apre il **pannello laterale** del job: esecuzioni, dispositivi, alert aperti e ticket. Dal pannello si lavora senza lasciare la pagina: **Prendo in carico** gli alert del job, oppure **Chiudi** scegliendo come (Risolto, Non rilevante, Rischio accettato, Falso positivo) e scrivendo il motivo, che resta su ogni alert. **Apri un ticket** crea il ticket del job con dentro i suoi alert.
+
+### Più righe insieme
+
+Nelle tabelle **Per PC e server**, **Per job** e nel **Log esecuzioni** si selezionano più righe con le caselle. La barra in alto offre:
+
+- **Apri un ticket**: un ticket solo, con un'attività per PC o job e gli alert aperti collegati;
+- **Prendi in carico gli alert**: gli alert nuovi passano a «preso in carico»;
+- **Chiudi gli alert**: con esito e motivo obbligatorio. I ticket di backup rimasti senza alert aperti si risolvono da soli.
+
+Gli alert di backup nascono per job: dai PC si agisce sugli alert dei job che li hanno protetti negli ultimi 90 giorni. Un job condiviso da più server ha un alert solo, che vale per tutti i suoi dispositivi. Nel Log le azioni valgono per il job di ogni esecuzione selezionata.
 
 Un clic sul nome apre la **scheda PC** (backup, alert, vulnerabilità e protezione di quel dispositivo). **Log completo** elenca ogni esecuzione con filtri per esito, job, periodo e PC.
 

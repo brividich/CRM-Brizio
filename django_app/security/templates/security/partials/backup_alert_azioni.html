@@ -1,0 +1,29 @@
+{% load security_i18n %}{# Azioni live sugli alert di backup di un job o di un PC, dentro il pannello laterale. #}
+<section class="pv-backup-alerts">
+  <h3 class="pv-h">Alert di backup{% if alerts %} aperti <span class="sec-badge">{{ alerts|length }}</span>{% endif %}</h3>
+  {% if azione_esito %}<p class="sec-action-result">{{ azione_esito }}</p>{% endif %}
+  {% if azione_errore %}<p class="sec-action-result sec-error">{{ azione_errore }}</p>{% endif %}
+  {% if alerts %}
+  <ul class="pv-list">{% for a in alerts|slice:":6" %}<li><a href="{% url 'security:alert_detail' a.pk %}">{{ a.title|truncatechars:70 }}</a><span class="sec-badge {{ a.status }}">{{ a.status|ui_label }}</span></li>{% endfor %}</ul>
+  {% if alerts|length > 6 %}<p class="sec-muted sec-small">e altri {{ alerts|length|add:-6 }}.</p>{% endif %}
+  <div class="pv-actions">
+    <form method="post" action="{% url 'security:backup_pannello_azione' %}" data-drawer-form data-drawer-replace>{% csrf_token %}
+      <input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="nome" value="{{ nome }}"><input type="hidden" name="giorni" value="{{ giorni }}">
+      <input type="hidden" name="{% if kind == 'job' %}jobs{% else %}devices{% endif %}" value="{{ nome }}">
+      <input type="hidden" name="action" value="acknowledge">
+      <button type="submit" class="sec-button">Prendo in carico</button>
+    </form>
+  </div>
+  <form method="post" action="{% url 'security:backup_pannello_azione' %}" data-drawer-form data-drawer-replace class="pv-close-form">{% csrf_token %}
+    <input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="nome" value="{{ nome }}"><input type="hidden" name="giorni" value="{{ giorni }}">
+    <input type="hidden" name="{% if kind == 'job' %}jobs{% else %}devices{% endif %}" value="{{ nome }}">
+    <input type="hidden" name="action" value="close">
+    <select name="esito" aria-label="Come chiudere">{% for value, label in esiti %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+    <input type="text" name="motivo" placeholder="Motivo (resta su ogni alert)" aria-label="Motivo" required>
+    <button type="submit" class="sec-button sec-button-primary" data-busy-label="Chiusura…">Chiudi {% if alerts|length == 1 %}l'alert{% else %}i {{ alerts|length }} alert{% endif %}</button>
+  </form>
+  {% if kind == "pc" and jobs|length > 1 %}<p class="sec-muted sec-small">Gli alert sono dei job {{ jobs|join:", " }}: un job condiviso vale per tutti i suoi dispositivi.</p>{% endif %}
+  {% else %}
+  <p class="sec-muted sec-small">Nessun alert di backup aperto.</p>
+  {% endif %}
+</section>

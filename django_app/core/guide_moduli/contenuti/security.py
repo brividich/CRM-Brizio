@@ -43,6 +43,8 @@ GUIDA = {
                     "Incidente risolto o chiuso: compila «Lezioni apprese» (causa, cosa ha funzionato, cosa migliorare) e le azioni correttive con responsabile e scadenza. Finché manca, l'incidente dice «Riesame mancante» e dopo 7 giorni arriva un promemoria; nessuna chiusura viene bloccata.",
                     "Evidenze di un alert: «Verifica integrità» ricalcola l'impronta SHA-256 e dice se sono integre o alterate; «Esporta» scarica tutto con la catena di custodia.",
                     "Backup › Prove di ripristino: registra ogni prova di ripristino; una fallita apre un alert, una in ritardo oltre i 90 giorni manda un promemoria.",
+                    "Backup: clic su un PC o su un job apre il pannello laterale con gli alert di backup aperti, «Prendo in carico» e «Chiudi» (esito e motivo); "
+                    "seleziona più PC, job o righe del Log per aprire un ticket, prendere in carico o chiudere insieme i loro alert.",
                 ]),
                 ("p", "Ruoli e contatti per gli incidenti (responsabile, sostituto, CSIRT/ACN, fornitore) si scrivono in Impostazioni › Gestione degli incidenti e compaiono nella scheda e nel PDF dell'incidente."),
             ],

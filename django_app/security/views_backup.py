@@ -5,6 +5,7 @@ from .models import BackupJobRecord
 from .permissions import can_view_security_center
 from .services import backup_center as svc
 from .services import veeam_api
+from .services.alert_simili import ESITI
 
 
 def _denied(request):
@@ -40,6 +41,7 @@ def backup_overview(request):
         "solo_ko": solo_ko,
         "stale_days": svc.stale_days(),
         "veeam": veeam_api.panel(),
+        "esiti": ESITI,
     })
 
 
@@ -66,6 +68,7 @@ def backup_log(request):
         "filters": {k: request.GET.get(k, "") for k in ("esito", "job", "giorni", "q")},
         "status_choices": [(k, v) for k, v in svc.STATUS_LABELS.items() if k != "unknown"],
         "periods": svc.PERIODS,
+        "esiti": ESITI,
     })
 
 
