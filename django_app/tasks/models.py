@@ -1212,6 +1212,8 @@ class KickoffMeeting(models.Model):
     annullato_motivo = models.TextField(blank=True, default="", verbose_name="Motivo dell'annullamento")
     data = models.DateField(verbose_name="Data")
     ora = models.TimeField(null=True, blank=True, verbose_name="Ora")
+    # Quanto tenere la sala e l'evento Outlook. Vuoto: somma dei punti all'ordine del giorno.
+    durata_minuti = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Durata")
     luogo = models.CharField(max_length=200, blank=True, default="", verbose_name="Luogo")
     sala = models.ForeignKey(
         "MeetingRoom", on_delete=models.SET_NULL, null=True, blank=True, related_name="incontri", verbose_name="Sala",

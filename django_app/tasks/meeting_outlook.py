@@ -171,8 +171,8 @@ def _testo_sala(sala) -> str:
 
 
 def meeting_duration_minutes(meeting) -> int:
-    """Durata dell'incontro: somma dei punti all'ordine del giorno, un'ora se mancano."""
-    return meeting.durata_prevista_minuti() or DEFAULT_DURATION_MINUTES
+    """Durata dell'incontro: quella scelta, altrimenti la somma dei punti all'ordine del giorno, un'ora se mancano."""
+    return getattr(meeting, "durata_minuti", None) or meeting.durata_prevista_minuti() or DEFAULT_DURATION_MINUTES
 
 
 def _meeting_start_end(meeting) -> tuple[datetime, datetime]:
