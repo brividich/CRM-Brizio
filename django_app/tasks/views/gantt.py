@@ -146,7 +146,18 @@ def project_gantt(request, project_id: int):
     can_edit_schedule = _can_edit_project_schedule(request, project)
     can_comment = has_task_permission(request, "tasks_comment")
     gantt_options = _parse_gantt_options(request)
-    gantt_meta = _project_gantt_rows(tasks, min_window_days=gantt_options["window_days"])
+    from ..services.gantt_voci import gantt_voci, posiziona
+
+    # Incontri, azioni, problemi e programmi/FAI sul piano: le loro date entrano nel periodo.
+    voci_gantt = gantt_voci(project, tasks)
+    gantt_meta = _project_gantt_rows(
+        tasks, min_window_days=gantt_options["window_days"], extra_dates=voci_gantt["date"]
+    )
+    _giorni = len(gantt_meta["days"])
+    posiziona(voci_gantt["incontri"], "data", gantt_meta["timeline_start"], _giorni)
+    posiziona(voci_gantt["voci"], "scadenza", gantt_meta["timeline_start"], _giorni)
+    for row in gantt_meta["rows"]:
+        row["voci"] = voci_gantt["per_attivita"].get(row["task"].id, [])
     comment_form = ProjectCommentForm(
         user=request.user,
         notify_user_queryset=_project_notify_users_queryset(project),
@@ -267,6 +278,8 @@ def project_gantt(request, project_id: int):
             "vrf_detail": vrf_detail,
             "gantt_baseline": baseline,
             "gantt_deps": deps_display,
+            "gantt_incontri": voci_gantt["incontri"],
+            "gantt_voci": voci_gantt["voci"],
             "dependency_type_choices": DependencyType.choices,
             "vrf_bozza": _vrf_bozza(project),
             "quick_start": _prossimo_inizio(tasks, today),

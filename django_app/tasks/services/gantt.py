@@ -104,9 +104,10 @@ def _parse_gantt_options(request):
     }
 
 
-def _project_gantt_rows(tasks: list[Task], *, min_window_days: int = 31) -> dict:
+def _project_gantt_rows(tasks: list[Task], *, min_window_days: int = 31, extra_dates=()) -> dict:
+    """``extra_dates``: date di incontri e scadenze da far rientrare nel periodo mostrato."""
     today = timezone.localdate()
-    timeline_points: list[date] = [today]
+    timeline_points: list[date] = [today, *[d for d in extra_dates if d]]
     base_rows: list[dict] = []
 
     for index, task in enumerate(tasks, start=1):
@@ -130,7 +131,7 @@ def _project_gantt_rows(tasks: list[Task], *, min_window_days: int = 31) -> dict
             }
         )
 
-    if base_rows:
+    if base_rows or len(timeline_points) > 1:
         timeline_start = min(timeline_points) - timedelta(days=1)
         timeline_end = max(timeline_points) + timedelta(days=1)
     else:

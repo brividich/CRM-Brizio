@@ -209,6 +209,10 @@ SEZIONI: list[dict] = [
                 "«Sposta anche le successive» acceso: spostando un'attività si spostano anche quelle che dipendono da lei.",
                 "Una sola barra sopra il Gantt: «Finestra» cambia il periodo mostrato, «Zoom» la larghezza dei giorni.",
                 "Sotto il nome di ogni attività: responsabile («da assegnare» in rosso se manca), date, giorni di assenza del responsabile nel periodo e, con la baseline, lo scostamento della data fine.",
+                "Riga «Incontri» sotto i giorni: un cerchio viola per ogni incontro della commessa (pieno se pianificato, vuoto se svolto) e una linea tratteggiata che attraversa il piano; cliccando si apre l'incontro. Gli incontri annullati non compaiono.",
+                "Azioni, problemi, programmi CAM/CMM e FAI aperti collegati a un'attività ancora aperta compaiono come etichetta sotto il nome di quell'attività (rossa se scaduta).",
+                "Quelli non collegati, o collegati a un'attività già chiusa, stanno in fondo in «Scadenze da incontri, programmi e FAI», una riga ciascuno con un rombo sulla data: azzurro per le azioni, arancio per i problemi, verde per programmi e FAI, rosso se scaduti. Il pulsante «N scadenze … ↓» nella barra porta lì.",
+                "Il periodo mostrato si allarga da solo per comprendere incontri e scadenze.",
             ]),
             ("def", [
                 ("Dipendenze tra attività", "pannello richiudibile sotto il Gantt: scegli predecessore e successore per numero (WBS), il tipo e l'eventuale ritardo «Lag (gg)». Tipi: Fine → Inizio (FS), Inizio → Inizio (SS), Fine → Fine (FF), Inizio → Fine (SF)."),

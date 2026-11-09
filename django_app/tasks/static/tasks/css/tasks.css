@@ -3568,6 +3568,30 @@ body.theme-dark .md-docbar .md-btn.white:hover { background: rgba(147,197,253,.1
             .ts-gantt-cm .gday.we { color:#9fbcdb; background:#16314f; }
             .ts-gantt-cm .gday.hol { color:#f0abdc; background:#3a2740; }
             .ts-gantt-cm .gday.td { background:#ff8a1f; color:#1a1206; font-weight:800; }
+            /* Incontri e scadenze sul Gantt (09/11/2026) */
+            .ts-gantt-cm .grow.gvoce .gtrack,
+            .ts-gantt-cm .grow.gincontri .gtrack { background-image: repeating-linear-gradient(90deg,var(--surface-alt, #f8fafc) 0,var(--surface-alt, #f8fafc) 1px,transparent 1px,transparent var(--cw)); min-height:40px; }
+            .ts-gantt-cm .grow.gincontri { background:rgba(124,58,237,.06); }
+            .ts-gantt-cm .grow.gincontri .gmac { background:linear-gradient(rgba(124,58,237,.07),rgba(124,58,237,.07)), var(--surface); }
+            .ts-gantt-cm .gmeet { position:absolute; top:6px; transform:translateX(-7px); display:flex; align-items:center; gap:4px; z-index:3; text-decoration:none; white-space:nowrap; max-width:180px; }
+            .ts-gantt-cm .gmeet::before { content:""; flex:0 0 auto; width:14px; height:14px; border-radius:50%; background:#7c3aed; border:2px solid #fff; box-shadow:0 0 0 1px #7c3aed; }
+            .ts-gantt-cm .gmeet.svolto::before { background:#fff; }
+            .ts-gantt-cm .gmeet span { font-size:.64rem; font-weight:800; color:#7c3aed; background:var(--surface); padding:1px 5px; border-radius:6px; overflow:hidden; text-overflow:ellipsis; }
+            .ts-gantt-cm .gmeet-line { position:absolute; top:0; bottom:0; width:0; border-left:1px dashed rgba(124,58,237,.45); z-index:1; pointer-events:none; }
+            .ts-gantt-cm .grow.gsez .gmac { font-size:.7rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--text-light); background:var(--surface-alt, #f8fafc); }
+            .ts-gantt-cm .grow.gsez { background:var(--surface-alt, #f8fafc); }
+            .ts-gantt-cm .gmile { position:absolute; top:12px; width:14px; height:14px; transform:translateX(-7px) rotate(45deg); border-radius:3px; z-index:3; background:#0ea5e9; box-shadow:0 1px 4px rgba(12,37,69,.3); }
+            .ts-gantt-cm .gmile--problema { background:#f59e0b; }
+            .ts-gantt-cm .gmile--programma { background:#10b981; }
+            .ts-gantt-cm .gmile.scaduta { background:#dc2626; }
+            .ts-gantt-cm .gchip { display:inline-block; font-size:.6rem; font-weight:800; padding:1px 6px; border-radius:999px; background:#e0f2fe; color:#075985; text-decoration:none; white-space:nowrap; vertical-align:1px; }
+            .ts-gantt-cm .gchip--problema { background:#fef3c7; color:#92400e; }
+            .ts-gantt-cm .gchip--programma { background:#d1fae5; color:#065f46; }
+            .ts-gantt-cm .gchip.scaduta { background:#fee2e2; color:#991b1b; }
+            .ts-gantt-cm .gvoci-chips { display:flex; flex-wrap:wrap; gap:3px; margin-top:4px; }
+            .ts-gantt-cm .glg-meet, .ts-gantt-cm .glg-mile { display:inline-block; width:11px; height:11px; margin-right:5px; vertical-align:-1px; }
+            .ts-gantt-cm .glg-meet { border-radius:50%; background:#7c3aed; }
+            .ts-gantt-cm .glg-mile { background:#0ea5e9; transform:rotate(45deg); border-radius:2px; }
             .ts-gantt-cm .gtoday { position:absolute; top:0; bottom:0; width:2px; background:#ff8a1f; z-index:1; pointer-events:none; }
             .ts-gantt-cm .gbar { position:absolute; top:8px; height:26px; border-radius:7px; color:#fff; font-size:.66rem; font-weight:700; box-sizing:border-box; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; box-shadow:0 2px 6px rgba(12,37,69,.18); user-select:none; display:flex; align-items:center; }
             .ts-gantt-cm .grow.can-edit .gbar { cursor:grab; }

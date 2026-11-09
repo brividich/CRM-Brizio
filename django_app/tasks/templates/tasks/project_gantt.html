@@ -56,6 +56,7 @@ body.tk-wide .content sta in tasks.css.
   .g-bar-label { font-size: 12px; font-weight: 700; color: var(--text-light); }
   .g-bar-select { width: auto; min-width: 120px; padding-top: 4px; padding-bottom: 4px; }
   .g-bar-end { margin-left: auto; }
+  .g-scad-link { font-size: 13px; font-weight: 700; color: var(--primary); text-decoration: none; padding: 4px 10px; border-radius: 99px; background: var(--surface-alt, #f1f5f9); }
   .g-bar .g-flag { font-size: 13px; cursor: pointer; }
   .gmac small .g-noresp { color: var(--danger); font-weight: 700; }
   .gmac small .g-warn { color: var(--warning, #b45309); font-weight: 700; }
@@ -220,6 +221,9 @@ body.tk-wide .content sta in tasks.css.
           </label>
         {% endif %}
       {% endif %}
+      {% if gantt_voci %}
+        <a class="g-bar-group g-scad-link" href="#g-scadenze" onclick="var s=document.getElementById('g-scadenze');if(s){s.scrollIntoView({behavior:'smooth',block:'center'});return false;}">{{ gantt_voci|length }} scadenz{{ gantt_voci|length|pluralize:"a,e" }} da incontri, programmi e FAI ↓</a>
+      {% endif %}
       {% if can_edit_schedule and gantt_rows %}
         <div class="g-bar-group g-bar-end">
           <form method="post" action="{% url 'tasks:project_gantt_fix_baseline' project.id %}">
@@ -239,7 +243,7 @@ body.tk-wide .content sta in tasks.css.
     </div>
 
     <div class="ts-panel-body no-pad">
-      {% if gantt_rows %}
+      {% if gantt_rows or gantt_voci or gantt_incontri %}
         <div class="ts-gantt-cm">
           <div class="gscroll" data-oggi-idx="{{ gantt_today_index|default_if_none:'-1' }}" style="--cw:{{ gantt_day_cell_px|default:30 }}px;">
             <div class="grow gweeks">
@@ -254,6 +258,18 @@ body.tk-wide .content sta in tasks.css.
                 {% for day in gantt_days %}<div class="gday{% if day.is_weekend %} we{% endif %}{% if day.is_holiday %} hol{% endif %}{% if day.is_today %} td{% endif %}" style="width:var(--cw);">{{ day.date|date:"d" }}</div>{% endfor %}
               </div>
             </div>
+            {# Incontri della commessa: un segno per incontro, la linea tratteggiata attraversa il piano. #}
+            {% if gantt_incontri %}
+            <div class="grow gincontri">
+              <div class="gmac"><span class="gmac-title">Incontri</span><small>{{ gantt_incontri|length }} in calendario · <a href="{% url 'tasks:project_meetings' project.id %}">tutti</a></small></div>
+              <div class="gtrack" style="width:calc(var(--cw) * {{ gantt_days|length }});">
+                {% for m in gantt_incontri %}{% if m.idx is not None %}
+                  <a class="gmeet{% if m.svolto %} svolto{% endif %}" href="{{ m.url }}" style="left:calc(var(--cw) * {{ m.idx }} + var(--cw) / 2);"
+                     title="{{ m.titolo }} · {{ m.data|date:'d/m/Y' }}{% if m.ora %} {{ m.ora|time:'H:i' }}{% endif %} · {% if m.svolto %}svolto{% else %}pianificato{% endif %}"><span>{{ m.titolo }}</span></a>
+                {% endif %}{% endfor %}
+              </div>
+            </div>
+            {% endif %}
             {% for row in gantt_rows %}
               <div class="grow gbody{% if row.can_edit %} can-edit{% endif %}" data-task-id="{{ row.task.id }}"
                    {% if row.can_edit %}data-shift-url="{% url 'tasks:project_gantt_shift_task' project.id row.task.id %}"{% endif %}>
@@ -261,10 +277,12 @@ body.tk-wide .content sta in tasks.css.
                   <a class="gmac-title" href="{% url 'tasks:detail' row.task.id %}">{{ row.wbs }}. {{ row.task.title }}</a>
                   <small>{% if row.task.assigned_to %}{{ row.task.assigned_to.get_full_name|default:row.task.assigned_to.username }}{% else %}<span class="g-noresp">da assegnare</span>{% endif %} · {{ row.start|date:"d/m" }} → {{ row.end|date:"d/m" }}{% if row.task.is_overdue %} · <span class="g-noresp">scaduta</span>{% endif %}{% if row.has_absence_conflicts %} · <span class="g-warn">assente {{ row.absence_days }}gg</span>{% endif %}{% if row.baseline_delta.end %} · <span class="g-bl{% if row.baseline_delta.end > 0 %} late{% endif %}" title="Scostamento della data fine dalla baseline">{% if row.baseline_delta.end > 0 %}+{% endif %}{{ row.baseline_delta.end }}gg</span>{% endif %}</small>
                   {% if row.invalid_range %}<small style="color:var(--danger);font-weight:800;">La fine è prima dell'inizio</small>{% endif %}
+                  {% if row.voci %}<span class="gvoci-chips">{% for v in row.voci %}<a class="gchip gchip--{{ v.chiave }}{% if v.scaduta %} scaduta{% endif %}" href="{{ v.url }}" title="{{ v.tipo }}: {{ v.titolo }}{% if v.chi %} · {{ v.chi }}{% endif %}{% if v.scadenza %} · entro il {{ v.scadenza|date:'d/m/Y' }}{% endif %}">{{ v.tipo }} {{ v.titolo|truncatechars:18 }}</a>{% endfor %}</span>{% endif %}
                   <div class="gmac-prog"><i style="width:{{ row.task.progress }}%"></i></div>
                 </div>
                 <div class="gtrack" style="width:calc(var(--cw) * {{ gantt_days|length }});">
                   {% if gantt_today_index >= 0 %}<div class="gtoday" style="left:calc(var(--cw) * {{ gantt_today_index }});"></div>{% endif %}
+                  {% for m in gantt_incontri %}{% if m.idx is not None %}<div class="gmeet-line" style="left:calc(var(--cw) * {{ m.idx }} + var(--cw) / 2);"></div>{% endif %}{% endfor %}
                   <div class="gbar status-{{ row.task.status|lower }}{% if row.invalid_range %} is-invalid-range{% endif %}{% if row.task.is_overdue %} is-overdue{% endif %}"
                        data-start="{{ row.start_index }}" data-span="{{ row.span }}"
                        title="{{ row.task.title }} · {{ row.start|date:'d/m/Y' }} -> {{ row.end|date:'d/m/Y' }} · {{ row.task.progress }}%"
@@ -276,6 +294,27 @@ body.tk-wide .content sta in tasks.css.
                 </div>
               </div>
             {% endfor %}
+
+            {# Voci aperte non legate a un'attività in corso: azioni, problemi, programmi e FAI. #}
+            {% if gantt_voci %}
+            <div class="grow gsez" id="g-scadenze">
+              <div class="gmac">Scadenze da incontri, programmi e FAI</div>
+              <div class="gtrack" style="width:calc(var(--cw) * {{ gantt_days|length }});"></div>
+            </div>
+            {% for v in gantt_voci %}
+              <div class="grow gvoce">
+                <div class="gmac">
+                  <a class="gmac-title" href="{{ v.url }}"><span class="gchip gchip--{{ v.chiave }}">{{ v.tipo }}</span> {{ v.titolo }}</a>
+                  <small>{% if v.chi %}{{ v.chi }}{% else %}<span class="g-noresp">senza responsabile</span>{% endif %} · {% if v.scadenza %}entro il {{ v.scadenza|date:"d/m" }}{% if v.scaduta %} · <span class="g-noresp">scaduta</span>{% endif %}{% else %}senza scadenza{% endif %}</small>
+                </div>
+                <div class="gtrack" style="width:calc(var(--cw) * {{ gantt_days|length }});">
+                  {% if gantt_today_index >= 0 %}<div class="gtoday" style="left:calc(var(--cw) * {{ gantt_today_index }});"></div>{% endif %}
+                  {% for m in gantt_incontri %}{% if m.idx is not None %}<div class="gmeet-line" style="left:calc(var(--cw) * {{ m.idx }} + var(--cw) / 2);"></div>{% endif %}{% endfor %}
+                  {% if v.idx is not None %}<a class="gmile gmile--{{ v.chiave }}{% if v.scaduta %} scaduta{% endif %}" href="{{ v.url }}" style="left:calc(var(--cw) * {{ v.idx }} + var(--cw) / 2);" title="{{ v.tipo }}: {{ v.titolo }} · entro il {{ v.scadenza|date:'d/m/Y' }}"></a>{% endif %}
+                </div>
+              </div>
+            {% endfor %}
+            {% endif %}
           </div>
 
           <div class="glegend2">
@@ -283,6 +322,8 @@ body.tk-wide .content sta in tasks.css.
             <span><i class="gdot status-in_progress"></i>In corso</span>
             <span><i class="gdot status-done"></i>Completata</span>
             <span><i class="gdot status-canceled"></i>Annullata</span>
+            {% if gantt_incontri %}<span><i class="glg-meet"></i>Incontro</span>{% endif %}
+            {% if gantt_voci %}<span><i class="glg-mile"></i>Scadenza di azione, problema, programma o FAI</span>{% endif %}
             <span style="color:var(--text-light);">· linea arancio = oggi{% if can_edit_schedule %} · trascina la barra per spostarla, i bordi per allungarla · clic sulla riga per cambiare date, stato e avanzamento{% endif %}</span>
           </div>
       {% else %}
