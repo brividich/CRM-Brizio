@@ -303,6 +303,7 @@ def _next_meeting_initial(previous: KickoffMeeting) -> dict:
         "ora": previous.ora,
         "luogo": previous.luogo,
         "sala": previous.sala_id,
+        "durata_minuti": previous.durata_minuti,
         "partecipanti_utenti": list(previous.partecipanti_utenti.values_list("pk", flat=True)),
         "partecipanti_email_extra": previous.partecipanti_email_extra,
         "cc_utenti": list(previous.cc_utenti.values_list("pk", flat=True)),

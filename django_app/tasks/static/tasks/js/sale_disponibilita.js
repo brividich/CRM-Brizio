@@ -14,6 +14,7 @@
   var campoSala = el(box.dataset.salaId);
   var campoOrganizer = el(box.dataset.organizerId);
   var campoEsterni = el(box.dataset.esterniId);
+  var campoDurata = el(box.dataset.durataId);
   var dati = null;
   var giro = 0;
   var timer = null;
@@ -31,6 +32,8 @@
   }
 
   function durata() {
+    var scelta = campoDurata && parseInt(campoDurata.value, 10);
+    if (scelta > 0) { return scelta; }
     var raw = document.getElementById('id_agenda_items_raw');
     var totale = 0;
     try {
@@ -154,7 +157,7 @@
   });
 
   if (campoData) { campoData.addEventListener('change', carica); }
-  [campoOra, campoSala].forEach(function (c) { if (c) { c.addEventListener('change', disegna); c.addEventListener('input', disegna); } });
+  [campoOra, campoSala, campoDurata].forEach(function (c) { if (c) { c.addEventListener('change', disegna); c.addEventListener('input', disegna); } });
   if (campoOrganizer) { campoOrganizer.addEventListener('change', caricaPoi); }
   if (campoEsterni) { campoEsterni.addEventListener('change', caricaPoi); }
   document.addEventListener('change', function (e) {

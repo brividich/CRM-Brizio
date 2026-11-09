@@ -1221,7 +1221,7 @@ class KickoffMeetingForm(forms.ModelForm):
     class Meta:
         model = KickoffMeeting
         fields = [
-            "titolo", "data", "ora", "sala", "luogo", "stato",
+            "titolo", "data", "ora", "durata_minuti", "sala", "luogo", "stato",
             "partecipanti_utenti", "partecipanti_email_extra", "partecipanti_testo",
             "cc_utenti", "cc_email_extra",
             # `ordine_del_giorno` (testo libero) e' storico in sola lettura: i
@@ -1235,6 +1235,10 @@ class KickoffMeetingForm(forms.ModelForm):
             "ora": forms.TimeInput(attrs={"class": "input", "type": "time"}, format="%H:%M"),
             "luogo": forms.TextInput(attrs={"class": "input", "placeholder": "Es. link Teams o sede del cliente"}),
             "sala": forms.Select(attrs={"class": "input"}),
+            "durata_minuti": forms.Select(attrs={"class": "input"}, choices=[
+                ("", "Dall'ordine del giorno"), (30, "30 minuti"), (45, "45 minuti"), (60, "1 ora"), (90, "1 ora e mezza"),
+                (120, "2 ore"), (150, "2 ore e mezza"), (180, "3 ore"), (240, "4 ore"), (300, "5 ore"), (480, "Giornata (8 ore)"),
+            ]),
             "partecipanti_utenti": forms.CheckboxSelectMultiple(),
             "partecipanti_email_extra": forms.Textarea(
                 attrs={"class": "input", "rows": 3, "placeholder": "uno@dominio.it\naltra@dominio.it"}
@@ -1272,6 +1276,7 @@ class KickoffMeetingForm(forms.ModelForm):
             sale = MeetingRoom.objects.filter(Q(attiva=True) | Q(pk=self.instance.sala_id))
         self.fields["sala"].queryset = sale.order_by("ordine", "nome")
         self.fields["sala"].required = False
+        self.fields["durata_minuti"].required = False
         self.fields["sala"].empty_label = "Nessuna sala (online o altrove)"
         # «Svolto» non si sceglie a mano: lo imposta la registrazione dell'esito.
         # «Annullato» nemmeno: si annulla con l'azione dedicata del dettaglio,

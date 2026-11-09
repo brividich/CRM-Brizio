@@ -219,3 +219,27 @@ class GetScheduleTests(SaleBase):
         self.assertEqual(list(esito), ["sala.prova@example.com"])
         self.assertEqual(esito["sala.prova@example.com"][0]["start"], datetime(2026, 12, 1, 9, 0))
         self.assertEqual(len(esito["sala.prova@example.com"]), 1)
+
+
+class DurataTests(SaleBase):
+    def test_durata_scelta_vale_per_sala_e_outlook(self):
+        m = self.incontro(durata_minuti=150, sync_outlook=True)
+        self.assertEqual(svc.finestra_incontro(m)[1].time(), time(12, 30))
+        from .meeting_outlook import sync_meeting_outlook_event
+
+        with patch("tasks.meeting_outlook.graph_ready", return_value=True), \
+                patch("tasks.meeting_outlook.create_event", return_value={"id": "EV1"}) as crea:
+            sync_meeting_outlook_event(request=None, meeting=m)
+        self.assertEqual(crea.call_args.kwargs["payload"]["end"]["dateTime"], "2026-12-01T12:30:00")
+
+    def test_senza_durata_vale_l_ordine_del_giorno(self):
+        m = self.incontro(agenda_items=[{"id": "a", "titolo": "Punto", "durata_minuti": 45}])
+        self.assertEqual(svc.finestra_incontro(m)[1].time(), time(10, 45))
+
+    def test_form_salva_la_durata(self):
+        from .forms import KickoffMeetingForm
+
+        form = KickoffMeetingForm(data={"data": "2026-12-01", "ora": "10:00", "durata_minuti": "90", "stato": "PIANIFICATO"})
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["durata_minuti"], 90)
+        self.assertContains(self.client.get(reverse("tasks:project_meeting_create", args=[self.project.pk])), "Dall&#x27;ordine del giorno")

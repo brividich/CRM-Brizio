@@ -366,7 +366,7 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("passi", [
                 "Scheda «Incontri» della commessa, «+ Nuovo incontro». Per l'incontro 1 la convocazione è già aperta dopo la creazione.",
-                "Informazioni base: «Data» è obbligatoria; poi titolo, ora, «Sala» e, se serve, «Altro luogo o link» (sede del cliente, link Teams).",
+                "Informazioni base: «Data» è obbligatoria; poi titolo, ora, «Durata», «Sala» e, se serve, «Altro luogo o link» (sede del cliente, link Teams). «Durata» è quanto resta prenotata la sala e quanto dura l'evento Outlook; su «Dall'ordine del giorno» vale la somma dei punti, un'ora se non ce ne sono.",
                 "Sotto, «Disponibilità del giorno» mostra le sale dalle 8 alle 19: in arancione gli incontri del portale, in rosso gli impegni Outlook della sala, in grigio i partecipanti occupati, con il bordo blu il tuo incontro. Clicca un orario libero su una sala per sceglierla: ora e sala si compilano da sole e il messaggio sotto dice se è libera.",
                 "Partecipanti: cerca gli «Utenti del portale» e aggiungi le «Email aggiuntive (esterni)», una per riga. «Destinatari in copia» vale per convocazione e minuta.",
                 "Ordine del giorno: aggiungi i punti, con durata e attività collegata se serve. Puoi usare un modello o «Duplica ODG dell'incontro precedente».",
