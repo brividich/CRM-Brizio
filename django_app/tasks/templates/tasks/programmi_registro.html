@@ -3,55 +3,65 @@
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Programmi</span>{% endblock %}
 {% block tasks_shell_guide_anchor %}#programmi-fai{% endblock %}
 {% block tasks_shell_title %}Programmi{% endblock %}
-{% block tasks_shell_subtitle %}Tutti i programmi CAM e CMM delle commesse, con cartella e responsabile.{% endblock %}
+{% block tasks_shell_subtitle %}Programmi CAM e CMM di tutte le commesse: da scrivere, in scrittura, da provare in macchina, validati.{% endblock %}
 
 {% block tasks_shell_content %}
 <section class="ts-panel">
   <div class="ts-panel-body fai-registro">
-    <div class="fai-viste" role="group" aria-label="Filtra i programmi">
+    <div class="fai-viste" role="group" aria-label="Filtra i programmi per fase">
       {% for v in viste %}
-        <a class="fai-vista{% if vista == v.codice %} active{% endif %}{% if v.codice == 'ritardo' and v.conta %} danger{% endif %}{% if v.codice == 'da_inserire' and v.conta %} warn{% endif %}"
-           href="?vista={{ v.codice }}{% if q %}&q={{ q|urlencode }}{% endif %}"{% if vista == v.codice %} aria-current="true"{% endif %}>
+        <a class="fai-vista{% if vista == v.codice %} active{% endif %}{% if v.codice == 'ritardo' and v.conta %} danger{% endif %}{% if v.codice == 'da_provare' and v.conta %} warn{% endif %}"
+           href="?vista={{ v.codice }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if tipo %}&tipo={{ tipo }}{% endif %}{% if macchina %}&macchina={{ macchina }}{% endif %}"{% if vista == v.codice %} aria-current="true"{% endif %}>
           <strong>{{ v.conta }}</strong> {{ v.etichetta }}
         </a>
       {% endfor %}
     </div>
-    <form method="get" class="fai-cerca">
+    <form method="get" class="fai-cerca pg-filtri">
       <input type="hidden" name="vista" value="{{ vista }}">
       <input class="input" type="search" name="q" value="{{ q }}" placeholder="Cerca codice, cartella, cliente, P/N o kickoff" aria-label="Cerca">
-      <button type="submit" class="btn btn-secondary">Cerca</button>
-      <a class="btn btn-secondary" href="?vista={{ vista }}&q={{ q|urlencode }}&formato=csv">Esporta CSV</a>
+      <select class="input" name="tipo" aria-label="Tipo">
+        <option value="">CAM e CMM</option>
+        <option value="CAM"{% if tipo == "CAM" %} selected{% endif %}>Solo CAM</option>
+        <option value="CMM"{% if tipo == "CMM" %} selected{% endif %}>Solo CMM</option>
+      </select>
+      <select class="input" name="macchina" aria-label="Macchina">
+        <option value="">Tutte le macchine</option>
+        {% for a in macchine %}<option value="{{ a.id }}"{% if macchina == a.id|stringformat:"s" %} selected{% endif %}>{{ a.asset_tag }} {{ a.name }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="btn btn-secondary">Filtra</button>
+      <a class="btn btn-secondary" href="?vista={{ vista }}&q={{ q|urlencode }}&tipo={{ tipo }}&macchina={{ macchina }}&formato=csv">Esporta CSV</a>
     </form>
     {% if righe %}
     <div class="tl-table-wrap">
-      <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
-        <thead><tr><th>Programma</th><th>Cartella o file</th><th>Articolo</th><th>Kickoff</th><th>Responsabile</th><th>Stato</th></tr></thead>
+      <table class="tl-table pg-tabella" data-fm-table-skip="1" data-table-enhanced="0">
+        <thead><tr><th>Programma</th><th>Fase</th><th>Macchina</th><th>Commessa</th><th>Responsabile</th><th>Cartella</th><th></th></tr></thead>
         <tbody>
           {% for r in righe %}
           {% with ref=r.ref %}
-          <tr class="{% if ref.is_overdue %}status-overdue{% elif not ref.is_open %}status-done{% endif %}">
+          <tr class="{% if ref.is_overdue %}status-overdue{% elif ref.fase == 'VALIDATO' %}status-done{% endif %}">
             <td>
-              <strong>{{ ref.kind }}</strong> {% if ref.code %}{{ ref.code }}{% else %}<span class="tr-empty">da inserire</span>{% endif %}
+              <span class="pg-tipo">{{ ref.kind }}</span> <strong>{{ ref.etichetta_breve }}</strong>
               {% if ref.task_id %}<div class="tl-task-desc"><a class="tl-task-link" href="{% url 'tasks:detail' ref.task_id %}">{{ ref.task.title }}</a></div>{% endif %}
             </td>
-            <td>{% include "tasks/_tech_ref_link.html" %}</td>
-            <td>{{ ref.project.part_number|default:"-" }}<div class="tl-task-desc">{{ ref.project.client_name }}</div></td>
-            <td><a class="tl-task-link" href="{% url 'tasks:project_tech_refs' ref.project_id %}">{{ ref.project.name }}</a></td>
-            <td>{% if ref.assigned_to %}{{ ref.assigned_to.get_full_name|default:ref.assigned_to.username }}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
             <td>
               <span class="ts-chip {{ r.classe }}">{{ r.stato }}</span>
               {% if ref.due_date %}<div class="tl-task-desc">Entro il {{ ref.due_date|date:"d/m/Y" }}</div>{% endif %}
             </td>
+            <td>{% if ref.macchina %}{{ ref.macchina.asset_tag }}<div class="tl-task-desc">{{ ref.macchina.name }}</div>{% else %}<span class="tr-empty">—</span>{% endif %}</td>
+            <td><a class="tl-task-link" href="{% url 'tasks:project_tech_refs' ref.project_id %}">{{ ref.project.part_number|default:ref.project.name }}</a><div class="tl-task-desc">{{ ref.project.client_name }}</div></td>
+            <td>{% if ref.assigned_to %}{{ ref.assigned_to.get_full_name|default:ref.assigned_to.username }}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
+            <td>{% include "tasks/_tech_ref_link.html" %}</td>
+            <td>{% include "tasks/_programma_azioni.html" with azioni=r.azioni %}</td>
           </tr>
           {% endwith %}
           {% endfor %}
         </tbody>
       </table>
     </div>
-    {% elif q or vista %}
+    {% elif q or vista or tipo or macchina %}
       <p class="tr-hint">Nessun programma con questi filtri.</p>
     {% else %}
-      <p class="tr-hint">Ancora nessun programma. Nascono dalle attività di programmazione o da «Programmi e FAI» della commessa.</p>
+      <p class="tr-hint">Ancora nessun programma. Nascono dalle tappe CAM e CMM del Percorso o dalle attività di programmazione.</p>
     {% endif %}
   </div>
 </section>

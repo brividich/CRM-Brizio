@@ -19,8 +19,12 @@
   }
   function url(id) { return '/tasks/' + id + '/azione-rapida/'; }
 
+  var velo = null;
+
   function chiudi() {
     if (pop) { pop.remove(); pop = null; }
+    if (velo) { velo.remove(); velo = null; }
+    document.documentElement.classList.remove('ar-aperto');
     if (corrente) { corrente.setAttribute('aria-expanded', 'false'); corrente = null; }
   }
 
@@ -77,22 +81,22 @@
     pop.innerHTML = html;
   }
 
-  function posiziona(btn) {
-    var r = btn.getBoundingClientRect();
-    var w = Math.min(340, window.innerWidth - 24);
-    pop.style.width = w + 'px';
-    var left = Math.min(Math.max(12, r.right - w), window.innerWidth - w - 12);
-    pop.style.left = (left + window.scrollX) + 'px';
-    pop.style.top = (r.bottom + window.scrollY + 6) + 'px';
-  }
+  /* Pannello laterale a destra (a tutta larghezza sullo smartphone): mai ancorato al pulsante. */
+  function posiziona() { /* il posto lo decide il CSS */ }
 
   function apri(btn) {
     chiudi();
     corrente = btn;
     btn.setAttribute('aria-expanded', 'true');
+    velo = document.createElement('div');
+    velo.className = 'ar-velo';
+    velo.setAttribute('data-ar-chiudi', '');
+    document.body.appendChild(velo);
+    document.documentElement.classList.add('ar-aperto');
     pop = document.createElement('div');
     pop.className = 'ar-pop';
     pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-modal', 'true');
     pop.innerHTML = '<p class="ar-nota">Carico…</p>';
     document.body.appendChild(pop);
     posiziona(btn);
@@ -130,7 +134,7 @@
     var btn = e.target.closest && e.target.closest('[data-ar-task]');
     if (btn) { e.preventDefault(); if (corrente === btn) { chiudi(); } else { apri(btn); } return; }
     if (!pop) { return; }
-    if (e.target.closest('[data-ar-chiudi]')) { chiudi(); return; }
+    if (e.target.closest('[data-ar-chiudi]') || e.target === velo) { chiudi(); return; }
     var az = e.target.closest('[data-ar-azione]');
     if (az && pop.contains(az)) { invia(az.dataset.arAzione, az.dataset.arValore); return; }
     if (!pop.contains(e.target)) { chiudi(); }

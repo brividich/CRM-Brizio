@@ -2252,6 +2252,14 @@ class MeetingRoom(models.Model):
     def __str__(self) -> str:
         return self.nome
 
+class ProgrammaFase(models.TextChoices):
+    """Il lavoro vero di un programma CAM/CMM: si scrive, si prova in macchina, si valida."""
+    DA_SCRIVERE = "DA_SCRIVERE", "Da scrivere"
+    IN_SCRITTURA = "IN_SCRITTURA", "In scrittura"
+    DA_PROVARE = "DA_PROVARE", "Da provare in macchina"
+    VALIDATO = "VALIDATO", "Validato"
+
+
 class TechRefStatus(models.TextChoices):
     OPEN = "OPEN", "Da fare"
     DONE = "DONE", "Fatto"
@@ -2285,6 +2293,15 @@ class ProjectTechRef(models.Model):
     status = models.CharField(
         max_length=4, choices=TechRefStatus.choices, default=TechRefStatus.OPEN, db_index=True, verbose_name="Stato"
     )
+    # Solo programmi CAM/CMM: fase del lavoro, revisione, macchina su cui gira, note.
+    fase = models.CharField(
+        max_length=14, choices=ProgrammaFase.choices, default=ProgrammaFase.DA_SCRIVERE, db_index=True, verbose_name="Fase",
+    )
+    revisione = models.CharField(max_length=10, blank=True, default="", verbose_name="Revisione")
+    macchina = models.ForeignKey(
+        "assets.Asset", on_delete=models.SET_NULL, null=True, blank=True, related_name="programmi_kickoff", verbose_name="Macchina",
+    )
+    note = models.TextField(blank=True, default="", verbose_name="Note")
     source_meeting = models.ForeignKey(
         KickoffMeeting,
         on_delete=models.SET_NULL,
@@ -2345,11 +2362,34 @@ class ProjectTechRef(models.Model):
         self.status = TechRefStatus.DONE
         self.done_by = user
         self.done_at = timezone.now()
+        # Per i programmi «fatto» vuol dire validato.
+        if self.kind != TechRefKind.FAI:
+            self.fase = ProgrammaFase.VALIDATO
 
     def reopen(self) -> None:
         self.status = TechRefStatus.OPEN
         self.done_by = None
         self.done_at = None
+        if self.kind != TechRefKind.FAI and self.fase == ProgrammaFase.VALIDATO:
+            self.fase = ProgrammaFase.IN_SCRITTURA if self.code else ProgrammaFase.DA_SCRIVERE
+
+    def save(self, *args, **kwargs):
+        # Un programma nato già con il codice non è «da scrivere».
+        if self.pk is None and self.kind in (TechRefKind.CAM, TechRefKind.CMM) and self.code:
+            if self.fase == ProgrammaFase.DA_SCRIVERE:
+                self.fase = ProgrammaFase.VALIDATO if self.status == TechRefStatus.DONE else ProgrammaFase.IN_SCRITTURA
+            self.revisione = self.revisione or "A"
+        super().save(*args, **kwargs)
+
+    @property
+    def is_programma(self) -> bool:
+        return self.kind in (TechRefKind.CAM, TechRefKind.CMM)
+
+    @property
+    def etichetta_breve(self) -> str:
+        """«O1234 rev. B», per leggere il programma in una riga."""
+        testo = self.code or "da inserire"
+        return f"{testo} rev. {self.revisione}" if self.code and self.revisione else testo
 
 
 class FaiTipo(models.TextChoices):
@@ -2547,3 +2587,23 @@ class TaskSpostamento(models.Model):
     @property
     def in_attesa(self) -> bool:
         return self.stato == SpostamentoStato.IN_ATTESA
+
+
+class ProgrammaStorico(models.Model):
+    """Ogni passaggio di un programma: fase, revisione, codice. Non si cancella."""
+
+    ref = models.ForeignKey(ProjectTechRef, on_delete=models.CASCADE, related_name="storico")
+    fase = models.CharField(max_length=14, choices=ProgrammaFase.choices)
+    revisione = models.CharField(max_length=10, blank=True, default="")
+    code = models.CharField(max_length=120, blank=True, default="")
+    nota = models.CharField(max_length=500, blank=True, default="")
+    utente = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Passaggio del programma"
+        verbose_name_plural = "Storico dei programmi"
+
+    def __str__(self) -> str:
+        return f"{self.ref_id} {self.fase} {self.revisione}"

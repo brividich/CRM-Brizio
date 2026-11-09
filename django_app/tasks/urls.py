@@ -11,6 +11,7 @@ urlpatterns = [
     path("tasks/da-gestire/", views.da_gestire, name="da_gestire"),
     path("tasks/mie-azioni/", views.mie_azioni, name="mie_azioni"),
     path("tasks/programmi/", views.programmi_registro, name="programmi_registro"),
+    path("tasks/programmi/<int:ref_id>/fase/", views.programma_fase, name="programma_fase"),
     path("tasks/fai/", views.fai_registro, name="fai_registro"),
     path("tasks/fai/report/", views.fai_report, name="fai_report"),
     path("tasks/fai/report/scarica/", views.fai_report_scarica, name="fai_report_scarica"),

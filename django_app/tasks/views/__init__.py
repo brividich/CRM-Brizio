@@ -270,6 +270,7 @@ from .tech_refs import (  # noqa: F401,E402
     task_programma,
     tech_ref_action,
     tech_ref_save,
+    programma_fase,
 )
 from .tappe import tappa_anteprima, tappa_azione  # noqa: F401,E402
 from .sale import sala_verifica, sale_disponibilita  # noqa: F401,E402

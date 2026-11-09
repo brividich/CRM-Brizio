@@ -85,6 +85,10 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Gestione menu sidebar** (*Impostazioni > Menu sidebar*): nuove voci da un form guidato in tre passi (nome, destinazione da tendina raggruppata o indirizzo personalizzato, posizione) con anteprima; criterio di evidenziazione e ordine sono opzionali (automatico / in fondo). Ogni voce esistente si modifica e si salva in linea; «Elimina» è un'azione separata con conferma
 - **Flag safety_impact**: campo boolean su Project per identificare progetti con impatto sulla sicurezza, esposto nel form Nuovo kickoff e mostrato come badge nelle viste portfolio, Gantt/dettaglio e task collegate solo quando attivo
 
+### Programmi CAM/CMM rinnovati (10/11/2026)
+
+`ProjectTechRef.fase` (`ProgrammaFase`: DA_SCRIVERE, IN_SCRITTURA, DA_PROVARE, VALIDATO), `revisione`, `macchina` (FK asset, presa dalla tappa Macchina), `note`; `ProgrammaStorico` (migrazione `tasks 0065`, che porta i fatti a Validato e gli aperti con codice a In scrittura). Stato DONE ⇔ Validato (`mark_done`/`reopen`). Passi in `services/programmi_fasi.py` (`avanza`, `azioni_possibili`, `revisione_successiva`): Validato chiude l'attività collegata, Nuova revisione la riapre. `POST /tasks/programmi/<id>/fase/` (`programma_fase`, ACL v23) e azioni `fase_<passo>` di `tech_ref_action` (tabella della commessa, anche dentro l'incontro). Pagina «Programmi» con viste per fase e filtri tipo/macchina; dettaglio nella riga della tappa CAM/CMM e nella scheda dell'attività con lo storico. Il menu «⋯» è ora un pannello laterale.
+
 ### Azioni rapide sugli incarichi (10/11/2026)
 
 Menu «⋯» (`_azioni_rapide_btn.html`, `static/tasks/js/azioni_rapide.js`) nel Percorso, nelle attività dell'incontro e in «Le mie azioni». `GET/POST /tasks/<id>/azione-rapida/` (`views/azioni_rapide.task_azione_rapida`, ACL v22): legge permessi e dati, applica date (con `intercetta` per chi deve chiedere), responsabile, priorità (`can_set_task_priority`), annulla (motivo in `TaskComment`), riapri. Ogni modifica passa da `_log_task_update_events` (Storico + avvisi).

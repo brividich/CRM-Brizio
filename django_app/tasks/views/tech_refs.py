@@ -22,7 +22,7 @@ from ..access import (
     scoped_projects_queryset,
     task_permissions_required,
 )
-from ..models import KickoffMeeting, ProjectTechRef, TechRefKind
+from ..models import KickoffMeeting, ProgrammaFase, ProjectTechRef, TechRefKind
 from ..services.fai import allinea_da_riga, esito_progetto
 from ..services.notify import notify_user
 from ..services.programmi import allinea_stato_riga, attivita_per_riga
@@ -41,14 +41,17 @@ def _programmatore_id(project):
 
 
 def tech_refs_context(request, project, meeting=None) -> dict:
+    from ..services.programmi_fasi import azioni_possibili
+
     gestisce = can_manage_project(request, project)
     righe = [
         {
             "ref": ref,
             "can_edit": gestisce or ref.assigned_to_id == request.user.pk,
             "can_delete": gestisce,
+            "azioni": azioni_possibili(ref),
         }
-        for ref in project.tech_refs.select_related("assigned_to", "source_meeting", "task", "fai_record__causale", "fai_record__stato")
+        for ref in project.tech_refs.select_related("assigned_to", "source_meeting", "task", "macchina", "fai_record__causale", "fai_record__stato")
     ]
     puo_aggiungere = gestisce or request.user.pk in project.team_user_ids
     righe_fai = [r for r in righe if r["ref"].kind == TechRefKind.FAI]
@@ -74,6 +77,17 @@ def tech_refs_context(request, project, meeting=None) -> dict:
     }
 
 
+def _codice_scritto(ref, user) -> None:
+    """Il codice c'è: il programma non è più «da scrivere»."""
+    from ..services.programmi_fasi import registra
+
+    if ref.is_programma and ref.code and ref.fase == ProgrammaFase.DA_SCRIVERE:
+        ref.fase = ProgrammaFase.IN_SCRITTURA
+        ref.revisione = ref.revisione or "A"
+        ref.save(update_fields=["fase", "revisione", "updated_at"])
+        registra(ref, user, "Codice inserito")
+
+
 def _risposta(request, project, meeting=None, status: int = 200) -> JsonResponse:
     html = render_to_string("tasks/_tech_refs_body.html", tech_refs_context(request, project, meeting), request=request)
     return JsonResponse({"ok": True, "html": html}, status=status)
@@ -94,22 +108,21 @@ def _avvisa(ref, attore) -> None:
 
 
 def _stato_programma(ref) -> tuple[str, str]:
-    if not ref.is_open:
-        return "Fatto", ""
+    from ..services.programmi_fasi import CLASSE
+
     if ref.is_overdue:
-        return "In ritardo", "danger"
-    if not ref.ha_contenuto:
-        return "Da inserire", "warn"
-    return "Da fare", "ok"
+        return f"{ref.get_fase_display()} · in ritardo", "danger"
+    return ref.get_fase_display(), CLASSE.get(ref.fase, "")
 
 
 def _esporta_programmi(righe):
     response, writer = csv_download_response("programmi.csv", delimiter=";")
-    writer.writerow(["Tipo", "Codice", "Cartella o file", "Cliente", "P/N", "Kickoff", "Responsabile", "Entro il", "Stato"])
+    writer.writerow(["Tipo", "Codice", "Revisione", "Macchina", "Cartella o file", "Cliente", "P/N", "Kickoff", "Responsabile", "Entro il", "Stato"])
     for riga in righe:
         ref = riga["ref"]
         writer.writerow([
-            ref.get_kind_display(), ref.code, ref.path, ref.project.client_name, ref.project.part_number,
+            ref.get_kind_display(), ref.code, ref.revisione, ref.macchina.asset_tag if ref.macchina_id else "",
+            ref.path, ref.project.client_name, ref.project.part_number,
             ref.project.name,
             (ref.assigned_to.get_full_name() or ref.assigned_to.username) if ref.assigned_to else "",
             ref.due_date or "", riga["stato"],
@@ -124,14 +137,19 @@ def programmi_registro(request):
         {"ref": ref, "stato": stato, "classe": classe}
         for ref in ProjectTechRef.objects.filter(
             kind__in=[TechRefKind.CAM, TechRefKind.CMM], project__in=scoped_projects_queryset(request)
-        ).select_related("project", "assigned_to", "task", "fai_record").order_by("project__part_number", "kind", "id")
+        ).select_related("project", "assigned_to", "task", "fai_record", "macchina").order_by("project__part_number", "kind", "id")
         for stato, classe in [_stato_programma(ref)]
     ]
+    from ..services.programmi_fasi import azioni_possibili
+
+    for r in tutte:
+        r["azioni"] = azioni_possibili(r["ref"])
     viste = (
         ("", "Tutti", lambda r: True),
-        ("cam", "CAM", lambda r: r["ref"].kind == TechRefKind.CAM),
-        ("cmm", "CMM", lambda r: r["ref"].kind == TechRefKind.CMM),
-        ("da_inserire", "Da inserire", lambda r: r["ref"].is_open and not r["ref"].ha_contenuto),
+        ("da_scrivere", "Da scrivere", lambda r: r["ref"].fase == ProgrammaFase.DA_SCRIVERE),
+        ("in_scrittura", "In scrittura", lambda r: r["ref"].fase == ProgrammaFase.IN_SCRITTURA),
+        ("da_provare", "Da provare", lambda r: r["ref"].fase == ProgrammaFase.DA_PROVARE),
+        ("validati", "Validati", lambda r: r["ref"].fase == ProgrammaFase.VALIDATO),
         ("ritardo", "In ritardo", lambda r: r["ref"].is_overdue),
     )
     vista = request.GET.get("vista", "")
@@ -139,6 +157,12 @@ def programmi_registro(request):
     if filtro is None:
         vista, filtro = "", viste[0][2]
     righe = [r for r in tutte if filtro(r)]
+    tipo = request.GET.get("tipo", "")
+    if tipo in (TechRefKind.CAM, TechRefKind.CMM):
+        righe = [r for r in righe if r["ref"].kind == tipo]
+    macchina = request.GET.get("macchina", "")
+    if macchina.isdigit():
+        righe = [r for r in righe if r["ref"].macchina_id == int(macchina)]
     q = (request.GET.get("q") or "").strip()
     if q:
         testo = q.lower()
@@ -162,6 +186,9 @@ def programmi_registro(request):
         ],
         "vista": vista,
         "q": q,
+        "tipo": tipo,
+        "macchina": macchina,
+        "macchine": sorted({r["ref"].macchina for r in tutte if r["ref"].macchina_id}, key=lambda a: a.asset_tag),
     })
 
 
@@ -184,6 +211,7 @@ def task_programma(request, task_id: int):
     ref.code = (request.POST.get("code") or "").strip()[:120]
     ref.path = path
     ref.save(update_fields=["code", "path", "updated_at"])
+    _codice_scritto(ref, request.user)
     allinea_da_riga(ref)
     allinea_stato_riga(ref, request.user)
     log_action(request, "kickoff_programma_da_attivita", "tasks", {"id": ref.pk, "task_id": task.pk})
@@ -277,6 +305,7 @@ def tech_ref_save(request, project_id: int):
         ref = ProjectTechRef(project=project, created_by=request.user, source_meeting=meeting)
     ref.kind, ref.code, ref.path, ref.due_date, ref.assigned_to = kind, code, path, due_date, assegnato
     ref.save()
+    _codice_scritto(ref, request.user)
     allinea_da_riga(ref)
     allinea_stato_riga(ref, request.user)
     log_action(request, "kickoff_tech_ref_salva", "tasks", {
@@ -329,6 +358,18 @@ def tech_ref_action(request, project_id: int, ref_id: int):
     if (request.POST.get("meeting_id") or "").isdigit():
         meeting = KickoffMeeting.objects.filter(pk=int(request.POST["meeting_id"]), project=project).first()
 
+    if azione.startswith("fase_") and ref.is_programma:
+        # Passo del programma dalla tabella della commessa (anche dentro l'incontro).
+        from ..services.programmi_fasi import PassaggioNonValido, avanza
+
+        if not (gestisce or ref.assigned_to_id == request.user.pk):
+            return _errore("Il programma lo aggiorna chi ne è responsabile o il capocommessa.", 403)
+        try:
+            avanza(ref, request.user, azione[5:])
+        except PassaggioNonValido as exc:
+            return _errore(str(exc))
+        log_action(request, "kickoff_programma_fase", "tasks", {"id": ref.pk, "fase": ref.fase})
+        return _risposta(request, project, meeting)
     if azione == "delete":
         if not gestisce:
             return _errore("Solo chi gestisce la commessa può eliminare.", 403)
@@ -351,3 +392,29 @@ def tech_ref_action(request, project_id: int, ref_id: int):
     log_action(request, f"kickoff_tech_ref_{azione}", "tasks", {"id": ref_id, "project_id": project.pk})
     return _risposta(request, project, meeting)
 
+
+
+@require_POST
+@task_permissions_required("tasks_view")
+def programma_fase(request, ref_id: int):
+    """Un passo del programma (Inizia, Pronto da provare, Validato, Da correggere, Nuova revisione)."""
+    from ..services.programmi_fasi import PassaggioNonValido, avanza
+
+    ref = get_object_or_404(
+        ProjectTechRef.objects.select_related("project", "task"), pk=ref_id, project__in=scoped_projects_queryset(request),
+    )
+    if not (can_manage_project(request, ref.project) or ref.assigned_to_id == request.user.pk):
+        messages.error(request, "Il programma lo aggiorna chi ne è responsabile o il capocommessa.")
+    else:
+        if (request.POST.get("code") or "").strip() and not ref.code:
+            ref.code = request.POST["code"].strip()[:120]
+        try:
+            avanza(ref, request.user, (request.POST.get("azione") or "").strip(), nota=request.POST.get("nota", ""))
+            log_action(request, "kickoff_programma_fase", "tasks", {"id": ref.pk, "fase": ref.fase, "rev": ref.revisione})
+            messages.success(request, f"{ref.get_kind_display()} {ref.etichetta_breve}: {ref.get_fase_display().lower()}.")
+        except PassaggioNonValido as exc:
+            messages.error(request, str(exc))
+    nxt = request.POST.get("next") or ""
+    if not nxt.startswith("/"):
+        nxt = reverse("tasks:programmi_registro")
+    return redirect(nxt)

@@ -193,7 +193,12 @@ def percorso(project, *, con_nomi: bool = False) -> dict:
                 voce["dettaglio"] = str((t.extra_data or {}).get(CAMPO_TESTO[key]) or "")
             elif key in (TappaKickoff.CAM, TappaKickoff.CMM, TappaKickoff.FAI):
                 ref = getattr(t, "tech_ref", None)
-                voce["dettaglio"] = ref.code if ref is not None else ""
+                if ref is not None and ref.is_programma:
+                    # «O1234 rev. B · Validato · CNC-901»: il programma si legge nella riga della tappa.
+                    pezzi = [ref.etichetta_breve if ref.code else "", ref.get_fase_display(), ref.macchina.asset_tag if ref.macchina_id else ""]
+                    voce["dettaglio"] = " · ".join(p for p in pezzi if p)
+                else:
+                    voce["dettaglio"] = ref.code if ref is not None else ""
             elif key == TappaKickoff.MACCHINA:
                 voce["macchina"] = dettaglio_macchina(t, con_nomi=con_nomi)
             voci.append(voce)

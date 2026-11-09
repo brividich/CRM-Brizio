@@ -29,22 +29,19 @@
           data-kind="{{ ref.kind }}" data-code="{{ ref.code }}" data-path="{{ ref.path }}"
           data-owner="{{ ref.assigned_to_id|default:'' }}" data-due="{{ ref.due_date|date:'Y-m-d' }}" data-task="{{ ref.task_id|default:'' }}">
         <td class="tr-kind">{{ ref.kind }}</td>
-        <td>{% if ref.code %}{{ ref.code }}{% else %}<span class="tr-empty">da inserire</span>{% endif %}</td>
+        <td>{% if ref.code %}{{ ref.code }}{% if ref.revisione %} <span class="pg-rev">rev. {{ ref.revisione }}</span>{% endif %}{% else %}<span class="tr-empty">da inserire</span>{% endif %}{% if ref.macchina %}<div class="tl-task-desc">{{ ref.macchina.asset_tag }}</div>{% endif %}</td>
         <td>{% include "tasks/_tech_ref_link.html" %}</td>
         <td>{% if ref.assigned_to %}{{ ref.assigned_to.get_full_name|default:ref.assigned_to.username }}{% else %}<span class="tr-empty">da assegnare</span>{% endif %}</td>
         <td>{% if ref.due_date %}{{ ref.due_date|date:"d/m/Y" }}{% else %}<span class="tr-empty">-</span>{% endif %}</td>
         <td>
-          {% if ref.is_overdue %}<span class="ts-chip danger">Scaduta</span>{% elif ref.is_open %}<span class="ts-chip ok">Da fare</span>{% else %}<span class="ts-chip">Fatto</span>{% endif %}
+          <span class="ts-chip {% if ref.is_overdue %}danger{% elif ref.fase == 'VALIDATO' %}ok{% elif ref.fase == 'DA_PROVARE' %}warn{% else %}info{% endif %}">{{ ref.get_fase_display }}{% if ref.is_overdue %} · in ritardo{% endif %}</span>
           {% if ref.source_meeting %}<div class="tl-task-desc">Incontro {{ ref.source_meeting.numero }}</div>{% endif %}
           {% if ref.task_id %}<div class="tl-task-desc"><a class="tl-task-link" href="{% url 'tasks:detail' ref.task_id %}">Attività: {{ ref.task.title }}</a></div>{% endif %}
         </td>
         <td>
           <div class="tr-actions">
             {% if row.can_edit %}
-              {% if not ref.attivita_aperta %}
-              {% if ref.is_open %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="done">Fatto</button>
-              {% else %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="reopen">Riapri</button>{% endif %}
-              {% endif %}
+              {% for chiave, etichetta in row.azioni %}<button type="button" class="btn btn-sm{% if not forloop.first %} btn-secondary{% endif %}" data-tr-action="fase_{{ chiave }}">{{ etichetta }}</button>{% endfor %}
               <button type="button" class="btn btn-secondary btn-sm" data-tr-edit>Modifica</button>
             {% endif %}
             {% if row.can_delete and not ref.task_id %}<button type="button" class="btn btn-secondary btn-sm" data-tr-action="delete">Elimina</button>{% endif %}

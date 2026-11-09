@@ -338,6 +338,7 @@ def task_detail(request, task_id: int):
             "task_tech_ref_modificabile": can_manage or task.assigned_to_id == request.user.pk,
             # Il responsabile arriva qui dalla notifica: deve poter prendere in carico e chiudere.
             "is_assignee": task.assigned_to_id == request.user.pk,
+            **_contesto_programma(tech_ref),
             **_contesto_spostamenti(request, task),
         },
     )
@@ -822,6 +823,17 @@ def _blocca_priorita(request, task, form) -> None:
     if campo is not None and not can_set_task_priority(request, task):
         campo.disabled = True
         campo.help_text = "La cambiano il responsabile del kickoff e chi ha creato l'attività."
+
+
+def _contesto_programma(ref) -> dict:
+    if ref is None or not ref.is_programma:
+        return {}
+    from ..services.programmi_fasi import azioni_possibili
+
+    return {
+        "task_programma_azioni": azioni_possibili(ref),
+        "task_programma_storico": list(ref.storico.select_related("utente")[:8]),
+    }
 
 
 def _contesto_spostamenti(request, task) -> dict:
