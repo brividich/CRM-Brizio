@@ -1,0 +1,230 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ cat.nome }} · Competenze | Anagrafica HR{% endblock %}
+
+{% block extra_head %}
+{% include "anagrafica/components/_hr_restyle.html" %}
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=9">
+{% endblock %}
+
+{% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+{% include "anagrafica/components/_fm_icons.html" %}
+<div class="fmd">
+  <div class="fmd-wrap">
+    {% include "anagrafica/components/flash_messages.html" %}
+
+    {# ── Testata ───────────────────────────────────────────────────────── #}
+    <div class="fmd-pagehead mns-head">
+      <div>
+        <div class="fmd-crumb"><a href="{% url 'anagrafica:mansionario' %}">Mansionario</a><span class="fmd-sep"> / </span><a href="{% url 'anagrafica:mansionario_catalogo' %}">Catalogo competenze</a><span class="fmd-sep"> / </span><span class="fmd-cur">{{ cat.nome }}</span></div>
+        <h1><svg class="fmd-ico" style="font-size:24px;color:var(--fmd-cyan);"><use href="#i-cap"/></svg>{{ cat.nome }}{% if not cat.attiva %} <span class="fmd-badge fmd-b-grey">non attiva</span>{% endif %}</h1>
+        {% if cat.descrizione %}<p class="fmd-ph-sub">{{ cat.descrizione }}</p>{% endif %}
+      </div>
+      <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:mansionario_matrice_competenze' %}">Matrice delle competenze</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#mansionario" title="Come funziona questa pagina">? Guida</a>
+      </div>
+    </div>
+
+    {# ── Il filo: da dove viene la competenza e cosa chiede ────────────── #}
+    <nav class="mns-filo" aria-label="Da dove viene la competenza">
+      <div class="mns-filo-step">
+        <span class="mns-filo-l">Ruoli</span>
+        <span class="mns-filo-v">{% for r in ruoli %}<a class="fmd-badge fmd-b-cyan" href="{% url 'anagrafica:mansionario' %}#ruolo-{{ r.ruolo.pk }}" title="Il ruolo nel Mansionario: le sue mansioni e chi lo ricopre">{{ r.ruolo.nome }}</a>{% empty %}<span class="mns-warn-txt">nessuno: le mansioni non hanno un ruolo</span>{% endfor %}</span>
+      </div>
+      <span class="mns-filo-arr" aria-hidden="true">→</span>
+      <div class="mns-filo-step">
+        <span class="mns-filo-l">Mansioni che la chiedono</span>
+        <span class="mns-filo-v">{% for m in mansioni %}<a class="fmd-badge fmd-b-grey" href="{% url 'anagrafica:mansionario_mansione' m.mansione.pk %}#competenze">{{ m.mansione.nome }}</a>{% empty %}<span class="mns-warn-txt">nessuna mansione attiva</span>{% endfor %}</span>
+      </div>
+      <span class="mns-filo-arr" aria-hidden="true">→</span>
+      <div class="mns-filo-step mns-filo-qui">
+        <span class="mns-filo-l">Competenza</span>
+        <span class="mns-filo-v"><b>{{ cat.nome }}</b></span>
+      </div>
+      <span class="mns-filo-arr" aria-hidden="true">→</span>
+      <div class="mns-filo-step">
+        <span class="mns-filo-l">Requisito formale</span>
+        <span class="mns-filo-v">{% for c in req_corsi %}<a class="fmd-badge fmd-b-violet" href="{% url 'anagrafica:formazione_corso_detail' c.corso.pk %}">Corso «{{ c.corso.titolo }}»</a>{% endfor %}{% for q in req_altri %}<span class="fmd-badge fmd-b-violet">{% if q.tipo == "qualifica" %}Qualifica{% else %}MOD.128{% endif %} «{{ q.oggetto.nome }}»</span>{% endfor %}{% if not req_corsi and not req_altri %}<span class="fmd-muted">solo esperienza</span>{% endif %}</span>
+      </div>
+    </nav>
+
+    {# ── Situazione in breve ───────────────────────────────────────────── #}
+    <div class="mns-stats" aria-label="Situazione delle persone">
+      <div class="mns-stat mns-ok"><b>{{ conta.ok }}</b><span>la sanno fare</span></div>
+      <div class="mns-stat mns-mid"><b>{{ conta.sotto }}</b><span>sotto il minimo</span></div>
+      <div class="mns-stat"><b>{{ conta.da_valutare }}</b><span>da valutare</span></div>
+      <div class="mns-stat mns-ko"><b>{{ conta.requisito }}</b><span>senza il requisito formale</span></div>
+    </div>
+
+    <section class="fmd-panel fmd-block" data-mns-tabs>
+      <div class="mns-tabs" role="tablist" aria-label="Sezioni della competenza">
+        <a class="mns-tab" role="tab" id="tab-persone" href="#persone" aria-controls="persone" aria-selected="true"><svg class="fmd-ico"><use href="#i-users"/></svg>Persone <span class="fmd-count">{{ persone|length }}</span></a>
+        <a class="mns-tab" role="tab" id="tab-mansioni" href="#mansioni" aria-controls="mansioni" aria-selected="false"><svg class="fmd-ico"><use href="#i-grid"/></svg>Mansioni <span class="fmd-count">{{ mansioni|length }}</span></a>
+        <a class="mns-tab" role="tab" id="tab-requisiti" href="#requisiti" aria-controls="requisiti" aria-selected="false"><svg class="fmd-ico"><use href="#i-book"/></svg>Requisiti e corsi{% if n_requisiti_mancanti %} <span class="fmd-count">{{ n_requisiti_mancanti }}</span>{% endif %}</a>
+        <a class="mns-tab" role="tab" id="tab-storico" href="#storico" aria-controls="storico" aria-selected="false"><svg class="fmd-ico"><use href="#i-clock"/></svg>Storico</a>
+      </div>
+
+      {# ── Persone ───────────────────────────────────────────────────── #}
+      <div class="mns-pane mns-pane-on" id="persone" role="tabpanel" aria-labelledby="tab-persone">
+        <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">Chi è in lista su una mansione che chiede la competenza. Il livello vale per mansione, perché ogni mansione ha il suo minimo. In cima chi ha qualcosa da sistemare.</p>
+        {% if persone %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Persona</th><th>Sulle mansioni</th><th>Stato</th><th class="fmd-r">Cosa fare</th></tr></thead>
+            <tbody>
+              {% for p in persone %}
+              <tr{% if p.sospesa %} class="fmd-muted"{% endif %}>
+                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}"><b>{{ p.nome }}</b></a>{% if p.reparto %}<div class="fmd-muted" style="font-size:11.5px;">{{ p.reparto }}</div>{% endif %}</td>
+                <td>
+                  {% for m in p.mansioni %}
+                  <div class="mns-cmp-riga">
+                    <span class="mns-lv mns-lv-{{ m.livello|default:'x' }}" title="Livello sulla competenza · minimo richiesto {{ m.minimo }}"><b>{{ m.livello|default:"–" }}</b></span>
+                    <a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' m.mansione.pk %}#persone">{{ m.mansione.nome }}</a>
+                    <span class="fmd-muted">min {{ m.minimo }}</span>
+                    {% if m.sospesa %}<span class="fmd-badge fmd-b-grey">sospesa</span>{% endif %}
+                  </div>
+                  {% endfor %}
+                </td>
+                <td>
+                  {% if p.sospesa %}<span class="fmd-badge fmd-b-grey">sospesa</span>
+                  {% elif p.stato == "ok" %}<span class="fmd-badge fmd-b-green">{{ p.stato_label }}</span>
+                  {% elif p.stato == "sotto" %}<span class="fmd-badge fmd-b-orange">{{ p.stato_label }}</span>
+                  {% elif p.stato == "requisito" %}<span class="fmd-badge fmd-b-red" title="Senza il requisito il livello resta «I»">{{ p.stato_label }}</span><div class="fmd-muted" style="font-size:11.5px;">{{ p.requisiti|join:", " }}</div>
+                  {% else %}<span class="fmd-badge fmd-b-amber">{{ p.stato_label }}</span>{% endif %}
+                </td>
+                <td class="fmd-r fmd-nowrap">
+                  {% if not p.sospesa and p.stato != "ok" and p.mansione_da_fare %}
+                    {% if p.stato == "requisito" %}
+                      <a class="fmd-act" href="#requisiti" data-mns-vai="requisiti" title="Corsi e qualifiche da ottenere">Vedi requisito</a>
+                    {% elif puo_valutare %}
+                      <a class="fmd-act" href="{% url 'anagrafica:mansionario_mansione' p.mansione_da_fare.pk %}#persone" title="Apre la mansione «{{ p.mansione_da_fare.nome }}»: livelli per competenza">{% if p.stato == "da_valutare" %}Valuta{% else %}Rivaluta{% endif %}</a>
+                    {% else %}<span class="fmd-muted">—</span>{% endif %}
+                  {% else %}<span class="fmd-muted">—</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="fmd-empty"><span class="fmd-et">Nessuno in lista</span><span class="fmd-em">Le persone arrivano mettendole in lista su una delle mansioni che chiedono la competenza.</span></div>
+        {% endif %}
+      </div>
+
+      {# ── Mansioni ──────────────────────────────────────────────────── #}
+      <div class="mns-pane" id="mansioni" role="tabpanel" aria-labelledby="tab-mansioni">
+        <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">Minimo, bloccante e requisito si decidono sulla singola mansione, dalla sua scheda «Competenze richieste».</p>
+        {% if mansioni %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Mansione</th><th>Ruolo</th><th>Minimo</th><th>Requisito formale</th><th>La sanno fare</th></tr></thead>
+            <tbody>
+              {% for m in mansioni %}
+              <tr>
+                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' m.mansione.pk %}#competenze"><b>{{ m.mansione.nome }}</b></a><div class="fmd-muted" style="font-size:11.5px;">{{ m.mansione.get_tipo_display }}{% if m.mansione.reparto_effettivo %} · {{ m.mansione.reparto_effettivo }}{% endif %}</div></td>
+                <td>{% for r in m.mansione.ruoli.all %}<a class="fmd-badge fmd-b-cyan" href="{% url 'anagrafica:mansionario' %}#ruolo-{{ r.pk }}">{{ r.nome }}</a> {% empty %}<span class="mns-warn-txt">nessun ruolo</span>{% endfor %}</td>
+                <td><span class="mns-lv mns-lv-{{ m.voce.livello_minimo }}"><b>{{ m.voce.livello_minimo }}</b></span>{% if m.voce.bloccante %} <span class="fmd-badge fmd-b-red">bloccante</span>{% endif %}</td>
+                <td>{% if m.voce.corso %}<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' m.voce.corso.pk %}">Corso «{{ m.voce.corso.titolo }}»</a>{% endif %}{% if m.voce.qualifica %}{% if m.voce.corso %} · {% endif %}Qualifica «{{ m.voce.qualifica.nome }}»{% endif %}{% if m.voce.processo_mpq %}{% if m.voce.corso or m.voce.qualifica %} · {% endif %}MOD.128 «{{ m.voce.processo_mpq.nome }}»{% endif %}{% if not m.voce.corso and not m.voce.qualifica and not m.voce.processo_mpq %}<span class="fmd-muted">solo esperienza</span>{% endif %}</td>
+                <td><b>{{ m.ok }}</b> <span class="fmd-muted">su {{ m.in_lista }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="fmd-empty"><span class="fmd-et">Nessuna mansione attiva</span><span class="fmd-em">Si aggiunge dalla scheda di una mansione, scheda «Competenze richieste».</span></div>
+        {% endif %}
+      </div>
+
+      {# ── Requisiti e corsi ─────────────────────────────────────────── #}
+      <div class="mns-pane" id="requisiti" role="tabpanel" aria-labelledby="tab-requisiti">
+        <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">Senza il requisito formale la persona non supera «I – in formazione» sulla competenza. Qui chi è in lista ma non ha il requisito valido.</p>
+        {% for c in req_corsi %}
+        <div class="mns-req">
+          <div class="mns-req-h">
+            <div><span class="fmd-badge fmd-b-violet">Corso</span> <a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' c.corso.pk %}"><b>{{ c.corso.titolo }}</b></a>
+              <span class="fmd-muted" style="font-size:12px;">· per {% for m in c.mansioni %}{{ m.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</span></div>
+            {% if c.mancanti and puo_iscrivere %}
+            <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form">{% csrf_token %}
+              <input type="hidden" name="corso_id" value="{{ c.corso.pk }}">
+              {% for p in c.mancanti %}<input type="hidden" name="dipendenti_selezionati" value="{{ p.legacy_id }}">{% endfor %}
+              <input type="hidden" name="back" value="{{ request.path }}#requisiti">
+              <button type="submit" class="fmd-act" title="Crea una sessione del corso con queste persone già iscritte">↻ Iscrivi chi manca ({{ c.mancanti|length }})</button>
+            </form>
+            {% endif %}
+          </div>
+          {% if c.mancanti %}
+          <div class="mns-chips mns-req-chips">{% for p in c.mancanti %}<a class="mns-chip mns-chip-ko" href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}">{{ p.nome }}</a>{% endfor %}</div>
+          {% else %}<div class="fmd-muted mns-req-ok">Tutti quelli in lista hanno il corso valido.</div>{% endif %}
+        </div>
+        {% endfor %}
+        {% for q in req_altri %}
+        <div class="mns-req">
+          <div class="mns-req-h">
+            <div><span class="fmd-badge fmd-b-violet">{% if q.tipo == "qualifica" %}Qualifica{% else %}MOD.128{% endif %}</span> <b>{{ q.oggetto.nome }}</b>
+              <span class="fmd-muted" style="font-size:12px;">· per {% for m in q.mansioni %}{{ m.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</span></div>
+          </div>
+          {% if q.mancanti %}
+          <div class="mns-chips mns-req-chips">{% for p in q.mancanti %}<a class="mns-chip mns-chip-ko" href="{% url 'anagrafica:mansionario_persona' p.legacy_id %}">{{ p.nome }}</a>{% endfor %}</div>
+          {% else %}<div class="fmd-muted mns-req-ok">Tutti quelli in lista ce l'hanno valida.</div>{% endif %}
+        </div>
+        {% endfor %}
+        {% if not req_corsi and not req_altri %}
+        <div class="fmd-empty"><span class="fmd-et">Nessun requisito formale</span><span class="fmd-em">Su nessuna mansione la competenza chiede un corso, una qualifica o un'abilitazione MOD.128: conta solo l'esperienza.{% if is_admin and mansioni %} Si imposta dalla scheda «Competenze richieste» della mansione.{% endif %}</span></div>
+        {% endif %}
+      </div>
+
+      {# ── Storico ───────────────────────────────────────────────────── #}
+      <div class="mns-pane" id="storico" role="tabpanel" aria-labelledby="tab-storico">
+        {% if storico %}
+        <div class="fmd-tablewrap">
+          <table class="fmd-table">
+            <thead><tr><th>Quando</th><th>Persona</th><th>Mansione</th><th>Livello</th><th>Chi</th></tr></thead>
+            <tbody>
+              {% for s in storico %}
+              <tr>
+                <td class="fmd-nowrap">{{ s.valutato_il|date:"d/m/Y H:i" }}</td>
+                <td><a class="fmd-data-link" href="{% url 'anagrafica:mansionario_persona' s.legacy_anagrafica_id %}">{{ s.persona_nome }}</a></td>
+                <td>{% if s.mansione %}<a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' s.mansione.pk %}">{{ s.mansione.nome }}</a>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+                <td class="fmd-nowrap">{{ s.livello_prima|default:"—" }} → <b>{{ s.livello|default:"tolto" }}</b></td>
+                <td class="fmd-muted">{{ s.valutato_da|default:"—" }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="fmd-muted" style="margin:8px 0 0;font-size:12px;">Le ultime 25 valutazioni.</p>
+        {% else %}
+        <div class="fmd-empty"><span class="fmd-et">Nessuna valutazione registrata</span><span class="fmd-em">Le valutazioni si fanno dalla scheda della mansione e finiscono qui.</span></div>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  var box=document.querySelector('[data-mns-tabs]');if(!box)return;
+  box.classList.add('mns-js');
+  var tabs=box.querySelectorAll('[role=tab]');
+  function mostra(id,aggiornaUrl){
+    var pane=document.getElementById(id);if(!pane||!pane.classList.contains('mns-pane'))id='persone';
+    tabs.forEach(function(t){t.setAttribute('aria-selected',String(t.getAttribute('aria-controls')===id));});
+    box.querySelectorAll('.mns-pane').forEach(function(p){p.classList.toggle('mns-pane-on',p.id===id);});
+    if(aggiornaUrl&&history.replaceState)history.replaceState(null,'','#'+id);
+  }
+  mostra((location.hash||'').slice(1),false);
+  window.addEventListener('hashchange',function(){mostra((location.hash||'').slice(1),false);});
+  document.addEventListener('click',function(e){
+    var t=e.target.closest('[role=tab],[data-mns-vai]');if(!t)return;
+    e.preventDefault();mostra(t.getAttribute('aria-controls')||t.dataset.mnsVai,true);
+    if(t.dataset.mnsVai)box.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+})();
+</script>
+{% endblock %}

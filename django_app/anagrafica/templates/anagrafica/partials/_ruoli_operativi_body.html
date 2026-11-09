@@ -73,6 +73,14 @@ body.theme-dark .ro-qual-add[open] > summary { color:var(--text-light); }
 .ro-qual-opz { font-size:11px; color:#64748b; display:inline-flex; align-items:center; gap:3px; }
 body.theme-dark .ro-qual { border-color:var(--border); }
 body.theme-dark .ro-qual-chip { background:rgba(99,102,241,.18); color:#c7d2fe; border-color:rgba(199,210,254,.25); }
+.ro-mns-chip { text-decoration:none; background:#ecfeff; color:#0e7490; border-color:#cffafe; }
+.ro-mns-chip:hover { border-color:#06b6d4; }
+.ro-mns-link { float:right; font-size:11px; font-weight:600; color:#0e7490; text-decoration:none; text-transform:none; letter-spacing:0; }
+.ro-mns-link:hover { text-decoration:underline; }
+.ro-item { scroll-margin-top:90px; }
+.ro-item:target { box-shadow:0 0 0 2px #06b6d4; }
+body.theme-dark .ro-mns-chip { background:rgba(6,182,212,.15); color:#a5f3fc; border-color:rgba(165,243,252,.25); }
+body.theme-dark .ro-mns-link { color:#67e8f9; }
 body.theme-dark .ro-qual-chip-opz { background:var(--surface-alt, #1e293b); color:var(--text-light); border-color:var(--border); }
 body.theme-dark .ro-qual-empty, body.theme-dark .ro-qual-title, body.theme-dark .ro-qual-opz { color:var(--text-light); }
 
@@ -165,7 +173,7 @@ body.theme-dark .ro-modal-title { color:var(--text); }
       {% endif %}
       <div class="ro-grid">
         {% for r in ruoli %}
-        <div class="ro-item" data-ambito="{{ r.ambito_id|default_if_none:'senza' }}">
+        <div class="ro-item" id="ruolo-{{ r.id }}" data-ambito="{{ r.ambito_id|default_if_none:'senza' }}">
           <div class="ro-item-accent" style="background-color:{{ r.colore }};"></div>
           <div class="ro-item-body">
             <div class="ro-item-name">
@@ -191,6 +199,15 @@ body.theme-dark .ro-modal-title { color:var(--text); }
               <span class="ro-badge ro-badge-blue">{{ r.n_assegnati }} dipendent{{ r.n_assegnati|pluralize:"e,i" }}</span>
               {% if r.n_da_scheda %}<span class="ro-badge ro-badge-gray" title="Indicato come «Ruolo aziendale» nella scheda dipendente">+{{ r.n_da_scheda }} da scheda</span>{% endif %}
               {% if r.riporta_a %}<span class="ro-badge ro-badge-gray">▲ Riporta a: {{ r.riporta_a.nome }}</span>{% endif %}
+            </div>
+            <div class="ro-qual">
+              <div class="ro-qual-title">Mansioni{% if not r.mansioni_list %} <span class="ro-qual-empty">· nessuna</span>{% endif %}
+                <a class="ro-mns-link" href="{% url 'anagrafica:mansionario' %}{% if r.mansioni_list %}#ruolo-{{ r.id }}{% endif %}" title="Il ruolo nel Mansionario: mansioni, competenze e chi lo ricopre">Mansionario →</a></div>
+              {% if r.mansioni_list %}
+              <div class="ro-qual-list">
+                {% for m in r.mansioni_list %}<a class="ro-qual-chip ro-mns-chip" href="{% url 'anagrafica:mansionario_mansione' m.pk %}" title="Apri la mansione: persone, competenze, formazione">{{ m.nome }}</a>{% endfor %}
+              </div>
+              {% endif %}
             </div>
             <div class="ro-qual">
               <div class="ro-qual-title">Qualifiche richieste{% if not r.qualifiche %} <span class="ro-qual-empty">· nessuna</span>{% endif %}</div>

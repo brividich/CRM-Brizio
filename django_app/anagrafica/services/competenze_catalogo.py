@@ -45,15 +45,17 @@ def collega(voce: VoceMacchinaCatalogo) -> CompetenzaCatalogo | None:
 def elenco() -> list[dict]:
     """Competenze del catalogo usate da almeno una mansione attiva, con mansioni e persone valutate."""
     voci = list(VoceMacchinaCatalogo.objects.filter(catalogo__isnull=False, attiva=True, mansione__isnull=False)
-                .select_related("mansione", "catalogo").order_by("mansione__display"))
+                .select_related("mansione", "catalogo", "corso").order_by("mansione__display"))
     valutate: dict[int, set[int]] = {}
     for cat_id, lid in (AbilitazioneMacchinaVoce.objects.filter(voce__catalogo__isnull=False)
                         .values_list("voce__catalogo_id", "abilitazione__legacy_anagrafica_id")):
         valutate.setdefault(cat_id, set()).add(lid)
     righe: dict[int, dict] = {}
     for v in voci:
-        r = righe.setdefault(v.catalogo_id, {"catalogo": v.catalogo, "mansioni": [], "requisiti": set()})
+        r = righe.setdefault(v.catalogo_id, {"catalogo": v.catalogo, "mansioni": [], "requisiti": set(), "corsi": []})
         r["mansioni"].append(v.mansione)
+        if v.corso_id and v.corso not in r["corsi"]:
+            r["corsi"].append(v.corso)
         if v.corso_id or v.qualifica_id or v.processo_mpq_id:
             r["requisiti"].add(v.mansione_id)
     out = []
@@ -169,3 +171,140 @@ def matrice(reparto_id: int | None = None) -> dict:
               "livelli": [celle.get((pid, c.pk), "") for c in cols]} for pid in persone_ids]
     righe.sort(key=lambda r: r["nome"].casefold())
     return {"colonne": cols, "righe": righe}
+
+
+# ---------------------------------------------------------------------------
+# Scheda della singola competenza: ruoli → mansioni → persone → requisiti
+# ---------------------------------------------------------------------------
+STATO_OK = "ok"
+STATO_SOTTO = "sotto"
+STATO_REQUISITO = "requisito"
+STATO_DA_VALUTARE = "da_valutare"
+STATI_SCHEDA = {
+    STATO_REQUISITO: "Manca il requisito",
+    STATO_DA_VALUTARE: "Da valutare",
+    STATO_SOTTO: "Sotto il minimo",
+    STATO_OK: "La sa fare",
+}
+
+
+def scheda(cat: CompetenzaCatalogo) -> dict:
+    """Tutto quello che riguarda una competenza, visto da lei.
+
+    Il livello di ogni persona su ogni mansione si calcola con la stessa funzione
+    della scheda della mansione (``mansionario_competenze.valuta``): stessi numeri,
+    compreso il tetto «I» quando manca il requisito formale.
+    """
+    from core import naming
+    from core.legacy_anagrafica import fetch_anagrafica_rows
+
+    from . import mansionario_competenze as comp_svc
+    from .mansionario_struttura import TIPI_MANSIONE
+
+    voci = list(VoceMacchinaCatalogo.objects.filter(
+        catalogo=cat, attiva=True, mansione__isnull=False, mansione__attiva=True, mansione__tipo__in=TIPI_MANSIONE,
+    ).select_related("mansione", "corso", "qualifica", "processo_mpq").prefetch_related("mansione__ruoli")
+        .order_by("mansione__display"))
+    voce_di = {v.mansione_id: v for v in voci}
+    abil = list(AbilitazioneMacchina.objects.filter(competenza_id__in=list(voce_di), in_lista=True)
+                .prefetch_related("voci"))
+    ids = sorted({a.legacy_anagrafica_id for a in abil})
+    anag = {int(r["id"]): r for r in fetch_anagrafica_rows(ids=ids)} if ids else {}
+    requisiti = comp_svc.Requisiti(ids, voci)
+
+    # Ruoli: quelli delle mansioni che chiedono la competenza (il filo a ritroso).
+    ruoli: dict[int, dict] = {}
+    for v in voci:
+        for r in v.mansione.ruoli.all():
+            ruoli.setdefault(r.pk, {"ruolo": r, "mansioni": []})["mansioni"].append(v.mansione)
+
+    persone: dict[int, dict] = {}
+    per_mansione = {v.mansione_id: {"voce": v, "mansione": v.mansione, "in_lista": 0, "ok": 0} for v in voci}
+    for a in abil:
+        v = voce_di[a.competenza_id]
+        riga = comp_svc.valuta(a, voci=[v], requisiti=requisiti).voci[0]
+        salvato = next((x.livello for x in a.voci.all() if x.voce_id == v.pk), "")
+        sospesa = a.stato == AbilitazioneMacchina.STATO_SOSPESA
+        if riga["requisito"]:
+            stato = STATO_REQUISITO
+        elif not salvato:
+            stato = STATO_DA_VALUTARE
+        elif riga["sotto"]:
+            stato = STATO_SOTTO
+        else:
+            stato = STATO_OK
+        r = anag.get(a.legacy_anagrafica_id, {})
+        p = persone.setdefault(a.legacy_anagrafica_id, {
+            "legacy_id": a.legacy_anagrafica_id,
+            "nome": naming.nome_completo(r.get("nome"), r.get("cognome")) or f"#{a.legacy_anagrafica_id}",
+            "reparto": (r.get("reparto") or "").strip(),
+            "mansioni": [], "livello": "", "requisiti": [],
+        })
+        p["mansioni"].append({"mansione": v.mansione, "livello": riga["livello"], "minimo": v.livello_minimo,
+                              "stato": stato, "requisito": riga["requisito"], "sospesa": sospesa})
+        if ordinale_livello(riga["livello"]) > ordinale_livello(p["livello"]):
+            p["livello"] = riga["livello"]
+        if riga["requisito"] and riga["requisito"] not in p["requisiti"]:
+            p["requisiti"].append(riga["requisito"])
+        if not sospesa:
+            per_mansione[v.mansione_id]["in_lista"] += 1
+            per_mansione[v.mansione_id]["ok"] += stato == STATO_OK
+
+    # Una persona, uno stato: il problema più urgente fra le sue mansioni attive.
+    priorita = [STATO_REQUISITO, STATO_DA_VALUTARE, STATO_SOTTO, STATO_OK]
+    for p in persone.values():
+        attive = [m for m in p["mansioni"] if not m["sospesa"]] or p["mansioni"]
+        p["stato"] = min((m["stato"] for m in attive), key=priorita.index)
+        p["stato_label"] = STATI_SCHEDA[p["stato"]]
+        p["sospesa"] = all(m["sospesa"] for m in p["mansioni"])
+        # Dove intervenire: la prima mansione con quel problema.
+        p["mansione_da_fare"] = next((m["mansione"] for m in attive if m["stato"] == p["stato"]), None)
+    elenco = sorted(persone.values(), key=lambda p: (p["sospesa"], priorita.index(p["stato"]), p["nome"].casefold()))
+    conta = {s: sum(1 for p in elenco if p["stato"] == s and not p["sospesa"]) for s in priorita}
+
+    # Requisiti formali: chi è in lista senza il corso, la qualifica o il MOD.128 valido.
+    corsi: dict[int, dict] = {}
+    altri: dict[tuple, dict] = {}
+    for v in voci:
+        in_lista = [a.legacy_anagrafica_id for a in abil
+                    if a.competenza_id == v.mansione_id and a.stato != AbilitazioneMacchina.STATO_SOSPESA]
+        if v.corso_id:
+            c = corsi.setdefault(v.corso_id, {"corso": v.corso, "mansioni": [], "mancanti": set()})
+            c["mansioni"].append(v.mansione)
+            c["mancanti"] |= {lid for lid in in_lista if (lid, v.corso_id) not in requisiti.corsi_ok}
+        for tipo, obj in (("qualifica", v.qualifica), ("MOD.128", v.processo_mpq)):
+            if obj is None:
+                continue
+            q = altri.setdefault((tipo, obj.pk), {"tipo": tipo, "oggetto": obj, "mansioni": [], "mancanti": set()})
+            q["mansioni"].append(v.mansione)
+            vista = VoceMacchinaCatalogo(qualifica=v.qualifica if tipo == "qualifica" else None,
+                                         processo_mpq=v.processo_mpq if tipo == "MOD.128" else None)
+            q["mancanti"] |= {lid for lid in in_lista if requisiti.mancante(vista, lid)}
+
+    def _nomi(ids_):
+        return sorted(({"legacy_id": i, "nome": persone[i]["nome"]} for i in ids_ if i in persone),
+                      key=lambda x: x["nome"].casefold())
+
+    req_corsi = [{**c, "mancanti": _nomi(c["mancanti"])} for c in corsi.values()]
+    req_altri = [{**q, "mancanti": _nomi(q["mancanti"])} for q in altri.values()]
+
+    storico = list(ValutazioneCompetenzaStorico.objects.filter(catalogo=cat)
+                   .select_related("mansione").order_by("-valutato_il", "-pk")[:25])
+    ids_storico = {s.legacy_anagrafica_id for s in storico} - set(anag)
+    if ids_storico:
+        anag.update({int(r["id"]): r for r in fetch_anagrafica_rows(ids=sorted(ids_storico))})
+    for s in storico:
+        r = anag.get(s.legacy_anagrafica_id, {})
+        s.persona_nome = naming.nome_completo(r.get("nome"), r.get("cognome")) or f"#{s.legacy_anagrafica_id}"
+
+    return {
+        "voci": voci,
+        "ruoli": sorted(ruoli.values(), key=lambda r: r["ruolo"].nome.casefold()),
+        "mansioni": list(per_mansione.values()),
+        "persone": elenco,
+        "conta": conta,
+        "req_corsi": req_corsi,
+        "req_altri": req_altri,
+        "n_requisiti_mancanti": sum(len(c["mancanti"]) for c in req_corsi) + sum(len(q["mancanti"]) for q in req_altri),
+        "storico": storico,
+    }

@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=9">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -151,7 +151,7 @@
       </div>
 
       {% for g in gruppi %}
-      <details class="mns-gruppo{% if g.da_collegare %} mns-gruppo-warn{% endif %}" open data-mns-gruppo
+      <details class="mns-gruppo{% if g.da_collegare %} mns-gruppo-warn{% endif %}" open data-mns-gruppo{% if g.ruolo %} id="ruolo-{{ g.ruolo.pk }}"{% endif %}
                data-g-persone="{{ g.persone_ids }}" data-g-flag="{% if g.chi.senza_mansione or g.chi.senza_ruolo %} ruolo-senza-mansione {% endif %}"
                data-g-q="{{ g.nome|lower }}{% for p in g.chi.persone %} {{ p.nome|lower }}{% endfor %}">
         <summary>
@@ -163,7 +163,7 @@
           <span class="mns-gruppo-meta">
             {% if g.chi %}{{ g.chi.persone|length }} con il ruolo · {% endif %}{{ g.in_lista }} in lista
             {% if g.scoperte %}<span class="fmd-c-ko">· {{ g.scoperte }} senza operativi</span>{% endif %}
-            {% if g.ruolo %}<a class="mns-gruppo-link" href="{% url 'anagrafica:ruoli_operativi_list' %}" title="Catalogo dei ruoli">ruolo →</a>{% endif %}
+            {% if g.ruolo %}<a class="mns-gruppo-link" href="{% url 'anagrafica:ruoli_operativi_list' %}#ruolo-{{ g.ruolo.pk }}" title="Il ruolo nel catalogo dei ruoli: qualifiche richieste e assegnazioni">ruolo →</a>{% endif %}
           </span>
         </summary>
         {% if g.chi %}

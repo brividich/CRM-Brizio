@@ -7,7 +7,7 @@
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
-<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=8">
+<link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=9">
 {% include "anagrafica/components/_multiselect_picker.html" %}
 {% endblock %}
 
@@ -29,7 +29,7 @@
         <div class="mns-facts">
           <div class="mns-fact"><span class="mns-fact-l">Tipo</span><span class="mns-fact-v">{{ mansione.get_tipo_display }}{% if mansione.asset %} · <span class="fmd-muted">asset {{ mansione.asset.asset_tag|default:mansione.asset.name }}</span>{% endif %}</span></div>
           <div class="mns-fact"><span class="mns-fact-l">Reparto</span><span class="mns-fact-v">{% if mansione.reparto_effettivo %}{{ mansione.reparto_effettivo }}{% if mansione.asset_id %} <span class="fmd-muted">(dall'asset)</span>{% endif %}{% else %}<span class="mns-warn-txt">da indicare</span>{% endif %}</span></div>
-          <div class="mns-fact"><span class="mns-fact-l">Ruoli</span><span class="mns-fact-v">{% for r in mansione.ruoli.all %}<span class="fmd-badge fmd-b-cyan">{{ r.nome }}</span>{% empty %}<span class="mns-warn-txt">nessun ruolo</span>{% endfor %}</span></div>
+          <div class="mns-fact"><span class="mns-fact-l">Ruoli</span><span class="mns-fact-v">{% for r in mansione.ruoli.all %}<a class="fmd-badge fmd-b-cyan" href="{% url 'anagrafica:mansionario' %}#ruolo-{{ r.pk }}" title="Il ruolo nel Mansionario: le sue mansioni e chi lo ricopre">{{ r.nome }}</a>{% empty %}<span class="mns-warn-txt">nessun ruolo</span>{% endfor %}</span></div>
           <div class="mns-fact"><span class="mns-fact-l">Mansioni di rischio</span><span class="mns-fact-v">{% for m in mansione.mansioni_rischio.all %}<a class="fmd-badge fmd-b-violet" href="{% url 'anagrafica:mansione_requisiti' m.pk %}" title="DPI, visite e schede di sicurezza">{{ m.nome }}</a>{% empty %}<span class="mns-warn-txt">da indicare: senza, DPI, visite e SDS non si ricavano</span>{% endfor %}</span></div>
         </div>
       </div>
@@ -172,7 +172,7 @@
             <tbody>
               {% for v in competenze %}
               <tr>
-                <td><b>{{ v.nome }}</b></td>
+                <td>{% if v.catalogo_id %}<a class="fmd-data-link" href="{% url 'anagrafica:mansionario_competenza' v.catalogo_id %}" title="Scheda della competenza: chi la sa fare su tutte le mansioni"><b>{{ v.nome }}</b></a>{% else %}<b>{{ v.nome }}</b>{% endif %}</td>
                 <td><span class="mns-lv mns-lv-{{ v.livello_minimo }}"><b>{{ v.livello_minimo }}</b></span></td>
                 <td>{% if v.bloccante %}<span class="fmd-badge fmd-b-red">bloccante</span>{% else %}<span class="fmd-muted">no</span>{% endif %}</td>
                 <td>{% if v.corso %}Corso «{{ v.corso.titolo }}»{% endif %}{% if v.qualifica %}{% if v.corso %} · {% endif %}Qualifica «{{ v.qualifica.nome }}»{% endif %}{% if v.processo_mpq %}{% if v.corso or v.qualifica %} · {% endif %}MOD.128 «{{ v.processo_mpq.nome }}»{% endif %}{% if not v.corso and not v.qualifica and not v.processo_mpq %}<span class="fmd-muted">solo esperienza</span>{% endif %}</td>
