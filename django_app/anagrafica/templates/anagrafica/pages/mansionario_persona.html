@@ -68,7 +68,7 @@
               <td class="fmd-num">{% if r.abilitazione.coefficiente is not None %}{{ r.abilitazione.coefficiente|floatformat:"-4" }}{% else %}—{% endif %}</td>
               <td>{% if r.valutazione.esito == 'abilitato' %}<span class="fmd-badge fmd-b-green">abilitato</span>{% elif r.valutazione.esito == 'non_abilitato' %}<span class="fmd-badge fmd-b-red">non abilitato</span>{% else %}<span class="fmd-badge fmd-b-orange">in addestramento</span>{% endif %}</td>
               <td class="fmd-muted" style="font-size:12.5px;">
-                {% if r.valutazione.mancanze %}{{ r.valutazione.mancanze|join:" · " }}{% elif not r.corsi_obbligatori and not r.corsi_consigliati %}—{% endif %}
+                {% if r.valutazione.mancanze %}{% include "anagrafica/partials/_mancanze_competenze.html" with val=r.valutazione %}{% elif not r.corsi_obbligatori and not r.corsi_consigliati %}—{% endif %}
                 {% for c in r.corsi_obbligatori %}<div style="color:#b45309;">Corso obbligatorio «<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a>»{% if puo_iscrivere %}
                   <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form">{% csrf_token %}<input type="hidden" name="corso_id" value="{{ c.pk }}"><input type="hidden" name="dipendenti_selezionati" value="{{ legacy_id }}"><input type="hidden" name="back" value="{{ request.path }}"><button type="submit" class="fmd-act" title="Crea una sessione del corso con la persona già iscritta">↻ Iscrivi</button></form>{% endif %}</div>{% endfor %}
                 {% for c in r.corsi_consigliati %}<div>Consigliato: «<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a>»{% if puo_iscrivere %}
@@ -147,7 +147,7 @@
             <tr>
               <td class="fmd-muted">{{ s.valutato_il|date:"d/m/Y H:i" }}</td>
               <td>{% if s.mansione %}<a class="fmd-data-link" href="{% url 'anagrafica:mansionario_mansione' s.mansione.pk %}">{{ s.mansione.nome }}</a>{% else %}—{% endif %}</td>
-              <td>{{ s.competenza_nome }}</td>
+              <td>{% if s.catalogo_id %}<a class="fmd-data-link" href="{% url 'anagrafica:mansionario_competenza' s.catalogo_id %}">{{ s.competenza_nome }}</a>{% else %}{{ s.competenza_nome }}{% endif %}</td>
               <td>{{ s.livello_prima|default:"—" }} → <b>{{ s.livello|default:"tolto" }}</b></td>
               <td class="fmd-muted">{{ s.valutato_da|default:"—" }}</td>
             </tr>

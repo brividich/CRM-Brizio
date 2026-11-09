@@ -969,6 +969,16 @@ GUIDA = {
                                                 "il corso, la qualifica o il MOD.128 valido, con «↻ Iscrivi chi manca») "
                                                 "e «Storico» (ultime 25 valutazioni). I numeri sono gli stessi della "
                                                 "scheda mansione: senza requisito il livello resta «I»."),
+                    ("Cosa manca, cliccabile", "nella scheda persona del Mansionario e nelle «Lacune di "
+                                               "competenza» ogni competenza in «Cosa manca» apre la sua scheda. Le "
+                                               "Lacune hanno anche «Cosa fare»: «↻ Iscrivi a …» quando manca un corso "
+                                               "(crea la sessione con la persona già iscritta) e «Valuta», che apre la "
+                                               "mansione. Nella scheda corso le competenze che lo chiedono portano "
+                                               "alla loro scheda."),
+                    ("Mansione di rischio ↔ mansioni", "la pagina dei requisiti di una mansione di rischio mostra "
+                                                       "«Mansioni che la comportano»: le mansioni del Mansionario che "
+                                                       "la indicano, con il loro ruolo. I corsi richiesti si aprono "
+                                                       "con un clic."),
                     ("Ruolo ↔ Mansionario", "nel Mansionario ogni ruolo ha «ruolo →» verso il catalogo dei Ruoli; nel "
                                             "catalogo dei Ruoli ogni ruolo elenca le sue mansioni (clic = scheda "
                                             "mansione) e «Mansionario →» riporta al suo gruppo. Anche i ruoli nella "

@@ -1497,7 +1497,7 @@ def formazione_corso_detail(request, corso_id: int):
     for v in (VoceMacchinaCatalogo.objects.filter(corso=corso, mansione__isnull=False, mansione__attiva=True)
               .select_related("mansione").order_by("mansione__display", "nome")):
         voce = mansioni_da_competenze.setdefault(v.mansione_id, {"mansione": v.mansione, "competenze": []})
-        voce["competenze"].append(v.nome)
+        voce["competenze"].append(v)
     regole = list(
         TrainingRequirementRule.objects.filter(corso=corso, is_active=True)
         .select_related("mansione", "area", "ruolo_operativo", "competenza")
