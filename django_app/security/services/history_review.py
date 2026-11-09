@@ -7,6 +7,7 @@ Il testo prodotto da ``review_as_text`` e' il contesto che l'AI locale usa per p
 l'AI propone, chi gestisce decide.
 """
 from datetime import timedelta
+from urllib.parse import urlencode
 
 from django.urls import reverse
 from django.utils import timezone
@@ -59,6 +60,14 @@ def build_review(days=30, now=None):
         if total >= 2:
             recurring.append(row)
         if row["false_positive"] >= 2 and row["false_positive"] * 2 >= total:
+            # Valori per «Crea soppressione»: il modulo della soppressione manuale arriva già compilato.
+            row["soppressione"] = urlencode({k: v for k, v in {
+                "name": f"Falso positivo ricorrente: {sample.title}"[:120],
+                "source": sample.source_id or "",
+                "event_type": sample.event.event_type if sample.event_id else "",
+                "reason": (f"{row['false_positive']} falsi positivi su {total} in {days} giorni"
+                           + (": " + "; ".join(family["reasons"]) if family["reasons"] else ""))[:500],
+            }.items() if v})
             false_positives.append(row)
     recurring.sort(key=lambda row: -row["total"])
     false_positives.sort(key=lambda row: -row["false_positive"])

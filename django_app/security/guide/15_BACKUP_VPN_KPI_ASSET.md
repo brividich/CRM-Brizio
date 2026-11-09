@@ -50,7 +50,7 @@ Con la lettura dall'API di Veeam accesa ([Impostazioni](/soc/docs/16-impostazion
 
 ### Prove di ripristino
 
-Un backup vale solo se si riesce a ripristinare (ISO 27001 8.13). In **Backup › Prove di ripristino** si registra ogni prova: data, sistema, job, cosa è stato ripristinato (file, cartella, macchina intera, database), esito **Riuscita** o **Fallita**, durata, chi l'ha fatta, note e un allegato facoltativo (verbale, schermata). In alto: ultima prova riuscita, entro quando serve la prossima (cadenza di **90 giorni** di default, in Impostazioni) e se siamo **in ritardo**.
+Un backup vale solo se si riesce a ripristinare (ISO 27001 8.13). In **Backup › Prove di ripristino** si registra ogni prova: data, sistema, job, cosa è stato ripristinato (file, cartella, macchina intera, database), esito **Riuscita** o **Fallita**, durata, chi l'ha fatta, note e un allegato facoltativo (verbale, schermata). Il registro si legge a pagine (si caricano scorrendo). In alto: ultima prova riuscita, entro quando serve la prossima (cadenza di **90 giorni** di default, in Impostazioni) e se siamo **in ritardo**.
 
 - Prova **fallita**: il SOC apre da solo un alert alto «Prova di ripristino fallita» collegato alla prova.
 - Prova **in ritardo** (o mai fatta): con l'avviso acceso in [Impostazioni](/soc/docs/16-impostazioni-e-ai/#avvisi-automatici) parte un promemoria, uno per scadenza.
@@ -63,7 +63,7 @@ Un backup vale solo se si riesce a ripristinare (ISO 27001 8.13). In **Backup �
 - **Accessi per giorno**: un clic su un giorno lo seleziona e confronta con il giorno prima.
 - **Accessi per ora**: le ore notturne sono evidenziate.
 - **Utenti più attivi** e **IP di origine**: un clic filtra il registro.
-- **Registro accessi**: utente, IP, accesso, uscita, durata, tipo. Filtri per utente, IP, esito, tipo e date. Un clic su una riga apre il **pannello dell'utente**: accessi e negati del periodo, IP diversi, sessione media, segnali da controllare, IP più usati e ultimi accessi.
+- **Registro accessi**: utente, IP, accesso, uscita, durata, tipo. Filtri per utente, IP, esito, tipo e date. Un clic su una riga apre il **pannello dell'utente**: accessi e negati del periodo, IP diversi, sessione media, segnali da controllare, IP più usati e ultimi accessi. **Tutti i suoi accessi** filtra il registro sul nome esatto dell'utente (campo «Utente (nome esatto)»): il campo «Utente» normale cerca invece una parte del nome.
 
 Gli orari sono in ora italiana. I report di WatchGuard Cloud possono essere in UTC o in ora italiana: il portale ricava il fuso dal periodo scritto nella mail del report, così lo stesso accesso arrivato da due report diversi resta una riga sola. Per ripulire lo storico salvato prima: `manage.py vpn_riallinea_fuso` (prova a vuoto) e poi `--apply`.
 
@@ -103,7 +103,7 @@ Le colonne:
 - **Backup**: l'esito dell'ultimo backup negli ultimi 30 giorni («Riuscito», «Con avvisi», «Fallito»); in rosso se è fallito o se non c'è un backup riuscito da troppi giorni (la soglia è in Impostazioni). «nessuno» se il dispositivo non compare nei report di backup.
 - **Vulnerabilità**: quante CVE lo colpiscono secondo l'inventario software, e quante sono **gravi** (già sfruttate, KEV, o CVSS 9 e oltre). Se il dispositivo è collegato a un asset, il clic apre il pannello con le CVE raggruppate per software.
 - **Stato Intune**: «Conforme», oppure i problemi aperti (disco non cifrato, non conforme ai criteri, non si sincronizza).
-- **Asset del registro**: il codice dell'asset del portale collegato. **Proposto** vuol dire che c'è un asset con lo stesso IP o lo stesso nome: lo confermi con **Conferma**, oppure tutti insieme con **Conferma le N proposte**; **scollega** se il collegamento è sbagliato. Per i PC di Intune «da collegare» porta alla **riconciliazione dispositivi** del modulo Asset. Collegare e scollegare richiede il permesso di configurazione del SOC.
+- **Asset del registro**: il codice dell'asset del portale collegato. **Proposto** vuol dire che c'è un asset con lo stesso IP o lo stesso nome: lo confermi con **Conferma**, oppure tutti insieme con **Conferma le N proposte**, o solo quelli selezionati con **Collega gli asset proposti** nella barra della selezione; **scollega** se il collegamento è sbagliato. Per i PC di Intune «da collegare» porta alla **riconciliazione dispositivi** del modulo Asset. Collegare e scollegare richiede il permesso di configurazione del SOC.
 
 I filtri **Senza asset**, **Backup ko**, **Con CVE**, **Problemi Intune**, **Non in Intune**, **Senza WatchGuard**, **Senza backup**, **Sistema fuori supporto** e **Supporto in scadenza** mostrano accanto quanti dispositivi trovano; il numero è sempre uguale alle righe che si aprono. «Senza backup» non è un errore: non tutti i PC devono avere un backup, è un elenco da controllare.
 

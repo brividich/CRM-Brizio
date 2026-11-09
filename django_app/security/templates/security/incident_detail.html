@@ -123,7 +123,7 @@
     {% if alerts %}
       <h3 class="sec-subhead">Alert ({{ alerts|length }})</h3>
       <ul class="sec-mini-list">
-        {% for alert in alerts %}<li><a href="{% url 'security:alert_detail' alert.pk %}">{{ alert.title|truncatechars:90 }}</a> <small class="sec-muted">{{ alert.created_at|date:"d/m H:i" }}</small></li>{% endfor %}
+        {% for alert in alerts %}<li data-preview="{% url 'security:preview' 'alert' alert.pk %}"><a href="{% url 'security:alert_detail' alert.pk %}">{{ alert.title|truncatechars:90 }}</a> <small class="sec-muted">{{ alert.created_at|date:"d/m H:i" }}</small></li>{% endfor %}
       </ul>
     {% endif %}
   </div>

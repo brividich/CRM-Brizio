@@ -56,14 +56,16 @@
       {% if open_cases %}<option value="add_to_case">Aggiungi a un ticket aperto</option>{% endif %}
       <option value="close">Chiudi</option>
       <option value="false_positive">Segna falso positivo</option>
+      <option value="snooze">Rimanda fino al…</option>
     </select>
+    <input type="date" name="snooze_until" aria-label="Rimanda fino al" title="Gli alert tornano in coda quel giorno" data-show-for="snooze">
     <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" data-show-for="open_case">
     {% if open_cases %}
       <select name="case_id" aria-label="Ticket di destinazione" data-show-for="add_to_case">
         {% for case in open_cases %}<option value="{{ case.pk }}">#{{ case.pk }} · {{ case.title|truncatechars:60 }}</option>{% endfor %}
       </select>
     {% endif %}
-    <input type="text" name="reason" placeholder="Motivo (facoltativo)" data-show-for="acknowledge close false_positive">
+    <input type="text" name="reason" placeholder="Motivo (facoltativo)" data-show-for="acknowledge close false_positive snooze">
     <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Applica</button>
   </div>
   <div class="sec-table-wrap">

@@ -281,3 +281,7 @@ body.theme-dark .soc-module .soc-selbar { background: var(--surface, #111827); }
 .soc-drawer .pv-simili-form input[type="text"], .soc-drawer .pv-simili-form .sec-action-result { grid-column: 1 / -1; }
 .soc-drawer .pv-simili-form button { grid-column: 1 / -1; justify-self: start; }
 .soc-drawer .pv-inline-reason { display: block; color: var(--text-light); font-weight: normal; }
+
+/* Pannello ticket: cambio di stato */
+.soc-drawer .pv-status { margin-top: 8px; align-items: center; }
+.soc-drawer .pv-status input[type="text"] { flex: 1 1 12em; min-width: 0; }
