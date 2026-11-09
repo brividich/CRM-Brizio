@@ -25,6 +25,13 @@
             {{ meeting.luogo }}
           </span>
         {% endif %}
+        {% if meeting.sala and meeting.sala.email and not meeting.is_annullato %}
+          <span class="md-meta-item" data-sala-stato
+                data-url="{% url 'tasks:sala_verifica' project.id meeting.id %}">
+            <span class="ts-chip {{ sala_stato.1 }}" data-sala-chip>{{ sala_stato.0 }}</span>
+            {% if can_manage and meeting.outlook_event_id %}<button type="button" class="md-link-btn" data-sala-verifica>Verifica</button>{% endif %}
+          </span>
+        {% endif %}
         <span class="md-meta-item">
           <span class="md-stato {{ meeting.stato|lower }}">{{ meeting.get_stato_display }}</span>
         </span>
@@ -580,6 +587,7 @@
 </script>
 <script src="{% static 'tasks/js/meeting_task_modal.js' %}?v=20261105" defer></script>
 <script src="{% static 'tasks/js/tech_refs.js' %}?v=20261106b" defer></script>
+<script src="{% static 'tasks/js/sala_stato.js' %}?v=20261109" defer></script>
 <script src="{% static 'tasks/js/quick_task_bar.js' %}?v=20261105b" defer></script>
 {% endif %}
 {% endblock %}

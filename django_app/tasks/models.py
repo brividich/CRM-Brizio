@@ -1210,6 +1210,12 @@ class KickoffMeeting(models.Model):
     data = models.DateField(verbose_name="Data")
     ora = models.TimeField(null=True, blank=True, verbose_name="Ora")
     luogo = models.CharField(max_length=200, blank=True, default="", verbose_name="Luogo")
+    sala = models.ForeignKey(
+        "MeetingRoom", on_delete=models.SET_NULL, null=True, blank=True, related_name="incontri", verbose_name="Sala",
+    )
+    # Risposta della sala all'invito Outlook: accepted, tentativelyAccepted, declined, none.
+    sala_risposta = models.CharField(max_length=24, blank=True, default="", verbose_name="Risposta della sala")
+    sala_risposta_at = models.DateTimeField(null=True, blank=True)
 
     # Partecipanti: utenti portale (M2M) + email esterne (testo libero)
     partecipanti_utenti = models.ManyToManyField(
@@ -2164,6 +2170,10 @@ class MeetingRoom(models.Model):
     nome = models.CharField(max_length=120, unique=True, verbose_name="Nome sala")
     note = models.TextField(blank=True, default="", verbose_name="Note")
     ordine = models.PositiveSmallIntegerField(default=0, verbose_name="Ordine")
+    # Casella «sala» di Microsoft 365: con questa l'invito Outlook prenota la sala.
+    email = models.EmailField(blank=True, default="", verbose_name="Casella della sala (Microsoft 365)")
+    capienza = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Posti")
+    attiva = models.BooleanField(default=True, verbose_name="Attiva")
 
     class Meta:
         ordering = ["ordine", "nome"]

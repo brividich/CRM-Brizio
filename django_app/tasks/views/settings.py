@@ -210,6 +210,9 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         cfg_cc = TaskImpostazioni.get_singleton()
         scelti = set(cfg_cc.cc_predefiniti_utenti.values_list("pk", flat=True))
         context["cc_predefiniti_ids"] = scelti
+        from ..models import MeetingRoom
+
+        context["sale_riunioni"] = list(MeetingRoom.objects.order_by("ordine", "nome"))
         context["cc_utenti_disponibili"] = [
             {"pk": utente.pk, "etichetta": etichetta_utente(utente)}
             for utente in task_active_users_queryset()
@@ -1356,6 +1359,57 @@ def impostazioni_task_delete(request, task_id: int):
 
 
 @legacy_admin_or_acl_required("tasks", "impostazioni")
+def _handle_tasks_rooms_post(request):
+    """Sale riunioni: nome, casella Microsoft 365 per la prenotazione, posti, attiva."""
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+
+    from ..models import MeetingRoom
+
+    target = f"{reverse('tasks:impostazioni')}?tab=config#sale"
+    azione = (request.POST.get("sala_action") or "").strip()
+    sala = None
+    if (request.POST.get("sala_id") or "").isdigit():
+        sala = MeetingRoom.objects.filter(pk=int(request.POST["sala_id"])).first()
+        if sala is None:
+            messages.error(request, "Sala non trovata.")
+            return redirect(target)
+    if azione == "elimina" and sala is not None:
+        if sala.incontri.exists():
+            sala.attiva = False
+            sala.save(update_fields=["attiva"])
+            messages.info(request, f"«{sala.nome}» ha incontri collegati: disattivata invece di eliminata.")
+        else:
+            nome = sala.nome
+            sala.delete()
+            messages.success(request, f"Sala «{nome}» eliminata.")
+        log_action(request, "kickoff_sala_elimina", "tasks", {"sala_id": request.POST.get("sala_id")})
+        return redirect(target)
+    nome = (request.POST.get("nome") or "").strip()[:120]
+    email = (request.POST.get("email") or "").strip()[:254]
+    if not nome:
+        messages.error(request, "Il nome della sala è obbligatorio.")
+        return redirect(target)
+    if email:
+        try:
+            validate_email(email)
+        except ValidationError:
+            messages.error(request, "La casella della sala non è un indirizzo email valido.")
+            return redirect(target)
+    if MeetingRoom.objects.filter(nome__iexact=nome).exclude(pk=getattr(sala, "pk", None)).exists():
+        messages.error(request, f"Esiste già una sala «{nome}».")
+        return redirect(target)
+    sala = sala or MeetingRoom()
+    sala.nome, sala.email = nome, email
+    raw = (request.POST.get("capienza") or "").strip()
+    sala.capienza = int(raw) if raw.isdigit() and int(raw) > 0 else None
+    sala.attiva = bool(request.POST.get("attiva")) if azione == "salva" else True
+    sala.save()
+    log_action(request, "kickoff_sala_salva", "tasks", {"sala_id": sala.pk, "nome": nome})
+    messages.success(request, f"Sala «{nome}» salvata.")
+    return redirect(target)
+
+
 def impostazioni(request):
     """Pagina canonica impostazioni/admin del modulo Task."""
     cfg = TaskImpostazioni.get_singleton()
@@ -1375,6 +1429,8 @@ def impostazioni(request):
             return _handle_tasks_agenda_templates_post(request)
         if posted_tab == "fai":
             return _handle_tasks_fai_post(request)
+        if posted_tab == "sale":
+            return _handle_tasks_rooms_post(request)
 
         branding_response = handle_module_branding_post(
             request,

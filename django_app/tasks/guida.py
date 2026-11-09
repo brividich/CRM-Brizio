@@ -363,11 +363,14 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("passi", [
                 "Scheda «Incontri» della commessa, «+ Nuovo incontro». Per l'incontro 1 la convocazione è già aperta dopo la creazione.",
-                "Informazioni base: «Data» è obbligatoria; titolo, ora e «Luogo / Link» (una sala dalla lista, o un link Teams).",
+                "Informazioni base: «Data» è obbligatoria; poi titolo, ora, «Sala» e, se serve, «Altro luogo o link» (sede del cliente, link Teams).",
+                "Sotto, «Disponibilità del giorno» mostra le sale dalle 8 alle 19: in arancione gli incontri del portale, in rosso gli impegni Outlook della sala, in grigio i partecipanti occupati, con il bordo blu il tuo incontro. Clicca un orario libero su una sala per sceglierla: ora e sala si compilano da sole e il messaggio sotto dice se è libera.",
                 "Partecipanti: cerca gli «Utenti del portale» e aggiungi le «Email aggiuntive (esterni)», una per riga. «Destinatari in copia» vale per convocazione e minuta.",
                 "Ordine del giorno: aggiungi i punti, con durata e attività collegata se serve. Puoi usare un modello o «Duplica ODG dell'incontro precedente».",
-                "Salva. Poi, dal dettaglio dell'incontro, premi «Invia convocazione».",
+                "«Prenota la sala e invita in Outlook» (già acceso se Outlook è configurato): al salvataggio l'incontro va nel tuo calendario, la sala riceve la richiesta di prenotazione e i partecipanti l'invito da accettare.",
+                "Salva. Se serve anche la mail del portale con l'ordine del giorno, dal dettaglio dell'incontro premi «Invia convocazione».",
             ]),
+            ("p", "Nel dettaglio dell'incontro, accanto al luogo, c'è lo stato della prenotazione: «Richiesta inviata alla sala», «Sala confermata», «Sala in forse», «Sala rifiutata: è già occupata». «Verifica» lo chiede di nuovo a Outlook. Una sala senza casella Microsoft 365 vale solo nel portale: si vede nella disponibilità ma non si prenota in Outlook. Se un'altra riunione del portale occupa la stessa sala nello stesso orario, al salvataggio compare un avviso."),
             ("img", (_IMG + "convocazione.jpg", "La convocazione: informazioni, partecipanti e ordine del giorno")),
             ("ul", [
                 "L'ordine del giorno parte già con i problemi e le azioni ancora aperti e con i punti non trattati nell'incontro precedente.",

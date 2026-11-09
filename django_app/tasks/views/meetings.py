@@ -213,8 +213,31 @@ def incontri_lista(request):
 # Incontri kickoff
 # ---------------------------------------------------------------------------
 
+def _sala_stato(meeting) -> tuple[str, str]:
+    """Etichetta della prenotazione sala, da quanto già salvato (senza chiamare Outlook)."""
+    from ..services.sale import RISPOSTE
+
+    if not (meeting.sala_id and meeting.sala.email):
+        return ("", "")
+    if not meeting.outlook_event_id:
+        return ("Sala non prenotata in Outlook", "warn")
+    if not meeting.sala_risposta:
+        return ("Richiesta inviata alla sala", "info")
+    return RISPOSTE.get(meeting.sala_risposta, RISPOSTE["none"])
+
+
+def _outlook_pronto() -> bool:
+    from core.outlook_calendar import graph_ready
+
+    return graph_ready()
+
+
 def _sync_meeting_outlook(request, meeting) -> None:
     from ..meeting_outlook import sync_meeting_outlook_event
+    from ..services.sale import conflitti_portale
+
+    for avviso in conflitti_portale(meeting):
+        messages.warning(request, avviso)
     level, msg = sync_meeting_outlook_event(request=request, meeting=meeting)
     if level == "success":
         messages.success(request, msg)
@@ -277,6 +300,7 @@ def _next_meeting_initial(previous: KickoffMeeting) -> dict:
         "data": proposta,
         "ora": previous.ora,
         "luogo": previous.luogo,
+        "sala": previous.sala_id,
         "partecipanti_utenti": list(previous.partecipanti_utenti.values_list("pk", flat=True)),
         "partecipanti_email_extra": previous.partecipanti_email_extra,
         "cc_utenti": list(previous.cc_utenti.values_list("pk", flat=True)),
@@ -582,6 +606,8 @@ def project_meeting_create(request, project_id: int):
         auto_agenda += _carry_over_agenda_items(project)
         initial = {
             "data": timezone.localdate(),
+            # Con Outlook configurato la sala si prenota e i partecipanti ricevono l'invito.
+            "sync_outlook": _outlook_pronto(),
             "agenda_items_raw": json.dumps(auto_agenda),
             "partecipanti_utenti": project.team_user_ids,
         }
@@ -669,6 +695,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             **_quick_task_context(project, meeting),
             **tech_refs_context(request, project, meeting),
             **tappe_context(request, project, meeting),
+            "sala_stato": _sala_stato(meeting),
         },
     )
 

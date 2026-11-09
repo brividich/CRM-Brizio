@@ -181,3 +181,46 @@ def delete_event(*, target_email: str, event_id: str) -> bool:
     if response.status_code in {200, 202, 204, 404}:
         return True
     _raise_graph_error(response)
+
+
+def get_schedule(
+    *, organizer_email: str, emails: list[str], start: datetime, end: datetime, interval_minutes: int = 30,
+) -> dict[str, list[dict[str, Any]]]:
+    """Occupato/libero di persone e sale (``calendar/getSchedule``), ora locale italiana.
+
+    Ritorna ``{email: [{"start": datetime, "end": datetime, "status": "busy|tentative|oof|..."}]}``.
+    Le voci con errore Graph (cassetta inesistente, non autorizzata) non compaiono.
+    Richiede ``Calendars.Read`` (o ReadWrite) come permesso applicativo.
+    """
+    emails = [e for e in dict.fromkeys((e or "").strip().lower() for e in emails) if e]
+    if not organizer_email or not emails:
+        return {}
+    url = f"{GRAPH_BASE_URL}/users/{quote(organizer_email, safe='')}/calendar/getSchedule"
+    headers = {**_headers(), "Prefer": 'outlook.timezone="W. Europe Standard Time"'}
+    payload = {
+        "schedules": emails[:20],
+        "startTime": {"dateTime": start.strftime("%Y-%m-%dT%H:%M:%S"), "timeZone": "W. Europe Standard Time"},
+        "endTime": {"dateTime": end.strftime("%Y-%m-%dT%H:%M:%S"), "timeZone": "W. Europe Standard Time"},
+        "availabilityViewInterval": interval_minutes,
+    }
+    response = requests.post(url, headers=headers, json=payload, timeout=20)
+    if response.status_code != 200:
+        _raise_graph_error(response)
+    esito: dict[str, list[dict[str, Any]]] = {}
+    for voce in response.json().get("value", []):
+        if voce.get("error"):
+            continue
+        chi = str(voce.get("scheduleId") or "").lower()
+        righe = []
+        for item in voce.get("scheduleItems") or []:
+            stato = str(item.get("status") or "busy")
+            if stato == "free":
+                continue
+            try:
+                inizio = datetime.fromisoformat(str(item["start"]["dateTime"])[:19])
+                fine = datetime.fromisoformat(str(item["end"]["dateTime"])[:19])
+            except (KeyError, ValueError):
+                continue
+            righe.append({"start": inizio, "end": fine, "status": stato})
+        esito[chi] = righe
+    return esito
