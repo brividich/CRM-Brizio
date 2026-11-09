@@ -709,6 +709,7 @@ def impostazioni(request):
     _ruoli_da_scheda = _helpers._ruoli_conteggio_da_scheda()
     for _r in ruoli_operativi:
         _r.n_da_scheda = _ruoli_da_scheda.get((_r.nome or "").strip().casefold(), 0)
+    _helpers._con_mansioni(ruoli_operativi)
     # Stesso partial della pagina Ruoli: gli serve anche il catalogo qualifiche.
     _qual_per_ruolo: dict[int, list] = {}
     for _rq in RuoloQualifica.objects.select_related("qualifica").order_by("qualifica__nome"):

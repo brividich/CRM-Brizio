@@ -988,6 +988,30 @@ def mansionario_catalogo(request):
 
 
 @login_required
+def mansionario_competenza(request, catalogo_id: int):
+    """Scheda della competenza: ruoli e mansioni che la chiedono, chi la sa fare,
+    requisiti formali e storico. Le azioni portano alla mansione giusta."""
+    puo_valutare = _puo_valutare(request)
+    if not (_puo_vedere(request) or puo_valutare):
+        return _nega(request)
+    from .models import CompetenzaCatalogo
+    from .services import competenze_catalogo as cat_svc
+    from .views import _helpers as _h
+
+    cat = get_object_or_404(CompetenzaCatalogo, pk=catalogo_id)
+    dati = cat_svc.scheda(cat)
+    return render(request, "anagrafica/pages/mansionario_competenza.html", {
+        "page_title": cat.nome,
+        "cat": cat,
+        **dati,
+        "stati": cat_svc.STATI_SCHEDA,
+        "is_admin": _puo_gestire(request),
+        "puo_valutare": puo_valutare,
+        "puo_iscrivere": _h._can_edit_formazione(request),
+    })
+
+
+@login_required
 def mansionario_matrice_competenze(request):
     """Persone × competenze del catalogo (livello più alto su qualsiasi mansione), per reparto; Excel."""
     if not _puo_vedere(request):

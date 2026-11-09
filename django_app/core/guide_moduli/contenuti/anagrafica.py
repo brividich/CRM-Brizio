@@ -958,6 +958,22 @@ GUIDA = {
                                             "in tutte» (un nome già esistente va unito, non rinominato) e «Unisci» (non "
                                             "se una mansione ha già entrambe le competenze attive: prima togline una). "
                                             "Minimo, bloccante e requisiti restano della singola mansione."),
+                    ("Scheda della competenza", "clic sul nome di una competenza (nel Catalogo, nella Matrice o nella "
+                                                "scheda «Competenze richieste» di una mansione). In alto il filo: "
+                                                "Ruoli → Mansioni che la chiedono → Competenza → Requisito formale, "
+                                                "ognuno cliccabile. Le schede: «Persone» (chi è in lista su quelle "
+                                                "mansioni, il livello per mansione con il minimo e lo stato: La sa "
+                                                "fare, Sotto il minimo, Da valutare, Manca il requisito; «Valuta» o "
+                                                "«Rivaluta» apre la mansione giusta), «Mansioni» (minimo, bloccante, "
+                                                "requisito, quanti la sanno fare), «Requisiti e corsi» (chi è senza "
+                                                "il corso, la qualifica o il MOD.128 valido, con «↻ Iscrivi chi manca») "
+                                                "e «Storico» (ultime 25 valutazioni). I numeri sono gli stessi della "
+                                                "scheda mansione: senza requisito il livello resta «I»."),
+                    ("Ruolo ↔ Mansionario", "nel Mansionario ogni ruolo ha «ruolo →» verso il catalogo dei Ruoli; nel "
+                                            "catalogo dei Ruoli ogni ruolo elenca le sue mansioni (clic = scheda "
+                                            "mansione) e «Mansionario →» riporta al suo gruppo. Anche i ruoli nella "
+                                            "testata della mansione e nella scheda competenza portano al gruppo del "
+                                            "ruolo nel Mansionario."),
                     ("Livelli già valutati", "nella valutazione di una persona, sotto ogni competenza valutata su "
                                              "un'altra mansione compare «Già valutato X in «…»» con «Usa»; «Riprendi N "
                                              "livelli già valutati» li copia tutti nei campi vuoti. Si salva solo con "

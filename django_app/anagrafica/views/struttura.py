@@ -137,6 +137,7 @@ def ruoli_operativi_list(request):
     _da_scheda = _helpers._ruoli_conteggio_da_scheda()
     for _r in ruoli:
         _r.n_da_scheda = _da_scheda.get((_r.nome or "").strip().casefold(), 0)
+    _helpers._con_mansioni(ruoli)
     # Qualifiche attese dal ruolo: l'associazione si costruisce a mano dal
     # portale (l'export del gestionale è arrivato senza la matrice skill).
     _qualifiche_per_ruolo: dict[int, list] = {}
