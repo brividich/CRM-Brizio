@@ -1,0 +1,21 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Collega gli asset proposti{% endblock %}
+{% block modulo %}
+<div class="row"><div><div class="eyebrow">Stampanti MFC</div><h1>Collega gli asset proposti</h1><p class="sub">Controlla gli abbinamenti: lo stesso criterio della riconciliazione IT (matricola, poi indirizzo IP). Si collegano solo le righe spuntate, e solo se la proposta non è cambiata nel frattempo.</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:guida' %}#tabelle">? Guida</a></div></div>
+<form method="post" action="{% url 'contatori:macchine_collega_asset' %}" class="panel" id="collega-bulk" data-bulk>{% csrf_token %}<input type="hidden" name="conferma" value="1">
+  <div class="sec-bulk-bar">
+    <span class="sec-bulk-count"><strong data-bulk-count>0</strong> <span data-bulk-label data-one="selezionata" data-many="selezionate">selezionate</span></span>
+    <button type="submit" class="btn small" data-bulk-go disabled>Conferma i collegamenti</button>
+    <a class="btn ghost small" href="{% url 'contatori:macchine' %}">Annulla</a>
+  </div>
+  <div class="table-wrap"><table data-fm-table-skip="1">
+    <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all aria-label="Seleziona tutti gli abbinamenti"></th><th>MFC</th><th>Asset proposto</th><th>Perché</th></tr></thead>
+    <tbody>{% for r in righe %}<tr>
+      <td class="sec-check-col">{% if r.proposta %}<input type="checkbox" class="sec-bulk-item" name="abbina" value="{{ r.macchina.pk }}:{{ r.proposta.asset.pk }}" checked aria-label="Collega {{ r.macchina.reparto }} a {{ r.proposta.asset.asset_tag }}">{% endif %}</td>
+      <td><a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a><div class="muted">{{ r.macchina.matricola }}{% if r.macchina.host %} · <span class="mono">{{ r.macchina.host }}</span>{% endif %}</div></td>
+      <td>{% if r.proposta %}<a class="plain" href="{% url 'assets:asset_view' r.proposta.asset.pk %}">{{ r.proposta.asset.asset_tag }}</a><div class="muted">{{ r.proposta.asset.name }}</div>{% elif r.esito == 'collegata' %}<span class="pill ok">già collegata</span> <span class="muted">{{ r.macchina.asset.asset_tag }}</span>{% else %}<span class="pill warn">nessuna proposta</span>{% endif %}</td>
+      <td>{% if r.proposta %}{{ r.proposta.motivo }}{% elif r.esito == 'nessuna' %}<span class="muted">Nessun asset con la stessa matricola o lo stesso IP: collegala dalla scheda.</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table></div>
+</form>
+{% endblock %}

@@ -428,13 +428,6 @@ body.theme-dark .soc-module .sec-button:not(.sec-button-primary):hover { color: 
 .soc-module .sec-check { display: flex; gap: 8px; align-items: center; color: var(--text-mid); }
 .soc-module .sec-check input { width: auto; }
 
-/* Ticket: azioni massive nella coda alert */
-.soc-module .sec-check-col { width: 34px; text-align: center; }
-.soc-module .sec-check-col input { width: 16px; height: 16px; }
-.soc-module .sec-bulk-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 8px; color: var(--text-mid); }
-.soc-module .has-selection .sec-bulk-bar { border-style: solid; border-color: var(--primary-mid); background: var(--surface-alt, var(--bg)); color: var(--text); }
-.soc-module .sec-bulk-bar select, .soc-module .sec-bulk-bar input[type="text"] { width: auto; min-width: 180px; }
-.soc-module .sec-bulk-count { min-width: 110px; }
 
 /* Ticket: attività spuntabili */
 .soc-module .sec-task-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }

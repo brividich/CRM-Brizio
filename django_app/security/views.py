@@ -149,6 +149,11 @@ def alerts_list(request):
     if severities:
         alerts = alerts.filter(severity__in=severities)
 
+    from security.services import esporta_csv
+
+    if esporta_csv.vuole_csv(request):
+        return _alerts_csv(request, alerts)
+
     from core.paginazione import pagina_elenco
 
     page_obj = pagina_elenco(request, alerts)
@@ -172,6 +177,42 @@ def alerts_list(request):
         "open_cases": _open_cases(),
     }
     return render(request, "security/alerts_list.html", context)
+
+
+def _alerts_csv(request, alerts):
+    """Tutti gli alert del filtro (non solo la pagina), con ticket collegato e responsabile."""
+    from security.services import esporta_csv
+
+    alerts = list(alerts)
+    ids = [a.pk for a in alerts]
+    # Ticket più recente per alert (principale o collegato, come _alert_case): poche query a blocchi
+    # (SQL Server accetta al massimo 2100 parametri), invece di una per riga.
+    candidati = []
+    for blocco in esporta_csv.a_blocchi(ids):
+        candidati += [(t["alert_id"], t["updated_at"], t["pk"], t["status"]) for t in
+                      SecurityRemediationTicket.objects.filter(alert_id__in=blocco).values("pk", "alert_id", "status", "updated_at")]
+        candidati += [(x["securityalert_id"], x["securityremediationticket__updated_at"], x["securityremediationticket_id"],
+                       x["securityremediationticket__status"]) for x in
+                      SecurityRemediationTicket.linked_alerts.through.objects.filter(securityalert_id__in=blocco).values(
+                          "securityalert_id", "securityremediationticket_id", "securityremediationticket__updated_at",
+                          "securityremediationticket__status")]
+    ticket = {}
+    for alert_id, _quando, pk, stato in sorted(candidati, key=lambda c: c[1]):
+        ticket[alert_id] = {"pk": pk, "status": stato}
+    righe = (
+        [a.pk, esporta_csv.data_ora(a.created_at), esporta_csv.etichetta(a.severity), a.title, a.source.name,
+         a.event.asset.hostname if a.event_id and a.event.asset_id else "", esporta_csv.etichetta(a.status),
+         esporta_csv.data_ora(a.event.occurred_at if a.event_id else a.updated_at), a.owner,
+         f"#{ticket[a.pk]['pk']} {esporta_csv.etichetta(ticket[a.pk]['status'])}" if a.pk in ticket else "",
+         esporta_csv.data_ora(a.acknowledged_at), esporta_csv.data_ora(a.closed_at), a.status_reason]
+        for a in alerts
+    )
+    return esporta_csv.risposta(
+        request, "alert",
+        ["N.", "Creato il", "Severità", "Alert", "Sorgente", "Asset", "Stato", "Ultimo evento", "Responsabile", "Ticket",
+         "Preso in carico il", "Chiuso il", "Motivo dello stato"],
+        righe, azione="soc_alert_export", filtri=esporta_csv.filtri_get(request, "status", "source", "date", "severity"),
+    )
 
 
 def _toggle_query(request, key, value):

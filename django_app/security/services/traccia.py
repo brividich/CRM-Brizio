@@ -38,6 +38,7 @@ RISCHIO_ACCETTATO = "soc_rischio_accettato"
 RISCHIO_REVOCATO = "soc_rischio_revocato"
 RISCHIO_SCADUTO = "soc_rischio_scaduto"
 RISCHIO_IN_SCADENZA = "soc_rischio_in_scadenza"
+SOPPRESSIONE_IN_SCADENZA = "soc_soppressione_in_scadenza"
 
 
 def _pulito(valore):

@@ -13,7 +13,7 @@
 .contatori-module .discovery-choices > div { display:flex; flex-wrap:wrap; gap:10px 24px; }
 .contatori-module .discovery-choices > div label { display:flex; align-items:center; gap:8px; margin:0; }
 .contatori-module .discovery-choices input[type=checkbox] { width:auto; margin:0; }
-.contatori-module .discovery-table { overflow-x:auto; max-width:100%; }
+.contatori-module .discovery-descr { max-width:380px; }
 .contatori-module .discovery-page .panel { min-width:0; }
 .contatori-module .discovery-page progress { accent-color:var(--cm-accent); }
 /* Form a sezioni (dispositivo SNMP, stampante) */
@@ -353,6 +353,8 @@ body.theme-dark .contatori-module .cnav a.active{background:color-mix(in srgb,va
 .contatori-module .filtri-rapidi{margin:10px 0 0;font-size:13px}
 .contatori-module .imp-form>.actions{margin:0 0 18px}
 
+/* Consumabili a 390 px: la riga del consumabile non sfora la scheda (stima dei giorni sotto). */
+@media (max-width:600px){.contatori-module .cons-voci{min-width:0}.contatori-module .cons-voce{grid-template-columns:minmax(0,1fr) minmax(48px,80px) 40px;gap:4px 8px}.contatori-module .cons-giorni{grid-column:1/-1;text-align:right;font-size:12px}.contatori-module .cons-giorni:empty{display:none}}
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .contatori-module{--cm-surface:var(--surface);--cm-text:var(--text);--cm-muted:var(--text-light);--cm-border:var(--border)}
 body.theme-dark .contatori-module .btn.ghost.on-hero:hover{background:rgba(255,255,255,.06)}

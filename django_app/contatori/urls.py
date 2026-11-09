@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, views_verifica_oid, views_wizard
+from . import views, views_tabelle, views_verifica_oid, views_wizard
 
 app_name = "contatori"
 urlpatterns = [
@@ -75,6 +75,10 @@ urlpatterns = [
     path("consumabili/", views.consumabili_flotta, name="consumabili"),
     path("consumabili/<int:pk>/riepilogo/", views.macchina_consumabili_riepilogo, name="consumabili_riepilogo"),
     path("consumabili/<int:pk>/aggiorna/", views.consumabili_aggiorna, name="consumabili_aggiorna"),
+    path("anteprima/<slug:kind>/<int:pk>/", views_tabelle.anteprima, name="anteprima"),
+    path("consumabili/azioni/", views_tabelle.consumabili_azioni, name="consumabili_azioni"),
+    path("macchine/collega-asset/", views_tabelle.macchine_collega_asset, name="macchine_collega_asset"),
+    path("discovery/correggi-ip/", views_tabelle.discovery_correggi_ip, name="discovery_correggi_ip"),
     path("analisi/", views.analisi, name="analisi"),
     path("analisi/export.xlsx", views.export_analisi, name="export_analisi"),
     path("riconciliazione/<str:trimestre>/export.xlsx", views.export_riconciliazione, name="export_riconciliazione"),

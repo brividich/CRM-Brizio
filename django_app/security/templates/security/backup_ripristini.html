@@ -21,7 +21,7 @@
   </div>
   <div class="sec-panel sec-kpi-card">
     <span class="sec-kpi-label">Prove registrate</span>
-    <strong class="sec-kpi-value">{{ prove|length }}</strong>
+    <strong class="sec-kpi-value">{{ prove.paginator.count }}</strong>
     <span class="sec-kpi-delta sec-good">ISO 27001 8.13: cadenza in <a href="{% url 'security:soc_settings' %}">Impostazioni</a></span>
   </div>
 </section>
@@ -47,7 +47,7 @@
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">
-  <div class="sec-section-head"><h2>Registro delle prove</h2><span class="sec-badge">{{ prove.paginator.count }}</span></div>
+  <div class="sec-section-head"><h2>Registro delle prove</h2>{% if prove.paginator.count %}<a class="sec-button" href="?formato=csv">Scarica CSV</a>{% endif %}</div>
   <div class="sec-table-wrap">
     <table class="sec-table">
       <thead><tr><th>Data</th><th>Esito</th><th>Sistema</th><th>Cosa è stato ripristinato</th><th class="sec-num">Durata</th><th>Eseguita da</th><th>Note</th></tr></thead>

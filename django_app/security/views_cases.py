@@ -82,6 +82,10 @@ def tickets_list(request):
     query = request.GET.get("q", "").strip()
     if query:
         cases = cases.filter(Q(title__icontains=query) | Q(cve__icontains=query) | Q(affected_product__icontains=query))
+    from .services import esporta_csv
+
+    if esporta_csv.vuole_csv(request):
+        return _tickets_csv(request, cases)
     from core.paginazione import pagina_elenco
 
     page_obj = pagina_elenco(request, cases)
@@ -97,6 +101,27 @@ def tickets_list(request):
             "severity_choices": Severity.choices,
             "users": _assignable_users(),
         },
+    )
+
+
+def _tickets_csv(request, cases):
+    """Tutti i ticket del filtro (non solo la pagina mostrata)."""
+    from .services import esporta_csv
+
+    def nome(u):
+        return (u.get_full_name() or u.get_username()) if u else ""
+
+    righe = (
+        [t.pk, esporta_csv.data_ora(t.created_at), esporta_csv.etichetta(t.status), esporta_csv.etichetta(t.severity), t.title,
+         t.source.name, t.get_origin_display(), ", ".join(t.cve_ids or []) or t.cve, t.affected_product, nome(t.assignee),
+         t.open_tasks, t.task_total, t.occurrence_count, esporta_csv.data_ora(t.updated_at), esporta_csv.data_ora(t.closed_at), t.resolution]
+        for t in cases
+    )
+    return esporta_csv.risposta(
+        request, "ticket",
+        ["N.", "Aperto il", "Stato", "Severità", "Ticket", "Sorgente", "Origine", "CVE", "Prodotto", "Responsabile",
+         "Attività da fare", "Attività totali", "Occorrenze", "Aggiornato il", "Chiuso il", "Esito"],
+        righe, azione="soc_ticket_export", filtri=esporta_csv.filtri_get(request, "status", "severity", "assignee", "origin", "q"),
     )
 
 

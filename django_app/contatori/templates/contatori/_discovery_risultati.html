@@ -2,9 +2,18 @@
   <div class="panel">
     <h2>Dispositivi che rispondono ({{ righe|length }})</h2>
     {% if righe %}
-    <div class="discovery-table"><table class="tbl">
+    {# Caselle solo sulle righe «IP diverso», collegate con form="disc-bulk": le righe hanno già il loro form. #}
+    <form method="post" action="{% url 'contatori:discovery_correggi_ip' %}" id="disc-bulk" data-bulk>{% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div class="sec-bulk-bar">
+        <span class="sec-bulk-count"><strong data-bulk-count>0</strong> <span data-bulk-label data-one="selezionata" data-many="selezionate">selezionate</span></span>
+        <button class="btn small" type="submit" data-bulk-go disabled>Correggi gli IP selezionati</button>
+      </div>
+    </form>
+    <div class="table-wrap"><table>
       <thead>
         <tr>
+          <th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all form="disc-bulk" aria-label="Seleziona tutte le righe con IP diverso"></th>
           <th>IP</th><th>Community</th><th>Matricola (SNMP)</th><th>Descrizione</th>
           <th>In anagrafica</th><th>Stato</th><th></th>
         </tr>
@@ -12,27 +21,28 @@
       <tbody>
       {% for r in righe %}
         <tr>
-          <td><strong>{{ r.host }}</strong></td>
+          <td class="sec-check-col">{% if r.stato == 'ip_diverso' %}<input type="checkbox" class="sec-bulk-item" name="correggi" value="{{ r.macchina.pk }}|{{ r.host }}" form="disc-bulk" aria-label="Correggi l'IP di {{ r.macchina.reparto }} in {{ r.host }}">{% endif %}</td>
+          <td class="mono"><strong>{{ r.host }}</strong></td>
           <td>{% firstof r.community_nome r.community_index "—" %}</td>
           <td>{{ r.matricola|default:"—" }}</td>
-          <td style="max-width:380px">{{ r.descr|default:"—" }}</td>
+          <td class="discovery-descr">{{ r.descr|default:"—" }}</td>
           <td>
             {% if r.macchina %}
               <a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a>
-              <div class="pos" style="font-size:12px">IP registrato: {{ r.macchina.host|default:"— nessuno —" }}</div>
+              <div class="muted">IP registrato: {{ r.macchina.host|default:"— nessuno —" }}</div>
             {% else %}—{% endif %}
           </td>
           <td>
-            {% if r.stato == 'ok' %}<span class="pos">Abbinata</span>
-            {% elif r.stato == 'ip_diverso' %}<span class="neg">IP diverso</span>
-            {% else %}<span class="warn">Non in anagrafica</span>{% endif %}
+            {% if r.stato == 'ok' %}<span class="pill ok">Abbinata</span>
+            {% elif r.stato == 'ip_diverso' %}<span class="pill danger">IP diverso</span>
+            {% else %}<span class="pill warn">Non in anagrafica</span>{% endif %}
           </td>
           <td>
             {% if r.stato == 'ip_diverso' %}
               <form method="post" action="{% url 'contatori:discovery_applica_ip' r.macchina.pk %}" style="margin:0">
                 {% csrf_token %}
                 <input type="hidden" name="host" value="{{ r.host }}">
-                <button class="btn" type="submit">Correggi IP → {{ r.host }}</button>
+                <button class="btn small" type="submit">Correggi IP → {{ r.host }}</button>
               </form>
             {% elif r.stato == 'nuova' %}
               <div class="actions"><a class="btn ghost small" href="{% url 'contatori:wizard_avvia' 'apparato' %}?host={{ r.host|urlencode }}&nome={{ r.descr|default:'Dispositivo SNMP'|urlencode }}&matricola={{ r.matricola|urlencode }}&descr={{ r.descr|urlencode }}{% if r.community_id %}&community_id={{ r.community_id }}{% endif %}{% if r.versione %}&versione={{ r.versione|urlencode }}&porta={{ r.porta }}{% endif %}">Aggiungi al monitor</a><a class="btn ghost small" href="{% url 'contatori:wizard_avvia' 'apparato' %}?tipo_apparato=MFC&host={{ r.host|urlencode }}&matricola={{ r.matricola|urlencode }}{% if r.community_id %}&community_id={{ r.community_id }}{% endif %}{% if r.versione %}&versione={{ r.versione|urlencode }}&porta={{ r.porta }}{% endif %}">Aggiungi MFC</a></div>

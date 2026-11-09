@@ -94,8 +94,10 @@ def metriche_copertura():
 def vulnerabilities_dashboard(request):
     if not can_view_security_center(request.user):
         return _denied(request)
-    latest = cve_impact.latest_inventory_date()
     filtri = _filtri_elenco(request)
+    if request.GET.get("formato") == "csv":
+        return _elenco_cve_csv(request, cve_gestione.elenco_cve(**filtri, limite=None), filtri)
+    latest = cve_impact.latest_inventory_date()
     return render(request, "security/vuln_dashboard.html", {
         "elenco": cve_gestione.elenco_cve(**filtri),
         "filtri": filtri,
@@ -118,6 +120,26 @@ def vulnerabilities_dashboard(request):
         "ciclo": _ciclo_cve(),
         "termini": _termini_cve(),
     })
+
+
+def _elenco_cve_csv(request, elenco, filtri):
+    """Tutte le CVE del filtro (la tabella si ferma alle prime MAX_RIGHE), con PC oltre il termine e accettati."""
+    from .services import esporta_csv
+
+    def riga(c):
+        r, t = c["record"], c["termine"]
+        return [c["cve_id"], c["classe_label"], esporta_csv.numero(r.cvss) if r.cvss is not None else "",
+                esporta_csv.numero(r.epss, 3) if r.epss is not None else "", esporta_csv.si_no(r.kev),
+                esporta_csv.data(r.kev_added) if r.kev else "", "; ".join(c["programmi"]), c["impatta"], c["da_verificare"],
+                esporta_csv.data(c["esposta_dal"]), esporta_csv.data(t["scadenza"]) if t else "", c["pc_oltre"], c["pc_in_scadenza"],
+                c["pc_accettati"], c["corretti_90"], (r.description or "")[:1000]]
+
+    return esporta_csv.risposta(
+        request, "cve",
+        ["CVE", "Gravità", "CVSS", "EPSS", "Sfruttata (KEV)", "In KEV dal", "Programmi coinvolti", "PC impattati", "Da verificare",
+         "Esposta dal", "Termine", "PC oltre il termine", "PC in scadenza", "PC con rischio accettato", "Corretti (90 giorni)", "Descrizione"],
+        (riga(c) for c in elenco["righe"]), azione="soc_cve_export", filtri={k: v for k, v in filtri.items() if v},
+    )
 
 
 def cve_correzioni(request):

@@ -1,5 +1,5 @@
 <section id="discovery-stato" aria-live="polite"
-  {% if scan.attiva %}hx-get="{% url 'contatori:discovery' %}?scan={{ scan.pk }}&amp;partial=1" hx-trigger="every 4s" hx-swap="outerHTML"{% endif %}>
+  {% if scan.attiva %}hx-get="{% url 'contatori:discovery' %}?scan={{ scan.pk }}&amp;partial=1" hx-trigger="every 4s [!document.querySelector('#disc-bulk.has-selection')]" hx-swap="outerHTML"{% endif %}>
   <div class="panel">
     <h2>{{ scan.rete }} — {{ scan.get_stato_display }}</h2>
     <progress value="{{ scan.completati }}" max="{{ scan.hosts|length }}" aria-label="Avanzamento scansione" style="width:100%"></progress>

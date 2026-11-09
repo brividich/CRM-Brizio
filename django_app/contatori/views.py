@@ -106,16 +106,23 @@ def discovery_applica_ip(request, pk):
     """Scrive sulla macchina l'IP realmente trovato in rete."""
     macchina = get_object_or_404(Macchina, pk=pk)
     host = (request.POST.get("host") or "").strip()
-    # Tutti i campi attuali: quelli assenti dal POST verrebbero azzerati
-    # (profilo, community salvata, parametri SNMP).
-    dati = model_to_dict(macchina, fields=MacchinaForm._meta.fields)
-    form = MacchinaForm({**dati, "host": host}, instance=macchina)
-    if form.is_valid():
-        form.save()
+    if _applica_ip(macchina, host):
         messages.success(request, f"{macchina.reparto}: IP aggiornato a {host}.")
     else:
         messages.error(request, f"{macchina.reparto}: IP non valido ({host}).")
     return redirect("contatori:discovery")
+
+
+def _applica_ip(macchina, host):
+    """Scrive l'IP trovato dalla discovery con la validazione del modulo MFC; False se non valido."""
+    # Tutti i campi attuali: quelli assenti dal POST verrebbero azzerati
+    # (profilo, community salvata, parametri SNMP).
+    dati = model_to_dict(macchina, fields=MacchinaForm._meta.fields)
+    form = MacchinaForm({**dati, "host": host}, instance=macchina)
+    if not form.is_valid():
+        return False
+    form.save()
+    return True
 
 
 def _asset_proposto(apparato, tipo):
@@ -147,14 +154,20 @@ def apparato_collega_asset(request, tipo, pk):
     if proposta is None or str(proposta["asset"].pk) != request.POST.get("asset", ""):
         messages.warning(request, "Collegamento non eseguito: l'apparato è già collegato o la proposta è cambiata.")
         return redirect(dettaglio, pk=pk)
+    asset = _collega_asset(request, apparato, tipo, proposta)
+    messages.success(request, f"Apparato collegato all'asset {asset.asset_tag}.")
+    return redirect(dettaglio, pk=pk)
+
+
+def _collega_asset(request, apparato, tipo, proposta):
+    """Collega l'apparato all'asset proposto con la sua riga di audit (azione singola e multipla)."""
     asset = proposta["asset"]
     apparato.asset = asset
     apparato.save(update_fields=["asset", "aggiornato_il"] if tipo == "snmp" else ["asset"])
     log_action(request, "apparato_collegato_asset", "contatori",
                {"tipo": tipo, "apparato_id": apparato.pk, "asset_id": asset.pk, "asset_tag": asset.asset_tag,
                 "motivo": proposta["motivo"]})
-    messages.success(request, f"Apparato collegato all'asset {asset.asset_tag}.")
-    return redirect(dettaglio, pk=pk)
+    return asset
 
 
 def _puo_creare_asset(request):
@@ -634,9 +647,14 @@ def letture_gestisci(request):
     anno = request.GET.get("anno", "")
     anno = int(anno) if anno.isdigit() else None
     solo_cali = request.GET.get("cali") == "1"
+    from core.paginazione import pagina_elenco
+
     righe = services.elenco_letture_gestione(tipo, macchina_id=macchina_id, anno=anno, solo_cali=solo_cali)
+    # A pagine: nel browser fm-table-enhanced carica le successive scorrendo (o tutte se si cerca).
+    page_obj = pagina_elenco(request, righe)
     return render(request, "contatori/letture_gestisci.html", {
-        "tipo": tipo, "righe": righe, "macchina_id": macchina_id, "anno": anno, "solo_cali": solo_cali,
+        "tipo": tipo, "righe": page_obj, "page_obj": page_obj, "totale": len(righe),
+        "macchina_id": macchina_id, "anno": anno, "solo_cali": solo_cali,
         "macchine": Macchina.objects.order_by("-attiva", "reparto", "matricola"),
         "anni": services.anni_letture(),
         "qui": request.get_full_path(),
@@ -981,9 +999,17 @@ def consumabili_flotta(request):
     Nessuna interrogazione SNMP all'apertura: i dati arrivano dal task giornaliero o
     da «Leggi ora». host e' GenericIPAddressField: gli IP vuoti sono NULL, mai "".
     """
+    from . import lettura_ora
+
     macchine = list(Macchina.objects.filter(attiva=True, host__isnull=False))
     stati = services.stato_consumabili(macchine)
     righe = sorted((_riga_consumabili(m, stati.get(m.pk)) for m in macchine), key=lambda r: r["ordine"])
+    # Dopo «Leggi ora le selezionate» le righe in coda seguono lo stato come quella del «Leggi ora» singolo.
+    in_coda = lettura_ora.in_coda([m.pk for m in macchine])
+    for r in righe:
+        r["in_coda"] = r["macchina"].pk in in_coda
+        r["stato_url"] = reverse("contatori:macchina_consumabili", args=[r["macchina"].pk]) + "?vista=riga"
+
     def critica(r):
         return bool(r["stato"] and r["stato"]["critici"])
 
