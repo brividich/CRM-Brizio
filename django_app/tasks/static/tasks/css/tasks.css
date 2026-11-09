@@ -4862,3 +4862,34 @@ html.ar-aperto{overflow:hidden}
 .tp-ut-add input[type=text]{flex:1 1 240px}
 .tp-ut-add input[type=number]{width:70px}
 .tp-ut-add input[type=date]{width:150px}
+
+/* Impostazioni KICK-OFF: menu a sinistra raggruppato, contenuto a destra */
+.imp-layout{display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px;align-items:start}
+.imp-menu{position:sticky;top:76px;display:grid;gap:14px;padding:14px 10px;background:var(--surface);border:1px solid var(--border);border-radius:14px}
+.imp-gruppo{display:grid;gap:2px}
+.imp-gruppo-titolo{padding:0 8px 4px;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-mid)}
+.imp-voce{display:grid;gap:1px;padding:7px 10px;border-radius:9px;color:var(--text);text-decoration:none;border-left:3px solid transparent}
+.imp-voce span{font-size:13px;font-weight:700}
+.imp-voce small{font-size:11px;color:var(--text-mid);line-height:1.25}
+.imp-voce:hover{background:var(--bg)}
+.imp-voce.is-attiva{background:var(--bg);border-left-color:var(--primary,#2563eb)}
+.imp-voce.is-attiva span{color:var(--primary,#2563eb)}
+.imp-contenuto{min-width:0}
+.imp-piega>summary{cursor:pointer;font-weight:700;font-size:13px;color:var(--text-mid);padding:6px 2px}
+.mc-riga{display:grid;gap:10px;padding:12px 0;border-top:1px solid var(--border)}
+.mc-riga:first-child{border-top:0}
+.mc-testa{display:grid;grid-template-columns:minmax(160px,1fr) minmax(200px,2fr) auto;gap:8px;align-items:center}
+.mc-tappe{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px}
+.mc-tappa{display:flex;gap:6px;align-items:center;padding:6px 8px;border:1px solid var(--border);border-radius:8px;font-size:12px}
+.mc-tappa input[type=number]{width:62px;padding:3px 6px}
+.mc-tappa span{flex:1}
+.mc-azioni{display:flex;gap:8px;align-items:center}
+@media (max-width:900px){.imp-layout{grid-template-columns:1fr}.imp-menu{position:static;grid-auto-flow:column;grid-auto-columns:max-content;overflow-x:auto;gap:10px}.imp-gruppo{grid-auto-flow:column;grid-auto-columns:max-content;align-items:center}.imp-voce small{display:none}.mc-testa{grid-template-columns:1fr}}
+.kp-hint{margin:6px 0 10px;font-size:12px;color:var(--text-mid)}
+.fl-modello{margin-bottom:4px}
+
+.fl-rischio{background:#fee2e2;color:#991b1b;border-color:#fecaca}
+.fl-chiudi form,.fl-chiuso{display:grid;gap:8px;margin:12px 0;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--primary,#2563eb);border-radius:12px}
+.fl-chiuso{grid-template-columns:1fr auto;align-items:start;border-left-color:var(--success,#15803d)}
+.fl-chiuso p{margin:6px 0 0;font-size:13px;color:var(--text-mid)}
+.fl-chiudi button{justify-self:start}

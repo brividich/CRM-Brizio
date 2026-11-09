@@ -135,7 +135,7 @@
       <thead><tr><th>Severità</th><th>Alert</th><th>Stato</th><th>Creato</th></tr></thead>
       <tbody>
       {% for alert in alerts %}
-        <tr>
+        <tr data-preview="{% url 'security:preview' 'alert' alert.pk %}">
           <td><span class="sec-badge {{ alert.severity }}">{{ alert.severity|ui_label }}</span></td>
           <td class="sec-title-cell"><a href="{% url 'security:alert_detail' alert.pk %}"><strong>{{ alert.title }}</strong></a>{% if alert.status_reason %}<small>{{ alert.status_reason }}</small>{% endif %}</td>
           <td><span class="sec-badge {{ alert.status }}">{{ alert.status|ui_label }}</span></td>

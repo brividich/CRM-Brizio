@@ -1,7 +1,7 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block title %}Collega gli asset proposti{% endblock %}
 {% block modulo %}
-<div class="row"><div><div class="eyebrow">Stampanti MFC</div><h1>Collega gli asset proposti</h1><p class="sub">Controlla gli abbinamenti: lo stesso criterio della riconciliazione IT (matricola, poi indirizzo IP). Si collegano solo le righe spuntate, e solo se la proposta non è cambiata nel frattempo.</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:riconciliazione_guida' %}#tabelle">? Guida</a></div></div>
+<div class="row"><div><div class="eyebrow">Stampanti MFC</div><h1>Collega gli asset proposti</h1><p class="sub">Controlla gli abbinamenti: lo stesso criterio della riconciliazione IT (matricola, poi indirizzo IP). Si collegano solo le righe spuntate, e solo se la proposta non è cambiata nel frattempo.</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:guida' %}#tabelle">? Guida</a></div></div>
 <form method="post" action="{% url 'contatori:macchine_collega_asset' %}" class="panel" id="collega-bulk" data-bulk>{% csrf_token %}<input type="hidden" name="conferma" value="1">
   <div class="sec-bulk-bar">
     <span class="sec-bulk-count"><strong data-bulk-count>0</strong> <span data-bulk-label data-one="selezionata" data-many="selezionate">selezionate</span></span>

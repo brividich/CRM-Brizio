@@ -1,7 +1,7 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block title %}Importa più fatture{% endblock %}
 {% block modulo %}
-<div class="row"><div class="eyebrow">Riconciliazione</div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:riconciliazione_guida' %}#fatture-multiple">? Guida</a></div>
+<div class="row"><div class="eyebrow">Fatture</div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:guida' %}#fatture-multiple">? Più fatture insieme</a></div>
 <h1>Importa più fatture</h1>
 <p class="sub">Carica insieme le fatture dei trimestri passati (XML FatturaPA o stampa PDF, fino a {{ max_file }} file da 5 MB). Il portale le legge, ti mostra cosa ha trovato e salva solo quelle che selezioni. I file non vengono conservati.</p>
 

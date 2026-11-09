@@ -93,6 +93,7 @@ urlpatterns = [
     path("tasks/projects/<int:project_id>/programmi/<int:ref_id>/azione/", views.tech_ref_action, name="tech_ref_action"),
     path("tasks/projects/<int:project_id>/programmi/fai-non-richiesto/", views.fai_non_richiesto, name="fai_non_richiesto"),
     path("tasks/projects/<int:project_id>/tappe/", views.tappa_azione, name="tappa_azione"),
+    path("tasks/projects/<int:project_id>/chiudi/", views.project_chiudi, name="project_chiudi"),
     path("tasks/projects/<int:project_id>/tappe/anteprima/", views.tappa_anteprima, name="tappa_anteprima"),
     path("tasks/projects/<int:project_id>/utensili/", views.utensili_azione, name="utensili_azione"),
     path("tasks/projects/<int:project_id>/info-json/", views.project_info_json, name="project_info_json"),

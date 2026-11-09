@@ -28,7 +28,7 @@ CAMPI_V3 = ("v3_utente", "v3_auth", "v3_auth_key", "v3_priv", "v3_priv_key")
 _ETICHETTE = {
     "oid": "OID", "modalita": "Modalità", "unita": "Unità", "profilo_snmp": "Profilo SNMP",
     "port": "Porta", "version": "Versione", "timeout": "Timeout (secondi)",
-    "a4_bn": "A4 B/N", "a3_bn": "A3 B/N", "a4_col": "A4 colore", "a3_col": "A3 colore",
+    "a4_bn": "A4 BN", "a3_bn": "A3 BN", "a4_col": "A4 COL", "a3_col": "A3 COL",
     "sys_object_id_prefix": "Prefisso sysObjectID", "sys_descr_pattern": "Pattern sysDescr",
     "oid_riconoscimento": "OID di riconoscimento", "contatore_mfc": "Contatore MFC",
     "soglia_warning_min": "Avviso - minimo", "soglia_warning_max": "Avviso - massimo",

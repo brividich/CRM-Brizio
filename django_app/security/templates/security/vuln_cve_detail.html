@@ -83,13 +83,33 @@
       {% for value, label in outcomes %}<a class="sec-button{% if outcome == value %} sec-button-primary{% endif %}" href="?esito={{ value }}">{{ label }}</a>{% endfor %}
     </div>
   </div>
+  <form method="post" action="{% url 'security:cve_host_bulk' record.cve_id %}" id="cve-host-bulk" data-bulk>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <div class="sec-bulk-bar">
+      <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
+      <select name="action" aria-label="Azione sui PC selezionati">
+        <option value="case">Apri un ticket per questi PC</option>
+        {% if can_edit and termine %}<option value="accetta_rischio">Accetta il rischio</option>{% endif %}
+        {% if can_edit and proposte_ai %}<option value="proposte">Conferma le proposte dell'AI</option>{% endif %}
+      </select>
+      <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" aria-label="Titolo del ticket" data-show-for="case">
+      {% if can_edit and termine %}
+        <input type="date" name="scadenza" aria-label="Scadenza dell'accettazione (al massimo 12 mesi)" title="Scadenza (al massimo 12 mesi)" max="{{ accettazione_scadenza_max|date:'Y-m-d' }}" data-show-for="accetta_rischio">
+        <input type="text" name="motivo" minlength="{{ accettazione_motivo_min }}" placeholder="Motivo (almeno {{ accettazione_motivo_min }} caratteri)" aria-label="Motivo dell'accettazione" data-show-for="accetta_rischio">
+        <input type="text" name="misure" placeholder="Misure compensative (facoltative)" aria-label="Misure compensative" data-show-for="accetta_rischio">
+      {% endif %}
+      <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Applica</button>
+    </div>
+  </form>
   <div class="sec-table-wrap">
-    <table class="sec-table" data-fm-table-skip="1">
-      <thead><tr><th>Host</th><th>Esito</th><th>Spiegazione</th><th>Inventario</th><th>Termine</th></tr></thead>
+    <table class="sec-table">
+      <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all form="cve-host-bulk" aria-label="Seleziona tutti"></th><th>Host</th><th>Esito</th><th>Spiegazione</th><th>Inventario</th><th>Termine</th></tr></thead>
       <tbody>
       {% for imp in impacts %}
-        <tr>
-          <td>{% if imp.hub_asset %}<a href="{% url 'assets:asset_view' imp.hub_asset.pk %}">{{ imp.host }}</a>{% else %}{{ imp.host }}{% endif %}</td>
+        <tr data-preview="{% url 'security:preview_pc' %}?nome={{ imp.host|urlencode }}">
+          <td class="sec-check-col"><input type="checkbox" name="devices" value="{{ imp.host }}" form="cve-host-bulk" class="sec-bulk-item" aria-label="Seleziona {{ imp.host }}"></td>
+          <td><a href="{% url 'security:pc_detail' %}?nome={{ imp.host|urlencode }}">{{ imp.host }}</a></td>
           <td>{% if imp.outcome == "impacts" %}<span class="sec-badge sec-badge-critical">Impatta</span>{% elif imp.outcome == "to_verify" %}<span class="sec-badge warning">Da verificare</span>{% else %}<span class="sec-badge sec-badge-success">Non impatta</span>{% endif %}</td>
           <td class="sec-small">{{ imp.explanation|linebreaksbr }}
             {% if imp.ai %}
@@ -109,7 +129,7 @@
           <td class="sec-small sec-nowrap">{% if imp.termine %}{% if imp.termine.accettata %}<span class="sec-badge sec-badge-muted" title="Accettazione del rischio #{{ imp.termine.accettazione.pk }}">Rischio accettato fino al {{ imp.termine.accettazione.scadenza|date:"d/m/Y" }}</span>{% elif imp.termine.scaduta %}<span class="sec-badge sec-badge-critical">Oltre il termine di {{ imp.termine.giorni_ritardo }} giorn{{ imp.termine.giorni_ritardo|pluralize:"o,i" }}</span><br>scaduto il {{ imp.termine.scadenza|date:"d/m/Y" }}{% else %}entro il {{ imp.termine.scadenza|date:"d/m/Y" }}<br><span class="sec-muted">{{ imp.termine.giorni_restanti }} giorn{{ imp.termine.giorni_restanti|pluralize:"o,i" }}</span>{% endif %}{% else %}—{% endif %}</td>
         </tr>
       {% empty %}
-        <tr><td colspan="5" class="sec-empty">Nessun host con il prodotto nell'inventario.</td></tr>
+        <tr><td colspan="6" class="sec-empty">Nessun host con il prodotto nell'inventario.</td></tr>
       {% endfor %}
       </tbody>
     </table>

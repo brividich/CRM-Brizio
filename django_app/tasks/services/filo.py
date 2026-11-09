@@ -82,6 +82,28 @@ def prossimi_passi(project, *, tappe: dict | None = None, can_manage: bool = Tru
                 "#percorso", "Assegna", "warn",
             ))
 
+    # Consegna al cliente: attività aperte che finiscono dopo la consegna la mettono a rischio.
+    if project.data_consegna and not project.chiuso_il:
+        from ..models import TaskStatus
+
+        dopo = list(
+            project.tasks.exclude(status__in=[TaskStatus.DONE, TaskStatus.CANCELED])
+            .filter(due_date__gt=project.data_consegna).values_list("title", flat=True)[:3]
+        )
+        if dopo:
+            passi.append(_passo(
+                f"Consegna del {project.data_consegna:%d/%m} a rischio",
+                "Finiscono dopo la consegna: " + ", ".join(dopo) + ".",
+                reverse("tasks:project_gantt", args=[pid]), "Gantt", "danger",
+            ))
+    # Tutto a posto: si chiude il kickoff.
+    if not project.chiuso_il and tappe and tappe.get("totale") and tappe.get("a_posto") == tappe.get("totale"):
+        from ..models import TaskStatus
+
+        if not project.tasks.exclude(status__in=[TaskStatus.DONE, TaskStatus.CANCELED]).exists():
+            passi.append(_passo(
+                "Chiudi il kickoff", "Tutte le tappe sono a posto e non ci sono attività aperte.", "#chiusura", "Chiudi", "info",
+            ))
     futuri = [m for m in incontri if m.stato == MeetingStatus.PIANIFICATO and m.data >= oggi]
     svolti = [m for m in incontri if m.stato == MeetingStatus.SVOLTO]
     if incontri and not futuri and svolti:
@@ -91,8 +113,24 @@ def prossimi_passi(project, *, tappe: dict | None = None, can_manage: bool = Tru
             reverse("tasks:project_meeting_create", args=[pid]) + f"?da={ultimo.pk}", "Pianifica", "info",
         ))
 
+    if project.chiuso_il:
+        return []
     if not can_manage:
-        passi = [p for p in passi if p["url"].startswith("#")]
+        passi = [p for p in passi if p["url"].startswith("#") and p["url"] != "#chiusura"]
     ordine = {"danger": 0, "warn": 1, "info": 2}
     passi.sort(key=lambda p: ordine.get(p["tono"], 3))
     return passi[:limite]
+
+
+
+def stato_consegna(project) -> dict | None:
+    """Giorni alla consegna e se è a rischio (attività aperte che finiscono dopo)."""
+    if not project.data_consegna:
+        return None
+    from ..models import TaskStatus
+
+    oggi = timezone.localdate()
+    a_rischio = project.tasks.exclude(status__in=[TaskStatus.DONE, TaskStatus.CANCELED]).filter(
+        due_date__gt=project.data_consegna
+    ).exists()
+    return {"data": project.data_consegna, "giorni": (project.data_consegna - oggi).days, "a_rischio": a_rischio}

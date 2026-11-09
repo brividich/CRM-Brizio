@@ -5,6 +5,8 @@ app_name = "contatori"
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("riconciliazione/", views.riconciliazione, name="riconciliazione"),
+    path("guida/", views.guida, name="guida"),
+    # Vecchio indirizzo della guida: reindirizza a /contatori/guida/.
     path("riconciliazione/guida/", views.riconciliazione_guida, name="riconciliazione_guida"),
     path("riconciliazione/<str:trimestre>/", views.riconciliazione, name="riconciliazione_trim"),
     path("fatture/", views.fatture_elenco, name="fatture"),
@@ -25,6 +27,8 @@ urlpatterns = [
     path("letture/gestisci/", views.letture_gestisci, name="letture_gestisci"),
     path("letture/mensili/<int:pk>/", views.lettura_mensile_edit, name="lettura_mensile_edit"),
     path("letture/mensili/<int:pk>/elimina/", views.lettura_mensile_elimina, name="lettura_mensile_elimina"),
+    path("letture/<slug:tipo>/<int:pk>/calo-spiegato/", views.lettura_calo_spiegato,
+         name="lettura_calo_spiegato"),
     path("letture/<int:pk>/", views.importa_lettura, name="lettura_edit"),
     path("letture/<int:pk>/elimina/", views.lettura_elimina, name="lettura_elimina"),
     path("leggi-snmp/", views.leggi_snmp, name="leggi_snmp"),

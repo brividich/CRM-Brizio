@@ -5,7 +5,7 @@
   <h1>Riconciliazione trimestrale</h1>
   <p class="sub">Fattura fornitore contro lettura interna. La lettura interna, fatta qualche giorno dopo, deve essere maggiore o uguale a quella del fornitore.</p>
 </div><div class="spacer"></div>
-<a class="btn ghost" href="{% url 'contatori:riconciliazione_guida' %}">? Guida</a>
+<a class="btn ghost" href="{% url 'contatori:guida' %}#lettura" title="Come leggere la riconciliazione">? Leggere la pagina</a>
 <a class="btn ghost" href="{% url 'contatori:fatture' %}">Archivio fatture</a>{% if g %}<a class="btn ghost" href="{% url 'contatori:fatture_importa' %}">Importa più fatture</a><a class="btn" href="{% url 'contatori:fattura_nuova' %}{% if trimestre %}?trimestre={{ trimestre }}{% endif %}">+ Nuova fattura</a>{% endif %}</div>
 
 <section class="panel">

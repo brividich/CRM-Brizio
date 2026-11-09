@@ -106,6 +106,7 @@ SEZIONI: list[dict] = [
                 "Spunta «Impatto sulla sicurezza» se il lavoro lo richiede: la commessa viene evidenziata nelle viste.",
                 "Dati scheda VRF: preventivo ed Esp., se li hai. La «Descrizione» scritta sopra finisce anche nella scheda VRF.",
                 "Team di progetto: cerca la persona nel riquadro di ogni ruolo e spuntala. Le persone scelte appaiono come etichette, con × per toglierle. Ogni ruolo può avere più persone.",
+                "Tipo di commessa e consegna: scegli il modello (es. «Ripetizione»), che spunta da solo le tappe che servono, e la data di consegna al cliente. Con entrambi, ogni tappa propone la sua scadenza «Entro il» (giorni prima della consegna, decisi nel modello).",
                 "Cosa serve a questa commessa: togli la spunta alle tappe che non servono (per esempio Terzista o Processi speciali). Si può cambiare dopo da «Modifica kickoff» o dal Percorso.",
                 "Primo incontro: data, ora e sala.",
                 "Premi «Crea kickoff e convoca il primo incontro»: nasce l'incontro 1 con il team tra i partecipanti e, come ordine del giorno, le tappe che servono. Si apre la convocazione, con la disponibilità delle sale e l'invito Outlook.",
@@ -140,6 +141,8 @@ SEZIONI: list[dict] = [
         "titolo": "Panoramica e semaforo di prontezza",
         "blocchi": [
             ("p", "Cliccando una commessa arrivi alla «Panoramica»: team, data di inizio, prossimo incontro, azioni aperte, attività a piano, le prossime azioni e gli ultimi incontri."),
+            ("p", "Con la data di consegna, in testata compare «Consegna gg/mm · tra N gg»; se un'attività aperta finisce dopo la consegna diventa «a rischio» e i «Prossimi passi» lo segnalano. Quando tutte le tappe sono a posto e non ci sono attività aperte, compare «Chiudi il kickoff»: il capocommessa scrive una nota (facoltativa) e la commessa passa a «Completata»; si può riaprire."),
+            ("p", "Nell'anteprima della tappa e nel pannello «⋯», accanto al responsabile si vede quante attività aperte ha già nello stesso periodo: aiuta a non caricare sempre la stessa persona."),
             ("p", "In alto «Prossimi passi» dice cosa fare adesso, nell'ordine del filo commessa → incontro → attività: pianificare il primo incontro, convocarlo, condurlo se è oggi, registrarne l'esito se è passato, approvare e inviare la minuta, assegnare le tappe del Percorso, pianificare l'incontro successivo. Ogni riga porta dove si fa. Il riquadro del prossimo incontro mostra ora, sala e stato della prenotazione."),
             ("img", (_IMG + "panoramica.jpg", "La Panoramica di una commessa")),
             ("p", "«Prontezza all'avvio» controlla quattro cose. Ogni voce non a posto ha il link «Correggi», che porta dove si sistema."),
@@ -599,7 +602,7 @@ SEZIONI: list[dict] = [
         "titolo": "Chi può fare cosa",
         "blocchi": [
             ("p", "Vedi le commesse del tuo perimetro: quelle dove sei nel team o convocato a un incontro, più quelle che i tuoi permessi aprono."),
-            ("p", "Pieni poteri: il capocommessa e il project manager della commessa (i ruoli si scelgono in Impostazioni → Configurazione → «Poteri e avvisi») e le persone indicate lì modificano tutto, date comprese, senza chiedere a nessuno."),
+            ("p", "Pieni poteri: il capocommessa e il project manager della commessa (i ruoli si scelgono in Impostazioni → «Poteri e avvisi») e le persone indicate lì modificano tutto, date comprese, senza chiedere a nessuno."),
             ("p", "Chi ha un'attività senza pieni poteri la porta avanti (Inizia, Fatta, avanzamento, note, programma), ma non cambia responsabile, priorità o commessa e non la annulla. Le date le chiede: cambia «Inizio» o «Fine richiesta» nella scheda (o trascina la barra nel Gantt), scrive il motivo e preme «Chiedi». Le date restano com'erano finché un capocommessa non decide dalla scheda o da «Le mie azioni» → «Spostamenti da decidere»: approva (anche con date diverse) o rifiuta, con una nota. Decide il primo che risponde; tutto resta nello «Storico» dell'attività."),
             ("p", "Il pulsante «⋯» accanto a ogni attività (nel Percorso, tra le attività dell'incontro, in «Le mie azioni») apre il pannello laterale delle azioni rapide: date (per chi non ha pieni poteri diventa «Chiedi lo spostamento», con il motivo), responsabile, priorità (Bassa, Media, Alta), annulla con un motivo obbligatorio che resta nei commenti, riapri. Il menu mostra solo quello che puoi fare."),
             ("p", "Quando cambiano date, priorità, stato o responsabile di un incarico, ricevono la notifica (e la mail, se il flusso è acceso) l'incaricato e il capocommessa, o chi è scelto in «Poteri e avvisi». Chi perde un incarico riceve «Non sei più responsabile». Chi fa la modifica non viene avvisato."),

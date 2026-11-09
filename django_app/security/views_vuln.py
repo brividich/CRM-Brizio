@@ -101,6 +101,7 @@ def vulnerabilities_dashboard(request):
         "filtri": filtri,
         "filtri_attivi": any(filtri.values()),
         "hosts": _con_apparati_snmp(cve_impact.most_exposed_hosts()),
+        "hosts_esposti": cve_impact.exposed_hosts_count(),
         "unmapped": cve_impact.unmapped_software(limit=30),
         "copertura": metriche_copertura(),
         "inventory_date": latest,
@@ -168,6 +169,8 @@ def _termini_cve(giorni=90):
         dati = andamento["adesso"]
         dati["giorni"] = giorni
         dati["prima"], dati["differenze"] = andamento["prima"], andamento["differenze"]
+        # Il riquadro ne elenca 15; il numero in alto e il titolo dicono il totale vero.
+        dati["aperte_scadute_totale"] = len(dati["aperte_scadute"])
         dati["aperte_scadute"] = dati["aperte_scadute"][:15]
         dati["attivo"] = cve_sla.soc_settings.value("cve.sla.attivo")
         settimane = cve_sla.serie_settimanale(8)
@@ -251,6 +254,84 @@ def cve_lavoro_apri(request, cve_id):
         return redirect("security:cve_detail", cve_id=cve_id)
     messages.success(request, "Lavoro di correzione aperto: le attività dei PC si spuntano da sole con l'inventario.")
     return redirect("security:case_detail", pk=caso.pk)
+
+
+CVE_HOST_AZIONI = ("case", "accetta_rischio", "proposte")
+
+
+@require_POST
+def cve_host_bulk(request, cve_id):
+    """Azioni sui PC selezionati nella tabella «Esito per host» della scheda CVE.
+
+    ``case``: un ticket per i PC (come ``pc_bulk``). ``accetta_rischio``: un'accettazione per PC, con gli stessi
+    controlli, campi obbligatori e permesso di quella singola. ``proposte``: accetta le proposte dell'AI aperte
+    e applicabili dei PC selezionati, come il pulsante «Accetta» della riga.
+    """
+    from .services import accettazione_rischio
+    from .services.cases import open_pc_case
+
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    cve_id = cve_id.upper()
+    if not CVE_RE.match(cve_id):
+        raise Http404
+    record = get_object_or_404(SecurityCveRecord, cve_id=cve_id)
+    default = reverse("security:cve_detail", args=[record.cve_id])
+    action = request.POST.get("action", "")
+    valutati = {h.lower(): h for h in record.impacts.values_list("host", flat=True)}
+    hosts = [valutati[h.strip().lower()] for h in dict.fromkeys(request.POST.getlist("devices")) if h.strip().lower() in valutati]
+    if action not in CVE_HOST_AZIONI:
+        messages.error(request, "Azione non supportata.")
+        return _redirect_sicuro(request, default)
+    if not hosts:
+        messages.error(request, "Nessun PC selezionato.")
+        return _redirect_sicuro(request, default)
+    if action == "case":
+        title = request.POST.get("title", "").strip() or f"{record.cve_id}: da sistemare su {len(hosts)} PC"
+        case = open_pc_case(hosts, user=request.user, title=title, pagina=record.cve_id)
+        if case is None:
+            messages.error(request, "Il SOC non ha ancora nessuna sorgente dati a cui collegare il ticket.")
+            return _redirect_sicuro(request, default)
+        messages.success(request, f"Ticket #{case.pk} aperto con {case.tasks.count()} PC e assegnato a te.")
+        return redirect("security:case_detail", pk=case.pk)
+    if not can_manage_security_config(request.user):
+        return _config_denied(request)
+    if action == "accetta_rischio":
+        raw = request.POST.get("scadenza", "").strip()
+        try:
+            scadenza = timezone.datetime.fromisoformat(raw).date() if raw else None
+        except ValueError:
+            scadenza = None
+        fatte, errori = 0, []
+        for host in hosts:
+            try:
+                accettazione_rischio.crea(record, host=host, motivo=request.POST.get("motivo", ""), misure=request.POST.get("misure", ""),
+                                          scadenza=scadenza, user=request.user, request=request)
+                fatte += 1
+            except ValueError as exc:
+                errori.append((host, str(exc)))
+        if fatte:
+            messages.success(request, f"Rischio accettato per {record.cve_id} su {fatte} PC fino al {scadenza:%d/%m/%Y}: resta nell'audit.")
+        if errori:
+            # Lo stesso errore su tutti i PC (motivo corto, scadenza mancante) si dice una volta sola.
+            testi = list(dict.fromkeys(e for _h, e in errori))
+            if len(testi) == 1 and not fatte:
+                messages.error(request, testi[0])
+            else:
+                messages.warning(request, "Non accettato su " + "; ".join(f"{h}: {e}" for h, e in errori[:10]))
+        return _redirect_sicuro(request, default)
+    proposte = {h.lower(): p for h, p in cpe_ai.proposte_esito_aperte(record).items()}
+    scelte = [proposte[h.lower()] for h in hosts if h.lower() in proposte and proposte[h.lower()].applicabile]
+    for proposta in scelte:
+        _accetta_proposta(request, proposta)
+    if scelte:
+        _queue_recompute()
+        n = len(scelte)
+        messages.success(request, f"{n} propost{'a' if n == 1 else 'e'} dell'AI accettat{'a' if n == 1 else 'e'}. Impatti in ricalcolo.")
+    saltati = len(hosts) - len(scelte)
+    if saltati:
+        messages.warning(request, f"{saltati} PC senza una proposta dell'AI da applicare: lasciati com'erano.")
+    return _redirect_sicuro(request, default)
 
 
 def _termini_record(record, impacts):
@@ -375,6 +456,31 @@ def _redirect_sicuro(request, default):
     return redirect(default)
 
 
+def _dettaglio_proposta(proposta):
+    return {"tipo": proposta.tipo, "proposta": proposta.proposta, "confidenza": proposta.confidenza,
+            "vendor": proposta.vendor, "product": proposta.product, "cve": proposta.cve.cve_id if proposta.cve_id else "",
+            "host": proposta.host, "motivazione": proposta.motivazione[:300]}
+
+
+def _accetta_proposta(request, proposta, dettaglio=None):
+    """Applica una proposta aperta e applicabile (stesso percorso della conferma a mano), con audit. Ritorna il testo dell'esito."""
+    from core.audit import log_action
+
+    if proposta.tipo == SecurityPropostaAi.TIPO_CPE:
+        nota = f"proposta AI #{proposta.pk} accettata (confidenza {proposta.confidenza}%)"
+        if proposta.proposta == SecurityPropostaAi.NON_APPLICABILE:
+            _set_mapping(request, proposta.vendor, proposta.product, note=nota)
+            testo = f"«{proposta.product}» segnato non applicabile"
+        else:
+            _set_mapping(request, proposta.vendor, proposta.product, cpe=proposta.proposta, note=nota)
+            testo = f"«{proposta.product}» collegato a {proposta.proposta}"
+    else:
+        testo = f"{proposta.cve.cve_id} su {proposta.host}: {proposta.proposta_label.lower()}"
+    cpe_ai.segna_decisa(proposta, request.user, accettata=True)
+    log_action(request, "soc_proposta_ai_accettata", "security", dettaglio or _dettaglio_proposta(proposta), oggetto=proposta)
+    return testo
+
+
 @require_POST
 def proposta_ai_decidi(request, pk):
     """«Accetta» o «Rifiuta» una proposta dell'AI: accettare passa dallo stesso percorso della conferma a mano."""
@@ -396,26 +502,13 @@ def proposta_ai_decidi(request, pk):
     if decisione == "accetta" and not proposta.applicabile:
         messages.error(request, "L'AI non ha preso posizione («resta da verificare»): non c'è nulla da applicare. Puoi solo rifiutarla.")
         return _redirect_sicuro(request, default)
-    dettaglio = {"tipo": proposta.tipo, "proposta": proposta.proposta, "confidenza": proposta.confidenza,
-                 "vendor": proposta.vendor, "product": proposta.product, "cve": proposta.cve.cve_id if proposta.cve_id else "",
-                 "host": proposta.host, "motivazione": proposta.motivazione[:300]}
+    dettaglio = _dettaglio_proposta(proposta)
     if decisione == "rifiuta":
         cpe_ai.segna_decisa(proposta, request.user, accettata=False)
         log_action(request, "soc_proposta_ai_rifiutata", "security", dettaglio, oggetto=proposta)
         messages.success(request, "Proposta rifiutata: l'AI non la ripropone finché i dati del caso non cambiano.")
         return _redirect_sicuro(request, default)
-    if proposta.tipo == SecurityPropostaAi.TIPO_CPE:
-        nota = f"proposta AI #{proposta.pk} accettata (confidenza {proposta.confidenza}%)"
-        if proposta.proposta == SecurityPropostaAi.NON_APPLICABILE:
-            _set_mapping(request, proposta.vendor, proposta.product, note=nota)
-            testo = f"«{proposta.product}» segnato non applicabile"
-        else:
-            _set_mapping(request, proposta.vendor, proposta.product, cpe=proposta.proposta, note=nota)
-            testo = f"«{proposta.product}» collegato a {proposta.proposta}"
-    else:
-        testo = f"{proposta.cve.cve_id} su {proposta.host}: {proposta.proposta_label.lower()}"
-    cpe_ai.segna_decisa(proposta, request.user, accettata=True)
-    log_action(request, "soc_proposta_ai_accettata", "security", dettaglio, oggetto=proposta)
+    testo = _accetta_proposta(request, proposta, dettaglio)
     _queue_recompute()
     messages.success(request, f"Proposta accettata: {testo}. Impatti in ricalcolo.")
     return _redirect_sicuro(request, default)

@@ -47,6 +47,15 @@ def _permessi(request, task) -> dict:
 
 def _stato(task, request) -> dict:
     utenti = _utenti_riga_rapida(task.project) if task.project_id else {"team": [], "altri": []}
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from ..services.tappe import carico
+
+    inizio = task.next_step_due or timezone.localdate()
+    fine = task.due_date or inizio + timedelta(days=14)
+    impegni = carico([pk for g in ("team", "altri") for pk, _n in utenti.get(g, [])], min(inizio, fine), max(inizio, fine))
     return {
         "ok": True,
         "id": task.pk,
@@ -57,7 +66,10 @@ def _stato(task, request) -> dict:
         "priorita": task.priority,
         "stato": task.status,
         "priorita_scelte": TaskPriority.choices,
-        "utenti": [{"gruppo": g, "id": pk, "nome": nome} for g in ("team", "altri") for pk, nome in utenti.get(g, [])],
+        "utenti": [
+            {"gruppo": g, "id": pk, "nome": nome, "carico": impegni.get(pk, 0)}
+            for g in ("team", "altri") for pk, nome in utenti.get(g, [])
+        ],
         "permessi": _permessi(request, task),
         "spostamento_aperto": task.spostamenti.filter(stato="IN_ATTESA").exists(),
     }

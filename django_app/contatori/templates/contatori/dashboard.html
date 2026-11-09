@@ -81,7 +81,7 @@
     <div class="banner clean">Nessuna attività in sospeso: letture, fatture e stampanti sono in ordine.</div>
     {% endif %}
     {% if c.cali %}<h3 id="cali" class="centrale-sub">Cali di lettura</h3>
-    <table class="compatta" data-fm-table-skip="1"><tbody>{% for p in c.cali %}<tr><td>{{ p.macchina }}<div class="muted">{{ p.contatore }}</div></td><td class="num">{{ p.da_val }} <span class="muted">({{ p.da_trim }})</span></td><td class="num neg">{{ p.a_val }} <span class="muted">({{ p.a_trim }})</span></td></tr>{% endfor %}</tbody></table>{% endif %}
+    <table class="compatta tabella-cali" data-fm-table-skip="1"><tbody>{% for p in c.cali %}<tr><td>{% if g %}<a class="plain" href="{% url 'contatori:letture_gestisci' %}?tipo={% if p.tipo == 'mensile' %}mensili{% else %}trimestrali{% endif %}&amp;macchina={{ p.macchina_id }}&amp;cali=1" title="Apri le letture della MFC in «Gestisci letture»">{{ p.macchina }}</a>{% else %}<a class="plain" href="{% url 'contatori:macchina' p.macchina_id %}">{{ p.macchina }}</a>{% endif %}<div class="muted">{{ p.contatore }} · {% if p.tipo == 'mensile' %}mensile{% else %}trimestrale{% endif %}</div></td><td class="num">{{ p.da_val }} <span class="muted">({{ p.da_trim }})</span></td><td class="num neg">{{ p.a_val }} <span class="muted">({{ p.a_trim }})</span></td></tr>{% if g %}{% ifchanged p.tipo p.lettura_id %}<tr class="calo-spiega"><td colspan="3"><details><summary class="plain">Azzeramento o sostituzione? Segna come spiegato</summary><form method="post" action="{% url 'contatori:lettura_calo_spiegato' p.tipo p.lettura_id %}" class="row">{% csrf_token %}<input type="text" name="motivo" maxlength="200" required placeholder="Motivo (es. contatore azzerato dal tecnico)" aria-label="Motivo del calo"><button class="btn ghost small" type="submit">Segna come spiegato</button></form></details></td></tr>{% endifchanged %}{% endif %}{% endfor %}</tbody></table>{% endif %}
     {% with q=integrazione %}{% if q.n_dismessi or q.n_senza_asset or q.firmware_cve or q.irraggiungibili_soc %}
     <h3 id="integrazione" class="centrale-sub">Asset e SOC</h3>
     <ul class="todo-list">
@@ -101,7 +101,7 @@
     {% for m in macchine %}{% with l=ultime|get:m.id %}<tr data-preview="{% url 'contatori:anteprima' 'mfc' m.pk %}">
       <td><a class="plain" href="{% url 'contatori:macchina' m.pk %}">{{ m.reparto }}</a><div class="muted">{{ m.matricola }}{% if m.host %} · <span class="mono">{{ m.host }}</span>{% endif %}</div></td>
       <td><span class="pill {% if m.snmp_stato == 'OK' %}ok{% elif m.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ m.get_snmp_stato_display }}</span></td>
-      {% if l %}<td class="num" title="A4 B/N {{ l.a4_bn }} · A3 B/N {{ l.a3_bn }} · A4 col {{ l.a4_col }} · A3 col {{ l.a3_col }}"><strong>{{ l.totale }}</strong><div class="muted">{{ l.get_fonte_display }} · {{ l.data|date:"d/m" }}</div></td><td>{% if g %}<a class="plain" href="{% url 'contatori:lettura_edit' l.pk %}">Correggi</a>{% endif %}</td>
+      {% if l %}<td class="num" title="A4 BN {{ l.a4_bn }} · A3 BN {{ l.a3_bn }} · A4 COL {{ l.a4_col }} · A3 COL {{ l.a3_col }}"><strong>{{ l.totale }}</strong><div class="muted">{{ l.get_fonte_display }} · {{ l.data|date:"d/m" }}</div></td><td>{% if g %}<a class="plain" href="{% url 'contatori:lettura_edit' l.pk %}">Correggi</a>{% endif %}</td>
       {% else %}<td class="num muted">nessuna lettura</td><td>{% if g %}<a class="plain" href="{% url 'contatori:importa_lettura' %}?macchina={{ m.pk }}&amp;trimestre={{ c.trimestre }}">+ Inserisci</a>{% endif %}</td>{% endif %}
     </tr>{% endwith %}{% empty %}<tr><td colspan="4" class="empty">Nessuna MFC attiva.{% if g %} <a class="plain" href="{% url 'contatori:wizard_avvia' 'apparato' %}?tipo_apparato=MFC">Aggiungi la prima</a>.{% endif %}</td></tr>{% endfor %}
     </tbody></table></div>
@@ -115,13 +115,13 @@
       <ul class="errori-list compatta">{% for e in errori_snmp %}<li>
         <div><a class="plain" href="{{ e.url }}"><strong>{{ e.nome }}</strong></a> <span class="muted">{{ e.tipo }} · {% if e.quando %}{{ e.quando|date:"d/m H:i" }}{% else %}data non registrata{% endif %}</span></div>
         <div class="causa" title="{{ e.errore }}">{{ e.errore|truncatechars:110 }}</div>
-      </li>{% endfor %}</ul>
+      </li>{% endfor %}{% if errori_altri %}<li class="altri"><a class="plain" href="{% url 'contatori:snmp_centrale' %}?flotta=errore">e altri {{ errori_altri }} →</a></li>{% endif %}</ul>
       {% else %}
       <div class="banner clean">Nessun apparato in errore all'ultimo controllo.</div>
       {% endif %}
       <h3 class="centrale-sub">Dispositivi{% if g %} · <a class="plain" href="{% url 'contatori:wizard_avvia' 'apparato' %}">+ Apparato</a>{% endif %}</h3>
       <ul class="disp-list">
-        {% for d in dispositivi_snmp %}<li><div><a class="plain" href="{% url 'contatori:snmp_dispositivo' d.pk %}">{{ d.nome }}</a>{% if not d.verificato %} <span class="pill warn">non verificato</span>{% endif %}<div class="muted">{{ d.get_categoria_display }} · <span class="mono">{{ d.host }}</span> · {% if d.snmp_ultimo_controllo %}{{ d.snmp_ultimo_controllo|timesince }} fa{% else %}mai interrogato{% endif %}</div></div><span class="pill {% if d.snmp_stato == 'OK' %}ok{% elif d.snmp_stato == 'WARNING' or d.snmp_stato == 'MAI' %}warn{% else %}danger{% endif %}"><span class="status-dot"></span>{{ d.get_snmp_stato_display }}</span></li>{% empty %}<li class="muted">Nessun dispositivo. Aggiungi lettori, UPS, switch o sensori.</li>{% endfor %}
+        {% for d in dispositivi_snmp %}<li><div><a class="plain" href="{% url 'contatori:snmp_dispositivo' d.pk %}">{{ d.nome }}</a>{% if not d.verificato %} <span class="pill warn">non verificato</span>{% endif %}<div class="muted">{{ d.get_categoria_display }} · <span class="mono">{{ d.host }}</span> · {% if d.snmp_ultimo_controllo %}{{ d.snmp_ultimo_controllo|timesince }} fa{% else %}mai interrogato{% endif %}</div></div><span class="pill {% if d.snmp_stato == 'OK' %}ok{% elif d.snmp_stato == 'WARNING' or d.snmp_stato == 'MAI' %}warn{% else %}danger{% endif %}"><span class="status-dot"></span>{{ d.get_snmp_stato_display }}</span></li>{% empty %}<li class="muted">Nessun dispositivo. Aggiungi lettori, UPS, switch o sensori.</li>{% endfor %}{% if dispositivi_altri %}<li class="altri"><a class="plain" href="{% url 'contatori:snmp_centrale' %}">e altri {{ dispositivi_altri }} →</a></li>{% endif %}
       </ul>
     </div>
   </section>

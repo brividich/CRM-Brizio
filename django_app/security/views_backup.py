@@ -80,6 +80,7 @@ def backup_ripristini(request):
     from django.shortcuts import redirect
 
     from core.audit import log_action
+    from core.paginazione import pagina_elenco
 
     from .forms import BackupRestoreTestForm
     from .models import BackupRestoreTest
@@ -100,7 +101,7 @@ def backup_ripristini(request):
     return render(request, "security/backup_ripristini.html", {
         "form": form,
         "stato": ripristini.stato(),
-        "prove": BackupRestoreTest.objects.select_related("alert")[:200],
+        "prove": pagina_elenco(request, BackupRestoreTest.objects.select_related("alert")),
     })
 
 

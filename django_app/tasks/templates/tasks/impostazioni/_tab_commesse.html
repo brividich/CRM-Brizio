@@ -1,0 +1,14 @@
+<div class="ts-panel">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Modelli di commessa</h2>
+      <p class="ts-panel-subtitle">Per ogni tipo di lavoro (es. «Particolare nuovo con FAI», «Ripetizione»): quali tappe del Percorso servono e quanti giorni prima della consegna vanno chiuse. Nel nuovo kickoff si sceglie il modello: le tappe si spuntano da sole e, con la data di consegna, «Entro il» viene proposto.</p>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    {% for m in modelli_commessa %}
+      {% include "tasks/impostazioni/_modello_commessa.html" with m=m %}
+    {% endfor %}
+    {% include "tasks/impostazioni/_modello_commessa.html" with m=None %}
+  </div>
+</div>

@@ -19,5 +19,5 @@
   <form method="post" action="{% url 'security:pc_ai_check' %}" data-drawer-form data-drawer-target="#pv-ai-out">{% csrf_token %}<input type="hidden" name="nome" value="{{ pc.name }}"><button type="submit" class="sec-button sec-button-primary" data-busy-label="L'AI sta controllando il PC…">Controlla con l'AI</button></form>
   <div id="pv-ai-out" class="pv-ai-out" aria-live="polite"></div>
 </section>
-<footer class="pv-foot"><a class="sec-button sec-button-primary" href="{% url 'security:pc_detail' %}?nome={{ name_q }}">Apri la scheda PC</a>{% if pc.hub_asset %}<a class="sec-button" href="{% url 'assets:asset_view' pc.hub_asset.id %}">Asset nel portale</a>{% endif %}</footer>
+<footer class="pv-foot"><a class="sec-button sec-button-primary" href="{% url 'security:pc_detail' %}?nome={{ name_q }}">Apri la scheda PC</a>{% if pc.hub_asset %}<a class="sec-button" href="{% url 'assets:asset_view' pc.hub_asset.id %}">Asset nel portale</a>{% endif %}<form method="post" action="{% url 'security:pc_bulk' %}" class="sec-inline">{% csrf_token %}<input type="hidden" name="devices" value="{{ pc.name }}"><input type="hidden" name="pagina" value="Pannello PC"><input type="hidden" name="action" value="case"><button type="submit" class="sec-button">Apri un ticket per questo PC</button></form></footer>
 {% endwith %}

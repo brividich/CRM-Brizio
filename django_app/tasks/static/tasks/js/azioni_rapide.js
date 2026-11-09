@@ -56,7 +56,8 @@
       var opts = '<option value="">Da assegnare</option>', gruppo = '';
       d.utenti.forEach(function (u) {
         if (u.gruppo !== gruppo) { opts += (gruppo ? '</optgroup>' : '') + '<optgroup label="' + (u.gruppo === 'team' ? 'Team' : 'Altri') + '">'; gruppo = u.gruppo; }
-        opts += '<option value="' + u.id + '"' + (String(u.id) === String(d.responsabile) ? ' selected' : '') + '>' + esc(u.nome) + '</option>';
+        opts += '<option value="' + u.id + '"' + (String(u.id) === String(d.responsabile) ? ' selected' : '') + '>' + esc(u.nome) +
+          (u.carico ? ' · ' + u.carico + ' aperte nel periodo' : ' · libero nel periodo') + '</option>';
       });
       if (gruppo) { opts += '</optgroup>'; }
       html += '<div class="ar-sez"><span class="ar-tit">Responsabile</span><div class="ar-riga"><select class="input" data-ar="responsabile">' + opts + '</select>' +

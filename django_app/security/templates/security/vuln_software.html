@@ -49,7 +49,7 @@
       <thead><tr><th><input type="checkbox" aria-label="Seleziona tutte le righe della pagina" title="Seleziona tutte le righe della pagina" onchange="document.querySelectorAll('input[name=bulk][form=bulk-form]').forEach(function(c){c.checked=this.checked;}, this);"></th><th>Vendor</th><th>Prodotto</th><th class="sec-num">Host</th><th>Mappatura CPE</th><th>Suggerimenti</th><th>Azioni</th></tr></thead>
       <tbody>
       {% for row in page.object_list %}
-        <tr>
+        <tr data-preview="{% url 'security:cve_pannello_programma' %}?k={{ row.vendor|urlencode:'' }}%7C{{ row.product|urlencode:'' }}">
           <td>{% if not row.mapping.confirmed and not row.mapping.not_applicable or row.mapping.origin == "regola" and row.local_suggestions %}<input type="checkbox" form="bulk-form" name="bulk" value="{{ row.vendor }}|||{{ row.product }}|||{{ row.local_suggestions.0|default:'' }}" aria-label="Seleziona {{ row.product }}">{% endif %}</td>
           <td>{{ row.vendor|default:"—" }}</td>
           <td class="sec-title-cell">{{ row.product }}{% if row.nomi > 1 %}<br><small class="sec-muted">{{ row.nomi }} nomi: la decisione vale per tutti</small>{% endif %}</td>

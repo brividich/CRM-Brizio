@@ -20,7 +20,7 @@
     <button class="btn small" type="submit" data-bulk-go disabled>Conferma le letture selezionate</button>
   </div>
   <div class="table-wrap"><table>
-    <thead><tr><th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all aria-label="Seleziona tutte"></th><th>MFC</th><th>Lettura mensile</th><th class="num">A4 B/N</th><th class="num">A3 B/N</th><th class="num">A4 col</th><th class="num">A3 col</th><th class="num">Totale</th><th>Controllo</th></tr></thead>
+    <thead><tr><th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all aria-label="Seleziona tutte"></th><th>MFC</th><th>Lettura mensile</th><th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th><th class="num">Totale</th><th>Controllo</th></tr></thead>
     <tbody>{% for p in proposte %}<tr>
       <td class="sec-check-col">{% if not p.incoerente %}<input type="checkbox" class="sec-bulk-item" name="macchina" value="{{ p.macchina.pk }}" aria-label="Conferma {{ p.macchina.reparto }}">{% endif %}</td>
       <td><a class="plain" href="{% url 'contatori:macchina' p.macchina.pk %}">{{ p.macchina.reparto }}</a><div class="muted">{{ p.macchina.matricola }}</div></td>

@@ -40,11 +40,12 @@
   <div class="sec-table-wrap">
 <form method="post" action="{% url 'security:pc_bulk' %}" id="pc-bulk" data-bulk>
   {% csrf_token %}
-  <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="pagina" value="Dispositivi"><input type="hidden" name="action" value="case">
+  <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="pagina" value="Dispositivi">
   <div class="sec-bulk-bar">
     <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
     <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" aria-label="Titolo del ticket">
-    <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Apri un ticket per questi PC</button>
+    <button type="submit" name="action" value="case" class="sec-button sec-button-primary" data-bulk-go disabled>Apri un ticket per questi PC</button>
+    {% if can_manage and n_proposte %}<button type="submit" name="action" value="confirm_selected" formaction="{{ request.get_full_path }}" class="sec-button" title="Solo i selezionati con un asset proposto (IP o nome)">Collega gli asset proposti</button>{% endif %}
   </div>
 </form>
     <table class="sec-table pcc-table">

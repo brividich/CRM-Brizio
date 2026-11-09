@@ -159,6 +159,7 @@ def tappa_anteprima(request, project_id: int):
 
         persona = task_active_users_queryset().filter(pk=int(raw)).first()
         assenze = svc.assenze_persona(persona, inizio, fine) if persona else None
+        impegni_persona = svc.carico([persona.pk], inizio, fine).get(persona.pk, 0) if persona else 0
     macchina = None
     if request.GET.get("tappa") == TappaKickoff.MACCHINA and (request.GET.get("asset") or "").isdigit():
         asset = svc.macchine_disponibili().filter(pk=int(request.GET["asset"])).first()
@@ -166,6 +167,7 @@ def tappa_anteprima(request, project_id: int):
             macchina = svc.disponibilita_macchina(asset, inizio, fine, con_nomi=_con_nomi(request))
     html = render_to_string("tasks/_tappe_anteprima.html", {
         "inizio": inizio, "fine": fine, "persona": persona, "assenze": assenze, "m": macchina,
+        "impegni_persona": impegni_persona if raw.isdigit() else 0,
     }, request=request)
     return JsonResponse({"ok": True, "html": html})
 
