@@ -43,7 +43,7 @@ Ad ogni bump di versione (es. `0.7.3 -> 0.7.4`) aggiornare TUTTI questi file, se
 ### File configurazione
 
 1. `django_app/.env.example` — `APP_VERSION=X.Y.Z` + tutte le `APP_VERSION_*`
-2. `config	est\.env` e `config\prod\.env` sul server: **non** devono contenere `APP_VERSION` (dal 09/11/2026 la versione a runtime viene dal file `VERSION` del pacchetto); se una riga c'è ancora, va tolta, non aggiornata
+2. `config\test\.env` e `config\prod\.env` — `APP_VERSION=X.Y.Z` (source of truth runtime deploy)
 
 ### File documentazione (tutti devono mostrare la versione nel frontmatter/header)
 
@@ -69,10 +69,7 @@ Ad ogni bump di versione (es. `0.7.3 -> 0.7.4`) aggiornare TUTTI questi file, se
 - **Ogni pacchetto per PROD ha una versione propria**: bump prima di `package-release.ps1`, sezione `## X.Y.Z - data` nel CHANGELOG, RFC MOD.172 secondo MT CN 275 (vedi `docs/ai/06`, piano ISO 27001 in OneDrive `Documenti/Portale Novicrom/ISO27001_Change_Management_HUB`). Minor (`1.N.0`) quando entrano app, permessi o migrazioni nuove; patch (`1.N.k`) per correzioni e ritocchi.
 - **Tag `prod-vX.Y.Z`** sul commit effettivamente attivato in PROD (lo stesso di `current\BUILD_INFO.json`), annotato con la data del deploy. È l'evidenza che collega versione, commit e pacchetto.
 - **Storico regolarizzato**: dal 16/10 al 09/11/2026 sono andati in PROD 59 pacchetti tutti etichettati 1.6.8. Il CHANGELOG è stato ripartito a posteriori per settimana di rilascio usando la prima comparsa di ogni voce nella storia Git: `1.7.0` (19-23/10, tag su `7194a206`), `1.8.0` (26-30/10, `dd2e38ea`), `1.9.0` (01-06/11, `9873bab8`), `1.9.1` (dall'08/11, versione corrente; il tag va messo al deploy). Le sezioni retroattive non vanno riordinate: una voce datata a mano resta dov'è.
-- **Il `.env` non deve contenere `APP_VERSION`**: `settings/base.py` lo legge con `env("APP_VERSION", load_app_version())`, quindi una riga nel `.env` dell'ambiente scavalca il file `VERSION` del pacchetto (in PROD ha mostrato 1.6.8 per settimane). Le righe `APP_VERSION*` sono state tolte dal `.env` persistente e attivo di PROD il 09/11/2026; `django_app/.env.example` le tiene solo come riferimento. Se il SetupWizard si ferma su «.env attivo diverso da config\.env», si allinea l'attivo (usa e getta) al persistente, oppure si usa `deploy-release.ps1 -AllowEnvDrift`.
-- **Governance del rilascio in `docs/release/`**: catalogo cambi, registro RFC, checklist go-live, verbale di collaudo, riesame post-rilascio, autorizzazione copie prod -> test, stato dell'ambiente TEST. Una riga nel registro per ogni RFC; i cambi urgenti si registrano entro un giorno lavorativo.
-- **Il pacchetto nasce solo dal branch**: `package-release.ps1` senza `-SourcePath` (dal 09/11/2026 `-SourcePath` richiede `-Force` e scrive `source=folder` in `BUILD_INFO.json`, perché un pacchetto da cartella era uscito con `commit: null`). Il guard legge `VERSION` e i `doc/*` gitignorati dal checkout condiviso: deve essere sul commit che si pacchettizza (`git pull --ff-only origin release/prod`) e i tre `doc/*` vanno portati alla versione nuova a mano.
-- **Vulnerabilità note bloccano il pacchetto**: `package-release.ps1` passa `-FailOnVulnerabilities` al guard (pip-audit sui requirements). `-AllowVulnerabilities` declassa ad avviso e va motivato nella RFC.
+- `config\test\.env` e `config\prod\.env` sul server portano `APP_VERSION`: vanno allineati al deploy (`deploy-release.ps1` copia il `.env` dell'ambiente), altrimenti la UI mostra la versione precedente.
 
 ---
 
