@@ -4741,3 +4741,4 @@ body.theme-dark .fai-tipo input:checked+span{background:rgba(249,115,22,.14)}
 .sl-cfg-check{display:flex;gap:6px;align-items:center;font-size:12px}
 .sl-cfg-act{display:flex;gap:6px;justify-content:flex-end}
 @media (max-width:760px){.sl-cfg-row{grid-template-columns:1fr 1fr}.sl-cfg-act{grid-column:1/-1}}
+.md-docbar-hint--warn{color:var(--warning-text,#92400e);font-weight:600}

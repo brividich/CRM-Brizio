@@ -1351,6 +1351,8 @@ class MeetingMinuteApprovalTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_riapertura_richiede_un_motivo(self):
+        # La minuta approvata la riapre solo il capocommessa.
+        self.project.add_team_member("CC", self.user)
         self.client.post(self.close_url)
 
         self.client.post(self.reopen_url, {"motivo": "  "})

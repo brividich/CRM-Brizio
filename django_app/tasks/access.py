@@ -409,6 +409,14 @@ def can_manage_project(request, project: Project) -> bool:
     return _task_access_allows_edit_all(role_level)
 
 
+def can_edit_after_end(request, project: Project) -> bool:
+    """Minuta approvata: la riaprono e la correggono solo il capocommessa e l'amministratore del modulo."""
+    if has_task_permission(request, "tasks_admin"):
+        return True
+    uid = getattr(request.user, "id", None)
+    return any(u.pk == uid for u in project.team_members("CC"))
+
+
 def _is_project_lead_for_task(user, task: Task) -> bool:
     return bool(task.project_id and task.project and task.project.created_by_id == getattr(user, "id", None))
 

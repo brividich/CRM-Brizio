@@ -30,6 +30,7 @@ from ..minute_email import note_generali
 from ..models import (
     KickoffMeeting,
     MeetingActionItem,
+    MeetingActionStatus,
     MeetingAgendaItem,
     MeetingAgendaProposal,
     MeetingAgendaTemplate,
@@ -47,6 +48,7 @@ from ..models import (
     TaskPriority,
 )
 from ..access import (
+    can_edit_after_end,
     can_manage_project,
     scoped_projects_queryset,
     task_permissions_required,
@@ -481,6 +483,12 @@ def _sync_meeting_actions_from_post(request, project: Project, meeting: KickoffM
                 linked_task = project.tasks.get(pk=int(linked_task_id))
             except (Task.DoesNotExist, ValueError):
                 linked_task = None
+        # Lo stesso esito salvato due volte (doppio clic, ritorno indietro) non raddoppia le azioni.
+        if MeetingActionItem.objects.filter(
+            project=project, source_meeting=meeting, title=title[:220], status=MeetingActionStatus.OPEN,
+            assigned_to=assigned_to,
+        ).exists():
+            continue
         action = MeetingActionItem.objects.create(
             project=project,
             source_meeting=meeting,
@@ -696,6 +704,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             **tech_refs_context(request, project, meeting),
             **tappe_context(request, project, meeting),
             "sala_stato": _sala_stato(meeting),
+            "can_edit_after_end": can_edit_after_end(request, project),
         },
     )
 
@@ -704,8 +713,11 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
 def project_meeting_edit(request, project_id: int, meeting_id: int):
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
-    if not can_manage_project(request, project):
+    if not (can_manage_project(request, project) or (meeting.minuta_chiusa and can_edit_after_end(request, project))):
         messages.error(request, "Non hai i permessi per modificare questo incontro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    if meeting.minuta_chiusa and not can_edit_after_end(request, project):
+        messages.warning(request, "La minuta è approvata: ordine del giorno e convocazione li corregge solo il capocommessa.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     if request.method == "POST":
         old_data, old_stato = meeting.data, meeting.stato
@@ -974,8 +986,8 @@ def project_meeting_minute_reopen(request, project_id: int, meeting_id: int):
     """Riapre una minuta approvata. Il motivo e' obbligatorio e finisce a registro."""
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
-    if not can_manage_project(request, project):
-        messages.error(request, "Non hai i permessi per riaprire la minuta di questo incontro.")
+    if not can_edit_after_end(request, project):
+        messages.error(request, "La minuta approvata la riapre solo il capocommessa della commessa.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     if not meeting.minuta_chiusa:
         messages.info(request, "La minuta non è approvata: è già modificabile.")

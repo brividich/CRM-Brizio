@@ -43,7 +43,7 @@
         {% endif %}
       </div>
     </div>
-    {% if can_manage %}
+    {% if can_manage or can_edit_after_end and meeting.minuta_chiusa %}
       <div class="md-actions">
         {% if not meeting.minuta_chiusa and not meeting.is_annullato %}
           {% if not meeting.is_svolto %}
@@ -54,7 +54,9 @@
         {% if meeting.is_svolto %}
           <a class="md-btn" href="{% url 'tasks:project_meeting_create' project.id %}?da={{ meeting.id }}">Pianifica prossimo incontro</a>
         {% endif %}
-        <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">Convocazione</a>
+        {% if not meeting.minuta_chiusa or can_edit_after_end %}
+        <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">{% if meeting.minuta_chiusa %}Correggi ordine del giorno{% else %}Convocazione{% endif %}</a>
+        {% endif %}
         {% if meeting.stato == "PIANIFICATO" %}
           <button type="button" class="md-btn danger-ghost" id="meeting-cancel-open">Annulla incontro</button>
         {% endif %}
@@ -129,14 +131,14 @@
       <form method="post" action="{% url 'tasks:project_meeting_send_minute' project.id meeting.id %}"
             data-hub-confirm="Inviare la minuta dell'incontro a tutti i partecipanti?">
         {% csrf_token %}
-        <button type="submit" class="md-btn white">Invia minuta</button>
+        <button type="submit" class="md-btn white">{% if meeting.minuta_inviata %}Invia aggiornamento minuta{% else %}Invia minuta{% endif %}</button>
       </form>
       {% endif %}
     {% endif %}
     <a class="md-btn white" href="{% url 'tasks:project_meeting_minute_pdf' project.id meeting.id %}">Scarica minuta PDF</a>
     {# Approvazione della minuta: chiude il documento, la riapertura resta a registro. #}
-    {% if can_manage and meeting.is_svolto %}
-      {% if meeting.minuta_chiusa %}
+    {% if can_manage or can_edit_after_end %}{% if meeting.is_svolto %}
+      {% if meeting.minuta_chiusa %}{% if can_edit_after_end %}
         <form method="post" action="{% url 'tasks:project_meeting_minute_reopen' project.id meeting.id %}" id="minute-reopen-form">
           {% csrf_token %}
           <button type="button" class="md-btn white" id="minute-reopen-open">Riapri minuta</button>
@@ -146,13 +148,18 @@
             <button type="submit" class="md-btn white">Conferma</button>
           </span>
         </form>
-      {% else %}
+      {% endif %}{% else %}
         <form method="post" action="{% url 'tasks:project_meeting_minute_close' project.id meeting.id %}"
               data-hub-confirm="Approvare e chiudere la minuta? L'esito non sarà più modificabile senza riaprirla.">
           {% csrf_token %}
           <button type="submit" class="md-btn white">Approva e chiudi minuta</button>
         </form>
       {% endif %}
+    {% endif %}{% endif %}
+    {% if meeting.minuta_da_reinviare %}
+      <p class="md-docbar-hint md-docbar-hint--warn">La minuta è cambiata dopo l'invio del {{ meeting.minuta_inviata_at|date:"d-m-Y H:i" }}: verbale, ordine del giorno, decisioni o azioni. Premi «Invia aggiornamento minuta».</p>
+    {% elif meeting.minuta_inviata %}
+      <p class="md-docbar-hint">Minuta inviata il {{ meeting.minuta_inviata_at|date:"d-m-Y H:i" }}.</p>
     {% endif %}
     {% if meeting.minuta_chiusa %}
       <span class="md-minute-locked">
