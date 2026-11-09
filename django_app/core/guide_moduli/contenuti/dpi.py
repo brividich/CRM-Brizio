@@ -126,8 +126,8 @@ GUIDA = {
                       "(chi era già avvisato non riceve un secondo avviso). Non compare se in Impostazioni l'avviso parte già all'approvazione."),
                 ("p", "Lettore di badge: con Chrome o Edge clicca «Collega lettore badge» e scegli la porta CP210x (solo la prima volta, poi si "
                       "collega da solo). Il permesso vale per quell'indirizzo del portale: se apri il portale da un altro indirizzo va dato di nuovo. Con più schede aperte il lettore passa da solo alla scheda che stai usando. Passando il badge il portale verifica subito di chi è e apre la sua scheda. Controlla i DPI spuntati e scegli: "
-                      "«Conferma con badge», poi la persona passa di nuovo il proprio badge entro 60 secondi: vale come ricevuta, senza mail (per qualche secondo puoi ancora «Annulla»); "
-                      "«Conferma con mail», per chi non ha il badge con sé: ritira subito e la conferma arriva per mail. Un badge di un'altra persona non conferma nulla. "
+                      "«Consegna con badge», poi la persona passa di nuovo il proprio badge entro 60 secondi: vale come ricevuta, senza mail (per qualche secondo puoi ancora «Annulla»); "
+                      "«Consegna con mail», per chi non ha il badge con sé: ritira subito e la conferma arriva per mail. Un badge di un'altra persona non conferma nulla. "
                       "Il numero del badge non si può scrivere a mano e la ricerca non lo cerca: funziona solo la lettura dal lettore. "
                       "Nel Registro consegne la ricevuta risulta «Confermata con badge». Se la persona non ha DPI da ritirare lo dice; «Badge non riconosciuto» vuol dire "
                       "che il numero non è nell'Anagrafica, è su due persone o la persona è fuori dal tuo perimetro: cerca per nome. Dopo 20 badge non riconosciuti in 10 minuti la lettura si sospende per qualche minuto. Se il lettore è pronto ma al passaggio non succede nulla, sul lettore 3022L controlla la levetta 2 del blocchetto SW1 sulla piastra: con quella in posizione originale non trasmette."),
@@ -140,8 +140,10 @@ GUIDA = {
                       "commento «Approvata al Banco consegne», e si consegna subito. Il riquadro «In attesa di approvazione» in alto le filtra."),
                 ("p", "«Consegna senza richiesta»: la persona è al banco e chiede un DPI che nessuno ha richiesto. Nella sua scheda "
                       "«+ DPI senza richiesta» (o il pulsante «Consegna senza richiesta» quando la ricerca non trova nessuno) apre il "
-                      "riquadro con la persona già scelta: scegli DPI, taglia e quantità e clicca «Aggiungi al banco». La richiesta nasce "
-                      "già approvata, la scheda si apre con il DPI spuntato e la confermi con badge o con mail come le altre. Vale per "
+                      "riquadro con la persona già scelta: scegli DPI, taglia e quantità. «Aggiungi e consegna con badge» crea la richiesta già approvata, apre la "
+                      "scheda con il DPI spuntato e aspetta subito il badge della persona (serve il lettore collegato e il badge in "
+                      "Anagrafica, altrimenti la scheda resta aperta e confermi con mail); «Aggiungi al banco» apre solo la scheda, "
+                      "per confermare con mail o firma come le altre. Vale per "
                       "tutto il catalogo tranne le scarpe che si ordinano al negozio. Le categorie segnate «senza approvazione» sono i "
                       "consumabili (spunta «Consegna diretta dal banco» in Impostazioni); per le altre nella richiesta resta scritto che di "
                       "norma passano dal responsabile, e il report di consegna gli arriva come sempre."),

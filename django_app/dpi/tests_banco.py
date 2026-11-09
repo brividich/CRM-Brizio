@@ -258,8 +258,8 @@ class BancoConsegneTests(TestCase):
         pagina = self.client.get(self.url)
         self.assertNotContains(pagina, "B-777")
         self.assertContains(pagina, 'data-ha-badge="1"')
-        self.assertContains(pagina, "Conferma con badge")
-        self.assertContains(pagina, "Conferma con mail")
+        self.assertContains(pagina, "Consegna con badge")
+        self.assertContains(pagina, "Consegna con mail")
 
     def test_lista_di_prelievo_somma_per_modello_e_taglia(self):
         self._richiesta(self.mod_guanti, quantita=2)
