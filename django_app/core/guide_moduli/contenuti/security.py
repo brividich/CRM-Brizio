@@ -288,6 +288,14 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Accessi VPN: lo stesso accesso compare due volte, a un'ora di distanza",
+            "fare": [
+                "Succede quando WatchGuard Cloud manda due report programmati dello stesso giorno, uno in ora italiana e uno in UTC. Il portale ricava il fuso di ogni report dal periodo scritto nella mail («Reports for Fireboxes … from … to …») e salva l'accesso una volta sola, all'ora vera.",
+                "Per lo storico salvato prima della correzione: python manage.py vpn_riallinea_fuso (prova a vuoto, mostra i doppioni) e poi con --apply; ricalcola anche i KPI VPN dei giorni toccati.",
+                "Se basta un report solo, eliminare in WatchGuard Cloud il report programmato in più.",
+            ],
+        },
+        {
             "sintomo": "Il numero sul filtro è più alto delle righe dell'elenco",
             "fare": [
                 "L'elenco mostra le 300 segnalazioni più recenti per tipo e lo scrive sopra la tabella; i numeri dei filtri, «Solo urgenti» e la barra di stato contano tutto. Usa ricerca o gravità per restringere.",

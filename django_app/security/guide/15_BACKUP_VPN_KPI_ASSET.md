@@ -51,6 +51,8 @@ Un backup vale solo se si riesce a ripristinare (ISO 27001 8.13). In **Backup �
 - **Utenti più attivi** e **IP di origine**: un clic filtra il registro.
 - **Registro accessi**: utente, IP, accesso, uscita, durata, tipo. Filtri per utente, IP, esito, tipo e date.
 
+Gli orari sono in ora italiana. I report di WatchGuard Cloud possono essere in UTC o in ora italiana: il portale ricava il fuso dal periodo scritto nella mail del report, così lo stesso accesso arrivato da due report diversi resta una riga sola. Per ripulire lo storico salvato prima: `manage.py vpn_riallinea_fuso` (prova a vuoto) e poi `--apply`.
+
 ### I segnali «Da controllare»
 
 | Segnale | Quando compare | Cosa fare |
