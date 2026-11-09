@@ -36,12 +36,18 @@
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head"><h2>Esecuzioni</h2><span class="sec-badge">{% if rows|length >= 300 %}prime 300{% else %}{{ rows|length }}{% endif %}</span></div>
+  <form method="post" action="{% url 'security:backup_bulk_case' %}" data-bulk>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  {% include "security/partials/backup_bulk_bar.html" with cosa="job" %}
+  <p class="sec-muted sec-small" style="margin-top:0;">Le azioni valgono per il job di ogni esecuzione selezionata.</p>
   <div class="sec-table-wrap">
     <table class="sec-table">
-      <thead><tr><th>Quando</th><th>Esito</th><th>Job</th><th>Dispositivi</th><th class="sec-num">Dati</th><th class="sec-num">Durata</th><th>Report</th></tr></thead>
+      <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all aria-label="Seleziona tutte"></th><th>Quando</th><th>Esito</th><th>Job</th><th>Dispositivi</th><th class="sec-num">Dati</th><th class="sec-num">Durata</th><th>Report</th></tr></thead>
       <tbody>
       {% for r in rows %}
-        <tr>
+        <tr class="sec-row-link" data-preview="{% url 'security:preview_backup_job' %}?nome={{ r.record.job_name|urlencode }}&amp;giorni={{ filters.giorni|default:'30' }}">
+          <td class="sec-check-col"><input type="checkbox" name="jobs" value="{{ r.record.job_name }}" class="sec-bulk-item" aria-label="Seleziona l'esecuzione di {{ r.record.job_name }}"></td>
           <td class="sec-nowrap">{{ r.at|date:"d/m/Y H:i" }}</td>
           <td><span class="sec-badge sec-badge-{{ r.tone }}">{{ r.label }}</span>{% if r.objects_error %} <small class="bk-late">{{ r.objects_error }} in errore</small>{% endif %}</td>
           <td class="sec-title-cell"><strong>{{ r.record.job_name }}</strong><small>{{ r.vendor|capfirst|default:"—" }}{% if r.record.payload.nas_name %} · {{ r.record.payload.nas_name }}{% endif %}</small></td>
@@ -51,10 +57,11 @@
           <td><small class="sec-muted">{{ r.record.source.name }}</small></td>
         </tr>
       {% empty %}
-        <tr><td colspan="7" class="sec-empty">Nessuna esecuzione corrisponde ai filtri.</td></tr>
+        <tr><td colspan="8" class="sec-empty">Nessuna esecuzione corrisponde ai filtri.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+  </form>
 </section>
 {% endblock %}
