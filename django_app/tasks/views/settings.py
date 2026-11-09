@@ -1358,7 +1358,6 @@ def impostazioni_task_delete(request, task_id: int):
     return redirect(record_url)
 
 
-@legacy_admin_or_acl_required("tasks", "impostazioni")
 def _handle_tasks_rooms_post(request):
     """Sale riunioni: nome, casella Microsoft 365 per la prenotazione, posti, attiva."""
     from django.core.validators import validate_email
@@ -1410,6 +1409,7 @@ def _handle_tasks_rooms_post(request):
     return redirect(target)
 
 
+@legacy_admin_or_acl_required("tasks", "impostazioni")
 def impostazioni(request):
     """Pagina canonica impostazioni/admin del modulo Task."""
     cfg = TaskImpostazioni.get_singleton()

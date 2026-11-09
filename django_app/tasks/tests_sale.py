@@ -301,3 +301,19 @@ class InvitoOutlookTests(SaleBase):
         m = self.incontro(sala=None)
         self.assertNotIn("sala", m.dati_convocazione())
         self.assertNotIn("durata", m.dati_convocazione())
+
+
+class ImpostazioniProtetteTests(SaleBase):
+    """Regressione 09/11: il controllo d'accesso era finito sulla funzione delle sale invece che sulla pagina."""
+
+    def test_pagina_impostazioni_ha_il_controllo(self):
+        from .views import settings as vs
+
+        self.assertTrue(hasattr(vs.impostazioni, "__wrapped__"), "impostazioni senza decoratore di accesso")
+        self.assertFalse(hasattr(vs._handle_tasks_rooms_post, "__wrapped__"))
+
+    def test_utente_senza_permesso_non_entra(self):
+        risposta = self.client.get(reverse("tasks:impostazioni"))
+        self.assertNotEqual(risposta.status_code, 200)
+        risposta = self.client.post(reverse("tasks:impostazioni"), {"tab": "sale", "sala_action": "nuova", "nome": "Abusiva"})
+        self.assertFalse(MeetingRoom.objects.filter(nome="Abusiva").exists())
