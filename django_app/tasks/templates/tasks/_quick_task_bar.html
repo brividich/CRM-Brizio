@@ -4,13 +4,14 @@ date, Invio. Niente <form> e campi senza name: nell'esito sta dentro il form del
 registrazione e non deve finirci. Salva con quick_task_bar.js sull'endpoint task-da-step.
 Contesto: quick_users, quick_start, quick_bloccato, meeting_tasks, task_from_step_url, project.
 {% endcomment %}
+{% load catalogo %}{% catalogo_datalist "ATTIVITA" %}
 <section class="qt-bar" data-qt-bar data-url="{{ task_from_step_url }}" aria-label="Attività dell'incontro">
   <div class="qt-head">Attività di questo incontro <span class="qt-count" data-qt-count>{{ meeting_tasks|length }}</span></div>
   {% if quick_bloccato %}
     <p class="qt-off">Attività bloccate finché la scheda VRF non è a posto. <a href="{% url 'tasks:project_vrf_compile' project.id %}">Compila la scheda VRF</a></p>
   {% else %}
     <div class="qt-row">
-      <input class="input qt-title" type="text" data-qt="title" maxlength="200" placeholder="Nuova attività: scrivi il titolo e premi Invio" aria-label="Titolo attività">
+      <input class="input qt-title" type="text" data-qt="title" maxlength="200" list="cat-attivita" placeholder="Nuova attività: scrivi il titolo e premi Invio" aria-label="Titolo attività">
       <select class="input" data-qt="owner" aria-label="Responsabile">
         <option value="">Responsabile</option>
         {% include "tasks/_quick_user_options.html" %}

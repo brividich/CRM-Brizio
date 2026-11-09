@@ -79,3 +79,37 @@ def voce_nuova_su_attivita_completata(sender, instance, created: bool, **kwargs)
         chiudi_voce_se_attivita_completata(instance)
     except Exception:
         logger.exception("Chiusura voce su attivita' completata fallita (%s=%s)", sender.__name__, instance.pk)
+
+
+
+# --- Catalogo voci ricorrenti: ogni titolo scritto torna come suggerimento ---------
+
+def _catalogo(tipo, testo, **kw):
+    try:
+        from .services.catalogo import registra_uso
+
+        registra_uso(tipo, testo, **kw)
+    except Exception:
+        logger.exception("Catalogo non aggiornato (%s)", tipo)
+
+
+@receiver(post_save, sender="tasks.MeetingActionItem", dispatch_uid="tasks_catalogo_azione")
+def catalogo_azione(sender, instance, created, raw=False, **kwargs):
+    if created and not raw:
+        _catalogo("AZIONE", instance.title)
+
+
+@receiver(post_save, sender="tasks.MeetingIssue", dispatch_uid="tasks_catalogo_problema")
+def catalogo_problema(sender, instance, created, raw=False, **kwargs):
+    if created and not raw:
+        _catalogo("PROBLEMA", instance.title)
+
+
+@receiver(post_save, sender=Task, dispatch_uid="tasks_catalogo_attivita")
+def catalogo_attivita(sender, instance, created, raw=False, **kwargs):
+    # Le attività delle tappe hanno titoli composti (macchina, fornitore): non sono voci da riproporre.
+    if not created or raw or not instance.project_id:
+        return
+    if instance.category_id and getattr(instance.category, "tappa", ""):
+        return
+    _catalogo("ATTIVITA", instance.title)

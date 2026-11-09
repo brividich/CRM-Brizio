@@ -385,6 +385,7 @@ SEZIONI: list[dict] = [
             ("p", "Nel dettaglio dell'incontro, accanto al luogo, c'è lo stato della prenotazione: «Richiesta inviata alla sala», «Sala confermata», «Sala in forse», «Sala rifiutata: è già occupata». «Verifica» lo chiede di nuovo a Outlook. Una sala senza casella Microsoft 365 vale solo nel portale: si vede nella disponibilità ma non si prenota in Outlook. Se un'altra riunione del portale occupa la stessa sala nello stesso orario, al salvataggio compare un avviso."),
             ("img", (_IMG + "convocazione.jpg", "La convocazione: informazioni, partecipanti e ordine del giorno")),
             ("ul", [
+                "Mentre scrivi un punto, un'azione, un'attività o un problema, il portale propone le voci del catalogo: tutto quello che è già stato scritto, con le più usate in cima. I punti dell'ordine del giorno portano con sé nota e durata predefinite.",
                 "L'ordine del giorno parte già con i problemi e le azioni ancora aperti, con i punti non trattati nell'incontro precedente e con le tappe del Percorso da assegnare, in corso o in ritardo.",
                 "«Pianifica prossimo incontro», dal dettaglio di un incontro svolto, riprende convocati, persone in copia, luogo, "
                 "ora e impostazioni Outlook del precedente, con la data una settimana dopo.",

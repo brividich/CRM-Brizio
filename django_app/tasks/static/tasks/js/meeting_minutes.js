@@ -119,7 +119,7 @@ var KO_MEETING_MINUTES_CFG = (document.currentScript && document.currentScript.d
     row.className = 'mf-new-issue-row';
     row.innerHTML = `
       <div>
-        <input class="input" type="text" name="new_action_title" maxlength="220" placeholder="Azione decisa" style="width:100%;box-sizing:border-box">
+        <input class="input" type="text" name="new_action_title" maxlength="220" list="cat-azione" placeholder="Azione decisa" style="width:100%;box-sizing:border-box">
         <textarea class="input" name="new_action_description" rows="2" placeholder="Dettaglio / contesto" style="width:100%;box-sizing:border-box;margin-top:6px"></textarea>
       </div>
       <div>

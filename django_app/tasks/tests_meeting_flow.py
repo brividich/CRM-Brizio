@@ -886,8 +886,8 @@ class AgendaSuggestionsTests(TasksBaseTestCase):
         self.assertNotIn("Problema tracciato", titoli)
         primo = suggestions[0]
         self.assertEqual(primo["usi"], 2)
-        # Nota e durata vengono dall'uso piu' recente.
-        self.assertEqual(primo["durata_minuti"], None)
+        # Dal catalogo: nota e durata predefinite restano quelle già note (si correggono in Impostazioni → Catalogo).
+        self.assertEqual(primo["durata_minuti"], 15)
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)

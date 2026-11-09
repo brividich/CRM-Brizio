@@ -67,7 +67,7 @@ SYSTEM_TASK_ROLE_DEFINITIONS = (
     (TaskRoleType.CAPO_COMMESSA, "Capocommessa", "Ruolo collegato al campo Capocommessa del kickoff.", 20),
     (TaskRoleType.PROGRAMMER, "Programmatore", "Ruolo collegato al campo Programmatore del kickoff.", 30),
 )
-TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria", "tipi", "modelli", "fai")
+TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria", "tipi", "modelli", "catalogo", "fai")
 
 
 def _normalize_tasks_settings_tab(raw_tab: str | None, *, default: str = "config") -> str:
@@ -266,6 +266,9 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
 
     if tab == "modelli":
         context["agenda_templates"] = list(MeetingAgendaTemplate.objects.all())
+
+    if tab == "catalogo":
+        context.update(_catalogo_context(request))
 
     if tab == "fai":
         context.update(_fai_settings_context())
@@ -1363,6 +1366,69 @@ def impostazioni_task_delete(request, task_id: int):
     return redirect(record_url)
 
 
+def _catalogo_context(request) -> dict:
+    from ..models import CatalogoTipo, CatalogoVoce
+
+    tipo = request.GET.get("tipo", "ODG")
+    if tipo not in CatalogoTipo.values:
+        tipo = "ODG"
+    q = (request.GET.get("q") or "").strip()
+    voci = CatalogoVoce.objects.filter(tipo=tipo)
+    if q:
+        voci = voci.filter(testo__icontains=q)
+    if request.GET.get("nascoste") != "1":
+        voci = voci.filter(attiva=True)
+    return {
+        "catalogo_tipo": tipo,
+        "catalogo_tipi": [(c, label, CatalogoVoce.objects.filter(tipo=c, attiva=True).count()) for c, label in CatalogoTipo.choices],
+        "catalogo_voci": list(voci.order_by("-usi", "testo")[:300]),
+        "catalogo_q": q,
+        "catalogo_nascoste": request.GET.get("nascoste") == "1",
+    }
+
+
+def _handle_tasks_catalogo_post(request):
+    """Rinomina, nota e durata predefinite, nascondi/mostra, unisci i doppioni."""
+    from ..models import CatalogoVoce
+    from ..services.catalogo import chiave, unisci
+
+    voce = CatalogoVoce.objects.filter(pk=int(request.POST.get("voce_id") or 0)).first()
+    target = f"{reverse('tasks:impostazioni')}?tab=catalogo&tipo={getattr(voce, 'tipo', 'ODG')}"
+    if voce is None:
+        messages.error(request, "Voce non trovata.")
+        return redirect(target)
+    azione = request.POST.get("azione")
+    if azione == "unisci":
+        dest = CatalogoVoce.objects.filter(pk=int(request.POST.get("dentro") or 0), tipo=voce.tipo).first()
+        if dest is None or dest.pk == voce.pk:
+            messages.error(request, "Scegli la voce in cui unire.")
+            return redirect(target)
+        unisci(voce, dest)
+        messages.success(request, f"«{voce.testo}» unita in «{dest.testo}».")
+    elif azione in ("nascondi", "mostra"):
+        voce.attiva = azione == "mostra"
+        voce.save(update_fields=["attiva"])
+        messages.success(request, "Voce nascosta: non viene più suggerita." if azione == "nascondi" else "Voce di nuovo suggerita.")
+    else:
+        testo = (request.POST.get("testo") or "").strip()[:220]
+        if len(chiave(testo)) < 3:
+            messages.error(request, "Il testo è troppo corto.")
+            return redirect(target)
+        altra = CatalogoVoce.objects.filter(tipo=voce.tipo, chiave=chiave(testo)).exclude(pk=voce.pk).first()
+        if altra is not None:
+            unisci(voce, altra)
+            messages.info(request, f"Esisteva già «{altra.testo}»: le due voci sono state unite.")
+            return redirect(target)
+        voce.testo, voce.chiave = testo, chiave(testo)
+        voce.nota = (request.POST.get("nota") or "").strip()[:500]
+        raw = (request.POST.get("durata") or "").strip()
+        voce.durata_minuti = int(raw) if raw.isdigit() and 0 < int(raw) <= 480 else None
+        voce.save()
+        messages.success(request, "Voce aggiornata.")
+    log_action(request, "kickoff_catalogo", "tasks", {"voce_id": voce.pk, "azione": azione or "salva"})
+    return redirect(target)
+
+
 RUOLI_POTERI = (("CC", "Capocommessa"), ("PM", "Project manager"), ("PRG", "Programmatore"), ("CR", "Caporeparto"))
 DESTINATARI_AVVISI = (("INCARICATO", "Incaricato"), ("CC", "Capocommessa"), ("PM", "Project manager"), ("CREATORE", "Chi ha creato l'incarico"))
 
@@ -1457,6 +1523,8 @@ def impostazioni(request):
             return _handle_tasks_fai_post(request)
         if posted_tab == "sale":
             return _handle_tasks_rooms_post(request)
+        if posted_tab == "catalogo":
+            return _handle_tasks_catalogo_post(request)
         if posted_tab == "poteri":
             return _handle_tasks_poteri_post(request, cfg)
 

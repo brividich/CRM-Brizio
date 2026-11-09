@@ -1397,8 +1397,10 @@ class KickoffMeeting(models.Model):
             pending = cache
         rows = MeetingAgendaItem.rows_from_dicts(self, pending)
         with transaction.atomic():
+            prima = set(MeetingAgendaItem.objects.filter(meeting=self).values_list("titolo", flat=True))
             MeetingAgendaItem.objects.filter(meeting=self).delete()
             MeetingAgendaItem.objects.bulk_create(rows)
+        self._catalogo_odg(rows, prima)
         # La lista del chiamante resta quella viva (come col campo JSON), ma con
         # i valori normalizzati: id univoci, collegamenti validi.
         pending[:] = [row.as_agenda_dict() for row in rows]
@@ -1406,6 +1408,21 @@ class KickoffMeeting(models.Model):
         prefetched = getattr(self, "_prefetched_objects_cache", None)
         if prefetched:
             prefetched.pop("agenda_rows", None)
+
+    @staticmethod
+    def _catalogo_odg(rows, prima) -> None:
+        """I punti nuovi scritti a mano entrano nel catalogo (le righe si ricreano a ogni salvataggio)."""
+        try:
+            from .services.catalogo import chiave, registra_uso
+
+            gia = {chiave(t) for t in prima}
+            for row in rows:
+                if row.issue_id or row.action_id or str(row.source or "").startswith(("tappa:", "meeting_issue", "meeting_action")):
+                    continue
+                if chiave(row.titolo) not in gia:
+                    registra_uso("ODG", row.titolo, nota=row.nota, durata=row.durata_minuti)
+        except Exception:
+            pass
 
     def refresh_from_db(self, *args, **kwargs):
         super().refresh_from_db(*args, **kwargs)
@@ -2607,3 +2624,32 @@ class ProgrammaStorico(models.Model):
 
     def __str__(self) -> str:
         return f"{self.ref_id} {self.fase} {self.revisione}"
+
+
+class CatalogoTipo(models.TextChoices):
+    ODG = "ODG", "Punto all'ordine del giorno"
+    AZIONE = "AZIONE", "Azione"
+    ATTIVITA = "ATTIVITA", "Attività"
+    PROBLEMA = "PROBLEMA", "Problema"
+
+
+class CatalogoVoce(models.Model):
+    """Voce ricorrente: si riempie da sola con quello che si scrive e torna come suggerimento."""
+
+    tipo = models.CharField(max_length=10, choices=CatalogoTipo.choices, db_index=True)
+    testo = models.CharField(max_length=220)
+    chiave = models.CharField(max_length=220, db_index=True)
+    nota = models.CharField(max_length=500, blank=True, default="", verbose_name="Nota predefinita")
+    durata_minuti = models.PositiveSmallIntegerField(null=True, blank=True)
+    usi = models.PositiveIntegerField(default=0)
+    ultimo_uso = models.DateTimeField(null=True, blank=True)
+    attiva = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ["tipo", "-usi", "testo"]
+        constraints = [models.UniqueConstraint(fields=["tipo", "chiave"], name="tasks_catalogo_tipo_chiave")]
+        verbose_name = "Voce del catalogo"
+        verbose_name_plural = "Catalogo voci ricorrenti"
+
+    def __str__(self) -> str:
+        return f"{self.get_tipo_display()}: {self.testo}"

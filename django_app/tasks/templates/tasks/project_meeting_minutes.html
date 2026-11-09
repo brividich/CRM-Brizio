@@ -22,6 +22,7 @@
 {% endblock %}
 
 {% block tasks_shell_content %}
+{% load catalogo %}{% catalogo_datalist "AZIONE" %}{% catalogo_datalist "PROBLEMA" %}
 <div class="mf-wrap">
 
   {% comment %}
@@ -362,5 +363,5 @@
 
 <template id="ko-minutes-responsabili">{% for u in active_users %}<option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}</template>
 <template id="ko-minutes-impatti">{% for value, label in decision_impacts %}<option value="{{ value }}"{% if value == "MEDIO" %} selected{% endif %}>Impatto {{ label }}</option>{% endfor %}</template>
-<script src="{% static 'tasks/js/meeting_minutes.js' %}" data-toggle-base="{% url 'tasks:project_meeting_agenda_toggle' project.id meeting.id 'ITEM' %}" data-update-url="{% url 'tasks:project_meeting_agenda_item_update' project.id meeting.id %}"></script>
+<script src="{% static 'tasks/js/meeting_minutes.js' %}?v=20261110c" data-toggle-base="{% url 'tasks:project_meeting_agenda_toggle' project.id meeting.id 'ITEM' %}" data-update-url="{% url 'tasks:project_meeting_agenda_item_update' project.id meeting.id %}"></script>
 {% endblock %}
