@@ -92,9 +92,6 @@
 .prod-tab td.prod-gruppo{padding-top:12px;background:none}
 .prod-lato .prod-card p{margin:6px 0 0}
 /* Filo conduttore: percorso dell'OP, prossimo passo, «Da sistemare» */
-.prod-guida-passi{list-style:none;margin:0 0 14px;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
-.prod-guida-passi li{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-size:13px;color:var(--text-mid)}
-.prod-guida-passi b{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:0 0 24px;border-radius:999px;background:var(--accent);color:#fff;font-size:12.5px}
 .prod-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:12px}
 .prod-chips-etichetta{font-size:12.5px;font-weight:700;color:var(--text-mid);margin-right:2px}
 .prod-chip{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12.5px;font-weight:700;text-decoration:none}
@@ -131,9 +128,4 @@
 .prod-passo{scroll-margin-top:80px}
 .prod-passo .prod-card-head{margin-bottom:4px}
 .prod-passo-testo{margin-bottom:10px}
-.prod-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:800;border:1px solid var(--border);color:var(--text-mid)}
-.prod-pill.is-fatto{border-color:var(--success);color:var(--success)}
-.prod-pill.is-dafare{border-color:var(--accent);color:var(--accent)}
-.prod-pill.is-allerta{border-color:var(--danger);color:var(--danger)}
-.prod-pill.is-attesa{border-color:var(--warning);color:var(--warning)}
 .prod-passo-altro{margin:0 0 10px;font-size:13px;font-weight:700}

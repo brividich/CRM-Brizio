@@ -10,7 +10,6 @@
     <div>
       <span class="prod-eyebrow"><a href="{% url 'produzione:elenco' %}">Ordini di produzione</a></span>
       <h1>{{ op.op }}{% if op.stato %} <span class="prod-stato">{{ op.stato }}</span>{% endif %}</h1>
-      <p>Il percorso dell'OP, un passo alla volta: KICK-OFF, programmi, documenti di produzione, FAI e anomalie.</p>
     </div>
   </div>
 
@@ -42,7 +41,7 @@
     <li class="is-{{ p.stato }}{% if p == prossimo %} is-corrente{% endif %}">
       <a href="#passo-{{ p.chiave }}">
         <span class="prod-passo-n">{% if p.stato == "fatto" %}✓{% else %}{{ p.n }}{% endif %}</span>
-        <span class="prod-passo-t"><b>{{ p.titolo }}</b><small>{{ p.testo }}</small></span>
+        <span class="prod-passo-t"><b>{{ p.titolo }}</b><small>{% if p.stato == "fatto" %}Fatto{% elif p.stato == "attesa" %}In attesa{% elif p.stato == "allerta" %}Da gestire{% else %}Da fare{% endif %}</small></span>
       </a>
     </li>
     {% endfor %}
@@ -51,11 +50,10 @@
   {% for p in passi %}
   <section class="prod-card prod-passo is-{{ p.stato }}" id="passo-{{ p.chiave }}">
     <div class="prod-card-head">
-      <h2><span class="prod-passo-n">{% if p.stato == "fatto" %}✓{% else %}{{ p.n }}{% endif %}</span> {{ p.titolo }}
-        <span class="prod-pill is-{{ p.stato }}">{% if p.stato == "fatto" %}Fatto{% elif p.stato == "attesa" %}In attesa{% elif p.stato == "allerta" %}Da gestire{% else %}Da fare{% endif %}</span></h2>
-      {% if p.url and p.chiave != "documenti" %}<a class="prod-btn prod-btn-piccolo{% if p == prossimo %} prod-btn-primary{% endif %}" href="{{ p.url }}">{{ p.azione }}</a>{% endif %}
+      <h2><span class="prod-passo-n">{% if p.stato == "fatto" %}✓{% else %}{{ p.n }}{% endif %}</span> {{ p.titolo }}</h2>
+      {% if p.url and p.chiave != "documenti" and p != prossimo %}<a class="prod-btn prod-btn-piccolo" href="{{ p.url }}">{{ p.azione }}</a>{% endif %}
     </div>
-    <p class="prod-nota prod-passo-testo">{{ p.testo }}</p>
+    {% if p.chiave == "anomalie" or p.chiave == "kickoff" and progetti|length < 2 or p.chiave == "programmi" and not programmi or p.chiave == "documenti" and not documenti or p.chiave == "fai" and not fai_op and not fai_pn %}<p class="prod-nota prod-passo-testo">{{ p.testo }}</p>{% endif %}
 
     {% if p.chiave == "kickoff" %}
       {% if progetti|length > 1 %}
@@ -157,7 +155,6 @@
       {% endif %}
 
     {% elif p.chiave == "anomalie" %}
-      {% if anomalie.totale %}<p class="prod-nota">{{ anomalie.totale }} anomali{{ anomalie.totale|pluralize:"a,e" }} in tutto: la gestione resta in Gestione anomalie, filtrata su questo OP.</p>{% endif %}
     {% endif %}
   </section>
   {% endfor %}

@@ -9,7 +9,6 @@
   <div class="prod-head">
     <div>
       <h1>Ordini di produzione</h1>
-      <p>Ogni OP con i suoi documenti di produzione: FAI, programmi CAM e CMM, documenti registrati e anomalie.</p>
     </div>
     {% if nuovo_op %}<button type="button" class="prod-btn prod-btn-primary" data-nuovo-op data-vai="1">+ Nuovo OP</button>{% endif %}
   </div>
@@ -19,12 +18,6 @@
   {% if not disponibile %}
     <div class="prod-avviso">L'elenco degli OP non è disponibile: manca la tabella degli ordini di produzione.</div>
   {% else %}
-  <ol class="prod-guida-passi" aria-label="Come si lavora">
-    <li><b>1</b> Trova l'OP{% if nuovo_op %} o crealo con «+ Nuovo OP»{% endif %}</li>
-    <li><b>2</b> Apri la scheda: mostra il percorso dell'OP</li>
-    <li><b>3</b> Segui il «Prossimo passo» fino a «Percorso completo»</li>
-  </ol>
-
   <form class="prod-filtri" method="get" role="search">
     {% if manca %}<input type="hidden" name="manca" value="{{ manca }}">{% endif %}
     <input type="search" name="q" value="{{ q }}" placeholder="Cerca OP, P/N, capocommessa o CAR" aria-label="Cerca">
@@ -78,7 +71,6 @@
     {% if pagina.has_next %}<a class="prod-btn prod-btn-piccolo" href="?q={{ q|urlencode }}&amp;stato={{ stato|urlencode }}&amp;manca={{ manca }}&amp;page={{ pagina.next_page_number }}">Successivi →</a>{% endif %}
   </div>
   {% endif %}
-  <p class="prod-nota prod-nota-sotto">Gli OP nuovi si creano qui, dalla scheda FAI o da Gestione anomalie: è lo stesso elenco.</p>
   {% endif %}
 </div>
 {% if nuovo_op %}{% include "produzione/_nuovo_op.html" %}{% endif %}
