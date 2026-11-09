@@ -1,0 +1,13 @@
+{% load security_i18n %}{# Barra delle azioni multiple della pagina Backup: cosa = «PC» o «job». #}
+<div class="sec-bulk-bar">
+  <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
+  <select name="action" aria-label="Azione sui {{ cosa }} selezionati">
+    <option value="case">Apri un ticket</option>
+    <option value="acknowledge">Prendi in carico gli alert</option>
+    <option value="close">Chiudi gli alert</option>
+  </select>
+  <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" aria-label="Titolo del ticket" data-show-for="case">
+  <select name="esito" aria-label="Come chiudere" data-show-for="close">{% for value, label in esiti %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+  <input type="text" name="motivo" placeholder="Motivo (obbligatorio, resta su ogni alert)" aria-label="Motivo della chiusura" data-show-for="close">
+  <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Applica</button>
+</div>

@@ -81,8 +81,42 @@ def preview(request, kind, pk=None):
         data = pc_overview(name) if name else None
         if data is None:
             raise Http404("Nessun dato SOC per questo dispositivo.")
-        return render(request, "security/partials/preview_pc.html", {"pc": data, "name_q": quote(data["name"])})
+        return render(request, "security/partials/preview_pc.html", _preview_pc_context(data))
+    if kind == "backup_job":
+        context = _preview_job_context(request.GET.get("nome", "").strip(), request.GET.get("giorni", ""))
+        if context is None:
+            raise Http404("Nessuna esecuzione di questo job nel periodo.")
+        return render(request, "security/partials/preview_backup_job.html", context)
     raise Http404("Anteprima non disponibile.")
+
+
+def _preview_pc_context(data):
+    from .services import backup_azioni
+
+    jobs = sorted(backup_azioni.jobs_dei_pc([data["name"]]), key=str.casefold)
+    backup_alerts = backup_azioni.alert_aperti(jobs)
+    # Gli alert di backup hanno il loro riquadro con le azioni: non si ripetono nell'elenco generale.
+    shown = {a.pk for a in backup_alerts}
+    gia_contati = sum(1 for a in data["alerts"] if a.pk in shown)
+    # «Alert aperti» conta anche quelli di backup, che non sempre sono legati al dispositivo.
+    data = {**data, "alerts": [a for a in data["alerts"] if a.pk not in shown],
+            "alert_count": data["alert_count"] + len(backup_alerts) - gia_contati}
+    return {"pc": data, "name_q": quote(data["name"]), "backup_alerts": backup_alerts, "backup_jobs": jobs,
+            "esiti": backup_azioni.ESITI}
+
+
+def _preview_job_context(name, giorni=""):
+    from .services import backup_azioni
+    from .services.backup_center import PERIODS
+
+    days = int(giorni) if str(giorni).isdigit() and int(giorni) in {d for d, _l in PERIODS} else 30
+    job = backup_azioni.job_detail(name, days) if name else None
+    if job is None and name and days < 90:
+        # Dal Log si apre anche un job fermo da più del periodo scelto.
+        job = backup_azioni.job_detail(name, 90)
+    if job is None:
+        return None
+    return {"job": job, "name_q": quote(job["name"]), "esiti": backup_azioni.ESITI}
 
 
 def _preview_alert_context(alert, active):
@@ -283,30 +317,95 @@ def events_bulk(request):
     return redirect(back)
 
 
+_BACKUP_ACTIONS = ("case", "acknowledge", "close")
+
+
+def _backup_selection(request):
+    """Job o PC scelti: ``jobs`` dalla tabella Per job, ``devices`` dalla tabella Per PC."""
+    from .services.backup_azioni import MAX_ITEMS, alert_aperti, jobs_dei_pc
+
+    # dict.fromkeys: dal Log arrivano più esecuzioni dello stesso job.
+    jobs = list(dict.fromkeys(n.strip() for n in request.POST.getlist("jobs") if n.strip()))[:MAX_ITEMS]
+    devices = list(dict.fromkeys(n.strip() for n in request.POST.getlist("devices") if n.strip()))[:MAX_ITEMS]
+    alerts = alert_aperti(jobs if jobs else jobs_dei_pc(devices)) if (jobs or devices) else []
+    return jobs, devices, alerts
+
+
+def _backup_alert_action(request, alerts):
+    """Presa in carico o chiusura degli alert: ritorna (messaggio, errore)."""
+    from .services import backup_azioni
+
+    action = request.POST.get("action", "")
+    if action == "acknowledge":
+        fatti = backup_azioni.prendi_in_carico(alerts, request.user)
+        return (f"{fatti} alert pres{'o' if fatti == 1 else 'i'} in carico." if fatti else "Nessun alert nuovo da prendere in carico."), ""
+    esito = request.POST.get("esito", "")
+    motivo = request.POST.get("motivo", "").strip()[:500]
+    if esito not in dict(backup_azioni.ESITI):
+        return "", "Scegli come chiudere gli alert."
+    if not motivo:
+        return "", "Scrivi il motivo: resta su ogni alert chiuso."
+    fatti = backup_azioni.chiudi(alerts, esito=esito, motivo=motivo, user=request.user)
+    label = dict(backup_azioni.ESITI)[esito]
+    return (f"{fatti} alert chius{'o' if fatti == 1 else 'i'} come «{label}»." if fatti else "Nessun alert aperto da chiudere."), ""
+
+
 @require_POST
 def backup_bulk_case(request):
-    """Un ticket per i PC selezionati nella pagina Backup, con un'attività per PC."""
+    """Azioni sui PC o sui job selezionati nella pagina Backup: ticket, presa in carico, chiusura degli alert."""
     if not can_view_security_center(request.user):
         return _denied(request)
-    from .models import BackupJobRecord
-    from .services.cases import open_manual_case
+    from .services import backup_azioni
 
-    names = [n.strip() for n in request.POST.getlist("devices") if n.strip()][:100]
     back = _back(request, "security:backup")
-    if not names:
-        messages.error(request, "Nessun PC selezionato.")
+    jobs, devices, alerts = _backup_selection(request)
+    if not jobs and not devices:
+        messages.error(request, "Nessun PC o job selezionato.")
         return redirect(back)
-    last = BackupJobRecord.objects.select_related("source").order_by("-created_at").first()
-    if last is None:
-        messages.error(request, "Nessun report di backup: impossibile collegare il ticket a una sorgente.")
+    action = request.POST.get("action", "case")
+    if action not in _BACKUP_ACTIONS:
+        messages.error(request, "Azione non supportata.")
         return redirect(back)
-    title = request.POST.get("title", "").strip() or (f"Backup da sistemare: {names[0]}" if len(names) == 1 else f"Backup da sistemare su {len(names)} PC")
-    case = open_manual_case(
-        source=last.source, title=title, user=request.user, assignee=request.user, severity=Severity.WARNING,
-        description="PC selezionati dalla pagina Backup: " + ", ".join(names),
-        tasks=[f"Verificare e ripristinare il backup di {name}" for name in names],
-    )
-    messages.success(request, f"Ticket #{case.pk} aperto con {len(names)} PC e assegnato a te.")
-    return redirect("security:case_detail", pk=case.pk)
+    if action == "case":
+        case = backup_azioni.apri_ticket(jobs=jobs, devices=devices, user=request.user, title=request.POST.get("title", ""))
+        if case is None:
+            messages.error(request, "Nessun report di backup: impossibile collegare il ticket a una sorgente.")
+            return redirect(back)
+        n, cosa = (len(devices), "PC") if devices else (len(jobs), "job")
+        messages.success(request, f"Ticket #{case.pk} aperto con {n} {cosa} e assegnato a te.")
+        return redirect("security:case_detail", pk=case.pk)
+    messaggio, errore = _backup_alert_action(request, alerts)
+    if errore:
+        messages.error(request, errore)
+    else:
+        messages.success(request, messaggio)
+    return redirect(back)
 
 
+@require_POST
+def backup_pannello_azione(request):
+    """Dal pannello laterale di un job o di un PC: presa in carico o chiusura dei suoi alert di backup.
+
+    Risponde con il pannello rifatto e l'esito dentro (``data-drawer-replace``).
+    """
+    if not can_view_security_center(request.user):
+        return HttpResponseForbidden("Accesso negato")
+    from .services.pc_overview import pc_overview
+
+    kind = request.POST.get("kind", "")
+    name = request.POST.get("nome", "").strip()
+    if kind not in ("job", "pc") or not name or request.POST.get("action") not in ("acknowledge", "close"):
+        raise Http404("Azione non disponibile.")
+    _jobs, _devices, alerts = _backup_selection(request)
+    messaggio, errore = _backup_alert_action(request, alerts)
+    if kind == "job":
+        context = _preview_job_context(name, request.POST.get("giorni", ""))
+        template = "security/partials/preview_backup_job.html"
+    else:
+        data = pc_overview(name)
+        context = _preview_pc_context(data) if data else None
+        template = "security/partials/preview_pc.html"
+    if context is None:
+        raise Http404("Nessun dato per questo elemento.")
+    context["azione_esito"], context["azione_errore"] = messaggio, errore
+    return render(request, template, context)

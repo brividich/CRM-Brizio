@@ -55,6 +55,9 @@ html.soc-drawer-open { overflow: hidden; }
 .soc-drawer .pv-actions form { margin: 0; }
 .soc-drawer .pv-reason { display: flex; gap: 6px; flex: 1 1 100%; }
 .soc-drawer .pv-reason input { flex: 1; min-width: 0; }
+.soc-drawer .pv-close-form { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.soc-drawer .pv-close-form input[name="motivo"] { flex: 1 1 180px; min-width: 0; }
+.soc-drawer .pv-backup-alerts .pv-actions { margin-top: 8px; }
 .soc-drawer .pv-h { margin: 4px 0 0; font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: .4px; color: var(--text-mid); }
 .soc-drawer .pv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .soc-drawer .pv-list li { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
@@ -71,6 +74,7 @@ html.soc-drawer-open { overflow: hidden; }
 .soc-drawer .pv-ai form { margin: 0; }
 .soc-drawer .pv-ai-out:empty { display: none; }
 .soc-drawer .pv-foot { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.soc-drawer .pv-foot form { margin: 0; }
 .soc-drawer a { color: var(--primary-mid); }
 body.theme-dark .soc-drawer a:not(.sec-button):not(.sec-button-primary) { color: #93c5fd; }
 .soc-drawer .bk-strip { display: flex; gap: 2px; }

@@ -219,7 +219,8 @@
     var target = targetSel ? drawerBody.querySelector(targetSel) : null;
     var button = form.querySelector("button[type='submit']");
     if (button) { button.disabled = true; if (button.dataset.busyLabel) { button.dataset.label = button.textContent; button.textContent = button.dataset.busyLabel; } }
-    fetch(form.action, {
+    // getAttribute: con un campo name="action" nel form, form.action sarebbe il campo e non l URL.
+    fetch(form.getAttribute("action") || window.location.href, {
       method: "POST", body: new FormData(form), credentials: "same-origin",
       headers: { "X-CSRFToken": csrf(), "HX-Request": "true", "X-Requested-With": "XMLHttpRequest" }
     })
