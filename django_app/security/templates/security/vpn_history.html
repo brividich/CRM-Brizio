@@ -135,7 +135,7 @@
       <thead><tr><th>Esito</th><th>Utente</th><th>IP origine</th><th>Accesso</th><th>Uscita</th><th class="sec-num">Durata</th>{% if has_method %}<th>Tipo</th>{% endif %}<th>Firewall</th></tr></thead>
       <tbody>
       {% for row in page %}
-        <tr>
+        <tr{% if row.username %} class="sec-row-link" data-preview="{% url 'security:preview_vpn_user' %}?utente={{ row.username|urlencode }}&amp;giorni={{ days }}"{% endif %}>
           <td><span class="sec-badge {% if row.action == 'denied' %}high{% else %}info{% endif %}">{{ row.get_action_display }}</span></td>
           <td>{{ row.username|default:"—" }}</td>
           <td class="sec-nowrap">{{ row.source_ip|default:"—" }}</td>

@@ -26,12 +26,24 @@
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-table-wrap">
-    <table class="sec-table" data-fm-table-skip="1">
-      <thead><tr><th>CVE</th><th>Ambito</th><th>Stato</th><th>Scadenza</th><th>Approvata</th><th>Motivo e misure compensative</th>{% if can_edit %}<th>Revoca</th>{% endif %}</tr></thead>
+    {% if can_edit %}
+    <form method="post" action="{% url 'security:accettazioni_rischio_bulk' %}" id="acc-bulk" data-bulk>
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <div class="sec-bulk-bar">
+        <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionate</span>
+        <input type="text" name="motivo" maxlength="500" placeholder="Motivo della revoca" aria-label="Motivo della revoca">
+        <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled data-hub-confirm="Revocare le accettazioni selezionate? L'esposizione torna a contare per il termine di correzione.">Revoca le selezionate</button>
+      </div>
+    </form>
+    {% endif %}
+    <table class="sec-table" data-preview-scope>
+      <thead><tr>{% if can_edit %}<th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all form="acc-bulk" aria-label="Seleziona tutte"></th>{% endif %}<th>CVE</th><th>Ambito</th><th>Stato</th><th>Scadenza</th><th>Approvata</th><th>Motivo e misure compensative</th>{% if can_edit %}<th>Revoca</th>{% endif %}</tr></thead>
       <tbody>
       {% for a in righe %}
-        <tr>
-          <td class="sec-title-cell"><a href="{% url 'security:cve_detail' a.cve.cve_id %}">{{ a.cve.cve_id }}</a><br><small class="sec-muted">{% if a.cve.kev %}sfruttata (CISA KEV){% elif a.cve.cvss is not None %}CVSS {{ a.cve.cvss }}{% else %}CVSS n.d.{% endif %}</small></td>
+        <tr class="sec-row-link" data-preview="{% url 'security:cve_pannello_cve' a.cve.cve_id %}">
+          {% if can_edit %}<td class="sec-check-col">{% if a.stato == "attiva" %}<input type="checkbox" name="acc_ids" value="{{ a.pk }}" form="acc-bulk" class="sec-bulk-item" aria-label="Seleziona {{ a.cve.cve_id }}">{% endif %}</td>{% endif %}
+          <td class="sec-title-cell" data-fm-group="{{ a.cve.cve_id }}"><a href="{% url 'security:cve_detail' a.cve.cve_id %}">{{ a.cve.cve_id }}</a><br><small class="sec-muted">{% if a.cve.kev %}sfruttata (CISA KEV){% elif a.cve.cvss is not None %}CVSS {{ a.cve.cvss }}{% else %}CVSS n.d.{% endif %}</small></td>
           <td>{{ a.host|default:"tutti i PC" }}</td>
           <td>{% if a.stato == "attiva" %}<span class="sec-badge sec-badge-success">Attiva</span>{% elif a.stato == "scaduta" %}<span class="sec-badge warning">Scaduta</span>{% else %}<span class="sec-badge sec-badge-muted">Revocata</span>{% endif %}</td>
           <td class="sec-nowrap">{% if a.stato == "attiva" and a.scadenza <= in_scadenza %}<span class="sec-badge warning">{{ a.scadenza|date:"d/m/Y" }}</span>{% else %}{{ a.scadenza|date:"d/m/Y" }}{% endif %}</td>
@@ -48,7 +60,7 @@
           {% endif %}
         </tr>
       {% empty %}
-        <tr><td colspan="{% if can_edit %}7{% else %}6{% endif %}" class="sec-empty">Nessuna accettazione del rischio {% if stato != "tutte" %}in questo stato{% endif %}.</td></tr>
+        <tr><td colspan="{% if can_edit %}8{% else %}6{% endif %}" class="sec-empty">Nessuna accettazione del rischio {% if stato != "tutte" %}in questo stato{% endif %}.</td></tr>
       {% endfor %}
       </tbody>
     </table>

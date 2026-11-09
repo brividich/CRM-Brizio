@@ -38,10 +38,19 @@
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-table-wrap">
-    <table class="sec-table pcc-table" data-fm-table-skip="1">
+<form method="post" action="{% url 'security:pc_bulk' %}" id="pc-bulk" data-bulk>
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="pagina" value="Dispositivi"><input type="hidden" name="action" value="case">
+  <div class="sec-bulk-bar">
+    <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
+    <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" aria-label="Titolo del ticket">
+    <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Apri un ticket per questi PC</button>
+  </div>
+</form>
+    <table class="sec-table pcc-table">
       <thead>
         <tr>
-          <th>Dispositivo</th><th>Utente</th><th class="pcc-sys" title="Sistema operativo dall'inventario e fine degli aggiornamenti">Sistema</th>
+          <th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all form="pc-bulk" aria-label="Seleziona tutti"></th><th>Dispositivo</th><th>Utente</th><th class="pcc-sys" title="Sistema operativo dall'inventario e fine degli aggiornamenti">Sistema</th>
           <th class="pcc-src" title="Gestito da Microsoft Intune">Intune</th>
           <th class="pcc-src" title="Antivirus WatchGuard EPDR: compare nell'inventario software">WatchGuard</th>
           <th class="pcc-src" title="Microsoft Defender for Endpoint: compare nell'inventario software">Defender</th>
@@ -53,6 +62,7 @@
       <tbody>
       {% for r in rows %}
         <tr data-preview="{% url 'security:preview_pc' %}?nome={{ r.nome|urlencode }}" class="{% if r.problemi or r.backup_ko %}pcc-warn{% endif %}">
+          <td class="sec-check-col"><input type="checkbox" name="devices" value="{{ r.nome }}" form="pc-bulk" class="sec-bulk-item" aria-label="Seleziona {{ r.nome }}"></td>
           <td class="sec-title-cell"><a href="{{ r.url }}"><strong>{{ r.nome }}</strong></a>{% if r.intune %}<small>{{ r.intune.produttore }} {{ r.intune.modello }}{% if r.intune.sistema %} · {{ r.intune.sistema }} {{ r.intune.versione_sistema }}{% endif %}</small>{% elif r.soc %}<small>{% if r.soc.0.asset_type %}{{ r.soc.0.asset_type }}{% endif %}{% if r.soc.0.ip_address and not r.rete %} · {{ r.soc.0.ip_address }}{% endif %}</small>{% endif %}{% if r.rete %}<small><a href="{% url 'security:rete_indirizzi' %}?q={{ r.rete.mac|default:r.rete.ip|urlencode }}" title="Indirizzo letto dal {% if r.rete.nel_dhcp %}DHCP{% else %}DNS{% endif %}">{{ r.rete.ip }}</a>{% if r.rete.switch %} · {{ r.rete.switch.dispositivo.nome }} porta {{ r.rete.switch.porta }}{% endif %}</small>{% endif %}</td>
           <td>{% if r.intune.utente_nome %}{{ r.intune.utente_nome }}{% else %}<span class="sec-muted">—</span>{% endif %}</td>
           <td class="pcc-sys">{% if r.sistema.fuori %}<span class="sec-badge high" title="Fine degli aggiornamenti: {{ r.sistema.fine|date:'d/m/Y' }}">{{ r.sistema.nome }} · fuori supporto</span>{% elif r.sistema.in_scadenza %}<span class="sec-badge warning" title="Fine degli aggiornamenti: {{ r.sistema.fine|date:'d/m/Y' }}">{{ r.sistema.nome }} · fino al {{ r.sistema.fine|date:'d/m/y' }}</span>{% elif r.sistema %}<span class="sec-badge ok" title="{% if r.sistema.fine %}Aggiornamenti fino al {{ r.sistema.fine|date:'d/m/Y' }}{% else %}Supportato{% endif %}">{{ r.sistema.nome }}</span>{% else %}<span class="sec-muted">—</span>{% endif %}</td>
@@ -78,7 +88,7 @@
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="10" class="sec-empty">{% if q or codice != "tutti" %}Nessun dispositivo corrisponde ai filtri.{% else %}Nessun dispositivo: nessuna fonte ha ancora mandato dati (Intune, inventario software, backup, report SOC).{% endif %}</td></tr>
+        <tr><td colspan="11" class="sec-empty">{% if q or codice != "tutti" %}Nessun dispositivo corrisponde ai filtri.{% else %}Nessun dispositivo: nessuna fonte ha ancora mandato dati (Intune, inventario software, backup, report SOC).{% endif %}</td></tr>
       {% endfor %}
       </tbody>
     </table>

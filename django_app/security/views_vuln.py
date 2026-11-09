@@ -1010,3 +1010,32 @@ def cve_ai(request, cve_id):
     record = get_object_or_404(SecurityCveRecord, cve_id=cve_id)
     ai = spiega_cve(record, user=request.user, web=request.POST.get("web") == "1", refresh=request.POST.get("refresh") == "1")
     return render(request, "security/partials/ai_explanation.html", {"ai": ai})
+
+
+@require_POST
+def rischi_revoca_bulk(request):
+    """Revoca insieme le accettazioni del rischio selezionate (stesso motivo per tutte)."""
+    from .models import SecurityAccettazioneRischio
+    from .services import accettazione_rischio
+
+    if not can_view_security_center(request.user):
+        return _denied(request)
+    if not can_manage_security_config(request.user):
+        return _config_denied(request)
+    ids = [int(v) for v in request.POST.getlist("acc_ids") if str(v).isdigit()]
+    motivo = request.POST.get("motivo", "").strip()
+    if not ids:
+        messages.error(request, "Nessuna accettazione selezionata.")
+        return _redirect_sicuro(request, reverse("security:accettazioni_rischio"))
+    fatte, errori = 0, []
+    for acc in SecurityAccettazioneRischio.objects.filter(pk__in=ids).select_related("cve"):
+        try:
+            accettazione_rischio.revoca(acc, user=request.user, motivo=motivo, request=request)
+            fatte += 1
+        except ValueError as exc:
+            errori.append(f"{acc.cve.cve_id}: {exc}")
+    if fatte:
+        messages.success(request, f"{fatte} accettazion{'e' if fatte == 1 else 'i'} del rischio revocat{'a' if fatte == 1 else 'e'}: l'esposizione torna a contare per il termine di correzione.")
+    if errori:
+        messages.error(request, "Non revocate: " + "; ".join(errori[:5]))
+    return _redirect_sicuro(request, reverse("security:accettazioni_rischio"))
