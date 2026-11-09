@@ -612,6 +612,10 @@ def project_meeting_create(request, project_id: int):
             for action in _open_meeting_actions_for_project(project)
         ]
         auto_agenda += _carry_over_agenda_items(project)
+        # Le tappe del Percorso ancora da sistemare: chi le porta avanti si decide in riunione.
+        from ..services.tappe import agenda_items as tappe_agenda
+
+        auto_agenda += tappe_agenda(project)
         initial = {
             "data": timezone.localdate(),
             # Con Outlook configurato la sala si prenota e i partecipanti ricevono l'invito.
@@ -1372,8 +1376,22 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
                 kwargs={"project_id": project_id, "meeting_id": meeting_id},
             ),
             "project_tasks_json": _project_tasks_for_picker(project),
+            **_run_tappe_context(items),
         },
     )
+
+
+def _run_tappe_context(items) -> dict:
+    """Elenchi per assegnare i punti «tappa» in conduzione, solo se servono."""
+    from ..services.tappe import macchine_disponibili
+    from .tappe import _fornitori, _processi
+
+    fonti = {str(i.get("source") or "") for i in items if isinstance(i, dict)}
+    return {
+        "run_macchine": list(macchine_disponibili()) if "tappa:MACCHINA" in fonti else [],
+        "run_fornitori": _fornitori() if "tappa:TERZISTA" in fonti else [],
+        "run_processi": _processi() if "tappa:PROCESSI" in fonti else [],
+    }
 
 
 @require_POST
@@ -1500,7 +1518,9 @@ def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id
         return JsonResponse({"ok": False, "reason": "item_not_found"}, status=404)
 
     title = (request.POST.get("title") or "").strip()
-    if not title:
+    tappa = str(target.get("source") or "")
+    tappa = tappa.split(":", 1)[1] if tappa.startswith("tappa:") else ""
+    if not title and not tappa:
         return JsonResponse({"ok": False, "reason": "title_required"}, status=400)
 
     assigned_to = None
@@ -1515,6 +1535,31 @@ def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id
             status=400,
         )
     priority = (request.POST.get("priority") or TaskPriority.MEDIUM).strip().upper()
+
+    if tappa:
+        # Punto «tappa» del Percorso: nasce l'attività del tipo giusto (macchina, terzista, ...).
+        from ..services import tappe as tappe_svc
+
+        asset = None
+        if (request.POST.get("asset") or "").isdigit():
+            asset = tappe_svc.macchine_disponibili().filter(pk=int(request.POST["asset"])).first()
+        try:
+            task = tappe_svc.assegna(
+                project, tappa, request.user, assigned_to=assigned_to, due_date=due_date, start_date=start_date,
+                asset=asset, testo=(request.POST.get("testo") or "").strip(), meeting=meeting, request=request,
+            )
+        except KickoffBloccatoVRF:
+            return _vrf_blocked_response(project)
+        except tappe_svc.TappaNonValida as exc:
+            return JsonResponse({"ok": False, "reason": "tappa", "message": str(exc)}, status=400)
+        MeetingAgendaItem.objects.filter(meeting=meeting, item_id=item_id).update(task=task, task_label=task.title[:200])
+        log_action(request, "kickoff_tappa_da_punto", "tasks", {
+            "task_id": task.pk, "item_id": item_id, "tappa": tappa, "meeting_id": meeting.pk, "project_id": project.pk,
+        })
+        return JsonResponse({
+            "ok": True, "item_id": item_id, "task_id": task.pk, "task_label": task.title,
+            "task_url": reverse("tasks:detail", kwargs={"task_id": task.pk}),
+        })
 
     try:
         with transaction.atomic():

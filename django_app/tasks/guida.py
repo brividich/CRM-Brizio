@@ -106,7 +106,9 @@ SEZIONI: list[dict] = [
                 "Spunta «Impatto sulla sicurezza» se il lavoro lo richiede: la commessa viene evidenziata nelle viste.",
                 "Dati scheda VRF: preventivo ed Esp., se li hai. La «Descrizione» scritta sopra finisce anche nella scheda VRF.",
                 "Team di progetto: cerca la persona nel riquadro di ogni ruolo e spuntala. Le persone scelte appaiono come etichette, con × per toglierle. Ogni ruolo può avere più persone.",
-                "Premi «Crea kickoff e convoca il primo incontro»: nasce l'incontro 1 con il team già tra i partecipanti e si apre la sua convocazione.",
+                "Cosa serve a questa commessa: togli la spunta alle tappe che non servono (per esempio Terzista o Processi speciali). Si può cambiare dopo da «Modifica kickoff» o dal Percorso.",
+                "Primo incontro: data, ora e sala.",
+                "Premi «Crea kickoff e convoca il primo incontro»: nasce l'incontro 1 con il team tra i partecipanti e, come ordine del giorno, le tappe che servono. Si apre la convocazione, con la disponibilità delle sale e l'invito Outlook.",
             ]),
             ("img", (_IMG + "nuovo_kickoff.jpg", "Il form «Nuovo kickoff»")),
             ("ul", [
@@ -138,6 +140,7 @@ SEZIONI: list[dict] = [
         "titolo": "Panoramica e semaforo di prontezza",
         "blocchi": [
             ("p", "Cliccando una commessa arrivi alla «Panoramica»: team, data di inizio, prossimo incontro, azioni aperte, attività a piano, le prossime azioni e gli ultimi incontri."),
+            ("p", "In alto «Prossimi passi» dice cosa fare adesso, nell'ordine del filo commessa → incontro → attività: pianificare il primo incontro, convocarlo, condurlo se è oggi, registrarne l'esito se è passato, approvare e inviare la minuta, assegnare le tappe del Percorso, pianificare l'incontro successivo. Ogni riga porta dove si fa. Il riquadro del prossimo incontro mostra ora, sala e stato della prenotazione."),
             ("img", (_IMG + "panoramica.jpg", "La Panoramica di una commessa")),
             ("p", "«Prontezza all'avvio» controlla quattro cose. Ogni voce non a posto ha il link «Correggi», che porta dove si sistema."),
             ("def", [
@@ -373,7 +376,7 @@ SEZIONI: list[dict] = [
             ("p", "Nel dettaglio dell'incontro, accanto al luogo, c'è lo stato della prenotazione: «Richiesta inviata alla sala», «Sala confermata», «Sala in forse», «Sala rifiutata: è già occupata». «Verifica» lo chiede di nuovo a Outlook. Una sala senza casella Microsoft 365 vale solo nel portale: si vede nella disponibilità ma non si prenota in Outlook. Se un'altra riunione del portale occupa la stessa sala nello stesso orario, al salvataggio compare un avviso."),
             ("img", (_IMG + "convocazione.jpg", "La convocazione: informazioni, partecipanti e ordine del giorno")),
             ("ul", [
-                "L'ordine del giorno parte già con i problemi e le azioni ancora aperti e con i punti non trattati nell'incontro precedente.",
+                "L'ordine del giorno parte già con i problemi e le azioni ancora aperti, con i punti non trattati nell'incontro precedente e con le tappe del Percorso da assegnare, in corso o in ritardo.",
                 "«Pianifica prossimo incontro», dal dettaglio di un incontro svolto, riprende convocati, persone in copia, luogo, "
                 "ora e impostazioni Outlook del precedente, con la data una settimana dopo.",
                 "Salvare l'incontro non invia email. La convocazione parte con il pulsante «Invia convocazione» del dettaglio, "
@@ -434,6 +437,7 @@ SEZIONI: list[dict] = [
                 "Appello: spunta chi è presente. Il dato si salva subito e vale anche per l'esito e la minuta.",
                 "Su ogni punto scrivi la nota: si salva da sola.",
                 "Serve del lavoro? «+ Nuova attività» sul punto (parte dal titolo del punto, poi responsabile, inizio e fine; «Crea e collega»), oppure scegli un'attività già esistente in «Attività collegata».",
+                "I punti che vengono dal Percorso del kickoff («Arrivo materiali: da assegnare», «Macchina: in ritardo»...) hanno «Assegna la tappa»: scegli la macchina, il fornitore o il processo se serve, poi responsabile e date. Nasce l'attività della tappa, collegata al punto, con notifica e mail a chi la riceve.",
                 "Premi «Segna trattato» e, se vuoi, scrivi il «Tempo effettivo».",
                 "Quello che emerge mentre si parla va in «Cattura rapida», sempre visibile in fondo allo schermo: scegli Attività, Azione, Decisione o Problema, scrivi e premi Invio.",
                 "A fine riunione premi «Termina incontro e registra l'esito».",

@@ -4742,3 +4742,24 @@ body.theme-dark .fai-tipo input:checked+span{background:rgba(249,115,22,.14)}
 .sl-cfg-act{display:flex;gap:6px;justify-content:flex-end}
 @media (max-width:760px){.sl-cfg-row{grid-template-columns:1fr 1fr}.sl-cfg-act{grid-column:1/-1}}
 .md-docbar-hint--warn{color:var(--warning-text,#92400e);font-weight:600}
+
+/* Nuovo kickoff: «Cosa serve» */
+.fl-tappe{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.fl-tappa{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);cursor:pointer}
+.fl-tappa:has(input:not(:checked)){opacity:.6;border-style:dashed}
+.fl-tappa input{margin-top:3px}
+.fl-tappa span{display:grid;gap:2px}
+.fl-tappa small{font-size:11px;color:var(--text-mid)}
+
+/* Panoramica: prossimi passi del filo kickoff → incontro → attività */
+.fl-passi{display:grid;gap:8px;margin:12px 0;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.fl-passi-titolo{font-size:13px}
+.fl-passo{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;border:1px solid var(--border);border-left-width:4px;text-decoration:none;color:inherit;background:var(--bg)}
+.fl-passo:hover{border-color:var(--primary,#2563eb)}
+.fl-passo--danger{border-left-color:var(--danger,#dc2626)}
+.fl-passo--warn{border-left-color:#f59e0b}
+.fl-passo--info{border-left-color:var(--primary,#2563eb)}
+.fl-passo-testo{display:grid;gap:2px;min-width:0}
+.fl-passo-testo small{font-size:12px;color:var(--text-mid)}
+.fl-passo-azione{font-weight:700;font-size:13px;white-space:nowrap}
+@media (max-width:640px){.fl-passo{flex-direction:column;align-items:flex-start}}

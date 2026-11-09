@@ -343,3 +343,38 @@ def assenze_persona(user, inizio: date, fine: date) -> list[tuple[date, date]]:
     except Exception:
         logger.exception("Percorso kickoff: assenze del responsabile non lette (user=%s)", getattr(user, "pk", None))
         return []
+
+
+def agenda_items(project) -> list[dict]:
+    """Tappe da discutere: da assegnare, in ritardo o aperte. Entrano nell'ordine del giorno.
+
+    ``source`` = ``tappa:<KEY>``: in riunione il punto ha «Assegna» o «Fatto» e
+    porta alla tappa giusta.
+    """
+    voci = []
+    for r in percorso(project)["righe"]:
+        if r["stato"] in ("fatta", "esclusa"):
+            continue
+        aperte = [v["task"] for v in r["voci"] if v["task"].status != TaskStatus.DONE]
+        campi = [{"label": "Stato", "value": r["stato_label"]}]
+        primo = aperte[0] if aperte else None
+        if primo is not None:
+            if primo.assigned_to_id:
+                campi.append({"label": "Responsabile", "value": primo.assigned_to.get_full_name() or primo.assigned_to.username})
+            if primo.due_date:
+                campi.append({"label": "Entro il", "value": primo.due_date.strftime("%d-%m-%Y")})
+        titolo = f"{r['label']}: da assegnare" if r["stato"] == "vuota" else f"{r['label']}: {r['stato_label'].lower()}"
+        voci.append({
+            "id": f"tappa-{r['key'].lower()}",
+            "titolo": titolo,
+            "nota": r["aiuto"] if r["stato"] == "vuota" else "",
+            "task_id": primo.pk if primo else None,
+            "task_label": primo.title if primo else "",
+            "issue_id": None,
+            "action_id": None,
+            "source": f"tappa:{r['key']}",
+            "locked": False,
+            "custom_fields": campi,
+            "done": False,
+        })
+    return voci

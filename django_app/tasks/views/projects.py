@@ -26,6 +26,7 @@ from ..models import (
     Task,
     TaskImpostazioni,
     TaskStatus,
+    TappaKickoff,
 )
 from ..access import (
     can_manage_project,
@@ -116,7 +117,7 @@ def _duplicate_kickoff(source_project: Project, *, created_by, clear_part_number
     return kickoff
 
 
-def _create_first_meeting(project: Project, user) -> KickoffMeeting | None:
+def _create_first_meeting(project, user, primo=None) -> KickoffMeeting | None:
     """Crea l'incontro 1 del kickoff appena nato e vi precarica il team.
 
     Un kickoff senza incontri e' un kickoff che non e' ancora partito: l'incontro
@@ -130,9 +131,17 @@ def _create_first_meeting(project: Project, user) -> KickoffMeeting | None:
     if project.meetings.exists():
         return None
 
+    primo = primo or {}
+    from ..services.tappe import agenda_items as tappe_agenda
+
     meeting = KickoffMeeting.objects.create(
+        # Il primo ordine del giorno sono le tappe che servono: chi fa cosa si decide lì.
+        agenda_items=tappe_agenda(project),
         project=project,
-        data=timezone.localdate(),
+        data=primo.get("data") or timezone.localdate(),
+        ora=primo.get("ora"),
+        sala=primo.get("sala"),
+        luogo=primo["sala"].nome if primo.get("sala") else "",
         stato=MeetingStatus.PIANIFICATO,
         created_by=user if getattr(user, "is_authenticated", False) else None,
     )
@@ -147,6 +156,72 @@ def _create_first_meeting(project: Project, user) -> KickoffMeeting | None:
     return meeting
 
 
+def _contesto_filo(project, post) -> dict:
+    """Tappe «cosa serve» e dati del primo incontro per il form della commessa."""
+    from ..models import MeetingRoom
+    from ..services.tappe import AIUTO, tipi_per_tappa
+
+    tipi = tipi_per_tappa()
+    escluse = set(project.tappe_escluse or []) if project is not None else set()
+    scelte = set(post.getlist("tappe_servono")) if post is not None else None
+    tappe = [
+        {"key": k, "label": label, "aiuto": AIUTO.get(k, ""),
+         "serve": (k in scelte) if scelte is not None else (k not in escluse)}
+        for k, label in TappaKickoff.choices if k in tipi
+    ]
+    return {
+        "filo_tappe": tappe,
+        "filo_sale": list(MeetingRoom.objects.filter(attiva=True).order_by("ordine", "nome")),
+        "filo_primo": {
+            "data": (post.get("primo_data") if post is not None else "") or timezone.localdate().isoformat(),
+            "ora": post.get("primo_ora", "") if post is not None else "",
+            "sala": post.get("primo_sala", "") if post is not None else "",
+        },
+    }
+
+
+def _salva_tappe(project, post) -> None:
+    """Le tappe non spuntate «non servono». Senza il campo nel POST non cambia niente."""
+    if post.get("tappe_presenti") != "1":
+        return
+    from ..services.tappe import tipi_per_tappa
+
+    tipi = tipi_per_tappa()
+    servono = set(post.getlist("tappe_servono"))
+    gia = set(project.tappe_escluse or [])
+    # Una tappa con attività non diventa «non serve» da qui.
+    con_attivita = set(
+        project.tasks.filter(category__tappa__in=list(tipi)).exclude(status=TaskStatus.CANCELED)
+        .values_list("category__tappa", flat=True)
+    )
+    escluse = {k for k in tipi if k not in servono and k not in con_attivita} | (gia - set(tipi))
+    nuove = [k for k, _ in TappaKickoff.choices if k in escluse]
+    if nuove != list(project.tappe_escluse or []):
+        project.tappe_escluse = nuove
+        project.save(update_fields=["tappe_escluse"])
+
+
+def _primo_incontro(post) -> dict:
+    from datetime import date, time
+
+    from ..models import MeetingRoom
+
+    dati = {}
+    try:
+        if (post.get("primo_data") or "").strip():
+            dati["data"] = date.fromisoformat(post["primo_data"].strip())
+    except ValueError:
+        pass
+    try:
+        if (post.get("primo_ora") or "").strip():
+            dati["ora"] = time.fromisoformat(post["primo_ora"].strip())
+    except ValueError:
+        pass
+    if (post.get("primo_sala") or "").isdigit():
+        dati["sala"] = MeetingRoom.objects.filter(pk=int(post["primo_sala"]), attiva=True).first()
+    return dati
+
+
 @task_permissions_required("tasks_view", "tasks_edit")
 def project_edit(request, project_id: int):
     """Modifica anagrafica e team di un kickoff esistente."""
@@ -159,6 +234,7 @@ def project_edit(request, project_id: int):
         if form.is_valid():
             with transaction.atomic():
                 project = form.save()
+                _salva_tappe(project, request.POST)
             log_action(request, "kickoff_edited", "tasks", {
                 "project_id": project.id,
                 "fields": form.changed_data,
@@ -178,6 +254,7 @@ def project_edit(request, project_id: int):
             "form": form,
             "edit_project": project,
             "team_fields": [form[name] for name in ProjectKickoffForm.TEAM_FIELDS],
+            **_contesto_filo(project, request.POST if request.method == "POST" else None),
         },
     )
 
@@ -222,7 +299,8 @@ def project_create(request):
                 # Il team va scritto prima dell'incontro: i partecipanti di default
                 # si leggono dagli elenchi M2M appena salvati.
                 form.save_team(project)
-                meeting = _create_first_meeting(project, request.user)
+                _salva_tappe(project, request.POST)
+                meeting = _create_first_meeting(project, request.user, _primo_incontro(request.POST))
             log_action(request, "kickoff_created", "tasks", {
                 "project_id": project.id,
                 "part_number": project.part_number,
@@ -260,6 +338,7 @@ def project_create(request):
             "page_title": "Nuovo kickoff",
             "form": form,
             "team_fields": [form[name] for name in ProjectKickoffForm.TEAM_FIELDS],
+            **_contesto_filo(None, request.POST if request.method == "POST" else None),
         },
     )
 

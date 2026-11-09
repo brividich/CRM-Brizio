@@ -156,6 +156,62 @@
           </div>
         </section>
 
+        {# ── Tappa 4: cosa serve ─────────────────────────────────── #}
+        {% if filo_tappe %}
+        <section class="kp-station" id="percorso" data-title="Cosa serve">
+          <div class="kp-station-head">
+            <span class="kp-num">4</span>
+            <div class="kp-station-titles">
+              <h3>Cosa serve a questa commessa</h3>
+              <p>Togli la spunta a quello che non serve (per esempio niente terzista): il Percorso del kickoff conterà solo il resto. Responsabili e date si danno dopo, anche in riunione.</p>
+            </div>
+          </div>
+          <div class="kp-body">
+            <input type="hidden" name="tappe_presenti" value="1">
+            <div class="fl-tappe">
+              {% for t in filo_tappe %}
+              <label class="fl-tappa">
+                <input type="checkbox" name="tappe_servono" value="{{ t.key }}" {% if t.serve %}checked{% endif %}>
+                <span><strong>{{ t.label }}</strong><small>{{ t.aiuto }}</small></span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+        {% endif %}
+
+        {% if not edit_project %}
+        {# ── Tappa 5: primo incontro ─────────────────────────────── #}
+        <section class="kp-station" id="primo-incontro" data-title="Primo incontro">
+          <div class="kp-station-head">
+            <span class="kp-num">5</span>
+            <div class="kp-station-titles">
+              <h3>Primo incontro</h3>
+              <p>Quando e dove. Il team entra già fra i partecipanti; nella convocazione che si apre dopo vedi la disponibilità delle sale, completi l'ordine del giorno e prenoti la sala con l'invito Outlook.</p>
+            </div>
+          </div>
+          <div class="kp-body">
+            <div class="kp-grid">
+              <div class="kp-field">
+                <label for="primo-data">Data</label>
+                <input class="input" type="date" id="primo-data" name="primo_data" value="{{ filo_primo.data }}">
+              </div>
+              <div class="kp-field">
+                <label for="primo-ora">Ora</label>
+                <input class="input" type="time" id="primo-ora" name="primo_ora" value="{{ filo_primo.ora }}">
+              </div>
+              <div class="kp-field">
+                <label for="primo-sala">Sala</label>
+                <select class="input" id="primo-sala" name="primo_sala">
+                  <option value="">Nessuna sala (online o altrove)</option>
+                  {% for sala in filo_sale %}<option value="{{ sala.id }}"{% if filo_primo.sala == sala.id|stringformat:"s" %} selected{% endif %}>{{ sala.nome }}{% if sala.capienza %} · {{ sala.capienza }} posti{% endif %}</option>{% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
+        {% endif %}
+
       </div>{# /kp-stations #}
     </div>{# /kp-layout #}
 

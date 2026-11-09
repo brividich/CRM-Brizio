@@ -153,6 +153,14 @@ def project_overview(request, project_id: int):
     )
     readiness = compute_project_readiness(project)
     can_manage = can_manage_project(request, project)
+    from ..services.filo import prossimi_passi
+
+    _filo = tappe_context(request, project)
+    _filo["prossimi_passi"] = prossimi_passi(project, tappe=_filo["tappe"], can_manage=can_manage)
+    if next_meeting is not None:
+        from .meetings import _sala_stato
+
+        _filo["next_meeting_sala"] = _sala_stato(next_meeting)
 
     return render(
         request,
@@ -167,7 +175,7 @@ def project_overview(request, project_id: int):
             "page_title": f"Panoramica - {project.name}",
             "project": project,
             "readiness": readiness,
-            **tappe_context(request, project),
+            **_filo,
             "actions": actions,
             "top_actions": actions[:5],
             "action_open_count": action_open_count,

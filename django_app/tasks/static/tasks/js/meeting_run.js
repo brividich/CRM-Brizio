@@ -171,6 +171,8 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
         assigned_to: card.querySelector('[data-role=task-new-owner]')?.value || '',
         next_step_due: card.querySelector('[data-role=task-new-start]')?.value || '',
         due_date: card.querySelector('[data-role=task-new-due]')?.value || '',
+        asset: card.querySelector('[data-role=task-new-asset]')?.value || '',
+        testo: card.querySelector('[data-role=task-new-testo]')?.value || '',
       }).then(function (data) {
         const err = card.querySelector('[data-role=task-new-err]');
         if (!data || !data.ok) {

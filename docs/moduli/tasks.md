@@ -84,6 +84,10 @@ Portfolio gestione progetti con workflow documento **VRF** (MOD.073). Presentato
 - **Gestione menu sidebar** (*Impostazioni > Menu sidebar*): nuove voci da un form guidato in tre passi (nome, destinazione da tendina raggruppata o indirizzo personalizzato, posizione) con anteprima; criterio di evidenziazione e ordine sono opzionali (automatico / in fondo). Ogni voce esistente si modifica e si salva in linea; «Elimina» è un'azione separata con conferma
 - **Flag safety_impact**: campo boolean su Project per identificare progetti con impatto sulla sicurezza, esposto nel form Nuovo kickoff e mostrato come badge nelle viste portfolio, Gantt/dettaglio e task collegate solo quando attivo
 
+### Filo commessa → incontro → attività (09/11/2026)
+
+Nuovo kickoff: tappe «Cosa serve» (`tappe_servono`, `tappe_presenti`, `_salva_tappe`, anche in modifica) e «Primo incontro» (`primo_data`, `primo_ora`, `primo_sala`, `_primo_incontro`) in `project_create.html`. L'incontro 1 nasce con l'ODG dalle tappe (`services/tappe.agenda_items`, `source = tappa:<KEY>`), che entrano anche nell'ODG automatico dei nuovi incontri. In conduzione i punti `tappa:` hanno «Assegna la tappa» (`project_meeting_agenda_item_task_create` → `tappe.assegna`, campi `asset`/`testo`). Panoramica: «Prossimi passi» (`services/filo.prossimi_passi`, calcolato al volo) e ora/sala/stato prenotazione nel prossimo incontro. Nessuna migrazione.
+
 ### Minuta dopo la fine (09/11/2026)
 
 Minuta approvata: riapertura (`project_meeting_minute_reopen`) e modifica della convocazione/ODG (`project_meeting_edit`) solo per `can_edit_after_end` (capocommessa del team, codice CC, o `tasks_admin`). Invio minuta tracciato: `KickoffMeeting.minuta_inviata_at`, `minuta_firma` (impronta di verbale, presenti, ODG, decisioni, azioni; migrazione `tasks 0061`), `minuta_da_reinviare`; il secondo invio esce come «Aggiornamento minuta». `_sync_meeting_actions_from_post` non ricrea un'azione aperta uguale (titolo, responsabile, incontro).
