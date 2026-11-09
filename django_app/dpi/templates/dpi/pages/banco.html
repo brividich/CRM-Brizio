@@ -209,7 +209,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
   {% if modelli_banco %}
   <details class="dpi-card" id="diretta">
     <summary class="dpi-card-title">Consegna senza richiesta</summary>
-    <p class="dpi-hint">La persona è al banco e chiede un DPI che nessuno ha richiesto: scegli persona e DPI, «Aggiungi al banco» apre la sua scheda con il DPI già spuntato, poi confermi con badge o con mail. Le categorie segnate «senza approvazione» sono i consumabili; per le altre resta scritto nella richiesta e il report di consegna arriva al responsabile. Le scarpe si ordinano al negozio e non passano da qui.</p>
+    <p class="dpi-hint">La persona è al banco e chiede un DPI che nessuno ha richiesto: scegli persona e DPI, «Aggiungi e consegna con badge» apre la sua scheda con il DPI spuntato e aspetta subito il badge della persona; «Aggiungi al banco» apre solo la scheda, per confermare con mail o firma. Le categorie segnate «senza approvazione» sono i consumabili; per le altre resta scritto nella richiesta e il report di consegna arriva al responsabile. Le scarpe si ordinano al negozio e non passano da qui.</p>
     <form method="post" class="dpi-diretta-grid">
       {% csrf_token %}
       <input type="hidden" name="azione" value="diretta">
@@ -248,7 +248,10 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
         <label for="diretta-mot">Motivo (facoltativo)</label>
         <input type="text" name="motivazione" id="diretta-mot" placeholder="Es: guanti rotti, cambio turno">
       </div>
-      <div><button type="submit" class="dpi-btn dpi-btn-green">Aggiungi al banco</button></div>
+      <div class="dpi-azioni" style="margin:0;">
+        <button type="submit" class="dpi-btn dpi-btn-green" data-diretta-badge>Aggiungi e consegna con badge</button>
+        <button type="submit" class="dpi-btn dpi-btn-gray">Aggiungi al banco</button>
+      </div>
     </form>
   </details>
   {% endif %}
@@ -287,12 +290,12 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     var btn = consegnaBtn(card);
     var conFirma = !!card.querySelector('input[name=firmato_ricevuta]:checked') || !!(card.querySelector('[data-firma]') || {})._ink;
     btn.disabled = !scelte.length;
-    btn.textContent = !scelte.length ? 'Spunta almeno un DPI' : (conFirma ? 'Consegna con la firma' : 'Conferma con mail');
+    btn.textContent = !scelte.length ? 'Spunta almeno un DPI' : (conFirma ? 'Consegna con la firma' : 'Consegna con mail');
     var inAttesa = attesa && attesa.card === card;
     var btnBadge = card.querySelector('[data-conferma-badge]');
     var haBadge = !!card.getAttribute('data-ha-badge');
     btnBadge.disabled = !scelte.length || !haBadge || !lettoreAttivo;
-    btnBadge.textContent = inAttesa ? 'Annulla attesa badge' : 'Conferma con badge';
+    btnBadge.textContent = inAttesa ? 'Annulla attesa badge' : 'Consegna con badge';
     var pronto = card.querySelector('[data-pronto]');
     if (pronto) pronto.disabled = !scelte.some(function (c) { return !c.getAttribute('data-pronta'); });
     var manca = scelte.some(function (c) { return c.getAttribute('data-manca'); });
@@ -645,6 +648,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     var etichetta = bottone ? bottone.textContent : '';
     if (bottone) { bottone.disabled = true; bottone.textContent = 'Un momento…'; }
     inCoda(function () { return chiedi(window.location.pathname + window.location.search, {method: 'POST', body: dati}); }).then(function (r) {
+      var conBadge = azione === 'diretta' && bottone && bottone.hasAttribute('data-diretta-badge');
       if (azione === 'diretta') {
         form.reset();
         var dip = document.getElementById('diretta-dip');
@@ -653,6 +657,12 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
         if (bottone) { bottone.disabled = false; bottone.textContent = etichetta; }
       }
       aggiorna(r.html, r.apri);
+      // «Aggiungi e consegna con badge»: la scheda e' aperta col DPI spuntato, si aspetta subito il badge.
+      if (conBadge && r.apri) {
+        var apertaCard = document.getElementById(r.apri);
+        var btnBadge = apertaCard && apertaCard.querySelector('[data-conferma-badge]');
+        if (btnBadge && !btnBadge.disabled) btnBadge.click();
+      }
     }).catch(function (e) {
       if (e.message === 'ricarica') return;
       if (bottone) { bottone.disabled = false; bottone.textContent = etichetta; }
@@ -678,7 +688,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
       if (manca_motivo(perBadge)) return;
       attesa = {card: perBadge, timer: setTimeout(function () {
         fermaAttesa();
-        errore('Tempo scaduto: clicca di nuovo «Conferma con badge» o usa la mail.');
+        errore('Tempo scaduto: clicca di nuovo «Consegna con badge» o usa la mail.');
       }, SECONDI_ATTESA_BADGE * 1000)};
       sincronizza(perBadge);
       return;

@@ -124,8 +124,8 @@
           </div>
           <div class="banco-badge-invito" data-badge-invito hidden></div>
           <div class="dpi-azioni">
-            <button type="button" class="dpi-btn dpi-btn-green" data-conferma-badge>Conferma con badge</button>
-            <button type="submit" name="azione" value="consegna" class="dpi-btn dpi-btn-blue" data-consegna>Conferma con mail</button>
+            <button type="button" class="dpi-btn dpi-btn-green" data-conferma-badge>Consegna con badge</button>
+            <button type="submit" name="azione" value="consegna" class="dpi-btn dpi-btn-blue" data-consegna>Consegna con mail</button>
             {% if p.n_da_preparare and not avviso_all_approvazione %}
             <button type="submit" name="azione" value="pronta" class="dpi-btn dpi-btn-gray" formnovalidate data-pronto>Pronto per il ritiro (avvisa)</button>
             {% endif %}
@@ -133,7 +133,7 @@
             <button type="button" class="dpi-btn dpi-btn-gray" data-apri-diretta="{{ p.legacy_id }}">+ DPI senza richiesta</button>
             {% endif %}
           </div>
-          <p class="dpi-hint" style="margin:10px 0 0;">«Conferma con badge»: la persona passa il proprio badge, senza mail. «Conferma con mail», per chi non ha il badge con sé: ritira subito e la conferma arriva al dipendente (se ha la mail aziendale) o al suo caporeparto.</p>
+          <p class="dpi-hint" style="margin:10px 0 0;">«Consegna con badge»: la persona passa il proprio badge, senza mail. «Consegna con mail», per chi non ha il badge con sé: ritira subito e la conferma arriva al dipendente (se ha la mail aziendale) o al suo caporeparto.</p>
           <details class="dpi-firma-box">
             <summary>Firma sul tablet o ricevuta su carta (al posto della mail)</summary>
             <div class="dpi-field" style="margin-top:10px;">
