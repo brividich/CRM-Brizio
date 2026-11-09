@@ -226,14 +226,20 @@ def dashboard(request):
     trimestre = cruscotto["trimestre"]
     macchine = Macchina.objects.filter(attiva=True).select_related("asset").order_by("reparto")
     letture = {l.macchina_id: l for l in LetturaContatori.objects.filter(trimestre=trimestre)}
+    dispositivi = services.dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True))
+    dispositivi_snmp = list(dispositivi.order_by("snmp_stato", "nome")[:8])
+    flotta = services.stato_flotta()
+    errori_snmp = services.ultimi_errori_snmp()
     return render(request, "contatori/dashboard.html", {
         "c": cruscotto, "macchine": macchine, "ultime": letture,
-        "dispositivi_snmp": services.dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True))
-        .order_by("snmp_stato", "nome")[:8],
+        # Elenchi brevi: «e altri N →» porta alla lista completa (stesso conteggio dei riquadri).
+        "dispositivi_snmp": dispositivi_snmp,
+        "dispositivi_altri": max(dispositivi.count() - len(dispositivi_snmp), 0),
         "snmp_riepilogo": services.centrale_snmp_riepilogo(),
-        "flotta": services.stato_flotta(),
+        "flotta": flotta,
         "etichette_flotta": services.FLOTTA,
-        "errori_snmp": services.ultimi_errori_snmp(),
+        "errori_snmp": errori_snmp,
+        "errori_altri": max(flotta["errore"] - len(errori_snmp), 0),
         "da_riconciliare": services.fatture_da_riconciliare(),
         "licenze_apparati": services.licenze_asset_apparati(),
         "integrazione": integrazione.quadro_integrazione(request),
@@ -262,9 +268,14 @@ def riconciliazione(request, trimestre=None):
     })
 
 
-def riconciliazione_guida(request):
+def guida(request):
     from .guida import SEZIONI
     return render(request, "contatori/guida.html", {"sezioni": SEZIONI})
+
+
+def riconciliazione_guida(request):
+    """Vecchio indirizzo della guida (sotto la riconciliazione): resta valido e porta alla nuova."""
+    return redirect("contatori:guida", permanent=True)
 
 
 def _righe_formset(fattura, data=None, initial=None):
@@ -443,7 +454,9 @@ def macchina_detail(request, pk):
         "consumabili_stato": services.stato_consumabili([macchina]).get(macchina.pk),
         "righe_letture": services.righe_letture_macchina(macchina),
         "righe_mensili": services.righe_mensili_macchina(macchina),
+        "mensili_totale": macchina.letture_mensili.count(),
         "fatture_contratto": services.fatture_macchina(macchina),
+        "fatture_contratto_totale": services.trimestri_fatturati_contratto(macchina.contratto),
         "colleghi_pool": (list(Macchina.objects.filter(contratto=macchina.contratto)
                                .exclude(pk=macchina.pk).order_by("reparto"))
                           if macchina.contratto else []),
@@ -469,6 +482,8 @@ def importa_lettura(request, pk=None):
         form = LetturaForm(request.POST, instance=lettura)
         if form.is_valid():
             lettura = form.save()
+            if pk and set(services.CAMPI) & set(form.changed_data):
+                services.azzera_calo_spiegato(lettura)
             log_action(request, "lettura_modificata" if pk else "lettura_creata", "contatori",
                        oggetto=lettura, dettaglio={"trimestre": lettura.trimestre, "fonte": lettura.fonte,
                                                    "calo_confermato": form.cleaned_data.get("conferma_calo", False)})
@@ -545,6 +560,8 @@ def lettura_mensile_edit(request, pk):
         form = LetturaMensileForm(request.POST, instance=lettura)
         if form.is_valid():
             lettura = form.save()
+            if set(services.CAMPI) & set(form.changed_data):
+                services.azzera_calo_spiegato(lettura)
             log_action(request, "lettura_mensile_modificata", "contatori", oggetto=lettura,
                        dettaglio={"mese": f"{lettura.mese:%Y-%m}", "totale": lettura.totale,
                                   "calo_confermato": form.cleaned_data.get("conferma_calo", False)})
@@ -569,6 +586,28 @@ def lettura_mensile_elimina(request, pk):
 
 
 _TIPI_GESTIONE = {"trimestrali": LetturaContatori, "mensili": LetturaMensileContatori}
+_TIPI_CALO = {"trimestrale": LetturaContatori, "mensile": LetturaMensileContatori}
+
+
+@richiede_gestione
+@require_POST
+def lettura_calo_spiegato(request, tipo, pk):
+    """Segna il calo di una lettura come spiegato (azzeramento o sostituzione), con il motivo."""
+    modello = _TIPI_CALO.get(tipo)
+    if modello is None:
+        return redirect("contatori:dashboard")
+    lettura = get_object_or_404(modello.objects.select_related("macchina"), pk=pk)
+    motivo = (request.POST.get("motivo") or "").strip()
+    if not motivo:
+        messages.error(request, "Scrivi il motivo del calo (es. «contatore azzerato dal tecnico»).")
+        return redirect(reverse("contatori:dashboard") + "#cali")
+    services.segna_calo_spiegato(lettura, motivo=motivo, utente=request.user)
+    periodo = f"{lettura.mese:%m/%Y}" if tipo == "mensile" else lettura.trimestre
+    log_action(request, "lettura_calo_spiegato", "contatori", oggetto=lettura,
+               dettaglio={"tipo": tipo, "periodo": periodo, "motivo": lettura.calo_spiegato_motivo,
+                          "matricola": lettura.macchina.matricola})
+    messages.success(request, f"Calo della lettura {periodo} di {lettura.macchina.reparto} segnato come spiegato.")
+    return redirect(reverse("contatori:dashboard") + "#cali")
 
 
 @richiede_gestione
@@ -703,9 +742,14 @@ def macchine_list(request):
         macchine = [m for m in macchine if m.pk not in con_lettura]
     elif filtri["lettura"] == "presente":
         macchine = [m for m in macchine if m.pk in con_lettura]
+    elif filtri["lettura"] == "mensile_mancante":
+        # Stesso criterio della voce «letture mensili in attesa / saltate» della Centrale.
+        mancanti = {m.pk for m in services.mensili_mancanti()}
+        macchine = [m for m in macchine if m.pk in mancanti]
     return render(request, "contatori/macchine.html", {
         "macchine": macchine, "filtri": filtri, "trimestre": trimestre, "con_lettura": con_lettura,
         "dismesse_nascoste": dismesse_nascoste, "stati": StatoSNMP.choices,
+        "mese_corrente": timezone.localdate().replace(day=1),
         "filtrato": any(filtri[k] for k in ("q", "stato", "lettura")),
         "consumabili": services.stato_consumabili(macchine),
         "ultime": services.ultime_rilevazioni(),
@@ -940,17 +984,24 @@ def consumabili_flotta(request):
     macchine = list(Macchina.objects.filter(attiva=True, host__isnull=False))
     stati = services.stato_consumabili(macchine)
     righe = sorted((_riga_consumabili(m, stati.get(m.pk)) for m in macchine), key=lambda r: r["ordine"])
-    critici = sum(1 for r in righe if r["stato"] and r["stato"]["critici"])
-    mai_lette = sum(1 for r in righe if r["stato"] is None)
-    solo_critici = request.GET.get("filtro") == "critici"
+    def critica(r):
+        return bool(r["stato"] and r["stato"]["critici"])
+
+    def non_recente(r):
+        return r["stato"] is None or not r["stato"]["recente"]
+
+    critici = sum(1 for r in righe if critica(r))
+    non_recenti = sum(1 for r in righe if non_recente(r))
+    filtro = request.GET.get("filtro") if request.GET.get("filtro") in ("critici", "non_recenti") else ""
     totale = len(righe)
-    if solo_critici:
-        righe = [r for r in righe if r["stato"] and r["stato"]["critici"]]
+    if filtro:
+        righe = [r for r in righe if (critica if filtro == "critici" else non_recente)(r)]
     return render(request, "contatori/consumabili.html", {
-        "righe": righe, "totale": totale, "solo_critici": solo_critici,
+        "righe": righe, "totale": totale, "filtro": filtro,
         "critici": critici,
-        "mai_lette": mai_lette,
+        "non_recenti": non_recenti,
         "soglia": services.SOGLIA_CONSUMABILE_PCT,
+        "giorni_recente": services.CONSUMABILI_RECENTE_GIORNI,
     })
 
 
@@ -1002,10 +1053,15 @@ def macchina_test_snmp(request, pk):
 
 # --- Centrale dispositivi e lettori SNMP ----------------------------------
 
+_FLOTTA_DA_STATO = {StatoSNMP.ERROR: "errore", StatoSNMP.WARNING: "attenzione", StatoSNMP.OK: "ok",
+                    StatoSNMP.MAI: "non_interrogati"}
+
+
 def snmp_centrale(request):
     categoria = (request.GET.get("categoria") or "").strip().upper()
-    stato = (request.GET.get("stato") or "").strip().upper()
     flotta = (request.GET.get("flotta") or "").strip()
+    # Vecchi link con lo stato grezzo (?stato=ERROR): stessa categoria dei riquadri.
+    flotta = flotta or _FLOTTA_DA_STATO.get((request.GET.get("stato") or "").strip().upper(), "")
     # Una stampante che è anche MFC a contratto compare una volta sola: come MFC.
     dispositivi = services.dispositivi_senza_doppioni(DispositivoSNMP.objects.select_related("asset"))
     macchine = Macchina.objects.filter(attiva=True).select_related("asset")
@@ -1021,9 +1077,6 @@ def snmp_centrale(request):
         dispositivi = dispositivi.filter(categoria__in=DispositivoSNMP.CATEGORIE_TVCC)
     elif categoria in DispositivoSNMP.Categoria.values:
         dispositivi = dispositivi.filter(categoria=categoria)
-    if stato in StatoSNMP.values:
-        dispositivi = dispositivi.filter(snmp_stato=stato)
-        macchine = macchine.filter(snmp_stato=stato)
     # Le MFC sono stampanti: una categoria diversa le esclude, invece di mostrarle comunque.
     if categoria and categoria != DispositivoSNMP.Categoria.STAMPANTE:
         macchine = macchine.none()
@@ -1038,17 +1091,16 @@ def snmp_centrale(request):
                                    | Q(asset__asset_tag__icontains=q) | Q(asset__name__icontains=q))
     dispositivi = list(dispositivi)
     return render(request, "contatori/snmp_centrale.html", {
-        "dispositivi": dispositivi, "q": q, "filtrato": bool(q or categoria or stato or flotta),
-        "da_interrogare": DispositivoSNMP.objects.filter(attivo=True).count(),
+        "dispositivi": dispositivi, "q": q, "filtrato": bool(q or categoria or flotta),
+        "da_interrogare": services.dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True)).count(),
         "disponibilita": services.disponibilita_flotta(d.pk for d in dispositivi),
         "macchine": macchine,
         "flotta": flotta, "flotta_etichetta": services.FLOTTA.get(flotta, ""),
         "riepilogo": services.centrale_snmp_riepilogo(),
         "flotta_giorni": services.SNMP_NON_INTERROGATO_GIORNI,
         "categoria": categoria,
-        "stato": stato,
         "categorie": [("TVCC", "Videosorveglianza (NVR e telecamere)"), *DispositivoSNMP.Categoria.choices],
-        "stati": StatoSNMP.choices,
+        "stati_flotta": list(services.FLOTTA.items()),
     })
 
 
@@ -1060,9 +1112,16 @@ def dispositivo_snmp_detail(request, pk):
     if mfc is not None and request.GET.get("tecnico") != "1":
         # Stessa stampante della MFC a contratto: una scheda sola, quella della MFC.
         return redirect("contatori:macchina", pk=mfc.pk)
-    rilevazioni = list(
-        dispositivo.rilevazioni.prefetch_related("valori__sonda")[:20]
-    )
+    from core.paginazione import pagina_elenco
+
+    ultima_rilevazione = dispositivo.rilevazioni.first()
+    stato_storico = (request.GET.get("stato") or "").strip().upper()
+    storico = dispositivo.rilevazioni.prefetch_related("valori__sonda")
+    if stato_storico in (StatoSNMP.OK, StatoSNMP.WARNING, StatoSNMP.ERROR):
+        storico = storico.filter(stato=stato_storico)
+    else:
+        stato_storico = ""
+    rilevazioni_pagina = pagina_elenco(request, storico, per_pagina=50)
     ultimo_pk = ValoreSNMP.objects.filter(sonda_id=OuterRef("pk")).order_by(
         "-rilevazione__rilevata_il", "-pk",
     ).values("pk")[:1]
@@ -1082,7 +1141,7 @@ def dispositivo_snmp_detail(request, pk):
     if stampante:
         from .stampanti import stime
 
-        ultima = rilevazioni[0] if rilevazioni else None
+        ultima = ultima_rilevazione
         dati_extra = {**contesto_pannello(dispositivo, ultima.dati_stampante if ultima else {}),
                       "stime_stampante": stime(dispositivo)}
         per_indice = {r["indice"]: r for r in dati_extra["stime_stampante"]["consumabili"]}
@@ -1092,9 +1151,12 @@ def dispositivo_snmp_detail(request, pk):
         **dati_extra,
         "dispositivo": dispositivo,
         "sonde": sonde,
-        "rilevazioni": rilevazioni,
+        "rilevazioni": rilevazioni_pagina.object_list,
+        "rilevazioni_pagina": rilevazioni_pagina,
+        "stato_storico": stato_storico,
+        "stati_storico": [(StatoSNMP.OK, "Operativo"), (StatoSNMP.WARNING, "Attenzione"), (StatoSNMP.ERROR, "Errore")],
         "profili_disponibili": ProfiloSNMP.objects.filter(attivo=True),
-        "ultima_rilevazione": rilevazioni[0] if rilevazioni else None,
+        "ultima_rilevazione": ultima_rilevazione,
         "stampante": stampante,
         "info_snmp": services.info_snmp(dispositivo),
         "ultima_ok": dispositivo.rilevazioni.filter(stato=StatoSNMP.OK).order_by("-rilevata_il").first(),
@@ -1258,6 +1320,7 @@ def sonda_snmp_edit(request, dispositivo_pk, pk=None):
     })
 
 
+@richiede_gestione
 @require_POST
 def dispositivo_snmp_interroga(request, pk):
     dispositivo = get_object_or_404(DispositivoSNMP, pk=pk)
@@ -1271,15 +1334,21 @@ def dispositivo_snmp_interroga(request, pk):
     return redirect("contatori:snmp_dispositivo", pk=dispositivo.pk)
 
 
+@richiede_gestione
 @require_POST
 def dispositivi_snmp_interroga_tutti(request):
-    esiti = {StatoSNMP.OK: 0, StatoSNMP.WARNING: 0, StatoSNMP.ERROR: 0}
-    for dispositivo in DispositivoSNMP.objects.filter(attivo=True):
-        rilevazione = services.interroga_dispositivo(dispositivo)
-        esiti[rilevazione.stato] = esiti.get(rilevazione.stato, 0) + 1
+    """Accoda un'interrogazione per ogni dispositivo attivo (stesso job del monitor): niente SNMP nella request."""
+    from .tasks import _enqueue
+
+    pks = list(services.dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True))
+               .values_list("pk", flat=True))
+    # Il lock di coda salta chi e' gia' in coda: non si accumulano doppioni.
+    accodati = sum(_enqueue("contatori.tasks.poll_dispositivo", pk) for pk in pks)
+    log_action(request, "snmp_interroga_tutti", "contatori", {"dispositivi": len(pks), "accodati": accodati})
     messages.success(
         request,
-        f"Interrogazione completata: {esiti[StatoSNMP.OK]} operativi, "
-        f"{esiti[StatoSNMP.WARNING]} in attenzione, {esiti[StatoSNMP.ERROR]} errori.",
+        f"Interrogazione avviata per {len(pks)} dispositivi"
+        + (f" ({len(pks) - accodati} erano già in coda)" if accodati < len(pks) else "")
+        + ": gli stati si aggiornano entro qualche minuto.",
     )
     return redirect("contatori:snmp_centrale")
