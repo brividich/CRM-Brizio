@@ -3,7 +3,7 @@
  * Un solo overlay (#gs-overlay in core/base.html) con tre sezioni:
  *  - «Recenti»: ultime pagine aperte dall'utente (localStorage, solo per questo browser);
  *  - «Vai a…»: pagine di navigazione, gia' ACL-filtrate lato server in `command-palette-data`;
- *  - risultati dati (dipendenti, asset, ticket, …) dall'API di ricerca globale (`data-api-url`);
+ *  - risultati dati (dipendenti, asset, ticket, OP, FAI, …) dall'API di ricerca globale (`data-api-url`);
  *  - «Dalle guide e procedure»: capitoli trovati dall'indice dell'assistente (`data-docs-url`,
  *    solo recupero, niente AI generativa: risponde in pochi millisecondi);
  *  - «Chiedi all'Assistente»: apre la chat con la frase già inviata (`data-ai-url?q=`), in cima
@@ -45,6 +45,8 @@
     ticket: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8a2 2 0 0 0 0 4v5a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-5a2 2 0 0 1 0-4V5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/></svg>',
     kickoff: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
     task: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 12 2 2 4-4"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>',
+    op: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/></svg>',
+    fai: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5M8.5 11l1.8 1.8 3.2-3.3"/></svg>',
     procedura: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h12l4 4v12H4z"/><path d="M8 12h8M8 16h5"/></svg>',
     dpi: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg>',
     doc: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M8 13h8M8 17h6M8 9h3"/></svg>',
@@ -52,7 +54,7 @@
   };
   var LABELS = {
     dipendente: "Dipendenti", asset: "Asset", ticket: "Ticket",
-    kickoff: "Kickoff", task: "Attività", procedura: "Procedure", dpi: "DPI"
+    kickoff: "Kickoff", task: "Attività", op: "Ordini di produzione", fai: "Registro FAI", procedura: "Procedure", dpi: "DPI"
   };
 
   var timer = null, seq = 0, sel = -1, nodes = [];
@@ -128,7 +130,8 @@
               (it.presenza ? "In azienda" : "Fuori") + "</span>"
             : "") + "</span>" +
         (it.sub ? '<span class="gs-item-sub">' + esc(it.sub) + "</span>" : "") +
-        (it.preview ? '<span class="gs-item-preview">' + esc(it.preview) + "</span>" : "") +
+        // L'anteprima solo se aggiunge qualcosa: uguale al sottotitolo sarebbe la stessa riga due volte.
+        (it.preview && it.preview !== it.sub ? '<span class="gs-item-preview">' + esc(it.preview) + "</span>" : "") +
       "</span>" +
       '<span class="gs-item-arrow" aria-hidden="true">&#8594;</span>' +
       "</a>";
@@ -169,10 +172,13 @@
           if (!groups[r.tipo]) { groups[r.tipo] = []; order.push(r.tipo); }
           groups[r.tipo].push(r);
         });
+        // Il modulo sulla riga solo se dice altro rispetto all'intestazione del gruppo.
+        var stesso = function (a, b) { return String(a || "").toLowerCase().replace(/[^a-z]/g, "") === String(b || "").toLowerCase().replace(/[^a-z]/g, ""); };
         order.forEach(function (tipo) {
-          html += sectionHtml(LABELS[tipo] || tipo);
+          var titolo = LABELS[tipo] || tipo;
+          html += sectionHtml(titolo);
           groups[tipo].forEach(function (r) {
-            html += itemHtml({ kind: r.tipo, label: r.label, sub: r.sub, preview: r.preview, module: r.module, url: r.url, presenza: r.presenza });
+            html += itemHtml({ kind: r.tipo, label: r.label, sub: r.sub, preview: r.preview, module: stesso(r.module, titolo) ? "" : r.module, url: r.url, presenza: r.presenza });
           });
         });
       }
