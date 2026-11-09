@@ -101,6 +101,12 @@ IMPOSTAZIONI: dict[str, PagineImpostazioni] = {
         ),
         modulo_acl="assets",
     ),
+    "produzione": PagineImpostazioni(
+        codici=("produzione.impostazioni.manage",),
+        rotte=("produzione:impostazioni",),
+        modulo_acl="produzione",
+        etichetta="Tipi di documento di produzione",
+    ),
     "kickoff": PagineImpostazioni(
         codici=("tasks.impostazioni.manage",),
         rotte=("tasks:impostazioni", "tasks:impostazioni_kickoff_delete", "tasks:impostazioni_task_delete"),
