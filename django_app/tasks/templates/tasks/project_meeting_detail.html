@@ -55,7 +55,7 @@
           <a class="md-btn" href="{% url 'tasks:project_meeting_create' project.id %}?da={{ meeting.id }}">Pianifica prossimo incontro</a>
         {% endif %}
         {% if not meeting.minuta_chiusa or can_edit_after_end %}
-        <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">{% if meeting.minuta_chiusa %}Correggi ordine del giorno{% else %}Convocazione{% endif %}</a>
+        <a class="md-btn white" href="{% url 'tasks:project_meeting_edit' project.id meeting.id %}">{% if meeting.minuta_chiusa %}Correggi ordine del giorno{% else %}Modifica incontro{% endif %}</a>
         {% endif %}
         {% if meeting.stato == "PIANIFICATO" %}
           <button type="button" class="md-btn danger-ghost" id="meeting-cancel-open">Annulla incontro</button>
@@ -94,7 +94,7 @@
     <div class="md-convocazione-note warn">
       <strong>Incontro annullato</strong>
       {% if meeting.annullato_at %}il {{ meeting.annullato_at|date:"d-m-Y H:i" }}{% endif %}{% if meeting.annullato_da %} da {{ meeting.annullato_da.get_full_name|default:meeting.annullato_da.username }}{% endif %}{% if meeting.annullato_motivo %} — {{ meeting.annullato_motivo }}{% endif %}
-      {% if can_manage %}<span>Per riprogrammarlo apri «Convocazione» e riporta lo stato a Pianificato.</span>{% endif %}
+      {% if can_manage %}<span>Per riprogrammarlo apri «Modifica incontro» e riporta lo stato a Pianificato.</span>{% endif %}
     </div>
   {% elif meeting.stato == "PIANIFICATO" %}
     {% if meeting.convocazione_da_reinviare %}
