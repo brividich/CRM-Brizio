@@ -2,6 +2,7 @@
 <div class="tp-macchina">
   {% if assenze %}<span class="ts-chip warn">{{ persona.get_full_name|default:persona.username }} assente{% for a in assenze %} {{ a.0|date:"d/m" }}–{{ a.1|date:"d/m" }}{% endfor %}</span>
   {% else %}<span class="ts-chip ok">{{ persona.get_full_name|default:persona.username }} disponibile dal {{ inizio|date:"d/m" }} al {{ fine|date:"d/m" }}</span>{% endif %}
+  <span class="ts-chip {% if impegni_persona >= 5 %}danger{% elif impegni_persona >= 3 %}warn{% else %}ok{% endif %}">{{ impegni_persona }} attività aperte nello stesso periodo</span>
 </div>
 {% endif %}
 {% if m %}{% include "tasks/_tappe_macchina.html" %}{% endif %}

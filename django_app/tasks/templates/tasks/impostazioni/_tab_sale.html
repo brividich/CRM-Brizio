@@ -1,0 +1,49 @@
+<div class="ts-panel" id="sale">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Sale riunioni</h2>
+      <p class="ts-panel-subtitle">Le sale proposte nel form dell'incontro. Con la casella Microsoft 365 della sala (es. sala.riunioni@azienda.it) l'invito Outlook la prenota e il form ne mostra la disponibilità.</p>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
+      <tbody>
+        {% for sala in sale_riunioni %}
+        <tr>
+          <td colspan="5" style="padding:0">
+            <form method="post" class="sl-cfg-row">
+              {% csrf_token %}
+              <input type="hidden" name="tab" value="sale"><input type="hidden" name="sala_id" value="{{ sala.pk }}">
+              <input class="input" name="nome" value="{{ sala.nome }}" maxlength="120" required aria-label="Nome">
+              <input class="input" type="email" name="email" value="{{ sala.email }}" placeholder="nessuna: solo portale" aria-label="Casella Microsoft 365">
+              <input class="input" type="number" name="capienza" value="{{ sala.capienza|default:'' }}" min="1" max="999" aria-label="Posti">
+              <label class="sl-cfg-check"><input type="checkbox" name="attiva" {% if sala.attiva %}checked{% endif %}> Attiva</label>
+              <span class="sl-cfg-act">
+                <button type="submit" name="sala_action" value="salva" class="btn btn-secondary btn-sm">Salva</button>
+                <button type="submit" name="sala_action" value="elimina" class="btn btn-secondary btn-sm" data-hub-confirm="Eliminare la sala «{{ sala.nome }}»? Se ha incontri viene solo disattivata.">Elimina</button>
+              </span>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="ts-field-help">Nessuna sala: aggiungine una qui sotto.</td></tr>
+        {% endfor %}
+        <tr>
+          <td colspan="5" style="padding:0">
+            <form method="post" class="sl-cfg-row">
+              {% csrf_token %}
+              <input type="hidden" name="tab" value="sale">
+              <input class="input" name="nome" maxlength="120" required placeholder="Nuova sala" aria-label="Nome nuova sala">
+              <input class="input" type="email" name="email" placeholder="sala@azienda.it (facoltativa)" aria-label="Casella Microsoft 365">
+              <input class="input" type="number" name="capienza" min="1" max="999" placeholder="Posti" aria-label="Posti">
+              <span></span>
+              <span class="sl-cfg-act"><button type="submit" name="sala_action" value="nuova" class="btn btn-primary btn-sm">Aggiungi</button></span>
+            </form>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="ts-field-help">Perché la sala accetti da sola le prenotazioni, in Exchange deve essere una casella «sala» con l'accettazione automatica. Il portale ha bisogno del permesso applicativo Microsoft Graph Calendars.ReadWrite.</p>
+  </div>
+</div>
+

@@ -1,6 +1,8 @@
 """Viste dei kickoff/commesse: elenco, creazione, copia, fase, commenti."""
 from __future__ import annotations
 
+import json
+
 import logging
 
 from django.contrib import messages
@@ -169,7 +171,20 @@ def _contesto_filo(project, post) -> dict:
          "serve": (k in scelte) if scelte is not None else (k not in escluse)}
         for k, label in TappaKickoff.choices if k in tipi
     ]
+    from ..models import ModelloCommessa
+
+    modelli = list(ModelloCommessa.objects.filter(attivo=True))
+    if post is not None:
+        consegna = post.get("data_consegna", "")
+        modello_id = post.get("modello", "")
+    else:
+        consegna = project.data_consegna.isoformat() if project is not None and project.data_consegna else ""
+        modello_id = str(project.modello_id) if project is not None and project.modello_id else ""
     return {
+        "filo_modelli": modelli,
+        "filo_modelli_json": json.dumps({str(m.pk): m.chiavi for m in modelli}),
+        "filo_consegna": consegna,
+        "filo_modello_id": modello_id,
         "filo_tappe": tappe,
         "filo_sale": list(MeetingRoom.objects.filter(attiva=True).order_by("ordine", "nome")),
         "filo_primo": {
@@ -184,6 +199,25 @@ def _salva_tappe(project, post) -> None:
     """Le tappe non spuntate «non servono». Senza il campo nel POST non cambia niente."""
     if post.get("tappe_presenti") != "1":
         return
+    from datetime import date
+
+    from ..models import ModelloCommessa
+
+    campi = []
+    raw = (post.get("data_consegna") or "").strip()
+    try:
+        consegna = date.fromisoformat(raw) if raw else None
+    except ValueError:
+        consegna = project.data_consegna
+    if consegna != project.data_consegna:
+        project.data_consegna = consegna
+        campi.append("data_consegna")
+    modello = ModelloCommessa.objects.filter(pk=int(post["modello"])).first() if (post.get("modello") or "").isdigit() else None
+    if (modello.pk if modello else None) != project.modello_id:
+        project.modello = modello
+        campi.append("modello")
+    if campi:
+        project.save(update_fields=campi)
     from ..services.tappe import tipi_per_tappa
 
     tipi = tipi_per_tappa()
@@ -601,3 +635,35 @@ def add_project_comment(request, project_id: int):
     if return_qs:
         target_url = f"{target_url}?{return_qs}"
     return redirect(target_url)
+
+
+@require_POST
+@task_permissions_required("tasks_view")
+def project_chiudi(request, project_id: int):
+    """Chiude il kickoff (o lo riapre): passa a Completata, con chi, quando e una nota a registro."""
+    from ..access import ha_pieni_poteri
+    from ..models import ProjectPhase
+
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    if not ha_pieni_poteri(request, project):
+        messages.error(request, "Il kickoff lo chiude il capocommessa.")
+        return redirect("tasks:project_overview", project_id=project.pk)
+    if request.POST.get("azione") == "riapri":
+        project.chiuso_il, project.chiuso_da = None, None
+        project.phase = ProjectPhase.EXEC
+        project.save(update_fields=["chiuso_il", "chiuso_da", "phase", "updated_at"])
+        log_action(request, "kickoff_riaperto", "tasks", {"project_id": project.pk})
+        messages.info(request, "Kickoff riaperto.")
+        return redirect("tasks:project_overview", project_id=project.pk)
+    aperte = project.tasks.exclude(status__in=[TaskStatus.DONE, TaskStatus.CANCELED]).count()
+    if aperte and request.POST.get("conferma") != "1":
+        messages.error(request, f"Ci sono ancora {aperte} attività aperte: spunta la conferma per chiudere lo stesso.")
+        return redirect(reverse("tasks:project_overview", args=[project.pk]) + "#chiusura")
+    project.chiuso_il = timezone.now()
+    project.chiuso_da = request.user
+    project.chiusura_nota = (request.POST.get("nota") or "").strip()[:2000]
+    project.phase = ProjectPhase.DONE
+    project.save(update_fields=["chiuso_il", "chiuso_da", "chiusura_nota", "phase", "updated_at"])
+    log_action(request, "kickoff_chiuso", "tasks", {"project_id": project.pk, "aperte": aperte, "nota": project.chiusura_nota[:300]})
+    messages.success(request, "Kickoff chiuso.")
+    return redirect("tasks:project_overview", project_id=project.pk)
