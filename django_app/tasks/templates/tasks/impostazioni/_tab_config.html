@@ -154,6 +154,52 @@
   </div>
 </form>
 
+<div class="ts-panel" id="poteri" style="margin-top:14px;">
+  <div class="ts-panel-head">
+    <div class="ts-panel-title-wrap">
+      <h2 class="ts-panel-title">Poteri e avvisi</h2>
+      <p class="ts-panel-subtitle">Chi ha pieni poteri modifica tutto sulla commessa, date comprese. Gli altri lavorano sulle proprie attività e chiedono lo spostamento delle date.</p>
+    </div>
+  </div>
+  <div class="ts-panel-body">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="tab" value="poteri">
+      <div class="pt-gruppo">
+        <p class="pt-titolo">Ruoli del team con pieni poteri</p>
+        <div class="pt-scelte">
+          {% for codice, etichetta in poteri_ruoli_opzioni %}
+          <label class="pt-scelta"><input type="checkbox" name="poteri_ruoli" value="{{ codice }}" {% if codice in poteri_ruoli_scelti %}checked{% endif %}> {{ etichetta }}</label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="pt-gruppo">
+        <p class="pt-titolo">Altre persone con pieni poteri su tutte le commesse</p>
+        <div class="pt-scelte pt-utenti">
+          {% for utente in cc_utenti_disponibili %}
+          <label class="pt-scelta"><input type="checkbox" name="poteri_utenti" value="{{ utente.pk }}" {% if utente.pk in poteri_utenti_ids %}checked{% endif %}> {{ utente.etichetta }}</label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="pt-gruppo">
+        <p class="pt-titolo">Spostamenti di date</p>
+        <label class="pt-scelta"><input type="checkbox" name="spostamenti_con_approvazione" {% if cfg.spostamenti_con_approvazione %}checked{% endif %}> Chi non ha pieni poteri chiede lo spostamento: decide il primo capocommessa che risponde</label>
+      </div>
+      <div class="pt-gruppo">
+        <p class="pt-titolo">Chi riceve l'avviso quando cambia un incarico (date, priorità, stato, responsabile)</p>
+        <div class="pt-scelte">
+          {% for codice, etichetta in avvisi_opzioni %}
+          <label class="pt-scelta"><input type="checkbox" name="avvisi_destinatari" value="{{ codice }}" {% if codice in avvisi_scelti %}checked{% endif %}> {{ etichetta }}</label>
+          {% endfor %}
+        </div>
+        <span class="ts-field-help">Campanella sempre; la mail passa dal flusso «KICK-OFF — mail quando cambia un incarico» in Automazioni. Chi fa la modifica non viene avvisato.</span>
+      </div>
+      <button type="submit" class="btn btn-primary">Salva poteri e avvisi</button>
+    </form>
+  </div>
+</div>
+
+
 <div class="ts-panel" id="sale" style="margin-top:14px;">
   <div class="ts-panel-head">
     <div class="ts-panel-title-wrap">

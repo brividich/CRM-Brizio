@@ -36,6 +36,9 @@ User = get_user_model()
 class TaskProjectGanttAndNotificationsTests(TasksBaseTestCase):
     def setUp(self):
         super().setUp()
+        # Comportamento senza approvazione degli spostamenti (coperto con approvazione in tests_spostamenti).
+        from tasks.models import TaskImpostazioni
+        TaskImpostazioni.objects.update_or_create(pk=TaskImpostazioni.get_singleton().pk, defaults={"spostamenti_con_approvazione": False})
         _ensure_role(2, "utente")
         _grant_role_actions(2, ["tasks_view", "tasks_edit", "tasks_comment"])
         self._refresh_acl_cache()

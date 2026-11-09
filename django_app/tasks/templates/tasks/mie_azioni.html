@@ -17,6 +17,31 @@
 {% endblock %}
 
 {% block tasks_shell_content %}
+{% if spostamenti_da_decidere %}
+<section class="ts-panel ma-sposta" id="spostamenti">
+  <div class="ts-panel-head"><div class="ts-panel-title-wrap">
+    <h2 class="ts-panel-title">Spostamenti da decidere <span class="ts-chip warn">{{ spostamenti_da_decidere|length }}</span></h2>
+    <p class="ts-panel-subtitle">Gli incaricati chiedono di cambiare le date: approva, rifiuta o approva con date diverse. Decide il primo capocommessa che risponde.</p>
+  </div></div>
+  <div class="ts-panel-body">
+    {% for sp in spostamenti_da_decidere %}
+    <form method="post" action="{% url 'tasks:spostamento_decidi' sp.id %}" class="ma-sp-riga">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'tasks:mie_azioni' %}#spostamenti">
+      <div class="ma-sp-testo">
+        <a class="tl-task-link" href="{% url 'tasks:detail' sp.task_id %}">{{ sp.task.title }}</a>
+        <small>{{ sp.task.project.name }} · {{ sp.richiesto_da.get_full_name|default:sp.richiesto_da.username }} · {{ sp.fine_prima|date:"d/m"|default:"—" }} → <strong>{{ sp.fine_nuovo|date:"d/m"|default:"—" }}</strong>{% if sp.motivo %} · «{{ sp.motivo }}»{% endif %}</small>
+      </div>
+      <input class="input" type="date" name="inizio" value="{{ sp.inizio_nuovo|date:'Y-m-d' }}" aria-label="Inizio">
+      <input class="input" type="date" name="fine" value="{{ sp.fine_nuovo|date:'Y-m-d' }}" aria-label="Fine">
+      <input class="input" type="text" name="nota" maxlength="500" placeholder="Nota (facoltativa)" aria-label="Nota">
+      <button type="submit" name="decisione" value="approva" class="btn btn-sm">Approva</button>
+      <button type="submit" name="decisione" value="rifiuta" class="btn btn-secondary btn-sm">Rifiuta</button>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 <section class="ts-panel">
   <div class="ts-panel-body">
     <form method="get" class="ml-filters">

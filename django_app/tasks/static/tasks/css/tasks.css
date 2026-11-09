@@ -4783,3 +4783,29 @@ body.theme-dark .fai-tipo input:checked+span{background:rgba(249,115,22,.14)}
 .fl-passo-azione{font-weight:700;font-size:13px;white-space:nowrap}
 @media (max-width:640px){.fl-passo{flex-direction:column;align-items:flex-start}}
 .mf-send-invite[hidden]{display:none !important}
+
+/* Scheda attività: richiesta di spostamento date */
+.td-spostamento{display:grid;gap:8px;border-left:4px solid #f59e0b}
+.td-sp-testo,.td-sp-motivo,.td-sp-quando{margin:0;font-size:13px}
+.td-sp-motivo{font-style:italic}
+.td-sp-quando{color:var(--text-mid);font-size:12px}
+.td-sp-form{display:grid;gap:8px}
+.td-sp-date{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.td-sp-date label{display:grid;gap:2px;font-size:11px;color:var(--text-mid)}
+.td-sp-azioni{display:flex;gap:8px}
+
+/* Le mie azioni: spostamenti da decidere */
+.ma-sposta{margin-bottom:14px;border-left:4px solid #f59e0b}
+.ma-sp-riga{display:grid;grid-template-columns:minmax(0,2fr) 140px 140px minmax(120px,1fr) auto auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--border)}
+.ma-sp-riga:first-child{border-top:0}
+.ma-sp-testo{display:grid;gap:2px;min-width:0}
+.ma-sp-testo small{font-size:12px;color:var(--text-mid)}
+@media (max-width:900px){.ma-sp-riga{grid-template-columns:1fr 1fr}.ma-sp-testo{grid-column:1/-1}}
+.pt-scelte{display:flex;flex-wrap:wrap;gap:6px 16px}
+.pt-scelta{display:flex;gap:6px;align-items:center;font-size:13px}
+.pt-utenti{max-height:200px;overflow:auto}
+.pt-gruppo{display:grid;gap:6px;margin-bottom:14px}
+.pt-titolo{margin:0;font-size:12px;font-weight:700;color:var(--text-mid)}
+.pt-scelta{text-transform:none;letter-spacing:normal;font-weight:500}
+.pt-scelta input{width:auto;height:auto;margin:0}
+.pt-utenti{padding:8px 10px;border:1px solid var(--border);border-radius:8px}

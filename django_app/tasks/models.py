@@ -59,6 +59,7 @@ class TaskPriority(models.TextChoices):
 
 
 class TaskEventType(models.TextChoices):
+    DATE_REQUEST = "DATE_REQUEST", "Richiesta di spostamento"
     STATUS_CHANGE = "STATUS_CHANGE", "Status change"
     ASSIGNMENT_CHANGE = "ASSIGNMENT_CHANGE", "Assignment change"
     EDIT = "EDIT", "Edit"
@@ -727,6 +728,22 @@ class TaskImpostazioni(models.Model):
         default="",
         verbose_name="CC predefiniti (email)",
         help_text="Un indirizzo per riga, per chi non e' un utente del portale.",
+    )
+    # Poteri pieni sulla commessa: ruoli di team (codici separati da virgola) + persone scelte.
+    poteri_ruoli = models.CharField(
+        max_length=60, blank=True, default="CC,PM", verbose_name="Ruoli con pieni poteri",
+        help_text="Ruoli del team che modificano tutto sulla commessa, date comprese, senza approvazione.",
+    )
+    poteri_utenti = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True, related_name="+", verbose_name="Persone con pieni poteri",
+    )
+    spostamenti_con_approvazione = models.BooleanField(
+        default=True, verbose_name="Spostamenti di date con approvazione",
+        help_text="Chi non ha pieni poteri chiede lo spostamento: decide il capocommessa.",
+    )
+    # Chi riceve l'avviso quando cambia un incarico: INCARICATO, CC, PM, CREATORE.
+    avvisi_destinatari = models.CharField(
+        max_length=60, blank=True, default="INCARICATO,CC", verbose_name="Chi riceve gli avvisi sui cambiamenti",
     )
 
     fai_mesi_verifica = models.PositiveSmallIntegerField(
@@ -2494,3 +2511,39 @@ class FaiRecord(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_tipo_display() or 'FAI'} {self.articolo.part_number}".strip()
+
+
+class SpostamentoStato(models.TextChoices):
+    IN_ATTESA = "IN_ATTESA", "In attesa"
+    APPROVATA = "APPROVATA", "Approvata"
+    RIFIUTATA = "RIFIUTATA", "Rifiutata"
+    ANNULLATA = "ANNULLATA", "Annullata"
+
+
+class TaskSpostamento(models.Model):
+    """Richiesta di cambiare le date di un incarico: la decide chi ha pieni poteri sulla commessa."""
+
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="spostamenti")
+    richiesto_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    inizio_prima = models.DateField(null=True, blank=True)
+    fine_prima = models.DateField(null=True, blank=True)
+    inizio_nuovo = models.DateField(null=True, blank=True)
+    fine_nuovo = models.DateField(null=True, blank=True)
+    motivo = models.CharField(max_length=500, blank=True, default="")
+    stato = models.CharField(max_length=10, choices=SpostamentoStato.choices, default=SpostamentoStato.IN_ATTESA, db_index=True)
+    deciso_da = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    deciso_at = models.DateTimeField(null=True, blank=True)
+    nota_decisione = models.CharField(max_length=500, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Richiesta di spostamento"
+        verbose_name_plural = "Richieste di spostamento"
+
+    def __str__(self) -> str:
+        return f"Spostamento {self.task_id} ({self.stato})"
+
+    @property
+    def in_attesa(self) -> bool:
+        return self.stato == SpostamentoStato.IN_ATTESA

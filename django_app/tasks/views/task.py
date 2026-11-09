@@ -47,6 +47,7 @@ from ..models import (
     TaskStatus,
 )
 from ..access import (
+    ha_pieni_poteri,
     can_manage_project,
     can_manage_task,
     _can_update_task_due_date,
@@ -56,6 +57,7 @@ from ..access import (
     scoped_tasks_queryset,
     task_permissions_required,
 )
+from ..services.spostamenti import intercetta as intercetta_spostamento
 from ..services.asset_conflicts import (
     _asset_availability_report,
     _check_blocking_asset_conflicts,
@@ -336,6 +338,7 @@ def task_detail(request, task_id: int):
             "task_tech_ref_modificabile": can_manage or task.assigned_to_id == request.user.pk,
             # Il responsabile arriva qui dalla notifica: deve poter prendere in carico e chiudere.
             "is_assignee": task.assigned_to_id == request.user.pk,
+            **_contesto_spostamenti(request, task),
         },
     )
 
@@ -821,6 +824,41 @@ def _blocca_priorita(request, task, form) -> None:
         campo.help_text = "La cambiano il responsabile del kickoff e chi ha creato l'attività."
 
 
+def _contesto_spostamenti(request, task) -> dict:
+    from ..access import puo_spostare_subito
+    from ..models import SpostamentoStato
+
+    return {
+        "sposta_subito": puo_spostare_subito(request, task),
+        "spostamento_aperto": task.spostamenti.filter(stato=SpostamentoStato.IN_ATTESA).select_related("richiesto_da").first(),
+        "puo_decidere_spostamenti": bool(task.project_id and ha_pieni_poteri(request, task.project)),
+    }
+
+
+def _limita_a_pieni_poteri(request, task, before: dict) -> list[str]:
+    """Responsabile, priorità, annullamento e commessa li cambia solo chi ha pieni poteri."""
+    progetto_prima = Project.objects.filter(pk=before.get("project_id")).first() if before.get("project_id") else None
+    if progetto_prima is None or ha_pieni_poteri(request, progetto_prima):
+        return []
+    tolti = []
+    if task.assigned_to_id != before.get("assigned_to_id"):
+        task.assigned_to_id = before.get("assigned_to_id")
+        tolti.append("Responsabile")
+    from ..access import can_set_task_priority
+
+    # La priorità segue la regola già esistente (anche chi ha creato l'attività).
+    if task.priority != before.get("priority") and not can_set_task_priority(request, task):
+        task.priority = before.get("priority")
+        tolti.append("Priorità")
+    if task.status == TaskStatus.CANCELED and before.get("status") != TaskStatus.CANCELED:
+        task.status = before.get("status")
+        tolti.append("Annullamento")
+    if task.project_id != before.get("project_id"):
+        task.project_id = before.get("project_id")
+        tolti.append("Commessa")
+    return tolti
+
+
 @task_permissions_required("tasks_view")
 def task_edit(request, task_id: int):
     task = get_object_or_404(scoped_tasks_queryset(request).prefetch_related("subscribers"), pk=task_id)
@@ -882,6 +920,14 @@ def task_edit(request, task_id: int):
                     },
                 )
 
+            limitati = _limita_a_pieni_poteri(request, updated_task, before)
+            if limitati:
+                messages.warning(
+                    request, f"{', '.join(limitati)}: li decide il capocommessa, sono rimasti come prima.",
+                )
+            richiesta = intercetta_spostamento(request, updated_task, before)
+            if richiesta is not None:
+                messages.info(request, "Spostamento delle date inviato al capocommessa: le date cambiano quando lo approva.")
             updated_task.save()
             form.save_m2m()
             if before.get("assigned_to_id") != updated_task.assigned_to_id:
@@ -952,7 +998,11 @@ def update_due_date(request, task_id: int):
     before = _task_snapshot(task)
     form = TaskDueDateForm(request.POST, instance=task)
     if form.is_valid():
-        task = form.save()
+        task = form.save(commit=False)
+        if intercetta_spostamento(request, task, before, motivo=request.POST.get("motivo", "")) is not None:
+            messages.info(request, "Richiesta di spostamento inviata al capocommessa.")
+            return redirect("tasks:detail", task_id=task.id)
+        task.save()
         _log_task_update_events(task, request.user, before)
         messages.success(request, "Data prevista conclusione aggiornata.")
         if task.is_overdue:
@@ -992,7 +1042,11 @@ def update_start_date(request, task_id: int):
     before = _task_snapshot(task)
     form = TaskStartDateForm(request.POST, instance=task)
     if form.is_valid():
-        task = form.save()
+        task = form.save(commit=False)
+        if intercetta_spostamento(request, task, before, motivo=request.POST.get("motivo", "")) is not None:
+            messages.info(request, "Richiesta di spostamento inviata al capocommessa.")
+            return redirect("tasks:detail", task_id=task.id)
+        task.save()
         _log_task_update_events(task, request.user, before)
         messages.success(request, "Data inizio aggiornata.")
     else:
@@ -1014,21 +1068,21 @@ def change_status(request, task_id: int):
             status=403,
         )
     old_status = task.status
+    before = _task_snapshot(task)
     form = TaskStatusForm(request.POST, instance=task)
     if form.is_valid():
         task = form.save(commit=False)
+        if task.status == TaskStatus.CANCELED and task.project_id and not ha_pieni_poteri(request, task.project):
+            messages.error(request, "Annullare un'attività lo decide il capocommessa.")
+            return redirect("tasks:detail", task_id=task_id)
         # Completata = avanzamento al 100%: prima restava fermo all'ultimo valore
         # e la barra diceva «60%» su un'attivita' chiusa.
         if task.status == TaskStatus.DONE and (task.progress or 0) < 100:
             task.progress = 100
         task.save()
         if old_status != task.status:
-            _log_event(
-                task,
-                request.user,
-                TaskEventType.STATUS_CHANGE,
-                {"from": old_status, "to": task.status},
-            )
+            # Registra il cambio e avvisa i coinvolti (stesso giro di tutte le modifiche).
+            _log_task_update_events(task, request.user, before)
             messages.success(request, "Stato aggiornato.")
             if task.status == TaskStatus.DONE:
                 from ..services.meeting_tasks import notify_task_completed

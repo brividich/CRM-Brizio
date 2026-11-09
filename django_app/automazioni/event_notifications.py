@@ -211,6 +211,18 @@ EVENT_NOTIFICATIONS: list[dict[str, str]] = [
         "source": "suggestion_corner/notifications.py",
         "func": "notifica_team_nuova_segnalazione",
     },
+    {
+        "code": "kickoff_avviso_cambiamenti",
+        "label": "KICK-OFF — mail quando cambia un incarico",
+        "module": "KICK-OFF",
+        "trigger": (
+            "Cambiano date, priorità, stato, titolo o responsabile di un'attività, oppure arriva o si decide "
+            "una richiesta di spostamento. La campanella del portale parte sempre."
+        ),
+        "destinatari": "Impostazioni KICK-OFF → Poteri e avvisi (incaricato, capocommessa, PM, chi ha creato); chi modifica escluso",
+        "source": "tasks/services/avvisi.py",
+        "func": "mail_cambiamento",
+    },
     # Flussi nuovi spenti finché qualcuno non li accende dal designer.
     {
         "code": "kickoff_promemoria_scadenza",
