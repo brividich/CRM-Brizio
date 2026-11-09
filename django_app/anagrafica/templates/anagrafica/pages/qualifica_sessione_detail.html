@@ -37,7 +37,7 @@ body.theme-dark .qs-btn-danger{background:rgba(229,62,62,.16);color:#fca5a5}
 
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
-      <div class="qs-title">↻ {{ sess.tipo.nome }}</div>
+      <div class="qs-title">↻ <a href="{% url 'anagrafica:tipo_qualifica_detail' sess.tipo_id %}" style="color:inherit;" title="Apri la qualifica: chi la possiede e le scadenze">{{ sess.tipo.nome }}</a></div>
       <div class="qs-sub">Sessione di rinnovo del {{ sess.data_conseguimento|date:"d-m-Y" }}</div>
     </div>
     <div style="display:flex;gap:8px;">

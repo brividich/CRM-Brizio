@@ -905,7 +905,9 @@ def visite_mediche_dashboard(request):
 
     filtro_centro = centro_filtro.leggi(request)
     visite_qs = filtro_centro.applica(VisitaMedica.objects.all())
-    correnti_qs = visite_qs.filter(id__in=ultime_visite_correnti_ids())
+    # Senza i cessati, come lo scadenzario a cui portano i riquadri.
+    correnti_qs = visite_qs.filter(id__in=ultime_visite_correnti_ids()).exclude(
+        legacy_anagrafica_id__in=_helpers._cessati_legacy_ids())
 
     # KPI globali (sulle visite correnti dell'intero dataset, non filtrato per mese)
     kpi_scadute = correnti_qs.filter(
@@ -1983,7 +1985,7 @@ def sicurezza_hub(request):
         sezioni_c.Area("anagrafica:visite_mediche_dashboard", "Visite mediche", "Sorveglianza sanitaria", icona="i-pill"),
         sezioni_c.Area("anagrafica:fattori_rischio_list", "Fattori di rischio", "Catalogo", icona="i-clipboard"),
         sezioni_c.Area("anagrafica:esposizioni_rischio_list", "Esposizioni", "Chi è esposto a cosa", icona="i-clipboard"),
-        sezioni_c.Area("anagrafica:matrice_competenze", "Matrice competenze", "Dipendenti × abilitazioni per audit ISO", icona="i-grid"),
+        sezioni_c.Area("anagrafica:matrice_competenze", "Matrice qualifiche", "Dipendenti × abilitazioni per audit ISO", icona="i-grid"),
         sezioni_c.Area("anagrafica:qualifiche_list", "Qualifiche di sicurezza", "Carrellisti, antincendio, BLSD…", "categoria=SICUREZZA", icona="i-cap"),
         sezioni_c.Area("dpi:impostazioni", "Catalogo DPI", "Categorie, tipi, modelli, taglie", icona="i-shield"),
         sezioni_c.Area("anagrafica:formazione_dashboard", "Formazione", "Piani, corsi, sessioni, scadenze", icona="i-book"),
@@ -2162,11 +2164,17 @@ def matrice_competenze(request):
             tabs.append((cat_code, cat_lbl, n))
     tipi = [t for t in tipi_all if not cat_filter or t.categoria == cat_filter]
     tipo_ids = [t.id for t in tipi]
+    # Solo la qualifica corrente per persona e tipo: senza, la cella poteva
+    # mostrare il record scaduto invece del rinnovo.
+    from ..services.requisiti import id_qualifiche_correnti
+
+    correnti_q = id_qualifiche_correnti()
     q_map: dict[tuple[int, int], DipendenteQualifica] = {}
     for q in DipendenteQualifica.objects.filter(
         legacy_anagrafica_id__in=legacy_ids, tipo_id__in=tipo_ids
     ):
-        q_map[(q.legacy_anagrafica_id, q.tipo_id)] = q
+        if q.pk in correnti_q:
+            q_map[(q.legacy_anagrafica_id, q.tipo_id)] = q
 
     def _stato(q):
         if q is None:
@@ -2250,6 +2258,18 @@ def conformita_report(request):
 
     dip_rows = [r for r in fetch_anagrafica_rows(deduplicate=True) if r.get("attivo")]
     dip_map = {int(r["id"]): r for r in dip_rows if r.get("id")}
+    legacy_ids = list(dip_map.keys())
+
+    # Stesso perimetro di dashboard HR e scadenzari: senza i cessati e solo le
+    # schede che il ruolo può vedere.
+    _cessati = _helpers._cessati_legacy_ids()
+    _visibili = None
+    if _helpers._ruoli_attivi():
+        from .dipendenti import _schede_visibili
+
+        _visibili = _schede_visibili(request)
+    dip_map = {k: v for k, v in dip_map.items()
+               if k not in _cessati and (_visibili is None or k in _visibili)}
     legacy_ids = list(dip_map.keys())
 
     # Mappa nome mansione → id (per collegare ogni riga alla sua pagina Requisiti).
@@ -2445,6 +2465,9 @@ def libretto_sanitario_generale(request):
         "filtro_dominio": filtri["dominio"],
         "filtro_stato": filtri["stato"],
         "can_view_visite": _helpers._can_view_visite_mediche(request),
+        "can_edit_visite": _helpers._can_edit_visite_mediche(request),
+        "can_edit_formazione": _helpers._can_edit_formazione(request),
+        "can_edit_qualifiche": _helpers._qualifiche_can_edit(request),
         "oggi": django_timezone.localdate(),
         **quadro,
     })

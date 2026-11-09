@@ -26,7 +26,8 @@
         <p class="fmd-ph-sub">Mansione di rischio: DPI, visite mediche e formazione necessari per l'idoneità (D.Lgs. 81/08).{% if mansione.dvr_revisione or mansione.dvr_data %} DVR{% if mansione.dvr_revisione %} {{ mansione.dvr_revisione }}{% endif %}{% if mansione.dvr_data %} del {{ mansione.dvr_data|date:"d/m/Y" }}{% endif %}.{% endif %} Da qui parte il controllo di conformità e idoneità di chi la ricopre.</p>
       </div>
       <div class="fmd-pagehead-actions">
-        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:conformita_report' %}"><svg class="fmd-ico"><use href="#i-check"/></svg>Conformità / Idoneità</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:conformita_report' %}?mansione={{ mansione.nome|urlencode }}" title="Conformità di chi ha questa mansione di rischio"><svg class="fmd-ico"><use href="#i-check"/></svg>Conformità / Idoneità</a>
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#mansioni-rischio" title="Come funziona questa pagina">? Guida</a>
       </div>
     </div>
 

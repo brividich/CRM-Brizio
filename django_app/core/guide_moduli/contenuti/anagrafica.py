@@ -175,6 +175,37 @@ GUIDA = {
             ],
         },
         {
+            "id": "conformita-qualifiche",
+            "titolo": "Conformità, libretto, qualifiche e onboarding: dal numero all'azione",
+            "blocchi": [
+                ("p", "Ogni numero si clicca e porta all'elenco già filtrato; ogni riga da sistemare ha il suo pulsante."),
+                ("ul", [
+                    "Dashboard HR: «Persone con formazione o visite scadute» apre la Conformità con solo i non conformi; "
+                    "nelle barre «Obblighi del personale» le voci «In scadenza», «Scaduti» e «Da acquisire» aprono il "
+                    "Libretto sanitario nella vista per requisito; «Mansioni da guardare» porta al Mansionario già "
+                    "filtrato (scoperte, uomo solo, concentrate).",
+                    "Libretto sanitario, vista per requisito: colonna «Azione» con «↻ Rinnova» per i corsi (sessione "
+                    "con la persona già iscritta), «+ Visita» per le visite (giornata di visite sul tipo giusto), "
+                    "«↻ Rinnova» per le qualifiche e «Apri DPI» per i DPI. Il pulsante compare solo a chi ha il permesso.",
+                    "Conformità alla mansione: i badge Formazione, Visite, Qualifiche e DPI aprono la scheda della "
+                    "persona sulla sezione giusta. Conta le stesse persone della dashboard: senza i cessati e solo le "
+                    "schede che il ruolo può vedere. Dalla pagina di una mansione di rischio, «Conformità / Idoneità» "
+                    "mostra solo chi ha quella mansione (in alto «mostra tutti» per togliere il filtro).",
+                    "Scheda dipendente, riquadro conformità: sotto ogni area non in regola «Vai alla sezione per "
+                    "sistemare →» apre la scheda giusta (Formazione, Visite mediche, Qualifiche, Dotazioni/DPI).",
+                    "Qualifiche: la scheda del tipo, l'elenco e la «Matrice qualifiche» contano solo la qualifica "
+                    "corrente di ogni persona (un rinnovo registrato a parte non lascia la vecchia «scaduta») e "
+                    "niente cessati: gli stessi numeri del cruscotto e dello scadenzario. I corsi della qualifica si "
+                    "aprono con un clic; dalla sessione di rinnovo il nome porta alla qualifica.",
+                    "Visite mediche: «Scadute» e «In scadenza» non contano i cessati, come lo scadenzario a cui "
+                    "portano. «Senza visita (da ruolo)» parte dai ruoli operativi del tipo di visita.",
+                    "Onboarding: «Ingressi a 30 giorni», «Fine prova a 30 giorni» e «Pre-ingresso» aprono l'elenco "
+                    "con solo quelle pratiche («mostra tutte» per tornare).",
+                    "Cruscotto MOD.128: «Processi in scadenza» e «Processi scaduti» portano alla tabella dei processi in scadenza.",
+                ]),
+            ],
+        },
+        {
             "id": "leggi-attestato",
             "titolo": "Registrare l'attestato di un ente esterno",
             "blocchi": [
