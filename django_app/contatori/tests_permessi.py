@@ -112,8 +112,10 @@ class MigrazioneAclTests(TestCase):
         mig41 = import_module("contatori.migrations.0041_acl_letture_gestisci")
         mig42 = import_module("contatori.migrations.0042_acl_crea_asset_impostazioni")
         mig48 = import_module("contatori.migrations.0048_acl_guida_calo_spiegato")
+        mig49 = import_module("contatori.migrations.0049_acl_anteprima_azioni_multiple")
         self.assertEqual(modulo - set(MIG.ROUTE_VIEW) - set(MIG.ROUTE_GESTIONE) - set(mig27.ROUTE_GESTIONE)
                          - set(mig30.ROUTE_GESTIONE) - set(mig32.ROUTE_VIEW) - set(mig34.ROUTE_GESTIONE)
                          - set(mig39.ROUTE_VIEW) - set(mig39.ROUTE_GESTIONE) - set(mig40.ROUTE_GESTIONE)
-                         - set(mig41.ROUTE_GESTIONE) - set(mig42.ROUTE_GESTIONE) - set(mig48.ROUTE), set(),
+                         - set(mig41.ROUTE_GESTIONE) - set(mig42.ROUTE_GESTIONE) - set(mig48.ROUTE)
+                         - set(mig49.ROUTE), set(),
                          "Route nuova senza binding ACL: aggiungila a ROUTE_VIEW o ROUTE_GESTIONE")

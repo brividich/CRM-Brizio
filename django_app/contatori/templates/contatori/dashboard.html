@@ -98,7 +98,7 @@
   <section class="panel centrale-col" id="parco">
     <div class="panel-head"><div><h2>Parco MFC · {{ c.trimestre }}</h2><p>Lettura del trimestre e raggiungibilità.</p></div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:macchine' %}">Gestisci</a></div>
     <div class="centrale-scroll"><table class="compatta" data-fm-table-skip="1"><thead><tr><th>Reparto</th><th>SNMP</th><th class="num">Totale</th><th></th></tr></thead><tbody>
-    {% for m in macchine %}{% with l=ultime|get:m.id %}<tr>
+    {% for m in macchine %}{% with l=ultime|get:m.id %}<tr data-preview="{% url 'contatori:anteprima' 'mfc' m.pk %}">
       <td><a class="plain" href="{% url 'contatori:macchina' m.pk %}">{{ m.reparto }}</a><div class="muted">{{ m.matricola }}{% if m.host %} · <span class="mono">{{ m.host }}</span>{% endif %}</div></td>
       <td><span class="pill {% if m.snmp_stato == 'OK' %}ok{% elif m.snmp_stato == 'ERROR' %}danger{% else %}warn{% endif %}"><span class="status-dot"></span>{{ m.get_snmp_stato_display }}</span></td>
       {% if l %}<td class="num" title="A4 BN {{ l.a4_bn }} · A3 BN {{ l.a3_bn }} · A4 COL {{ l.a4_col }} · A3 COL {{ l.a3_col }}"><strong>{{ l.totale }}</strong><div class="muted">{{ l.get_fonte_display }} · {{ l.data|date:"d/m" }}</div></td><td>{% if g %}<a class="plain" href="{% url 'contatori:lettura_edit' l.pk %}">Correggi</a>{% endif %}</td>

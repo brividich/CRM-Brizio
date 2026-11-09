@@ -20,6 +20,8 @@ GUIDA = {
                     "Le letture si fanno da sole ogni mese il giorno 1 a mezzanotte; le macchine spente vengono riprovate ogni 15 minuti fino al giorno 7.",
                     "«Consumabili»: «Da ordinare» conta le MFC con un consumabile al 15% o meno, «Senza lettura recente» quelle mai lette o non lette da oltre 7 giorni; un clic sul riquadro mostra solo quelle.",
                     "Monitor SNMP: i riquadri Operativi, Attenzione, Errori e Non interrogati sono gli stessi numeri di «Stato flotta» della Centrale e un clic mostra quegli apparati; il filtro «Stato» ha le stesse voci.",
+                    "Un clic su una riga di Stampanti MFC, Monitor SNMP, Consumabili o «Parco MFC» apre il pannello laterale con stato, ultima lettura, consumabili, avvisi aperti e asset; ← → scorrono le righe, Esc chiude. «Raggruppa ▾» divide le righe per colonna.",
+                    "Azioni su più righe (caselle a sinistra, nessuna spuntata all'apertura): Consumabili «Leggi ora le selezionate» e «Prepara richiesta ordine» (CSV), Stampanti MFC «Collega gli asset proposti» (prima l'anteprima, poi «Conferma i collegamenti»), Discovery «Correggi gli IP selezionati», letture da confermare e «Elimina selezionate» in Gestisci letture.",
                     "«? Guida» nella barra del modulo apre la guida completa da qualunque pagina.",
                 ]),
             ],

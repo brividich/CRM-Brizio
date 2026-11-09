@@ -1,4 +1,5 @@
-{% load contatori_acl %}{% puo_gestire as g %}<tr id="cons-{{ r.macchina.pk }}"{% if in_coda %} hx-get="{{ stato_url }}" hx-trigger="load delay:3s" hx-swap="outerHTML"{% endif %}>
+{% load contatori_acl %}{% puo_gestire as g %}<tr id="cons-{{ r.macchina.pk }}" data-preview="{% url 'contatori:anteprima' 'mfc' r.macchina.pk %}"{% if in_coda %} hx-get="{{ stato_url }}" hx-trigger="load delay:3s" hx-swap="outerHTML"{% endif %}>
+  <td class="sec-check-col"><input type="checkbox" class="sec-bulk-item" name="macchina" value="{{ r.macchina.pk }}" form="cons-bulk" aria-label="Seleziona {{ r.macchina.reparto }}"></td>
   <td><a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a><div class="muted">{{ r.macchina.modello|default:r.macchina.matricola }} · <span class="mono">{{ r.macchina.host }}</span></div></td>
   <td>
     {% if in_coda %}<div class="muted" role="status">Lettura in coda…</div>{% endif %}

@@ -535,6 +535,33 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "tabelle",
+        "titolo": "Tabelle: anteprima, raggruppa e azioni su più righe",
+        "blocchi": [
+            ("p", "Un clic su una riga di Stampanti MFC, Monitor SNMP, Consumabili o «Parco MFC» della Centrale apre "
+                  "il pannello laterale: stato SNMP, ultima lettura, consumabili con la percentuale, avvisi aperti, "
+                  "asset collegato e «Apri la scheda MFC» (o «Apri la scheda del dispositivo»). Le frecce ← → passano "
+                  "alla riga prima o dopo, Esc chiude. Ctrl+clic sul nome apre direttamente la scheda."),
+            ("p", "«Raggruppa ▾» sopra le tabelle divide le righe per valore di una colonna (stato, contratto, fonte…)."),
+            ("ul", [
+                "Le caselle a sinistra selezionano le righe; quella in testata le seleziona tutte (solo le visibili), "
+                "Maiusc+clic seleziona un intervallo. All'apertura nessuna riga è spuntata; i pulsanti compaiono quando "
+                "c'è una selezione, accanto a «N selezionate».",
+                "Consumabili: «Leggi ora le selezionate» mette in coda la lettura di quelle MFC (serve «Contatori - "
+                "Gestione»); «Prepara richiesta ordine» scarica un CSV con modello, matricola, MFC, consumabile, livello %, "
+                "giorni stimati e «Sotto soglia»: per ogni MFC i consumabili al 15% o meno, altrimenti il più basso.",
+                "Stampanti MFC: la casella c'è solo sulle MFC senza asset; «Collega gli asset proposti» mostra prima gli "
+                "abbinamenti (asset trovato per seriale o IP, «nessuna proposta», «già collegata») e collega solo con "
+                "«Conferma i collegamenti», e solo se la proposta non è cambiata nel frattempo.",
+                "Letture da confermare: spunta le letture e premi «Conferma le letture selezionate».",
+                "Gestisci letture: le righe arrivano a pagine da 100 e si caricano scorrendo; «Elimina selezionate» "
+                "chiede conferma.",
+                "Discovery: sulle righe «IP diverso» «Correggi gli IP selezionati» scrive su ogni MFC l'IP trovato in rete, "
+                "come «Correggi IP» di riga.",
+            ]),
+        ],
+    },
+    {
         "id": "permessi",
         "titolo": "Chi può fare cosa",
         "blocchi": [
@@ -544,6 +571,9 @@ SEZIONI: list[dict] = [
                 ("Impostazioni, profili, discovery, nuovi apparati", "permesso «Contatori - Gestione»."),
                 ("Interrogare subito un dispositivo o tutti, segnare un calo come spiegato",
                  "permesso «Contatori - Gestione»."),
+                ("«Leggi ora le selezionate», «Collega gli asset proposti», «Correggi gli IP selezionati»",
+                 "permesso «Contatori - Gestione»; «Prepara richiesta ordine» e il pannello di anteprima con la "
+                 "consultazione."),
                 ("Creare l'asset da un apparato", "permesso «Contatori - Gestione» e permesso di creazione nel "
                                                   "modulo Asset."),
                 ("Vedere CVE, firmware nel SOC e alert", "accesso al Security Center (SOC)."),
