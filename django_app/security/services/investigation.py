@@ -22,6 +22,7 @@ from security.models import (
     BackupJobRecord, SecurityAlert, SecurityAsset, SecurityEventRecord, SecurityRemediationTicket, SecurityVpnAccess, Status,
 )
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES as ACTIVE
+from security.templatetags.security_i18n import ui_label
 
 _IP = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(?![\d.])")
 _CVE = re.compile(r"CVE-\d{4}-\d{4,7}", re.I)
@@ -289,7 +290,7 @@ def _cve_fact(cve):
     if not total:
         return None
     last = tickets.first()
-    return {"label": cve, "lines": [f"{total} ticket di rimedio per questa CVE; l'ultimo è «{last.get_status_display()}»",
+    return {"label": cve, "lines": [f"{total} ticket di rimedio per questa CVE; l'ultimo è «{ui_label(last.status)}»",
                                     f"Dispositivi esposti (massimo visto): {last.max_exposed_devices}"],
             "tone": "", "url": _url("security:case_detail", last.pk), "link": "Apri il ticket"}
 

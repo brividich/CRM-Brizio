@@ -1,6 +1,6 @@
 """Barra di stato del SOC: i numeri che contano, in cima a ogni pagina, sempre aggiornati.
 
-Calcolati una volta al minuto per tutti (cache) tranne «i miei», che dipende da chi guarda.
+Calcolati una volta al minuto e uguali per tutti (cache condivisa): nessuna voce dipende da chi guarda.
 Ogni voce porta alla lista già filtrata. Fail-safe: se un conteggio fallisce, la voce sparisce
 invece di rompere la pagina.
 """

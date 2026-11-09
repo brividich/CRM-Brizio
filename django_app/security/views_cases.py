@@ -82,13 +82,16 @@ def tickets_list(request):
     query = request.GET.get("q", "").strip()
     if query:
         cases = cases.filter(Q(title__icontains=query) | Q(cve__icontains=query) | Q(affected_product__icontains=query))
-    total = cases.count()
+    from core.paginazione import pagina_elenco
+
+    page_obj = pagina_elenco(request, cases)
     return render(
         request,
         "security/tickets_list.html",
         {
-            "tickets": cases[:200],
-            "total": total,
+            "tickets": page_obj.object_list,
+            "page_obj": page_obj,
+            "total": page_obj.paginator.count,
             "filters": {"status": status, "severity": severity, "assignee": assignee, "origin": origin, "q": query},
             "status_choices": [(value, value) for value in CASE_STATUSES],
             "severity_choices": Severity.choices,

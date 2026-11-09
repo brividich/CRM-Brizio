@@ -111,6 +111,7 @@ MENU = [
         ("Battito del SOC", "battito", ("battito",), False),
         ("Avvisi e automatismi", "soc_settings", ("soc_settings",), False),
         ("Letture automatiche", "letture", ("letture",), False),
+        ("Carica report", "inbox", ("inbox",), False),
         ("Soppressioni", "suppressions", ("suppressions",), False),
         ("Guida", "help", ("help", "doc_detail"), False),
     ]),

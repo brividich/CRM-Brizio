@@ -57,7 +57,7 @@ La regola si spegne e il conteggio riparte da zero quando:
 
 ### La pagina Soppressioni
 
-Elenca le soppressioni manuali e quelle apprese. Per ognuna mostra ambito, motivo, quante volte ha fermato un evento (hit), ultima volta e scadenza. I filtri «Apprese / Manuali» e «Attive / In scadenza / Scadute o revocate» aiutano la revisione periodica: conviene guardare almeno una volta al mese le regole **in scadenza entro 14 giorni** e quelle con molti hit. In fondo alla pagina ci sono le ultime disattivazioni registrate.
+Elenca le soppressioni manuali e quelle apprese. Per ognuna mostra ambito, motivo, quante volte ha fermato un evento (**Volte applicata**), **Ultima volta** e scadenza. I filtri «Apprese / Manuali» e «Attive / In scadenza / Scadute o revocate» aiutano la revisione periodica: conviene guardare almeno una volta al mese le regole **in scadenza entro 14 giorni** e quelle applicate molte volte. In fondo alla pagina ci sono le ultime disattivazioni registrate.
 
 ## Automatismi di rientro
 

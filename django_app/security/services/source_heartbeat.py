@@ -67,8 +67,15 @@ def evaluate_source_heartbeat(now=None) -> list[SecurityEventRecord]:
     return events
 
 
+IN_RITARDO = ("high", "warning")
+
+
 def source_status_rows(now=None):
-    """Stato di ogni casella attiva, per la dashboard: ultimo passaggio, ultimo report, silenzio."""
+    """Stato di ogni casella attiva, per la dashboard: ultimo passaggio, ultimo report, silenzio.
+
+    Le righe con ``state`` in ``IN_RITARDO`` sono le «sorgenti in ritardo» della barra di
+    stato e del filtro ``?stato=ritardo`` dell'elenco Caselle mail.
+    """
     now = now or timezone.now()
     rows = []
     for mailbox_source in SecurityMailboxSource.objects.filter(enabled=True).order_by("name"):
@@ -80,6 +87,7 @@ def source_status_rows(now=None):
         else:
             state, label = "warning", "Nessun report"
         rows.append({
+            "id": mailbox_source.pk,
             "name": mailbox_source.name,
             "state": state,
             "label": label,
@@ -103,7 +111,7 @@ def _evaluate_one(mailbox_source, now):
     if last_run_at is None or last_run_at < threshold:
         return {
             "reason": REASON_NO_RUN,
-            "detail": "Mailbox ingestion has not run within the expected window",
+            "detail": "La lettura della casella non è passata nella finestra attesa",
             "last_run_at": last_run_at,
             "last_report_at": last_report_at,
             "hours_silent": _hours_between(last_run_at, now),
@@ -113,7 +121,7 @@ def _evaluate_one(mailbox_source, now):
     if last_report_at is None or last_report_at < threshold:
         return {
             "reason": REASON_NO_DATA,
-            "detail": "Ingestion is running but no report arrived within the expected window",
+            "detail": "La lettura passa ma nessun report è arrivato nella finestra attesa",
             "last_run_at": last_run_at,
             "last_report_at": last_report_at,
             "hours_silent": _hours_between(last_report_at, now),

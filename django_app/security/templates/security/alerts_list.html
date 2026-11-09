@@ -43,7 +43,7 @@
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head">
     <h2>Alert</h2>
-    <span class="sec-badge">{% if total > alerts|length %}Mostrati {{ alerts|length }} di {{ total }}{% else %}Totale {{ total }}{% endif %}</span>
+    {% if selected_severities %}<span class="sec-badge">{{ total }} alert</span>{% endif %}
   </div>
   <form id="sec-bulk-form" method="post" action="{% url 'security:alerts_bulk' %}" data-bulk>
   {% csrf_token %}
@@ -89,5 +89,6 @@
     </table>
   </div>
   </form>
+  {% include "core/components/_pager_passo_passo.html" with page_obj=page_obj %}
 </section>
 {% endblock %}

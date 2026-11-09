@@ -56,7 +56,7 @@ class SkipReasonTest(TestCase):
         self.assertNotIn("body", event.payload)
         evaluate_security_rules()
         alert = SecurityAlert.objects.get(event=event)
-        self.assertIn("spoofing", alert.title.lower())
+        self.assertIn("mittente falso", alert.title.lower())
         self.assertEqual(alert.decision_trace["claimed_vendor"], "Microsoft Defender")
 
     def test_repeated_spoofing_reuses_one_alert(self):
@@ -64,7 +64,7 @@ class SkipReasonTest(TestCase):
         self._message("b@attacker.example")
         run_pending_parsers()
         evaluate_security_rules()
-        self.assertEqual(SecurityAlert.objects.filter(title__icontains="spoofing").count(), 1)
+        self.assertEqual(SecurityAlert.objects.filter(title__icontains="mittente falso").count(), 1)
 
     def test_trusted_defender_still_parsed(self):
         msg = self._message("defender-noreply@microsoft.com")

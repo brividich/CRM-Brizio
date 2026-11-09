@@ -1,4 +1,5 @@
 {% extends "security/_base_soc.html" %}
+{% load security_i18n %}
 
 {% block title %}Automatismi di rientro | Security Center AI{% endblock %}
 {% block page_icon %}A{% endblock %}
@@ -26,7 +27,7 @@
         <thead><tr><th>Alert</th><th>Stato oggi</th><th>Motivo della chiusura</th><th>Prova</th></tr></thead>
         <tbody>
         {% for ex in simulation.examples %}
-          <tr><td><a href="{% url 'security:alert_detail' ex.alert_id %}">#{{ ex.alert_id }} {{ ex.title|truncatechars:70 }}</a></td><td>{{ ex.status }}</td><td class="sec-small">{{ ex.reason }}</td><td class="sec-small">{{ ex.evidence|default:"—" }}</td></tr>
+          <tr><td><a href="{% url 'security:alert_detail' ex.alert_id %}">#{{ ex.alert_id }} {{ ex.title|truncatechars:70 }}</a></td><td>{{ ex.status|ui_label }}</td><td class="sec-small">{{ ex.reason }}</td><td class="sec-small">{{ ex.evidence|default:"—" }}</td></tr>
         {% endfor %}
         </tbody>
       </table>

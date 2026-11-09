@@ -50,7 +50,7 @@
     </form>
     {% endif %}
     <table class="sec-table">
-      <thead><tr>{% if can_edit %}<th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all form="supp-bulk" aria-label="Seleziona tutte"></th>{% endif %}<th>Regola</th><th>Tipo</th><th>Ambito</th><th class="sec-num">Hit</th><th>Ultimo hit</th><th>Scadenza</th><th>Motivo</th>{% if can_edit %}<th>Revoca</th>{% endif %}</tr></thead>
+      <thead><tr>{% if can_edit %}<th class="sec-check-col" data-col-group="0"><input type="checkbox" data-bulk-all form="supp-bulk" aria-label="Seleziona tutte"></th>{% endif %}<th>Regola</th><th>Tipo</th><th>Ambito</th><th class="sec-num">Volte applicata</th><th>Ultima volta</th><th>Scadenza</th><th>Motivo</th>{% if can_edit %}<th>Revoca</th>{% endif %}</tr></thead>
       <tbody>
       {% for rule in rules %}
         <tr>

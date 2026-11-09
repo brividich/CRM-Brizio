@@ -155,7 +155,7 @@ def segnalazioni(request):
     stato = stato if stato in {"aperte", "chiuse", "tutte"} else "aperte"
     severity = severity if severity in dict(svc.GRAVITA) else ""
     page = Paginator(righe, SEGNALAZIONI_PER_PAGINA).get_page(request.GET.get("page"))
-    counts = svc.conteggi()
+    counts = svc.conteggi(stato=stato, severity=severity, q=q)
     if urgenti:
         # con «Solo urgenti» i chip contano le urgenti: il numero sul chip è sempre uguale alle righe che apre
         from collections import Counter
@@ -163,8 +163,10 @@ def segnalazioni(request):
         per_tipo = Counter(r["kind"] for r in svc.elenco(urgenti=True))
         counts = {k: per_tipo.get(k, 0) for k, _l in svc.KINDS}
     # Le righe si fermano a PER_KIND_LIMIT per tipo: la pagina lo dice invece di
-    # mostrare «1200» sul chip sopra una lista di 300.
-    troncata = any(n > svc.PER_KIND_LIMIT for n in counts.values()) and not (urgenti or scadenza)
+    # mostrare «1200» sul chip sopra una lista di 300. I conteggi seguono stato,
+    # gravità e ricerca scelti, così anche con «Chiuse» o «Tutte» il taglio si vede.
+    tipi_visibili = [tipo] if tipo else [k for k, _l in svc.KINDS]
+    troncata = any(counts[k] > svc.PER_KIND_LIMIT for k in tipi_visibili) and not (urgenti or scadenza)
 
     def link(**cambi):
         params = {"tipo": tipo, "stato": stato, "gravita": severity, "q": q, "urgenti": "1" if urgenti else "", "scadenza": "1" if scadenza else ""}
@@ -174,7 +176,7 @@ def segnalazioni(request):
     return render(request, "security/segnalazioni.html", {
         "page": page, "righe_totali": len(righe), "tipo": tipo, "stato": stato, "gravita": severity, "q": q,
         "urgenti": urgenti, "scadenza": scadenza, "n_urgenti": svc.conta_urgenti(),
-        "troncata": troncata, "limite_per_tipo": svc.PER_KIND_LIMIT,
+        "troncata": troncata, "limite_per_tipo": svc.PER_KIND_LIMIT, "totale_filtri": sum(counts[k] for k in tipi_visibili),
         "link_urgenti": link(urgenti="" if urgenti else "1", scadenza="", page=""),
         "counts": counts, "counts_totale": sum(counts.values()),
         "chips_tipo": [{"value": "", "label": "Tutte", "count": sum(counts.values()), "active": not tipo, "url": link(tipo="", page="")}] + [
@@ -229,7 +231,7 @@ def pc_copertura(request):
 
     rows = svc.righe()
     codice = request.GET.get("f", "tutti")
-    codice = codice if codice in dict(svc.FILTRI) else "tutti"
+    codice = codice if codice in dict(svc.FILTRI + svc.FILTRI_LINK) else "tutti"
     q = request.GET.get("q", "").strip()[:100]
     visibili = svc.filtra(rows, codice)
     if q:
@@ -246,7 +248,7 @@ def pc_copertura(request):
         "windows_lavoro": windows_lavoro.riepilogo(),
         "filtri": [{"code": c, "label": label, "count": counts[c], "active": c == codice} for c, label in svc.FILTRI],
         "intune_totale": sum(1 for r in rows if r["intune"]),
-        "collegati": sum(1 for r in rows if r["asset"]),
+        "collegati": len(svc.filtra(rows, "collegati")),
         "n_proposte": sum(1 for r in rows if r["proposta"]),
     })
 
