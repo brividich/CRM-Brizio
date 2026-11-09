@@ -940,9 +940,21 @@ def mansionario_lacune(request):
             v = r["valutazione"]
             w.writerow([r["nome"], r["mansione"].nome, r["reparto"], v.esito_label, v.livello, "; ".join(v.mancanze)])
         return resp
+    # Il corso mancante (requisito formale) si sistema iscrivendo la persona.
+    for r in lacune:
+        corsi = []
+        for c in r["valutazione"].voci:
+            v = c["voce"]
+            if c["requisito"].startswith("corso") and v.corso_id and v.corso not in corsi:
+                corsi.append(v.corso)
+        r["corsi_mancanti"] = corsi
+    from .views import _helpers as _h
+
     return render(request, "anagrafica/pages/mansionario_lacune.html", {
         "page_title": "Lacune di competenza",
         "lacune": lacune, "esito": esito, "esiti": comp_svc.ESITI_LABEL,
+        "puo_valutare": _puo_valutare(request),
+        "puo_iscrivere": _h._can_edit_formazione(request),
     })
 
 

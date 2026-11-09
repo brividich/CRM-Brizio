@@ -443,7 +443,7 @@ def _matrice_filters(request: HttpRequest) -> str:
 register(ExportSpec(
     key="matrice_competenze",
     title="Matrice competenze (dipendenti × abilitazioni)",
-    sheet_title="Matrice competenze",
+    sheet_title="Matrice qualifiche",
     columns=[
         ("Dipendente", "dipendente"),
         ("Reparto", "reparto"),

@@ -752,8 +752,14 @@ def mansione_requisiti(request, mansione_id: int):
     except Exception:
         logger.warning("Elenco SDS della mansione non disponibile", exc_info=True)
 
+    from ..services.mansionario_struttura import TIPI_MANSIONE
+
+    mansioni_lavorative = sorted(
+        mansione.mansioni_lavorative_skm.filter(attiva=True, tipo__in=TIPI_MANSIONE).prefetch_related("ruoli"),
+        key=lambda m: m.nome.casefold())
     return render(request, "anagrafica/pages/mansione_requisiti.html", {
         "mansione": mansione,
+        "mansioni_lavorative": mansioni_lavorative,
         "is_editor": is_editor,
         "puo_protocollo": _helpers._can_view_visite_mediche(request),
         "requisiti": requisiti,

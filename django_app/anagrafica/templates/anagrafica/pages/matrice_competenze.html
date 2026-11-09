@@ -2,7 +2,7 @@
 {% load static %}
 {% load anagrafica_extras %}
 
-{% block title %}Matrice competenze | Salute e Sicurezza{% endblock %}
+{% block title %}Matrice qualifiche | Salute e Sicurezza{% endblock %}
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
@@ -60,9 +60,9 @@ body.theme-dark .mc-dip a{color:#93c5fd}
     <div>
       <div class="hr-pagehead-eyebrow">
         <a href="{% url 'anagrafica:sicurezza_hub' %}" class="fm-crumb">Salute e Sicurezza</a>
-        <span class="fm-crumb-sep">›</span> Matrice competenze
+        <span class="fm-crumb-sep">›</span> Matrice qualifiche
       </div>
-      <h2 class="hr-pagehead-title">📊 Matrice competenze{% info_hint "matrice_competenze" %}</h2>
+      <h2 class="hr-pagehead-title">📊 Matrice qualifiche{% info_hint "matrice_competenze" %}</h2>
       <p class="hr-pagehead-desc">Dipendenti × abilitazioni/qualifiche per audit ISO 45001: valido · in scadenza (≤60gg) · scaduto · non posseduto.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
