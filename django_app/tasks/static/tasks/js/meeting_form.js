@@ -504,6 +504,13 @@ var KO_MEETING_FORM_CFG = (document.currentScript && document.currentScript.data
     const body   = document.getElementById('outlook-body');
     if (!toggle || !body) return;
     body.classList.toggle('open', toggle.checked);
+    /* Con l'invito Outlook la convocazione è l'invito stesso: la mail separata sparisce. */
+    const mailInvite = document.querySelector('.mf-send-invite');
+    if (mailInvite) {
+      mailInvite.hidden = toggle.checked;
+      const box = mailInvite.querySelector('input[type=checkbox]');
+      if (box && toggle.checked) box.checked = false;
+    }
     updateAttendeesPreview();
   }
 

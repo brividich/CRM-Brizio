@@ -370,9 +370,10 @@ SEZIONI: list[dict] = [
                 "Sotto, «Disponibilità del giorno» mostra le sale dalle 8 alle 19: in arancione gli incontri del portale, in rosso gli impegni Outlook della sala, in grigio i partecipanti occupati, con il bordo blu il tuo incontro. Clicca un orario libero su una sala per sceglierla: ora e sala si compilano da sole e il messaggio sotto dice se è libera.",
                 "Partecipanti: cerca gli «Utenti del portale» e aggiungi le «Email aggiuntive (esterni)», una per riga. «Destinatari in copia» vale per convocazione e minuta.",
                 "Ordine del giorno: aggiungi i punti, con durata e attività collegata se serve. Puoi usare un modello o «Duplica ODG dell'incontro precedente».",
-                "«Prenota la sala e invita in Outlook» (già acceso se Outlook è configurato): al salvataggio l'incontro va nel tuo calendario, la sala riceve la richiesta di prenotazione e i partecipanti l'invito da accettare.",
-                "Salva. Se serve anche la mail del portale con l'ordine del giorno, dal dettaglio dell'incontro premi «Invia convocazione».",
+                "«Prenota la sala e invita in Outlook» (già acceso se Outlook è configurato): al salvataggio i partecipanti ricevono la riunione Outlook da accettare, con l'ordine del giorno, e la sala la richiesta di prenotazione. È questa la convocazione: niente file .ics da aprire.",
+                "Salva. Ogni modifica salvata dopo (data, ora, durata, sala, convocati, ordine del giorno) arriva ai partecipanti come aggiornamento dell'invito; se non cambia niente per loro, non parte nulla.",
             ]),
+            ("p", "Nel dettaglio: «Invia invito Outlook» manda l'invito se non era partito al salvataggio, «Reinvia invito Outlook» lo rimanda a tutti. «Mail con l'ordine del giorno» è una mail del portale in più, senza file .ics. Senza Outlook configurato resta «Invia convocazione per mail», con il file .ics allegato per il calendario."),
             ("p", "Nel dettaglio dell'incontro, accanto al luogo, c'è lo stato della prenotazione: «Richiesta inviata alla sala», «Sala confermata», «Sala in forse», «Sala rifiutata: è già occupata». «Verifica» lo chiede di nuovo a Outlook. Una sala senza casella Microsoft 365 vale solo nel portale: si vede nella disponibilità ma non si prenota in Outlook. Se un'altra riunione del portale occupa la stessa sala nello stesso orario, al salvataggio compare un avviso."),
             ("img", (_IMG + "convocazione.jpg", "La convocazione: informazioni, partecipanti e ordine del giorno")),
             ("ul", [
