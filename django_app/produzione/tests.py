@@ -115,6 +115,59 @@ class SchedaTest(ProduzioneBase):
         self.assertIn(reverse("produzione:scheda", args=[self.pk]), pagina.content.decode())
 
 
+class PercorsoTest(ProduzioneBase):
+    """Filo conduttore: i passi dell'OP e il prossimo passo."""
+
+    def _passi(self):
+        pagina = self.client.get(reverse("produzione:scheda", args=[self.pk]))
+        self.assertEqual(pagina.status_code, 200)
+        return pagina, {p["chiave"]: p for p in pagina.context["passi"]}
+
+    def test_op_vuoto_parte_dal_kickoff(self):
+        pagina, passi = self._passi()
+        self.assertEqual(list(passi), ["kickoff", "programmi", "documenti", "fai", "anomalie"])
+        self.assertEqual(passi["kickoff"]["stato"], "dafare")
+        self.assertIn("/tasks/projects/new/?pn=PN-ALFA-1", passi["kickoff"]["url"])
+        self.assertEqual(passi["anomalie"]["stato"], "allerta")
+        self.assertEqual(pagina.context["prossimo"]["chiave"], "kickoff")
+        self.assertContains(pagina, "Prossimo passo")
+
+    def test_passi_si_chiudono_e_il_prossimo_avanza(self):
+        progetto = make_project(name="Kickoff Alfa", created_by=self.admin, part_number="PN-ALFA-1")
+        ProjectTechRef.objects.create(project=progetto, kind=TechRefKind.CAM, code="CAM-1", status="DONE", created_by=self.admin)
+        _, passi = self._passi()
+        self.assertEqual((passi["kickoff"]["stato"], passi["programmi"]["stato"]), ("fatto", "fatto"))
+        self.assertEqual(passi["documenti"]["url"], "?aggiungi=1#passo-documenti")
+        DocumentoOP.objects.create(op="OP/2026/100", tipo=self.tipo, titolo="Ciclo 1")
+        fai = self._fai("OP/2026/100")
+        pagina, passi = self._passi()
+        self.assertEqual(passi["documenti"]["stato"], "fatto")
+        self.assertEqual(passi["fai"]["stato"], "attesa")
+        self.assertEqual(pagina.context["prossimo"]["chiave"], "anomalie")
+        fai.stato = FaiOpzione.objects.filter(gruppo=FaiGruppo.STATO, fase=FaiFase.POSITIVO).first()
+        fai.save()
+        _, passi = self._passi()
+        self.assertEqual(passi["fai"]["stato"], "fatto")
+
+    def test_aggiungi_apre_il_modulo(self):
+        pagina = self.client.get(reverse("produzione:scheda", args=[self.pk]), {"aggiungi": "1"})
+        self.assertTrue(pagina.context["apri_form"])
+
+    def test_nuovo_kickoff_col_pn(self):
+        pagina = self.client.get(reverse("tasks:project_create"), {"pn": "PN-ALFA-1"})
+        self.assertEqual(pagina.context["form"].initial.get("part_number"), "PN-ALFA-1")
+
+    def test_elenco_da_sistemare(self):
+        DocumentoOP.objects.create(op="OP/2026/101", tipo=self.tipo, titolo="Ciclo")
+        pagina = self.client.get(reverse("produzione:elenco"))
+        self.assertEqual({c["chiave"]: c["n"] for c in pagina.context["chips"]}, {"anomalie": 1, "documenti": 2, "fai": 3})
+        pagina = self.client.get(reverse("produzione:elenco"), {"manca": "documenti"})
+        self.assertEqual([r["op"] for r in pagina.context["pagina"]], ["OP/2026/100", "OP/2025/900"])
+        pagina = self.client.get(reverse("produzione:elenco"), {"manca": "anomalie"})
+        self.assertEqual([r["op"] for r in pagina.context["pagina"]], ["OP/2026/100"])
+        self.assertEqual(pagina.context["totale_tutti"], 3)
+
+
 class DocumentiTest(ProduzioneBase):
     def test_aggiungi_modifica_elimina(self):
         url = reverse("produzione:documento", args=[self.pk])

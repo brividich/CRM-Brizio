@@ -44,9 +44,16 @@ def elenco(request):
     testo = (request.GET.get("q") or "").strip()
     stato = (request.GET.get("stato") or "").strip()
     disponibile = op_db.disponibile()
+    manca = (request.GET.get("manca") or "").strip()
     righe = services.righe_elenco(request, testo, stato) if disponibile else []
+    vede_kickoff = services._vede_kickoff(request)
+    chips = services.conteggi_manca(righe, vede_kickoff)
+    if manca not in {c["chiave"] for c in chips}:
+        manca = ""
+    righe_filtrate = services.filtra_manca(righe, manca)
     return render(request, "produzione/elenco.html", _ctx(
-        request, "elenco", disponibile=disponibile, pagina=pagina_elenco(request, righe), totale=len(righe),
+        request, "elenco", disponibile=disponibile, pagina=pagina_elenco(request, righe_filtrate),
+        totale=len(righe_filtrate), totale_tutti=len(righe), chips=chips, manca=manca, vede_kickoff=vede_kickoff,
         q=testo, stato=stato, stati=op_db.stati() if disponibile else [], nuovo_op=nuovo_op.contesto(request),
     ))
 
@@ -85,7 +92,7 @@ def scheda(request, pk: int):
     form = DocumentoForm(instance=modifica) if modifica else DocumentoForm()
     return render(request, "produzione/scheda.html", _ctx(
         request, "scheda", form=form, modifica=modifica, tipi=TipoDocumento.objects.filter(attivo=True),
-        **services.scheda(request, op),
+        apri_form=request.GET.get("aggiungi") == "1", **services.scheda(request, op),
     ))
 
 
