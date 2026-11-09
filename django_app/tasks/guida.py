@@ -142,6 +142,7 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Cliccando una commessa arrivi alla «Panoramica»: team, data di inizio, prossimo incontro, azioni aperte, attività a piano, le prossime azioni e gli ultimi incontri."),
             ("p", "Con la data di consegna, in testata compare «Consegna gg/mm · tra N gg»; se un'attività aperta finisce dopo la consegna diventa «a rischio» e i «Prossimi passi» lo segnalano. Quando tutte le tappe sono a posto e non ci sono attività aperte, compare «Chiudi il kickoff»: il capocommessa scrive una nota (facoltativa) e la commessa passa a «Completata»; si può riaprire."),
+            ("p", "In testa al Percorso: i filtri «Tutte», «Le mie», «In ritardo», «Da assegnare» (solo a video) e «Fissa il piano», che fotografa le date di adesso. Da lì ogni tappa mostra «+N gg sul piano» e il Percorso il ritardo complessivo; lo stesso piano vale nel Gantt (baseline)."),
             ("p", "Nell'anteprima della tappa e nel pannello «⋯», accanto al responsabile si vede quante attività aperte ha già nello stesso periodo: aiuta a non caricare sempre la stessa persona."),
             ("p", "In alto «Prossimi passi» dice cosa fare adesso, nell'ordine del filo commessa → incontro → attività: pianificare il primo incontro, convocarlo, condurlo se è oggi, registrarne l'esito se è passato, approvare e inviare la minuta, assegnare le tappe del Percorso, pianificare l'incontro successivo. Ogni riga porta dove si fa. Il riquadro del prossimo incontro mostra ora, sala e stato della prenotazione."),
             ("img", (_IMG + "panoramica.jpg", "La Panoramica di una commessa")),
@@ -506,6 +507,14 @@ SEZIONI: list[dict] = [
                 "Se l'attività collegata viene completata, l'azione o il problema si chiudono da soli.",
                 "Il lunedì il promemoria KICK-OFF elenca le azioni e i problemi scaduti e quelli in scadenza nei 7 giorni.",
             ]),
+        ],
+    },
+    {
+        "id": "cruscotto",
+        "titolo": "Le mie commesse (cruscotto)",
+        "blocchi": [
+            ("p", "«Le mie commesse», nella barra del modulo, elenca le commesse dove sei capocommessa o PM (o hai pieni poteri da Impostazioni), una riga ciascuna: tappe a posto su 9 con quelle in ritardo, consegna con «a rischio», scostamento dal piano, prossimo incontro, spostamenti da decidere e il passo più urgente. In cima le commesse con più problemi. Un clic apre la Panoramica."),
+            ("p", "Filtri: «Aperte» e «Chiuse»; chi amministra il modulo vede anche «Tutte le commesse»."),
         ],
     },
     {

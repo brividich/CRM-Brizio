@@ -33,18 +33,19 @@
       <div class="sec-strip-side">{% if windows_fuori %}<a class="sec-badge high" href="?f=sistema_fuori">{{ windows_fuori }} fuori supporto</a>{% endif %}{% if windows_in_scadenza %}<a class="sec-badge warning" href="?f=sistema_in_scadenza">{{ windows_in_scadenza }} in scadenza</a>{% endif %}{% if can_manage %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="windows_lavoro"><button class="sec-button-primary" type="submit" data-hub-confirm="Aprire un caso del SOC con un'attività per ciascuno dei {{ windows_da_aggiornare }} PC con Windows fuori supporto o in scadenza?">Apri il piano</button></form>{% endif %}</div>
     </div>
   {% endif %}
-  <p class="sec-muted sec-small" style="margin:8px 0 0">Ogni PC o server visto da almeno una fonte: {{ totale }} in tutto, {{ intune_totale }} gestiti da Intune, {{ collegati }} collegati a un asset del registro. Backup e vulnerabilità sono del dispositivo: si vedono sulla sua riga, il dettaglio nella sua scheda. In cima chi ha backup ko, problemi Intune o CVE gravi.</p>
+  <p class="sec-muted sec-small" style="margin:8px 0 0">Ogni PC o server visto da almeno una fonte: {{ totale }} in tutto, {{ intune_totale }} gestiti da Intune, <a href="?f=collegati">{{ collegati }} collegati a un asset del registro</a>. Backup e vulnerabilità sono del dispositivo: si vedono sulla sua riga, il dettaglio nella sua scheda. In cima chi ha backup ko, problemi Intune o CVE gravi.</p>
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-table-wrap">
 <form method="post" action="{% url 'security:pc_bulk' %}" id="pc-bulk" data-bulk>
   {% csrf_token %}
-  <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="pagina" value="Dispositivi"><input type="hidden" name="action" value="case">
+  <input type="hidden" name="next" value="{{ request.get_full_path }}"><input type="hidden" name="pagina" value="Dispositivi">
   <div class="sec-bulk-bar">
     <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
     <input type="text" name="title" placeholder="Titolo del ticket (facoltativo)" aria-label="Titolo del ticket">
-    <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Apri un ticket per questi PC</button>
+    <button type="submit" name="action" value="case" class="sec-button sec-button-primary" data-bulk-go disabled>Apri un ticket per questi PC</button>
+    {% if can_manage and n_proposte %}<button type="submit" name="action" value="confirm_selected" formaction="{{ request.get_full_path }}" class="sec-button" title="Solo i selezionati con un asset proposto (IP o nome)">Collega gli asset proposti</button>{% endif %}
   </div>
 </form>
     <table class="sec-table pcc-table">

@@ -1,7 +1,7 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block title %}Impostazioni SNMP · Contatori IT{% endblock %}
 {% block modulo %}
-<div class="row"><div><div class="eyebrow">Configurazione</div><h1>Impostazioni SNMP</h1><p class="sub">Valori usati quando un apparato non ne ha di propri (dal suo profilo, dalla community del catalogo o dalla sua scheda), e il ritmo della videosorveglianza.</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:snmp_profili' %}">Catalogo profili</a><a class="btn ghost" href="{% url 'contatori:riconciliazione_guida' %}#snmpv3">? Guida SNMPv3</a></div></div>
+<div class="row"><div><div class="eyebrow">Configurazione</div><h1>Impostazioni SNMP</h1><p class="sub">Valori usati quando un apparato non ne ha di propri (dal suo profilo, dalla community del catalogo o dalla sua scheda), e il ritmo della videosorveglianza.</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:snmp_profili' %}">Catalogo profili</a><a class="btn ghost" href="{% url 'contatori:guida' %}#snmpv3">? Guida SNMPv3</a></div></div>
 
 {% if apparati_in_chiaro %}<div class="banner warn"><strong>{{ apparati_in_chiaro }} apparat{{ apparati_in_chiaro|pluralize:"o,i" }} interrogat{{ apparati_in_chiaro|pluralize:"o,i" }} senza cifratura (SNMPv1/v2c).</strong> La community viaggia in chiaro sulla rete: dove l'apparato lo supporta, imposta SNMPv3 sulla sua scheda. Il dettaglio è nel riquadro «Sicurezza» di ogni apparato.</div>{% endif %}
 

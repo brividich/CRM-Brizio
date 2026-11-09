@@ -46,7 +46,16 @@ GUIDA = {
                     "Backup: clic su un PC o su un job apre il pannello laterale con gli alert di backup aperti, «Prendo in carico» e «Chiudi» (esito e motivo); "
                     "seleziona più PC, job o righe del Log per aprire un ticket, prendere in carico o chiudere insieme i loro alert.",
                     "Dispositivi e Installazioni non riuscite: seleziona più PC e «Apri un ticket per questi PC» (un'attività per PC). "
-                    "Soppressioni e Rischi accettati: seleziona e revoca insieme con un motivo unico. Accessi VPN: clic su una riga = pannello dell'utente.",
+                    "Soppressioni e Rischi accettati: seleziona e revoca insieme con un motivo unico. Accessi VPN: clic su una riga = pannello dell'utente; "
+                    "«Tutti i suoi accessi» filtra sul nome esatto.",
+                    "Dispositivi: «Collega gli asset proposti» collega all'asset proposto solo i PC selezionati (serve il permesso di configurazione). "
+                    "Tempi delle patch › Patch ferme e Vulnerabilità › Asset più esposti: seleziona e «Apri un ticket per questi PC».",
+                    "Scheda CVE, tabella «Esito per host»: clic sulla riga = pannello del PC; seleziona più PC per aprire un ticket, «Accetta il rischio» "
+                    "(stessi campi e permesso dell'accettazione singola) o «Conferma le proposte dell'AI».",
+                    "Alert: nella barra della selezione «Rimanda fino al…» rimanda gli alert al giorno scelto. Proposte AI › Chiusi dall'AI: "
+                    "«Riapri le selezionate» con il perché obbligatorio. Da fare: alert e ticket per gravità, clic sulla riga = pannello.",
+                    "Pannelli: nel ticket «Cambia stato» (per chiudere serve l'esito), nell'incidente «Assegna a me», nel PC «Apri un ticket per questo PC». "
+                    "Storico › Falsi positivi ricorrenti: «Crea soppressione» apre il modulo già compilato, da rivedere prima di salvare.",
                 ]),
                 ("p", "Ruoli e contatti per gli incidenti (responsabile, sostituto, CSIRT/ACN, fornitore) si scrivono in Impostazioni › Gestione degli incidenti e compaiono nella scheda e nel PDF dell'incidente."),
             ],
@@ -57,7 +66,8 @@ GUIDA = {
             "blocchi": [
                 ("p", "«Dispositivi › Elenco» è l'elenco unico dei PC e dei server (prima erano due pagine, «PC e fonti» e «Asset»). "
                       "Ogni riga dice quali fonti vedono il dispositivo (Intune, WatchGuard, Defender), l'esito dell'ultimo backup, "
-                      "quante CVE lo colpiscono (e quante gravi) e a quale asset del registro è collegato."),
+                      "quante CVE uniche lo colpiscono (inventario più Defender, ogni CVE una volta; e quante gravi) e a quale asset del registro è collegato. "
+                      "Lo stesso numero di CVE compare nella scheda e nel pannello del PC; «Backup ko» guarda gli ultimi 90 giorni come il numero sul menu."),
                 ("passi", [
                     "Usa i filtri «Backup ko», «Con CVE» e «Senza asset» per trovare cosa sistemare: il numero accanto è uguale alle righe.",
                     "La colonna «Sistema» dice la release di Windows (verde supportata, rosso fuori supporto, giallo in scadenza); la striscia gialla sotto i filtri «N PC con Windows da aggiornare» ha il pulsante «Apri il piano» e, a caso aperto, la barra «N su M PC aggiornati».",
@@ -232,7 +242,9 @@ GUIDA = {
             "titolo": "Da dove arrivano i dati",
             "blocchi": [
                 ("ul", [
-                    "Le caselle di posta che ricevono i report (antivirus, firewall, backup) si configurano in «Caselle mail»: creazione, anteprima, lettura manuale, importazione dello storico.",
+                    "Le caselle di posta che ricevono i report (antivirus, firewall, backup) si configurano in «Caselle mail»: creazione, anteprima, lettura manuale, importazione dello storico. "
+                    "La colonna «Report» dice se ogni casella manda i report nei tempi attesi; il riquadro «sorgenti in ritardo» apre l'elenco filtrato «In ritardo».",
+                    "Un report arrivato per altra via si carica da Impostazioni › «Carica report».",
                     "Il ciclo di lettura gira ogni 15 minuti (lavoro «security_cycle»).",
                     "Chi apre la voce «Impostazioni» (Configurazione, Avvisi e automatismi, Battito, Letture, Soppressioni, "
                     "Caselle mail, Inventario software, Autoconfigurazione): in Ruoli e permessi la sotto-riga «↳ Impostazioni e "
@@ -302,7 +314,8 @@ GUIDA = {
         {
             "sintomo": "Il numero sul filtro è più alto delle righe dell'elenco",
             "fare": [
-                "L'elenco mostra le 300 segnalazioni più recenti per tipo e lo scrive sopra la tabella; i numeri dei filtri, «Solo urgenti» e la barra di stato contano tutto. Usa ricerca o gravità per restringere.",
+                "L'elenco di Segnalazioni mostra le 300 più recenti per tipo e, quando taglia, lo dice con l'avviso «Elenco tagliato: mostrate N di M»; i numeri dei filtri (calcolati con lo stato, la gravità e la ricerca scelti), «Solo urgenti» e la barra di stato contano tutto. Usa ricerca o gravità per restringere. Alert, Ticket e Registro incidenti non tagliano: cento righe per pagina, con i numeri di pagina in fondo.",
+                "Proposte AI conta gli alert «da decidere» (senza rimandati e silenziati): può essere più basso degli alert aperti di Segnalazioni.",
                 '«PC con backup ko» guarda gli ultimi 90 giorni: un PC i cui backup si sono fermati da settimane resta tra i ko.',
                 '«Scadenze NIS2/GDPR» comprende anche gli incidenti chiusi con una notifica di legge ancora dovuta.',
             ],

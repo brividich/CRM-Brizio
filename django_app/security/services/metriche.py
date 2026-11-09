@@ -88,10 +88,26 @@ def _finestra_backup(days):
     return max(days, max(p for p, _l in PERIODS))
 
 
-def pc_backup_ko_rows(days=7):
-    from security.services.backup_center import FAIL, overview
+def backup_dispositivi(days=7):
+    """Le righe per PC della pagina Backup nella finestra dei «backup ko».
 
-    return [d for d in overview(_finestra_backup(days))["devices"] if d["stale"] or d["last_status"] == FAIL]
+    Una sola fonte per l'elenco Dispositivi (colonna e filtro «Backup ko»), il numero sul
+    menu Dispositivi e il riquadro della barra di stato: stessa finestra, stessi PC.
+    """
+    from security.services.backup_center import overview
+
+    return overview(_finestra_backup(days))["devices"]
+
+
+def backup_ko(dev):
+    """Un PC ha il backup ko se l'ultimo esito è fallito o non ha un backup riuscito recente."""
+    from security.services.backup_center import FAIL
+
+    return bool(dev and (dev["stale"] or dev["last_status"] == FAIL))
+
+
+def pc_backup_ko_rows(days=7):
+    return [d for d in backup_dispositivi(days) if backup_ko(d)]
 
 
 def pc_backup_ko(days=7):
@@ -107,11 +123,11 @@ def pc_backup_ko(days=7):
 # --- Fonti dati -------------------------------------------------------------------------------
 
 def sorgenti_mute():
-    from security.services.source_heartbeat import source_status_rows
+    from security.services.source_heartbeat import IN_RITARDO, source_status_rows
 
-    n = sum(1 for r in source_status_rows() if r["state"] in ("high", "warning"))
+    n = sum(1 for r in source_status_rows() if r["state"] in IN_RITARDO)
     return Metrica("sources", "sorgenti in ritardo", "sorgenti", "adesso", "caselle mail dei report", n,
-                   reverse("security:admin_mailbox_sources_list"), icon="signal", tone="warning" if n else "success",
+                   reverse("security:admin_mailbox_sources_list") + "?stato=ritardo", icon="signal", tone="warning" if n else "success",
                    title="Caselle che non mandano report nei tempi attesi")
 
 
@@ -137,13 +153,13 @@ def pc_esposti():
 
 
 def cve_per_pc():
-    """Per ogni host (nome come nell'inventario) le CVE che lo colpiscono e quante sono KEV: il dettaglio di «PC con CVE»."""
-    from security.models import SecurityCveImpact
+    """Per ogni PC (nome normalizzato) le CVE uniche che lo colpiscono: stesso numero di scheda e pannello del PC.
 
-    rows = (SecurityCveImpact.objects.filter(outcome=SecurityCveImpact.IMPACTS).values("host").order_by()
-            .annotate(cves=Count("cve", distinct=True), kev=Count("cve", filter=Q(cve__kev=True), distinct=True),
-                      gravi=Count("cve", filter=Q(cve__kev=True) | Q(cve__cvss__gte=9), distinct=True)))
-    return {r["host"]: r for r in rows}
+    Definizione in ``pc_overview.cve_uniche``: inventario software + vulnerabilità Defender aperte, ogni CVE una volta.
+    """
+    from security.services.pc_overview import cve_uniche
+
+    return cve_uniche()
 
 
 def copertura_cpe():

@@ -30,6 +30,6 @@
       <a href="{% url 'contatori:wizard_avvia' 'profilo' %}" class="cnav-config {% if t == 'profilo' %}active{% endif %}">+ Profilo SNMP</a>
     </div>
   </details>{% endif %}
-  <a href="{% url 'contatori:riconciliazione_guida' %}" class="cnav-guida {% if n == 'riconciliazione_guida' %}active{% endif %}" title="Guida di Contatori IT">? Guida</a>
+  <a href="{% url 'contatori:guida' %}" class="cnav-guida {% if n == 'guida' %}active{% endif %}" title="Guida di Contatori IT">? Guida</a>
 </nav>
 {% endwith %}

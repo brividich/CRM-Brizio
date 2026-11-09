@@ -16,8 +16,10 @@ import uuid
 from collections import defaultdict
 
 from security.models import SecurityAlert, SecurityAlertProposta, Severity
+from security.services.alert_lifecycle import DA_DECIDERE_ALERT_STATUSES
 
-APERTI = ("new", "open", "acknowledged", "in_progress")
+# Alert «da decidere» (non i rimandati né i silenziati): vedi alert_lifecycle.
+APERTI = tuple(DA_DECIDERE_ALERT_STATUSES)
 RANGO = {Severity.CRITICAL: 4, Severity.HIGH: 3, Severity.MEDIUM: 2, Severity.WARNING: 1, Severity.LOW: 0}
 ESITI = (
     ("resolved", "Risolto"),

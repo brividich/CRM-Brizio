@@ -91,13 +91,28 @@ def _incidents(stato, severity, q, now, limite=PER_KIND_LIMIT):
         }
 
 
-def conteggi():
-    """Quante segnalazioni aperte per tipo: servono ai chip e alla scheda del menu."""
-    return {
-        "alert": SecurityAlert.objects.filter(status__in=ACTIVE_ALERT_STATUSES).count(),
-        "ticket": SecurityRemediationTicket.objects.filter(status__in=ACTIVE_CASE_STATUSES).count(),
-        "incident": SecurityIncident.objects.filter(status__in=ACTIVE_INCIDENT_STATUSES).count(),
-    }
+def _per_stato(qs, stato, attivi):
+    return qs.filter(status__in=attivi) if stato == "aperte" else (qs.exclude(status__in=attivi) if stato == "chiuse" else qs)
+
+
+def conteggi(stato="aperte", severity="", q=""):
+    """Quante segnalazioni per tipo con lo stato (aperte, chiuse, tutte), la gravità e la ricerca scelti.
+
+    Senza argomenti: le aperte, il numero del riquadro «segnalazioni aperte». Con i filtri
+    della pagina sono il totale vero dietro ogni chip, anche quando l'elenco si ferma a
+    ``PER_KIND_LIMIT`` righe per tipo.
+    """
+    if stato not in {"aperte", "chiuse", "tutte"}:
+        stato = "aperte"
+    if severity not in {v for v, _l in GRAVITA}:
+        severity = ""
+    alert = _filtra(_per_stato(SecurityAlert.objects.all(), stato, ACTIVE_ALERT_STATUSES), severity=severity, q=q,
+                    campi_testo=["title", "source__name", "event__asset__hostname"])
+    ticket = _filtra(_per_stato(SecurityRemediationTicket.objects.all(), stato, ACTIVE_CASE_STATUSES), severity=severity, q=q,
+                     campi_testo=["title", "cve", "affected_product", "source__name"])
+    incident = _filtra(_per_stato(SecurityIncident.objects.all(), stato, ACTIVE_INCIDENT_STATUSES), severity=severity, q=q,
+                       campi_testo=["title", "code", "description"])
+    return {"alert": alert.count(), "ticket": ticket.count(), "incident": incident.count()}
 
 
 def conta_urgenti(now=None) -> int:

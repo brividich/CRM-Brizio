@@ -163,7 +163,7 @@ def _stato_tappa(attivita: list, esclusa: bool) -> tuple[str, str, str]:
     return "fare", "Da fare", "ok"
 
 
-def percorso(project, *, con_nomi: bool = False) -> dict:
+def percorso(project, *, con_nomi: bool = False, utente=None) -> dict:
     tipi = tipi_per_tappa()
     escluse = _escluse(project)
     attivita: dict[str, list] = {}
@@ -179,6 +179,10 @@ def percorso(project, *, con_nomi: bool = False) -> dict:
         for t in qs:
             attivita.setdefault(per_cat[t.category_id], []).append(t)
 
+    try:
+        baseline = project.gantt_baseline
+    except Exception:
+        baseline = None
     righe = []
     for key, label in TappaKickoff.choices:
         tipo = tipi.get(key)
@@ -203,6 +207,8 @@ def percorso(project, *, con_nomi: bool = False) -> dict:
             # Il nome del tipo è già il titolo della riga: si mostra solo quello che aggiunge.
             breve = t.title[len(tipo.name):].lstrip(" -") if t.title.startswith(tipo.name) else t.title
             voce = {"task": t, "url": reverse("tasks:detail", args=[t.pk]), "dettaglio": "", "titolo_breve": breve or t.title}
+            # Rispetto al piano fissato (baseline del Gantt): +N giorni sulla fine.
+            voce["delta_piano"] = baseline.get_task_delta_days(t)["end"] if baseline is not None else None
             if key in CAMPO_TESTO:
                 voce["dettaglio"] = str((t.extra_data or {}).get(CAMPO_TESTO[key]) or "")
             elif key in (TappaKickoff.CAM, TappaKickoff.CMM, TappaKickoff.FAI):
@@ -221,8 +227,11 @@ def percorso(project, *, con_nomi: bool = False) -> dict:
             giorni = project.modello.giorni_per(key)
             if giorni is not None:
                 entro_proposto = project.data_consegna - timedelta(days=int(giorni))
+        ritardi = [v["delta_piano"] for v in voci if v.get("delta_piano")]
         righe.append({
             "key": key, "label": label, "aiuto": AIUTO.get(key, ""), "tipo": tipo, "voci": voci, "entro_proposto": entro_proposto,
+            "delta_piano": max(ritardi) if ritardi else None,
+            "mie": any(v["task"].assigned_to_id == getattr(utente, "pk", None) for v in voci) if utente is not None else False,
             "stato": stato, "stato_label": stato_label, "chip": chip,
             "puo_aggiungere": key not in escluse and (not elenco or key in MULTIPLE),
             "puo_escludere": not elenco and key not in escluse,
@@ -230,7 +239,12 @@ def percorso(project, *, con_nomi: bool = False) -> dict:
         })
     a_posto = sum(1 for r in righe if r["stato"] in ("fatta", "esclusa"))
     assegnate = sum(1 for r in righe if r["stato"] != "vuota")
-    return {"righe": righe, "totale": len(righe), "a_posto": a_posto, "assegnate": assegnate}
+    delta = [r["delta_piano"] for r in righe if r.get("delta_piano") is not None]
+    return {
+        "righe": righe, "totale": len(righe), "a_posto": a_posto, "assegnate": assegnate,
+        "ha_piano": baseline is not None, "piano_fissato": baseline.fixed_at if baseline is not None else None,
+        "ritardo_piano": max(delta) if delta else 0,
+    }
 
 
 # --- Scrittura --------------------------------------------------------------

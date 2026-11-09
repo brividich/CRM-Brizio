@@ -9,14 +9,14 @@
 {% else %}
 <div class="cards kpi-cards">
   <a class="card link" href="{% url 'contatori:consumabili' %}?filtro=critici"><div class="k">Da ordinare</div><div class="v {% if critici %}health-error{% else %}health-ok{% endif %}">{{ critici }}</div><div class="meta">MFC con un consumabile sotto il {{ soglia }}%</div></a>
-  <div class="card"><div class="k">Mai lette</div><div class="v {% if mai_lette %}health-warning{% endif %}">{{ mai_lette }}</div><div class="meta">Nessun livello salvato</div></div>
+  <a class="card link" href="{% url 'contatori:consumabili' %}?filtro=non_recenti"><div class="k">Senza lettura recente</div><div class="v {% if non_recenti %}health-warning{% endif %}">{{ non_recenti }}</div><div class="meta">Mai lette o ultima lettura oltre {{ giorni_recente }} giorni fa</div></a>
   <div class="card"><div class="k">MFC controllate</div><div class="v">{{ totale }}</div><div class="meta">Attive con indirizzo IP</div></div>
 </div>
-{% if solo_critici %}<div class="banner warn filtro-attivo"><span>Solo le MFC con un consumabile sotto il {{ soglia }}%: {{ righe|length }} su {{ totale }}.</span><a class="btn ghost small" href="{% url 'contatori:consumabili' %}">Mostra tutte</a></div>{% endif %}
+{% if filtro %}<div class="banner warn filtro-attivo"><span>{% if filtro == 'critici' %}Solo le MFC con un consumabile sotto il {{ soglia }}%{% else %}Solo le MFC senza lettura negli ultimi {{ giorni_recente }} giorni{% endif %}: {{ righe|length }} su {{ totale }}.</span><a class="btn ghost small" href="{% url 'contatori:consumabili' %}">Mostra tutte</a></div>{% endif %}
 <section class="panel">
   <div class="table-wrap"><table class="cons-table">
     <thead><tr><th>MFC</th><th>Livelli</th><th>Ultima lettura</th></tr></thead>
-    <tbody>{% for r in righe %}{% include "contatori/_consumabili_riga.html" %}{% empty %}<tr><td colspan="3" class="empty">Nessuna MFC con consumabili sotto soglia.</td></tr>{% endfor %}</tbody>
+    <tbody>{% for r in righe %}{% include "contatori/_consumabili_riga.html" %}{% empty %}<tr><td colspan="3" class="empty">{% if filtro == 'non_recenti' %}Tutte le MFC hanno una lettura recente.{% else %}Nessuna MFC con consumabili sotto soglia.{% endif %}</td></tr>{% endfor %}</tbody>
   </table></div>
 </section>
 {% endif %}

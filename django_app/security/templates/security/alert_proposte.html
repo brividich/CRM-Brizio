@@ -17,7 +17,7 @@
   </p>
   {% if not attivo %}<p class="sec-error sec-small">Le proposte automatiche sono spente: si accendono in Impostazioni › Avvisi e automatismi.</p>{% endif %}
   <div class="sec-kpi-strip sec-small">
-    <span><strong>{{ n_alert }}</strong> alert aperti in <strong>{{ n_gruppi }}</strong> grupp{{ n_gruppi|pluralize:"o,i" }}</span> ·
+    <span><strong>{{ n_alert }}</strong> alert da decidere in <strong>{{ n_gruppi }}</strong> grupp{{ n_gruppi|pluralize:"o,i" }}</span> ·
     <span><strong>{{ n_auto_7 }}</strong> alert chius{{ n_auto_7|pluralize:"o,i" }} dall'AI negli ultimi 7 giorni</span> ·
     <span><strong>{{ n_affidabili }}</strong> tip{{ n_affidabili|pluralize:"o,i" }} di alert che chiude da sola</span>
   </div>
@@ -52,12 +52,21 @@
 
 <section class="sec-panel" style="margin-top: 12px;">
   <div class="sec-section-head"><h2>Chiusi dall'AI (ultimi 30 giorni)</h2></div>
+  <form method="post" action="{% url 'security:alert_proposte_riapri' %}" id="auto-bulk" data-bulk>
+    {% csrf_token %}
+    <div class="sec-bulk-bar">
+      <span class="sec-bulk-count"><strong data-bulk-count>0</strong> selezionati</span>
+      <input type="text" name="nota" maxlength="500" placeholder="Perché sono sbagliate? (obbligatorio)" aria-label="Perché riapri gli alert selezionati">
+      <button type="submit" class="sec-button sec-button-primary" data-bulk-go disabled>Riapri le selezionate</button>
+    </div>
+  </form>
   <div class="sec-table-wrap">
     <table class="sec-table sec-table-compact">
-      <thead><tr><th>Quando</th><th>Alert</th><th>Esito</th><th>Motivo</th><th></th></tr></thead>
+      <thead><tr><th class="sec-check-col"><input type="checkbox" data-bulk-all form="auto-bulk" aria-label="Seleziona tutti"></th><th>Quando</th><th>Alert</th><th>Esito</th><th>Motivo</th><th></th></tr></thead>
       <tbody>
       {% for p in auto %}
-        <tr>
+        <tr data-preview="{% url 'security:preview' 'alert' p.alert_id %}">
+          <td class="sec-check-col">{% if p.stato == 'chiusa_auto' %}<input type="checkbox" name="proposta_ids" value="{{ p.pk }}" form="auto-bulk" class="sec-bulk-item" aria-label="Seleziona l'alert #{{ p.alert_id }}">{% endif %}</td>
           <td class="sec-nowrap">{{ p.decisa_il|date:"d/m/Y H:i" }}</td>
           <td><a href="{% url 'security:alert_detail' p.alert_id %}">#{{ p.alert_id }} {{ p.alert.title|truncatechars:60 }}</a><br><span class="sec-muted sec-small">{{ p.schema_label }}</span></td>
           <td>{{ p.esito_label }}</td>
@@ -73,7 +82,7 @@
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="5" class="sec-empty">L'AI non ha ancora chiuso alert da sola.</td></tr>
+        <tr><td colspan="6" class="sec-empty">L'AI non ha ancora chiuso alert da sola.</td></tr>
       {% endfor %}
       </tbody>
     </table>

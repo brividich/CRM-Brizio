@@ -161,6 +161,6 @@ class RiconciliazioneTotaliTests(_AuthedClientMixin, TestCase):
         self.assertEqual(Fattura.objects.get(numero="F-9").dettaglio, Fattura.Dettaglio.FORMATO)
 
     def test_guida(self):
-        r = self.client.get(reverse("contatori:riconciliazione_guida"))
+        r = self.client.get(reverse("contatori:guida"))
         self.assertContains(r, "Più MFC sullo stesso contratto (pool)")
         self.assertContains(r, "COPIE EFFETTUATE COLORE")

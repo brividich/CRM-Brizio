@@ -1,10 +1,10 @@
 {% extends "security/_base_soc.html" %}
 {% load security_i18n %}
 
-{% block title %}Inbox | Security Center AI{% endblock %}
+{% block title %}Carica report | Security Center AI{% endblock %}
 {% block page_icon %}IN{% endblock %}
 {% block page_marker %}Caricamento manuale dei report e prova dei parser{% endblock %}
-{% block page_title %}Inbox report{% endblock %}
+{% block page_title %}Carica report{% endblock %}
 
 {% block soc_content %}
 <section class="sec-grid sec-two-col">
@@ -52,7 +52,7 @@
 
 <section class="sec-grid" style="margin-top: 12px;">
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Report recenti</h2><span class="sec-badge">{{ recent_reports|length }}</span></div>
+    <div class="sec-section-head"><h2>Ultimi 10 report</h2></div>
     {% if recent_reports %}
       <div class="sec-table-wrap">
         <table class="sec-table">
@@ -70,7 +70,7 @@
   </div>
 
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>Messaggi ricevuti</h2><span class="sec-badge">{{ recent_mailbox_messages|length }}</span></div>
+    <div class="sec-section-head"><h2>Ultimi 10 messaggi ricevuti</h2></div>
     {% if recent_mailbox_messages %}
       <div class="sec-table-wrap">
         <table class="sec-table">
@@ -90,7 +90,7 @@
 
 <section class="sec-grid" style="margin-top: 12px;">
   <div class="sec-panel">
-    <div class="sec-section-head"><h2>File caricati</h2><span class="sec-badge">{{ recent_source_files|length }}</span></div>
+    <div class="sec-section-head"><h2>Ultimi 10 file caricati</h2></div>
     {% if recent_source_files %}
       <div class="sec-table-wrap">
         <table class="sec-table">

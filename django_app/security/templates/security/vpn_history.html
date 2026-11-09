@@ -27,7 +27,7 @@
 </section>
 
 <form class="sec-filter-bar vpn-filters" method="get">
-  <label>Utente <input type="text" name="user" value="{{ filters.user }}" placeholder="nome"></label>
+  {% if filters.utente %}<label>Utente (nome esatto) <input type="text" name="utente" value="{{ filters.utente }}"></label>{% else %}<label>Utente <input type="text" name="user" value="{{ filters.user }}" placeholder="nome"></label>{% endif %}
   <label>IP origine <input type="text" name="ip" value="{{ filters.ip }}" placeholder="es. 203.0.113."></label>
   <label>Esito
     <select name="action">

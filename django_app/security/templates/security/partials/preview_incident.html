@@ -9,6 +9,8 @@
   {% for d in deadlines %}<li class="inc-deadline-{{ d.tone }}"><span>{{ d.label }}</span><span class="sec-badge sec-badge-{{ d.tone }}">{{ d.state_label }}</span><small>{% if d.done_at %}inviata {{ d.done_at|date:"d/m H:i" }}{% else %}entro {{ d.due_at|date:"d/m H:i" }} · {{ d.remaining_label }}{% endif %}</small></li>{% endfor %}
 </ul>
 {% else %}<p class="sec-muted pv-text">Nessuna notifica dovuta.</p>{% endif %}
+{% if azione_esito %}<p class="sec-action-result">{{ azione_esito }}</p>{% endif %}
+{% if incident.owner_id != request.user.pk %}<div class="pv-actions"><form method="post" action="{% url 'security:incident_owner_me' incident.pk %}" data-drawer-form data-drawer-replace>{% csrf_token %}<button type="submit" class="sec-button">Assegna a me</button></form></div>{% endif %}
 {% if incident.impact_description %}<p class="pv-text"><strong>Impatto:</strong> {{ incident.impact_description|truncatechars:240 }}</p>{% endif %}
 <section class="pv-ai">
   <form method="post" action="{% url 'security:incident_ai_check' incident.pk %}" data-drawer-form data-drawer-target="#pv-ai-out">{% csrf_token %}<button type="submit" class="sec-button sec-button-primary" data-busy-label="L'AI sta controllando l'incidente…">Controlla con l'AI</button></form>

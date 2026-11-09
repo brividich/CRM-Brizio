@@ -11,7 +11,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from .models import SecurityAlert, SecurityCaseTask, SecurityRemediationTicket, Severity, Status
-from .services.alert_lifecycle import ACTIVE_ALERT_STATUSES, acknowledge_alert, close_alert, mark_false_positive
+from .services.alert_lifecycle import ACTIVE_ALERT_STATUSES, acknowledge_alert, close_alert, mark_false_positive, snooze_alert
 from .services.cases import (
     ACTIVE_CASE_STATUSES,
     CASE_STATUSES,
@@ -82,13 +82,16 @@ def tickets_list(request):
     query = request.GET.get("q", "").strip()
     if query:
         cases = cases.filter(Q(title__icontains=query) | Q(cve__icontains=query) | Q(affected_product__icontains=query))
-    total = cases.count()
+    from core.paginazione import pagina_elenco
+
+    page_obj = pagina_elenco(request, cases)
     return render(
         request,
         "security/tickets_list.html",
         {
-            "tickets": cases[:200],
-            "total": total,
+            "tickets": page_obj.object_list,
+            "page_obj": page_obj,
+            "total": page_obj.paginator.count,
             "filters": {"status": status, "severity": severity, "assignee": assignee, "origin": origin, "q": query},
             "status_choices": [(value, value) for value in CASE_STATUSES],
             "severity_choices": Severity.choices,
@@ -199,17 +202,30 @@ def case_status(request, pk):
     case = get_object_or_404(SecurityRemediationTicket, pk=pk)
     new_status = request.POST.get("status", "")
     reason = request.POST.get("reason", "").strip()
+    errore = esito = ""
     if new_status in CLOSED_CASE_STATUSES and not reason:
-        messages.error(request, "Per chiudere il caso scrivi l'esito (cosa è stato fatto o perché si chiude).")
-        return redirect("security:case_detail", pk=case.pk)
-    try:
-        set_case_status(case, new_status, user=request.user, reason=reason, close_alerts=bool(request.POST.get("close_alerts")))
-    except CaseConflict as exc:
-        messages.error(request, str(exc))
-    except ValueError:
-        messages.error(request, "Stato non valido.")
+        errore = "Per chiudere il caso scrivi l'esito (cosa è stato fatto o perché si chiude)."
     else:
-        messages.success(request, "Stato del caso aggiornato.")
+        try:
+            set_case_status(case, new_status, user=request.user, reason=reason, close_alerts=bool(request.POST.get("close_alerts")))
+        except CaseConflict as exc:
+            errore = str(exc)
+        except ValueError:
+            errore = "Stato non valido."
+        else:
+            esito = "Stato del caso aggiornato."
+    if request.POST.get("pannello") == "1" and request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        # Dal pannello laterale (data-drawer-replace): il pannello rifatto con l'esito dentro, niente messaggi in sessione.
+        from .views_live import preview_ticket_context
+
+        case.refresh_from_db()
+        context = preview_ticket_context(case)
+        context["azione_esito"], context["azione_errore"] = esito, errore
+        return render(request, "security/partials/preview_ticket.html", context)
+    if errore:
+        messages.error(request, errore)
+    else:
+        messages.success(request, esito)
     return redirect("security:case_detail", pk=case.pk)
 
 
@@ -294,11 +310,24 @@ def alerts_bulk(request):
     if action == "false_positive" and not reason:
         messages.error(request, "Per marcare come falso positivo scrivi il motivo.")
         return redirect(back)
+    until = None
+    if action == "snooze":
+        from django.utils import timezone
+
+        from .views import _parse_snooze_until
+
+        raw = request.POST.get("snooze_until", "").strip()
+        until = _parse_snooze_until(raw) if raw else None
+        if until is None or until <= timezone.now():
+            messages.error(request, "Per rimandare scegli una data futura: gli alert tornano in coda quel giorno.")
+            return redirect(back)
     batch = f"bulk-{uuid.uuid4().hex[:20]}"
     handlers = {
         "acknowledge": (lambda alert: acknowledge_alert(alert, actor=actor, reason=reason or "Presa in carico massiva"), {Status.NEW, Status.OPEN}),
         "close": (lambda alert: close_alert(alert, actor=actor, reason=reason or "Chiusura massiva"), set(ACTIVE_ALERT_STATUSES)),
         "false_positive": (lambda alert: mark_false_positive(alert, actor=actor, reason=reason, batch=batch, user=request.user), set(ACTIVE_ALERT_STATUSES)),
+        # Come «Posticipa» della scheda alert: solo alert attivi non già rimandati.
+        "snooze": (lambda alert: snooze_alert(alert, until, actor=actor, reason=reason or "Rimando massivo"), set(ACTIVE_ALERT_STATUSES) - {Status.SNOOZED}),
     }
     if action not in handlers:
         messages.error(request, "Azione non supportata.")

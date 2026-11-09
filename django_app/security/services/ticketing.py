@@ -147,8 +147,8 @@ def _find_existing_vulnerability_ticket(source, source_system, organization, aff
 
 def _ticket_title(affected_product, cve_ids):
     if len(cve_ids) > 1:
-        return f"Remediate {len(cve_ids)} critical CVEs on {affected_product}"
-    return f"Remediate {cve_ids[0] if cve_ids else 'critical CVE'} on {affected_product}"
+        return f"Correggere {len(cve_ids)} CVE critiche su {affected_product}"
+    return f"Correggere {cve_ids[0] if cve_ids else 'CVE critica'} su {affected_product}"
 
 
 def create_or_update_cve_ticket(source, alert, evidence, cve, affected_product, dedup_hash):
@@ -195,7 +195,7 @@ def create_backup_ticket(source, alert, evidence, job_name, dedup_hash):
             ticket = SecurityRemediationTicket.objects.create(
                 source=source,
                 alert=alert,
-                title=f"Investigate backup issue: {job_name}",
+                title=f"Verificare il problema di backup: {job_name}",
                 dedup_hash=dedup_hash,
             )
     except IntegrityError:

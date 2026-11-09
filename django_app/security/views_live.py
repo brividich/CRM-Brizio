@@ -52,22 +52,11 @@ def preview(request, kind, pk=None):
         alert = get_object_or_404(SecurityAlert.objects.select_related("source", "event", "event__asset"), pk=pk)
         return render(request, "security/partials/preview_alert.html", _preview_alert_context(alert, alert.status in ACTIVE_ALERT_STATUSES))
     if kind == "ticket":
-        from .services.cases import ACTIVE_CASE_STATUSES, case_alerts, case_timeline
-
         case = get_object_or_404(SecurityRemediationTicket.objects.select_related("source", "assignee"), pk=pk)
-        tasks = list(case.tasks.all())
-        return render(request, "security/partials/preview_ticket.html", {
-            "case": case, "alerts": case_alerts(case)[:5], "tasks": tasks, "tasks_open": sum(1 for t in tasks if not t.done),
-            "timeline": case_timeline(case)[:5], "active": case.status in ACTIVE_CASE_STATUSES,
-        })
+        return render(request, "security/partials/preview_ticket.html", preview_ticket_context(case))
     if kind == "incident":
-        from .services.incidents import deadlines
-
         incident = get_object_or_404(SecurityIncident.objects.select_related("owner"), pk=pk)
-        return render(request, "security/partials/preview_incident.html", {
-            "incident": incident, "deadlines": deadlines(incident, now), "logs": incident.logs.all()[:4],
-            "tickets": incident.tickets.order_by("-updated_at")[:4],
-        })
+        return render(request, "security/partials/preview_incident.html", _preview_incident_context(incident, now))
     if kind == "event":
         event = get_object_or_404(SecurityEventRecord.objects.select_related("source", "asset", "report"), pk=pk)
         from .templatetags.security_i18n import ui_label
@@ -90,6 +79,55 @@ def preview(request, kind, pk=None):
             raise Http404("Nessuna esecuzione di questo job nel periodo.")
         return render(request, "security/partials/preview_backup_job.html", context)
     raise Http404("Anteprima non disponibile.")
+
+
+def preview_ticket_context(case):
+    """Pannello del ticket: anche la risposta del cambio di stato fatto dal pannello (``case_status``)."""
+    from .services.alert_lifecycle import ACTIVE_ALERT_STATUSES
+    from .services.cases import ACTIVE_CASE_STATUSES, case_alerts, case_timeline
+    from .views_cases import CASE_STATUS_ACTIONS
+
+    tasks = list(case.tasks.all())
+    alerts = case_alerts(case)
+    return {
+        "case": case, "alerts": alerts[:5], "tasks": tasks, "tasks_open": sum(1 for t in tasks if not t.done),
+        "timeline": case_timeline(case)[:5], "active": case.status in ACTIVE_CASE_STATUSES,
+        "status_actions": [(value, label) for value, label in CASE_STATUS_ACTIONS if value != case.status],
+        "active_alerts_count": sum(1 for a in alerts if a.status in ACTIVE_ALERT_STATUSES),
+    }
+
+
+def _preview_incident_context(incident, now=None):
+    from .services.incidents import deadlines
+
+    return {
+        "incident": incident, "deadlines": deadlines(incident, now or timezone.now()), "logs": incident.logs.all()[:4],
+        "tickets": incident.tickets.order_by("-updated_at")[:4],
+    }
+
+
+@require_POST
+def incident_owner_me(request, pk):
+    """«Assegna a me» dal pannello dell'incidente: la stessa modifica di «owner_me» delle azioni massive, con traccia."""
+    if not can_view_security_center(request.user):
+        return HttpResponseForbidden("Accesso negato")
+    from .services import incidents as svc
+
+    incident = get_object_or_404(SecurityIncident.objects.select_related("owner"), pk=pk)
+    esito = ""
+    if incident.owner_id != request.user.pk:
+        before = svc.snapshot(incident)
+        incident.owner = request.user
+        incident.save()
+        svc.save_changes(incident, before, request.user)
+        esito = "Incidente assegnato a te."
+    if not (request.headers.get("HX-Request") or request.headers.get("X-Requested-With") == "XMLHttpRequest"):
+        if esito:
+            messages.success(request, esito)
+        return redirect("security:incident_detail", pk=incident.pk)
+    context = _preview_incident_context(incident)
+    context["azione_esito"] = esito or "Eri già tu il responsabile."
+    return render(request, "security/partials/preview_incident.html", context)
 
 
 def _preview_pc_context(data):
@@ -422,6 +460,9 @@ def pc_bulk(request):
 
     back = _back(request, "security:pc_copertura")
     names = request.POST.getlist("devices")
+    # Righe che valgono più PC (una patch ferma su più PC): i nomi arrivano uniti da «|».
+    for gruppo in request.POST.getlist("devices_gruppo"):
+        names.extend(gruppo.split("|"))
     if request.POST.get("action", "case") != "case":
         messages.error(request, "Azione non supportata.")
         return redirect(back)

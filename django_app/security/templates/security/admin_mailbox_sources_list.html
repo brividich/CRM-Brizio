@@ -1,7 +1,7 @@
 {% extends "security/_base_soc.html" %}
 {% load security_i18n %}
 
-{% block title %}Caselle mail - Security Center AI{% endblock %}
+{% block title %}Caselle mail | Security Center AI{% endblock %}
 {% block page_icon %}@{% endblock %}
 {% block page_marker %}Configurazione{% endblock %}
 {% block page_title %}Caselle mail{% endblock %}
@@ -25,15 +25,27 @@
         <form method="post" action="{% url 'security:run_mailbox_ingestion' %}">{% csrf_token %}<button type="submit">Leggi tutte ora</button></form>
       {% endif %}
     </div>
+    {% if n_ritardo or solo_ritardo %}
+      <div class="sec-chip-row" aria-label="Filtra le caselle">
+        <a class="sec-chip{% if not solo_ritardo %} is-active{% endif %}" href="{% url 'security:admin_mailbox_sources_list' %}">Tutte <strong>{{ n_sources }}</strong></a>
+        <a class="sec-chip{% if solo_ritardo %} is-active{% endif %}{% if not n_ritardo %} is-empty{% endif %}" href="?stato=ritardo">In ritardo <strong>{{ n_ritardo }}</strong></a>
+      </div>
+    {% endif %}
     {% if sources %}
       <div class="sec-table-wrap">
         <table class="sec-table sec-table-compact">
-          <thead><tr><th>Casella</th><th>Stato</th><th>Ultima lettura</th></tr></thead>
+          <thead><tr><th>Casella</th><th>Stato</th><th>Report</th><th>Ultima lettura</th></tr></thead>
           <tbody>
           {% for source in sources %}
             <tr>
               <td class="sec-title-cell"><a href="{% url 'security:admin_mailbox_source_detail' source.code %}"><strong>{{ source.name }}</strong></a><small>{{ source.mailbox_address|default:"(nessun indirizzo)" }} · {{ source.get_source_type_display }}</small></td>
               <td>{% if source.enabled %}<span class="sec-badge ok">Attiva</span>{% else %}<span class="sec-badge disabled">Disattivata</span>{% endif %}</td>
+              <td>
+                {% with b=source.battito %}{% if b %}
+                  <span class="sec-badge {% if b.state == 'high' %}critical{% elif b.state == 'warning' %}warning{% else %}ok{% endif %}">{{ b.label }}</span>
+                  <small class="sec-muted" style="display:block;">{% if b.last_report_at %}ultimo {{ b.last_report_at|date:"d/m/Y H:i" }}{% else %}nessun report{% endif %}{% if b.expected_every_hours %} · atteso ogni {{ b.expected_every_hours }} h{% endif %}</small>
+                {% else %}<span class="sec-muted">—</span>{% endif %}{% endwith %}
+              </td>
               <td>
                 {% if source.latest_run %}
                   <span class="sec-badge {{ source.latest_run.status }}">{{ source.latest_run.status|ui_label }}</span>
@@ -47,7 +59,7 @@
         </table>
       </div>
     {% else %}
-      <p class="sec-empty">Nessuna casella configurata: per questo non arrivano dati.</p>
+      <p class="sec-empty">{% if solo_ritardo %}Nessuna casella in ritardo.{% else %}Nessuna casella configurata: per questo non arrivano dati.{% endif %}</p>
     {% endif %}
 
     <div class="sec-section-head" style="margin-top: 18px;"><h3>Credenziali Microsoft Graph</h3>

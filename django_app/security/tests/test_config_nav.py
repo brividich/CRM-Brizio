@@ -19,8 +19,9 @@ class ConfigNavTests(TestCase):
         sub = html.split('<nav class="soc-subnav"', 1)[1].split("</nav>", 1)[0]
         self.assertIn("<span>Impostazioni</span>", menu)  # una sola voce di menu per tutta la configurazione
         self.assertIn('aria-current="page">Avvisi e automatismi</a>', sub)
-        # le sezioni si aprono dalla Panoramica: niente 15 schede su due righe (6 con il Battito del SOC)
-        self.assertEqual(sub.count("<a "), 6)
+        # le sezioni si aprono dalla Panoramica: niente 15 schede su due righe (7 con Battito del SOC e Carica report)
+        self.assertEqual(sub.count("<a "), 7)
+        self.assertIn(">Carica report</a>", sub)
         self.assertIn(">Battito del SOC</a>", sub)
         self.assertNotIn(">Caselle mail</a>", sub)
         self.assertEqual(html.count('class="soc-subnav"'), 1)

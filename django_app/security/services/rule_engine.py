@@ -80,7 +80,7 @@ def _evaluate_event(event):
     if handler:
         handler(event)
     else:
-        event.decision_trace = {"decision": "kpi_only", "reason": "No alert rule matched"}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Nessuna regola di alert corrisponde"}
         event.save(update_fields=["decision_trace"])
     if (event.decision_trace or {}).get("decision") != "alert":
         _apply_learned_escalation(event)
@@ -141,14 +141,14 @@ def _evaluate_vulnerability(event):
     if is_critical and exposed:
         trace = {
             "decision": "alert",
-            "rule": "CVE Critical/CVSS >= 9/exposed_devices > 0",
+            "rule": "CVE critica (CVSS ≥ 9) con dispositivi esposti => alert",
             "cvss": payload.get("cvss"),
             "exposed_devices": payload.get("exposed_devices"),
         }
         alert, alert_created = _get_or_create_active_alert(
             source=event.source,
             event=event,
-            title=f"Critical exposed vulnerability {payload.get('cve')}",
+            title=f"Vulnerabilità critica esposta {payload.get('cve')}",
             severity=(critical_rule.severity if critical_rule else Severity.CRITICAL),
             dedup_hash=event.dedup_hash,
             decision_trace=trace,
@@ -175,7 +175,7 @@ def _evaluate_vulnerability(event):
         _mark_rule_triggered(critical_rule)
         _mark_rule_triggered(exposed_rule)
     else:
-        event.decision_trace = {"decision": "kpi_only", "reason": "Vulnerability not both critical and exposed"}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Vulnerabilità non critica o senza dispositivi esposti"}
         resolved = resolve_vulnerability_cleared(event)
         if resolved:
             event.decision_trace["auto_resolved_alerts"] = resolved
@@ -188,13 +188,13 @@ def _evaluate_source_silent(event):
     payload = event.payload
     rule = _get_rule("source_silent_beyond_expected")
     if rule and not rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "Source heartbeat rule disabled", "rule": rule.code}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sul silenzio delle sorgenti disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
 
     trace = {
         "decision": "alert",
-        "rule": "Source silent beyond expected cadence => alert",
+        "rule": "Sorgente silenziosa oltre la cadenza attesa => alert",
         "reason": payload.get("detail"),
         "source_code": payload.get("source_code"),
         "expected_every_hours": payload.get("expected_every_hours"),
@@ -205,7 +205,7 @@ def _evaluate_source_silent(event):
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
-        title=f"Source silent: {payload.get('source_name') or payload.get('source_code')}",
+        title=f"Sorgente silenziosa: {payload.get('source_name') or payload.get('source_code')}",
         severity=(rule.severity if rule else Severity.WARNING),
         dedup_hash=event.dedup_hash,
         decision_trace=trace,
@@ -236,7 +236,7 @@ def _evaluate_cve_impact(event):
     payload = event.payload
     rule = _get_rule("cve_impact_confirmed")
     if rule and not rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "CVE impact rule disabled", "rule": rule.code}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sulle CVE dell'inventario disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
     cve = (payload.get("cve") or "").upper()
@@ -289,7 +289,7 @@ def _evaluate_software_nuovo(event):
     payload = event.payload
     rule = _get_rule("software_nuovo")
     if rule and not rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "Software nuovo rule disabled", "rule": rule.code}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sul software nuovo disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
     trace = {
@@ -316,7 +316,7 @@ def _evaluate_software_policy(event):
     payload = event.payload
     rule = _get_rule("software_policy")
     if rule and not rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "Software policy rule disabled", "rule": rule.code}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sul software non conforme disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
     trace = {
@@ -758,12 +758,12 @@ def _evaluate_sender_spoofing(event):
     payload = event.payload
     rule = _get_rule("possible_sender_spoofing")
     if rule and not rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "Sender spoofing rule disabled", "rule": rule.code}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sul mittente non attendibile disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
     trace = {
         "decision": "alert",
-        "rule": "Vendor-looking report from untrusted sender => alert (not parsed)",
+        "rule": "Report di un fornitore da mittente non attendibile => alert (non letto)",
         "reason": payload.get("detail"),
         "claimed_vendor": payload.get("claimed_vendor"),
         "sender": payload.get("sender"),
@@ -772,7 +772,7 @@ def _evaluate_sender_spoofing(event):
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
-        title=f"Possible sender spoofing: {payload.get('claimed_vendor') or 'vendor'} report from {payload.get('sender_domain') or 'unknown domain'}",
+        title=f"Possibile mittente falso: report {payload.get('claimed_vendor') or 'di un fornitore'} da {payload.get('sender_domain') or 'dominio sconosciuto'}",
         severity=(rule.severity if rule else Severity.WARNING),
         dedup_hash=event.dedup_hash,
         decision_trace=trace,
@@ -796,7 +796,7 @@ def _alert_unreadable_vulnerability(event, payload, exposed_unknown=False):
     if exposed_unknown:
         trace = {
             "decision": "alert",
-            "rule": "Critical vulnerability with unreadable exposed devices count => fail-closed manual review",
+            "rule": "CVE critica con numero di dispositivi esposti illeggibile => verifica manuale (prudenza)",
             "reason": "La CVE è critica ma il numero di dispositivi esposti non è leggibile: NON viene considerato 0",
             "cve": payload.get("cve"),
             "cvss": payload.get("cvss"),
@@ -805,8 +805,8 @@ def _alert_unreadable_vulnerability(event, payload, exposed_unknown=False):
     else:
         trace = {
             "decision": "alert",
-            "rule": "Vulnerability data unreadable while devices are exposed => fail-closed manual review",
-            "reason": "Neither CVSS nor severity could be parsed; the score is NOT assumed to be 0",
+            "rule": "Dati della vulnerabilità illeggibili con dispositivi esposti => verifica manuale (prudenza)",
+            "reason": "Né il CVSS né la gravità sono leggibili: il punteggio NON viene considerato 0",
             "cve": payload.get("cve"),
             "exposed_devices": payload.get("exposed_devices"),
             "cvss_unparsed": True,
@@ -815,7 +815,7 @@ def _alert_unreadable_vulnerability(event, payload, exposed_unknown=False):
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
-        title=f"Unreadable vulnerability data for {payload.get('cve') or 'unknown CVE'} (manual review)",
+        title=f"Dati della vulnerabilità illeggibili per {payload.get('cve') or 'CVE sconosciuta'} (verifica manuale)",
         severity=Severity.HIGH,
         dedup_hash=event.dedup_hash,
         decision_trace=trace,
@@ -839,26 +839,26 @@ def _alert_unreadable_vulnerability(event, payload, exposed_unknown=False):
 def _evaluate_backup(event):
     status = event.payload.get("status", "").lower()
     if status == "completed":
-        event.decision_trace = {"decision": "kpi_only", "rule": "Backup completed => KPI only"}
+        event.decision_trace = {"decision": "kpi_only", "rule": "Backup completato => solo KPI"}
         resolved = resolve_backup_recovered(event)
         if resolved:
             event.decision_trace["auto_resolved_alerts"] = resolved
         event.save(update_fields=["decision_trace"])
         return
     if status == "unknown":
-        event.decision_trace = {"decision": "diagnostic_event", "rule": "Backup status unknown => diagnostic only"}
+        event.decision_trace = {"decision": "diagnostic_event", "rule": "Esito del backup sconosciuto => solo diagnostica"}
         event.save(update_fields=["decision_trace"])
         return
     failed_rule = _get_rule("backup_failed_gt_0")
     if failed_rule and not failed_rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "Backup failure rule disabled"}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sui backup falliti disattivata"}
         event.save(update_fields=["decision_trace"])
         return
-    trace = {"decision": "alert", "rule": "Backup missing/failed => alert + evidence", "backup_status": status}
+    trace = {"decision": "alert", "rule": "Backup mancante o fallito => alert + evidenza", "backup_status": status}
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
-        title=f"Backup job requires attention: {event.payload.get('job_name')}",
+        title=f"Backup da controllare: {event.payload.get('job_name')}",
         severity=(failed_rule.severity if failed_rule else Severity.WARNING),
         dedup_hash=event.dedup_hash,
         decision_trace=trace,
@@ -886,11 +886,11 @@ def _evaluate_vpn(event):
     ).aggregate(total=Count("id"))["total"]
     threshold = int(event.payload.get("threshold", 10))
     if count > threshold:
-        trace = {"decision": "alert", "rule": "VPN reconnect spike above threshold", "count": count, "threshold": threshold}
+        trace = {"decision": "alert", "rule": "Picco di riconnessioni VPN oltre la soglia", "count": count, "threshold": threshold}
         alert, alert_created = _get_or_create_active_alert(
             source=event.source,
             event=event,
-            title="VPN authentication spike detected",
+            title="Picco di autenticazioni VPN",
             severity=Severity.WARNING,
             dedup_hash=event.dedup_hash,
             decision_trace=trace,
@@ -906,7 +906,7 @@ def _evaluate_vpn(event):
             notify_alert_created(alert)
         event.decision_trace = trace
     else:
-        event.decision_trace = {"decision": "kpi_only", "reason": "VPN volume below threshold", "count": count, "threshold": threshold}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Volume VPN sotto la soglia", "count": count, "threshold": threshold}
     event.save(update_fields=["decision_trace"])
 
 
@@ -915,19 +915,19 @@ def _evaluate_watchguard_alert_candidate(event):
     candidate_type = payload.get("type") or ""
     rule = _get_rule(candidate_type) or _get_rule("watchguard_botnet_detected_gt_baseline")
     if rule and not rule.enabled:
-        event.decision_trace = {"decision": "kpi_only", "reason": "WatchGuard alert rule disabled", "rule": rule.code}
+        event.decision_trace = {"decision": "kpi_only", "reason": "Regola sugli alert WatchGuard disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
     trace = {
         "decision": "alert",
-        "rule": "WatchGuard parser-generated anti-noise alert candidate",
+        "rule": "Candidato alert WatchGuard proposto dal parser (filtro anti-rumore)",
         "candidate_type": payload.get("type"),
         "reason": payload.get("reason"),
     }
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
-        title=payload.get("title") or "WatchGuard alert candidate",
+        title=payload.get("title") or "Alert WatchGuard da verificare",
         severity=(rule.severity if rule else payload.get("severity", Severity.WARNING)),
         dedup_hash=event.dedup_hash,
         decision_trace=trace,

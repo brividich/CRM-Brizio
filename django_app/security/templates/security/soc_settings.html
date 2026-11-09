@@ -143,7 +143,7 @@
           <td class="sec-nowrap">{{ log.created_at|date:"d/m/Y H:i" }}</td>
           <td>{% for key, label in event_labels.items %}{% if key == log.event_kind %}{{ label }}{% endif %}{% endfor %}</td>
           <td>{{ log.channel.name }}</td>
-          <td>{% if log.outcome == "sent" %}<span class="sec-badge sec-badge-success">Inviato</span>{% else %}<span class="sec-badge sec-badge-critical" title="{{ log.error_message }}">Non inviato</span>{% endif %}</td>
+          <td>{% if log.outcome == "sent" %}<span class="sec-badge sec-badge-success">Inviato</span>{% elif log.outcome == "cooldown" %}<span class="sec-badge sec-badge-muted" title="Lo stesso avviso era appena partito: non si ripete prima della pausa scelta">Già inviato di recente</span>{% else %}<span class="sec-badge sec-badge-critical" title="{{ log.error_message }}">Non inviato</span>{% endif %}</td>
         </tr>
       {% empty %}
         <tr><td colspan="4" class="sec-empty">Nessun avviso automatico inviato finora.</td></tr>

@@ -4893,3 +4893,25 @@ html.ar-aperto{overflow:hidden}
 .fl-chiuso{grid-template-columns:1fr auto;align-items:start;border-left-color:var(--success,#15803d)}
 .fl-chiuso p{margin:6px 0 0;font-size:13px;color:var(--text-mid)}
 .fl-chiudi button{justify-self:start}
+
+/* Percorso: filtri e piano */
+.tp-filtri{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+.tp-filtro{padding:3px 10px;border:1px solid var(--border);border-radius:99px;background:var(--surface);font-size:12px;cursor:pointer;color:var(--text)}
+.tp-filtro.is-on{background:var(--primary,#2563eb);border-color:var(--primary,#2563eb);color:#fff}
+.tp-piano{display:inline}
+.tp-row[hidden]{display:none}
+
+/* Le mie commesse */
+.cr-lista{display:grid;gap:8px;margin-top:10px}
+.cr-riga{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(140px,1fr) minmax(150px,1fr) minmax(170px,1.1fr) minmax(0,1.4fr);gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:inherit;text-decoration:none}
+.cr-riga:hover{border-color:var(--primary,#2563eb)}
+.cr-riga>div{display:grid;gap:3px;min-width:0}
+.cr-nome small,.cr-riga small{font-size:12px;color:var(--text-mid)}
+.cr-barra{display:block;height:6px;border-radius:99px;background:var(--bg);overflow:hidden}
+.cr-barra i{display:block;height:100%;background:var(--success,#16a34a)}
+.cr-rosso{color:var(--danger,#b91c1c) !important;font-weight:700}
+.cr-muto{opacity:.7}
+.cr-passo small{font-weight:600;color:var(--text)}
+@media (max-width:900px){.cr-riga{grid-template-columns:1fr 1fr}.cr-nome{grid-column:1/-1}}
+.mc-reale{display:block;font-size:10px;color:var(--text-mid)}
+.tr-apri{margin-left:auto}

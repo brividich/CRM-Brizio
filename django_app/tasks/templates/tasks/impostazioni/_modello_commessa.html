@@ -8,6 +8,7 @@
     <div class="mc-azioni">
       {% if m %}<label class="pt-scelta"><input type="checkbox" name="attivo" {% if m.attivo %}checked{% endif %}> Attivo</label>{% endif %}
       <button type="submit" class="btn btn-sm {% if m %}btn-secondary{% endif %}">{% if m %}Salva{% else %}Aggiungi{% endif %}</button>
+      {% if m and m.reali %}<button type="submit" name="azione" value="reali" class="btn btn-secondary btn-sm" title="Sostituisce i giorni con la media reale delle commesse di questo modello">Usa i valori reali</button>{% endif %}
       {% if m %}<button type="submit" name="azione" value="elimina" class="btn btn-secondary btn-sm">Elimina</button>{% endif %}
     </div>
   </div>
@@ -15,7 +16,7 @@
     {% for chiave, etichetta in tappe_scelte %}
       <label class="mc-tappa">
         <input type="checkbox" name="tappa_{{ chiave }}" {% if m and chiave in m.chiavi %}checked{% elif not m %}checked{% endif %}>
-        <span>{{ etichetta }}</span>
+        <span>{{ etichetta }}{% if m %}{% for k, v in m.reali.items %}{% if k == chiave %}<small class="mc-reale">reale {{ v.media }} gg · {{ v.n }} comm.</small>{% endif %}{% endfor %}{% endif %}</span>
         <input class="input" type="number" name="giorni_{{ chiave }}" min="0" max="365" placeholder="gg" title="Giorni prima della consegna" aria-label="Giorni prima della consegna per {{ etichetta }}"
                value="{% if m %}{% for v in m.tappe %}{% if v.tappa == chiave %}{{ v.giorni|default_if_none:'' }}{% endif %}{% endfor %}{% endif %}">
       </label>

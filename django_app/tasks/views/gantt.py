@@ -344,7 +344,10 @@ def project_gantt_fix_baseline(request, project_id: int):
         defaults={"snapshot": snapshot, "fixed_by": request.user},
     )
     log_action(request, "gantt_baseline_fixed", "tasks", {"project_id": project.pk, "task_count": len(tasks)})
-    messages.success(request, "Baseline Gantt fissata.")
+    messages.success(request, "Piano fissato: da qui ogni tappa mostra lo scostamento.")
+    nxt = request.POST.get("next") or ""
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return redirect(nxt)
     return_qs = request.POST.get("return_qs", "")
     base_url = reverse("tasks:project_gantt", kwargs={"project_id": project_id})
     return redirect(f"{base_url}?{return_qs}" if return_qs else base_url)
