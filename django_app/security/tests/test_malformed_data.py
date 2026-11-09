@@ -129,9 +129,9 @@ class FailClosedRuleTests(TestCase):
 
         alert = SecurityAlert.objects.get()
         self.assertEqual(alert.severity, Severity.HIGH)
-        self.assertIn("Unreadable vulnerability data", alert.title)
+        self.assertIn("Dati della vulnerabilità illeggibili", alert.title)
         self.assertTrue(alert.decision_trace["cvss_unparsed"])
-        self.assertIn("fail-closed", alert.decision_trace["rule"])
+        self.assertIn("verifica manuale", alert.decision_trace["rule"])
         # Evidence yes (so an operator can look at it), remediation ticket no:
         # the data is not trustworthy enough to drive a fix.
         self.assertEqual(alert.evidence_containers.count(), 1)

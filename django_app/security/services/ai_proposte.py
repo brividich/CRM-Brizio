@@ -41,7 +41,7 @@ from security.models import (
     Severity,
 )
 from security.services import soc_settings
-from security.services.alert_lifecycle import CLOSE_OUTCOMES
+from security.services.alert_lifecycle import CLOSE_OUTCOMES, DA_DECIDERE_ALERT_STATUSES
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ BUDGET_MANUALE = 300      # «Esegui ora» gira in coda (600 s)
 GIORNI_ALERT = 60         # alert più vecchi restano alle persone
 GIORNI_DECISIONI = 180
 MAX_PROVE = 10
-APERTI = ("new", "open", "acknowledged", "in_progress")
+APERTI = tuple(DA_DECIDERE_ALERT_STATUSES)  # «da decidere»: senza rimandati e silenziati
 POSITIVI = (SecurityAlertProposta.CONFERMATA,)
 NEGATIVI = (SecurityAlertProposta.CORRETTA, SecurityAlertProposta.SCARTATA, SecurityAlertProposta.ANNULLATA)
 DA_AI = {"risolto": "resolved", "non_rilevante": "not_relevant", "rischio_accettato": "accepted_risk",

@@ -68,7 +68,8 @@ class MetricheCoerentiTests(TestCase):
         menu = html.split('<nav class="soc-tabs"', 1)[1].split("</nav>", 1)[0]
         self.assertIn(f'tone-critical" title="{urgenti} segnalazioni urgenti">{urgenti}</span>', menu)
         hero = html.split('id="ov-hero"', 1)[1].split("</section>", 1)[0]
-        self.assertIn(f"<strong>{urgenti}</strong> segnalazioni urgenti", hero)
+        # le urgenti stanno nella barra di stato: la testata non le ripete
+        self.assertNotIn("segnalazioni urgenti", hero)
         self.assertIn(f"<strong>{metriche.segnalazioni_aperte().value}</strong> segnalazioni aperte", hero)
 
     def test_panoramica_backup_per_pc_e_link_esatti(self):

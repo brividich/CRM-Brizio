@@ -120,7 +120,6 @@ class NoHardcodedNumbersTest(TestCase):
         SecurityAlert.objects.create(source=source, title="x", severity=Severity.CRITICAL, dedup_hash="r1")
         html = self.client.get(reverse("security:dashboard")).content.decode()
         self.assertIn("ov-hero tone-critical", html)
-        self.assertIn("<strong>1</strong> segnalazioni urgenti", html)
         self.assertIn("<strong>1</strong> segnalazioni aperte", html)
         self.assertIn("<polyline", html)
         for name in ("security:kpis", "security:pipeline"):

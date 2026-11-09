@@ -51,12 +51,15 @@ def incidents_list(request):
     if query:
         rows = rows.filter(Q(title__icontains=query) | Q(code__icontains=query) | Q(csirt_reference__icontains=query))
     now = timezone.now()
-    total = rows.count()
-    incidents = [_decorate(incident, now) for incident in rows[:300]]
+    from core.paginazione import pagina_elenco
+
+    page_obj = pagina_elenco(request, rows.order_by("-detected_at", "-pk"))
+    incidents = [_decorate(incident, now) for incident in page_obj.object_list]
     years = sorted({d.year for d in SecurityIncident.objects.dates("detected_at", "year")}, reverse=True)
     return render(request, "security/incidents_list.html", {
         "incidents": incidents,
-        "total": total,
+        "page_obj": page_obj,
+        "total": page_obj.paginator.count,
         "filters": {"status": status, "scope": scope, "year": year, "q": query},
         "status_choices": SecurityIncident.STATUS_CHOICES,
         "years": years,

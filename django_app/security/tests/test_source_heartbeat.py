@@ -146,9 +146,9 @@ class SilenceReachesTheAlertPathTests(HeartbeatBaseTest):
         evaluate_security_rules()
 
         alert = SecurityAlert.objects.get()
-        self.assertIn("Source silent", alert.title)
+        self.assertIn("Sorgente silenziosa", alert.title)
         self.assertEqual(alert.severity, Severity.WARNING)
-        self.assertIn("silent", alert.decision_trace["rule"].lower())
+        self.assertIn("silenziosa", alert.decision_trace["rule"].lower())
         self.assertEqual(alert.evidence_containers.count(), 1)
 
 

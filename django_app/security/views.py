@@ -112,7 +112,8 @@ def dashboard(request):
     context = {
         "items": items, "verdict": overall(items), "cards": area_cards(items), "now": timezone.localtime(),
         "brief": cached_brief(items),
-        "urgenti": metriche.segnalazioni_urgenti(), "aperte": metriche.segnalazioni_aperte(),
+        # Le urgenti sono già nella barra di stato: qui solo le aperte.
+        "aperte": metriche.segnalazioni_aperte(),
         "secure_score": _secure_score(),
         "trend": build_trend(today=today),
         "source_rows": source_status_rows(),
@@ -148,15 +149,18 @@ def alerts_list(request):
     if severities:
         alerts = alerts.filter(severity__in=severities)
 
-    total = alerts.count()
+    from core.paginazione import pagina_elenco
+
+    page_obj = pagina_elenco(request, alerts)
     severity_chips = [
         {"value": value, "count": severity_counts.get(value, 0), "active": value in severities,
          "toggle": _toggle_query(request, "severity", value)}
         for value, _label in reversed(Severity.choices)
     ]
     context = {
-        "alerts": _decorate_alerts(alerts[:100]),
-        "total": total,
+        "alerts": _decorate_alerts(page_obj.object_list),
+        "page_obj": page_obj,
+        "total": page_obj.paginator.count,
         "severity_chips": severity_chips,
         "all_count": sum(severity_counts.values()),
         "sources": SecuritySource.objects.order_by("name"),
@@ -1446,11 +1450,21 @@ def admin_mailbox_sources_list(request):
             messages.success(request, f"Casella «{obj.name}» creata. Ora prova la lettura con «Anteprima».")
             return redirect("security:admin_mailbox_source_detail", code=obj.code)
 
+    from security.services.source_heartbeat import IN_RITARDO
+
     sources = list(SecurityMailboxSource.objects.all().order_by("name"))
+    # Stato dei report: la stessa funzione del riquadro «sorgenti in ritardo» della barra.
+    battiti = {r["id"]: r for r in source_status_rows()}
     for source in sources:
         source.latest_run = source.ingestion_runs.order_by("-started_at").first()
+        source.battito = battiti.get(source.pk)
+    in_ritardo = [s for s in sources if s.battito and s.battito["state"] in IN_RITARDO]
+    solo_ritardo = request.GET.get("stato") == "ritardo"
     context = {
-        "sources": sources,
+        "sources": in_ritardo if solo_ritardo else sources,
+        "n_sources": len(sources),
+        "n_ritardo": len(in_ritardo),
+        "solo_ritardo": solo_ritardo,
         "form": form,
         "can_manage": can_manage,
         "graph": graph_credentials_status(),

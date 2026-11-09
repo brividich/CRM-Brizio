@@ -17,7 +17,7 @@
   </p>
   {% if not attivo %}<p class="sec-error sec-small">Le proposte automatiche sono spente: si accendono in Impostazioni › Avvisi e automatismi.</p>{% endif %}
   <div class="sec-kpi-strip sec-small">
-    <span><strong>{{ n_alert }}</strong> alert aperti in <strong>{{ n_gruppi }}</strong> grupp{{ n_gruppi|pluralize:"o,i" }}</span> ·
+    <span><strong>{{ n_alert }}</strong> alert da decidere in <strong>{{ n_gruppi }}</strong> grupp{{ n_gruppi|pluralize:"o,i" }}</span> ·
     <span><strong>{{ n_auto_7 }}</strong> alert chius{{ n_auto_7|pluralize:"o,i" }} dall'AI negli ultimi 7 giorni</span> ·
     <span><strong>{{ n_affidabili }}</strong> tip{{ n_affidabili|pluralize:"o,i" }} di alert che chiude da sola</span>
   </div>

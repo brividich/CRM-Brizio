@@ -30,6 +30,7 @@ from .services.addon_registry import ACTIVE_ALERT_STATUSES, ADDONS
 from .services.configuration import audit_config_change, can_manage_security_config, get_setting, set_setting
 from .services.mailbox_ingestion import run_mailbox_ingestion
 from .services.rule_simulation import simulate_alert_rule
+from .templatetags.security_i18n import ui_label
 from .parsers import parser_registry
 
 
@@ -562,7 +563,7 @@ def _build_service_source_status(source, now, stale_after_seconds):
         health_label = "Non recente"
     elif latest_run.status in ["partial", "pending", "running"]:
         health = "warning"
-        health_label = latest_run.get_status_display()
+        health_label = ui_label(latest_run.status)
     else:
         health = "active"
         health_label = "Operativa"
@@ -594,7 +595,7 @@ def _build_service_run_status(run):
         "source_code": run.source.code,
         "source_name": run.source.name,
         "status": run.status,
-        "status_label": run.get_status_display(),
+        "status_label": ui_label(run.status),
         "started_at": run.started_at.isoformat() if run.started_at else None,
         "finished_at": run.finished_at.isoformat() if run.finished_at else None,
         "imported": run.imported_messages_count,

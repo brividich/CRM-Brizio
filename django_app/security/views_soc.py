@@ -18,7 +18,7 @@ def assets_list(request):
     """Vecchio indirizzo «Asset»: ora i dispositivi e il collegamento al registro stanno in un elenco solo."""
     from django.urls import reverse
 
-    filtro = {"da_collegare": "da_collegare"}.get(request.GET.get("stato", ""), "tutti")
+    filtro = {"da_collegare": "da_collegare", "collegati": "collegati"}.get(request.GET.get("stato", ""), "tutti")
     target = reverse("security:pc_copertura") + f"?f={filtro}"
     if request.method == "POST":
         if not can_view_security_center(request.user):

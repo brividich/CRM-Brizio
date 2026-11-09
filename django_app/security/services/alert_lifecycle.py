@@ -12,6 +12,15 @@ ACTIVE_ALERT_STATUSES = [
     Status.MUTED,
 ]
 
+# «Da decidere»: gli aperti meno i rimandati e i silenziati, che hanno già una decisione
+# a tempo. Sono gli alert delle Proposte AI; le Segnalazioni contano tutti gli attivi.
+DA_DECIDERE_ALERT_STATUSES = [
+    Status.NEW,
+    Status.OPEN,
+    Status.ACKNOWLEDGED,
+    Status.IN_PROGRESS,
+]
+
 CLOSED_ALERT_STATUSES = [
     Status.CLOSED,
     Status.FALSE_POSITIVE,
