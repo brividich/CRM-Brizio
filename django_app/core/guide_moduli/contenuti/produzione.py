@@ -5,7 +5,7 @@ GUIDA = {
     "titolo": "Ordini di produzione",
     "area": "Produzione e operations",
     "sintesi": "Ogni OP con i suoi documenti di produzione: FAI, programmi CAM e CMM, documenti registrati e anomalie.",
-    "parole": "op ordine di produzione ordini documenti di produzione fai programmi cam cmm ciclo disegno dip "
+    "parole": "ctrl+k cerca op ordine di produzione ordini documenti di produzione fai programmi cam cmm ciclo disegno dip "
               "piano di controllo certificato materiale collaudo conformità coc anomalie p/n",
     "url": "produzione:elenco",
     "prefissi": ("/produzione/",),

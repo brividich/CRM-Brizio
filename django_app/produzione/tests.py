@@ -168,6 +168,30 @@ class PercorsoTest(ProduzioneBase):
         self.assertEqual(pagina.context["totale_tutti"], 3)
 
 
+class RicercaGlobaleTest(ProduzioneBase):
+    """Ctrl+K trova OP e FAI e porta alle loro schede; senza il modulo non li mostra."""
+
+    def _cerca(self, q):
+        risposta = self.client.get(reverse("api_global_search"), {"q": q}, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertEqual(risposta.status_code, 200)
+        return [r for r in risposta.json()["results"] if r["tipo"] in {"op", "fai"}]
+
+    def test_trova_op_e_fai(self):
+        fai = self._fai("OP/2026/100")
+        trovati = self._cerca("2026/100")
+        self.assertIn({"tipo": "op", "url": reverse("produzione:scheda", args=[self.pk])},
+                      [{"tipo": r["tipo"], "url": r["url"]} for r in trovati])
+        self.assertIn(reverse("tasks:fai_scheda", args=[fai.id]), [r["url"] for r in trovati if r["tipo"] == "fai"])
+        self.assertEqual({r["module"] for r in trovati}, {"Ordini di produzione", "Registro FAI"})
+
+    def test_senza_modulo_niente(self):
+        self._fai("OP/2026/100")
+        from unittest.mock import patch
+
+        with patch("core.views._global_search_module_allowed", return_value=False):
+            self.assertEqual(self._cerca("2026/100"), [])
+
+
 class DocumentiTest(ProduzioneBase):
     def test_aggiungi_modifica_elimina(self):
         url = reverse("produzione:documento", args=[self.pk])

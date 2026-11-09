@@ -52,7 +52,7 @@ GUIDA = {
                     "La lampadina in alto a destra apre il Suggestion Corner.",
                     "Sotto la barra c'è il menu del modulo in cui ti trovi.",
                     "Il logo in alto a sinistra riporta sempre alla home.",
-                    "«Cerca o vai a…» (oppure Ctrl+K) trova una pagina, una persona o un documento scrivendo il nome.",
+                    "«Cerca o vai a…» (oppure Ctrl+K) trova una pagina, una persona, un documento, un OP o un FAI scrivendo il nome.",
                 ]),
                 ("p", "Dal telefono:"),
                 ("ul", [

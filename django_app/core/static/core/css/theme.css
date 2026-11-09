@@ -38,6 +38,8 @@ body.theme-dark .gs-tipo-asset .gs-item-icon{background:rgba(21,128,61,.2)}
 body.theme-dark .gs-tipo-ticket .gs-item-icon{background:rgba(194,65,12,.2)}
 body.theme-dark .gs-tipo-kickoff .gs-item-icon{background:rgba(126,34,206,.2)}
 body.theme-dark .gs-tipo-task .gs-item-icon{background:rgba(3,105,161,.2)}
+body.theme-dark .gs-tipo-op .gs-item-icon{background:rgba(190,24,93,.2)}
+body.theme-dark .gs-tipo-fai .gs-item-icon{background:rgba(67,56,202,.2)}
 body.theme-dark .gs-tipo-procedura .gs-item-icon{background:rgba(133,77,14,.2)}
 body.theme-dark .gs-tipo-dpi .gs-item-icon{background:rgba(4,120,87,.2)}
 body.theme-dark .notify-banner{background:linear-gradient(135deg,rgba(15,23,42,.9) 0%,rgba(17,26,42,.95) 48%,rgba(17,26,42,.9) 100%);border-color:rgba(255,255,255,.1);box-shadow:0 12px 30px rgba(0,0,0,.35)}
@@ -435,6 +437,8 @@ body.fs-xl{--fs-2xs:12px;--fs-xs:13px;--fs-sm:14px;--fs-base:17px;--fs-md:18px;-
 .gs-tipo-ticket .gs-item-icon{background:#fff7ed;color:#c2410c}
 .gs-tipo-kickoff .gs-item-icon{background:#fdf4ff;color:#7e22ce}
 .gs-tipo-task .gs-item-icon{background:#f0f9ff;color:#0369a1}
+.gs-tipo-op .gs-item-icon{background:#fdf2f8;color:#be185d}
+.gs-tipo-fai .gs-item-icon{background:#eef2ff;color:#4338ca}
 .gs-tipo-procedura .gs-item-icon{background:#fefce8;color:#854d0e}
 .gs-tipo-dpi .gs-item-icon{background:#ecfdf5;color:#047857}
 .gs-item-body{flex:1;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:1px}

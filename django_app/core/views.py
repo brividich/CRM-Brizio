@@ -1619,7 +1619,7 @@ def _global_search_module_allowed(request, path: str) -> bool:
 def api_global_search(request):
     """
     GET /api/search/?q=<query>
-    Ricerca globale su Dipendenti, Asset, Ticket, Kickoff/Task, Procedure.
+    Ricerca globale su Dipendenti, Asset, Ticket, Kickoff/Task, OP, FAI, Procedure, DPI.
     Restituisce risultati raggruppati per tipo, max 5 per gruppo.
     Ogni blocco è eseguito solo se l'utente ha accesso ACL al modulo relativo.
     """
@@ -1735,7 +1735,7 @@ def api_global_search(request):
             | Q(vrf_description__icontains=q)
         ).order_by("-id")[:5]
         for p in projects_qs:
-            url = f"/tasks/projects/"
+            url = reverse("tasks:project_overview", args=[p.id])
             results.append({
                 "tipo": "kickoff",
                 "label": p.name or f"KICK-OFF {p.kickoff_number}",
@@ -1825,12 +1825,52 @@ def api_global_search(request):
     except Exception:
         pass
 
+    # ── Ordini di produzione (tabella legacy ordini_produzione) ──────────────
+    try:
+        if not _global_search_module_allowed(request, "/produzione/"):
+            raise _ModuleHidden
+        from core import ordini_produzione
+
+        for o in ordini_produzione.cerca(q, limite=5):
+            results.append({
+                "tipo": "op",
+                "label": o["op"],
+                "sub": " · ".join(filter(None, [o.get("pn"), o.get("capocommessa"), o.get("stato")])),
+                "url": reverse("produzione:scheda", args=[o["id"]]),
+            })
+    except Exception:
+        pass
+
+    # ── FAI (Registro FAI, solo quelli che l'utente vede) ────────────────────
+    try:
+        if not _global_search_module_allowed(request, "/tasks/fai/"):
+            raise _ModuleHidden
+        from tasks.views.fai import _fai_visibili
+
+        fai_qs = _fai_visibili(request).filter(
+            Q(piano_numero__icontains=q)
+            | Q(op__icontains=q)
+            | Q(articolo__part_number__icontains=q)
+            | Q(articolo__client_name__icontains=q)
+        ).select_related("articolo", "stato").order_by("-id")[:5]
+        for f in fai_qs:
+            results.append({
+                "tipo": "fai",
+                "label": f.piano_numero or f"FAI {f.articolo.part_number}",
+                "sub": " · ".join(filter(None, [f.articolo.part_number, f.op, f.stato.etichetta if f.stato_id else ""])),
+                "url": reverse("tasks:fai_scheda", args=[f.id]),
+            })
+    except Exception:
+        pass
+
     module_labels = {
         "dipendente": "Anagrafica",
         "asset": "Asset",
         "ticket": "Ticket",
         "kickoff": "KICK-OFF",
         "task": "KICK-OFF",
+        "op": "Ordini di produzione",
+        "fai": "Registro FAI",
         "procedura": "Procedure",
         "dpi": "DPI",
     }

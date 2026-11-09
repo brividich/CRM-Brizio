@@ -9,6 +9,7 @@ Storico archiviato: [dalla 1.4.0 alla 1.6.2 (pre go-live)](docs/changelog/CHANGE
 
 ## [Unreleased]
 
+- **Ctrl+K trova OP e FAI, senza righe ripetute** (`core/views.py` `api_global_search`, `core/static/core/js/command-palette.js`, `core/static/core/css/theme.css`, `produzione/tests.py`, `core/guide_moduli/contenuti/home.py`, `docs/moduli/core.md`): la ricerca globale cerca anche gli ordini di produzione (titolo, P/N, capocommessa, CAR: apre la scheda OP) e i FAI del Registro FAI che l'utente vede (piano, OP, P/N, cliente: apre la scheda FAI), ciascuno solo con l'accesso al modulo. Il KICK-OFF trovato apre la sua scheda invece dell'elenco. Sulle righe non si ripetono più il nome del modulo uguale all'intestazione del gruppo e l'anteprima uguale al sottotitolo.
 - **KICK-OFF: il Gantt mostra incontri, azioni, problemi, programmi e FAI** (`tasks/services/gantt_voci.py` nuovo, `tasks/services/gantt.py`, `tasks/views/gantt.py`, `tasks/templates/tasks/project_gantt.html`, `tasks/static/tasks/css/tasks.css`, `base_shell.html`, `tasks/guida.py`, `core/guide_moduli/contenuti/tasks.py`, `docs/moduli/tasks.md`, test `tasks/tests_gantt_voci.py`). Prima il piano mostrava solo le attività. Ora:
   - riga «Incontri» sotto i giorni con un cerchio per incontro (pieno pianificato, vuoto svolto) e una linea tratteggiata sul piano; gli annullati non compaiono;
   - azioni, problemi, programmi CAM/CMM e FAI aperti collegati a un'attività aperta: etichetta sotto il nome dell'attività, rossa se scaduta;
