@@ -181,7 +181,7 @@ class ImpostazioniSaleTests(SaleBase):
         self.assertFalse(self.sala.attiva)
 
     def test_pagina_impostazioni_elenca_sale(self):
-        pagina = self.client.get(reverse("tasks:impostazioni") + "?tab=config")
+        pagina = self.client.get(reverse("tasks:impostazioni") + "?tab=sale")
         self.assertContains(pagina, "Sale riunioni")
         self.assertContains(pagina, "sala.prova@example.com")
 

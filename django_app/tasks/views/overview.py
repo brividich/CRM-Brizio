@@ -157,6 +157,12 @@ def project_overview(request, project_id: int):
 
     _filo = tappe_context(request, project)
     _filo["prossimi_passi"] = prossimi_passi(project, tappe=_filo["tappe"], can_manage=can_manage)
+    from ..access import ha_pieni_poteri
+    from ..services.filo import stato_consegna
+
+    _filo["consegna"] = stato_consegna(project)
+    _filo["puo_chiudere"] = ha_pieni_poteri(request, project)
+    _filo["attivita_aperte"] = project.tasks.exclude(status__in=[TaskStatus.DONE, TaskStatus.CANCELED]).count()
     if next_meeting is not None:
         from .meetings import _sala_stato
 

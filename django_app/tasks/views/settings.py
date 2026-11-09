@@ -67,7 +67,37 @@ SYSTEM_TASK_ROLE_DEFINITIONS = (
     (TaskRoleType.CAPO_COMMESSA, "Capocommessa", "Ruolo collegato al campo Capocommessa del kickoff.", 20),
     (TaskRoleType.PROGRAMMER, "Programmatore", "Ruolo collegato al campo Programmatore del kickoff.", 30),
 )
-TASK_SETTINGS_TABS = ("config", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria", "tipi", "modelli", "catalogo", "fai")
+TASK_SETTINGS_TABS = (
+    "config", "commesse", "sale", "poteri", "riepilogo", "record", "log", "ruoli", "accessi", "promemoria",
+    "tipi", "modelli", "catalogo", "fai",
+)
+# Menu delle impostazioni, raggruppato per argomento: (gruppo, [(tab, etichetta, spiegazione)]).
+TASK_SETTINGS_MENU = (
+    ("Commesse", (
+        ("config", "Generale", "Avvisi, VRF, asset, copia conoscenza"),
+        ("commesse", "Modelli di commessa", "Tappe e scadenze per tipo di lavoro"),
+        ("sale", "Sale riunioni", "Sale e caselle Microsoft 365"),
+    )),
+    ("Incontri", (
+        ("modelli", "Modelli ordine del giorno", "Punti pronti da inserire"),
+        ("catalogo", "Catalogo voci", "Voci ricorrenti suggerite"),
+    )),
+    ("Persone e permessi", (
+        ("poteri", "Poteri e avvisi", "Chi decide e chi viene avvisato"),
+        ("ruoli", "Ruoli operativi", "Ruoli del team"),
+        ("accessi", "Accessi", "Cosa vede e modifica ciascuno"),
+    )),
+    ("Attività", (
+        ("tipi", "Tipi di attività", "Campi, tappe e programmi"),
+        ("promemoria", "Promemoria", "Avvisi prima delle scadenze"),
+        ("fai", "FAI", "Motivi, piani, stati"),
+    )),
+    ("Controllo", (
+        ("riepilogo", "Riepilogo", "Numeri del modulo"),
+        ("record", "Eliminazioni", "Kickoff e attività da togliere"),
+        ("log", "Registro modifiche", "Chi ha fatto cosa"),
+    )),
+)
 
 
 def _normalize_tasks_settings_tab(raw_tab: str | None, *, default: str = "config") -> str:
@@ -206,7 +236,8 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         "done_count": tasks_by_status_raw.get(TaskStatus.DONE, 0),
     }
 
-    if tab == "config":
+    context["impostazioni_menu"] = TASK_SETTINGS_MENU
+    if tab in ("config", "sale", "poteri"):
         cfg_cc = TaskImpostazioni.get_singleton()
         scelti = set(cfg_cc.cc_predefiniti_utenti.values_list("pk", flat=True))
         context["cc_predefiniti_ids"] = scelti
@@ -269,6 +300,9 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
 
     if tab == "catalogo":
         context.update(_catalogo_context(request))
+
+    if tab == "commesse":
+        context.update(_modelli_commessa_context())
 
     if tab == "fai":
         context.update(_fai_settings_context())
@@ -1366,6 +1400,51 @@ def impostazioni_task_delete(request, task_id: int):
     return redirect(record_url)
 
 
+def _modelli_commessa_context() -> dict:
+    from ..models import ModelloCommessa
+
+    return {
+        "modelli_commessa": list(ModelloCommessa.objects.all()),
+        "tappe_scelte": TappaKickoff.choices,
+    }
+
+
+def _handle_modelli_commessa_post(request):
+    """Modelli di commessa: nome, tappe che servono e giorni prima della consegna."""
+    from ..models import ModelloCommessa
+
+    target = f"{reverse('tasks:impostazioni')}?tab=commesse"
+    modello = None
+    if (request.POST.get("modello_id") or "").isdigit():
+        modello = ModelloCommessa.objects.filter(pk=int(request.POST["modello_id"])).first()
+    if request.POST.get("azione") == "elimina" and modello is not None:
+        nome = modello.nome
+        modello.delete()
+        messages.success(request, f"Modello «{nome}» eliminato.")
+        return redirect(target)
+    nome = (request.POST.get("nome") or "").strip()[:120]
+    if not nome:
+        messages.error(request, "Il nome del modello è obbligatorio.")
+        return redirect(target)
+    if ModelloCommessa.objects.filter(nome__iexact=nome).exclude(pk=getattr(modello, "pk", None)).exists():
+        messages.error(request, f"Esiste già un modello «{nome}».")
+        return redirect(target)
+    tappe = []
+    for chiave, _label in TappaKickoff.choices:
+        if request.POST.get(f"tappa_{chiave}"):
+            raw = (request.POST.get(f"giorni_{chiave}") or "").strip()
+            tappe.append({"tappa": chiave, "giorni": int(raw) if raw.isdigit() else None})
+    modello = modello or ModelloCommessa()
+    modello.nome = nome
+    modello.descrizione = (request.POST.get("descrizione") or "").strip()[:255]
+    modello.tappe = tappe
+    modello.attivo = bool(request.POST.get("attivo")) or modello.pk is None
+    modello.save()
+    log_action(request, "kickoff_modello_commessa", "tasks", {"id": modello.pk, "nome": nome, "tappe": [t["tappa"] for t in tappe]})
+    messages.success(request, f"Modello «{nome}» salvato.")
+    return redirect(target)
+
+
 def _catalogo_context(request) -> dict:
     from ..models import CatalogoTipo, CatalogoVoce
 
@@ -1435,7 +1514,7 @@ DESTINATARI_AVVISI = (("INCARICATO", "Incaricato"), ("CC", "Capocommessa"), ("PM
 
 def _handle_tasks_poteri_post(request, cfg):
     """Chi ha pieni poteri sulle commesse e chi riceve gli avvisi sui cambiamenti."""
-    target = f"{reverse('tasks:impostazioni')}?tab=config#poteri"
+    target = f"{reverse('tasks:impostazioni')}?tab=poteri"
     ruoli = [c for c in request.POST.getlist("poteri_ruoli") if c in dict(RUOLI_POTERI)]
     cfg.poteri_ruoli = ",".join(ruoli)
     cfg.spostamenti_con_approvazione = bool(request.POST.get("spostamenti_con_approvazione"))
@@ -1457,7 +1536,7 @@ def _handle_tasks_rooms_post(request):
 
     from ..models import MeetingRoom
 
-    target = f"{reverse('tasks:impostazioni')}?tab=config#sale"
+    target = f"{reverse('tasks:impostazioni')}?tab=sale"
     azione = (request.POST.get("sala_action") or "").strip()
     sala = None
     if (request.POST.get("sala_id") or "").isdigit():
@@ -1525,6 +1604,8 @@ def impostazioni(request):
             return _handle_tasks_rooms_post(request)
         if posted_tab == "catalogo":
             return _handle_tasks_catalogo_post(request)
+        if posted_tab == "commesse":
+            return _handle_modelli_commessa_post(request)
         if posted_tab == "poteri":
             return _handle_tasks_poteri_post(request, cfg)
 

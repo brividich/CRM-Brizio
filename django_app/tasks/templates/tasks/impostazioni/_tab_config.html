@@ -1,17 +1,3 @@
-<section class="ts-grid-2">
-  <article class="ts-panel">
-    <div class="ts-panel-body">
-      <div class="inline-actions">
-        <a href="{% url 'tasks:list' %}" class="btn btn-secondary btn-sm">Dashboard attività</a>
-        <a href="{% url 'tasks:project_list' %}" class="btn btn-secondary btn-sm">Portfolio kickoff</a>
-        <a href="?tab=record" class="btn btn-secondary btn-sm">Apri record</a>
-        <a href="?tab=log" class="btn btn-secondary btn-sm">Apri log</a>
-      </div>
-    </div>
-  </article>
-
-  {% include "core/components/module_branding_card.html" with branding_compact=True %}
-</section>
 
 <form method="post">
   {% csrf_token %}
@@ -154,101 +140,6 @@
   </div>
 </form>
 
-<div class="ts-panel" id="poteri" style="margin-top:14px;">
-  <div class="ts-panel-head">
-    <div class="ts-panel-title-wrap">
-      <h2 class="ts-panel-title">Poteri e avvisi</h2>
-      <p class="ts-panel-subtitle">Chi ha pieni poteri modifica tutto sulla commessa, date comprese. Gli altri lavorano sulle proprie attività e chiedono lo spostamento delle date.</p>
-    </div>
-  </div>
-  <div class="ts-panel-body">
-    <form method="post">
-      {% csrf_token %}
-      <input type="hidden" name="tab" value="poteri">
-      <div class="pt-gruppo">
-        <p class="pt-titolo">Ruoli del team con pieni poteri</p>
-        <div class="pt-scelte">
-          {% for codice, etichetta in poteri_ruoli_opzioni %}
-          <label class="pt-scelta"><input type="checkbox" name="poteri_ruoli" value="{{ codice }}" {% if codice in poteri_ruoli_scelti %}checked{% endif %}> {{ etichetta }}</label>
-          {% endfor %}
-        </div>
-      </div>
-      <div class="pt-gruppo">
-        <p class="pt-titolo">Altre persone con pieni poteri su tutte le commesse</p>
-        <div class="pt-scelte pt-utenti">
-          {% for utente in cc_utenti_disponibili %}
-          <label class="pt-scelta"><input type="checkbox" name="poteri_utenti" value="{{ utente.pk }}" {% if utente.pk in poteri_utenti_ids %}checked{% endif %}> {{ utente.etichetta }}</label>
-          {% endfor %}
-        </div>
-      </div>
-      <div class="pt-gruppo">
-        <p class="pt-titolo">Spostamenti di date</p>
-        <label class="pt-scelta"><input type="checkbox" name="spostamenti_con_approvazione" {% if cfg.spostamenti_con_approvazione %}checked{% endif %}> Chi non ha pieni poteri chiede lo spostamento: decide il primo capocommessa che risponde</label>
-      </div>
-      <div class="pt-gruppo">
-        <p class="pt-titolo">Chi riceve l'avviso quando cambia un incarico (date, priorità, stato, responsabile)</p>
-        <div class="pt-scelte">
-          {% for codice, etichetta in avvisi_opzioni %}
-          <label class="pt-scelta"><input type="checkbox" name="avvisi_destinatari" value="{{ codice }}" {% if codice in avvisi_scelti %}checked{% endif %}> {{ etichetta }}</label>
-          {% endfor %}
-        </div>
-        <span class="ts-field-help">Campanella sempre; la mail passa dal flusso «KICK-OFF — mail quando cambia un incarico» in Automazioni. Chi fa la modifica non viene avvisato.</span>
-      </div>
-      <button type="submit" class="btn btn-primary">Salva poteri e avvisi</button>
-    </form>
-  </div>
-</div>
-
-
-<div class="ts-panel" id="sale" style="margin-top:14px;">
-  <div class="ts-panel-head">
-    <div class="ts-panel-title-wrap">
-      <h2 class="ts-panel-title">Sale riunioni</h2>
-      <p class="ts-panel-subtitle">Le sale proposte nel form dell'incontro. Con la casella Microsoft 365 della sala (es. sala.riunioni@azienda.it) l'invito Outlook la prenota e il form ne mostra la disponibilità.</p>
-    </div>
-  </div>
-  <div class="ts-panel-body">
-    <table class="tl-table" data-fm-table-skip="1" data-table-enhanced="0">
-      <tbody>
-        {% for sala in sale_riunioni %}
-        <tr>
-          <td colspan="5" style="padding:0">
-            <form method="post" class="sl-cfg-row">
-              {% csrf_token %}
-              <input type="hidden" name="tab" value="sale"><input type="hidden" name="sala_id" value="{{ sala.pk }}">
-              <input class="input" name="nome" value="{{ sala.nome }}" maxlength="120" required aria-label="Nome">
-              <input class="input" type="email" name="email" value="{{ sala.email }}" placeholder="nessuna: solo portale" aria-label="Casella Microsoft 365">
-              <input class="input" type="number" name="capienza" value="{{ sala.capienza|default:'' }}" min="1" max="999" aria-label="Posti">
-              <label class="sl-cfg-check"><input type="checkbox" name="attiva" {% if sala.attiva %}checked{% endif %}> Attiva</label>
-              <span class="sl-cfg-act">
-                <button type="submit" name="sala_action" value="salva" class="btn btn-secondary btn-sm">Salva</button>
-                <button type="submit" name="sala_action" value="elimina" class="btn btn-secondary btn-sm" data-hub-confirm="Eliminare la sala «{{ sala.nome }}»? Se ha incontri viene solo disattivata.">Elimina</button>
-              </span>
-            </form>
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="5" class="ts-field-help">Nessuna sala: aggiungine una qui sotto.</td></tr>
-        {% endfor %}
-        <tr>
-          <td colspan="5" style="padding:0">
-            <form method="post" class="sl-cfg-row">
-              {% csrf_token %}
-              <input type="hidden" name="tab" value="sale">
-              <input class="input" name="nome" maxlength="120" required placeholder="Nuova sala" aria-label="Nome nuova sala">
-              <input class="input" type="email" name="email" placeholder="sala@azienda.it (facoltativa)" aria-label="Casella Microsoft 365">
-              <input class="input" type="number" name="capienza" min="1" max="999" placeholder="Posti" aria-label="Posti">
-              <span></span>
-              <span class="sl-cfg-act"><button type="submit" name="sala_action" value="nuova" class="btn btn-primary btn-sm">Aggiungi</button></span>
-            </form>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <p class="ts-field-help">Perché la sala accetti da sola le prenotazioni, in Exchange deve essere una casella «sala» con l'accettazione automatica. Il portale ha bisogno del permesso applicativo Microsoft Graph Calendars.ReadWrite.</p>
-  </div>
-</div>
-
 <style>
   /* L'elenco utenti puo' essere lungo: resta in una finestra scorrevole invece
      di spingere il pulsante di salvataggio fuori schermo. */
@@ -270,3 +161,8 @@
     });
   })();
 </script>
+
+<details class="imp-piega" style="margin-top:14px;">
+  <summary>Nome e icona del modulo</summary>
+  {% include "core/components/module_branding_card.html" with branding_compact=True %}
+</details>
