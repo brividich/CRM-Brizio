@@ -31,11 +31,12 @@
     <label>PC o job <input type="search" name="q" value="{{ filters.q }}" placeholder="Nome PC o job"></label>
     <button class="sec-button sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:backup_log' %}">Reimposta</a>
+    <a class="sec-button" href="{% querystring formato='csv' %}">Scarica CSV</a>
   </form>
 </section>
 
 <section class="sec-panel" style="margin-top: 12px;">
-  <div class="sec-section-head"><h2>Esecuzioni</h2><span class="sec-badge">{% if rows|length >= 300 %}prime 300{% else %}{{ rows|length }}{% endif %}</span></div>
+  <div class="sec-section-head"><h2>Esecuzioni</h2><span class="sec-badge">{% if rows|length >= 300 %}prime 300, tutte nel CSV{% else %}{{ rows|length }}{% endif %}</span></div>
   <form method="post" action="{% url 'security:backup_bulk_case' %}" data-bulk>
   {% csrf_token %}
   <input type="hidden" name="next" value="{{ request.get_full_path }}">

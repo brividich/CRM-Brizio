@@ -57,7 +57,7 @@
         {% if section.code == "incidenti" %}{% if preview.incidenti is not None %}Adesso: <strong>{{ preview.incidenti }}</strong> scadenz{{ preview.incidenti|pluralize:"a,e" }} da avvisare.{% endif %}
         {% elif section.code == "backup" %}{% if preview.backup is not None %}Adesso: <strong>{{ preview.backup }}</strong> PC da segnalare. <a href="{% url 'security:backup' %}">Vedi Backup</a>{% endif %}
         {% elif section.code == "patch_termini" %}<a href="{% url 'security:watchguard_patch_tempi' %}">Vedi i tempi delle patch</a>
-        {% elif section.code == "soppressione_appresa" %}<a href="{% url 'security:suppressions' %}">Vedi le soppressioni</a>
+        {% elif section.code == "soppressione_appresa" or section.code == "soppressioni_scadenza" %}<a href="{% url 'security:suppressions' %}">Vedi le soppressioni</a>
         {% elif section.code == "report" %}{% if preview.report %}Prossimo invio: <strong>{{ preview.report|date:"l d/m/Y" }}</strong> dalle 7. <a href="{% url 'security:report' %}">Vedi il report</a>{% endif %}{% endif %}
       </p>
     </section>

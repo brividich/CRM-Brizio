@@ -51,6 +51,10 @@ def incidents_list(request):
     if query:
         rows = rows.filter(Q(title__icontains=query) | Q(code__icontains=query) | Q(csirt_reference__icontains=query))
     now = timezone.now()
+    from .services import esporta_csv
+
+    if esporta_csv.vuole_csv(request):
+        return _incidents_csv(request, rows.order_by("-detected_at", "-pk"), now)
     from core.paginazione import pagina_elenco
 
     page_obj = pagina_elenco(request, rows.order_by("-detected_at", "-pk"))
@@ -65,6 +69,30 @@ def incidents_list(request):
         "years": years,
         "urgent": svc.urgent_incidents(now),
     })
+
+
+def _incidents_csv(request, rows, now):
+    """Tutti gli incidenti del filtro (non solo la pagina mostrata), con la prossima notifica dovuta."""
+    from .services import esporta_csv
+
+    def riga(i):
+        nxt = svc.next_open_deadline(i, now)
+        return [
+            i.code, i.title, i.get_category_display(), esporta_csv.etichetta(i.severity), i.get_status_display(),
+            esporta_csv.data_ora(i.detected_at), esporta_csv.data_ora(i.occurred_at), esporta_csv.data_ora(i.resolved_at),
+            esporta_csv.si_no(i.is_significant), esporta_csv.si_no(i.personal_data_breach),
+            (i.owner.get_full_name() or i.owner.get_username()) if i.owner_id else "",
+            nxt["label"] if nxt else "", esporta_csv.data_ora(nxt["due_at"]) if nxt else "", nxt["state_label"] if nxt else "",
+            i.csirt_reference, i.affected_services,
+        ]
+
+    return esporta_csv.risposta(
+        request, "incidenti",
+        ["Codice", "Titolo", "Categoria", "Gravità", "Stato", "Rilevato il", "Avvenuto il", "Risolto il",
+         "Significativo (NIS2)", "Dati personali (GDPR)", "Responsabile", "Prossima notifica", "Scade il",
+         "Stato della notifica", "Riferimento CSIRT", "Servizi coinvolti"],
+        (riga(i) for i in rows), azione="soc_incidenti_export", filtri=esporta_csv.filtri_get(request, "status", "scope", "year", "q"),
+    )
 
 
 def incident_create(request):

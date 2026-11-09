@@ -23,7 +23,7 @@
   <div class="sec-kpi-strip sec-small">
     <span><strong>{{ counts.learned_active }}</strong> apprese attive</span> ·
     <span><strong>{{ counts.manual_active }}</strong> manuali attive</span> ·
-    <span><strong>{{ counts.expiring }}</strong> in scadenza entro {{ expiring_days }} giorni</span>
+    <span title="{% if expiring_alert %}Per ognuna nasce un alert di attenzione {{ expiring_days }} giorni prima della scadenza{% else %}Alert sulle soppressioni in scadenza spento in Impostazioni{% endif %}"><strong>{{ counts.expiring }}</strong> in scadenza entro {{ expiring_days }} giorni{% if not expiring_alert %} (senza alert){% endif %}</span>
   </div>
   <div class="sec-actions" style="margin-top: 8px;">
     {% for code, label in kind_filters.items %}
@@ -64,7 +64,7 @@
           </td>
           <td class="sec-num">{{ rule.hit_count }}</td>
           <td class="sec-nowrap">{{ rule.last_hit_at|date:"d/m/Y H:i"|default:"—" }}</td>
-          <td class="sec-nowrap">{% if rule.expires_at %}{% if rule.expiring %}<span class="sec-badge warning">{{ rule.expires_at|date:"d/m/Y" }}</span>{% else %}{{ rule.expires_at|date:"d/m/Y" }}{% endif %}{% else %}nessuna{% endif %}</td>
+          <td class="sec-nowrap">{% if rule.expires_at %}{% if rule.expiring %}<span class="sec-badge warning"{% if rule.promemoria_il %} title="Promemoria mandato il {{ rule.promemoria_il|date:'d/m/Y H:i' }}"{% endif %}>{{ rule.expires_at|date:"d/m/Y" }}</span>{% else %}{{ rule.expires_at|date:"d/m/Y" }}{% endif %}{% else %}nessuna{% endif %}</td>
           <td class="sec-small">{{ rule.reason|linebreaksbr }}{% if rule.revoked_reason %}<br><em>{{ rule.revoked_reason }}</em>{% endif %}</td>
           {% if can_edit %}
             <td>

@@ -48,6 +48,7 @@
     <label>Cerca <input type="search" name="q" value="{{ filters.q }}" placeholder="Codice, titolo, riferimento CSIRT"></label>
     <button class="sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:incidents' %}">Reimposta</a>
+    <a class="sec-button" href="{% querystring formato='csv' page=None %}">Scarica CSV</a>
   </form>
   <div class="sec-actions" style="margin-top: 10px;">
     <a class="sec-button sec-button-primary" href="{% url 'security:incident_create' %}">Registra incidente</a>

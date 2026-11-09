@@ -33,6 +33,7 @@
     <label>Cerca <input type="search" name="q" value="{{ q }}" placeholder="titolo, PC, CVE, sorgente…"></label>
     <button class="sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:segnalazioni' %}">Reimposta</a>
+    <a class="sec-button" href="{% querystring formato='csv' page=None %}">Scarica CSV</a>
   </form>
 </section>
 
@@ -41,7 +42,7 @@
     <h2>{% if urgenti %}Urgenti{% elif stato == "chiuse" %}Chiuse{% elif stato == "tutte" %}Tutte{% else %}Da gestire{% endif %}</h2>
     <span class="sec-badge">{{ righe_totali }} segnalazion{{ righe_totali|pluralize:"e,i" }}</span>
   </div>
-  {% if troncata %}<p class="sec-callout sec-callout-warning sec-small" role="status">Elenco tagliato: mostrate {{ righe_totali }} di {{ totale_filtri }}, le {{ limite_per_tipo }} più recenti per tipo. Usa ricerca o gravità per restringere.</p>{% endif %}
+  {% if troncata %}<p class="sec-callout sec-callout-warning sec-small" role="status">Elenco tagliato: mostrate {{ righe_totali }} di {{ totale_filtri }}, le {{ limite_per_tipo }} più recenti per tipo. Usa ricerca o gravità per restringere, o «Scarica CSV» per averle tutte.</p>{% endif %}
   <form method="post" action="{% url 'security:alerts_bulk' %}" data-bulk data-bulk-kinds
         data-action-alert="{% url 'security:alerts_bulk' %}" data-action-ticket="{% url 'security:tickets_bulk' %}" data-action-incident="{% url 'security:incidents_bulk' %}">
   {% csrf_token %}

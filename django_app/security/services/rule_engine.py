@@ -585,6 +585,23 @@ def _evaluate_accettazione_rischio(event):
     _alert_da_evento(event, accettazione_rischio.titolo_evento(payload), event.severity, trace)
 
 
+def _evaluate_soppressione_in_scadenza(event):
+    """Soppressione che sta per scadere (``soppressioni_scadenza``): un alert di attenzione per regola e scadenza."""
+    from security.services import soppressioni_scadenza
+
+    payload = event.payload or {}
+    if not soc_settings_value("soppressione.scadenza.alert"):
+        event.decision_trace = {"decision": "kpi_only", "reason": "Alert sulle soppressioni in scadenza spenti in /soc/impostazioni/"}
+        event.save(update_fields=["decision_trace"])
+        return
+    trace = {
+        "decision": "alert",
+        "rule": "Soppressione in scadenza => alert",
+        "regola_id": payload.get("regola_id"), "regola": payload.get("regola"), "scadenza": payload.get("scadenza"),
+    }
+    _alert_da_evento(event, soppressioni_scadenza.titolo_evento(payload), event.severity, trace)
+
+
 def _evaluate_backup_restore_test_failed(event):
     """Prova di ripristino fallita (``services.ripristini``, ISO 27001 8.13): un alert alto per prova."""
     payload = event.payload or {}
@@ -1094,5 +1111,6 @@ _HANDLERS = {
     "patch_sla_scaduta": _evaluate_patch_sla_scaduta,
     "dipendenza_vulnerabile": _evaluate_dipendenza_vulnerabile,
     "accettazione_rischio": _evaluate_accettazione_rischio,
+    "soppressione_in_scadenza": _evaluate_soppressione_in_scadenza,
     "backup_restore_test_failed": _evaluate_backup_restore_test_failed,
 }
