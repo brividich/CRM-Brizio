@@ -4852,3 +4852,13 @@ html.ar-aperto{overflow:hidden}
 .ct-unisci{display:flex;gap:6px;align-items:center;min-width:0}
 .ct-unisci select{flex:1;min-width:0}
 @media (max-width:900px){.ct-riga{grid-template-columns:1fr}.ct-form{flex-wrap:wrap}}
+
+/* Percorso: attrezzature e utensili */
+.tp-elenco{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:4px;font-size:13px}
+.tp-elenco li{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tp-ut-stato{width:auto;padding:2px 6px;font-size:12px}
+.tp-x{background:none;border:0;font-size:16px;line-height:1;cursor:pointer;color:var(--text-mid)}
+.tp-ut-add{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.tp-ut-add input[type=text]{flex:1 1 240px}
+.tp-ut-add input[type=number]{width:70px}
+.tp-ut-add input[type=date]{width:150px}

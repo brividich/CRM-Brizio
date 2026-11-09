@@ -6,7 +6,7 @@
   if (window.__tappeKickoff) { return; }
   window.__tappeKickoff = true;
 
-  var CAMPI = { owner: 'assigned_to', start: 'start_date', due: 'due_date', asset: 'asset', testo: 'testo' };
+  var CAMPI = { owner: 'assigned_to', start: 'start_date', due: 'due_date', asset: 'asset', testo: 'testo', attrezzatura: 'attrezzatura' };
 
   function csrf() {
     var input = document.querySelector('[name=csrfmiddlewaretoken]');
@@ -91,6 +91,50 @@
     Object.keys(valori).forEach(function (k) { dati.append(k, valori[k]); });
     dati.append('action', btn.getAttribute('data-tp-action'));
     invia(block, dati);
+  });
+
+  /* Utensili della commessa: aggiungi, cambia stato, togli. */
+  function utensili(block, dati) {
+    if (!block.dataset.utensili) { return; }
+    if (block.dataset.meeting) { dati.append('meeting_id', block.dataset.meeting); }
+    fetch(block.dataset.utensili, {
+      method: 'POST', body: dati, credentials: 'same-origin',
+      headers: { 'X-CSRFToken': csrf(), 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (j.ok) { block.innerHTML = j.html; } else { errore(block, j.reason || 'Non salvato.'); }
+    }).catch(function () { errore(block, 'Connessione non riuscita: riprova.'); });
+  }
+
+  document.addEventListener('click', function (e) {
+    var block = e.target.closest && e.target.closest('[data-tp-block]');
+    if (!block) { return; }
+    var add = e.target.closest('[data-tp-ut-azione="aggiungi"]');
+    var togli = e.target.closest('[data-tp-ut-togli]');
+    if (add) {
+      var box = add.closest('[data-tp-ut-add]');
+      var d = new FormData();
+      d.append('action', 'aggiungi');
+      d.append('utensile', box.querySelector('[data-tp="ut-utensile"]').value);
+      d.append('quantita', box.querySelector('[data-tp="ut-quantita"]').value);
+      d.append('entro', box.querySelector('[data-tp="ut-entro"]').value);
+      utensili(block, d);
+    } else if (togli) {
+      var d2 = new FormData();
+      d2.append('action', 'togli');
+      d2.append('riga', togli.closest('[data-tp-ut]').getAttribute('data-tp-ut'));
+      utensili(block, d2);
+    }
+  });
+
+  document.addEventListener('change', function (e) {
+    var sel = e.target.closest && e.target.closest('[data-tp-ut-stato]');
+    if (sel) {
+      var d = new FormData();
+      d.append('action', 'stato');
+      d.append('riga', sel.closest('[data-tp-ut]').getAttribute('data-tp-ut'));
+      d.append('stato', sel.value);
+      utensili(sel.closest('[data-tp-block]'), d);
+    }
   });
 
   document.addEventListener('change', function (e) {

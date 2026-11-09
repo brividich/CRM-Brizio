@@ -7,8 +7,9 @@ Contesto: tappe_context (tasks/views/tappe.py).
 <section class="tp-block" id="percorso" data-tp-block
          data-url="{% url 'tasks:tappa_azione' project.id %}"
          data-anteprima="{% url 'tasks:tappa_anteprima' project.id %}"
+         data-utensili="{% url 'tasks:utensili_azione' project.id %}"
          data-meeting="{{ tappe_meeting.id|default:'' }}"
          aria-label="Percorso del kickoff">
   {% include "tasks/_tappe_body.html" %}
 </section>
-<script src="{% static 'tasks/js/tappe.js' %}?v=20261109b" defer></script>
+<script src="{% static 'tasks/js/tappe.js' %}?v=20261110u" defer></script>

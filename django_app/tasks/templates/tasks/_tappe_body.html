@@ -19,9 +19,52 @@
         {% endwith %}{% endif %}
       </div>
       {% endfor %}
+      {% if r.key == "ATTREZZATURA" and r.attrezzature %}
+      <ul class="tp-elenco">
+        {% for a in r.attrezzature %}
+        <li><strong>{{ a.obj.codice|default:"senza codice" }}</strong> {{ a.obj.descrizione|truncatechars:50 }}
+          <span class="ts-chip {% if a.pronta %}ok{% elif a.obj.stato == 'blocked' or a.obj.stato == 'late' %}danger{% else %}warn{% endif %}">{{ a.stato }}</span>
+          <span class="tp-meta">{{ a.disponibilita }}{% if a.consegna %} · consegna {{ a.consegna|date:"d/m/Y" }}{% endif %}{% if not a.collegata %} · stesso P/N, non ancora collegata{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if r.key == "UTENSILI" %}
+      <ul class="tp-elenco">
+        {% for u in r.utensili %}
+        <li data-tp-ut="{{ u.pk }}"><strong>{{ u.utensile.codice }}</strong> {{ u.utensile.descrizione|truncatechars:40 }} · {{ u.quantita }} pz{% if u.entro %} · entro {{ u.entro|date:"d/m" }}{% endif %}
+          {% if tappe_puo_assegnare %}
+          <select class="input tp-ut-stato" data-tp-ut-stato aria-label="Stato utensile">
+            <option value="DA_ORDINARE"{% if u.stato == "DA_ORDINARE" %} selected{% endif %}>Da ordinare</option>
+            <option value="ORDINATO"{% if u.stato == "ORDINATO" %} selected{% endif %}>Ordinato</option>
+            <option value="ARRIVATO"{% if u.stato == "ARRIVATO" %} selected{% endif %}>Arrivato</option>
+            <option value="DISPONIBILE"{% if u.stato == "DISPONIBILE" %} selected{% endif %}>Disponibile a magazzino</option>
+          </select>
+          <button type="button" class="tp-x" data-tp-ut-togli aria-label="Togli">×</button>
+          {% else %}<span class="ts-chip {% if u.pronto %}ok{% else %}warn{% endif %}">{{ u.get_stato_display }}</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% if tappe_puo_assegnare %}
+      <div class="tp-ut-add" data-tp-ut-add>
+        <input class="input" type="text" data-tp="ut-utensile" list="tp-utensili-{{ project.id }}" maxlength="200" placeholder="Codice e descrizione dell'utensile" aria-label="Utensile">
+        <datalist id="tp-utensili-{{ project.id }}">{% for ut in tappe_utensili_catalogo %}<option value="{{ ut.codice }} {{ ut.descrizione }}">{% endfor %}</datalist>
+        <input class="input" type="number" data-tp="ut-quantita" min="1" max="999" value="1" aria-label="Quantità">
+        <input class="input" type="date" data-tp="ut-entro" aria-label="Entro il">
+        <button type="button" class="btn btn-secondary btn-sm" data-tp-ut-azione="aggiungi">+ Utensile</button>
+      </div>
+      {% endif %}
+      {% endif %}
       {% if tappe_puo_assegnare and r.puo_aggiungere %}
       <div class="tp-form" data-tp-form hidden>
-        {% if r.key == "MACCHINA" %}
+        {% if r.key == "ATTREZZATURA" %}
+        <select class="input" data-tp="attrezzatura" aria-label="Attrezzatura">
+          <option value="">Attrezzatura…</option>
+          {% for a in r.attrezzature %}<option value="{{ a.obj.pk }}">{{ a.obj.codice|default:"senza codice" }} {{ a.obj.descrizione|truncatechars:40 }}</option>{% endfor %}
+          <option value="nuova">Nuova da chiedere</option>
+        </select>
+        <input class="input" type="text" data-tp="testo" maxlength="200" placeholder="Descrizione (per una nuova)" aria-label="Descrizione attrezzatura">
+        {% elif r.key == "MACCHINA" %}
         <select class="input" data-tp="asset" aria-label="Macchina">
           <option value="">Macchina…</option>
           {% for a in tappe_macchine %}<option value="{{ a.id }}">{{ a.asset_tag }} {{ a.name }}</option>{% endfor %}

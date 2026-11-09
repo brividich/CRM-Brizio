@@ -264,7 +264,7 @@ SEZIONI: list[dict] = [
         "id": "percorso-kickoff",
         "titolo": "Percorso del kickoff: le attività base",
         "blocchi": [
-            ("p", "In «Panoramica» e nel dettaglio dell'incontro il riquadro «Percorso del kickoff» elenca le attività che ogni commessa deve avere a posto: Arrivo materiali, Programma CAM, Programma CMM, Macchina, Terzista, Processi speciali e FAI. In alto il conteggio «N/7 a posto»: una tappa è a posto quando la sua attività è completata o quando è segnata «Non serve»."),
+            ("p", "In «Panoramica» e nel dettaglio dell'incontro il riquadro «Percorso del kickoff» elenca le attività che ogni commessa deve avere a posto: Arrivo materiali, Programma CAM, Programma CMM, Macchina, Attrezzatura, Utensili, Terzista, Processi speciali e FAI. In alto il conteggio «N/9 a posto»: una tappa è a posto quando la sua attività è completata o quando è segnata «Non serve»."),
             ("passi", [
                 "Premi «Assegna» sulla tappa.",
                 "Per la Macchina scegli la macchina (CNC e macchine di lavoro), per il Terzista il fornitore, per i Processi speciali il processo: l'elenco propone i fornitori attivi e i processi qualificati, ma puoi scrivere un nome.",
@@ -281,7 +281,8 @@ SEZIONI: list[dict] = [
                 ("Non serve", "deciso da chi gestisce la commessa; «Serve» torna indietro. Non si può dire «Non serve» a una tappa che ha già un'attività: prima va annullata."),
             ]),
             ("p", "Con una data «Entro il» l'attività entra anche nello scadenzario personale del responsabile. Il promemoria nel portale qualche giorno prima della scadenza e l'evento nel calendario Outlook del responsabile (spunta «Anche in Outlook») sono flussi di automazione spenti finché un amministratore non li accende: la spunta compare solo con il flusso acceso."),
-            ("p", "Macchina, Terzista e Processi speciali ammettono più attività («+ Altra»), le altre tappe una sola. Le tappe sono tipi attività: in Impostazioni → Tipi attività il campo «Tappa del kickoff» dice quale tipo rappresenta ogni tappa; un tipo disattivato toglie la tappa dal percorso."),
+            ("p", "Attrezzatura: la riga elenca le attrezzature collegate alla commessa e quelle con lo stesso P/N, con stato, disponibilità e consegna prevista. «Assegna» chiede quale collegare oppure «Nuova da chiedere» con una descrizione: nasce la richiesta nel modulo Attrezzature. Utensili: scrivi codice e descrizione (il portale propone quelli già usati; un codice nuovo entra nel catalogo utensili), quantità ed entro quando; per ogni utensile scegli Da ordinare, Ordinato, Arrivato o Disponibile a magazzino. La tappa è a posto quando tutti gli utensili sono arrivati o disponibili."),
+            ("p", "Macchina, Attrezzatura, Terzista e Processi speciali ammettono più attività («+ Altra»), le altre tappe una sola. Le tappe sono tipi attività: in Impostazioni → Tipi attività il campo «Tappa del kickoff» dice quale tipo rappresenta ogni tappa; un tipo disattivato toglie la tappa dal percorso."),
         ],
     },
     {

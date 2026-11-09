@@ -44,7 +44,7 @@ class CreazioneGuidataTests(FiloBase):
             primo_data="2026-12-03", primo_ora="09:30", primo_sala=str(sala.pk),
         )
         project = Project.objects.get(part_number="PN-FILO-1")
-        self.assertEqual(project.tappe_escluse, ["CMM", "TERZISTA", "PROCESSI"])
+        self.assertEqual(project.tappe_escluse, ["CMM", "ATTREZZATURA", "UTENSILI", "TERZISTA", "PROCESSI"])
         m = project.meetings.get()
         self.assertEqual((m.data, m.ora, m.sala, m.luogo), (date(2026, 12, 3), time(9, 30), sala, "Sala Filo"))
         fonti = [i["source"] for i in m.agenda_items]
@@ -65,7 +65,7 @@ class CreazioneGuidataTests(FiloBase):
             "client_name": "Cliente", "part_number": "PN-FILO-3", "revisione": "A", "versione": "1.0",
             "description": "", "control_method": "", "vrf_quote_number": "", "vrf_description": "", "vrf_esp": "",
             "project_managers": [self.user.id], "tappe_presenti": "1",
-            "tappe_servono": ["MATERIALI", "CAM", "CMM", "MACCHINA", "FAI"],
+            "tappe_servono": ["MATERIALI", "CAM", "CMM", "MACCHINA", "ATTREZZATURA", "UTENSILI", "FAI"],
         }
         self.client.post(reverse("tasks:project_edit", args=[project.pk]), dati)
         project.refresh_from_db()
@@ -149,7 +149,7 @@ class ProssimiPassiTests(FiloBase):
         from .services.tappe import percorso
 
         titoli = self.titoli(tappe=percorso(self.project))
-        self.assertIn("Assegna 7 tappe del percorso", titoli)
+        self.assertIn("Assegna 9 tappe del percorso", titoli)
 
     def test_panoramica_mostra_i_passi(self):
         pagina = self.client.get(reverse("tasks:project_overview", args=[self.project.pk]))

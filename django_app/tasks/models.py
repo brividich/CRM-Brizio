@@ -33,6 +33,8 @@ class TappaKickoff(models.TextChoices):
     CAM = "CAM", "Programma CAM"
     CMM = "CMM", "Programma CMM"
     MACCHINA = "MACCHINA", "Macchina"
+    ATTREZZATURA = "ATTREZZATURA", "Attrezzatura"
+    UTENSILI = "UTENSILI", "Utensili"
     TERZISTA = "TERZISTA", "Terzista"
     PROCESSI = "PROCESSI", "Processi speciali"
     FAI = "FAI", "FAI"
@@ -1024,7 +1026,7 @@ class TaskCategory(models.Model):
         help_text="Cosa deve produrre un'attività di questo tipo.",
     )
     tappa = models.CharField(
-        max_length=10,
+        max_length=14,
         choices=TappaKickoff.choices,
         blank=True,
         default="",
@@ -2653,3 +2655,55 @@ class CatalogoVoce(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_tipo_display()}: {self.testo}"
+
+
+class Utensile(models.Model):
+    """Catalogo utensili del portale: si riempie usandolo; più avanti arriverà la lettura dall'ERP."""
+
+    codice = models.CharField(max_length=80, unique=True)
+    descrizione = models.CharField(max_length=255, blank=True, default="")
+    tipo = models.CharField(max_length=80, blank=True, default="", verbose_name="Tipo")
+    fornitore = models.CharField(max_length=120, blank=True, default="")
+    attivo = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["codice"]
+        verbose_name = "Utensile"
+        verbose_name_plural = "Utensili"
+
+    def __str__(self) -> str:
+        return f"{self.codice} {self.descrizione}".strip()
+
+
+class UtensileStato(models.TextChoices):
+    DA_ORDINARE = "DA_ORDINARE", "Da ordinare"
+    ORDINATO = "ORDINATO", "Ordinato"
+    ARRIVATO = "ARRIVATO", "Arrivato"
+    DISPONIBILE = "DISPONIBILE", "Disponibile a magazzino"
+
+
+class ProjectUtensile(models.Model):
+    """Utensile che serve alla commessa: quanti, se c'è o va ordinato, entro quando."""
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="utensili")
+    utensile = models.ForeignKey(Utensile, on_delete=models.PROTECT, related_name="commesse")
+    quantita = models.PositiveSmallIntegerField(default=1)
+    stato = models.CharField(max_length=12, choices=UtensileStato.choices, default=UtensileStato.DA_ORDINARE, db_index=True)
+    entro = models.DateField(null=True, blank=True)
+    note = models.CharField(max_length=255, blank=True, default="")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["stato", "utensile__codice", "id"]
+        verbose_name = "Utensile della commessa"
+        verbose_name_plural = "Utensili delle commesse"
+
+    def __str__(self) -> str:
+        return f"{self.project_id} {self.utensile_id} x{self.quantita}"
+
+    @property
+    def pronto(self) -> bool:
+        return self.stato in (UtensileStato.ARRIVATO, UtensileStato.DISPONIBILE)
