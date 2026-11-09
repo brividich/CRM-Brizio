@@ -16,14 +16,18 @@
     - Salva lo zip in shared\packages\ (se esiste) o nella directory corrente
 
 .PARAMETER SourcePath
-    Root del progetto Django. Default: directory padre di questo script (repo root).
-
+    Cartella da impacchettare cosi' com'e' (non un commit). Richiede -Force: BUILD_INFO.json
+    riporta source=folder, HEAD e file non committati della cartella, ma il pacchetto non e'
+    tracciabile a un commit pulito di release/prod e non va taggato prod-vX.Y.Z.
 .PARAMETER OutputDir
     Directory dove salvare lo zip. Default: C:\PortaleNovicrom\shared\packages\ o .\releases\
 
 .PARAMETER VersionOverride
     Forza una versione specifica invece di leggerla dal codice (es. "0.8.6")
 
+.PARAMETER AllowVulnerabilities
+    Declassa ad avviso le vulnerabilita' note trovate da pip-audit nel release guard
+    (di default bloccano il pacchetto). Da motivare nella RFC MOD.172.
 .PARAMETER Force
     Bypassa i controlli pre-flight ed e' obbligatorio con -FromWorkingTree.
     Il pacchetto risultante e' dichiarato non tracciabile in BUILD_INFO.json.
@@ -51,12 +55,17 @@ param(
     [switch]$Force,
     # -WithTests passa -WithTests al release_guard per eseguire la test suite.
     # Di default i test sono saltati. Specificare per release con validazione completa.
-    [switch]$WithTests
+    [switch]$WithTests,
+    # Il release guard esegue pip-audit sulle dipendenze: di default una vulnerabilita'
+    # nota BLOCCA il pacchetto (ISO/IEC 27001 A.8.8). -AllowVulnerabilities la declassa
+    # ad avviso: va motivato nella RFC MOD.172 del rilascio.
+    [switch]$AllowVulnerabilities
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\_lib.ps1"
+$script:SourceFolderMode = $false
 
 # ---------------------------------------------------------------------------
 # Export temporaneo del branch: definito subito, cosi' la pulizia e' disponibile
@@ -376,11 +385,19 @@ if ($FromWorkingTree -and -not $Force) {
 }
 
 if ($SourcePath) {
-    # Cartella esplicita: non e' detto che sia il repo, il pre-flight non si applica.
-    Write-Log "-SourcePath esplicito: pre-flight git saltato, il contenuto del pacchetto non e' verificabile contro un commit." "WARN"
+    # Cartella esplicita: il pacchetto nasce dal contenuto della cartella, non da un
+    # commit del branch di release. BUILD_INFO.json uscirebbe senza commit (e' successo
+    # il 09/11/2026): non e' tracciabile e non puo' essere taggato prod-vX.Y.Z.
+    if (-not $Force) {
+        Write-Log "-SourcePath impacchetta una CARTELLA, non un commit di '$Branch': BUILD_INFO.json non avrebbe un commit da taggare." "ERROR"
+        Write-Log "Lancia lo script senza -SourcePath (esporta il branch di release) oppure, se e' un'emergenza, aggiungi -Force." "ERROR"
+        exit 1
+    }
+    Write-Log "-SourcePath esplicito con -Force: pre-flight git saltato, il contenuto del pacchetto non e' verificabile contro un commit." "WARN"
     $script:Preflight = [ordered]@{
         CurrentBranch = $null; Detached = $false; DirtyFiles = @(); DeltaCommits = 0; DeltaKnown = $false
     }
+    $script:SourceFolderMode = $true
 } else {
     $script:Preflight = Invoke-PackagingPreflight `
         -RepoRoot $script:RepoRoot `
@@ -588,6 +605,11 @@ if ($script:ExportWorktree -and $script:RepoRoot) {
     }
 }
 if ($WithTests) { $guardArgs['WithTests'] = $true }
+if ($AllowVulnerabilities) {
+    Write-Log "-AllowVulnerabilities: le vulnerabilita' note nelle dipendenze NON bloccano il pacchetto. Motivalo nella RFC MOD.172." "WARN"
+} else {
+    $guardArgs['FailOnVulnerabilities'] = $true
+}
 & $releaseGuard @guardArgs
 if ($LASTEXITCODE -ne 0) {
     Write-Log "release_guard fallito: correggi i mismatch prima di creare il pacchetto." "ERROR"
@@ -768,6 +790,21 @@ if ($FromWorkingTree) {
     $buildSource = "working-tree"
     $buildDirty = $true
     $buildDirtyFiles = @($script:Preflight.DirtyFiles)
+} elseif ($script:SourceFolderMode) {
+    # Cartella esplicita (-SourcePath -Force): non e' un export del branch, ma se la
+    # cartella e' un checkout git ne registriamo HEAD e file non committati, cosi' il
+    # pacchetto resta almeno riconducibile a un commit e dichiara che e' "sporco".
+    $buildSource = "folder"
+    $buildDirty = $true
+    $folderHead = (& git -C $SourcePath rev-parse HEAD 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0 -and $folderHead) {
+        $buildCommit = $folderHead
+        $buildCommitShort = $folderHead.Substring(0, [Math]::Min(7, $folderHead.Length))
+        $buildBranch = (& git -C $SourcePath rev-parse --abbrev-ref HEAD 2>$null | Out-String).Trim()
+        $buildDirtyFiles = @(& git -C $SourcePath status --porcelain 2>$null | Where-Object { $_ -and $_.Trim() })
+    } else {
+        Write-Log "La cartella -SourcePath non e' un checkout git: BUILD_INFO.json senza commit." "WARN"
+    }
 } elseif ($script:ExportWorktree) {
     $buildBranch = $Branch
     $exportHead = (& git -C $script:ExportWorktree rev-parse HEAD 2>$null | Out-String).Trim()
