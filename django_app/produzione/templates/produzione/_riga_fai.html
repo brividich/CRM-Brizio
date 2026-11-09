@@ -4,5 +4,5 @@
   <td><span class="prod-stato">{{ f.stato.etichetta }}</span></td>
   <td>{{ f.data_invio|date:"d/m/Y"|default:"—" }}</td>
   <td>{{ f.data_chiusura|date:"d/m/Y"|default:"—" }}</td>
-  <td>{{ f.op|default:"—" }}</td>
+  <td>{% if f.op|lower != op.op|lower %}{{ f.op|default:"—" }}{% endif %}</td>
 </tr>
