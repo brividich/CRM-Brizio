@@ -134,4 +134,7 @@ def attivita_per_riga(ref: ProjectTechRef, user=None, *, notifica: bool = True) 
     ref.refresh_from_db()
     if notifica:
         notify_task_assignment(task, actor=user)
+        from .tappe import dopo_assegnazione
+
+        dopo_assegnazione(task)
     return task

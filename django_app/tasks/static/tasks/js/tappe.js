@@ -1,10 +1,12 @@
-/* Percorso del kickoff (_tappe.html): assegna una tappa o segnala che non serve, senza ricaricare. */
+/* Percorso del kickoff (_tappe.html): assegna una tappa o segnala che non serve, senza ricaricare.
+ * Mentre si compila: «Entro il» non può precedere l'inizio, e sotto la riga compaiono subito
+ * le assenze del responsabile e, per la macchina, abilitati e impegni nel periodo. */
 (function () {
   'use strict';
   if (window.__tappeKickoff) { return; }
   window.__tappeKickoff = true;
 
-  var CAMPI = { owner: 'assigned_to', due: 'due_date', asset: 'asset', testo: 'testo' };
+  var CAMPI = { owner: 'assigned_to', start: 'start_date', due: 'due_date', asset: 'asset', testo: 'testo' };
 
   function csrf() {
     var input = document.querySelector('[name=csrfmiddlewaretoken]');
@@ -18,6 +20,17 @@
     if (!err) { return; }
     err.textContent = testo || '';
     err.hidden = !testo;
+  }
+
+  function campi(row) {
+    var valori = { tappa: row.getAttribute('data-tp-row') };
+    Object.keys(CAMPI).forEach(function (nome) {
+      var campo = row.querySelector('[data-tp="' + nome + '"]');
+      if (campo) { valori[CAMPI[nome]] = campo.value; }
+    });
+    var outlook = row.querySelector('[data-tp="outlook"]');
+    if (outlook && outlook.checked) { valori.outlook = '1'; }
+    return valori;
   }
 
   function invia(block, dati) {
@@ -34,6 +47,25 @@
     }).catch(function () {
       errore(block, 'Connessione non riuscita: riprova.');
     }).then(function () { block._inCorso = false; });
+  }
+
+  /* Anteprima: un controllo per volta, l'ultimo vince. */
+  function anteprima(block, row) {
+    var box = row.querySelector('[data-tp-anteprima]');
+    if (!box || !block.dataset.anteprima) { return; }
+    var valori = campi(row);
+    if (!valori.assigned_to && !valori.asset) { box.innerHTML = ''; return; }
+    var params = new URLSearchParams(valori);
+    var giro = (row._giro || 0) + 1;
+    row._giro = giro;
+    box.classList.add('is-loading');
+    fetch(block.dataset.anteprima + '?' + params.toString(), {
+      credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (row._giro === giro) { box.innerHTML = j.ok ? j.html : ''; }
+    }).catch(function () {
+      if (row._giro === giro) { box.innerHTML = ''; }
+    }).then(function () { box.classList.remove('is-loading'); });
   }
 
   document.addEventListener('click', function (e) {
@@ -55,13 +87,25 @@
     e.preventDefault();
     errore(block, '');
     var dati = new FormData();
-    dati.append('tappa', row.getAttribute('data-tp-row'));
+    var valori = campi(row);
+    Object.keys(valori).forEach(function (k) { dati.append(k, valori[k]); });
     dati.append('action', btn.getAttribute('data-tp-action'));
-    Object.keys(CAMPI).forEach(function (nome) {
-      var campo = row.querySelector('[data-tp="' + nome + '"]');
-      if (campo) { dati.append(CAMPI[nome], campo.value); }
-    });
     invia(block, dati);
+  });
+
+  document.addEventListener('change', function (e) {
+    var row = e.target.closest && e.target.closest('[data-tp-form]') && e.target.closest('[data-tp-row]');
+    if (!row) { return; }
+    var block = row.closest('[data-tp-block]');
+    var nome = e.target.getAttribute('data-tp');
+    if (nome === 'start') {
+      var due = row.querySelector('[data-tp="due"]');
+      if (due) {
+        due.min = e.target.value || '';
+        if (due.value && e.target.value && due.value < e.target.value) { due.value = e.target.value; }
+      }
+    }
+    if (nome !== 'outlook' && nome !== 'testo') { anteprima(block, row); }
   });
 
   /* Invio nei campi della tappa salva, senza inviare il form che la contiene. */

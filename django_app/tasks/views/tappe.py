@@ -6,7 +6,8 @@ from datetime import date
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
-from django.views.decorators.http import require_POST
+from django.utils import timezone
+from django.views.decorators.http import require_GET, require_POST
 
 from core.audit import log_action
 
@@ -61,7 +62,14 @@ def tappe_context(request, project, meeting=None) -> dict:
         "tappe_macchine": list(svc.macchine_disponibili()) if TappaKickoff.MACCHINA in serve else [],
         "tappe_fornitori": _fornitori() if TappaKickoff.TERZISTA in serve else [],
         "tappe_processi": _processi() if TappaKickoff.PROCESSI in serve else [],
+        "tappe_outlook": svc.outlook_disponibile(),
+        "tappe_oggi": timezone.localdate(),
     }
+
+
+def _data(valore):
+    testo = (valore or "").strip()
+    return date.fromisoformat(testo) if testo else None
 
 
 def _errore(motivo: str, status: int = 400) -> JsonResponse:
@@ -94,18 +102,18 @@ def tappa_azione(request, project_id: int):
                 assegnato = task_active_users_queryset().filter(pk=int(raw)).first() if raw.isdigit() else None
                 if assegnato is None:
                     return _errore("Responsabile non valido.")
-            due = None
-            if (post.get("due_date") or "").strip():
-                try:
-                    due = date.fromisoformat(post["due_date"].strip())
-                except ValueError:
-                    return _errore("Data non valida.")
+            try:
+                due = _data(post.get("due_date"))
+                inizio = _data(post.get("start_date"))
+            except ValueError:
+                return _errore("Data non valida.")
             asset = None
             if key == TappaKickoff.MACCHINA and (post.get("asset") or "").isdigit():
                 asset = svc.macchine_disponibili().filter(pk=int(post["asset"])).first()
             task = svc.assegna(
-                project, key, request.user, assigned_to=assegnato, due_date=due, asset=asset,
+                project, key, request.user, assigned_to=assegnato, due_date=due, start_date=inizio, asset=asset,
                 testo=(post.get("testo") or "").strip(), meeting=meeting,
+                outlook=post.get("outlook") == "1" and svc.outlook_disponibile(), request=request,
             )
             log_action(request, "kickoff_tappa_assegna", "tasks", {"project_id": project.pk, "tappa": key, "task_id": task.pk})
         elif azione in ("escludi", "ripristina"):
@@ -122,4 +130,33 @@ def tappa_azione(request, project_id: int):
 
     project.refresh_from_db()
     html = render_to_string("tasks/_tappe_body.html", tappe_context(request, project, meeting), request=request)
+    return JsonResponse({"ok": True, "html": html})
+
+
+@require_GET
+@task_permissions_required("tasks_view", api=True)
+def tappa_anteprima(request, project_id: int):
+    """Mentre si compila la tappa: assenze del responsabile e disponibilità della macchina nel periodo."""
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    if not (can_manage_project(request, project) or request.user.pk in project.team_user_ids):
+        return _errore("Solo chi fa parte del team può assegnare le tappe.", 403)
+    try:
+        inizio, fine = svc.periodo(_data(request.GET.get("start_date")), _data(request.GET.get("due_date")))
+    except ValueError:
+        return JsonResponse({"ok": True, "html": ""})
+    persona = assenze = None
+    raw = (request.GET.get("assigned_to") or "").strip()
+    if raw.isdigit():
+        from ..forms import task_active_users_queryset
+
+        persona = task_active_users_queryset().filter(pk=int(raw)).first()
+        assenze = svc.assenze_persona(persona, inizio, fine) if persona else None
+    macchina = None
+    if request.GET.get("tappa") == TappaKickoff.MACCHINA and (request.GET.get("asset") or "").isdigit():
+        asset = svc.macchine_disponibili().filter(pk=int(request.GET["asset"])).first()
+        if asset is not None:
+            macchina = svc.disponibilita_macchina(asset, inizio, fine, con_nomi=_con_nomi(request))
+    html = render_to_string("tasks/_tappe_anteprima.html", {
+        "inizio": inizio, "fine": fine, "persona": persona, "assenze": assenze, "m": macchina,
+    }, request=request)
     return JsonResponse({"ok": True, "html": html})

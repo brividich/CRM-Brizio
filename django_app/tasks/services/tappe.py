@@ -18,6 +18,8 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
+from automazioni.managed_flows import event_flow, flusso_attivo
+
 from ..models import Task, TaskCategory, TaskExtraRef, TaskPriority, TaskStatus, TappaKickoff
 
 logger = logging.getLogger(__name__)
@@ -81,11 +83,23 @@ def _finestra(task) -> tuple[date, date]:
 
 
 def dettaglio_macchina(task, *, con_nomi: bool) -> dict | None:
-    """Abilitati, assenze nel periodo e impegni dell'asset. Mai un errore a video."""
     asset = _asset_del_task(task)
     if asset is None:
         return None
     inizio, fine = _finestra(task)
+    return disponibilita_macchina(asset, inizio, fine, con_nomi=con_nomi, escludi_task_id=task.pk)
+
+
+def periodo(inizio: date | None, fine: date | None) -> tuple[date, date]:
+    """Periodo da controllare: senza date, da oggi per due settimane."""
+    inizio = inizio or timezone.localdate()
+    fine = fine or inizio + timedelta(days=14)
+    return (fine, inizio) if fine < inizio else (inizio, fine)
+
+
+def disponibilita_macchina(asset, inizio: date, fine: date, *, con_nomi: bool, escludi_task_id=None) -> dict:
+    """Abilitati, assenze nel periodo e impegni dell'asset. Mai un errore a video."""
+    task_pk = escludi_task_id
     esito = {"asset": asset, "inizio": inizio, "fine": fine, "abilitati": None, "assenti": [], "impegni": []}
     try:
         from anagrafica.services.skillmatrix_resolver import pool_abilitati
@@ -113,18 +127,18 @@ def dettaglio_macchina(task, *, con_nomi: bool) -> dict | None:
                 })
             esito["disponibili"] = len(ids) - len(esito["assenti"])
     except Exception:
-        logger.exception("Percorso kickoff: abilitati/assenze non letti (task=%s)", task.pk)
+        logger.exception("Percorso kickoff: abilitati/assenze non letti (asset=%s)", asset.pk)
     try:
         from .asset_conflicts import _asset_availability_report
 
-        report = _asset_availability_report(asset, inizio, fine, exclude_task_id=task.pk)
+        report = _asset_availability_report(asset, inizio, fine, exclude_task_id=task_pk)
         esito["impegni"] = [
             {"titolo": c.get("title", ""), "quando": c.get("when", ""), "grave": c.get("severity") == "block",
              "url": c.get("url", "")}
             for c in (report.get("conflicts") or [])[:4]
         ]
     except Exception:
-        logger.exception("Percorso kickoff: disponibilità asset non letta (task=%s)", task.pk)
+        logger.exception("Percorso kickoff: disponibilità asset non letta (asset=%s)", asset.pk)
     return esito
 
 
@@ -205,7 +219,10 @@ def _titolo(key: str, tipo: TaskCategory, *, asset=None, testo: str = "") -> str
 
 
 @transaction.atomic
-def assegna(project, key: str, user, *, assigned_to=None, due_date=None, asset=None, testo: str = "", meeting=None) -> Task:
+def assegna(
+    project, key: str, user, *, assigned_to=None, due_date=None, start_date=None, asset=None, testo: str = "",
+    meeting=None, outlook: bool = False, request=None,
+) -> Task:
     from .meeting_tasks import (
         KickoffBloccatoVRF,
         kickoff_bloccato_vrf,
@@ -223,6 +240,8 @@ def assegna(project, key: str, user, *, assigned_to=None, due_date=None, asset=N
         raise TappaNonValida("Scegli il fornitore." if key == TappaKickoff.TERZISTA else "Scegli il processo.")
     if key not in MULTIPLE and Task.objects.filter(project=project, category=tipo).exclude(status=TaskStatus.CANCELED).exists():
         raise TappaNonValida("Questa tappa ha già la sua attività.")
+    if start_date and due_date and due_date < start_date:
+        raise TappaNonValida("«Entro il» non può venire prima dell'inizio.")
     if kickoff_bloccato_vrf(project):
         raise KickoffBloccatoVRF()
 
@@ -242,7 +261,7 @@ def assegna(project, key: str, user, *, assigned_to=None, due_date=None, asset=N
         project=project,
         assigned_to=assigned_to,
         category=tipo,
-        next_step_due=min(oggi, due_date) if due_date else oggi,
+        next_step_due=start_date or (min(oggi, due_date) if due_date else oggi),
         due_date=due_date,
         priority=TaskPriority.MEDIUM,
         status=TaskStatus.TODO,
@@ -256,7 +275,46 @@ def assegna(project, key: str, user, *, assigned_to=None, due_date=None, asset=N
         project.tappe_escluse = [v for v in project.tappe_escluse if v != key]
         project.save(update_fields=["tappe_escluse"])
     notify_task_assignment(task, actor=user)
+    dopo_assegnazione(task, outlook=outlook, request=request)
     return task
+
+
+# --- Flussi (automazioni → eventi applicativi, spenti di default) ---------------
+
+@event_flow("kickoff_promemoria_scadenza", skipped_result=False)
+def promemoria_scadenza(task) -> bool:
+    from ..outlook_reminder import sync_task_portal_reminder
+
+    sync_task_portal_reminder(task=task)
+    return True
+
+
+@event_flow("kickoff_evento_outlook", skipped_result="")
+def evento_outlook(task, request=None) -> str:
+    from ..outlook_reminder import sync_task_outlook_event
+
+    _livello, messaggio = sync_task_outlook_event(request=request, task=task, requested=True, explicit_email="")
+    return messaggio
+
+
+def outlook_disponibile() -> bool:
+    return flusso_attivo("kickoff_evento_outlook")
+
+
+def dopo_assegnazione(task, *, outlook: bool = False, request=None) -> None:
+    """Dopo il salvataggio: promemoria ed evento Outlook, se i flussi sono accesi. Mai bloccante."""
+    def esegui():
+        try:
+            promemoria_scadenza(task)
+        except Exception:
+            logger.exception("Promemoria tappa non preparato (task=%s)", task.pk)
+        if outlook and task.due_date:
+            try:
+                evento_outlook(task, request)
+            except Exception:
+                logger.exception("Evento Outlook tappa non creato (task=%s)", task.pk)
+
+    transaction.on_commit(esegui)
 
 
 def escludi(project, key: str, *, valore: bool) -> None:
@@ -272,3 +330,16 @@ def escludi(project, key: str, *, valore: bool) -> None:
         escluse.discard(key)
     project.tappe_escluse = [k for k in TappaKickoff.values if k in escluse]
     project.save(update_fields=["tappe_escluse"])
+
+
+def assenze_persona(user, inizio: date, fine: date) -> list[tuple[date, date]]:
+    """Periodi di assenza del responsabile nel periodo, senza il motivo."""
+    if user is None:
+        return []
+    try:
+        from .absences import _load_user_absences
+
+        return [(r["start_date"], r["end_date"]) for r in _load_user_absences(user, date_start=inizio, date_end=fine)][:4]
+    except Exception:
+        logger.exception("Percorso kickoff: assenze del responsabile non lette (user=%s)", getattr(user, "pk", None))
+        return []

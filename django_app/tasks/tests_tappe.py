@@ -12,7 +12,7 @@ from .tests_programmi import ProgrammiBase
 from .tests_utils import _create_user_with_legacy
 
 
-class TappeTests(ProgrammiBase):
+class _TappeBase(ProgrammiBase):
     def setUp(self):
         super().setUp()
         self.altro = _create_user_with_legacy(username="tp-dest", legacy_user_id=661, role_id=2, role_name="tasks")
@@ -23,6 +23,9 @@ class TappeTests(ProgrammiBase):
 
     def _post(self, **dati):
         return self.client.post(self.url, dati, HTTP_ACCEPT="application/json")
+
+
+class TappeTests(_TappeBase):
 
     def test_tipi_seminati_per_ogni_tappa(self):
         tipi = svc.tipi_per_tappa()
@@ -130,3 +133,62 @@ class TappeTests(ProgrammiBase):
 
     def test_progetto_campo_default(self):
         self.assertEqual(Project.objects.get(pk=self.project.pk).tappe_escluse, [])
+
+
+class TappeDateFlussiTests(_TappeBase):
+    """Inizio, anteprima e flussi spenti di default (09/11/2026)."""
+
+    def test_inizio_e_fine_dal_calendario(self):
+        self._post(tappa="MATERIALI", action="assegna", start_date="2026-12-01", due_date="2026-12-10")
+        task = Task.objects.get(project=self.project)
+        self.assertEqual((task.next_step_due, task.due_date), (date(2026, 12, 1), date(2026, 12, 10)))
+
+    def test_fine_prima_dell_inizio_rifiutata(self):
+        risposta = self._post(tappa="MATERIALI", action="assegna", start_date="2026-12-10", due_date="2026-12-01")
+        self.assertEqual(risposta.status_code, 400)
+        self.assertFalse(Task.objects.exists())
+
+    def test_anteprima_responsabile_e_macchina(self):
+        from assets.models import Asset
+
+        asset = Asset.objects.create(asset_tag="CNC-A1", name="Fresa prova", asset_type="CNC")
+        url = reverse("tasks:tappa_anteprima", args=[self.project.pk])
+        risposta = self.client.get(url, {
+            "tappa": "MACCHINA", "asset": asset.pk, "assigned_to": self.altro.pk,
+            "start_date": "2026-12-01", "due_date": "2026-12-10",
+        }, HTTP_ACCEPT="application/json")
+        self.assertEqual(risposta.status_code, 200)
+        html = risposta.json()["html"]
+        self.assertIn("disponibile dal 01/12 al 10/12", html)
+        self.assertIn("Nessun abilitato operativo", html)
+
+    def test_promemoria_spento_di_default(self):
+        from .models import TaskReminder
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self._post(tappa="MATERIALI", action="assegna", assigned_to=self.altro.pk, due_date="2026-12-10")
+        self.assertFalse(TaskReminder.objects.exists())
+
+    def test_promemoria_acceso_dal_designer(self):
+        from automazioni.managed_flows import install_flows
+        from automazioni.models import ManagedFlow
+
+        from .models import TaskImpostazioni, TaskReminder
+
+        install_flows()
+        binding = ManagedFlow.objects.select_related("rule").get(code="kickoff_promemoria_scadenza")
+        self.assertFalse(binding.rule.is_active)
+        self.assertFalse(ManagedFlow.objects.get(code="kickoff_evento_outlook").rule.is_active)
+        binding.rule.is_active = True
+        binding.rule.save(update_fields=["is_active"])
+        cfg = TaskImpostazioni.get_singleton()
+        cfg.notifiche_scadenza_attive = True
+        cfg.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            self._post(tappa="MATERIALI", action="assegna", assigned_to=self.altro.pk, due_date="2026-12-10")
+        self.assertTrue(TaskReminder.objects.filter(task__project=self.project).exists())
+
+    def test_spunta_outlook_solo_con_flusso_acceso(self):
+        pagina = self.client.get(reverse("tasks:project_overview", args=[self.project.pk]))
+        self.assertNotContains(pagina, "Anche in Outlook")
+        self.assertContains(pagina, 'data-tp="start"')

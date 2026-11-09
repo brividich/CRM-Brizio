@@ -259,7 +259,8 @@ SEZIONI: list[dict] = [
             ("passi", [
                 "Premi «Assegna» sulla tappa.",
                 "Per la Macchina scegli la macchina (CNC e macchine di lavoro), per il Terzista il fornitore, per i Processi speciali il processo: l'elenco propone i fornitori attivi e i processi qualificati, ma puoi scrivere un nome.",
-                "Scegli il responsabile e la data «Entro il», poi «Salva» o Invio.",
+                "Scegli il responsabile, «Inizio» (già su oggi) ed «Entro il» dal calendario, poi «Salva» o Invio. «Entro il» non può venire prima dell'inizio.",
+                "Mentre compili, sotto la riga compare subito se il responsabile è assente nel periodo e, per la macchina, quanti abilitati sono disponibili e quali manutenzioni o impegni ha.",
             ]),
             ("p", "Ogni tappa assegnata è un'attività normale: chi la riceve ha la notifica e la mail, la trova in «Le mie azioni» e nel Gantt e la porta avanti con «Inizia» e «Fatta». Se la assegni dentro un incontro compare anche tra le «Attività di questo incontro». Programma CAM, Programma CMM e FAI creano anche la loro riga in «Codici, cartelle e schede FAI», dove si scrivono codice e percorso."),
             ("p", "Per la Macchina il riquadro controlla il periodo dall'inizio alla scadenza dell'attività (senza scadenza, due settimane): quanti abilitati operativi ha la macchina nella skill matrix e quanti sono disponibili, chi è assente (solo il periodo, mai il motivo; i nomi li vede solo chi può leggere la skill matrix), e gli impegni dell'asset: ordini di lavoro aperti, verifiche periodiche, ticket, altre attività sulla stessa macchina, carichi macchina."),
@@ -270,6 +271,7 @@ SEZIONI: list[dict] = [
                 ("Fatto", "tutte le attività della tappa completate."),
                 ("Non serve", "deciso da chi gestisce la commessa; «Serve» torna indietro. Non si può dire «Non serve» a una tappa che ha già un'attività: prima va annullata."),
             ]),
+            ("p", "Con una data «Entro il» l'attività entra anche nello scadenzario personale del responsabile. Il promemoria nel portale qualche giorno prima della scadenza e l'evento nel calendario Outlook del responsabile (spunta «Anche in Outlook») sono flussi di automazione spenti finché un amministratore non li accende: la spunta compare solo con il flusso acceso."),
             ("p", "Macchina, Terzista e Processi speciali ammettono più attività («+ Altra»), le altre tappe una sola. Le tappe sono tipi attività: in Impostazioni → Tipi attività il campo «Tappa del kickoff» dice quale tipo rappresenta ogni tappa; un tipo disattivato toglie la tappa dal percorso."),
         ],
     },

@@ -27,12 +27,11 @@
     </select>
     <button class="prod-btn" type="submit">Cerca</button>
     {% if q or stato or manca %}<a class="prod-btn" href="{% url 'produzione:elenco' %}">Azzera</a>{% endif %}
-    <span class="prod-tot">{{ totale }} OP</span>
   </form>
 
   <div class="prod-chips" aria-label="Da sistemare">
     <span class="prod-chips-etichetta">Da sistemare:</span>
-    <a class="prod-chip{% if not manca %} is-on{% endif %}" href="?q={{ q|urlencode }}&amp;stato={{ stato|urlencode }}">Tutti <b>{{ totale_tutti }}</b></a>
+    <a class="prod-chip{% if not manca %} is-on{% endif %}" href="?q={{ q|urlencode }}&amp;stato={{ stato|urlencode }}">Tutti</a>
     {% for c in chips %}<a class="prod-chip{% if manca == c.chiave %} is-on{% endif %}{% if c.chiave == 'anomalie' and c.n %} is-allerta{% endif %}" href="?q={{ q|urlencode }}&amp;stato={{ stato|urlencode }}&amp;manca={{ c.chiave }}">{{ c.etichetta }} <b>{{ c.n }}</b></a>{% endfor %}
   </div>
 
