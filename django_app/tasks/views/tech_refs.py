@@ -25,7 +25,7 @@ from ..access import (
 from ..models import KickoffMeeting, ProjectTechRef, TechRefKind
 from ..services.fai import allinea_da_riga, esito_progetto
 from ..services.notify import notify_user
-from ..services.programmi import allinea_stato_riga
+from ..services.programmi import allinea_stato_riga, attivita_per_riga
 from ..tech_paths import normalizza_percorso
 from ._shared import _tasks_shell_context, _utenti_riga_rapida
 
@@ -282,7 +282,13 @@ def tech_ref_save(request, project_id: int):
     log_action(request, "kickoff_tech_ref_salva", "tasks", {
         "id": ref.pk, "project_id": project.pk, "kind": kind, "nuova": nuova,
     })
-    if ref.assigned_to_id != prima:
+    # Con un responsabile la riga diventa un'attività del kickoff: Gantt, stati e mail come le altre.
+    attivita = attivita_per_riga(ref, request.user)
+    if attivita is not None:
+        log_action(request, "kickoff_tech_ref_attivita", "tasks", {
+            "id": ref.pk, "project_id": project.pk, "task_id": attivita.pk,
+        })
+    elif ref.assigned_to_id != prima:
         _avvisa(ref, request.user)
     return _risposta(request, project, meeting)
 
