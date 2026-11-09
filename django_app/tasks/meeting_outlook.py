@@ -162,6 +162,21 @@ def _meeting_body_html(request, meeting) -> str:
     return "\n".join(lines)
 
 
+def _registra_invito(meeting) -> None:
+    """L'invito Outlook è la convocazione: data e impronta, come per la mail."""
+    from django.utils import timezone
+
+    from .models import KickoffMeeting, MeetingStatus
+
+    if meeting.stato != MeetingStatus.PIANIFICATO or not meeting.pk:
+        return
+    meeting.convocazione_inviata_at = timezone.now()
+    campi = meeting.registra_convocazione_inviata()
+    KickoffMeeting.objects.filter(pk=meeting.pk).update(
+        convocazione_inviata_at=meeting.convocazione_inviata_at, **{c: getattr(meeting, c) for c in campi},
+    )
+
+
 def _testo_sala(sala) -> str:
     if sala is None:
         return ""
@@ -261,6 +276,9 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
     # ── crea o aggiorna ────────────────────────────────────────────────────
     try:
         existing_id = meeting.outlook_event_id
+        # Niente di cambiato per i partecipanti: nessun aggiornamento, così non ricevono mail inutili.
+        if existing_id and meeting.convocazione_firma and meeting.convocazione_firma == meeting.firma_convocazione():
+            return ("", "")
         if existing_id:
             graph_event = update_event(
                 target_email=organizer_email,
@@ -274,8 +292,10 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
                 outlook_organizer_email=organizer_email,
             )
             meeting.outlook_event_web_link = web_link
+            meeting.outlook_event_id = existing_id
+            _registra_invito(meeting)
             n_att = sum(1 for a in attendees if a.get("type") != "resource")
-            return ("success", f"Evento Outlook aggiornato ({n_att} partecipanti){_testo_sala(sala)}.")
+            return ("success", f"Invito Outlook aggiornato: i partecipanti ricevono l'aggiornamento ({n_att} partecipanti){_testo_sala(sala)}.")
 
         graph_event = create_event(target_email=organizer_email, payload=payload)
         event_id = str(graph_event.get("id") or "")
@@ -288,8 +308,9 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
         )
         meeting.outlook_event_id = event_id
         meeting.outlook_event_web_link = web_link
+        _registra_invito(meeting)
         n_att = sum(1 for a in attendees if a.get("type") != "resource")
-        return ("success", f"Evento Outlook creato sul calendario di {organizer_email} ({n_att} partecipanti){_testo_sala(sala)}.")
+        return ("success", f"Invito Outlook inviato dal calendario di {organizer_email} ({n_att} partecipanti){_testo_sala(sala)}.")
 
     except Exception as exc:
         logger.warning("Meeting outlook sync fallita (meeting=%s): %s", meeting.id, exc)

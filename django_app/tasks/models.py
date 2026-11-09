@@ -1464,7 +1464,7 @@ class KickoffMeeting(models.Model):
 
     def dati_convocazione(self) -> dict:
         """Dati che finiscono nella convocazione (base di firma e confronto)."""
-        return {
+        dati = {
             # str(): data e ora possono essere ancora stringhe su un'istanza appena creata.
             "data": str(self.data or ""),
             "ora": str(self.ora or "")[:5],
@@ -1477,6 +1477,12 @@ class KickoffMeeting(models.Model):
                 if isinstance(item, dict)
             ],
         }
+        # Solo se valorizzate: le convocazioni già inviate prima di sala e durata non risultano cambiate.
+        if self.sala_id:
+            dati["sala"] = self.sala_id
+        if self.durata_minuti:
+            dati["durata"] = self.durata_minuti
+        return dati
 
     def firma_convocazione(self) -> str:
         """Impronta dei dati che finiscono nella convocazione."""

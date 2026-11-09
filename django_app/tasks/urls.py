@@ -126,6 +126,7 @@ urlpatterns = [
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/", views.project_meeting_detail, name="project_meeting_detail"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/sala/verifica/", views.sala_verifica, name="sala_verifica"),
     path("tasks/sale/disponibilita/", views.sale_disponibilita, name="sale_disponibilita"),
+    path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/invito-outlook/", views.project_meeting_send_outlook, name="project_meeting_send_outlook"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/edit/", views.project_meeting_edit, name="project_meeting_edit"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/esito/", views.project_meeting_minutes, name="project_meeting_minutes"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/invia-convocazione/", views.project_meeting_send_invite, name="project_meeting_send_invite"),

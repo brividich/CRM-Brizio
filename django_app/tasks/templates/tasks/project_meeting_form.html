@@ -322,7 +322,7 @@
         </div>
         <div class="mf-outlook-toggle-label">
           <strong>Prenota la sala e invita in Outlook</strong>
-          <span>Al salvataggio l'incontro va nel tuo calendario Outlook: la sala riceve la richiesta di prenotazione e i partecipanti l'invito da accettare.</span>
+          <span>Al salvataggio i partecipanti ricevono la riunione Outlook da accettare (con l'ordine del giorno) e la sala la richiesta di prenotazione. Ogni modifica salvata arriva come aggiornamento dell'invito.</span>
         </div>
         {{ form.sync_outlook }}
       </div>
@@ -353,7 +353,7 @@
       {% if not is_edit or meeting.stato == "PIANIFICATO" %}
         <label class="mf-send-invite" for="{{ form.invia_convocazione.id_for_label }}" style="display:inline-flex;align-items:center;gap:8px;margin-right:auto;font-size:.875rem;">
           {{ form.invia_convocazione }}
-          <span>{% if is_edit and meeting.convocazione_inviata %}Invia l'aggiornamento della convocazione ai partecipanti dopo il salvataggio{% else %}Invia la convocazione ai partecipanti dopo il salvataggio{% endif %}</span>
+          <span>{% if is_edit and meeting.convocazione_inviata %}Invia per mail l'aggiornamento della convocazione dopo il salvataggio{% else %}Invia la convocazione per mail dopo il salvataggio (senza invito Outlook){% endif %}</span>
         </label>
       {% endif %}
       <button type="submit" class="mf-btn primary">
@@ -374,5 +374,5 @@
 {{ agenda_suggestions_json|json_script:"agenda-suggestions-data" }}
 
 <script src="{% static 'tasks/js/sale_disponibilita.js' %}?v=20261110" defer></script>
-<script src="{% static 'tasks/js/meeting_form.js' %}" data-luogo-id="{{ form.luogo.id_for_label }}"></script>
+<script src="{% static 'tasks/js/meeting_form.js' %}?v=20261110" data-luogo-id="{{ form.luogo.id_for_label }}"></script>
 {% endblock %}

@@ -110,10 +110,12 @@
         {% endif %}
         {% endwith %}
       </div>
+    {% elif meeting.outlook_event_id %}
+      <div class="md-convocazione-note">Invito Outlook inviato ai partecipanti{% if meeting.convocazione_inviata_at %} il {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}{% endif %}: lo accettano dal loro calendario. Le modifiche salvate in «Modifica incontro» arrivano come aggiornamento dell'invito.</div>
     {% elif meeting.convocazione_inviata %}
-      <div class="md-convocazione-note">Convocazione inviata il {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.</div>
+      <div class="md-convocazione-note">Convocazione inviata per mail il {{ meeting.convocazione_inviata_at|date:"d-m-Y H:i" }}.</div>
     {% elif can_manage %}
-      <div class="md-convocazione-note">Convocazione non ancora inviata: salvare l'incontro non manda email. Usa «Invia convocazione».</div>
+      <div class="md-convocazione-note">Partecipanti non ancora invitati.{% if outlook_pronto %} Usa «Invia invito Outlook»: arriva come riunione da accettare, con la sala.{% else %} Usa «Invia convocazione».{% endif %}</div>
     {% endif %}
   {% endif %}
 
@@ -121,10 +123,17 @@
     <span class="md-docbar-label">Documenti</span>
     {% if can_manage %}
       {% if meeting.stato == "PIANIFICATO" %}
-      <form method="post" action="{% url 'tasks:project_meeting_send_invite' project.id meeting.id %}"
-            data-hub-confirm="Inviare la convocazione con l'ordine del giorno a tutti i partecipanti?">
+      {% if outlook_pronto %}
+      <form method="post" action="{% url 'tasks:project_meeting_send_outlook' project.id meeting.id %}"
+            data-hub-confirm="{% if meeting.outlook_event_id %}Rimandare l'invito Outlook a tutti i partecipanti?{% else %}Mandare l'invito Outlook ai partecipanti e prenotare la sala?{% endif %}">
         {% csrf_token %}
-        <button type="submit" class="md-btn white">{% if meeting.convocazione_inviata %}Invia aggiornamento convocazione{% else %}Invia convocazione{% endif %}</button>
+        <button type="submit" class="md-btn {% if meeting.outlook_event_id %}white{% else %}primary{% endif %}">{% if meeting.outlook_event_id %}Reinvia invito Outlook{% else %}Invia invito Outlook{% endif %}</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{% url 'tasks:project_meeting_send_invite' project.id meeting.id %}"
+            data-hub-confirm="Inviare per mail l'ordine del giorno a tutti i partecipanti?">
+        {% csrf_token %}
+        <button type="submit" class="md-btn white">{% if meeting.outlook_event_id %}Mail con l'ordine del giorno{% elif meeting.convocazione_inviata %}Invia aggiornamento convocazione{% else %}Invia convocazione per mail{% endif %}</button>
       </form>
       {% endif %}
       {% if not meeting.is_annullato %}
