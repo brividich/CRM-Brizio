@@ -43,6 +43,7 @@ TASK_EVENT_TONE_BY_TYPE = {
     TaskEventType.SUBTASK_ADDED: "green",
     TaskEventType.SUBTASK_STATUS_CHANGE: "purple",
     TaskEventType.ATTACHMENT_ADDED: "indigo",
+    TaskEventType.DATE_REQUEST: "amber",
 }
 TASK_EVENT_TITLE_BY_TYPE = {
     TaskEventType.STATUS_CHANGE: "Stato aggiornato",
@@ -52,6 +53,7 @@ TASK_EVENT_TITLE_BY_TYPE = {
     TaskEventType.SUBTASK_ADDED: "Subtask creata",
     TaskEventType.SUBTASK_STATUS_CHANGE: "Subtask aggiornata",
     TaskEventType.ATTACHMENT_ADDED: "Allegato caricato",
+    TaskEventType.DATE_REQUEST: "Spostamento di date",
 }
 TASK_EVENT_DESCRIPTION_BY_TYPE = {
     TaskEventType.STATUS_CHANGE: "Lo stato operativo dell'attivita e cambiato.",
@@ -61,6 +63,7 @@ TASK_EVENT_DESCRIPTION_BY_TYPE = {
     TaskEventType.SUBTASK_ADDED: "E stata aggiunta una nuova sotto-attivita operativa.",
     TaskEventType.SUBTASK_STATUS_CHANGE: "Lo stato di una subtask e stato aggiornato.",
     TaskEventType.ATTACHMENT_ADDED: "E stato caricato un documento collegato all'attivita.",
+    TaskEventType.DATE_REQUEST: "Richiesta di spostamento delle date.",
 }
 TASK_FIELD_LABELS = {
     "title": "Titolo",
@@ -417,6 +420,18 @@ def _build_task_timeline_events(task: Task) -> list[dict]:
             if changed_labels:
                 description = "Campi aggiornati: " + ", ".join(changed_labels) + "."
 
+        elif event.type == TaskEventType.DATE_REQUEST:
+            azione = payload.get("azione")
+            if azione == "richiesta":
+                description = "Richiesto lo spostamento delle date al capocommessa."
+                details.append(_timeline_detail("Nuove date", note=f"{payload.get('inizio') or '—'} → {payload.get('fine') or '—'}"))
+                if payload.get("motivo"):
+                    details.append(_timeline_detail("Motivo", note=payload.get("motivo")))
+            else:
+                description = "Spostamento approvato." if azione == "approvata" else "Spostamento rifiutato."
+                if payload.get("nota"):
+                    details.append(_timeline_detail("Nota", note=payload.get("nota")))
+
         elif event.type == TaskEventType.COMMENT_ADDED:
             if payload.get("target_user_id"):
                 details.append(
@@ -613,3 +628,10 @@ def _log_task_update_events(task: Task, actor, before: dict) -> None:
             TaskEventType.EDIT,
             {"changes": key_changes},
         )
+    # Chi è coinvolto lo sa subito: date, priorità, stato, responsabile.
+    try:
+        from ..services.avvisi import notifica_cambiamenti
+
+        notifica_cambiamenti(task, actor, before)
+    except Exception:
+        logger.exception("Avvisi cambiamento falliti (task=%s)", task.pk)

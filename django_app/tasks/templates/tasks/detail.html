@@ -233,7 +233,8 @@
               <form method="post" action="{% url 'tasks:update_start_date' task.id %}" class="td-data">
                 {% csrf_token %}
                 <input class="input" type="date" name="next_step_due" value="{{ task.next_step_due|date:'Y-m-d' }}" aria-label="Data di inizio" data-mostra-salva>
-                <button type="submit" class="btn btn-sm" hidden>Salva</button>
+                {% if not sposta_subito %}<input class="input" type="text" name="motivo" maxlength="500" placeholder="Motivo dello spostamento" aria-label="Motivo dello spostamento">{% endif %}
+                <button type="submit" class="btn btn-sm" hidden>{% if sposta_subito %}Salva{% else %}Chiedi{% endif %}</button>
               </form>
             {% else %}{{ task.next_step_due|date:"d/m/Y"|default:"-" }}{% endif %}
           </dd>
@@ -245,7 +246,8 @@
               <form method="post" action="{% url 'tasks:update_due_date' task.id %}" class="td-data">
                 {% csrf_token %}
                 <input class="input" type="date" name="due_date" value="{{ task.due_date|date:'Y-m-d' }}" aria-label="Data di fine richiesta" data-mostra-salva>
-                <button type="submit" class="btn btn-sm" hidden>Salva</button>
+                {% if not sposta_subito %}<input class="input" type="text" name="motivo" maxlength="500" placeholder="Motivo dello spostamento" aria-label="Motivo dello spostamento">{% endif %}
+                <button type="submit" class="btn btn-sm" hidden>{% if sposta_subito %}Salva{% else %}Chiedi{% endif %}</button>
               </form>
             {% else %}{{ task.due_date|date:"d/m/Y"|default:"-" }}{% endif %}
           </dd>
@@ -261,6 +263,38 @@
         {% if task.tags %}<div><dt>Tag</dt><dd>{{ task.tags }}</dd></div>{% endif %}
       </dl>
     </article>
+
+    {% if spostamento_aperto or can_update_due_date and not sposta_subito %}
+    <article class="td-card td-spostamento" id="spostamenti">
+      <h2 class="td-titolo">Spostamento di date</h2>
+      {% if spostamento_aperto %}{% with sp=spostamento_aperto %}
+        <p class="td-sp-testo"><strong>{{ sp.richiesto_da.get_full_name|default:sp.richiesto_da.username }}</strong> chiede:
+          {{ sp.inizio_prima|date:"d/m/Y"|default:"—" }} – {{ sp.fine_prima|date:"d/m/Y"|default:"—" }}
+          → <strong>{{ sp.inizio_nuovo|date:"d/m/Y"|default:"—" }} – {{ sp.fine_nuovo|date:"d/m/Y"|default:"—" }}</strong></p>
+        {% if sp.motivo %}<p class="td-sp-motivo">«{{ sp.motivo }}»</p>{% endif %}
+        <p class="td-sp-quando">Inviata il {{ sp.created_at|date:"d/m/Y H:i" }}</p>
+        {% if puo_decidere_spostamenti %}
+          <form method="post" action="{% url 'tasks:spostamento_decidi' sp.id %}" class="td-sp-form">
+            {% csrf_token %}
+            <div class="td-sp-date">
+              <label>Inizio<input class="input" type="date" name="inizio" value="{{ sp.inizio_nuovo|date:'Y-m-d' }}"></label>
+              <label>Fine<input class="input" type="date" name="fine" value="{{ sp.fine_nuovo|date:'Y-m-d' }}"></label>
+            </div>
+            <input class="input" type="text" name="nota" maxlength="500" placeholder="Nota per chi ha chiesto (facoltativa)" aria-label="Nota">
+            <div class="td-sp-azioni">
+              <button type="submit" name="decisione" value="approva" class="btn btn-sm">Approva</button>
+              <button type="submit" name="decisione" value="rifiuta" class="btn btn-secondary btn-sm">Rifiuta</button>
+            </div>
+          </form>
+        {% elif sp.richiesto_da_id == request.user.pk %}
+          <form method="post" action="{% url 'tasks:spostamento_annulla' sp.id %}">{% csrf_token %}<button type="submit" class="btn btn-secondary btn-sm">Ritira la richiesta</button></form>
+        {% else %}<p class="td-sp-quando">In attesa del capocommessa.</p>{% endif %}
+      {% endwith %}{% else %}
+        <p class="td-sp-quando">Per spostare le date cambia «Inizio» o «Fine richiesta» qui sopra e scrivi il motivo: decide il capocommessa e le date cambiano quando approva.</p>
+      {% endif %}
+    </article>
+    {% endif %}
+
 
     {% if task.project %}
       <article class="td-card">

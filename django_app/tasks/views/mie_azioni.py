@@ -113,6 +113,12 @@ def mie_voci_aperte_count(request) -> int:
     )
 
 
+def _spostamenti_da_decidere(request, projects):
+    from ..services.spostamenti import richieste_da_decidere
+
+    return richieste_da_decidere(request, projects)
+
+
 @task_permissions_required("tasks_view")
 def mie_azioni(request):
     """Elenco personale: prima chi riceveva un'azione non aveva un posto dove vederla."""
@@ -198,6 +204,8 @@ def mie_azioni(request):
             "overdue_count": sum(1 for r in rows if r["is_overdue"]),
             "filters": {"stato": stato, "tipo": tipo, "scadenza": scadenza, "progetto": progetto or "", "q": q_text},
             "my_projects": my_projects,
+            # Il capocommessa decide qui gli spostamenti chiesti dagli incaricati.
+            "spostamenti_da_decidere": _spostamenti_da_decidere(request, projects),
         },
     )
 

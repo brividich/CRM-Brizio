@@ -395,8 +395,59 @@ def _can_edit_project_schedule(request, project: Project) -> bool:
     return False
 
 
+def _codici_poteri() -> list[str]:
+    from .models import TaskImpostazioni
+
+    raw = TaskImpostazioni.get_singleton().poteri_ruoli or ""
+    return [c.strip().upper() for c in raw.split(",") if c.strip()]
+
+
+def utenti_pieni_poteri(project: Project) -> list:
+    """Chi decide sulla commessa: ruoli di team con pieni poteri + persone scelte in Impostazioni."""
+    from .models import TaskImpostazioni
+
+    persone = {}
+    for codice in _codici_poteri():
+        for u in project.team_members(codice):
+            persone[u.pk] = u
+    for u in TaskImpostazioni.get_singleton().poteri_utenti.filter(is_active=True):
+        persone.setdefault(u.pk, u)
+    return list(persone.values())
+
+
+def ha_pieni_poteri(request, project: Project | None) -> bool:
+    """Capocommessa, PM (o i ruoli scelti) e le persone indicate in Impostazioni: modificano tutto."""
+    if project is None:
+        return False
+    if has_task_permission(request, "tasks_admin"):
+        return True
+    # Calcolato una volta per richiesta e commessa: i portfolio lo chiedono per ogni riga.
+    cache = getattr(request, "_pieni_poteri", None)
+    if cache is None:
+        cache = {}
+        try:
+            request._pieni_poteri = cache
+        except AttributeError:
+            pass
+    if project.pk not in cache:
+        uid = getattr(request.user, "id", None)
+        cache[project.pk] = any(u.pk == uid for u in utenti_pieni_poteri(project))
+    return cache[project.pk]
+
+
+def puo_spostare_subito(request, task: Task) -> bool:
+    """Le date cambiano subito solo per chi ha pieni poteri; gli altri chiedono (se l'approvazione è attiva)."""
+    from .models import TaskImpostazioni
+
+    if not task.project_id or not TaskImpostazioni.get_singleton().spostamenti_con_approvazione:
+        return True
+    return ha_pieni_poteri(request, task.project)
+
+
 def can_manage_project(request, project: Project) -> bool:
     if has_task_permission(request, "tasks_admin"):
+        return True
+    if ha_pieni_poteri(request, project):
         return True
     if project.created_by_id == request.user.id:
         return True
@@ -427,6 +478,8 @@ def can_manage_task(request, task: Task) -> bool:
     if task.created_by_id == getattr(request.user, "id", None):
         return True
     if _is_project_lead_for_task(request.user, task):
+        return True
+    if task.project_id and ha_pieni_poteri(request, task.project):
         return True
     if _ruoli_attivi():
         ambito = _ambito(request, "modificare")

@@ -213,6 +213,11 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         from ..models import MeetingRoom
 
         context["sale_riunioni"] = list(MeetingRoom.objects.order_by("ordine", "nome"))
+        context["poteri_ruoli_scelti"] = {c.strip() for c in (cfg_cc.poteri_ruoli or "").split(",") if c.strip()}
+        context["poteri_ruoli_opzioni"] = RUOLI_POTERI
+        context["poteri_utenti_ids"] = set(cfg_cc.poteri_utenti.values_list("pk", flat=True))
+        context["avvisi_scelti"] = {c.strip() for c in (cfg_cc.avvisi_destinatari or "").split(",") if c.strip()}
+        context["avvisi_opzioni"] = DESTINATARI_AVVISI
         context["cc_utenti_disponibili"] = [
             {"pk": utente.pk, "etichetta": etichetta_utente(utente)}
             for utente in task_active_users_queryset()
@@ -1358,6 +1363,27 @@ def impostazioni_task_delete(request, task_id: int):
     return redirect(record_url)
 
 
+RUOLI_POTERI = (("CC", "Capocommessa"), ("PM", "Project manager"), ("PRG", "Programmatore"), ("CR", "Caporeparto"))
+DESTINATARI_AVVISI = (("INCARICATO", "Incaricato"), ("CC", "Capocommessa"), ("PM", "Project manager"), ("CREATORE", "Chi ha creato l'incarico"))
+
+
+def _handle_tasks_poteri_post(request, cfg):
+    """Chi ha pieni poteri sulle commesse e chi riceve gli avvisi sui cambiamenti."""
+    target = f"{reverse('tasks:impostazioni')}?tab=config#poteri"
+    ruoli = [c for c in request.POST.getlist("poteri_ruoli") if c in dict(RUOLI_POTERI)]
+    cfg.poteri_ruoli = ",".join(ruoli)
+    cfg.spostamenti_con_approvazione = bool(request.POST.get("spostamenti_con_approvazione"))
+    cfg.avvisi_destinatari = ",".join(c for c in request.POST.getlist("avvisi_destinatari") if c in dict(DESTINATARI_AVVISI))
+    cfg.save(update_fields=["poteri_ruoli", "spostamenti_con_approvazione", "avvisi_destinatari"])
+    ids = [int(x) for x in request.POST.getlist("poteri_utenti") if str(x).isdigit()]
+    cfg.poteri_utenti.set(task_active_users_queryset().filter(pk__in=ids))
+    log_action(request, "kickoff_poteri_salva", "tasks", {
+        "ruoli": cfg.poteri_ruoli, "utenti": ids, "approvazione": cfg.spostamenti_con_approvazione, "avvisi": cfg.avvisi_destinatari,
+    })
+    messages.success(request, "Poteri e avvisi salvati.")
+    return redirect(target)
+
+
 def _handle_tasks_rooms_post(request):
     """Sale riunioni: nome, casella Microsoft 365 per la prenotazione, posti, attiva."""
     from django.core.validators import validate_email
@@ -1431,6 +1457,8 @@ def impostazioni(request):
             return _handle_tasks_fai_post(request)
         if posted_tab == "sale":
             return _handle_tasks_rooms_post(request)
+        if posted_tab == "poteri":
+            return _handle_tasks_poteri_post(request, cfg)
 
         branding_response = handle_module_branding_post(
             request,

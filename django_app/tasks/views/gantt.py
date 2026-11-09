@@ -462,12 +462,19 @@ def project_gantt_remove_dependency(request, project_id: int, dep_id: int):
     return JsonResponse({"ok": True})
 
 
+def _incaricato_che_chiede(request, task) -> bool:
+    """L'incaricato può trascinare la sua barra: diventa una richiesta di spostamento al capocommessa."""
+    from ..access import puo_spostare_subito
+
+    return task.assigned_to_id == getattr(request.user, "id", None) and not puo_spostare_subito(request, task)
+
+
 @require_POST
 @task_permissions_required("tasks_view")
 def project_gantt_update_task(request, project_id: int, task_id: int):
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     task = get_object_or_404(Task.objects.filter(project=project), pk=task_id)
-    if not can_manage_task(request, task):
+    if not (can_manage_task(request, task) or _incaricato_che_chiede(request, task)):
         return render(
             request,
             "core/pages/forbidden.html",
@@ -483,7 +490,12 @@ def project_gantt_update_task(request, project_id: int, task_id: int):
         consenti_priorita=can_set_task_priority(request, task),
     )
     if form.is_valid():
-        task = form.save()
+        task = form.save(commit=False)
+        from ..services.spostamenti import intercetta
+
+        if intercetta(request, task, before) is not None:
+            messages.info(request, f"Spostamento di «{task.title}» inviato al capocommessa: le date cambiano quando lo approva.")
+        task.save()
         _log_task_update_events(task, request.user, before)
         messages.success(request, f"Attività «{task.title}» aggiornata.")
         _add_task_absence_warnings(request, task)
@@ -513,7 +525,7 @@ def project_gantt_update_task(request, project_id: int, task_id: int):
 def project_gantt_shift_task(request, project_id: int, task_id: int):
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     task = get_object_or_404(Task.objects.filter(project=project), pk=task_id)
-    if not can_manage_task(request, task):
+    if not (can_manage_task(request, task) or _incaricato_che_chiede(request, task)):
         return JsonResponse({"ok": False, "error": "forbidden"}, status=403)
 
     mode = str(request.POST.get("mode") or "shift").strip()
@@ -579,6 +591,12 @@ def project_gantt_shift_task(request, project_id: int, task_id: int):
             task.next_step_due = task.next_step_due + timedelta(days=shift_days)
         if task.due_date:
             task.due_date = task.due_date + timedelta(days=shift_days)
+    from ..services.spostamenti import intercetta
+
+    if intercetta(request, task, before) is not None:
+        # Niente spostamento a cascata: lo decide il capocommessa approvando.
+        messages.info(request, f"Spostamento di «{task.title}» inviato al capocommessa: le date cambiano quando lo approva.")
+        return JsonResponse({"ok": True, "task_id": task.id, "richiesta": True})
     task.save(update_fields=["next_step_due", "due_date", "updated_at"])
     _log_task_update_events(task, request.user, before)
 
