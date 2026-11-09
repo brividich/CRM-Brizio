@@ -504,6 +504,106 @@ class TrainingCourseForm(forms.ModelForm):
                     self.instance.processi_richiedenti.values_list("pk", flat=True))
         except Exception:
             pass
+        self._aggiungi_campi_destinatari()
+
+    # Destinatari: (campo del form, campo della regola, obbligatorio?)
+    _DESTINATARI = (
+        ("mansioni_obbligatorie", "competenza", True),
+        ("mansioni_consigliate", "competenza", False),
+        ("ruoli_obbligatori", "ruolo_operativo", True),
+        ("rischio_obbligatorie", "mansione", True),
+    )
+    _ALTRI_TARGET = ("mansione", "area", "ruolo_operativo", "competenza", "legacy_anagrafica_id")
+
+    def _aggiungi_campi_destinatari(self) -> None:
+        """«A chi serve»: mansioni lavorative (obbligatorio o consigliato), ruoli e
+        mansioni di rischio. Sono regole di obbligatorietà con un solo destinatario,
+        le stesse della scheda corso e della scheda mansione."""
+        from .models import Mansione, RuoloOperativo
+        from .models_skillmatrix import CompetenzaSkm
+        from .services.mansionario_struttura import TIPI_MANSIONE
+
+        def picker(queryset, label, help_text, placeholder, etichetta=None):
+            campo = forms.ModelMultipleChoiceField(
+                queryset=queryset, required=False, label=label, help_text=help_text,
+                widget=forms.SelectMultiple(attrs={
+                    "class": "fm-input fm-select", "size": "6",
+                    "data-picker": "", "data-picker-placeholder": placeholder}),
+            )
+            if etichetta:
+                campo.label_from_instance = etichetta
+            return campo
+
+        mansioni = CompetenzaSkm.objects.filter(tipo__in=TIPI_MANSIONE, attiva=True).order_by("display")
+        nome_mansione = lambda c: c.display or c.competenza_key  # noqa: E731
+        self.fields["mansioni_obbligatorie"] = picker(
+            mansioni, "Obbligatorio per le mansioni",
+            "Entra in scadenzario, copertura e onboarding di chi è in lista sulla mansione, anche in addestramento.",
+            "Cerca mansione…", nome_mansione)
+        self.fields["mansioni_consigliate"] = picker(
+            mansioni, "Consigliato per le mansioni",
+            "Proposto a chi fa la mansione, senza scadenze.", "Cerca mansione…", nome_mansione)
+        self.fields["ruoli_obbligatori"] = picker(
+            RuoloOperativo.objects.filter(is_active=True).order_by("nome"), "Obbligatorio per i ruoli",
+            "Per chi ricopre il ruolo.", "Cerca ruolo…")
+        self.fields["rischio_obbligatorie"] = picker(
+            Mansione.objects.filter(is_active=True).order_by("nome"), "Obbligatorio per le mansioni di rischio",
+            "Per chi ha la mansione di rischio (DVR), anche ricavata dalla mansione lavorativa.",
+            "Cerca mansione di rischio…")
+        if self.instance and self.instance.pk:
+            from .models_formazione import TrainingRequirementRule
+
+            for nome, target, obbl in self._DESTINATARI:
+                self.fields[nome].initial = list(
+                    TrainingRequirementRule.objects.filter(
+                        corso=self.instance, is_active=True, is_mandatory=obbl, **{f"{target}__isnull": False})
+                    .values_list(f"{target}_id", flat=True))
+
+    def clean(self):
+        cd = super().clean()
+        doppie = set(cd.get("mansioni_obbligatorie") or []) & set(cd.get("mansioni_consigliate") or [])
+        if doppie:
+            nomi = ", ".join(sorted((m.display or m.competenza_key) for m in doppie))
+            self.add_error("mansioni_consigliate", f"Già indicate come obbligatorie: {nomi}. Scegli una delle due.")
+        return cd
+
+    def salva_destinatari(self, corso, user=None) -> int:
+        """Allinea le regole «a chi serve» del corso a quanto scelto. Tocca solo le
+        regole con quel solo destinatario: quelle per area o persona, o con più
+        destinatari, si gestiscono dalla scheda corso e restano com'erano."""
+        from .models_formazione import TrainingRequirementRule
+
+        if "mansioni_obbligatorie" not in self.fields:
+            return 0
+        cambi = 0
+        for target in ("competenza", "ruolo_operativo", "mansione"):
+            voluti: dict[int, bool] = {}
+            for nome, t, obbl in self._DESTINATARI:
+                if t != target:
+                    continue
+                for obj in self.cleaned_data.get(nome) or []:
+                    voluti[obj.pk] = voluti.get(obj.pk, False) or obbl
+            altri_vuoti = {f"{a}__isnull": True for a in self._ALTRI_TARGET if a != target}
+            esistenti = {
+                getattr(r, f"{target}_id"): r
+                for r in TrainingRequirementRule.objects.filter(
+                    corso=corso, piano__isnull=True, **{f"{target}__isnull": False}, **altri_vuoti)
+            }
+            for pk, obbl in voluti.items():
+                r = esistenti.get(pk)
+                if r is None:
+                    TrainingRequirementRule.objects.create(
+                        corso=corso, is_mandatory=obbl, is_active=True, created_by=user, **{f"{target}_id": pk})
+                    cambi += 1
+                elif r.is_mandatory != obbl or not r.is_active:
+                    r.is_mandatory, r.is_active = obbl, True
+                    r.save(update_fields=["is_mandatory", "is_active"])
+                    cambi += 1
+            for pk, r in esistenti.items():
+                if pk not in voluti and r.is_active:
+                    r.delete()
+                    cambi += 1
+        return cambi
 
     def salva_processi(self, corso) -> None:
         """Persiste il reverse-M2M dei processi qualificati che richiedono il corso.

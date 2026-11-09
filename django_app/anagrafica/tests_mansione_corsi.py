@@ -108,3 +108,70 @@ class MansioneCorsiTests(TestCase):
         self.client.force_login(plain)
         self._collega()
         self.assertFalse(TrainingRequirementRule.objects.filter(corso=self.corso).exists())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class CorsoAChiServeTests(TestCase):
+    """Il viceversa: dalla creazione/modifica del corso si sceglie a chi serve."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _ensure_anagrafica_table()
+
+    def setUp(self):
+        from .models import RuoloOperativo
+        self.admin = User.objects.create_superuser("acs_admin", "acs@example.invalid", "x")
+        self.client.force_login(self.admin)
+        self.m1 = CompetenzaSkm.objects.create(competenza_key="P-A", display="Assemblaggio", tipo=CompetenzaSkm.TIPO_PROCESSO)
+        self.m2 = CompetenzaSkm.objects.create(competenza_key="P-B", display="Collaudo", tipo=CompetenzaSkm.TIPO_PROCESSO)
+        self.ruolo = RuoloOperativo.objects.create(nome="Preposto sintetico")
+        self.piano = TrainingPlan.objects.create(codice="P-ACS", nome="Piano sintetico")
+
+    def _dati(self, **extra):
+        d = {"piano": self.piano.pk, "titolo": "Corso a chi serve", "durata_ore_teorica": "4", "validita_mesi": "0",
+             "quiz_punteggio_minimo": "0", "stato": "ATTIVO", "is_active": "on"}
+        d.update(extra)
+        return d
+
+    def test_creazione_con_mansioni_obbligatorie_e_consigliate(self):
+        resp = self.client.post(reverse("anagrafica:formazione_corso_create"), self._dati(
+            mansioni_obbligatorie=[self.m1.pk], mansioni_consigliate=[self.m2.pk], ruoli_obbligatori=[self.ruolo.pk]))
+        self.assertEqual(resp.status_code, 302)
+        corso = TrainingCourse.objects.get(titolo="Corso a chi serve")
+        self.assertTrue(TrainingRequirementRule.objects.get(corso=corso, competenza=self.m1).is_mandatory)
+        self.assertFalse(TrainingRequirementRule.objects.get(corso=corso, competenza=self.m2).is_mandatory)
+        self.assertTrue(TrainingRequirementRule.objects.get(corso=corso, ruolo_operativo=self.ruolo).is_mandatory)
+
+    def test_stessa_mansione_obbligatoria_e_consigliata_rifiutata(self):
+        resp = self.client.post(reverse("anagrafica:formazione_corso_create"), self._dati(
+            mansioni_obbligatorie=[self.m1.pk], mansioni_consigliate=[self.m1.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(TrainingCourse.objects.filter(titolo="Corso a chi serve").exists())
+        self.assertIn("Già indicate come obbligatorie", resp.content.decode())
+
+    def test_modifica_allinea_e_non_tocca_area_e_persona(self):
+        corso = TrainingCourse.objects.create(piano=self.piano, codice="C-ACS", titolo="Corso a chi serve",
+                                              durata_ore_teorica=4, is_active=True)
+        TrainingRequirementRule.objects.create(corso=corso, competenza=self.m1, is_mandatory=True)
+        persona = TrainingRequirementRule.objects.create(corso=corso, legacy_anagrafica_id=99, is_mandatory=True)
+        # La pagina di modifica mostra già la mansione selezionata.
+        body = self.client.get(reverse("anagrafica:formazione_corso_edit", args=[corso.pk])).content.decode()
+        self.assertIn("A chi serve", body)
+        self.assertRegex(body, rf'<option value="{self.m1.pk}" selected')
+        # m1 diventa consigliata, m2 non c'è: m1 si aggiorna, la regola per persona resta.
+        self.client.post(reverse("anagrafica:formazione_corso_edit", args=[corso.pk]),
+                         self._dati(mansioni_consigliate=[self.m1.pk]))
+        r = TrainingRequirementRule.objects.get(corso=corso, competenza=self.m1)
+        self.assertFalse(r.is_mandatory)
+        self.assertTrue(TrainingRequirementRule.objects.filter(pk=persona.pk).exists())
+        # Tolta da tutte le liste: la regola sparisce.
+        self.client.post(reverse("anagrafica:formazione_corso_edit", args=[corso.pk]), self._dati())
+        self.assertFalse(TrainingRequirementRule.objects.filter(corso=corso, competenza=self.m1).exists())
+        self.assertTrue(TrainingRequirementRule.objects.filter(pk=persona.pk).exists())
+
+    def test_collegamento_visibile_dai_due_lati(self):
+        self.client.post(reverse("anagrafica:formazione_corso_create"), self._dati(mansioni_consigliate=[self.m2.pk]))
+        corso = TrainingCourse.objects.get(titolo="Corso a chi serve")
+        body = self.client.get(reverse("anagrafica:mansionario_mansione", args=[self.m2.pk])).content.decode()
+        self.assertIn(corso.titolo, body)
+        self.assertIn("consigliato", body)

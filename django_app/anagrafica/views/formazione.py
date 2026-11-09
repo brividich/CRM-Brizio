@@ -1309,6 +1309,7 @@ def formazione_corso_create(request):
                     corso.created_by = request.user
                     corso.save()
                     form.salva_processi(corso)
+                    form.salva_destinatari(corso, user=request.user)
                     from ..services.corso_versioni import registra as _registra_versione
                     _registra_versione(corso, user=request.user)
                     if sess_form.cleaned_data.get("pianifica"):
@@ -1646,8 +1647,12 @@ def formazione_corso_edit(request, corso_id: int):
     if request.method == "POST":
         form = TrainingCourseForm(request.POST, instance=corso)
         if form.is_valid():
-            corso = form.save()
-            form.salva_processi(corso)
+            from django.db import transaction as _tx
+
+            with _tx.atomic():
+                corso = form.save()
+                form.salva_processi(corso)
+                form.salva_destinatari(corso, user=request.user)
             messages.success(request, f'Corso "{corso.titolo}" aggiornato.')
             from ..services.corso_versioni import registra_con_messaggio
             registra_con_messaggio(request, corso)

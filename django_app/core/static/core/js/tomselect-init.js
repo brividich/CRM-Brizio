@@ -56,7 +56,7 @@
   // quando è una lista a più righe (size) — lì la ricerca la fa già la pagina.
   var AUTO_MIN = 10;
   function autoCandidata(el) {
-    if (el.hasAttribute("data-no-search")) return false;
+    if (el.hasAttribute("data-no-search") || el.hasAttribute("data-picker")) return false;
     if (el.size && el.size > 1) return false;
     if (el.closest("[data-no-search]")) return false;
     return el.options.length > AUTO_MIN || el.multiple;
