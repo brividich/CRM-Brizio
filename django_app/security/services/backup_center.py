@@ -279,7 +279,10 @@ def _hub_asset(name):
 
 
 def log_rows(params, limit=300):
-    """Log delle esecuzioni con filtri: esito, job, dispositivo o testo libero."""
+    """Log delle esecuzioni con filtri: esito, job, dispositivo o testo libero.
+
+    ``limit=None``: tutte le esecuzioni del filtro, senza tetto (lo «Scarica CSV»).
+    """
     qs = BackupJobRecord.objects.select_related("source").order_by("-completed_at", "-started_at", "-created_at")
     status = params.get("esito", "")
     if status in STATUS_LABELS:
@@ -293,7 +296,7 @@ def log_rows(params, limit=300):
         qs = qs.filter(Q(completed_at__gte=since) | Q(completed_at__isnull=True, created_at__gte=since))
     text = params.get("q", "").strip().casefold()
     rows = []
-    for record in qs[:2000]:
+    for record in (qs[:2000] if limit else qs.iterator(chunk_size=1000)):
         payload = record.payload or {}
         devices = [run["device"] for run in device_runs(record)]
         if text and text not in record.job_name.casefold() and not any(text in d.casefold() for d in devices):
@@ -309,7 +312,7 @@ def log_rows(params, limit=300):
             "minutes": payload["duration_seconds"] / 60 if payload.get("duration_seconds") else None,
             "objects_error": payload.get("objects_error"),
         })
-        if len(rows) >= limit:
+        if limit and len(rows) >= limit:
             break
     return rows
 

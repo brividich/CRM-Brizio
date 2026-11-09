@@ -541,6 +541,8 @@ class SecurityAlertSuppressionRule(models.Model):
     max_severity = models.CharField(max_length=24, choices=Severity.choices, blank=True)
     revoked_at = models.DateTimeField(null=True, blank=True)
     revoked_reason = models.TextField(blank=True)
+    # Scritto dal ciclo del SOC quando manda il promemoria «in scadenza» (services/soppressioni_scadenza.py).
+    promemoria_il = models.DateTimeField(null=True, blank=True)
 
     LEARNED_OWNER = "system:learned"
     LEARNED_SCOPE = "learned_fingerprint"

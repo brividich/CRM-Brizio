@@ -104,6 +104,7 @@
     <label class="sec-check"><input type="checkbox" name="kev" value="1" {% if filtri.solo_kev %}checked{% endif %}> Solo sfruttate (KEV)</label>
     <button class="sec-button-primary" type="submit">Filtra</button>
     {% if filtri_attivi %}<a class="sec-button" href="{% url 'security:vulnerabilities' %}#elenco-cve">Reimposta</a>{% endif %}
+    <a class="sec-button" href="{% querystring formato='csv' %}">Scarica CSV</a>
   </form>
   <p class="sec-muted sec-small">Ordine: sfruttate, CVSS, EPSS, PC impattati. Clic sulla riga: pannello con PC, programmi e correzioni senza lasciare la pagina; clic sul codice della CVE: scheda completa.</p>
   <div class="sec-table-wrap">
@@ -139,7 +140,7 @@
       </tbody>
     </table>
   </div>
-  {% if elenco.troncato %}<p class="sec-small"><span class="sec-badge sec-badge-warning">Mostrate le prime {{ elenco.max_righe }} CVE su {{ elenco.totali.cve }}</span> I numeri in cima le contano tutte: restringi con i filtri.</p>{% endif %}
+  {% if elenco.troncato %}<p class="sec-small"><span class="sec-badge sec-badge-warning">Mostrate le prime {{ elenco.max_righe }} CVE su {{ elenco.totali.cve }}</span> I numeri in cima e il CSV le contano tutte: «Scarica CSV» per l'elenco completo.</p>{% endif %}
 </section>
 
 <section class="sec-grid sec-two-col" style="margin-top: 12px;">

@@ -14,6 +14,7 @@ LABELS = {
     "patch_sla_scaduta": "Patch oltre il termine di installazione",
     "dipendenza_vulnerabile": "Libreria del portale vulnerabile",
     "accettazione_rischio": "Accettazione del rischio (CVE)",
+    "soppressione_in_scadenza": "Soppressione in scadenza",
     "acknowledged": "Preso in carico",
     "closed": "Chiuso",
     "critical": "Critico",

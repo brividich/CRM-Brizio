@@ -35,7 +35,7 @@ Nelle tabelle **Per PC e server**, **Per job** e nel **Log esecuzioni** si selez
 
 Gli alert di backup nascono per job: dai PC si agisce sugli alert dei job che li hanno protetti negli ultimi 90 giorni. Un job condiviso da più server ha un alert solo, che vale per tutti i suoi dispositivi. Nel Log le azioni valgono per il job di ogni esecuzione selezionata.
 
-Un clic sul nome apre la **scheda PC** (backup, alert, vulnerabilità e protezione di quel dispositivo). **Log completo** elenca ogni esecuzione con filtri per esito, job, periodo e PC.
+Un clic sul nome apre la **scheda PC** (backup, alert, vulnerabilità e protezione di quel dispositivo). **Log completo** elenca ogni esecuzione con filtri per esito, job, periodo e PC: a video le prime 300, **Scarica CSV** tutte quelle del filtro.
 
 ### Una cosa da sapere
 
@@ -50,7 +50,7 @@ Con la lettura dall'API di Veeam accesa ([Impostazioni](/soc/docs/16-impostazion
 
 ### Prove di ripristino
 
-Un backup vale solo se si riesce a ripristinare (ISO 27001 8.13). In **Backup › Prove di ripristino** si registra ogni prova: data, sistema, job, cosa è stato ripristinato (file, cartella, macchina intera, database), esito **Riuscita** o **Fallita**, durata, chi l'ha fatta, note e un allegato facoltativo (verbale, schermata). Il registro si legge a pagine (si caricano scorrendo). In alto: ultima prova riuscita, entro quando serve la prossima (cadenza di **90 giorni** di default, in Impostazioni) e se siamo **in ritardo**.
+Un backup vale solo se si riesce a ripristinare (ISO 27001 8.13). In **Backup › Prove di ripristino** si registra ogni prova: data, sistema, job, cosa è stato ripristinato (file, cartella, macchina intera, database), esito **Riuscita** o **Fallita**, durata, chi l'ha fatta, note e un allegato facoltativo (verbale, schermata). Il registro si legge a pagine (si caricano scorrendo); **Scarica CSV** sul registro dà l'elenco completo per l'audit (data, esito, sistema, job, cosa, durata, eseguita da, note, allegato sì/no, alert). In alto: ultima prova riuscita, entro quando serve la prossima (cadenza di **90 giorni** di default, in Impostazioni) e se siamo **in ritardo**.
 
 - Prova **fallita**: il SOC apre da solo un alert alto «Prova di ripristino fallita» collegato alla prova.
 - Prova **in ritardo** (o mai fatta): con l'avviso acceso in [Impostazioni](/soc/docs/16-impostazioni-e-ai/#avvisi-automatici) parte un promemoria, uno per scadenza.
