@@ -56,7 +56,7 @@ def _utensili_catalogo():
 
 def tappe_context(request, project, meeting=None) -> dict:
     gestisce = can_manage_project(request, project)
-    dati = svc.percorso(project, con_nomi=_con_nomi(request))
+    dati = svc.percorso(project, con_nomi=_con_nomi(request), utente=request.user)
     serve = {r["key"] for r in dati["righe"] if r["puo_aggiungere"]}
     return {
         "project": project,
@@ -64,6 +64,7 @@ def tappe_context(request, project, meeting=None) -> dict:
         "tappe_meeting": meeting,
         "tappe_puo_assegnare": gestisce or request.user.pk in project.team_user_ids,
         "tappe_puo_escludere": gestisce,
+        "tappe_puo_fissare_piano": gestisce,
         "tappe_utenti": _utenti_riga_rapida(project),
         "tappe_macchine": list(svc.macchine_disponibili()) if TappaKickoff.MACCHINA in serve else [],
         "tappe_fornitori": _fornitori() if TappaKickoff.TERZISTA in serve else [],

@@ -1403,8 +1403,13 @@ def impostazioni_task_delete(request, task_id: int):
 def _modelli_commessa_context() -> dict:
     from ..models import ModelloCommessa
 
+    from ..services.filo import durate_reali
+
+    modelli = list(ModelloCommessa.objects.all())
+    for m in modelli:
+        m.reali = durate_reali(m)
     return {
-        "modelli_commessa": list(ModelloCommessa.objects.all()),
+        "modelli_commessa": modelli,
         "tappe_scelte": TappaKickoff.choices,
     }
 
@@ -1417,6 +1422,14 @@ def _handle_modelli_commessa_post(request):
     modello = None
     if (request.POST.get("modello_id") or "").isdigit():
         modello = ModelloCommessa.objects.filter(pk=int(request.POST["modello_id"])).first()
+    if request.POST.get("azione") == "reali" and modello is not None:
+        from ..services.filo import durate_reali
+
+        reali = durate_reali(modello)
+        modello.tappe = [{**v, "giorni": reali[v["tappa"]]["media"]} if v.get("tappa") in reali else v for v in modello.tappe]
+        modello.save(update_fields=["tappe"])
+        messages.success(request, f"«{modello.nome}»: giorni aggiornati con i valori reali delle commesse.")
+        return redirect(target)
     if request.POST.get("azione") == "elimina" and modello is not None:
         nome = modello.nome
         modello.delete()

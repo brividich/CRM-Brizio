@@ -37,7 +37,7 @@
       </form>
       {% if ref.path %}<p class="prog-riga">Apri: {% include "tasks/_tech_ref_link.html" %}</p>{% endif %}
       {% if ref.is_programma %}
-        <p class="prog-riga">{{ ref.etichetta_breve }}{% if ref.macchina %} · {{ ref.macchina.asset_tag }} {{ ref.macchina.name }}{% endif %}</p>
+        {% if ref.code or ref.macchina %}<p class="prog-riga">{% if ref.code %}{{ ref.etichetta_breve }}{% endif %}{% if ref.macchina %}{% if ref.code %} · {% endif %}{{ ref.macchina.asset_tag }} {{ ref.macchina.name }}{% endif %}</p>{% endif %}
         {% include "tasks/_programma_azioni.html" with azioni=task_programma_azioni %}
         {% if task_programma_storico %}
         <ul class="pg-storico">

@@ -1,6 +1,6 @@
-<div class="tr-head">Programmi e FAI <span class="ts-chip info">{{ tech_open_count }} da fare</span></div>
+<div class="tr-head">Programmi e FAI <span class="ts-chip info">{{ tech_open_count }} da fare</span>{% if tech_can_add %}<button type="button" class="btn btn-secondary btn-sm tr-apri" data-tr-apri>+ Aggiungi</button>{% endif %}</div>
 {% if tech_show_form %}
-<div class="tr-row" data-tr-form data-default-owner="{{ tech_default_owner }}"{% if not tech_can_add %} hidden{% endif %}>
+<div class="tr-row" data-tr-form data-default-owner="{{ tech_default_owner }}" hidden>
   <select class="input" data-tr="kind" aria-label="Tipo">
     {% for value, label in tech_kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
   </select>
@@ -13,7 +13,7 @@
   <input class="input" type="date" data-tr="due" aria-label="Entro il">
   <button type="button" class="btn" data-tr="save">Aggiungi</button>
 </div>
-<p class="tr-hint"{% if not tech_can_add %} hidden{% endif %}>Tutto facoltativo: basta il codice, il percorso o il responsabile. Invio per salvare e scriverne un altro.</p>
+<p class="tr-hint" data-tr-hint hidden>Tutto facoltativo: basta il codice, il percorso o il responsabile. Invio per salvare e scriverne un altro.</p>
 <p class="tr-err" data-tr="err" role="alert" hidden></p>
 {% endif %}
 

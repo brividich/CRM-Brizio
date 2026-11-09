@@ -93,6 +93,20 @@
     invia(block, dati);
   });
 
+  /* Filtri del Percorso: tutte, le mie, in ritardo, da assegnare (solo a video). */
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-tp-filtro]');
+    if (!btn) { return; }
+    var block = btn.closest('[data-tp-block]');
+    var filtro = btn.getAttribute('data-tp-filtro');
+    block.querySelectorAll('[data-tp-filtro]').forEach(function (b) { b.classList.toggle('is-on', b === btn); });
+    block.querySelectorAll('[data-tp-row]').forEach(function (r) {
+      var ok = !filtro || (filtro === 'mie' && r.dataset.mie === '1') || (filtro === 'ritardo' && r.dataset.stato === 'ritardo') ||
+        (filtro === 'vuota' && r.dataset.stato === 'vuota');
+      r.hidden = !ok;
+    });
+  });
+
   /* Utensili della commessa: aggiungi, cambia stato, togli. */
   function utensili(block, dati) {
     if (!block.dataset.utensili) { return; }

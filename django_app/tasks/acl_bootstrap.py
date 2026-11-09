@@ -8,7 +8,7 @@ from core.acl_bootstrap_base import run_bootstrap
 
 logger = logging.getLogger(__name__)
 
-_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v25"
+_BOOTSTRAP_CACHE_KEY = "tasks_acl_bootstrap_v26"
 
 MODULE = "tasks"
 
@@ -111,6 +111,7 @@ _ROUTE_BINDINGS = {
     "tasks:incontri_lista": "tasks.kickoff.view",
     # Azioni e problemi assegnati a me: la view filtra sul responsabile.
     "tasks:mie_azioni": "tasks.kickoff.view",
+    "tasks:cruscotto_commesse": "tasks.kickoff.view",
     "tasks:mia_voce_stato": "tasks.kickoff.view",
     "tasks:guida": "tasks.kickoff.view",
     # Proporre un punto e' consentito ai convocati: la view verifica che

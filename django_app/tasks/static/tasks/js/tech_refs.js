@@ -114,8 +114,15 @@
       dati.append('due_date', f('due').value);
       if (modifica) { dati.append('ref_id', modifica); }
       errore('');
+      var eraNuovo = !modifica;
       invia(block.dataset.saveUrl, dati, function () {
-        /* Si riparte dallo stesso tipo e responsabile: i codici si inseriscono di fila. */
+        /* Dopo un inserimento la riga resta aperta: i codici si inseriscono di fila. */
+        if (eraNuovo) {
+          var form = block.querySelector('[data-tr-form]');
+          var hint = block.querySelector('[data-tr-hint]');
+          if (form) { form.hidden = false; }
+          if (hint) { hint.hidden = false; }
+        }
         if (f('kind')) {
           f('kind').value = ultimoTipo;
           saltaResponsabile = teniResp;
@@ -143,6 +150,15 @@
     }
 
     block.addEventListener('click', function (e) {
+      /* La riga di inserimento resta chiusa finché non serve. */
+      if (e.target.closest('[data-tr-apri]')) {
+        var form = block.querySelector('[data-tr-form]');
+        var hint = block.querySelector('[data-tr-hint]');
+        form.hidden = !form.hidden;
+        if (hint) { hint.hidden = form.hidden; }
+        if (!form.hidden && f('code')) { f('code').focus(); }
+        return;
+      }
       if (e.target.closest('[data-tr="save"]')) { salva(); return; }
       var sceltaFai = e.target.closest('[data-tr-fai]');
       if (sceltaFai) {

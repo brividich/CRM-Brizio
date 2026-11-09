@@ -134,3 +134,61 @@ def stato_consegna(project) -> dict | None:
         due_date__gt=project.data_consegna
     ).exists()
     return {"data": project.data_consegna, "giorni": (project.data_consegna - oggi).days, "a_rischio": a_rischio}
+
+
+
+def cruscotto(request, progetti) -> list[dict]:
+    """Una riga per commessa: percorso, consegna, spostamenti da decidere, prossimo incontro, passo più urgente."""
+    from ..models import SpostamentoStato, TaskSpostamento
+    from .tappe import percorso
+
+    oggi = timezone.localdate()
+    spostamenti = {}
+    for pid in TaskSpostamento.objects.filter(
+        stato=SpostamentoStato.IN_ATTESA, task__project__in=progetti
+    ).values_list("task__project_id", flat=True):
+        spostamenti[pid] = spostamenti.get(pid, 0) + 1
+    righe = []
+    for p in progetti:
+        tappe = percorso(p)
+        prossimo = (
+            p.meetings.filter(stato=MeetingStatus.PIANIFICATO, data__gte=oggi).order_by("data", "ora").first()
+        )
+        passi = prossimi_passi(p, tappe=tappe, limite=1)
+        righe.append({
+            "project": p,
+            "tappe": tappe,
+            "consegna": stato_consegna(p),
+            "spostamenti": spostamenti.get(p.pk, 0),
+            "prossimo": prossimo,
+            "passo": passi[0] if passi else None,
+            "ritardo": sum(1 for r in tappe["righe"] if r["stato"] == "ritardo"),
+        })
+    # Prima chi ha problemi: ritardi, consegna a rischio, decisioni da prendere.
+    righe.sort(key=lambda r: (
+        -(r["ritardo"] + (2 if r["consegna"] and r["consegna"]["a_rischio"] else 0) + r["spostamenti"]),
+        r["consegna"]["data"] if r["consegna"] else timezone.localdate().replace(year=9999),
+    ))
+    return righe
+
+
+
+def durate_reali(modello) -> dict[str, dict]:
+    """Per ogni tappa: quanti giorni prima della consegna è stata davvero chiusa (media sulle commesse del modello)."""
+    from ..models import Task, TaskEvent, TaskEventType, TaskStatus
+
+    valori: dict[str, list[int]] = {}
+    tasks = (
+        Task.objects.filter(project__modello=modello, project__data_consegna__isnull=False, status=TaskStatus.DONE)
+        .exclude(category__tappa="").select_related("project", "category")
+    )
+    for t in tasks:
+        # Niente ricerca dentro il JSON nel database (su SQL Server non è affidabile): si guarda in Python.
+        evento = next(
+            (e for e in TaskEvent.objects.filter(task=t, type=TaskEventType.STATUS_CHANGE).order_by("-created_at")
+             if (e.payload or {}).get("to") == TaskStatus.DONE),
+            None,
+        )
+        fatta = timezone.localtime(evento.created_at).date() if evento else timezone.localtime(t.updated_at).date()
+        valori.setdefault(t.category.tappa, []).append((t.project.data_consegna - fatta).days)
+    return {k: {"media": round(sum(v) / len(v)), "n": len(v)} for k, v in valori.items() if v}
