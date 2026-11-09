@@ -16,7 +16,7 @@
 .dpi-hero-sub { font-size:12px; opacity:.8; margin-top:2px; }
 .dpi-hero a { color:#fff; font-size:12px; font-weight:700; }
 
-.dpi-kpi { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.dpi-kpi { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; }
 .dpi-kpi-box { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:10px 14px; text-align:left; cursor:pointer; font:inherit; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
 .dpi-kpi-box:hover { border-color:#94a3b8; }
 .dpi-kpi-box.attivo { border-color:#16a34a; box-shadow:0 0 0 2px rgba(22,163,74,.25); }
@@ -58,6 +58,10 @@
 .banco-tasti kbd { display:inline-block; padding:0 5px; border:1px solid #cbd5e1; border-bottom-width:2px; border-radius:4px; background:#fff; font:inherit; font-size:10px; font-weight:700; margin:0 1px; }
 @media (pointer:coarse) { .banco-tasti { display:none; } }
 .dpi-riga-manca { border-color:#fecaca; }
+.dpi-riga-attesa { border-style:dashed; background:#fff; cursor:default; }
+.dpi-riga-attesa .dpi-riga-ico { color:#64748b; }
+.dpi-attese { margin-top:6px; }
+.dpi-btn-sm { padding:6px 12px; font-size:12px; min-height:0; }
 details > summary.dpi-card-title { cursor:pointer; margin-bottom:0; }
 details[open] > summary.dpi-card-title { margin-bottom:10px; }
 .dpi-toggle { font-size:13px; font-weight:600; color:#475569; text-decoration:none; background:#f1f5f9; border:1px solid #e2e8f0; padding:9px 14px; border-radius:10px; }
@@ -74,6 +78,7 @@ details[open] > summary.dpi-card-title { margin-bottom:10px; }
 .dpi-pill-pronta { background:#d1fae5; color:#065f46; }
 .dpi-pill-prep { background:#fef3c7; color:#92400e; }
 .dpi-pill-manca { background:#fee2e2; color:#991b1b; }
+.dpi-pill-attesa { background:#dbeafe; color:#1e40af; }
 
 .dpi-righe { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
 .dpi-riga { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; cursor:pointer; }
@@ -147,6 +152,8 @@ body.theme-dark .dpi-giac.manca { color:#fca5a5; }
 body.theme-dark .dpi-pill-pronta { background:rgba(6,95,70,.25); color:#6ee7b7; }
 body.theme-dark .dpi-pill-prep { background:rgba(146,64,14,.25); color:#fcd34d; }
 body.theme-dark .dpi-pill-manca { background:rgba(153,27,27,.2); color:#fca5a5; }
+body.theme-dark .dpi-pill-attesa { background:rgba(30,64,175,.3); color:#93c5fd; }
+body.theme-dark .dpi-riga-attesa { background:var(--surface); }
 body.theme-dark .dpi-consegna { background:rgba(21,128,61,.12); border-color:rgba(21,128,61,.35); }
 body.theme-dark .dpi-field label, body.theme-dark .dpi-check { color:var(--text-mid); }
 body.theme-dark .dpi-firma { background:var(--surface); border-color:var(--border); }
@@ -159,6 +166,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
 /* Telefono e tablet stretto: una colonna */
 @media (max-width:720px) {
   .dpi-kpi { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .dpi-kpi-box:last-child { grid-column:1/-1; }
   .dpi-consegna-grid, .dpi-diretta-grid { grid-template-columns:minmax(0,1fr); }
   .dpi-card { padding:14px; }
   .dpi-riga { flex-wrap:wrap; }
@@ -198,10 +206,10 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     {% include "dpi/components/_banco_lavoro.html" %}
   </div>
 
-  {% if modelli_diretti %}
+  {% if modelli_banco %}
   <details class="dpi-card" id="diretta">
-    <summary class="dpi-card-title">Consegna diretta al banco (consumabili)</summary>
-    <p class="dpi-hint">Per i consumabili (categorie con «Consegna diretta dal banco»): niente richiesta da approvare. Scegli persona e DPI, poi registra la consegna nella sua scheda qui sotto.</p>
+    <summary class="dpi-card-title">Consegna senza richiesta</summary>
+    <p class="dpi-hint">La persona è al banco e chiede un DPI che nessuno ha richiesto: scegli persona e DPI, «Aggiungi al banco» apre la sua scheda con il DPI già spuntato, poi confermi con badge o con mail. Le categorie segnate «senza approvazione» sono i consumabili; per le altre resta scritto nella richiesta e il report di consegna arriva al responsabile. Le scarpe si ordinano al negozio e non passano da qui.</p>
     <form method="post" class="dpi-diretta-grid">
       {% csrf_token %}
       <input type="hidden" name="azione" value="diretta">
@@ -217,9 +225,9 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
         <label for="diretta-mod">DPI</label>
         <select name="modello_dpi_id" id="diretta-mod" required>
           <option value="">Scegli…</option>
-          {% regroup modelli_diretti by tipo.categoria.nome as per_cat %}
+          {% regroup modelli_banco by tipo.categoria as per_cat %}
           {% for gruppo in per_cat %}
-          <optgroup label="{{ gruppo.grouper }}">
+          <optgroup label="{{ gruppo.grouper.nome }}{% if gruppo.grouper.consegna_diretta %} · senza approvazione{% endif %}">
             {% for m in gruppo.list %}<option value="{{ m.pk }}">{{ m.nome }} ({{ m.codice }}) · in magazzino {{ m.giacenza }}</option>{% endfor %}
           </optgroup>
           {% endfor %}
@@ -229,7 +237,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
         <label for="diretta-taglia">Taglia</label>
         <select name="taglia_dpi_id" id="diretta-taglia">
           <option value="">-</option>
-          {% for m in modelli_diretti %}{% for t in m.taglie_attive %}<option value="{{ t.pk }}" data-modello="{{ m.pk }}" hidden>{{ t.valore }}</option>{% endfor %}{% endfor %}
+          {% for m in modelli_banco %}{% for t in m.taglie_attive %}<option value="{{ t.pk }}" data-modello="{{ m.pk }}" hidden>{{ t.valore }}</option>{% endfor %}{% endfor %}
         </select>
       </div>
       <div class="dpi-field">
@@ -630,6 +638,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
     if (canvas) card.querySelector('input[name=firma_immagine]').value = canvas._ink ? canvas.toDataURL('image/png') : '';
     var dati = new FormData(form);
     if (bottone && bottone.value === 'pronta') dati.delete('cambia_richiesta');
+    if (bottone && bottone.hasAttribute('data-approva')) dati.set('approva_richiesta', bottone.getAttribute('data-richiesta'));
     if (bottone && bottone.name) dati.set(bottone.name, bottone.value);
     var azione = dati.get('azione');
     occupato = true;
@@ -698,6 +707,7 @@ body.theme-dark .dpi-empty { color:var(--text-light); }
       var dip = document.getElementById('diretta-dip');
       var persona = el.getAttribute('data-apri-diretta');
       if (persona && dip) { if (dip.tomselect) dip.tomselect.setValue(persona); else dip.value = persona; }
+      else if (dip && dip.tomselect && cerca.value.trim()) { dip.tomselect.clear(true); dip.tomselect.open(); dip.tomselect.setTextboxValue(cerca.value.trim()); dip.tomselect.refreshOptions(false); }
       box.scrollIntoView({behavior: 'smooth', block: 'center'});
       var mod = document.getElementById('diretta-mod');
       if (mod) mod.focus();

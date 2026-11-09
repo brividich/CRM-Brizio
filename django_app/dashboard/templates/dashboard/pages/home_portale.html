@@ -167,7 +167,7 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
           <form class="hs-banco-cerca" method="get" action="{{ banco_dpi.url }}">
             <input type="search" name="cerca" class="input" placeholder="Chi è al banco? Nome o reparto…" aria-label="Cerca la persona al banco" autocomplete="off">
             <button type="submit" class="btn btn-primary btn-sm">Cerca</button>
-            {% if banco_dpi.consegna_diretta %}<a href="{{ banco_dpi.url }}#diretta" class="btn btn-secondary btn-sm">Consegna diretta</a>{% endif %}
+            {% if banco_dpi.consegna_diretta %}<a href="{{ banco_dpi.url }}#diretta" class="btn btn-secondary btn-sm">Consegna senza richiesta</a>{% endif %}
           </form>
           {% if banco_dpi.persone %}
           <ul class="hp-list">

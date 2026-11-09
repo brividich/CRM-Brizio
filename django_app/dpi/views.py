@@ -2101,21 +2101,69 @@ def _chiave_persona(richiesta: RichiestaDPI) -> str:
     return "n" + "".join(c for c in (richiesta.richiedente_nome or "").casefold() if c.isalnum())[:40]
 
 
-def _banco_persone(qs, giac: dict) -> list[dict]:
-    """Richieste del banco raggruppate per persona (pagina Banco e pannello della home)."""
+def _inviate_queryset(request):
+    """Richieste ancora da approvare (stato «Inviata»), nel perimetro di chi gestisce:
+    al banco si vedono ma non si consegnano."""
+    qs = RichiestaDPI.objects.filter(stato=StatoRichiesta.INVIATA).select_related(
+        "categoria", "tipo_dpi", "modello_dpi", "taglia_dpi"
+    )
+    if sistema_ruoli_attivo():
+        ids = _anagrafiche_visibili(request, "gestire")
+        if ids is not None:
+            qs = qs.filter(richiedente_legacy_id__in=list(ids))
+    return qs
+
+
+def _nomi_anagrafiche(ids: set[int]) -> dict[int, str]:
+    """Nome e cognome per id legacy anagrafica (chi deve approvare, da dire al banco)."""
+    if not ids:
+        return {}
+    try:
+        from core.legacy_models import AnagraficaDipendente
+
+        return {
+            ad.pk: naming.nome_completo(ad.nome, ad.cognome) or ad.aliasusername or f"#{ad.pk}"
+            for ad in AnagraficaDipendente.objects.filter(pk__in=list(ids))
+        }
+    except Exception:
+        return {}
+
+
+def _banco_persone(qs, giac: dict, inviate=None, puo_approvare=None) -> list[dict]:
+    """Richieste del banco raggruppate per persona (pagina Banco e pannello della home).
+
+    ``inviate``: richieste non ancora approvate dal responsabile, mostrate nella scheda
+    della persona come «in attesa» (non spuntabili); ``puo_approvare(r)`` dice se chi e'
+    al banco puo' approvarle lui."""
     gruppi: dict[str, dict] = {}
-    for r in qs.order_by("richiedente_nome", "created_at"):
+
+    def gruppo(r):
         chiave = _chiave_persona(r)
-        g = gruppi.setdefault(chiave, {
+        return gruppi.setdefault(chiave, {
             "chiave": chiave, "nome": r.richiedente_nome, "reparto": r.richiedente_reparto,
             "legacy_id": r.richiedente_legacy_id,
-            "righe": [], "n_pronte": 0, "n_da_preparare": 0, "n_mancanti": 0,
+            "righe": [], "attese": [], "n_pronte": 0, "n_da_preparare": 0, "n_mancanti": 0, "n_attesa": 0,
         })
+
+    for r in qs.order_by("richiedente_nome", "created_at"):
+        g = gruppo(r)
         g_mod = giac.get(r.modello_dpi_id, 0) if r.modello_dpi_id and not r.modalita_negozio else None
         manca = bool(giac) and g_mod is not None and g_mod < r.quantita  # senza movimenti il magazzino non e' in uso
         g["righe"].append({"r": r, "giacenza": g_mod, "manca": manca})
         g["n_pronte" if r.pronta_ritiro_il else "n_da_preparare"] += 1
         g["n_mancanti"] += int(manca)
+    if inviate is not None:
+        attese = list(inviate.order_by("richiedente_nome", "created_at"))
+        approvatori = {r.pk: flusso.approvatori_di(r.richiedente_legacy_id) for r in attese}
+        nomi = _nomi_anagrafiche(set().union(*approvatori.values()) if approvatori else set())
+        for r in attese:
+            g = gruppo(r)
+            g["attese"].append({
+                "r": r,
+                "approvatori": sorted((nomi[i] for i in approvatori[r.pk] if i in nomi), key=str.casefold),
+                "puo_approvare": bool(puo_approvare and puo_approvare(r)),
+            })
+            g["n_attesa"] += 1
     return sorted(gruppi.values(), key=lambda g: (g["nome"] or "").casefold())
 
 
@@ -2139,16 +2187,21 @@ def _banco_selezionate(request) -> list[RichiestaDPI]:
 
 
 def _banco_consegna_diretta(request, tutte: bool):
-    """Consumabili (categorie con «Consegna diretta»): il magazzino crea la richiesta gia'
-    approvata per il dipendente al banco; poi la consegna con la firma come le altre."""
+    """Consegna al banco senza richiesta: la persona e' al banco e chiede un DPI che nessuno
+    aveva richiesto. Chi gestisce crea la richiesta gia' approvata e poi la consegna con badge,
+    mail o firma come le altre. Vale per ogni DPI del catalogo tranne le scarpe al negozio;
+    per le categorie che di norma passano dal responsabile resta scritto nella richiesta, e il
+    report di consegna gli arriva come sempre."""
     scelti = {d["id"]: d["nome"] for d in _dipendenti_selezionabili(request)}
     legacy_id = _int_or_none(request.POST.get("dipendente"))
     if not legacy_id or legacy_id not in scelti:
         messages.error(request, "Scegli il dipendente a cui consegni il DPI.")
         return _banco_redirect(tutte=tutte)
     categoria, tipo_dpi, modello_dpi, taglia_dpi, errors = _resolve_richiesta_catalog_selection(request.POST)
-    if not errors and (modello_dpi is None or not categoria.consegna_diretta):
-        errors.append("Scegli un DPI di una categoria con «Consegna diretta dal banco».")
+    if not errors and modello_dpi is None:
+        errors.append("Scegli il DPI da consegnare.")
+    if not errors and categoria.si_ordina_al_negozio:
+        errors.append("Le scarpe si ordinano al negozio: la persona fa la richiesta scegliendo la convenzione.")
     if errors:
         for e in errors:
             messages.error(request, e)
@@ -2156,22 +2209,46 @@ def _banco_consegna_diretta(request, tutte: bool):
     quantita = max(1, _int_or_none(request.POST.get("quantita")) or 1)
     info = _richiedente_info(request, legacy_id)
     autore = request.user.get_full_name() or request.user.username
+    if categoria.consegna_diretta:
+        perche = "categoria con «Consegna diretta dal banco», senza approvazione"
+    else:
+        perche = "categoria che di norma passa dall'approvazione del responsabile: il report di consegna gli arriva"
     r = RichiestaDPI.objects.create(
         categoria=categoria, tipo_dpi=tipo_dpi, modello_dpi=modello_dpi, taglia_dpi=taglia_dpi,
         quantita=quantita, motivazione=request.POST.get("motivazione", "").strip(),
         stato=StatoRichiesta.APPROVATA,
         richiedente_legacy_id=legacy_id, richiedente_nome=info["nome"] or scelti[legacy_id],
         richiedente_email=info["email"], richiedente_reparto=info["reparto"],
-        note_gestione=f"[Consegna diretta al banco: inserita da {autore}]",
+        note_gestione=f"[Consegna diretta al banco senza richiesta: inserita da {autore}]",
         created_by=request.user,
     )
     RichiestaDPICommento.objects.create(
         richiesta=r, autore_nome="Portale", is_interno=False,
-        testo=f"Consegna diretta al banco ({categoria.nome}: categoria senza approvazione), inserita da {autore}.",
+        testo=f"Consegna diretta al banco senza richiesta ({categoria.nome}: {perche}), inserita da {autore}.",
     )
     log_action(request, "crea", "dpi", f"Consegna diretta al banco {r.numero} - {categoria.nome} per {r.richiedente_nome}")
     messages.success(request, f"{r.numero} aggiunta: registra la consegna a {r.richiedente_nome}.")
     return _banco_redirect("apri-" + _chiave_persona(r), tutte)
+
+
+def _banco_approva(request, tutte: bool):
+    """Richiesta in attesa mostrata al banco: chi e' al banco la approva se ne ha il diritto
+    (responsabile/preposto della persona o gestore di ripiego), poi la consegna subito."""
+    r = _inviate_queryset(request).filter(pk=_int_or_none(request.POST.get("approva_richiesta"))).first()
+    if r is None:
+        messages.error(request, "Richiesta non trovata tra quelle in attesa di approvazione.")
+        return _banco_redirect(tutte=tutte)
+    chiave = _chiave_persona(r)
+    if not _can_approve(request, r):
+        messages.error(request, f"{r.numero}: l'approvazione spetta al responsabile della persona.")
+        return _banco_redirect(chiave, tutte)
+    _approva(request, r)
+    RichiestaDPICommento.objects.create(
+        richiesta=r, autore_nome=request.user.get_full_name() or request.user.username, is_interno=False,
+        testo="Approvata al Banco consegne, con la persona al banco.",
+    )
+    messages.success(request, f"Richiesta {r.numero} approvata: ora si può consegnare.")
+    return _banco_redirect(chiave, tutte)
 
 
 def _banco_cambia_modello(request, tutte: bool):
@@ -2285,6 +2362,8 @@ def _banco_azione(request):
         return _banco_consegna_diretta(request, tutte)
     if azione == "cambia":
         return _banco_cambia_modello(request, tutte)
+    if azione == "approva":
+        return _banco_approva(request, tutte)
     if azione == "avvisi":
         _completa_in_sospeso(request, _banco_in_sospeso(request))
         return _banco_redirect(tutte=tutte)
@@ -2396,13 +2475,13 @@ def banco(request):
         return render(request, "dpi/components/_banco_lavoro.html", contesto)
     if contesto["ha_diretta"]:
         giac = magazzino.giacenze()
-        modelli_diretti = list(_modelli_diretti().select_related("tipo", "tipo__categoria").prefetch_related("taglie").order_by(
-            "tipo__categoria__order_index", "tipo__categoria__nome", "tipo__ordine", "nome"
+        modelli_banco = list(_modelli_banco().select_related("tipo", "tipo__categoria").prefetch_related("taglie").order_by(
+            "-tipo__categoria__consegna_diretta", "tipo__categoria__order_index", "tipo__categoria__nome", "tipo__ordine", "nome"
         ))
-        for m in modelli_diretti:
+        for m in modelli_banco:
             m.giacenza = giac.get(m.pk, 0)
             m.taglie_attive = [t for t in m.taglie.all() if t.is_active]
-        contesto["modelli_diretti"] = modelli_diretti
+        contesto["modelli_banco"] = modelli_banco
         contesto["dipendenti"] = _dipendenti_selezionabili(request)
     contesto["cerca"] = request.GET.get("cerca", "").strip()[:80]
     contesto["catalogo_modelli"] = _banco_catalogo()
@@ -2483,21 +2562,29 @@ def banco_prelievo(request):
     })
 
 
-def _modelli_diretti():
+def _modelli_banco():
+    """DPI consegnabili al banco senza una richiesta: tutto il catalogo attivo tranne le scarpe
+    che si ordinano al negozio."""
     return ModelloDPI.objects.filter(
         is_active=True, tipo__is_active=True, tipo__categoria__is_active=True,
-        tipo__categoria__consegna_diretta=True,
+        tipo__categoria__si_ordina_al_negozio=False,
     )
 
 
 def _banco_contesto(request, tutte: bool) -> dict:
-    """La parte di lavoro del banco: numeri, persone, conferme."""
+    """La parte di lavoro del banco: numeri, persone, richieste in attesa, conferme."""
     qs = _banco_queryset(request)
+    inviate = _inviate_queryset(request)
     n_altre = qs.filter(categoria__consegna_magazzino=False).count()
     if not tutte:
         qs = qs.filter(categoria__consegna_magazzino=True)
+        inviate = inviate.filter(categoria__consegna_magazzino=True)
     giac = magazzino.giacenze()
-    persone = _banco_persone(qs, giac)
+    scope_approvatore = None if sistema_ruoli_attivo() else _scope_approvatore(request)
+    persone = _banco_persone(
+        qs, giac, inviate=inviate,
+        puo_approvare=lambda r: _can_approve(request, r, scope=scope_approvatore),
+    )
     from anagrafica.models import DipendenteAnagraficaAziendale
 
     con_badge = set(DipendenteAnagraficaAziendale.objects.exclude(badge="").filter(
@@ -2525,9 +2612,10 @@ def _banco_contesto(request, tutte: bool) -> dict:
         "n_pronte": sum(g["n_pronte"] for g in persone),
         "n_da_preparare": sum(g["n_da_preparare"] for g in persone),
         "n_mancanti": sum(g["n_mancanti"] for g in persone),
+        "n_attesa": sum(g["n_attesa"] for g in persone),
         "n_altre": n_altre,
         "tutte": tutte,
         "oggi": timezone.localdate(),
         "avviso_all_approvazione": DPIImpostazioni.get_singleton().avviso_ritiro_all_approvazione,
-        "ha_diretta": _modelli_diretti().exists(),
+        "ha_diretta": _modelli_banco().exists(),
     }

@@ -21,8 +21,8 @@ def riepilogo_banco(request) -> dict | None:
     """Dati del pannello, o None se l'utente non gestisce le consegne DPI."""
     try:
         from . import magazzino
-        from .models import ConfermaConsegnaDPI, ModelloDPI
-        from .views import _banco_conferme_qs, _banco_persone, _banco_queryset, _is_gestore
+        from .models import ConfermaConsegnaDPI
+        from .views import _banco_conferme_qs, _banco_persone, _banco_queryset, _is_gestore, _modelli_banco
 
         if not _is_gestore(request):
             return None
@@ -45,10 +45,7 @@ def riepilogo_banco(request) -> dict | None:
             "n_contestate": conferme.filter(
                 stato=ConfermaConsegnaDPI.Stato.CONTESTATA, decisa_il__gte=timezone.now() - timedelta(days=30)
             ).count(),
-            "consegna_diretta": ModelloDPI.objects.filter(
-                is_active=True, tipo__is_active=True, tipo__categoria__is_active=True,
-                tipo__categoria__consegna_diretta=True,
-            ).exists(),
+            "consegna_diretta": _modelli_banco().exists(),
         }
     except Exception:
         logger.exception("Home: pannello banco DPI non calcolato")

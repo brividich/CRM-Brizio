@@ -87,8 +87,9 @@ GUIDA = {
             "titolo": "Banco consegne (magazzino)",
             "blocchi": [
                 ("p", "DPI → «Banco consegne» è la pagina di lavoro del magazzino: tutte le richieste approvate da "
-                      "preparare e consegnare, raggruppate per persona. In alto i numeri: «Persone in attesa», «Da preparare», "
-                      "«Pronti al ritiro» e «Giacenza insufficiente»."),
+                      "preparare e consegnare, raggruppate per persona, e sotto di esse anche le richieste che il responsabile "
+                      "non ha ancora approvato. In alto i numeri: «Persone in attesa», «Da preparare», "
+                      "«Pronti al ritiro», «Giacenza insufficiente» e «In attesa di approvazione»."),
                 ("passi", [
                     "Quando la persona arriva scrivi il nome in «Cerca la persona al banco» (vale anche il reparto, il numero della richiesta o il codice del modello; il badge si passa solo sul lettore). "
                     "Se resta una sola persona la sua scheda si apre da sola; altrimenti cliccala nell'elenco.",
@@ -108,7 +109,7 @@ GUIDA = {
                     "I riquadri in alto («Da preparare», «Pronti al ritiro», «Giacenza insufficiente») filtrano l'elenco: un secondo clic toglie il filtro.",
                     "L'elenco si aggiorna da solo ogni minuto se non stai lavorando su una persona.",
                     "Con un lettore di badge (o di un QR che contiene il codice del badge) leggi il badge nella ricerca: il codice è quello della scheda in Anagrafica. "
-                    "Se la persona non ha DPI da ritirare lo dice e offre «Consegna diretta».",
+                    "Se la persona non ha DPI da ritirare lo dice e offre «Consegna senza richiesta».",
                     "«Lista di prelievo» raccoglie tutto ciò che è da preparare, sommato per modello e taglia con le persone: si stampa e con «Pronti: avvisa gli spuntati» manda l'avviso di ritiro in blocco.",
                 ]),
                 ("p", "Conferma della ricevuta via mail: una sola mail per tutti i DPI consegnati insieme, con i pulsanti "
@@ -132,13 +133,22 @@ GUIDA = {
                       "che il numero non è nell'Anagrafica, è su due persone o la persona è fuori dal tuo perimetro: cerca per nome. Dopo 20 badge non riconosciuti in 10 minuti la lettura si sospende per qualche minuto. Se il lettore è pronto ma al passaggio non succede nulla, sul lettore 3022L controlla la levetta 2 del blocchetto SW1 sulla piastra: con quella in posizione originale non trasmette."),
                 ("p", "Ogni consegna fatta dal banco vale come quella dalla scheda richiesta: PDF nei documenti del dipendente, "
                       "scarico del magazzino, sostituzione del DPI precedente dello stesso tipo, report al responsabile."),
-                ("p", "«Consegna diretta al banco» (solo se qualche categoria ha la spunta «Consegna diretta dal banco»): scegli "
-                      "dipendente, DPI, taglia e quantità e clicca «Aggiungi al banco». La richiesta nasce già approvata, senza "
-                      "passare dal responsabile, e si apre subito la sua scheda. Il riquadro è chiuso finché non serve; «+ Consumabile» nella scheda lo apre con la persona già scelta."),
+                ("p", "Richieste in attesa di approvazione: nella scheda della persona, sotto i DPI da consegnare, compaiono "
+                      "tratteggiate le richieste ancora da approvare, con scritto chi deve approvarle (il responsabile o il preposto "
+                      "della persona). Non si spuntano e non si consegnano. Se chi è al banco può approvarle (responsabile della persona, "
+                      "oppure gestore DPI di ripiego) ha il pulsante «Approva»: la richiesta passa tra quelle da consegnare, con un "
+                      "commento «Approvata al Banco consegne», e si consegna subito. Il riquadro «In attesa di approvazione» in alto le filtra."),
+                ("p", "«Consegna senza richiesta»: la persona è al banco e chiede un DPI che nessuno ha richiesto. Nella sua scheda "
+                      "«+ DPI senza richiesta» (o il pulsante «Consegna senza richiesta» quando la ricerca non trova nessuno) apre il "
+                      "riquadro con la persona già scelta: scegli DPI, taglia e quantità e clicca «Aggiungi al banco». La richiesta nasce "
+                      "già approvata, la scheda si apre con il DPI spuntato e la confermi con badge o con mail come le altre. Vale per "
+                      "tutto il catalogo tranne le scarpe che si ordinano al negozio. Le categorie segnate «senza approvazione» sono i "
+                      "consumabili (spunta «Consegna diretta dal banco» in Impostazioni); per le altre nella richiesta resta scritto che di "
+                      "norma passano dal responsabile, e il report di consegna gli arriva come sempre."),
                 ("p", "In home, stanza «Oggi», chi gestisce le consegne trova il riquadro «Banco consegne DPI»: i numeri del banco "
                       "(persone in attesa, da preparare, pronti al ritiro, giacenza insufficiente, conferme in attesa e contestate), "
                       "le prime 6 persone con il pulsante «Consegna» che apre direttamente la loro consegna, la casella «Chi è al banco?» "
-                      "(se il nome trova una sola persona si apre subito la sua consegna) e «Consegna diretta». "
+                      "(se il nome trova una sola persona si apre subito la sua consegna) e «Consegna senza richiesta». "
                       "Si nasconde da «⚙ Personalizza» togliendo la spunta «Banco consegne DPI»."),
                 ("p", "Il PDF del modulo di consegna riporta numero della richiesta, DPI, modello con codice, taglia, quantità e "
                       "scadenza; nel riquadro «Ricevuta» la firma del banco, oppure l'esito della conferma via mail (chi ha "
@@ -189,7 +199,7 @@ GUIDA = {
                     "magazzino» (per esempio le scarpe) va invece ai referenti DPI («Responsabili» + «Email notifiche aggiuntive»). "
                     "Il pulsante «Apri il Banco consegne» della mail apre il banco sulla scheda della persona (con l'accesso "
                     "Windows attivo, dai PC del dominio si entra senza password).",
-                    "Consegna diretta al banco: nessuna mail di approvazione né «Da consegnare»; alla consegna parte il report come sempre.",
+                    "Consegna senza richiesta dal banco: nessuna mail di approvazione né «Da consegnare»; alla consegna parte il report come sempre.",
                     "Consegna registrata senza firma né ricevuta su carta: mail «Conferma la ricevuta dei DPI» al dipendente (mail "
                     "aziendale) o al caporeparto; «Non li ho ricevuti» → mail «Consegna contestata» al Magazzino; dopo 3 giorni "
                     "senza risposta un promemoria (task delle 07:10). Le due mail sono le regole «DPI consegnato - conferma "

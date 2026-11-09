@@ -387,3 +387,27 @@ body.theme-dark .fmd .mcf-ko{ color:#fca5a5; }
   .mcf-table .mcf-num, .mcf-tot-l{ text-align:left; }
   .mcf-table .mcf-classe, .mcf-table .mcf-coeff{ max-width:100%; width:100%; }
 }
+
+
+/* ── Scheda competenza: il filo ruoli → mansioni → competenza → requisito ── */
+.mns-filo{ display:flex; flex-wrap:wrap; align-items:stretch; gap:8px; margin:14px 0 4px; }
+.mns-filo-step{ flex:1 1 180px; display:flex; flex-direction:column; gap:6px; padding:10px 12px; border:1px solid var(--fmd-line); border-radius:10px; background:#fff; min-width:0; }
+.mns-filo-step.mns-filo-qui{ border-color:var(--fmd-cyan); box-shadow:inset 3px 0 0 var(--fmd-cyan); }
+.mns-filo-l{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--fmd-muted); }
+.mns-filo-v{ display:flex; flex-wrap:wrap; gap:5px; font-size:13px; color:var(--fmd-ink); }
+.mns-filo-v a.fmd-badge{ text-decoration:none; }
+.mns-filo-arr{ align-self:center; color:var(--fmd-muted); font-size:18px; font-weight:700; }
+@media (max-width:720px){ .mns-filo-arr{ display:none; } }
+.mns-cmp-riga{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; padding:2px 0; font-size:12.5px; }
+.mns-lv-x b{ background:#cbd5e1; }
+.mns-req{ border:1px solid var(--fmd-line); border-radius:10px; padding:10px 12px; margin-bottom:10px; }
+.mns-req-h{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+.mns-req-chips{ padding:8px 0 0; }
+.mns-req-ok{ font-size:12.5px; padding-top:6px; }
+/* Arrivando da un altro punto del filo (#ruolo-N) il gruppo si fa notare. */
+.mns-gruppo{ scroll-margin-top:90px; }
+.mns-gruppo:target{ box-shadow:0 0 0 2px var(--fmd-cyan); }
+body.theme-dark .fmd .mns-filo-step{ background:var(--surface); border-color:var(--border); }
+body.theme-dark .fmd .mns-filo-v{ color:var(--text); }
+body.theme-dark .fmd .mns-req{ border-color:var(--border); }
+body.theme-dark .fmd .mns-lv-x b{ background:#475569; }

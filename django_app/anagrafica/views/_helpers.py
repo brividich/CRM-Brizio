@@ -419,6 +419,20 @@ def _periodo_da_request(request) -> tuple[date | None, date | None]:
     return dal, al
 
 
+def _con_mansioni(ruoli) -> None:
+    """Mette su ogni ruolo ``mansioni_list``: le mansioni attive del Mansionario
+    che stanno sotto quel ruolo (il filo ruolo → mansione → competenza)."""
+    from ..models import CompetenzaSkm
+    from ..services.mansionario_struttura import TIPI_MANSIONE
+
+    per_ruolo: dict[int, list] = {}
+    for m in CompetenzaSkm.objects.filter(attiva=True, tipo__in=TIPI_MANSIONE).prefetch_related("ruoli"):
+        for r in m.ruoli.all():
+            per_ruolo.setdefault(r.pk, []).append(m)
+    for r in ruoli:
+        r.mansioni_list = sorted(per_ruolo.get(r.pk, []), key=lambda m: m.nome.casefold())
+
+
 def _ruoli_conteggio_da_scheda() -> dict[str, int]:
     """Quante schede dipendente riportano ciascun ruolo nel campo testuale.
 
