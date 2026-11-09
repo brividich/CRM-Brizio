@@ -82,6 +82,11 @@ urlpatterns = [
         views.project_gantt_shift_task,
         name="project_gantt_shift_task",
     ),
+    path(
+        "tasks/projects/<int:project_id>/gantt/tasks/<int:task_id>/move/",
+        views.project_gantt_move_task,
+        name="project_gantt_move_task",
+    ),
     path("tasks/projects/<int:project_id>/programmi/", views.project_tech_refs, name="project_tech_refs"),
     path("tasks/projects/<int:project_id>/programmi/salva/", views.tech_ref_save, name="tech_ref_save"),
     path("tasks/projects/<int:project_id>/programmi/<int:ref_id>/azione/", views.tech_ref_action, name="tech_ref_action"),

@@ -385,6 +385,11 @@ class Task(models.Model):
         default=0,
         help_text="Avanzamento manuale dell'attività (0–100).",
     )
+    gantt_order = models.PositiveIntegerField(
+        default=0,
+        db_index=True,
+        help_text="Posizione della riga nel Gantt del kickoff (0 = in fondo, in ordine di creazione).",
+    )
     reminder_portal_enabled = models.BooleanField(
         default=True,
         help_text="Se attivo, crea un promemoria nel centro notifiche 'giorni_preavviso' prima della scadenza.",
@@ -410,6 +415,14 @@ class Task(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+    def save(self, *args, **kwargs):
+        # Una nuova attività del kickoff va in fondo al piano.
+        if self._state.adding and self.project_id and not self.gantt_order:
+            from .services.gantt_piano import prossimo_ordine
+
+            self.gantt_order = prossimo_ordine(self.project_id)
+        super().save(*args, **kwargs)
 
     def clean(self):
         super().clean()

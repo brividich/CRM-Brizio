@@ -1162,17 +1162,23 @@ class TaskAttachmentForm(forms.ModelForm):
 class ProjectTaskGanttUpdateForm(forms.ModelForm):
     class Meta:
         model = Task
-        fields = ["next_step_due", "due_date", "status", "progress"]
+        fields = ["next_step_due", "due_date", "status", "progress", "priority"]
         widgets = {
             "next_step_due": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "due_date": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "status": forms.Select(attrs={"class": "input"}),
             "progress": forms.NumberInput(attrs={"class": "input", "min": 0, "max": 100, "step": 5}),
+            "priority": forms.Select(attrs={"class": "input"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, consenti_priorita: bool = True, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["progress"].required = False
+        self.fields["priority"].label = "Priorità"
+        # La priorità è una scelta di pianificazione: senza il permesso il campo
+        # non esiste nel form, quindi un valore inviato a mano viene ignorato.
+        if not consenti_priorita:
+            del self.fields["priority"]
 
     def clean(self):
         cleaned_data = super().clean()

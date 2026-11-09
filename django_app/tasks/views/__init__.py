@@ -144,6 +144,7 @@ from .gantt import (  # noqa: F401
     project_gantt_clear_baseline,
     project_gantt_fix_baseline,
     project_gantt_remove_dependency,
+    project_gantt_move_task,
     project_gantt_shift_task,
     project_gantt_update_task,
 )

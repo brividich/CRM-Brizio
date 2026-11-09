@@ -448,6 +448,67 @@ def can_manage_task(request, task: Task) -> bool:
     return False
 
 
+# ── Chi può modificare cosa nel piano (Gantt) ──
+# Scala dall'alto in basso: se una persona ha più ruoli vale il più alto.
+GANTT_LIVELLI = (
+    ("admin", "Amministratore del modulo",
+     "Tutto, su ogni kickoff."),
+    ("responsabile", "Responsabile del kickoff",
+     "Struttura del piano (nuove attività, ordine delle righe, dipendenze, baseline) "
+     "e date, priorità, stato e avanzamento di tutte le attività."),
+    ("creatore", "Chi ha creato l'attività",
+     "Date, priorità, stato e avanzamento delle attività che ha creato."),
+    ("modifica", "Ruolo con permesso di modifica",
+     "Date, stato e avanzamento delle attività che il suo ruolo può modificare. La priorità no."),
+    ("assegnatario", "Responsabile dell'attività",
+     "Stato della propria attività: Inizia, Fatta, Riapri."),
+    ("lettore", "Chi vede il kickoff",
+     "Legge il piano e scrive commenti."),
+)
+
+
+def can_set_task_priority(request, task: Task, *, gestisce_progetto: bool | None = None) -> bool:
+    """La priorità decide l'ordine del lavoro: la cambiano il responsabile del kickoff e chi ha creato l'attività."""
+    if has_task_permission(request, "tasks_admin"):
+        return True
+    if task.created_by_id == getattr(request.user, "id", None):
+        return True
+    if task.project_id is None:
+        return can_manage_task(request, task)
+    if gestisce_progetto is None:
+        gestisce_progetto = can_manage_project(request, task.project)
+    return bool(gestisce_progetto)
+
+
+def permessi_riga_gantt(request, task: Task, *, gestisce_progetto: bool) -> dict:
+    """Cosa può fare l'utente su una riga del Gantt."""
+    uid = getattr(request.user, "id", None)
+    gestisce = can_manage_task(request, task)
+    return {
+        "date": gestisce,
+        "stato": gestisce,
+        "priorita": gestisce and can_set_task_priority(request, task, gestisce_progetto=gestisce_progetto),
+        # Senza permesso di modifica il responsabile cambia solo lo stato, come in «Le mie azioni».
+        "solo_stato": (not gestisce) and task.assigned_to_id == uid and uid is not None,
+    }
+
+
+def livello_gantt(request, project: Project, righe: list[dict]) -> str:
+    """Il livello più alto dell'utente su questo kickoff (per mostrargli cosa può fare)."""
+    if has_task_permission(request, "tasks_admin"):
+        return "admin"
+    if can_manage_project(request, project):
+        return "responsabile"
+    uid = getattr(request.user, "id", None)
+    if any(r["task"].created_by_id == uid for r in righe):
+        return "creatore"
+    if any(r.get("permessi", {}).get("date") for r in righe):
+        return "modifica"
+    if any(r["task"].assigned_to_id == uid for r in righe):
+        return "assegnatario"
+    return "lettore"
+
+
 def _can_update_task_due_date(request, task: Task) -> bool:
     if has_task_permission(request, "tasks_admin"):
         return True
