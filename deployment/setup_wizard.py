@@ -100,7 +100,7 @@ STEPS_RESTORE   = ["Backup e piano", "Segreti e macchina", "Esecuzione", "Comple
 # Solo dev.py e prod.py esistono; test usa prod (stesse impostazioni SQL Server).
 _SETTINGS_MAP = {"dev": "dev", "test": "prod", "prod": "prod"}
 
-_DEFAULT_APP_VERSION = "1.6.8"
+_DEFAULT_APP_VERSION = "1.9.1"
 _VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
 _MODULE_VERSION_ENV_KEYS = (
     "APP_VERSION_CORE",
