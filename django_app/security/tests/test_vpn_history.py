@@ -142,14 +142,88 @@ class VpnHistoryPageTests(TestCase):
         persist_vpn_accesses(source, None, rows)
 
     def test_page_lists_and_filters(self):
-        response = self.client.get(reverse("security:vpn_history"))
+        response = self.client.get(reverse("security:vpn_history"), {"giorni": 90})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["summary"]["total"], 5)
         self.assertContains(response, "mario.rossi")
-        filtered = self.client.get(reverse("security:vpn_history"), {"action": "denied", "user": "admin"})
+        filtered = self.client.get(reverse("security:vpn_history"), {"action": "denied", "user": "admin", "giorni": 90})
         self.assertEqual(filtered.context["page"].paginator.count, 2)
         self.assertNotContains(filtered, "mario.rossi</td>")
         self.assertFalse(response.context["daily"]["empty"])
         self.assertEqual(len(response.context["hours"]), 24)
         by_day = self.client.get(reverse("security:vpn_history"), {"from": "2026-09-30"})
         self.assertEqual(by_day.context["page"].paginator.count, 0)
+
+
+AUTH_NAME = "NovicromFW_Authentication_Allowed_2026-11-08T00_00_to_2026-11-08T23_59.csv"
+CSV_LOCAL = "user,ip,login,logout,duration,quota,method\nutente.demo,203.0.113.20,2026-11-08 09:46:19,2026-11-08 10:10:12,23:53,,SSL VPN\n"
+CSV_UTC = "user,ip,login,logout,duration,quota,method\nutente.demo,203.0.113.20,2026-11-08 08:46:19,2026-11-08 09:10:12,23:53,,SSL VPN\n"
+MAIL_LOCAL = "WatchGuard Cloud Scheduled Report\nWhen:\n2026-11-09 00:14:13+00:00\nDetails:\nReports for Fireboxes (ALL) from 2026-11-07 23:00 to 2026-11-08 22:59\n"
+MAIL_UTC = "WatchGuard Cloud Scheduled Report\nWhen:\n2026-11-09 09:40:10+00:00\nDetails:\nReports for Fireboxes (226033) from 2026-11-08 00:00 to 2026-11-08 23:59\n"
+
+
+class VpnReportTimezoneTests(TestCase):
+    """Due report programmati dello stesso giorno, uno in ora italiana e uno in UTC."""
+
+    def setUp(self):
+        self.source = SecuritySource.objects.create(name="Casella", source_type="email", vendor="mailbox")
+
+    def _report(self, n, mail_body, csv_text):
+        from security.models import SecurityReport, SecuritySourceFile
+
+        mail = SecurityMailboxMessage.objects.create(
+            source=self.source, external_id=f"m{n}", subject="Scheduled Firebox Report",
+            sender="wgcloud-no-reply@deu.cloud.watchguard.com", body=mail_body, received_at=timezone.now(),
+        )
+        sf = SecuritySourceFile.objects.create(
+            source=self.source, original_name=AUTH_NAME, file_type="csv", content=csv_text,
+            fingerprint=f"fp{n}", raw_payload={"mailbox_message_id": mail.pk},
+        )
+        report = SecurityReport.objects.create(
+            source=self.source, source_file=sf, report_type="watchguard_firebox_authentication_allowed",
+            title=AUTH_NAME, report_date=timezone.datetime(2026, 11, 8).date(), parser_name="watchguard_report_parser",
+            parsed_payload={},
+        )
+        rows = [r.payload for r in WatchGuardReportParser().parse(_item(AUTH_NAME, csv_text)).records if r.record_type == "vpn_access"]
+        return report, rows
+
+    def test_report_tz_from_mail_period(self):
+        from security.services.vpn_history import report_tz
+
+        local, _ = self._report(1, MAIL_LOCAL, CSV_LOCAL)
+        utc, _ = self._report(2, MAIL_UTC, CSV_UTC)
+        self.assertEqual(report_tz(local).utcoffset(None).total_seconds(), 3600)
+        self.assertEqual(report_tz(utc).utcoffset(None).total_seconds(), 0)
+
+    def test_same_access_from_two_timezones_is_one_row_at_the_real_time(self):
+        for n, (body, csv_text) in enumerate(((MAIL_LOCAL, CSV_LOCAL), (MAIL_UTC, CSV_UTC))):
+            report, rows = self._report(n, body, csv_text)
+            persist_vpn_accesses(self.source, report, rows)
+        self.assertEqual(SecurityVpnAccess.objects.count(), 1)
+        access = SecurityVpnAccess.objects.get()
+        self.assertEqual(timezone.localtime(access.login_at).strftime("%d/%m %H:%M"), "08/11 09:46")
+
+    def test_without_mail_period_falls_back_to_local_time(self):
+        report, rows = self._report(1, "nessun periodo", CSV_LOCAL)
+        persist_vpn_accesses(self.source, report, rows)
+        access = SecurityVpnAccess.objects.get()
+        self.assertEqual(timezone.localtime(access.login_at).strftime("%H:%M"), "09:46")
+
+    def test_riallinea_fixes_old_rows_and_removes_doubles(self):
+        from security.services.vpn_history import _aware, riallinea_storico
+
+        # Come salvava il codice vecchio: ogni orario letto in ora italiana, identita' sul testo.
+        for n, (body, csv_text) in enumerate(((MAIL_LOCAL, CSV_LOCAL), (MAIL_UTC, CSV_UTC))):
+            report, rows = self._report(n, body, csv_text)
+            row = rows[0]
+            SecurityVpnAccess.objects.create(
+                source=self.source, report=report, action="allowed", username=row["user"], source_ip=row["source_ip"],
+                login_at=_aware(row["login_time"]), logout_at=_aware(row["logout_time"]), duration_seconds=row["duration_seconds"],
+                kind="vpn", dedup_hash=f"vecchio{n}",
+            )
+        dry = riallinea_storico()
+        self.assertEqual((dry["doubles"], SecurityVpnAccess.objects.count()), (1, 2))
+        riallinea_storico(apply=True)
+        access = SecurityVpnAccess.objects.get()
+        self.assertEqual(timezone.localtime(access.login_at).strftime("%H:%M"), "09:46")
+        self.assertEqual(riallinea_storico()["changed"], 0)

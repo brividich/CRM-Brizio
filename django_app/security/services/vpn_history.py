@@ -1,6 +1,8 @@
 """Storico accessi VPN: salvataggio dei record dei report e statistiche per pagina/KPI."""
+import re
 from collections import defaultdict
-from datetime import timedelta
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 
 from django.db.models import Avg, Count, Max, Q
 from django.db.models.functions import ExtractHour, TruncDate
@@ -21,11 +23,65 @@ LONG_SESSION = 8 * 3600
 NIGHT_HOURS = (22, 23, 0, 1, 2, 3, 4, 5)
 
 
-def _aware(value):
+# WatchGuard Cloud scrive gli orari del CSV nel fuso del report programmato (UTC o Europe/Rome,
+# a seconda di come e' stato creato) senza dirlo nel file. Lo dice la mail: «When: ...+00:00»
+# e «Reports for Fireboxes (...) from 2026-11-07 23:00 to 2026-11-08 22:59» sono in UTC, mentre
+# il nome del file porta il periodo nel fuso del report (…_2026-11-08T00_00_to_…).
+_MAIL_PERIOD = re.compile(r"Reports for Fireboxes.*?from\s+(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\s+to\s", re.I | re.S)
+_FILE_PERIOD = re.compile(r"_(\d{4}-\d{2}-\d{2})T(\d{2})_(\d{2})_to_", re.I)
+
+
+def _report_mail_body(report):
+    from security.models import SecurityMailboxMessage
+
+    if report is None:
+        return ""
+    if report.mailbox_message_id:
+        return report.mailbox_message.body or ""
+    message_id = ((report.source_file.raw_payload or {}) if report.source_file_id else {}).get("mailbox_message_id")
+    if not message_id:
+        return ""
+    return SecurityMailboxMessage.objects.filter(pk=message_id).values_list("body", flat=True).first() or ""
+
+
+def report_tz(report):
+    """Fuso degli orari del CSV del report, se mail e nome file permettono di ricavarlo; altrimenti None."""
+    if report is None:
+        return None
+    names = [report.title or ""]
+    if report.source_file_id:
+        names.insert(0, report.source_file.original_name or "")
+    file_match = next((m for m in (_FILE_PERIOD.search(n) for n in names) if m), None)
+    mail_match = _MAIL_PERIOD.search(_report_mail_body(report))
+    if not file_match or not mail_match:
+        return None
+    local_start = datetime.strptime(f"{file_match.group(1)} {file_match.group(2)}:{file_match.group(3)}", "%Y-%m-%d %H:%M")
+    utc_start = datetime.strptime(mail_match.group(1), "%Y-%m-%d %H:%M")
+    offset = local_start - utc_start
+    if abs(offset) > timedelta(hours=14) or offset % timedelta(minutes=15):
+        return None
+    return dt_timezone(offset)
+
+
+def _aware(value, tz=None):
     parsed = parse_datetime(value)
     if parsed is None:
         return None
-    return timezone.make_aware(parsed, timezone.get_current_timezone()) if timezone.is_naive(parsed) else parsed
+    if timezone.is_aware(parsed):
+        return parsed
+    return parsed.replace(tzinfo=tz) if tz is not None else timezone.make_aware(parsed, timezone.get_current_timezone())
+
+
+def access_hash(action, username, source_ip, login_at, logout_at, duration_seconds, raw_login="", raw_logout=""):
+    """Identita' di un accesso: sull'istante reale (UTC), non sul testo dell'orario.
+
+    Due report dello stesso giorno in fusi diversi scrivono «08:46» e «09:46» per lo stesso
+    accesso: sul testo erano due righe, sull'istante sono una.
+    """
+    def _key(moment, raw):
+        return moment.astimezone(dt_timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if moment else str(raw or "")
+
+    return make_hash("vpn_access", action, username, source_ip, _key(login_at, raw_login), _key(logout_at, raw_logout), duration_seconds)
 
 
 def persist_vpn_accesses(source, report, payloads):
@@ -35,25 +91,29 @@ def persist_vpn_accesses(source, report, payloads):
     vincolo unico invaliderebbe l'intera transazione, quindi non si tenta e si ripara.
     """
     candidates = {}
+    tz = report_tz(report)
     for payload in payloads:
         action = payload.get("action")
         if action not in (SecurityVpnAccess.ACTION_ALLOWED, SecurityVpnAccess.ACTION_DENIED):
             continue
-        digest = make_hash(
-            "vpn_access", action, payload.get("user"), payload.get("source_ip"),
-            payload.get("login_time"), payload.get("logout_time"), payload.get("duration"),
-        )
+        username = str(payload.get("user") or "")[:255]
+        source_ip = str(payload.get("source_ip") or "")[:64]
+        login_at = _aware(payload.get("login_time"), tz)
+        logout_at = _aware(payload.get("logout_time"), tz)
+        duration_seconds = max(int(payload.get("duration_seconds") or 0), 0)
+        digest = access_hash(action, username, source_ip, login_at, logout_at, duration_seconds,
+                             payload.get("login_time"), payload.get("logout_time"))
         if digest in candidates:
             continue
         candidates[digest] = SecurityVpnAccess(
             source=source,
             report=report,
             action=action,
-            username=str(payload.get("user") or "")[:255],
-            source_ip=str(payload.get("source_ip") or "")[:64],
-            login_at=_aware(payload.get("login_time")),
-            logout_at=_aware(payload.get("logout_time")),
-            duration_seconds=max(int(payload.get("duration_seconds") or 0), 0),
+            username=username,
+            source_ip=source_ip,
+            login_at=login_at,
+            logout_at=logout_at,
+            duration_seconds=duration_seconds,
             method=str(payload.get("method") or "")[:64],
             kind=payload.get("kind") or classify_kind(payload.get("method"), payload.get("reason") or ""),
             reason=str(payload.get("reason") or "")[:300],
@@ -209,3 +269,70 @@ def vpn_findings(qs):
         findings.append({"level": "info", "title": f"{long_n} sessioni oltre 8 ore", "detail": "Sessioni rimaste aperte a lungo: utile per capire se si disconnettono.", "filter": "action=allowed"})
     order = {"high": 0, "warning": 1, "info": 2}
     return sorted(findings, key=lambda f: order[f["level"]])[:8]
+
+
+def riallinea_storico(apply=False):
+    """Ricalcola orari (fuso del report) e identita' degli accessi gia' salvati e toglie i doppioni.
+
+    Serve per i dati salvati prima che il fuso del report fosse letto dalla mail: lo stesso
+    accesso arrivato da due report programmati (uno in UTC, uno in ora italiana) e' due righe
+    sfalsate di un'ora. Tiene la riga piu' vecchia. Senza ``apply`` conta soltanto.
+    """
+    from django.db import transaction
+
+    from security.models import SecurityReport
+
+    # Un report per volta e senza payload/contenuti: per riga sarebbero megabyte inutili.
+    report_ids = set(SecurityVpnAccess.objects.exclude(report=None).order_by().values_list("report_id", flat=True).distinct())
+    reports = (
+        SecurityReport.objects.filter(id__in=report_ids)
+        .select_related("source_file")
+        .only("id", "title", "mailbox_message_id", "source_file_id", "source_file__original_name", "source_file__raw_payload")
+    )
+    tz_by_report = {None: None}
+    for report in reports.iterator(chunk_size=500):
+        tz_by_report[report.id] = report_tz(report)
+    keep = {}
+    changed, doubles, days = [], [], set()
+    rows = SecurityVpnAccess.objects.only(
+        "id", "source_id", "report_id", "action", "username", "source_ip", "login_at", "logout_at", "duration_seconds", "dedup_hash",
+    ).order_by("id")
+    for row in rows.iterator(chunk_size=2000):
+        tz = tz_by_report.get(row.report_id)
+        login_at, logout_at = row.login_at, row.logout_at
+        if tz is not None:
+            login_at = timezone.localtime(login_at).replace(tzinfo=tz) if login_at else None
+            logout_at = timezone.localtime(logout_at).replace(tzinfo=tz) if logout_at else None
+        digest = access_hash(row.action, row.username, row.source_ip, login_at, logout_at, row.duration_seconds)
+        key = (row.source_id, digest)
+        if key in keep:
+            doubles.append(row.id)
+            if row.login_at:
+                days.add(timezone.localdate(row.login_at))
+            continue
+        keep[key] = row.id
+        if (login_at, logout_at, digest) != (row.login_at, row.logout_at, row.dedup_hash):
+            if row.login_at:
+                days.add(timezone.localdate(row.login_at))
+            if login_at:
+                days.add(timezone.localdate(login_at))
+            row.login_at, row.logout_at, row.dedup_hash = login_at, logout_at, digest
+            changed.append(row)
+    result = {
+        "rows": len(keep) + len(doubles),
+        "doubles": len(doubles),
+        "changed": len(changed),
+        "reports_with_tz": sum(1 for tz in tz_by_report.values() if tz is not None),
+        "days": sorted(days),
+    }
+    if not apply:
+        return result
+    with transaction.atomic():
+        for i in range(0, len(doubles), _BATCH):
+            SecurityVpnAccess.objects.filter(id__in=doubles[i:i + _BATCH]).delete()
+        SecurityVpnAccess.objects.bulk_update(changed, ["login_at", "logout_at", "dedup_hash"], batch_size=_BATCH)
+    from security.services.kpi_service import _build_vpn_kpi_snapshots
+
+    for day in result["days"]:
+        _build_vpn_kpi_snapshots(day)
+    return result
