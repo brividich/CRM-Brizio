@@ -361,6 +361,7 @@ urlpatterns = [
 
     # Scadenzario unificato qualifiche + visite + formazione + contratti
     path("scadenzario/", views.scadenzario, name="scadenzario"),
+    path("scadenzario/contratti/<int:legacy_id>/rinnova", views.scadenzario_contratto_rinnova, name="scadenzario_contratto_rinnova"),
 
     # Organigramma visuale (aree → reparti → capi → dipendenti)
     path("il-mio-team/", views_mio_team.mio_team, name="mio_team"),
@@ -403,6 +404,12 @@ urlpatterns = [
          name="mansionario_competenza_salva"),
     path("mansionario/<int:mansione_id>/competenze/<int:voce_id>/togli/", views_mansionario.mansionario_competenza_disattiva,
          name="mansionario_competenza_disattiva"),
+    path("mansionario/<int:mansione_id>/corsi/collega/", views_mansionario.mansionario_corso_collega,
+         name="mansionario_corso_collega"),
+    path("mansionario/<int:mansione_id>/corsi/<int:regola_id>/tipo/", views_mansionario.mansionario_corso_tipo,
+         name="mansionario_corso_tipo"),
+    path("mansionario/<int:mansione_id>/corsi/<int:regola_id>/scollega/", views_mansionario.mansionario_corso_scollega,
+         name="mansionario_corso_scollega"),
     path("mansionario/<int:mansione_id>/valuta/<int:abilitazione_id>/", views_mansionario.mansionario_valuta,
          name="mansionario_valuta"),
     path("mansionario/persona/<int:legacy_id>/", views_mansionario.mansionario_persona, name="mansionario_persona"),
@@ -545,6 +552,7 @@ urlpatterns = [
     # Regole obbligatorietà
     path("formazione/corsi/<int:corso_id>/regole-obbligo/add", views.formazione_corso_req_rule_add, name="formazione_corso_req_rule_add"),
     path("formazione/corsi/<int:corso_id>/regole-obbligo/<int:rule_id>/rimuovi", views.formazione_corso_req_rule_delete, name="formazione_corso_req_rule_delete"),
+    path("formazione/corsi/<int:corso_id>/regole-obbligo/<int:rule_id>/tipo", views.formazione_corso_req_rule_tipo, name="formazione_corso_req_rule_tipo"),
     # Assegnazione dipendenti al corso (TrainingAssignment) — primo anello corso→sessione
     path("formazione/corsi/<int:corso_id>/assegna", views.formazione_corso_assegna, name="formazione_corso_assegna"),
     # Completamento registrato senza sessione (corso frequentato altrove / storico)

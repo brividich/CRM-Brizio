@@ -234,3 +234,111 @@ class FormazioneScadenzarioPlanTests(TestCase):
         body = resp.content.decode()
         self.assertIn('name="dipendenti_selezionati"', body)
         self.assertIn("formazione/rinnovo-da-scadenzario", body)
+
+
+class RinnovoContrattoDaScadenzarioTests(TestCase):
+    """«Rinnova» su una scadenza contratto: stessa azione, stessa colonna degli
+    altri tipi; il salvataggio chiude il precedente e torna allo scadenzario."""
+
+    def setUp(self):
+        from django.db import connection
+        from .models import StoricoContratto
+        from .tests import _ensure_anagrafica_table
+        _ensure_anagrafica_table()
+        with connection.cursor() as cur:
+            cur.execute("DELETE FROM anagrafica_dipendenti")
+            cur.execute(
+                "INSERT INTO anagrafica_dipendenti (aliasusername, nome, cognome, reparto, attivo) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                ["t.rinnovo", "Tizia", "Rinnovo", "UT", 1],
+            )
+            cur.execute("SELECT id FROM anagrafica_dipendenti WHERE aliasusername = %s", ["t.rinnovo"])
+            self.legacy_id = int(cur.fetchone()[0])
+        self.su = User.objects.create_superuser("su-ctr", "su-ctr@test.local", "x")
+        self.plain = User.objects.create_user("plain-ctr", "plain-ctr@test.local", "x")
+        self.oggi = timezone.localdate()
+        self.fine = self.oggi + timedelta(days=4)
+        self.contratto = StoricoContratto.objects.create(
+            legacy_anagrafica_id=self.legacy_id,
+            data_inizio=self.oggi - timedelta(days=360), data_fine=self.fine,
+            tipologia_contratto="DETERMINATO", codice_livello="C2",
+            descrizione_livello="Livello C2", qualifica_nome="Operaio",
+        )
+
+    def test_voce_contratto_porta_i_dati_del_rinnovo(self):
+        from .views import _build_scadenzario_voci
+        rf = RequestFactory()
+        request = rf.get("/anagrafica/scadenzario/")
+        request.user = self.su
+        v = next(x for x in _build_scadenzario_voci(request, filtro_tipo="contratto") if x["kind"] == "contratto")
+        self.assertEqual(v["contratto_id"], self.contratto.pk)
+        self.assertEqual(v["rinnovo"]["data_inizio"], self.fine + timedelta(days=1))
+        self.assertEqual(v["rinnovo"]["tipologia"], "DETERMINATO")
+        self.assertEqual(v["rinnovo"]["codice_livello"], "C2")
+
+    def test_pagina_mostra_pulsante_rinnova_e_dialog(self):
+        self.client.force_login(self.su)
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"tipo": "contratto"})
+        body = resp.content.decode()
+        url = reverse("anagrafica:scadenzario_contratto_rinnova", args=[self.legacy_id])
+        self.assertIn(f'data-rinnovo-url="{url}"', body)
+        self.assertIn('data-rinnovo-inizio="%s"' % (self.fine + timedelta(days=1)).isoformat(), body)
+        self.assertIn('id="scad-rinnovo-dlg"', body)
+
+    def test_post_crea_il_nuovo_contratto_e_torna_allo_scadenzario(self):
+        from .models import StoricoContratto
+        self.client.force_login(self.su)
+        inizio = self.fine + timedelta(days=1)
+        back = reverse("anagrafica:scadenzario") + "?tipo=contratto"
+        resp = self.client.post(
+            reverse("anagrafica:scadenzario_contratto_rinnova", args=[self.legacy_id]),
+            {"data_inizio": inizio.isoformat(), "data_fine": "", "tipologia_contratto": "INDETERMINATO",
+             "codice_livello": "C2", "descrizione_livello": "Livello C2", "qualifica_nome": "Operaio",
+             "back": back},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], back)
+        nuovo = StoricoContratto.objects.filter(legacy_anagrafica_id=self.legacy_id).order_by("-data_inizio").first()
+        self.assertEqual(nuovo.data_inizio, inizio)
+        self.assertIsNone(nuovo.data_fine)
+        self.assertEqual(nuovo.tipologia_contratto, "INDETERMINATO")
+        self.assertEqual(nuovo.importato_da, self.su)
+        # Il precedente resta nello storico con la sua fine.
+        self.contratto.refresh_from_db()
+        self.assertEqual(self.contratto.data_fine, self.fine)
+        # E la voce sparisce dallo scadenzario (nuovo contratto senza fine).
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"tipo": "contratto"})
+        self.assertNotIn("data-rinnovo-url=\"", resp.content.decode())
+
+    def test_fine_prima_dell_inizio_rifiutata(self):
+        from .models import StoricoContratto
+        self.client.force_login(self.su)
+        n = StoricoContratto.objects.count()
+        self.client.post(
+            reverse("anagrafica:scadenzario_contratto_rinnova", args=[self.legacy_id]),
+            {"data_inizio": "2030-01-10", "data_fine": "2030-01-01"},
+        )
+        self.assertEqual(StoricoContratto.objects.count(), n)
+
+    def test_senza_permesso_hr_non_scrive(self):
+        from .models import StoricoContratto
+        self.client.force_login(self.plain)
+        n = StoricoContratto.objects.count()
+        resp = self.client.post(
+            reverse("anagrafica:scadenzario_contratto_rinnova", args=[self.legacy_id]),
+            {"data_inizio": "2030-01-01"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(StoricoContratto.objects.count(), n)
+
+    def test_formazione_ha_rinnova_per_riga(self):
+        corso = _mk_corso("C-ROW", "Corso Riga")
+        TrainingDeadline.objects.create(
+            legacy_anagrafica_id=self.legacy_id, corso=corso, is_required=True,
+            data_scadenza=self.oggi + timedelta(days=10), stato_scadenza="IN_SCADENZA_30",
+        )
+        self.client.force_login(self.su)
+        resp = self.client.get(reverse("anagrafica:scadenzario"), {"tipo": "formazione"})
+        body = resp.content.decode()
+        self.assertIn('class="fmd-act-form"', body)
+        self.assertIn(f'name="dipendenti_selezionati" value="{self.legacy_id}"', body)

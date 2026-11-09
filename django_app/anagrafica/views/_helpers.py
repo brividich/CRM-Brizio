@@ -817,12 +817,16 @@ def _build_scadenzario_voci(
         ):
             ultimo_contratto.setdefault(c.legacy_anagrafica_id, c)
 
-        scadenze_contratti: list[tuple[int, date, str]] = []
+        # Ogni scadenza porta con sé il contratto da cui nasce: la pagina offre
+        # «Rinnova» precompilato (stessa tipologia, livello e qualifica, inizio il
+        # giorno dopo la fine) senza passare dalla scheda. La fine prova non ha un
+        # contratto da rinnovare: lì l'azione è aprire la scheda.
+        scadenze_contratti: list[tuple[int, date, str, StoricoContratto | None]] = []
         for legacy_id, c in ultimo_contratto.items():
             if legacy_id in cessati or c.data_fine is None:
                 continue
             tip = c.tipologia_contratto or "a termine"
-            scadenze_contratti.append((legacy_id, c.data_fine, f"Contratto {tip}"))
+            scadenze_contratti.append((legacy_id, c.data_fine, f"Contratto {tip}", c))
         # Periodi di prova: solo futuri — una prova già conclusa non è un'azione da fare.
         prova_rows = DipendenteAnagraficaAziendale.objects.filter(
             data_cessazione__isnull=True,
@@ -830,9 +834,9 @@ def _build_scadenzario_voci(
             prova_data_fine__gte=oggi,
         ).values_list("legacy_anagrafica_id", "prova_data_fine")
         for legacy_id, fine_prova in prova_rows:
-            scadenze_contratti.append((legacy_id, fine_prova, "Fine periodo di prova"))
+            scadenze_contratti.append((legacy_id, fine_prova, "Fine periodo di prova", None))
 
-        for legacy_id, data_fine, descrizione in scadenze_contratti:
+        for legacy_id, data_fine, descrizione, contratto in scadenze_contratti:
             if periodo:
                 if not (periodo[0] <= data_fine <= periodo[1]):
                     continue
@@ -864,6 +868,14 @@ def _build_scadenzario_voci(
                 "data_scadenza": data_fine,
                 "giorni":       delta,
                 "scaduta":      delta < 0,
+                "contratto_id": contratto.pk if contratto else None,
+                "rinnovo": {
+                    "data_inizio": data_fine + _timedelta(days=1),
+                    "tipologia": contratto.tipologia_contratto,
+                    "codice_livello": contratto.codice_livello,
+                    "descrizione_livello": contratto.descrizione_livello,
+                    "qualifica_nome": contratto.qualifica_nome,
+                } if contratto else None,
             })
 
     # Ordina per urgenza: prima le più scadute (giorni più negativi), poi le più vicine

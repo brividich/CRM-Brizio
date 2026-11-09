@@ -25,6 +25,7 @@ class Riga:
     testo: str
     data: date | None
     tono: str  # "ko" | "warn" | "mancante" | ""
+    tipo_id: int | None = None  # qualifiche: tipo da rinnovare (link «?rinnova=»)
 
 
 @dataclass
@@ -195,7 +196,7 @@ def calcola(
         elif tono == "warn":
             out.n_qualifiche_in_scadenza += 1
         if tono:
-            righe.append(Riga(pid, nomi[pid], q.tipo.nome, q.data_scadenza, tono))
+            righe.append(Riga(pid, nomi[pid], q.tipo.nome, q.data_scadenza, tono, q.tipo_id))
     out.righe_qualifiche = _prime(righe)
 
     try:

@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <style>
 /* ── Chips filtro scadenze ───────────────────────────────── */
 .vm-chip { padding:5px 12px; border-radius:999px; font-size:12px; font-weight:700; text-decoration:none;
@@ -144,7 +144,7 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
     <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clipboard"/></svg></span><span class="fmd-mtr-val">{{ kpi_totali }}</span></div><div class="fmd-mtr-lbl">Visite registrate</div><div class="fmd-mtr-sub">Totale a sistema</div></div>
     <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-pill"/></svg></span><span class="fmd-mtr-val">{{ kpi_tipi_attivi }}</span></div><div class="fmd-mtr-lbl">Tipologie attive</div><div class="fmd-mtr-sub">Catalogo visite</div></div>
     <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:referti_coda' %}" title="Apri i referti da rivedere"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-doc"/></svg></span><span class="fmd-mtr-val">{{ kpi_referti }}</span></div><div class="fmd-mtr-lbl">Referti da rivedere</div><div class="fmd-mtr-sub">Lettura da confermare</div></a>
-    <div class="fmd-mtr fmd-t-navy" title="Persone con un ruolo operativo che chiede il tipo di visita e nessuna visita di quel tipo registrata"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ kpi_senza_visita }}</span></div><div class="fmd-mtr-lbl">Senza visita</div><div class="fmd-mtr-sub">Richiesta dal ruolo, mai registrata</div></div>
+    <a class="fmd-mtr fmd-t-navy" href="#card-copertura" title="Persone con un ruolo operativo che chiede il tipo di visita e nessuna visita di quel tipo registrata: vai al dettaglio per tipologia (colonna Mancanti)"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ kpi_senza_visita }}</span></div><div class="fmd-mtr-lbl">Senza visita</div><div class="fmd-mtr-sub">Richiesta dal ruolo, mai registrata</div></a>
   </section>
 
   {# ── Stile C: una scheda per tipo di visita ─────────────────────────────── #}
@@ -197,7 +197,7 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
                   <span class="hr-pill warning">Tra {{ v.giorni_a_scadenza }}g</span>
                 {% endif %}
               </td>
-              <td><a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm">Apri visita</a> <a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}#superata" class="hr-btn hr-btn-outline hr-btn-sm" title="Toglie la visita dallo scadenziario senza cancellarla">Superata</a>{% if can_delete_visite %} <a href="{% url 'anagrafica:visita_medica_elimina' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm" aria-label="Elimina visita errata">Elimina</a>{% endif %}</td>
+              <td>{% if can_manage %}<a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ v.tipo_id }}" class="fmd-act" title="Registra una nuova sessione di «{{ v.tipo.nome }}»: propone chi ha la visita scaduta, in scadenza o mai fatta">↻ Rinnova</a> {% endif %}<a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm">Apri visita</a> <a href="{% url 'anagrafica:visita_medica_dettaglio' v.pk %}#superata" class="hr-btn hr-btn-outline hr-btn-sm" title="Toglie la visita dallo scadenziario senza cancellarla">Superata</a>{% if can_delete_visite %} <a href="{% url 'anagrafica:visita_medica_elimina' v.pk %}" class="hr-btn hr-btn-outline hr-btn-sm" aria-label="Elimina visita errata">Elimina</a>{% endif %}</td>
             </tr>
             {% endfor %}
             {% endfor %}
@@ -283,7 +283,7 @@ body.theme-dark .tipo-detail-col-head.valide{background:rgba(56,161,105,.18);col
               </td>
               <td style="text-align:right;">
                 {% if row.ha_ruoli %}
-                  {% if row.mancanti %}<span class="hr-pill danger">{{ row.mancanti }}</span>{% else %}<span style="color:#047857;font-weight:700;">0</span>{% endif %}
+                  {% if row.mancanti %}<span class="hr-pill danger">{{ row.mancanti }}</span>{% if can_manage %} <a href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ row.tipo.pk }}" class="fmd-act" title="Registra una sessione di «{{ row.tipo.nome }}» per chi non ha la visita" onclick="event.stopPropagation();">↻ Pianifica</a>{% endif %}{% else %}<span style="color:#047857;font-weight:700;">0</span>{% endif %}
                 {% else %}
                   <span style="color:#cbd5e1;" title="Configura ruoli operativi per abilitare">—</span>
                 {% endif %}

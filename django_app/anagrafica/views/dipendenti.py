@@ -1836,6 +1836,14 @@ def dipendente_detail(request, legacy_id: int):
     except Exception:
         logger.exception("Errore caricamento DPI per dipendente %s", legacy_id)
 
+    # Chi gestisce i DPI apre le richieste «Inviate» direttamente nella gestione.
+    dpi_is_gestore = False
+    try:
+        from dpi.views import _is_gestore as _dpi_is_gestore
+        dpi_is_gestore = bool(_dpi_is_gestore(request))
+    except Exception:
+        logger.exception("Errore verifica gestore DPI per dipendente %s", legacy_id)
+
     # PDF consegne DPI archiviati: mappa consegna_id -> documento per linkare dal tab
     dpi_consegna_doc_map: dict[int, int] = {}
     try:
@@ -2130,6 +2138,7 @@ def dipendente_detail(request, legacy_id: int):
 
     # Storico contrattuale
     storico_contratti: list = []
+    contratto_rinnovo: dict | None = None
     tipologie_contratto: list = []
     livelli_catalogo: list = []
     livelli_json: str = "{}"
@@ -2149,6 +2158,23 @@ def dipendente_detail(request, legacy_id: int):
         livelli_catalogo = list(LivelloContrattuale.objects.filter(is_active=True))
         livelli_json = json.dumps({l.codice: l.descrizione for l in livelli_catalogo})
         tipi_qualifica_prof = [q for q in tipi_qualifica if q.categoria == TipoQualifica.CAT_PROFESSIONALE]
+        # Ultimo contratto con fine entro 60 giorni (o già passata): la riga si
+        # evidenzia e il pulsante «Rinnova» precompila la riga manuale (stessi
+        # valori del «Rinnova» dello scadenzario: parte il giorno dopo la fine).
+        if storico_contratti and storico_contratti[0].data_fine:
+            _ult = storico_contratti[0]
+            _giorni = (_ult.data_fine - oggi).days
+            if _giorni <= 60:
+                contratto_rinnovo = {
+                    "pk": _ult.pk,
+                    "giorni": _giorni,
+                    "scaduto": _giorni < 0,
+                    "data_inizio": _ult.data_fine + _timedelta(days=1),
+                    "tipologia": _ult.tipologia_contratto or "",
+                    "codice_livello": _ult.codice_livello or "",
+                    "descrizione_livello": _ult.descrizione_livello or "",
+                    "qualifica_nome": _ult.qualifica_nome or "",
+                }
 
     # Formazione dipendente (gating su _can_view_formazione — accesso controllato)
     can_view_formazione_tab = _helpers._can_view_formazione(request)
@@ -2400,6 +2426,7 @@ def dipendente_detail(request, legacy_id: int):
         "dpi_richieste": dpi_richieste,
         "dpi_consegnati": dpi_consegnati,
         "dpi_consegna_doc_map": dpi_consegna_doc_map,
+        "dpi_is_gestore": dpi_is_gestore,
         "can_view_visite": can_view_visite,
         "can_edit_visite": can_view_visite and _helpers._can_edit_visite_mediche(request),
         "can_delete_visite": can_view_visite and _helpers._has_canonical_grant(request, PERM_VISITE_DELETE),
@@ -2425,6 +2452,7 @@ def dipendente_detail(request, legacy_id: int):
         "retribuzioni_has_changes": retribuzioni_has_changes,
         "storico_cambiamenti": storico_cambiamenti,
         "storico_contratti": storico_contratti,
+        "contratto_rinnovo": contratto_rinnovo,
         "tipologie_contratto": tipologie_contratto,
         "livelli_catalogo": livelli_catalogo,
         "livelli_json": livelli_json,
@@ -2438,6 +2466,7 @@ def dipendente_detail(request, legacy_id: int):
         "assenze_no_link": assenze_no_link,
         # Formazione
         "can_view_formazione_tab": can_view_formazione_tab,
+        "can_edit_formazione": can_view_formazione_tab and _helpers._can_edit_formazione(request),
         "fm_storico": fm_storico,
         "fm_scadenze_urgenti": fm_scadenze_urgenti,
         "fm_n_completati": fm_n_completati,
@@ -4461,23 +4490,24 @@ def dipendente_retribuzione_voce_delete(request, legacy_id: int, voce_id: int):
     return redirect("anagrafica:dipendente_retribuzioni", legacy_id=legacy_id)
 
 
-@login_required
-@require_POST
-def dipendente_contratto_add(request, legacy_id: int):
-    """Aggiunge manualmente un record storico contrattuale."""
-    can_hr = _helpers._check_hr_permission(request)
-    if not can_hr:
-        messages.error(request, "Accesso riservato agli utenti HR.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+def _salva_contratto_da_post(request, legacy_id: int) -> tuple[bool, str]:
+    """Crea un record di storico contrattuale dai campi POST (data_inizio,
+    data_fine, tipologia_contratto, codice_livello, descrizione_livello,
+    qualifica_nome). Chiude il contratto «in corso» se il nuovo inizia dopo.
 
+    Unica strada per «Aggiungi riga» della scheda e «Rinnova» dello scadenzario:
+    due scritture separate finirebbero per divergere (es. chiusura del
+    precedente) e lo storico racconterebbe due storie.
+    """
     di_raw = request.POST.get("data_inizio", "").strip()
     df_raw = request.POST.get("data_fine", "").strip()
     try:
         data_inizio = datetime.strptime(di_raw, "%Y-%m-%d").date()
         data_fine = datetime.strptime(df_raw, "%Y-%m-%d").date() if df_raw else None
     except ValueError:
-        messages.error(request, "Formato data non valido.")
-        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+        return False, "Formato data non valido."
+    if data_fine and data_fine < data_inizio:
+        return False, "La data di fine precede la data di inizio."
 
     civile_obj = DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=legacy_id).first()
     tax_code = civile_obj.codice_fiscale.strip().upper() if civile_obj and civile_obj.codice_fiscale else ""
@@ -4514,8 +4544,38 @@ def dipendente_contratto_add(request, legacy_id: int):
         qualifica_nome=request.POST.get("qualifica_nome", "").strip(),
         importato_da=request.user,
     )
-    messages.success(request, "Record contrattuale aggiunto.")
+    return True, "Record contrattuale aggiunto."
+
+
+@login_required
+@require_POST
+def dipendente_contratto_add(request, legacy_id: int):
+    """Aggiunge manualmente un record storico contrattuale (dalla scheda)."""
+    if not _helpers._check_hr_permission(request):
+        messages.error(request, "Accesso riservato agli utenti HR.")
+        return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    ok, msg = _salva_contratto_da_post(request, legacy_id)
+    (messages.success if ok else messages.error)(request, msg)
     return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+
+
+@login_required
+@require_POST
+def scadenzario_contratto_rinnova(request, legacy_id: int):
+    """«Rinnova» di una scadenza contratto dallo scadenzario: stesso salvataggio
+    della scheda, ma si resta sullo scadenzario (``back``), dove la riga
+    sparisce o si sposta alla nuova scadenza."""
+    from core.redirects import safe_next
+
+    destinazione = safe_next(request, request.POST.get("back"), reverse("anagrafica:scadenzario"))
+    if not _helpers._check_hr_permission(request):
+        messages.error(request, "Accesso riservato agli utenti HR.")
+        return redirect(destinazione)
+    ok, msg = _salva_contratto_da_post(request, legacy_id)
+    if ok:
+        msg = "Contratto rinnovato: la nuova scadenza è nello storico della scheda."
+    (messages.success if ok else messages.error)(request, msg)
+    return redirect(destinazione)
 
 
 @login_required

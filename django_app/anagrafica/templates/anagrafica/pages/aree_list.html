@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% include "core/components/_hub_formkit.html" %}
 {% include "anagrafica/components/_rc_stili.html" %}
 {% endblock %}
@@ -36,7 +36,7 @@
     <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.reparti }}</div><div class="rc-kpi-l">Reparti attivi</div></div>
     <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.con_capo }}</div><div class="rc-kpi-l">Con qualcuno sulla «Responsabilità del reparto»</div></div>
     <div class="rc-kpi {% if kpi.da_sistemare %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.da_sistemare }}</div><div class="rc-kpi-l">Reparti da sistemare</div></div>
-    <div class="rc-kpi {% if kpi.senza_capo %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.senza_capo }}</div><div class="rc-kpi-l">Persone senza capo (su {{ kpi.persone }})</div></div>
+    <div class="rc-kpi {% if kpi.senza_capo %}rc-kpi-warn{% endif %}"><div class="rc-kpi-n">{{ kpi.senza_capo }}</div><div class="rc-kpi-l">Persone senza capo (su {{ kpi.persone }}){% if kpi.senza_capo %} <a class="fmd-act" href="{% url 'anagrafica:coerenza_capi' %}?filtro=senza" title="Vedi chi è senza capo e risolvi">Risolvi</a>{% endif %}</div></div>
     <div class="rc-kpi"><div class="rc-kpi-n">{{ kpi.eccezioni }}</div><div class="rc-kpi-l">Eccezioni sulla persona</div></div>
   </div>
 
@@ -137,7 +137,7 @@
         {% if s.avvisi or s.senza_capo %}
         <div class="rc-avvisi">
           {% for a in s.avvisi %}<div class="rc-avviso">{{ a }}</div>{% endfor %}
-          {% if s.senza_capo %}<div class="rc-avviso">{{ s.senza_capo }} person{{ s.senza_capo|pluralize:"a,e" }} senza capo</div>{% endif %}
+          {% if s.senza_capo %}<div class="rc-avviso">{{ s.senza_capo }} person{{ s.senza_capo|pluralize:"a,e" }} senza capo <a class="fmd-act" href="{% url 'anagrafica:coerenza_capi' %}?filtro=senza" title="Vedi chi è senza capo e risolvi">Risolvi</a></div>{% endif %}
         </div>
         {% endif %}
         {% if s.aree %}

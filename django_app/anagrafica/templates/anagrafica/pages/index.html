@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 <link rel="stylesheet" href="{% static 'anagrafica/css/hr_gestionale.css' %}?v=2">
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <style>
 /* Hero: tre numeri affiancati sugli schermi larghi (la griglia base ne prevede due). */
 @media (min-width: 1100px) { .hr-hero-stats { grid-template-columns:repeat(3,minmax(150px,1fr)); } }
@@ -245,7 +245,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
           <span class="hrg-box-title">📘 Formazione da sistemare</span>
           <a class="hrg-box-link" href="{% if can_view_formazione %}{% url 'anagrafica:formazione_scadenzario' %}{% else %}{% url 'anagrafica:scadenzario' %}?tipo=formazione{% endif %}">Scadenzario →</a>
         </div>
-        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_formazione vuoto="Tutta la formazione obbligatoria è in regola." %}
+        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_formazione vuoto="Tutta la formazione obbligatoria è in regola." ancora="formazione-scadenze" %}
       </section>
       {% endif %}
       {% if cruscotto.visite %}
@@ -254,7 +254,7 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
           <span class="hrg-box-title">🩺 Sorveglianza sanitaria</span>
           <a class="hrg-box-link" href="{% url 'anagrafica:visite_mediche_dashboard' %}">Visite mediche →</a>
         </div>
-        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_visite vuoto="Nessuna visita scaduta o in scadenza nei prossimi 60 giorni." %}
+        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_visite vuoto="Nessuna visita scaduta o in scadenza nei prossimi 60 giorni." ancora="visite-mediche" %}
       </section>
       {% endif %}
       <section class="hr-card hrg-box">
@@ -265,14 +265,14 @@ body.theme-dark .ana-restore-row{color:#93c5fd}
         {% if cruscotto.righe_stato_operativo %}
         {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_stato_operativo vuoto="" %}
         {% endif %}
-        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_cambi vuoto="Nessun adempimento aperto per cambi mansione." etichetta_data="entro il" %}
+        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_cambi vuoto="Nessun adempimento aperto per cambi mansione." etichetta_data="entro il" ancora="spostamenti-organizzativi" %}
       </section>
       <section class="hr-card hrg-box">
         <div class="hrg-box-head">
           <span class="hrg-box-title">🎓 Qualifiche e abilitazioni</span>
           <a class="hrg-box-link" href="{% url 'anagrafica:scadenzario' %}?tipo=qualifica">Scadenzario →</a>
         </div>
-        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_qualifiche vuoto="Nessuna qualifica scaduta o in scadenza nei prossimi 60 giorni." %}
+        {% include "anagrafica/partials/_cruscotto_righe.html" with righe=cruscotto.righe_qualifiche vuoto="Nessuna qualifica scaduta o in scadenza nei prossimi 60 giorni." ancora="qualifiche" %}
       </section>
       <section class="hr-card hrg-box">
         <div class="hrg-box-head">

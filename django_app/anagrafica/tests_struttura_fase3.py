@@ -86,7 +86,7 @@ class StrutturaFase3Tests(TestCase):
     def test_scheda_mansione_mostra_formazione(self):
         self.client.force_login(self.admin)
         resp = self.client.get(reverse("anagrafica:mansionario_mansione", args=[self.macchina.pk]))
-        self.assertContains(resp, "Formazione obbligatoria per chi fa questa mansione")
+        self.assertContains(resp, 'id="tab-formazione"')
         self.assertContains(resp, self.corso.titolo)
 
     # ── Scheda macchina ───────────────────────────────────────────────────

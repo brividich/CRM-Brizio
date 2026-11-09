@@ -378,6 +378,10 @@ def mansionario_mansione(request, mansione_id: int):
         candidati = sorted((p for lid, p in _persone_in_forza().items()
                             if lid not in in_lista and p["ruoli"] & ruoli_mansione),
                            key=lambda c: c["nome"].casefold())
+    formazione = _formazione_mansione(request, mansione, competenze, persone)
+    for p in persone:
+        p["corsi_mancanti"] = [r["corso"] for r in formazione["corsi_mansione"]
+                               if r["regola"] and r["obbligatorio"] and p["legacy_id"] in r["mancanti"]]
     return render(request, "anagrafica/pages/mansionario_mansione.html", {
         "page_title": mansione.nome,
         "mansione": mansione,
@@ -400,13 +404,135 @@ def mansionario_mansione(request, mansione_id: int):
         "regole": svc.regole_correnti(),
         "catalogo_nomi": list(CompetenzaCatalogo.objects.filter(attiva=True).order_by("nome")
                               .values_list("nome", flat=True)) if is_admin else [],
-        "regole_formazione": list(
-            mansione.regole_formazione.filter(is_active=True, is_mandatory=True)
-            .select_related("corso", "piano").order_by("corso__titolo", "piano__nome")
-        ),
+        **formazione,
         "is_admin": is_admin,
         "puo_valutare": puo_valutare,
     })
+
+
+def _puo_collegare_corsi(request) -> bool:
+    """Collegare corsi alla mansione: chi gestisce il Mansionario o la formazione."""
+    from .views import _helpers
+
+    return _puo_gestire(request) or _helpers._can_edit_formazione(request)
+
+
+def _formazione_mansione(request, mansione, competenze, persone) -> dict:
+    """Corsi della mansione, ciascuno con chi in lista è in regola e chi no.
+
+    Due origini, mostrate insieme perché sono lo stesso filo:
+    - collegati alla mansione (``TrainingRequirementRule.competenza``), ognuno
+      **obbligatorio** (entra in scadenzario, copertura, onboarding) o
+      **consigliato** (resta visibile e proponibile, senza scadenze);
+    - richiesti da una competenza (``VoceMacchinaCatalogo.corso``): senza il corso
+      la persona non supera «I» su quella competenza.
+    """
+    from .models_formazione import TrainingCourse, TrainingDeadline
+    from .services.skillmatrix_qualifica import _STATI_VALIDI
+    from .views import _helpers
+
+    ids = [p["legacy_id"] for p in persone]
+    nomi = {p["legacy_id"]: p["nome"] for p in persone}
+    righe: dict[int, dict] = {}
+    piani = []
+    for r in (mansione.regole_formazione.filter(is_active=True)
+              .select_related("corso", "piano").order_by("corso__titolo", "piano__nome")):
+        if r.corso_id:
+            righe[r.corso_id] = {"corso": r.corso, "regola": r, "obbligatorio": r.is_mandatory, "da_competenze": []}
+        elif r.piano_id:
+            piani.append(r)
+    for v in competenze:
+        if getattr(v, "corso_id", None):
+            riga = righe.setdefault(v.corso_id, {"corso": v.corso, "regola": None, "obbligatorio": False, "da_competenze": []})
+            riga["da_competenze"].append(v.nome)
+    stato: dict[tuple[int, int], str] = {}
+    if ids and righe:
+        for lid, cid, st in (TrainingDeadline.objects.filter(legacy_anagrafica_id__in=ids, corso_id__in=list(righe))
+                             .values_list("legacy_anagrafica_id", "corso_id", "stato_scadenza")):
+            stato[(lid, cid)] = st
+    for cid, riga in righe.items():
+        in_regola = [lid for lid in ids if stato.get((lid, cid)) in _STATI_VALIDI]
+        mancanti = [lid for lid in ids if lid not in in_regola]
+        riga["n_in_regola"] = len(in_regola)
+        riga["mancanti"] = mancanti
+        riga["nomi_mancanti"] = [nomi.get(lid, f"#{lid}") for lid in mancanti]
+    ordinate = sorted(righe.values(), key=lambda r: (not r["obbligatorio"], not r["regola"], r["corso"].titolo.casefold()))
+    gia = set(righe)
+    return {
+        "corsi_mansione": ordinate,
+        "piani_mansione": piani,
+        "n_persone_lista": len(ids),
+        "puo_collegare_corsi": _puo_collegare_corsi(request),
+        "puo_iscrivere": _helpers._can_edit_formazione(request),
+        "corsi_opzioni": list(TrainingCourse.objects.filter(is_active=True).exclude(pk__in=gia)
+                              .order_by("titolo").only("pk", "codice", "titolo")),
+    }
+
+
+@login_required
+@require_POST
+def mansionario_corso_collega(request, mansione_id: int):
+    """Collega un corso alla mansione: obbligatorio o consigliato (scelta di chi collega)."""
+    from .models_formazione import TrainingCourse, TrainingRequirementRule
+
+    if not _puo_collegare_corsi(request):
+        return _nega(request, "Non hai i permessi per collegare corsi alla mansione.")
+    mansione = get_object_or_404(CompetenzaSkm, pk=mansione_id, tipo__in=svc.TIPI_MANSIONE)
+    corso = TrainingCourse.objects.filter(pk=_int_o_none(request.POST.get("corso")), is_active=True).first()
+    if corso is None:
+        messages.error(request, "Scegli il corso da collegare.")
+        return _alla_scheda(mansione.pk, "formazione")
+    obbligatorio = request.POST.get("tipo") != "consigliato"
+    regola = TrainingRequirementRule.objects.filter(corso=corso, competenza=mansione).first()
+    if regola is None:
+        regola = TrainingRequirementRule.objects.create(
+            corso=corso, competenza=mansione, is_mandatory=obbligatorio, is_active=True, created_by=request.user,
+        )
+    else:
+        regola.is_mandatory, regola.is_active = obbligatorio, True
+        regola.save(update_fields=["is_mandatory", "is_active"])
+    log_action(request, "mansionario_corso_collegato", MODULE, {
+        "mansione": mansione.pk, "corso": corso.pk, "obbligatorio": obbligatorio,
+    }, oggetto=mansione)
+    messages.success(request, f"«{corso.titolo}» collegato alla mansione come "
+                              + ("obbligatorio: entra nello scadenzario di chi è in lista." if obbligatorio
+                                 else "consigliato: visibile e proponibile, senza scadenze."))
+    return _alla_scheda(mansione.pk, "formazione")
+
+
+@login_required
+@require_POST
+def mansionario_corso_tipo(request, mansione_id: int, regola_id: int):
+    """Passa un corso collegato da obbligatorio a consigliato e viceversa."""
+    from .models_formazione import TrainingRequirementRule
+
+    if not _puo_collegare_corsi(request):
+        return _nega(request, "Non hai i permessi per modificare i corsi della mansione.")
+    regola = get_object_or_404(TrainingRequirementRule.objects.select_related("corso"),
+                               pk=regola_id, competenza_id=mansione_id)
+    regola.is_mandatory = request.POST.get("tipo") != "consigliato"
+    regola.save(update_fields=["is_mandatory"])
+    log_action(request, "mansionario_corso_tipo", MODULE, {
+        "mansione": mansione_id, "corso": regola.corso_id, "obbligatorio": regola.is_mandatory,
+    })
+    messages.success(request, f"«{regola.corso}» ora è {'obbligatorio' if regola.is_mandatory else 'consigliato'} per la mansione.")
+    return _alla_scheda(mansione_id, "formazione")
+
+
+@login_required
+@require_POST
+def mansionario_corso_scollega(request, mansione_id: int, regola_id: int):
+    from .models_formazione import TrainingRequirementRule
+
+    if not _puo_collegare_corsi(request):
+        return _nega(request, "Non hai i permessi per modificare i corsi della mansione.")
+    regola = get_object_or_404(TrainingRequirementRule.objects.select_related("corso"),
+                               pk=regola_id, competenza_id=mansione_id)
+    titolo, corso_id = str(regola.corso or regola.piano), regola.corso_id
+    regola.delete()
+    log_action(request, "mansionario_corso_scollegato", MODULE, {"mansione": mansione_id, "corso": corso_id})
+    messages.success(request, f"«{titolo}» scollegato dalla mansione. I completamenti già registrati restano.")
+    return _alla_scheda(mansione_id, "formazione")
 
 
 @login_required
@@ -710,12 +836,16 @@ def mansionario_persona(request, legacy_id: int):
         ruoli_persona = [f"«{a.ruolo.nome}»" for a in ruoli_in_essere([legacy_id]).get(legacy_id, [])]
         assegnabili = [{"id": m.pk, "nome": m.nome, "reparto": m.reparto_effettivo,
                         "ruoli": ", ".join(r.nome for r in m.ruoli.all())} for m in mansioni_assegnabili(legacy_id)]
+    scheda = comp_svc.scheda_persona(legacy_id)
+    _corsi_da_fare_persona(legacy_id, scheda)
+    from .views import _helpers as _h
     return render(request, "anagrafica/pages/mansionario_persona.html", {
         "page_title": naming.nome_completo(dip.get("nome"), dip.get("cognome")),
+        "puo_iscrivere": _h._can_edit_formazione(request),
         "legacy_id": legacy_id,
         "nome": naming.nome_completo(dip.get("nome"), dip.get("cognome")),
         "mansione_anagrafica": (dip.get("mansione") or "").strip(),
-        "scheda": comp_svc.scheda_persona(legacy_id),
+        "scheda": scheda,
         "storico": storico_persona(legacy_id),
         "storico_mansioni": svc.storico_mansioni_persona(legacy_id),
         "puo_valutare": puo_valutare,
@@ -724,6 +854,32 @@ def mansionario_persona(request, legacy_id: int):
         "livelli_label": list(LIVELLO_LABEL.items()),
         **_rischi_persona(legacy_id, (dip.get("mansione") or "").strip()),
     })
+
+
+def _corsi_da_fare_persona(legacy_id: int, scheda) -> None:
+    """Su ogni riga della scheda persona: i corsi della mansione che la persona
+    non ha validi, divisi in obbligatori (mancanza) e consigliati (proposta)."""
+    from .models_formazione import TrainingDeadline, TrainingRequirementRule
+    from .services.skillmatrix_qualifica import _STATI_VALIDI
+
+    righe = list(getattr(scheda, "righe", None) or (scheda.get("righe", []) if isinstance(scheda, dict) else []))
+    ids_mansioni = [r["mansione"].pk if isinstance(r, dict) else r.mansione.pk for r in righe]
+    if not ids_mansioni:
+        return
+    regole = list(TrainingRequirementRule.objects.filter(competenza_id__in=ids_mansioni, is_active=True,
+                                                         corso__isnull=False, corso__is_active=True)
+                  .select_related("corso").order_by("corso__titolo"))
+    validi = set(TrainingDeadline.objects.filter(legacy_anagrafica_id=legacy_id, stato_scadenza__in=_STATI_VALIDI,
+                                                 corso_id__in={r.corso_id for r in regole})
+                 .values_list("corso_id", flat=True))
+    for riga in righe:
+        mid = riga["mansione"].pk if isinstance(riga, dict) else riga.mansione.pk
+        obbl = [r.corso for r in regole if r.competenza_id == mid and r.is_mandatory and r.corso_id not in validi]
+        cons = [r.corso for r in regole if r.competenza_id == mid and not r.is_mandatory and r.corso_id not in validi]
+        if isinstance(riga, dict):
+            riga["corsi_obbligatori"], riga["corsi_consigliati"] = obbl, cons
+        else:
+            riga.corsi_obbligatori, riga.corsi_consigliati = obbl, cons
 
 
 @login_required

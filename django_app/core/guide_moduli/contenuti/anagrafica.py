@@ -158,11 +158,20 @@ GUIDA = {
         },
         {
             "id": "scadenzario",
-            "titolo": "Scadenzario: filtrare per periodo",
+            "titolo": "Scadenzario: filtrare per periodo e agire dalla riga",
             "blocchi": [
                 ("p", "Oltre a tipo, stato e reparto, il menu «Periodo» mostra solo le scadenze di «Questo mese», del "
                       "«Prossimo mese» o di un «Intervallo…» (dal / al, anche una sola data). Con un periodo scelto il "
                       "filtro di stato non conta; l'export Excel/PDF dei risultati filtrati usa lo stesso periodo."),
+                ("p", "Ogni riga ha, a destra, un solo pulsante «↻ Rinnova», uguale in tutte le viste (Gruppi, Elenco, Affiancata):"),
+                ("ul", [
+                    "Visita medica → apre «Nuova giornata di visite» già sul tipo giusto (chi ha visita scaduta o mancante è proposto come candidato).",
+                    "Qualifica → apre «Nuova sessione di rinnovo» del tipo (solo per chi gestisce le qualifiche).",
+                    "Formazione → porta nella creazione della sessione del corso con la persona già iscritta (serve il permesso di modifica della formazione). In fondo alla pagina resta la selezione multipla per corso.",
+                    "Contratto → apre una finestra già compilata dall'ultimo contratto: inizio il giorno dopo la scadenza, stessa tipologia, livello e qualifica; la data di fine vuota vuol dire tempo indeterminato. Al salvataggio il contratto precedente resta nello storico della scheda e si torna allo scadenzario (solo utenti HR).",
+                    "Fine periodo di prova → «Apri scheda» sulla sezione Contratto: la prova non si rinnova, si conferma o si trasforma da lì.",
+                ]),
+                ("p", "Lo stesso pulsante compare nelle altre pagine del modulo accanto a ogni stato «scaduto», «mancante» o «senza»: porta sempre all'azione già precompilata, senza cercarla altrove."),
             ],
         },
         {
@@ -728,8 +737,11 @@ GUIDA = {
                       "operative e da assegnare e porta alla scheda. La vede chi vede il Mansionario e chi gestisce la "
                       "skill matrix. Report: «Excel per persona» nella Struttura organizzativa (o dalla scheda di un "
                       "reparto, solo quel reparto), anche nel Centro report."),
-                ("p", "Formazione per mansione lavorativa: nella scheda di un corso, «Regole di obbligatorietà» → "
-                      "«+ Aggiungi regola» → campo «Mansione lavorativa». Il corso diventa obbligatorio per chi è in lista "
+                ("p", "Formazione per mansione lavorativa: dalla scheda della mansione, scheda «Formazione» → «Collega un corso», "
+                      "oppure dalla scheda di un corso, «A chi serve questo corso». Si sceglie «Obbligatorio» o «Consigliato» "
+                      "(il consigliato resta come proposta, senza scadenze; si cambia con «Rendi obbligatorio/consigliato»). "
+                      "La scheda Formazione mostra per ogni corso chi in lista è in regola e «↻ Iscrivi chi manca»; in «Cosa manca» (scheda Persone della mansione e scheda persona del Mansionario) "
+                      "compaiono i corsi obbligatori non fatti con «↻ Iscrivi», e nella scheda persona anche i consigliati come proposta. Da obbligatorio vale per chi è in lista "
                       "sulla mansione nella skill matrix (anche in addestramento): scadenzario, fabbisogni, candidati del "
                       "corso, onboarding di chi riceve un ruolo con quella mansione e scheda della mansione («Formazione "
                       "obbligatoria per chi fa questa mansione»). Gli altri moduli leggono la struttura: scheda macchina "

@@ -7,7 +7,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -180,7 +180,7 @@
         {% elif contratti_in_scadenza %}
         <div class="fmd-sidelist">
           {% for v in contratti_in_scadenza|slice:":8" %}
-          <a class="fmd-sidelist-i" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}">
+          <a class="fmd-sidelist-i" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}#scheda-contratto">
             <span><b>{% nominativo nome=v.nome cognome=v.cognome %}</b><span class="fmd-sub2">{{ v.tipo_nome }} · {{ v.data_scadenza|date:"d-m-Y" }}{% if v.reparto %} · {{ v.reparto }}{% endif %}</span></span>
             <span class="fmd-badge {% if v.giorni <= 30 %}fmd-b-orange{% else %}fmd-b-amber{% endif %}">{{ v.giorni }}gg</span>
           </a>

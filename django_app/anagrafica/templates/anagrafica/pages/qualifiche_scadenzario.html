@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -106,6 +106,7 @@
             <span style="flex:1 1 auto;">{{ g.tipo_nome }}</span>
             {% if g.n_scadute %}<span class="fmd-badge fmd-b-red">{{ g.n_scadute }} scadut{{ g.n_scadute|pluralize:"a,e" }}</span>{% endif %}
             <span class="fmd-badge fmd-b-cyan">{{ g.n_totale }} dipendent{{ g.n_totale|pluralize:"e,i" }}</span>
+            {% if g.voci.0.tipo_id %}<a class="fmd-act" href="{% url 'anagrafica:qualifica_sessione_create' %}?tipo={{ g.voci.0.tipo_id }}" title="Crea una sessione di rinnovo di «{{ g.tipo_nome }}» per più persone insieme" onclick="event.stopPropagation();">↻ Sessione di rinnovo</a>{% endif %}
           </summary>
           <div style="border-top:1px solid #eef2f7;overflow-x:auto;">
             <table class="fmd-table" style="margin:0;">
@@ -122,6 +123,7 @@
                     {% elif v.stato == "permanente" %}<span class="fmd-badge fmd-b-cyan">Permanente</span>
                     {% else %}<span class="fmd-badge fmd-b-green">Valida</span>{% endif %}
                   </td>
+                  <td class="fmd-act-cell">{% if v.stato == "scaduta" or v.stato == "s30" or v.stato == "s60" %}<a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}?rinnova={{ v.tipo_id }}" title="Apri la scheda con il rinnovo di «{{ g.tipo_nome }}» precompilato">↻ Rinnova</a>{% endif %}</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -183,11 +185,11 @@
               </td>
               <td>
                 {% if v.verificata %}<span class="fmd-badge fmd-b-green">✓ Verif.</span>
-                {% elif v.ha_evidenza %}<span class="fmd-badge fmd-b-amber">Da verif.</span>
+                {% elif v.ha_evidenza %}<a class="fmd-badge fmd-b-amber" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}#scheda-ruolo" title="Apri la scheda alle qualifiche per verificare l'evidenza" style="text-decoration:none;">Da verif.</a>
                 {% else %}<span class="fmd-muted">—</span>{% endif %}
               </td>
               <td>
-                <a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}?rinnova={{ v.tipo_id }}" title="Apri la scheda con il rinnovo precompilato">↻ Rinnova</a>
+                <a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' v.legacy_id %}?rinnova={{ v.tipo_id }}" title="Apri la scheda con il rinnovo precompilato">↻ Rinnova</a>
               </td>
             </tr>
             {% endfor %}

@@ -10,6 +10,7 @@ Middleware ACL, navigation registry, auth backends, audit, notifiche, export, ri
 
 ## Dettaglio
 
+- **Tendine ricercabili (08/11/2026)**: `core/static/core/js/tomselect-init.js` inizializza Tom Select su `select.js-searchable` (opt-in) **e** su ogni `<select>` con più di 10 opzioni o `multiple`, salvo `data-no-search` (sull'elemento o su un antenato) e liste con `size>1`. Vale anche per i select arrivati via HTMX. Il select nativo resta il fallback. Cache-bust `?v=2` in `core/base.html`.
 ### Limiti di upload (`core/upload_limits.py`)
 
 Un solo limite per file vale per tutti gli upload di documenti e allegati: assets, anagrafica, anomalie e NC, tickets, tasks, DPI, SDS, diario preposto, RENTRI, fornitori, notizie, sistema di gestione e bacheca. Lo stesso limite vale per l'import dell'archivio HR.
