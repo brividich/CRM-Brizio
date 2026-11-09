@@ -118,6 +118,7 @@ def qualifiche_list(request):
             "id": q.id,
             "legacy_anagrafica_id": q.legacy_anagrafica_id,
             "dipendente": nome_map.get(q.legacy_anagrafica_id, f"Dip. #{q.legacy_anagrafica_id}"),
+            "tipo_id": q.tipo_id,
             "tipo_nome": q.tipo.nome,
             "tipo_categoria": q.tipo.categoria,
             "data_conseguimento": q.data_conseguimento,

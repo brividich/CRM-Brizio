@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% if puo_valutare %}{% include "anagrafica/components/_fm_style.html" %}{% endif %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <link rel="stylesheet" href="{% static 'anagrafica/css/mansionario.css' %}?v=8">
 {% if puo_valutare %}{% include "anagrafica/components/_multiselect_picker.html" %}{% endif %}
 {% endblock %}
@@ -51,7 +51,7 @@
         </div>
       </form>
       {% else %}
-      <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">{% if ruoli_persona %}Nessuna altra mansione attiva da assegnare per {{ ruoli_persona|join:" e " }}.{% else %}Nessun ruolo in essere: le mansioni si assegnano solo a chi ricopre il loro ruolo. Dai prima un ruolo alla persona.{% endif %}</p>
+      <p class="fmd-muted" style="margin:0 0 12px;font-size:12.5px;">{% if ruoli_persona %}Nessuna altra mansione attiva da assegnare per {{ ruoli_persona|join:" e " }}.{% else %}Nessun ruolo in essere: le mansioni si assegnano solo a chi ricopre il loro ruolo. <a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' legacy_id %}#spostamenti-organizzativi" title="Apri la scheda agli spostamenti organizzativi per registrare il ruolo">↻ Dai prima un ruolo alla persona</a>{% endif %}</p>
       {% endif %}
       {% endif %}
       {% if scheda.righe %}
@@ -67,7 +67,13 @@
               <td class="fmd-muted">{{ r.abilitazione.get_classificazione_display|default:"—" }}</td>
               <td class="fmd-num">{% if r.abilitazione.coefficiente is not None %}{{ r.abilitazione.coefficiente|floatformat:"-4" }}{% else %}—{% endif %}</td>
               <td>{% if r.valutazione.esito == 'abilitato' %}<span class="fmd-badge fmd-b-green">abilitato</span>{% elif r.valutazione.esito == 'non_abilitato' %}<span class="fmd-badge fmd-b-red">non abilitato</span>{% else %}<span class="fmd-badge fmd-b-orange">in addestramento</span>{% endif %}</td>
-              <td class="fmd-muted" style="font-size:12.5px;">{{ r.valutazione.mancanze|join:" · "|default:"—" }}</td>
+              <td class="fmd-muted" style="font-size:12.5px;">
+                {% if r.valutazione.mancanze %}{{ r.valutazione.mancanze|join:" · " }}{% elif not r.corsi_obbligatori and not r.corsi_consigliati %}—{% endif %}
+                {% for c in r.corsi_obbligatori %}<div style="color:#b45309;">Corso obbligatorio «<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a>»{% if puo_iscrivere %}
+                  <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form">{% csrf_token %}<input type="hidden" name="corso_id" value="{{ c.pk }}"><input type="hidden" name="dipendenti_selezionati" value="{{ legacy_id }}"><input type="hidden" name="back" value="{{ request.path }}"><button type="submit" class="fmd-act" title="Crea una sessione del corso con la persona già iscritta">↻ Iscrivi</button></form>{% endif %}</div>{% endfor %}
+                {% for c in r.corsi_consigliati %}<div>Consigliato: «<a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a>»{% if puo_iscrivere %}
+                  <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}" class="fmd-act-form">{% csrf_token %}<input type="hidden" name="corso_id" value="{{ c.pk }}"><input type="hidden" name="dipendenti_selezionati" value="{{ legacy_id }}"><input type="hidden" name="back" value="{{ request.path }}"><button type="submit" class="fmd-act fmd-act-ghost" title="Proposta: crea una sessione del corso con la persona già iscritta">Iscrivi</button></form>{% endif %}</div>{% endfor %}
+              </td>
               {% if puo_valutare %}
               <td class="fmd-r fmd-nowrap">
                 <form method="post" action="{% url 'anagrafica:mansionario_togli' r.mansione.pk r.abilitazione.pk %}" data-hub-confirm="Togliere la mansione «{{ r.mansione.nome }}»? Lo storico dei livelli resta.">

@@ -6,7 +6,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 <style>
 .rl-page { display:flex; flex-direction:column; gap:14px; }
 .rl-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:11px; font-size:13px; font-weight:700; cursor:pointer; text-decoration:none; border:1px solid transparent; transition:background .15s; }
@@ -123,9 +123,9 @@ body.theme-dark .rl-kpi.amber{background:rgba(214,158,46,.16);color:#fdba74}
         <h1><svg class="fmd-ico fmd-cap"><use href="#i-calendar"/></svg>Ferie e permessi{% info_hint "ratei" %}</h1>
         <p class="fmd-sub">Saldi ore ferie, ROL ed ex-festività da cedolino paga — {{ totale }} record totali.{% if is_admin %} L'importazione del file cedolini (anche da SharePoint) è in fondo alla pagina.{% endif %}</p>
         <div class="fmd-hero-actions">
-          <span class="fmd-pill {% if n_negativi %}fmd-pill-red{% else %}fmd-pill-grey{% endif %}">Ferie negative <span class="fmd-pn">{{ n_negativi }}</span></span>
-          <span class="fmd-pill {% if n_accumulo %}fmd-pill-amber{% else %}fmd-pill-grey{% endif %}">Oltre soglia ({{ soglie.ore_max|floatformat:0 }}h) <span class="fmd-pn">{{ n_accumulo }}</span></span>
-          <span class="fmd-pill fmd-pill-grey">In allerta <span class="fmd-pn">{{ n_allerta }}</span></span>
+          <a style="text-decoration:none;" class="fmd-pill {% if n_negativi %}fmd-pill-red{% else %}fmd-pill-grey{% endif %}" href="?saldo_campo=ferie_residui&amp;saldo_op=lt&amp;saldo_val=0" title="Mostra solo chi ha ferie residue negative">Ferie negative <span class="fmd-pn">{{ n_negativi }}</span></a>
+          <a style="text-decoration:none;" class="fmd-pill {% if n_accumulo %}fmd-pill-amber{% else %}fmd-pill-grey{% endif %}" href="?saldo_campo=ferie_residui&amp;saldo_op=gt&amp;saldo_val={{ soglie.ore_max|floatformat:0 }}" title="Mostra solo chi supera la soglia di ferie accumulate">Oltre soglia ({{ soglie.ore_max|floatformat:0 }}h) <span class="fmd-pn">{{ n_accumulo }}</span></a>
+          <a style="text-decoration:none;" class="fmd-pill fmd-pill-grey" href="?allerta=1" title="Mostra solo le persone in allerta">In allerta <span class="fmd-pn">{{ n_allerta }}</span></a>
           {% if is_admin %}<a class="fmd-btn-template" href="#importazione"><svg class="fmd-ico"><use href="#i-download"/></svg>Importa cedolini</a>{% endif %}
           <a class="fmd-btn-template" href="{% url 'anagrafica:retribuzioni_globale' %}"><svg class="fmd-ico"><use href="#i-coins"/></svg>Cedolini</a>
         </div>

@@ -742,3 +742,18 @@ details.fmd-nuovo[open] > summary::after{ content:"chiudi"; }
 .fmd-empty{ flex-direction:row; flex-wrap:wrap; min-height:0; padding:14px 18px; gap:4px 10px; }
 .fmd-empty .fmd-ebadge{ width:28px; height:28px; border-radius:8px; font-size:15px; }
 .fmd-empty .fmd-em{ max-width:none; }
+
+/* ── Azione diretta «↻ Rinnova» / «Registra» / «Assegna» ──────────────────
+   Filo conduttore del modulo (11/2026): dove una riga dice che c'è qualcosa
+   da fare (scaduto, mancante, senza capo…) accanto c'è UN pulsante con questa
+   classe che porta a farlo, già precompilato. Stesso aspetto ovunque: pillola
+   bordata, piccola, non invasiva. .fmd-act-ghost = azione secondaria (apri). */
+.fmd-act{ display:inline-block; font:700 11px/1.2 inherit; color:var(--fmd-cyan,#0369a1); background:transparent; border:1px solid currentColor; border-radius:999px; padding:3px 9px; text-decoration:none; white-space:nowrap; cursor:pointer; vertical-align:middle; }
+.fmd-act:hover{ background:var(--fmd-cyan,#0369a1); color:#fff; }
+.fmd-act-ghost{ color:#64748b; }
+.fmd-act-ghost:hover{ background:#64748b; color:#fff; }
+.fmd-act-form{ display:inline; margin:0; }
+.fmd-act-cell{ text-align:right; white-space:nowrap; }
+body.theme-dark .fmd-act{ color:#7cc4f5; }
+body.theme-dark .fmd-act:hover{ background:#7cc4f5; color:#0f172a; }
+body.theme-dark .fmd-act-ghost{ color:#94a3b8; }

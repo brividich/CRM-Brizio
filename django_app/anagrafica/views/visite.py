@@ -2187,7 +2187,7 @@ def matrice_competenze(request):
         celle = []
         for t in tipi:
             q = q_map.get((lid, t.id))
-            celle.append({"stato": _stato(q), "data": q.data_scadenza if q else None})
+            celle.append({"stato": _stato(q), "data": q.data_scadenza if q else None, "tipo_id": t.id})
         righe.append({
             "legacy_id": lid,
             "cognome": str(dip.get("cognome") or f"ID {lid}").strip(),

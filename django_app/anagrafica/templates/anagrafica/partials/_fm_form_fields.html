@@ -1,8 +1,9 @@
 {# Partial: renderizza i campi di un ModelForm con stile fm-* compatto. #}
 {# Uso: {% include "anagrafica/partials/_fm_form_fields.html" with form=myform %} #}
 {# I checkbox vengono renderizzati inline (label a destra) per non sembrare input giganti. #}
-{% if form.non_field_errors %}<div class="fm-err" style="margin-bottom:10px;">{{ form.non_field_errors|join:", " }}</div>{% endif %}
-{% for field in form %}
+{# only_field="nome": renderizza solo quel campo (per layout a sezioni). #}
+{% if not only_field and form.non_field_errors %}<div class="fm-err" style="margin-bottom:10px;">{{ form.non_field_errors|join:", " }}</div>{% endif %}
+{% for field in form %}{% if not only_field or field.name == only_field %}
   {% if field.field.widget.input_type == "checkbox" %}
 <label class="fm-form-check" for="{{ field.id_for_label }}">
   {{ field }}
@@ -20,4 +21,4 @@
   {% if field.help_text %}<div class="fm-help">{{ field.help_text }}</div>{% endif %}
 </div>
   {% endif %}
-{% endfor %}
+{% endif %}{% endfor %}

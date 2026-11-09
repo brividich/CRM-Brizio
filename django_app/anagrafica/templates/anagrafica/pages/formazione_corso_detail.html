@@ -6,7 +6,7 @@
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
 {% include "anagrafica/components/_fm_style.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -40,7 +40,7 @@
       {% if corso.is_elearning %}
       <a class="fmd-btn fmd-btn-navy" href="{% url 'anagrafica:formazione_corso_elearning' corso.pk %}"><svg class="fmd-ico"><use href="#i-cap"/></svg>Slide e quiz</a>
       {% endif %}
-      <button type="button" class="fmd-btn fmd-btn-primary" onclick="document.getElementById('modal-edit-corso').style.display='flex'"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica corso</button>
+      <a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:formazione_corso_edit' corso.pk %}"><svg class="fmd-ico"><use href="#i-edit"/></svg>Modifica corso</a>
       <form method="post" action="{% url 'anagrafica:formazione_corso_delete' corso.pk %}"
             data-hub-confirm="Eliminare il corso «{{ corso.titolo }}»? Operazione irreversibile." style="display:inline;">
         {% csrf_token %}
@@ -71,11 +71,402 @@
     </div>
   </section>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+</div>
 
-    {# ── Colonna sinistra ──────────────────────────────────────────────────── #}
-    <div>
+  {# ── Schede: la pagina era una colonna di dieci form. Ora: cosa serve ogni giorno in Panoramica, il resto per tema. #}
+  <nav class="corso-tabs" aria-label="Sezioni del corso">
+    <a href="#panoramica" data-corso-tab="panoramica" class="on">Panoramica</a>
+    <a href="#persone" data-corso-tab="persone">Persone <span class="fm-count">{{ candidati_assegnazione|length }}</span></a>
+    <a href="#contenuti" data-corso-tab="contenuti">Contenuti</a>
+    <a href="#superamento" data-corso-tab="superamento">Regola di superamento</a>
+  </nav>
 
+  <div data-corso-panel="panoramica">
+      {# Regole obbligatorietà sul corso #}
+      <div class="hr-card fm-section">
+        <div class="fm-section-head">
+          <div class="fm-section-title">🎯 A chi serve questo corso <span class="fm-count">{{ regole|length }}</span></div>
+          <span class="muted" style="font-size:11px;">Mansioni, ruoli, aree e persone per cui è obbligatorio</span>
+        </div>
+
+        {% if regole %}
+        <div class="fm-table-wrap">
+        <table class="fm-table">
+          <thead>
+            <tr>
+              <th>Collegato a</th>
+              <th>Come</th>
+              <th>Note</th>
+              <th class="nowrap"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in regole %}
+            <tr>
+              <td>
+                {% if r.mansione %}<span class="muted">Mansione di rischio:</span> {{ r.mansione.nome }}{% endif %}
+                {% if r.area %}<span class="muted">Area:</span> {{ r.area.nome }}{% endif %}
+                {% if r.ruolo_operativo %}<span class="muted">Ruolo:</span> {{ r.ruolo_operativo.nome }}{% endif %}
+                {% if r.competenza %}<span class="muted">Mansione lavorativa:</span> <a href="{% url 'anagrafica:mansionario_mansione' r.competenza.pk %}">{{ r.competenza.display|default:r.competenza.competenza_key }}</a>{% endif %}
+                {% if r.legacy_anagrafica_id %}
+                  <span class="muted">Dip.</span> {% if r.dipendente_nome %}{{ r.dipendente_nome|upper }}{% else %}#{{ r.legacy_anagrafica_id }}{% endif %}
+                {% endif %}
+              </td>
+              <td class="nowrap">
+                {% if r.is_mandatory %}<span class="fmd-badge fmd-b-orange">obbligatorio</span>{% else %}<span class="fmd-badge fmd-b-cyan">consigliato</span>{% endif %}
+                {% if is_editor %}
+                <form method="post" action="{% url 'anagrafica:formazione_corso_req_rule_tipo' corso.pk r.pk %}" class="fmd-act-form">
+                  {% csrf_token %}<input type="hidden" name="tipo" value="{% if r.is_mandatory %}consigliato{% else %}obbligatorio{% endif %}">
+                  <button type="submit" class="fmd-act fmd-act-ghost" title="{% if r.is_mandatory %}Non genera più scadenze: resta come proposta{% else %}Entra in scadenzario e copertura{% endif %}">{% if r.is_mandatory %}Rendi consigliato{% else %}Rendi obbligatorio{% endif %}</button>
+                </form>
+                {% endif %}
+              </td>
+              <td class="muted">{{ r.note|truncatechars:40|default:"—" }}</td>
+              <td class="nowrap">
+                {% if is_editor %}
+                <form method="post"
+                      action="{% url 'anagrafica:formazione_corso_req_rule_delete' corso.pk r.pk %}"
+                      data-hub-confirm="Scollegare il corso da questo destinatario?" style="display:inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="fm-empty">Non ancora collegato a nessuno: il corso non risulta obbligatorio, quindi non entra in scadenzario, copertura e onboarding.</div>
+        {% endif %}
+        {% if mansioni_da_competenze %}
+        <div style="padding:8px 16px 0;font-size:12px;">
+          <div class="muted" style="margin-bottom:4px;">Richiesto anche come requisito di una competenza (blocca il livello oltre «I» finché manca):</div>
+          <ul style="margin:0;padding-left:18px;">
+            {% for m in mansioni_da_competenze %}
+            <li><a class="fm-link" href="{% url 'anagrafica:mansionario_mansione' m.mansione.pk %}#formazione">{{ m.mansione.display|default:m.mansione.competenza_key }}</a> <span class="muted">· {{ m.competenze|join:", " }}</span></li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        {% if is_editor %}
+        <div style="padding:10px 16px;">
+          <button class="hr-btn hr-btn-sm hr-btn-primary"
+                  onclick="document.getElementById('panel-add-rule').style.display=
+                    document.getElementById('panel-add-rule').style.display==='none'?'block':'none'">
+            + Collega a mansione, ruolo, area o persona
+          </button>
+          <div id="panel-add-rule" style="display:none;margin-top:12px;">
+            <form method="post" action="{% url 'anagrafica:formazione_corso_req_rule_add' corso.pk %}" id="form-req-rule">
+              {% csrf_token %}
+              <div style="padding:12px;background:#f8fafc;border-radius:8px;">
+                {# Un solo destinatario per regola: si sceglie «a chi», poi compare solo quel campo. #}
+                <div class="fm-form-field">
+                  <label>Si applica a</label>
+                  <div class="rr-targets">
+                    <label><input type="radio" name="rr_target" value="mansione" checked> Mansione di rischio</label>
+                    <label><input type="radio" name="rr_target" value="competenza"> Mansione lavorativa (skill matrix)</label>
+                    <label><input type="radio" name="rr_target" value="ruolo_operativo"> Ruolo</label>
+                    <label><input type="radio" name="rr_target" value="area"> Area</label>
+                    <label><input type="radio" name="rr_target" value="legacy_anagrafica_id"> Una persona</label>
+                  </div>
+                </div>
+                <div class="rr-row">
+                  <div class="rr-chi">
+                    <div data-rr-field="mansione">{% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form only_field="mansione" %}</div>
+                    <div data-rr-field="competenza" hidden>{% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form only_field="competenza" %}</div>
+                    <div data-rr-field="ruolo_operativo" hidden>{% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form only_field="ruolo_operativo" %}</div>
+                    <div data-rr-field="area" hidden>{% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form only_field="area" %}</div>
+                    <div data-rr-field="legacy_anagrafica_id" hidden>{% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form only_field="legacy_anagrafica_id" %}</div>
+                  </div>
+                  {% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form only_field="data_inizio_validita" %}
+                  {% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form only_field="data_fine_validita" %}
+                </div>
+                <details class="fm-add" style="padding:0 0 6px;"><summary>Nota (facoltativa)</summary>
+                  {% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form only_field="note" %}
+                </details>
+                <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;">
+                  {% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form only_field="is_mandatory" %}
+                  {% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form only_field="is_active" %}
+                  <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary" style="margin-left:auto;">Collega</button>
+                </div>
+              </div>
+            </form>
+            <style>
+              .rr-targets{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;}
+              .rr-targets label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;}
+              .rr-row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;align-items:end;}
+              .rr-row .fm-form-field{margin-bottom:6px;}
+              @media(max-width:700px){.rr-row{grid-template-columns:1fr;}}
+            </style>
+            <script>
+            (function(){
+              var f=document.getElementById('form-req-rule'); if(!f) return;
+              function mostra(){
+                var v=(f.querySelector('input[name=rr_target]:checked')||{}).value;
+                f.querySelectorAll('[data-rr-field]').forEach(function(b){
+                  var on=b.getAttribute('data-rr-field')===v; b.hidden=!on;
+                  // I campi nascosti si svuotano: una regola = un destinatario.
+                  if(!on){ b.querySelectorAll('select,input').forEach(function(el){ if(el.tomselect){ el.tomselect.clear(true); } else { el.value=''; } }); }
+                });
+              }
+              f.querySelectorAll('input[name=rr_target]').forEach(function(r){ r.addEventListener('change',mostra); });
+              mostra();
+            })();
+            </script>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+
+{# ── Sessioni del corso ─────────────────────────────────────────────────── #}
+<div class="hr-card fm-section">
+  <div class="fm-section-head">
+    <div class="fm-section-title">
+      🗓 Sessioni del corso <span class="fm-count">{{ n_sessioni }}</span>
+    </div>
+    {% if is_editor %}
+    <a class="hr-btn hr-btn-sm hr-btn-primary"
+       href="{% url 'anagrafica:formazione_sessione_create' %}?corso={{ corso.pk }}">+ Nuova sessione</a>
+    {% endif %}
+  </div>
+  {% if sessioni_list %}
+  <div class="fm-table-wrap">
+    <table class="fm-table" data-table-id="formazione.corso.sessioni">
+      <thead>
+        <tr>
+          <th data-col="codice" data-col-label="Codice" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Codice</th>
+          <th data-col="edizione" data-col-label="Edizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Edizione</th>
+          <th data-col="inizio" data-col-label="Inizio" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data inizio</th>
+          <th data-col="fine" data-col-label="Fine" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data fine</th>
+          <th data-col="modalita" data-col-label="Modalità" data-col-type="select"
+              data-col-options='[["IN_SEDE","In sede"],["REMOTO","Remoto"],["ESTERNO","Esterno"],["MISTO","Misto"]]'
+              data-col-sortable="1" data-col-filterable="1">Modalità</th>
+          <th data-col="stato" data-col-label="Stato" data-col-type="select"
+              data-col-options='[["PIANIFICATA","Pianificata"],["IN_CORSO","In corso"],["COMPLETATA","Completata"],["ANNULLATA","Annullata"]]'
+              data-col-sortable="1" data-col-filterable="1">Stato</th>
+          <th data-col="docente" data-col-label="Docente / Ente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Docente / Ente</th>
+          <th class="num" data-col="lezioni" data-col-label="Lezioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Lezioni</th>
+          <th class="num" data-col="iscritti" data-col-label="Iscritti" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Iscritti</th>
+          <th class="nowrap">Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sessioni_list %}
+        <tr>
+          <td class="mono">
+            <a class="fm-link" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">{{ s.codice_sessione }}</a>
+          </td>
+          <td class="muted">{{ s.edizione|default:"—" }}</td>
+          <td class="nowrap">{{ s.data_inizio|date:"d-m-Y" }}</td>
+          <td class="nowrap muted">{{ s.data_fine|date:"d-m-Y" }}</td>
+          <td class="muted">{{ s.get_modalita_display }}</td>
+          <td><span class="fm-pill fm-pill-{{ s.stato|lower }}">{{ s.get_stato_display }}</span></td>
+          <td class="muted">{{ s.erogatore_display|default:"—" }}</td>
+          <td class="num">{{ s.n_lezioni }}</td>
+          <td class="num">{{ s.n_iscritti }}</td>
+          <td class="nowrap">
+            <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">Dettaglio</a>
+            <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:formazione_sessione_iscritti' s.pk %}">Iscritti</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if n_sessioni > 100 %}
+  <div class="fm-empty">Mostrate le 100 sessioni più recenti su {{ n_sessioni }} totali.</div>
+  {% endif %}
+  {% else %}
+  <div class="fm-empty">
+    Nessuna sessione registrata per questo corso — e non è un problema:
+    un corso può restare a catalogo, oppure essere stato frequentato altrove.
+    In quel caso registra il completamento qui sotto, senza sessione né registro presenze.
+  </div>
+  {% endif %}
+</div>
+
+{# ── Dipendenti iscritti al corso (across all sessions) ─────────────────── #}
+<div class="hr-card fm-section">
+  <div class="fm-section-head">
+    <div class="fm-section-title">
+      👥 Dipendenti iscritti <span class="fm-count">{{ n_dipendenti_iscritti }}</span>
+    </div>
+    <div class="muted" style="font-size:11px;">Aggregato su tutte le sessioni del corso</div>
+  </div>
+  {% if dipendenti_iscritti %}
+  <div class="fm-table-wrap">
+    <table class="fm-table" data-table-id="formazione.corso.dipendenti">
+      <thead>
+        <tr>
+          <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
+          <th data-col="stato" data-col-label="Stato" data-col-type="select"
+              data-col-options='[["COMPLETATO","Completato"],["IN_CORSO","In corso"],["ISCRITTO","Iscritto"],["NON_IDONEO","Non idoneo"],["ASSENTE","Assente"],["RITIRATO","Ritirato"]]'
+              data-col-sortable="1" data-col-filterable="1">Stato</th>
+          <th class="num" data-col="sessioni" data-col-label="Sessioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Sessioni</th>
+          <th class="num" data-col="completati" data-col-label="Completati" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Completati</th>
+          <th class="nowrap" data-col="ultimo" data-col-label="Ultimo completamento" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Ultimo completamento</th>
+          <th data-col="idoneo" data-col-label="Idoneo" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Idoneo</th>
+          <th class="nowrap">Azioni</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in dipendenti_iscritti %}
+        <tr>
+          <td>
+            <a class="fm-link" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}">{{ d.nome }}</a>
+          </td>
+          <td><span class="fm-pill fm-pill-{{ d.stato_sint|lower }}">{{ d.stato_sint|default:"—" }}</span></td>
+          <td class="num">{{ d.n_sessioni }}</td>
+          <td class="num">{{ d.n_completati }}</td>
+          <td class="nowrap muted">{% if d.data_completamento %}{{ d.data_completamento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
+          <td>
+            {% if d.idoneo is True %}<span class="fm-pill fm-pill-valid">Sì</span>
+            {% elif d.idoneo is False %}<span class="fm-pill fm-pill-expired">No</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td class="nowrap">
+            <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}">Scheda</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="fm-empty">Nessun dipendente iscritto al corso.</div>
+  {% endif %}
+</div>
+
+
+  </div>
+
+  <div data-corso-panel="persone" hidden>
+{# ── Assegna dipendenti al corso (primo anello corso→sessione) ──────────── #}
+{% if is_editor %}
+<div class="hr-card fm-section">
+  <div class="fm-section-head">
+    <div class="fm-section-title">➕ Assegna dipendenti al corso <span class="fm-count">{{ candidati_assegnazione|length }}</span></div>
+    <div class="muted" style="font-size:11px;">
+      {% if assegnazione_pool_filtrato %}Proposti i dipendenti tenuti al corso (obbligo per mansione, area o ruolo) non ancora a posto{% else %}Proposti i dipendenti con il corso scaduto, in scadenza o mai frequentato{% endif %}, non ancora assegnati. L'assegnazione li propone poi in cima ai candidati delle edizioni.
+    </div>
+  </div>
+  {% if candidati_assegnazione %}
+  <form method="post" action="{% url 'anagrafica:formazione_corso_assegna' corso.pk %}">
+    {% csrf_token %}
+    <div class="fm-table-wrap" style="max-height:340px;overflow:auto;">
+      <table class="fm-table">
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center;"><input type="checkbox" onclick="var on=this.checked;document.querySelectorAll('.assegna-cb').forEach(function(c){c.checked=on;});"></th>
+            <th>Dipendente</th>
+            <th>Stato corso</th>
+            <th class="nowrap">Scadenza</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in candidati_assegnazione %}
+          <tr>
+            <td style="text-align:center;"><input type="checkbox" class="assegna-cb" name="dipendenti_selezionati" value="{{ c.legacy_id }}" {% if c.preselect %}checked{% endif %}></td>
+            <td>{{ c.nome }}</td>
+            <td>
+              {% if c.stato == "SCADUTO" %}<span class="fm-pill fm-pill-expired">Scaduto</span>
+              {% elif c.stato == "IN_SCADENZA_30" %}<span class="fm-pill fm-pill-warning">In scadenza ≤30gg</span>
+              {% elif c.stato == "IN_SCADENZA_90" %}<span class="fm-pill fm-pill-warning">In scadenza ≤90gg</span>
+              {% else %}<span class="fm-pill fm-pill-missing">Mai frequentato</span>{% endif %}
+            </td>
+            <td class="nowrap muted">{{ c.data_scadenza|date:"d-m-Y"|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+      <button type="submit" class="hr-btn hr-btn-primary">➕ Assegna selezionati al corso</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="fm-empty">Nessun dipendente da assegnare: i candidati pertinenti sono già assegnati o a posto.</div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Completamento senza sessione (corso frequentato altrove / storico) ──── #}
+{% if is_editor and completamento_form %}
+<div class="hr-card fm-section">
+  <div class="fm-section-head">
+    <div class="fm-section-title">✅ Registra completamento senza sessione</div>
+    <div class="muted" style="font-size:11px;">
+      Per corsi già frequentati presso enti esterni o recuperati dallo storico:
+      il record va a libretto e nello scadenzario come gli altri, senza inventare
+      una sessione e un registro presenze mai esistiti.
+    </div>
+  </div>
+  <form method="post" action="{% url 'anagrafica:formazione_corso_completamento_diretto' corso.pk %}">
+    {% csrf_token %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;padding:4px 0 12px;">
+      <div class="fm-f">
+        <label>Data completamento *</label>{{ completamento_form.data_completamento }}
+      </div>
+      <div class="fm-f">
+        <label>Ore frequentate</label>{{ completamento_form.ore_frequentate }}
+        <div class="muted" style="font-size:11px;">Vuoto = {{ corso.durata_ore_teorica|floatformat:"-2" }}h (durata teorica).</div>
+      </div>
+      <div class="fm-f">
+        <label>Ente / docente erogatore</label>{{ completamento_form.erogato_da }}
+      </div>
+      <div class="fm-f" style="justify-content:flex-end;">
+        <label style="display:flex;align-items:center;gap:8px;">
+          {{ completamento_form.idoneo }} <span>Esito positivo (idoneo)</span>
+        </label>
+      </div>
+      <div class="fm-f" style="grid-column:1/-1;">
+        <label>Note</label>{{ completamento_form.note }}
+      </div>
+    </div>
+
+    <div class="fm-f" style="margin-bottom:8px;">
+      <label>Dipendenti</label>
+      <input type="search" class="fm-input" placeholder="Filtra per nome…"
+             oninput="var v=this.value.toLowerCase();document.querySelectorAll('#compl-pool tr').forEach(function(r){r.hidden = v && r.dataset.nome.indexOf(v)===-1;});">
+    </div>
+    <div class="fm-table-wrap" style="max-height:300px;overflow:auto;">
+      <table class="fm-table">
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center;">
+              <input type="checkbox" onclick="var on=this.checked;document.querySelectorAll('#compl-pool tr:not([hidden]) .compl-cb').forEach(function(c){c.checked=on;});">
+            </th>
+            <th>Dipendente</th>
+          </tr>
+        </thead>
+        <tbody id="compl-pool">
+          {% for lid, nome in dipendenti_pool %}
+          <tr data-nome="{{ nome|lower }}">
+            <td style="text-align:center;"><input type="checkbox" class="compl-cb" name="dipendenti_selezionati" value="{{ lid }}"></td>
+            <td>{{ nome }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="2" class="muted">Nessun dipendente disponibile.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+      <button type="submit" class="hr-btn hr-btn-primary">✅ Registra completamento</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+
+  </div>
+
+  <div data-corso-panel="contenuti" hidden>
+    <div class="corso-2col">
+      <div>
       {# Programma didattico #}
       <div class="hr-card fm-section">
         <div class="fm-section-head">
@@ -110,6 +501,7 @@
         <div class="fm-empty">Nessun argomento dichiarato: il fascicolo delle edizioni segnalerà il programma come mancante.</div>
         {% endif %}
         {% if is_editor %}
+<details class="fm-add"><summary>+ Aggiungi argomento</summary>
         <form method="post" action="{% url 'anagrafica:formazione_corso_argomento_add' corso.pk %}" class="fm-inline-form">
           {% csrf_token %}
           <div class="fm-f" style="flex:2;min-width:200px;">
@@ -125,11 +517,89 @@
             <input type="text" name="riferimento" maxlength="200" placeholder="es. Allegato A, punto 3">
           </div>
           <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">Aggiungi</button>
-        </form>
         <p class="muted" style="font-size:12px;margin:6px 0 0;">Le nuove edizioni ne ricevono una copia modificabile: cambiare il programma qui non altera le edizioni già erogate.</p>
+        </form>
+</details>
         {% endif %}
       </div>
 
+{# ── Materiale del corso ────────────────────────────────────────────── #}
+<div class="hr-card fm-section">
+  <div class="fm-section-head">
+    <div class="fm-section-title">📎 Materiale del corso
+      <span class="fm-count">{{ allegati_corso|length }}</span>
+    </div>
+    <span class="muted" style="font-size:11px;">Dispense, programma, modulistica</span>
+  </div>
+  <div style="padding:8px 16px 4px;font-size:12px;color:#64748b;">
+    È il materiale «madre» del corso: alla creazione di ogni nuova edizione viene
+    riproposto in copia, pre-spuntato, e si deseleziona quello non pertinente. La copia
+    vive sull’edizione e resta modificabile — così l’edizione documenta ciò che ha
+    davvero consegnato anche quando il corso, mesi dopo, cambia dispensa.
+  </div>
+  {% if allegati_corso %}
+  <div class="fm-table-wrap">
+    <table class="fm-table">
+      <thead><tr><th>File</th><th>Tipo</th><th class="nowrap">Nuove edizioni</th><th class="nowrap">Caricato</th><th class="nowrap"></th></tr></thead>
+      <tbody>
+        {% for a in allegati_corso %}
+        <tr>
+          <td>
+            <a class="fm-link" href="{% url 'anagrafica:formazione_allegato_download' a.pk %}">{{ a.nome_originale }}</a>
+            {% if a.descrizione %}<div class="muted" style="font-size:11px;">{{ a.descrizione }}</div>{% endif %}
+          </td>
+          <td class="muted">{{ a.get_tipo_display }}</td>
+          <td class="nowrap muted">{% if a.proponi_a_nuova_edizione %}Proposto{% else %}—{% endif %}</td>
+          <td class="nowrap muted">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display|upper }}{% endif %}</td>
+          <td class="nowrap">
+            {% if is_editor %}
+            <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"
+                  data-hub-confirm="Eliminare l'allegato «{{ a.nome_originale }}»? Le copie già riportate sulle edizioni restano.">
+              {% csrf_token %}
+              <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="fm-empty">Nessun materiale caricato sul corso.</div>
+  {% endif %}
+  {% if is_editor %}
+<details class="fm-add"><summary>+ Carica materiale</summary>
+  <form method="post" action="{% url 'anagrafica:formazione_corso_allegato_upload' corso.pk %}"
+        enctype="multipart/form-data" class="fm-inline-form" style="align-items:flex-end;">
+    {% csrf_token %}
+    <div class="fm-f" style="flex:1;min-width:240px;">
+      <label>Carica materiale (PDF, immagine, DOC/XLS)</label>
+      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx">
+    </div>
+    <div class="fm-f">
+      <label>Tipo</label>
+      <select name="tipo">
+        {% for val, lbl in tipi_allegato %}<option value="{{ val }}"{% if val == "MATERIALE" %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="fm-f" style="min-width:200px;">
+      <label>Descrizione (facoltativa)</label>
+      <input type="text" name="descrizione" maxlength="300" placeholder="es. dispensa rev. B">
+    </div>
+    <label class="fm-f" style="flex-direction:row;align-items:center;gap:6px;">
+      <input type="checkbox" name="proponi" value="1" checked>
+      <span style="font-size:12px;">Proponi alle nuove edizioni</span>
+    </label>
+    <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">⬆ Carica</button>
+  </form>
+</details>
+  {% endif %}
+</div>
+
+
+      </div>
+      <div>
       {# Prerequisiti #}
       <div class="hr-card fm-section">
         <div class="fm-section-head">
@@ -167,6 +637,7 @@
         <div class="fm-empty">Nessun prerequisito.</div>
         {% endif %}
         {% if is_editor %}
+<details class="fm-add"><summary>+ Aggiungi prerequisito</summary>
         <form method="post" action="{% url 'anagrafica:formazione_corso_dep_add' corso.pk %}"
               class="fm-inline-form">
           {% csrf_token %}
@@ -184,69 +655,47 @@
           </label>
           <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">Aggiungi</button>
         </form>
+</details>
         {% endif %}
       </div>
 
-      {# Versioni corso #}
+      {# Versioni corso: nascono da sole (services/corso_versioni.py). #}
       <div class="hr-card fm-section">
         <div class="fm-section-head">
           <div class="fm-section-title">🏷 Versioni <span class="fm-count">{{ versioni|length }}</span></div>
+          <span class="muted" style="font-size:11px;">Automatiche</span>
+        </div>
+        <div style="padding:8px 16px 0;font-size:12px;color:#64748b;">
+          Si registrano da sole quando cambiano titolo, durata, validità, qualifica, categoria o programma.
+          Se qualcuno ha già completato la versione corrente ne nasce una nuova (1.0 → 1.1) e i completamenti restano sulla versione frequentata.
         </div>
         {% if versioni %}
         <div class="fm-table-wrap">
         <table class="fm-table">
-          <thead><tr><th>Versione</th><th>Titolo snapshot</th><th>Data</th><th class="nowrap"></th></tr></thead>
+          <thead><tr><th>Versione</th><th>Dal</th><th>Al</th><th>Cosa è cambiato</th></tr></thead>
           <tbody>
             {% for v in versioni %}
             <tr>
-              <td class="mono">{{ v.version_label }}</td>
-              <td>{{ v.titolo_snapshot|truncatechars:40|default:"—" }}</td>
-              <td class="nowrap muted">{{ v.created_at|date:"d-m-Y" }}</td>
-              <td class="nowrap">
-                {% if is_editor %}
-                <form method="post"
-                      action="{% url 'anagrafica:formazione_corso_version_delete' corso.pk v.pk %}"
-                      data-hub-confirm="Eliminare versione {{ v.version_label }}?" style="display:inline;">
-                  {% csrf_token %}
-                  <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
-                </form>
-                {% endif %}
-              </td>
+              <td class="mono">{{ v.version_label }}{% if v.version_label == corso.versione %} <span class="fm-pill fm-pill-valid">in uso</span>{% endif %}</td>
+              <td class="nowrap muted">{{ v.data_inizio_validita|default:v.created_at|date:"d-m-Y" }}</td>
+              <td class="nowrap muted">{{ v.data_fine_validita|date:"d-m-Y"|default:"—" }}</td>
+              <td class="muted" style="font-size:12px;">{{ v.note|linebreaksbr|default:"—" }}{% if v.revised_by %}<div style="font-size:11px;">da {{ v.revised_by.get_full_name|default:v.revised_by.username }}</div>{% endif %}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
         </div>
         {% else %}
-        <div class="fm-empty">Nessuna versione registrata.</div>
-        {% endif %}
-        {% if is_editor %}
-        <form method="post" action="{% url 'anagrafica:formazione_corso_version_add' corso.pk %}"
-              class="fm-inline-form">
-          {% csrf_token %}
-          <div class="fm-f">
-            <label>Label versione *</label>
-            <input type="text" name="version_label" required maxlength="10" placeholder="es. 2.0">
-          </div>
-          <div class="fm-f">
-            <label>Titolo snapshot</label>
-            <input type="text" name="titolo_snapshot" maxlength="300" placeholder="Titolo al momento">
-          </div>
-          <div class="fm-f">
-            <label>Note</label>
-            <input type="text" name="note" placeholder="Modifiche rispetto alla versione precedente">
-          </div>
-          <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary" style="align-self:flex-end;">Aggiungi</button>
-        </form>
+        <div class="fm-empty">La prima versione si registra al prossimo salvataggio del corso.</div>
         {% endif %}
       </div>
 
-    </div>{# fine colonna sinistra #}
 
-    {# ── Colonna destra ────────────────────────────────────────────────────── #}
-    <div>
+      </div>
+    </div>
+  </div>
 
-      {# Regola superamento #}
+  <div data-corso-panel="superamento" hidden>
       <div class="hr-card fm-section">
         <div class="fm-section-head">
           <div class="fm-section-title">🎯 Regola di superamento</div>
@@ -332,407 +781,43 @@
         {% endif %}
       </div>
 
-      {# Regole obbligatorietà sul corso #}
-      <div class="hr-card fm-section">
-        <div class="fm-section-head">
-          <div class="fm-section-title">📌 Regole obbligatorietà <span class="fm-count">{{ regole|length }}</span></div>
-        </div>
-        {% if regole %}
-        <div class="fm-table-wrap">
-        <table class="fm-table">
-          <thead>
-            <tr>
-              <th>Target</th>
-              <th>Obbligatoria</th>
-              <th>Note</th>
-              <th class="nowrap"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in regole %}
-            <tr>
-              <td>
-                {% if r.mansione %}<span class="muted">Mansione di rischio:</span> {{ r.mansione.nome }}{% endif %}
-                {% if r.area %}<span class="muted">Area:</span> {{ r.area.nome }}{% endif %}
-                {% if r.ruolo_operativo %}<span class="muted">Ruolo:</span> {{ r.ruolo_operativo.nome }}{% endif %}
-                {% if r.competenza %}<span class="muted">Mansione lavorativa:</span> <a href="{% url 'anagrafica:mansionario_mansione' r.competenza.pk %}">{{ r.competenza.display|default:r.competenza.competenza_key }}</a>{% endif %}
-                {% if r.legacy_anagrafica_id %}
-                  <span class="muted">Dip.</span> {% if r.dipendente_nome %}{{ r.dipendente_nome|upper }}{% else %}#{{ r.legacy_anagrafica_id }}{% endif %}
-                {% endif %}
-              </td>
-              <td>{% if r.is_mandatory %}<span class="fm-pill fm-pill-enrolled">Sì</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-              <td class="muted">{{ r.note|truncatechars:40|default:"—" }}</td>
-              <td class="nowrap">
-                {% if is_editor %}
-                <form method="post"
-                      action="{% url 'anagrafica:formazione_corso_req_rule_delete' corso.pk r.pk %}"
-                      data-hub-confirm="Rimuovere regola?" style="display:inline;">
-                  {% csrf_token %}
-                  <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
-                </form>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        </div>
-        {% else %}
-        <div class="fm-empty">Nessuna regola di obbligatorietà sul corso.</div>
-        {% endif %}
-        {% if is_editor %}
-        <div style="padding:10px 16px;">
-          <button class="hr-btn hr-btn-sm"
-                  onclick="document.getElementById('panel-add-rule').style.display=
-                    document.getElementById('panel-add-rule').style.display==='none'?'block':'none'">
-            + Aggiungi regola
-          </button>
-          <div id="panel-add-rule" style="display:none;margin-top:12px;">
-            <form method="post" action="{% url 'anagrafica:formazione_corso_req_rule_add' corso.pk %}">
-              {% csrf_token %}
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;background:#f8fafc;border-radius:8px;">
-                {% include "anagrafica/partials/_fm_form_fields.html" with form=req_rule_form %}
-              </div>
-              <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary" style="margin-top:8px;">Aggiungi regola</button>
-            </form>
-          </div>
-        </div>
-        {% endif %}
-      </div>
 
-    </div>{# fine colonna destra #}
-
-  </div>{# fine grid 2 colonne #}
+  </div>
 
 </div>
 
-{# ── Materiale del corso ────────────────────────────────────────────── #}
-<div class="hr-card fm-section">
-  <div class="fm-section-head">
-    <div class="fm-section-title">📎 Materiale del corso
-      <span class="fm-count">{{ allegati_corso|length }}</span>
-    </div>
-    <span class="muted" style="font-size:11px;">Dispense, programma, modulistica</span>
-  </div>
-  <div style="padding:8px 16px 4px;font-size:12px;color:#64748b;">
-    È il materiale «madre» del corso: alla creazione di ogni nuova edizione viene
-    riproposto in copia, pre-spuntato, e si deseleziona quello non pertinente. La copia
-    vive sull’edizione e resta modificabile — così l’edizione documenta ciò che ha
-    davvero consegnato anche quando il corso, mesi dopo, cambia dispensa.
-  </div>
-  {% if allegati_corso %}
-  <div class="fm-table-wrap">
-    <table class="fm-table">
-      <thead><tr><th>File</th><th>Tipo</th><th class="nowrap">Nuove edizioni</th><th class="nowrap">Caricato</th><th class="nowrap"></th></tr></thead>
-      <tbody>
-        {% for a in allegati_corso %}
-        <tr>
-          <td>
-            <a class="fm-link" href="{% url 'anagrafica:formazione_allegato_download' a.pk %}">{{ a.nome_originale }}</a>
-            {% if a.descrizione %}<div class="muted" style="font-size:11px;">{{ a.descrizione }}</div>{% endif %}
-          </td>
-          <td class="muted">{{ a.get_tipo_display }}</td>
-          <td class="nowrap muted">{% if a.proponi_a_nuova_edizione %}Proposto{% else %}—{% endif %}</td>
-          <td class="nowrap muted">{{ a.created_at|date:"d-m-Y H:i" }}{% if a.created_by_display %} · {{ a.created_by_display|upper }}{% endif %}</td>
-          <td class="nowrap">
-            {% if is_editor %}
-            <form method="post" action="{% url 'anagrafica:formazione_allegato_delete' a.pk %}" style="display:inline;"
-                  data-hub-confirm="Eliminare l'allegato «{{ a.nome_originale }}»? Le copie già riportate sulle edizioni restano.">
-              {% csrf_token %}
-              <button type="submit" class="hr-btn hr-btn-sm hr-btn-danger">✕</button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <div class="fm-empty">Nessun materiale caricato sul corso.</div>
-  {% endif %}
-  {% if is_editor %}
-  <form method="post" action="{% url 'anagrafica:formazione_corso_allegato_upload' corso.pk %}"
-        enctype="multipart/form-data" class="fm-inline-form" style="align-items:flex-end;">
-    {% csrf_token %}
-    <div class="fm-f" style="flex:1;min-width:240px;">
-      <label>Carica materiale (PDF, immagine, DOC/XLS)</label>
-      <input type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx">
-    </div>
-    <div class="fm-f">
-      <label>Tipo</label>
-      <select name="tipo">
-        {% for val, lbl in tipi_allegato %}<option value="{{ val }}"{% if val == "MATERIALE" %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="fm-f" style="min-width:200px;">
-      <label>Descrizione (facoltativa)</label>
-      <input type="text" name="descrizione" maxlength="300" placeholder="es. dispensa rev. B">
-    </div>
-    <label class="fm-f" style="flex-direction:row;align-items:center;gap:6px;">
-      <input type="checkbox" name="proponi" value="1" checked>
-      <span style="font-size:12px;">Proponi alle nuove edizioni</span>
-    </label>
-    <button type="submit" class="hr-btn hr-btn-sm hr-btn-primary">⬆ Carica</button>
-  </form>
-  {% endif %}
-</div>
-
-{# ── Sessioni del corso ─────────────────────────────────────────────────── #}
-<div class="hr-card fm-section">
-  <div class="fm-section-head">
-    <div class="fm-section-title">
-      🗓 Sessioni del corso <span class="fm-count">{{ n_sessioni }}</span>
-    </div>
-    {% if is_editor %}
-    <a class="hr-btn hr-btn-sm hr-btn-primary"
-       href="{% url 'anagrafica:formazione_sessione_create' %}?corso={{ corso.pk }}">+ Nuova sessione</a>
-    {% endif %}
-  </div>
-  {% if sessioni_list %}
-  <div class="fm-table-wrap">
-    <table class="fm-table" data-table-id="formazione.corso.sessioni">
-      <thead>
-        <tr>
-          <th data-col="codice" data-col-label="Codice" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Codice</th>
-          <th data-col="edizione" data-col-label="Edizione" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Edizione</th>
-          <th data-col="inizio" data-col-label="Inizio" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data inizio</th>
-          <th data-col="fine" data-col-label="Fine" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Data fine</th>
-          <th data-col="modalita" data-col-label="Modalità" data-col-type="select"
-              data-col-options='[["IN_SEDE","In sede"],["REMOTO","Remoto"],["ESTERNO","Esterno"],["MISTO","Misto"]]'
-              data-col-sortable="1" data-col-filterable="1">Modalità</th>
-          <th data-col="stato" data-col-label="Stato" data-col-type="select"
-              data-col-options='[["PIANIFICATA","Pianificata"],["IN_CORSO","In corso"],["COMPLETATA","Completata"],["ANNULLATA","Annullata"]]'
-              data-col-sortable="1" data-col-filterable="1">Stato</th>
-          <th data-col="docente" data-col-label="Docente / Ente" data-col-type="text" data-col-sortable="1" data-col-filterable="1">Docente / Ente</th>
-          <th class="num" data-col="lezioni" data-col-label="Lezioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Lezioni</th>
-          <th class="num" data-col="iscritti" data-col-label="Iscritti" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Iscritti</th>
-          <th class="nowrap">Azioni</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for s in sessioni_list %}
-        <tr>
-          <td class="mono">
-            <a class="fm-link" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">{{ s.codice_sessione }}</a>
-          </td>
-          <td class="muted">{{ s.edizione|default:"—" }}</td>
-          <td class="nowrap">{{ s.data_inizio|date:"d-m-Y" }}</td>
-          <td class="nowrap muted">{{ s.data_fine|date:"d-m-Y" }}</td>
-          <td class="muted">{{ s.get_modalita_display }}</td>
-          <td><span class="fm-pill fm-pill-{{ s.stato|lower }}">{{ s.get_stato_display }}</span></td>
-          <td class="muted">{{ s.erogatore_display|default:"—" }}</td>
-          <td class="num">{{ s.n_lezioni }}</td>
-          <td class="num">{{ s.n_iscritti }}</td>
-          <td class="nowrap">
-            <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:formazione_sessione_detail' s.pk %}">Dettaglio</a>
-            <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:formazione_sessione_iscritti' s.pk %}">Iscritti</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% if n_sessioni > 100 %}
-  <div class="fm-empty">Mostrate le 100 sessioni più recenti su {{ n_sessioni }} totali.</div>
-  {% endif %}
-  {% else %}
-  <div class="fm-empty">
-    Nessuna sessione registrata per questo corso — e non è un problema:
-    un corso può restare a catalogo, oppure essere stato frequentato altrove.
-    In quel caso registra il completamento qui sotto, senza sessione né registro presenze.
-  </div>
-  {% endif %}
-</div>
-
-{# ── Completamento senza sessione (corso frequentato altrove / storico) ──── #}
-{% if is_editor and completamento_form %}
-<div class="hr-card fm-section">
-  <div class="fm-section-head">
-    <div class="fm-section-title">✅ Registra completamento senza sessione</div>
-    <div class="muted" style="font-size:11px;">
-      Per corsi già frequentati presso enti esterni o recuperati dallo storico:
-      il record va a libretto e nello scadenzario come gli altri, senza inventare
-      una sessione e un registro presenze mai esistiti.
-    </div>
-  </div>
-  <form method="post" action="{% url 'anagrafica:formazione_corso_completamento_diretto' corso.pk %}">
-    {% csrf_token %}
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;padding:4px 0 12px;">
-      <div class="fm-f">
-        <label>Data completamento *</label>{{ completamento_form.data_completamento }}
-      </div>
-      <div class="fm-f">
-        <label>Ore frequentate</label>{{ completamento_form.ore_frequentate }}
-        <div class="muted" style="font-size:11px;">Vuoto = {{ corso.durata_ore_teorica|floatformat:"-2" }}h (durata teorica).</div>
-      </div>
-      <div class="fm-f">
-        <label>Ente / docente erogatore</label>{{ completamento_form.erogato_da }}
-      </div>
-      <div class="fm-f" style="justify-content:flex-end;">
-        <label style="display:flex;align-items:center;gap:8px;">
-          {{ completamento_form.idoneo }} <span>Esito positivo (idoneo)</span>
-        </label>
-      </div>
-      <div class="fm-f" style="grid-column:1/-1;">
-        <label>Note</label>{{ completamento_form.note }}
-      </div>
-    </div>
-
-    <div class="fm-f" style="margin-bottom:8px;">
-      <label>Dipendenti</label>
-      <input type="search" class="fm-input" placeholder="Filtra per nome…"
-             oninput="var v=this.value.toLowerCase();document.querySelectorAll('#compl-pool tr').forEach(function(r){r.hidden = v && r.dataset.nome.indexOf(v)===-1;});">
-    </div>
-    <div class="fm-table-wrap" style="max-height:300px;overflow:auto;">
-      <table class="fm-table">
-        <thead>
-          <tr>
-            <th style="width:40px;text-align:center;">
-              <input type="checkbox" onclick="var on=this.checked;document.querySelectorAll('#compl-pool tr:not([hidden]) .compl-cb').forEach(function(c){c.checked=on;});">
-            </th>
-            <th>Dipendente</th>
-          </tr>
-        </thead>
-        <tbody id="compl-pool">
-          {% for lid, nome in dipendenti_pool %}
-          <tr data-nome="{{ nome|lower }}">
-            <td style="text-align:center;"><input type="checkbox" class="compl-cb" name="dipendenti_selezionati" value="{{ lid }}"></td>
-            <td>{{ nome }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="2" class="muted">Nessun dipendente disponibile.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-      <button type="submit" class="hr-btn hr-btn-primary">✅ Registra completamento</button>
-    </div>
-  </form>
-</div>
-{% endif %}
-
-{# ── Assegna dipendenti al corso (primo anello corso→sessione) ──────────── #}
-{% if is_editor %}
-<div class="hr-card fm-section">
-  <div class="fm-section-head">
-    <div class="fm-section-title">➕ Assegna dipendenti al corso <span class="fm-count">{{ candidati_assegnazione|length }}</span></div>
-    <div class="muted" style="font-size:11px;">
-      {% if assegnazione_pool_filtrato %}Proposti i dipendenti tenuti al corso (obbligo per mansione, area o ruolo) non ancora a posto{% else %}Proposti i dipendenti con il corso scaduto, in scadenza o mai frequentato{% endif %}, non ancora assegnati. L'assegnazione li propone poi in cima ai candidati delle edizioni.
-    </div>
-  </div>
-  {% if candidati_assegnazione %}
-  <form method="post" action="{% url 'anagrafica:formazione_corso_assegna' corso.pk %}">
-    {% csrf_token %}
-    <div class="fm-table-wrap" style="max-height:340px;overflow:auto;">
-      <table class="fm-table">
-        <thead>
-          <tr>
-            <th style="width:40px;text-align:center;"><input type="checkbox" onclick="var on=this.checked;document.querySelectorAll('.assegna-cb').forEach(function(c){c.checked=on;});"></th>
-            <th>Dipendente</th>
-            <th>Stato corso</th>
-            <th class="nowrap">Scadenza</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for c in candidati_assegnazione %}
-          <tr>
-            <td style="text-align:center;"><input type="checkbox" class="assegna-cb" name="dipendenti_selezionati" value="{{ c.legacy_id }}" {% if c.preselect %}checked{% endif %}></td>
-            <td>{{ c.nome }}</td>
-            <td>
-              {% if c.stato == "SCADUTO" %}<span class="fm-pill fm-pill-expired">Scaduto</span>
-              {% elif c.stato == "IN_SCADENZA_30" %}<span class="fm-pill fm-pill-warning">In scadenza ≤30gg</span>
-              {% elif c.stato == "IN_SCADENZA_90" %}<span class="fm-pill fm-pill-warning">In scadenza ≤90gg</span>
-              {% else %}<span class="fm-pill fm-pill-missing">Mai frequentato</span>{% endif %}
-            </td>
-            <td class="nowrap muted">{{ c.data_scadenza|date:"d-m-Y"|default:"—" }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-      <button type="submit" class="hr-btn hr-btn-primary">➕ Assegna selezionati al corso</button>
-    </div>
-  </form>
-  {% else %}
-  <div class="fm-empty">Nessun dipendente da assegnare: i candidati pertinenti sono già assegnati o a posto.</div>
-  {% endif %}
-</div>
-{% endif %}
-
-{# ── Dipendenti iscritti al corso (across all sessions) ─────────────────── #}
-<div class="hr-card fm-section">
-  <div class="fm-section-head">
-    <div class="fm-section-title">
-      👥 Dipendenti iscritti <span class="fm-count">{{ n_dipendenti_iscritti }}</span>
-    </div>
-    <div class="muted" style="font-size:11px;">Aggregato su tutte le sessioni del corso</div>
-  </div>
-  {% if dipendenti_iscritti %}
-  <div class="fm-table-wrap">
-    <table class="fm-table" data-table-id="formazione.corso.dipendenti">
-      <thead>
-        <tr>
-          <th data-col="dipendente" data-col-label="Dipendente" data-col-type="text" data-col-sortable="1" data-col-filterable="1" data-col-locked="1">Dipendente</th>
-          <th data-col="stato" data-col-label="Stato" data-col-type="select"
-              data-col-options='[["COMPLETATO","Completato"],["IN_CORSO","In corso"],["ISCRITTO","Iscritto"],["NON_IDONEO","Non idoneo"],["ASSENTE","Assente"],["RITIRATO","Ritirato"]]'
-              data-col-sortable="1" data-col-filterable="1">Stato</th>
-          <th class="num" data-col="sessioni" data-col-label="Sessioni" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Sessioni</th>
-          <th class="num" data-col="completati" data-col-label="Completati" data-col-type="number" data-col-sortable="1" data-col-filterable="1">Completati</th>
-          <th class="nowrap" data-col="ultimo" data-col-label="Ultimo completamento" data-col-type="date" data-col-sortable="1" data-col-filterable="1">Ultimo completamento</th>
-          <th data-col="idoneo" data-col-label="Idoneo" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Idoneo</th>
-          <th class="nowrap">Azioni</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for d in dipendenti_iscritti %}
-        <tr>
-          <td>
-            <a class="fm-link" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}">{{ d.nome }}</a>
-          </td>
-          <td><span class="fm-pill fm-pill-{{ d.stato_sint|lower }}">{{ d.stato_sint|default:"—" }}</span></td>
-          <td class="num">{{ d.n_sessioni }}</td>
-          <td class="num">{{ d.n_completati }}</td>
-          <td class="nowrap muted">{% if d.data_completamento %}{{ d.data_completamento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
-          <td>
-            {% if d.idoneo is True %}<span class="fm-pill fm-pill-valid">Sì</span>
-            {% elif d.idoneo is False %}<span class="fm-pill fm-pill-expired">No</span>
-            {% else %}<span class="muted">—</span>{% endif %}
-          </td>
-          <td class="nowrap">
-            <a class="hr-btn hr-btn-sm" href="{% url 'anagrafica:dipendente_detail' d.legacy_id %}">Scheda</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <div class="fm-empty">Nessun dipendente iscritto al corso.</div>
-  {% endif %}
-</div>
-
-{# ── Modal modifica corso ────────────────────────────────────────────────── #}
-{% if is_editor %}
-<div id="modal-edit-corso" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(0,0,0,.4);">
-  <div style="background:#fff;border-radius:12px;padding:28px 32px;width:640px;max-width:95vw;max-height:calc(90 * var(--vh, 1vh));overflow-y:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-      <strong style="font-size:16px;">Modifica corso</strong>
-      <button onclick="document.getElementById('modal-edit-corso').style.display='none'"
-              style="background:none;border:none;font-size:20px;cursor:pointer;">×</button>
-    </div>
-    <form method="post" action="{% url 'anagrafica:formazione_corso_edit' corso.pk %}">
-      {% csrf_token %}
-      {% include "anagrafica/partials/_fm_form_fields.html" with form=edit_form %}
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;">
-        <button type="button" class="hr-btn hr-btn-ghost"
-                onclick="document.getElementById('modal-edit-corso').style.display='none'">Annulla</button>
-        <button type="submit" class="hr-btn hr-btn-primary">Salva</button>
-      </div>
-    </form>
-  </div>
-</div>
-{% endif %}
+<style>
+  .corso-tabs{display:flex;gap:4px;flex-wrap:wrap;margin:4px 0 14px;border-bottom:1px solid #e2e8f0;}
+  .corso-tabs a{padding:9px 14px;font-size:13px;font-weight:700;color:#64748b;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .corso-tabs a.on{color:var(--fmd-navy,#0f2a4a);border-bottom-color:var(--fmd-cyan,#0369a1);}
+  .corso-tabs a:hover{color:var(--fmd-navy,#0f2a4a);}
+  .corso-2col{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  @media(max-width:900px){.corso-2col{grid-template-columns:1fr;}}
+  .fm-add{padding:8px 16px 12px;}
+  .fm-add>summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--fmd-cyan,#0369a1);list-style:none;}
+  .fm-add>summary::-webkit-details-marker{display:none;}
+  .fm-add[open]>summary{margin-bottom:8px;}
+  body.theme-dark .corso-tabs{border-bottom-color:#334155;}
+  body.theme-dark .corso-tabs a.on{color:#e2e8f0;}
+</style>
+<script>
+(function(){
+  var links=document.querySelectorAll('[data-corso-tab]'); if(!links.length) return;
+  function mostra(nome, ricorda){
+    var ok=false; links.forEach(function(a){ if(a.getAttribute('data-corso-tab')===nome) ok=true; });
+    if(!ok) nome='panoramica';
+    links.forEach(function(a){ a.classList.toggle('on', a.getAttribute('data-corso-tab')===nome); });
+    document.querySelectorAll('[data-corso-panel]').forEach(function(p){ p.hidden = p.getAttribute('data-corso-panel')!==nome; });
+    if(ricorda){ try{ history.replaceState(null,'','#'+nome); }catch(e){} }
+  }
+  links.forEach(function(a){ a.addEventListener('click',function(e){ e.preventDefault(); mostra(a.getAttribute('data-corso-tab'), true); }); });
+  var h=(location.hash||'').slice(1);
+  // Un'ancora interna (es. #compl-pool, #form-req-rule) apre la scheda che la contiene.
+  if(h && !document.querySelector('[data-corso-tab="'+h+'"]')){
+    var el=document.getElementById(h); var pan=el && el.closest('[data-corso-panel]');
+    if(pan){ mostra(pan.getAttribute('data-corso-panel'), false); el.scrollIntoView({block:'center'}); return; }
+  }
+  mostra(h||'panoramica', false);
+})();
+</script>
 {% endblock %}

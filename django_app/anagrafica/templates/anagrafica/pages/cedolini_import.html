@@ -186,8 +186,8 @@ body.theme-dark .ci-upload-selected{color:#93c5fd}
             <td style="font-weight:700;">{{ imp.data_competenza|date:"F Y" }}</td>
             <td style="color:#64748b;font-size:12px;">{{ imp.file_nome|default:"—" }}</td>
             <td><span class="ci-badge ci-badge-ok">{{ imp.righe_ok }}</span></td>
-            <td>{% if imp.righe_errore %}<span class="ci-badge ci-badge-err">{{ imp.righe_errore }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-            <td>{% if imp.righe_non_trovate %}<span class="ci-badge ci-badge-warn">{{ imp.righe_non_trovate }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+            <td>{% if imp.righe_errore %}{% if imp.scarti %}<a href="{% url 'anagrafica:import_scarti_export' 'cedolini' imp.pk %}" class="ci-badge ci-badge-err" style="text-decoration:none;" title="Scarica l'elenco degli scarti (Excel)">{{ imp.righe_errore }} ⬇</a>{% else %}<span class="ci-badge ci-badge-err">{{ imp.righe_errore }}</span>{% endif %}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
+            <td>{% if imp.righe_non_trovate %}{% if imp.scarti %}<a href="{% url 'anagrafica:import_scarti_export' 'cedolini' imp.pk %}" class="ci-badge ci-badge-warn" style="text-decoration:none;" title="Scarica l'elenco dei CF non trovati (Excel)">{{ imp.righe_non_trovate }} ⬇</a>{% else %}<span class="ci-badge ci-badge-warn">{{ imp.righe_non_trovate }}</span>{% endif %}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
             <td style="font-size:12px;">{% if imp.importato_da %}{{ imp.importato_da.get_full_name|default:imp.importato_da }}{% elif imp.file_nome|slice:":11" == "SharePoint " %}Automatico{% else %}—{% endif %}</td>
             <td style="font-size:12px;color:#64748b;">{{ imp.data_importazione|date:"d-m-Y H:i" }}</td>
           </tr>

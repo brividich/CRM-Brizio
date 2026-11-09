@@ -4,7 +4,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -32,8 +32,8 @@
     {# ── KPI ────────────────────────────────────────────────────────────── #}
     <section class="fmd-kpi" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));">
       <div class="fmd-mtr fmd-t-cyan"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-users"/></svg></span><span class="fmd-mtr-val">{{ n_holders }}</span></div><div class="fmd-mtr-lbl">Dipendenti</div></div>
-      <div class="fmd-mtr fmd-t-amber"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic" style="background:#fff5f5;color:#c53030;"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div><div class="fmd-mtr-lbl">Scaduti</div></div>
-      <div class="fmd-mtr fmd-t-orange"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_scadenza }}</span></div><div class="fmd-mtr-lbl">In scadenza</div></div>
+      <a class="fmd-mtr fmd-t-amber" href="{% url 'anagrafica:qualifiche_scadenzario' %}?tipo={{ tipo.id }}&amp;stato=scaduta" title="Apri lo scadenzario qualifiche: solo le scadute di questo tipo"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic" style="background:#fff5f5;color:#c53030;"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div><div class="fmd-mtr-lbl">Scaduti</div></a>
+      <a class="fmd-mtr fmd-t-orange" href="{% url 'anagrafica:qualifiche_scadenzario' %}?tipo={{ tipo.id }}&amp;stato=60" title="Apri lo scadenzario qualifiche: in scadenza entro 60 giorni di questo tipo"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_scadenza }}</span></div><div class="fmd-mtr-lbl">In scadenza</div></a>
       <div class="fmd-mtr fmd-t-green"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-book"/></svg></span><span class="fmd-mtr-val">{{ corsi|length }}</span></div><div class="fmd-mtr-lbl">Corsi collegati</div></div>
       <div class="fmd-mtr fmd-t-violet"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-refresh"/></svg></span><span class="fmd-mtr-val">{{ sessioni|length }}</span></div><div class="fmd-mtr-lbl">Sessioni rinnovo</div></div>
       <div class="fmd-mtr fmd-t-navy"><span class="fmd-ribbon"></span><div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-award"/></svg></span><span class="fmd-mtr-val">{{ n_attestati }}</span></div><div class="fmd-mtr-lbl">Attestati</div></div>
@@ -53,7 +53,7 @@
               <td><a class="fmd-data-link" href="{% url 'anagrafica:dipendente_detail' h.q.legacy_anagrafica_id %}">{{ h.nome }}</a></td>
               <td class="fmd-nowrap fmd-muted">{% if h.q.data_conseguimento %}{{ h.q.data_conseguimento|date:"d-m-Y" }}{% else %}—{% endif %}</td>
               <td class="fmd-nowrap fmd-muted">{% if h.q.data_scadenza %}{{ h.q.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td>
-              <td>{% if h.stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduta</span>{% elif h.stato == "in_scadenza" %}<span class="fmd-badge fmd-b-orange">In scadenza</span>{% else %}<span class="fmd-badge fmd-b-green">Valida</span>{% endif %}</td>
+              <td>{% if h.stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduta</span>{% elif h.stato == "in_scadenza" %}<span class="fmd-badge fmd-b-orange">In scadenza</span>{% else %}<span class="fmd-badge fmd-b-green">Valida</span>{% endif %}{% if h.stato == "scaduta" or h.stato == "in_scadenza" %} <a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' h.q.legacy_anagrafica_id %}?rinnova={{ tipo.id }}" title="Apri la scheda con il rinnovo di «{{ tipo.nome }}» precompilato">↻ Rinnova</a>{% endif %}</td>
               <td class="fmd-muted">
                 {% if h.q.record_formazione %}<span style="font-size:11.5px;">{{ h.q.record_formazione.corso.titolo|truncatechars:40 }}</span>
                 {% elif h.q.sessione %}<a class="fmd-data-link" href="{% url 'anagrafica:qualifica_sessione_detail' h.q.sessione_id %}" style="font-size:11.5px;">Sessione {{ h.q.sessione.data_conseguimento|date:"d-m-Y" }}</a>

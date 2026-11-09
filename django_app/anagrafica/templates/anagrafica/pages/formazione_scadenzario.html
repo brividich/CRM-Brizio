@@ -5,7 +5,7 @@
 
 {% block extra_head %}
 {% include "anagrafica/components/_hr_restyle.html" %}
-<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=15">
+<link rel="stylesheet" href="{% static 'anagrafica/css/formazione_design.css' %}?v=16">
 {% endblock %}
 
 {% block subnav %}{% include "anagrafica/components/subnav.html" %}{% endblock %}
@@ -48,26 +48,26 @@
 
     {# ── KPI ────────────────────────────────────────────────────────────── #}
     <section class="fmd-kpi fmd-k4">
-      <div class="fmd-mtr fmd-t-amber">
+      <a class="fmd-mtr fmd-t-amber" href="?stato=SCADUTO{% if filtro_corso %}&amp;corso={{ filtro_corso }}{% endif %}{{ filtro_centro.suffisso }}" title="Mostra solo i corsi scaduti">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div>
         <div class="fmd-mtr-lbl">Scaduti</div><div class="fmd-mtr-sub">Da rinnovare subito</div>
-      </div>
+      </a>
       <div class="fmd-mtr fmd-t-orange">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_30gg }}</span></div>
         <div class="fmd-mtr-lbl">Entro 30gg</div><div class="fmd-mtr-sub">Prossima scadenza</div>
       </div>
-      <div class="fmd-mtr fmd-t-yellow">
+      <a class="fmd-mtr fmd-t-yellow" href="?stato=IN_SCADENZA_90{% if filtro_corso %}&amp;corso={{ filtro_corso }}{% endif %}{{ filtro_centro.suffisso }}" title="Mostra solo le scadenze entro 90 giorni">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-calendar"/></svg></span><span class="fmd-mtr-val">{{ n_90gg }}</span></div>
         <div class="fmd-mtr-lbl">Entro 90gg</div><div class="fmd-mtr-sub">Pianificazione</div>
-      </div>
-      <div class="fmd-mtr fmd-t-navy">
+      </a>
+      <a class="fmd-mtr fmd-t-navy" href="?stato=MAI_FREQUENTATO{% if filtro_corso %}&amp;corso={{ filtro_corso }}{% endif %}{{ filtro_centro.suffisso }}" title="Mostra solo i corsi mai frequentati">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-cir"/></svg></span><span class="fmd-mtr-val">{{ n_mai }}</span></div>
         <div class="fmd-mtr-lbl">Mai frequentati</div><div class="fmd-mtr-sub">Corsi obbligatori non svolti</div>
-      </div>
+      </a>
     </section>
 
     {# ── Tabella + filtri ───────────────────────────────────────────────── #}
@@ -97,6 +97,9 @@
       </form>
 
       {% if page_obj.object_list %}
+      {% if is_editor and not filtro_corso and page_obj.object_list %}
+      <p class="fmd-muted" style="font-size:12px;margin:0 0 8px;">«↻ Rinnova» crea la sessione per una persona. Per rinnovare più persone insieme, filtra per corso{% if corsi_list %}: {% for c in corsi_list %}<a class="fmd-data-link" href="?corso={{ c.pk }}{{ filtro_centro.suffisso }}">{{ c.codice }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}.</p>
+      {% endif %}
       {% if is_editor and filtro_corso %}
       {# Selezione dipendenti → sessione di rinnovo (batch per-corso: richiede un corso filtrato). #}
       <form method="post" action="{% url 'anagrafica:formazione_rinnovo_da_scadenzario' %}">
@@ -120,6 +123,7 @@
                   data-col-options='[["SCADUTO","Scaduto"],["IN_SCADENZA_30","≤30gg"],["IN_SCADENZA_90","≤90gg"],["MAI_FREQUENTATO","Mai frequentato"],["UNA_TANTUM","Una tantum"],["VALIDO","Valido"]]'
                   data-col-sortable="1" data-col-filterable="1">Stato</th>
               <th class="fmd-c" data-col="obbligatorio" data-col-label="Obbligatorio" data-col-type="bool" data-col-sortable="1" data-col-filterable="1">Obblig.</th>
+              {% if is_editor %}<th class="fmd-act-cell" data-col-nosort="1">Azione</th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -151,6 +155,7 @@
                 {% endif %}
               </td>
               <td class="fmd-c">{% if sc.is_required %}<span class="fmd-badge fmd-b-red">Sì</span>{% else %}<span class="fmd-muted">—</span>{% endif %}</td>
+              {% if is_editor %}<td class="fmd-act-cell">{% if sc.stato_scadenza == "SCADUTO" or sc.stato_scadenza == "IN_SCADENZA_30" or sc.stato_scadenza == "IN_SCADENZA_90" or sc.stato_scadenza == "MAI_FREQUENTATO" %}{% if filtro_corso %}<button type="submit" class="fmd-act" name="dipendenti_selezionati" value="{{ sc.legacy_anagrafica_id }}" title="Crea la sessione di rinnovo con questa persona (e gli altri già selezionati)">↻ Rinnova</button>{% else %}{% include "anagrafica/partials/_formazione_rinnova_btn.html" with corso_id=sc.corso.pk legacy_id=sc.legacy_anagrafica_id back="anagrafica:formazione_scadenzario" titolo_corso=sc.corso.titolo %}{% endif %}{% endif %}</td>{% endif %}
             </tr>
             {% endfor %}
           </tbody>

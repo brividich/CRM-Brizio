@@ -704,6 +704,19 @@ body.theme-dark .sp-card-foot{border-color:var(--border)}
 body.theme-dark .sp-confronto{border-color:var(--border)}
 body.theme-dark .dp-soon-badge{background:rgba(139,92,246,.2);color:var(--text)}
 body.theme-dark .dp-th-muted{color:var(--text-light)}
+/* Azione unica accanto a uno stato «da fare» (stesse regole di formazione_design.css .fmd-act) */
+.fmd-act{ display:inline-block; font:700 11px/1.2 inherit; color:var(--fmd-cyan,#0369a1); background:transparent; border:1px solid currentColor; border-radius:999px; padding:3px 9px; text-decoration:none; white-space:nowrap; cursor:pointer; vertical-align:middle; }
+.fmd-act:hover{ background:var(--fmd-cyan,#0369a1); color:#fff; }
+.fmd-act-ghost{ color:#64748b; }
+.fmd-act-ghost:hover{ background:#64748b; color:#fff; }
+.fmd-act-form{ display:inline; margin:0; }
+.fmd-act-cell{ text-align:right; white-space:nowrap; }
+body.theme-dark .fmd-act{ color:#7cc4f5; }
+body.theme-dark .fmd-act:hover{ background:#7cc4f5; color:#0f172a; }
+body.theme-dark .fmd-act-ghost{ color:#94a3b8; }
+.dp-contr-scade td{ background:#fff7ed; }
+.dp-contr-badge{ display:inline-block; margin-left:6px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; background:#ffedd5; color:#9a3412; }
+.dp-contr-badge-ko{ background:#fee2e2; color:#b91c1c; }
 </style>
 {% endblock %}
 
@@ -1312,10 +1325,14 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
           </thead>
           <tbody>
             {% for c in storico_contratti %}
-            <tr id="contr-row-{{ c.pk }}"{% if c.is_in_corso %} class="dp-contr-incorso"{% endif %}>
+            <tr id="contr-row-{{ c.pk }}" class="{% if c.is_in_corso %}dp-contr-incorso{% endif %}{% if contratto_rinnovo and c.pk == contratto_rinnovo.pk %} dp-contr-scade{% endif %}">
               <td style="white-space:nowrap;">
                 {{ c.data_inizio|date:"d-m-Y" }} –
                 {% if c.data_fine %}{{ c.data_fine|date:"d-m-Y" }}{% if c.is_in_corso %} · <strong>in corso</strong>{% endif %}{% elif c.is_programmato %}<strong>programmato</strong>{% else %}<strong>in corso</strong>{% endif %}
+                {% if contratto_rinnovo and c.pk == contratto_rinnovo.pk %}
+                  {% if contratto_rinnovo.scaduto %}<span class="dp-contr-badge dp-contr-badge-ko">Scaduto</span>{% else %}<span class="dp-contr-badge">Scade tra {{ contratto_rinnovo.giorni }}gg</span>{% endif %}
+                  {% if is_admin %}<button type="button" class="fmd-act" onclick="rinnovaContratto()" title="Registra il nuovo contratto: parte il giorno dopo la scadenza, con tipologia, livello e qualifica attuali">↻ Rinnova</button>{% endif %}
+                {% endif %}
               </td>
               <td>{{ c.tipologia_nome|default:"—" }}</td>
               <td>
@@ -1398,14 +1415,31 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       {% endif %}
 
       {% if is_admin %}
-      <details style="margin-top:4px;">
+      {% if contratto_rinnovo %}
+      <script>
+      // «↻ Rinnova» sull'ultimo contratto in scadenza: apre «Aggiungi riga manualmente»
+      // già compilata (inizio = fine+1, tipologia, livello, qualifica attuali).
+      function rinnovaContratto(){
+        var det=document.getElementById('contr-add-details'); if(det){ det.open=true; }
+        function set(id,val){ var el=document.getElementById(id); if(el){ el.value=val; } }
+        set('contr-add-inizio', '{{ contratto_rinnovo.data_inizio|date:"Y-m-d" }}');
+        set('contr-add-tipologia', '{{ contratto_rinnovo.tipologia|escapejs }}');
+        set('contr-add-livello', '{{ contratto_rinnovo.codice_livello|escapejs }}');
+        set('add-desc-livello', '{{ contratto_rinnovo.descrizione_livello|escapejs }}');
+        set('contr-add-qualifica', '{{ contratto_rinnovo.qualifica_nome|escapejs }}');
+        var ini=document.getElementById('contr-add-inizio');
+        if(ini){ ini.scrollIntoView({behavior:'smooth',block:'center'}); ini.focus(); }
+      }
+      </script>
+      {% endif %}
+      <details style="margin-top:4px;" id="contr-add-details">
         <summary style="font-size:12px;color:#64748b;cursor:pointer;padding:8px 16px;border-top:1px solid #f1f5f9;">+ Aggiungi riga manualmente</summary>
         <form method="post" action="{% url 'anagrafica:dipendente_contratto_add' legacy_id %}" style="padding:12px 16px 8px;">
           {% csrf_token %}
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">
             <div>
               <label class="dp-form-label">Data inizio *</label>
-              <input type="date" name="data_inizio" class="dp-input" required>
+              <input type="date" name="data_inizio" id="contr-add-inizio" class="dp-input" required>
             </div>
             <div>
               <label class="dp-form-label">Data fine</label>
@@ -1413,7 +1447,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
             </div>
             <div>
               <label class="dp-form-label">Contratto</label>
-              <select name="tipologia_contratto" class="dp-input">
+              <select name="tipologia_contratto" id="contr-add-tipologia" class="dp-input">
                 <option value="">— Nessuno —</option>
                 {% for tc in tipologie_contratto %}
                 <option value="{{ tc.codice }}">{{ tc.nome }}</option>
@@ -1422,7 +1456,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
             </div>
             <div>
               <label class="dp-form-label">Livello</label>
-              <select name="codice_livello" class="dp-input" onchange="onLivelloChange(this, 'add-desc-livello')">
+              <select name="codice_livello" id="contr-add-livello" class="dp-input" onchange="onLivelloChange(this, 'add-desc-livello')">
                 <option value="">— Nessuno —</option>
                 {% for lv in livelli_catalogo %}
                 <option value="{{ lv.codice }}">{{ lv }}</option>
@@ -1435,7 +1469,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
             </div>
             <div>
               <label class="dp-form-label">Qualifica prof.</label>
-              <select name="qualifica_nome" class="dp-input">
+              <select name="qualifica_nome" id="contr-add-qualifica" class="dp-input">
                 <option value="">— Nessuna —</option>
                 {% for tq in tipi_qualifica_prof %}
                 <option value="{{ tq.nome }}">{{ tq.nome }}</option>
@@ -2419,7 +2453,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
   </div>
 
   <!-- QUALIFICHE PROFESSIONALI (scheda «Ruolo e competenze») -->
-  <div class="dp-card" data-tab="{% if posizione %}ruolo{% else %}formazione{% endif %}">
+  <div class="dp-card" id="qualifiche" data-tab="{% if posizione %}ruolo{% else %}formazione{% endif %}">
     <div class="dp-card-head">
       <div class="dp-card-title">📜 Qualifiche professionali</div>
       {% if is_admin %}
@@ -2651,7 +2685,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
               {% endif %}
             {% endif %}
             <div style="margin-top:4px;">
-              <a href="{% url 'dpi:detail' r.pk %}" style="font-size:11px;color:#1f87cd;font-weight:600;">Dettaglio &rarr;</a>
+              {% if r.consegna.data_scadenza_stimata and r.consegna.data_scadenza_stimata <= oggi_plus60 %}<a class="fmd-act" href="{% url 'dpi:nuova' %}?per={{ legacy_id }}&amp;categoria_id={{ r.categoria.pk }}&amp;motivo=scadenza" title="Richiedi la sostituzione di questo DPI (richiesta già impostata)">Richiedi</a> {% endif %}<a href="{% url 'dpi:detail' r.pk %}" style="font-size:11px;color:#1f87cd;font-weight:600;">Dettaglio &rarr;</a>
             </div>
           </div>
           {% endfor %}
@@ -2676,7 +2710,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
             {% for r in dpi_richieste %}
             <tr class="dp-tr-line">
               <td style="padding:7px 8px;">
-                <a href="{% url 'dpi:detail' r.pk %}" style="color:#1f87cd;font-weight:600;font-size:12px;">{{ r.numero }}</a>
+                <a href="{% if dpi_is_gestore and r.stato == "INVIATA" %}{% url 'dpi:gestione_detail' r.pk %}{% else %}{% url 'dpi:detail' r.pk %}{% endif %}" style="color:#1f87cd;font-weight:600;font-size:12px;">{{ r.numero }}</a>
               </td>
               <td class="dp-td-strong" style="padding:7px 8px;">
                 <svg style="width:14px;height:14px;vertical-align:middle;margin-right:2px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><use href="#i-dpi-{{ r.categoria.icona_emoji|dpi_icon_key }}"/></svg>
@@ -2685,7 +2719,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
               <td class="dp-td-mid" style="padding:7px 8px;">{{ r.quantita }} {{ r.categoria.unita_misura }}</td>
               <td style="padding:7px 8px;">
                 {% if r.stato == "INVIATA" %}
-                  <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">Inviata</span>
+                  <span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">Inviata</span>{% if dpi_is_gestore %} <a class="fmd-act" href="{% url 'dpi:gestione_detail' r.pk %}" title="Approva o rifiuta la richiesta">Gestisci</a>{% endif %}
                 {% elif r.stato == "APPROVATA" %}
                   <span style="background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">Approvata</span>
                 {% elif r.stato == "CONSEGNATA" %}
@@ -2740,6 +2774,7 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Ultima visita</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Scadenza</th>
               <th style="text-align:left;padding:6px 8px;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Stato</th>
+              {% if is_admin and can_edit_visite and tipi_visita_attivi %}<th></th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -2762,6 +2797,13 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
                   <span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;">🟢 Valida</span>
                 {% endif %}
               </td>
+              {% if is_admin and can_edit_visite and tipi_visita_attivi %}
+              <td class="fmd-act-cell" style="padding:7px 8px;">
+                {% if row.stato == "mancante" or row.stato == "scaduta" or row.stato == "in_scadenza" %}
+                <button type="button" class="fmd-act" onclick="registraVisita({{ row.tipo.pk }})" title="Registra la visita di questo tipo (form già impostato)">Registra</button>
+                {% endif %}
+              </td>
+              {% endif %}
             </tr>
             {% endfor %}
           </tbody>
@@ -2820,15 +2862,26 @@ body.theme-dark .dp-th-muted{color:var(--text-light)}
       {% endif %}
 
       {% if is_admin and can_edit_visite and tipi_visita_attivi %}
+      <script>
+      // «Registra» accanto a una visita mancante/scaduta: apre il form con il tipo già scelto
+      // (stesso schema di rinnovaQualifica()).
+      function registraVisita(tipoId){
+        var panel=document.getElementById('visita-form-panel');
+        if(panel){ panel.style.display='block'; }
+        var tg=document.getElementById('visita-form-toggle'); if(tg){ tg.textContent='− Chiudi form'; tg.style.color='#2563eb'; }
+        var sel=document.getElementById('visita-add-tipo'); if(sel){ sel.value=String(tipoId); }
+        if(panel){ panel.scrollIntoView({behavior:'smooth',block:'center'}); }
+      }
+      </script>
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;">
-        <button type="button" onclick="(function(btn){var panel=document.getElementById('visita-form-panel');var open=panel.style.display!=='none';panel.style.display=open?'none':'block';btn.textContent=open?'+ Registra nuova visita':'− Chiudi form';btn.style.color=open?'#64748b':'#2563eb';})(this)" style="background:none;border:none;cursor:pointer;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:0;margin-bottom:0;">+ Registra nuova visita</button>
+        <button type="button" id="visita-form-toggle" onclick="(function(btn){var panel=document.getElementById('visita-form-panel');var open=panel.style.display!=='none';panel.style.display=open?'none':'block';btn.textContent=open?'+ Registra nuova visita':'− Chiudi form';btn.style.color=open?'#64748b':'#2563eb';})(this)" style="background:none;border:none;cursor:pointer;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:0;margin-bottom:0;">+ Registra nuova visita</button>
         <div id="visita-form-panel" style="display:none;margin-top:10px;">
         <form method="post" action="{% url 'anagrafica:dipendente_visita_add' legacy_id %}" enctype="multipart/form-data">
           {% csrf_token %}
           <div class="dp-qual-form-grid">
             <div class="dp-qual-field" style="grid-column:1/-1;">
               <label class="dp-qual-label">Tipo visita *</label>
-              <select name="tipo" class="dp-select" required style="width:100%;">
+              <select name="tipo" id="visita-add-tipo" class="dp-select" required style="width:100%;">
                 <option value="">— Seleziona —</option>
                 {% for t in tipi_visita_attivi %}
                   <option value="{{ t.id }}">{{ t.nome }} ({{ t.durata_mesi }} mesi)</option>
