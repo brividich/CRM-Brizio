@@ -2,7 +2,7 @@
 {% block title %}{{ wiz.titolo }}{% endblock %}
 {% block modulo %}
 <div id="wizard" class="wizard">
-  <div class="row"><div><div class="eyebrow">{% if titolo_contesto %}{{ titolo_contesto }} · {% endif %}Passo {{ wiz.indice|add:1 }} di {{ wiz.passi|length }}</div><h1>{{ wiz.titolo }}</h1></div><div class="spacer"></div>{% if wiz.tipo == "apparato" %}<a class="btn ghost small" href="{% url 'contatori:riconciliazione_guida' %}#nuovo-apparato" target="_blank" rel="noopener">? Guida</a>{% endif %}<a class="btn ghost small" href="{{ wiz.url_annulla }}">Esci senza salvare</a></div>
+  <div class="row"><div><div class="eyebrow">{% if titolo_contesto %}{{ titolo_contesto }} · {% endif %}Passo {{ wiz.indice|add:1 }} di {{ wiz.passi|length }}</div><h1>{{ wiz.titolo }}</h1></div><div class="spacer"></div>{% if wiz.tipo == "apparato" %}<a class="btn ghost small" href="{% url 'contatori:guida' %}#nuovo-apparato" target="_blank" rel="noopener">? Guida</a>{% endif %}<a class="btn ghost small" href="{{ wiz.url_annulla }}">Esci senza salvare</a></div>
 
   <form method="post" hx-post="{{ request.path }}" hx-target="#wizard" hx-select="#wizard" hx-swap="outerHTML" hx-indicator="#wiz-load">{% csrf_token %}
   <ol class="wiz-passi">{% for p in wiz.passi %}

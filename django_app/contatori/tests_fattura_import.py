@@ -121,7 +121,7 @@ class ImportViewTests(_AuthedClientMixin, TestCase):
         righe = r.context["righe"]
         self.assertEqual([f.initial["contratto"] for f in righe.forms], ["K-1", "K-2"])
         self.assertEqual(righe.forms[0].initial["a4_bn"], 52500)
-        self.assertContains(r, "manca la riga di A3 B/N")
+        self.assertContains(r, "manca la riga di A3 BN")
 
     def test_file_illeggibile_torna_alla_pagina_con_errore(self):
         file = SimpleUploadedFile("fattura.pdf", b"%PDF-rotto", content_type="application/pdf")

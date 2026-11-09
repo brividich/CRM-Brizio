@@ -685,7 +685,20 @@ class ValoreSNMP(models.Model):
         return self.valore_testo or "—"
 
 
-class LetturaContatori(models.Model):
+class CaloSpiegatoMixin(models.Model):
+    """Calo rispetto alla lettura precedente segnato come spiegato (azzeramento, sostituzione).
+
+    Chi, quando e perche': un calo spiegato non torna piu' nel «Da fare» della Centrale.
+    """
+    calo_spiegato_il = models.DateTimeField(null=True, blank=True)
+    calo_spiegato_da = models.CharField(max_length=150, blank=True)
+    calo_spiegato_motivo = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        abstract = True
+
+
+class LetturaContatori(CaloSpiegatoMixin):
     """Snapshot dei 4 contatori di una macchina in un dato trimestre."""
     class Fonte(models.TextChoices):
         SNMP = "SNMP", "SNMP"
@@ -738,7 +751,7 @@ class LetturaConsumabile(models.Model):
         return f"{self.macchina} {self.nome} {self.pct}%"
 
 
-class LetturaMensileContatori(models.Model):
+class LetturaMensileContatori(CaloSpiegatoMixin):
     """Snapshot cumulativo mensile, indipendente dalla riconciliazione trimestrale."""
 
     macchina = models.ForeignKey(

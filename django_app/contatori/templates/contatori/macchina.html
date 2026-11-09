@@ -57,7 +57,7 @@
 </div>
 
 {% if fatture_contratto %}<div class="panel">
-  <div class="panel-head"><div><h2>Fatture del contratto {{ macchina.contratto }}</h2><p>Esito del confronto tra le letture del fornitore e le letture interne{% if colleghi_pool %} di tutte le MFC del pool{% endif %} negli ultimi trimestri fatturati.</p></div></div>
+  <div class="panel-head"><div><h2>Fatture del contratto {{ macchina.contratto }}</h2><p>Esito del confronto tra le letture del fornitore e le letture interne{% if colleghi_pool %} di tutte le MFC del pool{% endif %} negli ultimi trimestri fatturati.</p></div>{% if fatture_contratto_totale > fatture_contratto|length %}<div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:fatture' %}">Tutte ({{ fatture_contratto_totale }}) →</a>{% endif %}</div>
   <div class="table-wrap"><table data-fm-table-skip="1">
     <thead><tr><th>Trimestre</th><th>Fattura</th><th>Lettura interna</th><th>Esito</th><th></th></tr></thead>
     <tbody>{% for f in fatture_contratto %}<tr>
@@ -71,7 +71,7 @@
 </div>{% endif %}
 
 <div class="panel">
-  <div class="row"><h2 style="margin:0">Letture mensili automatiche</h2><div class="spacer"></div>{% if g %}<a class="btn ghost small" href="{% url 'contatori:letture_gestisci' %}?tipo=mensili&amp;macchina={{ macchina.pk }}">Gestisci letture</a>{% endif %}</div>
+  <div class="row"><h2 style="margin:0">Letture mensili automatiche</h2><div class="spacer"></div>{% if g %}<a class="btn ghost small" href="{% url 'contatori:letture_gestisci' %}?tipo=mensili&amp;macchina={{ macchina.pk }}">{% if mensili_totale > righe_mensili|length %}Tutte ({{ mensili_totale }}) in Gestisci letture{% else %}Gestisci letture{% endif %}</a>{% endif %}</div>
   <p class="muted">Ultimi 24 mesi: contatori cumulativi alla data effettiva della lettura. La lettura parte il giorno 1 alle 00:00; se la MFC è spenta il portale riprova ogni 15 minuti fino al giorno 7 e il badge (es. «+31 h») indica il ritardo rispetto alla chiusura. «Copie» = differenza con il mese prima. Le rilevazioni mensili restano separate dalle letture trimestrali.</p>
   <div class="table-wrap"><table data-fm-table-skip="1">
     <thead><tr><th>Mese rilevazione</th><th>Rilevata il</th><th class="num">A4 BN</th><th class="num">A3 BN</th><th class="num">A4 COL</th><th class="num">A3 COL</th><th class="num">Totale</th><th class="num">Copie</th>{% if g %}<th></th>{% endif %}</tr></thead>

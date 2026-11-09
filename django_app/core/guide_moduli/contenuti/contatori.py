@@ -6,7 +6,7 @@ GUIDA = {
     "parole": "contatori mfc stampante stampanti copie toner snmp ups switch fattura copylab canon",
     "url": "contatori:dashboard",
     "prefissi": ("/contatori/",),
-    "dettaglio": [("Guida di Contatori IT", "contatori:riconciliazione_guida")],
+    "dettaglio": [("Guida di Contatori IT", "contatori:guida")],
     "uso": [
         {
             "id": "consultare",
@@ -17,7 +17,9 @@ GUIDA = {
                     "Clicca una MFC per la scheda: letture trimestrali con le copie e i trimestri mancanti, letture mensili, fatture del contratto, consumabili, asset collegato; «Esporta storico» scarica tutto in Excel.",
                     "«Letture» → Registro letture: tutte le MFC per trimestre, con le letture mancanti e i cali in evidenza; nel trimestre in corso senza lettura compare in grigio l'ultima lettura mensile, provvisoria. «Nuova lettura» precompila i contatori dalla lettura mensile SNMP (per un trimestre chiuso quella del primo giorno del trimestre dopo). «Tutte le MFC di un trimestre» inserisce le letture di più stampanti in una pagina.",
                     "Scheda di un dispositivo SNMP: uptime e «Risposte ultime 24 ore / 7 giorni», cioè quante interrogazioni hanno avuto risposta (sotto il 95% in rosso).",
-                    "Le letture si fanno da sole ogni mese il giorno 1 a mezzanotte, con un secondo tentativo alle 08:00 per le macchine spente.",
+                    "Le letture si fanno da sole ogni mese il giorno 1 a mezzanotte; le macchine spente vengono riprovate ogni 15 minuti fino al giorno 7.",
+                    "«Consumabili»: «Da ordinare» conta le MFC con un consumabile al 15% o meno, «Senza lettura recente» quelle mai lette o non lette da oltre 7 giorni; un clic sul riquadro mostra solo quelle.",
+                    "Monitor SNMP: i riquadri Operativi, Attenzione, Errori e Non interrogati sono gli stessi numeri di «Stato flotta» della Centrale e un clic mostra quegli apparati; il filtro «Stato» ha le stesse voci.",
                     "«? Guida» nella barra del modulo apre la guida completa da qualunque pagina.",
                 ]),
             ],
@@ -42,6 +44,7 @@ GUIDA = {
                     "Apri la scheda della MFC e scegli il trimestre.",
                     "Scrivi i contatori letti sul display della macchina e salva.",
                     "Se un contatore è più basso del precedente il portale si ferma e chiede conferma (azzeramento o sostituzione macchina).",
+                    "Il calo resta nei «Cali di lettura» della Centrale finché non lo segni: «Azzeramento o sostituzione? Segna come spiegato», scrivi il motivo e conferma.",
                 ]),
             ],
         },
@@ -106,6 +109,14 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Un calo di lettura resta sempre in «Da fare»",
+            "perche": "un contatore più basso della lettura prima può essere un refuso o un azzeramento vero.",
+            "fare": [
+                "Clicca la MFC nei «Cali di lettura» della Centrale: si apre «Gestisci letture» filtrato sulla stampante; se è un refuso correggi la lettura.",
+                "Se il contatore è stato davvero azzerato o la macchina sostituita: «Azzeramento o sostituzione? Segna come spiegato», scrivi il motivo e premi «Segna come spiegato» (serve «Contatori - Gestione»).",
+            ],
+        },
+        {
             "sintomo": 'Nella Centrale «ok» e «Operativi» danno numeri diversi',
             "fare": [
                 "Ora sono lo stesso numero: un apparato non interrogato da oltre i giorni di soglia conta tra i «Non interrogati», anche se l'ultimo controllo era riuscito.",
@@ -146,6 +157,7 @@ GUIDA = {
             "fare": [
                 "Amministrazione → Monitoring → «Salute degli schedule»: controlla i lavori dei contatori.",
                 "Se il cluster è fermo segui «Le automazioni non partono» nel Manuale di emergenza.",
+                "Stampanti MFC → filtro «Lettura» = «Mensile mm/aaaa mancante» elenca le MFC ancora senza la lettura del mese.",
                 "Inserisci la lettura a mano dalla scheda MFC.",
             ],
         },

@@ -1,7 +1,7 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block title %}{% if fattura %}Fattura {{ fattura.numero }}{% else %}Nuova fattura{% endif %}{% endblock %}
 {% block modulo %}
-<div class="row"><div class="eyebrow">Riconciliazione</div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:riconciliazione_guida' %}#fattura">? Guida</a></div>
+<div class="row"><div class="eyebrow">Fatture</div><div class="spacer"></div><a class="btn ghost small" href="{% url 'contatori:guida' %}#fattura">? Caricare la fattura</a></div>
 <h1>{% if fattura %}Fattura {{ fattura.numero }}{% else %}Nuova fattura fornitore{% endif %}</h1>
 <p class="sub">Riporta le letture stampate in fattura per ogni contratto. La riconciliazione le confronta con le letture interne dello stesso trimestre.</p>
 {% if not fattura %}
@@ -29,7 +29,7 @@
     {{ righe.management_form }}
     {% if righe.non_form_errors %}<div class="banner">{{ righe.non_form_errors|join:" " }}</div>{% endif %}
     <div class="table-wrap"><table class="righe-table" id="righe-table" data-fm-table-skip="1">
-      <thead><tr><th>Contratto</th><th>Descrizione</th><th class="num" data-formato="A4 B/N" data-totali="B/N totale">A4 B/N</th><th class="num col-a3">A3 B/N</th><th class="num" data-formato="A4 colore" data-totali="Colore totale">A4 colore</th><th class="num col-a3">A3 colore</th><th>{% if fattura %}Elimina{% endif %}</th></tr></thead>
+      <thead><tr><th>Contratto</th><th>Descrizione</th><th class="num" data-formato="A4 BN" data-totali="BN totale">A4 BN</th><th class="num col-a3">A3 BN</th><th class="num" data-formato="A4 COL" data-totali="COL totale">A4 COL</th><th class="num col-a3">A3 COL</th><th>{% if fattura %}Elimina{% endif %}</th></tr></thead>
       <tbody id="righe-body">
       {% for r in righe %}{% include "contatori/_fattura_riga.html" with r=r %}{% endfor %}
       </tbody>
