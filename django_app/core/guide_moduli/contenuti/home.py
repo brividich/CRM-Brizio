@@ -182,6 +182,11 @@ GUIDA = {
                     ("Colonne ▾", "scegli le colonne da vedere e trascinale per cambiarne l'ordine. Il portale lo ricorda da solo. "
                      "In fondo al menu «Ripristina colonne predefinite» torna alle colonne e alle larghezze di partenza "
                      "(le viste salvate restano)."),
+                    ("Raggruppa ▾ (Security Center)", "divide le righe per il valore di una colonna (es. per PC, per patch, per CVE, per stato): "
+                     "ogni gruppo ha una riga con il nome, quante righe contiene e la freccia per aprirlo o chiuderlo; «Apri tutti» e «Chiudi tutti» "
+                     "sono in fondo al menu. Dove c'è la selezione multipla, la casella del gruppo seleziona tutte le sue righe. "
+                     "Una riga con più valori (es. una patch che corregge due CVE) compare in ogni gruppo: le copie sono più chiare e non selezionabili. "
+                     "La scelta resta salvata ed entra nelle viste. Il menu propone solo le colonne che hanno valori ripetuti."),
                     ("Viste ▾", "«＋ Salva la vista attuale…» dà un nome a colonne, filtri, ricerca e ordinamento di adesso; "
                      "un clic sul nome la richiama, × la elimina. Fino a 12 viste per tabella, solo tue. "
                      "Quando una vista è attiva il pulsante dice «Vista: nome»."),

@@ -47,6 +47,7 @@ La casella **Cerca** nel menu del SOC trova incidenti, ticket, alert, PC e serve
 ## Anteprime e selezione multipla
 
 - **Anteprima**: nelle liste (alert, ticket, incidenti, eventi, PC) un clic sulla riga (non sul link né sulla casella) apre il dettaglio in un pannello laterale, senza perdere la lista. Con le frecce **←** e **→** passi alla riga precedente o successiva, con **Esc** chiudi. Le azioni del pannello (prendere in carico, chiudere…) restano sulla lista.
+- **Raggruppa**: sopra ogni tabella del SOC, **Raggruppa ▾** divide le righe per una colonna (per PC, per patch, per CVE, per stato, per responsabile…). Ogni gruppo mostra quante righe ha e si apre o chiude con un clic; la sua casella seleziona tutte le righe del gruppo per le azioni multiple. Una patch che corregge più CVE compare sotto ognuna (le copie sono più chiare e non selezionabili). La scelta resta salvata per te.
 - **Selezione multipla**: la casella in testa alla riga seleziona; la casella nell'intestazione seleziona tutte le righe della pagina. In fondo compare la barra con le azioni possibili e il conto dei selezionati. Le righe in uno stato non compatibile vengono saltate e il messaggio finale lo dice.
 
 ## Le segnalazioni
