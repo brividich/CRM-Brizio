@@ -1351,6 +1351,8 @@ class MeetingMinuteApprovalTests(TasksBaseTestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_riapertura_richiede_un_motivo(self):
+        # La minuta approvata la riapre solo il capocommessa.
+        self.project.add_team_member("CC", self.user)
         self.client.post(self.close_url)
 
         self.client.post(self.reopen_url, {"motivo": "  "})
@@ -1400,7 +1402,11 @@ class MeetingAgendaCarryOverTests(TasksBaseTestCase):
 
         response = self.client.get(self.create_url)
         self.assertEqual(response.status_code, 200)
-        return json.loads(response.context["form"].initial["agenda_items_raw"])
+        # Le tappe del Percorso hanno test propri (tests_filo): qui contano problemi, azioni e punti rimasti.
+        return [
+            i for i in json.loads(response.context["form"].initial["agenda_items_raw"])
+            if not str(i.get("source") or "").startswith("tappa:")
+        ]
 
     def test_punto_non_trattato_torna_nel_prossimo_incontro(self):
         KickoffMeeting.objects.create(

@@ -69,10 +69,17 @@
               </select>
             </label>
             <a class="mf-btn-sm ghost" data-role="task-link" href="#"{% if not item.task_id %} hidden{% endif %}>Apri attività</a>
-            <button type="button" class="mf-btn-sm ghost" data-role="task-new-toggle">+ Nuova attività</button>
+            <button type="button" class="mf-btn-sm {% if item.source|slice:':6' == 'tappa:' and not item.task_id %}primary{% else %}ghost{% endif %}" data-role="task-new-toggle">{% if item.source|slice:':6' == 'tappa:' %}Assegna la tappa{% else %}+ Nuova attività{% endif %}</button>
           </div>
           <div class="run-item-task-new" data-role="task-new" hidden>
-            <input class="input" type="text" data-role="task-new-title" maxlength="200" placeholder="Titolo della nuova attività">
+            <input class="input" type="text" data-role="task-new-title" maxlength="200" placeholder="Titolo della nuova attività"{% if item.source|slice:':6' == 'tappa:' %} hidden{% endif %}>
+            {% if item.source == "tappa:MACCHINA" %}
+            <select class="input" data-role="task-new-asset" aria-label="Macchina"><option value="">Macchina…</option>{% for a in run_macchine %}<option value="{{ a.id }}">{{ a.asset_tag }} {{ a.name }}</option>{% endfor %}</select>
+            {% elif item.source == "tappa:TERZISTA" %}
+            <input class="input" type="text" data-role="task-new-testo" list="run-fornitori" maxlength="200" placeholder="Fornitore" aria-label="Fornitore">
+            {% elif item.source == "tappa:PROCESSI" %}
+            <input class="input" type="text" data-role="task-new-testo" list="run-processi" maxlength="200" placeholder="Processo speciale" aria-label="Processo speciale">
+            {% endif %}
             <select class="input" data-role="task-new-owner">
               <option value="">Responsabile</option>
               {% include "tasks/_quick_user_options.html" %}
@@ -106,6 +113,8 @@
   in corso: senza, un punto nato qui restava senza attivita' collegata fino al
   ricaricamento della pagina.
   {% endcomment %}
+  {% if run_fornitori %}<datalist id="run-fornitori">{% for f in run_fornitori %}<option value="{{ f }}">{% endfor %}</datalist>{% endif %}
+  {% if run_processi %}<datalist id="run-processi">{% for p in run_processi %}<option value="{{ p }}">{% endfor %}</datalist>{% endif %}
   <template id="run-task-box-template">
     <div class="run-item-task" data-role="task-box">
       <label class="tpl-inline">
@@ -188,7 +197,7 @@
 
 {% block tasks_shell_scripts %}
 {{ project_tasks_json|json_script:"project-tasks-data" }}
-<script src="{% static 'tasks/js/meeting_run.js' %}?v=20261105" data-item-update-url="{{ item_update_url }}" data-quick-capture-url="{{ quick_capture_url }}" data-item-task-create-url="{{ item_task_create_url }}" data-task-detail-url="{% url 'tasks:detail' 0 %}" data-planned-minutes="{{ planned_minutes|default:0 }}"></script>
+<script src="{% static 'tasks/js/meeting_run.js' %}?v=20261109" data-item-update-url="{{ item_update_url }}" data-quick-capture-url="{{ quick_capture_url }}" data-item-task-create-url="{{ item_task_create_url }}" data-task-detail-url="{% url 'tasks:detail' 0 %}" data-planned-minutes="{{ planned_minutes|default:0 }}"></script>
 <script src="{% static 'tasks/js/meeting_agenda_add.js' %}" defer></script>
 <script>
   (function () {

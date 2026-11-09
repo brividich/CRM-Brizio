@@ -4,7 +4,7 @@ speciali, FAI). Niente <form> e campi senza name: può stare dentro altri form. 
 Contesto: tappe_context (tasks/views/tappe.py).
 {% endcomment %}
 {% load static %}
-<section class="tp-block" data-tp-block
+<section class="tp-block" id="percorso" data-tp-block
          data-url="{% url 'tasks:tappa_azione' project.id %}"
          data-anteprima="{% url 'tasks:tappa_anteprima' project.id %}"
          data-meeting="{{ tappe_meeting.id|default:'' }}"

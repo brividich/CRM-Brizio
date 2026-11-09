@@ -306,11 +306,11 @@ def _invite_sections(meeting) -> list[tuple[str, str]]:
     ]
 
 
-def build_minute_email(meeting) -> tuple[str, str, str]:
+def build_minute_email(meeting, *, aggiornamento: bool = False) -> tuple[str, str, str]:
     """Compone (subject, body_text, body_html_fragment) della minuta incontro."""
     kickoff = getattr(meeting.project, "kickoff_number", "") or ""
     titolo = (meeting.titolo or "").strip()
-    subject = f"Minuta incontro — KICK-OFF {kickoff}"
+    subject = f"{'Aggiornamento minuta' if aggiornamento else 'Minuta'} incontro — KICK-OFF {kickoff}"
     if titolo:
         subject += f": {titolo}"
 
@@ -650,7 +650,8 @@ def send_meeting_minute(meeting, *, sent_by=None, with_pdf: bool = True) -> dict
 
     from core.email_utils import send_hub_mail
 
-    subject, body_text, body_html = build_minute_email(meeting)
+    aggiornamento = bool(getattr(meeting, "minuta_inviata_at", None))
+    subject, body_text, body_html = build_minute_email(meeting, aggiornamento=aggiornamento)
     # Chi non c'era resta in copia: la minuta lo riguarda comunque.
     cc = assenti + _cc_management(meeting, exclude=recipients + assenti)
     attachments = None
@@ -675,7 +676,17 @@ def send_meeting_minute(meeting, *, sent_by=None, with_pdf: bool = True) -> dict
     )
     if not sent_count:
         return {"sent": False, "recipients": recipients, "cc": cc, "reason": "send_error"}
-    return {"sent": True, "recipients": recipients, "cc": cc, "reason": ""}
+    if getattr(meeting, "pk", None):
+        from django.utils import timezone
+
+        from tasks.models import KickoffMeeting
+
+        meeting.minuta_inviata_at = timezone.now()
+        meeting.minuta_firma = meeting.firma_minuta()
+        KickoffMeeting.objects.filter(pk=meeting.pk).update(
+            minuta_inviata_at=meeting.minuta_inviata_at, minuta_firma=meeting.minuta_firma,
+        )
+    return {"sent": True, "recipients": recipients, "cc": cc, "reason": "", "aggiornamento": aggiornamento}
 
 
 def send_meeting_invite(meeting, *, sent_by=None) -> dict:

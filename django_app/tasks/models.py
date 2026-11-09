@@ -1197,6 +1197,9 @@ class KickoffMeeting(models.Model):
     # Copia leggibile degli stessi dati al momento dell'invio: serve a dire
     # *cosa* e' cambiato, non solo che qualcosa e' cambiato.
     convocazione_dati = models.TextField(blank=True, default="")
+    # Ultimo invio della minuta e impronta del contenuto inviato (per «da reinviare»).
+    minuta_inviata_at = models.DateTimeField(null=True, blank=True, verbose_name="Minuta inviata il")
+    minuta_firma = models.CharField(max_length=64, blank=True, default="")
     annullato_at = models.DateTimeField(null=True, blank=True, verbose_name="Annullato il")
     annullato_da = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -1210,6 +1213,12 @@ class KickoffMeeting(models.Model):
     data = models.DateField(verbose_name="Data")
     ora = models.TimeField(null=True, blank=True, verbose_name="Ora")
     luogo = models.CharField(max_length=200, blank=True, default="", verbose_name="Luogo")
+    sala = models.ForeignKey(
+        "MeetingRoom", on_delete=models.SET_NULL, null=True, blank=True, related_name="incontri", verbose_name="Sala",
+    )
+    # Risposta della sala all'invito Outlook: accepted, tentativelyAccepted, declined, none.
+    sala_risposta = models.CharField(max_length=24, blank=True, default="", verbose_name="Risposta della sala")
+    sala_risposta_at = models.DateTimeField(null=True, blank=True)
 
     # Partecipanti: utenti portale (M2M) + email esterne (testo libero)
     partecipanti_utenti = models.ManyToManyField(
@@ -1461,6 +1470,34 @@ class KickoffMeeting(models.Model):
 
         raw = json.dumps(self.dati_convocazione(), sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def firma_minuta(self) -> str:
+        """Impronta di quello che finisce nella minuta: se cambia dopo l'invio, va reinviata."""
+        import hashlib
+        import json
+
+        dati = {
+            "note": self.note, "problemi": self.problemi_aperti, "next": self.next_steps,
+            "presenti": sorted(self.presenti_utenti.values_list("pk", flat=True)) if self.pk else [],
+            "presenti_extra": self.presenti_email_extra,
+            "odg": [(i.get("titolo"), i.get("done"), i.get("nota"), i.get("esito")) for i in (self.agenda_items or []) if isinstance(i, dict)],
+            "decisioni": list(self.decisions.order_by("pk").values_list("pk", "testo")) if self.pk else [],
+            "azioni": [
+                (a.pk, a.title, a.status, a.assigned_to_id, str(a.due_date or ""))
+                for a in MeetingActionItem.objects.filter(source_meeting=self).order_by("pk")
+            ] if self.pk else [],
+        }
+        raw = json.dumps(dati, sort_keys=True, ensure_ascii=False, default=str)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    @property
+    def minuta_inviata(self) -> bool:
+        return self.minuta_inviata_at is not None
+
+    @property
+    def minuta_da_reinviare(self) -> bool:
+        """Minuta partita, ma verbale, ordine del giorno, decisioni o azioni sono cambiati dopo."""
+        return bool(self.minuta_inviata_at and self.minuta_firma and self.minuta_firma != self.firma_minuta())
 
     def registra_convocazione_inviata(self) -> list[str]:
         """Valorizza firma e copia dei dati inviati; ritorna i campi da salvare."""
@@ -2164,6 +2201,10 @@ class MeetingRoom(models.Model):
     nome = models.CharField(max_length=120, unique=True, verbose_name="Nome sala")
     note = models.TextField(blank=True, default="", verbose_name="Note")
     ordine = models.PositiveSmallIntegerField(default=0, verbose_name="Ordine")
+    # Casella «sala» di Microsoft 365: con questa l'invito Outlook prenota la sala.
+    email = models.EmailField(blank=True, default="", verbose_name="Casella della sala (Microsoft 365)")
+    capienza = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Posti")
+    attiva = models.BooleanField(default=True, verbose_name="Attiva")
 
     class Meta:
         ordering = ["ordine", "nome"]

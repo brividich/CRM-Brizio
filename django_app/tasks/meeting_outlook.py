@@ -162,6 +162,14 @@ def _meeting_body_html(request, meeting) -> str:
     return "\n".join(lines)
 
 
+def _testo_sala(sala) -> str:
+    if sala is None:
+        return ""
+    if sala.email:
+        return f", richiesta di prenotazione inviata alla sala {sala.nome}"
+    return f", sala {sala.nome} senza casella Microsoft 365: non prenotata in Outlook"
+
+
 def meeting_duration_minutes(meeting) -> int:
     """Durata dell'incontro: somma dei punti all'ordine del giorno, un'ora se mancano."""
     return meeting.durata_prevista_minuti() or DEFAULT_DURATION_MINUTES
@@ -216,7 +224,8 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
     if meeting.titolo:
         subject = f"{subject}: {meeting.titolo}"
     body_html = _meeting_body_html(request, meeting)
-    location = meeting.luogo or meeting.project.name
+    sala = meeting.sala if meeting.sala_id else None
+    location = (sala.nome if sala else "") or meeting.luogo or meeting.project.name
     transaction_id = _transaction_id(meeting)
 
     payload = build_event_payload(
@@ -236,6 +245,16 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
     payload["isOnlineMeeting"] = False
 
     attendees = _build_attendees(meeting)
+    # Sala con casella Microsoft 365: luogo «sala riunioni» + invitata come risorsa,
+    # così Exchange la prenota (o la rifiuta se è già occupata).
+    if sala is not None and sala.email:
+        payload["location"] = {
+            "displayName": sala.nome,
+            "locationEmailAddress": sala.email,
+            "locationType": "conferenceRoom",
+        }
+        attendees = [a for a in attendees if a["emailAddress"]["address"].lower() != sala.email.lower()]
+        attendees.append({"emailAddress": {"address": sala.email, "name": sala.nome}, "type": "resource"})
     if attendees:
         payload["attendees"] = attendees
 
@@ -250,25 +269,27 @@ def sync_meeting_outlook_event(*, request, meeting) -> tuple[str, str]:
             )
             web_link = str(graph_event.get("webLink") or meeting.outlook_event_web_link)
             KickoffMeeting.objects.filter(pk=meeting.pk).update(
+                sala_risposta="", sala_risposta_at=None,
                 outlook_event_web_link=web_link,
                 outlook_organizer_email=organizer_email,
             )
             meeting.outlook_event_web_link = web_link
-            n_att = len(attendees)
-            return ("success", f"Evento Outlook aggiornato ({n_att} partecipanti).")
+            n_att = sum(1 for a in attendees if a.get("type") != "resource")
+            return ("success", f"Evento Outlook aggiornato ({n_att} partecipanti){_testo_sala(sala)}.")
 
         graph_event = create_event(target_email=organizer_email, payload=payload)
         event_id = str(graph_event.get("id") or "")
         web_link = str(graph_event.get("webLink") or "")
         KickoffMeeting.objects.filter(pk=meeting.pk).update(
+            sala_risposta="", sala_risposta_at=None,
             outlook_event_id=event_id,
             outlook_event_web_link=web_link,
             outlook_organizer_email=organizer_email,
         )
         meeting.outlook_event_id = event_id
         meeting.outlook_event_web_link = web_link
-        n_att = len(attendees)
-        return ("success", f"Evento Outlook creato sul calendario di {organizer_email} ({n_att} partecipanti).")
+        n_att = sum(1 for a in attendees if a.get("type") != "resource")
+        return ("success", f"Evento Outlook creato sul calendario di {organizer_email} ({n_att} partecipanti){_testo_sala(sala)}.")
 
     except Exception as exc:
         logger.warning("Meeting outlook sync fallita (meeting=%s): %s", meeting.id, exc)

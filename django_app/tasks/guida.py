@@ -106,7 +106,9 @@ SEZIONI: list[dict] = [
                 "Spunta «Impatto sulla sicurezza» se il lavoro lo richiede: la commessa viene evidenziata nelle viste.",
                 "Dati scheda VRF: preventivo ed Esp., se li hai. La «Descrizione» scritta sopra finisce anche nella scheda VRF.",
                 "Team di progetto: cerca la persona nel riquadro di ogni ruolo e spuntala. Le persone scelte appaiono come etichette, con × per toglierle. Ogni ruolo può avere più persone.",
-                "Premi «Crea kickoff e convoca il primo incontro»: nasce l'incontro 1 con il team già tra i partecipanti e si apre la sua convocazione.",
+                "Cosa serve a questa commessa: togli la spunta alle tappe che non servono (per esempio Terzista o Processi speciali). Si può cambiare dopo da «Modifica kickoff» o dal Percorso.",
+                "Primo incontro: data, ora e sala.",
+                "Premi «Crea kickoff e convoca il primo incontro»: nasce l'incontro 1 con il team tra i partecipanti e, come ordine del giorno, le tappe che servono. Si apre la convocazione, con la disponibilità delle sale e l'invito Outlook.",
             ]),
             ("img", (_IMG + "nuovo_kickoff.jpg", "Il form «Nuovo kickoff»")),
             ("ul", [
@@ -138,6 +140,7 @@ SEZIONI: list[dict] = [
         "titolo": "Panoramica e semaforo di prontezza",
         "blocchi": [
             ("p", "Cliccando una commessa arrivi alla «Panoramica»: team, data di inizio, prossimo incontro, azioni aperte, attività a piano, le prossime azioni e gli ultimi incontri."),
+            ("p", "In alto «Prossimi passi» dice cosa fare adesso, nell'ordine del filo commessa → incontro → attività: pianificare il primo incontro, convocarlo, condurlo se è oggi, registrarne l'esito se è passato, approvare e inviare la minuta, assegnare le tappe del Percorso, pianificare l'incontro successivo. Ogni riga porta dove si fa. Il riquadro del prossimo incontro mostra ora, sala e stato della prenotazione."),
             ("img", (_IMG + "panoramica.jpg", "La Panoramica di una commessa")),
             ("p", "«Prontezza all'avvio» controlla quattro cose. Ogni voce non a posto ha il link «Correggi», che porta dove si sistema."),
             ("def", [
@@ -363,14 +366,17 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("passi", [
                 "Scheda «Incontri» della commessa, «+ Nuovo incontro». Per l'incontro 1 la convocazione è già aperta dopo la creazione.",
-                "Informazioni base: «Data» è obbligatoria; titolo, ora e «Luogo / Link» (una sala dalla lista, o un link Teams).",
+                "Informazioni base: «Data» è obbligatoria; poi titolo, ora, «Sala» e, se serve, «Altro luogo o link» (sede del cliente, link Teams).",
+                "Sotto, «Disponibilità del giorno» mostra le sale dalle 8 alle 19: in arancione gli incontri del portale, in rosso gli impegni Outlook della sala, in grigio i partecipanti occupati, con il bordo blu il tuo incontro. Clicca un orario libero su una sala per sceglierla: ora e sala si compilano da sole e il messaggio sotto dice se è libera.",
                 "Partecipanti: cerca gli «Utenti del portale» e aggiungi le «Email aggiuntive (esterni)», una per riga. «Destinatari in copia» vale per convocazione e minuta.",
                 "Ordine del giorno: aggiungi i punti, con durata e attività collegata se serve. Puoi usare un modello o «Duplica ODG dell'incontro precedente».",
-                "Salva. Poi, dal dettaglio dell'incontro, premi «Invia convocazione».",
+                "«Prenota la sala e invita in Outlook» (già acceso se Outlook è configurato): al salvataggio l'incontro va nel tuo calendario, la sala riceve la richiesta di prenotazione e i partecipanti l'invito da accettare.",
+                "Salva. Se serve anche la mail del portale con l'ordine del giorno, dal dettaglio dell'incontro premi «Invia convocazione».",
             ]),
+            ("p", "Nel dettaglio dell'incontro, accanto al luogo, c'è lo stato della prenotazione: «Richiesta inviata alla sala», «Sala confermata», «Sala in forse», «Sala rifiutata: è già occupata». «Verifica» lo chiede di nuovo a Outlook. Una sala senza casella Microsoft 365 vale solo nel portale: si vede nella disponibilità ma non si prenota in Outlook. Se un'altra riunione del portale occupa la stessa sala nello stesso orario, al salvataggio compare un avviso."),
             ("img", (_IMG + "convocazione.jpg", "La convocazione: informazioni, partecipanti e ordine del giorno")),
             ("ul", [
-                "L'ordine del giorno parte già con i problemi e le azioni ancora aperti e con i punti non trattati nell'incontro precedente.",
+                "L'ordine del giorno parte già con i problemi e le azioni ancora aperti, con i punti non trattati nell'incontro precedente e con le tappe del Percorso da assegnare, in corso o in ritardo.",
                 "«Pianifica prossimo incontro», dal dettaglio di un incontro svolto, riprende convocati, persone in copia, luogo, "
                 "ora e impostazioni Outlook del precedente, con la data una settimana dopo.",
                 "Salvare l'incontro non invia email. La convocazione parte con il pulsante «Invia convocazione» del dettaglio, "
@@ -431,6 +437,7 @@ SEZIONI: list[dict] = [
                 "Appello: spunta chi è presente. Il dato si salva subito e vale anche per l'esito e la minuta.",
                 "Su ogni punto scrivi la nota: si salva da sola.",
                 "Serve del lavoro? «+ Nuova attività» sul punto (parte dal titolo del punto, poi responsabile, inizio e fine; «Crea e collega»), oppure scegli un'attività già esistente in «Attività collegata».",
+                "I punti che vengono dal Percorso del kickoff («Arrivo materiali: da assegnare», «Macchina: in ritardo»...) hanno «Assegna la tappa»: scegli la macchina, il fornitore o il processo se serve, poi responsabile e date. Nasce l'attività della tappa, collegata al punto, con notifica e mail a chi la riceve.",
                 "Premi «Segna trattato» e, se vuoi, scrivi il «Tempo effettivo».",
                 "Quello che emerge mentre si parla va in «Cattura rapida», sempre visibile in fondo allo schermo: scegli Attività, Azione, Decisione o Problema, scrivi e premi Invio.",
                 "A fine riunione premi «Termina incontro e registra l'esito».",
@@ -466,7 +473,9 @@ SEZIONI: list[dict] = [
                 "Le decisioni non si riscrivono: se una è sbagliata, se ne registra una nuova che la supera.",
                 "I vecchi campi di testo libero (ordine del giorno testuale, problemi aperti, next steps) restano consultabili "
                 "negli incontri storici ma non si compilano più.",
-                "«Approva e chiudi minuta» la segna come approvata e mette l'esito in sola lettura; «Riapri minuta» chiede un motivo, che resta a registro.",
+                "«Approva e chiudi minuta» la segna come approvata e mette l'esito in sola lettura. Dopo l'approvazione solo il capocommessa della commessa (o l'amministratore del modulo) vede «Riapri minuta», che chiede un motivo a registro, e «Correggi ordine del giorno».",
+                "Dopo «Invia minuta» il dettaglio dice quando è partita. Se poi cambiano verbale, ordine del giorno, decisioni o azioni compare «La minuta è cambiata dopo l'invio» e il pulsante diventa «Invia aggiornamento minuta»: la mail esce con oggetto «Aggiornamento minuta».",
+                "Salvare l'esito due volte non raddoppia le azioni: un'azione aperta con lo stesso titolo e lo stesso responsabile nello stesso incontro non viene ricreata.",
                 "«Invia minuta» la manda ai presenti, con gli assenti in copia e il PDF allegato.",
             ]),
             ("img", (_IMG + "incontro_svolto.jpg", "Un incontro svolto: minuta, problemi, decisioni e azioni")),
@@ -619,7 +628,7 @@ SEZIONI: list[dict] = [
                 ("Ho salvato l'incontro ma nessuno ha ricevuto niente", "salvare non invia email: premi «Invia convocazione» nel dettaglio."),
                 ("Compare «La data fine non può precedere la data inizio»", "correggi anche l'Inizio: quello proposto è il giorno dopo l'ultima fine in piano."),
                 ("«Elimina» non c'è su un incontro", "un incontro svolto o con decisioni non si elimina. Se non si terrà, usa «Annulla incontro»."),
-                ("Non posso più modificare l'esito", "la minuta è approvata: «Riapri minuta», con il motivo."),
+                ("Non posso più modificare l'esito", "la minuta è approvata: la riapre il capocommessa con «Riapri minuta» e il motivo."),
             ]),
         ],
     },

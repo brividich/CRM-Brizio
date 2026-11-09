@@ -37,6 +37,18 @@
     {% endfor %}
   </section>
 
+  {% if prossimi_passi %}
+  <section class="fl-passi" aria-label="Prossimi passi">
+    <strong class="fl-passi-titolo">Prossimi passi</strong>
+    {% for p in prossimi_passi %}
+    <a class="fl-passo fl-passo--{{ p.tono }}" href="{{ p.url }}">
+      <span class="fl-passo-testo"><strong>{{ p.titolo }}</strong><small>{{ p.dettaglio }}</small></span>
+      <span class="fl-passo-azione">{{ p.azione }} &rarr;</span>
+    </a>
+    {% endfor %}
+  </section>
+  {% endif %}
+
   <section class="ko-metrics" aria-label="Metriche commessa">
     {# Data di inizio = primo incontro non annullato: e' il fatto che «apre» il kickoff. #}
     <a class="ko-metric ko-metric--start" href="{% url 'tasks:project_meetings' project.id %}">
@@ -51,7 +63,8 @@
     <a class="ko-metric ko-metric--meeting" href="{% url 'tasks:project_meetings' project.id %}">
       {% if next_meeting %}
         <span class="ko-metric-value ko-metric-value--date">{{ next_meeting.data|date:"d/m/Y" }}</span>
-        <span class="ko-metric-label">Prossimo incontro · n. {{ next_meeting.numero }}</span>
+        <span class="ko-metric-label">Prossimo incontro · n. {{ next_meeting.numero }}{% if next_meeting.ora %} · {{ next_meeting.ora|time:"H:i" }}{% endif %}{% if next_meeting.sala %} · {{ next_meeting.sala.nome }}{% endif %}</span>
+        {% if next_meeting_sala.0 %}<span class="ts-chip {{ next_meeting_sala.1 }}">{{ next_meeting_sala.0 }}</span>{% endif %}
       {% else %}
         <span class="ko-metric-value ko-metric-value--empty">—</span>
         <span class="ko-metric-label">Nessun incontro pianificato</span>

@@ -30,6 +30,7 @@ from ..minute_email import note_generali
 from ..models import (
     KickoffMeeting,
     MeetingActionItem,
+    MeetingActionStatus,
     MeetingAgendaItem,
     MeetingAgendaProposal,
     MeetingAgendaTemplate,
@@ -47,6 +48,7 @@ from ..models import (
     TaskPriority,
 )
 from ..access import (
+    can_edit_after_end,
     can_manage_project,
     scoped_projects_queryset,
     task_permissions_required,
@@ -213,8 +215,31 @@ def incontri_lista(request):
 # Incontri kickoff
 # ---------------------------------------------------------------------------
 
+def _sala_stato(meeting) -> tuple[str, str]:
+    """Etichetta della prenotazione sala, da quanto già salvato (senza chiamare Outlook)."""
+    from ..services.sale import RISPOSTE
+
+    if not (meeting.sala_id and meeting.sala.email):
+        return ("", "")
+    if not meeting.outlook_event_id:
+        return ("Sala non prenotata in Outlook", "warn")
+    if not meeting.sala_risposta:
+        return ("Richiesta inviata alla sala", "info")
+    return RISPOSTE.get(meeting.sala_risposta, RISPOSTE["none"])
+
+
+def _outlook_pronto() -> bool:
+    from core.outlook_calendar import graph_ready
+
+    return graph_ready()
+
+
 def _sync_meeting_outlook(request, meeting) -> None:
     from ..meeting_outlook import sync_meeting_outlook_event
+    from ..services.sale import conflitti_portale
+
+    for avviso in conflitti_portale(meeting):
+        messages.warning(request, avviso)
     level, msg = sync_meeting_outlook_event(request=request, meeting=meeting)
     if level == "success":
         messages.success(request, msg)
@@ -277,6 +302,7 @@ def _next_meeting_initial(previous: KickoffMeeting) -> dict:
         "data": proposta,
         "ora": previous.ora,
         "luogo": previous.luogo,
+        "sala": previous.sala_id,
         "partecipanti_utenti": list(previous.partecipanti_utenti.values_list("pk", flat=True)),
         "partecipanti_email_extra": previous.partecipanti_email_extra,
         "cc_utenti": list(previous.cc_utenti.values_list("pk", flat=True)),
@@ -457,6 +483,12 @@ def _sync_meeting_actions_from_post(request, project: Project, meeting: KickoffM
                 linked_task = project.tasks.get(pk=int(linked_task_id))
             except (Task.DoesNotExist, ValueError):
                 linked_task = None
+        # Lo stesso esito salvato due volte (doppio clic, ritorno indietro) non raddoppia le azioni.
+        if MeetingActionItem.objects.filter(
+            project=project, source_meeting=meeting, title=title[:220], status=MeetingActionStatus.OPEN,
+            assigned_to=assigned_to,
+        ).exists():
+            continue
         action = MeetingActionItem.objects.create(
             project=project,
             source_meeting=meeting,
@@ -580,8 +612,14 @@ def project_meeting_create(request, project_id: int):
             for action in _open_meeting_actions_for_project(project)
         ]
         auto_agenda += _carry_over_agenda_items(project)
+        # Le tappe del Percorso ancora da sistemare: chi le porta avanti si decide in riunione.
+        from ..services.tappe import agenda_items as tappe_agenda
+
+        auto_agenda += tappe_agenda(project)
         initial = {
             "data": timezone.localdate(),
+            # Con Outlook configurato la sala si prenota e i partecipanti ricevono l'invito.
+            "sync_outlook": _outlook_pronto(),
             "agenda_items_raw": json.dumps(auto_agenda),
             "partecipanti_utenti": project.team_user_ids,
         }
@@ -669,6 +707,8 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             **_quick_task_context(project, meeting),
             **tech_refs_context(request, project, meeting),
             **tappe_context(request, project, meeting),
+            "sala_stato": _sala_stato(meeting),
+            "can_edit_after_end": can_edit_after_end(request, project),
         },
     )
 
@@ -677,8 +717,11 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
 def project_meeting_edit(request, project_id: int, meeting_id: int):
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
-    if not can_manage_project(request, project):
+    if not (can_manage_project(request, project) or (meeting.minuta_chiusa and can_edit_after_end(request, project))):
         messages.error(request, "Non hai i permessi per modificare questo incontro.")
+        return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    if meeting.minuta_chiusa and not can_edit_after_end(request, project):
+        messages.warning(request, "La minuta è approvata: ordine del giorno e convocazione li corregge solo il capocommessa.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     if request.method == "POST":
         old_data, old_stato = meeting.data, meeting.stato
@@ -947,8 +990,8 @@ def project_meeting_minute_reopen(request, project_id: int, meeting_id: int):
     """Riapre una minuta approvata. Il motivo e' obbligatorio e finisce a registro."""
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
-    if not can_manage_project(request, project):
-        messages.error(request, "Non hai i permessi per riaprire la minuta di questo incontro.")
+    if not can_edit_after_end(request, project):
+        messages.error(request, "La minuta approvata la riapre solo il capocommessa della commessa.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
     if not meeting.minuta_chiusa:
         messages.info(request, "La minuta non è approvata: è già modificabile.")
@@ -1333,8 +1376,22 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
                 kwargs={"project_id": project_id, "meeting_id": meeting_id},
             ),
             "project_tasks_json": _project_tasks_for_picker(project),
+            **_run_tappe_context(items),
         },
     )
+
+
+def _run_tappe_context(items) -> dict:
+    """Elenchi per assegnare i punti «tappa» in conduzione, solo se servono."""
+    from ..services.tappe import macchine_disponibili
+    from .tappe import _fornitori, _processi
+
+    fonti = {str(i.get("source") or "") for i in items if isinstance(i, dict)}
+    return {
+        "run_macchine": list(macchine_disponibili()) if "tappa:MACCHINA" in fonti else [],
+        "run_fornitori": _fornitori() if "tappa:TERZISTA" in fonti else [],
+        "run_processi": _processi() if "tappa:PROCESSI" in fonti else [],
+    }
 
 
 @require_POST
@@ -1461,7 +1518,9 @@ def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id
         return JsonResponse({"ok": False, "reason": "item_not_found"}, status=404)
 
     title = (request.POST.get("title") or "").strip()
-    if not title:
+    tappa = str(target.get("source") or "")
+    tappa = tappa.split(":", 1)[1] if tappa.startswith("tappa:") else ""
+    if not title and not tappa:
         return JsonResponse({"ok": False, "reason": "title_required"}, status=400)
 
     assigned_to = None
@@ -1476,6 +1535,31 @@ def project_meeting_agenda_item_task_create(request, project_id: int, meeting_id
             status=400,
         )
     priority = (request.POST.get("priority") or TaskPriority.MEDIUM).strip().upper()
+
+    if tappa:
+        # Punto «tappa» del Percorso: nasce l'attività del tipo giusto (macchina, terzista, ...).
+        from ..services import tappe as tappe_svc
+
+        asset = None
+        if (request.POST.get("asset") or "").isdigit():
+            asset = tappe_svc.macchine_disponibili().filter(pk=int(request.POST["asset"])).first()
+        try:
+            task = tappe_svc.assegna(
+                project, tappa, request.user, assigned_to=assigned_to, due_date=due_date, start_date=start_date,
+                asset=asset, testo=(request.POST.get("testo") or "").strip(), meeting=meeting, request=request,
+            )
+        except KickoffBloccatoVRF:
+            return _vrf_blocked_response(project)
+        except tappe_svc.TappaNonValida as exc:
+            return JsonResponse({"ok": False, "reason": "tappa", "message": str(exc)}, status=400)
+        MeetingAgendaItem.objects.filter(meeting=meeting, item_id=item_id).update(task=task, task_label=task.title[:200])
+        log_action(request, "kickoff_tappa_da_punto", "tasks", {
+            "task_id": task.pk, "item_id": item_id, "tappa": tappa, "meeting_id": meeting.pk, "project_id": project.pk,
+        })
+        return JsonResponse({
+            "ok": True, "item_id": item_id, "task_id": task.pk, "task_label": task.title,
+            "task_url": reverse("tasks:detail", kwargs={"task_id": task.pk}),
+        })
 
     try:
         with transaction.atomic():

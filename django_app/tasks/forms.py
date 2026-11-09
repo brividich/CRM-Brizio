@@ -1221,7 +1221,7 @@ class KickoffMeetingForm(forms.ModelForm):
     class Meta:
         model = KickoffMeeting
         fields = [
-            "titolo", "data", "ora", "luogo", "stato",
+            "titolo", "data", "ora", "sala", "luogo", "stato",
             "partecipanti_utenti", "partecipanti_email_extra", "partecipanti_testo",
             "cc_utenti", "cc_email_extra",
             # `ordine_del_giorno` (testo libero) e' storico in sola lettura: i
@@ -1233,7 +1233,8 @@ class KickoffMeetingForm(forms.ModelForm):
             "titolo": forms.TextInput(attrs={"class": "input", "placeholder": "Titolo opzionale"}),
             "data": forms.DateInput(attrs={"class": "input", "type": "date"}, format="%Y-%m-%d"),
             "ora": forms.TimeInput(attrs={"class": "input", "type": "time"}, format="%H:%M"),
-            "luogo": forms.TextInput(attrs={"class": "input", "placeholder": "Es. Sala riunioni / Teams"}),
+            "luogo": forms.TextInput(attrs={"class": "input", "placeholder": "Es. link Teams o sede del cliente"}),
+            "sala": forms.Select(attrs={"class": "input"}),
             "partecipanti_utenti": forms.CheckboxSelectMultiple(),
             "partecipanti_email_extra": forms.Textarea(
                 attrs={"class": "input", "rows": 3, "placeholder": "uno@dominio.it\naltra@dominio.it"}
@@ -1264,6 +1265,14 @@ class KickoffMeetingForm(forms.ModelForm):
         self.fields["cc_email_extra"].required = False
         self.fields["partecipanti_testo"].required = False
         self.fields["outlook_organizer_email"].required = False
+        from .models import MeetingRoom
+
+        sale = MeetingRoom.objects.filter(attiva=True)
+        if self.instance and self.instance.sala_id:
+            sale = MeetingRoom.objects.filter(Q(attiva=True) | Q(pk=self.instance.sala_id))
+        self.fields["sala"].queryset = sale.order_by("ordine", "nome")
+        self.fields["sala"].required = False
+        self.fields["sala"].empty_label = "Nessuna sala (online o altrove)"
         # «Svolto» non si sceglie a mano: lo imposta la registrazione dell'esito.
         # «Annullato» nemmeno: si annulla con l'azione dedicata del dettaglio,
         # che chiede il motivo, toglie l'evento Outlook e avvisa i convocati.
@@ -1346,6 +1355,10 @@ class KickoffMeetingForm(forms.ModelForm):
         dopo aver assegnato il punto.
         """
         cleaned = super().clean()
+        # Con una sala e nessun altro luogo, il luogo è la sala (mail, minuta, Outlook).
+        sala = cleaned.get("sala")
+        if sala is not None and not (cleaned.get("luogo") or "").strip():
+            cleaned["luogo"] = sala.nome[:200]
         items = cleaned.get("agenda_items_raw") or []
         partecipanti = cleaned.get("partecipanti_utenti")
         allowed_ids = {user.pk for user in partecipanti} if partecipanti is not None else set()
