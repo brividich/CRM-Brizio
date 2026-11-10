@@ -377,19 +377,24 @@ def _suggerisci_gp(campo: str, testo: str, cognome: str) -> list[str]:
     if not guestportal.db_configurato():
         return []
     colonna = "LastName" if campo == "cognome" else "FirstName"
-    extra_g, extra_c, params_g, params_c = "", "", [], []
-    if campo == "nome":
-        extra_g, extra_c, params_g, params_c = " AND g.LastName = %s", " AND c.LastName = %s", [cognome], [cognome]
-    sql = (f"SELECT DISTINCT g.{colonna} AS v FROM Guests g JOIN Visits v ON v.GuestID = g.GuestID"
-           f" WHERE g.IsAnonymized = 0 AND v.CheckInTime >= %s AND g.{colonna} LIKE %s{extra_g}"
-           f" UNION SELECT DISTINCT c.{colonna} FROM SupplierContacts c JOIN Suppliers s ON s.SupplierID = c.SupplierID"
-           f" WHERE c.IsActive = 1 AND s.IsActive = 1 AND c.{colonna} LIKE %s{extra_c} LIMIT 50")
-    params = [datetime.now() - timedelta(days=_giorni_conservazione()), _like(testo), *params_g, _like(testo), *params_c]
-    try:
-        righe = guestportal._esegui(sql, params)
-    except (guestportal.GuestPortalNonConfigurato, guestportal.GuestPortalNonRaggiungibile):
-        return []
-    return _unici(r.get("v") for r in righe)
+    filtro_cognome = " AND g.LastName = %s" if campo == "nome" else ""
+    # Due interrogazioni separate, niente UNION: le due tabelle del GuestPortal possono avere
+    # collation diverse e MySQL rifiuterebbe l'unione (in produzione: OperationalError).
+    sql_ospiti = (f"SELECT DISTINCT g.{colonna} AS valore FROM Guests g"
+                  f" WHERE g.IsAnonymized = 0 AND g.{colonna} LIKE %s{filtro_cognome}"
+                  " AND EXISTS (SELECT 1 FROM Visits vi WHERE vi.GuestID = g.GuestID AND vi.CheckInTime >= %s) LIMIT 50")
+    sql_contatti = (f"SELECT DISTINCT g.{colonna} AS valore FROM SupplierContacts g"
+                    " JOIN Suppliers s ON s.SupplierID = g.SupplierID"
+                    f" WHERE g.IsActive = 1 AND s.IsActive = 1 AND g.{colonna} LIKE %s{filtro_cognome} LIMIT 50")
+    extra = [cognome] if campo == "nome" else []
+    dal = datetime.now() - timedelta(days=_giorni_conservazione())
+    righe: list[dict] = []
+    for sql, params in ((sql_ospiti, [_like(testo), *extra, dal]), (sql_contatti, [_like(testo), *extra])):
+        try:
+            righe += guestportal._esegui(sql, params)
+        except (guestportal.GuestPortalNonConfigurato, guestportal.GuestPortalNonRaggiungibile):
+            continue
+    return _unici(r.get("valore") for r in righe)
 
 
 # ─── Logo del chiosco (Reception → Impostazioni) ──────────────────────────────────────────
