@@ -9,7 +9,15 @@ from django.contrib.auth import get_user_model
 from django.db import DatabaseError, connections
 from werkzeug.security import check_password_hash
 
-from core.ldap_conn import build_ldap_server, ldap_receive_timeout
+from core.ldap_conn import (
+    LDAPUnreachable,
+    ad_bind_subcode,
+    get_ldap_server,
+    ldap_bind,
+    ldap_breaker_open,
+    ldap_result_description,
+    ldap_service_bind,
+)
 from core.legacy_models import UtenteLegacy
 from core.legacy_utils import (
     canonicalize_ldap_upn,
@@ -132,6 +140,60 @@ class SQLServerLegacyBackend:
         return user
 
 
+def _account_ad_esiste(bind_user: str) -> bool | None:
+    """L'account del bind esiste in AD? ``None`` = non verificabile (manca l'account di servizio o errore)."""
+    search_base = str(getattr(settings, "LDAP_BASE_DN", "") or "").strip()
+    if not search_base or not getattr(settings, "LDAP_SERVICE_USER", "") or not getattr(settings, "LDAP_SERVICE_PASSWORD", ""):
+        return None
+    try:
+        from ldap3.utils.conv import escape_filter_chars
+
+        if "@" in bind_user:
+            filtro = f"(userPrincipalName={escape_filter_chars(bind_user)})"
+        else:
+            filtro = f"(sAMAccountName={escape_filter_chars(bind_user.split(chr(92))[-1])})"
+        conn, _result = ldap_service_bind(read_only=True)
+        if conn is None:
+            return None
+        try:
+            ok = conn.search(search_base=search_base, search_filter=filtro, attributes=["sAMAccountName"], size_limit=1)
+            if not ok and ldap_result_description(conn.result) not in ("", "success"):
+                return None
+            return bool(conn.entries)
+        finally:
+            try:
+                conn.unbind()
+            except Exception:
+                logger.debug("LDAP: unbind fallito", exc_info=True)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("LDAP: verifica esistenza account non riuscita: %s", exc)
+        return None
+
+
+def _prosegui_dopo_bind_rifiutato(bind_user: str, _authentication, result) -> bool:
+    """Dopo un bind rifiutato si prova il metodo successivo solo se non conta come altra password errata.
+
+    AD conta ogni bind con password sbagliata: UPN e poi DOMINIO\\alias facevano due
+    tentativi falliti a ogni errore di battitura (blocco account a metà soglia).
+    - ``strongerAuthRequired`` o utente inesistente (``525``) ⇒ si prova il successivo;
+    - ``invalidCredentials`` ``52e`` ⇒ ci si ferma, salvo che l'account usato nel bind
+      non esista in AD (UPN diverso da alias@suffisso): allora si prova il successivo;
+    - altri codici AD (bloccato, scaduto, disabilitato...) ⇒ ci si ferma.
+    """
+    description = ldap_result_description(result)
+    if description != "invalidCredentials":
+        return True
+    code = ad_bind_subcode(result)
+    if not code or code == "525":
+        return True
+    if code == "52e":
+        if "@" not in bind_user and "\\" not in bind_user:
+            # Bind SIMPLE con il solo alias: forma non sempre accettata da AD, esito non affidabile.
+            return True
+        return _account_ad_esiste(bind_user) is False
+    return False
+
+
 class LDAPBackend:
     def authenticate(self, request, username=None, password=None, **kwargs):
         ident = (username or "").strip()
@@ -142,8 +204,8 @@ class LDAPBackend:
             return None
 
         try:
-            from ldap3 import Connection, NTLM, SIMPLE
-            from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
+            from ldap3 import NTLM, SIMPLE
+            from ldap3.core.exceptions import LDAPException
         except Exception as exc:
             logger.warning("ldap3 unavailable: %s", exc)
             return None
@@ -153,6 +215,15 @@ class LDAPBackend:
         upn_suffix = getattr(settings, "LDAP_UPN_SUFFIX", "") or ""
         timeout = int(getattr(settings, "LDAP_TIMEOUT", 5) or 5)
         if not server_url:
+            return None
+
+        if ldap_breaker_open():
+            # Il DC non rispondeva pochi secondi fa: niente timeout a ogni login.
+            # Il form mostra il messaggio generico; qui resta traccia del motivo vero.
+            logger.warning(
+                "LDAP: login di %s non verificato su AD: servizio di autenticazione non raggiungibile (breaker attivo)",
+                _extract_alias(ident),
+            )
             return None
 
         alias = _extract_alias(ident)
@@ -168,7 +239,7 @@ class LDAPBackend:
         resolved_full_name = ""
 
         try:
-            server = build_ldap_server(server_url, timeout)
+            server = get_ldap_server(server_url, timeout)
             supports_ntlm = _md4_supported()
             if "\\" in ident:
                 if supports_ntlm:
@@ -185,32 +256,9 @@ class LDAPBackend:
                     attempts.append((alias, SIMPLE))
                 if domain and supports_ntlm:
                     attempts.append((f"{domain}\\{alias}", NTLM))
-            conn = None
-            for bind_user, authentication in attempts:
-                try:
-                    candidate = Connection(
-                        server,
-                        user=bind_user,
-                        password=password,
-                        authentication=authentication,
-                        auto_bind=False,
-                        auto_referrals=False,
-                        raise_exceptions=False,
-                        receive_timeout=ldap_receive_timeout(),
-                    )
-                    ok = candidate.bind()
-                except Exception as exc:
-                    # Fail closed on any LDAP bind error: invalid credentials must not become HTTP 500.
-                    logger.warning("LDAP bind skipped for %s (%s): %s", bind_user, authentication, exc)
-                    ok = False
-                    continue
-                if ok:
-                    conn = candidate
-                    break
-                try:
-                    candidate.unbind()
-                except Exception:
-                    logger.debug("LDAP: unbind del candidato fallito", exc_info=True)
+            conn, _last = ldap_bind(
+                attempts, password, server=server, server_url=server_url, should_continue=_prosegui_dopo_bind_rifiutato
+            )
             if conn is None:
                 return None
             groups: list[str] = []
@@ -223,7 +271,12 @@ class LDAPBackend:
                     conn.unbind()
                 except Exception:
                     logger.debug("LDAP: unbind fallito", exc_info=True)
-        except (LDAPSocketOpenError, LDAPException, socket.error, OSError, ValueError) as exc:
+        except LDAPUnreachable as exc:
+            logger.warning(
+                "LDAP: login di %s non verificato: servizio di autenticazione non raggiungibile (%s)", alias, exc
+            )
+            return None
+        except (LDAPException, socket.error, OSError, ValueError) as exc:
             logger.warning("LDAP auth failed/unavailable: %s", exc)
             return None
 

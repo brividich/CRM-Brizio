@@ -11,7 +11,13 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import DatabaseError, transaction
 
 from core import naming
-from core.ldap_conn import build_ldap_server, ldap_receive_timeout
+from core.ldap_conn import (
+    LDAPIncompleteRead,
+    describe_bind_failure,
+    ldap_bind,
+    ldap_paged_search,
+    service_bind_attempts,
+)
 from core.legacy_models import Ruolo, UtenteLegacy
 from core.legacy_utils import legacy_table_columns, sync_django_user_from_legacy
 
@@ -172,8 +178,8 @@ class Command(BaseCommand):
             raise CommandError("LDAP_USER_FILTER non configurato.")
 
         try:
-            from ldap3 import NTLM, SIMPLE, SUBTREE, Connection
-            from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
+            from ldap3 import SUBTREE
+            from ldap3.core.exceptions import LDAPException
         except Exception as exc:
             raise CommandError(f"ldap3 non disponibile: {exc}") from exc
 
@@ -183,71 +189,44 @@ class Command(BaseCommand):
         else:
             allowlist = _normalized_allowlist(getattr(settings, "LDAP_GROUP_ALLOWLIST", []) or [])
 
-        def _bind_attempts() -> list[tuple[str, object]]:
-            if "\\" in service_user:
-                return [(service_user, NTLM)]
-            if "@" in service_user:
-                return [(service_user, SIMPLE)]
-
-            attempts: list[tuple[str, object]] = []
-            if upn_suffix:
-                attempts.append((f"{service_user}@{upn_suffix}", SIMPLE))
-            attempts.append((service_user, SIMPLE))
-            if domain:
-                attempts.append((f"{domain}\\{service_user}", NTLM))
-            return attempts
-
         try:
-            server = build_ldap_server(server_url, timeout)
-            conn = None
-            last_result = None
-            for bind_user, authentication in _bind_attempts():
-                candidate = Connection(
-                    server,
-                    user=bind_user,
-                    password=service_password,
-                    authentication=authentication,
-                    auto_bind=False,
-                    auto_referrals=False,
-                    raise_exceptions=False,
-                    receive_timeout=ldap_receive_timeout(),
-                )
-                ok = candidate.bind()
-                if ok:
-                    conn = candidate
-                    break
-                last_result = candidate.result
-                try:
-                    candidate.unbind()
-                except Exception:
-                    pass
+            conn, last_result = ldap_bind(
+                service_bind_attempts(service_user, domain=domain, upn_suffix=upn_suffix),
+                service_password,
+                server_url=server_url,
+                timeout=timeout,
+            )
             if conn is None:
-                raise CommandError(f"Bind LDAP fallito: {last_result}")
-        except (LDAPSocketOpenError, LDAPException, socket.error, OSError) as exc:
+                raise CommandError(describe_bind_failure(last_result))
+        except (LDAPException, socket.error, OSError, ValueError) as exc:
             raise CommandError(f"Connessione LDAP fallita: {exc}") from exc
 
         attrs = ["displayName", "givenName", "sn", "mail", "userPrincipalName", "sAMAccountName", "memberOf"]
+        # Tutte le pagine (prima si leggeva solo la prima): una lettura incompleta ferma il giro
+        # prima di toccare il database.
         try:
-            search_ok = conn.search(
+            entries = ldap_paged_search(
+                conn,
                 search_base=search_base,
                 search_filter=user_filter,
                 search_scope=SUBTREE,
                 attributes=attrs,
                 paged_size=page_size,
             )
-        except (LDAPSocketOpenError, LDAPException, socket.error, OSError) as exc:
-            conn.unbind()
-            raise CommandError(f"Ricerca LDAP fallita: {exc}") from exc
-        if not search_ok:
+        except LDAPIncompleteRead as exc:
             conn.unbind()
             raise CommandError(
                 _format_ldap_search_error(
-                    conn.result,
+                    exc.args[0] if exc.args else None,
                     search_base=search_base,
                     domain=domain,
                     upn_suffix=upn_suffix,
                 )
-            )
+            ) from exc
+        except (LDAPException, socket.error, OSError) as exc:
+            conn.unbind()
+            raise CommandError(f"Ricerca LDAP fallita: {exc}") from exc
+        conn.unbind()
 
         role_utente = Ruolo.objects.filter(nome__iexact="utente").first()
         ruolo_id = int(role_utente.id) if role_utente else None
@@ -265,12 +244,12 @@ class Command(BaseCommand):
         }
 
         with transaction.atomic():
-            for entry in conn.entries:
+            for entry in entries:
                 if limit and totals["scanned"] >= limit:
                     break
                 totals["scanned"] += 1
 
-                data = entry.entry_attributes_as_dict if hasattr(entry, "entry_attributes_as_dict") else {}
+                data = entry.get("attributes") or {}
                 upn = _entry_first(data, "userPrincipalName").strip().lower()
                 mail = _entry_first(data, "mail").strip().lower()
                 sam = _entry_first(data, "sAMAccountName").strip().lower()
@@ -370,7 +349,6 @@ class Command(BaseCommand):
             if dry_run:
                 transaction.set_rollback(True)
 
-        conn.unbind()
         summary = (
             f"LDAP sync completata scanned={totals['scanned']} imported={totals['imported']} "
             f"legacy_created={totals['legacy_created']} legacy_updated={totals['legacy_updated']} "

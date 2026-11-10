@@ -379,6 +379,46 @@ class AdTests(TestCase):
         self.assertIsNotNone(AccountAD.objects.get(sam="svc-backup").sparito_il)
 
 
+@override_settings(LDAP_SERVER="ldap://dc01.example.invalid", LDAP_SERVICE_USER="svc", LDAP_SERVICE_PASSWORD="synthetic",
+                   LDAP_UPN_SUFFIX="example.invalid", LDAP_DOMAIN="EXAMPLE", LDAP_BASE_DN="DC=EXAMPLE,DC=INVALID")
+class AdConnessioneTests(TestCase):
+    def setUp(self):
+        from core import ldap_conn
+
+        ldap_conn.reset_ldap_servers()
+        ldap_conn.ldap_breaker_reset()
+        self.addCleanup(ldap_conn.reset_ldap_servers)
+        self.addCleanup(ldap_conn.ldap_breaker_reset)
+
+    def test_bind_falliti_chiusi_con_unbind(self):
+        from . import ad
+
+        falliti = [mock.MagicMock(**{"bind.return_value": False}) for _ in range(2)]
+        buona = mock.MagicMock(**{"bind.return_value": True})
+        with mock.patch("ldap3.Connection", side_effect=[*falliti, buona]):
+            self.assertIs(ad._connessione(), buona)
+        for c in falliti:
+            c.unbind.assert_called_once()
+        buona.unbind.assert_not_called()
+
+    def test_lettura_incompleta_non_segna_account_spariti(self):
+        from core.ldap_conn import LDAPIncompleteRead
+
+        from . import ad
+
+        AccountAD.objects.create(sam="mrossi")
+        conn = mock.MagicMock(**{"bind.return_value": True})
+        conn.extend.standard.paged_search.return_value = iter(
+            [{"type": "searchResEntry", "dn": "CN=x", "attributes": {"sAMAccountName": ["altro"]}}]
+        )
+        conn.result = {"result": 51, "description": "busy"}
+        with mock.patch("ldap3.Connection", return_value=conn), mock.patch.object(ad, "_persone", return_value={}):
+            with self.assertRaises(LDAPIncompleteRead):
+                ad.sincronizza()
+        self.assertIsNone(AccountAD.objects.get(sam="mrossi").sparito_il)
+        conn.unbind.assert_called()
+
+
 class ReportTests(_ConArchivio):
     def test_riepilogo_e_pdf(self):
         from . import report
