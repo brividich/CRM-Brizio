@@ -135,6 +135,8 @@ def valida(dati: dict) -> list[str]:
     errori = []
     if not dati["url"].lower().startswith("https://") or len(dati["url"]) < 12:
         errori.append("Indirizzo non valido: è https://<server Veeam>:9419 (l'API di Veeam risponde solo in HTTPS).")
+    else:
+        errori.extend(_problemi_indirizzo(dati["url"]))
     if not dati["username"]:
         errori.append("Manca l'utente (es. DOMINIO\\utente con il solo ruolo «Veeam Backup Viewer»).")
     if not dati["password"]:
@@ -180,6 +182,23 @@ def cancella_credenziali(actor=None) -> None:
     audit_config_change(actor, "update", setting, field_name="value", old_value="***", new_value="")
 
 
+def _problemi_indirizzo(url: str) -> list[str]:
+    """Indirizzi che non portano all'API REST di Veeam Backup & Replication (risponderebbe 404)."""
+    from urllib.parse import urlsplit
+
+    parti = urlsplit(url)
+    problemi = []
+    if parti.path.strip("/"):
+        problemi.append(f"Togli «{parti.path}» dall'indirizzo: va solo https://<server Veeam>:9419, "
+                        "il percorso /api/... lo aggiunge il portale.")
+    if parti.port == 9398:
+        problemi.append("La porta 9398 è Veeam Backup Enterprise Manager, un'altra API: "
+                        "usa quella del server Backup & Replication, di serie 9419.")
+    elif parti.port is None:
+        problemi.append("Manca la porta: l'API di Veeam Backup & Replication risponde di serie su :9419.")
+    return problemi
+
+
 def _check_config(cfg: dict) -> None:
     if not (cfg["url"] and cfg["username"] and cfg["password"]):
         raise VeeamError("Credenziali API Veeam mancanti: inseriscile in Impostazioni › «Credenziali API Veeam».")
@@ -212,8 +231,19 @@ class VeeamClient:
             raise VeeamError("Certificato del server Veeam non attendibile: incolla il certificato della CA nelle credenziali API Veeam.") from exc
         except requests.exceptions.RequestException as exc:
             raise VeeamError(f"Server Veeam non raggiungibile ({type(exc).__name__}): controlla indirizzo e porta 9419.") from exc
+        testo = (getattr(resp, "text", "") or "")[:500].lower() if isinstance(getattr(resp, "text", ""), str) else ""
+        if resp.status_code == 400 and "version" in testo:
+            raise VeeamError(f"Veeam non accetta la versione API {self.cfg['version']}: nelle credenziali API Veeam "
+                             "indica quella del server (Swagger su https://<server>:9419/swagger).")
         if resp.status_code in (400, 401, 403):
             raise VeeamError(f"Veeam ha rifiutato l'accesso ({resp.status_code}): controlla utente e password dell'API.")
+        if resp.status_code == 404:
+            dettaglio = " ".join(_problemi_indirizzo(self.cfg["url"]))
+            raise VeeamError(
+                f"All'indirizzo {self.cfg['url']} non c'è l'API REST di Veeam Backup & Replication (404 su /api/oauth2/token). "
+                + (dettaglio or "Controlla che sia il server Backup & Replication sulla porta dell'API (di serie 9419) "
+                   "e che il servizio «Veeam Backup Server RESTful API» sia avviato.")
+            )
         if resp.status_code >= 400:
             raise VeeamError(f"Veeam ha risposto {resp.status_code} all'accesso (versione API {self.cfg['version']}).")
         token = (resp.json() or {}).get("access_token")

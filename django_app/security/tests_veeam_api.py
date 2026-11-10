@@ -220,6 +220,22 @@ class ClientTests(TestCase):
             with self.assertRaisesMessage(svc.VeeamError, "utente e password"):
                 svc.VeeamClient()
 
+    def test_404_spiega_l_indirizzo(self):
+        with patch("requests.Session", return_value=self._session_mock(token_status=404)):
+            with self.assertRaisesMessage(svc.VeeamError, "non c'è l'API REST di Veeam Backup & Replication"):
+                svc.VeeamClient()
+
+    def test_404_con_percorso_o_porta_sbagliata(self):
+        cfg = {**svc._config(), "url": "https://veeam-sintetico:9398/api"}
+        with patch("requests.Session", return_value=self._session_mock(token_status=404)):
+            with self.assertRaisesMessage(svc.VeeamError, "9398"):
+                svc.VeeamClient(cfg)
+
+    def test_indirizzo_validato(self):
+        self.assertEqual(svc._problemi_indirizzo("https://veeam-sintetico:9419"), [])
+        self.assertTrue(svc._problemi_indirizzo("https://veeam-sintetico:9419/api/v1"))
+        self.assertTrue(svc._problemi_indirizzo("https://veeam-sintetico"))
+
     @override_settings(VEEAM_API_URL="http://veeam-sintetico:9419")
     def test_solo_https(self):
         with self.assertRaisesMessage(svc.VeeamError, "https://"):
