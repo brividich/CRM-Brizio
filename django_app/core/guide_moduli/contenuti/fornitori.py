@@ -138,7 +138,7 @@ GUIDA = {
                       "restano quelli del GuestPortal, quindi le visite compaiono in Accessi esterni come sempre. "
                       "Tutti, fornitori accreditati compresi, devono confermare di aver letto l'informativa privacy prima di entrare."),
                 ("passi", [
-                    "«Tocca per entrare», poi «Come ti chiami?»: nome e cognome, «Avanti».",
+                    "«Tocca per entrare», poi «Come ti chiami?»: prima il cognome, poi il nome, «Avanti». Dalla terza lettera compaiono fino a 6 cognomi già presenti (visitatori recenti e nominativi delle ditte accreditate); per il nome, solo i nomi di chi ha quel cognome. Nessuna azienda nei suggerimenti.",
                     "Se qualcuno con esattamente quel nome è già venuto (negli ultimi 12 mesi, o è un nominativo di una ditta accreditata), il totem mostra solo la sua azienda: si tocca la propria. Più righe = omonimi. «No, non sono io: prima visita» se nessuna è giusta.",
                     "Prima visita: «Per quale azienda?» (si scrive, nessun suggerimento), email e telefono facoltativi.",
                     "«Chi vieni a trovare?»: si scrivono le prime lettere e si tocca il nome. Chi torna trova già il referente dell'ultima volta.",
@@ -238,7 +238,8 @@ GUIDA = {
                 ("passi", [
                     "Nel file .env dell'HUB scrivi l'IP del PC della reception in CHIOSCO_ALLOWED_IPS (più valori separati da virgola, anche reti come 10.0.5.0/24).",
                     "Se serve, imposta GUESTPORTAL_CHIOSCO_API_URL con l'indirizzo delle API del GuestPortal.",
-                    "Riavvia l'HUB e apri /chiosco/ dalla postazione.",
+                    "Riavvia l'HUB e apri /chiosco/ dalla postazione. Più totem: tutti gli IP nella stessa riga, separati da virgola.",
+                    "Logo: Reception → Impostazioni → «Logo del chiosco», PNG, JPG o WEBP fino a 1 MB (meglio chiaro o trasparente: il totem è scuro). «Togli il logo» rimette la scritta.",
                 ]),
                 ("passi", [
                     "Passaggio dal GuestPortal: dai all'utente MySQL il permesso di lettura su tutte le tabelle (docs/integrazioni/guestportal/README.md).",

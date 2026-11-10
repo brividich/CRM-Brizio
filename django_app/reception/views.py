@@ -392,10 +392,57 @@ def cartellini(request):
     return render(request, "reception/cartellini.html", _ctx(request, "cartellini", righe=righe, etichette=etichette))
 
 
+def _logo_percorso() -> str:
+    from fornitori import chiosco
+
+    return chiosco.logo_percorso()
+
+
+def _salva_logo(request, azione: str) -> None:
+    """Logo del chiosco: PNG, JPG o WEBP fino a 1 MB (niente SVG). Salvato nello storage, servito da /chiosco/logo/."""
+    import os
+    import time
+
+    from django.core.files.storage import default_storage
+
+    from core.upload_mime import UploadMimeValidationError, validate_extension_and_mime
+    from fornitori import chiosco
+
+    vecchio = chiosco.logo_percorso()
+    if azione == "logo_togli":
+        if vecchio and default_storage.exists(vecchio):
+            default_storage.delete(vecchio)
+        SiteConfig.set(chiosco.CHIAVE_LOGO, "", "Logo del chiosco della reception")
+        log_action(request, "reception_logo_tolto", "reception", {})
+        messages.success(request, "Logo tolto: il chiosco mostra di nuovo la scritta.")
+        return
+    upload = request.FILES.get("logo")
+    if not upload:
+        messages.error(request, "Scegli un file.")
+        return
+    try:
+        validate_extension_and_mime(upload, allowed_extensions=set(chiosco.LOGO_ESTENSIONI),
+                                    allowed_mimes=set(chiosco.LOGO_ESTENSIONI.values()),
+                                    max_bytes=chiosco.LOGO_MAX_BYTE, label="Logo del chiosco")
+    except UploadMimeValidationError as exc:
+        messages.error(request, str(exc))
+        return
+    estensione = os.path.splitext(upload.name)[1].lower()
+    if vecchio and default_storage.exists(vecchio):
+        default_storage.delete(vecchio)
+    salvato = default_storage.save(f"{chiosco.LOGO_CARTELLA}/chiosco_logo{estensione}", upload).replace("\\", "/")
+    SiteConfig.set(chiosco.CHIAVE_LOGO, f"{salvato}|{int(time.time())}", "Logo del chiosco della reception")
+    log_action(request, "reception_logo_caricato", "reception", {"byte": upload.size})
+    messages.success(request, "Logo caricato: il chiosco lo mostra dal prossimo caricamento della pagina.")
+
+
 @login_required
 def impostazioni(request):
     if request.method == "POST":
         azione = request.POST.get("azione")
+        if azione in ("logo", "logo_togli"):
+            _salva_logo(request, azione)
+            return redirect("reception:impostazioni")
         if azione == "pulisci":
             mesi = int(getattr(settings, "RECEPTION_CONSERVAZIONE_MESI", 12))
             esito = servizi.pulizia_conservazione(mesi)
@@ -410,5 +457,6 @@ def impostazioni(request):
     mesi = int(getattr(settings, "RECEPTION_CONSERVAZIONE_MESI", 12))
     return render(request, "reception/impostazioni.html", _ctx(
         request, "impostazioni", avviso=SiteConfig.get(CHIAVE_AVVISO_REQUISITI, "0") == "1", mesi=mesi,
+        logo_presente=bool(_logo_percorso()),
         n_oltre=servizi.visite_oltre_conservazione(mesi).count(),
     ))

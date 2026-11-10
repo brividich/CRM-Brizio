@@ -79,7 +79,7 @@ SEZIONI = [
         "blocchi": [
             ("p", "Il pulsante «Chiosco» in Accessi esterni apre /chiosco/: il visitatore registra ingresso e uscita senza login, "
                   "e le visite compaiono qui come sempre. Si apre solo dalle postazioni abilitate dall'amministratore. "
-                  "Una domanda alla volta: nome e cognome; se qualcuno con quel nome è già venuto compare solo la sua azienda da confermare "
+                  "Una domanda alla volta: cognome e nome (dalla terza lettera il totem suggerisce cognomi e nomi già presenti); se qualcuno con quel nome è già venuto compare solo la sua azienda da confermare "
                   "(più righe se ci sono omonimi) e referente e motivo dell'ultima volta sono già scelti; poi l'informativa da spuntare. "
                   "«Esco» mostra i numeri dei cartellini in uso: basta toccare il proprio. Il referente si cerca scrivendo il nome. Il pannello per gestire presenti, storico, pre-registrazioni e "
                   "cartellini è «Reception», nel menu di Fornitori."),

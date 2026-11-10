@@ -14,6 +14,7 @@ button { font:inherit; color:inherit; }
 .ck-shell { min-height:100%; display:flex; flex-direction:column; }
 .ck-head { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:22px 40px; }
 .ck-brand { font-size:20px; font-weight:700; letter-spacing:2px; }
+.ck-logo { display:block; height:56px; max-width:320px; object-fit:contain; }
 .ck-head-r { display:flex; align-items:center; gap:18px; }
 .ck-clock { font-size:20px; font-weight:600; color:var(--muted); }
 .ck-reset { display:none; align-items:center; gap:8px; min-height:52px; padding:0 20px; border:2px solid var(--border2); border-radius:14px; background:transparent; font-size:18px; font-weight:600; cursor:pointer; }
@@ -40,6 +41,9 @@ button { font:inherit; color:inherit; }
 .ck-big.attivo { border-bottom-color:var(--accent); }
 .ck-big::placeholder { color:#475569; }
 .ck-pair { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:32px; }
+.ck-sugg { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; min-height:8px; }
+.ck-sugg button { min-height:56px; padding:8px 20px; border:2px solid var(--border2); border-radius:999px; background:var(--surface); font-size:21px; font-weight:600; cursor:pointer; }
+.ck-sugg button:hover { border-color:var(--accent); }
 .ck-input { width:100%; min-height:64px; padding:12px 18px; font:inherit; font-size:22px; color:var(--text); background:var(--surface); border:2px solid var(--border2); border-radius:16px; outline:none; }
 .ck-input.attivo { border-color:var(--accent); }
 .ck-actions { display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:34px; }
@@ -155,7 +159,7 @@ button { font:inherit; color:inherit; }
 <body>
 <div class="ck-shell">
   <header class="ck-head">
-    <div class="ck-brand">NOVICROM</div>
+    {% if logo_versione %}<img class="ck-logo" src="{% url "chiosco:logo" %}?v={{ logo_versione }}" alt="Logo">{% else %}<div class="ck-brand">NOVICROM</div>{% endif %}
     <div class="ck-head-r">
       {% if disponibile %}<button type="button" class="ck-reset" id="b-reset"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Ricomincia</button>{% endif %}
       <div class="ck-clock" id="orologio"></div>
@@ -192,8 +196,8 @@ button { font:inherit; color:inherit; }
     <section class="ck-step" id="s-nome">
       <h1 class="ck-title">Come ti chiami?</h1>
       <div class="ck-pair">
-        <div><label class="ck-label" for="f-nome">Nome</label><input class="ck-big" id="f-nome" data-kb="text" readonly autocomplete="off" placeholder="Nome"></div>
-        <div><label class="ck-label" for="f-cognome">Cognome</label><input class="ck-big" id="f-cognome" data-kb="text" readonly autocomplete="off" placeholder="Cognome"></div>
+        <div><label class="ck-label" for="f-cognome">Cognome</label><input class="ck-big" id="f-cognome" data-kb="text" data-sugg="cognome" readonly autocomplete="off" placeholder="Cognome"><div class="ck-sugg" id="f-cognome-sugg"></div></div>
+        <div><label class="ck-label" for="f-nome">Nome</label><input class="ck-big" id="f-nome" data-kb="text" data-sugg="nome" readonly autocomplete="off" placeholder="Nome"><div class="ck-sugg" id="f-nome-sugg"></div></div>
       </div>
       <div class="ck-actions"><button type="button" class="ck-next" id="b-nome" disabled>Avanti</button></div>
       <div class="ck-err" id="e-nome"></div>
@@ -414,6 +418,7 @@ button { font:inherit; color:inherit; }
     document.querySelectorAll('[data-motivo]').forEach(function (c) { c.classList.remove('on'); });
     $('f-host').value = ''; $('f-host').dataset.nome = ''; disegnaReferenti();
     $('visite').innerHTML = ''; $('pad-box').hidden = true;
+    $('f-cognome-sugg').innerHTML = ''; $('f-nome-sugg').innerHTML = '';
     badge = ''; codice = '';
     mostraBadge(); mostraCodice(); controllaNome();
     mostra('s-home');
@@ -449,6 +454,36 @@ button { font:inherit; color:inherit; }
   // ─── 1. Nome e cognome: se sei già venuto ti riconosco ───
   function controllaNome() { $('b-nome').disabled = val('f-nome').length < 2 || val('f-cognome').length < 2; }
   ['f-nome', 'f-cognome'].forEach(function (id) { $(id).addEventListener('input', function () { controllaNome(); pass(); }); });
+
+  // Dalla terza lettera: cognomi già presenti; per il nome, i nomi di chi ha quel cognome.
+  var timerSugg = null, giroSugg = 0;
+  function suggerisci(input) {
+    var box = $(input.id + '-sugg'), testo = input.value.trim(), giro = ++giroSugg;
+    if (testo.length < 3 || (input.dataset.sugg === 'nome' && val('f-cognome').length < 2)) { box.innerHTML = ''; return; }
+    fetch(API + 'suggerisci/', {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ campo: input.dataset.sugg, testo: testo, cognome: val('f-cognome') })
+    }).then(function (r) { return r.json(); }).catch(function () { return {}; }).then(function (d) {
+      if (giro !== giroSugg) { return; }
+      box.innerHTML = '';
+      (d.voci || []).filter(function (v) { return v.toLowerCase() !== testo.toLowerCase(); }).forEach(function (v) {
+        var b = el('button', '', v); b.type = 'button';
+        b.addEventListener('click', function () {
+          input.value = v; box.innerHTML = '';
+          input.dispatchEvent(new Event('input'));
+          if (input.id === 'f-cognome') { $('f-nome').click(); } else { chiudiTastiera(); }
+        });
+        box.appendChild(b);
+      });
+    });
+  }
+  document.querySelectorAll('[data-sugg]').forEach(function (i) {
+    i.addEventListener('input', function () {
+      clearTimeout(timerSugg);
+      if (i.id === 'f-cognome') { $('f-nome-sugg').innerHTML = ''; }
+      timerSugg = setTimeout(function () { suggerisci(i); }, 200);
+    });
+  });
   $('b-nome').addEventListener('click', function () {
     chiudiTastiera();
     stato.noto = null; stato.fornitore = null; stato.azienda = val('f-azienda');
@@ -746,7 +781,7 @@ button { font:inherit; color:inherit; }
 
   // ─── Avvio ───
   document.querySelectorAll('[data-vai]').forEach(function (b) { b.addEventListener('click', function () { vai(b.dataset.vai); }); });
-  $('b-inizia').addEventListener('click', function () { vai('s-nome'); $('f-nome').click(); });
+  $('b-inizia').addEventListener('click', function () { vai('s-nome'); $('f-cognome').click(); });
   $('b-indietro').addEventListener('click', indietro);
   $('b-reset').addEventListener('click', casa);
   $('b-fine').addEventListener('click', casa);
