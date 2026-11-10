@@ -1414,7 +1414,8 @@ def cruscotto_operativo(oggi=None):
                                          "azzeramento o sostituzione da segnare come spiegati.",
                             "azione": "Vedi elenco", "url": "#cali"})
     if non_raggiungibili:
-        da_fare.append({"livello": "danger", "titolo": f"{len(non_raggiungibili)} MFC non raggiungibili",
+        da_fare.append({"livello": "danger", "titolo": _n(len(non_raggiungibili), "MFC non raggiungibile",
+                                                           "MFC non raggiungibili"),
                         "dettaglio": nomi(non_raggiungibili), "azione": "Verifica stampanti",
                         "url": reverse("contatori:macchine") + "?stato=ERROR"})
     proposte = proposte_letture_trimestrali(prec)
@@ -1430,7 +1431,8 @@ def cruscotto_operativo(oggi=None):
                         "dettaglio": dettaglio,
                         "azione": "Controlla e conferma", "scrittura": True,
                         "url": f"{reverse('contatori:letture_proposte')}?trimestre={prec}"})
-    stati_cons = stato_consumabili([m for m in attive if m.host])
+    con_ip = [m for m in attive if m.host]
+    stati_cons = stato_consumabili(con_ip)
     da_ordinare = [m for m in attive if stati_cons.get(m.id) and stati_cons[m.id]["critici"]]
     if da_ordinare:
         dettagli = []
@@ -1440,20 +1442,32 @@ def cruscotto_operativo(oggi=None):
         da_fare.append({"livello": "warn", "titolo": f"{len(da_ordinare)} MFC con consumabili da ordinare",
                         "dettaglio": ", ".join(dettagli) + (f" e altre {len(da_ordinare) - 4}" if len(da_ordinare) > 4 else ""),
                         "azione": "Vedi consumabili", "url": reverse("contatori:consumabili")})
+    fabbisogno = fabbisogno_consumabili(con_ip, stati_cons)
+    in_esaurimento = [m for m in con_ip if m.pk in fabbisogno["entro_30"]]
+    if in_esaurimento:
+        da_fare.append({"livello": "warn",
+                        "titolo": _n(len(in_esaurimento), "MFC con un consumabile che finisce entro "
+                                     f"{FABBISOGNO_GIORNI[0]} giorni", "MFC con consumabili che finiscono "
+                                     f"entro {FABBISOGNO_GIORNI[0]} giorni"),
+                        "dettaglio": nomi(in_esaurimento) + ". Stima dal ritmo di consumo dall'ultima sostituzione.",
+                        "azione": "Vedi consumabili", "url": reverse("contatori:consumabili") + "?filtro=entro_30"})
     url_mensili = reverse("contatori:macchine") + "?lettura=mensile_mancante"
     if mancanti_mese and oggi.day > GIORNI_RECUPERO_MENSILE:
-        da_fare.append({"livello": "warn", "titolo": f"{len(mancanti_mese)} letture mensili saltate",
+        da_fare.append({"livello": "warn", "titolo": _n(len(mancanti_mese), "lettura mensile saltata",
+                                                         "letture mensili saltate"),
                         "dettaglio": f"{oggi:%m/%Y}: {nomi(mancanti_mese)}. Nessuna risposta dal giorno 1 al "
                                      f"{GIORNI_RECUPERO_MENSILE}: controlla che siano accese e in rete.",
                         "azione": "Verifica stampanti", "url": url_mensili})
     elif mancanti_mese and oggi.day >= 2:  # il giorno 1 la raccolta e' in corso
-        da_fare.append({"livello": "warn", "titolo": f"{len(mancanti_mese)} letture mensili in attesa",
+        da_fare.append({"livello": "warn", "titolo": _n(len(mancanti_mese), "lettura mensile in attesa",
+                                                         "letture mensili in attesa"),
                         "dettaglio": f"{oggi:%m/%Y}: {nomi(mancanti_mese)}. Spente o non raggiungibili: "
                                      f"il portale riprova ogni 15 minuti fino al giorno {GIORNI_RECUPERO_MENSILE}.",
                         "azione": "Verifica stampanti", "url": url_mensili})
     if disp_errore or disp_attenzione:
         da_fare.append({"livello": "danger" if disp_errore else "warn",
-                        "titolo": f"{disp_errore + disp_attenzione} dispositivi SNMP da verificare",
+                        "titolo": _n(disp_errore + disp_attenzione, "dispositivo SNMP da verificare",
+                                     "dispositivi SNMP da verificare"),
                         "dettaglio": f"{disp_errore} in errore, {disp_attenzione} in attenzione.",
                         "azione": "Apri monitor",
                         "url": reverse("contatori:snmp_centrale") + ("?flotta=errore" if disp_errore
@@ -1472,6 +1486,11 @@ def cruscotto_operativo(oggi=None):
         "proposte_pronte": len(pronte), "proposte_totali": len(proposte),
         "consumabili_critici": len(da_ordinare),
     }
+
+
+def _n(numero, singolare, plurale):
+    """«1 lettura saltata» / «3 letture saltate»: titoli della Centrale con il numero giusto."""
+    return f"{numero} {singolare if numero == 1 else plurale}"
 
 
 def mensili_mancanti(oggi=None):
@@ -1614,6 +1633,67 @@ def stato_consumabili(macchine, ora=None):
             "peggiore": min(misurabili, key=lambda v: v["pct"]) if misurabili else None,
         }
     return out
+
+
+#: Orizzonti di «Fabbisogno»: il primo è anche il riquadro «Finiscono entro 30 giorni».
+FABBISOGNO_GIORNI = (30, 60)
+
+
+def fabbisogno_consumabili(macchine=None, stati=None, ora=None):
+    """Fabbisogno di consumabili della flotta: una sola fonte per riquadro, Centrale e pagina «Fabbisogno».
+
+    Per ogni consumabile (stesso nome letto via SNMP, es. «TK-5280K»): quante MFC lo usano,
+    la durata media tra due sostituzioni (``SostituzioneConsumabile`` delle MFC), i pezzi
+    stimati per anno (MFC × 365 / durata media) e quanti finiscono entro 30 e 60 giorni
+    secondo la stima dei giorni residui di ``stato_consumabili``.
+    ``entro_30`` = id delle MFC con almeno un consumabile che finisce entro 30 giorni.
+    """
+    if macchine is None:
+        macchine = list(Macchina.objects.filter(attiva=True, host__isnull=False))
+    stati = stati if stati is not None else stato_consumabili(macchine, ora)
+    breve, lungo = FABBISOGNO_GIORNI
+    per_nome = {}
+    entro_30 = set()
+    for macchina in macchine:
+        stato = stati.get(macchina.pk)
+        for voce in (stato or {}).get("voci", []):
+            riga = per_nome.setdefault(voce["nome"], {"nome": voce["nome"], "macchine": set(), "modelli": set(),
+                                                      "entro_30": 0, "entro_60": 0})
+            riga["macchine"].add(macchina.pk)
+            if macchina.modello:
+                riga["modelli"].add(macchina.modello)
+            giorni = voce["giorni"]
+            if giorni is not None and giorni <= lungo:
+                riga["entro_60"] += 1
+                if giorni <= breve:
+                    riga["entro_30"] += 1
+                    entro_30.add(macchina.pk)
+    # Durata tra due cambi consecutivi dello stesso consumabile sulla stessa MFC.
+    from .models import SostituzioneConsumabile
+
+    intervalli = defaultdict(list)
+    ultimo = {}
+    for macchina_id, nome, quando in (SostituzioneConsumabile.objects
+                                      .filter(macchina_id__in=[m.pk for m in macchine], nome__in=list(per_nome))
+                                      .order_by("macchina_id", "nome", "rilevata_il")
+                                      .values_list("macchina_id", "nome", "rilevata_il")):
+        prima = ultimo.get((macchina_id, nome))
+        if prima is not None:
+            intervalli[nome].append((quando - prima).total_seconds() / 86400)
+        ultimo[(macchina_id, nome)] = quando
+    righe = []
+    for nome, riga in per_nome.items():
+        durate = [d for d in intervalli.get(nome, []) if d >= 1]
+        media = round(sum(durate) / len(durate)) if durate else None
+        n = len(riga["macchine"])
+        righe.append({
+            "nome": nome, "n_macchine": n, "modelli": sorted(riga["modelli"]),
+            "durata_media": media, "cambi_misurati": len(durate),
+            "pezzi_anno": round(n * 365 / media, 1) if media else None,
+            "entro_30": riga["entro_30"], "entro_60": riga["entro_60"],
+        })
+    righe.sort(key=lambda r: (-r["entro_30"], -r["entro_60"], -(r["pezzi_anno"] or 0), r["nome"]))
+    return {"righe": righe, "entro_30": entro_30, "giorni": FABBISOGNO_GIORNI}
 
 
 # --- Letture trimestrali proposte dalle mensili -------------------------------
@@ -1870,6 +1950,68 @@ def elenco_letture_gestione(tipo="trimestrali", *, macchina_id=None, anno=None, 
                           "chiave": l.mese.isoformat() if mensili else l.trimestre})
     righe.sort(key=lambda r: (r["chiave"], r["macchina"].reparto), reverse=True)
     return righe
+
+
+def _mese_piu(mese, n):
+    """Primo giorno del mese `n` mesi dopo (o prima, se negativo) di `mese`."""
+    indice = mese.year * 12 + mese.month - 1 + n
+    return mese.replace(year=indice // 12, month=indice % 12 + 1, day=1)
+
+
+def letture_mensili_per_mese(*, anno=None, oggi=None):
+    """Matrice MFC × mesi delle letture mensili: ultimi 12 mesi o i 12 mesi di `anno`.
+
+    Righe: le MFC attive con IP (quelle che la raccolta mensile legge) più le altre con
+    letture nel periodo. Cella: lettura e copie del mese (``copie_mensili``, come la mail),
+    oppure `mancante` per un'MFC attiva con IP dal mese della sua prima lettura mensile
+    (il mese corrente conta sempre, come ``mensili_mancanti``), `futuro` o `vuota`.
+    `totali`: copie per mese e quante MFC le compongono.
+    """
+    oggi = oggi or timezone.localdate()
+    corrente = oggi.replace(day=1)
+    if anno:
+        mesi = [corrente.replace(year=anno, month=m) for m in range(1, 13)]
+    else:
+        mesi = [_mese_piu(corrente, -i) for i in range(11, -1, -1)]
+    prima_del_periodo = _mese_piu(mesi[0], -1)
+    letture = defaultdict(dict)
+    for lett in LetturaMensileContatori.objects.filter(mese__gte=prima_del_periodo, mese__lte=mesi[-1]):
+        letture[lett.macchina_id][lett.mese] = lett
+    # .order_by() vuoto: con l'ordering del Meta SQL Server rifiuta il GROUP BY (errore 8127).
+    from django.db.models import Min
+    prime = dict(LetturaMensileContatori.objects.order_by().values("macchina_id").annotate(p=Min("mese"))
+                 .values_list("macchina_id", "p"))
+    lette_ids = {mid for mid, per_mese in letture.items() if any(m in per_mese for m in mesi)}
+    from django.db.models import Q
+    macchine = list(Macchina.objects.filter(Q(attiva=True, host__isnull=False) | Q(pk__in=lette_ids))
+                    .order_by("-attiva", "reparto", "matricola"))
+    totali = {m: {"copie": 0, "macchine": 0, "lette": 0, "mancanti": 0} for m in mesi}
+    righe = []
+    for macchina in macchine:
+        raccolta = macchina.attiva and bool(macchina.host)
+        per_mese = letture.get(macchina.pk, {})
+        prima = prime.get(macchina.pk)
+        celle = []
+        for mese in mesi:
+            lettura = per_mese.get(mese)
+            if lettura is not None:
+                copie = copie_mensili(lettura, per_mese.get(_mese_piu(mese, -1)))
+                totali[mese]["lette"] += 1
+                if copie is not None:
+                    totali[mese]["copie"] += copie["totale"]
+                    totali[mese]["macchine"] += 1
+                celle.append({"mese": mese, "lettura": lettura, "copie": copie,
+                              "cali": _cali(lettura, per_mese.get(_mese_piu(mese, -1)))})
+            elif mese > corrente:
+                celle.append({"mese": mese, "stato": "futuro"})
+            elif raccolta and (mese == corrente or (prima is not None and mese >= prima)):
+                totali[mese]["mancanti"] += 1
+                celle.append({"mese": mese, "stato": "mancante"})
+            else:
+                celle.append({"mese": mese, "stato": "vuota"})
+        righe.append({"macchina": macchina, "celle": celle})
+    return {"mesi": mesi, "righe": righe, "totali": [{"mese": m, **totali[m]} for m in mesi],
+            "corrente": corrente, "mancanti": sum(t["mancanti"] for t in totali.values())}
 
 
 def anni_letture():

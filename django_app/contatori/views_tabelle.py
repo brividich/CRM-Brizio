@@ -41,13 +41,17 @@ def anteprima(request, kind, pk):
         if macchina.asset_id is None and permessi.puo_gestire(request):
             from .views import _asset_proposto
             proposta = _asset_proposto(macchina, "mfc")
+        from .ticket_stampante import url_apri_ticket
+
+        consumabili = services.stato_consumabili([macchina]).get(macchina.pk)
         return render(request, "contatori/partials/preview_macchina.html", {
             "m": macchina,
+            "url_ticket": url_apri_ticket(request, macchina, consumabili),
             "trimestre": services.trimestre_corrente(),
             "ultima": macchina.letture.order_by("-trimestre", "-data").first(),
             "ha_lettura_trimestre": LetturaContatori.objects.filter(
                 macchina=macchina, trimestre=services.trimestre_corrente()).exists(),
-            "consumabili": services.stato_consumabili([macchina]).get(macchina.pk),
+            "consumabili": consumabili,
             "soglia": services.SOGLIA_CONSUMABILE_PCT,
             "avvisi": avvisi, "n_avvisi": n_avvisi,
             "proposta": proposta,
