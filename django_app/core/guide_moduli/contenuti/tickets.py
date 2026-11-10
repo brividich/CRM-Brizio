@@ -20,12 +20,18 @@ GUIDA = {
                     "Cerca anche con le parole di tutti i giorni (per esempio «condizionatore» trova i «Chiller»).",
                     "Ticket di manutenzione: se non riconosci l'asset dal nome, clicca «Sulla mappa» (o «Cercalo sulla mappa»). "
                     "Scegli la planimetria in alto: i punti colorati sono gli asset del tuo reparto, quelli grigi degli altri reparti. "
-                    "Tocca il punto giusto per sceglierlo; «Solo il mio reparto» nasconde gli altri, «+» e «−» ingrandiscono.",
+                    "Tocca il punto giusto per sceglierlo; «Solo il mio reparto» nasconde gli altri, «+» e «−» ingrandiscono. "
+                    "Finché non la clicchi, la pianta lascia scorrere la pagina (c'è la scritta «Clicca sulla mappa per "
+                    "attivarla»): dopo il clic la rotella scorre la pianta ingrandita; uscendo con il mouse torna a scorrere la pagina.",
                     "Se scegli l'asset dalla lista, sotto compare la pianta con il punto rosso: «È questo?». Controlla che sia quello giusto.",
                     "Se l'asset non è sulla pianta, tocca il punto in cui si trova: il ticket parte con «Punto indicato sulla …» "
                     "e chi lo gestisce collega l'asset giusto.",
                     "Scegli la «Priorita» e descrivi il problema in «Descrizione»: cosa succede, da quando, cosa hai già provato.",
-                    "Clicca «Invia richiesta».",
+                    "«Aperto il»: lascialo vuoto e vale adesso. Se la segnalazione è arrivata prima (a voce, per mail) "
+                    "scrivi la data vera, anche di giorni fa: il ticket risulta aperto da allora e i tempi di risposta "
+                    "si contano da lì. Una data futura non è accettata.",
+                    "Clicca «Invia richiesta». Si apre la scheda del ticket con il riquadro verde «Ticket … inviato» "
+                    "e il pulsante «Vai a I miei ticket»: è lì che lo ritrovi sempre, con commenti e stato.",
                 ]),
                 ("p", "Puoi aprire un ticket anche inquadrando il QR attaccato alla macchina."),
                 ("p", "Manutentori e IT: c'è «Per conto di». Scegli il collega che ha segnalato il problema: il "
