@@ -808,6 +808,46 @@
       if (isDaDecidere(a)) return { text: "Da decidere", variant: "attesa" };
       return { text: a.avanzamento || "In lavorazione", variant: "aperto" };
     };
+    // Preferenze della pagina nel browser (raggruppamento, gruppi chiusi): se lo
+    // storage non c'è (finestra privata) la pagina funziona con i valori di serie.
+    const PREF_RAGGRUPPA = "ga_raggruppa_anomalie";
+    const PREF_GRUPPI_CHIUSI = "ga_gruppi_chiusi";
+    const leggiPref = (k, def) => {
+      try { const v = window.localStorage.getItem(k); return v === null ? def : JSON.parse(v); } catch (_) { return def; }
+    };
+    const scriviPref = (k, v) => { try { window.localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* niente storage */ } };
+    // Gruppi dell'elenco anomalie. «sn»: un gruppo per blocco di seriali (o S/N
+    // senza blocco), le chiuse in fondo. «stato»: «Da decidere», poi un gruppo per
+    // avanzamento delle aperte, le chiuse in fondo. Le chiuse partono chiuse.
+    const raggruppaAnomalie = (list, modo) => {
+      const gruppi = [];
+      const perKey = new Map();
+      const add = (key, def, a) => {
+        let g = perKey.get(key);
+        if (!g) { g = { key, items: [], ...def }; perKey.set(key, g); gruppi.push(g); }
+        g.items.push(a);
+      };
+      const aperte = list.filter((a) => !a.chiudere);
+      const chiuse = list.filter((a) => a.chiudere);
+      if (modo === "stato") {
+        const daDec = aperte.filter(isDaDecidere);
+        if (daDec.length) daDec.forEach((a) => add("stato:da_decidere", { label: "Da decidere", tone: "attesa" }, a));
+        aperte.filter((a) => !isDaDecidere(a)).forEach((a) => {
+          const av = String(a.avanzamento || "").trim() || "In lavorazione";
+          add(`stato:${av.toLowerCase()}`, { label: av, tone: "aperto" }, a);
+        });
+        chiuse.forEach((a) => add("stato:chiuse", { label: "Chiuse", tone: "chiuso", chiusoDiSerie: true }, a));
+      } else {
+        aperte.forEach((a) => {
+          const etichetta = a.blocco_label || a.sn || "Senza S/N";
+          add(`sn:${a.blocco_id ? `b${a.blocco_id}` : `s${etichetta}`}`, {
+            label: etichetta, tone: "blocco", blocco: a.blocco_id ? a : null,
+          }, a);
+        });
+        chiuse.forEach((a) => add("sn:chiuse", { label: "Chiuse", tone: "chiuso", chiusoDiSerie: true }, a));
+      }
+      return gruppi;
+    };
     const fmtData = (iso) => {
       if (!iso) return "";
       const d = new Date(iso);
@@ -912,7 +952,20 @@
       const [searchSn, setSearchSn] = useState("");
       const [pageFilter, setPageFilter] = useState(ACTIVE_FILTER);
       const [snFilter, setSnFilter] = useState("tutte");   // "tutte" | "da_decidere"
-      const [closedCollapsed, setClosedCollapsed] = useState(true);
+      // Raggruppamento delle anomalie («sn» per blocco di seriali, «stato») e gruppi
+      // chiusi: restano nel browser finché la persona non li cambia, per tutti gli OP.
+      const [raggruppa, setRaggruppaState] = useState(() => leggiPref(PREF_RAGGRUPPA, "sn") === "stato" ? "stato" : "sn");
+      const [gruppiChiusi, setGruppiChiusi] = useState(() => {
+        const v = leggiPref(PREF_GRUPPI_CHIUSI, null);
+        return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+      });
+      const setRaggruppa = (v) => { setRaggruppaState(v); scriviPref(PREF_RAGGRUPPA, v); };
+      const gruppoChiuso = (g) => (g.key in gruppiChiusi ? Boolean(gruppiChiusi[g.key]) : Boolean(g.chiusoDiSerie));
+      const toggleGruppo = (g) => setGruppiChiusi((prev) => {
+        const next = { ...prev, [g.key]: !gruppoChiuso(g) };
+        scriviPref(PREF_GRUPPI_CHIUSI, next);
+        return next;
+      });
       // Clonazione dell'OP: anomalie scelte da copiare su un nuovo OP ({ opKey, ids }).
       const [clona, setClona] = useState(null);
       const [pendingNav, setPendingNav] = useState(null);  // azione rinviata per modifiche non salvate
@@ -1138,17 +1191,17 @@
       const filteredSeriali = useMemo(() => {
         const q = searchSn.trim().toLowerCase();
         return anomalie.filter((a) => {
-          if (snFilter === "da_decidere" && !isDaDecidere(a)) return false;
+          // «Per stato» ha già il gruppo «Da decidere»: il filtro vale solo «Per S/N».
+          if (raggruppa === "sn" && snFilter === "da_decidere" && !isDaDecidere(a)) return false;
           if (!q) return true;
-          return [a.sn, a.blocco_label, a.testo, a.desc, a.fase, a.local_id && `#${a.local_id}`]
+          return [a.sn, a.blocco_label, a.testo, a.desc, a.fase, a.avanzamento, a.local_id && `#${a.local_id}`]
             .some((v) => String(v || "").toLowerCase().includes(q));
         });
-      }, [anomalie, searchSn, snFilter]);
-      const openSeriali = useMemo(() => filteredSeriali.filter((a) => !a.chiudere), [filteredSeriali]);
-      const closedSeriali = useMemo(() => filteredSeriali.filter((a) => a.chiudere), [filteredSeriali]);
-      const ordineVisibile = useMemo(() => [...openSeriali, ...closedSeriali], [openSeriali, closedSeriali]);
+      }, [anomalie, searchSn, snFilter, raggruppa]);
+      const gruppiAnomalie = useMemo(() => raggruppaAnomalie(filteredSeriali, raggruppa), [filteredSeriali, raggruppa]);
+      // Ordine di «precedente/successiva»: quello dei gruppi a video.
+      const ordineVisibile = useMemo(() => gruppiAnomalie.flatMap((g) => g.items), [gruppiAnomalie]);
       const nDaDecidere = useMemo(() => anomalie.filter(isDaDecidere).length, [anomalie]);
-      const nAperte = useMemo(() => anomalie.filter((a) => !a.chiudere).length, [anomalie]);
 
       const sn = useMemo(() => anomalie.find((a) => a.item_id === selectedSnId) || {}, [anomalie, selectedSnId]);
       const posizione = ordineVisibile.findIndex((a) => a.item_id === sn.item_id);
@@ -1235,7 +1288,6 @@
       const avviaClona = (o) => guard(() => {
         setSelectedOpKey(opKey(o));
         setClona({ opKey: opKey(o), ids: [] });
-        setClosedCollapsed(false);
         if (isMobile) setMobilePanel("serie");
       });
       const clonaIds = clona && clona.opKey === opKey(op) ? clona.ids : null;
@@ -1710,7 +1762,8 @@
             <span className="ga-an__main">
               <span className="ga-an__txt">{a.blocco_id ? (a.testo || a.desc || "(nessuna descrizione)") : (a.sn ? `S/N ${a.sn}` : (a.testo || a.desc || "—"))}</span>
               <span className="ga-an__meta">
-                <span className={`ga-pill ga-pill--${st.variant}`}>{st.text}</span>
+                {/* «Per stato» lo dice già il titolo del gruppo */}
+                {raggruppa !== "stato" && <span className={`ga-pill ga-pill--${st.variant}`}>{st.text}</span>}
                 {a.aprire_rdc && <span className="ga-pill ga-pill--rdc">RDC{a.numero_rdc ? ` ${a.numero_rdc}` : ""}</span>}
                 {a.segnalare && <span className="ga-pill ga-pill--cli">Cliente</span>}
                 {a.segnala_terzista && <span className="ga-pill ga-pill--ter">Terzista</span>}
@@ -1722,33 +1775,40 @@
           </button>
         );
       };
-      const renderGrouped = (list) => list.map((a, idx) => {
-        const prev = idx > 0 ? list[idx - 1] : null;
-        if (!a.blocco_id || (prev && prev.blocco_id === a.blocco_id)) return renderAnomalia(a);
-        const delBlocco = list.filter((y) => y.blocco_id === a.blocco_id);
-        const daDec = delBlocco.filter(isDaDecidere).length;
-        const idsBlocco = delBlocco.map((y) => y.local_id);
-        const bloccoTutto = Boolean(clonaIds) && idsBlocco.every((x) => clonaIds.includes(x));
+      // Un gruppo: intestazione cliccabile (apre/chiude, scelta ricordata) e righe.
+      // Chiuso, mostra comunque l'anomalia aperta a destra se è sua. Durante «Clona»
+      // i gruppi sono tutti aperti per poter spuntare anche le chiuse.
+      const renderGruppo = (g) => {
+        const chiuso = !clonaIds && gruppoChiuso(g);
+        const daDec = g.items.filter(isDaDecidere).length;
+        const ids = g.items.map((y) => y.local_id);
+        const tutto = Boolean(clonaIds) && ids.every((x) => clonaIds.includes(x));
+        const b = g.blocco;
+        const meta = b ? [b.fase ? `Fase ${b.fase}` : "", b.controllo_operatore, fmtData(b.controllo_data)].filter(Boolean).join(" · ") : "";
+        const visibili = chiuso ? g.items.filter((a) => a.item_id === sn.item_id) : g.items;
         return (
-          <React.Fragment key={`blk-${a.blocco_id}-${a.item_id}`}>
-            <div className="ga-blk">
-              <div className="ga-blk__sn">
-                {clonaIds && (
-                  <label className="ga-blk__clona" title="Copia tutte le anomalie di questo blocco">
-                    <input type="checkbox" checked={bloccoTutto} onChange={(e) => toggleClona(idsBlocco, e.target.checked)} />
-                  </label>
-                )}
-                {a.blocco_label || a.sn || "—"}
-              </div>
-              <div className="ga-blk__meta">
-                {[a.fase ? `Fase ${a.fase}` : "", a.controllo_operatore, fmtData(a.controllo_data)].filter(Boolean).join(" · ")}
-                {daDec > 0 && <span className="ga-blk__todo">{daDec} da decidere</span>}
-              </div>
+          <div key={g.key} className={`ga-grp ga-grp--${g.tone}${chiuso ? " is-chiuso" : ""}`}>
+            <div className="ga-grp__head">
+              {clonaIds && (
+                <label className="ga-blk__clona" title="Copia tutte le anomalie del gruppo">
+                  <input type="checkbox" checked={tutto} onChange={(e) => toggleClona(ids, e.target.checked)} />
+                </label>
+              )}
+              <button type="button" className="ga-grp__toggle" aria-expanded={!chiuso} onClick={() => toggleGruppo(g)}
+                title={chiuso ? "Apri il gruppo" : "Chiudi il gruppo"}>
+                <span className="ga-grp__line">
+                  <span className="ga-grp__caret" aria-hidden="true">▾</span>
+                  <span className={`ga-grp__label${g.tone === "blocco" ? " ga-grp__label--sn" : ""}`}>{g.label}</span>
+                  <span className="ga-grp__n">{g.items.length}</span>
+                  {g.tone === "blocco" && daDec > 0 && <span className="ga-blk__todo">{daDec} da decidere</span>}
+                </span>
+                {meta && !chiuso && <span className="ga-grp__meta">{meta}</span>}
+              </button>
             </div>
-            {renderAnomalia(a)}
-          </React.Fragment>
+            {visibili.length > 0 && <div className="ga-grp__body">{visibili.map(renderAnomalia)}</div>}
+          </div>
         );
-      });
+      };
 
       return (
         <div className={`ga${isMobile ? " ga--mobile" : ""}`}>
@@ -1807,45 +1867,27 @@
                         : pageFilter === "aperte" ? "Nessun OP con anomalie aperte." : "Nessun ordine trovato."}
                     </div>
                   ) : filteredOrdini.map((o) => {
+                    // Riga compatta: numero, P/N e contatori; il resto è nella scheda
+                    // dell'OP in cima alla colonna Anomalie.
                     const sel = opKey(o) === opKey(op);
                     const tot = Number(o.anomalie_count || 0);
                     const aperte = apertiDi(o);
                     const daDec = daDecidereDi(o);
-                    const chiuse = Math.max(0, tot - aperte);
+                    const inCorso = Math.max(0, aperte - daDec);
                     return (
-                      <div key={opKey(o)} className="ga-op-wrap">
-                      <button type="button" className={`ga-op${sel ? " is-sel" : ""}`} onClick={() => selectOp(o)}>
-                        <span className="ga-op__row">
-                          <span className="ga-op__id">{o.id}</span>
+                      <button type="button" key={opKey(o)} className={`ga-opr${sel ? " is-sel" : ""}`} onClick={() => selectOp(o)}
+                        title={`Capocommessa ${o.capo || "—"} · CAR ${o.car || "—"}`}>
+                        <span className="ga-opr__id">
+                          {o.id}
                           {String(o.stato || "").toLowerCase() === "benestare" && <span className="ga-pill ga-pill--ben">Benestare</span>}
-                          {daDec > 0 && <span className="ga-op__todo" title="Anomalie in attesa di decisione">{daDec}</span>}
                         </span>
-                        <span className="ga-op__pn">P/N {o.pn}</span>
-                        <span className="ga-op__people">{Ico.user}{o.capo}{o.car && o.car !== "—" ? ` · CAR ${o.car}` : ""}</span>
-                        {tot > 0 ? (
-                          <span className="ga-op__bar" title={`${chiuse} chiuse su ${tot}`}>
-                            <span className="ga-op__bar-fill" style={{ width: `${Math.round((chiuse / tot) * 100)}%` }} />
-                            <span className="ga-op__bar-txt">{aperte} apert{aperte === 1 ? "a" : "e"} · {tot} total{tot === 1 ? "e" : "i"}</span>
-                          </span>
-                        ) : <span className="ga-op__none">Nessuna anomalia</span>}
+                        <span className="ga-opr__cnt">
+                          {daDec > 0 && <span className="ga-cnt ga-cnt--dec" title="Da decidere">{daDec}</span>}
+                          {inCorso > 0 && <span className="ga-cnt ga-cnt--corso" title="Aperte con una decisione, in corso">{inCorso}</span>}
+                          {tot > 0 && aperte === 0 && <span className="ga-cnt ga-cnt--ok" title="Tutte chiuse">✓</span>}
+                        </span>
+                        <span className="ga-opr__pn">{o.pn && o.pn !== "—" ? o.pn : "—"}</span>
                       </button>
-                      {(tot > 0 || o.can_modifica_op) && (
-                        <span className={`ga-op__acts${clona && clona.opKey === opKey(o) ? " is-on" : ""}`}>
-                          {o.can_modifica_op && (
-                            <button type="button" className="ga-op__clona" title="Correggi i dati dell'OP che hai inserito tu"
-                              onClick={() => apriModificaOp(o)}>
-                              {Ico.edit}<span>Modifica OP</span>
-                            </button>
-                          )}
-                          {tot > 0 && (
-                            <button type="button" className={`ga-op__clona${clona && clona.opKey === opKey(o) ? " is-on" : ""}`}
-                              title="Clona: scegli le anomalie da copiare su un nuovo OP" onClick={() => avviaClona(o)}>
-                              {Ico.copy}<span>Clona</span>
-                            </button>
-                          )}
-                        </span>
-                      )}
-                      </div>
                     );
                   })}
               </div>
@@ -1853,18 +1895,73 @@
 
             {/* ── 2. Anomalie dell'OP ── */}
             <section className="ga-col ga-col--sn" style={{ display: showCol("serie") ? undefined : "none" }}>
+              {op.id && (() => {
+                // Scheda dell'OP scelto: persone, avanzamento e azioni sull'OP. Stessi
+                // contatori della riga a sinistra (apertiDi / daDecidereDi).
+                const tot = Number(op.anomalie_count || 0);
+                const aperte = apertiDi(op);
+                const daDec = daDecidereDi(op);
+                const inCorso = Math.max(0, aperte - daDec);
+                const chiuse = Math.max(0, tot - aperte);
+                const perc = (n) => `${tot ? (n / tot) * 100 : 0}%`;
+                return (
+                  <div className="ga-opsheet">
+                    <div className="ga-opsheet__row">
+                      <span className="ga-opsheet__id">{op.id}</span>
+                      {op.pn && op.pn !== "—" && <span className="ga-opsheet__pn">{op.pn}</span>}
+                      <span className="ga-opsheet__acts">
+                        {op.can_modifica_op && (
+                          <button type="button" className="ga-op__clona" title="Correggi i dati dell'OP che hai inserito tu" onClick={() => apriModificaOp(op)}>
+                            {Ico.edit}<span>Modifica OP</span>
+                          </button>
+                        )}
+                        {tot > 0 && (
+                          <button type="button" className={`ga-op__clona${clonaIds ? " is-on" : ""}`}
+                            title="Clona: scegli le anomalie da copiare su un nuovo OP" onClick={() => avviaClona(op)}>
+                            {Ico.copy}<span>Clona</span>
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                    <div className="ga-opsheet__people">
+                      <span><b>Capocommessa</b> {op.capo || "—"}</span>
+                      <span><b>CAR</b> {op.car || "—"}</span>
+                    </div>
+                    {tot > 0 ? (
+                      <>
+                        <div className="ga-seg" role="img" aria-label={`${daDec} da decidere, ${inCorso} in corso, ${chiuse} chiuse`}>
+                          <i className="ga-seg--dec" style={{ width: perc(daDec) }} />
+                          <i className="ga-seg--corso" style={{ width: perc(inCorso) }} />
+                          <i className="ga-seg--ok" style={{ width: perc(chiuse) }} />
+                        </div>
+                        <div className="ga-opsheet__leg">
+                          <span><i className="ga-seg--dec" />{daDec} da decidere</span>
+                          <span><i className="ga-seg--corso" />{inCorso} in corso</span>
+                          <span><i className="ga-seg--ok" />{chiuse} chius{chiuse === 1 ? "a" : "e"}</span>
+                        </div>
+                      </>
+                    ) : <div className="ga-opsheet__leg">Nessuna anomalia</div>}
+                  </div>
+                );
+              })()}
               <div className="ga-col__head">
-                <div className="ga-col__title">
-                  Anomalie {op.id ? <span className="ga-col__sub">{nAperte} apert{nAperte === 1 ? "a" : "e"} su {anomalie.length}</span> : null}
-                </div>
+                {!op.id && <div className="ga-col__title">Anomalie</div>}
                 {clonaIds && (
                   <div className="ga-note ga-note--info">
                     <b>Clona {op.id}</b>: spunta le anomalie da copiare sul nuovo OP (anche le chiuse), poi «Continua».
                   </div>
                 )}
-                <div className="ga-chips">
-                  <Chip active={snFilter === "tutte"} onClick={() => setSnFilter("tutte")} count={anomalie.length}>Tutte</Chip>
-                  <Chip active={snFilter === "da_decidere"} onClick={() => setSnFilter("da_decidere")} count={nDaDecidere} tone="warn">Da decidere</Chip>
+                <div className="ga-raggr">
+                  <div className="ga-seg-ctl" role="group" aria-label="Raggruppa le anomalie">
+                    <button type="button" className={raggruppa === "sn" ? "is-on" : ""} aria-pressed={raggruppa === "sn"} onClick={() => setRaggruppa("sn")}>Per S/N</button>
+                    <button type="button" className={raggruppa === "stato" ? "is-on" : ""} aria-pressed={raggruppa === "stato"} onClick={() => setRaggruppa("stato")}>Per stato</button>
+                  </div>
+                  {raggruppa === "sn" && (
+                    <div className="ga-chips">
+                      <Chip active={snFilter === "tutte"} onClick={() => setSnFilter("tutte")} count={anomalie.length}>Tutte</Chip>
+                      <Chip active={snFilter === "da_decidere"} onClick={() => setSnFilter("da_decidere")} count={nDaDecidere} tone="warn">Da decidere</Chip>
+                    </div>
+                  )}
                 </div>
                 <div className="ga-search">
                   {Ico.search}
@@ -1876,21 +1973,11 @@
                   : !op.id ? <div className="ga-empty">Seleziona un ordine.</div>
                   : filteredSeriali.length === 0 ? (
                     <div className="ga-empty">
-                      {snFilter === "da_decidere" && anomalie.length ? "Nessuna anomalia da decidere: tutto gestito. ✓" : (searchSn ? "Nessuna anomalia corrisponde alla ricerca." : "Nessuna anomalia registrata.")}
+                      {raggruppa === "sn" && snFilter === "da_decidere" && anomalie.length ?"Nessuna anomalia da decidere: tutto gestito. ✓" : (searchSn ? "Nessuna anomalia corrisponde alla ricerca." : "Nessuna anomalia registrata.")}
                       {canEditCurrentOp && !anomalie.length && <a className="ga-btn ga-btn--accent ga-btn--sm" href={nuovaAnomaliaUrl}>{Ico.plus}Nuova segnalazione</a>}
                     </div>
                   ) : (
-                    <>
-                      {renderGrouped(openSeriali)}
-                      {closedSeriali.length > 0 && (
-                        <div className="ga-closed">
-                          <button type="button" className="ga-closed__toggle" onClick={() => setClosedCollapsed((v) => !v)}>
-                            <span style={{ transform: closedCollapsed ? "rotate(-90deg)" : "none" }}>▾</span> Chiuse ({closedSeriali.length})
-                          </button>
-                          {!closedCollapsed && renderGrouped(closedSeriali)}
-                        </div>
-                      )}
-                    </>
+                    <div className="ga-grps">{gruppiAnomalie.map(renderGruppo)}</div>
                   )}
               </div>
               {clonaIds && (
@@ -1948,8 +2035,9 @@
                     </div>
                     <PezziInteressati sn={sn} />
                     <div className="ga-det__people">
-                      <span><b>Capocommessa</b> {op.capo || "—"}</span>
-                      <span><b>CAR</b> {op.car || "—"}</span>
+                      {/* Su schermo largo capocommessa e CAR sono nella scheda dell'OP accanto. */}
+                      {isMobile && <span><b>Capocommessa</b> {op.capo || "—"}</span>}
+                      {isMobile && <span><b>CAR</b> {op.car || "—"}</span>}
                       {sn.controllo_operatore && <span><b>Segnalata da</b> {sn.controllo_operatore}{sn.controllo_data ? ` il ${fmtData(sn.controllo_data)}` : ""}</span>}
                     </div>
                   </div>

@@ -254,12 +254,19 @@ SEZIONI: list[dict] = [
                 "(OP con anomalie aperte di cui sei capocommessa o CAR; per i «Referenti RDC / segnalazione cliente» di "
                 "Configurazione anche gli OP con anomalie aperte da aprire RDC o da segnalare al cliente, che possono "
                 "anche modificare) e «Tutti» (anche gli OP con sole anomalie "
-                "chiuse), con i conteggi; la ricerca trova OP, P/N, capocommessa e CAR. Il numero arancione su un OP "
-                "indica le anomalie aperte ancora da decidere.",
-                "Anomalie: raggruppate per blocco di seriali, con fase, operatore e data. «Da decidere» mostra solo quelle "
-                "senza decisione; le chiuse sono raccolte in fondo in «Chiuse».",
-                "«Clona» (sulla riga dell'OP, al passaggio del mouse) copia anomalie su un nuovo OP: spunta nella colonna "
-                "Anomalie quelle da copiare (anche le chiuse; la casella sul blocco le prende tutte, «Tutte», «Aperte» e "
+                "chiuse), con i conteggi; la ricerca trova OP, P/N, capocommessa e CAR. Ogni riga mostra numero e P/N "
+                "dell'OP: il numero arancione indica le anomalie aperte ancora da decidere, quello blu le aperte già "
+                "decise e in corso, la spunta verde un OP con tutte le anomalie chiuse.",
+                "In cima alla colonna Anomalie c'è la scheda dell'OP scelto: P/N, capocommessa, CAR, la barra "
+                "arancio/blu/verde con quante sono da decidere, in corso e chiuse, e i pulsanti «Modifica OP» e «Clona».",
+                "Anomalie: «Per S/N» le raggruppa per blocco di seriali (con fase, operatore e data; «Da decidere» "
+                "mostra solo quelle senza decisione), «Per stato» le mette in «Da decidere», poi un gruppo per "
+                "avanzamento (per esempio «In attesa risposta cliente») e le chiuse in «Chiuse». Ogni gruppo si apre e "
+                "si chiude cliccando il titolo (le «Chiuse» partono chiuse); un gruppo chiuso mostra solo l'anomalia "
+                "aperta a destra, se è sua. La scelta di raggruppamento e i gruppi chiusi restano memorizzati nel "
+                "browser per tutti gli OP finché non li cambi.",
+                "«Clona» (nella scheda dell'OP) copia anomalie su un nuovo OP: spunta nella colonna "
+                "Anomalie quelle da copiare (anche le chiuse; la casella sul gruppo le prende tutte, «Tutte», «Aperte» e "
                 "«Nessuna» fanno prima) e premi «Continua». Si apre «Nuova segnalazione» con il nuovo OP già compilato "
                 "(P/N, capocommessa, CAR): scrivi il numero e premi «Continua», oppure scegli l'OP se esiste già; il nuovo "
                 "OP si crea solo al primo «Salva blocco». Confermata la fase "
@@ -324,7 +331,7 @@ SEZIONI: list[dict] = [
                 "o su un altro OP (scrivi OP e S/N; i S/N noti dell'OP vengono proposti). Su un altro OP passa alla sua "
                 "NC e il suo capocommessa la trova nel riepilogo delle modifiche. Entrambe le azioni si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate; "
                 "lo spostamento resta nella «Cronologia azioni».",
-                "«Modifica OP» sulla riga dell'OP (compare passando sopra con il mouse, accanto a «Clona»): c'è solo "
+                "«Modifica OP» nella scheda dell'OP in cima alla colonna Anomalie, accanto a «Clona»: c'è solo "
                 "per il controllore che ha creato l'OP dal portale («+ Nuovo OP»), non per gli OP che arrivano dal "
                 "gestionale. Corregge P/N, fase, capocommessa, CAR, note e «Collaudo di benestare»; il «Motivo della "
                 "modifica» è obbligatorio. Il numero dell'OP non si cambia: per un OP sbagliato usa «✂ Taglia». La "
