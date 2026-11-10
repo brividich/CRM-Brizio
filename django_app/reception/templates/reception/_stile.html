@@ -23,15 +23,18 @@
 .rc-voce-testo span { font-size:13px; color:var(--text-light,#64748b); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 a.rc-voce-testo:hover strong { text-decoration:underline; }
 .rc-codice { font-family:ui-monospace,Consolas,monospace; font-size:13px; color:var(--text-light,#64748b); letter-spacing:.06em; }
-/* Pannello laterale */
+/* Tom Select copia la classe sul contenitore: un solo riquadro */
+.ts-wrapper.rc-input { padding:0; border:0; background:transparent; box-shadow:none; min-height:0; }
+/* Finestra al centro per i moduli (niente pannelli laterali) */
 .rc-velo { position:fixed; inset:0; z-index:900; background:rgba(15,23,42,.45); opacity:0; pointer-events:none; transition:opacity .2s; }
 .rc-velo.on { opacity:1; pointer-events:auto; }
-.rc-pannello { position:fixed; top:0; right:0; bottom:0; z-index:901; width:min(520px,100%); background:var(--surface,#fff); box-shadow:-12px 0 40px rgba(15,23,42,.18); display:flex; flex-direction:column; transform:translateX(105%); transition:transform .22s ease; visibility:hidden; }
-.rc-pannello.on { transform:none; visibility:visible; }
-.rc-pannello-testa { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid var(--border,#e2e8f0); }
+.rc-pannello { position:fixed; top:50%; left:50%; z-index:901; width:min(600px,calc(100% - 32px)); max-height:calc(100% - 48px); background:var(--surface,#fff); border-radius:18px; box-shadow:0 24px 60px rgba(15,23,42,.28); display:flex; flex-direction:column; transform:translate(-50%,-46%) scale(.97); opacity:0; transition:transform .18s ease, opacity .18s ease; visibility:hidden; }
+.rc-pannello.on { transform:translate(-50%,-50%); opacity:1; visibility:visible; }
+.rc-pannello-testa { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border,#e2e8f0); }
 .rc-pannello-testa h2 { margin:0; font-size:18px; font-weight:800; color:var(--text,#0f172a); }
 .rc-chiudi { width:36px; height:36px; border:0; border-radius:10px; background:var(--surface-alt,#f1f5f9); color:var(--text-mid,#334155); font-size:22px; line-height:1; cursor:pointer; }
-.rc-pannello-corpo { flex:1; overflow-y:auto; padding:20px 22px 28px; }
+.rc-pannello-corpo { flex:1; overflow-y:auto; padding:16px 20px 20px; }
+.rc-pannello .rc-modulo { gap:11px; }
 body.rc-bloccato { overflow:hidden; }
 /* Moduli compatti */
 .rc-modulo { display:flex; flex-direction:column; gap:14px; }
@@ -123,7 +126,7 @@ body.theme-dark .rc-badge { background:rgba(59,130,246,.2); color:#93c5fd; }
 body.theme-dark .rc-scheda-tab.on { color:#93c5fd; border-bottom-color:#93c5fd; }
 body.theme-dark .rc-altro summary { color:#93c5fd; }
 body.theme-dark .rc-numeri a { color:#fcd34d; }
-body.theme-dark .rc-pannello { box-shadow:-12px 0 40px rgba(0,0,0,.5); }
+body.theme-dark .rc-pannello { box-shadow:0 24px 60px rgba(0,0,0,.6); }
 body.theme-dark .rc-sez-num { background:rgba(59,130,246,.2); color:#93c5fd; }
 body.theme-dark .rc-sugg-badge, body.theme-dark .rc-info { background:rgba(146,64,14,.25); color:#fcd34d; }
 body.theme-dark .rc-sugg { box-shadow:0 12px 32px rgba(0,0,0,.45); }

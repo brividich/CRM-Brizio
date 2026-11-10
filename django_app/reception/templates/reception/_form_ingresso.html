@@ -26,7 +26,7 @@
   </div>
   <div class="rc-riga rc-riga-2">
     <div class="rc-field"><label for="r-cart">Cartellino</label>
-      <select class="rc-input" id="r-cart" name="cartellino">{% for n in liberi %}<option value="{{ n }}"{% if forloop.first %} selected{% endif %}>{{ n }}</option>{% endfor %}<option value="">Senza cartellino</option></select></div>
+      <select class="rc-input" id="r-cart" name="cartellino" data-no-search>{% for n in liberi %}<option value="{{ n }}"{% if forloop.first %} selected{% endif %}>{{ n }}</option>{% endfor %}<option value="">Senza cartellino</option></select></div>
     <div class="rc-field"><label for="r-ora">Entrato alle <span class="rc-opz">vuoto = adesso</span></label><input class="rc-input" id="r-ora" type="time" name="ora"></div>
   </div>
   <button class="rc-btn rc-btn-p rc-btn-largo" type="submit">Registra ingresso</button>

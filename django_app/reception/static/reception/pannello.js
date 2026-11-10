@@ -1,4 +1,4 @@
-/* Pannelli laterali della Reception: [data-apri="#id"] apre, [data-chiudi] o Esc chiude. */
+/* Finestre al centro della Reception: [data-apri="#id"] apre, [data-chiudi] o Esc chiude. */
 (function () {
   "use strict";
   var velo = null;
