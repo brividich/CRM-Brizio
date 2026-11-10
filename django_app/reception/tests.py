@@ -255,6 +255,31 @@ class ChioscoNativoTests(Base):
         self.assertFalse(self.api("prereg-entra", code="ABCD2345", gdpr_consent=True).json()["success"])
         self.assertFalse(self.api("prereg-cerca", code="ABCD2345").json()["success"])
 
+    def test_ricerca_e_ingresso_di_chi_torna_senza_email(self):
+        senza_email = servizi.ospite_da_dati(nome="Bruno", cognome="Prova", azienda="Ditta Prova")
+        v = self.entra(senza_email)
+        servizi.registra_uscita(v.pk, cartellino=v.cartellino)
+        fornitore = servizi.ospite_fornitore(nome="Bruna", cognome="Fornitrice", azienda="Ditta Prova")
+        self.entra(fornitore, tipo=Visita.FORNITORE)
+        r = self.api("cerca", q="bru pro").json()
+        self.assertEqual([o["nome"] for o in r["ospiti"]], ["Bruno P."])
+        self.assertEqual(r["ospiti"][0]["referente"], "Referente Prova")
+        self.assertEqual(self.api("cerca", q="bru").json()["ospiti"][0]["nome"], "Bruno P.")
+        chiave = r["ospiti"][0]["chiave"]
+        esito = self.api("ingresso-ospite", ospite=chiave, referente_id=self.ref.pk, motivo="Altro", gdpr_consent=True).json()
+        self.assertTrue(esito["success"])
+        self.assertEqual(Ospite.objects.filter(nome="Bruno").count(), 1)
+        self.assertEqual(Visita.objects.filter(ospite=senza_email, stato=Visita.DENTRO).count(), 1)
+        senza_email.refresh_from_db()
+        self.assertEqual(senza_email.informativa_ip, "127.0.0.1")
+        self.assertEqual(self.api("cartellini").json()["cartellini"], ["01", "02"])
+
+    def test_ricerca_esclude_anonimizzati(self):
+        o = servizi.ospite_da_dati(nome="Bruno", cognome="Prova")
+        self.entra(o)
+        Ospite.objects.filter(pk=o.pk).update(anonimizzato=True)
+        self.assertEqual(self.api("cerca", q="Bruno").json()["ospiti"], [])
+
     def _ingresso_ditta_non_in_regola(self):
         Fornitore.objects.create(ragione_sociale="Ditta Prova", accede_in_sede=True)
         return self.api("ingresso", first_name="Luisa", last_name="Prova", company="Ditta Prova", referente_id=self.ref.pk,

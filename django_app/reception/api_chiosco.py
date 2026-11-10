@@ -4,7 +4,7 @@ from __future__ import annotations
 from django.utils import timezone
 
 from . import servizi
-from .models import CategoriaVisita, ContattoDitta, DittaAccreditata, Preregistrazione, Referente, Visita
+from .models import CategoriaVisita, ContattoDitta, DittaAccreditata, Ospite, Preregistrazione, Referente, Visita
 
 
 def _ingresso_ok(visita: Visita) -> tuple[int, dict]:
@@ -40,6 +40,12 @@ def _guest_lookup(dati, _ip):
 
 def _checkin_submit(dati, ip):
     def fatto():
+        noto = Ospite.objects.filter(pk=dati.get("guest_id"), anonimizzato=False).first() if dati.get("guest_id") else None
+        if noto is not None:
+            noto.informativa_letta_il, noto.informativa_ip = timezone.now(), (ip or "")[:45]
+            noto.save(update_fields=["informativa_letta_il", "informativa_ip", "aggiornato_il"])
+            return servizi.registra_ingresso(noto, referente_nome=dati["host_employee"],
+                                             referente_email=dati.get("host_email", ""), motivo=dati.get("purpose", ""))
         ospite = servizi.ospite_da_dati(nome=dati["first_name"], cognome=dati["last_name"], email=dati.get("email", ""),
                                         telefono=dati.get("phone", ""), azienda=dati.get("company", ""), ip=ip)
         return servizi.registra_ingresso(ospite, referente_nome=dati["host_employee"],
