@@ -255,30 +255,34 @@ class ChioscoNativoTests(Base):
         self.assertFalse(self.api("prereg-entra", code="ABCD2345", gdpr_consent=True).json()["success"])
         self.assertFalse(self.api("prereg-cerca", code="ABCD2345").json()["success"])
 
-    def test_ricerca_e_ingresso_di_chi_torna_senza_email(self):
+    def test_riconosci_e_ingresso_di_chi_torna_senza_email(self):
         senza_email = servizi.ospite_da_dati(nome="Bruno", cognome="Prova", azienda="Ditta Prova")
         v = self.entra(senza_email)
         servizi.registra_uscita(v.pk, cartellino=v.cartellino)
-        fornitore = servizi.ospite_fornitore(nome="Bruna", cognome="Fornitrice", azienda="Ditta Prova")
-        self.entra(fornitore, tipo=Visita.FORNITORE)
-        r = self.api("cerca", q="bru pro").json()
-        self.assertEqual([o["nome"] for o in r["ospiti"]], ["Bruno P."])
-        self.assertEqual(r["ospiti"][0]["referente"], "Referente Prova")
-        self.assertEqual(self.api("cerca", q="bru").json()["ospiti"][0]["nome"], "Bruno P.")
-        chiave = r["ospiti"][0]["chiave"]
+        omonimo = servizi.ospite_da_dati(nome="Bruno", cognome="Prova")
+        servizi.registra_uscita(self.entra(omonimo).pk, cartellino="01")
+        d = DittaAccreditata.objects.create(nome="Impianti Esempio Srl")
+        ContattoDitta.objects.create(ditta=d, nome="Bruno", cognome="Prova")
+        trovati = self.api("riconosci", nome="bruno", cognome="PROVA").json()["trovati"]
+        self.assertEqual([(t["tipo"], t["azienda"]) for t in trovati],
+                         [("fornitore", "Impianti Esempio Srl"), ("ospite", ""), ("ospite", "Ditta Prova")])
+        self.assertEqual(self.api("riconosci", nome="Bru", cognome="Prova").json()["trovati"], [])
+        chiave = trovati[2]["chiave"]
         esito = self.api("ingresso-ospite", ospite=chiave, referente_id=self.ref.pk, motivo="Altro", gdpr_consent=True).json()
         self.assertTrue(esito["success"])
-        self.assertEqual(Ospite.objects.filter(nome="Bruno").count(), 1)
+        self.assertEqual(Ospite.objects.filter(nome="Bruno").count(), 2)
         self.assertEqual(Visita.objects.filter(ospite=senza_email, stato=Visita.DENTRO).count(), 1)
         senza_email.refresh_from_db()
         self.assertEqual(senza_email.informativa_ip, "127.0.0.1")
+        r = self.api("ingresso-fornitore", fornitore=trovati[0]["chiave"], referente_id=self.ref.pk, gdpr_consent=True).json()
+        self.assertTrue(r["success"])
         self.assertEqual(self.api("cartellini").json()["cartellini"], ["01", "02"])
 
-    def test_ricerca_esclude_anonimizzati(self):
+    def test_riconosci_esclude_anonimizzati(self):
         o = servizi.ospite_da_dati(nome="Bruno", cognome="Prova")
         self.entra(o)
         Ospite.objects.filter(pk=o.pk).update(anonimizzato=True)
-        self.assertEqual(self.api("cerca", q="Bruno").json()["ospiti"], [])
+        self.assertEqual(self.api("riconosci", nome="Bruno", cognome="Prova").json()["trovati"], [])
 
     def _ingresso_ditta_non_in_regola(self):
         Fornitore.objects.create(ragione_sociale="Ditta Prova", accede_in_sede=True)
