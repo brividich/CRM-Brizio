@@ -29,6 +29,7 @@ urlpatterns = [
     ),
     path("api/anomalie/db/ordini", views.api_db_ordini, name="api_anomalie_db_ordini"),
     path("api/anomalie/db/ordini/crea", views.api_db_ordini_crea, name="api_anomalie_db_ordini_crea"),
+    path("api/anomalie/op/modifica", views.api_op_modifica, name="api_anomalie_op_modifica"),
     path("api/anomalie/config/liste", views.api_anomalie_config_liste, name="api_anomalie_config_liste"),
     path("api/anomalie/config/notifiche", views.api_anomalie_notifiche, name="api_anomalie_notifiche"),
     path("api/anomalie/config/notifiche/silenziati/<int:pk>/riattiva", silenzia_views.api_op_silenziato_riattiva,

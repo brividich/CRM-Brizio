@@ -3001,6 +3001,16 @@ def _ordini_payload(request, *, per_apertura: bool):
         except Exception:
             logger.warning("anomalie: autori delle anomalie per OP non letti", exc_info=True)
 
+    # «Modifica OP»: OP creati dal portale da chi guarda (solo in Gestione).
+    modificabili: set[str] = set()
+    if not per_apertura:
+        try:
+            from .modifica_op import op_modificabili_da
+
+            modificabili = op_modificabili_da(request)
+        except Exception:
+            logger.warning("anomalie: OP modificabili non letti", exc_info=True)
+
     result = []
     for r in rows:
         capo = _row_capocommessa(r)
@@ -3032,8 +3042,84 @@ def _ordini_payload(request, *, per_apertura: bool):
             item["can_edit"] = is_super or in_carico_rdc or _modifica_op_ruoli(request, capo, car, creatori)
         elif in_carico_rdc:
             item["can_edit"] = True
+        if not per_apertura:
+            item["can_modifica_op"] = str(r.get("item_id") or "").strip() in modificabili
         result.append(item)
     return result
+
+
+@login_required
+def api_op_modifica(request):
+    """«Modifica OP»: GET legge i dati, POST li corregge con una motivazione.
+
+    Solo il controllore che ha creato l'OP dal portale (vedi ``modifica_op``).
+    """
+    from . import modifica_op as mo
+
+    if request.method == "GET":
+        item_id = request.GET.get("item_id")
+        data = {}
+    elif request.method == "POST":
+        try:
+            data = json.loads(request.body.decode("utf-8") or "{}")
+        except Exception:
+            return _json_error("Body JSON non valido", status=400)
+        if not isinstance(data, dict):
+            return _json_error("Body JSON non valido", status=400)
+        item_id = data.get("item_id")
+    else:
+        return _json_error("Metodo non consentito", status=405)
+    if not _has_table("ordini_produzione"):
+        return _json_error("Tabella ordini_produzione non disponibile", status=500)
+    if not str(item_id or "").strip():
+        return _json_error("OP non indicato", status=400)
+    try:
+        row = mo.riga_op(item_id)
+    except DatabaseError as exc:
+        return _json_error(str(exc), status=500)
+    if row is None:
+        return _json_error("OP non trovato", status=404)
+    if not mo.puo_modificare(request, row):
+        return _json_error("Modifica l'OP solo il controllore che l'ha inserito dal portale", status=403)
+    if request.method == "GET":
+        return JsonResponse({"success": True, "op": mo.dati_modulo(row)})
+
+    try:
+        esito = mo.applica(request, row, data)
+    except ValueError as exc:
+        return _json_error(str(exc), status=400)
+    except DatabaseError as exc:
+        logger.exception("api_op_modifica: item_id=%s", item_id)
+        return _json_error(f"Modifica non riuscita: {exc}", status=500)
+
+    op_title = str(row.get("title") or "")
+    cambi = mo.testo_modifiche(esito["modifiche"])
+    log_action(request, "op_modificato", "anomalie", {
+        "op_id": op_title, "item_id": esito["prima"]["item_id"], "motivazione": esito["motivazione"],
+        "modifiche": esito["modifiche"], "prima": esito["prima"], "dopo": esito["dopo"],
+    }, oggetto_tipo="ordini_produzione", oggetto_id=str(row.get("id") or esito["prima"]["item_id"]))
+    try:
+        from .mail_action_models import AnomaliaActionLog
+
+        legacy_user = getattr(request, "legacy_user", None) or get_legacy_user(request.user)
+        # anomalia_id=0: azione sull'OP, non su un'anomalia; la cronologia la trova per op_id.
+        AnomaliaActionLog.objects.create(
+            anomalia_id=0, op_id=op_title[:100], user=request.user,
+            legacy_user_id=int(legacy_user.id) if legacy_user else None,
+            user_display=(_current_user_identity(request).get("name") or request.user.username)[:200],
+            action="op_modificato", note=f"{cambi}. Motivo: {esito['motivazione']}",
+            source=AnomaliaActionLog.Source.PORTAL, ip_address=_client_ip(request),
+            user_agent=str(request.META.get("HTTP_USER_AGENT", ""))[:500],
+        )
+    except Exception:
+        logger.warning("api_op_modifica: cronologia non scritta op=%s", op_title, exc_info=True)
+    dopo = esito["dopo"]
+    return JsonResponse({
+        "success": True,
+        "modifiche": esito["modifiche"],
+        "op": {"item_id": dopo["item_id"], "id": op_title, "pn": dopo["pn"], "capo": dopo["capocommessa"],
+               "car": dopo["car"], "stato": esito["stato"]},
+    })
 
 
 @login_required
@@ -4632,6 +4718,7 @@ _TIMELINE_ACTION_LABELS = {
     "riapri": "Anomalia riaperta",
     "segnalato": "Segnalato (senza mail)",
     "spostata": "Spostata («Taglia»)",
+    "op_modificato": "Dati dell'OP modificati",
     "risposta_cliente": "Risposta del cliente registrata",
     "azione": "Azione effettuata",
     "prendi_in_carico": "Presa in carico",
