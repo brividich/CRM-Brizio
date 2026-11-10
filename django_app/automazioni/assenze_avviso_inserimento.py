@@ -127,3 +127,62 @@ def togli_doppione(*, models=None):
     if (approvata.source_code, approvata.operation_type) != ("assenze", "update"):
         raise ValueError(f"Regola {APPROVED_RULE}: sorgente/operazione diversa dall'atteso.")
     return {"condizione_dopo_approvazione": _escludi_salta_approvazione(approvata, AutomationCondition)}
+
+
+DIPENDENTE_PLACEHOLDER = "{dipendente_email}"
+NON_MALATTIA = {"field_name": "tipo_assenza", "operator": "not_equals", "expected_value": "Malattia",
+                "value_type": "string", "compare_with_old": False, "negate": False}
+MAIL_DIPENDENTE = {
+    "to": DIPENDENTE_PLACEHOLDER,
+    "cc": "",
+    "bcc": "",
+    "reply_to": "",
+    "subject_template": "Richiesta {tipo_assenza} registrata dal {data_inizio} al {data_fine}",
+    "body_text_template": (
+        "L'ufficio assenze ha registrato questa richiesta a tuo nome, già approvata:\r\n"
+        "Tipo richiesta: {tipo_assenza}\r\n"
+        "Periodo: {data_inizio} - {data_fine}\r\n"
+        "Motivazione: {motivazione_richiesta}\r\n\r\n"
+        "Se qualcosa non torna, rispondi all'ufficio assenze."
+    ),
+    "body_html_template": "",
+    "fail_silently": False,
+    "run_if": NON_MALATTIA,
+}
+
+
+@transaction.atomic
+def avvisa_dipendente(*, models=None):
+    """Con «Salta approvazione» avvisa anche il dipendente, tranne per la malattia.
+
+    La regola di inserimento mandava la mail solo ad assenza@ (e al caporeparto):
+    un permesso o delle ferie inseriti dall'amministrazione per conto del
+    dipendente non gli arrivavano mai. La malattia resta esclusa: la comunica il
+    dipendente per telefono e l'amministrazione la inserisce.
+    """
+    AutomationRule, AutomationAction, _ = models or (_Rule, _Action, _Condition)
+    rule = AutomationRule.objects.select_for_update().filter(code=SKIP_RULE).first()
+    if rule is None:
+        raise ValueError("Regola di inserimento con salta approvazione non presente.")
+    if (rule.source_code, rule.operation_type) != ("assenze", "insert"):
+        raise ValueError(f"Regola {SKIP_RULE}: sorgente/operazione diversa dall'atteso.")
+    if not rule.conditions.filter(field_name="salta_approvazione", operator="is_true", is_enabled=True).exists():
+        raise ValueError("La regola di inserimento non filtra più su salta_approvazione: verificare nel designer.")
+    actions = list(rule.actions.order_by("order", "pk"))
+    mails = [a for a in actions if a.action_type == "send_email"]
+    if any(DIPENDENTE_PLACEHOLDER in str((a.config_json or {}).get(k) or "") for a in mails for k in ("to", "cc")):
+        return "già presente"
+    if not mails:
+        raise ValueError("La regola di inserimento non ha mail: regola già personalizzata.")
+    ultima = mails[-1]
+    config = deepcopy(MAIL_DIPENDENTE)
+    if (ultima.config_json or {}).get("from_email"):
+        config["from_email"] = ultima.config_json["from_email"]
+    for a in actions:
+        if a.order > ultima.order:
+            AutomationAction.objects.filter(pk=a.pk).update(order=a.order + 1)
+    AutomationAction.objects.create(
+        rule=rule, order=ultima.order + 1, action_type="send_email", is_enabled=True, config_json=config,
+        description="Avvisa il dipendente della richiesta registrata (non per la malattia)",
+    )
+    return "aggiunta"

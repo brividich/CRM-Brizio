@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from assenze.models import AssenzaInseritaDa
 
-from .assenze_avviso_inserimento import APPROVED_RULE, SKIP_RULE, applica, togli_doppione
+from .assenze_avviso_inserimento import APPROVED_RULE, SKIP_RULE, applica, avvisa_dipendente, togli_doppione
 from .models import AutomationAction, AutomationCondition, AutomationRule
 from .services import _enrich_assenze_payload, _resolve_action_run_if
 
@@ -76,6 +76,27 @@ class AvvisoSaltaApprovazioneTests(TestCase):
         self.assertEqual(applica()["mail_inserimento"], "criterio aggiornato")
         self._assert_cc_per_autore()
         self.assertEqual(applica()["mail_inserimento"], "già divisa")
+
+    def test_dipendente_avvisato_tranne_malattia(self):
+        applica()
+        self.assertEqual(avvisa_dipendente(), "aggiunta")
+        self.assertEqual(avvisa_dipendente(), "già presente")
+        tipi = list(AutomationAction.objects.filter(rule__code=SKIP_RULE).order_by("order")
+                    .values_list("action_type", flat=True))
+        self.assertEqual(tipi, ["update_trigger_record", "send_email", "send_email", "send_email", "write_log"])
+        mail = self._mails()[-1]
+        self.assertEqual(mail.config_json["to"], "{dipendente_email}")
+        for tipo, parte in (("Permesso", True), ("Ferie", True), ("Flessibilità", True), ("Malattia", False)):
+            self.assertEqual(_resolve_action_run_if(mail.config_json, {"tipo_assenza": tipo})[0], parte, tipo)
+
+    def test_0037_idempotente_e_fail_closed(self):
+        migration = import_module("automazioni.migrations.0037_assenze_salta_approvazione_avvisa_dipendente")
+        migration.applica(global_apps, None)
+        migration.applica(global_apps, None)
+        self.assertEqual([m.config_json["to"] for m in self._mails()], [MAILBOX, "{dipendente_email}"])
+        AutomationCondition.objects.filter(rule__code=SKIP_RULE).delete()
+        with self.assertRaises(ValueError):
+            avvisa_dipendente()
 
     def test_regola_personalizzata_non_viene_toccata(self):
         AutomationAction.objects.filter(rule__code=SKIP_RULE, action_type="send_email").update(config_json={"to": MAILBOX})
