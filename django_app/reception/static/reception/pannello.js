@@ -26,7 +26,8 @@
   }
   document.addEventListener("click", function (e) {
     var a = e.target.closest("[data-apri]");
-    if (a) { e.preventDefault(); apri(a.getAttribute("data-apri")); return; }
+    // Se la finestra non e' in questa pagina, il link porta alla pagina che la apre.
+    if (a && document.querySelector(a.getAttribute("data-apri"))) { e.preventDefault(); apri(a.getAttribute("data-apri")); return; }
     if (e.target.closest("[data-chiudi]")) { e.preventDefault(); chiudi(); }
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { chiudi(); } });

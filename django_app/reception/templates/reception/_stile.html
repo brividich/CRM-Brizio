@@ -23,6 +23,31 @@
 .rc-voce-testo span { font-size:13px; color:var(--text-light,#64748b); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 a.rc-voce-testo:hover strong { text-decoration:underline; }
 .rc-codice { font-family:ui-monospace,Consolas,monospace; font-size:13px; color:var(--text-light,#64748b); letter-spacing:.06em; }
+/* Subnav della Reception: voci con icona e numero, sottovoci della sezione aperta, azioni rapide a destra */
+.rc-nav { gap:2px; }
+.rc-nav-a svg { flex:none; opacity:.75; }
+.rc-nav-a.active svg { opacity:1; }
+.rc-nav-n { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:var(--surface-alt,#e2e8f0); color:var(--text-mid,#334155); font-size:11px; font-weight:700; }
+.rc-nav-a.active .rc-nav-n { background:var(--surface,#fff); color:var(--accent,#1d4ed8); }
+.rc-nav-n-rosso, .rc-nav-a.active .rc-nav-n-rosso { background:#dc2626; color:#fff; }
+.rc-nav-sep { color:var(--text-light,#94a3b8); font-size:18px; padding:0 4px 0 6px; }
+.rc-nav-sub { display:inline-flex; align-items:center; gap:6px; min-height:28px; padding:0 11px; border-radius:999px; font-size:13px; font-weight:500; color:var(--text-mid,#475569); text-decoration:none; border:1px solid transparent; white-space:nowrap; }
+.rc-nav-sub:hover { background:var(--bg,#f1f5f9); color:var(--text,#0f172a); }
+.rc-nav-sub.on { border-color:var(--accent,#1d4ed8); color:var(--accent,#1d4ed8); font-weight:600; background:var(--surface,#fff); }
+.rc-nav-spazio { flex:1 0 12px; }
+.rc-nav-azione { display:inline-flex; align-items:center; min-height:32px; padding:0 14px; border-radius:8px; background:#1d4ed8; color:#fff; font-size:13px; font-weight:600; text-decoration:none; white-space:nowrap; }
+.rc-nav-azione:hover { background:#1e40af; color:#fff; }
+.rc-nav-azione-g { background:transparent; color:#1d4ed8; border:1px solid #bfdbfe; }
+.rc-nav-azione-g:hover { background:#eff6ff; color:#1e40af; }
+body.theme-dark .rc-nav-azione-g { color:#93c5fd; border-color:rgba(147,197,253,.35); }
+body.theme-dark .rc-nav-azione-g:hover { background:rgba(59,130,246,.15); }
+body.theme-dark .rc-nav-sub.on { color:#93c5fd; border-color:#93c5fd; background:transparent; }
+.rc-azioni-mobile { display:none; }
+@media (max-width:700px) {
+  .rc-azioni-mobile { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .rc-azioni-mobile .rc-nav-azione { justify-content:center; min-height:44px; font-size:15px; }
+  .rc-nav .rc-nav-azione, .rc-nav .rc-nav-spazio { display:none; }
+}
 /* Tom Select copia la classe sul contenitore: un solo riquadro */
 .ts-wrapper.rc-input { padding:0; border:0; background:transparent; box-shadow:none; min-height:0; }
 /* Finestra al centro per i moduli (niente pannelli laterali) */
