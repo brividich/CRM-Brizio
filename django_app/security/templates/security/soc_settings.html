@@ -112,9 +112,9 @@
   <form method="post" action="{% url 'security:veeam_credenziali' %}" class="st-wg-form" autocomplete="off">
     {% csrf_token %}
     <label class="st-field">Indirizzo<input type="url" name="url" value="{{ veeam_cred.url }}" placeholder="https://srv-veeam:9419" maxlength="300" required></label>
-    <label class="st-field">Utente<input type="text" name="username" value="{{ veeam_cred.username }}" placeholder="DOMINIO\utente" maxlength="300" required></label>
+    <label class="st-field">Utente<input type="text" name="username" value="{{ veeam_cred.username }}" placeholder="DOMINIO\utente" maxlength="300" autocomplete="off" required></label>
     <label class="st-field">Password<input type="password" name="password" maxlength="300" autocomplete="new-password"{% if veeam_cred.password and veeam_cred.fonte == "portale" %} placeholder="salvata: vuoto = resta quella"{% else %} required{% endif %}></label>
-    <label class="st-field">Revisione API (facoltativa)<input type="text" name="version" value="{{ veeam_cred.version }}" placeholder="1.1-rev0" maxlength="20"></label>
+    <label class="st-field">Revisione API (facoltativa)<input type="text" name="version" value="{{ veeam_cred.version }}" placeholder="1.1-rev0" maxlength="20" pattern="\d+\.\d+-rev\d+" title="Es. 1.1-rev0"></label>
     <label class="st-field">Certificato della CA (facoltativo){% if veeam_cred.ca %} <span class="sec-muted sec-small">· salvato: vuoto = resta quello</span>{% endif %}<textarea name="ca_pem" rows="3" placeholder="-----BEGIN CERTIFICATE-----"></textarea></label>
     {% if veeam_cred.ca %}<label class="st-field"><span><input type="checkbox" name="togli_ca"> Togli il certificato salvato</span></label>{% endif %}
     <div class="sec-actions">
