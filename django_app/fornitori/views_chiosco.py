@@ -141,7 +141,49 @@ def _ospite(dati: dict) -> JsonResponse:
     }})
 
 
-def _ingresso(dati: dict, ip: str) -> JsonResponse:
+def _cerca(dati: dict) -> JsonResponse:
+    """Ricerca live dal campo unico: ospiti già passati, ditte accreditate, codice d'invito."""
+    testo = _testo(dati, "q")
+    risposta = {"success": True, "ospiti": [], "ditte": [], "invito": None}
+    if len(testo) < chiosco.CERCA_MIN:
+        return JsonResponse(risposta)
+    codice = chiosco.sembra_codice(testo)
+    if codice:
+        try:
+            _stato, esito = chiosco.chiama("prereg_lookup", {"code": codice})
+        except chiosco.ChioscoNonDisponibile:
+            esito = {}
+        if esito.get("success"):
+            p = esito.get("prereg") or {}
+            risposta["invito"] = {"code": codice, "guest_name": p.get("guest_name") or "",
+                                  "guest_company": p.get("guest_company") or "",
+                                  "host_employee": p.get("host_employee") or "", "purpose": p.get("purpose") or ""}
+    risposta["ospiti"] = chiosco.cerca_ospiti(testo)
+    try:
+        risposta["ditte"] = chiosco.cerca_ditte(testo)
+    except chiosco.ChioscoNonDisponibile:
+        pass
+    return JsonResponse(risposta)
+
+
+def _ingresso_ospite(dati: dict, ip: str) -> JsonResponse:
+    """Chi torna: sceglie sé stesso dai risultati, il server rilegge i dati dalla chiave firmata."""
+    ospite = chiosco.ospite_da_chiave(str(dati.get("ospite") or "")[:2000])
+    if ospite is None:
+        return _errore("Non ti ritrovo più: tocca «Ricomincia» oppure scegli «Prima visita».")
+    return _ingresso({**dati, "first_name": ospite["nome"], "last_name": ospite["cognome"], "email": ospite["email"],
+                      "phone": ospite["telefono"], "company": ospite["azienda"]}, ip,
+                    ospite_hub=ospite["id"] if ospite["origine"] == "hub" else None)
+
+
+def _cartellini(_dati: dict) -> JsonResponse:
+    numeri = chiosco.cartellini_in_uso()
+    if numeri is None:
+        return JsonResponse({"success": False})
+    return JsonResponse({"success": True, "cartellini": numeri})
+
+
+def _ingresso(dati: dict, ip: str, ospite_hub: int | None = None) -> JsonResponse:
     if dati.get("gdpr_consent") is not True:
         return _errore("Per continuare conferma di aver letto l'informativa.")
     host = chiosco.referente(_intero(dati, "referente_id"))
@@ -156,11 +198,16 @@ def _ingresso(dati: dict, ip: str) -> JsonResponse:
     email = _testo(dati, "email").lower()
     if email and not _EMAIL.match(email):
         return _errore("L'indirizzo email non è valido.")
-    stato, esito = chiosco.chiama("checkin_submit", {
+    richiesta = {
         "first_name": nome, "last_name": cognome, "email": email, "phone": _testo(dati, "phone"),
         "company": _testo(dati, "company"), "host_employee": host["nome"], "host_email": host["email"],
         "purpose": motivo, "gdpr_consent": True,
-    }, ip=ip)
+    }
+    if ospite_hub:
+        # Dopo il passaggio chi torna si riaggancia al suo ospite anche senza email: niente doppioni.
+        # Arriva solo dalla chiave firmata, mai dal browser.
+        richiesta["guest_id"] = int(ospite_hub)
+    stato, esito = chiosco.chiama("checkin_submit", richiesta, ip=ip)
     return _esito_ingresso(stato, esito, azienda=_testo(dati, "company"))
 
 
@@ -251,6 +298,9 @@ def _nominativi(dati: dict) -> JsonResponse:
 
 
 AZIONI = {
+    "cerca": _cerca,
+    "ingresso-ospite": _ingresso_ospite,
+    "cartellini": _cartellini,
     "ospite": _ospite,
     "ingresso": _ingresso,
     "aziende": _aziende,
@@ -263,7 +313,7 @@ AZIONI = {
 }
 
 
-CON_IP = {_ingresso, _ingresso_fornitore, _prereg_entra}
+CON_IP = {_ingresso, _ingresso_ospite, _ingresso_fornitore, _prereg_entra}
 
 
 @require_POST
