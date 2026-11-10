@@ -17,6 +17,7 @@ from django.db import connection, transaction
 from django.db.utils import OperationalError as DjangoOperationalError, ProgrammingError as DjangoProgrammingError
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
@@ -628,15 +629,25 @@ def pianificati_page(request):
     from ..mail_config import is_configurable
     from ..schedules import SCHEDULES, schedule_rows
 
+    from ..schedules import SOSPENSIONE_MAX_GIORNI
+
     rows = schedule_rows()
     for r in rows:
         r["configurable"] = is_configurable(r["name"])
     enabled_n = sum(1 for r in rows if r["enabled"])
+    # Raccoglitore «Digest e promemoria» in ordine di orario; il resto nell'elenco generale.
+    digest_rows = sorted((r for r in rows if r["digest"]), key=lambda r: (r["orario"] or "99", r["name"]))
+    oggi = timezone.localdate()
     from ..flow_health import broker_health
     health = broker_health()
     context = {
         **_helpers._base_context(),
-        "rows": rows,
+        "rows": [r for r in rows if not r["digest"]],
+        "digest_rows": digest_rows,
+        "digest_sospesi": sum(1 for r in digest_rows if r["sospeso_fino"]),
+        "oggi_iso": oggi.isoformat(),
+        "domani_iso": (oggi + timedelta(days=1)).isoformat(),
+        "max_iso": (oggi + timedelta(days=SOSPENSIONE_MAX_GIORNI)).isoformat(),
         "health": health,
         "totale": len(SCHEDULES),
         "attivi": enabled_n,
@@ -655,6 +666,8 @@ def pianificati_action(request):
 
     name = (request.POST.get("name") or "").strip()
     action = (request.POST.get("action") or "").strip()
+    if action in ("sospendi", "riprendi", "sospendi_tutti", "riprendi_tutti"):
+        return _pianificati_sospensione(request, action, name)
     spec = spec_by_name(name)
     if not spec:
         messages.error(request, "Task pianificato sconosciuto.")
@@ -696,7 +709,7 @@ def pianificati_action(request):
             from ..models import ManagedFlow
             binding = ManagedFlow.objects.filter(code=name, kind="schedule").first()
             if binding:
-                async_task("automazioni.managed_flows.run_managed_flow", name)
+                async_task("automazioni.managed_flows.run_managed_flow", name, ignora_sospensione=True)
             else:
                 async_task(spec["func"], **(spec.get("kwargs") or {}))
             _helpers.log_action(request, "automazioni_schedule_run_now", "automazioni", {"name": name})
@@ -706,6 +719,54 @@ def pianificati_action(request):
     else:
         messages.error(request, "Azione non riconosciuta.")
     return redirect("admin_portale:automazioni_pianificati")
+
+
+def _pianificati_sospensione(request, action, name):
+    """Pausa a tempo dei digest e promemoria: uno o tutti, fino a una data compresa."""
+    from datetime import date
+
+    from monitoring.models import ScheduleControl
+
+    from ..schedules import DIGEST_E_PROMEMORIA, SOSPENSIONE_MAX_GIORNI
+
+    tutti = action.endswith("_tutti")
+    if tutti:
+        nomi = list(DIGEST_E_PROMEMORIA)
+    elif name in DIGEST_E_PROMEMORIA:
+        nomi = [name]
+    else:
+        messages.error(request, "Si possono sospendere solo i digest e i promemoria.")
+        return redirect("admin_portale:automazioni_pianificati")
+
+    fino = None
+    if action.startswith("sospendi"):
+        oggi = timezone.localdate()
+        try:
+            fino = date.fromisoformat((request.POST.get("fino") or "").strip())
+        except ValueError:
+            messages.error(request, "Indica fino a che giorno sospendere.")
+            return redirect("admin_portale:automazioni_pianificati")
+        if fino < oggi or fino > oggi + timedelta(days=SOSPENSIONE_MAX_GIORNI):
+            messages.error(request, f"La data va da oggi a {SOSPENSIONE_MAX_GIORNI} giorni. "
+                                    "Per fermarlo più a lungo usa «Disattiva».")
+            return redirect("admin_portale:automazioni_pianificati")
+
+    utente = request.user if request.user.is_authenticated else None
+    with transaction.atomic():
+        for n in nomi:
+            control, _ = ScheduleControl.objects.get_or_create(name=n)
+            control.sospeso_fino = fino
+            control.updated_by = utente
+            # update_fields senza «enabled»: il segnale verso il flusso del designer resta fermo.
+            control.save(update_fields=["sospeso_fino", "updated_by", "updated_at"])
+    _helpers.log_action(request, "automazioni_schedule_sospensione", "automazioni",
+                        {"nomi": nomi, "fino": fino.isoformat() if fino else None})
+    if fino:
+        cosa = "Tutti i digest e i promemoria" if tutti else f"'{name}'"
+        messages.success(request, f"{cosa} sospesi fino al {fino:%d/%m/%Y} compreso: ripartono da soli il giorno dopo.")
+    else:
+        messages.success(request, "Digest e promemoria ripresi." if tutti else f"'{name}' ripreso.")
+    return redirect(reverse("admin_portale:automazioni_pianificati") + "#digest")
 
 
 @legacy_admin_or_acl_required("automazioni", "pianificati_mail_config_page")
