@@ -14,9 +14,12 @@ SCHEDA_GP = [{"FirstName": "Bruno", "LastName": "Esempio", "Email": "bruno@examp
 
 def _mysql(sql, params):
     if "SELECT DISTINCT" in sql:
+        assert "UNION" not in sql
         if "FirstName" in sql:
-            return [{"v": "Bruno"}, {"v": "bruno"}, {"v": "Brunella"}] if params[-1] == "Esempio" else []
-        return [{"v": "Esempio"}, {"v": "ESEMPIO"}, {"v": "Esempi"}]
+            if "Esempio" not in params:
+                return []
+            return [{"valore": "Bruno"}, {"valore": "bruno"}] if "FROM Guests" in sql else [{"valore": "Brunella"}]
+        return [{"valore": "Esempio"}, {"valore": "ESEMPIO"}] if "FROM Guests" in sql else [{"valore": "Esempi"}]
     if "FROM SupplierContacts" in sql:
         return [{"ContactID": 9, "SupplierID": 5, "CompanyName": "Impianti Esempio Srl"}] if params[:2] == ["Bruno", "Esempio"] else []
     if "GROUP BY" in sql:
@@ -103,6 +106,14 @@ class RiconosciTests(Base):
         self.assertEqual(self.api("suggerisci", campo="nome", testo="Bru", cognome="Esempio").json()["voci"], ["Brunella", "Bruno"])
         self.assertEqual(self.api("suggerisci", campo="nome", testo="Bru").json()["voci"], [])
         self.assertEqual(self.api("suggerisci", campo="azienda", testo="Imp").json()["voci"], [])
+
+    def test_una_tabella_che_fallisce_non_spegne_l_altra(self):
+        def mezzo_guasto(sql, params):
+            if "FROM Guests" in sql:
+                raise guestportal.GuestPortalNonRaggiungibile("collation")
+            return _mysql(sql, params)
+        with patch.object(guestportal, "_esegui", side_effect=mezzo_guasto):
+            self.assertEqual(self.api("suggerisci", campo="cognome", testo="Ese").json()["voci"], ["Esempi"])
 
     def test_like_con_caratteri_jolly(self):
         self.assertEqual(chiosco._like("a%b_c"), r"a\%b\_c%")
