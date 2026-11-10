@@ -1622,6 +1622,8 @@ function GestioneAnomalie() {
   const [riepilogo, setRiepilogo] = useState(null); // null | { prossima: bool }
   // «Elimina» / «Taglia» dell'anomalia aperta: { tipo, op, sn, seriali, busy, err }.
   const [azAnom, setAzAnom] = useState(null);
+  // «Modifica OP»: popup del controllore che ha creato l'OP dal portale.
+  const [modOp, setModOp] = useState(null); // null | { titolo, dati, iniz, motivo, busy, err }
   // Decisioni salvate su questo OP e non ancora partite nel riepilogo (parte dopo
   // la pausa configurata; «Invia ora» lo anticipa).
   const [coda, setCoda] = useState(null); // null | { n, partenza }
@@ -2559,6 +2561,108 @@ function GestioneAnomalie() {
       } : p);
     }
   };
+  const apriModificaOp = async o => {
+    if (!API.op_modifica) return;
+    setModOp({
+      titolo: o.id,
+      dati: null,
+      iniz: null,
+      motivo: "",
+      busy: true,
+      err: ""
+    });
+    try {
+      const r = await fetch(`${API.op_modifica}?item_id=${encodeURIComponent(o.item_id)}`, {
+        credentials: "same-origin"
+      });
+      const d = await readJsonOrThrow(r, "Modifica OP");
+      setModOp({
+        titolo: o.id,
+        dati: {
+          ...d.op
+        },
+        iniz: {
+          ...d.op
+        },
+        motivo: "",
+        busy: false,
+        err: ""
+      });
+    } catch (e) {
+      setModOp({
+        titolo: o.id,
+        dati: null,
+        iniz: null,
+        motivo: "",
+        busy: false,
+        err: e.message
+      });
+    }
+  };
+  const campoModOp = (campo, valore) => setModOp(p => p ? {
+    ...p,
+    dati: {
+      ...p.dati,
+      [campo]: valore
+    },
+    err: ""
+  } : p);
+  const modOpCambiato = !!(modOp && modOp.dati && modOp.iniz && ["pn", "capocommessa", "car", "fase", "note", "benestare"].some(k => String(modOp.dati[k] ?? "").trim() !== String(modOp.iniz[k] ?? "").trim()));
+  const salvaModificaOp = async () => {
+    if (!modOp || !modOp.dati) return;
+    if (!modOpCambiato) {
+      setModOp({
+        ...modOp,
+        err: "Non hai cambiato nessun dato."
+      });
+      return;
+    }
+    if (String(modOp.motivo || "").trim().length < 5) {
+      setModOp({
+        ...modOp,
+        err: "Scrivi il motivo della modifica."
+      });
+      return;
+    }
+    setModOp({
+      ...modOp,
+      busy: true,
+      err: ""
+    });
+    try {
+      const {
+        item_id,
+        pn,
+        capocommessa,
+        car,
+        fase,
+        note: noteOp,
+        benestare
+      } = modOp.dati;
+      const data = await postAzione(API.op_modifica, {
+        item_id,
+        pn,
+        capocommessa,
+        car,
+        fase,
+        note: noteOp,
+        benestare,
+        motivazione: modOp.motivo
+      }, "Modifica OP");
+      setModOp(null);
+      flash({
+        ok: true,
+        text: `${modOp.titolo}: ${(data.modifiche || []).map(m => m.etichetta).join(", ") || "dati"} modificati`
+      }, 5000);
+      loadOrdini();
+    } catch (e) {
+      setModOp(p => p ? {
+        ...p,
+        busy: false,
+        err: e.message
+      } : p);
+    }
+  };
   const duplica = () => {
     setMenuOpen(false);
     setCurrentItemId(null);
@@ -2802,12 +2906,19 @@ function GestioneAnomalie() {
       className: "ga-op__bar-txt"
     }, aperte, " apert", aperte === 1 ? "a" : "e", " \xB7 ", tot, " total", tot === 1 ? "e" : "i")) : /*#__PURE__*/React.createElement("span", {
       className: "ga-op__none"
-    }, "Nessuna anomalia")), tot > 0 && /*#__PURE__*/React.createElement("button", {
+    }, "Nessuna anomalia")), (tot > 0 || o.can_modifica_op) && /*#__PURE__*/React.createElement("span", {
+      className: `ga-op__acts${clona && clona.opKey === opKey(o) ? " is-on" : ""}`
+    }, o.can_modifica_op && /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      className: "ga-op__clona",
+      title: "Correggi i dati dell'OP che hai inserito tu",
+      onClick: () => apriModificaOp(o)
+    }, Ico.edit, /*#__PURE__*/React.createElement("span", null, "Modifica OP")), tot > 0 && /*#__PURE__*/React.createElement("button", {
       type: "button",
       className: `ga-op__clona${clona && clona.opKey === opKey(o) ? " is-on" : ""}`,
       title: "Clona: scegli le anomalie da copiare su un nuovo OP",
       onClick: () => avviaClona(o)
-    }, Ico.copy, /*#__PURE__*/React.createElement("span", null, "Clona")));
+    }, Ico.copy, /*#__PURE__*/React.createElement("span", null, "Clona"))));
   }))), /*#__PURE__*/React.createElement("section", {
     className: "ga-col ga-col--sn",
     style: {
@@ -3353,7 +3464,107 @@ function GestioneAnomalie() {
     className: `ga-btn ${azAnom.tipo === "elimina" ? "ga-btn--danger" : "ga-btn--accent"}`,
     disabled: azAnom.busy,
     onClick: confermaAzione
-  }, azAnom.busy ? "Attendere…" : azAnom.tipo === "elimina" ? "Elimina" : "Sposta qui")))), riepilogo && /*#__PURE__*/React.createElement("div", {
+  }, azAnom.busy ? "Attendere…" : azAnom.tipo === "elimina" ? "Elimina" : "Sposta qui")))), modOp && /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal",
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "ga-modop-t"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__box"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__title",
+    id: "ga-modop-t"
+  }, "Modifica OP ", modOp.titolo), !modOp.dati ? /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, modOp.busy ? "Caricamento…" : "") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "ga-modop__grid"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement("span", null, "P/N *"), /*#__PURE__*/React.createElement("input", {
+    className: "ga-input",
+    value: modOp.dati.pn,
+    disabled: modOp.busy,
+    autoFocus: true,
+    onChange: e => campoModOp("pn", e.target.value)
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement("span", null, "Fase"), /*#__PURE__*/React.createElement("input", {
+    className: "ga-input",
+    value: modOp.dati.fase,
+    disabled: modOp.busy,
+    onChange: e => campoModOp("fase", e.target.value)
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement("span", null, "Capocommessa *"), /*#__PURE__*/React.createElement("input", {
+    className: "ga-input",
+    list: "ga-modop-capi",
+    value: modOp.dati.capocommessa,
+    disabled: modOp.busy,
+    onChange: e => campoModOp("capocommessa", e.target.value)
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "ga-modop-capi"
+  }, (Array.isArray(CONFIG_LISTS.capi_commessa) ? CONFIG_LISTS.capi_commessa : []).map(n => /*#__PURE__*/React.createElement("option", {
+    key: n,
+    value: n
+  })))), /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement("span", null, "CAR *"), /*#__PURE__*/React.createElement("input", {
+    className: "ga-input",
+    list: "ga-modop-car",
+    value: modOp.dati.car,
+    disabled: modOp.busy,
+    onChange: e => campoModOp("car", e.target.value)
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "ga-modop-car"
+  }, (Array.isArray(CONFIG_LISTS.capi_reparto) ? CONFIG_LISTS.capi_reparto : []).map(n => /*#__PURE__*/React.createElement("option", {
+    key: n,
+    value: n
+  }))))), /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement("span", null, "Note"), /*#__PURE__*/React.createElement("input", {
+    className: "ga-input",
+    value: modOp.dati.note,
+    maxLength: 180,
+    disabled: modOp.busy,
+    onChange: e => campoModOp("note", e.target.value)
+  })), modOp.dati.benestare_modificabile && /*#__PURE__*/React.createElement("label", {
+    className: "ga-modop__check"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: !!modOp.dati.benestare,
+    disabled: modOp.busy,
+    onChange: e => campoModOp("benestare", e.target.checked)
+  }), "Collaudo di benestare"), /*#__PURE__*/React.createElement("label", {
+    className: "ga-field"
+  }, /*#__PURE__*/React.createElement("span", null, "Motivo della modifica *"), /*#__PURE__*/React.createElement("textarea", {
+    className: "ga-input",
+    rows: 2,
+    value: modOp.motivo,
+    maxLength: 500,
+    disabled: modOp.busy,
+    placeholder: "Es. P/N scritto male in apertura",
+    onChange: e => setModOp({
+      ...modOp,
+      motivo: e.target.value,
+      err: ""
+    })
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "ga-hint"
+  }, "Il numero dell'OP non si cambia: per un OP sbagliato usa \xABTaglia\xBB. La modifica resta nella cronologia dell'OP.")), modOp.err && /*#__PURE__*/React.createElement("div", {
+    className: "ga-note ga-note--warn"
+  }, modOp.err), /*#__PURE__*/React.createElement("div", {
+    className: "ga-modal__acts"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--ghost-dark",
+    disabled: modOp.busy && !!modOp.dati,
+    onClick: () => setModOp(null)
+  }, "Annulla"), modOp.dati && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "ga-btn ga-btn--accent",
+    disabled: modOp.busy || !modOpCambiato,
+    onClick: salvaModificaOp
+  }, modOp.busy ? "Salvataggio…" : "Salva modifica")))), riepilogo && /*#__PURE__*/React.createElement("div", {
     className: "ga-modal",
     role: "dialog",
     "aria-modal": "true",

@@ -324,6 +324,11 @@ SEZIONI: list[dict] = [
                 "o su un altro OP (scrivi OP e S/N; i S/N noti dell'OP vengono proposti). Su un altro OP passa alla sua "
                 "NC e il suo capocommessa la trova nel riepilogo delle modifiche. Entrambe le azioni si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate; "
                 "lo spostamento resta nella «Cronologia azioni».",
+                "«Modifica OP» sulla riga dell'OP (compare passando sopra con il mouse, accanto a «Clona»): c'è solo "
+                "per il controllore che ha creato l'OP dal portale («+ Nuovo OP»), non per gli OP che arrivano dal "
+                "gestionale. Corregge P/N, fase, capocommessa, CAR, note e «Collaudo di benestare»; il «Motivo della "
+                "modifica» è obbligatorio. Il numero dell'OP non si cambia: per un OP sbagliato usa «✂ Taglia». La "
+                "modifica (prima → dopo e motivo) resta nella «Cronologia azioni» dell'OP.",
                 "«Applica la stessa decisione anche a» copia la decisione (avanzamento, RDC, cliente, note) su altre "
                 "anomalie aperte: «Solo questa» (di serie), «Stesso blocco di seriali», «Tutte le aperte dell'OP» o "
                 "«Scelte a mano» (spunte raggruppate per S/N, con «Tutte» e «Nessuna»). Le anomalie già decise restano "

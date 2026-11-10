@@ -37,6 +37,11 @@ GUIDA = {
                       "la sposta su un altro S/N dello stesso OP o di un altro OP (anche chi può modificare l'OP). "
                       "Si fanno dal controllo (anomalia aperta nel blocco) o dalla card «Segnalazione» di Gestione "
                       "anomalie, e si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate."),
+                ("p", "Dati dell'OP scritti male (P/N, fase, capocommessa, CAR, note, collaudo di benestare)? In "
+                      "Gestione anomalie, sulla riga dell'OP, «Modifica OP» apre una finestra per correggerli: il "
+                      "pulsante c'è solo per il controllore che ha creato l'OP dal portale e chiede il «Motivo della "
+                      "modifica». Il numero dell'OP non si cambia (per un OP sbagliato c'è «✂ Taglia»); la modifica "
+                      "resta nella «Cronologia azioni» dell'OP."),
                 ("p", "Guide rapide con le immagini delle pagine, da scaricare in PDF: dal pulsante «? Guida» di "
                       "qualunque pagina Anomalie scegli «Guida del controllore» o «Guida del capocommessa / CAR»."),
                 ("p", "Un OP nuovo (da «+ Nuovo OP» o da «Clona») si crea solo quando salvi il primo blocco di "
@@ -163,6 +168,15 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Sulla riga dell'OP non compare «Modifica OP»",
+            "fare": [
+                "Il pulsante c'è solo per chi ha creato l'OP dal portale («+ Nuovo OP»): gli OP del gestionale non "
+                "si modificano da qui, li corregge chi gestisce il gestionale.",
+                "Passa sopra la riga con il mouse: come «Clona», il pulsante appare solo al passaggio.",
+                "Il numero dell'OP non si cambia: per anomalie sull'OP sbagliato usa «✂ Taglia».",
+            ],
+        },
         {
             "sintomo": "Il capocommessa non riceve la mail",
             "fare": [

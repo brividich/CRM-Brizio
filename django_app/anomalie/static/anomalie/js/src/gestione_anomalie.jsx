@@ -957,6 +957,8 @@
       const [riepilogo, setRiepilogo] = useState(null);  // null | { prossima: bool }
       // «Elimina» / «Taglia» dell'anomalia aperta: { tipo, op, sn, seriali, busy, err }.
       const [azAnom, setAzAnom] = useState(null);
+      // «Modifica OP»: popup del controllore che ha creato l'OP dal portale.
+      const [modOp, setModOp] = useState(null);  // null | { titolo, dati, iniz, motivo, busy, err }
       // Decisioni salvate su questo OP e non ancora partite nel riepilogo (parte dopo
       // la pausa configurata; «Invia ora» lo anticipa).
       const [coda, setCoda] = useState(null);  // null | { n, partenza }
@@ -1618,6 +1620,38 @@
         }
       };
 
+      const apriModificaOp = async (o) => {
+        if (!API.op_modifica) return;
+        setModOp({ titolo: o.id, dati: null, iniz: null, motivo: "", busy: true, err: "" });
+        try {
+          const r = await fetch(`${API.op_modifica}?item_id=${encodeURIComponent(o.item_id)}`, { credentials: "same-origin" });
+          const d = await readJsonOrThrow(r, "Modifica OP");
+          setModOp({ titolo: o.id, dati: { ...d.op }, iniz: { ...d.op }, motivo: "", busy: false, err: "" });
+        } catch (e) {
+          setModOp({ titolo: o.id, dati: null, iniz: null, motivo: "", busy: false, err: e.message });
+        }
+      };
+      const campoModOp = (campo, valore) => setModOp((p) => (p ? { ...p, dati: { ...p.dati, [campo]: valore }, err: "" } : p));
+      const modOpCambiato = !!(modOp && modOp.dati && modOp.iniz
+        && ["pn", "capocommessa", "car", "fase", "note", "benestare"].some((k) => String(modOp.dati[k] ?? "").trim() !== String(modOp.iniz[k] ?? "").trim()));
+      const salvaModificaOp = async () => {
+        if (!modOp || !modOp.dati) return;
+        if (!modOpCambiato) { setModOp({ ...modOp, err: "Non hai cambiato nessun dato." }); return; }
+        if (String(modOp.motivo || "").trim().length < 5) { setModOp({ ...modOp, err: "Scrivi il motivo della modifica." }); return; }
+        setModOp({ ...modOp, busy: true, err: "" });
+        try {
+          const { item_id, pn, capocommessa, car, fase, note: noteOp, benestare } = modOp.dati;
+          const data = await postAzione(API.op_modifica, {
+            item_id, pn, capocommessa, car, fase, note: noteOp, benestare, motivazione: modOp.motivo,
+          }, "Modifica OP");
+          setModOp(null);
+          flash({ ok: true, text: `${modOp.titolo}: ${(data.modifiche || []).map((m) => m.etichetta).join(", ") || "dati"} modificati` }, 5000);
+          loadOrdini();
+        } catch (e) {
+          setModOp((p) => (p ? { ...p, busy: false, err: e.message } : p));
+        }
+      };
+
       const duplica = () => {
         setMenuOpen(false);
         setCurrentItemId(null);
@@ -1795,11 +1829,21 @@
                           </span>
                         ) : <span className="ga-op__none">Nessuna anomalia</span>}
                       </button>
-                      {tot > 0 && (
-                        <button type="button" className={`ga-op__clona${clona && clona.opKey === opKey(o) ? " is-on" : ""}`}
-                          title="Clona: scegli le anomalie da copiare su un nuovo OP" onClick={() => avviaClona(o)}>
-                          {Ico.copy}<span>Clona</span>
-                        </button>
+                      {(tot > 0 || o.can_modifica_op) && (
+                        <span className={`ga-op__acts${clona && clona.opKey === opKey(o) ? " is-on" : ""}`}>
+                          {o.can_modifica_op && (
+                            <button type="button" className="ga-op__clona" title="Correggi i dati dell'OP che hai inserito tu"
+                              onClick={() => apriModificaOp(o)}>
+                              {Ico.edit}<span>Modifica OP</span>
+                            </button>
+                          )}
+                          {tot > 0 && (
+                            <button type="button" className={`ga-op__clona${clona && clona.opKey === opKey(o) ? " is-on" : ""}`}
+                              title="Clona: scegli le anomalie da copiare su un nuovo OP" onClick={() => avviaClona(o)}>
+                              {Ico.copy}<span>Clona</span>
+                            </button>
+                          )}
+                        </span>
                       )}
                       </div>
                     );
@@ -2178,6 +2222,67 @@
                   <button type="button" className={`ga-btn ${azAnom.tipo === "elimina" ? "ga-btn--danger" : "ga-btn--accent"}`} disabled={azAnom.busy} onClick={confermaAzione}>
                     {azAnom.busy ? "Attendere…" : (azAnom.tipo === "elimina" ? "Elimina" : "Sposta qui")}
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modifica OP: solo chi l'ha inserito dal portale, con motivazione */}
+          {modOp && (
+            <div className="ga-modal" role="dialog" aria-modal="true" aria-labelledby="ga-modop-t">
+              <div className="ga-modal__box">
+                <div className="ga-modal__title" id="ga-modop-t">Modifica OP {modOp.titolo}</div>
+                {!modOp.dati ? (
+                  <div className="ga-hint">{modOp.busy ? "Caricamento…" : ""}</div>
+                ) : (
+                  <>
+                    <div className="ga-modop__grid">
+                      <label className="ga-field"><span>P/N *</span>
+                        <input className="ga-input" value={modOp.dati.pn} disabled={modOp.busy} autoFocus
+                          onChange={(e) => campoModOp("pn", e.target.value)} />
+                      </label>
+                      <label className="ga-field"><span>Fase</span>
+                        <input className="ga-input" value={modOp.dati.fase} disabled={modOp.busy}
+                          onChange={(e) => campoModOp("fase", e.target.value)} />
+                      </label>
+                      <label className="ga-field"><span>Capocommessa *</span>
+                        <input className="ga-input" list="ga-modop-capi" value={modOp.dati.capocommessa} disabled={modOp.busy}
+                          onChange={(e) => campoModOp("capocommessa", e.target.value)} />
+                        <datalist id="ga-modop-capi">{(Array.isArray(CONFIG_LISTS.capi_commessa) ? CONFIG_LISTS.capi_commessa : []).map((n) => <option key={n} value={n} />)}</datalist>
+                      </label>
+                      <label className="ga-field"><span>CAR *</span>
+                        <input className="ga-input" list="ga-modop-car" value={modOp.dati.car} disabled={modOp.busy}
+                          onChange={(e) => campoModOp("car", e.target.value)} />
+                        <datalist id="ga-modop-car">{(Array.isArray(CONFIG_LISTS.capi_reparto) ? CONFIG_LISTS.capi_reparto : []).map((n) => <option key={n} value={n} />)}</datalist>
+                      </label>
+                    </div>
+                    <label className="ga-field"><span>Note</span>
+                      <input className="ga-input" value={modOp.dati.note} maxLength={180} disabled={modOp.busy}
+                        onChange={(e) => campoModOp("note", e.target.value)} />
+                    </label>
+                    {modOp.dati.benestare_modificabile && (
+                      <label className="ga-modop__check">
+                        <input type="checkbox" checked={!!modOp.dati.benestare} disabled={modOp.busy}
+                          onChange={(e) => campoModOp("benestare", e.target.checked)} />
+                        Collaudo di benestare
+                      </label>
+                    )}
+                    <label className="ga-field"><span>Motivo della modifica *</span>
+                      <textarea className="ga-input" rows={2} value={modOp.motivo} maxLength={500} disabled={modOp.busy}
+                        placeholder="Es. P/N scritto male in apertura"
+                        onChange={(e) => setModOp({ ...modOp, motivo: e.target.value, err: "" })} />
+                    </label>
+                    <div className="ga-hint">Il numero dell'OP non si cambia: per un OP sbagliato usa «Taglia». La modifica resta nella cronologia dell'OP.</div>
+                  </>
+                )}
+                {modOp.err && <div className="ga-note ga-note--warn">{modOp.err}</div>}
+                <div className="ga-modal__acts">
+                  <button type="button" className="ga-btn ga-btn--ghost-dark" disabled={modOp.busy && !!modOp.dati} onClick={() => setModOp(null)}>Annulla</button>
+                  {modOp.dati && (
+                    <button type="button" className="ga-btn ga-btn--accent" disabled={modOp.busy || !modOpCambiato} onClick={salvaModificaOp}>
+                      {modOp.busy ? "Salvataggio…" : "Salva modifica"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
