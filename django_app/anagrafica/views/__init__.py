@@ -372,6 +372,7 @@ from .formazione import (
     formazione_registro_scansione,
     formazione_ricerca,
     formazione_rinnovo_da_scadenzario,
+    formazione_rinnovo_in_sessione,
     formazione_scadenzario,
     formazione_scansione_scarica,
     formazione_scansioni_impostazioni,

@@ -1424,7 +1424,9 @@ def visite_mediche_nuova_sessione(request):
             if doppioni:
                 msg += f" {doppioni} già presenti in pari data: saltate."
             messages.success(request, msg)
-        return redirect("anagrafica:visite_mediche_sessione_detail", sessione_id=sess.pk)
+        return redirect(_helpers.con_back(
+            reverse("anagrafica:visite_mediche_sessione_detail", args=[sess.pk]),
+            _helpers.back_sicuro(request, request.POST.get("back"))))
 
     # ---- GET: pagina Giornata visite (reattiva) --------------------------
     pre_tipo_id = (request.GET.get("tipo") or "").strip()
@@ -1440,6 +1442,7 @@ def visite_mediche_nuova_sessione(request):
         .order_by("medico_competente").values_list("medico_competente", flat=True).distinct()[:20]
     )
     return render(request, "anagrafica/pages/visite_mediche_nuova_sessione.html", {
+        "back": _helpers.back_da_richiesta(request),
         "tipi_attivi": tipi_attivi,
         "tipo_pre": tipo_pre,
         "righe": righe,

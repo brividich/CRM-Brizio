@@ -2600,14 +2600,53 @@ def formazione_rinnovo_da_scadenzario(request):
             if lid > 0 and lid not in seen:
                 seen.add(lid)
                 ids.append(lid)
+    back = _helpers.back_sicuro(request, request.POST.get("back"))
     if not ids:
         messages.warning(request, "Nessun dipendente selezionato.")
-        from core.redirects import safe_next
+        return redirect(back or reverse("anagrafica:scadenzario"))
+    request.session["rinnovo_preselect"] = {"corso": corso.pk, "ids": ids, "back": back}
+    n = len(ids)
+    messages.info(request, f"{n} dipendent{'e' if n == 1 else 'i'} da iscrivere: scegli un'edizione già "
+                           "pianificata oppure compila la nuova sessione.")
+    return redirect(f"{reverse('anagrafica:formazione_sessione_create')}?corso={corso.pk}&rinnovo=1")
 
-        return redirect(safe_next(request, request.POST.get("back"), reverse("anagrafica:scadenzario")))
-    request.session["rinnovo_preselect"] = {"corso": corso.pk, "ids": ids}
-    messages.info(request, f"{len(ids)} dipendenti pronti per il rinnovo: compila la sessione.")
-    return redirect(f"{reverse('anagrafica:formazione_sessione_create')}?corso={corso.pk}")
+
+def _iscrivi_preselezione(request, sessione) -> int:
+    """Iscrive in blocco (idempotente) i dipendenti preselezionati da «↻ Iscrivi»."""
+    pre = request.session.get("rinnovo_preselect") or {}
+    n_new = 0
+    for lid in pre.get("ids") or []:
+        _, created = TrainingEnrollment.objects.get_or_create(
+            sessione=sessione, legacy_anagrafica_id=lid,
+            defaults={"stato": "ISCRITTO", "iscritto_da": request.user},
+        )
+        n_new += created
+    return n_new
+
+
+def _agli_iscritti(sessione, back: str):
+    """Pagina iscritti della sessione, con «Torna a dove eri» se l'azione era partita altrove."""
+    return redirect(_helpers.con_back(
+        reverse("anagrafica:formazione_sessione_iscritti", args=[sessione.pk]), back))
+
+
+@login_required
+@require_POST
+def formazione_rinnovo_in_sessione(request, sessione_id: int):
+    """«↻ Iscrivi» su un'edizione già pianificata dello stesso corso, invece di crearne una nuova."""
+    if not _helpers._can_edit_formazione(request):
+        messages.error(request, "Non hai i permessi per iscrivere dipendenti.")
+        return redirect("anagrafica:formazione_sessioni_list")
+    sessione = get_object_or_404(TrainingSession, pk=sessione_id, stato__in=["PIANIFICATA", "IN_CORSO"])
+    pre = request.session.get("rinnovo_preselect") or {}
+    if pre.get("corso") != sessione.corso_id or not pre.get("ids"):
+        messages.warning(request, "Nessun dipendente da iscrivere per questo corso.")
+        return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione.pk)
+    n_new = _iscrivi_preselezione(request, sessione)
+    request.session.pop("rinnovo_preselect", None)
+    messages.success(request, f'{n_new} dipendent{"e" if n_new == 1 else "i"} iscritt{"o" if n_new == 1 else "i"} '
+                              f'a "{sessione.codice_sessione}".')
+    return _agli_iscritti(sessione, pre.get("back") or "")
 
 
 @login_required
@@ -2638,27 +2677,35 @@ def formazione_sessione_create(request):
             # QUESTO corso, iscrivili in blocco (idempotente) e vai agli iscritti.
             pre = request.session.get("rinnovo_preselect")
             if pre and pre.get("corso") == sessione.corso_id and pre.get("ids"):
-                n_new = 0
-                for lid in pre["ids"]:
-                    _, created = TrainingEnrollment.objects.get_or_create(
-                        sessione=sessione, legacy_anagrafica_id=lid,
-                        defaults={"stato": "ISCRITTO", "iscritto_da": request.user},
-                    )
-                    if created:
-                        n_new += 1
+                n_new = _iscrivi_preselezione(request, sessione)
                 request.session.pop("rinnovo_preselect", None)
-                messages.success(request, f'Sessione "{sessione.codice_sessione}" creata; {n_new} dipendenti iscritti per il rinnovo.')
-                return redirect("anagrafica:formazione_sessione_iscritti", sessione_id=sessione.pk)
+                messages.success(request, f'Sessione "{sessione.codice_sessione}" creata; {n_new} dipendenti iscritti.')
+                return _agli_iscritti(sessione, pre.get("back") or "")
             messages.success(request, f'Sessione "{sessione.codice_sessione}" creata.')
             return redirect("anagrafica:formazione_sessione_detail", sessione_id=sessione.pk)
     else:
         initial = {}
         if request.GET.get("corso"):
             initial["corso"] = request.GET.get("corso")
+        # Una preselezione vale solo per il giro di «↻ Iscrivi» appena partito:
+        # aprendo la pagina in altro modo non deve iscrivere nessuno per sbaglio.
+        if not request.GET.get("rinnovo"):
+            request.session.pop("rinnovo_preselect", None)
         form = TrainingSessionForm(initial=initial)
+    rinnovo = None
+    pre = request.session.get("rinnovo_preselect")
+    if pre and pre.get("ids"):
+        rinnovo = {
+            "n": len(pre["ids"]),
+            "back": pre.get("back") or "",
+            "sessioni": list(TrainingSession.objects.filter(
+                corso_id=pre.get("corso"), stato__in=["PIANIFICATA", "IN_CORSO"])
+                .order_by("data_inizio")[:8]),
+        }
     return render(request, "anagrafica/pages/formazione_sessione_form.html", {
         "form": form,
         "modo": "crea",
+        "rinnovo": rinnovo,
     })
 
 
@@ -3805,7 +3852,11 @@ def formazione_lezione_presenze(request, sessione_id: int, lezione_id: int):
 
     allegati_lezione = list(lezione.allegati.order_by("-created_at"))
 
+    # Il passo dopo: la lezione successiva o, all'ultima, esiti e attestati.
+    lezione_successiva = (TrainingLesson.objects.filter(sessione=sessione, numero__gt=lezione.numero)
+                          .order_by("numero").first())
     return render(request, "anagrafica/pages/formazione_presenze.html", {
+        "lezione_successiva": lezione_successiva,
         "motivo_blocco": motivo_blocco,
         "giornata_futura": giornata_futura,
         "sessione":   sessione,

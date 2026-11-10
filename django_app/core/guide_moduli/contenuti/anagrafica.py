@@ -175,6 +175,30 @@ GUIDA = {
             ],
         },
         {
+            "id": "passaggi",
+            "titolo": "Dopo un'azione: si torna da dove si era, o si va al passo dopo",
+            "blocchi": [
+                ("ul", [
+                    "«↻ Iscrivi» / «↻ Rinnova» di un corso (da mansione, lacune, libretto, scadenzari, piano del "
+                    "cambio mansione, onboarding): se il corso ha già un'edizione pianificata o in corso, la pagina "
+                    "propone «Iscrivi qui»; altrimenti si compila la nuova edizione. Dopo, sugli iscritti compare "
+                    "«← Torna a dove eri»; «Annulla» riporta alla pagina di partenza.",
+                    "«+ Visita» e «↻ Rinnova» delle visite: dopo aver registrato la giornata, «← Torna a dove eri».",
+                    "«↻ Rinnova» di una qualifica (da scadenzario, matrice, libretto, cruscotto, scheda qualifica): "
+                    "salvato il rinnovo nella scheda si torna alla pagina di partenza.",
+                    "Spostamento o cambio mansione: si torna sul riquadro «Spostamenti organizzativi» con il numero "
+                    "delle cose da fare; ogni voce del piano di adeguamento ha il suo pulsante («↻ Iscrivi» per un "
+                    "corso, «+ Visita», «Consegna DPI»). Se il piano non si genera compare un avviso. Gli stessi "
+                    "pulsanti sono nella pagina «Cambi mansione».",
+                    "Nuovo dipendente con «Avvia onboarding»: dopo il salvataggio si apre direttamente la pratica; se "
+                    "la pratica non parte compare un avviso.",
+                    "Onboarding: le voci automatiche (visita, corso, DPI, account) hanno il pulsante per farle; quando "
+                    "non resta niente da spuntare compare «✓ Chiudi la pratica».",
+                    "Registro presenze: in alto «Lezione N →» per la successiva; all'ultima, «Esiti e completamenti →».",
+                ]),
+            ],
+        },
+        {
             "id": "conformita-qualifiche",
             "titolo": "Conformità, libretto, qualifiche e onboarding: dal numero all'azione",
             "blocchi": [
