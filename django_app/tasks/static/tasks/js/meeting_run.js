@@ -356,13 +356,13 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
       toggle.textContent = 'Segna trattato';
       const tempoLabel = document.createElement('label');
       tempoLabel.className = 'tpl-inline';
-      tempoLabel.textContent = 'Tempo effettivo ';
+      tempoLabel.textContent = 'Tempo ';
       const tempo = document.createElement('input');
       tempo.className = 'input';
       tempo.type = 'number';
       tempo.min = '1';
       tempo.max = '480';
-      tempo.style.width = '80px';
+      tempo.style.width = '72px';
       tempo.setAttribute('data-role', 'tempo');
       tempoLabel.appendChild(tempo);
       tempoLabel.appendChild(document.createTextNode(' min'));
@@ -374,6 +374,11 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
       actions.appendChild(tempoLabel);
       actions.appendChild(saved);
 
+      const addTpl = document.getElementById('run-item-add-template');
+      if (addTpl) actions.appendChild(addTpl.content.cloneNode(true));
+      card.setAttribute('data-num', String(list.children.length + 1));
+      card.id = 'punto-' + item.id;
+
       card.appendChild(head);
       card.appendChild(nota);
       const taskBox = document.getElementById('run-task-box-template');
@@ -381,32 +386,125 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
       card.appendChild(actions);
       list.appendChild(card);
       window.bindRunItem(card);
+      /* Il punto nuovo si può scegliere anche nel registro dell'incontro. */
+      const sel = document.getElementById('capture-punto');
+      if (sel) {
+        const opt = document.createElement('option');
+        opt.value = item.id;
+        opt.textContent = list.children.length + '. ' + item.titolo;
+        sel.appendChild(opt);
+      }
       nota.focus();
     }
   };
 
-  /* Cattura rapida */
-  const kindEl = document.getElementById('capture-kind');
+  /* ─── Registro dell'incontro ──────────────────────────────────────
+     Problemi, azioni, decisioni e attività registrati mentre si parla,
+     legati al punto in discussione (l'ultimo toccato o quello scelto). */
   const impattoEl = document.getElementById('capture-impatto');
   const dueEl = document.getElementById('capture-due');
+  const puntoEl = document.getElementById('capture-punto');
+  const titoloEl = document.getElementById('capture-titolo');
+  const KIND_UI = {
+    issue: { list: 'cat-problema', ph: 'Cosa non torna? Scrivi e premi Invio' },
+    action: { list: 'cat-azione', ph: 'Chi fa cosa? Scrivi e premi Invio' },
+    decision: { list: '', ph: 'Cosa è stato deciso? Scrivi e premi Invio' },
+    task: { list: 'cat-attivita', ph: 'Nuova attività del piano: scrivi e premi Invio' },
+  };
 
+  function getKind() {
+    const el = document.querySelector('input[name=capture-kind]:checked');
+    return el ? el.value : 'issue';
+  }
+  function setKind(kind) {
+    const el = document.querySelector('input[name=capture-kind][value="' + kind + '"]');
+    if (el) { el.checked = true; syncCaptureFields(); }
+  }
   function syncCaptureFields() {
-    const isDecision = kindEl && kindEl.value === 'decision';
+    const kind = getKind();
+    const isDecision = kind === 'decision';
     if (impattoEl) impattoEl.hidden = !isDecision;
     if (dueEl) dueEl.hidden = isDecision;
+    const ui = KIND_UI[kind] || KIND_UI.issue;
+    if (titoloEl) {
+      titoloEl.placeholder = ui.ph;
+      if (ui.list) titoloEl.setAttribute('list', ui.list); else titoloEl.removeAttribute('list');
+    }
   }
-  kindEl?.addEventListener('change', syncCaptureFields);
+  document.querySelectorAll('input[name=capture-kind]').forEach(function (el) {
+    el.addEventListener('change', syncCaptureFields);
+  });
   syncCaptureFields();
 
+  /* Punto in discussione: l'ultimo su cui si è scritto o cliccato. */
+  function segnaCorrente(card) {
+    document.querySelectorAll('.run-item.is-current').forEach(function (c) { if (c !== card) c.classList.remove('is-current'); });
+    card.classList.add('is-current');
+    if (puntoEl) puntoEl.value = card.getAttribute('data-item-id') || '';
+  }
+  document.getElementById('run-items')?.addEventListener('focusin', function (ev) {
+    const card = ev.target.closest('.run-item');
+    if (card) segnaCorrente(card);
+  });
+
+  function testo(tag, cls, value) {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (value != null) el.textContent = value;
+    return el;
+  }
+
+  /* Riga «voce» costruita qui con le stesse classi di _meeting_voce.html. */
+  function voceLi(voce, mostraPunto) {
+    const li = testo('li', 'mvoce mvoce--' + voce.kind + (voce.chiusa ? ' is-closed' : ''));
+    li.setAttribute('data-voce', voce.kind + '-' + voce.id);
+    li.appendChild(testo('span', 'mvoce-tipo', voce.label));
+    const main = testo('span', 'mvoce-main');
+    main.appendChild(testo('span', 'mvoce-titolo', voce.titolo));
+    const meta = testo('span', 'mvoce-meta');
+    if (voce.chi) meta.appendChild(testo('span', '', voce.chi));
+    if (voce.scadenza) meta.appendChild(testo('span', '', 'entro ' + voce.scadenza.slice(0, 5)));
+    if (mostraPunto && voce.punto_num) {
+      const p = testo('span', 'mvoce-punto', 'punto ' + voce.punto_num);
+      p.title = voce.punto_titolo || '';
+      meta.appendChild(p);
+    }
+    meta.appendChild(testo('span', 'mvoce-stato', voce.stato));
+    main.appendChild(meta);
+    li.appendChild(main);
+    if (voce.url && voce.kind !== 'decision') {
+      const btn = testo('button', 'mf-btn-sm primary', voce.kind === 'issue' ? 'Risolto' : 'Fatta');
+      btn.type = 'button';
+      btn.setAttribute('data-voce-toggle', '');
+      btn.setAttribute('data-url', voce.url);
+      btn.setAttribute('data-kind', voce.kind);
+      btn.setAttribute('data-chiusa', '0');
+      li.appendChild(btn);
+    }
+    return li;
+  }
+
+  function aggiornaConteggio(kind, delta) {
+    const el = document.getElementById('reg-count-' + kind);
+    if (el) el.textContent = String(Number(el.textContent || 0) + delta);
+    const tot = document.getElementById('reg-totale');
+    if (tot) {
+      const n = document.querySelectorAll('#run-registro .run-reg-group li').length;
+      tot.textContent = n + (n === 1 ? ' voce' : ' voci');
+    }
+  }
+
   function registraCattura() {
-    const titoloEl = document.getElementById('capture-titolo');
     const ownerEl = document.getElementById('capture-owner');
     const errEl = document.getElementById('capture-err');
     const titolo = titoloEl ? titoloEl.value.trim() : '';
     if (!titolo) { titoloEl?.focus(); return; }
+    const kind = getKind();
+    const punto = puntoEl ? puntoEl.value : '';
     post(CAPTURE_URL, {
-      kind: kindEl ? kindEl.value : 'task',
+      kind: kind,
       titolo: titolo,
+      item_id: punto,
       owner_id: ownerEl ? ownerEl.value : '',
       due_date: dueEl && !dueEl.hidden ? dueEl.value : '',
       impatto: impattoEl && !impattoEl.hidden ? impattoEl.value : '',
@@ -419,12 +517,28 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
         return;
       }
       if (errEl) errEl.hidden = true;
-      if (data.kind === 'task') aggiungiAiMenu(data.id, data.titolo);
-      const log = document.getElementById('capture-log');
-      if (log) {
-        const li = document.createElement('li');
-        li.textContent = data.label + ': ' + data.titolo;
-        log.appendChild(li);
+      const card = data.punto ? document.querySelector('.run-item[data-item-id="' + CSS.escape(data.punto) + '"]') : null;
+      if (data.kind === 'task') {
+        aggiungiAiMenu(data.id, data.titolo);
+        const group = document.getElementById('reg-task-group');
+        if (group) group.hidden = false;
+        document.getElementById('reg-task')?.appendChild(voceLi({ kind: 'task', id: data.id, label: 'Attività', titolo: data.titolo, stato: 'Nel piano', punto_num: card ? card.getAttribute('data-num') : null }, true));
+        aggiornaConteggio('task', 1);
+        if (card && data.task_collegata) {
+          const sel = card.querySelector('[data-role=task-select]');
+          if (sel) sel.value = String(data.id);
+          card.setAttribute('data-task-id', String(data.id));
+          const link = card.querySelector('[data-role=task-link]');
+          if (link) { link.href = TASK_DETAIL_URL_TEMPLATE.replace(/0(\/?)$/, String(data.id) + '$1'); link.hidden = false; }
+        }
+      } else if (data.voce) {
+        document.getElementById('reg-' + data.kind)?.appendChild(voceLi(data.voce, true));
+        aggiornaConteggio(data.kind, 1);
+        if (card) {
+          const ul = card.querySelector('[data-role=emersi]');
+          if (ul) { ul.appendChild(voceLi(data.voce, false)); ul.hidden = false; }
+          cronoAvvia(card.getAttribute('data-item-id'));
+        }
       }
       if (titoloEl) titoloEl.value = '';
       if (dueEl) dueEl.value = '';
@@ -438,7 +552,59 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
   }
 
   document.getElementById('capture-save')?.addEventListener('click', registraCattura);
-  document.getElementById('capture-titolo')?.addEventListener('keydown', function (ev) {
+  titoloEl?.addEventListener('keydown', function (ev) {
     if (ev.key === 'Enter') { ev.preventDefault(); registraCattura(); }
+  });
+
+  /* «+ Problema / + Azione / + Decisione» su un punto: il registro si prepara per quel punto. */
+  document.getElementById('run-items')?.addEventListener('click', function (ev) {
+    const btn = ev.target.closest('[data-capture]');
+    if (!btn) return;
+    const card = btn.closest('.run-item');
+    if (card) segnaCorrente(card);
+    setKind(btn.getAttribute('data-capture'));
+    const box = document.getElementById('run-capture');
+    if (box && window.matchMedia('(max-width: 1100px)').matches) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    titoloEl?.focus({ preventScroll: true });
+  });
+
+  /* Chiudere o riaprire un problema/un'azione senza lasciare la pagina. */
+  document.addEventListener('click', function (ev) {
+    const btn = ev.target.closest('[data-voce-toggle]');
+    if (!btn) return;
+    const kind = btn.getAttribute('data-kind');
+    const chiusa = btn.getAttribute('data-chiusa') === '1';
+    const azione = chiusa ? 'reopen' : (kind === 'issue' ? 'resolve' : 'done');
+    const li = btn.closest('[data-voce]');
+    const key = li ? li.getAttribute('data-voce') : '';
+    btn.disabled = true;
+    post(btn.getAttribute('data-url'), { action: azione }).then(function (data) {
+      if (!data || !data.ok) return;
+      document.querySelectorAll('[data-voce="' + key + '"]').forEach(function (row) {
+        row.classList.toggle('is-closed', !!data.chiusa);
+        const stato = row.querySelector('.mvoce-stato');
+        if (stato) stato.textContent = data.stato;
+        const b = row.querySelector('[data-voce-toggle]');
+        if (b) {
+          b.setAttribute('data-chiusa', data.chiusa ? '1' : '0');
+          b.textContent = data.chiusa ? 'Riapri' : (kind === 'issue' ? 'Risolto' : 'Fatta');
+          b.classList.toggle('primary', !data.chiusa);
+          b.classList.toggle('ghost', !!data.chiusa);
+        }
+        /* Il punto che riporta il problema o l'azione segue il loro stato. */
+        if (row.parentElement && row.parentElement.classList.contains('run-collegata')) {
+          const card = row.closest('.run-item');
+          if (card) {
+            card.classList.toggle('done', !!data.chiusa);
+            const st = card.querySelector('[data-role=state]');
+            if (st) st.textContent = data.chiusa ? 'Trattato' : 'Da trattare';
+            const tg = card.querySelector('[data-role=toggle-done]');
+            if (tg) tg.textContent = data.chiusa ? 'Segna da trattare' : 'Segna trattato';
+            if (data.chiusa) cronoPausa(card.getAttribute('data-item-id'));
+            refreshDoneCount();
+          }
+        }
+      });
+    }).catch(function () {}).finally(function () { btn.disabled = false; });
   });
 })();

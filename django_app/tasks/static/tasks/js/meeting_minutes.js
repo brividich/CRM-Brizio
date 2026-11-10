@@ -84,6 +84,13 @@ var KO_MEETING_MINUTES_CFG = (document.currentScript && document.currentScript.d
     return '<option value="">Task collegato</option>' + projectTasks.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join('');
   }
 
+  /* Punto dell'ordine del giorno da cui viene la voce: la lega al punto anche nella minuta. */
+  function puntoSelectHtml(name) {
+    const tpl = document.getElementById('ko-minutes-punti');
+    if (!tpl || tpl.content.querySelectorAll('option').length < 2) return '';
+    return `<select class="input mf-punto-select" name="${name}" aria-label="Punto dell'ordine del giorno" style="width:100%;box-sizing:border-box">${tpl.innerHTML}</select>`;
+  }
+
   function addIssueRow() {
     const list = document.getElementById('new-issues-list');
     if (!list) return;
@@ -91,8 +98,9 @@ var KO_MEETING_MINUTES_CFG = (document.currentScript && document.currentScript.d
     row.className = 'mf-new-issue-row';
     row.innerHTML = `
       <div>
-        <input class="input" type="text" name="new_issue_title" maxlength="220" placeholder="Problema aperto" style="width:100%;box-sizing:border-box">
+        <input class="input" type="text" name="new_issue_title" maxlength="220" list="cat-problema" placeholder="Problema trovato" style="width:100%;box-sizing:border-box">
         <textarea class="input" name="new_issue_description" rows="2" placeholder="Dettaglio / contesto" style="width:100%;box-sizing:border-box;margin-top:6px"></textarea>
+        ${puntoSelectHtml('new_issue_punto')}
       </div>
       <div>
         <select class="input" name="new_issue_assigned_to" style="width:100%;box-sizing:border-box">${userOptionsHtml()}</select>
@@ -121,6 +129,7 @@ var KO_MEETING_MINUTES_CFG = (document.currentScript && document.currentScript.d
       <div>
         <input class="input" type="text" name="new_action_title" maxlength="220" list="cat-azione" placeholder="Azione decisa" style="width:100%;box-sizing:border-box">
         <textarea class="input" name="new_action_description" rows="2" placeholder="Dettaglio / contesto" style="width:100%;box-sizing:border-box;margin-top:6px"></textarea>
+        ${puntoSelectHtml('new_action_punto')}
       </div>
       <div>
         <select class="input" name="new_action_assigned_to" style="width:100%;box-sizing:border-box">${userOptionsHtml()}</select>
@@ -151,6 +160,7 @@ var KO_MEETING_MINUTES_CFG = (document.currentScript && document.currentScript.d
       <div>
         <input class="input" type="text" name="new_decision_testo" maxlength="400" placeholder="Decisione presa" style="width:100%;box-sizing:border-box">
         <textarea class="input" name="new_decision_dettaglio" rows="2" placeholder="Motivazione / contesto" style="width:100%;box-sizing:border-box;margin-top:6px"></textarea>
+        ${puntoSelectHtml('new_decision_punto')}
       </div>
       <div>
         <select class="input" name="new_decision_decisa_da" style="width:100%;box-sizing:border-box">${userOptionsHtml().replace('Responsabile', 'Decisa da')}</select>

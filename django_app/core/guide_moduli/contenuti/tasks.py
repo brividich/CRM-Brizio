@@ -53,7 +53,7 @@ GUIDA = {
                 ("def", [
                     ("Nel Piano", "la riga sopra il Gantt: titolo, responsabile, Inizio, Fine, «Aggiungi»."),
                     ("Dettaglio ed esito dell'incontro", "«Attività di questo incontro»: scrivi il titolo e premi Invio; la pagina non si ricarica."),
-                    ("Conduci incontro", "«Cattura rapida», sempre visibile in fondo allo schermo, con tipo Attività; o «+ Nuova attività» sul punto per collegarla al punto. Le attività entrano nel Piano, azioni e problemi rientrano nell'ordine del giorno del prossimo incontro, le decisioni nel registro di commessa."),
+                    ("Conduci incontro", "«Registro dell'incontro», a destra, con tipo Attività (con un punto scelto senza attività, il punto la prende); o «+ Nuova attività» sul punto. Le attività entrano nel Piano, azioni e problemi rientrano nell'ordine del giorno del prossimo incontro, le decisioni nel registro di commessa."),
                 ]),
                 ("p", "L'inizio proposto è il giorno dopo l'ultima fine in piano. «Più opzioni» apre tipo, priorità e attrezzatura."),
             ],
@@ -67,8 +67,11 @@ GUIDA = {
                     "Clicca «Invia convocazione» (o spunta l'invio nel form prima di salvare): parte la mail con l'invito da aggiungere al calendario. "
                     "Il dettaglio dice quando è partita; se dopo cambi data, luogo, convocati o ordine del giorno compare «Convocazione da reinviare», con l'elenco di cosa è cambiato. "
                     "L'evento in calendario dura quanto la somma dei punti all'ordine del giorno (un'ora se nessun punto ha una durata).",
-                    "Durante la riunione puoi usare «Conduci incontro»: appello dei convocati, un punto alla volta, con il tempo e le note.",
-                    "Dopo la riunione registra l'esito: presenti, note per ogni punto, decisioni e azioni (chi fa cosa entro quando).",
+                    "Durante la riunione puoi usare «Conduci incontro»: presenti, un punto alla volta con il tempo e le note. Nel «Registro dell'incontro» "
+                    "scrivi problemi trovati, azioni, decisioni e attività legati al punto in discussione (o con «+ Problema», «+ Azione», «+ Decisione» sul punto); "
+                    "problemi e azioni riportati dagli incontri prima si chiudono lì con «Risolto» o «Fatta».",
+                    "Dopo la riunione registra l'esito: presenti, note per ogni punto, problemi trovati, decisioni e azioni (chi fa cosa entro quando), ognuno con il suo punto.",
+                    "La barra delle fasi (Convocazione, Conduzione, Esito, Minuta) in testa alle pagine dell'incontro dice cosa è fatto e porta alla fase successiva.",
                     "Clicca «Invia minuta» (o «Scarica minuta PDF»).",
                     "Quando è tutto giusto: «Approva e chiudi minuta». Riaprirla richiede un motivo.",
                     "«Pianifica prossimo incontro» crea il successivo con gli stessi convocati, persone in copia, luogo e ora.",

@@ -33,12 +33,46 @@ def _owner_label(user) -> str:
     return (user.get_full_name() or user.get_username()).strip()
 
 
+def _punti(project) -> dict:
+    """(incontro, id punto) -> (numero, titolo): il punto dell'ordine del giorno da cui nasce una voce."""
+    from .models import MeetingAgendaItem
+
+    out = {}
+    numeri = {}
+    for meeting_id, item_id, titolo in (
+        MeetingAgendaItem.objects.filter(meeting__project=project).order_by("meeting_id", "ordine", "id")
+        .values_list("meeting_id", "item_id", "titolo")
+    ):
+        numeri[meeting_id] = numeri.get(meeting_id, 0) + 1
+        out[(meeting_id, item_id)] = (numeri[meeting_id], titolo)
+    return out
+
+
+class _PuntiLazy:
+    """I punti si leggono solo se qualche voce ne ha uno: il registro resta a una query per fonte."""
+
+    def __init__(self, project):
+        self.project = project
+        self._dati = None
+
+    def get(self, key):
+        if self._dati is None:
+            self._dati = _punti(self.project)
+        return self._dati.get(key)
+
+
+def _con_punto(label: str, punti, meeting_id, punto: str) -> str:
+    info = punti.get((meeting_id, punto)) if punto else None
+    return f"{label} · punto {info[0]} «{info[1]}»" if info else label
+
+
 def _collect_issues(project, *, include_closed: bool) -> list[ActionRow]:
     queryset = project.meeting_issues.select_related("assigned_to", "source_meeting")
     if not include_closed:
         queryset = queryset.filter(status=MeetingIssueStatus.OPEN)
 
     today = timezone.localdate()
+    punti = _PuntiLazy(project)
     rows = []
     for issue in queryset:
         is_open = issue.status == MeetingIssueStatus.OPEN
@@ -46,7 +80,7 @@ def _collect_issues(project, *, include_closed: bool) -> list[ActionRow]:
             source_label = "Senza incontro"
             url = reverse("tasks:project_meetings", args=[project.pk])
         else:
-            source_label = f"Incontro {issue.source_meeting.numero}"
+            source_label = _con_punto(f"Incontro {issue.source_meeting.numero}", punti, issue.source_meeting_id, issue.punto)
             url = reverse(
                 "tasks:project_meeting_detail",
                 args=[project.pk, issue.source_meeting_id],
@@ -75,6 +109,7 @@ def _collect_meeting_actions(project, *, include_closed: bool) -> list[ActionRow
         queryset = queryset.filter(status=MeetingActionStatus.OPEN)
 
     today = timezone.localdate()
+    punti = _PuntiLazy(project)
     rows = []
     for action in queryset:
         is_open = action.status == MeetingActionStatus.OPEN
@@ -82,7 +117,7 @@ def _collect_meeting_actions(project, *, include_closed: bool) -> list[ActionRow
             source_label = "Azione senza incontro"
             url = reverse("tasks:project_meetings", args=[project.pk])
         else:
-            source_label = f"Azione dell'incontro {action.source_meeting.numero}"
+            source_label = _con_punto(f"Azione dell'incontro {action.source_meeting.numero}", punti, action.source_meeting_id, action.punto)
             url = reverse("tasks:project_meeting_detail", args=[project.pk, action.source_meeting_id])
         rows.append(
             ActionRow(
