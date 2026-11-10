@@ -23,6 +23,7 @@
 
 {% block tasks_shell_content %}
 {% load catalogo %}{% catalogo_datalist "AZIONE" %}{% catalogo_datalist "PROBLEMA" %}
+{% include "tasks/_meeting_fasi.html" %}
 <div class="mf-wrap">
 
   {% comment %}
@@ -32,7 +33,7 @@
   <nav class="mf-jump" aria-label="Sezioni dell'esito">
     <a href="#sec-presenze">Presenze</a>
     <a href="#sec-agenda">Ordine del giorno e verbale</a>
-    <a href="#sec-problemi">Problemi{% if meeting_issues %} <b>{{ meeting_issues|length }}</b>{% endif %}</a>
+    <a href="#sec-problemi">Problemi trovati{% if meeting_issues %} <b>{{ meeting_issues|length }}</b>{% endif %}</a>
     <a href="#sec-decisioni">Decisioni{% if meeting_decisions %} <b>{{ meeting_decisions|length }}</b>{% endif %}</a>
     <a href="#sec-azioni">Azioni{% if meeting_actions %} <b>{{ meeting_actions|length }}</b>{% endif %}</a>
   </nav>
@@ -83,7 +84,7 @@
       <div class="mf-section-body">
         <p class="mf-hint" style="margin-top:0;margin-bottom:10px">Per ogni punto spunta se è stato trattato e scrivi cosa è emerso: la nota sta sotto il punto e compare una sola volta nella minuta. Spunte e note si salvano subito. I punti che restano da trattare vengono riproposti nell'ordine del giorno del prossimo incontro.</p>
         <div class="agenda-list" id="agenda-live-list">
-          {% for item in meeting.agenda_items %}
+          {% for item in punti %}
             <div class="agenda-item{% if item.source == 'live' %} is-live{% endif %}" data-agenda-item="{{ item.id }}">
               <div class="agenda-num">{{ forloop.counter }}</div>
               <div class="agenda-body">
@@ -92,9 +93,11 @@
                   {% if item.responsabile_label %}<span class="agenda-task-badge">{{ item.responsabile_label }}</span>{% endif %}
                   {% if item.durata_minuti %}<span class="agenda-task-badge">{{ item.durata_minuti }} min</span>{% endif %}
                 </div>
+                {% if item.collegata %}<ul class="mvoci md-agenda-collegata">{% include "tasks/_meeting_voce.html" with voce=item.collegata mostra_punto=False %}</ul>{% endif %}
                 <textarea class="input agenda-nota-input" rows="2" maxlength="1000"
                           data-agenda-nota="{{ item.id }}"
                           placeholder="Note e decisioni su questo punto">{{ item.nota }}</textarea>
+                {% if item.emersi %}<ul class="mvoci md-agenda-emersi">{% for voce in item.emersi %}{% include "tasks/_meeting_voce.html" with mostra_punto=False %}{% endfor %}</ul>{% endif %}
               </div>
               <button type="button" class="mf-btn-sm {% if item.done %}primary{% else %}ghost{% endif %}"
                       data-agenda-toggle="{{ item.id }}">
@@ -121,7 +124,7 @@
     <div class="mf-section" id="sec-problemi">
       <div class="mf-section-head">
         <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
-        <span>Problemi</span>
+        <span>Problemi trovati</span>
       </div>
       <div class="mf-section-body">
         {% if meeting_issues %}
@@ -138,7 +141,8 @@
                       <label class="mf-issue-title" for="issue-resolved-{{ issue.id }}">{{ issue.title }}</label>
                       <div class="mf-issue-meta">
                         <span class="mf-issue-chip">{% if issue.is_resolved %}Risolto{% else %}Aperto{% endif %}</span>
-                        {% if issue.source_meeting %}<span class="mf-issue-chip">Da incontro {{ issue.source_meeting.numero }}</span>{% endif %}
+                        {% if issue.punto_info %}<a class="md-punto-chip" href="#sec-agenda" title="{{ issue.punto_info.titolo }}">punto {{ issue.punto_info.num }}</a>{% endif %}
+                        {% if issue.source_meeting and issue.source_meeting_id != meeting.pk %}<span class="mf-issue-chip">Da incontro {{ issue.source_meeting.numero }}</span>{% endif %}
                         {% if issue.assigned_to %}<span class="mf-issue-chip">{{ issue.assigned_to.get_full_name|default:issue.assigned_to.username }}</span>{% endif %}
                         {% if issue.due_date %}<span class="mf-issue-chip">Scad. {{ issue.due_date|date:"d-m-Y" }}</span>{% endif %}
                         {% if issue.linked_task %}<span class="mf-issue-chip">Task: {{ issue.linked_task.title }}</span>{% endif %}
@@ -199,6 +203,7 @@
                   <span class="mf-issue-chip">{{ decision.get_impatto_display }}</span>
                   {{ decision.testo }}
                   {% if decision.decisa_da %}<span class="mf-decision-who">— {{ decision.decisa_da.get_full_name|default:decision.decisa_da.username }}</span>{% endif %}
+                  {% if decision.punto_info %}<span class="md-punto-chip" title="{{ decision.punto_info.titolo }}">punto {{ decision.punto_info.num }}</span>{% endif %}
                 </li>
               {% endfor %}
             </ul>
@@ -238,7 +243,8 @@
                       <label class="mf-issue-title" for="action-done-{{ action.id }}">{{ action.title }}</label>
                       <div class="mf-issue-meta">
                         <span class="mf-issue-chip">{{ action.get_status_display }}</span>
-                        {% if action.source_meeting %}<span class="mf-issue-chip">Da incontro {{ action.source_meeting.numero }}</span>{% endif %}
+                        {% if action.punto_info %}<a class="md-punto-chip" href="#sec-agenda" title="{{ action.punto_info.titolo }}">punto {{ action.punto_info.num }}</a>{% endif %}
+                        {% if action.source_meeting and action.source_meeting_id != meeting.pk %}<span class="mf-issue-chip">Da incontro {{ action.source_meeting.numero }}</span>{% endif %}
                         {% if action.assigned_to %}<span class="mf-issue-chip">{{ action.assigned_to.get_full_name|default:action.assigned_to.username }}</span>{% endif %}
                         {% if action.due_date %}<span class="mf-issue-chip">Scad. {{ action.due_date|date:"d-m-Y" }}</span>{% endif %}
                         {% if action.linked_task %}<span class="mf-issue-chip">Task: {{ action.linked_task.title }}</span>{% endif %}
@@ -362,6 +368,7 @@
 <script src="{% static 'tasks/js/meeting_agenda_add.js' %}" defer></script>
 
 <template id="ko-minutes-responsabili">{% for u in active_users %}<option value="{{ u.id }}">{{ u.get_full_name|default:u.username }}</option>{% endfor %}</template>
+<template id="ko-minutes-punti"><option value="">Nessun punto in particolare</option>{% for p in punti_scelta %}<option value="{{ p.id }}">Punto {{ p.num }}. {{ p.titolo|truncatechars:50 }}</option>{% endfor %}</template>
 <template id="ko-minutes-impatti">{% for value, label in decision_impacts %}<option value="{{ value }}"{% if value == "MEDIO" %} selected{% endif %}>Impatto {{ label }}</option>{% endfor %}</template>
-<script src="{% static 'tasks/js/meeting_minutes.js' %}?v=20261110c" data-toggle-base="{% url 'tasks:project_meeting_agenda_toggle' project.id meeting.id 'ITEM' %}" data-update-url="{% url 'tasks:project_meeting_agenda_item_update' project.id meeting.id %}"></script>
+<script src="{% static 'tasks/js/meeting_minutes.js' %}?v=20261110filo" data-toggle-base="{% url 'tasks:project_meeting_agenda_toggle' project.id meeting.id 'ITEM' %}" data-update-url="{% url 'tasks:project_meeting_agenda_item_update' project.id meeting.id %}"></script>
 {% endblock %}

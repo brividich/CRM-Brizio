@@ -4919,3 +4919,95 @@ html.ar-aperto{overflow:hidden}
 /* Conduzione: cronometro del punto */
 .run-crono{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:700;background:var(--bg);border:1px solid var(--border);color:var(--text-mid);cursor:pointer;font-variant-numeric:tabular-nums}
 .run-crono.is-live{background:#dcfce7;border-color:#86efac;color:#166534}
+
+/* ── Filo dell'incontro (10/11/2026): fasi, registro, voci legate al punto ── */
+.mfasi { display: flex; flex-wrap: wrap; gap: 0; margin: 0 0 14px; border: 1px solid var(--hub-color-border); border-radius: var(--hub-radius-lg, 12px); background: var(--hub-color-surface); overflow: hidden; }
+.mfasi-step { position: relative; flex: 1 1 160px; display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: var(--hub-color-text-muted); text-decoration: none; border-right: 1px solid var(--hub-color-border); }
+.mfasi-step:last-child { border-right: 0; }
+a.mfasi-step:hover { background: var(--hub-color-surface-raised); color: var(--hub-color-text); }
+.mfasi-dot { flex: 0 0 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid var(--hub-color-border); font-size: .78rem; font-weight: 700; background: var(--hub-color-surface); }
+.mfasi-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.mfasi-text strong { font-size: .85rem; color: var(--hub-color-text); }
+.mfasi-text small { font-size: .72rem; }
+.mfasi-step.is-done .mfasi-dot { border-color: var(--hub-status-success); background: var(--hub-status-success-bg); color: var(--hub-status-success); }
+.mfasi-step.is-active { background: var(--hub-status-info-bg); }
+.mfasi-step.is-active .mfasi-dot { border-color: var(--hub-status-info); color: var(--hub-status-info); }
+.mfasi-step.is-active::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--hub-status-info); }
+
+.mvoci { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.mvoci[hidden] { display: none; }
+.mvoce { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--hub-color-border); border-left: 3px solid var(--mvoce-accent, var(--hub-status-neutral)); border-radius: 8px; background: var(--hub-color-surface); }
+.mvoce--issue { --mvoce-accent: var(--hub-status-warning); }
+.mvoce--action { --mvoce-accent: var(--hub-status-info); }
+.mvoce--decision { --mvoce-accent: var(--hub-status-success); }
+.mvoce--task { --mvoce-accent: var(--primary-mid); }
+.mvoce.is-closed { opacity: .6; }
+.mvoce.is-closed .mvoce-titolo { text-decoration: line-through; }
+.mvoce-tipo { flex: 0 0 auto; font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--mvoce-accent, var(--hub-color-text-muted)); min-width: 64px; }
+.mvoce-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mvoce-titolo { font-size: .86rem; font-weight: 600; color: var(--hub-color-text); overflow-wrap: anywhere; }
+.mvoce-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .72rem; color: var(--hub-color-text-muted); }
+.mvoce-meta .is-late { color: var(--hub-status-danger); font-weight: 600; }
+.mvoce-punto { padding: 0 6px; border-radius: 99px; background: var(--hub-status-neutral-bg); }
+.mvoce form { margin: 0; }
+.mvoce .mf-btn-sm { flex: 0 0 auto; }
+
+.run-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); gap: 16px; align-items: start; }
+.run-main { display: grid; gap: 16px; min-width: 0; }
+.run-side { position: sticky; top: calc(var(--nav-h, 60px) + 70px); max-height: calc(100vh - var(--nav-h, 60px) - 90px); overflow: auto; border-radius: 12px; }
+.run-timebar { top: calc(var(--nav-h, 60px) + 4px); }
+.run-appello-box { padding: 10px 16px; border: 1px solid var(--hub-color-border); border-radius: 12px; background: var(--hub-color-surface); font-size: .8125rem; color: var(--text-light); }
+.run-appello-box summary { cursor: pointer; list-style: none; font-weight: 600; color: var(--hub-color-text); }
+.run-appello-box summary::after { content: ' ▾'; color: var(--hub-color-text-muted); }
+.run-appello-box summary::-webkit-details-marker { display: none; }
+.run-appello-box[open] summary { margin-bottom: 8px; }
+.run-item.is-current { box-shadow: 0 0 0 2px var(--hub-status-info-bg), 0 0 0 3px var(--hub-status-info); }
+.run-item--issue { border-left-color: var(--hub-status-warning); }
+.run-item--action { border-left-color: var(--hub-status-info); }
+.run-item.done { border-left-color: var(--success); }
+.run-collegata { margin: 0 0 10px; }
+/* Nel punto che riporta un problema o un'azione il titolo c'è già: resta la riga di stato. */
+.run-collegata .mvoce-tipo, .run-collegata .mvoce-titolo, .md-agenda-collegata .mvoce-tipo, .md-agenda-collegata .mvoce-titolo { display: none; }
+.run-collegata .mvoce-meta, .md-agenda-collegata .mvoce-meta { font-size: .8rem; }
+.run-item-emersi { margin-top: 8px; }
+.run-item-add { margin-left: auto; display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.run-add-btn { padding: 4px 10px; border-radius: 99px; border: 1px dashed var(--hub-color-border); background: transparent; color: var(--hub-color-text-muted); font-size: .75rem; font-weight: 600; cursor: pointer; }
+.run-add-btn:hover { color: var(--hub-color-text); border-style: solid; }
+.run-add-btn--issue:hover { border-color: var(--hub-status-warning); background: var(--hub-status-warning-bg); }
+.run-add-btn--action:hover { border-color: var(--hub-status-info); background: var(--hub-status-info-bg); }
+.run-add-btn--decision:hover { border-color: var(--hub-status-success); background: var(--hub-status-success-bg); }
+.run-registro .ts-panel-head { position: sticky; top: 0; z-index: 1; background: var(--hub-color-surface-raised, var(--surface)); }
+.run-registro .run-capture-form { display: grid; gap: 8px; }
+.run-registro .run-capture-form .input { width: 100%; min-width: 0; box-sizing: border-box; }
+.run-capture-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+.run-capture-row .input[hidden] { display: none; }
+.run-kind { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--hub-color-border); border-radius: 8px; overflow: hidden; }
+.run-kind label { margin: 0; cursor: pointer; }
+.run-kind input { position: absolute; opacity: 0; pointer-events: none; }
+.run-kind span { display: block; padding: 6px 4px; text-align: center; font-size: .78rem; font-weight: 600; color: var(--hub-color-text-muted); border-right: 1px solid var(--hub-color-border); }
+.run-kind label:last-child span { border-right: 0; }
+.run-kind input:checked + span { background: var(--primary-mid); color: #fff; }
+.run-kind input:focus-visible + span { outline: 2px solid var(--hub-status-info); outline-offset: -2px; }
+.run-reg-group { margin-top: 16px; }
+.run-reg-group h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--hub-color-text-muted); }
+.run-reg-group h3 b { padding: 0 7px; border-radius: 99px; background: var(--hub-status-neutral-bg); color: var(--hub-color-text); font-size: .72rem; }
+.run-reg-group[hidden] { display: none; }
+.run-reg-foot { margin: 16px 0 0; }
+@media (max-width: 1100px) {
+  .run-layout { grid-template-columns: minmax(0, 1fr); }
+  .run-side { position: static; max-height: none; overflow: visible; order: -1; }
+  .run-capture-row { grid-template-columns: 1fr 1fr; }
+  .run-capture-row .md-btn { grid-column: 1 / -1; }
+}
+
+/* Dettaglio ed esito: quello che e' emerso sotto il punto, chip «punto N» sulle voci. */
+.md-agenda-emersi { margin-top: 8px; }
+.md-agenda-collegata { margin-top: 6px; }
+.md-punto-chip { display: inline-flex; padding: 1px 8px; border-radius: 99px; background: var(--hub-status-neutral-bg); color: var(--hub-color-text-muted); font-size: .7rem; font-weight: 600; text-decoration: none; }
+a.md-punto-chip:hover { color: var(--hub-color-text); }
+.md-strumenti { margin: 0 0 14px; border: 1px solid var(--hub-color-border); border-radius: 12px; background: var(--hub-color-surface); }
+.md-strumenti > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; color: var(--hub-color-text); display: flex; align-items: center; gap: 10px; }
+.md-strumenti > summary small { font-weight: 400; color: var(--hub-color-text-muted); }
+.md-strumenti[open] > summary { border-bottom: 1px solid var(--hub-color-border); }
+.md-strumenti-body { padding: 12px; display: grid; gap: 12px; }
+.mf-punto-select { margin-top: 6px; }

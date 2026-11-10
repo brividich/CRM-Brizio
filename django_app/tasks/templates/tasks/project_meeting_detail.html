@@ -3,6 +3,7 @@
 {% block tasks_shell_guide_anchor %}#incontro{% endblock %}
 
 {% block tasks_shell_content %}
+{% include "tasks/_meeting_fasi.html" %}
 <div style="padding: 0 4px;">
   <div class="md-nav">
     <a href="{% url 'tasks:project_meetings' project.id %}">&larr; Tutti gli incontri</a>
@@ -71,12 +72,21 @@
     {% endif %}
   </div>
 
+  {% comment %}
+  Percorso, attività e programmi sono della commessa, non dell'incontro: qui restano a
+  portata di mano ma raccolti, così la scheda parla prima dell'incontro.
+  {% endcomment %}
   {% if can_manage and not meeting.is_annullato %}
-    {% include "tasks/_tappe.html" %}
-    {% include "tasks/_quick_task_bar.html" %}
-    <details class="tp-altri">
-      <summary>Codici, cartelle e schede FAI</summary>
-      {% include "tasks/_tech_refs.html" %}
+    <details class="md-strumenti" id="strumenti-commessa"{% if request.GET.strumenti %} open{% endif %}>
+      <summary>Percorso, attività e programmi della commessa{% if tappe.totale %} <small>tappe a posto {{ tappe.a_posto }} su {{ tappe.totale }}</small>{% endif %}</summary>
+      <div class="md-strumenti-body">
+        {% include "tasks/_tappe.html" %}
+        {% include "tasks/_quick_task_bar.html" %}
+        <details class="tp-altri">
+          <summary>Codici, cartelle e schede FAI</summary>
+          {% include "tasks/_tech_refs.html" %}
+        </details>
+      </div>
     </details>
   {% endif %}
 
@@ -119,7 +129,7 @@
     {% endif %}
   {% endif %}
 
-  <div class="md-docbar">
+  <div class="md-docbar" id="documenti">
     <span class="md-docbar-label">Documenti</span>
     {% if can_manage %}
       {% if meeting.stato == "PIANIFICATO" %}
@@ -268,7 +278,7 @@
           </span>
         </div>
         <div class="md-card-body">
-          {% for item in meeting.agenda_items %}
+          {% for item in punti %}
             <div class="md-agenda-item{% if item.done %} done-item{% endif %}" id="agenda-item-{{ item.id }}" data-item-id="{{ item.id }}" data-done="{{ item.done|yesno:'true,false' }}">
               <div class="md-agenda-num">{{ forloop.counter }}</div>
               <div class="md-agenda-body">
@@ -278,8 +288,14 @@
                   {% if item.responsabile_label %}<span class="md-agenda-task">{{ item.responsabile_label }}</span>{% endif %}
                   {% if item.durata_minuti %}<span class="md-agenda-task">{{ item.durata_minuti }} min</span>{% endif %}
                 </div>
+                {% if item.collegata %}
+                  <ul class="mvoci md-agenda-collegata">{% include "tasks/_meeting_voce.html" with voce=item.collegata mostra_punto=False %}</ul>
+                {% endif %}
                 {% if item.nota %}<div class="md-agenda-nota">{{ item.nota }}</div>{% endif %}
-                {% if item.custom_fields %}
+                {% if item.emersi %}
+                  <ul class="mvoci md-agenda-emersi">{% for voce in item.emersi %}{% include "tasks/_meeting_voce.html" with mostra_punto=False %}{% endfor %}</ul>
+                {% endif %}
+                {% if item.custom_fields and not item.collegata %}
                   <dl class="md-agenda-extra-fields">
                     {% for field in item.custom_fields %}
                       {% if field.label and field.value %}
@@ -332,7 +348,7 @@
       <div class="md-card md-problems full">
         <div class="md-card-head">
           <svg fill="none" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
-          <span>Problemi tracciati</span>
+          <span>Problemi trovati</span>
         </div>
         <div class="md-card-body">
           <div class="md-issue-list">
@@ -343,7 +359,8 @@
                     <div class="md-issue-title">{{ issue.title }}</div>
                     <div class="md-issue-meta">
                       <span class="md-issue-chip">{% if issue.is_resolved %}Risolto{% else %}Aperto{% endif %}</span>
-                      {% if issue.source_meeting %}<span class="md-issue-chip">Da incontro {{ issue.source_meeting.numero }}</span>{% endif %}
+                      {% if issue.punto_info %}<a class="md-punto-chip" href="#agenda-item-{{ issue.punto }}" title="{{ issue.punto_info.titolo }}">punto {{ issue.punto_info.num }}</a>{% endif %}
+                      {% if issue.source_meeting and issue.source_meeting_id != meeting.pk %}<span class="md-issue-chip">Da incontro {{ issue.source_meeting.numero }}</span>{% endif %}
                       {% if issue.resolution_meeting %}<span class="md-issue-chip">Chiuso in incontro {{ issue.resolution_meeting.numero }}</span>{% endif %}
                       {% if issue.assigned_to %}<span class="md-issue-chip">{{ issue.assigned_to.get_full_name|default:issue.assigned_to.username }}</span>{% endif %}
                       {% if issue.due_date %}<span class="md-issue-chip">Scad. {{ issue.due_date|date:"d-m-Y" }}</span>{% endif %}
@@ -464,6 +481,7 @@
                 <span class="mf-issue-chip">{{ decision.get_impatto_display }}</span>
                 {{ decision.testo }}
                 {% if decision.decisa_da %}<span class="mf-decision-who">— {{ decision.decisa_da.get_full_name|default:decision.decisa_da.username }}</span>{% endif %}
+                {% if decision.punto_info %}<a class="md-punto-chip" href="#agenda-item-{{ decision.punto }}" title="{{ decision.punto_info.titolo }}">punto {{ decision.punto_info.num }}</a>{% endif %}
                 {% if decision.dettaglio %}<div class="mf-issue-desc">{{ decision.dettaglio }}</div>{% endif %}
               </li>
             {% endfor %}
@@ -488,7 +506,8 @@
                   <span class="mf-issue-chip">{{ action.get_status_display }}</span>
                   {% if action.assigned_to %}<span class="mf-issue-chip">{{ action.assigned_to.get_full_name|default:action.assigned_to.username }}</span>{% endif %}
                   {% if action.due_date %}<span class="mf-issue-chip{% if action.is_overdue %} overdue{% endif %}">Scad. {{ action.due_date|date:"d-m-Y" }}</span>{% endif %}
-                  {% if action.source_meeting %}<span class="mf-issue-chip">Da incontro {{ action.source_meeting.numero }}</span>{% endif %}
+                  {% if action.punto_info %}<a class="md-punto-chip" href="#agenda-item-{{ action.punto }}" title="{{ action.punto_info.titolo }}">punto {{ action.punto_info.num }}</a>{% endif %}
+                  {% if action.source_meeting and action.source_meeting_id != meeting.pk %}<span class="mf-issue-chip">Da incontro {{ action.source_meeting.numero }}</span>{% endif %}
                 </div>
                 {% if action.description %}<div class="mf-issue-desc">{{ action.description }}</div>{% endif %}
                 {% if action.linked_task %}<div class="mf-issue-desc">Attività collegata: <a href="{% url 'tasks:detail' action.linked_task.id %}">{{ action.linked_task.title }}</a> — si chiude da sola quando l'attività è completata.</div>{% endif %}

@@ -1180,7 +1180,7 @@ class MeetingQuickTaskTests(TasksBaseTestCase):
 
     def test_run_page_has_task_capture_and_start_field(self):
         response = self.client.get(reverse("tasks:project_meeting_run", args=self.args))
-        self.assertContains(response, '<option value="task">Attività</option>')
+        self.assertContains(response, 'name="capture-kind" value="task"')
         self.assertContains(response, 'data-role="task-new-start"')
         self.assertNotContains(response, 'data-role="task-new-priority"')
 

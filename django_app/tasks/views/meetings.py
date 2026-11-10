@@ -69,8 +69,10 @@ from ..services.agenda import (
     _parse_optional_date,
     _previous_meeting_agenda,
     _project_tasks_for_picker,
+    _set_meeting_agenda_action_done,
     _set_meeting_agenda_issue_done,
 )
+from ..services import filo_incontro
 from ..services.meeting_tasks import (
     KickoffBloccatoVRF,
     crea_attivita_da_incontro,
@@ -408,6 +410,8 @@ def _sync_meeting_issues_from_post(request, project: Project, meeting: KickoffMe
     assigned_to_ids = request.POST.getlist("new_issue_assigned_to")
     due_dates = request.POST.getlist("new_issue_due_date")
     linked_task_ids = request.POST.getlist("new_issue_task")
+    punti_post = request.POST.getlist("new_issue_punto")
+    punti_validi = _punti_validi(meeting)
 
     for idx, raw_title in enumerate(titles):
         title = (raw_title or "").strip()
@@ -436,9 +440,19 @@ def _sync_meeting_issues_from_post(request, project: Project, meeting: KickoffMe
             assigned_to=assigned_to,
             due_date=_parse_optional_date(due_dates[idx] if idx < len(due_dates) else ""),
             linked_task=linked_task,
+            punto=_punto_da_lista(punti_post, idx, punti_validi),
             created_by=request.user if request.user.is_authenticated else None,
         )
         notify_meeting_item_assignment(issue, actor=request.user)
+
+
+def _punti_validi(meeting: KickoffMeeting) -> set[str]:
+    return set(MeetingAgendaItem.objects.filter(meeting=meeting).values_list("item_id", flat=True))
+
+
+def _punto_da_lista(valori: list, idx: int, validi: set[str]) -> str:
+    valore = (valori[idx] if idx < len(valori) else "").strip()
+    return valore if valore in validi else ""
 
 
 def _sync_meeting_actions_from_post(request, project: Project, meeting: KickoffMeeting) -> None:
@@ -469,6 +483,8 @@ def _sync_meeting_actions_from_post(request, project: Project, meeting: KickoffM
     assigned_to_ids = request.POST.getlist("new_action_assigned_to")
     due_dates = request.POST.getlist("new_action_due_date")
     linked_task_ids = request.POST.getlist("new_action_task")
+    punti_post = request.POST.getlist("new_action_punto")
+    punti_validi = _punti_validi(meeting)
 
     for idx, raw_title in enumerate(titles):
         title = (raw_title or "").strip()
@@ -502,6 +518,7 @@ def _sync_meeting_actions_from_post(request, project: Project, meeting: KickoffM
             assigned_to=assigned_to,
             due_date=_parse_optional_date(due_dates[idx] if idx < len(due_dates) else ""),
             linked_task=linked_task,
+            punto=_punto_da_lista(punti_post, idx, punti_validi),
             created_by=request.user if request.user.is_authenticated else None,
         )
         notify_meeting_item_assignment(action, actor=request.user)
@@ -514,6 +531,8 @@ def _sync_meeting_decisions_from_post(request, project: Project, meeting: Kickof
     autori = request.POST.getlist("new_decision_decisa_da")
     impatti = request.POST.getlist("new_decision_impatto")
     valid_impacts = {value for value, _ in MeetingDecisionImpact.choices}
+    punti_post = request.POST.getlist("new_decision_punto")
+    punti_validi = _punti_validi(meeting) if punti_post else set()
 
     for idx, raw_testo in enumerate(testi):
         testo = (raw_testo or "").strip()
@@ -534,6 +553,7 @@ def _sync_meeting_decisions_from_post(request, project: Project, meeting: Kickof
             dettaglio=(dettagli[idx] if idx < len(dettagli) else "").strip(),
             decisa_da=decisa_da,
             impatto=impatto if impatto in valid_impacts else MeetingDecisionImpact.MEDIO,
+            punto=_punto_da_lista(punti_post, idx, punti_validi),
             created_by=request.user if request.user.is_authenticated else None,
         )
 
@@ -674,7 +694,7 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
     )
     can_manage = can_manage_project(request, project)
     # Righe next_steps non vuote (per CTA "Crea task da questo step")
-    next_steps_lines = [l.strip() for l in (meeting.next_steps or "").splitlines() if l.strip()]
+    next_steps_lines = [riga.strip() for riga in (meeting.next_steps or "").splitlines() if riga.strip()]
     agenda_issue_ids = _meeting_issue_ids_from_agenda(meeting)
     meeting_issues = list(
         project.meeting_issues
@@ -688,6 +708,11 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
         .order_by("status", "due_date", "created_at", "id")
     )
     open_issue_count = sum(1 for issue in meeting_issues if not issue.is_resolved)
+    meeting_actions = list(_meeting_actions_for_form(project, meeting))
+    meeting_decisions = list(meeting.decisions.select_related("decisa_da"))
+    items = meeting.agenda_items
+    emersi = filo_incontro.emersi(meeting, items)
+    _segna_punti(items, meeting_issues, meeting_actions, meeting_decisions)
     return render(
         request,
         "tasks/project_meeting_detail.html",
@@ -701,8 +726,11 @@ def project_meeting_detail(request, project_id: int, meeting_id: int):
             "can_delete": can_manage and meeting_is_deletable(meeting),
             "meeting_issues": meeting_issues,
             "open_issue_count": open_issue_count,
-            "meeting_actions": list(_meeting_actions_for_form(project, meeting)),
-            "meeting_decisions": list(meeting.decisions.select_related("decisa_da")),
+            "meeting_actions": meeting_actions,
+            "meeting_decisions": meeting_decisions,
+            "punti": filo_incontro.punti_con_filo(meeting, items, emersi_data=emersi),
+            "emersi": emersi,
+            "fasi": filo_incontro.fasi_incontro(meeting, attiva="convocazione" if meeting.stato == MeetingStatus.PIANIFICATO else "minuta", can_manage=can_manage),
             "meeting_proposals": list(meeting.agenda_proposals.select_related("proposed_by")),
             "is_convocato": meeting.partecipanti_utenti.filter(pk=request.user.pk).exists(),
             "next_steps_lines": next_steps_lines,
@@ -775,6 +803,7 @@ def project_meeting_edit(request, project_id: int, meeting_id: int):
             "meeting": meeting,
             "form": form,
             "is_edit": True,
+            "fasi": filo_incontro.fasi_incontro(meeting, attiva="convocazione", can_manage=True),
             # `json_script` serializa da solo: passargli una stringa gia' in JSON
             # la incapsula una seconda volta e in pagina si ottiene una stringa,
             # non una lista (rompeva i menu «Task collegato» delle righe nuove).
@@ -842,6 +871,12 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
         # stanno gia' nell'ordine del giorno, quindi qui non si riproducono.
         form.initial["note"] = note_generali(meeting)
 
+    meeting_issues = list(_meeting_issues_for_form(project, meeting))
+    meeting_actions = list(_meeting_actions_for_form(project, meeting))
+    meeting_decisions = list(meeting.decisions.select_related("decisa_da"))
+    items = meeting.agenda_items
+    _segna_punti(items, meeting_issues, meeting_actions, meeting_decisions)
+    emersi = filo_incontro.emersi(meeting, items)
     return render(
         request,
         "tasks/project_meeting_minutes.html",
@@ -851,9 +886,15 @@ def project_meeting_minutes(request, project_id: int, meeting_id: int):
             "project": project,
             "meeting": meeting,
             "form": form,
-            "meeting_issues": list(_meeting_issues_for_form(project, meeting)),
-            "meeting_actions": list(_meeting_actions_for_form(project, meeting)),
-            "meeting_decisions": list(meeting.decisions.select_related("decisa_da")),
+            "fasi": filo_incontro.fasi_incontro(meeting, attiva="esito", can_manage=True),
+            "punti": filo_incontro.punti_con_filo(meeting, items, emersi_data=emersi),
+            "punti_scelta": [
+                {"id": key, "num": info["num"], "titolo": info["titolo"]}
+                for key, info in filo_incontro.punti_index(items).items()
+            ],
+            "meeting_issues": meeting_issues,
+            "meeting_actions": meeting_actions,
+            "meeting_decisions": meeting_decisions,
             "decision_impacts": MeetingDecisionImpact.choices,
             "active_users": task_active_users_queryset(),
             **_meeting_task_modal_context(project, project_id=project_id, meeting_id=meeting_id),
@@ -1141,13 +1182,18 @@ def project_meeting_issue_status(request, project_id: int, meeting_id: int, issu
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
     issue = get_object_or_404(MeetingIssue, pk=issue_id, project=project)
+    ajax = _is_ajax(request)
     # Il responsabile chiude da se' il proprio problema: prima doveva chiederlo
     # a chi gestisce la commessa.
     if not (can_manage_project(request, project) or issue.assigned_to_id == request.user.pk):
+        if ajax:
+            return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
         messages.error(request, "Non hai i permessi per aggiornare i problemi di questo kickoff.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
 
     action = (request.POST.get("action") or "").strip()
+    if ajax and action not in ("resolve", "reopen"):
+        return JsonResponse({"ok": False, "reason": "invalid_action"}, status=400)
     if action == "resolve":
         issue.mark_resolved(
             meeting=meeting,
@@ -1180,7 +1226,11 @@ def project_meeting_issue_status(request, project_id: int, meeting_id: int, issu
         messages.info(request, "Problema riaperto e riportato nei prossimi incontri.")
     else:
         messages.error(request, "Azione non valida.")
-    return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    if ajax:
+        # In conduzione la pagina resta aperta: niente messaggio flash, che comparirebbe dopo.
+        list(messages.get_messages(request))
+        return JsonResponse({"ok": True, "chiusa": issue.is_resolved, "stato": issue.get_status_display()})
+    return _back_or_detail(request, project_id, meeting_id, f"issue-{issue.pk}")
 
 
 @require_POST
@@ -1303,14 +1353,20 @@ def project_meeting_action_status(request, project_id: int, meeting_id: int, act
     project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
     meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
     action = get_object_or_404(MeetingActionItem, pk=action_id, project=project)
+    ajax = _is_ajax(request)
     if not (can_manage_project(request, project) or action.assigned_to_id == request.user.pk):
+        if ajax:
+            return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
         messages.error(request, "Non hai i permessi per aggiornare le azioni di questo kickoff.")
         return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
 
     verb = (request.POST.get("action") or "").strip()
+    if ajax and verb not in ("done", "reopen"):
+        return JsonResponse({"ok": False, "reason": "invalid_action"}, status=400)
     if verb == "done":
         action.mark_done(user=request.user)
         action.save(update_fields=["status", "done_by", "done_at", "updated_at"])
+        _set_meeting_agenda_action_done(meeting, action.pk, True)
         log_action(request, "kickoff_meeting_action_done", "tasks", {
             "action_id": action.pk, "meeting_id": meeting.pk, "project_id": project.pk,
         })
@@ -1318,13 +1374,38 @@ def project_meeting_action_status(request, project_id: int, meeting_id: int, act
     elif verb == "reopen":
         action.reopen()
         action.save(update_fields=["status", "done_by", "done_at", "updated_at"])
+        _set_meeting_agenda_action_done(meeting, action.pk, False)
         log_action(request, "kickoff_meeting_action_reopen", "tasks", {
             "action_id": action.pk, "meeting_id": meeting.pk, "project_id": project.pk,
         })
         messages.info(request, "Azione riaperta e riportata nei prossimi incontri.")
     else:
         messages.error(request, "Azione non valida.")
-    return redirect("tasks:project_meeting_detail", project_id=project_id, meeting_id=meeting_id)
+    if ajax:
+        list(messages.get_messages(request))
+        return JsonResponse({"ok": True, "chiusa": action.is_done, "stato": action.get_status_display()})
+    return _back_or_detail(request, project_id, meeting_id, f"action-{action.pk}")
+
+
+def _segna_punti(items, *gruppi) -> None:
+    """Mette su problemi, azioni e decisioni il punto da cui vengono (`punto_info`: num e titolo)."""
+    punti = filo_incontro.punti_index(items)
+    for gruppo in gruppi:
+        for obj in gruppo:
+            obj.punto_info = punti.get(getattr(obj, "punto", "") or "")
+
+
+def _is_ajax(request) -> bool:
+    return request.headers.get("x-requested-with") == "XMLHttpRequest"
+
+
+def _back_or_detail(request, project_id: int, meeting_id: int, anchor: str = ""):
+    """Torna alla pagina da cui si è premuto (dettaglio o conduzione), solo se interna all'incontro."""
+    base = reverse("tasks:project_meeting_detail", kwargs={"project_id": project_id, "meeting_id": meeting_id})
+    nxt = (request.POST.get("next") or "").strip()
+    if nxt.startswith(base) and "//" not in nxt and "\\" not in nxt:
+        return redirect(nxt)
+    return redirect(base)
 
 
 @task_permissions_required("tasks_view")
@@ -1373,6 +1454,7 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
         {"user_id": "", "email": email, "label": email, "presente": email in presenti_email}
         for email in meeting.get_partecipanti_email_list()
     ]
+    emersi = filo_incontro.emersi(meeting, items)
     return render(
         request,
         "tasks/project_meeting_run.html",
@@ -1386,7 +1468,9 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
                 "tasks:project_meeting_attendance",
                 kwargs={"project_id": project_id, "meeting_id": meeting_id},
             ),
-            "agenda_items": items,
+            "agenda_items": filo_incontro.punti_con_filo(meeting, items, emersi_data=emersi),
+            "emersi": emersi,
+            "fasi": filo_incontro.fasi_incontro(meeting, attiva="conduzione", can_manage=True),
             "planned_minutes": planned_minutes,
             "done_count": sum(1 for item in items if item.get("done")),
             **_quick_task_context(project, meeting),
@@ -1644,6 +1728,10 @@ def project_meeting_quick_capture(request, project_id: int, meeting_id: int):
         except (User.DoesNotExist, ValueError):
             owner = None
     due_date = _parse_optional_date(request.POST.get("due_date") or "")
+    # Punto dell'ordine del giorno di cui si stava parlando: la voce resta legata a lui.
+    punto = (request.POST.get("item_id") or "").strip()
+    if punto and not MeetingAgendaItem.objects.filter(meeting=meeting, item_id=punto).exists():
+        punto = ""
 
     if kind == "task":
         oggi = timezone.localdate()
@@ -1659,14 +1747,15 @@ def project_meeting_quick_capture(request, project_id: int, meeting_id: int):
     elif kind == "action":
         record = MeetingActionItem.objects.create(
             project=project, source_meeting=meeting, title=titolo[:220],
-            assigned_to=owner, due_date=due_date,
+            assigned_to=owner, due_date=due_date, punto=punto,
             created_by=request.user if request.user.is_authenticated else None,
         )
         label = "Azione"
     elif kind == "issue":
         record = MeetingIssue.objects.create(
             project=project, source_meeting=meeting, title=titolo[:220],
-            assigned_to=owner, due_date=due_date,
+            description=(request.POST.get("dettaglio") or "").strip()[:2000],
+            assigned_to=owner, due_date=due_date, punto=punto,
             created_by=request.user if request.user.is_authenticated else None,
         )
         label = "Problema"
@@ -1676,7 +1765,7 @@ def project_meeting_quick_capture(request, project_id: int, meeting_id: int):
         record = MeetingDecision.objects.create(
             project=project, meeting=meeting, testo=titolo[:400],
             decisa_da=owner,
-            impatto=impatto if impatto in valid else MeetingDecisionImpact.MEDIO,
+            impatto=impatto if impatto in valid else MeetingDecisionImpact.MEDIO, punto=punto,
             created_by=request.user if request.user.is_authenticated else None,
         )
         label = "Decisione"
@@ -1685,10 +1774,29 @@ def project_meeting_quick_capture(request, project_id: int, meeting_id: int):
 
     if kind in ("action", "issue"):
         notify_meeting_item_assignment(record, actor=request.user)
+    task_collegata = False
+    if kind == "task" and punto:
+        # Attività nata da un punto senza attività: il punto la prende come sua.
+        task_collegata = bool(
+            MeetingAgendaItem.objects.filter(meeting=meeting, item_id=punto, task__isnull=True)
+            .update(task=record, task_label=record.title[:200])
+        )
     log_action(request, "kickoff_meeting_quick_capture", "tasks", {
-        "kind": kind, "record_id": record.pk, "meeting_id": meeting.pk, "project_id": project.pk,
+        "kind": kind, "record_id": record.pk, "meeting_id": meeting.pk, "project_id": project.pk, "punto": punto,
     })
-    return JsonResponse({"ok": True, "kind": kind, "label": label, "titolo": titolo, "id": record.pk})
+    payload = {"ok": True, "kind": kind, "label": label, "titolo": titolo, "id": record.pk, "punto": punto,
+               "task_collegata": task_collegata}
+    if kind in ("issue", "action", "decision"):
+        punti = filo_incontro.punti_index(meeting.agenda_items)
+        if kind == "issue":
+            voce = filo_incontro.voce_issue(record, punti, project.pk, meeting.pk)
+        elif kind == "action":
+            voce = filo_incontro.voce_action(record, punti, project.pk, meeting.pk)
+        else:
+            voce = filo_incontro.voce_decision(record, punti)
+        voce["scadenza"] = voce["scadenza"].strftime("%d/%m/%Y") if voce.get("scadenza") else ""
+        payload["voce"] = voce
+    return JsonResponse(payload)
 
 
 @require_POST
