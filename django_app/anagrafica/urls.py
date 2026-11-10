@@ -75,6 +75,7 @@ urlpatterns = [
     path("formazione/attestato-report-export/", views.attestato_report_export, name="attestato_report_export"),
     # Genera e archivia in blocco gli attestati di tutti i completati di una sessione
     path("formazione/sessioni/<int:sessione_id>/attestati/", views.formazione_sessione_attestati, name="formazione_sessione_attestati"),
+    path("formazione/sessioni/<int:sessione_id>/iscrivi-preselezione/", views.formazione_rinnovo_in_sessione, name="formazione_rinnovo_in_sessione"),
     # Pannello semaforo conformità (HTMX lazy-load nella scheda dipendente)
     path("dipendenti/<int:legacy_id>/conformita/", views.dipendente_conformita_panel, name="dipendente_conformita_panel"),
     # Popup dell'organigramma: sta sotto `dipendenti/` di proposito, cosi' l'ACL

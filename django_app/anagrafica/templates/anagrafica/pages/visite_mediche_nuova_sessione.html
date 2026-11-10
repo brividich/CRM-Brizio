@@ -11,6 +11,7 @@
 
 
   <form method="post" enctype="multipart/form-data" id="form-giornata">
+    {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
     {% csrf_token %}
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:end;">
       <div>

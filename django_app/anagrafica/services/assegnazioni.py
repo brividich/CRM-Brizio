@@ -287,8 +287,9 @@ def crea_assegnazione(
     if precedente is not None and precedente.attivata_il is None:
         mansione_base, area_base = precedente.mansione or "", precedente.area_aziendale_id
 
-    _genera_piano(assegnazione, mansione_precedente=mansione_base,
-                  area_precedente_id=area_base, user=user)
+    # Non salvato: dice alla view se il piano c'è, per avvisare l'utente se manca.
+    assegnazione.piano_generato = _genera_piano(assegnazione, mansione_precedente=mansione_base,
+                                                area_precedente_id=area_base, user=user)
 
     if data_inizio <= timezone.localdate():
         attiva_assegnazione(assegnazione, user=user)
