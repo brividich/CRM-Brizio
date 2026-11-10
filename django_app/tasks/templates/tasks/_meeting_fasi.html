@@ -1,0 +1,14 @@
+{% comment %}
+Le quattro fasi di un incontro (convocazione, conduzione, esito, minuta): stessa barra
+in testa a convocazione, conduzione, esito e dettaglio, così si sa dove si è e dove si va.
+{% endcomment %}
+{% if fasi %}
+<nav class="mfasi" aria-label="Fasi dell'incontro">
+  {% for f in fasi %}
+    {% if f.url and not f.attiva %}<a class="mfasi-step{% if f.fatta %} is-done{% endif %}" href="{{ f.url }}">{% else %}<span class="mfasi-step{% if f.fatta %} is-done{% endif %}{% if f.attiva %} is-active{% endif %}"{% if f.attiva %} aria-current="step"{% endif %}>{% endif %}
+      <span class="mfasi-dot">{% if f.fatta %}&#10003;{% else %}{{ forloop.counter }}{% endif %}</span>
+      <span class="mfasi-text"><strong>{{ f.label }}</strong><small>{{ f.nota }}</small></span>
+    {% if f.url and not f.attiva %}</a>{% else %}</span>{% endif %}
+  {% endfor %}
+</nav>
+{% endif %}

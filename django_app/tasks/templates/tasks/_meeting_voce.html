@@ -1,0 +1,28 @@
+{% comment %}
+Una voce nata in un incontro (problema, azione, decisione) come riga compatta.
+`voce` arriva da services/filo_incontro; con `interattiva` mostra il pulsante per chiuderla
+(in conduzione via JS, altrove con un form che torna alla stessa pagina: `next`).
+{% endcomment %}
+<li class="mvoce mvoce--{{ voce.kind }}{% if voce.chiusa %} is-closed{% endif %}" data-voce="{{ voce.kind }}-{{ voce.id }}">
+  <span class="mvoce-tipo">{{ voce.label }}</span>
+  <span class="mvoce-main">
+    <span class="mvoce-titolo">{{ voce.titolo }}</span>
+    <span class="mvoce-meta">
+      {% if voce.chi %}<span>{{ voce.chi }}</span>{% endif %}
+      {% if voce.scadenza %}<span{% if voce.scaduta %} class="is-late"{% endif %}>entro {{ voce.scadenza|date:"d/m" }}</span>{% endif %}
+      {% if mostra_punto and voce.punto_num %}<span class="mvoce-punto" title="{{ voce.punto_titolo }}">punto {{ voce.punto_num }}</span>{% endif %}
+      <span class="mvoce-stato">{{ voce.stato }}</span>
+    </span>
+  </span>
+  {% if interattiva and voce.kind != "decision" and voce.url %}
+    {% if js %}
+      <button type="button" class="mf-btn-sm {% if voce.chiusa %}ghost{% else %}primary{% endif %}" data-voce-toggle data-url="{{ voce.url }}" data-kind="{{ voce.kind }}" data-chiusa="{{ voce.chiusa|yesno:'1,0' }}">{% if voce.chiusa %}Riapri{% elif voce.kind == "issue" %}Risolto{% else %}Fatta{% endif %}</button>
+    {% else %}
+      <form method="post" action="{{ voce.url }}">{% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <input type="hidden" name="action" value="{% if voce.chiusa %}reopen{% elif voce.kind == 'issue' %}resolve{% else %}done{% endif %}">
+        <button type="submit" class="mf-btn-sm {% if voce.chiusa %}ghost{% else %}primary{% endif %}">{% if voce.chiusa %}Riapri{% elif voce.kind == "issue" %}Risolto{% else %}Fatta{% endif %}</button>
+      </form>
+    {% endif %}
+  {% endif %}
+</li>

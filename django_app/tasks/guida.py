@@ -243,7 +243,7 @@ SEZIONI: list[dict] = [
             ("def", [
                 ("Riga del Piano", "titolo, responsabile, Inizio, Fine. Per scrivere un piano intero."),
                 ("«Attività di questo incontro»", "nel dettaglio e nell'esito dell'incontro: Invio salva senza ricaricare la pagina."),
-                ("Conduci incontro", "«Cattura rapida» con tipo Attività, o «+ Nuova attività» sul punto, che la collega al punto."),
+                ("Conduci incontro", "«Registro dell'incontro» con tipo Attività (scelto un punto senza attività, il punto la prende), o «+ Nuova attività» sul punto."),
                 ("Form completo", "«+ Attività completa» nel Piano, «+ Nuova attività» in Panoramica. A sinistra «Cosa va fatto», Responsabile, Priorità, Stato, Inizio → Fine (con i giorni calcolati), «Note per il responsabile» e Tipo; a destra il kickoff, le «Persone in copia» da spuntare (con ricerca) e il pulsante di salvataggio. Etichette, prossimo passo, impegni sovrapposti, attrezzatura, Outlook e promemoria stanno in «Altre opzioni». Fuori da una commessa il form chiede prima «In quale kickoff?»."),
             ]),
             ("img", (_IMG + "attivita_form.jpg", "Il form completo: attrezzatura, Outlook e promemoria stanno in «Altre opzioni»")),
@@ -417,14 +417,17 @@ SEZIONI: list[dict] = [
         "titolo": "Il dettaglio dell'incontro",
         "blocchi": [
             ("p", "È la pagina di riferimento di un incontro: da qui parte tutto il resto."),
+            ("p", "In testa a convocazione, conduzione, esito e dettaglio c'è la barra delle fasi: Convocazione, Conduzione, Esito, Minuta. "
+                  "La spunta verde dice che la fase è fatta, sotto c'è lo stato («Da inviare», «Oggi», «Registrato», «Da approvare»...); un clic porta alla fase."),
             ("img", (_IMG + "incontro.jpg", "Il dettaglio di un incontro pianificato")),
             ("def", [
                 ("In alto", "«Conduci incontro», «Registra esito», «Modifica incontro» (data, ora, sala, partecipanti, ordine del giorno), «Annulla incontro», «Elimina»."),
+                ("Percorso, attività e programmi della commessa", "riquadro chiuso: si apre con un clic e contiene il Percorso del kickoff, «Attività di questo incontro» e «Codici, cartelle e schede FAI»."),
                 ("Attività di questo incontro", "scrivi il titolo e premi Invio: la pagina non si ricarica, il responsabile resta e si riparte dal titolo. Sotto, l'elenco delle attività nate dall'incontro. «Più opzioni» apre sotto la riga tipo, priorità e attrezzatura, oppure «Aggiorna un'attività già creata» per correggerne date e responsabile senza crearne un'altra."),
                 ("Documenti", "«Invia convocazione», «Invia minuta», «Scarica minuta PDF», «Approva e chiudi minuta»."),
                 ("Partecipanti", "convocati, email esterne e, a incontro svolto, presenti e assenti."),
-                ("Ordine del giorno e verbale", "i punti, con la spunta di trattato e le note."),
-                ("Problemi, Decisioni, Azioni", "quello che riguarda l'incontro, con «Segna risolto» e «Segna fatta»."),
+                ("Ordine del giorno e verbale", "i punti, con la spunta di trattato e le note. Sotto un punto che riporta un problema o un'azione c'è il loro stato; sotto ogni punto, i problemi, le azioni e le decisioni nati lì."),
+                ("Problemi trovati, Decisioni, Azioni", "quello che riguarda l'incontro, con «Segna risolto» e «Segna fatta». L'etichetta «punto N» porta al punto da cui la voce è nata."),
             ]),
             ("img", (_IMG + "incontro_opzioni.jpg", "«Più opzioni» aperto sotto la riga: tipo, priorità, attrezzatura")),
         ],
@@ -449,19 +452,22 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "«Conduci incontro» apre la schermata da usare durante la riunione, un punto alla volta. In alto il tempo pianificato, il trascorso e i punti trattati."),
             ("passi", [
-                "Appello: spunta chi è presente. Il dato si salva subito e vale anche per l'esito e la minuta.",
-                "Su ogni punto scrivi la nota: si salva da sola.",
+                "Presenti: apri «Presenti 0 su N» e spunta chi c'è. Il dato si salva subito e vale anche per l'esito e la minuta.",
+                "Su ogni punto scrivi la nota: si salva da sola. Il punto su cui scrivi o clicchi diventa il punto in discussione (bordo azzurro).",
+                "Un punto «Problema aperto: …» o «Azione aperta: …» riporta una voce di un incontro precedente: sotto il titolo vedi responsabile, scadenza e stato, e la chiudi subito con «Risolto» o «Fatta». Il punto risulta trattato da solo; «Riapri» lo rimette com'era.",
                 "Serve del lavoro? «+ Nuova attività» sul punto (parte dal titolo del punto, poi responsabile, inizio e fine; «Crea e collega»), oppure scegli un'attività già esistente in «Attività collegata».",
                 "I punti che vengono dal Percorso del kickoff («Arrivo materiali: da assegnare», «Macchina: in ritardo»...) hanno «Assegna la tappa»: scegli la macchina, il fornitore o il processo se serve, poi responsabile e date. Nasce l'attività della tappa, collegata al punto, con notifica e mail a chi la riceve.",
                 "«Tempo effettivo» va da solo: il cronometro del punto parte alla prima modifica (nota, attività collegata, nuova attività), si mette in pausa quando inizi un altro punto e si ferma con «Segna trattato». Il badge ⏱ accanto mostra il tempo; un clic lo mette in pausa o lo riprende. Se scrivi i minuti a mano, vale il tuo numero.",
-                "Quello che emerge mentre si parla va in «Cattura rapida», sempre visibile in fondo allo schermo: scegli Attività, Azione, Decisione o Problema, scrivi e premi Invio.",
-                "A fine riunione premi «Termina incontro e registra l'esito».",
+                "Quello che emerge mentre si parla va nel «Registro dell'incontro», a destra (sugli schermi stretti sopra i punti): scegli Problema, Azione, Decisione o Attività, controlla il punto (è quello in discussione, oppure «Nessun punto in particolare»), scrivi e premi Invio.",
+                "Più rapido dal punto: «+ Problema», «+ Azione», «+ Decisione» in fondo alla scheda del punto preparano il registro per quel punto.",
+                "Ogni voce registrata compare sotto il suo punto e nel registro, divisa in «Problemi trovati», «Azioni», «Decisioni» e «Attività create»; problemi e azioni si chiudono da lì con «Risolto» o «Fatta».",
+                "A fine riunione premi «Termina e registra l'esito».",
             ]),
-            ("img", (_IMG + "conduci.jpg", "Conduci incontro: i punti e, in fondo, la Cattura rapida")),
+            ("img", (_IMG + "conduci.jpg", "Conduci incontro: i punti e il registro dell'incontro")),
             ("ul", [
                 "Ogni modifica si salva da sola e solo sul punto toccato.",
                 "«Aggiungi un punto» inserisce un argomento nato in riunione: entra nell'ordine del giorno, quindi conta per spunte, tempi e minuta.",
-                "Il responsabile di un'attività, di un'azione o di un problema catturati riceve subito una notifica.",
+                "Il responsabile di un'attività, di un'azione o di un problema registrati riceve subito una notifica.",
                 "Le attività entrano nel Piano; azioni e problemi rientrano da soli nell'ordine del giorno del prossimo incontro; le decisioni finiscono nel registro di commessa.",
             ]),
         ],
@@ -474,9 +480,10 @@ SEZIONI: list[dict] = [
                 "Dal dettaglio premi «Registra esito».",
                 "Presenze: togli la spunta a chi non si è presentato; aggiungi chi c'era e non era convocato.",
                 "Ordine del giorno e verbale: spunta i punti trattati e scrivi cosa è emerso. Spunte e note si salvano subito.",
-                "Problemi: spunta «risolto» su quelli chiusi e aggiungi i nuovi con «Aggiungi problema».",
+                "Problemi trovati: spunta «risolto» su quelli chiusi e aggiungi i nuovi con «Aggiungi problema». Quelli registrati in conduzione sono già qui.",
                 "Decisioni: «Aggiungi decisione», con motivazione, chi ha deciso e impatto.",
                 "Azioni: spunta quelle completate e aggiungi le nuove con «Aggiungi azione»: chi fa cosa entro quando.",
+                "Problemi, decisioni e azioni nuovi hanno il menu del punto («Nessun punto in particolare» o «Punto N. …»): così compaiono sotto quel punto nel dettaglio e nella minuta.",
                 "Premi «Registra esito» in fondo: l'incontro passa a «Svolto».",
                 "Nel dettaglio premi «Invia minuta», controlla e poi «Approva e chiudi minuta».",
             ]),
@@ -504,6 +511,9 @@ SEZIONI: list[dict] = [
             ("ul", [
                 "Il responsabile di un'azione o di un problema li chiude da sé, dal dettaglio incontro o da «Le mie azioni», "
                 "senza passare da chi gestisce la commessa.",
+                "Ogni problema, azione o decisione ricorda il punto dell'ordine del giorno da cui è nato: lo si vede come «punto N» "
+                "nel dettaglio, nell'esito e nel Registro azioni («Incontro 2 · punto 3 «Materiali»»).",
+                "Un problema o un'azione ancora aperti tornano come punto nel prossimo incontro e lì si chiudono in conduzione.",
                 "Se l'attività collegata viene completata, l'azione o il problema si chiudono da soli.",
                 "Il lunedì il promemoria KICK-OFF elenca le azioni e i problemi scaduti e quelli in scadenza nei 7 giorni.",
             ]),
@@ -551,7 +561,7 @@ SEZIONI: list[dict] = [
         "titolo": "Registro decisioni",
         "blocchi": [
             ("p", "Raccoglie tutte le decisioni della commessa, con motivazione, chi ha deciso e impatto (Basso, Medio, Alto). Si apre dal link «Registro di commessa» nel dettaglio di un incontro."),
-            ("p", "Le decisioni si registrano nella pagina esito o in Cattura rapida, finiscono nella minuta e non si riscrivono: una decisione si supera con una nuova."),
+            ("p", "Le decisioni si registrano nella pagina esito o nel Registro dell'incontro in conduzione, finiscono nella minuta e non si riscrivono: una decisione si supera con una nuova."),
         ],
     },
     {

@@ -3,29 +3,32 @@
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Conduzione</span>{% endblock %}
 {% block tasks_shell_title %}Incontro {{ meeting.numero }}{% if meeting.titolo %} — {{ meeting.titolo }}{% endif %}{% endblock %}
-{% block tasks_shell_subtitle %}{{ project.name }} · un punto alla volta, con tempi e cattura rapida.{% endblock %}
+{% block tasks_shell_subtitle %}{{ project.name }}{% endblock %}
 
 {% block tasks_shell_actions %}
-  <a class="ts-hero-action" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">Dettaglio</a>
-  <a class="ts-hero-action primary" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">Termina incontro e registra l'esito</a>
+  <a class="ts-hero-action" href="{% url 'tasks:project_meeting_detail' project.id meeting.id %}">Scheda incontro</a>
+  <a class="ts-hero-action primary" href="{% url 'tasks:project_meeting_minutes' project.id meeting.id %}">Termina e registra l'esito</a>
 {% endblock %}
 {% block tasks_shell_guide_anchor %}#conduzione{% endblock %}
 
 {% block tasks_shell_content %}
-{% load catalogo %}{% catalogo_datalist "ATTIVITA" %}{% catalogo_datalist "AZIONE" %}
+{% load catalogo %}{% catalogo_datalist "ATTIVITA" %}{% catalogo_datalist "AZIONE" %}{% catalogo_datalist "PROBLEMA" %}
+{% include "tasks/_meeting_fasi.html" %}
 <div class="run-wrap">
 
   {# Token per le chiamate JSON di questa pagina (nessun form tradizionale) #}
   <form id="run-csrf" style="display:none">{% csrf_token %}</form>
 
-  {# Appello: chi c'e' davvero, si salva al clic e l'esito lo ritrova. #}
+  {# Barra tempi: resta in vista mentre si scorre. #}
+  <div class="run-timebar">
+    <div class="run-time-item"><span>Pianificato</span><strong>{{ planned_minutes }} min</strong></div>
+    <div class="run-time-item"><span>Trascorso</span><strong id="run-elapsed">0 min</strong></div>
+    <div class="run-time-item"><span>Punti trattati</span><strong id="run-done-count">{{ done_count }}</strong> <span>/ {{ agenda_items|length }}</span></div>
+    <div class="run-time-warn" id="run-overrun" hidden>Fuori tempo rispetto al pianificato</div>
+  </div>
   {% if appello %}
-  <section class="ts-panel">
-    <div class="ts-panel-head">
-      <h2 class="ts-panel-title">Appello</h2>
-      <span class="mf-hint" style="margin:0 0 0 auto;"><strong id="run-presenti-count">{{ meeting.presenti_count }}</strong> presenti su {{ appello|length }} convocati</span>
-    </div>
-    <div class="ts-panel-body">
+    <details class="run-appello-box"{% if not meeting.presenze_registrate %} open{% endif %}>
+      <summary>Presenti <strong id="run-presenti-count">{{ meeting.presenti_count }}</strong> su {{ appello|length }}</summary>
       <div class="run-appello" id="run-appello" data-url="{{ attendance_url }}">
         {% for p in appello %}
           <label class="run-appello-item{% if p.presente %} is-present{% endif %}">
@@ -34,22 +37,15 @@
           </label>
         {% endfor %}
       </div>
-      <p class="mf-hint">Spunta chi è presente: si salva da solo e vale anche per la minuta. Chi non è spuntato risulta assente.</p>
-    </div>
-  </section>
+      <p class="mf-hint">Si salva al clic e vale anche per la minuta: chi non è spuntato risulta assente.</p>
+    </details>
   {% endif %}
 
-  {# Barra tempi: pianificato vs trascorso da quando la pagina e' aperta #}
-  <div class="run-timebar">
-    <div class="run-time-item"><span>Pianificato</span><strong>{{ planned_minutes }} min</strong></div>
-    <div class="run-time-item"><span>Trascorso</span><strong id="run-elapsed">0 min</strong></div>
-    <div class="run-time-item"><span>Punti trattati</span><strong id="run-done-count">{{ done_count }}</strong> <span>/ {{ agenda_items|length }}</span></div>
-    <div class="run-time-warn" id="run-overrun" hidden>Fuori tempo rispetto al pianificato</div>
-  </div>
-
+  <div class="run-layout">
+  <div class="run-main">
   <div class="run-items" id="run-items">
       {% for item in agenda_items %}
-        <article class="run-item{% if item.done %} done{% endif %}" data-item-id="{{ item.id }}" data-task-id="{{ item.task_id|default_if_none:'' }}">
+        <article class="run-item{% if item.done %} done{% endif %}{% if item.collegata %} run-item--{{ item.collegata.kind }}{% endif %}" id="punto-{{ item.id }}" data-item-id="{{ item.id }}" data-task-id="{{ item.task_id|default_if_none:'' }}" data-num="{{ forloop.counter }}">
           <header class="run-item-head">
             <span class="run-item-num">{{ forloop.counter }}</span>
             <h3 class="run-item-title">{{ item.titolo }}</h3>
@@ -58,18 +54,27 @@
             <span class="run-item-state" data-role="state">{% if item.done %}Trattato{% else %}Da trattare{% endif %}</span>
           </header>
 
-          <textarea class="input run-item-nota" data-role="nota" rows="3"
+          {% if item.collegata %}
+            {# Problema o azione riportati da un incontro precedente: si chiudono da qui. #}
+            <ul class="mvoci run-collegata">{% include "tasks/_meeting_voce.html" with voce=item.collegata interattiva=True js=True mostra_punto=False %}</ul>
+          {% endif %}
+
+          <textarea class="input run-item-nota" data-role="nota" rows="2"
                     placeholder="Cosa è emerso su questo punto (si salva da solo)">{{ item.nota }}</textarea>
+
+          <ul class="mvoci run-item-emersi" data-role="emersi"{% if not item.emersi %} hidden{% endif %}>
+            {% for voce in item.emersi %}{% include "tasks/_meeting_voce.html" with interattiva=True js=True mostra_punto=False %}{% endfor %}
+          </ul>
 
           {# Attivita' di commessa: il punto si collega a una esistente o ne genera una nuova #}
           <div class="run-item-task" data-role="task-box">
             <label class="tpl-inline">
-              Attività collegata
-              <select class="input" data-role="task-select" style="min-width:240px">
+              Attività
+              <select class="input" data-role="task-select" style="min-width:220px">
                 <option value="">— nessuna —</option>
               </select>
             </label>
-            <a class="mf-btn-sm ghost" data-role="task-link" href="#"{% if not item.task_id %} hidden{% endif %}>Apri attività</a>
+            <a class="mf-btn-sm ghost" data-role="task-link" href="#"{% if not item.task_id %} hidden{% endif %}>Apri</a>
             <button type="button" class="mf-btn-sm {% if item.source|slice:':6' == 'tappa:' and not item.task_id %}primary{% else %}ghost{% endif %}" data-role="task-new-toggle">{% if item.source|slice:':6' == 'tappa:' %}Assegna la tappa{% else %}+ Nuova attività{% endif %}</button>
           </div>
           <div class="run-item-task-new" data-role="task-new" hidden>
@@ -99,12 +104,17 @@
               {% if item.done %}Segna da trattare{% else %}Segna trattato{% endif %}
             </button>
             <label class="tpl-inline">
-              Tempo effettivo
-              <input class="input" type="number" min="1" max="480" style="width:80px"
+              Tempo
+              <input class="input" type="number" min="1" max="480" style="width:72px"
                      data-role="tempo" value="{{ item.tempo_effettivo_minuti|default_if_none:'' }}">
               min
             </label>
             <span class="run-item-saved" data-role="saved" hidden>salvato</span>
+            <span class="run-item-add" aria-label="Registra da questo punto">
+              <button type="button" class="run-add-btn run-add-btn--issue" data-capture="issue">+ Problema</button>
+              <button type="button" class="run-add-btn run-add-btn--action" data-capture="action">+ Azione</button>
+              <button type="button" class="run-add-btn run-add-btn--decision" data-capture="decision">+ Decisione</button>
+            </span>
           </div>
         </article>
       {% endfor %}
@@ -117,14 +127,15 @@
   {% if run_fornitori %}<datalist id="run-fornitori">{% for f in run_fornitori %}<option value="{{ f }}">{% endfor %}</datalist>{% endif %}
   {% if run_processi %}<datalist id="run-processi">{% for p in run_processi %}<option value="{{ p }}">{% endfor %}</datalist>{% endif %}
   <template id="run-task-box-template">
+    <ul class="mvoci run-item-emersi" data-role="emersi" hidden></ul>
     <div class="run-item-task" data-role="task-box">
       <label class="tpl-inline">
-        Attività collegata
-        <select class="input" data-role="task-select" style="min-width:240px">
+        Attività
+        <select class="input" data-role="task-select" style="min-width:220px">
           <option value="">— nessuna —</option>
         </select>
       </label>
-      <a class="mf-btn-sm ghost" data-role="task-link" href="#" hidden>Apri attività</a>
+      <a class="mf-btn-sm ghost" data-role="task-link" href="#" hidden>Apri</a>
       <button type="button" class="mf-btn-sm ghost" data-role="task-new-toggle">+ Nuova attività</button>
     </div>
     <div class="run-item-task-new" data-role="task-new" hidden>
@@ -141,6 +152,13 @@
       <span class="run-item-task-err" data-role="task-new-err" hidden></span>
     </div>
   </template>
+  <template id="run-item-add-template">
+    <span class="run-item-add" aria-label="Registra da questo punto">
+      <button type="button" class="run-add-btn run-add-btn--issue" data-capture="issue">+ Problema</button>
+      <button type="button" class="run-add-btn run-add-btn--action" data-capture="action">+ Azione</button>
+      <button type="button" class="run-add-btn run-add-btn--decision" data-capture="decision">+ Decisione</button>
+    </span>
+  </template>
 
   {% if not agenda_items %}
     <p class="empty" id="run-empty" style="text-align:center;padding:28px 12px;">
@@ -150,55 +168,76 @@
     </p>
   {% endif %}
 
-  {% comment %}
-  Punto aperto a riunione in corso: entra subito nell'ordine del giorno,
-  con nota, spunta e tempo effettivo come tutti gli altri.
-  {% endcomment %}
-  <section class="ts-panel">
-    <div class="ts-panel-head">
-      <h2 class="ts-panel-title">Aggiungi un punto</h2>
-    </div>
-    <div class="ts-panel-body">
-      {% include "tasks/_meeting_agenda_add.html" %}
-    </div>
+  {# Punto aperto a riunione in corso: entra subito nell'ordine del giorno. #}
+  <section class="ts-panel run-add-point">
+    <div class="ts-panel-head"><h2 class="ts-panel-title">Aggiungi un punto</h2></div>
+    <div class="ts-panel-body">{% include "tasks/_meeting_agenda_add.html" %}</div>
   </section>
+  </div>
 
-  {# Cattura rapida: quello che emerge mentre si parla, senza uscire dalla pagina #}
-  <section class="ts-panel run-capture">
-    <div class="ts-panel-head">
-      <h2 class="ts-panel-title" title="Le attività entrano nel Piano; azioni e problemi rientrano da soli nell'ordine del giorno del prossimo incontro; le decisioni finiscono nel registro di commessa.">Cattura rapida</h2>
-    </div>
-    <div class="ts-panel-body">
-      <div class="run-capture-form">
-        <select class="input" id="capture-kind">
-          <option value="task">Attività</option>
-          <option value="action">Azione</option>
-          <option value="decision">Decisione</option>
-          <option value="issue">Problema</option>
-        </select>
-        <input class="input" type="text" id="capture-titolo" maxlength="400" list="cat-azione" placeholder="Scrivi e premi Invio: cosa fare, cosa è stato deciso, cosa non torna">
-        <select class="input" id="capture-owner">
-          <option value="">Responsabile</option>
-          {% include "tasks/_quick_user_options.html" %}
-        </select>
-        <input class="input" type="date" id="capture-due" title="Scadenza">
-        <select class="input" id="capture-impatto" hidden>
-          {% for value, label in decision_impacts %}
-            <option value="{{ value }}"{% if value == "MEDIO" %} selected{% endif %}>Impatto {{ label }}</option>
-          {% endfor %}
-        </select>
-        <button type="button" class="md-btn" id="capture-save">Registra</button>
+  {# Registro dell'incontro: quello che emerge mentre si parla, legato al punto in discussione. #}
+  <aside class="run-side" aria-label="Registro dell'incontro">
+    <section class="ts-panel run-registro" id="run-registro">
+      <div class="ts-panel-head">
+        <h2 class="ts-panel-title">Registro dell'incontro</h2>
+        <span class="mf-hint" style="margin:0 0 0 auto;" id="reg-totale">{{ emersi.totale }} voc{{ emersi.totale|pluralize:"e,i" }}</span>
       </div>
-      <p class="qt-err" id="capture-err" role="alert" hidden></p>
-      <ul class="run-capture-log" id="capture-log"></ul>
-    </div>
-  </section>
+      <div class="ts-panel-body">
+        <div class="run-capture-form" id="run-capture">
+          <div class="run-kind" role="radiogroup" aria-label="Cosa registri">
+            <label><input type="radio" name="capture-kind" value="issue" checked><span>Problema</span></label>
+            <label><input type="radio" name="capture-kind" value="action"><span>Azione</span></label>
+            <label><input type="radio" name="capture-kind" value="decision"><span>Decisione</span></label>
+            <label><input type="radio" name="capture-kind" value="task"><span>Attività</span></label>
+          </div>
+          <select class="input" id="capture-punto" aria-label="Punto dell'ordine del giorno">
+            <option value="">Nessun punto in particolare</option>
+            {% for item in agenda_items %}<option value="{{ item.id }}">{{ forloop.counter }}. {{ item.titolo|truncatechars:60 }}</option>{% endfor %}
+          </select>
+          <input class="input" type="text" id="capture-titolo" maxlength="400" list="cat-problema" placeholder="Cosa non torna? Scrivi e premi Invio">
+          <div class="run-capture-row">
+            <select class="input" id="capture-owner" aria-label="Responsabile">
+              <option value="">Responsabile</option>
+              {% include "tasks/_quick_user_options.html" %}
+            </select>
+            <input class="input" type="date" id="capture-due" title="Entro il" aria-label="Entro il">
+            <select class="input" id="capture-impatto" aria-label="Impatto" hidden>
+              {% for value, label in decision_impacts %}
+                <option value="{{ value }}"{% if value == "MEDIO" %} selected{% endif %}>Impatto {{ label|lower }}</option>
+              {% endfor %}
+            </select>
+            <button type="button" class="md-btn" id="capture-save">Registra</button>
+          </div>
+          <p class="qt-err" id="capture-err" role="alert" hidden></p>
+        </div>
+
+        <div class="run-reg-group">
+          <h3>Problemi trovati <b id="reg-count-issue">{{ emersi.issues|length }}</b></h3>
+          <ul class="mvoci" id="reg-issue">{% for voce in emersi.issues %}{% include "tasks/_meeting_voce.html" with interattiva=True js=True mostra_punto=True %}{% endfor %}</ul>
+        </div>
+        <div class="run-reg-group">
+          <h3>Azioni <b id="reg-count-action">{{ emersi.actions|length }}</b></h3>
+          <ul class="mvoci" id="reg-action">{% for voce in emersi.actions %}{% include "tasks/_meeting_voce.html" with interattiva=True js=True mostra_punto=True %}{% endfor %}</ul>
+        </div>
+        <div class="run-reg-group">
+          <h3>Decisioni <b id="reg-count-decision">{{ emersi.decisions|length }}</b></h3>
+          <ul class="mvoci" id="reg-decision">{% for voce in emersi.decisions %}{% include "tasks/_meeting_voce.html" with mostra_punto=True %}{% endfor %}</ul>
+        </div>
+        <div class="run-reg-group" id="reg-task-group" hidden>
+          <h3>Attività create <b id="reg-count-task">0</b></h3>
+          <ul class="mvoci" id="reg-task"></ul>
+        </div>
+        <p class="mf-hint run-reg-foot">Problemi e azioni aperti tornano da soli nel prossimo incontro; le decisioni vanno nel registro di commessa; tutto finisce nella minuta.</p>
+      </div>
+    </section>
+  </aside>
+  </div>
 </div>
 {% endblock %}
 
 {% block tasks_shell_scripts %}
 {{ project_tasks_json|json_script:"project-tasks-data" }}
-<script src="{% static 'tasks/js/meeting_run.js' %}?v=20261110t" data-item-update-url="{{ item_update_url }}" data-quick-capture-url="{{ quick_capture_url }}" data-item-task-create-url="{{ item_task_create_url }}" data-task-detail-url="{% url 'tasks:detail' 0 %}" data-planned-minutes="{{ planned_minutes|default:0 }}"></script>
+<script src="{% static 'tasks/js/meeting_run.js' %}?v=20261110f" data-item-update-url="{{ item_update_url }}" data-quick-capture-url="{{ quick_capture_url }}" data-item-task-create-url="{{ item_task_create_url }}" data-task-detail-url="{% url 'tasks:detail' 0 %}" data-planned-minutes="{{ planned_minutes|default:0 }}"></script>
 <script src="{% static 'tasks/js/meeting_agenda_add.js' %}" defer></script>
 <script>
   (function () {

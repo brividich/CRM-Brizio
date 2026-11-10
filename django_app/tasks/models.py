@@ -1820,6 +1820,9 @@ class MeetingIssue(models.Model):
         verbose_name="Attivita collegata",
     )
     resolution_note = models.TextField(blank=True, default="", verbose_name="Nota risoluzione")
+    # Punto dell'ordine del giorno in cui e' emerso (id stabile `MeetingAgendaItem.item_id`):
+    # lega la voce al punto di cui si parlava, in conduzione, esito e minuta.
+    punto = models.CharField(max_length=255, blank=True, default="", verbose_name="Punto dell'ordine del giorno")
     resolved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -1934,6 +1937,7 @@ class MeetingActionItem(models.Model):
         blank=True,
         related_name="meeting_actions_done",
     )
+    punto = models.CharField(max_length=255, blank=True, default="", verbose_name="Punto dell'ordine del giorno")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -2019,6 +2023,7 @@ class MeetingDecision(models.Model):
         db_index=True,
         verbose_name="Impatto",
     )
+    punto = models.CharField(max_length=255, blank=True, default="", verbose_name="Punto dell'ordine del giorno")
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
