@@ -8,250 +8,325 @@
 <title>Reception</title>
 <style nonce="{{ csp_nonce }}">
 *, *::before, *::after { box-sizing:border-box; }
-:root { --bg:#e8edf2; --surface:#fff; --surface2:#f0f4f8; --border:#c8d4de; --accent:#c94030; --blue:#2277aa; --green:#1e7a3a; --text:#1c2b3a; --muted:#4a5a6a; --dark:#1c2b3a; }
-html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; -webkit-tap-highlight-color:transparent; user-select:none; }
+:root { --bg:#0a1222; --surface:#111c33; --surface2:#0f1a2e; --border:#1e293b; --border2:#334155; --accent:#38bdf8; --accent-ink:#04121f; --accent-soft:#0c4a6e; --green:#22c55e; --orange:#fb923c; --text:#f8fafc; --muted:#94a3b8; --danger:#fca5a5; }
+html, body { margin:0; min-height:100%; background:var(--bg); color:var(--text); font-family:'Segoe UI Variable Display','Segoe UI',system-ui,sans-serif; -webkit-tap-highlight-color:transparent; user-select:none; }
+button { font:inherit; color:inherit; }
 .ck-shell { min-height:100%; display:flex; flex-direction:column; }
-.ck-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 24px; background:var(--dark); color:#e0e8f0; }
-.ck-brand { font-family:Georgia,serif; font-size:21px; letter-spacing:.5px; }
-.ck-brand span { color:#5bc4f5; }
-.ck-clock { font-size:15px; color:#b8c6d4; }
-.ck-main { flex:1; display:flex; justify-content:center; padding:24px 16px 120px; }
-.ck-step { display:none; width:100%; max-width:860px; }
+.ck-head { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:22px 40px; }
+.ck-brand { font-size:20px; font-weight:700; letter-spacing:2px; }
+.ck-head-r { display:flex; align-items:center; gap:18px; }
+.ck-clock { font-size:20px; font-weight:600; color:var(--muted); }
+.ck-reset { display:none; align-items:center; gap:8px; min-height:52px; padding:0 20px; border:2px solid var(--border2); border-radius:14px; background:transparent; font-size:18px; font-weight:600; cursor:pointer; }
+.ck-reset.on { display:inline-flex; }
+.ck-main { flex:1; display:flex; justify-content:center; padding:8px 40px 48px; }
+.ck-step { display:none; width:100%; max-width:1200px; animation:ck-in .3s ease-out; }
 .ck-step.on { display:block; }
-.ck-title { font-size:30px; font-weight:700; text-align:center; margin:8px 0 6px; }
-.ck-sub { font-size:16px; color:var(--muted); text-align:center; margin:0 0 24px; }
-.ck-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
-.ck-card { display:flex; flex-direction:column; align-items:center; gap:8px; padding:30px 18px; min-height:170px; background:var(--surface); border:2px solid var(--border); border-radius:16px; cursor:pointer; font:inherit; color:inherit; text-align:center; }
-.ck-card:active, .ck-card.on { border-color:var(--blue); background:#eaf4fa; }
-.ck-card-i { font-size:42px; line-height:1; }
-.ck-card-l { font-size:20px; font-weight:700; }
-.ck-card-d { font-size:14px; color:var(--muted); }
+@keyframes ck-in { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+.ck-title { font-size:clamp(34px,4.2vw,56px); font-weight:700; letter-spacing:-1px; margin:8px 0 22px; line-height:1.08; }
+.ck-sub { font-size:20px; color:var(--muted); margin:0 0 18px; }
+.ck-h2 { font-size:22px; font-weight:700; margin:22px 0 12px; }
+
+/* Campo unico di ricerca */
+.ck-search { position:relative; }
+.ck-search svg { position:absolute; left:26px; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+.ck-q { width:100%; height:96px; padding:0 28px 0 82px; border:3px solid var(--border2); border-radius:26px; background:var(--surface); color:var(--text); font:inherit; font-size:clamp(24px,2.6vw,34px); font-weight:600; outline:none; }
+.ck-q:focus, .ck-q.attivo { border-color:var(--accent); box-shadow:0 0 0 6px rgba(56,189,248,.16); }
+.ck-q::placeholder { color:#5b6b82; font-weight:500; }
+.ck-hint { margin:14px 4px 0; font-size:18px; color:var(--muted); min-height:24px; }
+.ck-res { display:flex; flex-direction:column; gap:12px; margin-top:16px; }
+.ck-res-g { font-size:14px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; color:var(--accent); margin:10px 4px 0; }
+.ck-hit { display:flex; align-items:center; gap:20px; width:100%; min-height:88px; padding:16px 22px; text-align:left; border:2px solid var(--border); border-radius:22px; background:var(--surface); cursor:pointer; transition:border-color .15s, background .15s; }
+.ck-hit:active, .ck-hit:hover { border-color:var(--accent); }
+.ck-hit-av { width:56px; height:56px; flex:none; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#1e3a5f; color:#7dd3fc; font-size:20px; font-weight:700; }
+.ck-hit-t { flex:1; min-width:0; }
+.ck-hit-n { display:block; font-size:24px; font-weight:700; }
+.ck-hit-d { display:block; font-size:17px; color:var(--muted); margin-top:2px; }
+.ck-hit-go { flex:none; font-size:18px; font-weight:700; color:var(--accent); }
+.ck-hit.invito { border-color:var(--green); }
+.ck-hit.invito .ck-hit-av { background:#14532d; color:#86efac; }
+.ck-tiles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:28px; }
+.ck-tile { display:flex; align-items:center; gap:18px; min-height:104px; padding:20px 24px; text-align:left; border:2px solid var(--border); border-radius:24px; background:var(--surface); cursor:pointer; }
+.ck-tile:active, .ck-tile:hover { border-color:var(--accent); }
+.ck-tile-l { display:block; font-size:24px; font-weight:700; }
+.ck-tile-d { display:block; font-size:16px; color:var(--muted); margin-top:2px; }
+
+/* Schede di conferma */
+.ck-card { display:flex; align-items:center; gap:22px; padding:24px 26px; border-radius:26px; background:var(--surface); border:2px solid var(--border); }
+.ck-card-av { width:84px; height:84px; flex:none; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#1e3a5f; color:#7dd3fc; font-size:30px; font-weight:700; }
+.ck-card-n { font-size:clamp(26px,3vw,36px); font-weight:700; }
+.ck-card-d { font-size:18px; color:var(--muted); margin-top:4px; }
+.ck-cols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:28px; align-items:start; }
 .ck-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
-.ck-field { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+.ck-field { display:flex; flex-direction:column; gap:6px; }
 .ck-field.span2 { grid-column:1/-1; }
-.ck-label { font-size:14px; font-weight:600; color:var(--muted); }
-.ck-input { width:100%; min-height:56px; padding:12px 14px; font:inherit; font-size:18px; color:var(--text); background:var(--surface); border:2px solid var(--border); border-radius:10px; }
-.ck-input:focus { outline:none; border-color:var(--blue); }
-.ck-bar { position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:space-between; gap:12px; padding:14px 24px; background:var(--surface); border-top:1px solid var(--border); }
-.ck-btn { min-height:56px; padding:12px 26px; font:inherit; font-size:18px; font-weight:700; border-radius:10px; border:2px solid transparent; cursor:pointer; }
-.ck-btn[disabled] { opacity:.5; cursor:default; }
-.ck-btn-p { background:var(--blue); color:#fff; }
-.ck-btn-g { background:var(--surface2); color:var(--text); border-color:var(--border); }
-.ck-btn-w { width:100%; }
-.ck-err { display:none; margin:12px 0; padding:12px 16px; border-radius:10px; background:#fee2e2; color:#991b1b; font-size:16px; text-align:center; }
+.ck-label { font-size:15px; font-weight:600; color:var(--muted); }
+.ck-input { width:100%; min-height:64px; padding:12px 18px; font:inherit; font-size:22px; color:var(--text); background:var(--surface); border:2px solid var(--border2); border-radius:16px; outline:none; }
+.ck-input.attivo, .ck-input:focus { border-color:var(--accent); }
+.ck-input::placeholder { color:#5b6b82; }
+.ck-chips { display:flex; flex-wrap:wrap; gap:10px; }
+.ck-chip { min-height:56px; padding:10px 20px; border:2px solid var(--border2); border-radius:999px; background:var(--surface); font-size:19px; font-weight:600; cursor:pointer; }
+.ck-chip.on { border-color:var(--accent); background:var(--accent-soft); }
+.ck-chip small { color:var(--muted); font-size:15px; font-weight:500; margin-left:6px; }
+.ck-chip.on small { color:#bae6fd; }
+.ck-ref-list { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; max-height:260px; overflow:auto; }
+.ck-go { display:flex; align-items:center; justify-content:center; gap:14px; width:100%; min-height:92px; margin-top:26px; padding:0 28px; border:0; border-radius:24px; background:var(--green); color:#04121f; font-size:clamp(22px,2.4vw,28px); font-weight:700; cursor:pointer; }
+.ck-go[disabled] { background:var(--border); color:#64748b; cursor:default; }
+.ck-go.esci { background:var(--orange); }
+.ck-legal { margin:12px 0 0; text-align:center; font-size:16px; color:var(--muted); }
+.ck-link { border:0; background:none; padding:0; color:var(--accent); font-size:inherit; font-weight:600; text-decoration:underline; cursor:pointer; }
+.ck-mt { margin-top:6px; }
+.ck-label-sp { margin:18px 0 8px; }
+.ck-card.invito { border-color:var(--green); }
+.ck-card.invito .ck-card-av { background:#14532d; color:#86efac; }
+#info-chiudi { align-self:flex-end; }
+#b-fine { margin-top:14px; }
+.ck-err { display:none; margin:16px 0 0; padding:14px 18px; border-radius:16px; background:#3b1219; color:var(--danger); font-size:18px; text-align:center; }
 .ck-err.on { display:block; }
-.ck-gdpr { background:var(--surface); border:2px solid var(--border); border-radius:12px; padding:18px; font-size:15px; line-height:1.5; max-height:46vh; overflow:auto; }
-.ck-gdpr p { margin:0 0 12px; }
-.ck-check { display:flex; align-items:center; gap:12px; margin-top:14px; padding:14px; background:var(--surface); border:2px solid var(--border); border-radius:12px; font-size:16px; cursor:pointer; }
-.ck-check input { width:28px; height:28px; flex:0 0 auto; }
-.ck-rows { background:var(--surface); border:2px solid var(--border); border-radius:12px; padding:6px 18px; }
-.ck-row { display:flex; justify-content:space-between; gap:14px; padding:12px 0; border-bottom:1px solid var(--surface2); font-size:17px; }
-.ck-row:last-child { border-bottom:0; }
-.ck-row span:first-child { color:var(--muted); }
-.ck-row span:last-child { font-weight:600; text-align:right; }
-.ck-ok { text-align:center; padding-top:30px; }
-.ck-ok-i { width:96px; height:96px; margin:0 auto 16px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:var(--green); color:#fff; font-size:52px; }
-.ck-badge { display:inline-block; margin:12px 0; padding:10px 36px; border-radius:14px; background:var(--dark); color:#fff; font-size:56px; font-weight:800; }
-.ck-big { font-size:20px; margin:6px 0; }
-.ck-pad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-width:420px; margin:14px auto; }
-.ck-pad.alfa { grid-template-columns:repeat(8,1fr); max-width:760px; }
-.ck-key { min-height:64px; font:inherit; font-size:24px; font-weight:700; background:var(--surface); color:var(--text); border:2px solid var(--border); border-radius:10px; cursor:pointer; }
-.ck-show { max-width:420px; margin:0 auto; min-height:76px; display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:800; letter-spacing:4px; background:var(--surface); border:2px solid var(--border); border-radius:12px; }
-.ck-center { display:flex; justify-content:center; margin-top:12px; }
-.ck-list { display:flex; flex-direction:column; gap:10px; margin:14px auto; max-width:640px; }
-.ck-ref-list { display:flex; flex-direction:column; gap:6px; max-height:260px; overflow:auto; }
-.ck-ref { min-height:52px; padding:10px 14px; font:inherit; font-size:17px; text-align:left; background:var(--surface); color:var(--text); border:2px solid var(--border); border-radius:10px; cursor:pointer; }
-.ck-ref.on { border-color:var(--blue); background:#eaf4fa; font-weight:700; }
-.ck-ref small { color:var(--muted); font-size:14px; margin-left:6px; }
-.ck-kb { position:fixed; inset:auto 0 0 0; z-index:20; display:none; padding:12px; background:#26394b; }
+
+/* Uscita e codice */
+.ck-badges { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:14px; }
+.ck-badge-b { min-height:120px; border:2px solid var(--border); border-radius:24px; background:var(--surface); font-size:44px; font-weight:700; cursor:pointer; }
+.ck-badge-b:active, .ck-badge-b:hover { border-color:var(--orange); }
+.ck-pad { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; max-width:440px; margin:16px 0; }
+.ck-pad.alfa { grid-template-columns:repeat(8,1fr); max-width:860px; }
+.ck-key { min-height:72px; font-size:28px; font-weight:700; background:var(--surface); border:2px solid var(--border); border-radius:16px; cursor:pointer; }
+.ck-show { max-width:440px; min-height:88px; display:flex; align-items:center; justify-content:center; font-size:46px; font-weight:700; letter-spacing:6px; background:var(--surface); border:2px solid var(--border2); border-radius:20px; }
+.ck-show.alfa { max-width:860px; }
+.ck-row-btns { display:flex; flex-wrap:wrap; gap:12px; margin-top:16px; }
+.ck-btn { min-height:64px; padding:0 26px; font-size:20px; font-weight:700; border-radius:16px; border:2px solid var(--border2); background:transparent; cursor:pointer; display:inline-flex; align-items:center; gap:10px; }
+.ck-btn-p { background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+.ck-btn[disabled] { opacity:.45; cursor:default; }
+.ck-list { display:flex; flex-direction:column; gap:10px; margin-top:16px; }
+
+/* Esito */
+.ck-ok { display:flex; align-items:center; justify-content:center; gap:56px; padding-top:40px; flex-wrap:wrap; }
+.ck-ok-badge { width:260px; height:260px; border-radius:40px; background:var(--text); color:#0f172a; display:flex; flex-direction:column; align-items:center; justify-content:center; animation:ck-pop .4s ease-out; }
+.ck-ok-badge span:first-child { font-size:18px; font-weight:600; color:#64748b; }
+.ck-ok-badge span:last-child { font-size:120px; font-weight:800; line-height:1; }
+.ck-ok-badge.vuoto { display:none; }
+.ck-ok-t { max-width:640px; }
+.ck-ok-k { font-size:18px; font-weight:700; letter-spacing:2px; color:var(--green); }
+.ck-ok-k.warn { color:var(--orange); }
+.ck-ok-t h1 { font-size:clamp(38px,4.6vw,60px); margin:8px 0 14px; letter-spacing:-1px; }
+.ck-ok-t p { font-size:22px; color:#cbd5e1; margin:0 0 8px; }
+@keyframes ck-pop { from { transform:scale(.7); opacity:0; } to { transform:scale(1); opacity:1; } }
+
+/* Tastiera a schermo, QR, informativa, attesa */
+.ck-kb { position:fixed; inset:auto 0 0 0; z-index:20; display:none; padding:14px; background:#020817; border-top:1px solid var(--border); }
 .ck-kb.on { display:block; }
-.ck-kb-prev { display:flex; gap:10px; align-items:center; padding:8px 12px; margin-bottom:8px; background:#fff; color:var(--text); border-radius:8px; font-size:20px; min-height:48px; word-break:break-all; }
-.ck-kb-prev small { color:var(--muted); font-size:13px; white-space:nowrap; }
-.ck-kb-row { display:flex; justify-content:center; gap:6px; margin-bottom:6px; }
-.ck-kb-k { flex:1 1 0; max-width:84px; min-width:0; min-height:54px; font:inherit; font-size:20px; font-weight:600; background:#f0f4f8; color:var(--text); border:0; border-radius:8px; cursor:pointer; }
+.ck-kb-row { display:flex; justify-content:center; gap:8px; margin-bottom:8px; }
+.ck-kb-k { flex:1 1 0; max-width:92px; min-width:0; min-height:62px; font-size:22px; font-weight:600; background:var(--surface); border:1px solid var(--border2); border-radius:12px; cursor:pointer; }
+.ck-kb-k:active { background:var(--accent-soft); }
 .ck-kb-k.wide { max-width:none; flex:3 1 0; }
-.ck-kb-k.ok { background:var(--blue); color:#fff; }
-.ck-qr { position:fixed; inset:0; z-index:30; display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:16px; background:rgba(28,43,58,.9); }
+.ck-kb-k.ok { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+.ck-qr { position:fixed; inset:0; z-index:30; display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:16px; background:rgba(2,8,23,.94); }
 .ck-qr.on { display:flex; }
-.ck-qr video { width:100%; max-width:520px; border-radius:12px; background:#000; }
-.ck-load { position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center; background:rgba(232,237,242,.8); font-size:20px; font-weight:600; }
+.ck-qr video { width:100%; max-width:560px; border-radius:20px; background:#000; border:3px solid var(--accent); }
+.ck-qr p { font-size:22px; margin:0; }
+.ck-info { position:fixed; inset:0; z-index:35; display:none; align-items:center; justify-content:center; padding:24px; background:rgba(2,8,23,.85); }
+.ck-info.on { display:flex; }
+.ck-info-box { width:100%; max-width:860px; max-height:680px; display:flex; flex-direction:column; gap:16px; padding:28px; border-radius:26px; background:var(--surface); border:1px solid var(--border2); }
+.ck-gdpr { overflow:auto; font-size:17px; line-height:1.55; color:#cbd5e1; user-select:text; }
+.ck-gdpr p { margin:0 0 12px; }
+.ck-gdpr a { color:var(--accent); }
+.ck-load { position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center; background:rgba(10,18,34,.7); font-size:24px; font-weight:600; }
 .ck-load.on { display:flex; }
-@media (max-width:640px) {
+.ck-down { text-align:center; padding-top:80px; }
+
+@media (max-width:900px) {
+  .ck-head, .ck-main { padding-left:16px; padding-right:16px; }
+  .ck-tiles, .ck-cols { grid-template-columns:minmax(0,1fr); }
   .ck-grid { grid-template-columns:minmax(0,1fr); }
-  .ck-title { font-size:24px; }
-  .ck-head, .ck-bar { padding-left:16px; padding-right:16px; }
-  .ck-brand { font-size:16px; }
-  .ck-kb-k { font-size:16px; min-height:46px; }
+  .ck-q { height:80px; padding-left:70px; }
   .ck-pad.alfa { grid-template-columns:repeat(6,1fr); }
+  .ck-kb-k { font-size:17px; min-height:50px; }
 }
 </style>
 </head>
 <body>
 <div class="ck-shell">
   <header class="ck-head">
-    <div class="ck-brand">COSTRUZIONI NOVICROM <span>SRL</span></div>
-    <div class="ck-clock" id="orologio"></div>
+    <div class="ck-brand">NOVICROM</div>
+    <div class="ck-head-r">
+      {% if disponibile %}<button type="button" class="ck-reset" id="b-reset"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Ricomincia</button>{% endif %}
+      <div class="ck-clock" id="orologio"></div>
+    </div>
   </header>
   <main class="ck-main">
     {% if not disponibile %}
-    <section class="ck-step on">
+    <section class="ck-step on ck-down">
       <h1 class="ck-title">Registrazione non disponibile</h1>
       <p class="ck-sub">Il sistema non risponde. Rivolgiti alla reception.</p>
     </section>
     {% else %}
+
     <section class="ck-step on" id="s-home">
-      <h1 class="ck-title">Benvenuto</h1>
-      <p class="ck-sub">Cosa devi fare?</p>
-      <div class="ck-cards">
-        <button type="button" class="ck-card" data-vai="s-tipo"><span class="ck-card-i">➡️</span><span class="ck-card-l">Entro</span><span class="ck-card-d">Registro il mio ingresso</span></button>
-        <button type="button" class="ck-card" data-vai="s-uscita"><span class="ck-card-i">👋</span><span class="ck-card-l">Esco</span><span class="ck-card-d">Restituisco il cartellino</span></button>
-        <button type="button" class="ck-card" data-vai="s-codice"><span class="ck-card-i">🎫</span><span class="ck-card-l">Ho un codice</span><span class="ck-card-d">Sono pre-registrato</span></button>
+      <h1 class="ck-title">Ciao! Chi sei?</h1>
+      <div class="ck-search">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input class="ck-q" id="f-q" data-kb="cerca" readonly autocomplete="off" aria-label="Nome, email, azienda o codice d'invito" placeholder="Scrivi il tuo nome, la tua azienda o il codice">
+      </div>
+      <div class="ck-hint" id="cerca-hint">Già stato qui? Bastano le prime lettere del nome.</div>
+      <div class="ck-res" id="risultati"></div>
+      <div class="ck-tiles" id="tiles">
+        <button type="button" class="ck-tile" id="b-nuovo">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="8" r="4"/><path d="M3 21v-1a7 7 0 0 1 14 0v1"/><path d="M19 8v6M16 11h6"/></svg>
+          <span><span class="ck-tile-l">Prima visita</span><span class="ck-tile-d">Un solo modulo</span></span>
+        </button>
+        <button type="button" class="ck-tile" data-vai="s-uscita">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          <span><span class="ck-tile-l">Esco</span><span class="ck-tile-d">Restituisco il cartellino</span></span>
+        </button>
+        <button type="button" class="ck-tile" data-vai="s-codice">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+          <span><span class="ck-tile-l">Ho un invito</span><span class="ck-tile-d">Codice o QR ricevuto via email</span></span>
+        </button>
       </div>
     </section>
 
-    <section class="ck-step" id="s-tipo">
-      <h1 class="ck-title">Bentornato o prima visita?</h1>
-      <p class="ck-sub">Seleziona l'opzione corrispondente</p>
-      <div class="ck-cards">
-        <button type="button" class="ck-card" data-vai="s-email"><span class="ck-card-i">👤</span><span class="ck-card-l">Sono già stato qui</span><span class="ck-card-d">Recupero i miei dati con l'email</span></button>
-        <button type="button" class="ck-card" data-vai="s-dati"><span class="ck-card-i">✨</span><span class="ck-card-l">Prima visita</span><span class="ck-card-d">Inserisco i miei dati</span></button>
-        <button type="button" class="ck-card" data-vai="s-fornitore"><span class="ck-card-i">🏢</span><span class="ck-card-l">Consulente / Fornitore</span><span class="ck-card-d">Sono un fornitore accreditato</span></button>
+    <section class="ck-step" id="s-ospite">
+      <div class="ck-card">
+        <div class="ck-card-av" id="o-iniziali">–</div>
+        <div><div class="ck-card-n" id="o-nome">–</div><div class="ck-card-d" id="o-dett"></div></div>
       </div>
-    </section>
-
-    <section class="ck-step" id="s-email">
-      <h1 class="ck-title">Recupera i tuoi dati</h1>
-      <p class="ck-sub">Inserisci l'email usata nell'ultima visita</p>
-      <div class="ck-field"><label class="ck-label" for="f-cerca">Email</label><input class="ck-input" id="f-cerca" data-kb="email" data-kb-label="Email" readonly autocomplete="off"></div>
-      <button type="button" class="ck-btn ck-btn-p ck-btn-w" id="b-cerca">Cerca i miei dati</button>
-      <div class="ck-err" id="e-email"></div>
-    </section>
-
-    <section class="ck-step" id="s-dati">
-      <h1 class="ck-title">I tuoi dati</h1>
-      <p class="ck-sub">Nome e cognome sono obbligatori</p>
-      <div class="ck-grid">
-        <div class="ck-field"><label class="ck-label" for="f-nome">Nome *</label><input class="ck-input" id="f-nome" data-kb="text" data-kb-label="Nome" readonly autocomplete="off"></div>
-        <div class="ck-field"><label class="ck-label" for="f-cognome">Cognome *</label><input class="ck-input" id="f-cognome" data-kb="text" data-kb-label="Cognome" readonly autocomplete="off"></div>
-        <div class="ck-field span2"><label class="ck-label" for="f-azienda">Azienda di provenienza</label><input class="ck-input" id="f-azienda" data-kb="text" data-kb-label="Azienda" readonly autocomplete="off"></div>
-        <div class="ck-field"><label class="ck-label" for="f-mail">Email</label><input class="ck-input" id="f-mail" data-kb="email" data-kb-label="Email" readonly autocomplete="off"></div>
-        <div class="ck-field"><label class="ck-label" for="f-tel">Telefono</label><input class="ck-input" id="f-tel" data-kb="phone" data-kb-label="Telefono" readonly autocomplete="off"></div>
+      <div class="ck-cols">
+        <div>
+          <div class="ck-h2">Chi vieni a trovare?</div>
+          <input class="ck-input" id="f-host-o-cerca" data-kb="text" data-kb-label="Referente" data-cerca-ref="f-host-o" readonly autocomplete="off" placeholder="Scrivi il nome">
+          <input type="hidden" id="f-host-o">
+          <div class="ck-ref-list" id="f-host-o-lista"></div>
+        </div>
+        <div>
+          <div class="ck-h2">Motivo</div>
+          <div class="ck-chips">{% for c in categorie %}<button type="button" class="ck-chip" data-motivo="{{ c.nome }}">{{ c.nome }}</button>{% endfor %}</div>
+        </div>
       </div>
-      <div class="ck-err" id="e-dati"></div>
+      <button type="button" class="ck-go" id="b-entra-o" data-entra="ospite"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span>Entro</span></button>
+      <p class="ck-legal">Premendo «Entro» confermi di aver letto l'<button type="button" class="ck-link" data-info>informativa privacy</button>.</p>
+      <div class="ck-err" id="e-ospite"></div>
     </section>
 
-    <section class="ck-step" id="s-chi">
-      <h1 class="ck-title">Chi vieni a trovare?</h1>
-      <p class="ck-sub">Seleziona il dipendente e il motivo della visita</p>
-      <div class="ck-field">
-        <label class="ck-label" for="f-host-cerca">Dipendente referente * (scrivi il nome)</label>
-        <input class="ck-input" id="f-host-cerca" data-kb="text" data-kb-label="Referente" data-cerca-ref="f-host" readonly autocomplete="off" placeholder="Tocca e scrivi il nome">
-        <input type="hidden" id="f-host">
-        <div class="ck-ref-list" id="f-host-lista"></div>
+    <section class="ck-step" id="s-ditta">
+      <div class="ck-card">
+        <div class="ck-card-av"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg></div>
+        <div><div class="ck-card-n" id="d-nome">–</div><div class="ck-card-d">Fornitore accreditato</div></div>
       </div>
-      <div class="ck-label">Motivo della visita *</div>
-      <div class="ck-cards" id="motivi">
-        {% for c in categorie %}<button type="button" class="ck-card" data-motivo="{{ c.nome }}"><span class="ck-card-i">{{ c.icona }}</span><span class="ck-card-l">{{ c.nome }}</span></button>{% endfor %}
+      <div class="ck-cols">
+        <div>
+          <div class="ck-h2">Tocca il tuo nome</div>
+          <div class="ck-chips" id="d-persone"></div>
+          <p class="ck-sub" id="d-vuoto" hidden>Nessun nominativo per questa ditta: scegli «Prima visita» o rivolgiti alla reception.</p>
+        </div>
+        <div>
+          <div class="ck-h2">Referente interno</div>
+          <input class="ck-input" id="f-host-f-cerca" data-kb="text" data-kb-label="Referente" data-cerca-ref="f-host-f" readonly autocomplete="off" placeholder="Scrivi il nome">
+          <input type="hidden" id="f-host-f">
+          <div class="ck-ref-list" id="f-host-f-lista"></div>
+        </div>
       </div>
-      <div class="ck-err" id="e-chi"></div>
+      <button type="button" class="ck-go" data-entra="ditta"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span>Entro</span></button>
+      <p class="ck-legal">Premendo «Entro» confermi di aver letto l'<button type="button" class="ck-link" data-info>informativa privacy</button>.</p>
+      <div class="ck-err" id="e-ditta"></div>
     </section>
 
-    <section class="ck-step" id="s-privacy">
-      <h1 class="ck-title">Informativa Privacy</h1>
-      <p class="ck-sub">Leggi l'informativa sul trattamento dei dati personali</p>
-      {% include "fornitori/chiosco/_informativa.html" %}
-      <label class="ck-check"><input type="checkbox" id="f-gdpr"><span><strong>Ho letto e compreso l'informativa</strong> sul trattamento dei miei dati personali.</span></label>
-      <div class="ck-err" id="e-privacy"></div>
-    </section>
-
-    <section class="ck-step" id="s-riepilogo">
-      <h1 class="ck-title">Riepilogo e conferma</h1>
-      <p class="ck-sub">Verifica i tuoi dati prima di completare il check-in</p>
-      <div class="ck-rows" id="riepilogo"></div>
-      <div class="ck-err" id="e-riepilogo"></div>
-    </section>
-
-    <section class="ck-step" id="s-fornitore">
-      <h1 class="ck-title">Consulente / Fornitore accreditato</h1>
-      <p class="ck-sub">Seleziona la tua azienda e il tuo nominativo</p>
-      <div class="ck-field"><label class="ck-label" for="f-ditta">Azienda *</label><select class="ck-input" id="f-ditta"><option value="">Seleziona azienda</option></select></div>
-      <p class="ck-sub">Azienda o nominativo non in elenco? Torna indietro e scegli «Prima visita», oppure rivolgiti alla reception.</p>
-      <div class="ck-field"><label class="ck-label" for="f-persona">Nominativo *</label><select class="ck-input" id="f-persona"><option value="">Seleziona nominativo</option></select></div>
-      <div class="ck-field">
-        <label class="ck-label" for="f-host-f-cerca">Referente interno * (scrivi il nome)</label>
-        <input class="ck-input" id="f-host-f-cerca" data-kb="text" data-kb-label="Referente" data-cerca-ref="f-host-f" readonly autocomplete="off" placeholder="Tocca e scrivi il nome">
-        <input type="hidden" id="f-host-f">
-        <div class="ck-ref-list" id="f-host-f-lista"></div>
+    <section class="ck-step" id="s-nuovo">
+      <h1 class="ck-title">Prima visita</h1>
+      <div class="ck-cols">
+        <div class="ck-grid">
+          <div class="ck-field"><label class="ck-label" for="f-nome">Nome *</label><input class="ck-input" id="f-nome" data-kb="text" data-kb-label="Nome" readonly autocomplete="off"></div>
+          <div class="ck-field"><label class="ck-label" for="f-cognome">Cognome *</label><input class="ck-input" id="f-cognome" data-kb="text" data-kb-label="Cognome" readonly autocomplete="off"></div>
+          <div class="ck-field span2"><label class="ck-label" for="f-azienda">Azienda (vuoto se privato)</label><input class="ck-input" id="f-azienda" data-kb="text" data-kb-label="Azienda" readonly autocomplete="off"></div>
+          <div class="ck-field"><label class="ck-label" for="f-mail">Email (facoltativa)</label><input class="ck-input" id="f-mail" data-kb="email" data-kb-label="Email" readonly autocomplete="off"></div>
+          <div class="ck-field"><label class="ck-label" for="f-tel">Telefono (facoltativo)</label><input class="ck-input" id="f-tel" data-kb="phone" data-kb-label="Telefono" readonly autocomplete="off"></div>
+        </div>
+        <div>
+          <div class="ck-label">Chi vieni a trovare *</div>
+          <input class="ck-input ck-mt" id="f-host-cerca" data-kb="text" data-kb-label="Referente" data-cerca-ref="f-host" readonly autocomplete="off" placeholder="Scrivi il nome">
+          <input type="hidden" id="f-host">
+          <div class="ck-ref-list" id="f-host-lista"></div>
+          <div class="ck-label ck-label-sp">Motivo *</div>
+          <div class="ck-chips">{% for c in categorie %}<button type="button" class="ck-chip" data-motivo="{{ c.nome }}">{{ c.nome }}</button>{% endfor %}</div>
+        </div>
       </div>
-      <div class="ck-err" id="e-fornitore"></div>
+      <button type="button" class="ck-go" data-entra="nuovo"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg><span>Entro</span></button>
+      <p class="ck-legal">Premendo «Entro» confermi di aver letto l'<button type="button" class="ck-link" data-info>informativa privacy</button>.</p>
+      <div class="ck-err" id="e-nuovo"></div>
     </section>
 
     <section class="ck-step" id="s-uscita">
-      <h1 class="ck-title">Restituzione cartellino</h1>
-      <p class="ck-sub">Scansiona il QR sul cartellino oppure inserisci il numero</p>
-      <div class="ck-center"><button type="button" class="ck-btn ck-btn-g" data-qr="uscita" hidden>📷 Scansiona QR code</button></div>
-      <div class="ck-show" id="show-badge">–</div>
-      <div class="ck-pad" id="pad-badge"></div>
-      <button type="button" class="ck-btn ck-btn-p ck-btn-w" id="b-badge" disabled>Cerca con questo cartellino</button>
+      <h1 class="ck-title">Arrivederci! Che cartellino hai?</h1>
+      <div class="ck-badges" id="cartellini"></div>
+      <p class="ck-sub" id="cartellini-nota" hidden>Tocca il numero scritto sul tuo cartellino.</p>
+      <div id="pad-box" hidden>
+        <div class="ck-show" id="show-badge">–</div>
+        <div class="ck-pad" id="pad-badge"></div>
+        <button type="button" class="ck-btn ck-btn-p" id="b-badge" disabled>Cerca con questo numero</button>
+      </div>
+      <div class="ck-row-btns">
+        <button type="button" class="ck-btn" id="b-pad">Il mio numero non c'è: lo scrivo</button>
+        <button type="button" class="ck-btn" data-qr="uscita" hidden>Mostro il QR del cartellino</button>
+      </div>
       <div class="ck-err" id="e-uscita"></div>
       <div class="ck-list" id="visite"></div>
     </section>
 
     <section class="ck-step" id="s-conferma-uscita">
-      <h1 class="ck-title" id="uscita-nome">–</h1>
-      <p class="ck-sub">Cartellino da restituire</p>
-      <div class="ck-center"><div class="ck-badge" id="uscita-badge">–</div></div>
-      <div class="ck-rows"><div class="ck-row"><span>Check-in</span><span id="uscita-ora">–</span></div></div>
-      <div class="ck-center"><button type="button" class="ck-btn ck-btn-p ck-btn-w" id="b-uscita">Conferma check-out</button></div>
+      <div class="ck-card">
+        <div class="ck-card-av" id="uscita-badge">–</div>
+        <div><div class="ck-card-n" id="uscita-nome">–</div><div class="ck-card-d">Entrata: <span id="uscita-ora">–</span></div></div>
+      </div>
+      <button type="button" class="ck-go esci" id="b-uscita">Confermo l'uscita</button>
       <div class="ck-err" id="e-conferma-uscita"></div>
     </section>
 
     <section class="ck-step" id="s-codice">
-      <h1 class="ck-title">Accesso pre-registrato</h1>
-      <p class="ck-sub">Inserisci il codice ricevuto via email oppure scansiona il QR</p>
-      <div class="ck-center"><button type="button" class="ck-btn ck-btn-g" data-qr="codice" hidden>📷 Scansiona QR</button></div>
-      <div class="ck-show" id="show-codice">········</div>
+      <h1 class="ck-title">Il tuo codice d'invito</h1>
+      <p class="ck-sub">Lo trovi nell'email d'invito. Puoi anche mostrare il QR alla telecamera.</p>
+      <div class="ck-show alfa" id="show-codice">········</div>
       <div class="ck-pad alfa" id="pad-codice"></div>
-      <button type="button" class="ck-btn ck-btn-p ck-btn-w" id="b-codice" disabled>Verifica</button>
+      <div class="ck-row-btns">
+        <button type="button" class="ck-btn ck-btn-p" id="b-codice" disabled>Verifica</button>
+        <button type="button" class="ck-btn" data-qr="codice" hidden>Mostro il QR</button>
+      </div>
       <div class="ck-err" id="e-codice"></div>
     </section>
 
     <section class="ck-step" id="s-prereg">
-      <h1 class="ck-title" id="prereg-nome">–</h1>
-      <p class="ck-sub" id="prereg-ditta"></p>
-      <div class="ck-rows">
-        <div class="ck-row"><span>Referente</span><span id="prereg-host">–</span></div>
-        <div class="ck-row"><span>Motivo</span><span id="prereg-motivo">–</span></div>
+      <div class="ck-card invito">
+        <div class="ck-card-av"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></div>
+        <div><div class="ck-card-n" id="prereg-nome">–</div><div class="ck-card-d" id="prereg-dett"></div></div>
       </div>
-      <div class="ck-gdpr" style="margin-top:14px">{% include "fornitori/chiosco/_informativa_testo.html" %}</div>
-      <label class="ck-check"><input type="checkbox" id="f-gdpr-p"><span><strong>Ho letto e compreso l'informativa</strong> sul trattamento dei miei dati personali.</span></label>
-      <div class="ck-center"><button type="button" class="ck-btn ck-btn-p ck-btn-w" id="b-prereg">Conferma e ritira il cartellino</button></div>
+      <button type="button" class="ck-go" id="b-prereg"><span>Confermo, entro</span></button>
+      <p class="ck-legal">Premendo «Confermo, entro» confermi di aver letto l'<button type="button" class="ck-link" data-info>informativa privacy</button>.</p>
       <div class="ck-err" id="e-prereg"></div>
     </section>
 
     <section class="ck-step" id="s-ok">
       <div class="ck-ok">
-        <div class="ck-ok-i">✓</div>
-        <h1 class="ck-title" id="ok-titolo">Check-in completato!</h1>
-        <div class="ck-badge" id="ok-badge">–</div>
-        <p class="ck-big" id="ok-testo"></p>
-        <p class="ck-sub" id="ok-nota"></p>
+        <div class="ck-ok-badge" id="ok-badge-box"><span>Cartellino</span><span id="ok-badge">–</span></div>
+        <div class="ck-ok-t">
+          <div class="ck-ok-k" id="ok-k">FATTO</div>
+          <h1 id="ok-titolo">–</h1>
+          <p id="ok-testo"></p>
+          <p id="ok-nota"></p>
+          <button type="button" class="ck-btn" id="b-fine">Fine</button>
+        </div>
       </div>
     </section>
     {% endif %}
   </main>
   {% if disponibile %}
-  <div class="ck-bar" id="barra" hidden>
-    <button type="button" class="ck-btn ck-btn-g" id="b-indietro">← Indietro</button>
-    <button type="button" class="ck-btn ck-btn-p" id="b-avanti">Avanti →</button>
-  </div>
-  <div class="ck-kb" id="kb">
-    <div class="ck-kb-prev"><small id="kb-label"></small><span id="kb-valore"></span></div>
-    <div id="kb-righe"></div>
-  </div>
+  <div class="ck-kb" id="kb"><div id="kb-righe"></div></div>
   <div class="ck-qr" id="qr">
+    <p>Mostra il QR alla telecamera</p>
     <video id="qr-video" playsinline muted></video>
-    <button type="button" class="ck-btn ck-btn-g" id="qr-chiudi">Annulla</button>
+    <button type="button" class="ck-btn" id="qr-chiudi">Annulla</button>
+  </div>
+  <div class="ck-info" id="info" role="dialog" aria-modal="true" aria-label="Informativa privacy">
+    <div class="ck-info-box">
+      <div class="ck-gdpr">{% include "fornitori/chiosco/_informativa_testo.html" %}</div>
+      <button type="button" class="ck-btn ck-btn-p" id="info-chiudi">Ho letto</button>
+    </div>
   </div>
   <div class="ck-load" id="attesa">Un momento…</div>
   {% endif %}
@@ -263,83 +338,52 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
 (function () {
   'use strict';
   var REFERENTI = JSON.parse(document.getElementById('dati-referenti').textContent);
+  var MOTIVI = Array.prototype.map.call(document.querySelectorAll('#s-nuovo [data-motivo]'), function (b) { return b.dataset.motivo; });
   var API = '{% url "chiosco:pagina" %}api/';
   var CSRF = document.querySelector('meta[name=csrf-token]').content;
-  var IDLE_SEC = 120;
+  var IDLE_SEC = 120, MIN_CERCA = 3;
   var $ = function (id) { return document.getElementById(id); };
-  var stato = {};
-  var storia = [];
-  var idle = null, ritorno = null;
-
-  // Dove porta «Avanti» e cosa controlla prima di passare allo step dopo.
-  var AVANTI = {
-    's-dati': function () { if (!val('f-nome') || !val('f-cognome')) { return errore('e-dati', 'Nome e cognome sono obbligatori.'); } vai('s-chi'); },
-    's-chi': function () {
-      stato.fornitore = false;
-      if (!$('f-host').value) { return errore('e-chi', 'Scegli il dipendente che vieni a trovare.'); }
-      if (!stato.motivo) { return errore('e-chi', 'Scegli il motivo della visita.'); }
-      vai('s-privacy');
-    },
-    's-privacy': function () {
-      if (!$('f-gdpr').checked) { return errore('e-privacy', "Per continuare conferma di aver letto l'informativa."); }
-      if (stato.fornitore) { return inviaFornitore(); }
-      riepilogo(); vai('s-riepilogo');
-    },
-    's-riepilogo': inviaIngresso,
-    's-fornitore': function () {
-      if (!$('f-ditta').value) { return errore('e-fornitore', "Seleziona l'azienda."); }
-      if (!$('f-persona').value) { return errore('e-fornitore', 'Seleziona il nominativo.'); }
-      if (!$('f-host-f').value) { return errore('e-fornitore', 'Seleziona il referente interno.'); }
-      stato.fornitore = true;
-      vai('s-privacy');
-    }
-  };
-  var ETICHETTA = { 's-riepilogo': 'Conferma check-in' };
+  var stato = {}, idle = null, ritorno = null, timerCerca = null, giroCerca = 0;
 
   function val(id) { return $(id).value.trim(); }
   function errore(id, testo) { var e = $(id); e.textContent = testo || ''; e.classList.toggle('on', !!testo); }
   function pulisciErrori() { document.querySelectorAll('.ck-err').forEach(function (e) { e.classList.remove('on'); }); }
   function attesa(si) { $('attesa').classList.toggle('on', si); }
+  function normalizza(s) { return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+  function iniziali(nome) { return (nome || '').split(/\s+/).filter(Boolean).slice(0, 2).map(function (p) { return p[0]; }).join('').toUpperCase(); }
+  function el(tag, classe, testo) { var e = document.createElement(tag); if (classe) { e.className = classe; } if (testo != null) { e.textContent = testo; } return e; }
 
-  function chiama(azione, dati) {
-    attesa(true);
+  function chiama(azione, dati, muto) {
+    if (!muto) { attesa(true); }
     return fetch(API + azione + '/', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
       body: JSON.stringify(dati || {})
     }).then(function (r) { return r.json(); }).catch(function () {
       return { success: false, error: 'Errore di rete. Riprova o rivolgiti alla reception.' };
-    }).finally(function () { attesa(false); });
+    }).finally(function () { if (!muto) { attesa(false); } });
   }
 
   function mostra(id) {
     document.querySelectorAll('.ck-step').forEach(function (s) { s.classList.toggle('on', s.id === id); });
-    var conBarra = id !== 's-home' && id !== 's-ok';
-    $('barra').hidden = !conBarra;
-    $('barra').style.display = conBarra ? '' : 'none';
-    var avanti = AVANTI[id];
-    $('b-avanti').style.visibility = avanti ? 'visible' : 'hidden';
-    $('b-avanti').textContent = (id === 's-privacy' && stato.fornitore) ? 'Conferma check-in' : (ETICHETTA[id] || 'Avanti →');
+    $('b-reset').classList.toggle('on', id !== 's-home' && id !== 's-ok');
     window.scrollTo(0, 0);
     stato.corrente = id;
     pulisciErrori();
     chiudiTastiera();
-    if (id === 's-fornitore') { caricaAziende(); }
+    if (id === 's-uscita') { caricaCartellini(); }
   }
-  function vai(id) { if (stato.corrente) { storia.push(stato.corrente); } mostra(id); }
-  function indietro() { var p = storia.pop(); mostra(p || 's-home'); }
 
   function casa() {
-    clearTimeout(ritorno);
-    chiudiQr();
+    clearTimeout(ritorno); clearTimeout(timerCerca);
+    chiudiQr(); chiudiInfo();
     stato = {};
-    storia = [];
-    document.querySelectorAll('input.ck-input').forEach(function (i) { i.value = ''; });
-    document.querySelectorAll('select.ck-input').forEach(function (s) { s.selectedIndex = 0; });
-    document.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = false; });
+    document.querySelectorAll('input.ck-input, input.ck-q').forEach(function (i) { i.value = ''; });
     document.querySelectorAll('[data-motivo]').forEach(function (c) { c.classList.remove('on'); });
     document.querySelectorAll('[data-cerca-ref]').forEach(function (i) { $(i.dataset.cercaRef).value = ''; disegnaReferenti(i); });
-    $('visite').innerHTML = '';
+    $('risultati').innerHTML = ''; $('visite').innerHTML = '';
+    $('cerca-hint').textContent = 'Già stato qui? Bastano le prime lettere del nome.';
+    $('pad-box').hidden = true;
     badge = ''; codice = '';
     mostraBadge(); mostraCodice();
     mostra('s-home');
@@ -347,197 +391,293 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
   function sveglia() { clearTimeout(idle); idle = setTimeout(casa, IDLE_SEC * 1000); }
   ['click', 'keydown', 'touchstart'].forEach(function (ev) { document.addEventListener(ev, sveglia, { passive: true }); });
 
-  function successo(d, titolo, testo, nota) {
+  function successo(numero, titolo, testo, nota, chiave) {
+    $('ok-k').textContent = chiave || 'FATTO';
+    $('ok-k').classList.toggle('warn', chiave === 'ATTENZIONE');
     $('ok-titolo').textContent = titolo;
-    $('ok-badge').textContent = d.badge || '';
-    $('ok-badge').style.display = d.badge ? '' : 'none';
+    $('ok-badge').textContent = numero || '';
+    $('ok-badge-box').classList.toggle('vuoto', !numero);
     $('ok-testo').textContent = testo;
-    $('ok-nota').textContent = nota;
+    $('ok-nota').textContent = nota || '';
     mostra('s-ok');
-    storia = [];
     clearTimeout(ritorno);
-    ritorno = setTimeout(casa, 8000);
+    ritorno = setTimeout(casa, 9000);
   }
   function esitoIngresso(d, idErrore) {
     if (d.success) {
-      return successo({ badge: d.badge_number }, 'Check-in completato!',
-        'Ritira il cartellino numero ' + d.badge_number + ' dal dispenser in reception.',
-        d.passa_reception ? 'Passa dalla reception prima di entrare.' : 'Il dipendente referente è stato notificato e verrà a prenderti a breve.');
+      var nome = (d.guest_name || '').split(' ')[0];
+      return successo(d.badge_number, nome ? 'Ciao ' + nome + ', ingresso registrato' : 'Ingresso registrato',
+        'Prendi il cartellino numero ' + d.badge_number + '.',
+        d.passa_reception ? 'Passa dalla reception prima di entrare.' : (d.host_employee ? d.host_employee + ' è stato avvisato e ti raggiunge a breve.' : 'Il tuo referente è stato avvisato.'));
     }
-    if (d.already_in) {
-      return successo({}, 'Già registrato', 'Risulti già presente in azienda: non puoi registrarti due volte prima del check-out.', 'La schermata torna alla home da sola.');
-    }
-    if (d.no_badges) {
-      return successo({}, 'Nessun cartellino disponibile', 'Tutti i cartellini sono in uso.', 'Rivolgiti alla reception per completare la registrazione.');
-    }
+    if (d.already_in) { return successo('', 'Sei già registrato', 'Risulti già presente in azienda: prima registra l\'uscita.', '', 'ATTENZIONE'); }
+    if (d.no_badges) { return successo('', 'Cartellini finiti', 'Tutti i cartellini sono in uso.', 'Rivolgiti alla reception.', 'ATTENZIONE'); }
     errore(idErrore, d.error || 'Registrazione non riuscita. Rivolgiti alla reception.');
   }
 
-  // ─── Ingresso ───
-  function riepilogo() {
-    var righe = [['Nome', val('f-nome') + ' ' + val('f-cognome')], ['Azienda', val('f-azienda')], ['Email', val('f-mail')],
-      ['Telefono', val('f-tel')], ['Referente', $('f-host').dataset.nome], ['Motivo', stato.motivo]];
-    var c = $('riepilogo');
-    c.innerHTML = '';
-    righe.forEach(function (r) {
-      if (!r[1]) { return; }
-      var d = document.createElement('div'); d.className = 'ck-row';
-      var a = document.createElement('span'); a.textContent = r[0];
-      var b = document.createElement('span'); b.textContent = r[1];
-      d.appendChild(a); d.appendChild(b); c.appendChild(d);
+  // ─── Campo unico: ricerca live ───
+  function cercaOra() {
+    var q = val('f-q'), giro = ++giroCerca;
+    if (q.length < MIN_CERCA) {
+      $('risultati').innerHTML = '';
+      $('cerca-hint').textContent = q ? 'Ancora ' + (MIN_CERCA - q.length) + (MIN_CERCA - q.length === 1 ? ' lettera…' : ' lettere…') : 'Già stato qui? Bastano le prime lettere del nome.';
+      return;
+    }
+    $('cerca-hint').textContent = 'Cerco…';
+    chiama('cerca', { q: q }, true).then(function (d) {
+      if (giro !== giroCerca) { return; }
+      disegnaRisultati(d, q);
     });
   }
-  function inviaIngresso() {
-    $('b-avanti').disabled = true;
-    chiama('ingresso', {
-      first_name: val('f-nome'), last_name: val('f-cognome'), company: val('f-azienda'), email: val('f-mail'), phone: val('f-tel'),
-      referente_id: $('f-host').value, motivo: stato.motivo, gdpr_consent: $('f-gdpr').checked
-    }).then(function (d) { $('b-avanti').disabled = false; esitoIngresso(d, 'e-riepilogo'); });
+  function riga(classe, av, nome, dett, azione, invito) {
+    var b = el('button', 'ck-hit' + (classe ? ' ' + classe : '')); b.type = 'button';
+    var a = el('span', 'ck-hit-av'); if (typeof av === 'string') { a.textContent = av; } else { a.appendChild(av); }
+    var t = el('span', 'ck-hit-t'); t.appendChild(el('span', 'ck-hit-n', nome)); if (dett) { t.appendChild(el('span', 'ck-hit-d', dett)); }
+    b.appendChild(a); b.appendChild(t); b.appendChild(el('span', 'ck-hit-go', invito || 'Sono io ›'));
+    b.addEventListener('click', azione);
+    return b;
   }
-  $('b-cerca').addEventListener('click', function () {
-    var email = val('f-cerca');
-    if (!email) { return errore('e-email', "Inserisci l'email."); }
-    chiama('ospite', { email: email }).then(function (d) {
-      if (!d.found) { return errore('e-email', 'Nessun dato trovato con questa email. Torna indietro e scegli «Prima visita».'); }
-      var g = d.guest;
-      $('f-nome').value = g.first_name; $('f-cognome').value = g.last_name; $('f-azienda').value = g.company;
-      $('f-mail').value = g.email; $('f-tel').value = g.phone;
-      vai('s-dati');
-    });
-  });
-  document.querySelectorAll('[data-motivo]').forEach(function (c) {
-    c.addEventListener('click', function () {
-      document.querySelectorAll('[data-motivo]').forEach(function (x) { x.classList.toggle('on', x === c); });
-      stato.motivo = c.dataset.motivo;
-    });
-  });
+  function disegnaRisultati(d, q) {
+    var box = $('risultati'); box.innerHTML = '';
+    var trovati = 0;
+    if (d.invito) {
+      trovati++;
+      box.appendChild(el('div', 'ck-res-g', 'Invito'));
+      var i = d.invito;
+      box.appendChild(riga('invito', '✓', i.guest_name, [i.guest_company, 'da ' + i.host_employee].filter(Boolean).join(' · '), function () { apriInvito(i.code, i); }, 'Entro ›'));
+    }
+    if (d.ospiti && d.ospiti.length) {
+      trovati += d.ospiti.length;
+      box.appendChild(el('div', 'ck-res-g', 'Già stato qui'));
+      d.ospiti.forEach(function (o) {
+        var dett = [o.azienda, o.ultima ? 'ultima visita ' + o.ultima : ''].filter(Boolean).join(' · ');
+        box.appendChild(riga('', iniziali(o.nome), o.nome, dett, function () { apriOspite(o); }));
+      });
+    }
+    if (d.ditte && d.ditte.length) {
+      trovati += d.ditte.length;
+      box.appendChild(el('div', 'ck-res-g', 'Fornitori accreditati'));
+      d.ditte.forEach(function (a) { box.appendChild(riga('', iniziali(a.nome), a.nome, 'Tocca e scegli il tuo nome', function () { apriDitta(a); }, 'Scegli ›')); });
+    }
+    if (d.success === false && d.error) { $('cerca-hint').textContent = d.error; return; }
+    $('cerca-hint').textContent = trovati ? 'Tocca la riga giusta.' : 'Non ti trovo. Sei qui per la prima volta?';
+    var nuovo = el('button', 'ck-btn', trovati ? 'Non sono io: prima visita' : 'Sì, prima visita'); nuovo.type = 'button';
+    if (!trovati) { nuovo.className = 'ck-btn ck-btn-p'; }
+    nuovo.addEventListener('click', function () { apriNuovo(q); });
+    var w = el('div', 'ck-row-btns'); w.appendChild(nuovo); box.appendChild(w);
+  }
+  $('f-q').addEventListener('input', function () { clearTimeout(timerCerca); timerCerca = setTimeout(cercaOra, 250); });
 
-  // ─── Ricerca del referente: si scrive il nome, si tocca la riga ───
-  function normalizza(s) { return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+  // ─── Chi torna ───
+  // Stesse parole in qualsiasi ordine: «Paolo Demo» = «Demo Paolo».
+  function chiaveNome(nome) { return normalizza(nome).split(/\s+/).filter(Boolean).sort().join(' '); }
+  function trovaReferente(nome) {
+    var n = chiaveNome(nome);
+    return n ? REFERENTI.find(function (r) { return chiaveNome(r.nome) === n; }) : null;
+  }
+  function scegliReferente(nascostoId, r) {
+    var input = document.querySelector('[data-cerca-ref="' + nascostoId + '"]');
+    $(nascostoId).value = r ? r.id : ''; $(nascostoId).dataset.nome = r ? r.nome : '';
+    input.value = r ? r.nome : '';
+    disegnaReferenti(input);
+  }
+  function scegliMotivo(m) {
+    stato.motivo = m || '';
+    document.querySelectorAll('[data-motivo]').forEach(function (x) { x.classList.toggle('on', !!m && x.dataset.motivo === m); });
+  }
+  function apriOspite(o) {
+    stato.ospite = o;
+    $('o-iniziali').textContent = iniziali(o.nome);
+    $('o-nome').textContent = 'Ciao, ' + o.nome + '!';
+    $('o-dett').textContent = [o.azienda, o.ultima ? 'ultima visita ' + o.ultima + (o.referente ? ' da ' + o.referente : '') : ''].filter(Boolean).join(' · ');
+    scegliReferente('f-host-o', trovaReferente(o.referente));
+    scegliMotivo(MOTIVI.indexOf(o.motivo) !== -1 ? o.motivo : '');
+    mostra('s-ospite');
+  }
+
+  // ─── Fornitore accreditato ───
+  function apriDitta(a) {
+    stato.ditta = a; stato.persona = null;
+    $('d-nome').textContent = a.nome;
+    var box = $('d-persone'); box.innerHTML = ''; $('d-vuoto').hidden = true;
+    scegliReferente('f-host-f', null);
+    mostra('s-ditta');
+    chiama('nominativi', { azienda_id: a.id }).then(function (d) {
+      if (d.success === false) { return errore('e-ditta', d.error); }
+      var elenco = d.nominativi || [];
+      $('d-vuoto').hidden = elenco.length > 0;
+      elenco.forEach(function (c) {
+        var b = el('button', 'ck-chip', (c.nome + ' ' + c.cognome).trim()); b.type = 'button';
+        b.addEventListener('click', function () {
+          stato.persona = c.id;
+          box.querySelectorAll('.ck-chip').forEach(function (x) { x.classList.toggle('on', x === b); });
+        });
+        box.appendChild(b);
+      });
+    });
+  }
+
+  // ─── Prima visita ───
+  function maiuscola(p) { return p ? p.charAt(0).toUpperCase() + p.slice(1).toLowerCase() : ''; }
+  function apriNuovo(q) {
+    q = (q || '').trim();
+    if (q && q.indexOf('@') !== -1) { $('f-mail').value = q.toLowerCase(); }
+    else if (q && !/\d/.test(q)) {
+      var parti = q.split(/\s+/);
+      $('f-nome').value = maiuscola(parti[0]);
+      if (parti.length > 1) { $('f-cognome').value = parti.slice(1).map(maiuscola).join(' '); }
+    }
+    mostra('s-nuovo');
+  }
+  $('b-nuovo').addEventListener('click', function () { apriNuovo(''); });
+
+  // ─── Pulsanti «Entro» ───
+  var INGRESSI = {
+    ospite: function () {
+      if (!$('f-host-o').value) { return errore('e-ospite', 'Scegli chi vieni a trovare.'); }
+      if (!stato.motivo) { return errore('e-ospite', 'Scegli il motivo.'); }
+      chiama('ingresso-ospite', { ospite: stato.ospite.chiave, referente_id: $('f-host-o').value, motivo: stato.motivo, gdpr_consent: true })
+        .then(function (d) { esitoIngresso(d, 'e-ospite'); });
+    },
+    ditta: function () {
+      if (!stato.persona) { return errore('e-ditta', 'Tocca il tuo nome.'); }
+      if (!$('f-host-f').value) { return errore('e-ditta', 'Scegli il referente interno.'); }
+      chiama('ingresso-fornitore', { azienda_id: stato.ditta.id, nominativo_id: stato.persona, referente_id: $('f-host-f').value, gdpr_consent: true })
+        .then(function (d) { esitoIngresso(d, 'e-ditta'); });
+    },
+    nuovo: function () {
+      if (!val('f-nome') || !val('f-cognome')) { return errore('e-nuovo', 'Nome e cognome sono obbligatori.'); }
+      if (!$('f-host').value) { return errore('e-nuovo', 'Scegli chi vieni a trovare.'); }
+      if (!stato.motivo) { return errore('e-nuovo', 'Scegli il motivo.'); }
+      chiama('ingresso', {
+        first_name: val('f-nome'), last_name: val('f-cognome'), company: val('f-azienda'), email: val('f-mail'), phone: val('f-tel'),
+        referente_id: $('f-host').value, motivo: stato.motivo, gdpr_consent: true
+      }).then(function (d) { esitoIngresso(d, 'e-nuovo'); });
+    }
+  };
+  document.querySelectorAll('[data-entra]').forEach(function (b) {
+    b.addEventListener('click', function () { pulisciErrori(); chiudiTastiera(); INGRESSI[b.dataset.entra](); });
+  });
+  document.querySelectorAll('[data-motivo]').forEach(function (c) { c.addEventListener('click', function () { scegliMotivo(c.dataset.motivo); }); });
+
+  // ─── Referente: si scrive, compaiono i nomi (prima chi inizia così) ───
   function disegnaReferenti(input) {
     var nascosto = $(input.dataset.cercaRef), lista = $(input.dataset.cercaRef + '-lista');
     var cerca = normalizza(input.value).trim();
     lista.innerHTML = '';
-    REFERENTI.filter(function (r) {
+    var scelto = REFERENTI.find(function (r) { return String(r.id) === String(nascosto.value); });
+    var elenco = scelto && input.value === scelto.nome ? [scelto] : REFERENTI.filter(function (r) {
       return !cerca || normalizza(r.nome + ' ' + r.reparto).indexOf(cerca) !== -1;
-    }).slice(0, 30).forEach(function (r) {
-      var b = document.createElement('button'); b.type = 'button';
-      b.className = 'ck-ref' + (String(nascosto.value) === String(r.id) ? ' on' : '');
-      b.textContent = r.nome;
-      if (r.reparto) { var s = document.createElement('small'); s.textContent = r.reparto; b.appendChild(s); }
+    }).sort(function (a, b) {
+      var pa = normalizza(a.nome).split(' ').some(function (p) { return p.indexOf(cerca) === 0; }) ? 0 : 1;
+      var pb = normalizza(b.nome).split(' ').some(function (p) { return p.indexOf(cerca) === 0; }) ? 0 : 1;
+      return pa - pb;
+    }).slice(0, cerca ? 12 : 0);
+    elenco.forEach(function (r) {
+      var b = el('button', 'ck-chip' + (scelto && scelto.id === r.id ? ' on' : ''), r.nome); b.type = 'button';
+      if (r.reparto) { b.appendChild(el('small', '', r.reparto)); }
       b.addEventListener('click', function () {
-        nascosto.value = r.id; nascosto.dataset.nome = r.nome;
-        input.value = r.nome;
-        chiudiTastiera();
-        disegnaReferenti(input);
+        if (scelto && scelto.id === r.id) { scegliReferente(input.dataset.cercaRef, null); return; }
+        chiudiTastiera(); scegliReferente(input.dataset.cercaRef, r);
       });
       lista.appendChild(b);
     });
-    if (!lista.children.length) { var v = document.createElement('p'); v.className = 'ck-sub'; v.textContent = 'Nessun nome trovato. Rivolgiti alla reception.'; lista.appendChild(v); }
+    if (cerca && !elenco.length) { lista.appendChild(el('p', 'ck-sub', 'Nessun nome trovato. Rivolgiti alla reception.')); }
   }
   document.querySelectorAll('[data-cerca-ref]').forEach(function (i) {
     i.addEventListener('input', function () { $(i.dataset.cercaRef).value = ''; disegnaReferenti(i); });
     disegnaReferenti(i);
   });
 
-  // ─── Fornitore ───
-  function riempi(sel, primo, voci) {
-    sel.innerHTML = '';
-    var o = document.createElement('option'); o.value = ''; o.textContent = primo; sel.appendChild(o);
-    voci.forEach(function (v) { var x = document.createElement('option'); x.value = v[0]; x.textContent = v[1]; sel.appendChild(x); });
-  }
-  function caricaAziende() {
-    if ($('f-ditta').options.length > 1) { return; }
-    chiama('aziende').then(function (d) {
-      if (d.success === false) { return errore('e-fornitore', d.error); }
-      riempi($('f-ditta'), 'Seleziona azienda', (d.aziende || []).map(function (a) { return [a.id, a.nome]; }));
-    });
-  }
-  $('f-ditta').addEventListener('change', function () {
-    riempi($('f-persona'), 'Seleziona nominativo', []);
-    if (!this.value) { return; }
-    chiama('nominativi', { azienda_id: this.value }).then(function (d) {
-      if (d.success === false) { return errore('e-fornitore', d.error); }
-      riempi($('f-persona'), 'Seleziona nominativo', (d.nominativi || []).map(function (c) { return [c.id, c.cognome + ' ' + c.nome]; }));
-    });
-  });
-  function inviaFornitore() {
-    $('b-avanti').disabled = true;
-    chiama('ingresso-fornitore', {
-      azienda_id: $('f-ditta').value, nominativo_id: $('f-persona').value, referente_id: $('f-host-f').value,
-      gdpr_consent: $('f-gdpr').checked
-    }).then(function (d) { $('b-avanti').disabled = false; esitoIngresso(d, 'e-privacy'); });
-  }
-
-  // ─── Uscita ───
+  // ─── Uscita: si tocca il numero tra quelli in uso ───
   var badge = '';
   function mostraBadge() { $('show-badge').textContent = badge || '–'; $('b-badge').disabled = !badge; }
   ['1','2','3','4','5','6','7','8','9','⌫','0','C'].forEach(function (k) {
-    var b = document.createElement('button'); b.type = 'button'; b.className = 'ck-key'; b.textContent = k;
+    var b = el('button', 'ck-key', k); b.type = 'button';
     b.addEventListener('click', function () {
       if (k === '⌫') { badge = badge.slice(0, -1); } else if (k === 'C') { badge = ''; } else if (badge.length < 3) { badge += k; }
       mostraBadge();
     });
     $('pad-badge').appendChild(b);
   });
+  function caricaCartellini() {
+    var box = $('cartellini'); box.innerHTML = '';
+    chiama('cartellini', {}, true).then(function (d) {
+      if (!d.success || !(d.cartellini || []).length) { $('pad-box').hidden = false; $('cartellini-nota').hidden = true; $('b-pad').hidden = true; return; }
+      $('cartellini-nota').hidden = false; $('b-pad').hidden = false;
+      d.cartellini.forEach(function (n) {
+        var b = el('button', 'ck-badge-b', n); b.type = 'button';
+        b.addEventListener('click', function () { cercaUscita({ badge: n }); });
+        box.appendChild(b);
+      });
+    });
+  }
+  $('b-pad').addEventListener('click', function () { $('pad-box').hidden = false; $('b-pad').hidden = true; });
   function scegliVisita(v) {
     stato.visita = v;
     $('uscita-nome').textContent = v.guest_name;
     $('uscita-badge').textContent = v.badge_number;
     var ora = v.checkin_time ? new Date(String(v.checkin_time).replace(' ', 'T')) : null;
     $('uscita-ora').textContent = ora && !isNaN(ora) ? ora.toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) : '–';
-    vai('s-conferma-uscita');
+    mostra('s-conferma-uscita');
   }
   function cercaUscita(dati) {
-    $('visite').innerHTML = '';
+    $('visite').innerHTML = ''; errore('e-uscita', '');
     chiama('cerca-uscita', dati).then(function (d) {
       if (!d.success) { return errore('e-uscita', d.error); }
       if (d.visits.length === 1) { return scegliVisita(d.visits[0]); }
       d.visits.forEach(function (v) {
-        var b = document.createElement('button'); b.type = 'button'; b.className = 'ck-btn ck-btn-g ck-btn-w';
-        b.textContent = '#' + v.badge_number + ' · ' + v.guest_name;
+        var b = el('button', 'ck-hit', null); b.type = 'button';
+        b.appendChild(el('span', 'ck-hit-av', v.badge_number)); b.appendChild(el('span', 'ck-hit-n', v.guest_name));
         b.addEventListener('click', function () { scegliVisita(v); });
         $('visite').appendChild(b);
       });
     });
   }
-  $('b-badge').addEventListener('click', function () { errore('e-uscita', ''); cercaUscita({ badge: badge }); });
+  $('b-badge').addEventListener('click', function () { cercaUscita({ badge: badge }); });
   $('b-uscita').addEventListener('click', function () {
     var v = stato.visita;
     chiama('uscita', { visit_id: v.visit_id, badge: v.badge_number }).then(function (d) {
       if (!d.success) { return errore('e-conferma-uscita', d.error); }
-      successo({}, 'Arrivederci!', 'Restituisci il cartellino ' + v.badge_number + ' in reception.', d.duration ? 'Durata della visita: ' + d.duration : '');
+      successo(v.badge_number, 'Arrivederci!', 'Lascia il cartellino ' + v.badge_number + ' in reception.', d.duration ? 'Durata della visita: ' + d.duration : '', 'USCITA REGISTRATA');
     });
   });
 
-  // ─── Codice pre-registrazione ───
+  // ─── Invito (codice o QR) ───
   var codice = '';
   function mostraCodice() { $('show-codice').textContent = codice ? codice.padEnd(8, '·') : '········'; $('b-codice').disabled = codice.length !== 8; }
   'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'.split('').concat(['⌫']).forEach(function (k) {
-    var b = document.createElement('button'); b.type = 'button'; b.className = 'ck-key'; b.textContent = k;
+    var b = el('button', 'ck-key', k); b.type = 'button';
     b.addEventListener('click', function () {
       if (k === '⌫') { codice = codice.slice(0, -1); } else if (codice.length < 8) { codice += k; }
       mostraCodice();
     });
     $('pad-codice').appendChild(b);
   });
+  function apriInvito(c, p) {
+    codice = c;
+    $('prereg-nome').textContent = p.guest_name;
+    $('prereg-dett').textContent = [p.guest_company, p.host_employee ? 'da ' + p.host_employee : '', p.purpose].filter(Boolean).join(' · ');
+    mostra('s-prereg');
+  }
   function cercaCodice() {
     errore('e-codice', '');
     chiama('prereg-cerca', { code: codice }).then(function (d) {
       if (!d.success) { return errore('e-codice', d.error); }
-      var p = d.prereg;
-      $('prereg-nome').textContent = p.guest_name; $('prereg-ditta').textContent = p.guest_company;
-      $('prereg-host').textContent = p.host_employee; $('prereg-motivo').textContent = p.purpose;
-      vai('s-prereg');
+      apriInvito(codice, d.prereg);
     });
   }
   $('b-codice').addEventListener('click', cercaCodice);
   $('b-prereg').addEventListener('click', function () {
-    if (!$('f-gdpr-p').checked) { return errore('e-prereg', "Per continuare conferma di aver letto l'informativa."); }
     chiama('prereg-entra', { code: codice, gdpr_consent: true }).then(function (d) { esitoIngresso(d, 'e-prereg'); });
   });
 
-  // ─── QR: la fotocamera funziona solo in HTTPS, altrimenti il pulsante non compare ───
+  // ─── Informativa ───
+  function chiudiInfo() { $('info').classList.remove('on'); }
+  document.querySelectorAll('[data-info]').forEach(function (b) { b.addEventListener('click', function () { chiudiTastiera(); $('info').classList.add('on'); }); });
+  $('info-chiudi').addEventListener('click', chiudiInfo);
+
+  // ─── QR: la fotocamera funziona solo in HTTPS, altrimenti i pulsanti non compaiono ───
   var qrFlusso = null, qrFrame = null, qrUso = '';
   var puoQr = !!(window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.jsQR);
   document.querySelectorAll('[data-qr]').forEach(function (b) {
@@ -570,7 +710,7 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
         if (qrUso === 'uscita') { return cercaUscita({ code: t }); }
         codice = t; mostraCodice(); return cercaCodice();
       }
-      if (qrUso === 'uscita' && /^\d{1,3}$/.test(t)) { chiudiQr(); badge = String(parseInt(t, 10)); mostraBadge(); return cercaUscita({ badge: badge }); }
+      if (qrUso === 'uscita' && /^\d{1,3}$/.test(t)) { chiudiQr(); return cercaUscita({ badge: String(parseInt(t, 10)) }); }
     }
     qrFrame = requestAnimationFrame(leggiQr);
   }
@@ -580,51 +720,57 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--text); fon
   var kbCampo = null, kbMaiuscole = true;
   var RIGHE = {
     text: ['1234567890', 'QWERTYUIOP', 'ASDFGHJKL\'', 'ZXCVBNM-.'],
+    cerca: ['1234567890', 'QWERTYUIOP', 'ASDFGHJKL@', 'ZXCVBNM-._'],
     email: ['1234567890', 'qwertyuiop', 'asdfghjkl@', 'zxcvbnm-_.'],
     phone: ['123', '456', '789', '+0']
   };
-  function tasto(testo, classe, azione) {
-    var b = document.createElement('button'); b.type = 'button'; b.className = 'ck-kb-k ' + (classe || ''); b.textContent = testo;
-    b.addEventListener('click', azione);
-    return b;
+  function tasto(testo, classe, azione) { var b = el('button', 'ck-kb-k ' + (classe || ''), testo); b.type = 'button'; b.addEventListener('click', azione); return b; }
+  function cambiato() { kbCampo.dispatchEvent(new Event('input')); }
+  function scrivi(c) {
+    kbCampo.value += c; cambiato();
+    if (kbCampo.dataset.kb === 'text' && kbMaiuscole && c !== ' ') { kbMaiuscole = false; disegna(); }
+    if (kbCampo.dataset.kb === 'text' && c === ' ') { kbMaiuscole = true; disegna(); }
   }
-  function cambiato() { $('kb-valore').textContent = kbCampo.value; kbCampo.dispatchEvent(new Event('input')); }
-  function scrivi(c) { kbCampo.value += c; cambiato(); if (kbCampo.dataset.kb === 'text' && kbMaiuscole && c !== ' ') { kbMaiuscole = false; disegna(); } if (c === ' ') { kbMaiuscole = true; disegna(); } }
   function disegna() {
     var modo = kbCampo.dataset.kb, c = $('kb-righe');
     c.innerHTML = '';
-    RIGHE[modo].forEach(function (riga) {
-      var r = document.createElement('div'); r.className = 'ck-kb-row';
-      riga.split('').forEach(function (l) {
-        var ch = modo === 'text' ? (kbMaiuscole ? l : l.toLowerCase()) : l;
-        r.appendChild(tasto(ch, '', function () { scrivi(ch); }));
+    RIGHE[modo].forEach(function (rigaTasti) {
+      var r = el('div', 'ck-kb-row');
+      rigaTasti.split('').forEach(function (l) {
+        var ch = modo === 'text' ? (kbMaiuscole ? l : l.toLowerCase()) : (modo === 'cerca' ? l.toLowerCase() : l);
+        r.appendChild(tasto(modo === 'cerca' ? l : ch, '', function () { scrivi(ch); }));
       });
       c.appendChild(r);
     });
-    var u = document.createElement('div'); u.className = 'ck-kb-row';
+    var u = el('div', 'ck-kb-row');
     if (modo === 'email') { ['.it', '.com'].forEach(function (s) { u.appendChild(tasto(s, '', function () { scrivi(s); })); }); }
     if (modo !== 'phone') { u.appendChild(tasto('Spazio', 'wide', function () { scrivi(' '); })); }
     u.appendChild(tasto('⌫', '', function () { kbCampo.value = kbCampo.value.slice(0, -1); cambiato(); }));
     u.appendChild(tasto('Fatto', 'ok', chiudiTastiera));
     c.appendChild(u);
   }
-  function chiudiTastiera() { $('kb').classList.remove('on'); kbCampo = null; document.querySelector('.ck-main').style.paddingBottom = ''; }
+  function chiudiTastiera() {
+    $('kb').classList.remove('on');
+    if (kbCampo) { kbCampo.classList.remove('attivo'); }
+    kbCampo = null;
+    document.querySelector('.ck-main').style.paddingBottom = '';
+  }
   document.querySelectorAll('[data-kb]').forEach(function (i) {
     i.addEventListener('click', function () {
+      if (kbCampo) { kbCampo.classList.remove('attivo'); }
       kbCampo = i; kbMaiuscole = !i.value;
-      $('kb-label').textContent = i.dataset.kbLabel;
-      $('kb-valore').textContent = i.value;
+      i.classList.add('attivo');
       disegna();
       $('kb').classList.add('on');
-      document.querySelector('.ck-main').style.paddingBottom = '420px';
-      i.scrollIntoView({ block: 'center' });
+      document.querySelector('.ck-main').style.paddingBottom = '440px';
+      i.scrollIntoView({ block: i.id === 'f-q' ? 'start' : 'center' });
     });
   });
 
   // ─── Avvio ───
-  document.querySelectorAll('[data-vai]').forEach(function (b) { b.addEventListener('click', function () { vai(b.dataset.vai); }); });
-  $('b-indietro').addEventListener('click', indietro);
-  $('b-avanti').addEventListener('click', function () { var f = AVANTI[stato.corrente]; if (f) { f(); } });
+  document.querySelectorAll('[data-vai]').forEach(function (b) { b.addEventListener('click', function () { mostra(b.dataset.vai); }); });
+  $('b-reset').addEventListener('click', casa);
+  $('b-fine').addEventListener('click', casa);
   function orologio() { $('orologio').textContent = new Date().toLocaleString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); }
   orologio(); setInterval(orologio, 30000);
   mostra('s-home');

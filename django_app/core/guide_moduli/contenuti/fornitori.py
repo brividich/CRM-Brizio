@@ -132,11 +132,20 @@ GUIDA = {
             "id": "chiosco",
             "titolo": "Chiosco della reception nell'HUB",
             "blocchi": [
-                ("p", "All'indirizzo /chiosco/ dell'HUB il visitatore registra ingresso e uscita senza login: «Entro», «Esco» o «Ho un codice», "
-                      "come sul chiosco del GuestPortal, con la tastiera a schermo. Il pulsante «Chiosco» in Accessi esterni lo apre. "
+                ("p", "All'indirizzo /chiosco/ dell'HUB il visitatore registra ingresso e uscita senza login, con la tastiera a schermo. "
+                      "Il pulsante «Chiosco» in Accessi esterni lo apre. "
                       "Si apre solo dalle postazioni abilitate: dalle altre dice «Chiosco non abilitato». Ingressi, cartellini e mail al referente "
                       "restano quelli del GuestPortal, quindi le visite compaiono in Accessi esterni come sempre. "
                       "Tutti, fornitori accreditati compresi, devono confermare di aver letto l'informativa privacy prima di entrare."),
+                ("passi", [
+                    "«Ciao! Chi sei?»: si scrive nome, email, azienda o codice d'invito. Dalla terza lettera compaiono i risultati.",
+                    "«Già stato qui»: chi è venuto negli ultimi 12 mesi, con nome e iniziale del cognome (mai email o telefono). «Sono io» apre la conferma con referente e motivo dell'ultima visita già scelti: si cambia se serve, poi «Entro».",
+                    "«Fornitori accreditati»: si tocca la ditta, poi il proprio nome e il referente interno.",
+                    "«Invito»: con il codice di 8 caratteri compare l'invito; «Entro» registra l'ingresso.",
+                    "Nessun risultato: «Sì, prima visita» apre un solo modulo (nome, cognome, azienda, email e telefono facoltativi, referente, motivo).",
+                    "«Esco»: si tocca il numero del proprio cartellino tra quelli in uso, oppure lo si scrive o si mostra il QR.",
+                ]),
+                ("p", "Premere «Entro» vale come conferma di aver letto l'informativa: il testo completo si apre dal link sotto il pulsante."),
                 ("nota", "Dopo 2 minuti senza tocchi torna alla schermata iniziale e cancella i dati scritti. La scansione del QR compare solo se l'HUB è in HTTPS: "
                          "altrimenti il browser non dà accesso alla fotocamera e si usano numero del cartellino e codice a mano."),
             ],
