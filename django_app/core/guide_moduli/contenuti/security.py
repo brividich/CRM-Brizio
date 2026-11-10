@@ -499,6 +499,8 @@ GUIDA = {
             "fare": [
                 "Il messaggio sotto il titolo dice cosa non va; Impostazioni › «Credenziali API Veeam» › «Prova la connessione» lo ripete.",
                 "«Server Veeam non raggiungibile»: controlla l'indirizzo nelle credenziali e che dal server del portale la porta 9419 sia aperta.",
+                "«Non c'è l'API REST di Veeam Backup & Replication (404)»: l'indirizzo risponde ma non è l'API giusta. Va scritto solo https://<server>:9419, senza /api o altri percorsi; la porta 9398 è Enterprise Manager, non va bene. Se l'indirizzo è giusto, sul server Veeam controlla che il servizio «Veeam Backup Server RESTful API» sia avviato.",
+                "«Veeam non accetta la versione API»: nelle credenziali scrivi la versione che il server supporta (la mostra la pagina Swagger, https://<server>:9419/swagger).",
                 "«Certificato del server Veeam non attendibile»: incolla nelle credenziali il certificato della CA interna (formato PEM).",
                 "«Veeam ha rifiutato l'accesso»: utente o password sbagliati, oppure l'utente non ha il ruolo «Veeam Backup Viewer».",
             ],
