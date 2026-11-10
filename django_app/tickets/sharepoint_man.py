@@ -19,7 +19,9 @@ interventi, SLA ed escalation restano solo sul portale.
 from __future__ import annotations
 
 import logging
+import re
 import threading
+from urllib.parse import quote
 
 import requests
 from django.core.cache import cache
@@ -140,12 +142,54 @@ def _headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 
+_GUID = r"\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}?"
+_RE_LIST_ID = re.compile(rf"^{_GUID}$")
+# Site ID di Graph: «host,guid-sito,guid-web» (es. tenant.sharepoint.com,xxxxxxxx-…,xxxxxxxx-…).
+_RE_SITE_ID = re.compile(rf"^[A-Za-z0-9.-]+\.[A-Za-z]{{2,}},{_GUID},{_GUID}$")
+
+
+def errore_list_id(valore: str) -> str:
+    """"" se ``valore`` è vuoto o un List ID valido (GUID), altrimenti il messaggio per l'utente."""
+    valore = (valore or "").strip()
+    if not valore or _RE_LIST_ID.match(valore):
+        return ""
+    return "List ID non valido: serve il GUID della lista (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)."
+
+
+def errore_site_id(valore: str) -> str:
+    """"" se ``valore`` è vuoto o un Site ID Graph valido, altrimenti il messaggio per l'utente."""
+    valore = (valore or "").strip()
+    if not valore or _RE_SITE_ID.match(valore):
+        return ""
+    return "Site ID non valido: serve la forma «tenant.sharepoint.com,guid-del-sito,guid-del-web»."
+
+
 def _items_url(conf: dict) -> str:
-    return f"{GRAPH}/sites/{conf['site_id']}/lists/{conf['list_id']}/items"
+    # Gli ID arrivano da un campo libero: mai grezzi nell'URL (la virgola del Site ID resta).
+    sito = quote(conf["site_id"], safe=",")
+    lista = quote(conf["list_id"], safe="")
+    return f"{GRAPH}/sites/{sito}/lists/{lista}/items"
 
 
 def _delta_key(conf: dict) -> str:
-    return f"tickets:man_sp_sync:delta:{conf['list_id']}"
+    return f"tickets:man_sp_sync:delta:{conf['list_id']}"[:100]
+
+
+def _leggi_delta_link(conf: dict) -> str:
+    """Token delta salvato. Sta in ``SiteConfig`` (durevole); la cache, dove stava prima e
+    dove poteva sparire, si legge solo come ripiego, finché il primo giro riuscito lo sposta."""
+    from core.models import SiteConfig
+
+    return SiteConfig.get(_delta_key(conf), "") or cache.get(_delta_key(conf)) or ""
+
+
+def _salva_delta_link(conf: dict, link: str) -> None:
+    from core.models import SiteConfig
+
+    if SiteConfig.set(_delta_key(conf), link, "Token delta della sincronizzazione ticket MAN con SharePoint"):
+        cache.delete(_delta_key(conf))
+    else:  # DB non scrivibile: almeno in cache, come prima
+        cache.set(_delta_key(conf), link, timeout=None)
 
 
 # ─── Coda locale ─────────────────────────────────────────────────────────────
@@ -473,7 +517,7 @@ def leggi_modifiche() -> dict:
     if conf is None:
         return {"skipped": "sincronizzazione spenta"}
     headers = _headers()
-    delta_link = cache.get(_delta_key(conf)) or None
+    delta_link = _leggi_delta_link(conf) or None
     items, nuovo_link, completa = _delta(conf, delta_link, headers)
 
     # Lo stesso elemento puo' comparire piu' volte nel feed: vale l'ultima occorrenza.
@@ -491,9 +535,16 @@ def leggi_modifiche() -> dict:
         for sp_id, item in ultimi.items():
             try:
                 if not item.get("deleted") and not item.get("fields"):
-                    r = requests.get(f"{_items_url(conf)}/{sp_id}?$expand=fields", headers=headers, timeout=20)
-                    if r.status_code != 200:
+                    r = requests.get(f"{_items_url(conf)}/{quote(sp_id, safe='')}?$expand=fields",
+                                     headers=headers, timeout=20)
+                    if r.status_code == 404:
+                        # Non c'è più: il prossimo delta lo darà eliminato.
+                        totali["ignorati"] += 1
                         continue
+                    if r.status_code != 200:
+                        # Dettaglio non letto: conta come fallito, così il token non avanza e la
+                        # modifica si rilegge al giro dopo invece di andare persa.
+                        raise RuntimeError(f"dettaglio dell'elemento non letto (Graph {r.status_code})")
                     item = r.json()
                 with transaction.atomic():
                     esito = _applica(item, cache_asset, completa=completa)
@@ -506,7 +557,7 @@ def leggi_modifiche() -> dict:
 
     # Con errori il token non avanza: il giro dopo rilegge le stesse modifiche.
     if nuovo_link and totali["falliti"] == 0:
-        cache.set(_delta_key(conf), nuovo_link, timeout=None)
+        _salva_delta_link(conf, nuovo_link)
     return {"completa": completa, **totali}
 
 

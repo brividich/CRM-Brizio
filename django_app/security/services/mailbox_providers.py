@@ -88,6 +88,22 @@ class MailboxMessage:
     # Defaults are fail-closed: unknown provenance is NOT considered verified.
     sender_verified: bool = False
     auth_summary: str = ""
+    # False quando receivedDateTime non era leggibile: received_at è allora l'ora della lettura
+    # e non deve spostare il watermark.
+    received_at_valid: bool = True
+
+
+class MessageBatch(list):
+    """Messaggi di un giro più quello che serve al watermark.
+
+    ``exhausted``: la lettura è arrivata in fondo (nessun'altra pagina, nessun taglio a
+    ``max_messages_per_run``). ``last_read_at``: data dell'ultimo messaggio letto, anche se
+    scartato dal filtro cartelle (lettura dal più vecchio: tutto ciò che sta prima è stato visto).
+    Una lista normale (provider finti) vale come lettura esaurita.
+    """
+
+    exhausted: bool = True
+    last_read_at: Optional[datetime] = None
 
 
 class MailboxProvider(ABC):
@@ -109,7 +125,9 @@ class GraphMailboxProvider(MailboxProvider):
 
         token = self._acquire_token()
         message_items = self._get_messages(token, source, limit)
-        messages = []
+        messages = MessageBatch()
+        messages.exhausted = getattr(message_items, "exhausted", True)
+        messages.last_read_at = getattr(message_items, "last_read_at", None)
         for item in message_items:
             attachments = []
             if source.process_attachments and item.get("hasAttachments"):
@@ -190,15 +208,26 @@ class GraphMailboxProvider(MailboxProvider):
 
         items: List[dict] = []
         pages = 0
+        last_raw = None  # receivedDateTime dell'ultimo messaggio letto, anche se fuori dalle cartelle scelte
         while url and len(items) < max_messages and pages < GRAPH_MAX_PAGES:
             data = _request_json(url, headers=_graph_headers(token))
             for item in data.get("value", []):
+                last_raw = _parse_received(item.get("receivedDateTime")) or last_raw
                 parent = item.get("parentFolderId")
                 if parent in excluded or (included is not None and parent not in included):
                     continue
                 items.append(item)
             url = data.get("@odata.nextLink") or ""
             pages += 1
+
+        batch = MessageBatch(items[:max_messages])
+        if len(items) > max_messages:
+            # Tagliati a max_messages_per_run: si è visto fino all'ultimo restituito.
+            batch.exhausted = False
+            batch.last_read_at = _parse_received(items[max_messages - 1].get("receivedDateTime"))
+        else:
+            batch.exhausted = not url
+            batch.last_read_at = last_raw
 
         if url and len(items) < max_messages:
             # We stopped on the page cap, not because the mailbox was drained.
@@ -212,7 +241,7 @@ class GraphMailboxProvider(MailboxProvider):
                 "the remainder will be picked up by the next run",
                 len(items), source.code, max_messages,
             )
-        return items[:max_messages]
+        return batch
 
     def _folder_scope(self, token: str, mailbox: str, folder: str):
         """Return ``(included, excluded)`` sets of folder ids for the whole-mailbox read.
@@ -325,9 +354,18 @@ class GraphMailboxProvider(MailboxProvider):
         mailbox = urllib.parse.quote(mailbox_address, safe="")
         encoded_message_id = urllib.parse.quote(message_id, safe="")
         url = f"{GRAPH_API_BASE_URL}/users/{mailbox}/messages/{encoded_message_id}/attachments?$top=25"
-        data = _request_json(url, headers=_graph_headers(token))
+        items = []
+        pages = 0
+        # Più di 25 allegati: Graph pagina anche questi; senza seguire il nextLink si perdevano.
+        while url and pages < GRAPH_MAX_PAGES:
+            data = _request_json(url, headers=_graph_headers(token))
+            items.extend(data.get("value", []))
+            url = data.get("@odata.nextLink") or ""
+            pages += 1
+        if url:
+            raise MailboxProviderError(f"Allegati del messaggio oltre {GRAPH_MAX_PAGES} pagine: lettura interrotta")
         attachments = []
-        for item in data.get("value", []):
+        for item in items:
             if item.get("@odata.type") != "#microsoft.graph.fileAttachment":
                 continue
             content_bytes = item.get("contentBytes") or ""
@@ -399,7 +437,11 @@ def _request_json(url: str, *, method: str = "GET", data: bytes | None = None, h
         detail = _safe_graph_error(exc)
         raise MailboxProviderError(f"Microsoft Graph request failed with HTTP {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
-        raise MailboxProviderError("Microsoft Graph request failed: network error") from exc
+        reason = str(getattr(exc, "reason", "") or "")[:160]
+        raise MailboxProviderError(
+            f"Microsoft Graph request failed: network error ({urllib.parse.urlsplit(url).netloc}"
+            + (f": {reason}" if reason else "") + ")"
+        ) from exc
 
     if not payload:
         return {}
@@ -418,7 +460,23 @@ def _safe_graph_error(exc: urllib.error.HTTPError) -> str:
     error = data.get("error") if isinstance(data, dict) else {}
     if isinstance(error, dict):
         return str(error.get("code") or "graph_error")[:120]
+    if isinstance(error, str) and error.strip():
+        # Errore OAuth di login.microsoftonline.com: «invalid_client, AADSTS7000215 (...)».
+        from core.graph_utils import descrivi_errore_token
+
+        return descrivi_errore_token(data)[:200]
     return "graph_error"
+
+
+def _parse_received(value):
+    """receivedDateTime come datetime aware (UTC), None se assente o illeggibile."""
+    try:
+        parsed = parse_datetime(str(value or ""))
+    except (TypeError, ValueError):
+        parsed = None
+    if parsed is not None and timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed, timezone=dt_timezone.utc)
+    return parsed
 
 
 def evaluate_sender_authentication(headers) -> tuple[bool, str]:
@@ -461,9 +519,11 @@ def _message_from_graph_item(item: dict, mailbox_address: str, attachments: List
         for recipient in item.get("toRecipients", [])
         if (recipient.get("emailAddress") or {}).get("address")
     ]
-    received_at = parse_datetime(item.get("receivedDateTime") or "") or timezone.now()
-    if timezone.is_naive(received_at):
-        received_at = timezone.make_aware(received_at, timezone=dt_timezone.utc)
+    received_at = _parse_received(item.get("receivedDateTime"))
+    received_at_valid = received_at is not None
+    if received_at is None:
+        # Si archivia con l'ora della lettura, ma non conta per il watermark.
+        received_at = timezone.now()
 
     return MailboxMessage(
         provider_message_id=item.get("id") or "",
@@ -477,4 +537,5 @@ def _message_from_graph_item(item: dict, mailbox_address: str, attachments: List
         attachments=attachments,
         sender_verified=sender_verified,
         auth_summary=auth_summary,
+        received_at_valid=received_at_valid,
     )

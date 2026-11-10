@@ -69,7 +69,7 @@ def run_mailbox_ingestion(source: SecurityMailboxSource, *, limit: Optional[int]
         provider = get_provider(source)
         max_messages = limit if limit is not None else source.max_messages_per_run
         messages = provider.list_messages(source, limit=max_messages)
-        watermark = _watermark(source, messages)
+        failed_at = None  # data del primo messaggio andato in errore: il watermark si ferma lì
 
         for raw_message in messages:
             try:
@@ -102,7 +102,11 @@ def run_mailbox_ingestion(source: SecurityMailboxSource, *, limit: Optional[int]
             except Exception as e:
                 logger.exception(f"Error ingesting message {raw_message.subject}: {e}")
                 run.skipped_messages_count += 1
+                received = getattr(raw_message, "received_at", None)
+                if received and getattr(raw_message, "received_at_valid", True):
+                    failed_at = received if failed_at is None else min(failed_at, received)
 
+        watermark = _watermark(source, messages, failed_at=failed_at)
         run.status = "success"
         run.finished_at = timezone.now()
         run.details = {
@@ -178,7 +182,7 @@ def sender_matches_allowlist(raw_sender: str, allowlist_text: str) -> bool:
     return False
 
 
-def _watermark(source: SecurityMailboxSource, messages) -> datetime:
+def _watermark(source: SecurityMailboxSource, messages, *, failed_at: Optional[datetime] = None) -> Optional[datetime]:
     """Where the next incremental fetch should resume from.
 
     NOT simply "now". The provider returns messages oldest-first and we cap the batch at
@@ -189,10 +193,26 @@ def _watermark(source: SecurityMailboxSource, messages) -> datetime:
 
     Never moves backwards: with the overlap window we deliberately re-read old messages,
     and dedup drops them.
+
+    Lettura non esaurita (``messages.exhausted`` falso: pagine finite o taglio al massimo per
+    giro): il watermark va all'ultimo messaggio letto (``last_read_at``, anche se scartato
+    dal filtro cartelle), mai a «adesso»; se non si sa nulla resta dov'era. Un messaggio
+    andato in errore (``failed_at``) ferma il watermark alla sua data: il giro dopo lo rilegge.
+    Le date non leggibili (``received_at_valid`` falso) non contano.
     """
-    seen = [message.received_at for message in messages if getattr(message, "received_at", None)]
-    candidate = max(seen) if seen else timezone.now()
+    seen = [message.received_at for message in messages
+            if getattr(message, "received_at", None) and getattr(message, "received_at_valid", True)]
     previous = source.last_success_at
+    last_read = getattr(messages, "last_read_at", None)
+    if getattr(messages, "exhausted", True):
+        candidate = max(seen) if seen else timezone.now()
+    else:
+        noti = seen + ([last_read] if last_read else [])
+        candidate = max(noti) if noti else previous
+    if failed_at is not None and (candidate is None or failed_at < candidate):
+        candidate = failed_at
+    if candidate is None:
+        return previous
     if previous and candidate < previous:
         return previous
     return candidate

@@ -20,6 +20,7 @@ import logging
 from datetime import date, timedelta
 
 from django.conf import settings
+from django.db.models import F
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,9 @@ NOME_CALENDARIO = "Scadenze NOVICROM HUB"
 PERMESSO = "Calendars.ReadWrite"
 GIORNI = 90
 CATEGORIA = "NOVICROM HUB"
+# Budget del giro schedulato (il worker django-q chiude il task a 120 s): oltre, le scritture
+# si fermano e riprendono al giro dopo, partendo da chi è allineato da più tempo.
+BUDGET_SECONDI = 90
 
 
 def chiave_voce(v) -> str:
@@ -126,6 +130,11 @@ def _evento(v) -> dict:
     }
 
 
+def _transaction_id(chiave: str, email: str, imp: str, cal_id: str) -> str:
+    """Chiave di idempotenza Graph per il POST: un retry dopo un timeout non crea un secondo evento."""
+    return hashlib.sha256(f"scadenze|{chiave}|{email.lower()}|{imp}|{cal_id}".encode("utf-8")).hexdigest()[:40]
+
+
 def _url_casella(email: str) -> str:
     from urllib.parse import quote
 
@@ -156,7 +165,10 @@ def _calendario(canali, email: str) -> str:
     return cal_id
 
 
-def sincronizza_utente(canali, *, oggi: date | None = None, voci=None) -> dict:
+def sincronizza_utente(canali, *, oggi: date | None = None, voci=None, scadenza: float | None = None) -> dict:
+    """``scadenza``: istante (``time.monotonic()``) oltre il quale non si scrive più (budget del giro)."""
+    import time
+
     from core import m365_graph
     from core.models import ScadenzaOutlook
     from dashboard.scadenze_digest import _email_utente, voci_per_utente
@@ -171,17 +183,24 @@ def sincronizza_utente(canali, *, oggi: date | None = None, voci=None) -> dict:
     cal_id = _calendario(canali, email)
     base = f"{_url_casella(email)}/calendars/{cal_id}/events"
     # Da Outlook: gli eventi ancora presenti (quelli cancellati dalla persona non si ricreano).
-    presenti = {str(e.get("id")) for e in m365_graph.get_all(base, permesso=PERMESSO,
-                                                             params={"$select": "id", "$top": "500"}, max_pages=20)}
+    eventi = m365_graph.get_all(base, permesso=PERMESSO, params={"$select": "id", "$top": "500"}, max_pages=20)
+    presenti = {str(e.get("id")) for e in eventi}
+    # Elenco parziale: un evento non letto non è «cancellato dalla persona».
+    incompleta = m365_graph.troncata(eventi)
     mappa = {m.chiave: m for m in ScadenzaOutlook.objects.filter(user=user)}
     creati = aggiornati = tolti = saltati = 0
+    interrotto = False
     viste = set()
     for v in voci:
         chiave = chiave_voce(v)
         viste.add(chiave)
+        if scadenza is not None and time.monotonic() > scadenza:
+            interrotto = True
+            continue  # le voci restanti si allineano al giro dopo; contano come viste (nessuna cancellazione)
         imp = impronta(v)
         riga = mappa.get(chiave)
-        if riga and riga.event_id and riga.event_id not in presenti and not riga.rimosso_da_utente:
+        if (riga and riga.event_id and not incompleta and riga.event_id not in presenti
+                and not riga.rimosso_da_utente):
             riga.rimosso_da_utente = True
             riga.save(update_fields=["rimosso_da_utente", "aggiornato_il"])
         if riga and riga.rimosso_da_utente:
@@ -199,7 +218,8 @@ def sincronizza_utente(canali, *, oggi: date | None = None, voci=None) -> dict:
                 riga.save(update_fields=["impronta", "data_scadenza", "aggiornato_il"])
                 aggiornati += 1
                 continue
-        _, evento = m365_graph.scrivi("POST", base, permesso=PERMESSO, json=_evento(v))
+        payload = {**_evento(v), "transactionId": _transaction_id(chiave, email, imp, cal_id)}
+        _, evento = m365_graph.scrivi("POST", base, permesso=PERMESSO, json=payload)
         ScadenzaOutlook.objects.update_or_create(
             user=user, chiave=chiave,
             defaults={"event_id": str(evento.get("id") or ""), "data_scadenza": v.data_scadenza, "impronta": imp,
@@ -210,11 +230,20 @@ def sincronizza_utente(canali, *, oggi: date | None = None, voci=None) -> dict:
     for chiave, riga in mappa.items():
         if chiave in viste:
             continue
-        if riga.event_id and riga.event_id in presenti:
+        if scadenza is not None and time.monotonic() > scadenza:
+            interrotto = True
+            break
+        # Con l'elenco parziale non si sa se c'è ancora: si prova a toglierlo (404 = già tolto).
+        if riga.event_id and (incompleta or riga.event_id in presenti) and not riga.rimosso_da_utente:
             m365_graph.scrivi("DELETE", f"{base}/{riga.event_id}", permesso=PERMESSO)
         riga.delete()
         tolti += 1
-    return {"creati": creati, "aggiornati": aggiornati, "tolti": tolti, "lasciati_fuori": saltati}
+    esito = {"creati": creati, "aggiornati": aggiornati, "tolti": tolti, "lasciati_fuori": saltati}
+    if incompleta:
+        esito["lettura_troncata"] = True
+    if interrotto:
+        esito["interrotto"] = "tempo del giro finito: il resto al prossimo giro"
+    return esito
 
 
 def svuota_utente(canali) -> int:
@@ -239,11 +268,20 @@ def sincronizza_tutti(*, oggi: date | None = None) -> dict:
     from core import m365_graph
     from core.models import NotificaCanali, ScadenzaOutlook
 
+    import time
+
     if not m365_graph.configurato():
         return {"ok": False, "motivo": "Graph non configurato"}
     esito = {"persone": 0, "errori": 0, "svuotati": 0}
+    scadenza = time.monotonic() + BUDGET_SECONDI
     con_righe = set(ScadenzaOutlook.objects.values_list("user_id", flat=True))
-    for canali in NotificaCanali.objects.select_related("user").filter(user__is_active=True):
+    # Prima chi è allineato da più tempo: se il budget finisce, al giro dopo tocca agli altri.
+    elenco = NotificaCanali.objects.select_related("user").filter(user__is_active=True).order_by(
+        F("outlook_ultimo_sync").asc(nulls_first=True), "pk")
+    for canali in elenco:
+        if time.monotonic() > scadenza:
+            esito["interrotto"] = "tempo del giro finito: le altre persone al prossimo giro"
+            break
         if not canali.outlook_scadenze:
             if canali.user_id in con_righe:
                 try:
@@ -253,7 +291,7 @@ def sincronizza_tutti(*, oggi: date | None = None) -> dict:
                     logger.warning("Scadenze Outlook: svuotamento %s: %s", canali.user_id, exc)
             continue
         try:
-            sincronizza_utente(canali, oggi=oggi)
+            sincronizza_utente(canali, oggi=oggi, scadenza=scadenza)
             canali.outlook_errore = ""
             esito["persone"] += 1
         except Exception as exc:  # noqa: BLE001 - una casella che non risponde non ferma le altre

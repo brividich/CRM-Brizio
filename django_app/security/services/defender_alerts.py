@@ -106,21 +106,40 @@ def _get(url: str, token: str, params: dict | None = None) -> dict:
             "(con consenso amministratore) sull'app del portale, oppure le credenziali non sono valide."
         )
     if resp.status_code >= 400:
-        raise DefenderError(f"Graph ha risposto {resp.status_code} sugli alert di Defender.")
+        errore = DefenderError(f"Graph ha risposto {resp.status_code} sugli alert di Defender.")
+        errore.status = resp.status_code
+        raise errore
     return resp.json()
 
 
 def fetch_alerts(since: datetime, token: str | None = None) -> list[dict]:
-    """Alert aggiornati dopo ``since`` (UTC), tutte le pagine fino a MAX_PAGES."""
+    """Alert aggiornati dopo ``since`` (UTC), dal meno recente, tutte le pagine fino a MAX_PAGES.
+
+    L'elenco restituito ha ``troncata`` (restava un'altra pagina) e ``ordinata`` (Graph ha accettato
+    l'ordinamento per ``lastUpdateDateTime``): servono a ``run`` per non far saltare il cursore.
+    """
+    from core.m365_graph import ElencoGraph
+
     token = token or _token()
     if timezone.is_aware(since):
         since = since.astimezone(dt_timezone.utc)
     since_iso = since.strftime("%Y-%m-%dT%H:%M:%SZ")
-    params = {"$filter": f"lastUpdateDateTime ge {since_iso}", "$top": str(PAGE_SIZE)}
+    filtro = {"$filter": f"lastUpdateDateTime ge {since_iso}", "$top": str(PAGE_SIZE)}
+    params = {**filtro, "$orderby": "lastUpdateDateTime asc"}
+    ordinata = True
     url = GRAPH_ALERTS_URL
-    out: list[dict] = []
-    for _ in range(MAX_PAGES):
-        data = _get(url, token, params)
+    out = ElencoGraph()
+    for pagina in range(MAX_PAGES):
+        try:
+            data = _get(url, token, params)
+        except DefenderError as exc:
+            if pagina or getattr(exc, "status", 0) != 400 or not ordinata:
+                raise
+            # Ordinamento non accettato: si legge senza; se la lettura è troncata il cursore non avanza.
+            logger.info("Defender: $orderby non accettato da Graph, lettura senza ordinamento")
+            ordinata = False
+            params = filtro
+            data = _get(url, token, params)
         out.extend(item for item in data.get("value") or [] if isinstance(item, dict))
         url = data.get("@odata.nextLink") or ""
         params = None  # il nextLink contiene già filtro e paginazione
@@ -128,7 +147,35 @@ def fetch_alerts(since: datetime, token: str | None = None) -> list[dict]:
             break
         if not url.startswith("https://graph.microsoft.com/"):
             raise DefenderError("Link di paginazione inatteso da Graph: interrotto.")
+    out.troncata = bool(url)
+    out.ordinata = ordinata
     return out
+
+
+def _ultimo_aggiornamento(elementi) -> datetime | None:
+    """Il ``lastUpdateDateTime`` più recente fra quelli letti (UTC), o None."""
+    massimo = None
+    for item in elementi:
+        quando = parse_datetime(str(item.get("lastUpdateDateTime") or ""))
+        if quando is None:
+            continue
+        if timezone.is_naive(quando):
+            quando = timezone.make_aware(quando, dt_timezone.utc)
+        massimo = quando if massimo is None or quando > massimo else massimo
+    return massimo
+
+
+def _nuovo_cursore(elementi, now: datetime, precedente: datetime) -> tuple[str, bool]:
+    """Fin dove avanza il cursore. Lettura completa: ``now``. Troncata e ordinata: l'ultimo
+    aggiornamento letto (il giro dopo riparte da lì). Troncata senza ordinamento: resta dov'era.
+    Ritorna ``(iso, troncata)``."""
+    if not getattr(elementi, "troncata", False):
+        return now.isoformat(), False
+    if getattr(elementi, "ordinata", False):
+        ultimo = _ultimo_aggiornamento(elementi)
+        if ultimo is not None and ultimo > precedente:
+            return ultimo.isoformat(), True
+    return (precedente + timedelta(minutes=1)).isoformat(), True
 
 
 def _devices(alert: dict) -> list[str]:
@@ -263,8 +310,12 @@ def fetch_incidents(since: datetime) -> list[dict]:
     from core import m365_graph
 
     since_iso = since.astimezone(dt_timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return m365_graph.get_all(INCIDENTS_URL, permesso="SecurityIncident.Read.All",
-                              params={"$filter": f"lastUpdateDateTime ge {since_iso}", "$top": "50"}, max_pages=20)
+    elenco = m365_graph.get_all(INCIDENTS_URL, permesso="SecurityIncident.Read.All",
+                                params={"$filter": f"lastUpdateDateTime ge {since_iso}", "$top": "50",
+                                        "$orderby": "lastUpdateDateTime asc"}, max_pages=20)
+    if isinstance(elenco, m365_graph.ElencoGraph):
+        elenco.ordinata = True  # gli incidenti accettano $orderby: una lettura troncata riparte dall'ultimo letto
+    return elenco
 
 
 def _incidents_cursor(now: datetime) -> datetime:
@@ -305,16 +356,25 @@ def run(now: datetime | None = None) -> dict:
     now = now or timezone.now()
     esito = {"attivo": True, "at": now.isoformat()}
     try:
-        alerts = fetch_alerts(_cursor(now))
+        dal = _cursor(now)
+        alerts = fetch_alerts(dal)
         events = record_events(alerts)
         esito.update({"ok": True, "letti": len(alerts), "eventi": len(events)})
-        _save_state(CURSOR_KEY, now.isoformat())
+        cursore, troncata = _nuovo_cursore(alerts, now, dal)
+        if troncata:
+            esito["alert_troncati"] = "più alert del limite per giro: il prossimo giro riprende dall'ultimo letto"
+        _save_state(CURSOR_KEY, cursore)
         if soc_settings.value("defender.incidenti.attivo"):
-            incidenti = fetch_incidents(_incidents_cursor(now))
+            dal_inc = _incidents_cursor(now)
+            incidenti = fetch_incidents(dal_inc)
             nuovi = record_incidents(incidenti)
             esito.update({"incidenti_letti": len(incidenti), "eventi_incidenti": len(nuovi)})
             events = [*events, *nuovi]
-            _save_state(CURSOR_INCIDENTS_KEY, now.isoformat())
+            cursore, troncata = _nuovo_cursore(incidenti, now, dal_inc)
+            if troncata:
+                esito["incidenti_troncati"] = ("più incidenti del limite per giro: il prossimo giro riprende "
+                                               "dall'ultimo letto")
+            _save_state(CURSOR_INCIDENTS_KEY, cursore)
         if events:
             from security.services.rule_engine import evaluate_security_rules
 
