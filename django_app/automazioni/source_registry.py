@@ -192,6 +192,16 @@ _SOURCE_REGISTRY: dict[str, dict[str, object]] = {
                 ),
                 is_virtual=True,
             ),
+            _field(
+                name="inserito_da_caporeparto",
+                label="Inserita da un caporeparto",
+                data_type="bool",
+                description=(
+                    "Vero se l'ha inserita il caporeparto del dipendente o un altro caporeparto o "
+                    "responsabile di reparto/area (menu «Capo reparto»). Falso per l'ufficio assenze."
+                ),
+                is_virtual=True,
+            ),
         ],
     },
     "tasks": {

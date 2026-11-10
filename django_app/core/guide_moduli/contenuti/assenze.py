@@ -398,13 +398,16 @@ GUIDA = {
         },
         {
             "sintomo": "Con «Salta approvazione» il dipendente non riceve la mail di conferma",
-            "perche": "la richiesta inserita dall'ufficio assenze con «Salta approvazione» manda al dipendente "
-                      "«Richiesta … registrata dal … al …» per ogni tipo tranne la malattia (la comunica lui per "
-                      "telefono e l'amministrazione la inserisce).",
+            "perche": "con «Salta approvazione» il dipendente riceve «Richiesta … registrata dal … al …» solo se "
+                      "l'ha inserita un caporeparto, il suo o un altro (capi e responsabili del menu «Capo reparto»). "
+                      "Se la inserisce l'ufficio assenze, per esempio la malattia comunicata per telefono, no.",
             "fare": [
                 "Apri Automazioni → Regole, sorgente Assenze, «PA import - Inserimento con salta approvazione»: "
-                "deve esserci la mail «Avvisa il dipendente della richiesta registrata (non per la malattia)» "
-                "con destinatario {dipendente_email} (la aggiunge l'aggiornamento del 10/11/2026).",
+                "deve esserci la mail «Avvisa il dipendente se l'ha inserita un caporeparto (suo o di un altro "
+                "reparto)» con destinatario {dipendente_email} e condizione «Inserita da un caporeparto» "
+                "(la aggiunge l'aggiornamento del 10/11/2026).",
+                "Un caporeparto che non compare come capo o responsabile di nessun reparto o area in Anagrafica "
+                "conta come ufficio assenze: aggiungilo lì.",
                 "Il dipendente deve avere l'email nella richiesta: le righe senza email non ricevono niente.",
                 "Le richieste che passano dall'approvazione del caporeparto avvisano il dipendente con "
                 "«Richiesta … approvata/rifiutata», sia dal link nella mail sia dal portale.",

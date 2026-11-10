@@ -1,7 +1,7 @@
-"""Richieste con «Salta approvazione»: la mail arriva anche al dipendente, tranne la malattia.
+"""Richieste con «Salta approvazione» inserite da un caporeparto: la mail arriva anche al dipendente.
 
-Finora andava solo ad assenza@ (e al caporeparto): permessi, ferie e flessibilità
-inseriti dall'amministrazione per conto del dipendente non gli venivano comunicati.
+Finora andava solo ad assenza@ (e al caporeparto). Se la inserisce l'ufficio
+assenze (es. la malattia comunicata per telefono) il dipendente non riceve niente.
 Dettagli in ``automazioni.assenze_avviso_inserimento.avvisa_dipendente``.
 Fail-closed: se la regola non ha la forma attesa non tocca niente e lo segnala.
 """
