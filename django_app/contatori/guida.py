@@ -175,7 +175,7 @@ SEZIONI: list[dict] = [
         "titolo": "Barra del modulo e Centrale",
         "blocchi": [
             ("p", "La barra in alto raggruppa le pagine in Operatività (Centrale, Stampanti MFC, Letture, "
-                  "Consumabili, Monitor SNMP), Economico (Riconciliazione, Fatture, Analisi) e Configurazione "
+                  "Mensili, Consumabili, Fabbisogno, Monitor SNMP), Economico (Riconciliazione, Fatture, Analisi) e Configurazione "
                   "(Profili SNMP, Discovery, Impostazioni). Le procedure guidate «+ Apparato» (stampanti MFC e "
                   "dispositivi SNMP) e «+ Profilo SNMP» sono nel menu «+ Nuovo» (solo con il permesso di "
                   "gestione). «? Guida», a destra, apre questa pagina da qualunque punto del modulo."),
@@ -204,9 +204,20 @@ SEZIONI: list[dict] = [
                   "Attenzione / Errori / Non interrogati sono gli stessi numeri di «Stato flotta» della Centrale "
                   "e un clic mostra quegli apparati; «Apparati» conta tutti quelli censiti. Sotto i filtri, il "
                   "filtro rapido «Videosorveglianza»."),
-            ("p", "Scheda MFC: «Prova SNMP» verifica subito che la stampante risponda e mostra i contatori letti "
-                  "senza salvarli; «Asset …» apre la scheda dell'asset collegato. Dopo «Modifica MFC» si torna "
-                  "alla scheda della stampante."),
+            ("p", "Scheda MFC: «Prova SNMP» (serve «Contatori - Gestione», come il pulsante «Test» nelle Stampanti "
+                  "MFC) verifica subito che la stampante risponda e mostra i contatori letti senza salvarli; «Asset …» "
+                  "apre la scheda dell'asset collegato. Dopo «Modifica MFC» si torna alla scheda della stampante."),
+            ("p", "«Apri ticket» (scheda MFC e pannello laterale, a chi può aprire ticket IT) apre il form «Nuovo "
+                  "ticket» già compilato: categoria «Stampante / Scanner», asset collegato se c'è, titolo con il "
+                  "problema (l'ultimo avviso critico aperto, altrimenti «non risponde in rete» o i consumabili da "
+                  "sostituire) e descrizione con matricola, modello, IP, stato SNMP e ultimo errore, avviso critico, "
+                  "consumabili sotto il 15% e link alla scheda. Priorità «Alta» con un avviso critico o la stampante "
+                  "non raggiungibile, altrimenti «Media». Il ticket nasce solo quando premi «Invia richiesta»: prima "
+                  "controlli e correggi."),
+            ("p", "«Scarica Excel» c'è in Consumabili, Fabbisogno, Registro letture, Gestisci letture, Stampanti "
+                  "MFC, Monitor SNMP e Archivio fatture: scarica tutte le righe con i filtri della pagina (in "
+                  "Gestisci letture anche quelle non ancora caricate scorrendo), con gli stessi permessi della "
+                  "pagina."),
         ],
     },
     {
@@ -220,13 +231,33 @@ SEZIONI: list[dict] = [
                 "Nella scheda MFC, «Letture mensili automatiche», il badge giallo (es. «+31 h» o «+3 gg») indica "
                 "che la lettura è arrivata dopo la chiusura: i contatori includono le copie fatte nel frattempo.",
                 "Dal giorno 2 al 7 la Centrale mostra «N letture mensili in attesa»; dal giorno 8 diventa "
-                "«N letture mensili saltate»: la MFC non ha mai risposto, controlla che sia accesa e in rete.",
+                "«N letture mensili saltate» («1 lettura mensile saltata» se è una sola): la MFC non ha mai "
+                "risposto, controlla che sia accesa e in rete.",
                 "La prima lettura riuscita del mese non viene più sovrascritta.",
                 "Mail di riepilogo: quando tutte le MFC sono lette parte una mail con contatori, copie del mese "
                 "(«—» se manca la lettura del mese prima o un contatore è sceso), Excel allegato e link a queste "
                 "letture. Il giorno 7 dalle 23:00, se manca ancora qualche MFC, parte con le mancanti e il motivo. "
                 "Destinatari in Automazioni → «Pianificati» → «contatori letture mensili» → «Configura mail»: "
                 "senza destinatari non parte.",
+            ]),
+        ],
+    },
+    {
+        "id": "letture-mensili",
+        "titolo": "Letture mensili per mese",
+        "blocchi": [
+            ("p", "«Mensili» nella barra del modulo: una riga per MFC, una colonna per mese (gli ultimi 12 mesi, "
+                  "oppure i 12 mesi dell'anno scelto in «Periodo»). Ogni cella mostra il totale letto e, sotto, le "
+                  "copie rispetto al mese prima («copie n/d» se quella lettura manca, «calo …» se un contatore è "
+                  "sceso)."),
+            ("ul", [
+                "«manca» (in giallo): MFC attiva con IP senza la lettura di quel mese, dal mese della sua prima "
+                "lettura mensile; il mese in corso conta sempre, come «letture mensili in attesa» della Centrale.",
+                "In fondo, «Copie del mese»: la somma delle copie delle MFC che hanno anche la lettura del mese "
+                "prima, quante sono e quante mancano.",
+                "«Excel» sotto un mese con letture scarica lo stesso file allegato alla mail delle letture "
+                "mensili (letture, copie per contatore e MFC mancanti con il motivo).",
+                "Con «Contatori - Gestione» un clic sul totale apre la correzione della lettura.",
             ]),
         ],
     },
@@ -240,6 +271,9 @@ SEZIONI: list[dict] = [
             ("def", [
                 ("Da ordinare", "MFC con almeno un consumabile al 15% o meno, qualunque sia la data "
                                 "dell'ultima lettura. Un clic mostra solo quelle."),
+                ("Finiscono entro 30 giorni", "MFC con almeno un consumabile che, al ritmo di consumo stimato, si "
+                                              "esaurisce entro 30 giorni. Un clic mostra solo quelle; se ce ne "
+                                              "sono, la Centrale lo dice in «Da fare»."),
                 ("Senza lettura recente", "MFC mai lette o con l'ultima lettura più vecchia di 7 giorni: la "
                                           "stampante non risponde da giorni. Un clic mostra solo quelle; nella "
                                           "colonna «Ultima lettura» la data è in giallo."),
@@ -247,6 +281,25 @@ SEZIONI: list[dict] = [
             ]),
             ("p", "La stima dei giorni residui usa solo le letture degli ultimi 60 giorni, dall'ultima "
                   "sostituzione: con una lettura vecchia il livello resta visibile ma la stima no."),
+        ],
+    },
+    {
+        "id": "fabbisogno",
+        "titolo": "Fabbisogno dei consumabili",
+        "blocchi": [
+            ("p", "«Fabbisogno» (barra del modulo, o il pulsante in Consumabili): una riga per consumabile, con il "
+                  "nome letto dalla stampante (es. il codice del toner), sotto i modelli di MFC che lo usano."),
+            ("def", [
+                ("MFC che lo usano", "MFC attive con IP che hanno quel consumabile nell'ultima lettura."),
+                ("Durata media", "media dei giorni tra due sostituzioni consecutive sulla stessa MFC (i cambi "
+                                 "rilevati quando il livello risale); «n/d» finché non ci sono almeno due cambi."),
+                ("Pezzi all'anno", "MFC che lo usano × 365 / durata media."),
+                ("Entro 30 giorni / Entro 60 giorni", "quanti di quei consumabili finiscono entro 30 o 60 giorni "
+                                                      "secondo la stima della pagina Consumabili. Il numero dei 30 "
+                                                      "giorni apre Consumabili filtrata."),
+            ]),
+            ("p", "Riquadro di Consumabili, voce della Centrale e questa pagina usano lo stesso calcolo: il "
+                  "riquadro conta le MFC, questa pagina i singoli consumabili."),
         ],
     },
     {
@@ -557,7 +610,7 @@ SEZIONI: list[dict] = [
                 "Gestisci letture: le righe arrivano a pagine da 100 e si caricano scorrendo; «Elimina selezionate» "
                 "chiede conferma.",
                 "Discovery: sulle righe «IP diverso» «Correggi gli IP selezionati» scrive su ogni MFC l'IP trovato in rete, "
-                "come «Correggi IP» di riga.",
+                "come «Correggi IP» di riga; entrambe restano nel log con l'IP di prima e quello nuovo.",
             ]),
         ],
     },
@@ -569,8 +622,10 @@ SEZIONI: list[dict] = [
                 ("Consultare la riconciliazione", "permesso «Contatori - Consultazione»."),
                 ("Caricare, modificare ed eliminare fatture e letture", "permesso «Contatori - Gestione»."),
                 ("Impostazioni, profili, discovery, nuovi apparati", "permesso «Contatori - Gestione»."),
-                ("Interrogare subito un dispositivo o tutti, segnare un calo come spiegato",
+                ("Interrogare subito un dispositivo o tutti, «Prova SNMP» e «Test», segnare un calo come spiegato",
                  "permesso «Contatori - Gestione»."),
+                ("«Scarica Excel»", "lo stesso permesso della pagina (Gestisci letture: «Contatori - Gestione»)."),
+                ("«Apri ticket»", "permesso di aprire ticket IT nel modulo Ticket."),
                 ("«Leggi ora le selezionate», «Collega gli asset proposti», «Correggi gli IP selezionati»",
                  "permesso «Contatori - Gestione»; «Prepara richiesta ordine» e il pannello di anteprima con la "
                  "consultazione."),

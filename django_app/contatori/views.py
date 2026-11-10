@@ -106,7 +106,11 @@ def discovery_applica_ip(request, pk):
     """Scrive sulla macchina l'IP realmente trovato in rete."""
     macchina = get_object_or_404(Macchina, pk=pk)
     host = (request.POST.get("host") or "").strip()
+    prima = macchina.host
     if _applica_ip(macchina, host):
+        # Stessa riga di audit di «Correggi IP» su più righe (views_tabelle.discovery_correggi_ip).
+        log_action(request, "discovery_ip_corretti", "contatori",
+                   {"corretti": [{"macchina_id": macchina.pk, "da": prima, "a": host}]})
         messages.success(request, f"{macchina.reparto}: IP aggiornato a {host}.")
     else:
         messages.error(request, f"{macchina.reparto}: IP non valido ({host}).")
@@ -383,8 +387,11 @@ def fatture_elenco(request):
         for voce in archivio:
             for fattura in voce["fatture"]:
                 fattura.fornitore_hub_id = schede.get(fattura.fornitore)
+    if _vuole_excel(request):
+        from . import export
+        return _xlsx_response(export.fatture_xlsx(archivio), "archivio_fatture.xlsx")
     return render(request, "contatori/fatture.html", {
-        "archivio": archivio,
+        "archivio": archivio, "url_excel": _url_excel(request),
         "scoperti": [a for a in archivio if not a["fatture"] and not a["in_corso"]],
         "totale_fatture": sum(len(a["fatture"]) for a in archivio),
     })
@@ -460,11 +467,15 @@ def macchina_detail(request, pk):
     macchina = get_object_or_404(
         Macchina.objects.select_related("asset", "profilo_snmp", "community_salvata"), pk=pk)
     dati = services.storico_macchina(macchina)
+    from .ticket_stampante import url_apri_ticket
+
+    consumabili_stato = services.stato_consumabili([macchina]).get(macchina.pk)
     return render(request, "contatori/macchina.html", {
+        "url_ticket": url_apri_ticket(request, macchina, consumabili_stato),
         "macchina": macchina, "dati": dati, "info_snmp": services.info_snmp(macchina),
         "ultima_mensile": macchina.letture_mensili.order_by("-rilevata_il").first(),
         "produzione": services.produzione_macchina(macchina),
-        "consumabili_stato": services.stato_consumabili([macchina]).get(macchina.pk),
+        "consumabili_stato": consumabili_stato,
         "righe_letture": services.righe_letture_macchina(macchina),
         "righe_mensili": services.righe_mensili_macchina(macchina),
         "mensili_totale": macchina.letture_mensili.count(),
@@ -650,6 +661,9 @@ def letture_gestisci(request):
     from core.paginazione import pagina_elenco
 
     righe = services.elenco_letture_gestione(tipo, macchina_id=macchina_id, anno=anno, solo_cali=solo_cali)
+    if _vuole_excel(request):
+        from . import export
+        return _xlsx_response(export.letture_gestione_xlsx(tipo, righe), f"letture_{tipo}.xlsx")
     # A pagine: nel browser fm-table-enhanced carica le successive scorrendo (o tutte se si cerca).
     page_obj = pagina_elenco(request, righe)
     return render(request, "contatori/letture_gestisci.html", {
@@ -659,6 +673,7 @@ def letture_gestisci(request):
         "anni": services.anni_letture(),
         "qui": request.get_full_path(),
         "con_cali": sum(1 for r in righe if r["cali"]),
+        "url_excel": _url_excel(request),
     })
 
 
@@ -764,12 +779,18 @@ def macchine_list(request):
         # Stesso criterio della voce «letture mensili in attesa / saltate» della Centrale.
         mancanti = {m.pk for m in services.mensili_mancanti()}
         macchine = [m for m in macchine if m.pk in mancanti]
+    consumabili = services.stato_consumabili(macchine)
+    if _vuole_excel(request):
+        from . import export
+        return _xlsx_response(export.macchine_xlsx(macchine, trimestre=trimestre, con_lettura=con_lettura,
+                                                   consumabili=consumabili), "stampanti_mfc.xlsx")
     return render(request, "contatori/macchine.html", {
         "macchine": macchine, "filtri": filtri, "trimestre": trimestre, "con_lettura": con_lettura,
+        "url_excel": _url_excel(request),
         "dismesse_nascoste": dismesse_nascoste, "stati": StatoSNMP.choices,
         "mese_corrente": timezone.localdate().replace(day=1),
         "filtrato": any(filtri[k] for k in ("q", "stato", "lettura")),
-        "consumabili": services.stato_consumabili(macchine),
+        "consumabili": consumabili,
         "ultime": services.ultime_rilevazioni(),
     })
 
@@ -798,6 +819,19 @@ def macchina_edit(request, pk=None):
         form = MacchinaForm(instance=macchina)
     return render(request, "contatori/macchina_form.html",
                   {"form": form, "macchina": macchina})
+
+
+def _vuole_excel(request):
+    """«Scarica Excel» delle pagine elenco: stessa view e stessi filtri, ?formato=xlsx."""
+    return request.GET.get("formato") == "xlsx"
+
+
+def _url_excel(request):
+    """URL della pagina corrente (filtri compresi, senza la pagina dell'elenco) con ?formato=xlsx."""
+    parametri = request.GET.copy()
+    parametri.pop("page", None)
+    parametri["formato"] = "xlsx"
+    return f"{request.path}?{parametri.urlencode()}"
 
 
 def _xlsx_response(wb, filename):
@@ -899,8 +933,37 @@ def letture_registro(request):
     except ValueError:
         n = 8
     dismesse = request.GET.get("dismesse") == "1"
+    registro = services.registro_letture(n, dismesse=dismesse)
+    if _vuole_excel(request):
+        from . import export
+        return _xlsx_response(export.registro_letture_xlsx(registro), "registro_letture.xlsx")
     return render(request, "contatori/letture_registro.html", {
-        "registro": services.registro_letture(n, dismesse=dismesse), "n": n, "dismesse": dismesse,
+        "registro": registro, "n": n, "dismesse": dismesse, "url_excel": _url_excel(request),
+    })
+
+
+def letture_mensili(request):
+    """Letture mensili per mese: MFC × 12 mesi dell'anno scelto, mancanti in evidenza, Excel della mail."""
+    oggi = timezone.localdate()
+    anni = sorted({d.year for d in LetturaMensileContatori.objects.dates("mese", "year")} | {oggi.year},
+                  reverse=True)
+    anno = request.GET.get("anno", "")
+    anno = int(anno) if anno.isdigit() and int(anno) in anni else None
+    mese_xlsx = request.GET.get("mese", "")
+    if _vuole_excel(request) and mese_xlsx:
+        # Lo stesso Excel allegato alla mail mensile (mail_mensile.riepilogo + export.letture_mensili_xlsx).
+        from datetime import date
+
+        from . import export
+        from .mail_mensile import riepilogo
+        try:
+            a, m = (int(x) for x in mese_xlsx.split("-"))
+            primo = date(a, m, 1)
+        except ValueError:
+            return redirect("contatori:letture_mensili")
+        return _xlsx_response(export.letture_mensili_xlsx(riepilogo(primo)), f"letture_mfc_{primo:%Y-%m}.xlsx")
+    return render(request, "contatori/letture_mensili.html", {
+        **services.letture_mensili_per_mese(anno=anno, oggi=oggi), "anni": anni, "anno": anno,
     })
 
 
@@ -1016,18 +1079,40 @@ def consumabili_flotta(request):
     def non_recente(r):
         return r["stato"] is None or not r["stato"]["recente"]
 
+    # Stessa funzione della Centrale e della pagina «Fabbisogno»: i numeri coincidono.
+    entro_30 = services.fabbisogno_consumabili(macchine, stati)["entro_30"]
+
+    def in_esaurimento(r):
+        return r["macchina"].pk in entro_30
+
+    filtri = {"critici": critica, "non_recenti": non_recente, "entro_30": in_esaurimento}
     critici = sum(1 for r in righe if critica(r))
     non_recenti = sum(1 for r in righe if non_recente(r))
-    filtro = request.GET.get("filtro") if request.GET.get("filtro") in ("critici", "non_recenti") else ""
+    filtro = request.GET.get("filtro") if request.GET.get("filtro") in filtri else ""
     totale = len(righe)
     if filtro:
-        righe = [r for r in righe if (critica if filtro == "critici" else non_recente)(r)]
+        righe = [r for r in righe if filtri[filtro](r)]
+    if _vuole_excel(request):
+        from . import export
+        return _xlsx_response(export.consumabili_xlsx(righe), "consumabili.xlsx")
     return render(request, "contatori/consumabili.html", {
         "righe": righe, "totale": totale, "filtro": filtro,
-        "critici": critici,
+        "critici": critici, "entro_30": len(entro_30), "giorni_esaurimento": services.FABBISOGNO_GIORNI[0],
+        "url_excel": _url_excel(request),
         "non_recenti": non_recenti,
         "soglia": services.SOGLIA_CONSUMABILE_PCT,
         "giorni_recente": services.CONSUMABILI_RECENTE_GIORNI,
+    })
+
+
+def consumabili_fabbisogno(request):
+    """Fabbisogno per consumabile: MFC che lo usano, durata media, pezzi all'anno, in esaurimento."""
+    dati = services.fabbisogno_consumabili()
+    if _vuole_excel(request):
+        from . import export
+        return _xlsx_response(export.fabbisogno_xlsx(dati), "fabbisogno_consumabili.xlsx")
+    return render(request, "contatori/consumabili_fabbisogno.html", {
+        **dati, "url_excel": _url_excel(request),
     })
 
 
@@ -1062,6 +1147,7 @@ def macchina_consumabili_riepilogo(request, pk):
                   {"riepilogo": riepilogo, "errore": errore, "macchina": macchina})
 
 
+@richiede_gestione
 @require_POST
 def macchina_test_snmp(request, pk):
     """Testa la lettura SNMP di una macchina; ritorna il frammento con l'esito."""
@@ -1116,10 +1202,16 @@ def snmp_centrale(request):
                                    | Q(host__icontains=q) | Q(modello__icontains=q)
                                    | Q(asset__asset_tag__icontains=q) | Q(asset__name__icontains=q))
     dispositivi = list(dispositivi)
+    disponibilita = services.disponibilita_flotta(d.pk for d in dispositivi)
+    if _vuole_excel(request):
+        from . import export
+        return _xlsx_response(export.monitor_snmp_xlsx(dispositivi, list(macchine.order_by("reparto")), disponibilita),
+                              "monitor_snmp.xlsx")
     return render(request, "contatori/snmp_centrale.html", {
         "dispositivi": dispositivi, "q": q, "filtrato": bool(q or categoria or flotta),
+        "url_excel": _url_excel(request),
         "da_interrogare": services.dispositivi_senza_doppioni(DispositivoSNMP.objects.filter(attivo=True)).count(),
-        "disponibilita": services.disponibilita_flotta(d.pk for d in dispositivi),
+        "disponibilita": disponibilita,
         "macchine": macchine,
         "flotta": flotta, "flotta_etichetta": services.FLOTTA.get(flotta, ""),
         "riepilogo": services.centrale_snmp_riepilogo(),

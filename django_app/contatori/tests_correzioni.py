@@ -75,8 +75,8 @@ class StatoFlottaCoerenteTests(_AuthedClientMixin, TestCase):
                                        snmp_ultimo_controllo=ora)
 
     def test_voce_da_fare_usa_lo_stato_flotta(self):
-        voce = next(v for v in services.cruscotto_operativo()["da_fare"] if "dispositivi SNMP" in v["titolo"])
-        self.assertTrue(voce["titolo"].startswith("1 dispositivi"))
+        voce = next(v for v in services.cruscotto_operativo()["da_fare"] if "SNMP da verificare" in v["titolo"])
+        self.assertTrue(voce["titolo"].startswith("1 dispositivo SNMP"))
         self.assertIn("0 in attenzione", voce["dettaglio"])
         self.assertTrue(voce["url"].endswith("?flotta=errore"))
         flotta = services.stato_flotta()
@@ -175,8 +175,8 @@ class LinkFiltratiTests(_AuthedClientMixin, TestCase):
         r = self.client.get(reverse("contatori:macchine") + "?lettura=mensile_mancante")
         self.assertEqual([m.pk for m in r.context["macchine"]], [mancante.pk])
         voci = {v["titolo"]: v["url"] for v in services.cruscotto_operativo(oggi.replace(day=9))["da_fare"]}
-        self.assertTrue(voci["1 MFC non raggiungibili"].endswith("?stato=ERROR"))
-        self.assertTrue(voci["1 letture mensili saltate"].endswith("?lettura=mensile_mancante"))
+        self.assertTrue(voci["1 MFC non raggiungibile"].endswith("?stato=ERROR"))
+        self.assertTrue(voci["1 lettura mensile saltata"].endswith("?lettura=mensile_mancante"))
 
     def test_elenchi_della_centrale_con_totale(self):
         for i in range(10):
