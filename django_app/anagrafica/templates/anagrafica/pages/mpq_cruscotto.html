@@ -64,18 +64,18 @@
         <div class="fmd-mtr-lbl">Processi attivi</div>
         <div class="fmd-mtr-sub">{{ n_sospesi }} sospesi · {{ n_dismessi }} dismessi/non rinnovati</div>
       </div>
-      <div class="fmd-mtr fmd-t-yellow">
+      <a href="#scadenze-urgenti" title="Vai ai processi in scadenza" class="fmd-mtr fmd-t-yellow">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-clock"/></svg></span><span class="fmd-mtr-val">{{ n_in_scadenza }}</span></div>
         <div class="fmd-mtr-lbl">Processi in scadenza ≤60gg</div>
         <div class="fmd-mtr-sub">{{ n_s30 }} entro 30 giorni</div>
-      </div>
-      <div class="fmd-mtr fmd-t-amber">
+      </a>
+      <a href="#scadenze-urgenti" title="Vai ai processi in scadenza" class="fmd-mtr fmd-t-amber">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-alert-tri"/></svg></span><span class="fmd-mtr-val">{{ n_scaduti }}</span></div>
         <div class="fmd-mtr-lbl">Processi scaduti</div>
         <div class="fmd-mtr-sub">Da rinnovare/revocare con priorità</div>
-      </div>
+      </a>
       <div class="fmd-mtr fmd-t-cyan">
         <span class="fmd-ribbon"></span>
         <div class="fmd-mtr-top"><span class="fmd-mtr-ic"><svg class="fmd-ico"><use href="#i-grid"/></svg></span><span class="fmd-mtr-val">{{ n_abilitazioni }}</span></div>
@@ -134,7 +134,7 @@
     </div>
 
     {# ── Scadenze urgenti ───────────────────────────────────────────────── #}
-    <section class="fmd-panel fmd-block">
+    <section class="fmd-panel fmd-block" id="scadenze-urgenti" style="scroll-margin-top:90px;">
       <div class="fmd-block-head">
         <div class="fmd-block-title">
           <svg class="fmd-ico"><use href="#i-alarm"/></svg>Processi in scadenza

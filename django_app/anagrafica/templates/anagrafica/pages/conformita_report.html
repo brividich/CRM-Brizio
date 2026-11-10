@@ -58,9 +58,15 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
       {% include "anagrafica/partials/_export_buttons.html" with export_key="conformita" %}
       <a class="hr-btn hr-btn-outline" href="{% querystring format='csv' page=None %}">⬇ Esporta CSV</a>
       <button type="button" class="hr-btn hr-btn-outline" onclick="window.print();">🖨 Stampa / PDF</button>
+      <a class="hr-btn hr-btn-outline" href="{% url 'guida_modulo' 'anagrafica' %}#conformita-qualifiche" title="Come funziona questa pagina">? Guida</a>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:index' %}">← Dashboard</a>
     </div>
   </div>
+
+  {% if filtro_mansione %}
+  <div class="cr-filtro-attivo">Solo chi ha la mansione di rischio <b>{{ filtro_mansione }}</b> · <a href="{% querystring mansione=None page=None %}">mostra tutti</a></div>
+  {% endif %}
+  <style>.cr-vai{ text-decoration:none; } .cr-vai:hover{ filter:brightness(.95); } .cr-filtro-attivo{ margin:10px 0 0; font-size:13px; color:var(--fmd-muted,#64748b); } .cr-filtro-attivo a{ color:#1f87cd; font-weight:600; }</style>
 
   <!-- KPI -->
   <section class="fmd fmd-kpi fmd-kpi-auto" aria-label="Conformità in sintesi">
@@ -160,10 +166,10 @@ body.theme-dark .cr-na { background:rgba(100,116,139,.25); color:#cbd5e1; }
               </span>
               {% endwith %}
             </td>
-            <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.formazione.esito %}</td>
-            <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.visite.esito %}</td>
-            <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.qualifiche.esito %}</td>
-            <td>{% include "anagrafica/partials/_conformita_badge.html" with esito=r.dpi.esito %}</td>
+            <td><a class="cr-vai" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}#scheda-formazione" title="Apri la formazione della persona">{% include "anagrafica/partials/_conformita_badge.html" with esito=r.formazione.esito %}</a></td>
+            <td><a class="cr-vai" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}#visite-mediche" title="Apri le visite della persona">{% include "anagrafica/partials/_conformita_badge.html" with esito=r.visite.esito %}</a></td>
+            <td><a class="cr-vai" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}#qualifiche" title="Apri le qualifiche della persona">{% include "anagrafica/partials/_conformita_badge.html" with esito=r.qualifiche.esito %}</a></td>
+            <td><a class="cr-vai" href="{% url 'anagrafica:dipendente_detail' r.legacy_id %}#dpi" title="Apri i DPI della persona">{% include "anagrafica/partials/_conformita_badge.html" with esito=r.dpi.esito %}</a></td>
           </tr>
           {% endfor %}
         </tbody>

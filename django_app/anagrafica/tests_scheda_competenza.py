@@ -21,7 +21,9 @@ User = get_user_model()
 
 
 @override_settings(LEGACY_AUTH_ENABLED=False)
-class SchedaCompetenzaTests(TestCase):
+class _DatiCompetenza(TestCase):
+    """Dati sintetici comuni: due mansioni, una competenza, quattro persone."""
+
     @classmethod
     def setUpTestData(cls):
         _ensure_anagrafica_table()
@@ -56,6 +58,9 @@ class SchedaCompetenzaTests(TestCase):
                                                 in_lista=True)
         AbilitazioneMacchinaVoce.objects.create(abilitazione=a, voce=self.v2, livello="U")
         self.url = reverse("anagrafica:mansionario_competenza", args=[self.cat.pk])
+
+
+class SchedaCompetenzaTests(_DatiCompetenza):
 
     def test_stati_calcolati_come_nella_mansione(self):
         dati = cat_svc.scheda(self.cat)
@@ -113,3 +118,34 @@ class SchedaCompetenzaTests(TestCase):
         resp = self.client.get(self.url)
         self.assertEqual(resp.status_code, 302)
         self.assertNotIn("Lettura del disegno", resp.content.decode())
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class FiloLacunePersonaRischioTests(_DatiCompetenza):
+    """Persona, corso, mansione di rischio e lacune portano alla competenza o all'azione."""
+
+    def test_persona_cosa_manca_porta_alla_competenza(self):
+        url = reverse("anagrafica:mansionario_persona", args=[self.sotto.pk])
+        body = self.client.get(url).content.decode()
+        self.assertIn(self.url, body)
+        self.assertIn("L, richiesto U", body)
+
+    def test_corso_porta_alla_competenza(self):
+        body = self.client.get(reverse("anagrafica:formazione_corso_detail", args=[self.corso.pk])).content.decode()
+        self.assertIn(self.url, body)
+
+    def test_mansione_di_rischio_mostra_le_mansioni_che_la_comportano(self):
+        from .models import Mansione
+        rischio = Mansione.objects.create(nome="Rischio sintetico")
+        self.m1.mansioni_rischio.add(rischio)
+        body = self.client.get(reverse("anagrafica:mansione_requisiti", args=[rischio.pk])).content.decode()
+        self.assertIn("Mansioni che la comportano", body)
+        self.assertIn(reverse("anagrafica:mansionario_mansione", args=[self.m1.pk]), body)
+        self.assertNotIn(reverse("anagrafica:mansionario_mansione", args=[self.m2.pk]) + '"', body)
+
+    def test_lacune_con_iscrivi_e_valuta(self):
+        body = self.client.get(reverse("anagrafica:mansionario_lacune")).content.decode()
+        self.assertIn("↻ Iscrivi a", body)
+        self.assertIn(f'name="dipendenti_selezionati" value="{self.senza.pk}"', body)
+        self.assertIn(">Valuta<", body)
+        self.assertIn(self.url, body)

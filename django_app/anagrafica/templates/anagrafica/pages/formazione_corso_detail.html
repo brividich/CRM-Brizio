@@ -145,7 +145,7 @@
           <div class="muted" style="margin-bottom:4px;">Richiesto anche come requisito di una competenza (blocca il livello oltre «I» finché manca):</div>
           <ul style="margin:0;padding-left:18px;">
             {% for m in mansioni_da_competenze %}
-            <li><a class="fm-link" href="{% url 'anagrafica:mansionario_mansione' m.mansione.pk %}#formazione">{{ m.mansione.display|default:m.mansione.competenza_key }}</a> <span class="muted">· {{ m.competenze|join:", " }}</span></li>
+            <li><a class="fm-link" href="{% url 'anagrafica:mansionario_mansione' m.mansione.pk %}#formazione">{{ m.mansione.display|default:m.mansione.competenza_key }}</a> <span class="muted">· {% for v in m.competenze %}{% if v.catalogo_id %}<a class="fm-link" href="{% url 'anagrafica:mansionario_competenza' v.catalogo_id %}" title="Scheda della competenza">{{ v.nome }}</a>{% else %}{{ v.nome }}{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</span></li>
             {% endfor %}
           </ul>
         </div>

@@ -604,7 +604,7 @@ _SAFETY_GRUPPI = (
         ("categorie", "Categorie di rischio", "anagrafica:categorie_corso_list", (), None),
     )),
     ("Formazione e DPI", (
-        ("matrice", "Matrice competenze", "anagrafica:matrice_competenze", (), None),
+        ("matrice", "Matrice qualifiche", "anagrafica:matrice_competenze", (), None),
         ("qualifiche", "Qualifiche di sicurezza", "anagrafica:qualifiche_list", (), None),
         ("dpi", "DPI", "dpi:dashboard", (), None),
         ("wizard", "Guida", "anagrafica:sicurezza_wizard", (), None),
