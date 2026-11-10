@@ -130,8 +130,9 @@ def togli_doppione(*, models=None):
 
 
 DIPENDENTE_PLACEHOLDER = "{dipendente_email}"
-NON_MALATTIA = {"field_name": "tipo_assenza", "operator": "not_equals", "expected_value": "Malattia",
-                "value_type": "string", "compare_with_old": False, "negate": False}
+DA_CAPOREPARTO = {"field_name": "inserito_da_caporeparto", "operator": "is_true", "expected_value": "",
+                  "value_type": "bool", "compare_with_old": False, "negate": False}
+DESCRIZIONE_DIPENDENTE = "Avvisa il dipendente se l'ha inserita un caporeparto (suo o di un altro reparto)"
 MAIL_DIPENDENTE = {
     "to": DIPENDENTE_PLACEHOLDER,
     "cc": "",
@@ -139,26 +140,28 @@ MAIL_DIPENDENTE = {
     "reply_to": "",
     "subject_template": "Richiesta {tipo_assenza} registrata dal {data_inizio} al {data_fine}",
     "body_text_template": (
-        "L'ufficio assenze ha registrato questa richiesta a tuo nome, già approvata:\r\n"
+        "Il caporeparto ha registrato questa richiesta a tuo nome, già approvata:\r\n"
         "Tipo richiesta: {tipo_assenza}\r\n"
         "Periodo: {data_inizio} - {data_fine}\r\n"
         "Motivazione: {motivazione_richiesta}\r\n\r\n"
-        "Se qualcosa non torna, rispondi all'ufficio assenze."
+        "Se qualcosa non torna, parlane con il tuo caporeparto."
     ),
     "body_html_template": "",
     "fail_silently": False,
-    "run_if": NON_MALATTIA,
+    "run_if": DA_CAPOREPARTO,
 }
 
 
 @transaction.atomic
 def avvisa_dipendente(*, models=None):
-    """Con «Salta approvazione» avvisa anche il dipendente, tranne per la malattia.
+    """Con «Salta approvazione» avvisa il dipendente se l'ha inserita un caporeparto.
 
-    La regola di inserimento mandava la mail solo ad assenza@ (e al caporeparto):
-    un permesso o delle ferie inseriti dall'amministrazione per conto del
-    dipendente non gli arrivavano mai. La malattia resta esclusa: la comunica il
-    dipendente per telefono e l'amministrazione la inserisce.
+    Il dipendente riceve la mail quando la richiesta è approvata dal capo oppure
+    inserita con «Salta approvazione» da un caporeparto (il suo o un altro). Se la
+    inserisce l'ufficio assenze (es. la malattia comunicata per telefono) no.
+    Prima la regola di inserimento scriveva solo ad assenza@ (e al caporeparto).
+    Una mail al dipendente con la condizione della prima versione («non Malattia»)
+    viene portata alla condizione nuova.
     """
     AutomationRule, AutomationAction, _ = models or (_Rule, _Action, _Condition)
     rule = AutomationRule.objects.select_for_update().filter(code=SKIP_RULE).first()
@@ -170,8 +173,19 @@ def avvisa_dipendente(*, models=None):
         raise ValueError("La regola di inserimento non filtra più su salta_approvazione: verificare nel designer.")
     actions = list(rule.actions.order_by("order", "pk"))
     mails = [a for a in actions if a.action_type == "send_email"]
-    if any(DIPENDENTE_PLACEHOLDER in str((a.config_json or {}).get(k) or "") for a in mails for k in ("to", "cc")):
-        return "già presente"
+    esistenti = [a for a in mails
+                 if any(DIPENDENTE_PLACEHOLDER in str((a.config_json or {}).get(k) or "") for k in ("to", "cc"))]
+    if esistenti:
+        aggiornate = 0
+        for a in esistenti:
+            config = a.config_json or {}
+            if (config.get("run_if") or {}).get("field_name") == "tipo_assenza":
+                nuova = deepcopy(MAIL_DIPENDENTE)
+                if config.get("from_email"):
+                    nuova["from_email"] = config["from_email"]
+                AutomationAction.objects.filter(pk=a.pk).update(config_json=nuova, description=DESCRIZIONE_DIPENDENTE)
+                aggiornate += 1
+        return "condizione aggiornata" if aggiornate else "già presente"
     if not mails:
         raise ValueError("La regola di inserimento non ha mail: regola già personalizzata.")
     ultima = mails[-1]
@@ -183,6 +197,6 @@ def avvisa_dipendente(*, models=None):
             AutomationAction.objects.filter(pk=a.pk).update(order=a.order + 1)
     AutomationAction.objects.create(
         rule=rule, order=ultima.order + 1, action_type="send_email", is_enabled=True, config_json=config,
-        description="Avvisa il dipendente della richiesta registrata (non per la malattia)",
+        description=DESCRIZIONE_DIPENDENTE,
     )
     return "aggiunta"
