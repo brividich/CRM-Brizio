@@ -23,6 +23,15 @@
 .tmap-finestra {
   position:relative; overflow:auto; max-height:460px; border:1px solid #e2e8f0; border-radius:12px; background:#f8fafc;
 }
+.tmap-velo {
+  position:sticky; top:0; left:0; z-index:4; display:flex; justify-content:center; align-items:flex-start; height:0; overflow:visible; pointer-events:none;
+}
+.tmap-velo-testo {
+  margin-top:10px; padding:6px 14px; border-radius:999px; background:rgba(15,23,42,.8); color:#fff; line-height:1.4;
+  font-size:12px; font-weight:700; box-shadow:0 1px 4px rgba(15,23,42,.35);
+}
+.tmap-finestra.tmap-attiva .tmap-velo { display:none; }
+.tmap-finestra.tmap-attiva { border-color:#0369a1; box-shadow:0 0 0 2px rgba(3,105,161,.18); }
 .tmap-tela { position:relative; width:100%; min-width:100%; }
 .tmap-img { display:block; width:100%; height:auto; user-select:none; -webkit-user-drag:none; }
 .tmap-livello { position:absolute; inset:0; pointer-events:none; }

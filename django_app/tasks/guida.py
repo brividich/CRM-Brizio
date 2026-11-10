@@ -453,7 +453,7 @@ SEZIONI: list[dict] = [
                 "Su ogni punto scrivi la nota: si salva da sola.",
                 "Serve del lavoro? «+ Nuova attività» sul punto (parte dal titolo del punto, poi responsabile, inizio e fine; «Crea e collega»), oppure scegli un'attività già esistente in «Attività collegata».",
                 "I punti che vengono dal Percorso del kickoff («Arrivo materiali: da assegnare», «Macchina: in ritardo»...) hanno «Assegna la tappa»: scegli la macchina, il fornitore o il processo se serve, poi responsabile e date. Nasce l'attività della tappa, collegata al punto, con notifica e mail a chi la riceve.",
-                "Premi «Segna trattato» e, se vuoi, scrivi il «Tempo effettivo».",
+                "«Tempo effettivo» va da solo: il cronometro del punto parte alla prima modifica (nota, attività collegata, nuova attività), si mette in pausa quando inizi un altro punto e si ferma con «Segna trattato». Il badge ⏱ accanto mostra il tempo; un clic lo mette in pausa o lo riprende. Se scrivi i minuti a mano, vale il tuo numero.",
                 "Quello che emerge mentre si parla va in «Cattura rapida», sempre visibile in fondo allo schermo: scegli Attività, Azione, Decisione o Problema, scrivi e premi Invio.",
                 "A fine riunione premi «Termina incontro e registra l'esito».",
             ]),

@@ -198,7 +198,7 @@
 
 {% block tasks_shell_scripts %}
 {{ project_tasks_json|json_script:"project-tasks-data" }}
-<script src="{% static 'tasks/js/meeting_run.js' %}?v=20261109" data-item-update-url="{{ item_update_url }}" data-quick-capture-url="{{ quick_capture_url }}" data-item-task-create-url="{{ item_task_create_url }}" data-task-detail-url="{% url 'tasks:detail' 0 %}" data-planned-minutes="{{ planned_minutes|default:0 }}"></script>
+<script src="{% static 'tasks/js/meeting_run.js' %}?v=20261110t" data-item-update-url="{{ item_update_url }}" data-quick-capture-url="{{ quick_capture_url }}" data-item-task-create-url="{{ item_task_create_url }}" data-task-detail-url="{% url 'tasks:detail' 0 %}" data-planned-minutes="{{ planned_minutes|default:0 }}"></script>
 <script src="{% static 'tasks/js/meeting_agenda_add.js' %}" defer></script>
 <script>
   (function () {

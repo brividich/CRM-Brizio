@@ -369,6 +369,14 @@ body.theme-dark .tkt-file-remove{color:#fca5a5}
           </div>
 
           <div class="tkt-field-row">
+            <div class="tkt-field">
+              <label for="tkt-aperto-il">Aperto il <span class="tkt-optional">vuoto = adesso</span></label>
+              <input type="datetime-local" name="aperto_il" id="tkt-aperto-il" value="{{ form_data.aperto_il|default:'' }}">
+              <div class="tkt-field-hint">Segnalazione arrivata prima (a voce, per mail)? Metti la data vera: mai futura.</div>
+            </div>
+          </div>
+
+          <div class="tkt-field-row">
             <div class="tkt-field" style="position:relative;">
               <label>Asset coinvolto <span class="req">*</span></label>
 
@@ -590,6 +598,12 @@ const myAssetsSection = document.getElementById('my-assets-section');
 const assetSelectedLabel = document.getElementById('asset-selected-label');
 
 let tktMappa = null;
+(function () {
+  // «Aperto il» e «Concluso il»: il browser non propone date future.
+  const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  const max = d.toISOString().slice(0, 16);
+  ['tkt-aperto-il', 'tkt-intervento-quando'].forEach(id => { const c = document.getElementById(id); if (c) c.max = max; });
+})();
 const mappaPannello = document.getElementById('tkt-mappa-pannello');
 
 function _clearPuntoMappa() {

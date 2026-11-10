@@ -4915,3 +4915,7 @@ html.ar-aperto{overflow:hidden}
 @media (max-width:900px){.cr-riga{grid-template-columns:1fr 1fr}.cr-nome{grid-column:1/-1}}
 .mc-reale{display:block;font-size:10px;color:var(--text-mid)}
 .tr-apri{margin-left:auto}
+
+/* Conduzione: cronometro del punto */
+.run-crono{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:700;background:var(--bg);border:1px solid var(--border);color:var(--text-mid);cursor:pointer;font-variant-numeric:tabular-nums}
+.run-crono.is-live{background:#dcfce7;border-color:#86efac;color:#166534}
