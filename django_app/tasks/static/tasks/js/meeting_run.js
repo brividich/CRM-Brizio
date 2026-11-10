@@ -62,6 +62,72 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
     if (el) el.textContent = String(document.querySelectorAll('.run-item.done').length);
   }
 
+  /* Tempo effettivo «live»: il cronometro di un punto parte alla prima modifica (nota, attività,
+     nuova attività) e si ferma con «Segna trattato». Un punto alla volta: iniziarne un altro mette
+     in pausa il precedente. Resiste al ricaricamento (memoria del browser) e salva ogni minuto. */
+  const CRONO_KEY = 'ko-crono:' + (ITEM_URL || location.pathname);
+  function cronoLeggi() {
+    try { return JSON.parse(localStorage.getItem(CRONO_KEY) || '{}'); } catch (e) { return {}; }
+  }
+  function cronoScrivi(stato) {
+    try { localStorage.setItem(CRONO_KEY, JSON.stringify(stato)); } catch (e) { /* senza memoria vale la sessione */ }
+  }
+  const crono = cronoLeggi();           /* { itemId: {ms: accumulati, da: inizio|null, manuale: bool} } */
+  const cronoCards = {};
+
+  function cronoMs(id) {
+    const c = crono[id];
+    if (!c) return 0;
+    return (c.ms || 0) + (c.da ? Date.now() - c.da : 0);
+  }
+  function cronoMostra(id) {
+    const card = cronoCards[id];
+    if (!card) return;
+    const ms = cronoMs(id);
+    const c = crono[id] || {};
+    const badge = card.querySelector('[data-role=crono]');
+    const tempo = card.querySelector('[data-role=tempo]');
+    if (badge) {
+      const sec = Math.floor(ms / 1000);
+      badge.hidden = !ms && !c.da;
+      badge.textContent = (c.da ? '⏱ ' : '⏸ ') + String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0') + (c.da ? ' in corso' : ' in pausa');
+      badge.classList.toggle('is-live', !!c.da);
+    }
+    if (tempo && !c.manuale && ms) {
+      const min = Math.max(1, Math.ceil(ms / 60000));
+      if (String(tempo.value) !== String(min)) tempo.value = String(min);
+    }
+  }
+  function cronoSalva(id) {
+    const card = cronoCards[id];
+    const c = crono[id];
+    if (!card || !c || c.manuale) return;
+    const min = Math.max(1, Math.ceil(cronoMs(id) / 60000));
+    post(ITEM_URL, { item_id: id, tempo_effettivo_minuti: String(min) }).catch(function () {});
+  }
+  function cronoPausa(id) {
+    const c = crono[id];
+    if (!c || !c.da) return;
+    c.ms = (c.ms || 0) + (Date.now() - c.da);
+    c.da = null;
+    cronoScrivi(crono);
+    cronoMostra(id);
+    cronoSalva(id);
+  }
+  function cronoAvvia(id) {
+    const card = cronoCards[id];
+    if (!card || card.classList.contains('done')) return;
+    const c = crono[id] = crono[id] || { ms: 0, da: null, manuale: false };
+    if (c.manuale || c.da) return;
+    Object.keys(crono).forEach(function (altro) { if (altro !== id) cronoPausa(altro); });
+    c.da = Date.now();
+    cronoScrivi(crono);
+    cronoMostra(id);
+  }
+  setInterval(function () { Object.keys(crono).forEach(function (id) { if (crono[id].da) cronoMostra(id); }); }, 1000);
+  setInterval(function () { Object.keys(crono).forEach(function (id) { if (crono[id].da) cronoSalva(id); }); }, 60000);
+  window.addEventListener('beforeunload', function () { cronoScrivi(crono); });
+
   /* Un punto per volta: nota in autosave, spunta e tempo effettivo. */
   window.bindRunItem = function (card) {
     const itemId = card.getAttribute('data-item-id');
@@ -77,6 +143,32 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
       setTimeout(function () { saved.hidden = true; }, 1500);
     }
 
+    cronoCards[itemId] = card;
+    /* Badge del cronometro accanto al tempo effettivo. */
+    if (tempo && !card.querySelector('[data-role=crono]')) {
+      const badge = document.createElement('span');
+      badge.className = 'run-crono';
+      badge.setAttribute('data-role', 'crono');
+      badge.hidden = true;
+      const label = tempo.closest('label') || tempo;
+      label.insertAdjacentElement('afterend', badge);
+      badge.addEventListener('click', function () {
+        const c = crono[itemId];
+        if (c && c.da) { cronoPausa(itemId); } else { cronoAvvia(itemId); }
+      });
+      badge.title = 'Clic per mettere in pausa o riprendere';
+    }
+    cronoMostra(itemId);
+    /* Prima modifica di un campo del punto: parte il suo cronometro. */
+    card.addEventListener('input', function (e) {
+      if (e.target === tempo) return;
+      cronoAvvia(itemId);
+    });
+    card.addEventListener('change', function (e) {
+      if (e.target === tempo) return;
+      cronoAvvia(itemId);
+    });
+
     let notaTimer = null;
     nota?.addEventListener('input', function () {
       clearTimeout(notaTimer);
@@ -85,13 +177,23 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
       }, 800);
     });
 
-    tempo?.addEventListener('change', function () {
+    tempo?.addEventListener('change', function (e) {
+      /* Scritto a mano: il cronometro di questo punto si ferma e vale il numero inserito. */
+      if (e.isTrusted) {
+        const c = crono[itemId] = crono[itemId] || { ms: 0, da: null };
+        c.manuale = true;
+        c.da = null;
+        cronoScrivi(crono);
+        cronoMostra(itemId);
+      }
       post(ITEM_URL, { item_id: itemId, tempo_effettivo_minuti: tempo.value || '0' })
         .then(flashSaved).catch(function () {});
     });
 
     toggle?.addEventListener('click', function () {
       const next = !card.classList.contains('done');
+      /* Trattato: il cronometro si ferma e il tempo viene salvato. */
+      if (next) { cronoPausa(itemId); }
       toggle.disabled = true;
       post(ITEM_URL, { item_id: itemId, done: next ? '1' : '0' })
         .then(function (data) {
