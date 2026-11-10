@@ -10,8 +10,10 @@ urlpatterns = [
     path("<int:pk>/allegati/carica/",  views.ticket_carica_allegati,  name="carica_allegati"),
     path("<int:pk>/pdf/",             views.ticket_pdf,              name="pdf"),
     path("<int:pk>/",                 views.ticket_detail,           name="detail"),
+    path("<int:pk>/azione/",          views.ticket_azione_richiedente, name="azione_richiedente"),
     path("gestione/",                 views.ticket_gestione_list,    name="gestione_list"),
     path("gestione/<int:pk>/",        views.ticket_gestione_detail,  name="gestione_detail"),
+    path("gestione/<int:pk>/data-apertura/", views.ticket_gestione_data_apertura, name="gestione_data_apertura"),
     path("impostazioni/",             views.ticket_impostazioni,     name="impostazioni"),
     # API
     path("api/commento/",             views.api_commento,            name="api_commento"),

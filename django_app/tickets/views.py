@@ -18,6 +18,7 @@ from django.db import transaction
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.timezone import is_naive, make_aware, now as tz_now
 from django.views.decorators.http import require_POST
@@ -1213,6 +1214,7 @@ def ticket_dashboard(request, sezione: str = "miei"):
         "filtro_prio":   prio_f,
         "filtro_cerca":  cerca_f,
         # KPI
+        "n_da_confermare": kpi_qs.filter(stato=StatoTicket.RISOLTO).count(),
         "n_aperte":      kpi_qs.filter(stato=StatoTicket.APERTA).count(),
         "n_urgenti":     kpi_qs.filter(priorita=PrioritaTicket.URGENTE, stato__in=[StatoTicket.APERTA, StatoTicket.IN_CARICO]).count(),
         "n_in_carico":   kpi_qs.filter(stato=StatoTicket.IN_CARICO).count(),
@@ -1490,6 +1492,7 @@ def ticket_detail(request, pk: int):
         "is_admin":      is_admin,
         "is_richiedente":is_richiedente,
         "richiedente_anagrafica_id": richiedente_anagrafica_id,
+        "azioni_richiedente": _azioni_richiedente(request, ticket, access),
     }
     if ticket.tipo == TipoTicket.MAN and (ticket.asset_id or ticket.mappa_layout_id):
         _, _, legacy_id = _legacy_identity(request)
@@ -1501,6 +1504,89 @@ def ticket_detail(request, pk: int):
     ctx["appena_creato"] = appena_creato
     return render(request, "tickets/pages/detail.html", ctx)
 
+
+
+def _azioni_richiedente(request, ticket: Ticket, access: dict) -> list[str]:
+    """Le mosse di chi ha aperto il ticket: «annulla» finché nessuno l'ha preso in carico,
+    «conferma»/«riapri» quando il tecnico l'ha segnato risolto."""
+    aperto_da_me = bool(ticket.aperto_da_user_id and ticket.aperto_da_user_id == request.user.id)
+    if not (access["is_richiedente"] or aperto_da_me):
+        return []
+    if ticket.stato == StatoTicket.APERTA:
+        return ["annulla"]
+    if ticket.stato == StatoTicket.RISOLTO:
+        return ["conferma", "riapri"]
+    return []
+
+
+@login_required
+@require_POST
+def ticket_azione_richiedente(request, pk: int):
+    """Annulla la richiesta, conferma la risoluzione o riapre: solo chi ha aperto il ticket."""
+    ticket = get_object_or_404(Ticket, pk=pk)
+    access = _ticket_access_flags(request, ticket)
+    azione = (request.POST.get("azione") or "").strip()
+    nota = (request.POST.get("nota") or "").strip()[:2000]
+    url = reverse("tickets:detail", args=[ticket.pk])
+    if azione not in _azioni_richiedente(request, ticket, access):
+        if not (access["is_richiedente"] or ticket.aperto_da_user_id == request.user.id):
+            return render(request, "core/pages/forbidden.html", status=403)
+        messages.error(request, "Questa azione non è più disponibile: lo stato del ticket è cambiato.")
+        return redirect(url)
+
+    name, email = access["name"], access["email"]
+    if azione == "annulla":
+        cambia_stato_ticket(ticket, StatoTicket.ANNULLATO, utente_nome=name, utente_email=email,
+                            nota="Annullato dal richiedente." + (f" Motivo: {nota}" if nota else ""))
+        testo = "Ho annullato la richiesta." + (f"\n{nota}" if nota else "")
+        evento, msg = "ticket_annullato_richiedente", f"Ticket {ticket.numero_ticket} annullato."
+    elif azione == "conferma":
+        cambia_stato_ticket(ticket, StatoTicket.CHIUSO, utente_nome=name, utente_email=email,
+                            nota="Risoluzione confermata dal richiedente.")
+        testo = "Confermo: il problema è risolto. Grazie." + (f"\n{nota}" if nota else "")
+        evento, msg = "ticket_confermato_richiedente", f"Ticket {ticket.numero_ticket} chiuso: grazie della conferma."
+    else:
+        if not nota:
+            messages.error(request, "Scrivi cosa non funziona ancora: serve al tecnico per riprendere il lavoro.")
+            return redirect(url)
+        nuovo = StatoTicket.IN_CARICO if (ticket.assegnato_a or ticket.delegato_fornitore_id) else StatoTicket.APERTA
+        cambia_stato_ticket(ticket, nuovo, utente_nome=name, utente_email=email,
+                            nota=f"Riaperto dal richiedente: {nota}")
+        testo = f"Non è risolto, riapro il ticket.\n{nota}"
+        evento, msg = "ticket_riaperto_richiedente", f"Ticket {ticket.numero_ticket} riaperto: il team riceve la tua nota."
+    TicketCommento.objects.create(ticket=ticket, autore_nome=name, autore_email=email, testo=testo, is_interno=False)
+    log_action(request, evento, "tickets", {"ticket": ticket.numero_ticket, "nota": nota[:200]})
+    messages.success(request, msg)
+    return redirect(url)
+
+
+@require_POST
+@_tickets_gestione_required
+def ticket_gestione_data_apertura(request, pk: int):
+    """Il gestore corregge la data di apertura (segnalazione arrivata prima del ticket)."""
+    ticket = get_object_or_404(Ticket, pk=pk)
+    access = _ticket_access_flags(request, ticket)
+    if not (access["is_gestore"] or access["is_admin"]):
+        return render(request, "core/pages/forbidden.html", status=403)
+    url = reverse("tickets:gestione_detail", args=[ticket.pk])
+    quando, errore = _data_apertura(request.POST)
+    if quando is None:
+        messages.error(request, errore or "Indica la nuova data di apertura.")
+        return redirect(url)
+    if ticket.closed_at and quando > ticket.closed_at:
+        messages.error(request, "La data di apertura non può essere dopo la chiusura del ticket.")
+        return redirect(url)
+    prima = ticket.created_at
+    Ticket.objects.filter(pk=ticket.pk).update(created_at=quando)
+    TicketCommento.objects.create(
+        ticket=ticket, autore_nome=access["name"], autore_email=access["email"], is_interno=True,
+        testo=(f"Data di apertura corretta: da {timezone.localtime(prima):%d-%m-%Y %H:%M} "
+               f"a {timezone.localtime(quando):%d-%m-%Y %H:%M}."),
+    )
+    log_action(request, "ticket_data_apertura_corretta", "tickets",
+               {"ticket": ticket.numero_ticket, "da": prima.isoformat(), "a": quando.isoformat()})
+    messages.success(request, f"Data di apertura aggiornata al {timezone.localtime(quando):%d-%m-%Y %H:%M}.")
+    return redirect(url)
 
 @login_required
 def ticket_download_allegato(request, allegato_id: int):

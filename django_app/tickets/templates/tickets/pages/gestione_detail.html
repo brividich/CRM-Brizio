@@ -132,6 +132,8 @@ body.theme-dark .tkt-meta-val a{color:#93c5fd}
 body.theme-dark .tkt-chiuso-ok{background:rgba(6,95,70,.25);color:#6ee7b7}
 body.theme-dark .tkt-risolvi-altri summary{color:#7dd3fc}
 body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
+.tkt-data-corr{display:inline-block;margin-left:6px}.tkt-data-corr summary{cursor:pointer;color:#0369a1;font-size:11px;font-weight:700;list-style:none}.tkt-data-corr summary::-webkit-details-marker{display:none}.tkt-data-corr form{display:flex;gap:6px;margin-top:6px;justify-content:flex-end}.tkt-data-corr input{font:inherit;font-size:12px;border:1px solid #cbd5e1;border-radius:6px;padding:3px 6px}.tkt-data-corr button{font:inherit;font-size:12px;font-weight:700;border:0;border-radius:6px;padding:3px 10px;background:#0369a1;color:#fff;cursor:pointer}
+body.theme-dark .tkt-data-corr input{background:var(--surface);border-color:var(--border);color:var(--text)}
 </style>
 
   {% if appena_chiuso %}
@@ -493,7 +495,7 @@ body.theme-dark .tkt-risolvi-errore{color:#fca5a5}
           {% if ticket.richiedente_email %}<div class="tkt-meta-item"><span class="tkt-meta-key">Email</span><span class="tkt-meta-val" style="font-size:11px;">{{ ticket.richiedente_email }}</span></div>{% endif %}
           <div class="tkt-meta-item"><span class="tkt-meta-key">Assegnato a</span><span class="tkt-meta-val" id="meta-assegnato">{{ ticket.assegnato_a|upper|default:"-" }}</span></div>
           <div class="tkt-meta-item"><span class="tkt-meta-key">Fornitore</span><span class="tkt-meta-val">{% if ticket.delegato_fornitore %}{{ ticket.delegato_fornitore.ragione_sociale }}{% else %}-{% endif %}</span></div>
-          <div class="tkt-meta-item"><span class="tkt-meta-key">Apertura</span><span class="tkt-meta-val">{{ ticket.created_at|date:"d-m-Y H:i" }}</span></div>
+          <div class="tkt-meta-item"><span class="tkt-meta-key">Apertura</span><span class="tkt-meta-val">{{ ticket.created_at|date:"d-m-Y H:i" }} <details class="tkt-data-corr"><summary title="Correggi la data di apertura">Correggi</summary><form method="post" action="{% url 'tickets:gestione_data_apertura' ticket.pk %}"><input type="hidden" name="azione_data" value="1">{% csrf_token %}<input type="datetime-local" name="aperto_il" required value="{{ ticket.created_at|date:'Y-m-d\TH:i' }}" max="{% now 'Y-m-d\TH:i' %}"><button type="submit">Salva</button></form></details></span></div>
           {% if ticket.data_presa_in_carico %}<div class="tkt-meta-item"><span class="tkt-meta-key">Presa in carico</span><span class="tkt-meta-val">{{ ticket.data_presa_in_carico|date:"d-m-Y H:i" }}</span></div>{% endif %}
           {% if ticket.data_prevista_risoluzione %}<div class="tkt-meta-item"><span class="tkt-meta-key">Prevista il</span><span class="tkt-meta-val" style="color:#6b21a8;font-weight:700;">{{ ticket.data_prevista_risoluzione|date:"d-m-Y" }}</span></div>{% endif %}
           {% if ticket.closed_at %}<div class="tkt-meta-item"><span class="tkt-meta-key">Chiusura</span><span class="tkt-meta-val">{{ ticket.closed_at|date:"d-m-Y H:i" }}</span></div>{% endif %}
