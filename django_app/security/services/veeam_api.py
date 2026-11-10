@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import logging
 import tempfile
 from datetime import datetime, timedelta
@@ -141,6 +142,8 @@ def valida(dati: dict) -> list[str]:
         errori.append("Manca l'utente (es. DOMINIO\\utente con il solo ruolo «Veeam Backup Viewer»).")
     if not dati["password"]:
         errori.append("Manca la password.")
+    if dati["version"] and not re.fullmatch(r"\d+\.\d+-rev\d+", dati["version"]):
+        errori.append("Revisione API non valida: si scrive come 1.1-rev0 (lasciala vuota per usare quella di serie).")
     if dati["ca_pem"] and "BEGIN CERTIFICATE" not in dati["ca_pem"]:
         errori.append("Il certificato della CA va incollato in formato PEM (-----BEGIN CERTIFICATE----- …).")
     return errori
@@ -188,15 +191,33 @@ def _problemi_indirizzo(url: str) -> list[str]:
 
     parti = urlsplit(url)
     problemi = []
+    try:
+        porta = parti.port
+    except ValueError:
+        return ["La porta dell'indirizzo non è un numero: scrivi https://<server Veeam>:9419."]
     if parti.path.strip("/"):
         problemi.append(f"Togli «{parti.path}» dall'indirizzo: va solo https://<server Veeam>:9419, "
                         "il percorso /api/... lo aggiunge il portale.")
-    if parti.port == 9398:
+    if porta == 9398:
         problemi.append("La porta 9398 è Veeam Backup Enterprise Manager, un'altra API: "
                         "usa quella del server Backup & Replication, di serie 9419.")
-    elif parti.port is None:
+    elif porta is None:
         problemi.append("Manca la porta: l'API di Veeam Backup & Replication risponde di serie su :9419.")
     return problemi
+
+
+def _chi_risponde(resp) -> str:
+    """Se a rispondere non è Veeam (IIS, un proxy, un altro servizio), lo dice: le risposte di Veeam sono JSON."""
+    headers = getattr(resp, "headers", None)
+    if not hasattr(headers, "get"):
+        return ""
+    tipo = str(headers.get("Content-Type") or "")
+    server = str(headers.get("Server") or "")[:60]
+    if not tipo or "json" in tipo.lower():
+        return ""
+    return (" La risposta non arriva dall'API di Veeam"
+            + (f" (server «{server}»)" if server else "")
+            + ": a quell'indirizzo risponde un altro servizio o un proxy.")
 
 
 def _check_config(cfg: dict) -> None:
@@ -216,6 +237,9 @@ class VeeamClient:
         _check_config(self.cfg)
         self.http = requests.Session()
         self.http.verify = self.cfg["verify"]
+        # Veeam è in rete interna: il proxy di HTTPS_PROXY (serve per api.osv.dev) non va usato, altrimenti
+        # la richiesta finisce al proxy, che risponde lui (404/403) al posto di Veeam.
+        self.http.trust_env = False
         self.http.headers.update({"x-api-version": self.cfg["version"], "Accept": "application/json"})
         self._login()
 
@@ -238,14 +262,14 @@ class VeeamClient:
         if resp.status_code in (400, 401, 403):
             raise VeeamError(f"Veeam ha rifiutato l'accesso ({resp.status_code}): controlla utente e password dell'API.")
         if resp.status_code == 404:
-            dettaglio = " ".join(_problemi_indirizzo(self.cfg["url"]))
+            dettaglio = " ".join(_problemi_indirizzo(self.cfg["url"])) + _chi_risponde(resp)
             raise VeeamError(
                 f"All'indirizzo {self.cfg['url']} non c'è l'API REST di Veeam Backup & Replication (404 su /api/oauth2/token). "
                 + (dettaglio or "Controlla che sia il server Backup & Replication sulla porta dell'API (di serie 9419) "
                    "e che il servizio «Veeam Backup Server RESTful API» sia avviato.")
             )
         if resp.status_code >= 400:
-            raise VeeamError(f"Veeam ha risposto {resp.status_code} all'accesso (versione API {self.cfg['version']}).")
+            raise VeeamError(f"Veeam ha risposto {resp.status_code} all'accesso (versione API {self.cfg['version']}).{_chi_risponde(resp)}")
         token = (resp.json() or {}).get("access_token")
         if not token:
             raise VeeamError("Veeam non ha restituito il token di accesso.")
@@ -430,8 +454,10 @@ def record_sessions(client: VeeamClient, sessions: list[dict]) -> dict:
 
     source = veeam_source()
     saved = already = skipped_mail = 0
+    riprendi_da = None
     for session in sessions:
         if saved >= MAX_NEW_SESSIONS:
+            riprendi_da = _dt(session.get("creationTime"))
             break
         if not (is_backup_session(session) and is_finished(session) and session.get("id")):
             continue
@@ -446,7 +472,12 @@ def record_sessions(client: VeeamClient, sessions: list[dict]) -> dict:
         tasks = client.get_all(f"/api/v1/sessions/{session['id']}/taskSessions")
         _persist_record(source, None, ParsedRecord(record_type="backup_job", payload=session_payload(session, tasks)))
         saved += 1
-    return {"salvate": saved, "gia_presenti": already, "gia_da_mail": skipped_mail}
+    esito = {"salvate": saved, "gia_presenti": already, "gia_da_mail": skipped_mail}
+    if riprendi_da is None and sessions and len(sessions) >= PAGE_SIZE * MAX_PAGES:
+        riprendi_da = _dt(sessions[-1].get("creationTime"))  # pagine finite: il resto al giro dopo
+    if riprendi_da is not None:
+        esito["riprendi_da"] = riprendi_da.isoformat()
+    return esito
 
 
 def fetch_sessions(client: VeeamClient, since: datetime) -> list[dict]:
@@ -548,7 +579,10 @@ def run(now: datetime | None = None) -> dict:
         esito["repository"] = len(rows)
         if soc_settings.value("veeam.repository.alert"):
             esito["eventi_repository"] = record_repositories(rows, soc_settings.value("veeam.repository.soglia_pct"))
-        _save_state(LAST_OK_KEY, now.isoformat())
+        # Giro troncato (troppe sessioni): il prossimo riparte da lì e non da adesso, così le sessioni
+        # rimaste fuori non si perdono (_since toglie la sovrapposizione, qui la si rimette).
+        prossimo = esito.get("riprendi_da")
+        _save_state(LAST_OK_KEY, (parse_datetime(prossimo) + OVERLAP).isoformat() if prossimo else now.isoformat())
         if esito.get("salvate") or esito.get("eventi_repository"):
             from security.services.rule_engine import evaluate_security_rules
 

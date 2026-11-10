@@ -177,6 +177,17 @@ class GiroTests(TestCase):
         self.assertIn("Credenziali API Veeam", esito["errore"])
         self.assertEqual(svc.last_run()["errore"], esito["errore"])
 
+    def test_giro_troncato_riprende_da_dove_si_e_fermato(self):
+        set_setting("veeam.api.attivo", True)
+        sessioni = [_session(sid=f"s-{i:03d}", start=f"2026-10-{1 + i // 10:02d}T{i % 10:02d}:00:00+02:00",
+                             end=f"2026-10-{1 + i // 10:02d}T{i % 10:02d}:30:00+02:00") for i in range(5)]
+        fake = FakeClient(sessioni, {}, [])
+        with patch.object(svc, "MAX_NEW_SESSIONS", 2), patch.object(svc, "VeeamClient", return_value=fake):
+            esito = svc.run()
+        self.assertEqual(esito["salvate"], 2)
+        # Il prossimo giro riparte dalla terza sessione, non da adesso.
+        self.assertEqual(svc._since(timezone.now()), svc._dt(sessioni[2]["creationTime"]))
+
     def test_giro_completo(self):
         set_setting("veeam.api.attivo", True)
         fake = FakeClient([_session()], {"s-001": [_task("SRV-DEMO-01")]},
@@ -230,6 +241,26 @@ class ClientTests(TestCase):
         with patch("requests.Session", return_value=self._session_mock(token_status=404)):
             with self.assertRaisesMessage(svc.VeeamError, "9398"):
                 svc.VeeamClient(cfg)
+
+    def test_niente_proxy_dell_ambiente(self):
+        http = self._session_mock()
+        with patch("requests.Session", return_value=http):
+            svc.VeeamClient()
+        self.assertFalse(http.trust_env)
+
+    def test_404_da_un_altro_servizio(self):
+        http = self._session_mock(token_status=404)
+        http.post.return_value.headers = {"Content-Type": "text/html", "Server": "Microsoft-IIS/10.0"}
+        with patch("requests.Session", return_value=http):
+            with self.assertRaisesMessage(svc.VeeamError, "Microsoft-IIS/10.0"):
+                svc.VeeamClient()
+
+    def test_porta_non_numerica_e_versione(self):
+        self.assertTrue(svc._problemi_indirizzo("https://veeam-sintetico:abc"))
+        base = {"url": "https://veeam-sintetico:9419", "username": "u", "password": "p", "ca_pem": ""}
+        self.assertEqual(svc.valida({**base, "version": "1.2-rev1"}), [])
+        self.assertEqual(svc.valida({**base, "version": ""}), [])
+        self.assertTrue(svc.valida({**base, "version": "12.3"}))
 
     def test_indirizzo_validato(self):
         self.assertEqual(svc._problemi_indirizzo("https://veeam-sintetico:9419"), [])
