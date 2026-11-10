@@ -528,16 +528,44 @@ def _enrich_assenze_payload(payload: Any) -> Any:
     if normalized_salta_approvazione is not None:
         enriched["salta_approvazione"] = normalized_salta_approvazione
 
-    if enriched.get("inserito_da_gruppo") in {None, ""} or enriched.get("inserito_dal_capo") in {None, ""}:
+    campi_autore = ("inserito_da_gruppo", "inserito_dal_capo", "inserito_da_caporeparto")
+    if any(enriched.get(campo) in {None, ""} for campo in campi_autore):
         gruppo, inserito_da = _resolve_assenza_inserita_da(enriched.get("id"))
+        autore_email = _resolve_portal_user_email(inserito_da)
         if enriched.get("inserito_da_gruppo") in {None, ""}:
             enriched["inserito_da_gruppo"] = gruppo
         if enriched.get("inserito_dal_capo") in {None, ""}:
             # Il profilo da solo non basta: un caporeparto con «approvare» su tutti
             # risulta AMMINISTRAZIONE. Conta se l'autore è il capo che andrebbe in CC.
-            autore_email = _resolve_portal_user_email(inserito_da)
             enriched["inserito_dal_capo"] = gruppo == "CAR" or bool(autore_email and autore_email == capo_email)
+        if enriched.get("inserito_da_caporeparto") in {None, ""}:
+            # Il capo del dipendente o un altro caporeparto/responsabile d'area.
+            enriched["inserito_da_caporeparto"] = bool(
+                _normalize_runtime_bool(enriched.get("inserito_dal_capo"))
+                or _autore_e_caporeparto(inserito_da, autore_email)
+            )
     return enriched
+
+
+def _autore_e_caporeparto(username: str, email: str) -> bool:
+    """Chi ha inserito è fra i capi del menu «Capo reparto» (capi e responsabili di reparti e aree)?"""
+    username = str(username or "").strip().lower()
+    email = str(email or "").strip().lower()
+    if not username and not email:
+        return False
+    try:
+        from assenze.views._helpers import _anagrafica_hr_capo_ids, _fetch_anagrafica_rows_by_ids
+
+        righe = list(_fetch_anagrafica_rows_by_ids(_anagrafica_hr_capo_ids()).values())
+    except Exception:
+        logger.debug("caporeparto dell'autore non risolto per %s", username, exc_info=True)
+        return False
+    for riga in righe:
+        indirizzi = {str(riga.get(c) or "").strip().lower() for c in ("email", "email_notifica")} - {""}
+        alias = str(riga.get("aliasusername") or "").strip().lower()
+        if (email and email in indirizzi) or (username and username in (indirizzi | {alias}) - {""}):
+            return True
+    return False
 
 
 def _resolve_assenza_inserita_da(assenza_id: Any) -> tuple[str, str]:

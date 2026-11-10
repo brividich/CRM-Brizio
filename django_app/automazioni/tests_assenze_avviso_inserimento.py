@@ -77,7 +77,7 @@ class AvvisoSaltaApprovazioneTests(TestCase):
         self._assert_cc_per_autore()
         self.assertEqual(applica()["mail_inserimento"], "già divisa")
 
-    def test_dipendente_avvisato_tranne_malattia(self):
+    def test_dipendente_avvisato_solo_se_inserita_da_un_caporeparto(self):
         applica()
         self.assertEqual(avvisa_dipendente(), "aggiunta")
         self.assertEqual(avvisa_dipendente(), "già presente")
@@ -86,8 +86,33 @@ class AvvisoSaltaApprovazioneTests(TestCase):
         self.assertEqual(tipi, ["update_trigger_record", "send_email", "send_email", "send_email", "write_log"])
         mail = self._mails()[-1]
         self.assertEqual(mail.config_json["to"], "{dipendente_email}")
-        for tipo, parte in (("Permesso", True), ("Ferie", True), ("Flessibilità", True), ("Malattia", False)):
-            self.assertEqual(_resolve_action_run_if(mail.config_json, {"tipo_assenza": tipo})[0], parte, tipo)
+        for da_capo in (True, False):
+            self.assertEqual(_resolve_action_run_if(mail.config_json, {"inserito_da_caporeparto": da_capo})[0], da_capo)
+
+    def test_prima_versione_non_malattia_portata_al_criterio_caporeparto(self):
+        rule = AutomationRule.objects.get(code=SKIP_RULE)
+        AutomationAction.objects.create(rule=rule, order=4, action_type="send_email", config_json={
+            "from_email": "avviso@example.com", "to": "{dipendente_email}",
+            "run_if": {"field_name": "tipo_assenza", "operator": "not_equals", "expected_value": "Malattia"}})
+        self.assertEqual(avvisa_dipendente(), "condizione aggiornata")
+        mail = self._mails()[-1]
+        self.assertEqual(mail.config_json["run_if"]["field_name"], "inserito_da_caporeparto")
+        self.assertEqual(mail.config_json["from_email"], "avviso@example.com")
+        self.assertEqual(avvisa_dipendente(), "già presente")
+
+    def test_altro_caporeparto_conta_ufficio_assenze_no(self):
+        from unittest import mock
+
+        get_user_model().objects.create(username="synthetic.altrocapo", email="altro.capo@example.com")
+        get_user_model().objects.create(username="synthetic.ufficio", email="ufficio@example.com")
+        AssenzaInseritaDa.objects.create(assenza_id=987670, gruppo="AMMINISTRAZIONE", inserito_da="synthetic.altrocapo")
+        AssenzaInseritaDa.objects.create(assenza_id=987671, gruppo="AMMINISTRAZIONE", inserito_da="synthetic.ufficio")
+        righe = {7: {"id": 7, "email": "Altro.Capo@example.com", "email_notifica": "", "aliasusername": ""}}
+        with mock.patch("assenze.views._helpers._anagrafica_hr_capo_ids", return_value={7}), \
+                mock.patch("assenze.views._helpers._fetch_anagrafica_rows_by_ids", return_value=righe):
+            payload = {"capo_email": "capo.suo@example.com"}
+            self.assertIs(_enrich_assenze_payload({**payload, "id": 987670})["inserito_da_caporeparto"], True)
+            self.assertIs(_enrich_assenze_payload({**payload, "id": 987671})["inserito_da_caporeparto"], False)
 
     def test_0037_idempotente_e_fail_closed(self):
         migration = import_module("automazioni.migrations.0037_assenze_salta_approvazione_avvisa_dipendente")
@@ -137,6 +162,7 @@ class AvvisoSaltaApprovazioneTests(TestCase):
         payload = {"capo_email": "capo@example.com"}
         self.assertIs(_enrich_assenze_payload({**payload, "id": 987660})["inserito_dal_capo"], True)
         self.assertIs(_enrich_assenze_payload({**payload, "id": 987661})["inserito_dal_capo"], False)
+        self.assertIs(_enrich_assenze_payload({**payload, "id": 987660})["inserito_da_caporeparto"], True)
 
 
 class AvvisoMalattiaCapoDoppioTests(TestCase):
