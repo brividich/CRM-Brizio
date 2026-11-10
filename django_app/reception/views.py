@@ -77,8 +77,11 @@ def _ctx(request, sezione: str, **dati) -> dict:
     menu = _menu(request, sezione)
     attiva = next((v for v in menu if v["attiva"]), None)
     schede = attiva["schede"] if attiva and attiva["chiave"] in SCHEDE_VISIBILI and len(attiva["schede"]) > 1 else []
+    pagine = {s["nome"] for v in menu for s in v["schede"]}
     return {"sezione": sezione, "nativa": bool(getattr(settings, "RECEPTION_NATIVA", False)), "menu": menu, "schede": schede,
-            "n_richieste": RichiestaAppuntamento.objects.filter(stato=RichiestaAppuntamento.IN_ATTESA).count(), **dati}
+            "n_richieste": RichiestaAppuntamento.objects.filter(stato=RichiestaAppuntamento.IN_ATTESA).count(),
+            "n_presenti": Visita.objects.filter(stato=Visita.DENTRO).count(),
+            "azione_ingresso": "registra" in pagine, "azione_invito": "preregistrazioni" in pagine, **dati}
 
 
 def _elenco_referenti() -> list[dict]:

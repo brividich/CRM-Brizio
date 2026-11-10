@@ -2,7 +2,6 @@
 {% load static %}
 {% block title %}Pre-registrazioni | Reception{% endblock %}
 {% block rc_titolo %}Inviti{% endblock %}
-{% block rc_azioni %}<a class="rc-btn rc-btn-p" href="?nuovo=1" data-apri="#pannello-invito">+ Nuovo invito</a>{% endblock %}
 {% block rc_contenuto %}
 {{ referenti_json|json_script:"referenti-dati" }}
 <div class="rc-card">
@@ -30,4 +29,4 @@
   <div class="rc-pannello-corpo">{% include "reception/_form_invito.html" %}</div>
 </aside>
 {% endblock %}
-{% block extra_scripts %}<script src="{% static 'reception/ricerca.js' %}" defer></script><script src="{% static 'reception/pannello.js' %}" defer></script>{% endblock %}
+{% block extra_scripts %}<script src="{% static 'reception/ricerca.js' %}" defer></script>{% endblock %}
