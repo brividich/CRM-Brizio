@@ -8,6 +8,7 @@
     <h1 style="font-size:22px;font-weight:800;color:#0f172a;margin:0;">Giornata visite — {{ sess.data_svolgimento|date:"d-m-Y" }}</h1>
     <a href="{% url 'anagrafica:visite_mediche_sessioni' %}" style="font-size:13px;color:#1f87cd;font-weight:600;">← Sessioni</a>
   </div>
+  {% include "anagrafica/partials/_torna_a.html" with testo="Giornata registrata. Puoi tornare alla pagina da cui sei partito." %}
   <div style="font-size:14px;color:#475569;">Medico: <strong>{{ sess.medico_competente|default:"—" }}</strong>{% if sess.luogo %} · Luogo: {{ sess.luogo }}{% endif %}</div>
 
   <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;">

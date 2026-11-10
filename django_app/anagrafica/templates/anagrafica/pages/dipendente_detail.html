@@ -2014,6 +2014,7 @@ body.theme-dark .fmd-act-ghost{ color:#94a3b8; }
                     {% if ad.motivo %}<span class="sp-piano-motivo">{{ ad.motivo }}</span>{% endif %}
                     {% if ad.chiusura_nota %}<span class="sp-piano-motivo">{{ ad.chiusura_nota }}{% if not ad.chiusura_automatica and ad.chiuso_da %} — {{ ad.chiuso_da.get_full_name|default:ad.chiuso_da.username }}{% endif %}</span>{% endif %}
                   </span>
+                  {% if ad.aperto %}<span class="sp-piano-fai">{% include "anagrafica/partials/_azione_adempimento.html" with tipo=ad.tipo rif=ad.riferimento_id legacy_id=legacy_id back=piano_back %}</span>{% endif %}
                   {% if is_admin %}
                   {% if ad.aperto %}
                   <details class="sp-piano-azione">
@@ -2574,6 +2575,7 @@ body.theme-dark .fmd-act-ghost{ color:#94a3b8; }
         <div id="qualifica-form-panel" style="display:none;margin-top:10px;">
         <form method="post" action="{% url 'anagrafica:dipendente_qualifica_add' legacy_id %}" enctype="multipart/form-data">
           {% csrf_token %}
+          {% if rinnova_back %}<input type="hidden" name="back" value="{{ rinnova_back }}">{% endif %}
           <div class="dp-qual-form-grid">
             <div class="dp-qual-field" style="grid-column:1/-1;">
               <label class="dp-qual-label">Tipo qualifica *</label>

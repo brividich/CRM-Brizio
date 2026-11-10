@@ -20,7 +20,8 @@
     {% if task.descrizione %}<div class="obv-desc">{{ task.descrizione }}</div>{% endif %}
     <div class="obv-meta">
       <span class="obd-cat">{{ task.get_categoria_display }}</span>
-      {% if task.tipo != "MANUALE" and task.stato == "DA_FARE" %}<span class="obv-auto" title="Il portale la chiude da solo quando registra il dato">automatica</span>{% endif %}
+      {% if task.tipo != "MANUALE" and task.stato == "DA_FARE" %}<span class="obv-auto" title="Il portale la chiude da solo quando registra il dato">automatica</span>
+      {% if pratica.is_aperta %}{% url 'anagrafica:onboarding_detail' pratica.id as ob_url %}{% include "anagrafica/partials/_azione_adempimento.html" with tipo=task.tipo rif=task.riferimento_id legacy_id=pratica.legacy_anagrafica_id back=ob_url %}{% endif %}{% endif %}
       {% if task.stato == "COMPLETATO" and task.chiusura_automatica %}
         <span class="obv-done-auto">Chiusa in automatico · {{ task.chiusura_nota }}</span>
       {% elif task.stato != "DA_FARE" and task.completed_at %}

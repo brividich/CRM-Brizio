@@ -764,3 +764,30 @@ def stati_operativi_da_segnalare(context):
     except Exception:
         logger.warning("Stati operativi non calcolabili", exc_info=True)
         return []
+
+
+
+@register.simple_tag(takes_context=True)
+def torna_a_url(context) -> str:
+    """URL «Torna a dove eri» dal parametro ?back= (stesso host), altrimenti vuoto."""
+    request = context.get("request")
+    if request is None:
+        return ""
+    from ..views._helpers import back_sicuro
+
+    return back_sicuro(request, request.GET.get("back"))
+
+
+@register.simple_tag(takes_context=True)
+def permessi_azioni(context) -> dict:
+    """Chi può fare cosa dai pulsanti degli adempimenti (decide comunque la view)."""
+    request = context.get("request")
+    if request is None:
+        return {}
+    from ..views import _helpers
+
+    return {
+        "formazione": _helpers._can_edit_formazione(request),
+        "visite": _helpers._can_view_visite_mediche(request) and _helpers._can_edit_visite_mediche(request),
+        "qualifiche": _helpers._qualifiche_can_edit(request),
+    }

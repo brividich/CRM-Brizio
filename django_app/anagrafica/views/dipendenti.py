@@ -1137,6 +1137,8 @@ def dipendente_create(request):
                             )
 
                 # Onboarding strutturato: avvio opzionale della pratica + checklist
+                pratica_onb = None
+                onboarding_fallito = False
                 if new_id and request.POST.get("avvia_onboarding"):
                     try:
                         nome_onb = naming.nome_completo(data.get("nome"), data.get("cognome"))
@@ -1153,7 +1155,7 @@ def dipendente_create(request):
                                 data_ass = _date2.fromisoformat(_ass_raw)
                             except ValueError:
                                 data_ass = None
-                        onboarding_service.avvia_onboarding(
+                        pratica_onb = onboarding_service.avvia_onboarding(
                             legacy_id=new_id,
                             dipendente_nome=nome_onb or f"#{new_id}",
                             reparto=(data.get("reparto") or "").strip(),
@@ -1163,6 +1165,7 @@ def dipendente_create(request):
                             ruolo_ids=ruoli_onb,
                         )
                     except Exception:
+                        onboarding_fallito = True
                         logger.warning("Avvio onboarding automatico fallito per dipendente %s", new_id, exc_info=True)
 
                 # Formazione sicurezza pregressa dichiarata in preinserimento
@@ -1197,6 +1200,13 @@ def dipendente_create(request):
                 views_account.completa_creazione(request, creazione_token, new_id)
                 nome_disp = naming.nome_completo(data.get("nome"), data.get("cognome")) or "Dipendente"
                 messages.success(request, f'Dipendente "{nome_disp}" creato.')
+                if onboarding_fallito:
+                    messages.warning(request, "La pratica di onboarding non è partita: avviala dalla scheda, "
+                                              "riquadro «Onboarding».")
+                if pratica_onb is not None and getattr(pratica_onb, "pk", None):
+                    # Il passo dopo è l'inserimento: visite, corsi, DPI, account.
+                    messages.info(request, "Pratica di onboarding avviata: da qui segui visite, corsi, DPI e account.")
+                    return redirect("anagrafica:onboarding_detail", pratica_id=pratica_onb.pk)
                 if new_id:
                     return redirect("anagrafica:dipendente_detail", legacy_id=new_id)
                 return redirect("anagrafica:dipendenti_list")
@@ -2427,6 +2437,10 @@ def dipendente_detail(request, legacy_id: int):
         "dpi_consegnati": dpi_consegnati,
         "dpi_consegna_doc_map": dpi_consegna_doc_map,
         "dpi_is_gestore": dpi_is_gestore,
+        # Rinnovo qualifica aperto da un'altra pagina: dopo il salvataggio si torna lì.
+        "rinnova_back": _helpers.back_da_richiesta(request) if request.GET.get("rinnova") else "",
+        # Le azioni del piano di adeguamento riportano qui, sul piano.
+        "piano_back": f"{request.path}#spostamenti-organizzativi",
         "can_view_visite": can_view_visite,
         "can_edit_visite": can_view_visite and _helpers._can_edit_visite_mediche(request),
         "can_delete_visite": can_view_visite and _helpers._has_canonical_grant(request, PERM_VISITE_DELETE),
@@ -2947,7 +2961,19 @@ def dipendente_assegnazione_create(request, legacy_id: int):
     if mansione_nome and assegnazione.idoneita_gap:
         _notifica_gap_idoneita(legacy_id, dip, mansione_nome, request.user)
 
-    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    # Il passo dopo: il piano di adeguamento, con un pulsante per voce.
+    if getattr(assegnazione, "piano_generato", True) is False:
+        messages.warning(request, "Il piano di adeguamento non è stato generato: controlla corsi, visite e DPI "
+                                  "della nuova mansione dalla scheda, oppure riprova più tardi.")
+    else:
+        from ..models import AdempimentoCambioMansione
+
+        n_piano = AdempimentoCambioMansione.objects.filter(
+            assegnazione=assegnazione, stato=AdempimentoCambioMansione.STATO_APERTO, attivo=True).count()
+        if n_piano:
+            messages.info(request, f"Piano di adeguamento: {n_piano} cos{'a' if n_piano == 1 else 'e'} da fare. "
+                                   "Le trovi qui sotto, ognuna con il suo pulsante.")
+    return redirect(f"{reverse('anagrafica:dipendente_detail', args=[legacy_id])}#spostamenti-organizzativi")
 
 
 @login_required
@@ -3789,7 +3815,11 @@ def dipendente_qualifica_add(request, legacy_id: int):
         request,
         f'Qualifica "{tipo.nome}" {"aggiunta" if created else "aggiornata (rinnovo)"}.',
     )
-    return redirect("anagrafica:dipendente_detail", legacy_id=legacy_id)
+    # Rinnovo partito da scadenzario, matrice, libretto, cruscotto: si torna lì.
+    back = _helpers.back_sicuro(request, request.POST.get("back"))
+    if back:
+        return redirect(back)
+    return redirect(f"{reverse('anagrafica:dipendente_detail', args=[legacy_id])}#qualifiche")
 
 
 @login_required

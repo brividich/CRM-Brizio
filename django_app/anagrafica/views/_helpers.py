@@ -1244,3 +1244,49 @@ def _crea_record_completamento_elearning(corso, legacy_id, attempt, created_by):
 
     transaction.on_commit(_archivia)
     return record
+
+
+
+def back_sicuro(request, grezzo: str | None) -> str:
+    """Indirizzo di ritorno sicuro: un percorso dello stesso host oppure un nome
+    di URL («anagrafica:scadenzario»), che alcuni form passano ancora. Vuoto se
+    non valido."""
+    from django.urls import NoReverseMatch, reverse
+
+    from core.redirects import safe_next
+
+    grezzo = (grezzo or "").strip()
+    if not grezzo:
+        return ""
+    if ":" in grezzo and "/" not in grezzo:
+        try:
+            return reverse(grezzo)
+        except NoReverseMatch:
+            return ""
+    return safe_next(request, grezzo, "")
+
+
+def back_da_richiesta(request) -> str:
+    """Dove tornare dopo l'azione: ?back= esplicito, altrimenti la pagina da cui si
+    è arrivati (stesso host, mai la pagina stessa)."""
+    back = back_sicuro(request, request.GET.get("back") or request.POST.get("back"))
+    if back:
+        return back
+    ref = back_sicuro(request, request.META.get("HTTP_REFERER"))
+    if ref:
+        from urllib.parse import urlparse
+
+        p = urlparse(ref)
+        ref = p.path + (f"?{p.query}" if p.query else "")
+        if p.path != request.path:
+            return ref
+    return ""
+
+
+def con_back(url: str, back: str) -> str:
+    """Aggiunge ?back= a un URL interno."""
+    if not back:
+        return url
+    from urllib.parse import quote
+
+    return f"{url}{'&' if '?' in url else '?'}back={quote(back, safe='')}"
