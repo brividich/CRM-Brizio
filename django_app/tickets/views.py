@@ -1392,7 +1392,25 @@ def ticket_nuovo(request):
 
         return redirect("tickets:detail", pk=ticket.pk)
 
-    return render(request, "tickets/pages/nuovo.html", _ctx())
+    return render(request, "tickets/pages/nuovo.html", _ctx(form_data=_form_da_querystring(request.GET)))
+
+
+def _form_da_querystring(get) -> dict | None:
+    """Valori iniziali del form arrivando da un altro modulo (es. «Apri ticket» di una stampante).
+
+    Solo precompilazione: l'utente controlla e invia il form, nessun ticket si crea da un GET.
+    """
+    titolo = (get.get("titolo") or "").strip()[:300]
+    descrizione = (get.get("descrizione") or "").strip()[:4000]
+    if not (titolo or descrizione):
+        return None
+    priorita = (get.get("priorita") or "").strip().upper()
+    return {
+        "titolo": titolo,
+        "descrizione": descrizione,
+        "categoria": (get.get("categoria") or "").strip()[:30],
+        "priorita": priorita if priorita in PrioritaTicket.values else PrioritaTicket.MEDIA,
+    }
 
 
 # ---------------------------------------------------------------------------

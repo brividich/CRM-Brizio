@@ -1,0 +1,22 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Letture mensili{% endblock %}
+{% block modulo %}{% load contatori_acl %}{% puo_gestire as g %}
+<div class="row"><div><div class="eyebrow">Letture SNMP del giorno 1</div><h1>Letture mensili</h1><p class="sub">Una riga per MFC, una colonna per mese: totale letto e copie rispetto al mese prima. In evidenza i mesi senza lettura delle MFC attive con IP. «Excel» sotto un mese con letture scarica lo stesso file allegato alla mail delle letture mensili.</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:guida' %}#letture-mensili">? Guida</a>{% if g %}<a class="btn ghost" href="{% url 'contatori:letture_gestisci' %}?tipo=mensili">Gestisci letture</a>{% endif %}</div></div>
+
+<section class="panel"><form method="get" class="row" style="gap:14px;align-items:flex-end">
+  <div class="form-field"><label for="anno">Periodo</label><select id="anno" name="anno"><option value="">Ultimi 12 mesi</option>{% for a in anni %}<option value="{{ a }}"{% if a == anno %} selected{% endif %}>Anno {{ a }}</option>{% endfor %}</select></div>
+  <button class="btn ghost" type="submit">Aggiorna</button>
+  {% if mancanti %}<span class="pill warn">{{ mancanti }} lettur{{ mancanti|pluralize:"a mancante,e mancanti" }} nel periodo</span>{% endif %}
+</form></section>
+
+<section class="panel"><div class="table-wrap"><table class="registro-letture letture-mensili" data-fm-table-skip="1" data-mcards-off>
+  <thead><tr><th>MFC</th>{% for t in totali %}{% with mese=t.mese %}<th class="num">{{ mese|date:"m/Y" }}{% if mese == corrente %}<div class="muted">in corso</div>{% endif %}{% if t.lette %}<div><a class="plain small" href="?formato=xlsx&amp;mese={{ mese|date:'Y-m' }}" title="Letture di {{ mese|date:'m/Y' }}: lo stesso Excel della mail mensile">Excel</a></div>{% endif %}</th>{% endwith %}{% endfor %}</tr></thead>
+  <tbody>{% for r in righe %}<tr{% if not r.macchina.attiva %} class="dismessa"{% endif %}>
+    <td><a class="plain" href="{% url 'contatori:macchina' r.macchina.pk %}">{{ r.macchina.reparto }}</a>{% if not r.macchina.attiva %} <span class="pill">dismessa</span>{% endif %}<div class="muted">{{ r.macchina.matricola }}</div></td>
+    {% for c in r.celle %}{% if c.lettura %}<td class="num cella{% if c.cali %} calo{% endif %}" title="{{ c.mese|date:'m/Y' }} · rilevata il {{ c.lettura.rilevata_il|date:'d/m/Y H:i' }} · A4 BN {{ c.lettura.a4_bn }} · A3 BN {{ c.lettura.a3_bn }} · A4 COL {{ c.lettura.a4_col }} · A3 COL {{ c.lettura.a3_col }}{% if c.cali %} · sceso: {{ c.cali|join:', ' }}{% endif %}">{% if g %}<a class="plain" href="{% url 'contatori:lettura_mensile_edit' c.lettura.pk %}">{{ c.lettura.totale }}</a>{% else %}{{ c.lettura.totale }}{% endif %}<div class="muted">{% if c.cali %}calo {{ c.cali|join:", " }}{% elif c.copie %}+{{ c.copie.totale }}{% else %}copie n/d{% endif %}</div></td>
+    {% elif c.stato == 'mancante' %}<td class="num cella mancante" title="Nessuna lettura mensile di {{ c.mese|date:'m/Y' }}">manca</td>
+    {% else %}<td class="num cella"><span class="muted">{% if c.stato == 'futuro' %}{% else %}·{% endif %}</span></td>{% endif %}{% endfor %}
+  </tr>{% empty %}<tr><td colspan="13" class="empty">Nessuna MFC attiva con IP e nessuna lettura mensile nel periodo.</td></tr>{% endfor %}</tbody>
+  {% if righe %}<tfoot><tr><th>Copie del mese</th>{% for t in totali %}<td class="num cella" title="Somma delle copie del mese delle MFC con la lettura del mese prima">{% if t.macchine %}<strong>{{ t.copie }}</strong><div class="muted">{{ t.macchine }} MFC{% if t.mancanti %} · {{ t.mancanti }} mancant{{ t.mancanti|pluralize:"e,i" }}{% endif %}</div>{% elif t.mancanti %}<span class="muted">{{ t.mancanti }} mancant{{ t.mancanti|pluralize:"e,i" }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>{% endfor %}</tr></tfoot>{% endif %}
+</table></div></section>
+{% endblock %}

@@ -17,4 +17,4 @@
 <h3 class="pv-h">Avvisi aperti{% if n_avvisi %} ({{ n_avvisi }}){% endif %}</h3>
 {% if avvisi %}<ul class="pv-list">{% for a in avvisi %}<li><span{% if a.critico %} class="health-error"{% endif %}>{{ a.testo|truncatechars:70 }}</span><small>dal {{ a.aperto_il|date:"d/m H:i" }}</small></li>{% endfor %}</ul>
 {% else %}<p class="pv-empty">Nessun avviso aperto.</p>{% endif %}
-<footer class="pv-foot"><a class="btn" href="{% url 'contatori:macchina' m.pk %}">Apri la scheda MFC</a>{% if m.asset %}<a class="btn ghost" href="{% url 'assets:asset_view' m.asset.pk %}">Asset nel portale</a>{% endif %}</footer>
+<footer class="pv-foot"><a class="btn" href="{% url 'contatori:macchina' m.pk %}">Apri la scheda MFC</a>{% if url_ticket %}<a class="btn ghost" href="{{ url_ticket }}" title="Nuovo ticket IT già compilato: controlli e invii tu">Apri ticket</a>{% endif %}{% if m.asset %}<a class="btn ghost" href="{% url 'assets:asset_view' m.asset.pk %}">Asset nel portale</a>{% endif %}</footer>

@@ -1,0 +1,17 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Fabbisogno consumabili{% endblock %}
+{% block modulo %}
+<div class="row"><div><div class="eyebrow">Consumabili</div><h1>Fabbisogno</h1><p class="sub">Per ogni consumabile letto dalle MFC attive con IP: quante lo usano, quanto dura in media tra due sostituzioni, quanti pezzi servono in un anno e quanti finiscono a breve. Le durate vengono dai cambi rilevati via SNMP; i giorni residui dalla stima della pagina Consumabili.</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:guida' %}#fabbisogno">? Guida</a><a class="btn ghost" href="{% url 'contatori:consumabili' %}">Consumabili</a>{% if righe %}<a class="btn ghost" href="{{ url_excel }}">Scarica Excel</a>{% endif %}</div></div>
+
+<section class="panel"><div class="table-wrap"><table class="fabbisogno-tabella">
+  <thead><tr><th>Consumabile</th><th class="num">MFC che lo usano</th><th class="num" title="Media dei giorni tra due sostituzioni consecutive sulla stessa MFC">Durata media</th><th class="num" title="MFC × 365 / durata media">Pezzi all'anno</th><th class="num">Entro {{ giorni.0 }} giorni</th><th class="num">Entro {{ giorni.1 }} giorni</th></tr></thead>
+  <tbody>{% for r in righe %}<tr>
+    <td><strong>{{ r.nome }}</strong>{% if r.modelli %}<div class="muted">{{ r.modelli|join:", "|truncatechars:90 }}</div>{% endif %}</td>
+    <td class="num" data-label="MFC che lo usano">{{ r.n_macchine }}</td>
+    <td class="num" data-label="Durata media">{% if r.durata_media %}{{ r.durata_media }} gg<div class="muted">{{ r.cambi_misurati }} camb{{ r.cambi_misurati|pluralize:"io,i" }}</div>{% else %}<span class="muted" title="Servono almeno due sostituzioni sulla stessa MFC">n/d</span>{% endif %}</td>
+    <td class="num" data-label="Pezzi all'anno">{% if r.pezzi_anno is not None %}<strong>{{ r.pezzi_anno }}</strong>{% else %}<span class="muted">n/d</span>{% endif %}</td>
+    <td class="num" data-label="Entro {{ giorni.0 }} giorni">{% if r.entro_30 %}<a class="pill warn" href="{% url 'contatori:consumabili' %}?filtro=entro_30">{{ r.entro_30 }}</a>{% else %}<span class="muted">0</span>{% endif %}</td>
+    <td class="num" data-label="Entro {{ giorni.1 }} giorni">{% if r.entro_60 %}{{ r.entro_60 }}{% else %}<span class="muted">0</span>{% endif %}</td>
+  </tr>{% empty %}<tr><td colspan="6" class="empty">Nessun livello di consumabile salvato: i dati arrivano dalla lettura automatica del mattino o da «Leggi ora» in Consumabili.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}
