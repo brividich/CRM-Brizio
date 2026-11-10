@@ -1173,6 +1173,78 @@ RETIRED_SCHEDULE_NAMES: list[str] = [
 ]
 
 
+# Raccoglitore «Digest e promemoria» della pagina Task pianificati: i lavori che mandano
+# riepiloghi o solleciti a persone, sospendibili fino a una data (ScheduleControl.sospeso_fino).
+# Restano fuori i job che cambiano lo stato dei dati insieme alla mail (es. pr_assignment_lifecycle
+# marca «Scaduta», anomalie/tickets_escalation aggiornano i promemoria in dashboard) e gli avvisi
+# di sicurezza sulle ditte esterne (fornitori_avvisi_*). Valore = a chi arriva.
+DIGEST_E_PROMEMORIA: dict[str, str] = {
+    "system_digest": "Amministratori del monitoring",
+    "caporeparto_morning_digest": "Capireparto (email di notifica)",
+    "scadenze_digest_personale": "Chi l'ha attivato in Notifiche → Impostazioni",
+    "report_scadenze_settimanale": "Destinatari delle Impostazioni automazioni",
+    "assets_maintenance_reminders": "Destinatari manutenzioni (o amministratori)",
+    "assets_it_monitoring_alerts": "Destinatari monitoraggio IT (o amministratori)",
+    "part145_scadenze": "Qualità (destinatari MOD.128)",
+    "dpi_expiry_reminders": "Destinatari DPI (o amministratori)",
+    "visite_expiry_reminders": "Responsabili visite + notifica al dipendente",
+    "visite_mediche_digest": "HR (amministratori)",
+    "contratti_expiry_reminders": "Destinatari contratti",
+    "training_expiry_reminders": "HR + notifica al dipendente",
+    "elearning_reminders": "HR + notifica al discente",
+    "formazione_session_reminders": "Iscritti alle sessioni",
+    "formazione_audit_digest": "HR / amministratori",
+    "idoneita_digest": "RSPP, medico competente, HR",
+    "cambio_mansione_digest": "Destinatari cambio mansione",
+    "tickets_daily_digest": "Assegnatari dei ticket",
+    "tickets_sla_reminders": "Assegnatari con SLA scaduto",
+    "tasks_send_reminders": "Responsabili delle attività KICK-OFF",
+    "tasks_meetings_digest": "Partecipanti agli incontri",
+    "gestione_specifiche_reminder": "Incaricati delle specifiche",
+    "gestione_specifiche_escalation": "Approvatore e DM",
+    "gestione_specifiche_verifica_periodica": "Incaricati delle specifiche",
+    "scadenzario_avvisi_attivita": "Email delle attività",
+    "scadenzario_riepilogo_mensile": "Email delle categorie",
+    "checklist_chiusura_reminders": "Responsabili della checklist",
+    "rentri_scadenze_check": "Amministratori",
+    "rentri_promemoria_scarico_effettivo": "Utenti RENTRI (notifica in-app)",
+    "assenze_solleciti": "Capi con richieste in attesa",
+    "assenze_certificato_avviso": "Casella assenze",
+    "suggestion_corner_reminders": "Responsabili DO/CHECK",
+    "sistema_gestione_car_solleciti": "Responsabili CAR, poi RSGI",
+    "sistema_gestione_scadenze_esterni": "RSGI",
+    "presenti_avvisi_uscite": "Capi (uscite non timbrate)",
+}
+
+# Pausa massima a tempo: oltre si usa «Disattiva», che è una scelta esplicita e durevole.
+SOSPENSIONE_MAX_GIORNI = 60
+
+
+def orario_cron(spec: dict) -> str:
+    """«HH:MM» di un cron giornaliero/settimanale, per ordinare i digest; "" se non c'è."""
+    parts = str(spec.get("cron") or "").split()
+    if spec.get("schedule_type") != "C" or len(parts) != 5:
+        return ""
+    try:
+        return f"{int(parts[1]):02d}:{int(parts[0]):02d}"
+    except ValueError:
+        return ""
+
+
+def sospeso_fino(name: str, oggi=None):
+    """Data fino a cui lo schedule è sospeso (compresa), o None se non lo è oggi."""
+    from django.utils import timezone
+
+    try:
+        from monitoring.models import ScheduleControl
+
+        fino = ScheduleControl.objects.filter(name=name).values_list("sospeso_fino", flat=True).first()
+    except Exception:
+        return None
+    oggi = oggi or timezone.localdate()
+    return fino if fino and fino >= oggi else None
+
+
 def spec_by_name(name: str):
     """Spec statico di uno schedule per nome (None se non esiste)."""
     return next((s for s in SCHEDULES if s.get("name") == name), None)
@@ -1269,8 +1341,14 @@ def schedule_rows() -> list[dict]:
         from monitoring.models import ScheduleControl
 
         controls = {c.name: c.enabled for c in ScheduleControl.objects.all()}
+        from django.utils import timezone
+
+        oggi = timezone.localdate()
+        sospesi = dict(ScheduleControl.objects.filter(sospeso_fino__gte=oggi)
+                       .values_list("name", "sospeso_fino"))
     except Exception:
         controls = {}
+        sospesi = {}
 
     # Ultimo esito per func (ultimo Task django-q completato).
     last_runs: dict = {}
@@ -1311,6 +1389,10 @@ def schedule_rows() -> list[dict]:
             "next_run": getattr(sch, "next_run", None),
             "last_run": last[0] if last else None,
             "last_ok": last[1] if last else None,
+            "digest": name in DIGEST_E_PROMEMORIA,
+            "a_chi": DIGEST_E_PROMEMORIA.get(name, ""),
+            "orario": orario_cron(effective),
+            "sospeso_fino": sospesi.get(name),
         })
     return rows
 

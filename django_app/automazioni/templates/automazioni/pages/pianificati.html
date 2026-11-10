@@ -24,6 +24,16 @@
   .pian-btn.ok { border-color:#86efac; color:#166534; }
   .pian-btn.run { border-color:#93c5fd; color:#1e40af; }
   .pian-note { color:#64748b; font-size:13px; margin:6px 0 16px; }
+  .pian-digest { margin-bottom:28px; }
+  .pian-digest-head { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
+  .pian-digest h2, .pian-h2 { font-size:18px; margin:0; color:#0f172a; }
+  .pian-h2 { margin-bottom:4px; }
+  .pian-inline { display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-size:13px; }
+  .pian-inline input[type=date] { font-size:12px; padding:4px 6px; border:1px solid #cbd5e1; border-radius:8px; }
+  .pian-pausa { background:#fef3c7; color:#92400e; }
+  body.theme-dark .pian-digest h2, body.theme-dark .pian-h2 { color:#e2e8f0; }
+  body.theme-dark .pian-pausa { background:rgba(217,119,6,.18); color:#fcd34d; }
+  body.theme-dark .pian-inline input[type=date] { background:var(--surface); color:var(--text); border-color:var(--border); }
   body.theme-dark .pian-stat, body.theme-dark .pian-table, body.theme-dark .pian-table-wrap { background:#0f172a; border-color:#1e293b; }
   body.theme-dark .pian-table th { background:#0b1220; color:#94a3b8; }
   body.theme-dark .pian-table td { border-color:#1e293b; }
@@ -73,6 +83,93 @@ body.theme-dark .pian-note{color:var(--text-light)}
     <div class="pian-stat"><div class="n" style="color:#991b1b;">{{ disattivi }}</div><div class="l">Disattivati</div></div>
   </div>
 
+  <section id="digest" class="pian-digest">
+    <div class="pian-digest-head">
+      <h2>Digest e promemoria{% if digest_sospesi %} <span class="pian-pill pian-pausa">{{ digest_sospesi }} in pausa</span>{% endif %}</h2>
+      <div class="pian-actions">
+        <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}" class="pian-inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="sospendi_tutti">
+          <label>Sospendi tutti fino al <input type="date" name="fino" value="{{ domani_iso }}" min="{{ oggi_iso }}" max="{{ max_iso }}" required></label>
+          <button class="pian-btn warn" type="submit">Sospendi tutti</button>
+        </form>
+        {% if digest_sospesi %}
+        <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="riprendi_tutti">
+          <button class="pian-btn ok" type="submit">Riprendi tutti</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    <p class="pian-note">La pausa vale per tutti i destinatari e finisce da sola: il giorno dopo la data scelta il digest riparte. «Esegui ora» lo manda comunque.</p>
+    <div class="pian-table-wrap">
+      <table class="pian-table">
+        <thead>
+          <tr><th>Ora</th><th>Task</th><th>Quando gira</th><th>A chi</th><th>Stato</th><th>Ultimo esito</th><th>Azioni</th></tr>
+        </thead>
+        <tbody>
+          {% for r in digest_rows %}
+          <tr>
+            <td><strong>{{ r.orario|default:"—" }}</strong></td>
+            <td><span class="pian-name">{{ r.name }}</span><div class="pian-desc">{{ r.description|default:"" }}</div></td>
+            <td>{{ r.cadence }}</td>
+            <td>{{ r.a_chi }}</td>
+            <td>
+              {% if not r.enabled %}<span class="pian-pill pian-off">○ Disattivato</span>
+              {% elif r.sospeso_fino %}<span class="pian-pill pian-pausa">❚❚ In pausa fino al {{ r.sospeso_fino|date:"d/m/Y" }}</span>
+              {% else %}<span class="pian-pill pian-on">● Attivo</span>{% endif %}
+            </td>
+            <td>
+              {% if r.last_run %}
+                {% if r.last_ok %}<span class="pian-pill pian-on">✓ ok</span>{% else %}<span class="pian-pill pian-off">✗ errore</span>{% endif %}
+                <br><small style="color:#94a3b8;">{{ r.last_run|date:"d/m H:i" }}</small>
+              {% else %}<span style="color:#94a3b8;">mai</span>{% endif %}
+            </td>
+            <td>
+              <div class="pian-actions">
+                {% if r.enabled and r.rule_id %}
+                  {% if r.sospeso_fino %}
+                  <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="name" value="{{ r.name }}">
+                    <input type="hidden" name="action" value="riprendi">
+                    <button class="pian-btn ok" type="submit">Riprendi</button>
+                  </form>
+                  {% else %}
+                  <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}" class="pian-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="name" value="{{ r.name }}">
+                    <input type="hidden" name="action" value="sospendi">
+                    <input type="date" name="fino" value="{{ domani_iso }}" min="{{ oggi_iso }}" max="{{ max_iso }}" required aria-label="Sospendi fino al">
+                    <button class="pian-btn warn" type="submit">Sospendi</button>
+                  </form>
+                  {% endif %}
+                {% endif %}
+                <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="name" value="{{ r.name }}">
+                  <input type="hidden" name="action" value="toggle">
+                  {% if r.enabled %}<button class="pian-btn" type="submit">Disattiva</button>
+                  {% else %}<button class="pian-btn ok" type="submit">Attiva</button>{% endif %}
+                </form>
+                <form method="post" action="{% url 'admin_portale:automazioni_pianificati_action' %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="name" value="{{ r.name }}">
+                  <input type="hidden" name="action" value="run_now">
+                  <button class="pian-btn run" type="submit">Esegui ora</button>
+                </form>
+                {% if r.configurable %}<a class="pian-btn" href="{% url 'admin_portale:automazioni_pianificati_mail' name=r.name %}">✉️ Configura mail</a>{% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <h2 class="pian-h2">Altri task</h2>
   <p class="pian-note">
     Ogni processo installato è un flusso modificabile nel designer: pianificazione,
     condizioni, azioni e storico. Le personalizzazioni restano valide dopo gli aggiornamenti.

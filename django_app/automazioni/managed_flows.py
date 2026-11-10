@@ -95,11 +95,20 @@ def _execute(binding, callback, *, initiated_by=None, raise_on_error=True):
         _invocation.reset(token)
 
 
-def run_managed_flow(code, *, queue_limit=None):
-    """Scheduled entry point, with durable exclusion and explicit rule state."""
+def run_managed_flow(code, *, queue_limit=None, ignora_sospensione=False):
+    """Scheduled entry point, with durable exclusion and explicit rule state.
+
+    Uno schedule sospeso a tempo (ScheduleControl.sospeso_fino) salta i giri fino a
+    quella data compresa; «Esegui ora» passa ``ignora_sospensione=True``.
+    """
     spec = catalog().get(code)
     if not spec or spec["kind"] != "schedule":
         raise ValueError("Flusso pianificato sconosciuto.")
+    if not ignora_sospensione:
+        from .schedules import sospeso_fino
+        fino = sospeso_fino(code)
+        if fino:
+            return {"skipped": True, "reason": "sospeso", "fino": fino.isoformat()}
     native_kwargs = dict(spec.get("kwargs", {}))
     # q_options è per django-q (timeout del task), non per la funzione nativa.
     native_kwargs.pop("q_options", None)

@@ -311,7 +311,7 @@ GUIDA = {
                     "Il server deve poter uscire su internet in https (porta 443) verso fcm.googleapis.com, *.push.services.mozilla.com, "
                     "*.notify.windows.com e *.push.apple.com. Il traffico contiene solo il segnale, mai il testo della notifica.",
                     "Gli invii partono dal qcluster (django-q): senza qcluster attivo le push non partono, la campanella sì.",
-                    "Il riepilogo scadenze è il task «scadenze_digest_personale» (lun-ven 7:30), disattivabile dalla Centrale di comando.",
+                    "Il riepilogo scadenze è il task «scadenze_digest_personale» (lun-ven 7:30): si sospende fino a una data o si disattiva da Automazioni → Pianificati → «Digest e promemoria».",
                     "Il calendario Outlook delle scadenze è il task «scadenze_outlook_sync» (ogni giorno 6:30): scrive nelle caselle con il "
                     "permesso Graph Calendars.ReadWrite (applicazione), lo stesso degli incontri KICK-OFF. L'ultimo errore di ogni persona "
                     "compare nella sua pagina Impostazioni notifiche.",
