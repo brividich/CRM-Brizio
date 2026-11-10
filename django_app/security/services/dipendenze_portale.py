@@ -53,6 +53,9 @@ TIMEOUT = 20
 LOTTO = 500  # pacchetti per richiesta a querybatch (limite OSV: 1000)
 DETTAGLI_MAX = 300  # bollettini letti per giro
 TEMPO_MAX = 240  # secondi; la lettura è «lunga» (timeout coda 600 s)
+PAGINE_MAX = 20  # pagine di next_page_token per pacchetto
+CACHE_FEED = "osv_vuln"  # bollettini OSV in SecurityExternalFeedCache: cambiano di rado
+CACHE_TTL = timedelta(days=3)
 
 APERTE = (Status.OPEN, Status.NEW, Status.ACKNOWLEDGED, Status.IN_PROGRESS)
 _ORDINE = {Severity.CRITICAL: 4, Severity.HIGH: 3, Severity.MEDIUM: 2, Severity.LOW: 1, Severity.INFO: 0}
@@ -104,21 +107,59 @@ def _http(metodo, url, **kw):
         raise OsvError("risposta di OSV non leggibile") from exc
 
 
+def _domanda(nome, versione, token=None) -> dict:
+    q = {"package": {"name": nome, "ecosystem": "PyPI"}, "version": versione}
+    if token:
+        q["page_token"] = token
+    return q
+
+
 def interroga_osv(pacchetti: dict) -> dict:
-    """{nome: [id vulnerabilità]} per i pacchetti con almeno una vulnerabilità nota."""
+    """{nome: [id vulnerabilità]} per i pacchetti con almeno una vulnerabilità nota.
+
+    Un pacchetto con molte vulnerabilità arriva in più pagine (``next_page_token``): si seguono tutte;
+    se non finiscono entro ``PAGINE_MAX`` la lettura è incompleta, quindi in errore.
+    """
     nomi = sorted(pacchetti)
     out = {}
     for i in range(0, len(nomi), LOTTO):
         lotto = nomi[i:i + LOTTO]
-        body = {"queries": [{"package": {"name": n, "ecosystem": "PyPI"}, "version": pacchetti[n]} for n in lotto]}
+        body = {"queries": [_domanda(n, pacchetti[n]) for n in lotto]}
         risultati = (_http("POST", OSV_BATCH_URL, json=body) or {}).get("results")
         if not isinstance(risultati, list) or len(risultati) != len(lotto):
             raise OsvError("risposta di OSV incompleta")
         for nome, r in zip(lotto, risultati, strict=True):
             ids = [v.get("id") for v in (r or {}).get("vulns") or [] if v.get("id")]
+            token, pagine = (r or {}).get("next_page_token"), 0
+            while token:
+                pagine += 1
+                if pagine > PAGINE_MAX:
+                    raise OsvError(f"risposta di OSV incompleta: {nome} oltre {PAGINE_MAX} pagine")
+                altro = (_http("POST", OSV_BATCH_URL, json={"queries": [_domanda(nome, pacchetti[nome], token)]}) or {}).get("results")
+                if not isinstance(altro, list) or len(altro) != 1:
+                    raise OsvError("risposta di OSV incompleta")
+                ids += [v.get("id") for v in (altro[0] or {}).get("vulns") or [] if v.get("id") and v.get("id") not in ids]
+                token = (altro[0] or {}).get("next_page_token")
             if ids:
                 out[nome] = ids
     return out
+
+
+def _bollettino(vid: str) -> dict:
+    """Dettaglio di un bollettino OSV, dalla cache dedicata se letto da meno di ``CACHE_TTL``."""
+    from security.models import SecurityExternalFeedCache
+
+    chiave = str(vid)[:190]
+    entry = SecurityExternalFeedCache.objects.filter(feed=CACHE_FEED, key=chiave, expires_at__gt=timezone.now()).first()
+    if entry is not None:
+        return entry.payload or {}
+    dettaglio = _http("GET", OSV_VULN_URL.format(vid)) or {}
+    if not isinstance(dettaglio, dict):
+        raise OsvError("risposta di OSV non leggibile")
+    adesso = timezone.now()
+    SecurityExternalFeedCache.objects.update_or_create(feed=CACHE_FEED, key=chiave, defaults={
+        "payload": dettaglio, "status_code": 200, "error": "", "fetched_at": adesso, "expires_at": adesso + CACHE_TTL})
+    return dettaglio
 
 
 def _gravita(dettaglio: dict) -> str:
@@ -202,12 +243,20 @@ def run(pacchetti: dict | None = None) -> dict:
             non_letti += 1
             continue
         try:
-            dettagli[vid] = _http("GET", OSV_VULN_URL.format(vid)) or {}
+            dettagli[vid] = _bollettino(vid)
         except OsvError:
             non_letti += 1
     src = source()
     visti, nuove = set(), 0
     adesso = timezone.now()
+    # Pacchetti con bollettini non letti: senza gli alias il raggruppamento (e quindi il dedup) può cambiare.
+    # Le loro vulnerabilità già aperte non si risolvono e non se ne creano di nuove con codici diversi:
+    # evita chiusure e riaperture fasulle; si sistemano al giro con i bollettini completi.
+    incompleti = {nome for nome, ids in trovati.items() if any(v not in dettagli for v in ids)}
+    con_aperte = set()
+    if incompleti:
+        for f in SecurityVulnerabilityFinding.objects.filter(source=src, status__in=APERTE).only("payload"):
+            con_aperte.add((f.payload or {}).get("pacchetto"))
     for nome, ids in sorted(trovati.items()):
         versione = pacchetti[nome]
         for voce in raggruppa(nome, ids, dettagli):
@@ -215,6 +264,8 @@ def run(pacchetti: dict | None = None) -> dict:
             visti.add(dedup)
             payload = {"pacchetto": nome, "versione": versione, **voce}
             f = SecurityVulnerabilityFinding.objects.filter(source=src, dedup_hash=dedup).first()
+            if f is None and nome in incompleti and nome in con_aperte:
+                continue
             if f is None:
                 SecurityVulnerabilityFinding.objects.create(
                     source=src, dedup_hash=dedup, cve=voce["id"][:32], affected_product=f"{nome} {versione}"[:255],
@@ -230,6 +281,8 @@ def run(pacchetti: dict | None = None) -> dict:
             f.save(update_fields=["status", "affected_product", "severity", "cvss", "payload", "last_seen_at", "exposed_devices"])
     risolte = 0
     for f in SecurityVulnerabilityFinding.objects.filter(source=src, status__in=APERTE).exclude(dedup_hash__in=visti):
+        if (f.payload or {}).get("pacchetto") in incompleti:
+            continue  # lettura incompleta per questa libreria: non si dichiara risolto niente
         f.status, f.exposed_devices = Status.RESOLVED, 0
         f.payload = {**(f.payload or {}), "risolta_il": adesso.isoformat(),
                      "versione_dopo": pacchetti.get((f.payload or {}).get("pacchetto"), "non installata")}
@@ -239,7 +292,8 @@ def run(pacchetti: dict | None = None) -> dict:
     out = {"pacchetti": len(pacchetti), "vulnerabili": len(trovati), "vulnerabilita": len(visti), "nuove": nuove,
            "risolte": risolte, "eventi": eventi, "alert_chiusi": chiusi}
     if non_letti:
-        out["errore"] = f"{non_letti} bollettini OSV non letti: gravità e versioni corrette incomplete"
+        out["errore"] = (f"{non_letti} bollettini OSV non letti: gravità e versioni corrette incomplete; "
+                         f"vulnerabilità di {len(incompleti)} librerie lasciate come erano")
     return out
 
 

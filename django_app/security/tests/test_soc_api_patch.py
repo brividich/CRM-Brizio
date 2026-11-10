@@ -89,7 +89,11 @@ class WatchGuardSyncTests(TestCase):
         self.assertEqual((d1.host, d1.hub_asset, d1.mac_lista, d1.protetto), ("pc-wg-01", self.pc, ["aa:bb:cc:00:00:01"], True))
         self.assertFalse(WatchGuardDispositivo.objects.get(device_id="d2").protetto)
         self.assertFalse(WatchGuardDispositivo.objects.get(device_id="unmanaged:u1").gestito)
-        out = watchguard_api.sincronizza_dispositivi(dispositivi=[], protezione=[], non_gestiti=[])
+        with self.assertRaises(watchguard_api.WatchGuardError):  # elenco vuoto con PC già letti: nessuno sparito
+            watchguard_api.sincronizza_dispositivi(dispositivi=[], protezione=[], non_gestiti=[])
+        self.assertEqual(WatchGuardDispositivo.objects.filter(presente=True).count(), 3)
+        out = watchguard_api.sincronizza_dispositivi(dispositivi=[{"device_id": "d3", "host_name": "PC-WG-03"}],
+                                                     protezione=[], non_gestiti=[])
         self.assertEqual(out["spariti"], 3)
 
     def test_patch_aperte_chiuse_ed_esito(self):
@@ -103,7 +107,11 @@ class WatchGuardSyncTests(TestCase):
         self.assertIn(("CVE-2099-0201", "pc-wg-01"), watchguard_api.patch_aperte_per_cve({"CVE-2099-0201"}))
         WatchGuardPatch.objects.update(esito=4)
         self.assertTrue(WatchGuardPatch.objects.get().esito_errore)
-        self.assertEqual(watchguard_api.sincronizza_patch(righe=[]), {"patch": 0, "chiuse": 1})
+        with self.assertRaises(watchguard_api.WatchGuardError):  # elenco vuoto con patch aperte: niente chiuso
+            watchguard_api.sincronizza_patch(righe=[])
+        self.assertTrue(WatchGuardPatch.objects.get().presente)
+        altra = {"device_id": "d2", "patch_id": "p9", "host_name": "PC-WG-02", "patch_name": "Altra"}
+        self.assertEqual(watchguard_api.sincronizza_patch(righe=[altra]), {"patch": 1, "chiuse": 1})
         p.refresh_from_db()
         self.assertFalse(p.presente)
         self.assertIsNotNone(p.chiusa_il)
