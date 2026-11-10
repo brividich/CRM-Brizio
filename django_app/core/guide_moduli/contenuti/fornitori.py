@@ -138,14 +138,15 @@ GUIDA = {
                       "restano quelli del GuestPortal, quindi le visite compaiono in Accessi esterni come sempre. "
                       "Tutti, fornitori accreditati compresi, devono confermare di aver letto l'informativa privacy prima di entrare."),
                 ("passi", [
-                    "«Ciao! Chi sei?»: si scrive nome, email, azienda o codice d'invito. Dalla terza lettera compaiono i risultati.",
-                    "«Già stato qui»: chi è venuto negli ultimi 12 mesi, con nome e iniziale del cognome (mai email o telefono). «Sono io» apre la conferma con referente e motivo dell'ultima visita già scelti: si cambia se serve, poi «Entro».",
-                    "«Fornitori accreditati»: si tocca la ditta, poi il proprio nome e il referente interno.",
-                    "«Invito»: con il codice di 8 caratteri compare l'invito; «Entro» registra l'ingresso.",
-                    "Nessun risultato: «Sì, prima visita» apre un solo modulo (nome, cognome, azienda, email e telefono facoltativi, referente, motivo).",
+                    "«Tocca per entrare», poi «Come ti chiami?»: nome e cognome, «Avanti».",
+                    "Se qualcuno con esattamente quel nome è già venuto (negli ultimi 12 mesi, o è un nominativo di una ditta accreditata), il totem mostra solo la sua azienda: si tocca la propria. Più righe = omonimi. «No, non sono io: prima visita» se nessuna è giusta.",
+                    "Prima visita: «Per quale azienda?» (si scrive, nessun suggerimento), email e telefono facoltativi.",
+                    "«Chi vieni a trovare?»: si scrivono le prime lettere e si tocca il nome. Chi torna trova già il referente dell'ultima volta.",
+                    "«Perché sei qui oggi?»: si tocca il motivo (i fornitori accreditati saltano questa domanda).",
+                    "«Informativa privacy»: va spuntata «Ho letto e accetto»; solo allora si accende «Confermo l'ingresso».",
                     "«Esco»: si tocca il numero del proprio cartellino tra quelli in uso, oppure lo si scrive o si mostra il QR.",
                 ]),
-                ("p", "Premere «Entro» vale come conferma di aver letto l'informativa: il testo completo si apre dal link sotto il pulsante."),
+                ("p", "A destra il pass si compila man mano: toccando una riga si torna a quella domanda. Il totem non mostra mai elenchi di visitatori o di aziende."),
                 ("nota", "Dopo 2 minuti senza tocchi torna alla schermata iniziale e cancella i dati scritti. La scansione del QR compare solo se l'HUB è in HTTPS: "
                          "altrimenti il browser non dà accesso alla fotocamera e si usano numero del cartellino e codice a mano."),
             ],
