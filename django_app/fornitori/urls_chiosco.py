@@ -6,5 +6,6 @@ app_name = "chiosco"
 
 urlpatterns = [
     path("", views_chiosco.pagina, name="pagina"),
+    path("logo/", views_chiosco.logo, name="logo"),
     path("api/<slug:azione>/", views_chiosco.api, name="api"),
 ]

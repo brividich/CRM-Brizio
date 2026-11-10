@@ -278,6 +278,14 @@ class ChioscoNativoTests(Base):
         self.assertTrue(r["success"])
         self.assertEqual(self.api("cartellini").json()["cartellini"], ["01", "02"])
 
+    def test_suggerimenti_cognome_e_nome(self):
+        self.entra(servizi.ospite_da_dati(nome="Bruno", cognome="Prova"))
+        d = DittaAccreditata.objects.create(nome="Impianti Esempio Srl")
+        ContattoDitta.objects.create(ditta=d, nome="Brunella", cognome="Provasi")
+        self.assertEqual(self.api("suggerisci", campo="cognome", testo="pro").json()["voci"], ["Prova", "Provasi"])
+        self.assertEqual(self.api("suggerisci", campo="nome", testo="bru", cognome="prova").json()["voci"], ["Bruno"])
+        self.assertNotIn("Impianti", self.api("suggerisci", campo="cognome", testo="pro").content.decode())
+
     def test_riconosci_esclude_anonimizzati(self):
         o = servizi.ospite_da_dati(nome="Bruno", cognome="Prova")
         self.entra(o)
@@ -311,6 +319,26 @@ class PannelloTests(Base):
         self.client.logout()
         for nome in ("cruscotto", "registra", "storico", "preregistrazioni", "referenti", "ditte", "cartellini", "impostazioni"):
             self.assertEqual(self.client.get(reverse(f"reception:{nome}")).status_code, 302, nome)
+
+    def test_logo_del_chiosco(self):
+        import base64
+
+        from django.core.files.storage import default_storage
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from fornitori import chiosco
+
+        png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")
+        url = reverse("reception:impostazioni")
+        self.client.post(url, {"azione": "logo", "logo": SimpleUploadedFile("logo.svg", b"<svg/>", content_type="image/svg+xml")})
+        self.assertEqual(chiosco.logo_percorso(), "")
+        self.client.post(url, {"azione": "logo", "logo": SimpleUploadedFile("logo.png", png, content_type="image/png")})
+        percorso = chiosco.logo_percorso()
+        self.assertTrue(percorso and default_storage.exists(percorso))
+        self.assertContains(self.client.get(url), "caricato")
+        self.client.post(url, {"azione": "logo_togli"})
+        self.assertEqual(chiosco.logo_percorso(), "")
+        self.assertFalse(default_storage.exists(percorso))
 
     def test_tutte_le_pagine_si_aprono(self):
         v = self.entra()

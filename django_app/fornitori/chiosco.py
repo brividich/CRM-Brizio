@@ -320,3 +320,94 @@ def cartellini_in_uso() -> list[str] | None:
             return None
     puliti = {str(n).strip() for n in numeri if str(n).strip() and str(n).strip().upper() != "N/A"}
     return sorted(puliti, key=lambda n: (int(n) if n.isdigit() else 10**6, n))
+
+
+# ─── Suggerimenti mentre si scrive cognome e nome ─────────────────────────────────────────
+# Dalla terza lettera: cognomi presenti (visitatori nel periodo di conservazione, nominativi delle
+# ditte accreditate); per il nome, solo i nomi di chi ha quel cognome. Mai aziende né altri dati.
+SUGGERISCI_MIN = 3
+SUGGERISCI_MAX = 6
+
+
+def _like(testo: str) -> str:
+    return testo.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+def _unici(valori) -> list[str]:
+    visti, uscita = set(), []
+    for v in valori:
+        v = (v or "").strip()
+        if v and v.lower() not in visti:
+            visti.add(v.lower())
+            uscita.append(v)
+    return sorted(uscita, key=str.lower)[:SUGGERISCI_MAX]
+
+
+def suggerisci(campo: str, testo: str, cognome: str = "") -> list[str]:
+    testo, cognome = (testo or "").strip()[:100], (cognome or "").strip()[:100]
+    if campo not in ("cognome", "nome") or len(testo) < SUGGERISCI_MIN or (campo == "nome" and not cognome):
+        return []
+    if nativa():
+        return _suggerisci_hub(campo, testo, cognome)
+    return _suggerisci_gp(campo, testo, cognome)
+
+
+def _suggerisci_hub(campo: str, testo: str, cognome: str) -> list[str]:
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from reception.models import ContattoDitta, Ospite
+
+    ospiti = Ospite.objects.filter(anonimizzato=False, visite__ingresso__gte=timezone.now() - timedelta(days=_giorni_conservazione()))
+    contatti = ContattoDitta.objects.filter(attivo=True, ditta__attiva=True)
+    filtro = {f"{campo}__istartswith": testo}
+    if campo == "nome":
+        filtro["cognome__iexact"] = cognome
+    valori = list(ospiti.filter(**filtro).values_list(campo, flat=True).distinct()[:50])
+    valori += list(contatti.filter(**filtro).values_list(campo, flat=True).distinct()[:50])
+    return _unici(valori)
+
+
+def _suggerisci_gp(campo: str, testo: str, cognome: str) -> list[str]:
+    from datetime import datetime, timedelta
+
+    from . import guestportal
+
+    if not guestportal.db_configurato():
+        return []
+    colonna = "LastName" if campo == "cognome" else "FirstName"
+    extra_g, extra_c, params_g, params_c = "", "", [], []
+    if campo == "nome":
+        extra_g, extra_c, params_g, params_c = " AND g.LastName = %s", " AND c.LastName = %s", [cognome], [cognome]
+    sql = (f"SELECT DISTINCT g.{colonna} AS v FROM Guests g JOIN Visits v ON v.GuestID = g.GuestID"
+           f" WHERE g.IsAnonymized = 0 AND v.CheckInTime >= %s AND g.{colonna} LIKE %s{extra_g}"
+           f" UNION SELECT DISTINCT c.{colonna} FROM SupplierContacts c JOIN Suppliers s ON s.SupplierID = c.SupplierID"
+           f" WHERE c.IsActive = 1 AND s.IsActive = 1 AND c.{colonna} LIKE %s{extra_c} LIMIT 50")
+    params = [datetime.now() - timedelta(days=_giorni_conservazione()), _like(testo), *params_g, _like(testo), *params_c]
+    try:
+        righe = guestportal._esegui(sql, params)
+    except (guestportal.GuestPortalNonConfigurato, guestportal.GuestPortalNonRaggiungibile):
+        return []
+    return _unici(r.get("v") for r in righe)
+
+
+# ─── Logo del chiosco (Reception → Impostazioni) ──────────────────────────────────────────
+CHIAVE_LOGO = "chiosco_logo"
+LOGO_ESTENSIONI = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+LOGO_MAX_BYTE = 1024 * 1024
+LOGO_CARTELLA = "reception"
+
+
+def logo_percorso() -> str:
+    """Percorso nello storage del logo caricato, o vuoto. Valore SiteConfig: ``percorso|versione``."""
+    from core.models import SiteConfig
+
+    return (SiteConfig.get(CHIAVE_LOGO, "") or "").split("|", 1)[0]
+
+
+def logo_versione() -> str:
+    from core.models import SiteConfig
+
+    parti = (SiteConfig.get(CHIAVE_LOGO, "") or "").split("|", 1)
+    return parti[1] if len(parti) == 2 else ""

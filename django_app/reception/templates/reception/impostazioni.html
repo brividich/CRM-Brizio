@@ -1,8 +1,19 @@
 {% extends "reception/_base.html" %}
 {% block title %}Impostazioni | Reception{% endblock %}
 {% block rc_titolo %}Impostazioni{% endblock %}
-{% block rc_sub %}Avviso al chiosco e conservazione dei dati.{% endblock %}
+{% block rc_sub %}Logo e avviso del chiosco, conservazione dei dati.{% endblock %}
 {% block rc_contenuto %}
+<div class="rc-card">
+  <div class="rc-card-head">Logo del chiosco</div>
+  <div class="rc-body">
+    <p class="rc-note">Compare in alto a sinistra sul totem al posto della scritta. PNG, JPG o WEBP fino a 1 MB; meglio chiaro o con sfondo trasparente, perché il totem è scuro. Stato: <strong>{% if logo_presente %}caricato{% else %}nessun logo{% endif %}</strong>.</p>
+    <form method="post" enctype="multipart/form-data" class="rc-azioni">{% csrf_token %}<input type="hidden" name="azione" value="logo">
+      <input type="file" name="logo" accept=".png,.jpg,.jpeg,.webp" required>
+      <button class="rc-btn" type="submit">Carica</button>
+    </form>
+    {% if logo_presente %}<form method="post">{% csrf_token %}<input type="hidden" name="azione" value="logo_togli"><button class="rc-btn rc-btn-g" type="submit">Togli il logo</button></form>{% endif %}
+  </div>
+</div>
 <div class="rc-card">
   <div class="rc-card-head">Ditte con i documenti non in regola</div>
   <div class="rc-body">
