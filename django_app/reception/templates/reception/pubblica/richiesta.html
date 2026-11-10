@@ -1,30 +1,38 @@
 {% extends "reception/pubblica/_base.html" %}
 {% block corpo %}
-<h1>Richiedi un appuntamento</h1>
-<p class="pb-sub">Compila il modulo: ti mandiamo una mail per confermare l'indirizzo, poi la persona che vuoi incontrare risponde. Se la visita viene accettata ricevi il codice e il QR per entrare.</p>
 {% if errori %}<div class="pb-errori" role="alert"><ul>{% for e in errori %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
 <form method="post" novalidate>
   {% csrf_token %}
   <input type="hidden" name="firma" value="{{ firma }}">
   <div class="pb-trappola" aria-hidden="true"><label for="r-sito">Lascia vuoto</label><input id="r-sito" name="sito_web" tabindex="-1" autocomplete="off"></div>
   <div class="pb-grid">
-    <div class="pb-field"><label for="r-nome">Nome *</label><input id="r-nome" name="nome" maxlength="100" autocomplete="given-name" value="{{ dati.nome|default:'' }}" required></div>
-    <div class="pb-field"><label for="r-cognome">Cognome *</label><input id="r-cognome" name="cognome" maxlength="100" autocomplete="family-name" value="{{ dati.cognome|default:'' }}" required></div>
-    <div class="pb-field"><label for="r-email">Email *</label><input id="r-email" type="email" name="email" maxlength="255" autocomplete="email" value="{{ dati.email|default:'' }}" required></div>
-    <div class="pb-field"><label for="r-tel">Telefono</label><input id="r-tel" type="tel" name="telefono" maxlength="50" autocomplete="tel" value="{{ dati.telefono|default:'' }}"></div>
-    <div class="pb-field pb-full"><label for="r-azienda">Azienda</label><input id="r-azienda" name="azienda" maxlength="200" autocomplete="organization" value="{{ dati.azienda|default:'' }}"></div>
-    <div class="pb-field pb-full"><label for="r-ref">Chi vuoi incontrare *</label><input id="r-ref" name="referente" maxlength="200" value="{{ dati.referente_indicato|default:'' }}" required><span class="pb-hint">Nome e cognome, o l'email aziendale se la conosci.</span></div>
-    <div class="pb-field"><label for="r-data">Giorno *</label><input id="r-data" type="date" name="data_visita" min="{{ data_min|date:'Y-m-d' }}" max="{{ data_max|date:'Y-m-d' }}" value="{{ dati.data|default:'' }}" required></div>
-    <div class="pb-field"><label for="r-ora">Ora</label><input id="r-ora" type="time" name="ora_inizio" value="{{ dati.ora|default:'' }}"></div>
-    <div class="pb-field pb-full"><label for="r-motivo">Motivo</label><select id="r-motivo" name="motivo"><option value="">Scegli</option>{% for c in categorie %}<option value="{{ c.nome }}"{% if dati.motivo == c.nome %} selected{% endif %}>{{ c.nome }}</option>{% endfor %}</select></div>
-    <div class="pb-field pb-full"><label for="r-msg">Messaggio</label><textarea id="r-msg" name="messaggio" maxlength="1000">{{ dati.messaggio|default:'' }}</textarea></div>
+    <div class="pb-field"><label for="r-cognome">Cognome</label><input id="r-cognome" name="cognome" maxlength="100" autocomplete="family-name" value="{{ dati.cognome|default:'' }}" required></div>
+    <div class="pb-field"><label for="r-nome">Nome</label><input id="r-nome" name="nome" maxlength="100" autocomplete="given-name" value="{{ dati.nome|default:'' }}" required></div>
+    <div class="pb-field"><label for="r-email">Email</label><input id="r-email" type="email" name="email" maxlength="255" autocomplete="email" inputmode="email" value="{{ dati.email|default:'' }}" required></div>
+    <div class="pb-field"><label for="r-azienda">Azienda <span class="pb-opz">facoltativa</span></label><input id="r-azienda" name="azienda" maxlength="200" autocomplete="organization" value="{{ dati.azienda|default:'' }}"></div>
+    <div class="pb-field pb-full"><label for="r-ref">Chi vieni a trovare</label><input id="r-ref" name="referente" maxlength="200" placeholder="Nome e cognome, o la sua email" value="{{ dati.referente_indicato|default:'' }}" required></div>
+    <div class="pb-field"><label for="r-data">Giorno</label><input id="r-data" type="date" name="data_visita" min="{{ data_min|date:'Y-m-d' }}" max="{{ data_max|date:'Y-m-d' }}" value="{{ dati.data|default:'' }}" required></div>
+    <div class="pb-field"><label for="r-ora">Ora <span class="pb-opz">facoltativa</span></label><input id="r-ora" type="time" name="ora_inizio" value="{{ dati.ora|default:'' }}"></div>
+    {% if categorie %}<div class="pb-field pb-full"><span class="pb-label">Motivo</span>
+      <div class="pb-chips">{% for c in categorie %}<label class="pb-chip"><input type="radio" name="motivo" value="{{ c.nome }}"{% if dati.motivo == c.nome %} checked{% endif %}><span>{{ c.nome }}</span></label>{% endfor %}</div>
+    </div>{% endif %}
   </div>
-  <details>
-    <summary>Informativa privacy</summary>
-    {% include "fornitori/chiosco/_informativa_testo.html" %}
-    <p><strong>Richieste dal modulo online:</strong> i dati della richiesta servono a organizzare la visita e li vedono la persona indicata e il personale della reception. Se non confermi l'email entro {{ ore_conferma }} ore la richiesta viene cancellata; le richieste decise si cancellano dopo {{ giorni_conservazione }} giorni. Se la visita viene accettata, i dati passano alla registrazione dell'ingresso descritta sopra.</p>
+  <details class="pb-altro"{% if dati.telefono or dati.messaggio %} open{% endif %}>
+    <summary>Aggiungi telefono o un messaggio</summary>
+    <div class="pb-grid">
+      <div class="pb-field pb-full"><label for="r-tel">Telefono</label><input id="r-tel" type="tel" name="telefono" maxlength="50" autocomplete="tel" value="{{ dati.telefono|default:'' }}"></div>
+      <div class="pb-field pb-full"><label for="r-msg">Messaggio</label><textarea id="r-msg" name="messaggio" maxlength="1000">{{ dati.messaggio|default:'' }}</textarea></div>
+    </div>
   </details>
-  <label class="pb-check"><input type="checkbox" name="informativa" value="1"{% if dati.informativa %} checked{% endif %} required> <span>Ho letto e compreso l'informativa privacy.</span></label>
-  <button class="pb-btn" type="submit">Invia la richiesta</button>
+  <div class="pb-privacy">
+    <label class="pb-check"><input type="checkbox" name="informativa" value="1"{% if dati.informativa %} checked{% endif %} required> <span><strong>Ho letto e accetto</strong> l'informativa sul trattamento dei miei dati personali.</span></label>
+    <details class="pb-info">
+      <summary>Leggi l'informativa</summary>
+      {% include "fornitori/chiosco/_informativa_testo.html" %}
+      <p><strong>Richieste dal modulo online:</strong> i dati della richiesta servono a organizzare la visita e li vedono la persona indicata e il personale della reception. Se non confermi l'email entro {{ ore_conferma }} ore la richiesta viene cancellata; le richieste decise si cancellano dopo {{ giorni_conservazione }} giorni. Se la visita viene accettata, i dati passano alla registrazione dell'ingresso descritta sopra.</p>
+    </details>
+  </div>
+  <button class="pb-btn" type="submit">Invia</button>
+  <ol class="pb-passi"><li><b>1</b> Confermi la tua email</li><li><b>2</b> La persona che vieni a trovare accetta</li><li><b>3</b> Ricevi codice e QR per entrare</li></ol>
 </form>
 {% endblock %}

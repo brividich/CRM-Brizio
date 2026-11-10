@@ -77,7 +77,7 @@ class MenuTests(TestCase):
         UserOnboarding.objects.get_or_create(user=user, defaults={"completed": True})
         self.client.force_login(user)
         r = self.client.get(reverse("reception:cruscotto"))
-        for etichetta in ("Registra ingresso", "Referenti", "Impostazioni"):
+        for etichetta in ("Oggi", "Inviti", "Storico", "Configurazione", "Registra ingresso"):
             self.assertContains(r, etichetta)
 
     def test_menu_filtrato_per_permesso(self):
@@ -92,5 +92,8 @@ class MenuTests(TestCase):
         request.user = user
         ammesse = {"/reception/", "/reception/storico/", "/reception/richieste/"}
         with patch("core.middleware.acl_allows_path", side_effect=lambda url, **k: url in ammesse):
-            nomi = [v.get("nome") for v in _menu(request)]
-        self.assertEqual(nomi, ["cruscotto", "storico", "richieste"])
+            menu = _menu(request, "richieste")
+        self.assertEqual([v["chiave"] for v in menu], ["oggi", "inviti", "storico"])
+        inviti = menu[1]
+        self.assertEqual((inviti["nome"], inviti["attiva"]), ("richieste", True))
+        self.assertEqual([s["nome"] for s in inviti["schede"]], ["richieste"])

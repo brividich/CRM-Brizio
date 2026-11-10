@@ -1,34 +1,63 @@
 {% extends "reception/_base.html" %}
+{% load static %}
 {% block title %}Reception{% endblock %}
-{% block rc_titolo %}Reception{% endblock %}
-{% block rc_sub %}Chi è in azienda adesso. L'uscita da qui vale come quella al chiosco e resta tracciata.{% endblock %}
-{% block rc_contenuto %}
-<div class="rc-kpis">
-  <div class="rc-kpi"><b>{{ presenti|length }}</b><span>Presenti ora</span></div>
-  <div class="rc-kpi"><b>{{ n_oggi }}</b><span>Ingressi di oggi</span></div>
-  <div class="rc-kpi"><b>{{ n_liberi }}</b><span>Cartellini liberi</span></div>
-</div>
-<div class="rc-card">
-  <div class="rc-card-head">Presenti ora</div>
-  <div class="rc-wrap">
-    <table class="rc-table">
-      <thead><tr><th>Cartellino</th><th>Nome</th><th>Azienda</th><th>Referente</th><th>Motivo</th><th>Entrato</th><th></th></tr></thead>
-      <tbody>
-      {% for v in presenti %}
-        <tr>
-          <td><strong>{{ v.cartellino }}</strong></td>
-          <td><a href="{% url 'reception:visita_scheda' v.pk %}">{{ v.ospite.nome_completo }}</a></td>
-          <td>{% if v.ditta_id %}{{ v.ditta.nome }}{% else %}{{ v.ospite.azienda|default:"—" }}{% endif %}</td>
-          <td>{{ v.referente_nome }}</td>
-          <td>{{ v.motivo|default:"—" }}</td>
-          <td>{{ v.ingresso|date:"d/m H:i"|default:"—" }}</td>
-          <td><form class="rc-inline" method="post" action="{% url 'reception:visita_uscita' v.pk %}">{% csrf_token %}<button class="rc-btn rc-btn-g" type="submit">Registra uscita</button></form></td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="7" class="rc-empty">Nessun esterno in azienda.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
+{% block rc_titolo %}Oggi{% endblock %}
+{% block rc_azioni %}
+<a class="rc-btn rc-btn-g" href="{% url 'reception:preregistrazioni' %}?nuovo=1">+ Invita</a>
+<a class="rc-btn rc-btn-p" href="{% url 'reception:registra' %}" data-apri="#pannello-ingresso">+ Registra ingresso</a>
 {% endblock %}
+{% block rc_contenuto %}
+{{ referenti_json|json_script:"referenti-dati" }}
+<div class="rc-numeri">
+  <span><b>{{ presenti|length }}</b> dentro adesso</span>
+  <span><b>{{ n_oggi }}</b> ingressi oggi</span>
+  <span><b>{{ attesi|length }}</b> attesi</span>
+  <span><b>{{ n_liberi }}</b> cartellini liberi</span>
+  {% if n_richieste %}<a href="{% url 'reception:richieste' %}"><b>{{ n_richieste }}</b> richieste da decidere</a>{% endif %}
+</div>
+
+<div class="rc-due">
+  <section class="rc-card">
+    <div class="rc-card-head">Dentro adesso</div>
+    {% if presenti %}
+    <ul class="rc-lista">
+      {% for v in presenti %}
+      <li class="rc-voce">
+        <span class="rc-badge">{{ v.cartellino }}</span>
+        <a class="rc-voce-testo" href="{% url 'reception:visita_scheda' v.pk %}">
+          <strong>{{ v.ospite.nome_completo }}</strong>
+          <span>{% if v.ditta_id %}{{ v.ditta.nome }}{% else %}{{ v.ospite.azienda|default:"Privato" }}{% endif %} · da {{ v.referente_nome }} · dalle {{ v.ingresso|date:"H:i" }}</span>
+        </a>
+        <form method="post" action="{% url 'reception:visita_uscita' v.pk %}">{% csrf_token %}<button class="rc-btn rc-btn-g" type="submit">Uscita</button></form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="rc-empty">Nessun esterno in azienda.</p>
+    {% endif %}
+  </section>
+
+  <section class="rc-card">
+    <div class="rc-card-head">Attesi oggi</div>
+    {% if attesi %}
+    <ul class="rc-lista">
+      {% for p in attesi %}
+      <li class="rc-voce">
+        <span class="rc-badge rc-badge-ora">{% if p.ora_inizio %}{{ p.ora_inizio|time:"H:i" }}{% else %}—{% endif %}</span>
+        <span class="rc-voce-testo"><strong>{{ p.ospite_nome }}</strong><span>{{ p.ospite_azienda|default:"Privato" }} · da {{ p.referente_nome }}</span></span>
+        <span class="rc-codice">{{ p.codice }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="rc-empty">Nessun invito per oggi.</p>
+    {% endif %}
+  </section>
+</div>
+
+<aside class="rc-pannello" id="pannello-ingresso" role="dialog" aria-modal="true" aria-labelledby="pi-titolo" aria-hidden="true"{% if apri %} data-aperto{% endif %}>
+  <div class="rc-pannello-testa"><h2 id="pi-titolo">Registra ingresso</h2><button type="button" class="rc-chiudi" data-chiudi aria-label="Chiudi">×</button></div>
+  <div class="rc-pannello-corpo">{% include "reception/_form_ingresso.html" %}</div>
+</aside>
+{% endblock %}
+{% block extra_scripts %}<script src="{% static 'reception/ricerca.js' %}" defer></script><script src="{% static 'reception/pannello.js' %}" defer></script>{% endblock %}

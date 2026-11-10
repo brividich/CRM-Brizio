@@ -1,13 +1,15 @@
 {% extends "reception/_base.html" %}
 {% block title %}Visita | Reception{% endblock %}
 {% block rc_titolo %}{{ v.ospite.nome_completo }}{% endblock %}
-{% block rc_sub %}{{ v.get_stato_display }} · cartellino {{ v.cartellino }} · referente {{ v.referente_nome }}{% endblock %}
 {% block rc_contenuto %}
-<div class="rc-kpis">
-  <div class="rc-kpi"><b>{{ v.ingresso|date:"d/m H:i"|default:"—" }}</b><span>Ingresso</span></div>
-  <div class="rc-kpi"><b>{{ v.uscita|date:"d/m H:i"|default:"—" }}</b><span>Uscita</span></div>
-  <div class="rc-kpi"><b>{% if v.ditta_id %}{{ v.ditta.nome }}{% else %}{{ v.ospite.azienda|default:"—" }}{% endif %}</b><span>Azienda</span></div>
-  <div class="rc-kpi"><b>{{ v.motivo|default:"—" }}</b><span>Motivo</span></div>
+<div class="rc-numeri">
+  <span class="rc-pill{% if v.stato == 'CHECKEDIN' %} rc-pill-ok{% endif %}">{{ v.get_stato_display }}</span>
+  <span>Cartellino <b>{{ v.cartellino }}</b></span>
+  <span>{% if v.ditta_id %}{{ v.ditta.nome }}{% else %}{{ v.ospite.azienda|default:"Privato" }}{% endif %}</span>
+  <span>Da <b>{{ v.referente_nome }}</b></span>
+  <span>{{ v.motivo|default:"—" }}</span>
+  <span>Entrato <b>{{ v.ingresso|date:"d/m H:i"|default:"—" }}</b></span>
+  <span>Uscito <b>{{ v.uscita|date:"d/m H:i"|default:"—" }}</b></span>
 </div>
 <div class="rc-card">
   <div class="rc-card-head">Correggi l'uscita</div>
