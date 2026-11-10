@@ -1,0 +1,30 @@
+<form method="post" action="{% url 'reception:preregistrazioni' %}" class="rc-modulo">
+  {% csrf_token %}
+  <div class="rc-cerca"><input class="rc-input" id="p-cerca" type="search" placeholder="Cerca chi è già venuto: nome, azienda o email" aria-label="Cerca tra chi è già venuto"
+         data-cerca-url="{% url 'reception:api_ospiti' %}" data-formato="ospite" data-svuota data-poi="#p-ref-cerca"
+         data-vuoto="Nessuno con questo nome: compila i campi qui sotto."
+         data-riempi='{"nome_completo":"#p-nome","azienda":"#p-azienda","email":"#p-email"}'></div>
+  <div class="rc-field"><label for="p-nome">Nome e cognome</label><input class="rc-input" id="p-nome" name="nome" maxlength="200" required></div>
+  <div class="rc-riga rc-riga-2">
+    <div class="rc-field"><label for="p-email">Email <span class="rc-opz">riceve codice e QR</span></label><input class="rc-input" id="p-email" type="email" name="email" maxlength="255" required></div>
+    <div class="rc-field"><label for="p-azienda">Azienda <span class="rc-opz">facoltativa</span></label><input class="rc-input" id="p-azienda" name="azienda" maxlength="200"></div>
+  </div>
+  <div class="rc-field"><label for="p-ref-cerca">Chi lo aspetta</label>
+    <div class="rc-cerca"><input class="rc-input" id="p-ref-cerca" type="search" placeholder="Nome o reparto del dipendente"
+           data-scegli="#referenti-dati" data-valore="#p-ref" data-formato="referente" data-poi="#p-data"></div>
+    <input type="hidden" id="p-ref" name="referente"></div>
+  <div class="rc-riga rc-riga-3">
+    <div class="rc-field"><label for="p-data">Giorno</label><input class="rc-input" id="p-data" type="date" name="data_visita"></div>
+    <div class="rc-field"><label for="p-ini">Dalle</label><input class="rc-input" id="p-ini" type="time" name="ora_inizio"></div>
+    <div class="rc-field"><label for="p-fine">Alle</label><input class="rc-input" id="p-fine" type="time" name="ora_fine"></div>
+  </div>
+  <div class="rc-field"><span class="rc-label">Motivo</span>
+    <div class="rc-chips">{% for c in categorie %}<label class="rc-chip"><input type="radio" name="motivo" value="{{ c.nome }}"{% if forloop.first %} checked{% endif %}><span>{{ c.nome }}</span></label>{% endfor %}</div>
+  </div>
+  <details class="rc-altro">
+    <summary>Validità del codice</summary>
+    <div class="rc-field"><label for="p-scade">Valido fino al <span class="rc-opz">vuoto = 7 giorni</span></label><input class="rc-input" id="p-scade" type="date" name="scade"></div>
+  </details>
+  <p class="rc-piccolo">Con il giorno, ospite e referente ricevono anche l'invito in calendario.</p>
+  <button class="rc-btn rc-btn-p rc-btn-largo" type="submit">Crea e invia il codice</button>
+</form>

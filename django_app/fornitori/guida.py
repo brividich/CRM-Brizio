@@ -81,11 +81,11 @@ SEZIONI = [
                   "e le visite compaiono qui come sempre. Si apre solo dalle postazioni abilitate dall'amministratore. "
                   "Una domanda alla volta: cognome e nome (dalla terza lettera il totem suggerisce cognomi e nomi già presenti); se qualcuno con quel nome è già venuto compare solo la sua azienda da confermare "
                   "(più righe se ci sono omonimi) e referente e motivo dell'ultima volta sono già scelti; poi l'informativa da spuntare. "
-                  "«Esco» mostra i numeri dei cartellini in uso: basta toccare il proprio. Il referente si cerca scrivendo il nome. Il pannello per gestire presenti, storico, pre-registrazioni e "
-                  "cartellini è «Reception», nel menu di Fornitori."),
+                  "«Esco» mostra i numeri dei cartellini in uso: basta toccare il proprio. Il referente si cerca scrivendo il nome. Il pannello «Reception» (menu di Fornitori) ha quattro voci: Oggi (chi è dentro, gli attesi, "
+                  "«+ Registra ingresso»), Inviti (codici e richieste), Storico e Configurazione."),
             ("p", "Ogni dipendente può annunciare un ospite da «Annuncia una visita» nella barra in alto: l'ospite riceve codice e QR. "
                   "Gli esterni possono chiedere un appuntamento dal modulo pubblico /richiesta-visita/: dopo la conferma dell'email la richiesta "
-                  "arriva alla persona indicata («Richieste per te») e in Reception → «Richieste», dove si accetta o si rifiuta."),
+                  "arriva alla persona indicata («Richieste per te») e in Reception → Inviti → «Richieste», dove si accetta o si rifiuta."),
         ],
     },
     {

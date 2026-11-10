@@ -78,7 +78,7 @@ class ModuloPubblicoTests(Base):
     def test_pagina_senza_login_e_senza_elenco_dipendenti(self):
         r = self.client.get(self.url)
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Richiedi un appuntamento")
+        self.assertContains(r, "Registra la tua visita")
         self.assertNotContains(r, "referente@example.local")
         self.assertEqual(r["Referrer-Policy"], "same-origin")
 

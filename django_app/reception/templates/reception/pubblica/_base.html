@@ -4,39 +4,61 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>{% block title %}Richiesta di visita{% endblock %} | Costruzioni Novicrom</title>
+<title>{% block title %}Registra la tua visita{% endblock %} | Costruzioni Novicrom</title>
 <style nonce="{{ csp_nonce }}">
-:root { --bg:#eef2f6; --card:#fff; --text:#1c2b3a; --muted:#5b6b7b; --border:#d5dde6; --accent:#1d4ed8; --err-bg:#fee2e2; --err:#991b1b; --field:#f8fafc; }
-@media (prefers-color-scheme: dark) { :root { --bg:#0f172a; --card:#1e293b; --text:#e2e8f0; --muted:#94a3b8; --border:#334155; --accent:#3b82f6; --err-bg:rgba(229,62,62,.18); --err:#fca5a5; --field:#0f172a; } }
+:root { --bg:#f1f5f9; --card:#fff; --text:#0f172a; --muted:#64748b; --border:#dbe2ea; --accent:#1d4ed8; --accent-soft:#dbeafe; --err-bg:#fee2e2; --err:#991b1b; --field:#fff; --head:#0a1222; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0a1222; --card:#111c33; --text:#e2e8f0; --muted:#94a3b8; --border:#334155; --accent:#38bdf8; --accent-soft:#0c4a6e; --err-bg:rgba(229,62,62,.18); --err:#fca5a5; --field:#0f1a2e; --head:#020817; } }
 * { box-sizing:border-box; }
-body { margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; padding:24px 16px; }
-.pb-wrap { max-width:720px; margin:0 auto; }
-.pb-brand { font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
-.pb-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px; }
-h1 { font-size:24px; margin:0 0 6px; }
-.pb-sub { color:var(--muted); font-size:15px; margin:0 0 18px; line-height:1.5; }
-.pb-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
-.pb-field { display:flex; flex-direction:column; gap:5px; }
+body { margin:0; overflow-x:hidden; min-height:100vh; background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; }
+.pb-head { background:var(--head); color:#f8fafc; padding:18px 16px 70px; }
+.pb-head-in { max-width:640px; margin:0 auto; }
+.pb-brand { font-size:13px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#7dd3fc; }
+.pb-head h1 { margin:18px 0 6px; font-size:30px; letter-spacing:-.02em; color:#f8fafc; }
+.pb-head p { margin:0; color:#cbd5e1; font-size:15px; line-height:1.5; }
+.pb-wrap { max-width:640px; margin:-48px auto 32px; padding:0 16px; }
+.pb-card { background:var(--card); border:1px solid var(--border); border-radius:18px; padding:26px; box-shadow:0 18px 40px rgba(15,23,42,.08); }
+.pb-card h2 { font-size:22px; margin:0 0 8px; }
+.pb-sub { color:var(--muted); font-size:15px; margin:0 0 4px; line-height:1.55; }
+.pb-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.pb-field { display:flex; flex-direction:column; gap:6px; }
 .pb-full { grid-column:1/-1; }
-label { font-size:13px; font-weight:600; }
-input, select, textarea { width:100%; font:inherit; font-size:15px; color:var(--text); background:var(--field); border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
-textarea { min-height:90px; resize:vertical; }
-.pb-hint { font-size:12px; color:var(--muted); }
-.pb-check { display:flex; gap:10px; align-items:flex-start; font-size:14px; font-weight:400; margin-top:16px; }
-.pb-check input { width:auto; margin-top:3px; }
-.pb-btn { display:inline-block; margin-top:18px; background:var(--accent); color:#fff; border:0; border-radius:8px; padding:12px 22px; font-size:15px; font-weight:600; cursor:pointer; }
-.pb-errori { background:var(--err-bg); color:var(--err); border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:14px; }
+label, .pb-label { font-size:13px; font-weight:600; }
+.pb-opz { font-weight:400; color:var(--muted); }
+input, select, textarea { width:100%; font:inherit; font-size:16px; color:var(--text); background:var(--field); border:1px solid var(--border); border-radius:10px; padding:11px 12px; }
+input:focus, textarea:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(29,78,216,.15); }
+textarea { min-height:84px; resize:vertical; }
+.pb-chips { display:flex; flex-wrap:wrap; gap:8px; }
+.pb-chip { position:relative; }
+.pb-chip input { position:absolute; inset:0; width:1px; height:1px; opacity:0; pointer-events:none; }
+.pb-chip span { display:inline-flex; padding:9px 14px; border:1px solid var(--border); border-radius:999px; font-size:14px; font-weight:600; cursor:pointer; background:var(--field); }
+.pb-chip input:checked + span { background:var(--accent); border-color:var(--accent); color:#fff; }
+.pb-chip input:focus-visible + span { box-shadow:0 0 0 3px rgba(29,78,216,.3); }
+.pb-altro { margin-top:14px; }
+.pb-altro summary { cursor:pointer; font-size:14px; font-weight:600; color:var(--accent); list-style:none; }
+.pb-altro summary::before { content:"+ "; }
+.pb-altro[open] summary::before { content:"− "; }
+.pb-altro[open] .pb-grid { margin-top:12px; }
+.pb-privacy { margin-top:18px; padding:14px 16px; border:1px solid var(--border); border-radius:12px; background:var(--bg); }
+.pb-check { display:flex; gap:12px; align-items:flex-start; font-size:14px; font-weight:400; cursor:pointer; }
+.pb-check input { width:20px; height:20px; flex:none; margin-top:1px; accent-color:var(--accent); }
+.pb-info summary { cursor:pointer; font-size:13px; font-weight:600; color:var(--accent); margin-top:10px; }
+.pb-info { font-size:13px; color:var(--muted); line-height:1.55; }
+.pb-info p { margin:8px 0; }
+.pb-btn { display:block; width:100%; margin-top:18px; background:var(--accent); color:#fff; border:0; border-radius:12px; padding:14px 22px; font-size:16px; font-weight:700; cursor:pointer; }
+.pb-passi { display:flex; gap:10px; margin:18px 0 0; padding:0; list-style:none; font-size:13px; color:var(--muted); flex-wrap:wrap; }
+.pb-passi li { display:flex; align-items:center; gap:6px; }
+.pb-passi b { display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--accent-soft); color:var(--accent); align-items:center; justify-content:center; font-size:12px; }
+.pb-errori { background:var(--err-bg); color:var(--err); border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:14px; }
 .pb-errori ul { margin:0; padding-left:18px; }
-details { margin-top:14px; font-size:13px; color:var(--muted); line-height:1.5; }
-details p { margin:6px 0; }
-summary { cursor:pointer; font-weight:600; color:var(--text); }
 .pb-trappola { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
+@media (max-width:560px) { .pb-grid { grid-template-columns:minmax(0,1fr); } .pb-card { padding:20px; } .pb-head h1 { font-size:26px; } }
 </style>
 </head>
 <body>
-<div class="pb-wrap">
+<header class="pb-head"><div class="pb-head-in">
   <div class="pb-brand">Costruzioni Novicrom</div>
-  <div class="pb-card">{% block corpo %}{% endblock %}</div>
-</div>
+  {% block testa %}<h1>Registra la tua visita</h1><p>Ti serve un minuto. Ricevi il codice per entrare appena la visita è confermata.</p>{% endblock %}
+</div></header>
+<div class="pb-wrap"><div class="pb-card">{% block corpo %}{% endblock %}</div></div>
 </body>
 </html>
