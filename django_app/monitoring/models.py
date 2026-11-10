@@ -238,6 +238,9 @@ class ScheduleControl(models.Model):
 
     name = models.CharField(max_length=120, unique=True, db_index=True)
     enabled = models.BooleanField(default=True)
+    # Pausa a tempo (digest e promemoria): lo schedule resta registrato e attivo, ma
+    # ``run_managed_flow`` salta i giri fino a questa data compresa, poi riparte da solo.
+    sospeso_fino = models.DateField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,

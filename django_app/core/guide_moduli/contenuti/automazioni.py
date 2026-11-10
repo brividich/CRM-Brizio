@@ -77,6 +77,14 @@ GUIDA = {
                 ("p", "«Pianificati» elenca i lavori che girano a orari fissi (sincronizzazioni, promemoria, pulizie): si accendono, "
                       "si spengono e per quelli con mail si configura il testo. Lo stato di salute di ognuno è in "
                       "Amministrazione → Monitoring → «Salute degli schedule»."),
+                ("p", "In cima c'è il raccoglitore «Digest e promemoria»: i riepiloghi e i solleciti che arrivano alle persone, "
+                      "in ordine di orario, con la colonna «A chi». «Sospendi» con una data li ferma fino a quel giorno "
+                      "compreso (al massimo 60 giorni) e il giorno dopo ripartono da soli; lo stato diventa «In pausa fino al …». "
+                      "«Sospendi tutti fino al» ferma l'intero raccoglitore (ferie, chiusure), «Riprendi» e «Riprendi tutti» "
+                      "tolgono la pausa subito. La pausa vale per tutti i destinatari; «Esegui ora» manda il digest comunque."),
+                ("p", "Per fermare un digest a tempo indeterminato usa «Disattiva». Per smettere di riceverlo una persona sola, "
+                      "toglila dai destinatari con «Configura mail»; il riepilogo personale delle scadenze si spegne invece "
+                      "da Notifiche → Impostazioni di chi lo riceve."),
                 ("p", "«Apri flusso» porta alla scheda del lavoro in cima al designer: stato (Attivo o Disattivato), "
                       "«Quando» (la cadenza in parole), «Prossima esecuzione» e la descrizione aggiornata dal codice. "
                       "Per cambiare l'orario scegli la Ricorrenza: «Ogni N minuti» chiede l'intervallo, «Calendario» "

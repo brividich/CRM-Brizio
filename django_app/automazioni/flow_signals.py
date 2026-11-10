@@ -18,6 +18,10 @@ def rule_saved(sender, instance, raw=False, **kwargs):
 def control_saved(sender, instance, raw=False, **kwargs):
     if raw:
         return
+    # Una pausa a tempo (solo sospeso_fino) non tocca lo stato del flusso.
+    fields = kwargs.get("update_fields")
+    if fields is not None and "enabled" not in fields:
+        return
     from .models import ManagedFlow, AutomationRule
     binding = ManagedFlow.objects.filter(code=instance.name, kind="schedule").first()
     if binding:
