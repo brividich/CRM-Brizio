@@ -68,6 +68,20 @@
 .tkt-btn-sm { padding:7px 16px; border-radius:8px; font-size:12px; font-weight:700; border:none; cursor:pointer; }
 .tkt-btn-blue { background:#0369a1; color:#fff; }
 .tkt-btn-blue:hover { background:#075985; }
+.tkt-btn-green { background:#16a34a; color:#fff; }
+.tkt-btn-green:hover { background:#15803d; }
+.tkt-btn-red { background:#dc2626; color:#fff; }
+.tkt-btn-red:hover { background:#b91c1c; }
+.tkt-azioni-risolto { border-color:#86efac; background:#f0fdf4; }
+.tkt-azioni-testo { font-size:13px; color:#334155; margin:0 0 12px; line-height:1.5; }
+.tkt-azioni-form { display:flex; flex-direction:column; gap:8px; }
+.tkt-azioni-form textarea { width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:8px; padding:8px 10px; font:inherit; font-size:13px; }
+.tkt-azioni-dett { margin-top:10px; }
+.tkt-azioni-dett summary { cursor:pointer; font-size:13px; font-weight:700; color:#0369a1; }
+.tkt-azioni-dett[open] summary { margin-bottom:8px; }
+body.theme-dark .tkt-azioni-risolto { background:rgba(22,163,74,.12); border-color:rgba(74,222,128,.35); }
+body.theme-dark .tkt-azioni-testo { color:var(--text-mid); }
+body.theme-dark .tkt-azioni-form textarea { background:var(--surface); border-color:var(--border); color:var(--text); }
 
 /* Allegati */
 .tkt-allegato-item {
@@ -236,7 +250,38 @@ body.theme-dark .tkt-creato { background:rgba(22,163,74,.12); border-color:rgba(
       </div>
     </div>
 
-    <!-- Colonna destra: meta -->
+    <!-- Colonna destra: azioni del richiedente + meta -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+    {% if azioni_richiedente %}
+    <div class="tkt-card tkt-azioni{% if ticket.stato == 'RISOLTO' %} tkt-azioni-risolto{% endif %}">
+      <div class="tkt-card-title">La tua richiesta</div>
+      {% if ticket.stato == 'RISOLTO' %}
+      <p class="tkt-azioni-testo">Il tecnico ha segnato il problema come <strong>risolto</strong>{% if ticket.risolto_da_nome %} ({{ ticket.risolto_da_nome }}){% endif %}. Funziona tutto?</p>
+      <form method="post" action="{% url 'tickets:azione_richiedente' ticket.pk %}" class="tkt-azioni-form">
+        {% csrf_token %}<input type="hidden" name="azione" value="conferma">
+        <button type="submit" class="tkt-btn-sm tkt-btn-green">Sì, è risolto: chiudi il ticket</button>
+      </form>
+      <details class="tkt-azioni-dett">
+        <summary>No, non è risolto</summary>
+        <form method="post" action="{% url 'tickets:azione_richiedente' ticket.pk %}" class="tkt-azioni-form">
+          {% csrf_token %}<input type="hidden" name="azione" value="riapri">
+          <textarea name="nota" rows="3" required placeholder="Cosa non funziona ancora?"></textarea>
+          <button type="submit" class="tkt-btn-sm tkt-btn-blue">Riapri il ticket</button>
+        </form>
+      </details>
+      {% else %}
+      <p class="tkt-azioni-testo">Nessuno l'ha ancora presa in carico: se non serve più puoi annullarla.</p>
+      <details class="tkt-azioni-dett">
+        <summary>Annulla la richiesta</summary>
+        <form method="post" action="{% url 'tickets:azione_richiedente' ticket.pk %}" class="tkt-azioni-form">
+          {% csrf_token %}<input type="hidden" name="azione" value="annulla">
+          <textarea name="nota" rows="2" placeholder="Motivo (facoltativo): si è risolto da solo, doppione…"></textarea>
+          <button type="submit" class="tkt-btn-sm tkt-btn-red">Conferma l'annullamento</button>
+        </form>
+      </details>
+      {% endif %}
+    </div>
+    {% endif %}
     <div class="tkt-card">
       <div class="tkt-card-title">Dettagli</div>
       <div class="tkt-meta-row">
@@ -287,6 +332,7 @@ body.theme-dark .tkt-creato { background:rgba(22,163,74,.12); border-color:rgba(
         </div>
         {% endif %}
       </div>
+    </div>
     </div>
   </div>
 </div>
