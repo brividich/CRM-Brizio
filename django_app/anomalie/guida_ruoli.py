@@ -90,7 +90,7 @@ SEZIONI_CONTROLLORE: list[dict] = [
         "titolo": "Stesse anomalie su un altro OP («Clona»)",
         "blocchi": [
             ("passi", [
-                "Gestione anomalie: passa con il mouse sull'OP di partenza e premi «Clona».",
+                "Gestione anomalie: scegli l'OP di partenza e premi «Clona» nella sua scheda, in cima alla colonna Anomalie.",
                 "Spunta le anomalie da copiare («Tutte», «Aperte», «Nessuna» fanno prima) e premi «Continua».",
                 "Il nuovo OP arriva già compilato (P/N, capocommessa, CAR): scrivi il numero e «Continua».",
                 "Conferma la fase e «Inizia controllo»: i blocchi copiati si caricano uno alla volta. Correggi seriali "
@@ -155,8 +155,8 @@ SEZIONI_CAPOCOMMESSA: list[dict] = [
                 "puoi modificare).",
             ]),
             ("passi", [
-                "Clicca l'OP nella colonna di sinistra: il numero arancione indica le anomalie ancora da decidere.",
-                "Nella colonna centrale «Da decidere» mostra solo quelle aperte: clicca l'anomalia.",
+                "Clicca l'OP nella colonna di sinistra: il numero arancione indica le anomalie ancora da decidere, quello blu quelle in corso.",
+                "Nella colonna centrale scegli «Per stato» per avere in cima il gruppo «Da decidere» (la scelta resta per gli altri OP), poi clicca l'anomalia.",
             ]),
             ("img", (_IMG + "k1_gestione.jpg", "Gestione anomalie: OP, anomalie e dettaglio")),
         ],
