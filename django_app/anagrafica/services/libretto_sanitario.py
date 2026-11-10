@@ -79,6 +79,8 @@ class Riga:
     data_scadenza: date | None = None
     giorni: int | None = None
     nota: str = ""
+    # Per l'azione dalla riga: corso (corsi), tipo di visita (visite), tipo di qualifica (qualifiche).
+    ref_id: int | None = None
 
     @property
     def stato_label(self) -> str:
@@ -147,7 +149,7 @@ def _righe_visite(voci, oggi: date, visite_db, *, include_dettaglio: bool) -> li
         etichetta = v.tipo_da_mostrare.nome if include_dettaglio else "Visita medica richiesta"
         if v.ultima is None:
             righe.append(Riga(dominio="visite", nome=etichetta, stato=STATO_MANCANTE,
-                              origini=list(v.origini), nota="Mai registrata"))
+                              origini=list(v.origini), nota="Mai registrata", ref_id=v.tipo_da_mostrare.pk))
             continue
         stato, giorni = _stato_da_scadenza(v.scadenza, oggi)
         # Il giudizio di idoneità è il cuore del libretto, ma è un dato
@@ -162,6 +164,7 @@ def _righe_visite(voci, oggi: date, visite_db, *, include_dettaglio: bool) -> li
         righe.append(Riga(
             dominio="visite", nome=etichetta, stato=stato, origini=list(v.origini),
             data_ultima=v.ultima, data_scadenza=v.scadenza, giorni=giorni, nota=" · ".join(note),
+            ref_id=v.tipo_da_mostrare.pk,
         ))
     return righe
 
@@ -193,7 +196,7 @@ def _righe_corsi(voci) -> list[Riga]:
     for v in voci:
         if v.stato == "MAI_FREQUENTATO":
             righe.append(Riga(dominio="corsi", nome=v.corso.titolo, stato=STATO_MANCANTE,
-                              origini=list(v.origini), nota="Mai frequentato"))
+                              origini=list(v.origini), nota="Mai frequentato", ref_id=v.corso.pk))
             continue
         if v.stato == "SCADUTO":
             stato = STATO_KO
@@ -204,7 +207,7 @@ def _righe_corsi(voci) -> list[Riga]:
         righe.append(Riga(
             dominio="corsi", nome=v.corso.titolo, stato=stato, origini=list(v.origini),
             data_ultima=v.completato, data_scadenza=v.scadenza, giorni=v.giorni,
-            nota="Una tantum" if v.stato == "UNA_TANTUM" else "",
+            nota="Una tantum" if v.stato == "UNA_TANTUM" else "", ref_id=v.corso.pk,
         ))
     return righe
 
@@ -221,7 +224,7 @@ def _righe_qualifiche(qualifiche, oggi: date) -> list[Riga]:
             data_ultima=q.data_conseguimento,
             data_scadenza=q.data_scadenza,
             giorni=giorni,
-            nota=q.livello or "",
+            nota=q.livello or "", ref_id=q.tipo_id,
         ))
     return righe
 

@@ -110,6 +110,24 @@ def _vpn_day(value):
         return None
 
 
+def _vpn_csv(request, qs, filters, day_from, day_to):
+    """Tutti gli accessi del filtro e del periodo (non solo la pagina mostrata)."""
+    from security.services import esporta_csv
+
+    righe = (
+        [a.get_action_display(), a.username, a.source_ip, esporta_csv.data_ora(a.login_at), esporta_csv.data_ora(a.logout_at),
+         a.duration_seconds or "", a.method or a.kind, a.reason, a.firebox_name or a.source.name]
+        for a in qs.iterator(chunk_size=2000)
+    )
+    filtri = {k: v for k, v in filters.items() if v}
+    filtri.update({"dal": day_from, "al": day_to})
+    return esporta_csv.risposta(
+        request, "accessi-vpn",
+        ["Esito", "Utente", "IP origine", "Accesso", "Uscita", "Durata (secondi)", "Tipo", "Motivo", "Firewall"],
+        righe, azione="soc_vpn_export", filtri=filtri,
+    )
+
+
 def vpn_history(request):
     """Storico accessi VPN (consentiti/negati) letto dai report Firebox, con filtri e classifiche."""
     if not can_view_security_center(request.user):
@@ -157,6 +175,10 @@ def vpn_history(request):
         qs = qs.filter(login_at__date=selected_day)
     else:
         day_from_eff, day_to_eff = day_from, day_to
+    from security.services import esporta_csv
+
+    if esporta_csv.vuole_csv(request):
+        return _vpn_csv(request, qs, filters, day_from_eff, day_to_eff)
     previous = None
     if day_from_eff and day_to_eff:
         span = (day_to_eff - day_from_eff).days + 1

@@ -99,6 +99,11 @@ def qualifiche_list(request):
         .order_by("data_scadenza")
     )
 
+    # Solo le qualifiche correnti (non quelle superate da un rinnovo), senza
+    # cessati: stessi numeri di cruscotto e scadenzario.
+    _conta = _qualifica_nel_perimetro(request)
+    scadenze_qs = [q for q in scadenze_qs if _conta(q)]
+
     # Arricchisce con nome dipendente
     legacy_ids = list({q.legacy_anagrafica_id for q in scadenze_qs})
     nome_map: dict[int, str] = {}
@@ -619,9 +624,14 @@ def tipo_qualifica_detail(request, tipo_id: int):
     ordine = _helpers._build_ordine_map()
     holders: list[dict] = []
     n_scaduti = n_scadenza = 0
+    # Stessa regola di cruscotto e scadenzario (il riquadro «Scaduti» porta lì):
+    # solo la qualifica corrente per persona, senza cessati, nell'ambito del ruolo.
+    conta = _qualifica_nel_perimetro(request)
     for q in (DipendenteQualifica.objects.filter(tipo=tipo)
               .select_related("record_formazione", "record_formazione__corso", "sessione")
               .order_by("data_scadenza", "id")):
+        if not conta(q):
+            continue
         if q.data_scadenza is None:
             stato = "valida"
         elif q.data_scadenza < oggi:

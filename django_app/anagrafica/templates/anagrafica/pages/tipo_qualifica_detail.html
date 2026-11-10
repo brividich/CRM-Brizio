@@ -24,6 +24,7 @@
         <p class="fmd-ph-sub">{{ tipo.get_categoria_display }}{% if tipo.durata_mesi %} · validità {{ tipo.durata_mesi }} mesi{% else %} · senza scadenza{% endif %}{% if not tipo.is_active %} · <span class="fmd-badge fmd-b-red">disattiva</span>{% endif %}</p>
       </div>
       <div class="fmd-pagehead-actions">
+        <a class="fmd-btn fmd-btn-ghost" href="{% url 'guida_modulo' 'anagrafica' %}#conformita-qualifiche" title="Come funziona questa pagina">? Guida</a>
         <a class="fmd-btn fmd-btn-ghost" href="{% url 'anagrafica:qualifiche_list' %}?categoria={{ tipo.categoria }}">← Catalogo</a>
         {% if is_admin %}<a class="fmd-btn fmd-btn-primary" href="{% url 'anagrafica:qualifica_sessione_create' %}?tipo={{ tipo.id }}"><svg class="fmd-ico"><use href="#i-refresh"/></svg>Crea sessione di rinnovo</a>{% endif %}
       </div>
@@ -55,7 +56,7 @@
               <td class="fmd-nowrap fmd-muted">{% if h.q.data_scadenza %}{{ h.q.data_scadenza|date:"d-m-Y" }}{% else %}—{% endif %}</td>
               <td>{% if h.stato == "scaduta" %}<span class="fmd-badge fmd-b-red">Scaduta</span>{% elif h.stato == "in_scadenza" %}<span class="fmd-badge fmd-b-orange">In scadenza</span>{% else %}<span class="fmd-badge fmd-b-green">Valida</span>{% endif %}{% if h.stato == "scaduta" or h.stato == "in_scadenza" %} <a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' h.q.legacy_anagrafica_id %}?rinnova={{ tipo.id }}" title="Apri la scheda con il rinnovo di «{{ tipo.nome }}» precompilato">↻ Rinnova</a>{% endif %}</td>
               <td class="fmd-muted">
-                {% if h.q.record_formazione %}<span style="font-size:11.5px;">{{ h.q.record_formazione.corso.titolo|truncatechars:40 }}</span>
+                {% if h.q.record_formazione %}<a class="fmd-data-link" style="font-size:11.5px;" href="{% url 'anagrafica:formazione_corso_detail' h.q.record_formazione.corso_id %}">{{ h.q.record_formazione.corso.titolo|truncatechars:40 }}</a>
                 {% elif h.q.sessione %}<a class="fmd-data-link" href="{% url 'anagrafica:qualifica_sessione_detail' h.q.sessione_id %}" style="font-size:11.5px;">Sessione {{ h.q.sessione.data_conseguimento|date:"d-m-Y" }}</a>
                 {% else %}—{% endif %}
               </td>
@@ -76,7 +77,7 @@
           <thead><tr><th>Corso</th><th>Piano</th><th>Validità</th><th>Stato</th></tr></thead>
           <tbody>
             {% for c in corsi %}
-            <tr><td style="font-weight:700;color:var(--fmd-navy);">{{ c.titolo }}</td><td class="fmd-muted">{{ c.piano.nome|default:"—" }}</td><td class="fmd-muted">{% if c.validita_mesi %}{{ c.validita_mesi }} mesi{% else %}una tantum{% endif %}</td><td><span class="fmd-badge fmd-b-cyan">{{ c.get_stato_display }}</span></td></tr>
+            <tr><td style="font-weight:700;"><a class="fmd-data-link" href="{% url 'anagrafica:formazione_corso_detail' c.pk %}">{{ c.titolo }}</a></td><td class="fmd-muted">{{ c.piano.nome|default:"—" }}</td><td class="fmd-muted">{% if c.validita_mesi %}{{ c.validita_mesi }} mesi{% else %}una tantum{% endif %}</td><td><span class="fmd-badge fmd-b-cyan">{{ c.get_stato_display }}</span></td></tr>
             {% endfor %}
           </tbody>
         </table>

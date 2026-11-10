@@ -99,6 +99,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
       {% include "anagrafica/components/_export_menu.html" with export_key=export_key %}
+      <a class="hr-btn hr-btn-outline" href="{% url 'guida_modulo' 'anagrafica' %}#conformita-qualifiche" title="Come funziona questa pagina">? Guida</a>
       <a class="hr-btn hr-btn-ghost" href="{% url 'anagrafica:conformita_report' %}">✅ Conformità</a>
     </div>
   </div>
@@ -250,6 +251,7 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
             <th>Ultima evidenza</th>
             <th>Scadenza</th>
             <th>Stato</th>
+            <th class="fmd-r">Azione</th>
           </tr>
         </thead>
         <tbody>
@@ -273,6 +275,15 @@ body.theme-dark .lsg-link-soft { color:var(--text-mid); }
               {% else %}<span style="color:#94a3b8;">—</span>{% endif %}
             </td>
             <td><span class="lsg-pill lsg-{{ r.stato }}">{{ r.stato_label }}</span></td>
+            <td class="fmd-r" style="white-space:nowrap;">
+              {% if r.stato == 'ko' or r.stato == 'mancante' or r.stato == 'warn' %}
+                {% if r.dominio == 'corsi' and r.ref_id and can_edit_formazione %}{% include "anagrafica/partials/_formazione_rinnova_btn.html" with corso_id=r.ref_id legacy_id=a.legacy_id back=request.get_full_path titolo_corso=r.nome %}
+                {% elif r.dominio == 'visite' and r.ref_id and can_edit_visite and can_view_visite %}<a class="fmd-act" href="{% url 'anagrafica:visite_mediche_nuova_sessione' %}?tipo={{ r.ref_id }}" title="Nuova giornata di visite su questo tipo: chi è scaduto o senza visita è proposto">+ Visita</a>
+                {% elif r.dominio == 'qualifiche' and r.ref_id and can_edit_qualifiche %}<a class="fmd-act" href="{% url 'anagrafica:dipendente_detail' a.legacy_id %}?rinnova={{ r.ref_id }}" title="Apri la scheda con il rinnovo precompilato">↻ Rinnova</a>
+                {% elif r.dominio == 'dpi' %}<a class="fmd-act fmd-act-ghost" href="{% url 'anagrafica:dipendente_detail' a.legacy_id %}#dpi" title="DPI della persona">Apri DPI</a>
+                {% else %}<a class="fmd-act fmd-act-ghost" href="{% url 'anagrafica:dipendente_libretto_sanitario' a.legacy_id %}">Apri</a>{% endif %}
+              {% endif %}
+            </td>
           </tr>
           {% endwith %}
           {% endfor %}

@@ -478,8 +478,8 @@ def index(request):
         "cose_da_gestire": cose_da_gestire,
         "cruscotto": cruscotto,
         "cruscotto_coperture": (
-            ([("Formazione obbligatoria", cruscotto.formazione)] if cruscotto.formazione else [])
-            + ([("Sorveglianza sanitaria", cruscotto.visite)] if cruscotto.visite else [])
+            ([("Formazione obbligatoria", cruscotto.formazione, "corsi")] if cruscotto.formazione else [])
+            + ([("Sorveglianza sanitaria", cruscotto.visite, "visite")] if cruscotto.visite else [])
         ) if cruscotto else [],
         "can_admin": _helpers._is_anagrafica_admin(request),
         # Fascia «Vai a»: i sottomoduli gated non compaiono a chi vedrebbe solo un
@@ -5890,6 +5890,7 @@ def onboarding_list(request):
     filtro_stato = (request.GET.get("stato") or "").strip()
     filtro_resp = (request.GET.get("responsabile") or "").strip()
     solo_ritardo = (request.GET.get("ritardo") or "").strip() == "1"
+    filtro_vista = (request.GET.get("vista") or "").strip()
     categorie = dict(OnboardingTask.CATEGORIA_CHOICES)
 
     qs = OnboardingPratica.objects.prefetch_related("tasks").all()
@@ -5898,6 +5899,16 @@ def onboarding_list(request):
         qs = qs.filter(stato=filtro_stato)
     elif filtro_stato != "tutte":
         qs = qs.filter(stato__in=OnboardingPratica.STATI_APERTI)
+    # Stesse regole dei riquadri «Ingressi a 30 giorni», «Fine prova a 30 giorni», «Pre-ingresso».
+    _entro_30 = oggi + _timedelta(days=30)
+    if filtro_vista == "ingressi":
+        qs = qs.filter(data_assunzione__gte=oggi, data_assunzione__lte=_entro_30)
+    elif filtro_vista == "prova":
+        qs = qs.filter(fine_prova__gte=oggi, fine_prova__lte=_entro_30)
+    elif filtro_vista == "pre":
+        qs = qs.filter(legacy_anagrafica_id__isnull=True)
+    else:
+        filtro_vista = ""
 
     pratiche = []
     for pratica in qs.order_by("data_assunzione", "-created_at"):
@@ -5953,6 +5964,7 @@ def onboarding_list(request):
         "totale": len(pratiche),
         "filtro_stato": filtro_stato,
         "filtro_resp": filtro_resp,
+        "filtro_vista": filtro_vista,
         "solo_ritardo": solo_ritardo,
         "stato_choices": OnboardingPratica.STATO_CHOICES,
         "responsabili": [

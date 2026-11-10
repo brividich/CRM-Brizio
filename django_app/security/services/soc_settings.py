@@ -127,6 +127,19 @@ SECTIONS = [
         ],
     },
     {
+        "code": "soppressioni_scadenza",
+        "title": "Soppressioni in scadenza",
+        "intro": "Quando una soppressione attiva (manuale o appresa) sta per scadere nasce un alert di attenzione, una volta per "
+                 "scadenza: si decide se prolungarla o lasciarla scadere, e da quel giorno le occorrenze tornano a creare alert. "
+                 "Gli stessi giorni valgono per il filtro «In scadenza» della pagina Soppressioni.",
+        "channels_optional": True,
+        "options": [
+            Option("soppressione.scadenza.alert", True, "Alert quando una soppressione sta per scadere"),
+            Option("soppressione.scadenza.promemoria_giorni", 14, "Promemoria prima della scadenza", "Giorni prima della scadenza della soppressione.",
+                   "int", min_value=1, max_value=90, unit="giorni"),
+        ],
+    },
+    {
         "code": "impatto_cve",
         "title": "Impatto CVE sugli asset",
         "intro": "Il job orario legge da NVD i range di versione vulnerabili, da CISA KEV le CVE sfruttate e (facoltativo) "

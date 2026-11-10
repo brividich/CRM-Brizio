@@ -22,6 +22,10 @@ def events_list(request):
         return _denied(request)
     result = triage.filter_events(request.GET)
     qs, filters = result["qs"], result["filters"]
+    from security.services import esporta_csv
+
+    if esporta_csv.vuole_csv(request):
+        return _events_csv(request, qs, result)
     page = Paginator(qs, 50).get_page(request.GET.get("page"))
     events = triage.decorate(page.object_list)
     query = request.GET.copy()
@@ -65,6 +69,34 @@ def events_list(request):
         "decision_query": decision_query.urlencode(),
         "learned_rules": SecurityEscalationRule.objects.select_related("created_by").order_by("-is_active", "-created_at")[:20],
     })
+
+
+def _events_csv(request, qs, result):
+    """Tutti gli eventi del filtro e del periodo (non solo la pagina mostrata), a blocchi per non caricarli insieme."""
+    from security.services import esporta_csv
+    from security.templatetags.security_i18n import metric_label
+
+    def righe():
+        blocco = []
+        for event in qs.iterator(chunk_size=1000):
+            blocco.append(event)
+            if len(blocco) == 1000:
+                yield from blocco_righe(blocco)
+                blocco = []
+        yield from blocco_righe(blocco)
+
+    def blocco_righe(eventi):
+        for e in triage.decorate(eventi):
+            yield [e.pk, esporta_csv.data_ora(e.occurred_at), metric_label(e.event_type), e.summary, esporta_csv.etichetta(e.severity),
+                   e.decision_label, e.source.name, e.asset.hostname if e.asset_id else "", esporta_csv.si_no(e.decision_code == "alert" or e.has_alert)]
+
+    filtri = {k: v for k, v in result["filters"].items() if v}
+    filtri.update({"dal": result["day_from"], "al": result["day_to"]})
+    return esporta_csv.risposta(
+        request, "eventi",
+        ["N.", "Quando", "Evento", "Dettaglio", "Severità", "Decisione del motore", "Sorgente", "Asset", "Alert"],
+        righe(), azione="soc_eventi_export", filtri=filtri,
+    )
 
 
 @ensure_csrf_cookie

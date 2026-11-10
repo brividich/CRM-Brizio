@@ -56,6 +56,11 @@ GUIDA = {
                     "«Riapri le selezionate» con il perché obbligatorio. Da fare: alert e ticket per gravità, clic sulla riga = pannello.",
                     "Pannelli: nel ticket «Cambia stato» (per chiudere serve l'esito), nell'incidente «Assegna a me», nel PC «Apri un ticket per questo PC». "
                     "Storico › Falsi positivi ricorrenti: «Crea soppressione» apre il modulo già compilato, da rivedere prima di salvare.",
+                    "«Scarica CSV» accanto ai filtri di Segnalazioni, Alert, Ticket, Incidenti, Eventi, Accessi VPN, Dispositivi, Backup › Log "
+                    "completo e Vulnerabilità (sul registro in Prove di ripristino): tutte le righe dei filtri scelti, anche oltre la pagina o il "
+                    "taglio a video, colonne in italiano, celle protette dalle formule di Excel; ogni scarico resta nell'audit.",
+                    "Soppressioni: 14 giorni prima della scadenza di una soppressione nasce un alert «Soppressione … in scadenza», uno per "
+                    "regola e scadenza. I giorni (Impostazioni › «Soppressioni in scadenza») valgono anche per il filtro «In scadenza» della pagina.",
                 ]),
                 ("p", "Ruoli e contatti per gli incidenti (responsabile, sostituto, CSIRT/ACN, fornitore) si scrivono in Impostazioni › Gestione degli incidenti e compaiono nella scheda e nel PDF dell'incidente."),
             ],
@@ -314,7 +319,7 @@ GUIDA = {
         {
             "sintomo": "Il numero sul filtro è più alto delle righe dell'elenco",
             "fare": [
-                "L'elenco di Segnalazioni mostra le 300 più recenti per tipo e, quando taglia, lo dice con l'avviso «Elenco tagliato: mostrate N di M»; i numeri dei filtri (calcolati con lo stato, la gravità e la ricerca scelti), «Solo urgenti» e la barra di stato contano tutto. Usa ricerca o gravità per restringere. Alert, Ticket e Registro incidenti non tagliano: cento righe per pagina, con i numeri di pagina in fondo.",
+                "L'elenco di Segnalazioni mostra le 300 più recenti per tipo e, quando taglia, lo dice con l'avviso «Elenco tagliato: mostrate N di M»; i numeri dei filtri (calcolati con lo stato, la gravità e la ricerca scelti), «Solo urgenti» e la barra di stato contano tutto. Usa ricerca o gravità per restringere, o «Scarica CSV» per averle tutte. Alert, Ticket e Registro incidenti non tagliano: cento righe per pagina, con i numeri di pagina in fondo.",
                 "Proposte AI conta gli alert «da decidere» (senza rimandati e silenziati): può essere più basso degli alert aperti di Segnalazioni.",
                 '«PC con backup ko» guarda gli ultimi 90 giorni: un PC i cui backup si sono fermati da settimane resta tra i ko.',
                 '«Scadenze NIS2/GDPR» comprende anche gli incidenti chiusi con una notifica di legge ancora dovuta.',

@@ -16,6 +16,7 @@
     <label>Cerca <input type="search" name="q" value="{{ q }}" placeholder="nome PC, utente o IP"></label>
     <button class="sec-button-primary" type="submit">Filtra</button>
     <a class="sec-button" href="{% url 'security:pc_copertura' %}">Reimposta</a>
+    <a class="sec-button" href="?f={{ codice }}&amp;q={{ q|urlencode }}&amp;formato=csv">Scarica CSV</a>
   </form>
   {% if can_manage and n_proposte %}
     <form method="post" style="margin-top:8px;">{% csrf_token %}<input type="hidden" name="action" value="confirm_all"><button class="sec-button" type="submit" data-hub-confirm="Collegare all’asset proposto tutti i {{ n_proposte }} dispositivi con proposta univoca (IP o nome)?">Conferma le {{ n_proposte }} proposte di collegamento all'asset</button></form>

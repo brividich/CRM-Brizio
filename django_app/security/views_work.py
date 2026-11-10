@@ -157,6 +157,10 @@ def segnalazioni(request):
     q = request.GET.get("q", "").strip()[:100]
     urgenti = request.GET.get("urgenti") == "1"
     scadenza = request.GET.get("scadenza") == "1"
+    if request.GET.get("formato") == "csv":
+        # Tutte le righe del filtro, anche oltre il taglio per tipo della pagina.
+        return _segnalazioni_csv(request, svc.elenco(tipo=tipo, stato=stato, severity=severity, q=q, urgenti=urgenti,
+                                                     scadenza=scadenza, tutte=True))
     righe = svc.elenco(tipo=tipo, stato=stato, severity=severity, q=q, urgenti=urgenti, scadenza=scadenza)
     tipo = tipo if tipo in dict(svc.KINDS) else ""
     stato = stato if stato in {"aperte", "chiuse", "tutte"} else "aperte"
@@ -199,6 +203,25 @@ def segnalazioni(request):
         "pagina_prec": link(page=page.previous_page_number()) if page.has_previous() else "",
         "pagina_succ": link(page=page.next_page_number()) if page.has_next() else "",
     })
+
+
+def _segnalazioni_csv(request, righe):
+    from .services import esporta_csv
+
+    def stato(r):
+        if r["kind"] == "incident":
+            return dict(SecurityIncident.STATUS_CHOICES).get(r["status"], r["status"])
+        return esporta_csv.etichetta(r["status"])
+
+    return esporta_csv.risposta(
+        request, "segnalazioni",
+        ["Tipo", "N.", "Titolo", "Gravità", "Stato", "Urgente", "Dove", "Dal", "Chi", "Prossima notifica di legge", "Scade il"],
+        ([r["kind_label"], r["pk"], r["title"], esporta_csv.etichetta(r["severity"]), stato(r), esporta_csv.si_no(r["urgente"]),
+          r["where"], esporta_csv.data_ora(r["since"]), r["who"],
+          r["deadline"]["label"] if r.get("deadline") else "", esporta_csv.data_ora(r["deadline"]["due_at"]) if r.get("deadline") else ""]
+         for r in righe),
+        azione="soc_segnalazioni_export", filtri=esporta_csv.filtri_get(request, "tipo", "stato", "gravita", "q", "urgenti", "scadenza"),
+    )
 
 
 def _stati_ticket_bulk():
@@ -257,6 +280,8 @@ def pc_copertura(request):
         needle = q.casefold()
         visibili = [r for r in visibili if needle in r["nome"].casefold() or (r["intune"] and needle in (r["intune"].utente_nome or "").casefold())
                     or (r["rete"] and needle in (r["rete"].ip, r["rete"].mac))]
+    if request.GET.get("formato") == "csv":
+        return _pc_csv(request, visibili, codice, q)
     counts = svc.conteggi(rows)
     from .services import windows_lavoro
 
@@ -270,6 +295,43 @@ def pc_copertura(request):
         "collegati": len(svc.filtra(rows, "collegati")),
         "n_proposte": sum(1 for r in rows if r["proposta"]),
     })
+
+
+def _pc_csv(request, righe, codice, q):
+    """I dispositivi del filtro e della ricerca, con le stesse colonne della pagina."""
+    from .services import esporta_csv
+
+    def sistema(r):
+        s = r.get("sistema")
+        if not s:
+            return ""
+        return s["nome"] + (" · fuori supporto" if s["fuori"] else (" · in scadenza" if s["in_scadenza"] else ""))
+
+    def stato_intune(r):
+        if r["problemi"]:
+            return ", ".join(r["problemi"])
+        if r["intune"]:
+            return "Conforme" if r["intune"].conformita == "compliant" else "Nessun problema"
+        return ""
+
+    def asset(r):
+        if r["asset"]:
+            return r["asset"].asset_tag
+        return f"Proposto: {r['proposta'].asset_tag}" if r["proposta"] else ""
+
+    return esporta_csv.risposta(
+        request, "dispositivi",
+        ["Dispositivo", "Utente", "Produttore e modello", "Indirizzo IP", "Sistema", "Fine aggiornamenti", "Intune", "WatchGuard",
+         "Defender", "Backup", "Ultimo backup", "CVE", "CVE gravi", "CVE sfruttate (KEV)", "Stato Intune", "Asset del registro"],
+        ([r["nome"], r["intune"].utente_nome if r["intune"] else "",
+          f"{r['intune'].produttore} {r['intune'].modello}".strip() if r["intune"] else "",
+          r["rete"].ip if r["rete"] else "", sistema(r), esporta_csv.data(r["sistema"]["fine"]) if r.get("sistema") else "",
+          esporta_csv.si_no(r["intune"]), esporta_csv.si_no(r["watchguard"]), esporta_csv.si_no(r["defender"]),
+          r["backup"]["last_label"] if r["backup"] else "nessuno", esporta_csv.data_ora(r["backup"]["last_at"]) if r["backup"] else "",
+          r["cve"]["cves"] if r["cve"] else 0, r["cve"]["gravi"] if r["cve"] else 0, r["cve"]["kev"] if r["cve"] else 0,
+          stato_intune(r), asset(r)] for r in righe),
+        azione="soc_dispositivi_export", filtri={"f": codice, "q": q},
+    )
 
 
 # --- Ricerca ---------------------------------------------------------------------------

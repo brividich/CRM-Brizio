@@ -779,6 +779,7 @@ body.theme-dark .fmd-act-ghost{ color:#94a3b8; }
       </div>
     </div>
     <div class="dp-hero-actions">
+      <a class="dp-btn dp-btn-ghost dp-btn-sm" href="{% url 'guida_modulo' 'anagrafica' %}#scheda" title="Come funziona la scheda">? Guida</a>
       {% if dip.email_notifica %}
         <a class="dp-btn dp-btn-ghost dp-btn-sm" href="mailto:{{ dip.email_notifica }}" title="{{ dip.email_notifica }}">✉ Scrivi</a>
       {% endif %}
@@ -2648,7 +2649,7 @@ body.theme-dark .fmd-act-ghost{ color:#94a3b8; }
 
   <!-- DPI -->
   {% if dpi_richieste or is_admin %}
-  <div class="dp-card" data-tab="dotazioni">
+  <div class="dp-card" data-tab="dotazioni" id="dpi">
     <div class="dp-card-head">
       <div class="dp-card-title">🦺 DPI — Dispositivi di Protezione Individuale</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -3707,6 +3708,8 @@ function toggleContrattoEdit(id) {
   page.addEventListener('click', function (e) {
     var a = e.target.closest('[data-tab-vai]');
     var vai = a ? (ALIAS[a.getAttribute('data-tab-vai')] || a.getAttribute('data-tab-vai')) : null;
+    // «auto»: la scheda è quella che contiene l'ancora del link (es. #qualifiche).
+    if (vai === 'auto' && a.hash) { var el = document.getElementById(a.hash.slice(1)); var c = el && el.closest('[data-tab]'); vai = c ? c.getAttribute('data-tab') : null; }
     if (!a || !present[vai]) return;
     e.preventDefault(); show(vai, true);
     var bersaglio = a.hash ? document.getElementById(a.hash.slice(1)) : null;
