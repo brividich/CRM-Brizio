@@ -202,6 +202,24 @@ def _intervento_al_volo(post) -> tuple[dict | None, str]:
     return {"lavoro": lavoro, "inizio": inizio, "fine": fine, "ore": ore}, ""
 
 
+def _data_apertura(post) -> tuple[object | None, str]:
+    """«Aperto il» del form: (datetime o None se vuoto, errore). Mai futuro."""
+    raw = (post.get("aperto_il") or "").strip()
+    if not raw:
+        return None, ""
+    try:
+        quando = parse_datetime(raw)
+    except ValueError:
+        quando = None
+    if quando is None:
+        return None, "La data di apertura non è valida."
+    if is_naive(quando):
+        quando = make_aware(quando)
+    if quando > tz_now() + timedelta(minutes=5):
+        return None, "La data di apertura non può essere futura: lascia vuoto per «adesso»."
+    return quando, ""
+
+
 def _q_miei(name: str, email: str) -> Q:
     """Ticket assegnati a me: per email se c'è, altrimenti per nome."""
     miei = Q(assegnato_a__iexact=name) if name else Q(pk__in=[])
@@ -1310,6 +1328,12 @@ def ticket_nuovo(request):
                 rich_name, rich_email, rich_legacy_id = _identita_di(collega)
                 aperto_da_user, aperto_da_nome = request.user, name
 
+        # «Aperto il»: data anche retroattiva (segnalazione arrivata prima a voce o via mail).
+        aperto_il, errore_data = _data_apertura(request.POST)
+        if errore_data:
+            return render(request, "tickets/pages/nuovo.html",
+                _ctx(tipo_eff=tipo_post, error=errore_data, form_data=request.POST))
+
         # «Già risolto»: il ticket nasce chiuso, con l'intervento registrato.
         al_volo = None
         if request.POST.get("chiudi_subito") == "1" and _puo_aprire_per_altri(request, tipo_post):
@@ -1348,6 +1372,9 @@ def ticket_nuovo(request):
         )
         with transaction.atomic():
             ticket.save()
+            if al_volo and aperto_il is not None and aperto_il < al_volo["inizio"]:
+                # Segnalato prima dell'intervento: l'apertura è la data scritta nel form.
+                al_volo["inizio"] = aperto_il
             if al_volo:
                 # Una data sola: apertura e chiusura sono quelle del lavoro reale. Il
                 # momento della registrazione resta nel log di stato e nell'audit.
@@ -1363,6 +1390,10 @@ def ticket_nuovo(request):
                     _silenzia_automazioni_import(
                         [ticket.pk], motivo="Ticket registrato a intervento concluso: automazioni non eseguite",
                     )
+            elif aperto_il is not None:
+                # auto_now_add ignora il valore passato: si aggiorna dopo il save.
+                Ticket.objects.filter(pk=ticket.pk).update(created_at=aperto_il)
+                ticket.created_at = aperto_il
         if al_volo:
             log_action(
                 request, "ticket_chiuso_al_volo", "tickets",
@@ -1372,6 +1403,11 @@ def ticket_nuovo(request):
             log_action(
                 request, "ticket_aperto_per_conto_di", "tickets",
                 {"ticket": ticket.numero_ticket, "richiedente": rich_name},
+            )
+        if aperto_il is not None:
+            log_action(
+                request, "ticket_data_apertura_manuale", "tickets",
+                {"ticket": ticket.numero_ticket, "aperto_il": aperto_il.isoformat()},
             )
 
         # Allegati
@@ -1390,7 +1426,8 @@ def ticket_nuovo(request):
         except Exception:
             pass
 
-        return redirect("tickets:detail", pk=ticket.pk)
+        # Conferma visibile nella scheda appena aperta (riquadro con link a «I miei ticket»).
+        return redirect(reverse("tickets:detail", kwargs={"pk": ticket.pk}) + "?creato=1")
 
     return render(request, "tickets/pages/nuovo.html", _ctx(form_data=_form_da_querystring(request.GET)))
 
@@ -1442,6 +1479,7 @@ def ticket_detail(request, pk: int):
         )
 
     allegati = list(ticket.allegati.all())
+    appena_creato = request.GET.get("creato") == "1"
     ctx = {
         "ticket":        ticket,
         "commenti":      commenti,
@@ -1460,6 +1498,7 @@ def ticket_detail(request, pk: int):
             solo_asset=None if ticket.mappa_layout_id and not ticket.asset_id else ticket.asset_id,
             solo_layout=ticket.mappa_layout_id if not ticket.asset_id else None,
         ))
+    ctx["appena_creato"] = appena_creato
     return render(request, "tickets/pages/detail.html", ctx)
 
 

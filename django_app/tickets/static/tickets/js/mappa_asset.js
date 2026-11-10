@@ -81,6 +81,25 @@
       legenda.appendChild(link);
     }
 
+    // La finestra scorre per conto suo: finché non la si clicca, la rotella fa scorrere la
+    // pagina (altrimenti chi scorre il form resta «incastrato» nella pianta).
+    var velo = el("div", "tmap-velo");
+    velo.appendChild(el("span", "tmap-velo-testo", "Clicca sulla mappa per attivarla: poi puoi scorrerla e ingrandirla"));
+    finestra.insertBefore(velo, tela);
+    var attiva = false;
+    function attivaMappa(on) {
+      attiva = on;
+      finestra.classList.toggle("tmap-attiva", on);
+    }
+    finestra.addEventListener("click", function () { if (!attiva) attivaMappa(true); });
+    finestra.addEventListener("mouseleave", function () { attivaMappa(false); });
+    finestra.addEventListener("wheel", function (ev) {
+      if (attiva) return;
+      if (finestra.scrollHeight <= finestra.clientHeight && finestra.scrollWidth <= finestra.clientWidth) return;
+      ev.preventDefault();
+      window.scrollBy({ top: ev.deltaY, left: ev.deltaX });
+    }, { passive: false });
+
     radice.appendChild(testa);
     radice.appendChild(avviso);
     radice.appendChild(finestra);
