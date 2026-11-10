@@ -1,7 +1,7 @@
 {% extends "contatori/_base_modulo.html" %}
 {% block title %}Letture mensili{% endblock %}
 {% block modulo %}{% load contatori_acl %}{% puo_gestire as g %}
-<div class="row"><div><div class="eyebrow">Letture SNMP del giorno 1</div><h1>Letture mensili</h1><p class="sub">Una riga per MFC, una colonna per mese: totale letto e copie rispetto al mese prima. In evidenza i mesi senza lettura delle MFC attive con IP. «Excel» sotto un mese con letture scarica lo stesso file allegato alla mail delle letture mensili.</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:guida' %}#letture-mensili">? Guida</a>{% if g %}<a class="btn ghost" href="{% url 'contatori:letture_gestisci' %}?tipo=mensili">Gestisci letture</a>{% endif %}</div></div>
+<div class="row"><div><div class="eyebrow">Letture SNMP del giorno 1</div><h1>Letture mensili</h1><p class="sub">Una riga per MFC, una colonna per mese: totale letto e copie rispetto al mese prima. In evidenza i mesi senza lettura delle MFC attive con IP. «Excel» sotto un mese con letture scarica lo stesso file allegato alla mail delle letture mensili.</p></div><div class="spacer"></div><div class="actions"><a class="btn ghost" href="{% url 'contatori:guida' %}#letture-mensili">? Come si legge</a>{% if g %}<a class="btn ghost" href="{% url 'contatori:letture_gestisci' %}?tipo=mensili">Gestisci letture</a>{% endif %}</div></div>
 
 <section class="panel"><form method="get" class="row" style="gap:14px;align-items:flex-end">
   <div class="form-field"><label for="anno">Periodo</label><select id="anno" name="anno"><option value="">Ultimi 12 mesi</option>{% for a in anni %}<option value="{{ a }}"{% if a == anno %} selected{% endif %}>Anno {{ a }}</option>{% endfor %}</select></div>
