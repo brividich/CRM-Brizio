@@ -1333,11 +1333,63 @@ def _ollama_endpoint_hint(base_url: str, *, http_status: int | None = None) -> s
     return "Verifica che l'URL punti all'API nativa di Ollama, non a Open WebUI."
 
 
+# Il test connessione gira nel thread web: tetto fisso, indipendente dal timeout
+# configurato per le risposte AI (fino a 300 s).
+OLLAMA_TEST_TIMEOUT_MAX_SECONDS = 10
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Un redirect non si segue: diventa HTTPError 3xx (niente salti su host non previsti)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D401
+        return None
+
+
+def _host_is_internal(host: str) -> bool:
+    """Host in rete interna (IP privato/loopback o nome che risolve solo su reti interne)."""
+    import ipaddress
+    import socket
+
+    host = str(host or "").strip().strip("[]")
+    if not host:
+        return False
+    try:
+        addr = ipaddress.ip_address(host)
+        return addr.is_private or addr.is_loopback or addr.is_link_local
+    except ValueError:
+        pass
+    if host.lower() == "localhost" or "." not in host:
+        return True
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+    except (socket.gaierror, UnicodeError):
+        return False
+    addrs = {info[4][0].split("%", 1)[0] for info in infos}
+    try:
+        return bool(addrs) and all(
+            ipaddress.ip_address(a).is_private or ipaddress.ip_address(a).is_loopback for a in addrs
+        )
+    except ValueError:
+        return False
+
+
+def _ollama_opener(url: str):
+    """Opener senza redirect; senza proxy di sistema se l'host e' in LAN (Ollama/Open WebUI interni)."""
+    handlers: list = [_NoRedirectHandler()]
+    try:
+        host = urlsplit(url).hostname or ""
+    except ValueError:
+        host = ""
+    if _host_is_internal(host):
+        handlers.append(urllib.request.ProxyHandler({}))
+    return urllib.request.build_opener(*handlers)
+
+
 def _ollama_json_get(url: str, timeout: int, *, headers: dict[str, str] | None = None) -> dict:
     request_headers = {"Accept": "application/json"}
     request_headers.update(headers or {})
     request = urllib.request.Request(url, headers=request_headers, method="GET")
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with _ollama_opener(url).open(request, timeout=timeout) as response:
         raw = response.read().decode("utf-8", errors="replace")
     raw = raw.strip()
     return json.loads(raw or "{}")
@@ -1365,7 +1417,8 @@ def _ollama_test_connect(config: dict[str, object]) -> tuple[bool, str, dict[str
     base_url = str(normalized["base_url"])
     provider = str(normalized["provider"])
     model = str(normalized["model"])
-    timeout = int(normalized["timeout"])
+    # Il timeout configurato (fino a 300 s) vale per le risposte AI, non per il test.
+    timeout = max(1, min(int(normalized["timeout"]), OLLAMA_TEST_TIMEOUT_MAX_SECONDS))
     if provider == "openwebui":
         api_key = str(normalized.get("openwebui_api_key") or "").strip() or _effective_env_value(
             "OPENWEBUI_API_KEY",

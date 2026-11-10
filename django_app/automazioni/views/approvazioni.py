@@ -179,7 +179,8 @@ def approval_link_page(request, token: str, decision: str):
             return _render_decision(request, {**base_context, "already_decided": True})
         return _render_decision(request, {**base_context, "is_expired": approval.is_expired()})
 
-    result = decide_with_link(token, normalized)
+    # Il ramo (mail, scritture) gira in background: l'approvatore non aspetta SMTP.
+    result = decide_with_link(token, normalized, defer_branch=True)
     _helpers.log_action(
         request,
         "approval_link_decision" if result.get("ok") else "approval_link_denied",
@@ -223,7 +224,7 @@ def _decide_as_session_user(request, token: str, normalized: str, *, via: str):
         })
         return None, validation
 
-    result = process_approval_decision(str(token), normalized, decided_by_email=decided_by)
+    result = process_approval_decision(str(token), normalized, decided_by_email=decided_by, defer_branch=True)
     _helpers.log_action(request, "approval_proxy_decision", "automazioni", {
         "approval_id": result.get("approval_id"),
         "decision": normalized,
