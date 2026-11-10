@@ -65,11 +65,31 @@ def pagina(request):
             referenti = [{"id": r["id"], "nome": r["nome"], "reparto": r["reparto"]} for r in chiosco.referenti()]
         except chiosco.ChioscoNonDisponibile:
             disponibile = False
+    versione = chiosco.logo_versione() if chiosco.logo_percorso() else ""
     return render(request, "fornitori/chiosco/chiosco.html", {
+        "logo_versione": versione,
         "referenti": referenti,
         "categorie": chiosco.categorie(),
         "disponibile": disponibile,
     })
+
+
+@require_GET
+def logo(request):
+    """Il logo caricato in Reception → Impostazioni, solo per le postazioni ammesse."""
+    from django.core.files.storage import default_storage
+    from django.http import FileResponse, Http404
+
+    if not postazione_ammessa(request):
+        raise Http404
+    percorso = chiosco.logo_percorso()
+    estensione = ("." + percorso.rsplit(".", 1)[-1].lower()) if "." in percorso else ""
+    if not percorso or estensione not in chiosco.LOGO_ESTENSIONI or not default_storage.exists(percorso):
+        raise Http404
+    risposta = FileResponse(default_storage.open(percorso, "rb"), content_type=chiosco.LOGO_ESTENSIONI[estensione])
+    risposta["Cache-Control"] = "private, max-age=86400"
+    risposta["X-Content-Type-Options"] = "nosniff"
+    return risposta
 
 
 def _testo(dati: dict, chiave: str) -> str:
@@ -139,6 +159,12 @@ def _ospite(dati: dict) -> JsonResponse:
         "first_name": ospite.get("FirstName") or "", "last_name": ospite.get("LastName") or "",
         "email": ospite.get("Email") or "", "phone": ospite.get("Phone") or "", "company": ospite.get("Company") or "",
     }})
+
+
+def _suggerisci(dati: dict) -> JsonResponse:
+    """Cognomi (o nomi di chi ha quel cognome) già presenti, dalla terza lettera. Solo i nomi, mai altro."""
+    return JsonResponse({"success": True, "voci": chiosco.suggerisci(_testo(dati, "campo"), _testo(dati, "testo"),
+                                                                     _testo(dati, "cognome"))})
 
 
 def _riconosci(dati: dict) -> JsonResponse:
@@ -285,6 +311,7 @@ def _nominativi(dati: dict) -> JsonResponse:
 
 AZIONI = {
     "riconosci": _riconosci,
+    "suggerisci": _suggerisci,
     "ingresso-ospite": _ingresso_ospite,
     "cartellini": _cartellini,
     "ospite": _ospite,

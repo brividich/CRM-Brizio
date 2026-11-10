@@ -13,6 +13,10 @@ SCHEDA_GP = [{"FirstName": "Bruno", "LastName": "Esempio", "Email": "bruno@examp
 
 
 def _mysql(sql, params):
+    if "SELECT DISTINCT" in sql:
+        if "FirstName" in sql:
+            return [{"v": "Bruno"}, {"v": "bruno"}, {"v": "Brunella"}] if params[-1] == "Esempio" else []
+        return [{"v": "Esempio"}, {"v": "ESEMPIO"}, {"v": "Esempi"}]
     if "FROM SupplierContacts" in sql:
         return [{"ContactID": 9, "SupplierID": 5, "CompanyName": "Impianti Esempio Srl"}] if params[:2] == ["Bruno", "Esempio"] else []
     if "GROUP BY" in sql:
@@ -93,8 +97,41 @@ class RiconosciTests(Base):
     def test_postazione_non_ammessa(self):
         self.assertEqual(self.riconosci().status_code, 403)
 
+    def test_suggerimenti_solo_nomi_dalla_terza_lettera(self):
+        self.assertEqual(self.api("suggerisci", campo="cognome", testo="Es").json()["voci"], [])
+        self.assertEqual(self.api("suggerisci", campo="cognome", testo="Ese").json()["voci"], ["Esempi", "Esempio"])
+        self.assertEqual(self.api("suggerisci", campo="nome", testo="Bru", cognome="Esempio").json()["voci"], ["Brunella", "Bruno"])
+        self.assertEqual(self.api("suggerisci", campo="nome", testo="Bru").json()["voci"], [])
+        self.assertEqual(self.api("suggerisci", campo="azienda", testo="Imp").json()["voci"], [])
+
+    def test_like_con_caratteri_jolly(self):
+        self.assertEqual(chiosco._like("a%b_c"), r"a\%b\_c%")
+
     def test_pagina_con_informativa_da_spuntare(self):
         pagina = self.client.get("/chiosco/").content.decode()
         self.assertIn('id="f-gdpr"', pagina)
         self.assertIn('id="b-entra" disabled', pagina)
         self.assertNotIn(' style="', pagina)
+
+
+class LogoTests(Base):
+    def test_senza_logo_la_scritta_e_404(self):
+        self.assertContains(self.client.get("/chiosco/"), "NOVICROM")
+        self.assertEqual(self.client.get("/chiosco/logo/").status_code, 404)
+
+    def test_logo_caricato_solo_alle_postazioni_ammesse(self):
+        from django.core.files.base import ContentFile
+        from django.core.files.storage import default_storage
+
+        from core.models import SiteConfig
+
+        percorso = default_storage.save("reception/chiosco_logo_prova.png", ContentFile(b"PNG prova"))
+        self.addCleanup(default_storage.delete, percorso)
+        SiteConfig.set(chiosco.CHIAVE_LOGO, f"{percorso}|123")
+        self.assertContains(self.client.get("/chiosco/"), "/chiosco/logo/?v=123")
+        r = self.client.get("/chiosco/logo/")
+        self.assertEqual(b"".join(r.streaming_content), b"PNG prova")
+        r.close()
+        self.assertEqual((r.status_code, r["Content-Type"]), (200, "image/png"))
+        with override_settings(CHIOSCO_ALLOWED_IPS=["10.9.9.9"]):
+            self.assertEqual(self.client.get("/chiosco/logo/").status_code, 404)
