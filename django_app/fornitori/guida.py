@@ -79,8 +79,8 @@ SEZIONI = [
         "blocchi": [
             ("p", "Il pulsante «Chiosco» in Accessi esterni apre /chiosco/: il visitatore registra ingresso e uscita senza login, "
                   "e le visite compaiono qui come sempre. Si apre solo dalle postazioni abilitate dall'amministratore. "
-                  "C'è un solo campo, «Ciao! Chi sei?»: dalle prime 3 lettere propone chi è già venuto (nome e iniziale del cognome), "
-                  "le ditte accreditate e il codice d'invito; chi torna tocca «Sono io» e trova già referente e motivo dell'ultima volta. "
+                  "Una domanda alla volta: nome e cognome; se qualcuno con quel nome è già venuto compare solo la sua azienda da confermare "
+                  "(più righe se ci sono omonimi) e referente e motivo dell'ultima volta sono già scelti; poi l'informativa da spuntare. "
                   "«Esco» mostra i numeri dei cartellini in uso: basta toccare il proprio. Il referente si cerca scrivendo il nome. Il pannello per gestire presenti, storico, pre-registrazioni e "
                   "cartellini è «Reception», nel menu di Fornitori."),
             ("p", "Ogni dipendente può annunciare un ospite da «Annuncia una visita» nella barra in alto: l'ospite riceve codice e QR. "

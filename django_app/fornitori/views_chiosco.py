@@ -141,29 +141,9 @@ def _ospite(dati: dict) -> JsonResponse:
     }})
 
 
-def _cerca(dati: dict) -> JsonResponse:
-    """Ricerca live dal campo unico: ospiti già passati, ditte accreditate, codice d'invito."""
-    testo = _testo(dati, "q")
-    risposta = {"success": True, "ospiti": [], "ditte": [], "invito": None}
-    if len(testo) < chiosco.CERCA_MIN:
-        return JsonResponse(risposta)
-    codice = chiosco.sembra_codice(testo)
-    if codice:
-        try:
-            _stato, esito = chiosco.chiama("prereg_lookup", {"code": codice})
-        except chiosco.ChioscoNonDisponibile:
-            esito = {}
-        if esito.get("success"):
-            p = esito.get("prereg") or {}
-            risposta["invito"] = {"code": codice, "guest_name": p.get("guest_name") or "",
-                                  "guest_company": p.get("guest_company") or "",
-                                  "host_employee": p.get("host_employee") or "", "purpose": p.get("purpose") or ""}
-    risposta["ospiti"] = chiosco.cerca_ospiti(testo)
-    try:
-        risposta["ditte"] = chiosco.cerca_ditte(testo)
-    except chiosco.ChioscoNonDisponibile:
-        pass
-    return JsonResponse(risposta)
+def _riconosci(dati: dict) -> JsonResponse:
+    """Nome e cognome esatti: chi è già venuto con quel nome, mostrato solo con la sua azienda."""
+    return JsonResponse({"success": True, "trovati": chiosco.riconosci(_testo(dati, "nome"), _testo(dati, "cognome"))})
 
 
 def _ingresso_ospite(dati: dict, ip: str) -> JsonResponse:
@@ -216,6 +196,12 @@ def _ingresso_fornitore(dati: dict, ip: str) -> JsonResponse:
     if dati.get("gdpr_consent") is not True:
         return _errore("Per continuare conferma di aver letto l'informativa.")
     azienda_id, nominativo_id = _intero(dati, "azienda_id"), _intero(dati, "nominativo_id")
+    if dati.get("fornitore"):
+        # Riconosciuto da nome e cognome: ditta e nominativo vengono dalla chiave firmata.
+        dalla_chiave = chiosco.fornitore_da_chiave(str(dati["fornitore"])[:2000])
+        if dalla_chiave is None:
+            return _errore("Non ti ritrovo più: tocca «Ricomincia».")
+        azienda_id, nominativo_id = dalla_chiave
     azienda = next((a for a in chiosco.aziende() if a["id"] == azienda_id), None)
     if azienda is None:
         return _errore("Scegli l'azienda.")
@@ -298,7 +284,7 @@ def _nominativi(dati: dict) -> JsonResponse:
 
 
 AZIONI = {
-    "cerca": _cerca,
+    "riconosci": _riconosci,
     "ingresso-ospite": _ingresso_ospite,
     "cartellini": _cartellini,
     "ospite": _ospite,
