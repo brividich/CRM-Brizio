@@ -99,17 +99,12 @@ GUIDA = {
             "id": "reception",
             "titolo": "Pannello Reception",
             "blocchi": [
-                ("p", "Fornitori → «Reception» è il pannello che prende il posto di quello del GuestPortal, finché non è attivo mostra un avviso giallo."),
+                ("p", "Fornitori → «Reception» è il pannello che prende il posto di quello del GuestPortal; finché non è attivo mostra un avviso giallo. Il menu ha quattro voci: Oggi, Inviti, Storico, Configurazione."),
                 ("def", [
-                    ("Presenti", "chi è dentro adesso, con «Registra uscita»."),
-                    ("Registra ingresso", "per chi non passa dal chiosco. Nel campo «Cerca tra chi è già venuto» scrivi nome, azienda o email: scegliendo la persona si compilano nome, cognome, azienda, email e telefono (se risulta già dentro compare un avviso). Il referente si cerca scrivendo nome o reparto; il cartellino proposto è il primo libero."),
+                    ("Oggi", "in alto i numeri del giorno (dentro adesso, ingressi, attesi, cartellini liberi, richieste da decidere); a sinistra «Dentro adesso» con «Uscita», a destra «Attesi oggi» (gli inviti con il giorno di oggi). «+ Registra ingresso» apre al centro il modulo per chi non passa dal chiosco: cerca tra chi è già venuto (nome, azienda o email) e i dati si compilano da soli; email e telefono sono sotto «+ Email e telefono»; il referente si cerca per nome o reparto; il cartellino proposto è il primo libero. «+ Invita» porta al nuovo invito."),
+                    ("Inviti", "scheda «Inviti»: i codici validi e usati; «+ Nuovo invito» apre al centro il modulo, l'ospite riceve codice e QR e, se indichi il giorno, ospite e referente ricevono anche l'invito in calendario. Scheda «Richieste»: le richieste di appuntamento dal modulo pubblico dopo la conferma dell'email; «Accetta» manda codice e QR (se la persona indicata non è riconosciuta scegli prima il referente), «Rifiuta» manda una mail con la nota. Le decise restano visibili 30 giorni."),
                     ("Storico", "le visite con i filtri; aprendone una correggi l'uscita, oppure «Riapri» entro 7 giorni. Le correzioni restano scritte nella visita."),
-                    ("Pre-registrazioni", "stessa ricerca tra chi è già venuto e del referente; «Crea e invia il codice» manda all'ospite codice e QR; se indichi il giorno, ospite e referente ricevono anche l'invito in calendario."),
-                    ("Richieste", "le richieste di appuntamento arrivate dal modulo pubblico dopo che l'esterno ha confermato l'email. «Accetta» manda all'esterno codice e QR (se la persona indicata non è riconosciuta scegli prima il referente); «Rifiuta» gli manda una mail con la nota. Le decise restano visibili 30 giorni."),
-                    ("Referenti", "i dipendenti che i visitatori possono scegliere al chiosco. «Cerca un dipendente» cerca nell'anagrafica Novicrom (solo chi è in forza) e compila nome, email di notifica, reparto e telefono aziendale; «Aggiungi ai referenti». «Aggiorna dall'anagrafica» riallinea i referenti presi da lì e disattiva chi non è più in forza. Se in anagrafica manca l'email di notifica va scritta a mano."),
-                    ("Ditte accreditate", "ditte e nominativi che si scelgono al chiosco."),
-                    ("Cartellini", "stato, «Aggiungi» ed «Etichette con QR» da stampare."),
-                    ("Impostazioni", "l'avviso «Passa dalla reception» per le ditte non in regola, spento di default, e la cancellazione dei dati oltre 12 mesi."),
+                    ("Configurazione", "schede Referenti (i dipendenti scelti al chiosco, presi dall'anagrafica Novicrom con «Cerca un dipendente»; «Aggiorna dall'anagrafica» riallinea e disattiva chi non è più in forza), Ditte accreditate (ditte e nominativi del chiosco), Cartellini (stato, «Aggiungi», «Etichette con QR») e Impostazioni (logo del chiosco, avviso «Passa dalla reception» per le ditte non in regola, cancellazione dei dati oltre il termine)."),
                 ]),
                 ("p", "A fine giornata, dal lunedì al venerdì alle 19, chi ha il ruolo indicato in «reception_usciti_ruoli» (per ora l'Information Technology Manager) riceve una notifica con chi risulta ancora dentro."),
             ],
@@ -239,7 +234,7 @@ GUIDA = {
                     "Nel file .env dell'HUB scrivi l'IP del PC della reception in CHIOSCO_ALLOWED_IPS (più valori separati da virgola, anche reti come 10.0.5.0/24).",
                     "Se serve, imposta GUESTPORTAL_CHIOSCO_API_URL con l'indirizzo delle API del GuestPortal.",
                     "Riavvia l'HUB e apri /chiosco/ dalla postazione. Più totem: tutti gli IP nella stessa riga, separati da virgola.",
-                    "Logo: Reception → Impostazioni → «Logo del chiosco», PNG, JPG o WEBP fino a 1 MB (meglio chiaro o trasparente: il totem è scuro). «Togli il logo» rimette la scritta.",
+                    "Logo: Reception → Configurazione → Impostazioni → «Logo del chiosco», PNG, JPG o WEBP fino a 1 MB (meglio chiaro o trasparente: il totem è scuro). «Togli il logo» rimette la scritta.",
                 ]),
                 ("passi", [
                     "Passaggio dal GuestPortal: dai all'utente MySQL il permesso di lettura su tutte le tabelle (docs/integrazioni/guestportal/README.md).",
@@ -260,7 +255,7 @@ GUIDA = {
             "titolo": "Collegare il GuestPortal",
             "blocchi": [
                 ("ul", [
-                    "Permessi: in Amministrazione → «Ruoli e permessi», riga «Reception e visitatori» (area Persone). «Vedere» apre Accessi esterni, Presenti, Storico, scheda della visita e Richieste; «Creare» / «Modificare» / «Cancellare» registrano ingressi e uscite, pre-registrazioni, richieste, referenti, ditte e cartellini; «Impostazioni» apre Reception → Impostazioni. Il menu del pannello mostra solo le voci che la persona può aprire. Mostra dati personali dei visitatori: darlo solo a reception, sicurezza e responsabili. Dopo una modifica premi «Sincronizza i permessi delle pagine».",
+                    "Permessi: in Amministrazione → «Ruoli e permessi», riga «Reception e visitatori» (area Persone). «Vedere» apre Accessi esterni, Oggi, Storico, scheda della visita e Richieste; «Creare» / «Modificare» / «Cancellare» registrano ingressi e uscite, inviti, richieste, referenti, ditte e cartellini; «Impostazioni» apre Reception → Configurazione → Impostazioni. Il menu del pannello mostra solo le voci che la persona può aprire. Mostra dati personali dei visitatori: darlo solo a reception, sicurezza e responsabili. Dopo una modifica premi «Sincronizza i permessi delle pagine».",
                     "Il link «Apri GuestPortal» / «Accessi azienda» è aperto a chi ha fatto l'accesso all'HUB, come il vecchio link diretto: chi entra nel pannello lo decide il GuestPortal (Utenti admin del pannello).",
                     "Database: sul MySQL del GuestPortal crea un utente con solo SELECT su Visits, Guests e Suppliers e metti host, nome database, utente e password in GUESTPORTAL_DB_* del .env dell'HUB (vedi docs/integrazioni/guestportal/README.md). Dal server HUB deve essere aperta la porta 3306.",
                     "Accesso automatico: GUESTPORTAL_SSO_SECRET nel .env dell'HUB deve essere uguale a GP_SSO_SECRET in config/sso.php del GuestPortal. Senza segreto il link apre il login normale del pannello.",

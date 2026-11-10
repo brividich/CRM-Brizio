@@ -6,21 +6,26 @@
 
 {% block subnav %}
 <div class="subnav">
-  {% for v in menu %}{% if v.separatore %}<div class="sub-sep"></div>{% else %}<a class="sub-a{% if sezione == v.nome %} active{% endif %}" href="{{ v.url }}">{{ v.etichetta }}{% if v.nome == "richieste" and n_richieste %} ({{ n_richieste }}){% endif %}</a>{% endif %}{% endfor %}
+  {% for v in menu %}<a class="sub-a{% if v.attiva %} active{% endif %}" href="{{ v.url }}">{{ v.etichetta }}{% if v.chiave == "inviti" and n_richieste %} <span class="rc-conta">{{ n_richieste }}</span>{% endif %}</a>{% endfor %}
 </div>
 {% endblock %}
 
 {% block content %}
 <div class="rc-page">
   <div class="rc-top">
-    <div>
-      <div class="rc-title">{% block rc_titolo %}{% endblock %}</div>
-      <div class="rc-sub">{% block rc_sub %}{% endblock %}</div>
+    <h1 class="rc-title">{% block rc_titolo %}{% endblock %}</h1>
+    <div class="rc-top-azioni">
+      {% block rc_azioni %}{% endblock %}
+      <a class="rc-btn rc-btn-g" href="{% url 'guida_modulo' 'fornitori' %}#reception">? Guida</a>
     </div>
-    <a class="rc-btn rc-btn-g" href="{% url 'guida_modulo' 'fornitori' %}#reception">? Guida</a>
   </div>
+  {% if schede %}
+  <nav class="rc-schede" aria-label="Sezioni">
+    {% for s in schede %}<a class="rc-scheda-tab{% if s.nome == sezione %} on{% endif %}" href="{{ s.url }}">{{ s.etichetta }}{% if s.nome == "richieste" and n_richieste %} <span class="rc-conta">{{ n_richieste }}</span>{% endif %}</a>{% endfor %}
+  </nav>
+  {% endif %}
   {% include "fornitori/components/flash_messages.html" %}
-  {% if not nativa %}<div class="rc-avviso"><strong>Pannello non ancora in uso:</strong> fino al passaggio i dati veri restano nel GuestPortal. Qui si vedono solo le tabelle dell'HUB, vuote o di prova.</div>{% endif %}
+  {% if not nativa %}<div class="rc-avviso"><strong>Pannello non ancora in uso:</strong> fino al passaggio i dati veri restano nel GuestPortal.</div>{% endif %}
   {% block rc_contenuto %}{% endblock %}
 </div>
 {% endblock %}

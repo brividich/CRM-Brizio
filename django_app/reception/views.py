@@ -37,36 +37,47 @@ def _autore(request) -> str:
     return request.user.get_username()
 
 
-VOCI_MENU = (
-    ("cruscotto", "Presenti"), ("registra", "Registra ingresso"), ("storico", "Storico"),
-    ("preregistrazioni", "Pre-registrazioni"), ("richieste", "Richieste"), (None, None),
-    ("referenti", "Referenti"), ("ditte", "Ditte accreditate"), ("cartellini", "Cartellini"), ("impostazioni", "Impostazioni"),
+# Quattro voci in alto; dove una voce raggruppa più pagine, queste diventano schede sotto il titolo.
+GRUPPI_MENU = (
+    ("oggi", "Oggi", (("cruscotto", "Oggi"), ("registra", "Registra ingresso"))),
+    ("inviti", "Inviti", (("preregistrazioni", "Inviti"), ("richieste", "Richieste"))),
+    ("storico", "Storico", (("storico", "Storico"),)),
+    ("config", "Configurazione", (("referenti", "Referenti"), ("ditte", "Ditte accreditate"), ("cartellini", "Cartellini"),
+                                  ("impostazioni", "Impostazioni"))),
 )
+SCHEDE_VISIBILI = {"inviti", "config"}
 
 
-def _menu(request) -> list[dict]:
-    """Voci del pannello che l'utente può aprire (Vedere / Creare-Modificare / Impostazioni in «Ruoli e permessi»)."""
+def _ammessa(request, url: str) -> bool:
     from core.middleware import acl_allows_path
 
+    try:
+        return request.user.is_superuser or bool(acl_allows_path(url, django_user=request.user, request=request))
+    except Exception:  # noqa: BLE001 - nel dubbio la voce resta: decide comunque il server all'apertura
+        return True
+
+
+def _menu(request, sezione: str = "") -> list[dict]:
+    """Voci del pannello che l'utente può aprire (Vedere / Creare-Modificare / Impostazioni in «Ruoli e permessi»).
+    Ogni voce porta alla prima pagina ammessa del suo gruppo; ``schede`` sono le pagine ammesse del gruppo."""
     voci = []
-    for nome, etichetta in VOCI_MENU:
-        if nome is None:
-            voci.append({"separatore": True})
-            continue
-        url = reverse(f"reception:{nome}")
-        try:
-            ammessa = request.user.is_superuser or bool(acl_allows_path(url, django_user=request.user, request=request))
-        except Exception:  # noqa: BLE001 - nel dubbio la voce resta: decide comunque il server all'apertura
-            ammessa = True
-        if ammessa:
-            voci.append({"nome": nome, "etichetta": etichetta, "url": url})
-    while voci and voci[-1].get("separatore"):
-        voci.pop()
+    for chiave, etichetta, pagine in GRUPPI_MENU:
+        schede = []
+        for nome, titolo in pagine:
+            url = reverse(f"reception:{nome}")
+            if _ammessa(request, url):
+                schede.append({"nome": nome, "etichetta": titolo, "url": url})
+        if schede:
+            voci.append({"chiave": chiave, "etichetta": etichetta, "url": schede[0]["url"], "nome": schede[0]["nome"],
+                         "attiva": any(s["nome"] == sezione for s in schede), "schede": schede})
     return voci
 
 
 def _ctx(request, sezione: str, **dati) -> dict:
-    return {"sezione": sezione, "nativa": bool(getattr(settings, "RECEPTION_NATIVA", False)), "menu": _menu(request),
+    menu = _menu(request, sezione)
+    attiva = next((v for v in menu if v["attiva"]), None)
+    schede = attiva["schede"] if attiva and attiva["chiave"] in SCHEDE_VISIBILI and len(attiva["schede"]) > 1 else []
+    return {"sezione": sezione, "nativa": bool(getattr(settings, "RECEPTION_NATIVA", False)), "menu": menu, "schede": schede,
             "n_richieste": RichiestaAppuntamento.objects.filter(stato=RichiestaAppuntamento.IN_ATTESA).count(), **dati}
 
 
@@ -87,10 +98,13 @@ def cruscotto(request):
     oggi = timezone.localdate()
     inizio = timezone.make_aware(datetime.combine(oggi, datetime.min.time()))
     presenti = Visita.objects.select_related("ospite", "ditta").filter(stato=Visita.DENTRO).order_by("ingresso")
+    attesi = Preregistrazione.objects.filter(data_visita=oggi, usata_il__isnull=True, scade_il__gte=timezone.now()).order_by("ora_inizio", "ospite_nome")
+    liberi = servizi.cartellini_liberi()
     return render(request, "reception/cruscotto.html", _ctx(
-        request, "cruscotto", presenti=presenti,
+        request, "cruscotto", presenti=presenti, attesi=attesi,
         n_oggi=Visita.objects.filter(ingresso__gte=inizio, ingresso__lt=inizio + timedelta(days=1)).count(),
-        n_liberi=len(servizi.cartellini_liberi()),
+        n_liberi=len(liberi), liberi=liberi, referenti_json=_elenco_referenti(),
+        categorie=CategoriaVisita.objects.filter(attiva=True), dati={}, apri=request.GET.get("nuovo") == "1",
     ))
 
 
@@ -218,6 +232,7 @@ def preregistrazioni(request):
         request, "preregistrazioni", referenti_json=_elenco_referenti(),
         categorie=CategoriaVisita.objects.filter(attiva=True),
         righe=Preregistrazione.objects.filter(Q(scade_il__gte=timezone.now()) | Q(usata_il__isnull=False))[:100],
+        apri=request.GET.get("nuovo") == "1",
     ))
 
 
