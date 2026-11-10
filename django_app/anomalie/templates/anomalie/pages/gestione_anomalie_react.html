@@ -235,9 +235,58 @@
     .ga-btn--xs { padding: 5px 11px; font-size: var(--fs-sm); }
     .ga-note--info { background: var(--accent-light); color: var(--text); border: 1px solid rgba(249,115,22,.3); font-weight: 500; }
     /* Clona OP: pulsante sulla riga dell'ordine e selezione delle anomalie da copiare */
-    .ga-op-wrap { position: relative; }
-    .ga-op__acts { position: absolute; top: 34px; right: 10px; display: inline-flex; gap: 4px; opacity: 0; transition: opacity .15s; }
-    .ga-op-wrap:hover .ga-op__acts, .ga-op-wrap:focus-within .ga-op__acts, .ga-op__acts.is-on, .ga--mobile .ga-op__acts { opacity: 1; }
+    /* Riga OP compatta: numero + contatori, P/N sotto */
+    .ga-opr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; align-items: center; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-left: 3px solid transparent; border-radius: 8px; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+    .ga-opr:hover { background: var(--bg); }
+    .ga-opr.is-sel { background: var(--accent-light); border-left-color: var(--accent); }
+    .ga-opr__id { display: flex; align-items: center; gap: 6px; font-weight: 800; min-width: 0; }
+    .ga-opr__pn { grid-column: 1; font-family: ui-monospace, Consolas, monospace; font-size: var(--fs-xs); color: var(--text-mid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ga-opr__cnt { grid-row: 1 / 3; grid-column: 2; display: inline-flex; gap: 4px; }
+    .ga-cnt { min-width: 22px; height: 20px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
+    .ga-cnt--dec, .ga-seg--dec { background: var(--accent); color: #fff; }
+    .ga-cnt--corso, .ga-seg--corso { background: var(--info, #2563eb); color: #fff; }
+    .ga-cnt--ok, .ga-seg--ok { background: var(--success, #16a34a); color: #fff; }
+    /* Scheda dell'OP in cima alla colonna Anomalie */
+    .ga-opsheet { display: grid; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+    .ga-opsheet__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ga-opsheet__id { font-weight: 800; font-size: var(--fs-md); }
+    .ga-opsheet__pn { font-family: ui-monospace, Consolas, monospace; font-size: var(--fs-sm); color: var(--text-mid); }
+    .ga-opsheet__acts { margin-left: auto; display: inline-flex; gap: 4px; }
+    .ga-opsheet__people { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: var(--fs-sm); }
+    .ga-opsheet__people b { color: var(--text-light); font-weight: 700; text-transform: uppercase; font-size: 10.5px; letter-spacing: .05em; margin-right: 4px; }
+    .ga-seg { display: flex; height: 6px; border-radius: 999px; overflow: hidden; background: var(--bg); }
+    .ga-seg i { display: block; }
+    .ga-opsheet__leg { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: var(--fs-xs); color: var(--text-mid); }
+    .ga-opsheet__leg span { display: inline-flex; align-items: center; gap: 5px; }
+    .ga-opsheet__leg i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+    /* Raggruppa: Per S/N | Per stato */
+    .ga-raggr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .ga-seg-ctl { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .ga-seg-ctl button { border: 0; background: var(--surface); color: var(--text-mid); font: inherit; font-size: var(--fs-xs); font-weight: 700; padding: 4px 10px; cursor: pointer; }
+    .ga-seg-ctl button + button { border-left: 1px solid var(--border); }
+    .ga-seg-ctl button.is-on { background: var(--accent-light); color: var(--accent); }
+    /* Gruppi collassabili */
+    .ga-grps { display: grid; gap: 8px; }
+    .ga-grp__head { display: flex; align-items: center; gap: 4px; }
+    .ga-grp__toggle { flex: 1; min-width: 0; display: grid; gap: 2px; padding: 6px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background .12s; }
+    /* Al passaggio la riga del gruppo si scurisce: si capisce che apre/chiude. */
+    .ga-grp__toggle:hover { background: color-mix(in srgb, var(--text) 9%, transparent); }
+    .ga-grp__toggle:active { background: color-mix(in srgb, var(--text) 14%, transparent); }
+    .ga-grp__toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .ga-grp__line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .ga-grp__line .ga-blk__todo { white-space: nowrap; }
+    .ga-grp__caret { display: inline-block; color: var(--text-mid); font-size: 13px; line-height: 1; transition: transform .15s; }
+    .ga-grp.is-chiuso .ga-grp__caret { transform: rotate(-90deg); }
+    .ga-grp__label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; min-width: 0; overflow-wrap: anywhere; }
+    .ga-grp__label--sn { font-family: ui-monospace, Consolas, monospace; text-transform: none; letter-spacing: 0; font-size: var(--fs-sm); }
+    .ga-grp--attesa .ga-grp__label { color: #c2410c; }
+    .ga-grp--aperto .ga-grp__label { color: var(--info, #2563eb); }
+    .ga-grp--chiuso .ga-grp__label { color: var(--text-mid); }
+    .ga-grp__n { font-size: 11px; font-weight: 700; color: var(--text-light); font-variant-numeric: tabular-nums; }
+    .ga-grp__meta { padding-left: 21px; font-size: var(--fs-xs); color: var(--text-mid); }
+    .ga-grp__body { display: grid; gap: 6px; }
+    body.theme-dark .ga-grp--attesa .ga-grp__label { color: #fdba74; }
+    @media (prefers-reduced-motion: reduce) { .ga-grp__caret { transition: none; } }
     .ga-op__clona { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-mid); font: inherit; font-size: var(--fs-xs); font-weight: 700; cursor: pointer; }
     .ga-op__clona svg { width: 14px; height: 14px; }
     .ga-op__clona:hover, .ga-op__clona.is-on { border-color: var(--accent); color: var(--accent); }

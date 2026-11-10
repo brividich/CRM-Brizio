@@ -28,7 +28,7 @@ GUIDA = {
                     "stesso blocco, su tutte le anomalie aperte o su quelle scelte a mano (le già decise solo se "
                     "spuntate), con un riepilogo da confermare prima del salvataggio.",
                 ]),
-                ("p", "Stesse anomalie su un altro OP? In Gestione anomalie premi «Clona» sulla riga dell'OP, spunta "
+                ("p", "Stesse anomalie su un altro OP? In Gestione anomalie premi «Clona» nella scheda dell'OP, spunta "
                       "le anomalie da copiare e «Continua»: il nuovo OP arriva con P/N, capocommessa e CAR già scritti "
                       "(manca il numero) e i blocchi copiati si caricano uno alla volta, da controllare e salvare. Gli "
                       "allegati si copiano solo se lo scegli sull'anomalia."),
@@ -38,7 +38,7 @@ GUIDA = {
                       "Si fanno dal controllo (anomalia aperta nel blocco) o dalla card «Segnalazione» di Gestione "
                       "anomalie, e si può solo finché nessuno ci ha lavorato: niente decisione del capocommessa, niente presa in carico dal link della mail, niente risposte del cliente o azioni registrate."),
                 ("p", "Dati dell'OP scritti male (P/N, fase, capocommessa, CAR, note, collaudo di benestare)? In "
-                      "Gestione anomalie, sulla riga dell'OP, «Modifica OP» apre una finestra per correggerli: il "
+                      "Gestione anomalie, nella scheda dell'OP in cima alla colonna Anomalie, «Modifica OP» apre una finestra per correggerli: il "
                       "pulsante c'è solo per il controllore che ha creato l'OP dal portale e chiede il «Motivo della "
                       "modifica». Il numero dell'OP non si cambia (per un OP sbagliato c'è «✂ Taglia»); la modifica "
                       "resta nella «Cronologia azioni» dell'OP."),
@@ -169,11 +169,11 @@ GUIDA = {
     ],
     "problemi": [
         {
-            "sintomo": "Sulla riga dell'OP non compare «Modifica OP»",
+            "sintomo": "Nella scheda dell'OP non compare «Modifica OP»",
             "fare": [
                 "Il pulsante c'è solo per chi ha creato l'OP dal portale («+ Nuovo OP»): gli OP del gestionale non "
                 "si modificano da qui, li corregge chi gestisce il gestionale.",
-                "Passa sopra la riga con il mouse: come «Clona», il pulsante appare solo al passaggio.",
+                "Il pulsante è nella scheda dell'OP in cima alla colonna Anomalie, accanto a «Clona», non sulla riga a sinistra.",
                 "Il numero dell'OP non si cambia: per anomalie sull'OP sbagliato usa «✂ Taglia».",
             ],
         },
