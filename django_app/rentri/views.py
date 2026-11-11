@@ -617,7 +617,14 @@ def _family_payload(carichi: list, operazioni: list, analisi=None, annullati: di
     scollegati = sorted({rid for r in operazioni for rid in split_rif_op(r.rif_op) if rid in annullati})
     testi = Counter(" ".join(r.codice.split()) for r in righe if (r.codice or "").strip())
     cer_label = testi.most_common(1)[0][0] if testi else ""
+    cerca = [_STATI_FAMIGLIA[stato], *scollegati]
+    for r in righe:
+        cerca += [r.id_registrazione, r.rif_op, r.codice, r.arrivo_fir, r.inserito_da, r.note_rentri]
+        if r.data:
+            cerca += [r.data.strftime("%d-%m-%Y"), r.data.strftime("%d/%m/%Y")]
     return {
+        "cerca": " ".join(" ".join(str(x).split()) for x in cerca if x).lower(),
+        "cer_keys": " ".join(sorted({chiave(r.codice) for r in righe if chiave(r.codice)})),
         "carichi": carichi,
         "operazioni": operazioni,
         "tipi": [t for t in ("C", "O", "R", "M") if t in tipi],
@@ -675,6 +682,18 @@ def _codici_filtro() -> list[dict]:
 _CAMPI_FILTRO = ("tipo", "q", "anno", "dal", "al", "cer", "trasmesso", "consolidato", "pericolosi")
 
 
+def cifre_cer(testo: str) -> str:
+    """Le cifre di una ricerca che è un codice CER, anche parziale («12.01», «12 01 01», «120101»).
+
+    Vuoto se il testo non è un codice: lettere, più di sei cifre o un numero di
+    registrazione («2025/1862») si cercano come testo.
+    """
+    t = (testo or "").strip()
+    if not t or not re.fullmatch(r"\d{2}(?:[\s.\-]?\d{2}){0,2}\*?", t):
+        return ""
+    return re.sub(r"\D", "", t)
+
+
 def _filtra_registro(get, *, annullati: bool):
     """Queryset e valori dei filtri comuni a elenco ed export PDF."""
     from django.db.models import Q
@@ -686,10 +705,20 @@ def _filtra_registro(get, *, annullati: bool):
     if f["tipo"] in ("C", "O", "M", "R"):
         qs = qs.filter(tipo=f["tipo"])
     if f["q"]:
-        qs = qs.filter(
-            Q(codice__icontains=f["q"]) | Q(rif_op__icontains=f["q"]) | Q(id_registrazione__icontains=f["q"])
-            | Q(arrivo_fir__icontains=f["q"]) | Q(note_rentri__icontains=f["q"])
-        )
+        testo = Q()
+        for parola in f["q"].split():
+            testo &= (
+                Q(codice__icontains=parola) | Q(rif_op__icontains=parola) | Q(id_registrazione__icontains=parola)
+                | Q(arrivo_fir__icontains=parola) | Q(note_rentri__icontains=parola) | Q(inserito_da__icontains=parola)
+            )
+        cifre = cifre_cer(f["q"])
+        if cifre:
+            per_codice = [pk for pk, c in qs.values_list("pk", "codice") if chiave(c).startswith(cifre)]
+            # «12» o «12 01»: solo il codice. Da quattro cifre vale anche come testo («1862» = 2025/1862).
+            solo_cifre = f["q"].strip().isdigit() and len(cifre) >= 4
+            qs = qs.filter((testo | Q(pk__in=per_codice)) if solo_cifre else Q(pk__in=per_codice))
+        else:
+            qs = qs.filter(testo)
     if f["anno"].isdigit():
         qs = qs.filter(data__year=int(f["anno"]))
     for campo, lookup in (("dal", "data__gte"), ("al", "data__lte")):
