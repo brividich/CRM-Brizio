@@ -26,8 +26,9 @@ def _b64d(value: str) -> bytes:
 
 
 class _Resp:
-    def __init__(self, status):
+    def __init__(self, status, headers=None):
         self.status_code = status
+        self.headers = headers or {}
 
 
 class EndpointAmmessoTests(SimpleTestCase):
@@ -131,11 +132,46 @@ class InvioSegnaleTests(TestCase):
         self.assertFalse(self.iscr.attiva)
 
     def test_errori_ripetuti_disattivano(self):
-        with patch("requests.post", return_value=_Resp(500)):
+        # Solo i rifiuti permanenti (4xx) contano come errori dell'iscrizione.
+        with patch("requests.post", return_value=_Resp(400)):
             for _ in range(push.MAX_ERRORI_CONSECUTIVI):
                 push.invia_segnale(self.iscr)
         self.iscr.refresh_from_db()
         self.assertFalse(self.iscr.attiva)
+
+    def test_5xx_e_rete_giu_non_disattivano(self):
+        import requests
+
+        with patch("requests.post", return_value=_Resp(503)):
+            for _ in range(push.MAX_ERRORI_CONSECUTIVI + 2):
+                self.assertFalse(push.invia_segnale(self.iscr))
+        with patch("requests.post", side_effect=requests.exceptions.ConnectionError("sintetico")):
+            for _ in range(push.MAX_ERRORI_CONSECUTIVI + 2):
+                self.assertFalse(push.invia_segnale(self.iscr))
+        self.iscr.refresh_from_db()
+        self.assertTrue(self.iscr.attiva)
+        self.assertEqual(self.iscr.errori_consecutivi, 0)
+
+    def test_429_rispetta_retry_after_senza_contare_errori(self):
+        from django.core.cache import cache
+
+        cache.delete(push._chiave_attesa(self.iscr))
+        with patch("requests.post", return_value=_Resp(429, {"Retry-After": "120"})) as post:
+            self.assertFalse(push.invia_segnale(self.iscr))
+            self.assertFalse(push.invia_segnale(self.iscr))  # in attesa: niente seconda POST
+        self.assertEqual(post.call_count, 1)
+        self.iscr.refresh_from_db()
+        self.assertTrue(self.iscr.attiva)
+        self.assertEqual(self.iscr.errori_consecutivi, 0)
+        cache.delete(push._chiave_attesa(self.iscr))
+        with patch("requests.post", return_value=_Resp(201)):
+            self.assertTrue(push.invia_segnale(self.iscr))
+
+    def test_retry_after_numero_data_e_limiti(self):
+        self.assertEqual(push._secondi_retry_after("30"), 30)
+        self.assertEqual(push._secondi_retry_after(None), push.ATTESA_429_DI_SERIE)
+        self.assertEqual(push._secondi_retry_after("999999"), push.ATTESA_429_MASSIMA)
+        self.assertEqual(push._secondi_retry_after("Wed, 21 Oct 2015 07:28:00 GMT"), 1)  # data passata
 
     def test_endpoint_non_ammesso_mai_chiamato(self):
         PushIscrizione.objects.filter(pk=self.iscr.pk).update(endpoint="https://intranet.local/x")

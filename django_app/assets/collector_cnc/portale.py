@@ -81,6 +81,19 @@ def _ora_utc() -> str:
     return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _chi_risponde(resp: Any) -> str:
+    """Se a rispondere non è il portale (un proxy, un altro servizio), lo dice: il portale risponde in JSON."""
+    headers = getattr(resp, "headers", None)
+    if not hasattr(headers, "get"):
+        return ""
+    tipo = str(headers.get("Content-Type") or "")
+    server = str(headers.get("Server") or "")[:60]
+    if not tipo or "json" in tipo.lower():
+        return ""
+    return (" (non risponde il portale" + (f" ma il server «{server}»" if server else "")
+            + ": un proxy o un altro servizio)")
+
+
 class Portale:
     def __init__(self, base: str, token: str, machines: list[Any], prog_name: Callable[[Any], str],
                  ca: str | None = None) -> None:
@@ -89,6 +102,9 @@ class Portale:
         self.token = token
         self.machines = [m for m in machines if m.asset_tag and not getattr(m, "ombra", False)]
         self.ctx = ssl.create_default_context(cafile=ca) if ca else None
+        # Il portale è in rete interna: nessun proxy dell'ambiente (HTTPS_PROXY/HTTP_PROXY) in mezzo.
+        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}),
+                                                  urllib.request.HTTPSHandler(context=self.ctx))
         self.ultimo_errore: str | None = None
         self.db: Any = None          # machines.db (outbox), da collega()
         self.ultimo_evento: dict[str, str] = {}   # asset_tag -> chiave dell'ultimo evento consegnato
@@ -113,22 +129,31 @@ class Portale:
         req = urllib.request.Request(
             self.base + path, data=json.dumps(body).encode("utf-8"), method="POST",
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"})
-        with urllib.request.urlopen(req, timeout=TIMEOUT, context=self.ctx) as resp:
-            esito: dict[str, Any] = json.loads(resp.read().decode("utf-8") or "{}")
+        with self.opener.open(req, timeout=TIMEOUT) as resp:
+            testo = resp.read().decode("utf-8", "replace")
+            try:
+                esito: dict[str, Any] = json.loads(testo or "{}")
+            except ValueError as exc:
+                raise ValueError(f"{self.base}: risposta non JSON{_chi_risponde(resp)}") from exc
             return esito
 
     def scarica_macchine(self) -> list[dict[str, Any]] | None:
         """Elenco delle macchine scritto nel portale (formato di machines.json), None se non si riesce."""
         req = urllib.request.Request(self.base + URL_CONFIG, headers={"Authorization": f"Bearer {self.token}"})
         try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT, context=self.ctx) as resp:
-                dati = json.loads(resp.read().decode("utf-8") or "{}")
+            with self.opener.open(req, timeout=TIMEOUT) as resp:
+                testo = resp.read().decode("utf-8", "replace")
+                try:
+                    dati = json.loads(testo or "{}")
+                except ValueError:
+                    self._errore(f"elenco delle macchine: da {self.base} risposta non JSON{_chi_risponde(resp)}")
+                    return None
         except urllib.error.HTTPError as e:
-            self._errore(f"il portale ha risposto {e.code} sull'elenco delle macchine"
-                         + (" (token o rete non ammessi)" if e.code in (401, 403) else ""))
+            self._errore(f"{self.base} ha risposto {e.code} sull'elenco delle macchine"
+                         + (" (token o rete non ammessi)" if e.code in (401, 403) else "") + _chi_risponde(e))
             return None
         except Exception as e:  # noqa: BLE001 - rete, certificato, portale fermo: si usa l'ultimo elenco
-            self._errore(f"elenco delle macchine non scaricato ({type(e).__name__}: {e})")
+            self._errore(f"elenco delle macchine non scaricato da {self.base} ({type(e).__name__}: {e})")
             return None
         macchine = dati.get("machines")
         return [m for m in macchine if isinstance(m, dict)] if isinstance(macchine, list) else None
@@ -138,11 +163,11 @@ class Portale:
         try:
             esito = await asyncio.to_thread(self._post, path, body)
         except urllib.error.HTTPError as e:
-            self._errore(f"il portale ha risposto {e.code} su {path}"
-                         + (" (token o rete non ammessi)" if e.code in (401, 403) else ""))
+            self._errore(f"{self.base} ha risposto {e.code} su {path}"
+                         + (" (token o rete non ammessi)" if e.code in (401, 403) else "") + _chi_risponde(e))
             return False
         except Exception as e:  # noqa: BLE001 - rete, certificato, portale fermo: si riprova
-            self._errore(f"portale non raggiungibile ({type(e).__name__}: {e})")
+            self._errore(f"portale {self.base} non raggiungibile ({type(e).__name__}: {e})")
             return False
         if self.ultimo_errore:
             log.info("portale di nuovo raggiungibile")

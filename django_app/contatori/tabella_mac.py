@@ -5,7 +5,8 @@ Per ogni apparato di categoria «Rete» attivo e raggiungibile legge:
 * ``dot1qTpFdbPort`` (Q-BRIDGE-MIB, per VLAN) o, se l'apparato non lo espone, ``dot1dTpFdbPort`` (BRIDGE-MIB);
 * ``dot1dBasePortIfIndex`` (porta del bridge → interfaccia) e ``ifName`` (nome della porta).
 
-Le righe vanno in ``MacPortaSwitch`` (ogni lettura sostituisce quelle dello switch). Una porta con
+Le righe vanno in ``MacPortaSwitch`` (ogni lettura completa sostituisce quelle dello switch; una
+lettura parziale, per timeout o tempo del giro esaurito, le lascia com'erano). Una porta con
 più di 3 MAC è verso un altro switch o un access point: lì il PC «passa», non è collegato.
 Il MAC dei PC arriva da Intune, da WatchGuard e dal punto rete dichiarato dell'asset.
 
@@ -15,8 +16,10 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
+from time import monotonic
 
 from django.db import transaction
+from django.db.models import F, Max
 from django.utils import timezone
 
 from .models import DispositivoSNMP, ImpostazioniSNMP, MacPortaSwitch, StatoSNMP
@@ -30,6 +33,14 @@ IF_NAME = "1.3.6.1.2.1.31.1.1.1.1"
 MAX_RIGHE = 20_000
 MAX_DURATA = 60.0
 PORTA_ACCESSO_MAX = 3
+# Il giro deve stare sotto il timeout del worker (120 s): gli switch che non entrano
+# si leggono al giro dopo (prima quelli letti da più tempo).
+BUDGET_GIRO_SECONDI = 90.0
+MINIMO_PER_SWITCH_SECONDI = 10.0
+
+
+class LetturaParziale(Exception):
+    """Un walk non è arrivato in fondo: le righe già salvate dello switch restano com'erano."""
 
 
 def _indice(oid: str, radice: str) -> list[int]:
@@ -52,11 +63,24 @@ def _testo(record):
     return dati.decode("utf-8", "replace") if dati else str(record.value)
 
 
-def _walk(host, credenziali, radice, *, port, timeout, versione):
+_NOMI_COLONNE = {Q_FDB_PORT: "tabella MAC (Q-BRIDGE)", FDB_PORT: "tabella MAC (BRIDGE)",
+                 BASE_PORT_IFINDEX: "porte del bridge", IF_NAME: "nomi delle porte"}
+
+
+def _walk(host, credenziali, radice, *, port, timeout, versione, scadenza=None):
+    """Walk completo di una colonna; se non arriva in fondo solleva ``LetturaParziale``."""
     from .snmp_capture import capture
 
-    return capture(host, credenziali, port=port, timeout=timeout, retries=1, root=radice, version=versione,
-                   max_rows=MAX_RIGHE, max_duration=MAX_DURATA, drop=()).records
+    durata = MAX_DURATA
+    if scadenza is not None:
+        durata = min(MAX_DURATA, scadenza - monotonic())
+        if durata <= 0:
+            raise LetturaParziale(f"{_NOMI_COLONNE.get(radice, radice)}: tempo del giro esaurito")
+    esito = capture(host, credenziali, port=port, timeout=timeout, retries=1, root=radice, version=versione,
+                    max_rows=MAX_RIGHE, max_duration=durata, drop=())
+    if not esito.complete:
+        raise LetturaParziale(f"{_NOMI_COLONNE.get(radice, radice)}: {esito.stop_reason or 'walk interrotto'}")
+    return esito.records
 
 
 def righe_da_record(fdb_q, fdb, base_port, if_name) -> list[dict]:
@@ -105,14 +129,16 @@ def salva(dispositivo, righe, now=None) -> int:
     return len(unici)
 
 
-def leggi_switch(dispositivo, cfg=None) -> int:
+def leggi_switch(dispositivo, cfg=None, scadenza=None) -> int:
+    """Legge lo switch e ne sostituisce le righe. Solo con TUTTE le colonne lette per intero:
+    altrimenti ``LetturaParziale`` e le righe già salvate restano com'erano."""
     from .services import _community_snmp, _parametri_snmp
     from .snmp import costruisci_credenziali
 
     cfg = cfg or ImpostazioniSNMP.get_solo()
     porta, timeout, versione = _parametri_snmp(dispositivo, cfg)
     cred = costruisci_credenziali(_community_snmp(dispositivo, cfg), versione)
-    kw = {"port": porta, "timeout": timeout, "versione": versione}
+    kw = {"port": porta, "timeout": timeout, "versione": versione, "scadenza": scadenza}
     fdb_q = _walk(dispositivo.host, cred, Q_FDB_PORT, **kw)
     fdb = [] if fdb_q else _walk(dispositivo.host, cred, FDB_PORT, **kw)
     if not fdb_q and not fdb:
@@ -132,11 +158,23 @@ def run() -> dict:
     except Exception:  # noqa: BLE001 - SOC non installato: si legge comunque
         pass
     cfg = ImpostazioniSNMP.get_solo()
-    out = {"switch": 0, "mac": 0, "errori": []}
-    for disp in DispositivoSNMP.objects.filter(attivo=True, categoria=DispositivoSNMP.Categoria.RETE).exclude(
-            snmp_stato=StatoSNMP.ERROR):
+    out = {"switch": 0, "mac": 0, "errori": [], "parziali": [], "rimandati": []}
+    fine_giro = monotonic() + BUDGET_GIRO_SECONDI
+    # Prima gli switch mai letti o letti da più tempo: chi resta fuori dal budget passa avanti al giro dopo.
+    switch = (DispositivoSNMP.objects.filter(attivo=True, categoria=DispositivoSNMP.Categoria.RETE)
+              .exclude(snmp_stato=StatoSNMP.ERROR)
+              .annotate(ultima_mac=Max("mac_porte__letto_il"))
+              .order_by(F("ultima_mac").asc(nulls_first=True), "pk"))
+    for disp in switch:
+        if fine_giro - monotonic() < MINIMO_PER_SWITCH_SECONDI:
+            out["rimandati"].append(f"{disp.nome}: lettura rimandata al prossimo giro (tempo del giro esaurito).")
+            continue
         try:
-            n = leggi_switch(disp, cfg)
+            n = leggi_switch(disp, cfg, scadenza=fine_giro)
+        except LetturaParziale as exc:
+            logger.warning("Tabella MAC %s: lettura parziale (%s)", disp.host, exc)
+            out["parziali"].append(f"{disp.nome}: lettura parziale ({exc}), tenute le righe della lettura precedente.")
+            continue
         except Exception as exc:  # noqa: BLE001 - uno switch che non risponde non ferma gli altri
             logger.warning("Tabella MAC %s: %s", disp.host, type(exc).__name__)
             out["errori"].append(f"{disp.nome}: {type(exc).__name__}")

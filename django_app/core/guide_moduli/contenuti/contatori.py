@@ -70,6 +70,20 @@ GUIDA = {
     ],
     "admin": [
         {
+            "id": "storico-rilevazioni",
+            "titolo": "Quanto storico SNMP conservare",
+            "blocchi": [
+                ("passi", [
+                    "Configurazione → «Impostazioni», riquadro dei parametri SNMP.",
+                    "«TVCC - Storico rilevazioni (giorni)»: NVR e telecamere (predefinito 14).",
+                    "«Altri apparati - Storico rilevazioni (giorni)»: stampanti, switch, server e gli altri apparati. "
+                    "0 = conserva tutto (di serie); altrimenti minimo 60 giorni.",
+                ]),
+                ("nota", "La pulizia gira ogni notte alle 03:40 e tiene sempre l'ultima rilevazione di ogni apparato. "
+                         "I dati di una stampante si salvano solo quando cambiano: le interrogazioni uguali compaiono come «Invariati»."),
+            ],
+        },
+        {
             "id": "dispositivo",
             "titolo": "Aggiungere un apparato (MFC o dispositivo SNMP)",
             "blocchi": [
@@ -147,6 +161,7 @@ GUIDA = {
                 "L'interruttore è nel SOC: «Impostazioni» → «Apparati di rete» → «Leggi la tabella MAC degli switch». A mano: manage.py soc_api_sync --solo switch.",
                 "Un PC «non riconosciuto» ha un MAC che il portale non conosce: arriva da Intune, da WatchGuard o dal punto rete dell'asset.",
                 "Gli switch Cisco con tabella MAC separata per VLAN (community@vlan) non sono coperti.",
+                "Esito «lettura parziale»: lo switch ha smesso di rispondere a metà; restano le porte della lettura precedente e si riprova alla lettura dopo.",
             ],
         },
         {

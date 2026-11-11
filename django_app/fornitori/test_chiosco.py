@@ -5,7 +5,7 @@ import json
 from unittest.mock import patch
 
 from django.core.cache import cache
-from django.test import Client, TestCase, override_settings
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from . import chiosco
@@ -215,3 +215,28 @@ class ClientTests(TestCase):
         with patch.object(chiosco, "_richiesta", return_value=(500, b"<html>errore</html>")), \
                 self.assertRaises(chiosco.ChioscoNonDisponibile):
             chiosco.chiama("employees")
+
+
+class ChioscoReteInternaTests(SimpleTestCase):
+    """Il GuestPortal si chiama senza proxy; la risposta non JSON dice host e chi ha risposto."""
+
+    def test_opener_senza_proxy(self):
+        import urllib.request
+
+        # ProxyHandler({}) sostituisce quello di serie (che legge HTTP_PROXY/HTTPS_PROXY) e, vuoto,
+        # non registra nessun proxy_open: nell'opener non resta alcun gestore di proxy.
+        gestori = [h for h in chiosco._OPENER_LAN.handlers if isinstance(h, urllib.request.ProxyHandler)]
+        self.assertEqual(gestori, [])
+
+    @override_settings(GUESTPORTAL_CHIOSCO_API_URL="http://gp.example.local/public/api/", RECEPTION_NATIVA=False)
+    def test_risposta_non_json_dice_host_e_server(self):
+        with patch.object(chiosco, "_richiesta_completa",
+                          return_value=(200, b"<html>proxy</html>", "tipo «text/html», server «Proxy-Sintetico»")),                 self.assertLogs("fornitori.chiosco", level="WARNING") as log:
+            with self.assertRaises(chiosco.ChioscoNonDisponibile):
+                chiosco.chiama("employees")
+        self.assertIn("gp.example.local", log.output[0])
+        self.assertIn("Proxy-Sintetico", log.output[0])
+
+    def test_chi_risponde(self):
+        self.assertEqual(chiosco._chi_risponde({"Content-Type": "application/json"}), "")
+        self.assertIn("IIS", chiosco._chi_risponde({"Content-Type": "text/html", "Server": "Microsoft-IIS/10.0"}))

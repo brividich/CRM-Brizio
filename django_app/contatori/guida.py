@@ -412,8 +412,14 @@ SEZIONI: list[dict] = [
             ("p", "In «Configurazione» → «Impostazioni», riquadro «Videosorveglianza» (link «Impostazioni SNMP "
                   "e TVCC» nel Monitor SNMP) si impostano: «TVCC - Intervallo NVR (minuti)» (predefinito 5), «TVCC - "
                   "Intervallo telecamere (minuti)» (predefinito 30) e «TVCC - Storico rilevazioni (giorni)» "
-                  "(predefinito 14). Ogni notte le rilevazioni TVCC più vecchie vengono cancellate; stampanti "
-                  "e altri apparati conservano tutto lo storico."),
+                  "(predefinito 14). Ogni notte le rilevazioni TVCC più vecchie vengono cancellate."),
+            ("p", "Nello stesso riquadro «Altri apparati - Storico rilevazioni (giorni)» vale per stampanti, switch, "
+                  "server e gli altri apparati non TVCC: di serie è 0 = conserva tutto. Con un numero (minimo 60, "
+                  "servono alle stime dei toner) ogni notte le rilevazioni più vecchie vengono cancellate; l'ultima "
+                  "di ogni apparato resta sempre. Se lo storico è lungo la pulizia prosegue nelle notti successive."),
+            ("p", "Contatori e consumabili di una stampante si salvano solo quando cambiano: nello «Storico contatori "
+                  "e consumabili» le interrogazioni uguali alla successiva dello stesso giorno compaiono come "
+                  "«Invariati: uguali alla lettura successiva»."),
             ("p", "Nella lista asset un pallino accanto al nome riassume lo stato SNMP dei dispositivi "
                   "collegati: verde «Operativo», giallo «Attenzione», rosso «Errore» (non risponde), grigio "
                   "«Mai interrogato»; con più dispositivi vince il peggiore. Passando il mouse si vede il "
@@ -528,6 +534,9 @@ SEZIONI: list[dict] = [
                 "Si legge dal Q-BRIDGE-MIB o, se l'apparato non lo espone, dal BRIDGE-MIB. Gli switch Cisco con tabella separata per VLAN "
                 "(community@vlan) non sono coperti.",
                 "Interruttore nel SOC: «Impostazioni» → «Apparati di rete» → «Leggi la tabella MAC degli switch».",
+                "Se una lettura non arriva in fondo (lo switch smette di rispondere) l'esito dice «lettura parziale» e "
+                "restano le porte della lettura precedente: niente viene cancellato. Gli switch che non entrano nel "
+                "tempo della lettura (90 secondi) sono «rimandati al prossimo giro» e passano per primi la volta dopo.",
             ]),
         ],
     },
