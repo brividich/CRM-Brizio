@@ -314,9 +314,13 @@ GUIDA = {
             "sintomo": "Tanti alert uguali: stesso PC (Endpoint Security «devices blocked»), stesso backup, stessa CVE",
             "fare": [
                 "Ora i report via mail aprono un alert solo per PC (Endpoint Security) o per job di backup: le mail successive aggiornano lo stesso alert, con il conteggio dell'ultima mail; nel dettaglio, «Occorrenze» elenca tutte le mail.",
-                "Un backup completato dopo i fallimenti chiude l'alert del suo job da solo.",
+                "Con Impostazioni › «Meno rumore» acceso (di serie) i dispositivi bloccati dalla policy (chiavette USB) non aprono alert: il conteggio per PC è in Dispositivi › Elenco, riquadro «Dispositivi bloccati dalla policy»; alert solo sopra la soglia scelta. Le minacce vere aprono sempre l'alert.",
+                "CVE oltre il termine: un alert per CVE (non per PC), oppure una riga nella timeline dell'alert «PC con versione vulnerabile» se c'è già; ogni PC corretto lascia «PC rientrato nel termine» e l'alert si chiude da solo quando non ne resta nessuno.",
+                "Un backup completato dopo i fallimenti chiude l'alert del suo job da solo, anche se è un nuovo tentativo («Job (Retry 2)»). Le mail di Veeam sul malware nei backup aprono un solo alert alto «Veeam: malware nei backup», separato dai job.",
+                "Modifiche di Entra fatte da amministratori del portale o dagli autori fidati scritti in «Meno rumore»: niente alert, restano negli eventi.",
+                "Alert senza nuove occorrenze da 30 giorni (impostabile): proposta «Risolto» da confermare in Segnalazioni › Proposte AI.",
                 "«Vulnerabilità critica esposta CVE-…» (mail di Defender) non si apre se la CVE è già seguita PC per PC dall'inventario («Oltre il termine di correzione», «PC con versione vulnerabile»); se era già aperta, il ciclo del SOC la chiude come doppione, con il rimando all'alert dell'inventario.",
-                "Per i doppioni aperti prima di questa regola: python manage.py security_unisci_doppioni (prova, mostra cosa farebbe), poi con --apply. Tiene l'alert più recente di ogni PC o job e chiude gli altri come «Unito all'alert #…». Con --rinomina-fonte \"VECCHIO\" \"NUOVO\" rinomina anche una fonte mail (es. una casella che si chiama come una persona).",
+                "Per i doppioni aperti prima di questa regola: python manage.py security_unisci_doppioni (prova, mostra cosa farebbe), poi con --apply. Chiude il rumore già aperto (blocchi USB, «oltre il termine» di CVE già seguite, Entra di autori fidati: stato «Chiuso» con il motivo), tiene l'alert più recente di ogni PC, job o CVE e chiude gli altri come «Unito all'alert #…». Con --rinomina-fonte \"VECCHIO\" \"NUOVO\" rinomina anche una fonte mail (es. una casella che si chiama come una persona).",
             ],
         },
         {

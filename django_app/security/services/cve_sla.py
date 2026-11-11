@@ -331,8 +331,64 @@ def segnala_scadute(oggi=None):
     return creati, chiudi_rientrate(voci, source)
 
 
+def chiave_cve(source, cve):
+    """Chiave dell'alert per CVE (uguale a ``alert_doppioni.chiave_alert`` per ``cve_sla_scaduta``)."""
+    return make_hash(source.pk, "alert", EVENT_SLA, str(cve or "").upper())
+
+
+def _host_per_azione(alert):
+    """Ultima azione per PC nella timeline dell'alert per CVE: {host: azione}."""
+    from security.models import SecurityAlertActionLog
+
+    stato = {}
+    proprio = str(((alert.event.payload or {}) if alert.event_id else {}).get("host") or "")
+    if proprio:
+        stato[proprio] = "alert_created"
+    for azione, dettagli in (SecurityAlertActionLog.objects.filter(alert=alert).order_by("created_at", "pk")
+                             .values_list("action", "details")):
+        if not isinstance(dettagli, dict):
+            continue
+        hosts = [dettagli.get("host")] if dettagli.get("host") else []
+        if azione == "alert_merged" and dettagli.get("event_ids"):
+            hosts += [str((p or {}).get("host") or "") for p in SecurityEventRecord.objects.filter(
+                pk__in=[i for i in dettagli["event_ids"] if isinstance(i, int)]).values_list("payload", flat=True)]
+        for host in filter(None, hosts):
+            stato[host] = azione
+    return stato
+
+
+def _chiudi_per_cve(alert, cve, ancora_pc, accettate):
+    """Alert per CVE: ogni PC che esce dal termine lascia una riga in timeline; senza più PC si chiude."""
+    from security.models import SecurityAlertActionLog
+    from security.services.auto_resolution import resolve_alert
+
+    for host, ultima in _host_per_azione(alert).items():
+        if ultima != "cve_pc_rientrato" and host not in ancora_pc:
+            acc = next((v for v in accettate if v["host"] == host), None)
+            SecurityAlertActionLog.objects.create(alert=alert, action="cve_pc_rientrato", actor="system", details={
+                "cve": cve, "host": host,
+                "come": "rischio accettato" if acc else "non più esposto al ricalcolo degli impatti (corretto, rimosso o escluso)",
+            })
+    if ancora_pc:
+        titolo = titolo_cve((alert.event.payload or {}) if alert.event_id else {"cve": cve}, len(ancora_pc))
+        if titolo != alert.title:
+            alert.title = titolo
+            alert.save(update_fields=["title", "updated_at"])
+        return False
+    reason = (f"{cve}: nessun PC più oltre il termine di correzione"
+              + (" (rischio accettato sui PC rimasti)." if accettate else " (tutti corretti al ricalcolo degli impatti)."))
+    resolve_alert(alert, reason, rule_code=RULE_RIENTRO)
+    traccia.registra(traccia.CVE_TERMINE_RIENTRATO, {"cve": cve, "host": "", "alert_id": alert.pk, "motivo": reason,
+                                                    "regola": RULE_RIENTRO}, oggetto=alert)
+    return True
+
+
 def chiudi_rientrate(voci_scadute=None, source=None):
-    """Chiude gli alert «oltre il termine» la cui esposizione non è più aperta o è stata accettata."""
+    """Chiude gli alert «oltre il termine» la cui esposizione non è più aperta o è stata accettata.
+
+    Alert per CVE: si chiude quando nessun PC è più oltre il termine (rischio accettato compreso); finché resta
+    aperto, ogni PC che rientra lascia una riga in timeline. Alert per PC (prima di «Meno rumore»): come prima.
+    """
     from security.services.auto_resolution import resolve_alert
     from security.services.cve_impact import impact_source
 
@@ -340,12 +396,23 @@ def chiudi_rientrate(voci_scadute=None, source=None):
     voci = scadute() if voci_scadute is None else voci_scadute
     ancora = {_dedup(source, v) for v in voci if not v["accettata"]}
     accettate = {_dedup(source, v): v for v in voci if v["accettata"]}
+    pc_per_cve, accettate_per_cve = {}, {}
+    for v in voci:
+        cve = str(v["cve"]).upper()
+        if v["accettata"]:
+            accettate_per_cve.setdefault(cve, []).append(v)
+        else:
+            pc_per_cve.setdefault(cve, set()).add(v["host"])
     chiusi = 0
     alerts = SecurityAlert.objects.filter(source=source, status__in=ACTIVE_ALERT_STATUSES, event__event_type=EVENT_SLA).select_related("event")
     for alert in alerts:
+        payload = (alert.event.payload or {}) if alert.event_id else {}
+        cve = str(payload.get("cve") or "").upper()
+        if cve and alert.dedup_hash == chiave_cve(source, cve):
+            chiusi += int(_chiudi_per_cve(alert, cve, pc_per_cve.get(cve, set()), accettate_per_cve.get(cve, [])))
+            continue
         if alert.dedup_hash in ancora:
             continue
-        payload = (alert.event.payload or {}) if alert.event_id else {}
         acc = accettate.get(alert.dedup_hash)
         if acc is not None:
             reason = (f"{payload.get('cve')} su {payload.get('host')}: rischio accettato fino al "
@@ -371,6 +438,15 @@ def alert_attivi_per_cve(cve_id):
         if str(payload.get("cve") or "").upper() == cve_id.upper():
             out[str(payload.get("host") or "")] = alert
     return out
+
+
+def titolo_cve(payload, pc=None):
+    """Titolo dell'alert per CVE: i PC sono nella timeline, il numero si aggiorna a ogni ricalcolo."""
+    prodotto = f" ({payload['affected_product']})" if payload.get("affected_product") else ""
+    classe_txt = str(payload.get("etichetta") or "").lower()
+    quanti = f", {pc} PC" if pc else ""
+    return (f"Oltre il termine di correzione: {payload.get('cve')}{prodotto}"
+            + (f", classe {classe_txt}" if classe_txt else "") + quanti)[:255]
 
 
 def titolo_evento(payload):

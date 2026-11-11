@@ -283,9 +283,12 @@ def pc_copertura(request):
     if request.GET.get("formato") == "csv":
         return _pc_csv(request, visibili, codice, q)
     counts = svc.conteggi(rows)
-    from .services import windows_lavoro
+    from .services import alert_doppioni, windows_lavoro
 
+    bloccati = alert_doppioni.dispositivi_bloccati_per_pc(30)
     return render(request, "security/pc_copertura.html", {
+        "bloccati": bloccati, "bloccati_totale": sum(b["blocchi"] for b in bloccati),
+        "bloccati_aperto": request.GET.get("vista") == "bloccati",
         "rows": visibili, "totale": len(rows), "q": q, "codice": codice, "can_manage": can_manage,
         "windows_da_aggiornare": counts["sistema_fuori"] + counts["sistema_in_scadenza"],
         "windows_fuori": counts["sistema_fuori"], "windows_in_scadenza": counts["sistema_in_scadenza"],

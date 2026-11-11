@@ -1,4 +1,9 @@
-"""Unisce gli alert doppi già aperti: uno per mail invece che uno per PC o job, e CVE doppie fra mail e inventario.
+"""Sistema gli alert già aperti con le regole di adesso: rumore, doppioni per PC/job/CVE, CVE doppie fra mail e inventario.
+
+1. chiude il rumore (``alert_doppioni.chiudi_rumore``): dispositivi bloccati dalla policy, «oltre il termine» di CVE
+   che hanno già l'alert «PC con versione vulnerabile», modifiche di Entra di amministratori fidati;
+2. unisce i doppioni: un alert per PC, job (anche i «Retry»), CVE oltre il termine, malware nei backup;
+3. chiude come doppioni gli alert della mail Defender su CVE già seguite dall'inventario.
 
 Senza ``--apply`` mostra soltanto cosa farebbe. Con ``--rinomina-fonte "VECCHIO" "NUOVO"`` cambia il nome
 di una fonte mail (la fonte del SOC e la casella che la alimenta), così alert vecchi e nuovi restano insieme.
@@ -10,7 +15,8 @@ from security.services import alert_doppioni
 
 
 class Command(BaseCommand):
-    help = "Unisce gli alert doppi aperti (stesso PC o job, CVE già seguita dall'inventario). Senza --apply è una prova."
+    help = ("Chiude il rumore e unisce gli alert doppi aperti (PC, job, CVE oltre il termine, CVE già seguita "
+            "dall'inventario). Senza --apply è una prova.")
 
     def add_arguments(self, parser):
         parser.add_argument("--apply", action="store_true", help="Applica (senza: mostra soltanto)")
@@ -19,9 +25,15 @@ class Command(BaseCommand):
 
     def handle(self, *args, apply=False, rinomina_fonte=None, **opts):
         prova = "" if apply else "[PROVA] "
-        gruppi = alert_doppioni.unisci_doppioni(apply=apply)
+        rumore = alert_doppioni.chiudi_rumore(apply=apply)
+        per_regola = {}
+        for r in rumore:
+            per_regola[r["regola"]] = per_regola.get(r["regola"], 0) + 1
+        self.stdout.write(f"{prova}Rumore: {len(rumore)} alert {'chiusi' if apply else 'da chiudere'} "
+                          f"({', '.join(f'{k}: {v}' for k, v in sorted(per_regola.items())) or 'nessuno'}).")
+        gruppi = alert_doppioni.unisci_doppioni(apply=apply, escludi=[r["alert"] for r in rumore])
         uniti = sum(len(g["uniti"]) for g in gruppi)
-        self.stdout.write(f"{prova}Alert per PC/job: {len(gruppi)} gruppi, {uniti} alert {'uniti' if apply else 'da unire'}.")
+        self.stdout.write(f"{prova}Alert per PC/job/CVE: {len(gruppi)} gruppi, {uniti} alert {'uniti' if apply else 'da unire'}.")
         for g in sorted(gruppi, key=lambda g: -len(g["uniti"]))[:30]:
             self.stdout.write(f"  #{g['tenuto']} {g['titolo'][:90]}  <- {len(g['uniti'])} doppioni")
         cve = alert_doppioni.chiudi_cve_doppie(apply=apply)

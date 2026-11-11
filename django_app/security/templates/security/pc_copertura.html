@@ -97,4 +97,23 @@
   </div>
   <p class="sec-muted sec-small" style="margin-top:10px">✓ la fonte vede il dispositivo · ✕ non lo vede. Backup «ko»: ultimo backup fallito o nessun riuscito da troppi giorni. CVE «gravi»: già sfruttate (KEV) o CVSS 9 e oltre. Asset «Proposto»: stesso IP o stesso nome di un asset del registro, lo confermi tu; i PC di Intune si collegano dalla <a href="{% url 'assets:it_reconciliation' %}">riconciliazione dispositivi</a>.</p>
 </section>
+
+<section class="sec-panel" id="dispositivi-bloccati" style="margin-top:12px">
+  <details{% if bloccati_aperto %} open{% endif %}>
+    <summary><strong>Dispositivi bloccati dalla policy</strong> <span class="sec-muted sec-small">· ultimi 30 giorni · {{ bloccati|length }} PC{% if bloccati %}, {{ bloccati_totale }} blocchi{% endif %}</span></summary>
+    <p class="sec-muted sec-small" style="margin:8px 0">Chiavette USB e altri dispositivi fermati da Endpoint Security: la protezione ha funzionato, quindi non aprono un alert (salvo la soglia in Impostazioni › «Meno rumore»). Il conteggio viene da tutte le notifiche; «Computer non indicato» sono le notifiche di riepilogo che non dicono il PC.</p>
+    {% if bloccati %}
+    <div class="sec-table-wrap">
+      <table class="sec-table">
+        <thead><tr><th>PC</th><th>Dispositivi bloccati</th><th>Notifiche</th><th>Giorni con blocchi</th><th>Ultima</th></tr></thead>
+        <tbody>
+        {% for b in bloccati %}
+          <tr><td>{{ b.pc }}</td><td>{{ b.blocchi }}</td><td>{{ b.notifiche }}</td><td>{{ b.giorni }}</td><td>{{ b.ultima|date:"d/m/Y H:i"|default:"—" }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<p class="sec-empty">Nessun dispositivo bloccato negli ultimi 30 giorni.</p>{% endif %}
+  </details>
+</section>
 {% endblock %}
