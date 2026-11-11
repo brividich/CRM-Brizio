@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from core.acl_bootstrap_base import run_bootstrap
 
-_BOOTSTRAP_CACHE_KEY = "procedure_refresh_acl_bootstrap_v5"
+_BOOTSTRAP_CACHE_KEY = "procedure_refresh_acl_bootstrap_v6"
 
 _PULSANTI_DEFINITIONS = [
     {
@@ -42,6 +42,14 @@ _PULSANTI_DEFINITIONS = [
         "codice": "pr_collegamenti",
         "label": "CN-SGI - Collegamenti ai moduli",
         "url": "/procedure-refresh/admin/collegamenti/",
+        "visible_topbar": False,
+        "ui_order": None,
+    },
+    {
+        "modulo": "procedure_refresh",
+        "codice": "pr_da_rivedere",
+        "label": "CN-SGI - Da rivedere",
+        "url": "/procedure-refresh/admin/da-rivedere/",
         "visible_topbar": False,
         "ui_order": None,
     },

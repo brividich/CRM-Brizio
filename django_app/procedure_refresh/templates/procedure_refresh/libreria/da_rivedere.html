@@ -1,0 +1,41 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}Da rivedere · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › Da rivedere{% endblock %}
+{% block cn_h1 %}Da rivedere <small>{{ vecchi|length }} vecchi · {{ mancanti|length }} citati mancanti</small>{% endblock %}
+{% block cn_guida_anchor %}#da-rivedere{% endblock %}
+{% block cn_body %}
+<div class="cn-sec" style="margin-top:4px"><h2>Non revisionati da più di {{ anni }} anni</h2><span>Dalla data della revisione in vigore</span></div>
+{% if vecchi %}
+<div class="cn-tbl"><table>
+  <thead><tr><th>Codice</th><th>Titolo</th><th>Scaffale</th><th>Rev.</th><th>Data</th><th>Anni</th></tr></thead>
+  <tbody>
+  {% for d in vecchi %}
+  <tr>
+    <td class="num"><a href="{% url 'procedure_refresh:libreria_documento' d.pk %}" data-cn-doc style="font-weight:700">{{ d.code }}</a></td>
+    <td>{{ d.title }}</td>
+    <td>{{ d.scaffale.nome }} › {{ d.sezione_label }}</td>
+    <td class="num">{{ d.rev.revision_code|default:"—" }}</td>
+    <td class="num">{{ d.rev.revision_date|date:"d/m/Y" }}</td>
+    <td class="num">{{ d.anni }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}<p class="cn-empty">Nessun documento ha la revisione in vigore più vecchia di {{ anni }} anni.</p>{% endif %}
+
+<div class="cn-sec"><h2>Citati ma non presenti</h2><span>Codici scritti nel testo che nella cartella SGI non esistono: documento mancante o refuso</span></div>
+{% if mancanti %}
+<div class="cn-tbl"><table>
+  <thead><tr><th>Codice citato</th><th>Volte</th><th>Dove</th></tr></thead>
+  <tbody>
+  {% for m in mancanti %}
+  <tr>
+    <td class="num" style="font-weight:700">{{ m.codice }}</td>
+    <td class="num">{{ m.volte }}</td>
+    <td>{% for d in m.da|slice:":6" %}<a href="{% url 'procedure_refresh:libreria_documento' d.pk %}" data-cn-doc class="cn-pill" style="text-decoration:none">{{ d.code }}</a> {% endfor %}{% if m.da|length > 6 %}+{{ m.da|length|add:"-6" }}{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}<p class="cn-empty">Tutti i codici citati nei documenti in vigore esistono nella cartella SGI.</p>{% endif %}
+{% endblock %}

@@ -2,11 +2,16 @@
 {% block cn_body %}
 <section class="cn-hero">
   <div>
-    <form class="cn-search" role="search" action="{% url 'procedure_refresh:libreria_cerca' %}" method="get">
+    <div class="cn-sugg-wrap">
+    <form class="cn-search cn-search-sticky" role="search" action="{% url 'procedure_refresh:libreria_cerca' %}" method="get">
       <span aria-hidden="true">⌕</span>
-      <input id="cn-q" name="q" type="search" aria-label="Cerca nelle procedure" placeholder="Cerca un codice, un titolo o una frase dentro le procedure…" autocomplete="off">
+      <input id="cn-q" name="q" type="search" aria-label="Cerca nelle procedure" placeholder="Cerca un codice, un titolo o una frase dentro le procedure…" autocomplete="off"
+             hx-get="{% url 'procedure_refresh:libreria_suggerimenti' %}" hx-trigger="input changed delay:200ms" hx-target="#cn-sugg" hx-swap="innerHTML"
+             aria-controls="cn-sugg" data-cn-ricorda data-cn-recenti>
       <kbd>/</kbd><button class="cn-btn pri" type="submit">Cerca</button>
     </form>
+    <div id="cn-sugg" class="cn-sugg"></div>
+    </div>
     <div class="cn-hints">Prova:
       <a href="{% url 'procedure_refresh:libreria_cerca' %}?q=non+conformit%C3%A0">non conformità</a>
       <a href="{% url 'procedure_refresh:libreria_cerca' %}?q=tracciabilit%C3%A0">tracciabilità</a>
@@ -23,7 +28,7 @@
 
 <div class="cn-sec"><h2>Scaffali</h2><span>Uno per certificazione, come le cartelle del sistema di gestione</span></div>
 {% if scaffali %}
-<div class="cn-shelves">
+<div class="cn-shelves cn-carosello">
   {% for s in scaffali %}
   <a class="cn-vol" href="{% url 'procedure_refresh:libreria_scaffale' s.slug %}">
     <span class="cn-vol-cover" style="--col:{{ s.colore }}">
@@ -44,6 +49,11 @@
 </div>
 {% else %}
 <p class="cn-empty">Nessun documento disponibile per il tuo profilo.{% if is_manager %} Controlla «Impostazioni» → sincronizzazione con la cartella SGI.{% endif %}</p>
+{% endif %}
+
+{% if preferiti %}
+<div class="cn-sec"><h2>I miei documenti</h2><span>Quelli con la stella nella scheda</span></div>
+<div class="cn-row">{% for d in preferiti %}{% include "procedure_refresh/libreria/_doc.html" %}{% endfor %}</div>
 {% endif %}
 
 {% if letture %}

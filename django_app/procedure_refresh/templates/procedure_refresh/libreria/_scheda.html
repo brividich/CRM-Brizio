@@ -1,5 +1,5 @@
 {# Scheda documento: contenuto del pannello laterale (HTMX) e della pagina intera. #}
-<div class="cn" data-cn-scheda style="--col:{{ doc.scaffale.colore }};height:100%;display:flex;flex-direction:column;gap:0;max-width:none">
+<div class="cn" data-cn-scheda data-pdf="{{ pdf_url }}" style="--col:{{ doc.scaffale.colore }};height:100%;display:flex;flex-direction:column;gap:0;max-width:none;width:100%;margin:0;min-width:0">
   <div class="cn-dr-h">
     {% include "procedure_refresh/libreria/_foglio.html" with d=doc senza_fascia=True %}
     <div style="min-width:0">
@@ -9,19 +9,27 @@
         {% if rev.revision_code %}<span class="cn-pill">Rev.{{ rev.revision_code }}</span>{% endif %}
         <span>{{ rev.revision_date|date:"d/m/Y" }}</span><span>· {{ doc.scaffale.nome }} › {{ doc.sezione_label }}</span>
         {% if doc.nuova %}<span class="cn-pill nuova">Nuova revisione</span>{% endif %}
+        {% if confermata %}<span class="cn-pill ok">Letta</span>{% endif %}
         {% if stato_gestore.regola %}<span class="cn-pill warn" title="Visibile solo ad alcuni ruoli">Riservato</span>{% endif %}
       </div>
     </div>
-    {% if request.htmx %}<button class="cn-x" type="button" data-cn-close aria-label="Chiudi">✕</button>{% else %}<span></span>{% endif %}
+    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+      {% if request.htmx %}<button class="cn-x" type="button" data-cn-close aria-label="Chiudi">✕</button>{% endif %}
+      {% include "procedure_refresh/libreria/_stella.html" %}
+    </div>
   </div>
   <div class="cn-dr-act">
-    <a class="cn-btn pri" href="{{ pdf_url }}" target="_blank" rel="noopener">Apri il PDF ↗</a>
+    <button class="cn-btn pri" type="button" data-cn-anteprima="{{ pagina|default:1 }}">Leggi qui</button>
+    <a class="cn-btn" href="{{ pdf_url }}{% if pagina %}#page={{ pagina }}{% endif %}" target="_blank" rel="noopener">Apri il PDF ↗</a>
     {% if lettura %}<a class="cn-btn acc" href="{% url 'procedure_refresh:assignment_detail' lettura.pk %}">Conferma la lettura</a>{% endif %}
     {% if compila %}<a class="cn-btn" href="{{ compila.modulo.href }}">Compila nell'HUB · {{ compila.modulo.nome }}</a>{% endif %}
+    <a class="cn-btn" href="{{ etichetta_url }}" target="_blank" rel="noopener" title="Etichetta con QR da affiggere in reparto">QR</a>
     {% if request.htmx %}<a class="cn-btn" href="{% url 'procedure_refresh:libreria_documento' doc.pk %}">Pagina intera</a>{% endif %}
   </div>
   <div class="cn-dr-tabs" role="tablist">
     <button type="button" role="tab" data-cn-tab="panoramica" aria-selected="{% if scheda == 'panoramica' %}true{% else %}false{% endif %}">Panoramica</button>
+    <button type="button" role="tab" data-cn-tab="anteprima" aria-selected="{% if scheda == 'anteprima' %}true{% else %}false{% endif %}">Anteprima</button>
+    {% if cambiamenti is not None %}<button type="button" role="tab" data-cn-tab="cambia" aria-selected="{% if scheda == 'cambia' %}true{% else %}false{% endif %}">Cosa cambia{% if cambiamenti %} · {{ cambiamenti|length }}{% endif %}</button>{% endif %}
     <button type="button" role="tab" data-cn-tab="collegamenti" aria-selected="{% if scheda == 'collegamenti' %}true{% else %}false{% endif %}">Collegamenti · {{ n_collegamenti }}</button>
     <button type="button" role="tab" data-cn-tab="revisioni" aria-selected="{% if scheda == 'revisioni' %}true{% else %}false{% endif %}">Revisioni</button>
     <button type="button" role="tab" data-cn-tab="lettura" aria-selected="{% if scheda == 'lettura' %}true{% else %}false{% endif %}">Presa visione</button>
@@ -32,7 +40,7 @@
       <div class="cn-blk"><h4>In breve</h4>
         <dl class="cn-kv">
           <dt>Scaffale</dt><dd>{{ doc.scaffale.nome }} › {{ doc.sezione_label }}</dd>
-          <dt>Revisione</dt><dd><b class="mono">{% if rev.revision_code %}Rev.{{ rev.revision_code }}{% else %}—{% endif %}</b> del {{ rev.revision_date|date:"d/m/Y" }}</dd>
+          <dt>Revisione</dt><dd><b class="mono">{% if rev.revision_code %}Rev.{{ rev.revision_code }}{% else %}—{% endif %}</b> del {{ rev.revision_date|date:"d/m/Y" }}{% if cambiamenti %} · <a href="#" data-cn-vai="cambia">{{ cambiamenti|length }} paragraf{{ cambiamenti|length|pluralize:"o cambiato,i cambiati" }}</a>{% endif %}</dd>
           {% if rev.testo_estratto.n_pagine %}<dt>Pagine</dt><dd>{{ rev.testo_estratto.n_pagine }}</dd>{% endif %}
           {% if processi %}<dt>Processi</dt><dd>{% for p in processi %}{{ p.processo }}{% if not forloop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
           <dt>La mia lettura</dt><dd>{% if lettura %}<span class="cn-pill warn">Da leggere{% if lettura.due_date %} entro {{ lettura.due_date|date:"d/m/Y" }}{% endif %}</span>{% elif confermata %}<span class="cn-pill ok">Letta il {{ confermata.read_confirmed_at|date:"d/m/Y" }}</span>{% else %}<span class="cn-pill">Nessuna lettura richiesta</span>{% endif %}</dd>
@@ -42,15 +50,55 @@
       <div class="cn-blk"><h4>Indice</h4>
         <div class="cn-links">
           {% for v in indice %}
-          <a href="{{ pdf_url }}{% if v.pagina %}#page={{ v.pagina }}{% endif %}" target="_blank" rel="noopener"><span class="ic">{{ v.sezione|cut:"§" }}</span><span class="tx">{{ v.titolo }}{% if v.pagina %}<small>pag. {{ v.pagina }}</small>{% endif %}</span><span class="go">↗</span></a>
+          <a href="{{ pdf_url }}{% if v.pagina %}#page={{ v.pagina }}{% endif %}" target="_blank" rel="noopener" data-cn-anteprima="{{ v.pagina|default:1 }}"><span class="ic">{{ v.sezione|cut:"§" }}</span><span class="tx">{{ v.titolo }}{% if v.pagina %}<small>pag. {{ v.pagina }}</small>{% endif %}</span><span class="go">›</span></a>
           {% endfor %}
         </div>
       </div>
       {% endif %}
       {% if doc.description %}<div class="cn-blk"><h4>Descrizione</h4><p style="margin:0;font-size:13px">{{ doc.description }}</p></div>{% endif %}
+      <form class="cn-blk cn-chiedi" method="get" action="{{ chiedi_url }}" target="_blank" data-cn-chiedi="{{ chiedi_prefisso }}">
+        <h4>Chiedi all'assistente su questo documento</h4>
+        <div style="display:flex;gap:6px">
+          <input class="cn-input" style="flex:1;width:auto" name="domanda" placeholder="Es. chi firma la chiusura dell'azione correttiva?" aria-label="Domanda sul documento" maxlength="300">
+          <input type="hidden" name="q" value="">
+          <button class="cn-btn" type="submit">Chiedi</button>
+        </div>
+      </form>
     </div>
 
+    <div class="cn-tab cn-tab-anteprima" data-cn-pane="anteprima"{% if scheda != 'anteprima' %} hidden{% endif %}>
+      <iframe class="cn-anteprima" title="Anteprima di {{ doc.code }}" data-src="{{ pdf_url }}" {% if scheda == 'anteprima' %}src="{{ pdf_url }}#page={{ pagina|default:1 }}"{% endif %} loading="lazy"></iframe>
+      <p class="cn-note" style="margin:0">Se l'anteprima resta vuota, usa «Apri il PDF ↗».</p>
+    </div>
+
+    {% if cambiamenti is not None %}
+    <div class="cn-tab" data-cn-pane="cambia"{% if scheda != 'cambia' %} hidden{% endif %}>
+      <p class="cn-note" style="margin:0">Confronto fra la <b>Rev.{{ rev_prec.revision_code }}</b> del {{ rev_prec.revision_date|date:"d/m/Y" }} e la <b>Rev.{{ rev.revision_code }}</b> in vigore, paragrafo per paragrafo, dal testo del PDF.</p>
+      {% for c in cambiamenti %}
+      <div class="cn-cambio cn-cambio-{{ c.tipo }}">
+        <div class="cn-cambio-h"><span class="cn-pill {% if c.tipo == 'aggiunto' %}ok{% elif c.tipo == 'tolto' %}bad{% else %}warn{% endif %}">{% if c.tipo == 'aggiunto' %}Nuovo{% elif c.tipo == 'tolto' %}Tolto{% else %}Cambiato{% endif %}</span> <b>{% if c.numero %}§{{ c.numero }} {% endif %}{{ c.titolo }}</b></div>
+        {% for segno, testo in c.righe %}<p class="cn-riga cn-riga-{{ segno }}">{% if segno == 'aggiunto' %}+{% else %}−{% endif %} {{ testo }}</p>{% endfor %}
+      </div>
+      {% empty %}
+      <p class="cn-empty">Il testo dei paragrafi è uguale alla revisione precedente: sono cambiati solo aspetto, cartiglio o dati della revisione.</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     <div class="cn-tab" data-cn-pane="collegamenti"{% if scheda != 'collegamenti' %} hidden{% endif %}>
+      {% if mappa %}
+      <div class="cn-blk"><h4>Mappa</h4>
+        <svg class="cn-mappa" viewBox="0 0 {{ mappa.larghezza }} {{ mappa.altezza }}" role="img" aria-label="Documenti che citano {{ doc.code }} e documenti citati">
+          {% for n in mappa.sinistra %}<line x1="{{ n.x|add:55 }}" y1="{{ n.y }}" x2="{{ mappa.centro.x|add:-62 }}" y2="{{ mappa.centro.y }}" class="cn-mappa-l"/>{% endfor %}
+          {% for n in mappa.destra %}<line x1="{{ mappa.centro.x|add:62 }}" y1="{{ mappa.centro.y }}" x2="{{ n.x|add:-55 }}" y2="{{ n.y }}" class="cn-mappa-l"/>{% endfor %}
+          {% for n in mappa.sinistra %}<a href="{% url 'procedure_refresh:libreria_documento' n.pk %}" data-cn-doc><title>{{ n.codice }} · {{ n.titolo }}</title><rect x="{{ n.x|add:-55 }}" y="{{ n.y|add:-13 }}" width="110" height="26" rx="13" class="cn-mappa-n"/><text x="{{ n.x }}" y="{{ n.y|add:4 }}" text-anchor="middle" class="cn-mappa-t">{{ n.codice|truncatechars:15 }}</text></a>{% endfor %}
+          {% for n in mappa.destra %}<a href="{% url 'procedure_refresh:libreria_documento' n.pk %}" data-cn-doc><title>{{ n.codice }} · {{ n.titolo }}</title><rect x="{{ n.x|add:-55 }}" y="{{ n.y|add:-13 }}" width="110" height="26" rx="13" class="cn-mappa-n"/><text x="{{ n.x }}" y="{{ n.y|add:4 }}" text-anchor="middle" class="cn-mappa-t">{{ n.codice|truncatechars:15 }}</text></a>{% endfor %}
+          <rect x="{{ mappa.centro.x|add:-62 }}" y="{{ mappa.centro.y|add:-16 }}" width="124" height="32" rx="16" class="cn-mappa-c"/>
+          <text x="{{ mappa.centro.x }}" y="{{ mappa.centro.y|add:5 }}" text-anchor="middle" class="cn-mappa-tc">{{ mappa.centro.codice|truncatechars:16 }}</text>
+        </svg>
+        <p class="cn-mappa-leg"><span>← lo citano{% if mappa.altri_sinistra %} (+{{ mappa.altri_sinistra }}){% endif %}</span><span>cita →{% if mappa.altri_destra %} (+{{ mappa.altri_destra }}){% endif %}</span></p>
+      </div>
+      {% endif %}
       <div class="cn-blk"><h4>Cita</h4>
         {% if cita %}<div class="cn-links">
           {% for c in cita %}{% if c.doc %}
@@ -87,7 +135,7 @@
           {% endfor %}
         </div>
       </div>
-      <p class="cn-note">Si apre sempre la revisione in vigore. Delle revisioni precedenti resta solo la traccia.</p>
+      <p class="cn-note">Si apre sempre la revisione in vigore. Delle revisioni precedenti resta la traccia e, se il testo era stato letto, il confronto in «Cosa cambia».</p>
     </div>
 
     <div class="cn-tab" data-cn-pane="lettura"{% if scheda != 'lettura' %} hidden{% endif %}>

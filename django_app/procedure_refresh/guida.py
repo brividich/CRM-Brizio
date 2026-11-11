@@ -48,6 +48,8 @@ SEZIONI: list[dict] = [
                 "A sinistra scegli una sezione (per esempio «MT» o «Modelli»), oppure «Tutte».",
                 "Scrivi nel campo «Filtra in questo scaffale» per restringere l'elenco a codice o titolo.",
                 "Scegli «Copertine» per i fogli con il cartiglio o «Elenco» per una tabella compatta: la scelta resta per le volte successive.",
+                "Restringi con il tipo (Manuali, MT, MTSI, MOD, Piani qualità), con «Cambiati negli ultimi 30 giorni / 90 giorni / ultimo anno» e ordina «Per codice», «Più recenti» o «Più consultati». «Togli i filtri» riparte da capo.",
+                "«Etichette QR» prepara le etichette di tutto lo scaffale, o della sezione scelta, pronte da stampare.",
             ]),
             ("p", "Sotto ogni copertina di scaffale c'è la prossima sorveglianza della certificazione collegata: pallino giallo se mancano meno di 30 giorni."),
         ],
@@ -57,7 +59,8 @@ SEZIONI: list[dict] = [
         "titolo": "Cercare in tutte le procedure",
         "blocchi": [
             ("passi", [
-                "Scrivi nella ricerca in alto (il tasto «/» ci porta il cursore) un codice, un titolo o una frase.",
+                "Scrivi nella ricerca in alto (il tasto «/» ci porta il cursore) un codice, un titolo o una frase: sotto compaiono subito i documenti che corrispondono, e con le frecce li scegli. Col campo vuoto vedi le tue ricerche recenti.",
+                "«Cerca … anche nel testo dei documenti →» apre «Ricerca»: lì i risultati si aggiornano mentre scrivi.",
                 "In «Ricerca» scegli dove cercare: «Codice, titolo e testo», «Solo codice e titolo» o «Solo testo dei documenti».",
                 "Spunta uno o più scaffali per restringere i risultati.",
                 "Ogni risultato mostra il paragrafo e la pagina: clicca «§ … · pag. N ↗» per aprire il PDF a quella pagina.",
@@ -80,7 +83,12 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "Un clic su un documento apre la scheda in un pannello a destra, senza lasciare la pagina."),
             ("ul", [
-                "«Apri il PDF ↗» apre la revisione in vigore nel browser.",
+                "«Leggi qui» apre il PDF dentro il pannello (scheda «Anteprima»); i titoli dell'indice e i risultati della ricerca lo aprono alla pagina giusta. «Apri il PDF ↗» lo apre in una nuova scheda del browser.",
+                "La stella ☆ in alto a destra mette il documento tra «I miei documenti», la prima fila della libreria. Sulle copertine «✓ letta» vuol dire che hai confermato la lettura di questa revisione.",
+                "«Cosa cambia» confronta la revisione in vigore con la precedente, paragrafo per paragrafo: «Nuovo», «Tolto», «Cambiato» con le frasi tolte (barrate) e aggiunte. C'è solo se il testo della revisione precedente era stato letto dal portale.",
+                "«QR» apre l'etichetta con il QR del documento da stampare e affiggere in reparto: inquadrata col telefono apre la scheda.",
+                "In «Panoramica», «Chiedi all'assistente su questo documento» apre l'assistente AI con la domanda già riferita al documento.",
+                "In «Collegamenti» la mappa mostra a sinistra i documenti che lo citano e a destra quelli che cita.",
                 "«Panoramica»: scaffale, revisione, pagine, processi e l'indice dei paragrafi con la pagina.",
                 "«Collegamenti»: i documenti che cita e quelli che lo citano, ricavati dal testo.",
                 "«Revisioni»: lo storico; si apre solo quella in vigore.",
@@ -140,6 +148,16 @@ SEZIONI: list[dict] = [
                 "Con «Si compila nell'HUB» la scheda del modello mostra il pulsante «Compila nell'HUB · nome del modulo».",
                 "Le etichette sulle pagine dei moduli mostrano solo i documenti aperti a tutti.",
                 "Nella panoramica di un KICK-OFF il riquadro «Piano qualità e procedure» mostra il piano qualità del cliente della commessa (cartella del cliente nello scaffale Piani Qualità) e le procedure collegate al KICK-OFF.",
+            ]),
+        ],
+    },
+    {
+        "id": "da-rivedere",
+        "titolo": "Da rivedere (per chi gestisce)",
+        "blocchi": [
+            ("ul", [
+                "«Non revisionati da più di 3 anni»: i documenti con la revisione in vigore più vecchia di tre anni, dal più vecchio.",
+                "«Citati ma non presenti»: i codici scritti nel testo dei documenti in vigore che nella cartella SGI non esistono (documento mancante o refuso), con i documenti che li citano.",
             ]),
         ],
     },
