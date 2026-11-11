@@ -747,6 +747,21 @@ body.theme-dark .pr-doc-title:hover{color:#93c5fd}
         </div>
       </section>
 
+      {% if modifiche_da_fare %}
+      <section class="pr-panel" id="modifiche">
+        <h2>Documenti da lavorare</h2>
+        <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+          {% for r in modifiche_da_fare %}
+          <li style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px">
+            <a href="{% url 'procedure_refresh:modifica_dettaglio' r.m.pk %}" style="font-weight:700;text-decoration:none;color:inherit">{{ r.m.codice }}</a>
+            <span style="float:right;font-size:11.5px;font-weight:700;color:var(--text-mid)">{{ r.m.get_stato_display }}{% if r.giorni %} · {{ r.giorni }} g{% endif %}</span>
+            <div style="color:var(--text-mid);margin-top:3px">{{ r.m.oggetto|truncatechars:120 }}</div>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
       <section class="pr-panel" id="segnalazioni">
         <h2>Le mie segnalazioni</h2>
         {% if mie_segnalazioni %}

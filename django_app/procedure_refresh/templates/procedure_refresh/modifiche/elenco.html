@@ -1,0 +1,38 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}Modifiche · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › Modifiche{% endblock %}
+{% block cn_h1 %}Modifiche ai documenti <small>{{ righe|length }} in lavorazione{% if n_mie %} · {{ n_mie }} tocca{{ n_mie|pluralize:"no" }} a te{% endif %}</small>{% endblock %}
+{% block cn_guida_anchor %}#modifiche{% endblock %}
+{% block cn_actions %}
+{% if gestore %}
+<a class="cn-btn sm" href="{% url 'procedure_refresh:modifiche_firme' %}">Chi firma cosa</a>
+<a class="cn-btn sm" href="{% url 'procedure_refresh:modifica_nuova' %}?tipo=nuovo">Documento nuovo</a>
+<a class="cn-btn sm pri" href="{% url 'procedure_refresh:modifica_nuova' %}">Nuova modifica</a>
+{% endif %}
+{% endblock %}
+{% block cn_body %}
+<div class="cn-toolbar">
+  <a class="cn-chip{% if not stato %} on{% endif %}" href="?{% if solo_mie %}mie=1{% endif %}">Tutte</a>
+  {% for s, l, n in stati %}<a class="cn-chip{% if stato == s %} on{% endif %}" href="?stato={{ s }}{% if solo_mie %}&mie=1{% endif %}">{{ l }} <b>{{ n }}</b></a>{% endfor %}
+  {% if gestore %}<a class="cn-chip{% if solo_mie %} on{% endif %}" href="?{% if stato %}stato={{ stato }}&{% endif %}{% if not solo_mie %}mie=1{% endif %}" style="margin-left:auto">Solo le mie</a>{% endif %}
+</div>
+{% if righe %}
+<div class="cn-tbl"><table>
+  <thead><tr><th>Documento</th><th>Cosa si modifica</th><th>Stato</th><th>Tocca a</th><th>Da</th><th>Entro</th></tr></thead>
+  <tbody>
+  {% for r in righe %}
+  <tr{% if r.mia %} class="cn-mia"{% endif %}>
+    <td class="num"><a href="{% url 'procedure_refresh:modifica_dettaglio' r.m.pk %}" style="font-weight:700">{{ r.m.codice }}</a>{% if not r.m.documento_id %} <span class="cn-pill nuova">Nuovo</span>{% endif %}{% if r.m.revisione_prevista %}<br><small>→ Rev.{{ r.m.revisione_prevista }}</small>{% endif %}</td>
+    <td>{{ r.m.oggetto }}<br><small style="color:var(--text-light)">{{ r.m.titolo|truncatechars:70 }}</small></td>
+    <td><span class="cn-pill{% if r.m.stato == 'approvata' %} ok{% elif r.giorni >= 5 %} warn{% endif %}">{{ r.m.get_stato_display }}</span></td>
+    <td>{% if r.mia %}<b>Tu</b>{% elif r.chi %}{{ r.chi.get_full_name|default:r.chi.username }}{% else %}{{ r.ruolo_label|default:"—" }}{% endif %}<br><small style="color:var(--text-light)">{{ r.ruolo_label }}</small></td>
+    <td class="num">{% if r.giorni %}{{ r.giorni }} g{% else %}oggi{% endif %}</td>
+    <td class="num">{% if r.m.entro %}<span{% if r.scaduta %} style="color:var(--cn-bad);font-weight:700"{% endif %}>{{ r.m.entro|date:"d/m/Y" }}</span>{% else %}—{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<p class="cn-empty">{% if stato or solo_mie %}Nessuna modifica con questi filtri.{% elif gestore %}Nessuna modifica in lavorazione. Aprila da «Nuova modifica», dalla scheda di un documento o da una segnalazione.{% else %}Non hai modifiche in lavorazione.{% endif %}</p>
+{% endif %}
+{% endblock %}

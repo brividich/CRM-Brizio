@@ -152,3 +152,33 @@ class SgiDocumentoProcessoAdmin(admin.ModelAdmin):
     list_filter = ("confermato", "origine")
     search_fields = ("processo__codice", "documento__code", "codice_citato")
     raw_id_fields = ("documento", "processo")
+
+
+from .models import SgiModifica, SgiPassaggio  # noqa: E402
+
+
+@admin.register(SgiModifica)
+class SgiModificaAdmin(admin.ModelAdmin):
+    list_display = ("pk", "codice", "oggetto", "stato", "redattore", "verificatore", "approvatore", "aggiornata_il")
+    list_filter = ("stato", "origine")
+    search_fields = ("documento__code", "nuovo_codice", "oggetto")
+    raw_id_fields = ("documento", "revisione_base", "revisione_emessa", "redattore", "verificatore", "approvatore", "creata_da")
+    filter_horizontal = ("segnalazioni",)
+
+
+@admin.register(SgiPassaggio)
+class SgiPassaggioAdmin(admin.ModelAdmin):
+    """Registro solo in lettura: evidenza delle firme."""
+
+    list_display = ("modifica", "azione", "utente_nome", "ruolo", "stato_da", "stato_a", "quando")
+    list_filter = ("azione",)
+    search_fields = ("utente_nome", "nota")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

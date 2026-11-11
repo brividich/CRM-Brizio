@@ -1,0 +1,175 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% load cnsgi %}
+{% block cn_title %}{{ m.codice }} · Modifica · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › <a href="{% url 'procedure_refresh:modifiche' %}">Modifiche</a> › {{ m.codice }}{% endblock %}
+{% block cn_h1 %}{{ m.codice }}{% if m.revisione_prevista %} <small>verso Rev.{{ m.revisione_prevista }}</small>{% endif %}{% endblock %}
+{% block cn_guida_anchor %}#modifiche{% endblock %}
+{% block cn_actions %}
+{% if m.documento_id %}<a class="cn-btn sm" href="{% url 'procedure_refresh:libreria_documento' m.documento_id %}" data-cn-doc>Documento in vigore</a>{% endif %}
+{% endblock %}
+{% block cn_body %}
+<p class="cn-mod-ogg"><b>{{ m.oggetto }}</b>{% if m.titolo %} · {{ m.titolo }}{% endif %} <span class="cn-pill{% if m.stato == 'emessa' or m.stato == 'approvata' %} ok{% elif m.stato == 'annullata' %} bad{% elif giorni >= 5 %} warn{% endif %}">{{ m.get_stato_display }}{% if m.aperta and giorni %} · da {{ giorni }} g{% endif %}</span></p>
+
+{% if m.stato != 'annullata' %}
+<ol class="cn-passi" aria-label="Avanzamento">
+  {% for p in passi %}
+  <li class="{% if p.fatto %}fatto{% elif p.ora %}ora{% endif %}"><b>{{ p.etichetta }}</b>{% if p.chi %}<small>{{ p.chi.get_full_name|default:p.chi.username }}</small>{% elif forloop.counter == 4 %}<small>Gestione CN-SGI</small>{% endif %}</li>
+  {% endfor %}
+</ol>
+{% endif %}
+
+<div class="cn-mod">
+  <div class="cn-mod-main">
+    {% if azioni %}
+    <section class="cn-panel cn-mod-azioni">
+      {% if 'bozza' in azioni %}
+      <h3>{% if ultima %}Carica una nuova bozza o inviala in verifica{% else %}Carica la bozza{% endif %}</h3>
+      {% if m.passaggi.last.azione == 'rimandata' %}<p class="cn-note" style="border-color:var(--cn-warn)">Rimandata da {{ m.passaggi.last.utente_nome }}: «{{ m.passaggi.last.nota }}»</p>{% endif %}
+      <form method="post" enctype="multipart/form-data" action="{% url 'procedure_refresh:modifica_carica' m.pk %}" class="cn-form">
+        {% csrf_token %}
+        <label class="cn-fld">File Word, Excel o PDF<input type="file" name="file" required accept=".docx,.xlsx,.pdf"></label>
+        <label class="cn-fld" style="grid-column:span 2">Cosa cambia in questa bozza<input name="sintesi" maxlength="4000" placeholder="Es. §5.1: aggiunta la firma del responsabile qualità"></label>
+        <p style="margin:0;align-self:end"><button class="cn-btn" type="submit">Carica</button></p>
+      </form>
+      {% if m.documento_id and rev %}<p class="cn-note" style="margin-top:10px">Parti dal Word della Rev.{{ rev.revision_code }} che hai in qualità (la cartella SGI ha solo il PDF), oppure da una bozza qui sotto.</p>{% endif %}
+      {% endif %}
+      {% if 'in_verifica' in azioni %}
+      <form method="post" action="{% url 'procedure_refresh:modifica_azione' m.pk %}" class="cn-mod-riga">
+        {% csrf_token %}<input type="hidden" name="azione" value="in_verifica">
+        <input class="cn-input" name="nota" maxlength="4000" placeholder="Nota per chi verifica (facoltativa)" style="flex:1;width:auto">
+        <button class="cn-btn pri" type="submit"{% if not ultima %} disabled title="Carica prima la bozza"{% endif %}>Invia in verifica{% if m.verificatore %} a {{ m.verificatore.get_full_name|default:m.verificatore.username }}{% endif %}</button>
+      </form>
+      {% endif %}
+      {% if 'verificata' in azioni or 'approvata' in azioni %}
+      <h3>{% if 'verificata' in azioni %}Verifica la bozza {{ ultima.numero }}{% else %}Approva la bozza {{ ultima.numero }}{% endif %}</h3>
+      <p class="cn-note">Scarica la bozza e guarda i paragrafi cambiati qui sotto. {% if 'approvata' in azioni %}Approvando firmi la bozza {{ ultima.numero }} (impronta <span class="mono">{{ ultima.impronta|slice:":12" }}…</span>): nome, ruolo, data e ora restano nel registro.{% endif %}</p>
+      <form method="post" action="{% url 'procedure_refresh:modifica_azione' m.pk %}" class="cn-mod-col">
+        {% csrf_token %}
+        <textarea class="cn-input" name="nota" rows="2" maxlength="4000" placeholder="Nota (obbligatoria se rimandi a chi redige)" style="width:100%"></textarea>
+        {% if 'approvata' in azioni %}<label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" name="conferma" value="1"> Approvo la bozza {{ ultima.numero }} di {{ m.codice }}{% if m.revisione_prevista %} come Rev.{{ m.revisione_prevista }}{% endif %}</label>{% endif %}
+        <p class="cn-mod-riga" style="margin:0">
+          {% if 'verificata' in azioni %}<button class="cn-btn pri" type="submit" name="azione" value="verificata">Verificata, passa in approvazione</button>{% endif %}
+          {% if 'approvata' in azioni %}<button class="cn-btn acc" type="submit" name="azione" value="approvata">Approva</button>{% endif %}
+          <button class="cn-btn" type="submit" name="azione" value="rimandata">Rimanda a chi redige</button>
+        </p>
+      </form>
+      {% endif %}
+      {% if 'emessa' in azioni %}
+      <h3>Emetti</h3>
+      <p class="cn-note">Salva il PDF {% if m.revisione_prevista %}della Rev.{{ m.revisione_prevista }} {% endif %}nella cartella SGI e sposta la revisione precedente in SUPERATO: al prossimo controllo orario l'HUB riconosce la nuova revisione e chiude la modifica da solo{% if m.rilettura_automatica %}, chiedendo la rilettura{% endif %}. Se la revisione è già arrivata, sceglila qui.</p>
+      {% if revisioni_emissione %}
+      <form method="post" action="{% url 'procedure_refresh:modifica_azione' m.pk %}" class="cn-mod-riga">
+        {% csrf_token %}<input type="hidden" name="azione" value="emessa">
+        <select class="cn-input" name="revisione" required aria-label="Revisione emessa">{% for r in revisioni_emissione %}<option value="{{ r.pk }}">Rev.{{ r.revision_code }} del {{ r.revision_date|date:"d/m/Y" }}{% if r.is_current %} · in vigore{% endif %}</option>{% endfor %}</select>
+        <button class="cn-btn pri" type="submit">Segna come emessa</button>
+      </form>
+      {% endif %}
+      {% endif %}
+      {% if 'annullata' in azioni %}
+      <details class="cn-mod-annulla"><summary>Annulla la modifica</summary>
+        <form method="post" action="{% url 'procedure_refresh:modifica_azione' m.pk %}" class="cn-mod-riga" style="margin-top:8px">
+          {% csrf_token %}<input type="hidden" name="azione" value="annullata">
+          <input class="cn-input" name="nota" required maxlength="4000" placeholder="Perché" style="flex:1;width:auto">
+          <button class="cn-btn" type="submit">Annulla la modifica</button>
+        </form>
+      </details>
+      {% endif %}
+    </section>
+    {% elif m.aperta and chi_ora %}
+    <p class="cn-note">Adesso tocca a <b>{{ chi_ora.get_full_name|default:chi_ora.username }}</b> ({{ ruoli_label|voce:ruolo_ora|default:ruolo_ora }}).</p>
+    {% endif %}
+
+    <div class="cn-sec"><h2>Bozze</h2><span>{{ bozze|length }}</span></div>
+    {% if bozze %}
+    <div class="cn-links">
+      {% for b in bozze %}
+      <a href="{% url 'procedure_refresh:modifica_bozza' b.pk %}"><span class="ic">{{ b.numero }}</span><span class="tx">{{ b.nome_file }}<small>{{ b.caricata_da.get_full_name|default:b.caricata_da.username }} · {{ b.caricata_il|date:"d/m/Y H:i" }} · {{ b.dimensione|filesizeformat }}{% if b.sintesi %} · {{ b.sintesi|truncatechars:120 }}{% endif %}</small></span><span class="go">↓</span></a>
+      {% endfor %}
+    </div>
+    {% else %}<p class="cn-empty">Nessuna bozza ancora.</p>{% endif %}
+
+    {% if ultima %}
+    <div class="cn-sec"><h2>Cosa cambia</h2><span>{% if rev %}Rev.{{ rev.revision_code }} in vigore → bozza {{ ultima.numero }}{% endif %}</span></div>
+    {% if cambiamenti is None %}
+    <p class="cn-note">{% if not m.documento_id %}Documento nuovo: non c'è una revisione in vigore da confrontare.{% elif not ultima.testo %}Il testo della bozza non è leggibile (file protetto o immagine): confronta i documenti a mano.{% else %}La revisione in vigore non ha ancora il testo estratto: il confronto arriva dopo l'estrazione notturna.{% endif %}</p>
+    {% else %}
+    <div style="display:flex;flex-direction:column;gap:8px">
+    {% for c in cambiamenti %}
+      <div class="cn-cambio cn-cambio-{{ c.tipo }}">
+        <div class="cn-cambio-h"><span class="cn-pill {% if c.tipo == 'aggiunto' %}ok{% elif c.tipo == 'tolto' %}bad{% else %}warn{% endif %}">{% if c.tipo == 'aggiunto' %}Nuovo{% elif c.tipo == 'tolto' %}Tolto{% else %}Cambiato{% endif %}</span> <b>{% if c.numero %}§{{ c.numero }} {% endif %}{{ c.titolo }}</b></div>
+        {% for segno, testo in c.righe %}<p class="cn-riga cn-riga-{{ segno }}">{% if segno == 'aggiunto' %}+{% else %}−{% endif %} {{ testo }}</p>{% endfor %}
+      </div>
+    {% empty %}
+      <p class="cn-empty">Il testo dei paragrafi è uguale alla revisione in vigore.</p>
+    {% endfor %}
+    </div>
+    <p class="cn-note" style="margin-top:8px">Confronto automatico dal testo: impaginazione, tabelle e figure vanno controllate sul file.</p>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  <aside class="cn-mod-side">
+    <div class="cn-panel">
+      <dl class="cn-kv">
+        <dt>Perché</dt><dd>{{ m.motivo|linebreaksbr }}</dd>
+        <dt>Origine</dt><dd>{{ m.get_origine_display }}{% if m.riferimento %} · {{ m.riferimento }}{% endif %}</dd>
+        {% if m.paragrafi %}<dt>Paragrafi</dt><dd>{{ m.paragrafi }}</dd>{% endif %}
+        {% if m.revisione_base %}<dt>Parte da</dt><dd>Rev.{{ m.revisione_base.revision_code }} del {{ m.revisione_base.revision_date|date:"d/m/Y" }}</dd>{% endif %}
+        {% if m.revisione_emessa %}<dt>Emessa</dt><dd><b>Rev.{{ m.revisione_emessa.revision_code }}</b> del {{ m.revisione_emessa.revision_date|date:"d/m/Y" }}</dd>{% endif %}
+        {% if m.entro %}<dt>Entro</dt><dd>{{ m.entro|date:"d/m/Y" }}</dd>{% endif %}
+        <dt>Aperta</dt><dd>{{ m.creata_il|date:"d/m/Y" }} da {{ m.creata_da.get_full_name|default:m.creata_da.username|default:"—" }}</dd>
+        <dt>Rilettura</dt><dd>{% if m.rilettura_automatica %}Chiesta all'emissione{% else %}Da chiedere a mano{% endif %}</dd>
+      </dl>
+    </div>
+
+    <div class="cn-panel">
+      <h4 class="cn-mod-h4">Chi firma</h4>
+      {% if utenti %}
+      <form method="post" action="{% url 'procedure_refresh:modifica_persone' m.pk %}" class="cn-mod-col">
+        {% csrf_token %}
+        {% for campo, val in persone_form %}
+        <label class="cn-fld">{{ ruoli_label|voce:campo }}
+          <select name="{{ campo }}">{% if campo != 'redattore' %}<option value="">—</option>{% endif %}{% for u in utenti %}<option value="{{ u.pk }}"{% if u.pk == val %} selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select>
+        </label>
+        {% endfor %}
+        <p style="margin:0"><button class="cn-btn sm" type="submit">Salva le persone</button></p>
+      </form>
+      {% else %}
+      <dl class="cn-kv">
+        <dt>Redige</dt><dd>{{ m.redattore.get_full_name|default:m.redattore.username|default:"—" }}</dd>
+        <dt>Verifica</dt><dd>{{ m.verificatore.get_full_name|default:m.verificatore.username|default:"—" }}</dd>
+        <dt>Approva</dt><dd>{{ m.approvatore.get_full_name|default:m.approvatore.username|default:"—" }}</dd>
+      </dl>
+      {% endif %}
+      {% if stesso_redattore_verificatore %}<p class="cn-note" style="margin-top:8px;border-color:var(--cn-warn)">Chi redige verifica o approva anche: per la norma la verifica dovrebbe farla un'altra persona.</p>{% endif %}
+    </div>
+
+    {% if segnalazioni %}
+    <div class="cn-panel">
+      <h4 class="cn-mod-h4">Segnalazioni da recepire · {{ segnalazioni|length }}</h4>
+      <div class="cn-mod-col">{% for s in segnalazioni %}<div style="font-size:12.5px">{{ s.testo|truncatechars:160 }}<small style="display:block;color:var(--text-light)">{{ s.created_by.get_full_name|default:s.created_by.username|default:"—" }} · {{ s.created_at|date:"d/m/Y" }} · {{ s.get_status_display }}</small></div>{% endfor %}</div>
+    </div>
+    {% endif %}
+
+    <div class="cn-panel">
+      <h4 class="cn-mod-h4">Registro</h4>
+      <div class="cn-tl">
+        {% for p in passaggi %}
+        <div{% if forloop.last %} class="cur"{% endif %}><b>{{ azioni_label|voce:p.azione|default:p.azione }}</b>{% if p.bozza %} · bozza {{ p.bozza.numero }}{% endif %}
+          <small>{{ p.quando|date:"d/m/Y H:i" }} · {{ p.utente_nome|default:"HUB" }}{% if p.ruolo %} ({{ ruoli_label|voce:p.ruolo|default:p.ruolo }}){% endif %}</small>
+          {% if p.nota %}<small style="color:var(--text-mid)">{{ p.nota|truncatechars:300 }}</small>{% endif %}
+          {% if p.impronta and p.azione != 'bozza' and p.azione != 'commento' %}<small class="mono" title="Impronta SHA-256 della bozza su cui si è agito">{{ p.impronta|slice:":16" }}…</small>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% if 'commento' in azioni %}
+      <form method="post" action="{% url 'procedure_refresh:modifica_azione' m.pk %}" class="cn-mod-riga" style="margin-top:6px">
+        {% csrf_token %}<input type="hidden" name="azione" value="commento">
+        <input class="cn-input" name="nota" required maxlength="4000" placeholder="Scrivi un commento" style="flex:1;width:auto">
+        <button class="cn-btn sm" type="submit">Invia</button>
+      </form>
+      {% endif %}
+    </div>
+  </aside>
+</div>
+{% endblock %}

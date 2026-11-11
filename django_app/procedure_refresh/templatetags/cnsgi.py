@@ -18,3 +18,12 @@ def cnsgi_etichette(context):
     except Exception:
         return {"procedure": []}
     return {"procedure": procedure[:MAX_ETICHETTE], "altre": max(0, len(procedure) - MAX_ETICHETTE), "modulo": modulo}
+
+
+@register.filter
+def voce(mappa, chiave):
+    """``{{ dizionario|voce:chiave }}``: valore di una chiave (stringa vuota se manca)."""
+    try:
+        return mappa.get(chiave, "")
+    except AttributeError:
+        return ""

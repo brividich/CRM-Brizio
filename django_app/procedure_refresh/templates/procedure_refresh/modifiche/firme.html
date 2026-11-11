@@ -1,0 +1,27 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}Chi firma cosa · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › <a href="{% url 'procedure_refresh:modifiche' %}">Modifiche</a> › Chi firma cosa{% endblock %}
+{% block cn_h1 %}Chi firma cosa <small>per tipo di documento</small>{% endblock %}
+{% block cn_guida_anchor %}#modifiche-firme{% endblock %}
+{% block cn_body %}
+<form method="post">
+  {% csrf_token %}
+  <div class="cn-tbl"><table>
+    <thead><tr><th>Tipo</th><th>Redige</th><th>Verifica</th><th>Approva</th></tr></thead>
+    <tbody>
+    {% for t in tipi %}
+    <tr>
+      <td style="font-weight:700">{{ t.label }}</td>
+      <td><select class="cn-input" name="{{ t.tipo }}_redattore" aria-label="Chi redige: {{ t.label }}"><option value="">—</option>{% for u in utenti %}<option value="{{ u.pk }}"{% if t.riga.redattore_id == u.pk %} selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select></td>
+      <td><select class="cn-input" name="{{ t.tipo }}_verificatore" aria-label="Chi verifica: {{ t.label }}"><option value="">—</option>{% for u in utenti %}<option value="{{ u.pk }}"{% if t.riga.verificatore_id == u.pk %} selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select></td>
+      <td><select class="cn-input" name="{{ t.tipo }}_approvatore" aria-label="Chi approva: {{ t.label }}"><option value="">—</option>{% for u in utenti %}<option value="{{ u.pk }}"{% if t.riga.approvatore_id == u.pk %} selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}</select></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <p style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
+    <button class="cn-btn pri" type="submit">Salva</button>
+    <span class="cn-note">Sono le persone proposte quando apri una modifica: per ogni modifica si possono cambiare. «Altri» vale anche per i tipi lasciati vuoti.</span>
+  </p>
+</form>
+{% endblock %}

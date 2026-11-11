@@ -10,6 +10,7 @@
         <span>{{ rev.revision_date|date:"d/m/Y" }}</span><span>· {{ doc.scaffale.nome }} › {{ doc.sezione_label }}</span>
         {% if doc.nuova %}<span class="cn-pill nuova">Nuova revisione</span>{% endif %}
         {% if confermata %}<span class="cn-pill ok">Letta</span>{% endif %}
+        {% if in_lavorazione %}{% if in_lavorazione.puo_aprire %}<a class="cn-pill warn" href="{% url 'procedure_refresh:modifica_dettaglio' in_lavorazione.pk %}" style="text-decoration:none" title="{{ in_lavorazione.oggetto }}">Nuova revisione {{ in_lavorazione.get_stato_display|lower }}</a>{% else %}<span class="cn-pill warn" title="È in preparazione una nuova revisione">Nuova revisione in preparazione</span>{% endif %}{% endif %}
         {% if stato_gestore.regola %}<span class="cn-pill warn" title="Visibile solo ad alcuni ruoli">Riservato</span>{% endif %}
       </div>
     </div>
@@ -170,6 +171,7 @@
         <div class="cn-note">Letta da <b>{{ stato_gestore.lette }} su {{ stato_gestore.totale }}</b> persone a cui è stata chiesta.<div class="cn-bar" style="margin-top:6px"><i style="width:{{ stato_gestore.pct }}%"></i></div></div>
         {% else %}<p class="cn-note">La presa visione di questa revisione non è ancora stata chiesta a nessuno.</p>{% endif %}
         <p style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 0">
+          {% if in_lavorazione %}<a class="cn-btn sm" href="{% url 'procedure_refresh:modifica_dettaglio' in_lavorazione.pk %}">Modifica in corso</a>{% else %}<a class="cn-btn sm" href="{% url 'procedure_refresh:modifica_nuova' %}?doc={{ doc.pk }}">Avvia una modifica</a>{% endif %}
           <a class="cn-btn sm" href="{% url 'procedure_refresh:campaign_create' %}">Richiedi presa visione</a>
           <a class="cn-btn sm" href="{% url 'procedure_refresh:report_document' %}?doc_id={{ doc.pk }}">Report del documento</a>
           <a class="cn-btn sm" href="{% url 'procedure_refresh:libreria_visibilita' %}">Chi vede cosa</a>

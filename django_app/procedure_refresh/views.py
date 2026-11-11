@@ -84,6 +84,16 @@ def _can_manage(request) -> bool:
         return False
 
 
+def _modifiche_da_fare(request, gestore: bool) -> list:
+    try:
+        from .modifiche import da_fare
+
+        return da_fare(request.user, gestore)
+    except Exception:
+        logger.exception("CN-SGI: modifiche da fare non lette")
+        return []
+
+
 def _client_ip(request) -> str:
     from core.net import client_ip
 
@@ -303,6 +313,7 @@ def my_assignments(request):
         "AssignmentStatus": AssignmentStatus,
         "is_manager": is_manager,
         "mie_segnalazioni": segnalazioni_mie(request.user),
+        "modifiche_da_fare": _modifiche_da_fare(request, is_manager),
     })
 
 
@@ -1442,6 +1453,7 @@ def change_request_list(request):
         ProcedureChangeRequest.objects.select_related(
             "document", "revision", "created_by", "gestita_da", "recepita_in_revisione"
         )
+        .prefetch_related("modifiche__documento")
         .order_by("-created_at")
     )
     if doc_filter:

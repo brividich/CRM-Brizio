@@ -64,6 +64,7 @@ METADATA_ONLY_MODELS: frozenset[str] = frozenset({
     "security.securitymailboxmessage",
     "security.securityreport",
     "procedure_refresh.sgitestoestratto",
+    "procedure_refresh.sgibozza",          # testo estratto della bozza: solo metadati nell'audit
     # GDPR 21/10/2026 (versione 2): dati sanitari, economici, familiari, di
     # selezione e testi della chat AI. Il valore resta solo nel record: copiarlo
     # nell'audit per 5+10 anni vanificava la conservazione e l'anonimizzazione.

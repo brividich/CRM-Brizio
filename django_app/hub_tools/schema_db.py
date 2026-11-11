@@ -54,7 +54,7 @@ APP_INFO: dict[str, tuple[str, str, str]] = {
     "dpi": ("Sicurezza sul lavoro", "#8b5cf6", "DPI: catalogo, richieste, consegne, magazzino, conferme di ricevuta via mail, ordini e fatture delle scarpe al negozio"),
     "schede_sicurezza": ("Sicurezza sul lavoro", "#dc2626", "Schede di sicurezza dei prodotti chimici"),
     "rentri": ("Sicurezza sul lavoro", "#84cc16", "Registro rifiuti RENTRI"),
-    "procedure_refresh": ("Qualità", "#22c55e", "CN-SGI: libreria procedure SGI, chi vede cosa, presa visione, sync SGI"),
+    "procedure_refresh": ("Qualità", "#22c55e", "CN-SGI: libreria procedure SGI, chi vede cosa, presa visione, modifiche ai documenti (bozze, verifica, approvazione), sync SGI"),
     "sistema_gestione": ("Qualità", "#15803d", "Audit interni ed esterni, certificazioni, SoA, threat intelligence; audit ISMS "
                          "copie dei certificati (sistema_gestione_certificazionedocumento), verbali di riesame MOD.062 (sistema_gestione_riesame, _riesameargomento, _riesamepartecipante, _riesameobiettivo), MOD.171/168 (sistema_gestione_auditisms, _auditismsrequisito, _auditismscontrollo); analisi "
                          "del rischio MOD.165 (sistema_gestione_rischiominaccia, _scenariorischioot)"),

@@ -301,3 +301,23 @@ body.theme-dark .cn-res-t .mono, body.theme-dark .cn-mono-col { filter: brightne
 /* Chiedi la rilettura (scheda «Cosa cambia», per chi gestisce) */
 .cn-rilettura { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--accent); background: var(--accent-light); border-radius: 10px; font-size: 13px; }
 .cn-rilettura > div { flex: 1 1 220px; }
+/* Modifiche ai documenti */
+.cn-mod-ogg { margin: 0 0 12px; font-size: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cn-passi { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 0 0 18px; padding: 0; counter-reset: passo; }
+.cn-passi li { counter-increment: passo; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px 8px 34px; position: relative; background: var(--surface); font-size: 12.5px; min-width: 0; }
+.cn-passi li::before { content: counter(passo); position: absolute; left: 9px; top: 9px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 10.5px; font-weight: 800; background: var(--bg); color: var(--text-light); border: 1px solid var(--border); }
+.cn-passi li small { display: block; color: var(--text-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cn-passi li.fatto::before { content: "✓"; background: var(--cn-ok-bg); color: var(--cn-ok); border-color: transparent; }
+.cn-passi li.ora { border-color: var(--accent); box-shadow: inset 0 -3px 0 var(--accent); }
+.cn-passi li.ora::before { background: var(--accent); color: #fff; border-color: var(--accent); }
+.cn-mod { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.cn-mod-main { min-width: 0; }
+.cn-mod-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cn-mod-azioni { display: flex; flex-direction: column; gap: 10px; border-color: var(--accent); }
+.cn-mod-azioni h3 { margin: 0; font-size: 14px; }
+.cn-mod-riga { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cn-mod-col { display: flex; flex-direction: column; gap: 8px; }
+.cn-mod-h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-light); }
+.cn-mod-annulla summary { cursor: pointer; font-size: 12.5px; color: var(--text-light); }
+.cn-tbl tr.cn-mia td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+@media (max-width: 900px) { .cn-mod { grid-template-columns: 1fr; } .cn-passi { grid-template-columns: 1fr 1fr; } }
