@@ -2260,6 +2260,21 @@ _FONTE_ETICHETTE = (
 _URL_GUIDA_RE = re.compile(r"Guida completa nel portale:\s*(/\S*)")
 
 
+def url_scheda_procedura(source: str) -> str:
+    """Indirizzo della scheda CN-SGI per una fonte ``proc:<codice>#...`` (vuoto se non si risolve)."""
+    from urllib.parse import quote
+
+    codice = source[5:].split("#", 1)[0].split(">", 1)[0].strip()
+    if not codice:
+        return ""
+    try:
+        from django.urls import reverse
+
+        return f"{reverse('procedure_refresh:libreria_documento_codice')}?c={quote(codice)}"
+    except Exception:
+        return ""
+
+
 def _etichetta_fonte(source: str) -> str:
     for prefisso, etichetta in _FONTE_ETICHETTE:
         if source.startswith(prefisso):
@@ -2322,11 +2337,14 @@ def cerca_documenti(
             continue
         visti.add(chiave)
         url = _URL_GUIDA_RE.search(chunk.content or "")
+        url = url.group(1) if url and url.group(1).startswith("/") and not url.group(1).startswith("//") else ""
+        if not url and chunk.source.startswith("proc:"):
+            url = url_scheda_procedura(chunk.source)
         risultati.append({
             "label": chunk.title,
             "tipo": _etichetta_fonte(chunk.source),
             "preview": _estratto(chunk.content or "", query_tokens),
-            "url": url.group(1) if url and url.group(1).startswith("/") and not url.group(1).startswith("//") else "",
+            "url": url,
         })
         if len(risultati) >= limit:
             break

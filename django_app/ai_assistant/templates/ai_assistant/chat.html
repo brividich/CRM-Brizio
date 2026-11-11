@@ -1308,7 +1308,14 @@ body.theme-dark .ai-feedback-thanks{color:#86efac}
     var wrap = document.createElement("div");
     wrap.className = "ai-sources";
     sources.forEach(function (s) {
-      var chip = document.createElement("span");
+      // Procedure CN-SGI: la fonte apre la scheda nella libreria.
+      var codiceProc = s.indexOf("proc:") === 0 ? s.slice(5).split("#")[0].split(">")[0].trim() : "";
+      var chip = document.createElement(codiceProc ? "a" : "span");
+      if (codiceProc) {
+        chip.href = "/procedure-refresh/documento/codice/?c=" + encodeURIComponent(codiceProc);
+        chip.target = "_blank";
+        chip.rel = "noopener";
+      }
       chip.className = "ai-source-chip" + (s.startsWith("tool:") ? " live" : "");
       chip.textContent = s.startsWith("tool:") ? s : s.split(">").pop().trim();
       chip.title = s;

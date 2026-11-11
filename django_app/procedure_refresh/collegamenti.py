@@ -177,6 +177,51 @@ def _codici_riservati() -> set[str]:
     return set(riservati)
 
 
+_SUFFISSI_SOCIETA = ("s.p.a.", "spa", "s.r.l.", "srl", "s.a.s.", "sas", "gmbh", "ltd", "inc", "s.a.", "group", "gruppo")
+
+
+def _nome_cliente(testo: str) -> str:
+    t = _piega(testo).replace(".", " ").replace(",", " ").replace("_", " ").replace("-", " ")
+    parole = [p for p in t.split() if p and p not in {s.replace(".", "") for s in _SUFFISSI_SOCIETA}]
+    return " ".join(parole)
+
+
+def documenti_per_kickoff(request, cliente: str, limite: int = 6) -> list[dict]:
+    """Per la panoramica del kickoff: piani qualità del cliente e procedure collegate al KICK-OFF.
+
+    Il piano qualità si riconosce dalla cartella del cliente nello scaffale dei Piani Qualità
+    (o dal titolo) che contiene il nome del cliente della commessa, o viceversa. Solo documenti
+    che chi guarda può vedere.
+    """
+    from django.urls import reverse
+
+    from procedure_refresh.libreria import Visibilita, documenti_in_vigore, etichetta_sezione, identita_da_cartella
+
+    nome = _nome_cliente(cliente or "")
+    vis = Visibilita(request)
+    piani, procedure = [], []
+    collegati = {p["id"] for p in _mappa().get("kickoff", [])}
+    for d in documenti_in_vigore():
+        scaffale = identita_da_cartella(d.category)["nome"].lower()
+        e_piano = "piani" in scaffale
+        if e_piano and nome and len(nome) >= 3:
+            cartella = _nome_cliente(d.sezione or "")
+            titolo = _nome_cliente(d.title)
+            if not ((cartella and (cartella in nome or nome in cartella)) or nome in titolo):
+                continue
+        elif d.pk not in collegati:
+            continue
+        if not vis.puo_vedere(d):
+            continue
+        voce = {
+            "codice": d.code, "titolo": d.title, "rev": d.rev.revision_code,
+            "dove": etichetta_sezione(d.sezione) if e_piano else identita_da_cartella(d.category)["nome"],
+            "href": reverse("procedure_refresh:libreria_documento", args=[d.pk]),
+        }
+        (piani if e_piano else procedure).append(voce)
+    return (piani + procedure)[:limite]
+
+
 def moduli_del_documento(doc) -> list[dict]:
     """I moduli dell'HUB collegati al documento, per la scheda."""
     from procedure_refresh.models import SgiDocumentoModulo

@@ -45,7 +45,8 @@ class CercaDocumentiTests(TestCase):
         self.assertNotIn("Procedura", [r["tipo"] for r in res])  # procedure solo ai manager
         stato, res = cerca_documenti("guanti consegna", allow_procedure=True, allowed_guides=frozenset())
         self.assertEqual([r["tipo"] for r in res], ["Procedura"])  # guida non consentita: fuori
-        self.assertEqual(res[0]["url"], "")
+        # CN-SGI: la procedura porta alla sua scheda nella libreria.
+        self.assertEqual(res[0]["url"], "/procedure-refresh/documento/codice/?c=PR-07")
 
     def test_indice_a_freddo_non_blocca(self):
         services._KNOWLEDGE_CACHE.pop("index", None)
