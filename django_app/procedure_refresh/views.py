@@ -94,6 +94,16 @@ def _modifiche_da_fare(request, gestore: bool) -> list:
         return []
 
 
+def _stato_sync() -> dict:
+    try:
+        from .tasks import stato_sincronizzazione
+
+        return stato_sincronizzazione()
+    except Exception:
+        logger.exception("CN-SGI: stato della sincronizzazione non leggibile")
+        return {"controlli": [], "tutto_ok": False, "esclusi": []}
+
+
 def _client_ip(request) -> str:
     from core.net import client_ip
 
@@ -597,6 +607,7 @@ def admin_dashboard(request):
         "reminder_giorni_validi": GIORNI_VALIDI,
         "sgi_auto_on": sgi_auto_on,
         "sgi_last_sync": sgi_last_sync,
+        "stato_sync": _stato_sync(),
         "n_change_requests_open": n_change_requests_open,
         "n_documents": n_documents,
         "n_campaigns": n_campaigns,

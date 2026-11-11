@@ -23,6 +23,7 @@ urlpatterns = [
     path("admin/visibilita/", views_libreria.visibilita, name="libreria_visibilita"),
     path("admin/visibilita/<int:pk>/elimina/", views_libreria.visibilita_elimina, name="libreria_visibilita_elimina"),
     path("admin/scaffali/", views_libreria.scaffali_gestione, name="libreria_scaffali"),
+    path("scaffale-logo/<int:pk>/", views_libreria.scaffale_logo, name="libreria_scaffale_logo"),
     path("admin/collegamenti/", views_libreria.collegamenti_moduli, name="libreria_collegamenti"),
     path("audit/<slug:slug>/", views_libreria.audit, name="libreria_audit"),
     # ── CN-SGI: modifiche ai documenti (redazione → verifica → approvazione → emissione) ──

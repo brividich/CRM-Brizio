@@ -65,3 +65,55 @@ class CopertineTests(TestCase):
     def test_nuova_dal_cliente(self):
         r = self.client.get(reverse("gestione_specifiche:nuova"), {"cliente": "Beta Srl"})
         self.assertContains(r, 'value="Beta Srl"')
+
+
+class PersonalizzaCopertinaTests(TestCase):
+    def setUp(self):
+        import shutil
+        import tempfile
+
+        from django.test import override_settings
+
+        self._tmp = tempfile.mkdtemp(prefix="gs_logo_")
+        self.addCleanup(shutil.rmtree, self._tmp, ignore_errors=True)
+        ov = override_settings(PRIVATE_ATTACHMENTS_ROOT=self._tmp)
+        ov.enable()
+        self.addCleanup(ov.disable)
+        self.su = User.objects.create_superuser("cop_su2", "s2@example.invalid", "x")
+        self.client.force_login(self.su)
+        Specifica.objects.create(codice="SP-G1", titolo="Saldatura", cliente="Gamma Motori")
+
+    def test_colore_sigla_icona_logo(self):
+        import io
+        from unittest import mock
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+
+        from gestione_specifiche.models import CopertinaCliente
+
+        buf = io.BytesIO()
+        Image.new("RGB", (30, 30), (0, 90, 200)).save(buf, format="PNG")
+        with mock.patch("gestione_specifiche.views_copertine.utente_puo_admin", return_value=True):
+            r = self.client.post(reverse("gestione_specifiche:copertina_salva"), {
+                "cliente": "Gamma Motori", "colore": "#123456", "sigla": "gm", "icona": "factory",
+                "logo": SimpleUploadedFile("logo.png", buf.getvalue()),
+            })
+        self.assertEqual(r.status_code, 302)
+        p = CopertinaCliente.objects.get(chiave="gamma motori")
+        self.assertEqual((p.colore, p.sigla, p.icona), ("#123456", "GM", "factory"))
+        cop = next(c for c in sc.copertine() if c.cliente == "Gamma Motori")
+        self.assertEqual((cop.colore, cop.sigla, cop.icona), ("#123456", "GM", "factory"))
+        self.assertIn(f"/gestione-specifiche/copertina/{p.pk}/logo/", cop.logo_url)
+        r = self.client.get(reverse("gestione_specifiche:lista"), {"vista": "copertine"})
+        self.assertContains(r, 'class="gs-vol__ico"')
+        self.assertContains(r, 'class="gs-vol__logo"')
+
+    def test_solo_l_amministrazione(self):
+        from unittest import mock
+
+        from gestione_specifiche.models import CopertinaCliente
+
+        with mock.patch("gestione_specifiche.views_copertine.utente_puo_admin", return_value=False):
+            self.client.post(reverse("gestione_specifiche:copertina_salva"), {"cliente": "Gamma Motori", "icona": "star"})
+        self.assertFalse(CopertinaCliente.objects.exists())

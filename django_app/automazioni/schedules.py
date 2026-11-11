@@ -439,14 +439,14 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
-        # CN-SGI «sempre aggiornata»: ogni ora confronta un'impronta leggera della share
+        # CN-SGI «sempre aggiornata»: ogni 15 minuti confronta un'impronta leggera della share
         # (percorso, dimensione, data dei file: nessun file aperto) e, solo se cambia,
         # lancia la sincronizzazione a perimetro sicuro. Stesso flag pr_sgi_auto_sync_attivo.
         # La share è solo letta. Fail-safe / no-op se flag spento o share giù.
         "name": "pr_sgi_controllo_orario",
         "func": "procedure_refresh.tasks.run_sgi_controllo_orario",
         "schedule_type": "C",   # Schedule.CRON
-        "cron": "10 * * * *",   # ogni ora al minuto 10
+        "cron": "*/15 * * * *",  # ogni 15 minuti (solo elenco e date dei file: leggero)
         "repeats": -1,
         "kwargs": {},
     },

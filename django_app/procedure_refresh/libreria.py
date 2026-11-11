@@ -157,6 +157,8 @@ class Scaffale:
     totale: int = 0
     nuovi: int = 0
     sezioni: list = field(default_factory=list)  # [(sezione_raw, etichetta, n)]
+    icona: str = ""
+    logo_url: str = ""
 
 
 def scaffali_configurati() -> dict[str, object]:
@@ -182,7 +184,18 @@ def scaffale_da(cartella: str, config: dict) -> Scaffale:
         colore=row.colore or base["colore"],
         ordine=row.ordine,
         certificazione=row.certificazione if getattr(row, "certificazione_id", None) else None,
+        icona=getattr(row, "icona", "") or "",
+        logo_url=_logo_url(row),
     )
+
+
+def _logo_url(row) -> str:
+    if not getattr(row, "logo", None):
+        return ""
+    from django.urls import reverse
+
+    versione = int(row.aggiornato_il.timestamp()) if getattr(row, "aggiornato_il", None) else 0
+    return f"{reverse('procedure_refresh:libreria_scaffale_logo', args=[row.pk])}?v={versione}"
 
 
 def assicura_scaffali() -> int:

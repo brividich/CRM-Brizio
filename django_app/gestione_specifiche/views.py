@@ -27,6 +27,8 @@ from django_fsm import TransitionNotAllowed
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
+from core.copertine_librerie import ICONE as ICONE_COPERTINA
+
 from . import constants as C
 from .admin_views import utente_puo_admin
 from .notifiche_gs import notifica_nuova_specifica, pool_utenti
@@ -171,6 +173,7 @@ def lista(request):
         "cartella": (scaffale_clienti.copertina_di(f_cartella, storico=True, scadenza_giorni=_scadenza_verifica_giorni())
                      if f_cartella else None),
         "f_cartella": f_cartella,
+        "icone_copertina": ICONE_COPERTINA,
         "specifiche": specifiche,
         "tot": qs.count(),
         "mostra_storico": mostra_storico,

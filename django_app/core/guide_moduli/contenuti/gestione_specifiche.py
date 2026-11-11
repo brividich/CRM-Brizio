@@ -14,7 +14,7 @@ GUIDA = {
             "blocchi": [
                 ("p", "Il cruscotto mostra una copertina per cliente, come la libreria CN-SGI: numero di specifiche, quante in flow-down, le nuove e le verifiche in scadenza. "
                       "Clicca la copertina per l'elenco del cliente (la ricerca cerca solo lì, «Nuova per …» ha già il cliente). La ricerca e i filtri mostrano l'elenco su tutti i clienti; "
-                      "«Copertine» / «Elenco» cambia la vista e il portale la ricorda."),
+                      "«Copertine» / «Elenco» cambia la vista e il portale la ricorda. L'amministrazione del modulo, dentro un cliente, con «Personalizza copertina» sceglie colore, sigla, icona e logo."),
             ],
         },
         {

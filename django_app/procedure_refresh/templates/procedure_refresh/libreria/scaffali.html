@@ -1,4 +1,5 @@
 {% extends "procedure_refresh/libreria/_base.html" %}
+{% load ui_icons %}
 {% block cn_title %}Scaffali · CN-SGI{% endblock %}
 {% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › Scaffali{% endblock %}
 {% block cn_h1 %}Scaffali <small>uno per cartella della share</small>{% endblock %}
@@ -7,10 +8,10 @@
 <form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="azione" value="allinea"><button class="cn-btn sm" type="submit" title="Crea gli scaffali mancanti e riallinea le sezioni dai percorsi già registrati, senza leggere la share">Allinea scaffali e sezioni</button></form>
 {% endblock %}
 {% block cn_body %}
-<form method="post">
+<form method="post" enctype="multipart/form-data">
   {% csrf_token %}
   <div class="cn-tbl"><table>
-    <thead><tr><th>Cartella</th><th>Nome</th><th>Sigla</th><th>Norma o riferimento</th><th>Colore</th><th>Ordine</th><th>Certificazione</th><th>Mostrato</th><th>Doc.</th></tr></thead>
+    <thead><tr><th>Cartella</th><th>Nome</th><th>Sigla</th><th>Norma o riferimento</th><th>Colore</th><th>Icona</th><th>Logo</th><th>Ordine</th><th>Certificazione</th><th>Mostrato</th><th>Doc.</th></tr></thead>
     <tbody>
     {% for s in righe %}
     <tr>
@@ -19,6 +20,10 @@
       <td><input class="cn-input" style="width:90px" name="s{{ s.pk }}_sigla" value="{{ s.sigla }}" maxlength="20" aria-label="Sigla di {{ s.cartella }}"></td>
       <td><input class="cn-input" style="width:190px" name="s{{ s.pk }}_norma" value="{{ s.norma }}" maxlength="160" aria-label="Norma di {{ s.cartella }}"></td>
       <td><input type="color" name="s{{ s.pk }}_colore" value="{{ s.colore }}" aria-label="Colore di {{ s.cartella }}"></td>
+      <td><span class="cn-ico-scelta" style="--col:{{ s.colore }}">{% icona_copertina s.icona "cn-ico-mini" %}</span>
+        <select class="cn-input" style="width:150px" name="s{{ s.pk }}_icona" aria-label="Icona di {{ s.cartella }}">{% for k, l in icone %}<option value="{{ k }}"{% if s.icona == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+      <td style="min-width:190px">{% if s.logo_url %}<img src="{{ s.logo_url }}" alt="" class="cn-logo-mini"> <label style="font-size:12px"><input type="checkbox" name="s{{ s.pk }}_togli_logo" value="1"> Togli</label><br>{% endif %}
+        <input type="file" name="s{{ s.pk }}_logo" accept=".jpg,.jpeg,.png,.webp" aria-label="Logo di {{ s.cartella }}" style="font-size:12px;max-width:180px"></td>
       <td><input class="cn-input" style="width:70px" type="number" min="0" name="s{{ s.pk }}_ordine" value="{{ s.ordine }}" aria-label="Ordine di {{ s.cartella }}"></td>
       <td><select class="cn-input" style="width:200px" name="s{{ s.pk }}_certificazione" aria-label="Certificazione di {{ s.cartella }}">
         <option value="">Nessuna</option>
@@ -28,13 +33,13 @@
       <td class="num">{{ s.n_documenti }}</td>
     </tr>
     {% empty %}
-    <tr><td colspan="9">Nessuno scaffale: lancia la sincronizzazione con la cartella SGI da «Impostazioni», poi «Allinea scaffali e sezioni».</td></tr>
+    <tr><td colspan="11">Nessuno scaffale: lancia la sincronizzazione con la cartella SGI da «Impostazioni», poi «Allinea scaffali e sezioni».</td></tr>
     {% endfor %}
     </tbody>
   </table></div>
   <p style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
     <button class="cn-btn pri" type="submit">Salva gli scaffali</button>
-    <span class="cn-note">La certificazione collegata mostra scadenza e prossima sorveglianza sulla copertina. Le cartelle e i file della share non cambiano.{% if senza_cartella %} {{ senza_cartella }} documenti senza cartella stanno in «Altri documenti».{% endif %}</span>
+    <span class="cn-note">L'icona e il logo (JPG, PNG o WebP, es. l'ente di certificazione) compaiono sulla copertina; la certificazione collegata ne mostra scadenza e prossima sorveglianza. Le cartelle e i file della share non cambiano.{% if senza_cartella %} {{ senza_cartella }} documenti senza cartella stanno in «Altri documenti».{% endif %}</span>
   </p>
 </form>
 {% endblock %}

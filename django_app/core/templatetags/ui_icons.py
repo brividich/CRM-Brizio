@@ -25,3 +25,11 @@ def render_icon(value, fallback: str = "", img_class: str = "ui-icon-img"):
     if semantic_icon:
         return render_semantic_icon(semantic_icon)
     return format_html("{}", icon_text_or_fallback(value, fallback))
+
+
+@register.simple_tag
+def icona_copertina(nome, classe: str = "cop-ico"):
+    """Pittogramma scelto per la copertina di una libreria (vedi ``core.copertine_librerie.ICONE``)."""
+    from core.copertine_librerie import svg_icona
+
+    return svg_icona(nome, classe)

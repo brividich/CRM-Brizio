@@ -343,6 +343,7 @@ def run_assignment_lifecycle(**kwargs) -> dict:
 
 _AUTO_SYNC_FLAG = "pr_sgi_auto_sync_attivo"
 _LAST_SYNC_KEY = "pr_sgi_last_sync"
+_ESCLUSI_KEY = "pr_sgi_esclusi"
 # Da dove riprendere la sync troncata dal budget (codice documento).
 _RIPRENDI_DA_KEY = "pr_sgi_sync_riprendi_da"
 # Il worker django-q chiude il task a 120 s: si resta sotto, il resto al giro dopo.
@@ -468,6 +469,15 @@ def _sgi_auto_sync(result: dict, *, force: bool, reindex: bool, origine: str | N
         candidates, _skipped, _conflicts = scan_share_candidates(root)
         safe, excluded = filter_auto_safe(candidates)
         result["excluded"] = len(excluded)
+        # I file lasciati fuori, con il motivo: «Impostazioni» li mostra a chi gestisce.
+        try:
+            SiteConfig.set(_ESCLUSI_KEY, json.dumps([
+                {"code": e.get("code", ""), "file": e.get("file_name", ""), "rev": e.get("revision", ""),
+                 "motivo": e.get("motivo_esclusione", "")}
+                for e in excluded[:100]
+            ]), "CN-SGI: file della cartella non sincronizzati all'ultimo giro, con il motivo.")
+        except Exception:
+            logger.warning("run_sgi_auto_sync: elenco degli esclusi non salvato", exc_info=True)
 
         now = timezone.now()
         run_id = now.strftime("%Y%m%d%H%M%S")
@@ -835,3 +845,68 @@ def run_sgi_controllo_orario(**kwargs) -> dict:
         logger.warning("run_sgi_controllo_orario fallito: %s", exc)
         result.update(ok=False, error=str(exc))
         return result
+
+
+def stato_sincronizzazione() -> dict:
+    """Controlli per «Impostazioni»: perché la libreria è (o non è) allineata alla cartella.
+
+    Solo letture del database e un ``exists()`` sulla cartella: nessun file aperto.
+    Ritorna ``{"controlli": [{"ok", "titolo", "dettaglio"}], "esclusi": [...]}``.
+    """
+    from datetime import datetime, timedelta
+
+    from django.utils import timezone
+
+    from core.models import SiteConfig
+
+    controlli = []
+
+    def aggiungi(ok, titolo, dettaglio=""):
+        controlli.append({"ok": ok, "titolo": titolo, "dettaglio": dettaglio})
+
+    flag = str(SiteConfig.get(_AUTO_SYNC_FLAG, "") or "").strip().lower() in {"1", "true", "on", "yes"}
+    aggiungi(flag, "Sincronizzazione automatica accesa",
+             "" if flag else "Spunta «Sincronizzazione automatica attiva» qui sotto: senza, il controllo periodico non importa niente.")
+    raw_root = str(getattr(settings, "PROCEDURE_REFRESH_SGI_SHARE_ROOT", "") or "").strip()
+    try:
+        raggiungibile = bool(raw_root) and Path(raw_root).exists()
+    except OSError:
+        raggiungibile = False
+    aggiungi(raggiungibile, "Cartella SGI raggiungibile dal sito",
+             "" if raggiungibile else ("PROCEDURE_REFRESH_SGI_SHARE_ROOT non impostata nel .env." if not raw_root
+                                       else "L'account del sito non vede la cartella: servono i permessi di lettura."))
+    adesso = timezone.now()
+    try:
+        from django_q.models import Schedule, Success
+
+        sched = Schedule.objects.filter(name="pr_sgi_controllo_orario").first()
+        if sched is None:
+            aggiungi(False, "Controllo programmato registrato",
+                     "Manca lo schedule pr_sgi_controllo_orario: lancia «manage.py setup_q_schedules» sul server.")
+        else:
+            prossimo = timezone.localtime(sched.next_run).strftime("%d/%m %H:%M") if sched.next_run else "—"
+            aggiungi(True, "Controllo programmato registrato", f"Ogni 15 minuti ({sched.cron}); prossimo alle {prossimo}.")
+        recenti = Success.objects.filter(stopped__gte=adesso - timedelta(minutes=45)).exists()
+        aggiungi(recenti, "Lavoratore delle attività (qcluster) in funzione",
+                 "" if recenti else "Nessuna attività completata negli ultimi 45 minuti: il servizio qcluster sul server va riavviato.")
+    except Exception:
+        logger.warning("stato_sincronizzazione: django-q non leggibile", exc_info=True)
+    raw = str(SiteConfig.get(_ULTIMO_CONTROLLO_KEY, "") or "").strip()
+    ultimo = None
+    try:
+        ultimo = datetime.fromisoformat(raw) if raw else None
+        if ultimo is not None and timezone.is_naive(ultimo):
+            ultimo = timezone.make_aware(ultimo)
+    except ValueError:
+        ultimo = None
+    if ultimo is None:
+        aggiungi(False, "Ultimo controllo della cartella", "Il controllo periodico non è ancora mai partito.")
+    else:
+        fresco = adesso - ultimo < timedelta(minutes=45)
+        aggiungi(fresco, "Ultimo controllo della cartella",
+                 timezone.localtime(ultimo).strftime("%d/%m/%Y %H:%M") + ("" if fresco else ": troppo vecchio, il controllo periodico non sta girando."))
+    try:
+        esclusi = json.loads(SiteConfig.get(_ESCLUSI_KEY, "") or "[]")
+    except (ValueError, TypeError):
+        esclusi = []
+    return {"controlli": controlli, "tutto_ok": all(c["ok"] for c in controlli), "esclusi": esclusi}

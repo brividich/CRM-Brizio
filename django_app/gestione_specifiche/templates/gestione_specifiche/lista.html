@@ -1,5 +1,5 @@
 {% extends "core/base.html" %}
-{% load static %}
+{% load static ui_icons %}
 
 {% block title %}Cruscotto Specifiche{% endblock %}
 
@@ -118,7 +118,7 @@
 
     {% if cartella or f_cartella %}
     <div class="gs-cliente" style="--col:{{ cartella.colore|default:'#64748b' }}">
-      <span class="gs-cliente__dorso" aria-hidden="true">{{ cartella.sigla|default:"—" }}</span>
+      <span class="gs-cliente__dorso" aria-hidden="true">{% if cartella.logo_url %}<img src="{{ cartella.logo_url }}" alt="">{% elif cartella.icona %}{% icona_copertina cartella.icona "gs-dorso-ico" %}{% else %}{{ cartella.sigla|default:"—" }}{% endif %}</span>
       <div style="flex:1;min-width:0">
         <div class="gs-cliente__crumb"><a href="?vista=copertine{% if mostra_storico %}&storico=1{% endif %}">Tutti i clienti</a> ›</div>
         <h2>{{ cartella.nome|default:f_cartella }}</h2>
@@ -132,6 +132,21 @@
         </div>
       </div>
       {% if cartella.cliente %}<a href="{% url 'gestione_specifiche:nuova' %}?cliente={{ cartella.cliente|urlencode }}" class="gs-btn gs-btn--orange" style="height:38px;">{% include "gestione_specifiche/partials/_icon.html" with name="plus" size=15 %} Nuova per {{ cartella.sigla }}</a>{% endif %}
+      {% if puo_admin and cartella.cliente %}
+      <details class="gs-cop-edit">
+        <summary class="gs-btn" style="height:38px;">Personalizza copertina</summary>
+        <form method="post" enctype="multipart/form-data" action="{% url 'gestione_specifiche:copertina_salva' %}" class="gs-cop-form">
+          {% csrf_token %}<input type="hidden" name="cliente" value="{{ cartella.cliente }}">
+          <label>Colore <input type="color" name="colore" value="{{ cartella.colore }}"></label>
+          <label class="gs-cop-check"><input type="checkbox" name="colore_auto" value="1"{% if not cartella.personalizzata.colore %} checked{% endif %}> automatico</label>
+          <label>Sigla <input class="gs-input" name="sigla" maxlength="20" value="{{ cartella.personalizzata.sigla }}" placeholder="{{ cartella.sigla }}" style="width:110px;height:34px"></label>
+          <label>Icona <select class="gs-input" name="icona" style="width:170px;height:34px">{% for k, l in icone_copertina %}<option value="{{ k }}"{% if cartella.icona == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+          <label>Logo <input type="file" name="logo" accept=".jpg,.jpeg,.png,.webp" style="font-size:12px;max-width:200px"></label>
+          {% if cartella.logo_url %}<label class="gs-cop-check"><input type="checkbox" name="togli_logo" value="1"> togli il logo</label>{% endif %}
+          <button class="gs-btn gs-btn--orange" type="submit" style="height:34px;">Salva</button>
+        </form>
+      </details>
+      {% endif %}
     </div>
     {% endif %}
 
@@ -142,7 +157,9 @@
     <div class="gs-shelf" id="gs-shelf">
       {% for c in copertine %}
       <a class="gs-vol" href="?cartella={{ c.chiave|urlencode }}{% if mostra_storico %}&storico=1{% endif %}" data-nome="{{ c.nome|lower }}">
-        <span class="gs-vol__cover" style="--col:{{ c.colore }}">
+        <span class="gs-vol__cover{% if c.logo_url %} con-logo{% endif %}" style="--col:{{ c.colore }}">
+          {% if c.logo_url %}<img class="gs-vol__logo" src="{{ c.logo_url }}" alt="" loading="lazy">{% endif %}
+          {% if c.icona %}{% icona_copertina c.icona "gs-vol__ico" %}{% endif %}
           <span class="gs-vol__k">{% if c.cartella_share %}Cartella collegata{% else %}Cliente{% endif %}</span>
           <span class="gs-vol__n">{{ c.sigla }}{% if not c.cliente %}<small>Senza cliente</small>{% elif c.nome|upper != c.sigla %}<small>{{ c.nome|truncatechars:40 }}</small>{% endif %}</span>
           <span class="gs-vol__f">

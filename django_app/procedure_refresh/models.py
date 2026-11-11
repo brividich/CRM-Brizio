@@ -5,6 +5,12 @@ from django.db import models
 from django.utils import timezone
 
 
+def _sgi_bozza_storage():
+    from core.private_attachments import PrivateAttachmentStorage
+
+    return PrivateAttachmentStorage(download_hint="File privato CN-SGI: si scarica solo dalle pagine del modulo.")
+
+
 class DocumentType(models.TextChoices):
     MT = "MT", "MT"
     MTSI = "MTSI", "MTSI"
@@ -721,6 +727,11 @@ class SgiScaffale(models.Model):
         verbose_name="Certificazione collegata",
     )
     attivo = models.BooleanField(default=True, verbose_name="Mostrato nella libreria")
+    icona = models.CharField(max_length=30, blank=True, default="", verbose_name="Icona sulla copertina")
+    logo = models.FileField(
+        upload_to="cn_sgi/copertine/", storage=_sgi_bozza_storage, blank=True, max_length=200,
+        verbose_name="Logo sulla copertina", help_text="JPG, PNG o WebP (es. logo dell'ente di certificazione): viene ricodificato in JPEG.",
+    )
     aggiornato_il = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -894,12 +905,6 @@ class SgiModificaOrigine(models.TextChoices):
     RIESAME = "riesame", "Riesame periodico"
     NORMA = "norma", "Cambio di norma o requisito del cliente"
     ALTRO = "altro", "Altro"
-
-
-def _sgi_bozza_storage():
-    from core.private_attachments import PrivateAttachmentStorage
-
-    return PrivateAttachmentStorage(download_hint="Bozza CN-SGI: si scarica solo dalla pagina della modifica.")
 
 
 class SgiModifica(models.Model):

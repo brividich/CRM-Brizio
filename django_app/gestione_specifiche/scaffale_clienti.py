@@ -34,6 +34,9 @@ class Copertina:
     nuove: int = 0
     verifica_scad: int = 0
     cartella_share: str = ""
+    icona: str = ""
+    logo_url: str = ""
+    personalizzata: object = None  # CopertinaCliente, se c'è
 
     @property
     def chiave(self) -> str:
@@ -57,7 +60,7 @@ def sigla_di(cliente: str) -> str:
 
 
 def copertine(*, storico: bool = False, scadenza_giorni: int = 30) -> list[Copertina]:
-    from .models import ClienteCartellaShare, Specifica
+    from .models import ClienteCartellaShare, CopertinaCliente, Specifica
 
     qs = Specifica.objects.all()
     if not storico:
@@ -89,7 +92,23 @@ def copertine(*, storico: bool = False, scadenza_giorni: int = 30) -> list[Coper
             )
         for campo in ("totale", "bozze", "flow_down", "in_validita", "sospese", "nuove", "verifica_scad"):
             setattr(cop, campo, getattr(cop, campo) + r[campo])
+    for p in CopertinaCliente.objects.filter(chiave__in=list(per_cliente)):
+        applica_personalizzazione(per_cliente[p.chiave], p)
     return sorted(per_cliente.values(), key=lambda c: (not c.cliente, c.nome.lower()))
+
+
+def applica_personalizzazione(cop: Copertina, p) -> None:
+    from django.urls import reverse
+
+    cop.personalizzata = p
+    if p.colore:
+        cop.colore = p.colore
+    if p.sigla:
+        cop.sigla = p.sigla
+    cop.icona = p.icona or ""
+    if p.logo:
+        versione = int(p.aggiornata_il.timestamp()) if p.aggiornata_il else 0
+        cop.logo_url = f"{reverse('gestione_specifiche:copertina_logo', args=[p.pk])}?v={versione}"
 
 
 def copertina_di(cliente: str, *, storico: bool = False, scadenza_giorni: int = 30) -> Copertina | None:

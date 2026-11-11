@@ -1,4 +1,5 @@
 {% extends "procedure_refresh/libreria/_base.html" %}
+{% load ui_icons %}
 {% block cn_title %}{{ scaffale.nome }} · CN-SGI{% endblock %}
 {% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › {{ scaffale.nome }}{% endblock %}
 {% block cn_h1 %}{{ scaffale.nome }}{% if scaffale.norma %} <small>{{ scaffale.norma }}</small>{% endif %}{% endblock %}
@@ -19,6 +20,7 @@
   </aside>
   <div style="min-width:0">
     <div class="cn-band" style="--col:{{ scaffale.colore }}">
+      {% if scaffale.logo_url %}<img class="cn-band-logo" src="{{ scaffale.logo_url }}" alt="">{% elif scaffale.icona %}<span class="cn-band-ico">{% icona_copertina scaffale.icona "cn-band-svg" %}</span>{% endif %}
       <div class="n">{{ scaffale.sigla|default:"SGI"|truncatechars:10 }}</div>
       <div class="t"><h2>{{ scaffale.nome }}</h2><p>{{ n_scaffale }} document{{ n_scaffale|pluralize:"o,i" }} in vigore{% if scaffale.cartella %} · cartella <span class="mono">{{ scaffale.cartella }}</span>{% endif %}</p></div>
       {% if scaffale.certificazione %}
