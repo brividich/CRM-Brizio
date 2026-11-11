@@ -49,6 +49,7 @@ urlpatterns = [
     path("admin/auto-approvazione/", admin_views.admin_auto_approva, name="admin_auto_approva"),
     path("admin/notifiche/", admin_views.admin_notifiche, name="admin_notifiche"),
     path("admin/log/", admin_views.admin_log, name="admin_log"),
+    path("admin/sincronizzazione/", admin_views.admin_sincronizzazione, name="admin_sincronizzazione"),
     path("admin/specifiche/", admin_views.admin_specifiche, name="admin_specifiche"),
     path("admin/specifiche/<int:pk>/riassegna/", admin_views.admin_specifica_riassegna, name="admin_specifica_riassegna"),
     path("admin/timbri/", admin_views.admin_timbri, name="admin_timbri"),

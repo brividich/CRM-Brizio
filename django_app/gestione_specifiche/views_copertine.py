@@ -1,4 +1,4 @@
-"""Personalizzazione delle copertine dei clienti nel catalogo (colore, sigla, icona, logo)."""
+"""Personalizzazione delle copertine delle cartelle nel catalogo (colore, sigla, icona, logo)."""
 from __future__ import annotations
 
 from urllib.parse import urlencode
@@ -20,13 +20,13 @@ from .models import CopertinaCliente
 @login_required
 @require_POST
 def copertina_salva(request):
-    cliente = (request.POST.get("cliente") or "").strip()[:200]
+    cliente = (request.POST.get("cartella") or "").strip()[:200]
     torna = f"{reverse('gestione_specifiche:lista')}?{urlencode({'cartella': cliente or '_'})}"
     if not utente_puo_admin(request):
         messages.error(request, "Solo l'amministrazione del modulo cambia le copertine.")
         return redirect(torna)
     if not cliente:
-        messages.error(request, "La copertina «Senza cliente» non si personalizza.")
+        messages.error(request, "La copertina «Senza cartella» non si personalizza.")
         return redirect(torna)
     p, _ = CopertinaCliente.objects.get_or_create(chiave=cliente.lower())
     colore = (request.POST.get("colore") or "").strip()
@@ -42,7 +42,7 @@ def copertina_salva(request):
         except CopertinaNonValida as exc:
             messages.error(request, str(exc))
     p.save()
-    log_action(request, "modifica", "gestione_specifiche", {"message": "Copertina cliente aggiornata", "cliente": cliente})
+    log_action(request, "modifica", "gestione_specifiche", {"message": "Copertina cartella aggiornata", "cartella": cliente})
     messages.success(request, "Copertina aggiornata.")
     return redirect(torna)
 

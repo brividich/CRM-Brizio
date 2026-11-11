@@ -555,6 +555,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # GESTIONE SPECIFICHE — catalogo allineato alla cartella della share: ogni 15 minuti
+        # elenca i PDF (sola lettura, esclusa _SUPERATO) e, se qualcosa è cambiato, crea le
+        # specifiche nuove e le nuove revisioni (in bozza, con avviso a chi prende in carico) e
+        # ricollega i file spostati. Interruttore in Amministrazione (gs_sync_cartelle_attivo).
+        "name": "gestione_specifiche_sync_cartelle",
+        "func": "gestione_specifiche.tasks.run_sync_cartelle",
+        "schedule_type": "C",       # Schedule.CRON
+        "cron": "*/15 * * * *",     # ogni 15 minuti
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # GESTIONE SPECIFICHE — verifica periodica 6 mesi (ricorrente da data_verifica).
         "name": "gestione_specifiche_verifica_periodica",
         "func": "gestione_specifiche.tasks.run_specifiche_verifica_periodica",
@@ -1228,6 +1240,7 @@ DIGEST_E_PROMEMORIA: dict[str, str] = {
     "gestione_specifiche_reminder": "Incaricati delle specifiche",
     "gestione_specifiche_escalation": "Approvatore e DM",
     "gestione_specifiche_verifica_periodica": "Incaricati delle specifiche",
+    "gestione_specifiche_sync_cartelle": "Incaricati delle specifiche (specifiche nuove dalla cartella)",
     "scadenzario_avvisi_attivita": "Email delle attività",
     "scadenzario_riepilogo_mensile": "Email delle categorie",
     "checklist_chiusura_reminders": "Responsabili della checklist",

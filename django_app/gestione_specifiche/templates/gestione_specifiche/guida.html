@@ -57,7 +57,7 @@
 <nav>
   <b>Indice</b>
   <a href="#intro">1. Cos'è</a>
-  <a href="#catalogo">Il catalogo per cliente</a>
+  <a href="#catalogo">Il catalogo per cartella</a>
   <a href="#stati">2. Stati e ciclo di vita</a>
   <a href="#flusso">3. Il flusso passo-passo</a>
   <a href="#ruoli">4. Ruoli e permessi</a>
@@ -77,15 +77,24 @@
 </section>
 
 <section id="catalogo">
-  <h2>Il catalogo: una copertina per cliente</h2>
-  <p>Il cruscotto mostra le specifiche come la libreria CN-SGI: <strong>una copertina per cliente</strong> con il numero di specifiche, quante sono in flow-down, le nuove degli ultimi 30 giorni e, sotto, le verifiche in scadenza o le sospese. «Cartella collegata» indica che il cliente ha la cartella della share mappata. Le specifiche senza cliente stanno nella copertina «Senza cliente».</p>
+  <h2>Il catalogo: una copertina per cartella</h2>
+  <p>Il cruscotto mostra le specifiche come la libreria CN-SGI: <strong>una copertina per ogni cartella</strong> della cartella delle specifiche sulla share (di solito una per cliente). Sopra il nome compare il cliente collegato in «Mappatura cliente-cartella»; sotto, quante specifiche ci sono, le nuove degli ultimi 30 giorni e quelle da prendere in carico, in scadenza di verifica o sospese.</p>
   <ul>
-    <li>Clicca una copertina per vedere le specifiche del cliente; la ricerca cerca solo lì e «Nuova per …» apre una specifica con il cliente già scritto. «Tutti i clienti» torna alle copertine.</li>
-    <li>Con più di 8 clienti compare «Trova un cliente…», che filtra le copertine mentre scrivi.</li>
-    <li>La ricerca e i filtri (cliente, stato, tipo) mostrano subito l'elenco dei risultati su tutti i clienti.</li>
-    <li>Chi ha l'amministrazione del modulo, dentro un cliente, trova «Personalizza copertina»: colore (o automatico), sigla, icona e logo (JPG, PNG o WebP, ricodificato). «Salva» aggiorna la copertina.</li>
-    <li>«Copertine» / «Elenco» cambia la vista; il portale ricorda la scelta. «Mostra storico» include anche le specifiche superate, annullate e respinte.</li>
+    <li>Una specifica sta nella cartella del suo PDF. Se non ha un PDF collegato, sta nella cartella mappata al suo cliente; altrimenti in «Senza cartella».</li>
+    <li>Clicca una copertina per l'elenco della cartella: la ricerca cerca solo lì e «Nuova per …» apre una specifica con il cliente già scritto. «Tutte le cartelle» torna alle copertine.</li>
+    <li>Con più di 8 cartelle compare «Trova una cartella o un cliente…».</li>
+    <li>La ricerca e i filtri (cliente, stato, tipo) mostrano subito l'elenco su tutte le cartelle. «Copertine» / «Elenco» cambia la vista e il portale ricorda la scelta; «Mostra storico» include le superate, annullate e respinte.</li>
+    <li>L'amministrazione del modulo, dentro una cartella, con «Personalizza copertina» sceglie colore, sigla, icona e logo.</li>
   </ul>
+  <h3>Sempre allineato alla cartella</h3>
+  <p>Ogni 15 minuti il portale elenca i PDF della cartella delle specifiche (esclusa <code>_SUPERATO</code>), <strong>senza modificarla</strong>:</p>
+  <ul>
+    <li>un PDF che nel catalogo non c'è diventa una <strong>specifica in bozza</strong>: codice e revisione dal nome del file (<code>15500 REV.1.pdf</code>), cliente dalla cartella, PDF collegato. Chi prende in carico le specifiche riceve l'avviso (oltre 10 insieme, un solo avviso riassuntivo);</li>
+    <li>una revisione più recente di una specifica esistente diventa la sua <strong>nuova revisione</strong>, in bozza, collegata alla precedente;</li>
+    <li>un file spostato o rinominato con lo stesso codice e revisione viene <strong>ricollegato</strong>;</li>
+    <li>restano fuori i MOD.133/MOD.134 compilati, i file senza codice, le revisioni non più recenti e i doppioni: l'elenco con il motivo è in «Amministrazione» → «Sincronizzazione con la cartella».</li>
+  </ul>
+  <p>Il <strong>primo giro</strong> fotografa l'archivio: i PDF già nella cartella entrano <strong>in validità</strong> (la revisione più alta; le precedenti superate), senza avvisi. In «Amministrazione» → «Sincronizzazione con la cartella» si accende o spegne la sincronizzazione e c'è «Sincronizza ora».</p>
 </section>
 
 <section id="stati">
