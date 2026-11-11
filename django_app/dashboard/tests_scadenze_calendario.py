@@ -112,6 +112,40 @@ class OutlookTests(TestCase):
         # La scadenza cambia data: torna in calendario.
         self.assertEqual(self._sync([_voce(giorno=date(2027, 2, 1))])["creati"], 1)
 
+    def test_lettura_troncata_non_segna_cancellati_dalla_persona(self):
+        from core.m365_graph import ElencoGraph
+
+        self._sync([_voce()])
+        parziale = ElencoGraph()  # Graph aveva altre pagine: l'evento c'è, ma non è stato letto
+        parziale.troncata = True
+        originale = self.finto.get_all
+
+        def get_all(url, **kw):
+            return originale(url, **kw) if url.endswith("/calendars") else parziale
+
+        with patch("core.m365_graph.get_all", get_all):
+            esito = self._sync([_voce(), _voce(titolo="Corso carrelli", url="/anagrafica/corsi/2/")])
+        self.assertTrue(esito["lettura_troncata"])
+        self.assertEqual(esito["lasciati_fuori"], 0)
+        self.assertFalse(ScadenzaOutlook.objects.filter(rimosso_da_utente=True).exists())
+        self.assertEqual(len(self.finto.eventi), 2)
+
+    def test_post_con_transaction_id(self):
+        v = _voce()
+        self._sync([v])
+        evento = next(iter(self.finto.eventi.values()))
+        atteso = cal._transaction_id(cal.chiave_voce(v), "u.sintetico@example.com", cal.impronta(v), "cal-1")
+        self.assertEqual(evento["transactionId"], atteso)
+
+    def test_budget_finito_niente_scritture_niente_cancellazioni(self):
+        import time
+
+        self._sync([_voce()])
+        esito = cal.sincronizza_utente(self.canali, voci=[_voce(titolo="Altro", url="/x/")], scadenza=time.monotonic() - 1)
+        self.assertIn("interrotto", esito)
+        self.assertEqual(esito["creati"] + esito["tolti"], 0)
+        self.assertEqual(len(self.finto.eventi), 1)
+
     def test_spento_svuota_il_calendario(self):
         self._sync([_voce()])
         self.canali.outlook_scadenze = False

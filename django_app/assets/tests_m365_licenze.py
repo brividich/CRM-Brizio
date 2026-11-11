@@ -44,6 +44,15 @@ class SincronizzazioneTests(TestCase):
         self.assertEqual(esito["non_piu_presenti"], 1)
         self.assertFalse(SoftwareLicense.objects.get(license_reference="m365:SPB").is_active)
 
+    def test_elenco_troncato_non_disattiva_gli_abbonamenti_non_letti(self):
+        from core.m365_graph import ElencoGraph
+
+        svc.sincronizza(skus=[_sku()], scadenze={})
+        parziale = ElencoGraph()
+        parziale.troncata = True
+        self.assertEqual(svc.sincronizza(skus=parziale, scadenze={})["non_piu_presenti"], 0)
+        self.assertTrue(SoftwareLicense.objects.get(license_reference="m365:SPB").is_active)
+
     def test_abbonamento_sospeso_non_attivo(self):
         svc.sincronizza(skus=[_sku(stato="Suspended")], scadenze={})
         self.assertFalse(SoftwareLicense.objects.get(license_reference="m365:SPB").is_active)

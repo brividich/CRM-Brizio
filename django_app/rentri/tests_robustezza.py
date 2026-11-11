@@ -226,6 +226,19 @@ class SharePointNonBloccanteTests(_Base):
         reg = RegistroRifiuti.objects.get()
         self.assertIn("non raggiungibile", reg.sync_errore)
 
+    def test_token_dalla_cache_condivisa_e_errore_aadsts_visibile(self):
+        from . import sharepoint as sp
+
+        with mock.patch("core.graph_utils.acquire_graph_token", return_value="tok") as acq:
+            self.assertEqual(sp._acquire_graph_token("t", "c", "s"), "tok")
+        acq.assert_called_once_with("t", "c", "s")
+        reg = _mov("C", self.ieri)
+        with mock.patch("rentri.sharepoint._graph_configured", return_value=True),                 mock.patch("core.graph_utils.acquire_graph_token",
+                           side_effect=RuntimeError("Token Graph non ottenuto: invalid_client, AADSTS7000215")):
+            self.assertFalse(sp.sincronizza(reg))
+        reg.refresh_from_db()
+        self.assertIn("AADSTS7000215", reg.sync_errore)
+
     def test_invio_riuscito_pulisce_errore(self):
         from .sharepoint import sincronizza
 

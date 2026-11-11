@@ -490,7 +490,12 @@ GUIDA = {
             "fare": [
                 "Impostazioni › «Alert di Microsoft Defender»: «Leggi gli alert di Defender» deve essere acceso.",
                 "Dal terminale: manage.py defender_alerts mostra l'esito dell'ultimo giro. «Graph ha risposto 403» = manca il permesso "
-                "SecurityAlert.Read.All (o il consenso amministratore) sull'app del portale in Entra ID.",
+                "SecurityAlert.Read.All (o il consenso amministratore) sull'app del portale in Entra ID; «ha risposto 401» = token "
+                "rifiutato: segreto dell'app scaduto o sbagliato, oppure l'orologio del server fuori sincronia.",
+                "«alert_troncati» nell'esito: in un giro sono arrivati più alert del limite; il giro dopo riparte dall'ultimo letto, "
+                "nessuno si perde.",
+                "Software o vulnerabilità di Defender con «lettura troncata» nell'esito: Defender ha più pagine del limite e il giro "
+                "non ha toccato i dati (niente «non più rilevato», niente CVE cancellate); succede solo con inventari molto grandi.",
                 "Arriva l'evento ma non l'alert: la severità è sotto la «Severità minima per l'alert» (l'evento resta nei KPI).",
             ],
         },
