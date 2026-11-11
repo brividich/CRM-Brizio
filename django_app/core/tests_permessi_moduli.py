@@ -335,10 +335,13 @@ class AssenzeTests(ModuliBase):
         op, op_l = self.persona("Operaio")
         self.nell_organigramma(capo_l, self.r_capo)
         self.nell_organigramma(op_l, self.r_op)
-        with patch("assenze.views._helpers._has_assenze_column", return_value=True):
+        # La tabella legacy «assenze» non esiste nel DB di test: si simulano le sue colonne.
+        with patch("assenze.views._helpers._has_assenze_column", return_value=True),                 patch("assenze.views._helpers.legacy_table_columns", return_value={"id", "utente_id"}):
             where, params, _join = views._combined_manager_assignment_where_clause(legacy_user_id=capo_l.id)
         self.assertIn("utente_id IN", where)
-        self.assertEqual(params, [op_l.id])
+        # Il team d'organigramma, più le richieste che hanno scelto a mano questo capo (AssenzaCapoScelto).
+        self.assertEqual(params, [op_l.id, capo_l.id])
+        self.assertIn("capo_legacy_user_id", where)
         request = self.req(capo, capo_l)
         self.assertTrue(views._can_manage_record(request, {"utente_id": op_l.id}))
         self.assertFalse(views._can_manage_record(request, {"utente_id": capo_l.id + 999}))
