@@ -53,6 +53,8 @@ def _descr_cron(cron: str) -> str:
     # orario
     if hour == "*" and minute == "*":
         quando = "in continuazione"
+    elif hour == "*" and minute.startswith("*/") and minute[2:].isdigit():
+        quando = f"ogni {int(minute[2:])} minuti"
     elif hour == "*":
         quando = f"ogni ora al minuto {minute}"
     else:
