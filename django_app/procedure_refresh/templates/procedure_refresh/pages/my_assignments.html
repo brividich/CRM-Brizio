@@ -746,6 +746,24 @@ body.theme-dark .pr-doc-title:hover{color:#93c5fd}
           {% endif %}
         </div>
       </section>
+
+      <section class="pr-panel" id="segnalazioni">
+        <h2>Le mie segnalazioni</h2>
+        {% if mie_segnalazioni %}
+        <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+          {% for s in mie_segnalazioni %}
+          <li style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px">
+            <a href="{% url 'procedure_refresh:libreria_documento' s.document_id %}" style="font-weight:700;text-decoration:none;color:inherit">{{ s.document.code }}</a>
+            <span style="float:right;font-size:11.5px;font-weight:700;color:{% if s.status == 'recepita' %}var(--success,#38a169){% elif s.status == 'respinta' %}#c53030{% else %}var(--text-mid){% endif %}">{% if s.status == 'recepita' and s.recepita_in_revisione %}Recepita in Rev.{{ s.recepita_in_revisione.revision_code }}{% else %}{{ s.get_status_display }}{% endif %}</span>
+            <div style="color:var(--text-mid);margin-top:3px">{{ s.testo|truncatechars:120 }}</div>
+            {% if s.risposta_gestore %}<div style="margin-top:4px;font-size:12px;color:var(--text-light)">Risposta: {{ s.risposta_gestore|truncatechars:160 }}</div>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p style="margin:0;font-size:13px;color:var(--text-mid)">Non hai ancora segnalato modifiche. Dalla scheda di un documento, scheda «Segnala», proponi una correzione: qui ne segui lo stato.</p>
+        {% endif %}
+      </section>
     </aside>
   </div>
 </div>

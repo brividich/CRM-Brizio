@@ -297,3 +297,7 @@ body.theme-dark .cn-res-t .mono, body.theme-dark .cn-mono-col { filter: brightne
   .pr-subnav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
   .pr-subnav-link { flex: none; }
 }
+
+/* Chiedi la rilettura (scheda «Cosa cambia», per chi gestisce) */
+.cn-rilettura { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--accent); background: var(--accent-light); border-radius: 10px; font-size: 13px; }
+.cn-rilettura > div { flex: 1 1 220px; }

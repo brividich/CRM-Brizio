@@ -294,12 +294,15 @@ def my_assignments(request):
 
     is_manager = _is_manager(request)
 
+    from .segnalazioni import mie as segnalazioni_mie
+
     return render(request, "procedure_refresh/pages/my_assignments.html", {
         "assignments": assignments,
         "pr_stats": pr_stats,
         "status_filter": status_filter,
         "AssignmentStatus": AssignmentStatus,
         "is_manager": is_manager,
+        "mie_segnalazioni": segnalazioni_mie(request.user),
     })
 
 
@@ -319,13 +322,16 @@ def assignment_detail(request, pk: int):
             if not testo:
                 messages.error(request, "Inserisci il testo della segnalazione.")
                 return redirect("procedure_refresh:assignment_detail", pk=pk)
-            ProcedureChangeRequest.objects.create(
+            cr = ProcedureChangeRequest.objects.create(
                 document=assignment.revision.document,
                 revision=assignment.revision,
                 assignment=assignment,
                 created_by=request.user,
                 testo=testo,
             )
+            from .segnalazioni import avvisa_nuova
+
+            avvisa_nuova(cr, escludi_user_id=request.user.pk)
             log_action(
                 request,
                 "segnalazione_modifica",
@@ -1493,10 +1499,15 @@ def change_request_set_status(request, pk: int):
             except (ProcedureRevision.DoesNotExist, ValueError):
                 cr.recepita_in_revisione = None
 
+    stato_prima = ProcedureChangeRequest.objects.filter(pk=cr.pk).values_list("status", flat=True).first()
     cr.save(update_fields=[
         "status", "risposta_gestore", "gestita_da", "gestita_il",
         "recepita_in_revisione", "updated_at",
     ])
+    if stato_prima != new_status or cr.risposta_gestore:
+        from .segnalazioni import avvisa_autore
+
+        avvisa_autore(cr)
     log_action(
         request, "segnalazione_stato", "procedure_refresh",
         _audit_detail(

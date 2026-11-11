@@ -586,3 +586,75 @@ class SecondoGiroUITests(TestCase):
         html = str(self.esp.con_glossario("La registrazione <b> va fatta"))
         self.assertIn('<abbr class="cn-gloss" title="Annotazione su un modulo">registrazione</abbr>', html)
         self.assertIn("&lt;b&gt;", html)
+
+
+class SegnalazioniRiletturaTests(TestCase):
+    def setUp(self):
+        from .models import CampaignStatus, ProcedureAssignment, ProcedureCampaign
+
+        self.admin = User.objects.create_user(username="cnsgi_segn", password="pw", is_superuser=True)
+        self.lettore = User.objects.create_user(username="cnsgi_lettore", password="pw")
+        self.client.force_login(self.admin)
+        self.doc = _doc("MT CN 06", "Gestione delle non conformità")
+        self.vecchia = ProcedureRevision.objects.create(
+            document=self.doc, revision_code="1", revision_date=date(2025, 1, 1), effective_date=date(2025, 1, 1),
+            source_type=SourceType.SHAREPOINT, source_url="https://example.invalid/o.pdf", file_name="o.pdf", is_current=False,
+        )
+        self.rev = self.doc.revisions.get(is_current=True)
+        camp = ProcedureCampaign.objects.create(name="Vecchia", status=CampaignStatus.CLOSED, start_date=date(2025, 1, 1),
+                                                due_date=date(2025, 2, 1), created_by=self.admin)
+        ProcedureAssignment.objects.create(campaign=camp, revision=self.vecchia, user=self.lettore, status="read_confirmed")
+        lib.assicura_scaffali()
+
+    def test_nuova_segnalazione_avvisa_chi_gestisce(self):
+        with mock.patch("procedure_refresh.segnalazioni.destinatari_gestori", return_value={11, 12}), \
+                mock.patch("core.notifiche.invia_notifica") as invia:
+            self.client.post(reverse("procedure_refresh:libreria_segnala", args=[self.doc.pk]), {"testo": "Chiarire §4.2"})
+        self.assertEqual(invia.call_count, 2)
+        self.assertIn("MT CN 06", invia.call_args[0][2])
+
+    def test_cambio_stato_avvisa_chi_ha_segnalato(self):
+        from .models import ProcedureChangeRequest
+
+        cr = ProcedureChangeRequest.objects.create(document=self.doc, revision=self.vecchia, created_by=self.lettore, testo="Proposta")
+        with mock.patch("procedure_refresh.tasks._legacy_id_map", return_value={self.lettore.pk: 77}), \
+                mock.patch("core.notifiche.invia_notifica") as invia:
+            self.client.post(reverse("procedure_refresh:change_request_set_status", args=[cr.pk]),
+                             {"status": "recepita", "recepita_in_revisione": str(self.rev.pk), "risposta_gestore": "Fatto"})
+        invia.assert_called_once()
+        self.assertEqual(invia.call_args[0][0], 77)
+        self.assertIn("recepita nella Rev.2", invia.call_args[0][2])
+        # La segnalazione accolta compare in «Cosa cambia» della revisione che l'ha recepita.
+        r = self.client.get(reverse("procedure_refresh:libreria_documento", args=[self.doc.pk]), HTTP_HX_REQUEST="true")
+        self.assertContains(r, "Segnalazioni accolte in questa revisione")
+        self.assertContains(r, "Proposta")
+
+    def test_le_mie_segnalazioni(self):
+        from .models import ProcedureChangeRequest
+
+        ProcedureChangeRequest.objects.create(document=self.doc, revision=self.rev, created_by=self.admin, testo="Refuso al §5")
+        r = self.client.get(reverse("procedure_refresh:my_assignments"))
+        self.assertContains(r, "Le mie segnalazioni")
+        self.assertContains(r, "Refuso al §5")
+
+    def test_chiedi_la_rilettura(self):
+        from .models import ProcedureAssignment
+
+        r = self.client.get(reverse("procedure_refresh:libreria_documento", args=[self.doc.pk]), HTTP_HX_REQUEST="true")
+        self.assertContains(r, "Chiedi la rilettura")
+        with mock.patch("core.notifiche.invia_notifica"):
+            r = self.client.post(reverse("procedure_refresh:libreria_rilettura", args=[self.doc.pk]), {"giorni": "10"})
+        self.assertEqual(r.status_code, 302)
+        a = ProcedureAssignment.objects.get(revision=self.rev, user=self.lettore)
+        self.assertEqual(a.campaign.status, "published")
+        self.assertEqual(a.due_date, timezone.localdate() + timedelta(days=10))
+        # Una seconda richiesta non duplica: nessuno resta da avvisare.
+        r = self.client.post(reverse("procedure_refresh:libreria_rilettura", args=[self.doc.pk]))
+        self.assertEqual(ProcedureAssignment.objects.filter(revision=self.rev).count(), 1)
+
+    def test_rilettura_solo_per_chi_gestisce(self):
+        with mock.patch("procedure_refresh.views_libreria._can_manage", return_value=False):
+            self.client.post(reverse("procedure_refresh:libreria_rilettura", args=[self.doc.pk]))
+        from .models import ProcedureAssignment
+
+        self.assertFalse(ProcedureAssignment.objects.filter(revision=self.rev).exists())

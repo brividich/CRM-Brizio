@@ -104,7 +104,8 @@ GUIDA = {
                 ("ul", [
                     "«Report»: per utente, per documento, per sessione e «Matrice» (completamento per reparto).",
                     "«Export CSV audit» scarica le evidenze.",
-                    "«Segnalazioni»: le proposte di modifica dei lettori, da portare a «in carico», «recepita» o «respinta».",
+                    "«Segnalazioni»: le proposte di modifica dei lettori, da portare a «in carico», «recepita» o «respinta». Le nuove arrivano come notifica a chi gestisce; chi ha segnalato è avvisato a ogni cambio di stato e le segue in «Le mie letture».",
+                    "Nuova revisione di un documento già fatto leggere: nella scheda, «Cosa cambia» → «Chiedi la rilettura».",
                 ]),
             ],
         },

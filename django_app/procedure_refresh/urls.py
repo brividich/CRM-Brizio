@@ -12,6 +12,7 @@ urlpatterns = [
     path("cerca/", views_libreria.cerca, name="libreria_cerca"),
     path("cerca/suggerimenti/", views_libreria.suggerimenti, name="libreria_suggerimenti"),
     path("documento/<int:pk>/preferito/", views_libreria.preferito, name="libreria_preferito"),
+    path("documento/<int:pk>/rilettura/", views_libreria.rilettura, name="libreria_rilettura"),
     path("documento/<int:pk>/etichetta/", views_libreria.etichetta, name="libreria_etichetta"),
     path("scaffale/<slug:slug>/etichette/", views_libreria.etichette_scaffale, name="libreria_etichette"),
     path("admin/da-rivedere/", views_libreria.da_rivedere, name="libreria_da_rivedere"),
