@@ -1,14 +1,17 @@
 {# Modelli di ordine del giorno riutilizzabili nella convocazione incontro. #}
-<section class="ts-panel">
+<section class="ts-panel" data-modelli>
   <div class="ts-panel-head">
     <div class="ts-panel-title-wrap">
       <h2 class="ts-panel-title">Modelli ordine del giorno</h2>
-      <p class="ts-panel-subtitle">Punti ricorrenti pronti da caricare nella convocazione di un incontro. Un punto per riga; per indicare la durata stimata scrivi <code>Titolo | 15</code>.</p>
+      <p class="ts-panel-subtitle">{{ agenda_templates|length }} modelli, {{ modelli_attivi }} attivi. Si caricano nella convocazione di un incontro. Un punto per riga; per la durata stimata scrivi <code>Titolo | 15</code>.</p>
+    </div>
+    <div class="ts-panel-actions">
+      <button type="button" class="md-btn" data-modelli-nuovo aria-expanded="false" aria-controls="tpl-nuovo">+ Nuovo modello</button>
     </div>
   </div>
   <div class="ts-panel-body">
 
-    <form method="post" action="" class="tpl-form">
+    <form method="post" action="" class="tpl-form" id="tpl-nuovo"{% if agenda_templates %} hidden{% endif %}>
       {% csrf_token %}
       <input type="hidden" name="tab" value="modelli">
       <input type="hidden" name="tpl_action" value="template_create">
@@ -22,48 +25,86 @@
           <input class="input" type="text" id="tpl-desc" name="descrizione" maxlength="255" placeholder="Quando usarlo (facoltativo)">
         </div>
       </div>
-      <label class="mf-label" for="tpl-items">Punti</label>
-      <textarea class="input" id="tpl-items" name="items_text" rows="5" placeholder="Stato avanzamento | 15&#10;Criticità aperte | 20&#10;Prossimi passi"></textarea>
-      <div style="margin-top:10px">
+      <div class="tpl-punti">
+        <div>
+          <label class="mf-label" for="tpl-items">Punti</label>
+          <textarea class="input" id="tpl-items" name="items_text" rows="6" data-tpl-punti placeholder="Stato avanzamento | 15&#10;Criticità aperte | 20&#10;Prossimi passi"></textarea>
+        </div>
+        <div class="tpl-anteprima" aria-live="polite">
+          <span class="tpl-anteprima-tit">Anteprima <strong data-tpl-conteggio>0 punti</strong></span>
+          <ol data-tpl-anteprima></ol>
+        </div>
+      </div>
+      <div class="tpl-card-actions">
         <button type="submit" class="md-btn">Crea modello</button>
+        {% if agenda_templates %}<button type="button" class="btn btn-secondary btn-sm" data-modelli-annulla>Annulla</button>{% endif %}
       </div>
     </form>
 
     {% if agenda_templates %}
+      <div class="tpl-barra">
+        <input class="input" type="search" placeholder="Cerca per nome, descrizione o punto…" data-modelli-cerca aria-label="Cerca nei modelli">
+        <label class="tpl-inline"><input type="checkbox" data-modelli-spenti> Mostra anche gli spenti</label>
+        <span class="tpl-barra-esito" data-modelli-esito hidden></span>
+      </div>
       <div class="tpl-list">
         {% for template in agenda_templates %}
-          <form method="post" action="" class="tpl-card">
-            {% csrf_token %}
-            <input type="hidden" name="tab" value="modelli">
-            <input type="hidden" name="template_id" value="{{ template.id }}">
-            <div class="tpl-grid">
-              <div>
-                <label class="mf-label" for="tpl-nome-{{ template.id }}">Nome</label>
-                <input class="input" type="text" id="tpl-nome-{{ template.id }}" name="nome" maxlength="120" value="{{ template.nome }}">
+          <details class="tpl-card{% if not template.is_active %} tpl-card--spento{% endif %}" data-modello data-attivo="{% if template.is_active %}1{% else %}0{% endif %}"{% if modello_aperto == template.id %} open{% endif %}>
+            <summary class="tpl-summary">
+              <span class="tpl-summary-nome">{{ template.nome }}</span>
+              {% if template.descrizione %}<span class="tpl-summary-desc">{{ template.descrizione }}</span>{% endif %}
+              <span class="tpl-chip">{{ template.n_punti }} punt{{ template.n_punti|pluralize:"o,i" }}</span>
+              {% if template.minuti %}<span class="tpl-chip">{{ template.minuti }} min</span>{% endif %}
+              {% if not template.is_active %}<span class="tpl-chip tpl-chip--spento">Spento</span>{% endif %}
+              <span class="tpl-summary-testo" hidden>{% for i in template.items %}{{ i.titolo }} {% endfor %}</span>
+            </summary>
+            <form method="post" action="" class="tpl-card-body" data-salva-ajax>
+              {% csrf_token %}
+              <input type="hidden" name="tab" value="modelli">
+              <input type="hidden" name="template_id" value="{{ template.id }}">
+              <input type="hidden" name="tpl_action" value="template_update">
+              <div class="tpl-grid">
+                <div>
+                  <label class="mf-label" for="tpl-nome-{{ template.id }}">Nome</label>
+                  <input class="input" type="text" id="tpl-nome-{{ template.id }}" name="nome" maxlength="120" value="{{ template.nome }}" required>
+                </div>
+                <div>
+                  <label class="mf-label" for="tpl-desc-{{ template.id }}">Descrizione</label>
+                  <input class="input" type="text" id="tpl-desc-{{ template.id }}" name="descrizione" maxlength="255" value="{{ template.descrizione }}">
+                </div>
               </div>
-              <div>
-                <label class="mf-label" for="tpl-desc-{{ template.id }}">Descrizione</label>
-                <input class="input" type="text" id="tpl-desc-{{ template.id }}" name="descrizione" maxlength="255" value="{{ template.descrizione }}">
+              <div class="tpl-punti">
+                <div>
+                  <label class="mf-label" for="tpl-items-{{ template.id }}">Punti</label>
+                  <textarea class="input" id="tpl-items-{{ template.id }}" name="items_text" rows="6" data-tpl-punti>{{ template.items_text }}</textarea>
+                </div>
+                <div class="tpl-anteprima" aria-live="polite">
+                  <span class="tpl-anteprima-tit">Anteprima <strong data-tpl-conteggio></strong></span>
+                  <ol data-tpl-anteprima></ol>
+                </div>
               </div>
-            </div>
-            <label class="mf-label" for="tpl-items-{{ template.id }}">Punti</label>
-            <textarea class="input" id="tpl-items-{{ template.id }}" name="items_text" rows="4">{{ template.items_text }}</textarea>
-            <div class="tpl-card-actions">
-              <label class="tpl-inline">
-                <input type="checkbox" name="is_active" {% if template.is_active %}checked{% endif %}> Attivo
-              </label>
-              <label class="tpl-inline">
-                Ordine <input class="input" type="number" name="order_index" value="{{ template.order_index }}" min="0" style="width:80px">
-              </label>
-              <button type="submit" class="md-btn" name="tpl_action" value="template_update">Salva</button>
-              <button type="submit" class="md-btn danger-ghost" name="tpl_action" value="template_delete"
-                      data-hub-confirm="Eliminare il modello «{{ template.nome }}»?">Elimina</button>
-            </div>
-          </form>
+              <div class="tpl-card-actions">
+                <label class="tpl-inline">
+                  <input type="checkbox" name="is_active" {% if template.is_active %}checked{% endif %}> Attivo
+                </label>
+                <label class="tpl-inline">
+                  Ordine <input class="input" type="number" name="order_index" value="{{ template.order_index }}" min="0" style="width:80px">
+                </label>
+                <button type="submit" class="md-btn" data-salva>Salva</button>
+                <span class="tpl-esito" data-esito hidden></span>
+                <span class="tpl-card-destra">
+                  <button type="submit" class="btn btn-secondary btn-sm" name="tpl_action" value="template_duplicate" formnovalidate data-salva-pagina>Duplica</button>
+                  <button type="submit" class="md-btn danger-ghost" name="tpl_action" value="template_delete" formnovalidate data-salva-pagina
+                          data-hub-confirm="Eliminare il modello «{{ template.nome }}»?">Elimina</button>
+                </span>
+              </div>
+            </form>
+          </details>
         {% endfor %}
       </div>
+      <p class="empty" data-modelli-vuoto hidden>Nessun modello corrisponde alla ricerca.</p>
     {% else %}
-      <p class="empty" style="margin-top:18px">Nessun modello ancora creato.</p>
+      <p class="empty" style="margin-top:18px">Nessun modello ancora creato: compila il primo qui sopra.</p>
     {% endif %}
   </div>
 </section>

@@ -8,6 +8,7 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
   const CAPTURE_URL = KO_MEETING_RUN_CFG.quickCaptureUrl;
   const TASK_CREATE_URL = KO_MEETING_RUN_CFG.itemTaskCreateUrl;
   const TASK_DETAIL_URL_TEMPLATE = KO_MEETING_RUN_CFG.taskDetailUrl;
+  const ITEM_DELETE_URL = KO_MEETING_RUN_CFG.itemDeleteUrl;
 
   let projectTasks = [];
   try {
@@ -216,8 +217,10 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
 
     function paintTaskLink(taskId) {
       if (!taskLink) return;
-      if (!taskId) { taskLink.hidden = true; taskLink.removeAttribute('href'); return; }
+      if (!taskId) { taskLink.hidden = true; taskLink.removeAttribute('href'); taskLink.removeAttribute('data-preview'); return; }
       taskLink.href = TASK_DETAIL_URL_TEMPLATE.replace(/0(\/?)$/, String(taskId) + '$1');
+      /* «Apri» mostra la scheda nel pannello laterale: si resta in riunione. */
+      taskLink.setAttribute('data-preview', taskLink.href);
       taskLink.hidden = false;
     }
 
@@ -256,6 +259,31 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
         }
         newTitle.focus();
       }
+    });
+
+    /* Tappa «da assegnare» che in questa riunione non serve: via dall'ordine
+       del giorno. Secondo clic entro pochi secondi per confermare, niente finestre. */
+    const delBtn = card.querySelector('[data-role=item-delete]');
+    let delTimer = null;
+    delBtn?.addEventListener('click', function () {
+      if (!delBtn.classList.contains('is-confirm')) {
+        delBtn.classList.add('is-confirm');
+        delBtn.textContent = 'Conferma: elimina il punto';
+        delTimer = setTimeout(function () { delBtn.classList.remove('is-confirm'); delBtn.textContent = 'Elimina'; }, 5000);
+        return;
+      }
+      clearTimeout(delTimer);
+      delBtn.disabled = true;
+      post(ITEM_DELETE_URL, { item_id: itemId }).then(function (data) {
+        if (!data || !data.ok) { delBtn.disabled = false; return; }
+        if (crono[itemId]) { delete crono[itemId]; cronoScrivi(crono); }
+        card.remove();
+        document.querySelectorAll('.run-item').forEach(function (c, i) {
+          c.setAttribute('data-num', String(i + 1));
+          const n = c.querySelector('.run-item-num'); if (n) n.textContent = String(i + 1);
+        });
+        refreshDoneCount();
+      }).catch(function () { delBtn.disabled = false; });
     });
 
     card.querySelector('[data-role=task-new-cancel]')?.addEventListener('click', function () {
@@ -529,7 +557,7 @@ var KO_MEETING_RUN_CFG = (document.currentScript && document.currentScript.datas
           if (sel) sel.value = String(data.id);
           card.setAttribute('data-task-id', String(data.id));
           const link = card.querySelector('[data-role=task-link]');
-          if (link) { link.href = TASK_DETAIL_URL_TEMPLATE.replace(/0(\/?)$/, String(data.id) + '$1'); link.hidden = false; }
+          if (link) { link.href = TASK_DETAIL_URL_TEMPLATE.replace(/0(\/?)$/, String(data.id) + '$1'); link.setAttribute('data-preview', link.href); link.hidden = false; }
         }
       } else if (data.voce) {
         document.getElementById('reg-' + data.kind)?.appendChild(voceLi(data.voce, true));

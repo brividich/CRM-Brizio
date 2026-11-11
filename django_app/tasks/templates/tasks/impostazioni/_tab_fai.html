@@ -1,5 +1,12 @@
 {# Opzioni e soglie del Registro FAI. Il valore iniziale è quello della MT CN 15. #}
-<section class="ts-panel">
+<div class="fai-opz-nav" role="tablist" aria-label="Sezioni del Registro FAI" data-fai-nav>
+  <button type="button" class="fai-opz-tab is-attiva" role="tab" aria-selected="true" data-fai-sezione="scadenze">Scadenze</button>
+  {% for g in fai_gruppi %}
+    <button type="button" class="fai-opz-tab" role="tab" aria-selected="false" data-fai-sezione="{{ g.codice|lower }}">{{ g.titolo }} <strong>{{ g.opzioni|length }}</strong></button>
+  {% endfor %}
+</div>
+
+<section class="ts-panel" data-fai-sezione-corpo="scadenze">
   <div class="ts-panel-head">
     <div class="ts-panel-title-wrap">
       <h2 class="ts-panel-title">Scadenze</h2>
@@ -7,7 +14,7 @@
     </div>
   </div>
   <div class="ts-panel-body">
-    <form method="post" action="" class="fai-opz-soglie">
+    <form method="post" action="" class="fai-opz-soglie" data-salva-ajax>
       {% csrf_token %}
       <input type="hidden" name="tab" value="fai">
       <input type="hidden" name="fai_action" value="soglie">
@@ -17,20 +24,26 @@
       <label class="fai-campo"><span>Mesi dall'ultima produzione per ripeterlo</span>
         <input class="input" type="number" name="fai_mesi_ripetizione" min="1" max="240" required value="{{ cfg.fai_mesi_ripetizione }}">
       </label>
-      <button type="submit" class="md-btn">Salva</button>
+      <button type="submit" class="md-btn" data-salva hidden>Salva</button>
+      <span class="fai-esito" data-esito hidden></span>
     </form>
   </div>
 </section>
 
 {% for g in fai_gruppi %}
-<section class="ts-panel">
+<section class="ts-panel" data-fai-sezione-corpo="{{ g.codice|lower }}" hidden>
   <div class="ts-panel-head">
     <div class="ts-panel-title-wrap">
       <h2 class="ts-panel-title">{{ g.titolo }}</h2>
-      <p class="ts-panel-subtitle">{{ g.aiuto }}</p>
+      <p class="ts-panel-subtitle">{{ g.aiuto }} Le modifiche si salvano riga per riga, senza ricaricare la pagina.</p>
     </div>
   </div>
-  <div class="ts-panel-body fai-opz-elenco">
+  <div class="ts-panel-body fai-opz-elenco" data-fai-gruppo>
+    <div class="fai-opz-barra">
+      <input class="input" type="search" placeholder="Cerca in {{ g.titolo|lower }}…" aria-label="Cerca in {{ g.titolo }}" data-fai-cerca>
+      <label class="tpl-inline"><input type="checkbox" data-fai-spente> Mostra le disattivate <span data-fai-spente-n></span></label>
+      <span class="fai-opz-barra-esito" data-fai-esito hidden></span>
+    </div>
     <div class="fai-opz-riga fai-opz-testa fai-opz-{{ g.codice|lower }}" aria-hidden="true">
       <span>Nome</span>
       {% if g.codice == "CAUSALE" %}<span>Descrizione</span><span>Tipo proposto</span><span>Motivo se Delta</span>
@@ -41,6 +54,7 @@
     {% for o in g.opzioni %}
       {% include "tasks/impostazioni/_fai_opzione.html" with gruppo=g.codice o=o %}
     {% endfor %}
+    <p class="empty" data-fai-vuoto hidden>Nessuna voce corrisponde alla ricerca.</p>
     <h3 class="tr-sezione">Aggiungi</h3>
     {% include "tasks/impostazioni/_fai_opzione.html" with gruppo=g.codice o=None %}
   </div>

@@ -1,8 +1,8 @@
-<form method="post" action="" class="fai-opz-riga fai-opz-{{ gruppo|lower }}{% if o and not o.attiva %} fai-opz-spenta{% endif %}">
+<form method="post" action="" class="fai-opz-riga fai-opz-{{ gruppo|lower }}{% if o and not o.attiva %} fai-opz-spenta{% endif %}"{% if o %} data-fai-riga data-attiva="{% if o.attiva %}1{% else %}0{% endif %}" data-salva-ajax{% endif %}>
   {% csrf_token %}
   <input type="hidden" name="tab" value="fai">
   <input type="hidden" name="gruppo" value="{{ gruppo }}">
-  {% if o %}<input type="hidden" name="opzione_id" value="{{ o.id }}">{% endif %}
+  {% if o %}<input type="hidden" name="opzione_id" value="{{ o.id }}"><input type="hidden" name="fai_action" value="aggiorna">{% endif %}
   <label class="fai-cella"><span class="fai-opz-tit">Nome</span>
     <input class="input" type="text" name="etichetta" maxlength="120" required value="{{ o.etichetta|default:'' }}">
   </label>
@@ -43,8 +43,9 @@
       <input type="checkbox" name="attiva"{% if o.attiva %} checked{% endif %}>
     </label>
     <div class="fai-opz-azioni">
-      <button type="submit" class="md-btn" name="fai_action" value="aggiorna">Salva</button>
-      {% if not o.in_uso and not o.codice %}<button type="submit" class="md-btn danger-ghost" name="fai_action" value="elimina" formnovalidate data-hub-confirm="Eliminare «{{ o.etichetta }}»?">Elimina</button>{% endif %}
+      <button type="submit" class="md-btn" data-salva hidden>Salva</button>
+      <span class="fai-esito" data-esito hidden></span>
+      {% if not o.in_uso and not o.codice %}<button type="submit" class="md-btn danger-ghost" name="fai_action" value="elimina" formnovalidate data-salva-pagina data-hub-confirm="Eliminare «{{ o.etichetta }}»?">Elimina</button>{% endif %}
     </div>
   {% else %}
     <span class="fai-cella" aria-hidden="true"></span>

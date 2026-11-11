@@ -155,6 +155,7 @@ urlpatterns = [
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/ai-punti/", views.project_meeting_ai_punti, name="project_meeting_ai_punti"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/agenda-item/new/", views.project_meeting_agenda_item_add, name="project_meeting_agenda_item_add"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/agenda-item/attivita/", views.project_meeting_agenda_item_task_create, name="project_meeting_agenda_item_task_create"),
+    path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/agenda-item/elimina/", views.project_meeting_agenda_item_delete, name="project_meeting_agenda_item_delete"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/cattura/", views.project_meeting_quick_capture, name="project_meeting_quick_capture"),
     path("tasks/projects/<int:project_id>/incontri/<int:meeting_id>/task-da-step/", views.project_meeting_task_from_step, name="project_meeting_task_from_step"),
     path("tasks/projects/<int:project_id>/vrf/", views.project_vrf_upload, name="project_vrf_upload"),

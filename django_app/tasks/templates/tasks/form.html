@@ -1,4 +1,4 @@
-{% extends "tasks/base_shell.html" %}
+{% extends shell_base|default:"tasks/base_shell.html" %}
 {% block tasks_shell_guide_anchor %}#attivita{% endblock %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / {% if mode == "edit" %}Modifica{% else %}Creazione{% endif %}</span>{% endblock %}
@@ -11,7 +11,7 @@
 {% block tasks_shell_actions %}{% if task %}<a class="ts-hero-action" href="{% url 'tasks:detail' task.id %}">Torna al dettaglio</a>{% elif locked_project %}<a class="ts-hero-action" href="{% url 'tasks:project_gantt' locked_project.id %}">Torna al Gantt kickoff</a>{% else %}<a class="ts-hero-action" href="{% url 'tasks:list' %}">Torna alla dashboard</a>{% endif %}{% endblock %}
 {% block tasks_shell_content %}
 <div class="tf2">
-  <form method="post" class="tf2-form" novalidate>
+  <form method="post" action="{{ request.get_full_path }}" class="tf2-form" novalidate{% if shell_base == "tasks/base_shell_pannello.html" %} data-drawer-form data-drawer-replace{% endif %}>
     {% csrf_token %}
     {% if form.non_field_errors %}<div class="ts-message danger">{{ form.non_field_errors }}</div>{% endif %}
     {% comment %}Errori dei campi legacy 'nuovo kickoff inline' (hidden nel template): li mostriamo qui per non perdere il messaggio.{% endcomment %}

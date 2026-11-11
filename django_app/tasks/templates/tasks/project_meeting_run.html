@@ -52,6 +52,10 @@
             {% if item.responsabile_label %}<span class="mf-issue-chip">{{ item.responsabile_label }}</span>{% endif %}
             {% if item.durata_minuti %}<span class="mf-issue-chip">{{ item.durata_minuti }} min previsti</span>{% endif %}
             <span class="run-item-state" data-role="state">{% if item.done %}Trattato{% else %}Da trattare{% endif %}</span>
+            {% if item.source|slice:':6' == 'tappa:' and not item.task_id %}
+              {# Tappa ancora da assegnare che in questa riunione non si discute: si toglie dall'ODG. #}
+              <button type="button" class="mf-btn-sm ghost run-item-delete" data-role="item-delete" title="Togli questo punto dall'ordine del giorno">Elimina</button>
+            {% endif %}
           </header>
 
           {% if item.collegata %}
@@ -95,7 +99,7 @@
             <button type="button" class="mf-btn-sm primary" data-role="task-new-save">Crea e collega</button>
             <button type="button" class="mf-btn-sm ghost" data-role="task-new-cancel">Annulla</button>
             {# Qui si creano attivita' essenziali: asset, tooling e reminder stanno nel form completo. #}
-            <a class="mf-btn-sm ghost" href="{% url 'tasks:create' %}?project={{ project.id }}" target="_blank" rel="noopener">Form completo</a>
+            <a class="mf-btn-sm ghost" href="{% url 'tasks:create' %}?project={{ project.id }}" data-preview="{% url 'tasks:create' %}?project={{ project.id }}">Form completo</a>
             <span class="run-item-task-err" data-role="task-new-err" hidden></span>
           </div>
 
@@ -148,7 +152,7 @@
       <input class="input" type="date" data-role="task-new-due" title="Fine">
       <button type="button" class="mf-btn-sm primary" data-role="task-new-save">Crea e collega</button>
       <button type="button" class="mf-btn-sm ghost" data-role="task-new-cancel">Annulla</button>
-      <a class="mf-btn-sm ghost" href="{% url 'tasks:create' %}?project={{ project.id }}" target="_blank" rel="noopener">Form completo</a>
+      <a class="mf-btn-sm ghost" href="{% url 'tasks:create' %}?project={{ project.id }}" data-preview="{% url 'tasks:create' %}?project={{ project.id }}">Form completo</a>
       <span class="run-item-task-err" data-role="task-new-err" hidden></span>
     </div>
   </template>
@@ -237,7 +241,7 @@
 
 {% block tasks_shell_scripts %}
 {{ project_tasks_json|json_script:"project-tasks-data" }}
-<script src="{% static 'tasks/js/meeting_run.js' %}?v=20261110f" data-item-update-url="{{ item_update_url }}" data-quick-capture-url="{{ quick_capture_url }}" data-item-task-create-url="{{ item_task_create_url }}" data-task-detail-url="{% url 'tasks:detail' 0 %}" data-planned-minutes="{{ planned_minutes|default:0 }}"></script>
+<script src="{% static 'tasks/js/meeting_run.js' %}?v=20261110g" data-item-update-url="{{ item_update_url }}" data-quick-capture-url="{{ quick_capture_url }}" data-item-task-create-url="{{ item_task_create_url }}" data-item-delete-url="{{ item_delete_url }}" data-task-detail-url="{% url 'tasks:detail' 0 %}" data-planned-minutes="{{ planned_minutes|default:0 }}"></script>
 <script src="{% static 'tasks/js/meeting_agenda_add.js' %}" defer></script>
 <script>
   (function () {

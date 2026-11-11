@@ -1,0 +1,34 @@
+{% load static %}
+{% comment %}
+Stessa pagina del modulo KICK-OFF, senza cornice: la carica il pannello laterale
+di portale (core/js/hub-bulk-pannello.js) dentro un'altra pagina, ad esempio la
+scheda attivita' o il form completo da «Conduci incontro». Blocchi identici a
+base_shell.html cosi' i template non cambiano.
+{% endcomment %}
+<link rel="stylesheet" href="{% static 'tasks/css/tasks.css' %}?v=20261110pannello">
+{% block tasks_shell_head %}{% endblock %}
+<div class="ts-shell ts-shell--pannello" data-pannello>
+  <section class="ts-pannello-head">
+    <div class="ts-hero-eyebrow-row">{% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF</span>{% endblock %}</div>
+    <h2>{% block tasks_shell_title %}{{ page_title|default:"KICK-OFF" }}{% endblock %}</h2>
+    <div class="ts-hero-text">{% block tasks_shell_subtitle %}{% endblock %}</div>
+    <div class="ts-hero-meta">{% block tasks_shell_meta %}{% endblock %}</div>
+    <div class="ts-pannello-actions">
+      {% block tasks_shell_actions %}{% endblock %}
+      <a class="ts-hero-action" href="{{ request.get_full_path }}" target="_blank" rel="noopener">Pagina intera</a>
+    </div>
+  </section>
+  {% block tasks_shell_kpis %}{% endblock %}
+  {% block tasks_shell_content %}{% endblock %}
+</div>
+<script>
+/* I form della scheda (stato, date, commenti, sottoattivita') restano nel
+   pannello: si inviano senza lasciare la pagina e il pannello si ricarica. */
+(function () {
+  document.querySelectorAll('[data-pannello] form').forEach(function (f) {
+    if (!f.hasAttribute('data-drawer-form')) f.setAttribute('data-drawer-form', '');
+    if (!f.getAttribute('action')) f.setAttribute('action', '{{ request.get_full_path|escapejs }}');
+  });
+})();
+</script>
+{% block tasks_shell_scripts %}{% endblock %}

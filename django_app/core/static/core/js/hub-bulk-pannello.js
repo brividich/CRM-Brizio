@@ -191,11 +191,28 @@
     });
   }
 
+  // innerHTML non esegue gli <script> del frammento: si ricreano, così una scheda
+  // con il suo JS (es. attività del KICK-OFF) funziona anche dentro il pannello.
+  function eseguiScript(root) {
+    Array.prototype.forEach.call(root.querySelectorAll("script"), function (old) {
+      var s = document.createElement("script");
+      Array.prototype.forEach.call(old.attributes, function (a) { s.setAttribute(a.name, a.value); });
+      s.textContent = old.textContent;
+      old.parentNode.replaceChild(s, old);
+    });
+  }
+
+  function mostra(html) {
+    drawerBody.innerHTML = html;
+    eseguiScript(drawerBody);
+    drawerBody.scrollTop = 0;
+  }
+
   function load(url) {
     drawerBody.innerHTML = '<p class="soc-drawer-loading">Caricamento…</p>';
     return fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" }, credentials: "same-origin" })
       .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
-      .then(function (html) { drawerBody.innerHTML = html; drawerBody.scrollTop = 0; drawerBody.focus(); })
+      .then(function (html) { mostra(html); drawerBody.focus(); })
       .catch(function () { drawerBody.innerHTML = '<p class="sec-action-result sec-error">Anteprima non disponibile. Apri la scheda completa.</p>'; });
   }
 
@@ -255,7 +272,7 @@
         if (target) { target.innerHTML = html; if (button) { button.disabled = false; if (button.dataset.label) button.textContent = button.dataset.label; } return; }
         changed = true;
         // [data-drawer-replace]: la risposta è il pannello rifatto, con l'esito dell'azione dentro.
-        if (form.hasAttribute("data-drawer-replace")) { drawerBody.innerHTML = html; drawerBody.scrollTop = 0; return; }
+        if (form.hasAttribute("data-drawer-replace")) { mostra(html); return; }
         return load(current ? current.getAttribute("data-preview") : form.getAttribute("data-reload"));
       })
       .catch(function () {

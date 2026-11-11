@@ -1,4 +1,4 @@
-{% extends "tasks/base_shell.html" %}
+{% extends shell_base|default:"tasks/base_shell.html" %}
 {% block tasks_shell_guide_anchor %}#scheda-attivita{% endblock %}
 
 {% block tasks_shell_eyebrow %}<span class="ts-eyebrow">KICK-OFF / Attività</span>{% endblock %}
