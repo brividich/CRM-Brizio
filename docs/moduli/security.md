@@ -367,3 +367,7 @@ Segnalazioni urgenti contate per intero (`segnalazioni.conta_urgenti`, «Solo ur
 - **Caselle mail**: colonna «Report» da `source_heartbeat.source_status_rows()` (ora con `id`) e filtro `?stato=ritardo` (stati `IN_RITARDO`), lo stesso numero del riquadro «sorgenti in ritardo», che ora apre l'elenco filtrato.
 - **«Da decidere»**: `alert_lifecycle.DA_DECIDERE_ALERT_STATUSES` (aperti senza rimandati e silenziati) per Proposte AI (`alert_gruppi.APERTI`, `ai_proposte.APERTI`); Segnalazioni continua a contare `ACTIVE_ALERT_STATUSES`.
 - **Minori**: `/soc/inbox/` si chiama «Carica report» ed è una scheda di Impostazioni; `/soc/assets/?stato=collegati` → Dispositivi `?f=collegati` (filtro senza chip, link nel testo in testa); esito notifica `cooldown` = «Già inviato di recente»; «Scheda alert», «Volte applicata»; `<title>` con «|»; tolti i template inutilizzati `security/base.html` e `soc_assets.html`.
+
+## Ciclo del SOC diviso (11/11/2026)
+
+Le caselle mail dei report si leggono nel lavoro `security_caselle` (`security.tasks.run_security_caselle_task`, ogni 15 minuti, timeout 300 s). Il `security_cycle` fa letture esterne (Defender, Entra, Veeam, Secure Score), regole, battito, KPI, rientri e notifiche; le letture esterne si rimandano al giro dopo oltre `CICLO_BUDGET_LETTURE_SECONDI` (50 s), i passi interni girano sempre.

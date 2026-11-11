@@ -113,14 +113,25 @@ SCHEDULES: list[dict] = [
         "kwargs": {"limit": 50},
     },
     {
-        # SECURITY CENTER — legge le caselle mail dei report (Graph), parser, regole,
-        # heartbeat sorgenti e KPI. Senza questo schedule il SOC non riceve dati.
+        # SECURITY CENTER — letture Defender/Entra/Veeam/Secure Score, regole, heartbeat sorgenti,
+        # KPI e notifiche. Le caselle mail sono nel lavoro security_caselle.
         "name": "security_cycle",
         "func": "security.tasks.run_security_cycle_task",
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
         "minutes": 15,
         "repeats": -1,
         "kwargs": {},
+    },
+    {
+        # SECURITY CENTER — lettura delle caselle mail dei report (Graph/IMAP): parser e regole su ogni
+        # mail importata. Lavoro a sé, separato dal security_cycle, con timeout dedicato: un arretrato di
+        # mail non ferma più regole, battito e KPI del ciclo.
+        "name": "security_caselle",
+        "func": "security.tasks.run_security_caselle_task",
+        "schedule_type": "I",   # Schedule.MINUTES
+        "minutes": 15,
+        "repeats": -1,
+        "kwargs": {"q_options": {"timeout": 300}},
     },
     {
         # SECURITY CENTER — arricchimento CVE (NVD, CISA KEV, EPSS) e impatto sugli asset.

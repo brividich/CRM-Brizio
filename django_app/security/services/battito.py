@@ -27,7 +27,7 @@ TOLLERANZA_MINUTI = 10
 
 # lettura → schedule che la fa girare, ed eventuale intervallo reale se il ciclo la limita (es. Secure Score ogni 12 ore)
 SCHEDULE_DI_LETTURA = {
-    "caselle": ("security_cycle", None),
+    "caselle": ("security_caselle", None),
     "defender_alert": ("security_cycle", None),
     "entra": ("security_cycle", None),
     "veeam": ("security_cycle", None),
@@ -62,8 +62,8 @@ class Lavoro:
 
 LAVORI = (
     Lavoro("ciclo", "Ciclo del SOC", "Motore del SOC",
-           "Ogni 15 minuti: legge caselle, Defender, Entra e Veeam, applica le regole, chiude gli alert rientrati, "
-           "manda le notifiche.", "security_cycle"),
+           "Ogni 15 minuti: legge Defender, Entra e Veeam, applica le regole, chiude gli alert rientrati, "
+           "manda le notifiche. Le caselle mail hanno il loro lavoro.", "security_cycle"),
     Lavoro("ai_lettura", "Lettura assistita dall'AI", "Motore del SOC",
            "Rilegge con l'AI locale le mail che i parser non hanno capito.", "security_ai_lettura"),
     Lavoro("ai_sintesi", "Sintesi della giornata (AI)", "Motore del SOC",

@@ -250,7 +250,9 @@ GUIDA = {
                     "Le caselle di posta che ricevono i report (antivirus, firewall, backup) si configurano in «Caselle mail»: creazione, anteprima, lettura manuale, importazione dello storico. "
                     "La colonna «Report» dice se ogni casella manda i report nei tempi attesi; il riquadro «sorgenti in ritardo» apre l'elenco filtrato «In ritardo».",
                     "Un report arrivato per altra via si carica da Impostazioni › «Carica report».",
-                    "Il ciclo di lettura gira ogni 15 minuti (lavoro «security_cycle»).",
+                    "Le caselle si leggono ogni 15 minuti con il lavoro «security_caselle». Defender, Entra, Veeam, regole, battito e "
+                    "KPI girano nel lavoro «security_cycle», anch'esso ogni 15 minuti: se le letture esterne richiedono troppo "
+                    "tempo vengono rimandate al giro dopo, ma regole, battito e notifiche girano comunque.",
                     "Chi apre la voce «Impostazioni» (Configurazione, Avvisi e automatismi, Battito, Letture, Soppressioni, "
                     "Caselle mail, Inventario software, Autoconfigurazione): in Ruoli e permessi la sotto-riga «↳ Impostazioni e "
                     "configurazione del SOC». «Chiudere / gestire» non la apre più: resta la gestione operativa (CVE, rischi "
@@ -448,7 +450,7 @@ GUIDA = {
             "fare": [
                 "Nella Panoramica guarda la «freschezza» di ogni area: quale fonte è ferma?",
                 "«Caselle mail»: prova l'anteprima della casella di quella fonte.",
-                "Amministrazione → Monitoring → «Salute degli schedule»: controlla «security_cycle».",
+                "Amministrazione → Monitoring → «Salute degli schedule»: controlla «security_caselle» (caselle mail) e «security_cycle» (Defender, Entra, Veeam, regole).",
                 "Se la lettura della casella dà 401/403 il segreto dell'app Graph è scaduto: rinnovalo su Entra ID e aggiornalo dal Setup Wizard.",
                 "Altri casi: capitolo «Risoluzione problemi» della guida completa.",
             ],

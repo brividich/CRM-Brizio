@@ -16,7 +16,7 @@ from security.models import (
 
 from security.services.rule_engine import EVALUATION_ERROR
 
-CYCLE_NAME = "security_cycle"
+CYCLE_NAME = "security_caselle"  # lettura delle caselle: lavoro a sé dall'11/11/2026
 CYCLE_MINUTES = 15
 
 
