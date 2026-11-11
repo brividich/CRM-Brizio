@@ -27,3 +27,11 @@ def run_specifiche_escalation() -> dict:
 def run_specifiche_verifica_periodica() -> dict:
     """Verifica periodica 6 mesi sulle specifiche in validità (eseguito 1/giorno)."""
     return scadenze.esegui_verifica_periodica()
+
+
+@system_job_run("gestione_specifiche_sync_cartelle")
+def run_sync_cartelle() -> dict:
+    """Ogni 15 minuti: catalogo allineato alla cartella delle specifiche (sola lettura della share)."""
+    from .sync_cartelle import esegui
+
+    return esegui()

@@ -1,0 +1,70 @@
+{% extends "core/base.html" %}
+{% block title %}Sincronizzazione con la cartella · Specifiche{% endblock %}
+{% block extra_head %}{% include "gestione_specifiche/_gs_styles.html" %}{% endblock %}
+
+{% block content %}
+<div class="gs-wrap">
+  <a class="gs-back" href="{% url 'gestione_specifiche:admin_home' %}">{% include "gestione_specifiche/partials/_icon.html" with name="arrow" size=14 %} Amministrazione</a>
+
+  <div class="gs-hdrcard">
+    <div class="gs-hdrcard__ic is-navy">{% include "gestione_specifiche/partials/_icon.html" with name="share" size=20 %}</div>
+    <div style="flex:1;">
+      <div class="gs-eyebrow">Amministrazione</div>
+      <h1 style="margin:2px 0 0; font-size:18px; font-weight:800;">Sincronizzazione con la cartella</h1>
+      <p style="margin:4px 0 0; font-size:12.5px; color:var(--text-mid,#7c8aa2);">{% for r in stato.radici %}<code>{{ r }}</code>{% if not forloop.last %}, {% endif %}{% empty %}Nessuna cartella configurata (GESTIONE_SPECIFICHE_SHARE_ROOTS).{% endfor %}</p>
+    </div>
+  </div>
+
+  {% include "gestione_specifiche/partials/_messages.html" %}
+
+  <div class="gs-panel gs-panel--pad">
+    <p style="margin:0 0 12px; font-size:13px; color:var(--text-mid,#5b6b82); line-height:1.55;">
+      Ogni 15 minuti il portale elenca i PDF della cartella (esclusa <code>_SUPERATO</code>) senza modificarla.
+      Un PDF che nel catalogo non c'è diventa una specifica <strong>in bozza</strong> nella cartella del cliente, con l'avviso a chi prende in carico;
+      una revisione più recente di una specifica esistente diventa la sua nuova revisione; un file spostato o rinominato viene ricollegato.
+      Il primo giro fotografa l'archivio: i PDF già presenti entrano <strong>in validità</strong>, senza avvisi.
+    </p>
+    <ul style="list-style:none; margin:0 0 14px; padding:0; display:grid; gap:6px; font-size:13px;">
+      <li><b style="color:{% if stato.attivo %}#1f7a52{% else %}#cf3a3a{% endif %}">{% if stato.attivo %}✓{% else %}✕{% endif %}</b> Sincronizzazione {% if stato.attivo %}accesa{% else %}spenta{% endif %}</li>
+      <li><b style="color:{% if stato.raggiungibile %}#1f7a52{% else %}#cf3a3a{% endif %}">{% if stato.raggiungibile %}✓{% else %}✕{% endif %}</b> Cartella {% if stato.raggiungibile %}raggiungibile dal sito{% else %}non raggiungibile dal sito: servono i permessi di lettura per l'account del portale{% endif %}</li>
+      <li><b style="color:{% if stato.ultimo %}#1f7a52{% else %}#a86a14{% endif %}">{% if stato.ultimo %}✓{% else %}!{% endif %}</b> Ultimo controllo: {% if stato.ultimo %}{{ stato.ultimo|date:"d/m/Y H:i" }}{% else %}mai (il controllo programmato non è ancora partito: «setup_q_schedules» e qcluster sul server){% endif %}</li>
+      {% if stato.base %}<li><b style="color:#1f7a52">✓</b> Archivio fotografato il {{ stato.base|date:"d/m/Y" }}: da allora i file nuovi arrivano in bozza</li>{% endif %}
+    </ul>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <form method="post" style="margin:0;">{% csrf_token %}
+        <input type="hidden" name="azione" value="interruttore">
+        <input type="hidden" name="attivo" value="{% if stato.attivo %}0{% else %}1{% endif %}">
+        <button class="gs-btn" type="submit">{% if stato.attivo %}Spegni la sincronizzazione{% else %}Accendi la sincronizzazione{% endif %}</button>
+      </form>
+      <form method="post" style="margin:0;">{% csrf_token %}
+        <input type="hidden" name="azione" value="ora">
+        <button class="gs-btn gs-btn--orange" type="submit">Sincronizza ora</button>
+      </form>
+    </div>
+  </div>
+
+  {% with e=stato.esito %}
+  {% if e.at %}
+  <div class="gs-panel gs-panel--pad">
+    <div class="gs-eyebrow" style="margin-bottom:10px;">Ultimo giro · {{ stato.esito_at|date:"d/m/Y H:i" }}</div>
+    <div style="display:flex; gap:22px; flex-wrap:wrap; font-size:13px;">
+      <span><b>{{ e.pdf }}</b> PDF nella cartella</span>
+      <span><b>{{ e.collegati }}</b> già nel catalogo</span>
+      <span><b>{{ e.nuove }}</b> specifiche nuove</span>
+      <span><b>{{ e.nuove_revisioni }}</b> nuove revisioni</span>
+      <span><b>{{ e.riallineati }}</b> file ricollegati</span>
+      <span><b>{{ e.esclusi|length }}</b> lasciati fuori</span>
+    </div>
+    {% if e.esclusi %}
+    <div class="gs-scroll" style="margin-top:14px;">
+      <table class="gs-table">
+        <thead><tr><th>File</th><th>Motivo</th></tr></thead>
+        <tbody>{% for x in e.esclusi %}<tr><td style="font-size:12.5px;">{{ x.file }}</td><td style="font-size:12.5px;">{{ x.motivo }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% endwith %}
+</div>
+{% endblock %}

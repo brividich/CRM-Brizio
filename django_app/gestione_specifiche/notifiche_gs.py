@@ -141,3 +141,21 @@ def notifica_nuova_specifica(spec) -> int:
             _invia_email_html(email, spec, url)
         n += 1
     return n
+
+
+def notifica_riepilogo_nuove(n: int, url: str = "/gestione-specifiche/?stato=bozza") -> int:
+    """Un solo avviso in-app al gruppo che prende in carico (IN1 + nomi aggiuntivi) per tante specifiche nuove insieme."""
+    from .models import NotificaConfig
+
+    cfg = NotificaConfig.get_config()
+    messaggio = f"{n} specifiche nuove dalla cartella delle specifiche, da prendere in carico."
+    fatti = 0
+    for u in cfg.utenti_aggiuntivi.filter(is_active=True):
+        lid = _legacy_id(u)
+        if lid:
+            invia_notifica(lid, _TIPO, messaggio, url)
+            fatti += 1
+    for em in _email_reparto(cfg.reparto_in1):
+        invia_notifica_email(em, _TIPO, messaggio, url)
+        fatti += 1
+    return fatti
