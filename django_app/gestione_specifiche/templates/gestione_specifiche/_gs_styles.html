@@ -319,6 +319,18 @@
   .gs-cliente h2{ margin:2px 0 6px; font-size:20px; font-weight:800; }
   .gs-cliente__crumb{ font-size:12px; } .gs-cliente__crumb a{ color:#1f87cd; font-weight:700; text-decoration:none; }
   .gs-cliente__meta{ display:flex; gap:8px 12px; flex-wrap:wrap; align-items:center; font-size:12.5px; color:var(--text-mid,#5b6b82); }
+  .gs-vol__ico{ position:absolute; right:-10px; bottom:26px; width:86px; height:86px; color:#fff; opacity:.16; pointer-events:none; }
+  .gs-vol__logo{ position:absolute; top:10px; right:10px; max-width:46%; max-height:36px; object-fit:contain; background:#fff; border-radius:6px; padding:3px 5px; box-shadow:0 2px 6px rgba(0,0,0,.18); }
+  .gs-vol__cover > :not(.gs-vol__ico):not(.gs-vol__logo){ position:relative; }
+  .gs-vol__cover.con-logo .gs-vol__k{ padding-right:50%; }
+  .gs-cliente__dorso img{ max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:4px; padding:2px; }
+  .gs-dorso-ico{ width:30px; height:30px; color:#fff; }
+  .gs-cop-edit{ flex-basis:100%; }
+  .gs-cop-edit > summary{ list-style:none; display:inline-flex; align-items:center; cursor:pointer; }
+  .gs-cop-edit > summary::-webkit-details-marker{ display:none; }
+  .gs-cop-form{ display:flex; flex-wrap:wrap; gap:10px 14px; align-items:center; margin-top:10px; padding:12px; border:1px dashed var(--border,#e6ecf4); border-radius:10px; font-size:12.5px; font-weight:600; color:var(--text-mid,#5b6b82); }
+  .gs-cop-form label{ display:inline-flex; align-items:center; gap:6px; }
+  .gs-cop-check{ font-weight:500; }
   @media (max-width:640px){ .gs-shelf{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 12px; padding:14px; } .gs-vol__n{ font-size:24px; } }
 
   /* ── DARK MODE — additivo: hex chiari → token del tema. Hero e pill/bottoni

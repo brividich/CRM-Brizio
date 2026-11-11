@@ -105,13 +105,22 @@ body.theme-dark .pr-kpi-red .pr-kpi-val{color:#fca5a5}
     {% include "core/components/module_branding_card.html" with branding_compact=True %}
 
     <div class="pr-card">
-      <div class="pr-card-title">Sincronizzazione corpus SGI</div>
-      <p style="font-size:13px;color:#64748b;margin:0 0 14px;">
-        Importa dalla share i documenti SGI nuovi o aggiornati (solo quelli a perimetro sicuro:
-        codice riconosciuto e non gestiti a mano). L'auto-sync notturno alle 03:00 li rende
-        disponibili all'AI dal re-index delle 03:30. I documenti in presa visione non vengono
-        mai toccati automaticamente.
+      <div class="pr-card-title">Sincronizzazione con la cartella SGI</div>
+      <p style="font-size:13px;color:var(--text-mid,#64748b);margin:0 0 14px;">
+        Ogni 15 minuti il portale guarda nomi, dimensioni e date dei file della cartella e, se qualcosa è cambiato,
+        importa i documenti nuovi, le revisioni nuove e i file spostati. Di notte (03:00) rifà il giro completo.
+        La cartella non viene mai modificata.
       </p>
+      {% if stato_sync.controlli %}
+      <ul class="pr-sync-check" style="list-style:none;margin:0 0 14px;padding:0;display:grid;gap:6px;">
+        {% for c in stato_sync.controlli %}
+        <li style="display:flex;gap:8px;align-items:flex-start;font-size:13px;">
+          <span aria-hidden="true" style="font-weight:800;color:{% if c.ok %}var(--success,#2f855a){% else %}#c53030{% endif %}">{% if c.ok %}✓{% else %}✕{% endif %}</span>
+          <span><strong>{{ c.titolo }}</strong>{% if c.dettaglio %}<br><span style="color:var(--text-mid,#64748b)">{{ c.dettaglio }}</span>{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
         <form method="post" style="margin:0;">
           {% csrf_token %}
@@ -119,7 +128,7 @@ body.theme-dark .pr-kpi-red .pr-kpi-val{color:#fca5a5}
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#0f172a;">
             <input type="checkbox" name="sgi_auto_sync_attivo" value="1" {% if sgi_auto_on %}checked{% endif %}
                    onchange="this.form.submit()">
-            Auto-sync notturno attivo
+            Sincronizzazione automatica attiva
           </label>
         </form>
         <form method="post" action="{% url 'procedure_refresh:sgi_sync_now' %}" style="margin:0;">
@@ -133,8 +142,22 @@ body.theme-dark .pr-kpi-red .pr-kpi-val{color:#fca5a5}
         <p style="font-size:12px;color:#475569;margin:12px 0 0;">
           Ultima sync: <strong>{{ sgi_last_sync.at }}</strong> —
           {{ sgi_last_sync.created }} creati, {{ sgi_last_sync.updated }} aggiornati,
-          {{ sgi_last_sync.revisions }} revisioni, {{ sgi_last_sync.excluded }} esclusi (fuori perimetro sicuro).
+          {{ sgi_last_sync.revisions }} revisioni, {{ sgi_last_sync.excluded }} non sincronizzati.
         </p>
+        {% if stato_sync.esclusi %}
+        <details style="margin-top:10px;font-size:12.5px;">
+          <summary style="cursor:pointer;font-weight:700;">File non sincronizzati ({{ stato_sync.esclusi|length }}{% if stato_sync.esclusi|length == 100 %}+{% endif %})</summary>
+          <table style="width:100%;border-collapse:collapse;margin-top:8px;">
+            <thead><tr><th style="text-align:left;padding:4px 6px;">Codice</th><th style="text-align:left;padding:4px 6px;">File</th><th style="text-align:left;padding:4px 6px;">Motivo</th></tr></thead>
+            <tbody>
+            {% for e in stato_sync.esclusi %}
+            <tr><td style="padding:4px 6px;border-top:1px solid var(--border,#e2e8f0);white-space:nowrap;">{{ e.code }}</td><td style="padding:4px 6px;border-top:1px solid var(--border,#e2e8f0);">{{ e.file }}</td><td style="padding:4px 6px;border-top:1px solid var(--border,#e2e8f0);">{{ e.motivo }}</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <p style="margin:6px 0 0;color:var(--text-mid,#64748b);">Di solito basta correggere il nome del file nella cartella (codice e «Rev.N»): al controllo successivo entra da solo.</p>
+        </details>
+        {% endif %}
       {% else %}
         <p style="font-size:12px;color:#94a3b8;margin:12px 0 0;">Nessuna sincronizzazione automatica ancora eseguita.</p>
       {% endif %}

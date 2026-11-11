@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import admin_views, timbri_views, views
+from . import admin_views, timbri_views, views, views_copertine
 from .api import api as ninja_api
 
 app_name = "gestione_specifiche"
@@ -8,6 +8,8 @@ app_name = "gestione_specifiche"
 urlpatterns = [
     path("", views.lista, name="lista"),
     path("kpi/", views.kpi, name="kpi"),
+    path("copertina/", views_copertine.copertina_salva, name="copertina_salva"),
+    path("copertina/<int:pk>/logo/", views_copertine.copertina_logo, name="copertina_logo"),
     path("nuova/", views.nuova_specifica, name="nuova"),
     path("cartella-suggerita/", views.cartella_suggerita, name="cartella_suggerita"),
     path("allegato/<int:pk>/", views.allegato_download, name="allegato_download"),

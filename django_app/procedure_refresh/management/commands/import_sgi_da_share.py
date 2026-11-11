@@ -463,19 +463,36 @@ def filter_auto_safe(candidates: list[dict]) -> tuple[list[dict], list[dict]]:
     safe: list[dict] = []
     excluded: list[dict] = []
     for info in candidates:
-        if info.get("fallback") or info.get("disambiguated_from"):
-            excluded.append({**info, "motivo_esclusione": "nome non riconosciuto o codice disambiguato"})
+        if info.get("disambiguated_from"):
+            excluded.append({**info, "motivo_esclusione": "stesso codice in più file: va scelto a mano"})
             continue
         doc = existing.get(info["code"])
+        # CN-SGI: la cartella è la fonte di verità. Anche i nomi non riconosciuti come
+        # codice SGI (piani qualità, DVR, manuali con nomi liberi: «fallback») entrano e si
+        # aggiornano, come nell'import completo; restano fuori solo i codici doppi.
         if doc is None:
             safe.append({**info, "nuovo": True})
         elif _doc_is_import_child(doc):
             safe.append(info)
         elif _candidate_is_newer_revision(info, doc):
             safe.append({**info, "aggiornamento_revisione": True})
+        elif _stessa_revisione_spostata(info, doc):
+            # Stessa revisione, file spostato o rinominato: si aggiorna solo il percorso
+            # della revisione in vigore (le prese visione restano dove sono).
+            safe.append({**info, "riallineamento": True})
         else:
-            excluded.append({**info, "motivo_esclusione": "documento gestito a mano, revisione non più recente"})
+            excluded.append({**info, "motivo_esclusione": "revisione nel nome non più recente di quella in libreria"})
     return safe, excluded
+
+
+def _stessa_revisione_spostata(info: dict, doc) -> bool:
+    """Il file della revisione in vigore è lo stesso codice/revisione ma sta in un altro percorso."""
+    current = next((r for r in doc.revisions.all() if r.is_current), None)
+    if current is None or str(info.get("revision") or "") != str(current.revision_code or ""):
+        return False
+    return current.source_type == SourceType.FILESERVER and (
+        current.source_path != info.get("path") or current.file_name != info.get("file_name")
+    )
 
 
 def detect_share_drift(root: Path, *, solo_procedure: bool = False) -> dict:
