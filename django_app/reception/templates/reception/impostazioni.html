@@ -2,10 +2,43 @@
 {% block title %}Impostazioni | Reception{% endblock %}
 {% block rc_titolo %}Impostazioni{% endblock %}
 {% block rc_contenuto %}
-<div class="rc-card">
-  <div class="rc-card-head">Logo del chiosco</div>
+<div class="rc-card" id="pagina">
+  <div class="rc-card-head">Pagina pubblica «Richiesta di visita»</div>
   <div class="rc-body">
-    <p class="rc-note">Compare in alto a sinistra sul totem al posto della scritta. PNG, JPG o WEBP fino a 1 MB; meglio chiaro o con sfondo trasparente, perché il totem è scuro. Stato: <strong>{% if logo_presente %}caricato{% else %}nessun logo{% endif %}</strong>.</p>
+    <p class="rc-note">Indirizzo: <a href="{{ link_pubblico }}" target="_blank" rel="noopener">{{ link_pubblico }}</a> · <strong>{% if pagina_accesa %}accesa{% else %}spenta{% endif %}</strong>{% if not pagina_accesa %} (si accende con RECEPTION_NATIVA=1 e RECEPTION_RICHIESTE_PUBBLICHE=1 nel .env){% endif %}. In testa compare il logo caricato qui sotto. Campo vuoto = testo predefinito.</p>
+    <form method="post" class="rc-form">{% csrf_token %}<input type="hidden" name="azione" value="pagina">
+      <div class="rc-field"><label for="t-titolo">Titolo</label><input class="rc-input" id="t-titolo" name="pagina_titolo" maxlength="80" value="{{ testi.pagina_titolo }}"></div>
+      <div class="rc-field"><label for="t-colore">Colore principale</label><input class="rc-input rc-colore" id="t-colore" type="color" name="pagina_colore" value="{{ testi.pagina_colore }}"></div>
+      <div class="rc-field rc-field-largo"><label for="t-intro">Testo sotto il titolo</label><textarea class="rc-input" id="t-intro" name="pagina_intro" rows="3" maxlength="400">{{ testi.pagina_intro }}</textarea></div>
+      <div class="rc-field"><button class="rc-btn rc-btn-p" type="submit">Salva</button></div>
+    </form>
+  </div>
+</div>
+<div class="rc-card" id="mail">
+  <div class="rc-card-head">Testi delle mail agli esterni</div>
+  <div class="rc-body">
+    <p class="rc-note">Le parole tra graffe si sostituiscono con i dati veri: lasciale scritte così. Logo, colori e piè di pagina sono quelli comuni a tutte le mail dell'HUB. «Mandami una prova» usa dati d'esempio e i testi salvati.</p>
+    {% for g in gruppi_mail %}
+    <details class="rc-altro rc-mail" id="mail-{{ g.chiave }}">
+      <summary>{{ g.titolo }}{% if g.personalizzato %} · personalizzato{% endif %}</summary>
+      <p class="rc-piccolo">{{ g.nota }}</p>
+      <form method="post" class="rc-form rc-form-colonna">{% csrf_token %}
+        {% for c in g.campi %}
+        <div class="rc-field rc-field-largo"><label for="m-{{ c.nome }}">{{ c.def.etichetta }}</label>
+          {% if c.def.righe > 1 %}<textarea class="rc-input" id="m-{{ c.nome }}" name="{{ c.nome }}" rows="{{ c.def.righe }}" maxlength="{{ c.def.massimo }}">{{ c.valore }}</textarea>{% else %}<input class="rc-input" id="m-{{ c.nome }}" name="{{ c.nome }}" maxlength="{{ c.def.massimo }}" value="{{ c.valore }}">{% endif %}
+          {% if c.def.segnaposti %}<span class="rc-piccolo">Si possono usare: {% for s in c.def.segnaposti %}<code>{{ "{" }}{{ s }}{{ "}" }}</code>{% if not forloop.last %} {% endif %}{% endfor %}{% if c.def.obbligatori %} · obbligatorio: {% for s in c.def.obbligatori %}<code>{{ "{" }}{{ s }}{{ "}" }}</code>{% endfor %}{% endif %}</span>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="rc-field rc-field-largo"><span><button class="rc-btn rc-btn-p" name="azione" value="mail_{{ g.chiave }}">Salva</button> <button class="rc-btn rc-btn-g" name="azione" value="prova_{{ g.chiave }}" formnovalidate>Mandami una prova</button>{% if g.personalizzato %} <button class="rc-btn rc-btn-g" name="azione" value="ripristina_{{ g.chiave }}" formnovalidate>Ripristina il predefinito</button>{% endif %}</span></div>
+      </form>
+    </details>
+    {% endfor %}
+  </div>
+</div>
+<div class="rc-card">
+  <div class="rc-card-head">Logo del chiosco e della pagina pubblica</div>
+  <div class="rc-body">
+    <p class="rc-note">Compare in alto a sinistra sul totem al posto della scritta, e in testa alla pagina pubblica. PNG, JPG o WEBP fino a 1 MB; meglio chiaro o con sfondo trasparente, perché il totem è scuro. Stato: <strong>{% if logo_presente %}caricato{% else %}nessun logo{% endif %}</strong>.</p>
     <form method="post" enctype="multipart/form-data" class="rc-azioni">{% csrf_token %}<input type="hidden" name="azione" value="logo">
       <input type="file" name="logo" accept=".png,.jpg,.jpeg,.webp" required>
       <button class="rc-btn" type="submit">Carica</button>

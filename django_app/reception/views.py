@@ -539,9 +539,70 @@ def _salva_logo(request, azione: str) -> None:
 
 
 @login_required
+def _salva_testi(request, campi) -> bool:
+    from . import personalizza
+
+    errori = [e for e in (personalizza.errore(n, request.POST.get(n, "")) for n in campi) if e]
+    if errori:
+        for e in errori:
+            messages.error(request, e)
+        return False
+    for n in campi:
+        personalizza.salva(n, request.POST.get(n, ""))
+    log_action(request, "reception_testi", "reception", {"campi": list(campi)})
+    return True
+
+
+def _prova_mail(request, tipo: str) -> None:
+    """Manda a chi è collegato la mail con dati d'esempio, con i testi salvati."""
+    from datetime import time as ora
+
+    email = (request.user.email or "").strip()
+    if "@" not in email:
+        messages.error(request, "Il tuo utente non ha un'email: non posso mandarti la prova.")
+        return
+    domani = timezone.localdate() + timedelta(days=1)
+    try:
+        if tipo == "invito":
+            pre = Preregistrazione(codice="AB12CD34", ospite_nome="Mario Esempio", ospite_email=email, ospite_azienda="Esempio Srl",
+                                   referente_nome="Rossi Anna", referente_email="", data_visita=domani, ora_inizio=ora(10, 0),
+                                   scade_il=timezone.now() + timedelta(days=1))
+            mail.invia_invito(pre, solo_a=email)
+        else:
+            finta = RichiestaAppuntamento(nome="Mario", cognome="Esempio", email=email, data_visita=domani,
+                                          nota_decisione="Questa settimana siamo chiusi per inventario.")
+            if tipo == "conferma":
+                mail.invia_conferma_richiesta(finta, request.build_absolute_uri("/richiesta-visita/conferma/esempio/"))
+            else:
+                mail.invia_rifiuto(finta)
+    except Exception:  # noqa: BLE001
+        messages.error(request, "La mail di prova non è partita: controlla la configurazione della posta.")
+        return
+    messages.success(request, f"Mail di prova inviata a {email}.")
+
+
 def impostazioni(request):
+    from . import personalizza
+
     if request.method == "POST":
-        azione = request.POST.get("azione")
+        azione = request.POST.get("azione") or ""
+        gruppi = {chiave: campi for chiave, _t, _n, campi in personalizza.MAIL}
+        if azione == "pagina":
+            if _salva_testi(request, ("pagina_titolo", "pagina_intro", "pagina_colore")):
+                messages.success(request, "Pagina pubblica salvata.")
+            return redirect(reverse("reception:impostazioni") + "#pagina")
+        if azione.startswith("mail_") and azione[5:] in gruppi:
+            if _salva_testi(request, gruppi[azione[5:]]):
+                messages.success(request, "Testo della mail salvato.")
+            return redirect(reverse("reception:impostazioni") + f"#mail-{azione[5:]}")
+        if azione.startswith("ripristina_") and azione[11:] in gruppi:
+            for n in gruppi[azione[11:]]:
+                personalizza.salva(n, "")
+            messages.success(request, "Ripristinato il testo predefinito.")
+            return redirect(reverse("reception:impostazioni") + f"#mail-{azione[11:]}")
+        if azione.startswith("prova_") and azione[6:] in gruppi:
+            _prova_mail(request, azione[6:])
+            return redirect(reverse("reception:impostazioni") + f"#mail-{azione[6:]}")
         if azione in ("logo", "logo_togli"):
             _salva_logo(request, azione)
             return redirect("reception:impostazioni")
@@ -557,8 +618,14 @@ def impostazioni(request):
             messages.success(request, "Impostazione salvata.")
         return redirect("reception:impostazioni")
     mesi = int(getattr(settings, "RECEPTION_CONSERVAZIONE_MESI", 12))
+    valori, cambiati = personalizza.tutti(), personalizza.personalizzati()
+    gruppi_mail = [{"chiave": k, "titolo": t, "nota": nota, "personalizzato": any(c in cambiati for c in campi),
+                    "campi": [{"nome": c, "def": personalizza.TESTI[c], "valore": valori[c]} for c in campi]}
+                   for k, t, nota, campi in personalizza.MAIL]
     return render(request, "reception/impostazioni.html", _ctx(
         request, "impostazioni", avviso=SiteConfig.get(CHIAVE_AVVISO_REQUISITI, "0") == "1", mesi=mesi,
-        logo_presente=bool(_logo_percorso()),
+        logo_presente=bool(_logo_percorso()), testi=valori, gruppi_mail=gruppi_mail,
+        pagina_accesa=bool(getattr(settings, "RECEPTION_RICHIESTE_PUBBLICHE", False)) and bool(getattr(settings, "RECEPTION_NATIVA", False)),
+        link_pubblico=request.build_absolute_uri(reverse("reception_pubblica:richiesta")),
         n_oltre=servizi.visite_oltre_conservazione(mesi).count(),
     ))

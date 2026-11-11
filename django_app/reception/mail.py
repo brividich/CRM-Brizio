@@ -38,27 +38,41 @@ def _ics(pre, metodo: str) -> str | None:
     ])
 
 
-def invia_invito(pre) -> None:
-    from core.email_utils import send_hub_mail
-
+def valori_invito(pre) -> dict[str, str]:
+    """Segnaposti della mail d'invito (personalizza.TESTI["invito_testo"])."""
+    sala = pre.sala.nome if getattr(pre, "sala", None) else ""
     quando = ""
     if pre.data_visita:
         quando = f"Visita prevista: {pre.data_visita:%d/%m/%Y}"
         if pre.ora_inizio:
             quando += f" alle {pre.ora_inizio:%H:%M}"
-        if getattr(pre, "sala", None):
-            quando += f", sala {pre.sala.nome}"
-        quando += "\n"
-    testo = (f"Gentile {pre.ospite_nome},\n{pre.referente_nome} la aspetta da {ORGANIZZAZIONE}.\n{quando}\n"
-             f"Il suo codice di accesso è: {pre.codice}\nValido fino al {timezone.localtime(pre.scade_il):%d/%m/%Y}.\n\n"
-             "All'arrivo, al chiosco della reception scelga «Ho un codice» e inserisca il codice o mostri il QR allegato, "
-             "poi ritiri il cartellino.")
+        if sala:
+            quando += f", sala {sala}"
+    return {
+        "nome": pre.ospite_nome, "referente": pre.referente_nome, "quando": quando, "sala": sala,
+        "data": f"{pre.data_visita:%d/%m/%Y}" if pre.data_visita else "",
+        "ora": f"{pre.ora_inizio:%H:%M}" if pre.ora_inizio else "", "codice": pre.codice,
+        "scadenza": f"{timezone.localtime(pre.scade_il):%d/%m/%Y}", "azienda": pre.ospite_azienda or "",
+    }
+
+
+def invia_invito(pre, *, solo_a: str = "") -> None:
+    """``solo_a``: prova da Impostazioni, la mail all'ospite va a questo indirizzo e il referente non riceve niente."""
+    from core.email_utils import send_hub_mail
+
+    from . import personalizza
+
+    valori = valori_invito(pre)
+    testo = personalizza.componi(personalizza.leggi("invito_testo"), valori)
+    oggetto = personalizza.componi(personalizza.leggi("invito_oggetto"), valori)[:200]
     allegati = [("codice-accesso.png", _qr_png(pre.codice), "image/png")]
     invito = _ics(pre, "PUBLISH")
     if invito:
         allegati.append(("invito.ics", invito, "text/calendar"))
-    send_hub_mail(f"Il suo accesso a {ORGANIZZAZIONE}", testo, [pre.ospite_email], title="Invito in azienda",
+    send_hub_mail(oggetto, testo, [solo_a or pre.ospite_email], title="Invito in azienda",
                   email_type="Reception", attachments=allegati)
+    if solo_a:
+        return
     avviso = _ics(pre, "REQUEST")
     if avviso and "@" in pre.referente_email:
         sala = f" Sala {pre.sala.nome}." if pre.sala_id else ""
@@ -78,13 +92,13 @@ def invia_conferma_richiesta(richiesta, link: str) -> None:
     """All'esterno: link per confermare l'email. Senza conferma la richiesta non arriva a nessuno."""
     from core.email_utils import send_hub_mail
 
+    from . import personalizza
     from .servizi import ORE_CONFERMA_RICHIESTA
 
-    testo = (f"Gentile {richiesta.nome_completo},\nabbiamo ricevuto la sua richiesta di visita a {ORGANIZZAZIONE} "
-             f"per il {richiesta.data_visita:%d/%m/%Y}.\n\nPer inoltrarla apra questo link e confermi entro "
-             f"{ORE_CONFERMA_RICHIESTA} ore:\n{link}\n\nSe non ha fatto lei la richiesta, ignori questo messaggio: "
-             "senza conferma viene cancellata.")
-    send_hub_mail(f"Confermi la richiesta di visita a {ORGANIZZAZIONE}", testo, [richiesta.email],
+    valori = {"nome": richiesta.nome_completo, "data": f"{richiesta.data_visita:%d/%m/%Y}",
+              "ore": str(ORE_CONFERMA_RICHIESTA), "link": link}
+    send_hub_mail(personalizza.componi(personalizza.leggi("conferma_oggetto"), valori)[:200],
+                  personalizza.componi(personalizza.leggi("conferma_testo"), valori), [richiesta.email],
                   title="Conferma la richiesta", email_type="Reception")
 
 
@@ -113,9 +127,10 @@ def avvisa_nuova_richiesta(richiesta, link_referente: str, link_pannello: str) -
 def invia_rifiuto(richiesta) -> None:
     from core.email_utils import send_hub_mail
 
-    nota = f"\nNota: {richiesta.nota_decisione}\n" if richiesta.nota_decisione else ""
-    testo = (f"Gentile {richiesta.nome_completo},\nla sua richiesta di visita a {ORGANIZZAZIONE} per il "
-             f"{richiesta.data_visita:%d/%m/%Y} non è stata accolta.{nota}\nPer accordarsi su un'altra data può "
-             "rispondere a questa mail o contattare direttamente la persona che voleva incontrare.")
-    send_hub_mail(f"La sua richiesta di visita a {ORGANIZZAZIONE}", testo, [richiesta.email],
+    from . import personalizza
+
+    valori = {"nome": richiesta.nome_completo, "data": f"{richiesta.data_visita:%d/%m/%Y}",
+              "nota": f"Nota: {richiesta.nota_decisione}" if richiesta.nota_decisione else ""}
+    send_hub_mail(personalizza.componi(personalizza.leggi("rifiuto_oggetto"), valori)[:200],
+                  personalizza.componi(personalizza.leggi("rifiuto_testo"), valori), [richiesta.email],
                   title="Richiesta non accolta", email_type="Reception")
