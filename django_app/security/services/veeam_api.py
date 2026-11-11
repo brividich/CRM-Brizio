@@ -68,7 +68,9 @@ class VeeamError(RuntimeError):
 
 SETTING = "veeam.api.credenziali"
 PURPOSE = "veeam-api"
-CAMPI = ("url", "username", "password", "version", "ca_pem")
+CAMPI = ("url", "username", "password", "version", "ca_pem", "impronta")
+# Campi che arrivano dal form: l'impronta del certificato si salva solo con «Fidati del certificato del server».
+CAMPI_FORM = ("url", "username", "password", "version", "ca_pem")
 
 
 def _dal_portale() -> dict:
@@ -93,6 +95,7 @@ def credenziali() -> dict:
         "password": str(getattr(settings, "VEEAM_API_PASSWORD", "") or ""),
         "version": str(getattr(settings, "VEEAM_API_VERSION", "") or "").strip(),
         "ca_pem": "",
+        "impronta": "",
         "ca_path": str(getattr(settings, "VEEAM_API_CA_BUNDLE", "") or "").strip(),
         "fonte": "env" if url else "",
     }
@@ -116,6 +119,8 @@ def _config() -> dict:
         "password": cfg["password"],
         "version": cfg["version"] or DEFAULT_API_VERSION,
         "verify": verify,
+        "impronta": cfg["impronta"],
+        "ca_incollato": bool(cfg["ca_pem"]),
     }
 
 
@@ -129,6 +134,7 @@ def riepilogo() -> dict:
     cfg = credenziali()
     return {"url": cfg["url"], "username": cfg["username"], "version": cfg["version"], "password": bool(cfg["password"]),
             "ca": bool(cfg["ca_pem"] or cfg["ca_path"]), "fonte": cfg["fonte"],
+            "impronta": _impronta_leggibile(cfg["impronta"]),
             "configurato": bool(cfg["url"] and cfg["username"] and cfg["password"])}
 
 
@@ -146,18 +152,27 @@ def valida(dati: dict) -> list[str]:
         errori.append("Revisione API non valida: si scrive come 1.1-rev0 (lasciala vuota per usare quella di serie).")
     if dati["ca_pem"] and "BEGIN CERTIFICATE" not in dati["ca_pem"]:
         errori.append("Il certificato della CA va incollato in formato PEM (-----BEGIN CERTIFICATE----- …).")
+    if dati.get("impronta") and not re.fullmatch(r"[0-9a-f]{64}", dati["impronta"]):
+        errori.append("Impronta del certificato non valida.")
     return errori
 
 
 def salva_credenziali(nuovi: dict, actor=None, togli_ca: bool = False) -> list[str]:
     """Salva le credenziali; password e certificato vuoti = si tengono quelli già salvati."""
-    from security.services.configuration import audit_config_change
-
     attuali = _dal_portale()
-    dati = {campo: str(nuovi.get(campo) or "").strip()[:8000 if campo == "ca_pem" else 300] for campo in CAMPI}
+    dati = {campo: str(nuovi.get(campo) or "").strip()[:8000 if campo == "ca_pem" else 300] for campo in CAMPI_FORM}
     dati["url"] = dati["url"].rstrip("/")
     dati["password"] = dati["password"] or attuali["password"]
     dati["ca_pem"] = "" if togli_ca else (dati["ca_pem"] or attuali["ca_pem"])
+    # L'impronta vale per quel server: cambiato il server (o tolto il certificato) va riletta.
+    stesso_server = _host_porta(dati["url"]) == _host_porta(attuali["url"])
+    dati["impronta"] = "" if (togli_ca or not stesso_server) else attuali["impronta"]
+    return _scrivi(dati, attuali, actor)
+
+
+def _scrivi(dati: dict, attuali: dict, actor) -> list[str]:
+    from security.services.configuration import audit_config_change
+
     errori = valida(dati)
     if errori:
         return errori
@@ -183,6 +198,154 @@ def cancella_credenziali(actor=None) -> None:
     setting.value = ""
     setting.save()
     audit_config_change(actor, "update", setting, field_name="value", old_value="***", new_value="")
+
+
+def _host_porta(url: str) -> tuple[str, int]:
+    from urllib.parse import urlsplit
+
+    try:
+        parti = urlsplit(url or "")
+        return (parti.hostname or "").lower(), parti.port or 443
+    except ValueError:
+        return "", 0
+
+
+def _impronta_leggibile(impronta: str) -> str:
+    return ":".join(impronta[i:i + 2] for i in range(0, len(impronta), 2)).upper() if impronta else ""
+
+
+def leggi_certificato(url: str | None = None) -> dict:
+    """Il certificato che il server Veeam presenta, senza fidarsi di nulla (serve a mostrarlo e a salvarne l'impronta).
+
+    Connessione diretta al server (niente proxy), solo la stretta di mano TLS: nessuna credenziale viaggia.
+    """
+    import socket
+    import ssl
+
+    from cryptography import x509
+    from cryptography.x509.oid import ExtensionOID, NameOID
+
+    url = url or credenziali()["url"]
+    host, porta = _host_porta(url)
+    if not host:
+        raise VeeamError("Indirizzo di Veeam mancante o non valido: salva prima le credenziali.")
+    contesto = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    contesto.check_hostname = False
+    contesto.verify_mode = ssl.CERT_NONE
+    try:
+        with socket.create_connection((host, porta), timeout=10) as sock:
+            with contesto.wrap_socket(sock, server_hostname=host) as tls:
+                der = tls.getpeercert(binary_form=True)
+    except (OSError, ssl.SSLError) as exc:
+        raise VeeamError(f"Non riesco a leggere il certificato di {host}:{porta} ({type(exc).__name__}): "
+                         "controlla indirizzo e porta 9419.") from exc
+    if not der:
+        raise VeeamError(f"{host}:{porta} non ha presentato un certificato.")
+    cert = x509.load_der_x509_certificate(der)
+
+    def _cn(nome) -> str:
+        valori = nome.get_attributes_for_oid(NameOID.COMMON_NAME)
+        return str(valori[0].value) if valori else nome.rfc4514_string()
+
+    try:
+        nomi = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME).value
+        alternativi = ([str(n) for n in nomi.get_values_for_type(x509.DNSName)]
+                       + [str(n) for n in nomi.get_values_for_type(x509.IPAddress)])
+    except x509.ExtensionNotFound:
+        alternativi = []
+    scadenza = cert.not_valid_after_utc
+    return {
+        "host": host,
+        "porta": porta,
+        "intestato_a": _cn(cert.subject),
+        "emesso_da": _cn(cert.issuer),
+        "nomi": alternativi,
+        "autofirmato": cert.subject == cert.issuer,
+        "scadenza": scadenza,
+        "scaduto": scadenza < timezone.now(),
+        "sha256": hashlib.sha256(der).hexdigest(),
+        # Solo da confrontare con l'«identificazione personale» che Windows mostra per il certificato.
+        "sha1": hashlib.sha1(der).hexdigest().upper(),  # noqa: S324
+    }
+
+
+def fidati_del_certificato(actor=None) -> dict:
+    """Legge il certificato del server Veeam e ne salva l'impronta: d'ora in poi vale quel certificato e solo quello."""
+    attuali = _dal_portale()
+    if not attuali["url"]:
+        raise VeeamError("Salva prima le credenziali API Veeam nel portale, poi fidati del certificato.")
+    info = leggi_certificato(attuali["url"])
+    errori = _scrivi({**attuali, "impronta": info["sha256"]}, attuali, actor)
+    if errori:
+        raise VeeamError(" ".join(errori))
+    return info
+
+
+def _motivo_certificato(exc: Exception, cfg: dict) -> str:
+    """Il motivo vero del rifiuto del certificato, in parole semplici (con il dettaglio tecnico di OpenSSL in coda)."""
+    trovato = re.search(r"certificate verify failed: ([^()'\"]+)", str(exc))
+    dettaglio = f" Dettaglio: {trovato.group(1).strip()[:120]}." if trovato else ""
+    return _spiega_certificato(exc, cfg) + dettaglio
+
+
+def _spiega_certificato(exc: Exception, cfg: dict) -> str:
+    basso = str(exc).lower()
+    host, _porta = _host_porta(cfg.get("url", ""))
+    if "fingerprint" in basso:
+        return ("Il certificato del server Veeam è cambiato rispetto a quello di cui ti sei fidato "
+                "(rinnovato o sostituito): se è normale, premi di nuovo «Fidati del certificato del server».")
+    if "hostname mismatch" in basso or "doesn't match" in basso or "not valid for" in basso:
+        return (f"Il certificato del server Veeam non è intestato a «{host}»: usa nell'indirizzo il nome scritto nel "
+                "certificato, oppure premi «Fidati del certificato del server».")
+    if "expired" in basso:
+        return "Il certificato del server Veeam è scaduto: rinnovalo in Veeam, poi premi «Fidati del certificato del server»."
+    if cfg.get("ca_incollato"):
+        return ("Il certificato del server Veeam non è firmato dal certificato incollato. Se Veeam usa il suo certificato "
+                "autofirmato, premi «Fidati del certificato del server».")
+    return ("Certificato del server Veeam non attendibile (di solito è quello autofirmato di Veeam): premi «Fidati del "
+            "certificato del server» oppure incolla il certificato della CA interna.")
+
+
+def _sessione_http(cfg: dict):
+    """Sessione verso Veeam.
+
+    Impronta salvata = vale quel certificato e solo quello. CA incollata = catena e nome controllati, ma senza il
+    controllo rigoroso X.509 di Python 3.13: i certificati autofirmati di Veeam non hanno le estensioni che pretende.
+    """
+    import ssl
+
+    import requests
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.ssl_ import create_urllib3_context
+
+    class _Adattatore(HTTPAdapter):
+        def __init__(self, impronta: str = "", contesto=None):
+            self._impronta = impronta
+            self._contesto = contesto
+            super().__init__()
+
+        def init_poolmanager(self, *args, **kwargs):
+            if self._impronta:
+                kwargs["assert_fingerprint"] = self._impronta
+            if self._contesto is not None:
+                kwargs["ssl_context"] = self._contesto
+            super().init_poolmanager(*args, **kwargs)
+
+    http = requests.Session()
+    # Veeam è in rete interna: il proxy di HTTPS_PROXY (serve per api.osv.dev) non va usato, altrimenti
+    # la richiesta finisce al proxy, che risponde lui (404/403) al posto di Veeam.
+    http.trust_env = False
+    if cfg.get("impronta"):
+        http.verify = False  # lo sostituisce il confronto dell'impronta, fatto a ogni connessione
+        http.mount("https://", _Adattatore(impronta=cfg["impronta"]))
+    elif cfg.get("verify") not in (True, None, ""):
+        contesto = create_urllib3_context()
+        contesto.verify_flags &= ~getattr(ssl, "VERIFY_X509_STRICT", 0)
+        http.verify = cfg["verify"]
+        http.mount("https://", _Adattatore(contesto=contesto))
+    else:
+        http.verify = True
+    return http
 
 
 def _problemi_indirizzo(url: str) -> list[str]:
@@ -231,15 +394,9 @@ class VeeamClient:
     """Sessione autenticata verso l'API REST di Veeam (solo letture)."""
 
     def __init__(self, cfg: dict | None = None):
-        import requests
-
         self.cfg = cfg or _config()
         _check_config(self.cfg)
-        self.http = requests.Session()
-        self.http.verify = self.cfg["verify"]
-        # Veeam è in rete interna: il proxy di HTTPS_PROXY (serve per api.osv.dev) non va usato, altrimenti
-        # la richiesta finisce al proxy, che risponde lui (404/403) al posto di Veeam.
-        self.http.trust_env = False
+        self.http = _sessione_http(self.cfg)
         self.http.headers.update({"x-api-version": self.cfg["version"], "Accept": "application/json"})
         self._login()
 
@@ -252,7 +409,7 @@ class VeeamClient:
                 data={"grant_type": "password", "username": self.cfg["username"], "password": self.cfg["password"]},
             )
         except requests.exceptions.SSLError as exc:
-            raise VeeamError("Certificato del server Veeam non attendibile: incolla il certificato della CA nelle credenziali API Veeam.") from exc
+            raise VeeamError(_motivo_certificato(exc, self.cfg)) from exc
         except requests.exceptions.RequestException as exc:
             raise VeeamError(f"Server Veeam non raggiungibile ({type(exc).__name__}): controlla indirizzo e porta 9419.") from exc
         testo = (getattr(resp, "text", "") or "")[:500].lower() if isinstance(getattr(resp, "text", ""), str) else ""

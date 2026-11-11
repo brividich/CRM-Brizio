@@ -303,7 +303,7 @@ GUIDA = {
                     "l'interruttore per copiare il pacchetto mensile nella cartella SharePoint dell'audit (sottocartella soc-iso27001, "
                     "spento di serie). Schedule security_pacchetto_iso (1° del mese, 06:30), lettura «pacchetto_iso».",
                     "Backup letti direttamente da Veeam: Impostazioni › riquadro «Credenziali API Veeam» (indirizzo https://<server>:9419, "
-                    "utente con il solo ruolo «Veeam Backup Viewer», password cifrata, certificato della CA se serve), «Prova la connessione», "
+                    "utente con il solo ruolo «Veeam Backup Viewer», password cifrata, certificato della CA se serve; con il certificato autofirmato di Veeam «Fidati del certificato del server»), «Prova la connessione», "
                     "poi l'interruttore «Leggi i backup dall'API di Veeam». Le mail di esito possono restare: la stessa esecuzione conta una volta sola.",
                 ]),
             ],
@@ -523,7 +523,7 @@ GUIDA = {
                 "«Server Veeam non raggiungibile»: controlla l'indirizzo nelle credenziali e che dal server del portale la porta 9419 sia aperta.",
                 "«Non c'è l'API REST di Veeam Backup & Replication (404)»: l'indirizzo risponde ma non è l'API giusta. Va scritto solo https://<server>:9419, senza /api o altri percorsi; la porta 9398 è Enterprise Manager, non va bene. Se il messaggio aggiunge «la risposta non arriva dall'API di Veeam», a quell'indirizzo risponde un altro servizio (per esempio IIS): l'indirizzo o la porta sono sbagliati. Se l'indirizzo è giusto, sul server Veeam controlla che il servizio «Veeam Backup Server RESTful API» sia avviato. Il portale chiama Veeam direttamente, senza passare dal proxy di HTTPS_PROXY.",
                 "«Veeam non accetta la versione API»: nelle credenziali scrivi la versione che il server supporta (la mostra la pagina Swagger, https://<server>:9419/swagger).",
-                "«Certificato del server Veeam non attendibile»: incolla nelle credenziali il certificato della CA interna (formato PEM).",
+                "«Certificato del server Veeam non attendibile»: se Veeam usa il suo certificato autofirmato (il caso di serie) premi «Fidati del certificato del server» e confronta l'identificazione personale (SHA-1) mostrata con quella del certificato sul server Veeam; se è firmato dalla CA interna, incolla il certificato della CA (formato PEM). Il messaggio dice il motivo: nome diverso da quello dell'indirizzo, scaduto, non firmato dal certificato incollato. «Il certificato del server Veeam è cambiato»: rinnovato o sostituito in Veeam; se è normale, premi di nuovo «Fidati del certificato del server».",
                 "«Veeam ha rifiutato l'accesso»: utente o password sbagliati, oppure l'utente non ha il ruolo «Veeam Backup Viewer».",
             ],
         },
