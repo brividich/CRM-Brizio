@@ -7,6 +7,12 @@ from datetime import datetime
 from django.utils import timezone
 
 ORGANIZZAZIONE = "Costruzioni Novicrom Srl"
+# Mail agli esterni nel modello NOVICROM HUB, con il piè di pagina giusto per chi non è dipendente.
+PIEDE_ESTERNI = {
+    "footer_note": "Messaggio automatico di Costruzioni Novicrom Srl. Per informazioni risponda a questa mail "
+                   "o contatti la persona che la aspetta.",
+    "footer_line": "Costruzioni Novicrom Srl · NOVICROM HUB · Email automatica",
+}
 
 
 def _qr_png(codice: str) -> bytes:
@@ -47,7 +53,7 @@ def valori_invito(pre) -> dict[str, str]:
         if pre.ora_inizio:
             quando += f" alle {pre.ora_inizio:%H:%M}"
         if sala:
-            quando += f", sala {sala}"
+            quando += f", {sala}" if sala.lower().startswith("sala") else f", sala {sala}"
     return {
         "nome": pre.ospite_nome, "referente": pre.referente_nome, "quando": quando, "sala": sala,
         "data": f"{pre.data_visita:%d/%m/%Y}" if pre.data_visita else "",
@@ -70,7 +76,7 @@ def invia_invito(pre, *, solo_a: str = "") -> None:
     if invito:
         allegati.append(("invito.ics", invito, "text/calendar"))
     send_hub_mail(oggetto, testo, [solo_a or pre.ospite_email], title="Invito in azienda",
-                  email_type="Reception", attachments=allegati)
+                  email_type="Reception", badge="Visita", attachments=allegati, **PIEDE_ESTERNI)
     if solo_a:
         return
     avviso = _ics(pre, "REQUEST")
@@ -99,7 +105,7 @@ def invia_conferma_richiesta(richiesta, link: str) -> None:
               "ore": str(ORE_CONFERMA_RICHIESTA), "link": link}
     send_hub_mail(personalizza.componi(personalizza.leggi("conferma_oggetto"), valori)[:200],
                   personalizza.componi(personalizza.leggi("conferma_testo"), valori), [richiesta.email],
-                  title="Conferma la richiesta", email_type="Reception")
+                  title="Conferma la richiesta", email_type="Reception", badge="Visita", **PIEDE_ESTERNI)
 
 
 def avvisa_nuova_richiesta(richiesta, link_referente: str, link_pannello: str) -> None:
@@ -133,4 +139,4 @@ def invia_rifiuto(richiesta) -> None:
               "nota": f"Nota: {richiesta.nota_decisione}" if richiesta.nota_decisione else ""}
     send_hub_mail(personalizza.componi(personalizza.leggi("rifiuto_oggetto"), valori)[:200],
                   personalizza.componi(personalizza.leggi("rifiuto_testo"), valori), [richiesta.email],
-                  title="Richiesta non accolta", email_type="Reception")
+                  title="Richiesta non accolta", email_type="Reception", badge="Visita", **PIEDE_ESTERNI)

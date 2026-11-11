@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 
 PREFISSO = "reception_testo_"
-COLORE_PREDEFINITO = "#1d4ed8"
+COLORE_PREDEFINITO = "#002b5c"  # blu NOVICROM HUB, come l'intestazione delle mail
 _SEGNAPOSTO = re.compile(r"\{([a-z_]+)\}")
 _COLORE = re.compile(r"^#[0-9a-fA-F]{6}$")
 

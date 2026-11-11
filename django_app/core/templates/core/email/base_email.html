@@ -110,7 +110,7 @@
         </table>
 
         <div style="padding:15px 0 0;color:#94a3b8;font-size:11px;line-height:1.45;text-align:center;">
-          NOVICROM HUB &middot; Portale interno &middot; Email automatica
+          {% if footer_line %}{{ footer_line }}{% else %}NOVICROM HUB &middot; Portale interno &middot; Email automatica{% endif %}
         </div>
 
       </td>
