@@ -191,16 +191,17 @@ class RentriGiacenzeTests(TestCase):
         self.assertEqual(g.giacenza, 70)
         self.assertTrue(g.aperta)
 
-    def test_rettifica_riduce_giacenza(self):
+    def test_rettifica_non_muove_il_deposito(self):
+        # La rettifica corregge il peso di uno scarico: il deposito non cambia.
         RegistroRifiuti.objects.create(tipo="C", data=date(2026, 1, 5), codice="160601", quantita=50)
         RegistroRifiuti.objects.create(tipo="R", data=date(2026, 2, 5), codice="160601", quantita=20)
-        self.assertEqual(self._g("160601").giacenza, 30)
+        self.assertEqual(self._g("160601").giacenza, 50)
 
-    def test_scarico_originale_non_muove_giacenza(self):
+    def test_scarico_originale_svuota_il_deposito(self):
         RegistroRifiuti.objects.create(tipo="C", data=date(2026, 1, 5), codice="170405", quantita=80)
-        RegistroRifiuti.objects.create(tipo="O", data=date(2026, 2, 5), codice="170405", quantita=80)
-        # O è pianificato: la giacenza resta pari al solo carico
-        self.assertEqual(self._g("170405").giacenza, 80)
+        RegistroRifiuti.objects.create(tipo="O", data=date(2026, 2, 5), codice="170405", quantita=-80)
+        # Il rifiuto parte con il FIR: esce dal deposito (il segno nel registro è libero).
+        self.assertEqual(self._g("170405").giacenza, 0)
 
     def test_pericoloso_flag(self):
         RegistroRifiuti.objects.create(

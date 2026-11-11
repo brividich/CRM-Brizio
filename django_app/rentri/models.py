@@ -34,6 +34,9 @@ class RegistroRifiuti(models.Model):
     data = models.DateField(db_index=True)
     id_registrazione = models.CharField(max_length=50, blank=True, default="", db_index=True)
     rif_op = models.CharField(max_length=200, blank=True, default="")
+    # Collegamenti tolti (a mano o perché il movimento collegato è stato annullato):
+    # una riga per evento, «gg/mm/aaaa · 2026/0012 · motivo». Resta come traccia.
+    rif_op_storico = models.TextField(blank=True, default="")
     codice = models.CharField(max_length=100, blank=True, default="")
     quantita = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
     carico_scarico = models.CharField(max_length=10, blank=True, default="")
