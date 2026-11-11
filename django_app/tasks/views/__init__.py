@@ -165,6 +165,7 @@ from .meetings import (  # noqa: F401
     project_decisions,
     project_meeting_action_status,
     project_meeting_agenda_item_add,
+    project_meeting_agenda_item_delete,
     project_meeting_agenda_item_task_create,
     project_meeting_agenda_item_update,
     project_meeting_agenda_toggle,

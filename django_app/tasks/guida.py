@@ -243,7 +243,7 @@ SEZIONI: list[dict] = [
             ("def", [
                 ("Riga del Piano", "titolo, responsabile, Inizio, Fine. Per scrivere un piano intero."),
                 ("«Attività di questo incontro»", "nel dettaglio e nell'esito dell'incontro: Invio salva senza ricaricare la pagina."),
-                ("Conduci incontro", "«Registro dell'incontro» con tipo Attività (scelto un punto senza attività, il punto la prende), o «+ Nuova attività» sul punto."),
+                ("Conduci incontro", "«Registro dell'incontro» con tipo Attività (scelto un punto senza attività, il punto la prende), o «+ Nuova attività» sul punto. «Apri» sull'attività collegata e «Form completo» aprono scheda e form nel pannello laterale: si resta in riunione, i salvataggi restano nel pannello e «Pagina intera» porta alla pagina normale. Su una tappa «da assegnare» che in questa riunione non si discute, «Elimina» (due clic) la toglie dall'ordine del giorno; la tappa resta nel percorso."),
                 ("Form completo", "«+ Attività completa» nel Piano, «+ Nuova attività» in Panoramica. A sinistra «Cosa va fatto», Responsabile, Priorità, Stato, Inizio → Fine (con i giorni calcolati), «Note per il responsabile» e Tipo; a destra il kickoff, le «Persone in copia» da spuntare (con ricerca) e il pulsante di salvataggio. Etichette, prossimo passo, impegni sovrapposti, attrezzatura, Outlook e promemoria stanno in «Altre opzioni». Fuori da una commessa il form chiede prima «In quale kickoff?»."),
             ]),
             ("img", (_IMG + "attivita_form.jpg", "Il form completo: attrezzatura, Outlook e promemoria stanno in «Altre opzioni»")),

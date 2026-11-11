@@ -109,7 +109,7 @@ GUIDA = {
                 ("p", "KICK-OFF → «Impostazioni», con le schede:"),
                 ("def", [
                     ("Configurazione", "giorni di avviso e di blocco del VRF (predefiniti 7 e 30), sale riunioni."),
-                    ("Modelli", "modelli di ordine del giorno: un punto per riga, «Titolo | 15» per la durata in minuti."),
+                    ("Modelli", "modelli di ordine del giorno: un punto per riga, «Titolo | 15» per la durata in minuti. Ogni modello è una scheda chiusa (nome, descrizione, numero di punti e minuti, «Spento»); aperta, mostra il form con l'anteprima dei punti mentre si scrive; «Salva» compare solo se qualcosa è cambiato e salva senza ricaricare; «Duplica» crea una copia spenta; ricerca e «Mostra anche gli spenti» in alto."),
                     ("Ruoli operativi e Accessi", "chi vede tutto, chi modifica solo le proprie attività, chi modifica tutto."),
                     ("Promemoria", "i promemoria automatici."),
                     ("Catalogo", "scheda «Catalogo»: le voci ricorrenti (punti ODG, azioni, attività, problemi) raccolte da sole da quello che si scrive, con quante volte sono state usate. Si rinominano (rinominare in una voce già esistente le unisce), si uniscono i doppioni, si nascondono quelle da non suggerire; per i punti ODG anche nota e durata predefinite."),
@@ -119,7 +119,8 @@ GUIDA = {
                     ("Sale riunioni", "«Sale riunioni»: nome, casella Microsoft 365 della sala, posti, attiva. Con la casella l'invito Outlook dell'incontro prenota la sala e il form ne mostra la disponibilità; servono una casella «sala» con accettazione automatica in Exchange e il permesso applicativo Graph Calendars.ReadWrite. Una sala con incontri si disattiva invece di eliminarsi."),
                     ("Flussi del Percorso del kickoff", "Automazioni → Eventi applicativi: «KICK-OFF — promemoria prima della scadenza delle tappe» e «KICK-OFF — evento nel calendario Outlook del responsabile». Nascono spenti: si accendono dal designer della regola dopo l'installazione dei flussi (install_managed_flows). Il promemoria usa i giorni di preavviso della scheda Promemoria."),
                     ("Record", "eliminare un kickoff o un'attività: la motivazione è obbligatoria e resta nell'audit."),
-                    ("Log attivita", "chi ha fatto cosa."),
+                    ("FAI", "scheda «FAI» a sezioni: Scadenze, poi un gruppo di opzioni per sezione (motivi, piani, chiusura, versione, cross-correlation, stati) con il numero di voci; ricerca e «Mostra le disattivate» per gruppo; ogni riga si salva da sola senza ricaricare («Salva» compare solo se la riga è cambiata, «Salvato» in riga)."),
+                    ("Registro modifiche", "chi ha fatto cosa. Tre viste: «Essenziali» (senza la routine), «Critico» (eliminazioni, permessi, forzature), «Tutto»; ricerca nel testo, filtri per azione, utente e date; livello su ogni riga e dettaglio leggibile; 100 voci per pagina."),
                 ]),
             ],
         },
