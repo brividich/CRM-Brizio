@@ -11,10 +11,9 @@
   {# ---- Hero ---------------------------------------------------------- #}
   <section class="gs-hero">
     <div class="gs-hero__row">
-      <div style="flex:1; min-width:280px;">
+      <div style="flex:1; min-width:220px;">
         <div class="gs-hero__eyebrow"><i></i>MOD.133 · Flow-down dei requisiti</div>
         <h1>Cruscotto Specifiche tecniche</h1>
-        <p class="gs-hero__sub">Ciclo di vita di specifiche, comunicazioni e piani di qualità ricevuti dai clienti. Tracciamento per audit ISO 9001 / EN 9100.</p>
       </div>
       <div class="gs-hero__side">
         {% if kpi.verifica_scad %}
@@ -24,17 +23,17 @@
         </a>
         {% endif %}
         {% if puo_admin %}
-        <a href="{% url 'gestione_specifiche:admin_home' %}" class="gs-btn" style="height:42px;" title="Amministrazione del modulo">
+        <a href="{% url 'gestione_specifiche:admin_home' %}" class="gs-btn" title="Amministrazione del modulo">
           {% include "gestione_specifiche/partials/_icon.html" with name="shield" size=16 %} Amministrazione
         </a>
         {% endif %}
-        <a href="{% url 'registro_ofi:lista' %}?modulo=gestione_specifiche" class="gs-btn" style="height:42px;" title="Registro OFI di questo modulo (MOD.174)">
+        <a href="{% url 'registro_ofi:lista' %}?modulo=gestione_specifiche" class="gs-btn" title="Registro OFI di questo modulo (MOD.174)">
           {% include "gestione_specifiche/partials/_icon.html" with name="filecheck" size=16 %} Registro OFI
         </a>
-        <a href="{% url 'gestione_specifiche:guida' %}" target="_blank" class="gs-btn" style="height:42px;" title="Guida operativa (si apre in una nuova scheda)">
+        <a href="{% url 'gestione_specifiche:guida' %}" target="_blank" class="gs-btn" title="Guida operativa (si apre in una nuova scheda)">
           {% include "gestione_specifiche/partials/_icon.html" with name="file" size=16 %} Guida
         </a>
-        <a href="{% url 'gestione_specifiche:nuova' %}" class="gs-btn gs-btn--orange" style="height:42px;">
+        <a href="{% url 'gestione_specifiche:nuova' %}" class="gs-btn gs-btn--orange">
           {% include "gestione_specifiche/partials/_icon.html" with name="plus" size=17 %} Nuova specifica
         </a>
       </div>
