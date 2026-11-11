@@ -1,0 +1,20 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}{{ doc.code }} · PDF non disponibile · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › <a href="{% url 'procedure_refresh:libreria_documento' doc.pk %}">{{ doc.code }}</a> › PDF{% endblock %}
+{% block cn_h1 %}{{ doc.code }} <small>PDF non disponibile</small>{% endblock %}
+{% block cn_guida_anchor %}#scheda{% endblock %}
+{% block cn_body %}
+<div class="cn-panel" style="max-width:760px;display:flex;flex-direction:column;gap:12px">
+  {% if motivo == "permesso" %}
+    <p style="margin:0;font-size:15px"><b>Il portale non riesce a leggere la cartella SGI.</b> Il documento c'è, ma l'utente con cui gira il portale non ha il permesso di aprire i file della cartella di rete.</p>
+    {% if is_manager %}<p class="cn-note">Per l'amministratore di sistema: serve la lettura (NTFS e condivisione) per l'account del servizio del portale sulla cartella <span class="mono">sistema gestione integrato</span>. La sincronizzazione può funzionare lo stesso perché gira con un altro utente.</p>
+    {% else %}<p class="cn-note">Il problema è già registrato: avvisa chi gestisce CN-SGI o l'IT se ti serve il documento subito.</p>{% endif %}
+  {% elif motivo == "fuori_cartella" %}
+    <p style="margin:0;font-size:15px"><b>Il file non è nella cartella SGI.</b> Per sicurezza il portale apre solo i file della cartella del sistema di gestione.</p>
+  {% else %}
+    <p style="margin:0;font-size:15px"><b>Il file non c'è più nella cartella SGI.</b> Potrebbe essere stato spostato o sostituito da una nuova revisione: la libreria si riallinea con il prossimo controllo della cartella.</p>
+  {% endif %}
+  <p style="margin:0;color:var(--text-mid)"><b class="mono">{{ doc.code }}</b> {{ doc.title }}{% if rev.revision_code %} · Rev.{{ rev.revision_code }}{% endif %} · <span class="mono">{{ rev.file_name }}</span></p>
+  <p style="margin:0"><a class="cn-btn" href="{% url 'procedure_refresh:libreria_documento' doc.pk %}">Torna alla scheda</a></p>
+</div>
+{% endblock %}
