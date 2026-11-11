@@ -130,6 +130,9 @@
    * va bene se contiene la frase, se la contiene ignorando spazi/trattini/punti
    * («dixi 80» = «DIXI80» = «Dixi-80»), o se contiene tutte le parole in qualunque ordine. */
   const SEARCH_SEP = /[\s\-./_,;:]+/g;
+  // Le parole si dividono solo su spazi e virgole: un codice come «12.01.01» o
+  // «2025/1862» resta una parola sola (spezzato in «12»/«01» trovava tutto).
+  const WORD_SEP = /[\s,;]+/g;
   function textMatchesQuery(text, query) {
     const t = stripAccents(text).toLowerCase();
     const q = stripAccents(query).toLowerCase().trim();
@@ -137,8 +140,9 @@
     if (t.includes(q)) return true;
     const qc = q.replace(SEARCH_SEP, "");
     if (qc.length >= 2 && t.replace(SEARCH_SEP, "").includes(qc)) return true;
-    const words = q.split(SEARCH_SEP).filter(Boolean);
-    return words.length > 1 && words.every(w => t.includes(w));
+    const words = q.split(WORD_SEP).filter(Boolean);
+    const tc = t.replace(SEARCH_SEP, "");
+    return words.length > 1 && words.every(w => t.includes(w) || tc.includes(w.replace(SEARCH_SEP, "")));
   }
 
   function slugText(value, fallback) {

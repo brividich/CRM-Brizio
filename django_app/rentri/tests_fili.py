@@ -171,3 +171,45 @@ class FiloTests(TestCase):
         r = self.client.get(reverse("rentri_export_pdf"), {"scope": "tutto"})
         self.assertEqual(r.status_code, 200)
         self.assertContains(self.client.get(reverse("rentri_elenco")), "Esporta il registro")
+
+
+class RicercaCodiceTests(TestCase):
+    """«12.01.01» trova il codice per le cifre e non «12.01.09» (segnalazione 11/11)."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser(username="rentri-cerca", email="cerca@example.com", password="x")
+        self.client.force_login(self.admin)
+        giorno = timezone.localdate() - timedelta(days=3)
+        self.ferro = _mov("C", giorno, codice="12.01.01 Sfridi Ferro Kg", quantita=10)
+        self.ferro2 = _mov("C", giorno, codice="12 01 01", quantita=5)
+        self.acqua = _mov("C", giorno, codice="12.01.09 * Acqua emulsionata Lt", quantita=7)
+        self.batterie = _mov("C", giorno, codice="16.06.02 * Batterie nichel Kg", quantita=1)
+
+    def test_cifre_cer(self):
+        from .views import cifre_cer
+
+        self.assertEqual(cifre_cer("12.01.01"), "120101")
+        self.assertEqual(cifre_cer("12 01"), "1201")
+        self.assertEqual(cifre_cer("120101"), "120101")
+        self.assertEqual(cifre_cer("16 06 02*"), "160602")
+        self.assertEqual(cifre_cer("2025/1862"), "")
+        self.assertEqual(cifre_cer("ferro"), "")
+        self.assertEqual(cifre_cer("1234567"), "")
+
+    def _ids(self, q, **extra):
+        r = self.client.get(reverse("rentri_elenco"), {"q": q, **extra})
+        return {rec.id_registrazione for f in r.context["families"] for rec in f["carichi"] + f["operazioni"]}
+
+    def test_elenco_cerca_codice_per_cifre(self):
+        attesi = {self.ferro.id_registrazione, self.ferro2.id_registrazione}
+        self.assertEqual(self._ids("12.01.01"), attesi)
+        self.assertEqual(self._ids("12 01 01"), attesi)
+        self.assertEqual(self._ids("1201"), attesi | {self.acqua.id_registrazione})
+        self.assertEqual(self._ids("sfridi ferro"), {self.ferro.id_registrazione})
+        self.assertEqual(self._ids(self.batterie.id_registrazione), {self.batterie.id_registrazione})
+
+    def test_vista_fili_ricerca_per_filo(self):
+        r = self.client.get(reverse("rentri_elenco"))
+        self.assertContains(r, 'id="rn-cerca-fili"')
+        self.assertContains(r, 'data-fm-table-skip="1"')
+        self.assertContains(r, 'data-cer="120101"')

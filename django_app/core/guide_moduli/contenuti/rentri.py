@@ -137,7 +137,11 @@ GUIDA = {
                     "un gruppo per ogni codice CER, da aprire con un clic. «Espandi»/«Comprimi» apre o chiude tutto.",
                     "Filtri dell'elenco: «Cerca» (numero, codice, rif. op, FIR, note), «Codice CER», «Tipo», «Stato del filo», "
                     "«Dal»/«Al», «RENTRI» (trasmessi o da trasmettere), «Consolidamento» (bozze o consolidati), «Solo pericolosi» "
-                    "e «Mostra annullati».",
+                    "e «Mostra annullati». Nella casella «Cerca» un codice CER vale per le cifre: «12.01.01», «12 01 01» e "
+                    "«120101» trovano lo stesso codice (e non 12.01.09); «12 01» trova tutti i 12 01 xx.",
+                    "Sopra i fili c'è la ricerca immediata: filtra mentre scrivi e tiene insieme ogni filo (carico e scarichi), "
+                    "aprendo i gruppi dei chiusi che contengono risultati. Cerca codice CER (come sopra), numero, FIR, data, "
+                    "chi ha inserito e note; più parole = tutte presenti; Esc svuota.",
                     "«Esporta» (in alto nell'elenco) apre la finestra con Excel e PDF: «Con i filtri attivi» scarica quello che "
                     "vedi (stato del filo compreso), «Registro completo, annullati compresi» tutto il registro. L'Excel ha anche "
                     "«Collegato a», «Stato del filo», «Annullato» con il motivo e «Collegamenti tolti».",
