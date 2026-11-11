@@ -877,8 +877,12 @@ def build_ai_messages(
     user_message: str,
     history: Optional[List[Dict[str, str]]] = None,
     runtime_context: Optional[Dict[str, Any]] = None,
+    memory_context: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, str]]:
     """Build AI messages with application context
+
+    ``memory_context``: risultato di ``build_ai_memory_context`` già calcolato dal chiamante per la
+    stessa domanda (es. ``AIChatApiView``): evita di rifare la ricerca nella memoria SOC.
 
     Args:
         user: Django user instance
@@ -944,14 +948,15 @@ def build_ai_messages(
                 # Use legacy format for other object types
                 messages.append({"role": "system", "content": f"Context: {redacted_context}"})
 
-    from .memory.ai_memory_context_builder import build_ai_memory_context
+    if memory_context is None:
+        from .memory.ai_memory_context_builder import build_ai_memory_context
 
-    memory_context = build_ai_memory_context(
-        question=user_message,
-        context_type=(runtime_context or {}).get("object_type") if isinstance(runtime_context, dict) else None,
-        context_object_id=(runtime_context or {}).get("object_id") if isinstance(runtime_context, dict) else None,
-        user=user,
-    )
+        memory_context = build_ai_memory_context(
+            question=user_message,
+            context_type=(runtime_context or {}).get("object_type") if isinstance(runtime_context, dict) else None,
+            context_object_id=(runtime_context or {}).get("object_id") if isinstance(runtime_context, dict) else None,
+            user=user,
+        )
     messages.append({"role": "system", "content": memory_context["prompt_context_text"]})
 
     messages.append({"role": "user", "content": user_message})

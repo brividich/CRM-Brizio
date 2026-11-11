@@ -192,8 +192,17 @@ def leggi_candidati(*, limit, time_budget_seconds=60):
     """Un giro: al massimo ``limit`` elementi ed entro il tempo (il worker django-q ha 120 s).
 
     Nessuna nuova richiesta dopo 60 s: in produzione una risposta richiede 15-40 s (registro AI
-    del SOC, ottobre 2026), così l'ultima iniziata finisce comunque entro i 120 s del worker.
+    del SOC, ottobre 2026). Ogni richiesta ha come timeout il minimo fra SECURITY_AI_TIMEOUT_SECONDS
+    e il tempo che resta al tetto del giro (100 s), così il giro finisce entro i 120 s del worker.
     """
+    from ai_assistant.http_client import scadenza
+    from security.services.cpe_ai import _tetto
+
+    with scadenza(_tetto(time_budget_seconds)):
+        return _leggi_candidati(limit=limit, time_budget_seconds=time_budget_seconds)
+
+
+def _leggi_candidati(*, limit, time_budget_seconds):
     started = time.monotonic()
     done = []
     for item in candidati():
