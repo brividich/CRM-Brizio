@@ -13,6 +13,7 @@ urlpatterns = [
     path("rentri/giacenze/", views.giacenze, name="rentri_giacenze"),
     path("rentri/verifica/", views.verifica, name="rentri_verifica"),
     path("rentri/riepilogo-annuale/", views.riepilogo_annuale, name="rentri_riepilogo_annuale"),
+    path("rentri/verifica/uniforma-codici/", views.uniforma_codici, name="rentri_uniforma_codici"),
     path("rentri/registro-cronologico/", views.registro_cronologico, name="rentri_registro_cronologico"),
     path("rentri/scadenzario/consolida-bozze/", views.consolida_bozze_view, name="rentri_consolida_bozze"),
     path("rentri/import/preview/", views.import_preview, name="rentri_import_preview"),

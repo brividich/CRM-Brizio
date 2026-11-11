@@ -37,6 +37,13 @@ GUIDA = {
                     "elenca. «Mostra anche i già collegati» fa vedere anche i fili già completi per quel passo.",
                     "I movimenti sono divisi in «Da collegare» e «Già collegati» (questi solo con «Mostra anche i già "
                     "collegati»), dal più recente; sui carichi il bollino verde «Da scaricare» dice quanto resta.",
+                    "Nello scarico originale i carichi fermi in deposito vengono per primi, con «In deposito da N giorni»: in "
+                    "rosso oltre il limite del deposito temporaneo, in arancio vicino al limite (soglie della pagina Giacenze).",
+                    "Nello scarico effettivo, quando scrivi o leggi dal formulario il numero FIR, se uno scarico originale ha "
+                    "lo stesso numero viene spuntato da solo con l'avviso «Collegato in automatico…»: togli la spunta se non "
+                    "è quello giusto.",
+                    "Se scegli un'«Unità di misura» diversa da quella con cui il codice è sempre stato registrato compare "
+                    "l'avviso giallo «Per questo codice si usa …»: con unità diverse le giacenze non si sommano.",
                     "Negli scarichi O e M, se la «Quantità» supera quanto resta dei carichi spuntati, sotto la quantità "
                     "compare l'avviso giallo con i chili disponibili: il salvataggio verrebbe rifiutato.",
                     "Con molti movimenti usa la casella di ricerca sopra l'elenco: filtra mentre scrivi per numero, data, FIR "
@@ -158,6 +165,12 @@ GUIDA = {
                     "«Riepilogo annuale»: scegli l'anno; per ogni codice CER «Giacenza 1/1», «Caricato», «Scaricato», "
                     "«Giacenza 31/12», numero di carichi e scarichi e formulari. È la base per compilare il MUD; «Non torna» "
                     "segnala i codici con scarichi oltre il carico (controllali nella Verifica). Export «Excel» e «PDF».",
+                    "Nel Riepilogo annuale il grafico «Andamento per anno (kg)» confronta caricato e scaricato degli ultimi "
+                    "anni (clic su un anno per aprirlo) e la colonna «vs anno prima» dà la variazione del caricato per codice.",
+                    "«Codici scritti in modi diversi» (nella Verifica, solo per chi gestisce il registro): lo stesso codice "
+                    "scritto con testi diversi. Spunta, correggi se serve il testo proposto e clicca «Uniforma i codici "
+                    "spuntati»: cambia solo il modo di scriverlo, le sei cifre restano; gli annullati non si toccano e ogni "
+                    "registrazione cambiata lo riporta nel suo storico.",
                     "«Registro cronologico» (dal Riepilogo annuale): il PDF dell'anno con tutte le registrazioni in ordine di "
                     "data, le annullate in grigio con il motivo, l'intestazione con ragione sociale e codice di iscrizione "
                     "RENTRI (dalle Impostazioni) e «Pagina N di M».",

@@ -219,8 +219,22 @@ def _candidati_rif_op(tipo: str, codice: str, *, tutti: bool = False, escludi_pk
     carichi scritti «12.01.01 Sfridi Ferro Kg». Stesse regole della validazione.
     """
     from .fili import fili_del_codice
+    from .giacenze import soglie_deposito
 
-    return fili_del_codice(codice, tipo, tutti=tutti, escludi_pk=escludi_pk)
+    voci = fili_del_codice(codice, tipo, tutti=tutti, escludi_pk=escludi_pk)
+    oggi = timezone.localdate()
+    soglie = soglie_deposito()
+    for v in voci:
+        v["giorni"] = None
+        v["tono"] = ""
+        if v.get("tipo") == "C" and not v.get("gia_collegato") and v.get("carico_data"):
+            giorni = (oggi - datetime.strptime(v["carico_data"], "%d/%m/%Y").date()).days
+            v["giorni"] = giorni
+            v["tono"] = "rosso" if giorni >= soglie["giorni_max"] else ("giallo" if giorni >= soglie["giorni_warn"] else "")
+            v["giorni_max"] = soglie["giorni_max"]
+    # In cima i carichi vicini o oltre il limite del deposito temporaneo, dal più vecchio.
+    urgenti = sorted((v for v in voci if v["tono"]), key=lambda v: -v["giorni"])
+    return urgenti + [v for v in voci if not v["tono"]]
 
 
 @login_required
@@ -233,6 +247,19 @@ def api_codici_cer(request):
     gia = {" ".join(c.split()) for c in usati}
     catalogo = [c for c in cerca(q) if c["codice"] not in gia]
     return JsonResponse({"ok": True, "codici": usati, "catalogo": catalogo})
+
+
+def _unita_usate(k: str) -> list[list]:
+    """Unità con cui è registrato il codice, dalla più usata: [[unità, movimenti], ...]."""
+    from collections import Counter
+
+    from .giacenze import chiave_codice
+
+    conta = Counter(
+        u for c, u in RegistroRifiuti.objects.attivi().exclude(unita="").values_list("codice", "unita")
+        if chiave_codice(c) == k
+    )
+    return [[u, n] for u, n in conta.most_common()]
 
 
 @login_required
@@ -267,6 +294,7 @@ def api_cer_info(request):
         "catalogo": confronta(codice),
         "usato": ultimo is not None,
         "unita": unita,
+        "unita_usate": _unita_usate(chiave),
         "pericolosita": pericolosita,
         "giacenza": format(giacenza_di(codice), "f") if ultimo is not None else None,
     })
@@ -1269,11 +1297,42 @@ def verifica(request):
     sezioni = verifica_registro()
     if request.GET.get("export") == "csv":
         return verifica_csv(sezioni)
+    can_manage = _can_manage_rentri(request)
+    from .uniforma import proposte
+
     return render(request, "rentri/pages/verifica.html", {
         "sezioni": sezioni,
         "totale": sum(len(s["righe"]) for s in sezioni),
         "today": timezone.localdate(),
+        "can_manage": can_manage,
+        "uniforma": proposte() if can_manage else [],
     })
+
+
+@login_required
+@require_POST
+def uniforma_codici(request):
+    """Scrive un testo unico per i codici scelti nella Verifica (stesse sei cifre, solo la forma)."""
+    from .uniforma import TestoNonValido, applica
+
+    denied = _require_rentri_manager(request)
+    if denied is not None:
+        return denied
+    scelte = {
+        k: request.POST.get(f"testo_{k}", "")
+        for k in request.POST.getlist("codice")
+        if re.fullmatch(r"\d{6}", k or "")
+    }
+    if not scelte:
+        messages.warning(request, "Spunta almeno un codice da uniformare.")
+        return redirect(reverse("rentri_verifica") + "#uniforma")
+    try:
+        esito = applica(request, scelte, _get_username(request))
+    except TestoNonValido as exc:
+        messages.error(request, str(exc))
+        return redirect(reverse("rentri_verifica") + "#uniforma")
+    messages.success(request, f"Uniformati {esito['codici']} codici: {esito['righe']} registrazioni aggiornate (storico nella scheda di ognuna).")
+    return redirect(reverse("rentri_verifica") + "#uniforma")
 
 
 @login_required
@@ -1762,6 +1821,31 @@ def registro_cronologico(request):
     return response
 
 
+def _andamento_annuale(anni: list[int], righe_anno: list, anno: int) -> dict:
+    """Caricato e scaricato in kg per anno (ultimi sei) e confronto per codice con l'anno prima."""
+    from .registro_annuale import riepilogo_anno
+
+    serie = []
+    for a in sorted(anni)[-6:]:
+        rr = righe_anno if a == anno else riepilogo_anno(a)
+        kg = [r for r in rr if r.unita == "kg" and not r.unita_miste]
+        serie.append({"anno": a, "caricato": float(sum(r.caricato for r in kg)),
+                      "scaricato": float(sum(r.scaricato for r in kg))})
+    prima = {r.chiave: r for r in riepilogo_anno(anno - 1)}
+    for r in righe_anno:
+        p = prima.get(r.chiave)
+        r.caricato_prima = p.caricato if p else None
+        r.variazione = (
+            round(float((r.caricato - p.caricato) / p.caricato * 100))
+            if p and p.caricato and r.unita == p.unita else None
+        )
+    massimo = max([max(s["caricato"], s["scaricato"]) for s in serie] + [0]) or 1
+    for s in serie:
+        s["h_car"] = round(s["caricato"] / massimo * 100, 1)
+        s["h_sca"] = round(s["scaricato"] / massimo * 100, 1)
+    return {"serie": serie, "massimo": massimo, "con_dati": any(s["caricato"] or s["scaricato"] for s in serie)}
+
+
 @login_required
 def riepilogo_annuale(request):
     """Riepilogo per codice CER dell'anno (base per il MUD), con export Excel e PDF."""
@@ -1799,7 +1883,9 @@ def riepilogo_annuale(request):
         response = HttpResponse(pdf_riepilogo(anno, righe, RentriImpostazioni.get_singleton()), content_type="application/pdf")
         response["Content-Disposition"] = f'inline; filename="rentri_riepilogo_{anno}.pdf"'
         return response
+    andamento = _andamento_annuale(anni_disponibili(), righe, anno)
     return render(request, "rentri/pages/riepilogo_annuale.html", {
+        "andamento": andamento,
         "anno": anno,
         "anni": anni_disponibili(),
         "righe": righe,
