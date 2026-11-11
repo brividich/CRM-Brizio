@@ -126,6 +126,13 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
 .rnf-cand-conta { font-size:11.5px; color:var(--hub-muted); white-space:nowrap; }
 .rnf-cand-item.nascosto { display:none; }
 .rnf-cand-gruppo { grid-column:1/-1; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--hub-muted); padding:6px 2px 0; }
+.rnf-cand-giorni { display:block; margin-top:3px; font-size:11px; color:var(--hub-muted); }
+.rnf-cand-giorni.giallo { color:#b45309; font-weight:800; }
+.rnf-cand-giorni.rosso { color:#b91c1c; font-weight:800; }
+.rnf-info { margin-top:8px; padding:8px 12px; border-radius:9px; background:#e0f2fe; color:#075985; font-size:12.5px; font-weight:600; }
+body.theme-dark .rnf-cand-giorni.giallo { color:#fcd34d; }
+body.theme-dark .rnf-cand-giorni.rosso { color:#fca5a5; }
+body.theme-dark .rnf-info { background:rgba(14,165,233,.15); color:#7dd3fc; }
 .rnf-cand-res { display:inline-block; margin-top:3px; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:800; background:#dcfce7; color:#166534; }
 .rnf-avviso { padding:9px 12px; border-radius:9px; background:#fef3c7; color:#92400e; font-size:12.5px; font-weight:600; border:1px solid #fcd34d; }
 body.theme-dark .rnf-cand-res { background:rgba(34,197,94,.18); color:#86efac; }
@@ -221,6 +228,7 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
         <div class="hub-field" id="fld-rifop">
           <div class="rnf-cand" id="rifop-list"><div class="rnf-cand-empty">Scegli prima il codice CER: qui compaiono i movimenti collegabili.</div></div>
           <div class="hub-err" id="err-rifop"></div>
+          <div class="rnf-info" id="fir-collegato" role="status" hidden></div>
         </div>
       </section>
       {% endif %}
@@ -251,6 +259,7 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
             </select>
             <div class="hub-err" id="err-unita"></div>
             <div class="rnf-proposto" id="unita-proposta" hidden>Proposta dall'ultimo movimento con questo codice.</div>
+            <div class="rnf-avviso" id="avviso-unita" role="status" hidden></div>
           </div>
           {% if tipo == 'M' %}
           <div class="hub-field">
@@ -519,6 +528,8 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
         if (!isEdit) {
           var u = $('f-unita');
           if (res.unita && !u.value) { u.value = res.unita; $('unita-proposta').hidden = false; }
+          unitaUsate = res.unita_usate || [];
+          controllaUnita();
           var p = $('f-pericolosita');
           if (p && res.pericolosita && !p.value) { p.value = res.pericolosita; $('peric-proposta').hidden = false; }
         }
@@ -530,7 +541,22 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
       })
       .catch(function () {});
   }
-  $('f-unita').addEventListener('change', function () { $('unita-proposta').hidden = true; });
+  $('f-unita').addEventListener('change', function () { $('unita-proposta').hidden = true; controllaUnita(); });
+  // Avviso se l'unità scelta non è quella con cui il codice è sempre stato registrato.
+  var unitaUsate = [];
+  function controllaUnita() {
+    var box = $('avviso-unita'), u = $('f-unita');
+    if (!box) return;
+    var solita = unitaUsate.length ? unitaUsate[0] : null;
+    var msg = '';
+    if (solita && u.value && u.value !== solita[0]) {
+      var nome = function (v) { var o = u.querySelector('option[value="' + v + '"]'); return o ? o.textContent : v; };
+      msg = 'Per questo codice si usa ' + nome(solita[0]) + ' (' + solita[1] + ' moviment' + (solita[1] === 1 ? 'o' : 'i')
+        + '): con un’unità diversa le giacenze non si sommano. Controlla prima di salvare.';
+    }
+    box.textContent = msg;
+    box.hidden = !msg;
+  }
   if ($('f-pericolosita')) $('f-pericolosita').addEventListener('input', function () { $('peric-proposta').hidden = true; });
 
   /* ── Movimenti collegabili (Rif.Op): si ricaricano a ogni cambio di codice CER ── */
@@ -622,6 +648,7 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
       }
       var row = document.createElement('label');
       row.dataset.gruppo = gruppo;
+      row.dataset.id = c.id_registrazione;
       row.className = 'rnf-cand-item' + (selected.has(c.id_registrazione) ? ' sel' : '');
       var cb = document.createElement('input');
       cb.type = 'checkbox';
@@ -635,6 +662,13 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
       meta.textContent = descriviCandidato(c);
       info.appendChild(idEl);
       info.appendChild(meta);
+      if (c.giorni !== null && c.giorni !== undefined) {
+        var gg = document.createElement('span');
+        gg.className = 'rnf-cand-giorni' + (c.tono ? ' ' + c.tono : '');
+        gg.textContent = 'In deposito da ' + c.giorni + ' giorn' + (c.giorni === 1 ? 'o' : 'i')
+          + (c.tono === 'rosso' ? ' · oltre il limite di ' + c.giorni_max : (c.tono === 'giallo' ? ' · vicino al limite di ' + c.giorni_max : ''));
+        info.appendChild(gg);
+      }
       if (c.tipo === 'C' && !c.gia_collegato && c.residuo !== null && c.residuo !== undefined) {
         var res = document.createElement('span');
         res.className = 'rnf-cand-res';
@@ -663,6 +697,26 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
     filtraCandidati();
     refresh();
     if (typeof controllaResiduo === 'function') controllaResiduo();
+    collegaPerFir();
+  }
+  // Scarico effettivo: se il FIR letto o scritto è quello di uno scarico originale, lo collega da solo.
+  function normFir(t) { return String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+  function collegaPerFir() {
+    var box = $('fir-collegato');
+    if (TIPO !== 'M' || !box) return;
+    var fir = normFir(val('f-arrivo-fir'));
+    if (fir.length < 4 || selected.size) return;
+    var trovati = Object.keys(candById).filter(function (id) {
+      var c = candById[id], cf = normFir(c.fir);
+      return c.tipo === 'O' && cf.length >= 4 && (cf.indexOf(fir) !== -1 || fir.indexOf(cf) !== -1);
+    });
+    if (trovati.length !== 1) { box.hidden = true; return; }
+    var row = $('rifop-list').querySelector('.rnf-cand-item[data-id="' + trovati[0] + '"] input');
+    if (!row) return;
+    row.checked = true;
+    row.dispatchEvent(new Event('change'));
+    box.textContent = 'Collegato in automatico allo scarico originale ' + trovati[0] + ': ha lo stesso numero di formulario. Togli la spunta se non è quello giusto.';
+    box.hidden = false;
   }
   // Ricerca live: più parole = tutte presenti; i già spuntati restano sempre visibili.
   function norm(t) { return String(t || '').toLowerCase().replace(/[.\-\/]/g, ' ').replace(/\s+/g, ' '); }
@@ -698,6 +752,7 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
     $('btn-rifop-reload').addEventListener('click', loadCandidati);
     $('rifop-tutti').addEventListener('change', loadCandidati);
     $('rifop-cerca').addEventListener('input', filtraCandidati);
+    if ($('f-arrivo-fir')) $('f-arrivo-fir').addEventListener('change', collegaPerFir);
     $('rifop-cerca').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') e.preventDefault();
       if (e.key === 'Escape') { this.value = ''; filtraCandidati(); }
@@ -810,7 +865,7 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
     else if (k === 'codice') cerInput.value = v;
     else if (k === 'quantita') { $('f-quantita').value = v; lastAutoQta = null; }
     else if (k === 'unita') { $('f-unita').value = v; $('unita-proposta').hidden = true; }
-    else if (k === 'numero_fir') { if (TIPO === 'M') $('f-arrivo-fir').value = v; else aggiungiNota('FIR n. ' + v); }
+    else if (k === 'numero_fir') { if (TIPO === 'M') { $('f-arrivo-fir').value = v; collegaPerFir(); } else aggiungiNota('FIR n. ' + v); }
     else if (k === 'destinatario') aggiungiNota('Destinatario: ' + v);
   }
 
