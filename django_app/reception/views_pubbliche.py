@@ -187,23 +187,3 @@ def conferma(request, token):
         "titolo": "Richiesta inoltrata",
         "testo": "Grazie. Riceverai una mail con la risposta: se la visita viene accettata, nella mail trovi il codice e il QR per entrare.",
     })
-
-
-@require_http_methods(["GET"])
-def logo(request):
-    """Il logo caricato in Reception → Impostazioni, in testa alla pagina pubblica. Solo con la pagina accesa."""
-    from django.core.files.storage import default_storage
-    from django.http import FileResponse
-
-    from fornitori import chiosco
-
-    if not _attivo():
-        raise Http404
-    percorso = chiosco.logo_percorso()
-    estensione = ("." + percorso.rsplit(".", 1)[-1].lower()) if "." in percorso else ""
-    if not percorso or estensione not in chiosco.LOGO_ESTENSIONI or not default_storage.exists(percorso):
-        raise Http404
-    risposta = FileResponse(default_storage.open(percorso, "rb"), content_type=chiosco.LOGO_ESTENSIONI[estensione])
-    risposta["Cache-Control"] = "public, max-age=86400"
-    risposta["X-Content-Type-Options"] = "nosniff"
-    return risposta

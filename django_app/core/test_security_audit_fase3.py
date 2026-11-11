@@ -34,7 +34,6 @@ PUBLIC_VIEWS = frozenset({
     # è spento; email da confermare, limiti per IP e globali, campo trappola (reception/views_pubbliche.py).
     "reception.views_pubbliche.richiesta",
     "reception.views_pubbliche.conferma",
-    "reception.views_pubbliche.logo",  # logo della pagina pubblica: solo l'immagine caricata in Reception, 404 a pagina spenta
     # Aperto solo finche' SETUP_COMPLETED manca dal .env (audit M9): nei test
     # il flag non c'e'; in produzione il wizard risponde redirect/404.
     "setup_wizard.views.wizard_home",
