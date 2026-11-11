@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 109
+**Totale automazioni disponibili:** 111
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -198,7 +198,7 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ### `dpi_avvisi_consegna`
 
-- **Quando gira:** ogni giorno, ogni ora al minuto */5
+- **Quando gira:** ogni giorno, ogni 5 minuti
 - **Task eseguito:** `dpi.tasks.run_dpi_avvisi_consegna`
 - **Cosa fa:** DPI — mail e PDF delle consegne dal banco rimasti in sospeso perche' il browser si e' chiuso nei secondi dell'annullo. Senza lavoro non fa nulla.
 
@@ -301,6 +301,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 03:00
 - **Task eseguito:** `procedure_refresh.tasks.run_sgi_auto_sync`
 - **Cosa fa:** Sincronizzazione automatica del corpus SGI dalla share (perimetro sicuro): applica solo documenti nuovi o interamente figli dell'import, MAI quelli in presa visione o gestiti a mano. Dietro flag SiteConfig pr_sgi_auto_sync_attivo (default off). Gira alle 03:00 così i nuovi documenti sono già indicizzati dal re-index RAG delle 03:30. Fail-safe / no-op se flag off o share giù.
+
+### `pr_sgi_controllo_orario`
+
+- **Quando gira:** ogni giorno, ogni 15 minuti
+- **Task eseguito:** `procedure_refresh.tasks.run_sgi_controllo_orario`
+- **Cosa fa:** CN-SGI «sempre aggiornata»: ogni 15 minuti confronta un'impronta leggera della share (percorso, dimensione, data dei file: nessun file aperto) e, solo se cambia, lancia la sincronizzazione a perimetro sicuro. Stesso flag pr_sgi_auto_sync_attivo. La share è solo letta. Fail-safe / no-op se flag spento o share giù.
 
 ### `sgi_share_check`
 
@@ -494,7 +500,7 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 ### `contatori_letture_mensili_recupero`
 
-- **Quando gira:** il giorno 1-7 del mese, ogni ora al minuto */15
+- **Quando gira:** il giorno 1-7 del mese, ogni 15 minuti
 - **Task eseguito:** `contatori.tasks.run_letture_mensili`
 - **Cosa fa:** CONTATORI — recupero per le MFC spente o in sospensione a mezzanotte: ogni 15 minuti dal giorno 1 al 7 accoda solo quelle ancora senza lettura del mese, cosi' una macchina viene letta entro 15 minuti da quando si riaccende. Stesso nome di prima: setup_q_schedules aggiorna il cron, nessuna schedule orfana.
 
@@ -642,6 +648,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Task eseguito:** `security.tasks.ai_sintesi_giorno_task`
 - **Cosa fa:** SECURITY CENTER — sintesi del giorno della Panoramica preparata dall'AI locale, ogni 30 minuti dalle 6 alle 19 (lun-sab), solo se i punti da guardare sono cambiati: la pagina la mostra già scritta.
 
+### `security_caselle`
+
+- **Quando gira:** ogni 15 minuti
+- **Task eseguito:** `security.tasks.run_security_caselle_task`
+- **Cosa fa:** SECURITY CENTER — lettura delle caselle mail dei report (Graph/IMAP): parser e regole su ogni mail importata. Lavoro a sé, separato dal security_cycle, con timeout dedicato: un arretrato di mail non ferma più regole, battito e KPI del ciclo.
+
 ### `security_cve_enrichment`
 
 - **Quando gira:** ogni None minuti
@@ -652,7 +664,7 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 
 - **Quando gira:** ogni 15 minuti
 - **Task eseguito:** `security.tasks.run_security_cycle_task`
-- **Cosa fa:** SECURITY CENTER — legge le caselle mail dei report (Graph), parser, regole, heartbeat sorgenti e KPI. Senza questo schedule il SOC non riceve dati.
+- **Cosa fa:** SECURITY CENTER — letture Defender/Entra/Veeam/Secure Score, regole, heartbeat sorgenti, KPI e notifiche. Le caselle mail sono nel lavoro security_caselle.
 
 ### `security_dipendenze_portale`
 
