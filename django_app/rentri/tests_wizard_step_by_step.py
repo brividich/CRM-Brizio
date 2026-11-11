@@ -45,13 +45,16 @@ class WizardStepByStepTests(TestCase):
         candidati = r.json()["candidati"]
         assert len(candidati) == 1 and candidati[0]["id_registrazione"] == c.id_registrazione, candidati
 
-        o = RegistroRifiuti.objects.create(tipo="O", data=datetime.date(2026, 1, 2), codice="XX", rif_op=c.id_registrazione, quantita=5)
+        o = RegistroRifiuti.objects.create(tipo="O", data=datetime.date(2026, 1, 2), codice="XX", rif_op=c.id_registrazione, quantita=10)
+        # Scaricato per intero: non è più tra i carichi da scaricare.
         r = self.client.get("/rentri/api/candidati-rif-op/?tipo=O&codice=XX")
         assert r.json()["candidati"] == [], r.json()
 
         r = self.client.get("/rentri/api/candidati-rif-op/?tipo=M&codice=XX")
         candidati = r.json()["candidati"]
-        assert len(candidati) == 1 and candidati[0]["rif_op"] == c.id_registrazione, candidati
+        # Lo scarico effettivo si collega alla O, con il carico in vista.
+        assert len(candidati) == 1 and candidati[0]["id_registrazione"] == o.id_registrazione, candidati
+        assert candidati[0]["carichi"] == [c.id_registrazione], candidati
 
         m = RegistroRifiuti.objects.create(tipo="M", data=datetime.date(2026, 1, 3), codice="XX", rif_op=o.rif_op, quantita=5)
         r = self.client.get("/rentri/api/candidati-rif-op/?tipo=M&codice=XX")
@@ -59,7 +62,7 @@ class WizardStepByStepTests(TestCase):
 
         r = self.client.get("/rentri/api/candidati-rif-op/?tipo=R&codice=XX")
         candidati = r.json()["candidati"]
-        assert len(candidati) == 1 and candidati[0]["rif_op"] == o.rif_op, candidati
+        assert len(candidati) == 1 and candidati[0]["id_registrazione"] == m.id_registrazione, candidati
 
     def test_carico_multipart_allegato(self):
         from django.core.files.uploadedfile import SimpleUploadedFile

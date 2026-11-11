@@ -79,11 +79,13 @@
       {% if registro.rettifica_scarico is not None %}<div><div class="dt-k">Rettifica scarico</div><div class="dt-v">{{ registro.rettifica_scarico }}</div></div>{% endif %}
       {% if registro.pericolosita %}<div><div class="dt-k">Pericolosità</div><div class="dt-v">{{ registro.pericolosita }}</div></div>{% endif %}
       {% if registro.arrivo_fir %}<div><div class="dt-k">Arrivo FIR</div><div class="dt-v">{{ registro.arrivo_fir }}</div></div>{% endif %}
-      <div><div class="dt-k">Rif. Op</div><div class="dt-v">{{ registro.rif_op|default:"—" }}</div></div>
+      {% if registro.tipo != "C" %}<div><div class="dt-k">Rif. Op</div><div class="dt-v">{{ registro.rif_op|default:"non collegato" }}</div></div>{% endif %}
+      {% for fl in filo %}<div><div class="dt-k">Filo del carico {{ fl.carico.id_registrazione }}</div><div class="dt-v">{{ fl.stato_label }}{% if fl.stato == "deposito" %} · da scaricare {{ fl.residuo|floatformat:"-3" }} {{ fl.carico.get_unita_display }}{% endif %}</div></div>{% endfor %}
       <div><div class="dt-k">Inserito da</div><div class="dt-v">{{ registro.inserito_da|default:"—" }} · {{ registro.created_at|date:"d/m/Y H:i" }}</div></div>
       {% if registro.salva %}<div><div class="dt-k">Consolidata</div><div class="dt-v">{{ registro.consolidato_il|date:"d/m/Y H:i"|default:"—" }} {{ registro.consolidato_da }}</div></div>{% endif %}
       {% if registro.note_rentri %}<div style="grid-column:1/-1;"><div class="dt-k">Note RENTRI</div><div class="dt-v">{{ registro.note_rentri }}</div></div>{% endif %}
       {% if registro.allegato %}<div><div class="dt-k">Allegato</div><div class="dt-v">presente</div></div>{% endif %}
+      {% if registro.rif_op_storico %}<div style="grid-column:1/-1;"><div class="dt-k">Collegamenti tolti (traccia)</div><div class="dt-v">{{ registro.rif_op_storico|linebreaksbr }}</div></div>{% endif %}
     </div>
   </section>
 
@@ -94,7 +96,7 @@
       <thead><tr><th>Legame</th><th>Tipo</th><th>ID Reg.</th><th>Data</th><th>Quantità</th><th></th></tr></thead>
       <tbody>
         {% for g in genitori %}
-        <tr><td>Proviene da</td><td>{{ g.get_tipo_display }}{% if g.annullato %} (annullata){% endif %}</td><td class="sc-id">{{ g.id_registrazione }}</td><td>{{ g.data|date:"d/m/Y" }}</td><td>{{ g.quantita|default_if_none:"—" }}</td><td><a class="sc-link" href="{% url 'rentri_dettaglio' g.pk %}">Apri</a></td></tr>
+        <tr><td>Proviene da</td><td>{{ g.get_tipo_display }}{% if g.annullato %} · <strong>annullata</strong>: il collegamento resta solo come traccia{% endif %}</td><td class="sc-id">{{ g.id_registrazione }}</td><td>{{ g.data|date:"d/m/Y" }}</td><td>{{ g.quantita|default_if_none:"—" }}</td><td><a class="sc-link" href="{% url 'rentri_dettaglio' g.pk %}">Apri</a></td></tr>
         {% endfor %}
         {% for f in figli %}
         <tr><td>Seguito da</td><td>{{ f.get_tipo_display }}</td><td class="sc-id">{{ f.id_registrazione }}</td><td>{{ f.data|date:"d/m/Y" }}</td><td>{{ f.quantita|default_if_none:"—" }}</td><td><a class="sc-link" href="{% url 'rentri_dettaglio' f.pk %}">Apri</a></td></tr>
@@ -123,9 +125,9 @@
       </form>
       <form class="dt-azione" method="post" action="{% url 'rentri_annulla' registro.pk %}">{% csrf_token %}
         <h3>Annulla</h3>
-        <p>{% if figli %}Prima vanno annullati i movimenti collegati qui sopra.{% else %}La registrazione resta a registro, barrata, e non conta più nelle giacenze. Il numero non viene riusato.{% endif %}</p>
+        <p>La registrazione resta a registro, barrata, e non conta più nelle giacenze. Il numero non viene riusato.{% if figli %} I {{ figli|length }} movimenti collegati qui sopra restano con il riferimento come traccia ma non risultano più collegati: li ricolleghi con «Modifica» o li lasci così.{% endif %}</p>
         <textarea name="motivo" required minlength="5" placeholder="Motivo dell'annullamento (obbligatorio)"></textarea>
-        <button type="submit" class="sc-btn sc-btn-danger"{% if figli %} disabled{% endif %}>Annulla registrazione</button>
+        <button type="submit" class="sc-btn sc-btn-danger">Annulla registrazione</button>
       </form>
     </div>
   </section>

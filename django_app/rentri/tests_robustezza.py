@@ -107,20 +107,32 @@ class ValidazioneInserimentoTests(_Base):
 
         r = self.post_json(url, {**base, "rif_op": c.id_registrazione})
         self.assertEqual(r.status_code, 200, r.content)
-        # Lo stesso carico non si scarica due volte.
+        # Un carico si scarica in più volte finché ha un residuo (10 = 5 + 5)...
+        r = self.post_json(url, {**base, "rif_op": c.id_registrazione})
+        self.assertEqual(r.status_code, 200, r.content)
+        # ...poi è scaricato per intero.
         r = self.post_json(url, {**base, "rif_op": c.id_registrazione})
         self.assertEqual(r.status_code, 400)
-        self.assertIn("già uno scarico", r.json()["error"])
+        self.assertIn("scaricato per intero", r.json()["error"])
 
-    def test_scarico_oltre_giacenza(self):
+    def test_scarico_originale_oltre_il_residuo(self):
+        c = _mov("C", self.ieri, quantita=10)
+        r = self.post_json(reverse("rentri_scarico_originale"), {
+            "data": self.ieri.isoformat(), "codice": "15 01 06", "quantita": "-12", "unita": "kg",
+            "rif_op": c.id_registrazione,
+        })
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("oltre il residuo", r.json()["error"])
+
+    def test_scarico_effettivo_dopo_o_non_confrontato_con_giacenza(self):
+        # Il peso verificato a destino può superare la stima del carico (es. 1000 → 2360).
         c = _mov("C", self.ieri, quantita=10)
         o = _mov("O", self.ieri, quantita=10, rif_op=c.id_registrazione)
         r = self.post_json(reverse("rentri_scarico_effettivo"), {
-            "data": self.ieri.isoformat(), "codice": "15 01 06", "quantita": "12", "unita": "kg",
+            "data": self.ieri.isoformat(), "codice": "15 01 06", "rettifica_scarico": "-23,6", "unita": "kg",
             "rif_op": o.id_registrazione,
         })
-        self.assertEqual(r.status_code, 400)
-        self.assertIn("oltre la giacenza", r.json()["error"])
+        self.assertEqual(r.status_code, 200, r.content)
 
     def test_rettifica_negativa_ammessa(self):
         c = _mov("C", self.ieri, quantita=10)
@@ -171,23 +183,24 @@ class ConsolidaAnnullaTests(_Base):
         c.refresh_from_db()
         self.assertTrue(c.rentri_si_no)
 
-    def test_annulla_con_figli_bloccato_poi_ammesso(self):
+    def test_annulla_con_figli_lascia_traccia(self):
         c = _mov("C", self.ieri, quantita=10)
         o = _mov("O", self.ieri, quantita=10, rif_op=c.id_registrazione)
         self.client.post(reverse("rentri_annulla", args=[c.pk]), {"motivo": "carico sbagliato"})
         c.refresh_from_db()
-        self.assertFalse(c.annullato)
-
-        self.client.post(reverse("rentri_annulla", args=[o.pk]), {"motivo": "scarico sbagliato"})
-        self.client.post(reverse("rentri_annulla", args=[c.pk]), {"motivo": "carico sbagliato"})
-        c.refresh_from_db()
+        o.refresh_from_db()
         self.assertTrue(c.annullato)
-        self.assertEqual(RegistroRifiuti.objects.count(), 2)
+        # Lo scarico resta valido e tiene il riferimento come traccia.
+        self.assertFalse(o.annullato)
+        self.assertEqual(o.rif_op, c.id_registrazione)
+        from .verifica import verifica_registro
 
-        from .giacenze import giacenze_per_cer
-        self.assertEqual(giacenze_per_cer(), [])
+        scollegati = next(s for s in verifica_registro() if s["key"] == "scollegati")["righe"]
+        self.assertEqual([r["pk"] for r in scollegati], [o.pk])
         r = self.client.get(reverse("rentri_api_candidati_rif_op"), {"tipo": "O", "codice": "15 01 06"})
         self.assertEqual(r.json()["candidati"], [])
+        from .giacenze import giacenze_per_cer
+        self.assertEqual(giacenze_per_cer()[0].giacenza, 0.0)
 
     def test_annullati_fuori_dall_elenco_salvo_richiesta(self):
         c = _mov("C", self.ieri, annullato=True, motivo_annullamento="doppio")
@@ -407,18 +420,19 @@ class PraticaProduzioneTests(_Base):
         })
         self.assertEqual(r.status_code, 200, r.content)
 
+        # Lo scarico originale ha svuotato il deposito; M/R correggono solo il peso a destino.
         from .giacenze import giacenze_per_cer
-        self.assertEqual(giacenze_per_cer()[0].giacenza, 100.0)
+        self.assertEqual(giacenze_per_cer()[0].giacenza, 0.0)
 
-    def test_m_in_rettifica_oltre_giacenza(self):
+    def test_m_senza_o_oltre_il_residuo(self):
+        # Senza scarico originale nel filo lo scarico effettivo è l'uscita dal deposito.
         c = _mov("C", self.ieri, quantita=10)
-        o = _mov("O", self.ieri, quantita=-10, rif_op=c.id_registrazione)
         r = self.post_json(reverse("rentri_scarico_effettivo"), {
             "data": self.ieri.isoformat(), "codice": "15 01 06", "rettifica_scarico": "-12", "unita": "kg",
-            "rif_op": o.id_registrazione,
+            "rif_op": c.id_registrazione,
         })
         self.assertEqual(r.status_code, 400)
-        self.assertIn("oltre la giacenza", r.json()["error"])
+        self.assertIn("oltre il residuo", r.json()["error"])
 
     def test_quarta_copia_chiusa_dalla_coppia(self):
         from .verifica import verifica_registro

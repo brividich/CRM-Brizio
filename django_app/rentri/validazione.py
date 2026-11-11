@@ -86,7 +86,6 @@ def valida_movimento(registro, *, prima: dict | None = None) -> list[str]:
     `prima` è la fotografia dei campi prima della modifica (``None`` per un
     movimento nuovo): decide quali regole di campo applicare.
     """
-    from .giacenze import giacenza_di
     from .models import RegistroRifiuti
 
     nuovo = prima is None
@@ -134,28 +133,68 @@ def valida_movimento(registro, *, prima: dict | None = None) -> list[str]:
     if tipo in GENITORI_AMMESSI and cambiato("rif_op"):
         errori.extend(_errori_rif_op(registro))
 
-    # Giacenza: uno scarico non può portare fuori più di quanto c'è in deposito
-    # (in valore assoluto: O e M si registrano spesso col segno meno).
+    # Deposito: uno scarico non porta fuori più di quanto resta (conto del filo,
+    # rentri.fili). Lo scarico originale O collegato si misura sul residuo dei suoi
+    # carichi, quello non collegato sulla giacenza del codice. Lo scarico effettivo
+    # M dopo una O è il peso verificato a destino: può superare la stima e non si
+    # controlla; senza O nel filo conta come uscita.
     if (
         tipo in ("O", "M") and valore and codice and not errori
-        and (cambiato("quantita") or cambiato("rettifica_scarico") or cambiato("codice"))
+        and (cambiato("quantita") or cambiato("rettifica_scarico") or cambiato("codice") or cambiato("rif_op"))
     ):
-        disponibile = giacenza_di(codice, escludi_pk=registro.pk)
-        if abs(valore) > disponibile + _EPS:
-            errori.append(
-                f"Quantità oltre la giacenza del codice {codice}: disponibili {_fmt(max(disponibile, Decimal(0)))}. "
-                "Controlla i carichi registrati."
-            )
+        errori.extend(_errori_deposito(registro, abs(valore)))
     return errori
 
 
+def _errori_deposito(registro, uscita: Decimal) -> list[str]:
+    from .fili import analizza_codice
+
+    an = analizza_codice(registro.codice, escludi_pk=registro.pk)
+    refs = split_rif_op(registro.rif_op)
+    carichi = {c.id_registrazione: c for c in an.carichi.get(normalizza_cer(registro.codice), [])}
+    collegati = []
+    for rid in refs:
+        if rid in carichi:
+            collegati.append(carichi[rid])
+        else:
+            # Collegato a una O o a una M: i suoi carichi.
+            for c in carichi.values():
+                if any(f.id_registrazione == rid for f in an.figli.get(c.pk, [])) and c not in collegati:
+                    collegati.append(c)
+    if registro.tipo == "M":
+        if any(f.tipo == "O" for c in collegati for f in an.figli.get(c.pk, [])) or any(
+            f.tipo == "O" and f.id_registrazione in refs for c in carichi.values() for f in an.figli.get(c.pk, [])
+        ):
+            return []
+    if collegati:
+        disponibile = sum((an.residuo[c.pk] for c in collegati), Decimal(0))
+        if disponibile <= _EPS:
+            nomi = ", ".join(c.id_registrazione for c in collegati)
+            return [f"{nomi}: il carico è già scaricato per intero. Scegli un altro carico o lascia lo scarico senza collegamento."]
+        if uscita > disponibile + _EPS:
+            return [f"Quantità oltre il residuo dei carichi collegati: disponibili {_fmt(disponibile)}."]
+        return []
+    disponibile = an.giacenza(registro.codice)
+    if uscita > disponibile + _EPS:
+        return [
+            f"Quantità oltre la giacenza del codice {registro.codice}: disponibili {_fmt(max(disponibile, Decimal(0)))}. "
+            "Controlla i carichi registrati."
+        ]
+    return []
+
+
 def _errori_rif_op(registro) -> list[str]:
+    """Collegamenti scelti: devono esistere, avere lo stesso CER e non essere già usati.
+
+    Il collegamento è **facoltativo**: senza Rif. Op lo scarico resta a registro
+    come movimento non collegato (la verifica lo elenca).
+    """
     from .models import RegistroRifiuti
 
     tipo = registro.tipo
     refs = split_rif_op(registro.rif_op)
     if not refs:
-        return ["Scegli il movimento collegato (Rif. Op)."]
+        return []
 
     ammessi = GENITORI_AMMESSI[tipo]
     cer = normalizza_cer(registro.codice)
@@ -207,9 +246,7 @@ def _errori_gia_collegato(registro, refs: list[str], per_id: dict) -> list[str]:
 
     errori = []
     if tipo == "O":
-        for rid in refs:
-            if rid in usati:
-                errori.append(f"{rid}: il carico ha già uno scarico collegato.")
+        # Un carico si può scaricare in più volte: lo decide il residuo (_errori_deposito).
         return errori
 
     diretti = [rid for rid in refs if any(g.tipo != "C" for g in per_id.get(rid, []))]
@@ -230,6 +267,4 @@ def requisiti_consolidamento(registro) -> list[str]:
         errori.append("manca il codice CER")
     if not valore_movimento(registro):
         errori.append("manca la quantità")
-    if registro.tipo in GENITORI_AMMESSI and not split_rif_op(registro.rif_op):
-        errori.append("manca il movimento collegato")
     return errori

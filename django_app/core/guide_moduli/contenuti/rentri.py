@@ -29,7 +29,12 @@ GUIDA = {
                     "Cerca il «Codice CER» scrivendo il numero o il nome del rifiuto: servono le sei cifre (per esempio 15 01 06). "
                     "Le frecce ↑ ↓ e Invio scelgono un suggerimento.",
                     "Per gli scarichi spunta il movimento collegato nella sezione «Collegato a»: l'elenco si aggiorna da solo "
-                    "quando cambi codice e mostra solo i movimenti collegabili, con lo stesso codice e non ancora usati.",
+                    "quando cambi codice e ogni voce mostra il carico da cui parte il filo. Nello scarico originale (O) compaiono "
+                    "i carichi con qualcosa «da scaricare»; nello scarico effettivo (M) gli scarichi originali senza M; nella "
+                    "rettifica (R) gli scarichi effettivi senza rettifica. Il codice vale per le sei cifre: «12 01 01» trova "
+                    "anche i carichi scritti «12.01.01 Sfridi Ferro Kg».",
+                    "Il collegamento è facoltativo: se non spunti niente lo scarico si salva «non collegato» e la «Verifica» lo "
+                    "elenca. «Mostra anche i già collegati» fa vedere anche i fili già completi per quel passo.",
                     "Scrivi la «Quantità» (anche con la virgola, per esempio 12,5) e scegli l'«Unità di misura». "
                     "Il carico è sempre positivo; negli scarichi il segno meno è ammesso (lo scarico effettivo M "
                     "può avere il valore in «Rettifica scarico», la rettifica R lo stesso valore positivo).",
@@ -42,9 +47,11 @@ GUIDA = {
                 ]),
                 ("p", "Il «Riepilogo» a lato mostra i dati inseriti e spunta i campi obbligatori man mano che li compili. "
                       "Se ne manca uno, il salvataggio si ferma e il campo è evidenziato in rosso. «Svuota» ripulisce il modulo."),
-                ("nota", "Il portale rifiuta uno scarico che porta fuori più di quanto c'è in giacenza per quel codice, "
-                         "uno scarico datato prima del movimento a cui si collega e un carico già scaricato. "
-                         "Il messaggio dice cosa correggere."),
+                ("nota", "Il portale rifiuta uno scarico originale che porta fuori più di quanto resta nei carichi collegati "
+                         "(o, se non è collegato, nella giacenza del codice), uno scarico datato prima del movimento a cui si "
+                         "collega e un carico già scaricato per intero. Un carico si può scaricare in più volte finché ha un residuo. "
+                         "Lo scarico effettivo dopo uno scarico originale è il peso verificato a destino: può essere diverso dalla "
+                         "stima e non viene confrontato con la giacenza. Il messaggio dice cosa correggere."),
             ],
         },
         {
@@ -61,7 +68,8 @@ GUIDA = {
                      "(per esempio «imballaggi»)."),
                     ("Dalla scheda", "nella scheda di un movimento il pulsante del passo dopo apre il modulo già compilato: "
                      "«Scarica (O)» da un carico, «Registra scarico effettivo (M)» da uno scarico originale, «Rettifica (R)» da "
-                     "uno scarico effettivo. Il pulsante sparisce quando il seguito è già registrato."),
+                     "uno scarico effettivo. «Scarica (O)» resta finché il carico ha un residuo; gli altri spariscono quando il "
+                     "seguito è già registrato. La scheda mostra anche lo stato del «Filo del carico»."),
                     ("Duplica", "nella scheda apre un nuovo movimento dello stesso tipo con lo stesso codice e la stessa unità, "
                      "con la data di oggi."),
                     ("Dalle Giacenze", "«Scarica» sulla riga di un codice apre lo scarico originale con quel codice."),
@@ -100,9 +108,12 @@ GUIDA = {
                     "Nell'«Elenco registrazioni» clicca la lente 🔍 della riga: si apre la scheda del movimento.",
                     "«Consolida» rende definitiva la registrazione (anche dallo «Scadenzario», sezione «Bozze da consolidare»).",
                     "Per consolidare tante bozze insieme: «Scadenzario» → «Bozze da consolidare» → scegli la data e clicca "
-                    "«Consolida bozze complete». Quelle senza quantità o senza movimento collegato restano bozze.",
+                    "«Consolida bozze complete». Quelle senza data, codice o quantità restano bozze.",
                     "«Segna trasmessa» indica che il movimento è stato trasmesso al RENTRI.",
-                    "«Annulla registrazione» chiede il motivo, obbligatorio. Se ci sono movimenti collegati vanno annullati prima quelli.",
+                    "«Annulla registrazione» chiede il motivo, obbligatorio. Se ci sono movimenti collegati restano a registro con "
+                    "il riferimento come traccia, ma non risultano più collegati: nell'elenco compare «COLLEGATO A ANNULLATO». "
+                    "Li ricolleghi con «Modifica» (se sono bozze) o li lasci così.",
+                    "Un collegamento tolto in modifica non si perde: la scheda lo mostra in «Collegamenti tolti (traccia)».",
                 ]),
                 ("p", "La scheda mostra anche i movimenti collegati e lo «Storico modifiche»: chi ha cambiato cosa e quando."),
                 ("p", "Nell'elenco gli annullati sono nascosti: spunta «Mostra annullati» per vederli. Nel PDF del registro compaiono in grigio con il motivo."),
@@ -113,11 +124,17 @@ GUIDA = {
             "titolo": "Elenco, scadenze, giacenze e verifica",
             "blocchi": [
                 ("ul", [
-                    "«Elenco registrazioni»: ogni carico con i suoi scarichi, raggruppati in «famiglie» APERTA o CHIUSA. "
-                    "Filtra per anno, tipo e «Stato famiglia»; «Espandi»/«Comprimi» apre o chiude tutto.",
+                    "«Elenco registrazioni»: ogni carico con i suoi scarichi (il filo). Lo stato è IN DEPOSITO (con il residuo), "
+                    "MANCA SCARICO EFFETTIVO, CHIUSA o SENZA CARICO. In alto i fili da completare; sotto «Fili chiusi, per codice» "
+                    "un gruppo per ogni codice CER, da aprire con un clic. «Espandi»/«Comprimi» apre o chiude tutto.",
+                    "Filtri dell'elenco: «Cerca» (numero, codice, rif. op, FIR, note), «Codice CER», «Tipo», «Stato del filo», "
+                    "«Dal»/«Al», «RENTRI» (trasmessi o da trasmettere), «Consolidamento» (bozze o consolidati), «Solo pericolosi» "
+                    "e «Mostra annullati». Il PDF usa gli stessi filtri.",
                     "«Scadenzario»: formulari mancanti sugli scarichi O e M, movimenti da comunicare, bozze da consolidare.",
                     "«Giacenze»: quanto rifiuto c'è per codice, con l'unità, il semaforo del deposito temporaneo e il totale in m³ "
-                    "(limite 30 m³, di cui 10 pericolosi). I «Giorni dep.» contano dal carico più vecchio non ancora scaricato.",
+                    "(limite 30 m³, di cui 10 pericolosi). La giacenza è la somma di quanto resta dei carichi: lo scarico "
+                    "originale (O) la riduce, la coppia scarico effettivo/rettifica (M/R) corregge il peso a destino e non la "
+                    "tocca. I «Giorni dep.» contano dal carico più vecchio non ancora scaricato.",
                     "«Verifica»: controllo di sola lettura del registro con export CSV (vedi sotto).",
                 ]),
             ],
@@ -128,9 +145,11 @@ GUIDA = {
             "blocchi": [
                 ("p", "Elenca quello che nel registro non torna. Ogni riga ha «Apri» per andare al movimento."),
                 ("def", [
-                    ("Scarichi senza carico d'origine", "la catena Rif. Op non arriva a nessun carico valido."),
+                    ("Scarichi senza carico d'origine", "il Rif. Op scritto non arriva a nessun carico valido."),
+                    ("Collegati a un movimento annullato", "il movimento collegato è stato annullato: il riferimento resta come traccia."),
+                    ("Scarichi senza collegamento", "registrati senza Rif. Op: è ammesso, controlla che sia voluto."),
                     ("Catene con codici CER diversi", "lo scarico ha un codice diverso dal suo carico."),
-                    ("Saldo del deposito sotto zero", "in ordine di data è uscito più di quanto era entrato."),
+                    ("Scarichi oltre il carico", "lo scarico originale porta fuori più di quanto resta nei carichi collegati o del codice."),
                     ("Date incoerenti", "un movimento è datato prima di quello a cui si collega."),
                     ("Numeri di registrazione doppi", "lo stesso numero su più movimenti (le coppie R+M dello stesso giorno sono escluse)."),
                     ("Quarta copia FIR oltre 90 giorni", "scarico originale O senza lo scarico effettivo M dopo 90 giorni."),
@@ -225,15 +244,17 @@ GUIDA = {
         {
             "sintomo": "Uno scarico non trova il carico da collegare",
             "fare": [
-                "Controlla che il carico abbia lo stesso codice CER.",
-                "Controlla che il carico non sia già scaricato o annullato.",
+                "Controlla che il carico abbia lo stesso codice CER (contano le sei cifre, non il testo).",
+                "Spunta «Mostra anche i già collegati»: il carico potrebbe essere già scaricato per intero o avere già il suo seguito.",
+                "Se il carico è annullato non compare: collega un altro carico o salva lo scarico senza collegamento.",
                 "Se il carico manca, registralo prima con «C - Carico».",
             ],
         },
         {
             "sintomo": "«Quantità oltre la giacenza»",
             "fare": [
-                "Apri «Giacenze» e cerca il codice: la giacenza è carichi meno scarichi effettivi e rettifiche.",
+                "Apri «Giacenze» e cerca il codice: la giacenza è quanto resta dei carichi dopo gli scarichi originali.",
+                "Se lo scarico è collegato, conta il residuo dei carichi spuntati: collega anche gli altri carichi o riduci la quantità.",
                 "Se manca un carico, registralo prima dello scarico.",
                 "Se un carico ha la quantità sbagliata ed è una bozza, correggilo; se è consolidato, annullalo e registralo di nuovo.",
             ],

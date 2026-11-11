@@ -1,37 +1,26 @@
 """R1 — Giacenze rifiuti per Codice EER (CER) e deposito temporaneo.
 
-Calcola, in sola lettura, la giacenza in deposito per ogni codice EER come
-differenza tra carichi e scarichi effettivi registrati nel registro RENTRI.
+Calcola, in sola lettura, la giacenza in deposito per ogni codice EER. Il conto
+è quello del filo conduttore (:mod:`rentri.fili`): ogni carico ha un residuo,
+gli scarichi originali O lo consumano, la coppia M/R corregge il peso a destino
+senza muovere il deposito. La giacenza di un codice è la somma dei residui.
 
-Modello contabile (semantica registro C/O/M/R)::
+Fino al 11/2026 la formula era «Σ C − Σ M − Σ R» con la O esclusa: sul registro
+reale (M e R in coppia con segni opposti) dava giacenze negative o gonfiate e
+bloccava scarichi validi con «oltre la giacenza».
 
-    giacenza(CER) = Σ C.quantita − Σ M.quantita − Σ R.(quantita | rettifica_scarico)
-
-- ``C`` (carico): entrata in deposito → somma alle entrate.
-- ``M`` (scarico effettivo): uscita reale → somma alle uscite.
-- ``R`` (rettifica scarico): corregge uno scarico → somma alle uscite
-  (``quantita`` se valorizzata, altrimenti ``rettifica_scarico``).
-- ``O`` (scarico originale): movimento **pianificato**, NON muove la giacenza
-  reale → escluso dal conteggio.
 - I movimenti **annullati** non contano mai.
+- Il codice si raggruppa per le sei cifre del CER (:func:`chiave_codice`).
 
-Il conto di un movimento è uno solo, :func:`contributo`: lo usano la pagina
-Giacenze, il controllo «quantità oltre la giacenza» del salvataggio e la
-verifica di coerenza.
-
-Giorni in deposito: le uscite consumano i carichi dal più vecchio (FIFO); l'età
-è quella del carico più vecchio con un residuo. Prima si usava il primo carico
-di sempre del codice, che con carichi continui e scarichi parziali dava età
-false in entrambi i sensi.
+Giorni in deposito: età del carico più vecchio con un residuo.
 
 Criterio quantitativo (art. 185-bis): somma delle giacenze aperte espresse in
 volume (m³, litri); i codici registrati a peso non sono convertibili e sono
 contati a parte.
 
-⚠️ La semantica O/M/R è normativamente delicata: questa formula va validata col
-responsabile ambientale. È isolata qui (single source of truth) per renderla
-facile da correggere. Le soglie di deposito temporaneo (D.Lgs 152/2006) sono
-indicative e configurabili via ``SiteConfig`` senza migration.
+⚠️ La semantica O/M/R è normativamente delicata: va validata col responsabile
+ambientale. Le soglie di deposito temporaneo (D.Lgs 152/2006) sono indicative e
+configurabili via ``SiteConfig`` senza migration.
 """
 from __future__ import annotations
 
@@ -56,7 +45,6 @@ _DEFAULT_M3_PERICOLOSI_MAX = 10
 
 # Tolleranza per considerare "azzerata" una giacenza (arrotondamenti decimali).
 _EPS = 0.0005
-_D_EPS = Decimal("0.0005")
 
 # Fattore verso m³ delle unità di volume.
 _M3 = {"m3": Decimal(1), "l": Decimal("0.001")}
@@ -85,39 +73,33 @@ def soglie_deposito() -> dict[str, int]:
 
 
 def chiave_codice(codice: str) -> str:
-    """Il codice come raggruppato dalle giacenze (spazi normalizzati)."""
-    return " ".join((codice or "").split())
+    """Il codice come raggruppato dalle giacenze: le sei cifre del CER."""
+    from .fili import chiave
+
+    return chiave(codice)
 
 
 def contributo(r) -> tuple[Decimal, Decimal]:
-    """(entrata, uscita) di un movimento: l'unica definizione del conto giacenza."""
-    q = r.quantita
+    """(entrata, uscita) di un movimento preso da solo, senza il suo filo.
+
+    Serve solo ai controlli che non hanno il filo a disposizione; il conto della
+    giacenza passa da :func:`rentri.fili.analizza`.
+    """
+    from .fili import valore
+
+    v = valore(r)
     if r.tipo == "C":
-        return (Decimal(q or 0), Decimal(0))
-    if r.tipo == "M":
-        return (Decimal(0), Decimal(q or 0))
-    if r.tipo == "R":
-        if q is None:
-            q = r.rettifica_scarico
-        return (Decimal(0), Decimal(q or 0))
+        return (Decimal(r.quantita or 0), Decimal(0))
+    if r.tipo == "O" and v:
+        return (Decimal(0), abs(Decimal(v)))
     return (Decimal(0), Decimal(0))
 
 
 def giacenza_di(codice: str, *, escludi_pk=None) -> Decimal:
     """Giacenza attuale di un codice, con lo stesso conto della pagina Giacenze."""
-    chiave = chiave_codice(codice)
-    qs = RegistroRifiuti.objects.attivi().filter(tipo__in=["C", "M", "R"]).only(
-        "codice", "tipo", "quantita", "rettifica_scarico"
-    )
-    if escludi_pk:
-        qs = qs.exclude(pk=escludi_pk)
-    totale = Decimal(0)
-    for r in qs:
-        if chiave_codice(r.codice) != chiave:
-            continue
-        entrata, uscita = contributo(r)
-        totale += entrata - uscita
-    return totale
+    from .fili import analizza_codice
+
+    return analizza_codice(codice, escludi_pk=escludi_pk).giacenza(codice)
 
 
 @dataclass
@@ -162,94 +144,68 @@ class GiacenzaCER:
         return "verde"
 
 
-def carico_aperto_fifo(carichi: list[tuple[date | None, Decimal]], uscite: Decimal) -> date | None:
-    """Data del carico più vecchio non ancora consumato dalle uscite (FIFO)."""
-    residuo_uscite = uscite
-    for data_c, q in sorted(carichi, key=lambda c: (c[0] or date.min)):
-        if residuo_uscite >= q - _D_EPS:
-            residuo_uscite -= q
-            continue
-        return data_c
-    return None
-
-
 def giacenze_per_cer() -> list[GiacenzaCER]:
-    """Ritorna le giacenze per CER ordinate per giacenza decrescente.
+    """Ritorna le giacenze per CER ordinate per giacenza decrescente."""
+    from collections import Counter
 
-    Aggregazione in Python (registro di dimensioni modeste) per gestire il
-    fallback ``quantita``/``rettifica_scarico`` delle rettifiche e l'età FIFO
-    del carico più vecchio ancora aperto.
-    """
+    from .fili import EPS, analizza
+
     oggi = timezone.localdate()
-    agg: dict[str, dict] = {}
-
-    qs = RegistroRifiuti.objects.attivi().exclude(codice="").only(
-        "codice", "tipo", "quantita", "rettifica_scarico", "data", "pericolosita", "unita"
-    )
-    for r in qs:
-        codice = chiave_codice(r.codice)
-        if not codice or r.tipo == "O":
-            # O (scarico originale): pianificato, non muove la giacenza reale.
-            continue
-        a = agg.setdefault(
-            codice,
-            {
-                "entrate": Decimal(0),
-                "uscite": Decimal(0),
-                "pericoloso": False,
-                "primo_carico": None,
-                "ultimo_movimento": None,
-                "n_carichi": 0,
-                "n_scarichi": 0,
-                "carichi": [],
-                "unita": set(),
-            },
+    records = list(
+        RegistroRifiuti.objects.attivi().exclude(codice="").only(
+            "codice", "tipo", "quantita", "rettifica_scarico", "data", "pericolosita", "unita",
+            "rif_op", "id_registrazione", "annullato",
         )
-        entrata, uscita = contributo(r)
-        a["entrate"] += entrata
-        a["uscite"] += uscita
+    )
+    an = analizza(records)
+    agg: dict[str, dict] = {}
+    for r in records:
+        k = chiave_codice(r.codice)
+        if not k:
+            continue
+        a = agg.setdefault(k, {
+            "testi": Counter(), "uscite": Decimal(0), "pericoloso": False, "primo_carico": None,
+            "ultimo_movimento": None, "n_carichi": 0, "n_scarichi": 0, "unita": set(),
+        })
+        a["testi"][" ".join(r.codice.split())] += 1
+        a["uscite"] += an.uscita.get(r.pk, Decimal(0))
         if r.unita:
             a["unita"].add(r.unita)
-
         if r.tipo == "C":
             a["n_carichi"] += 1
-            a["carichi"].append((r.data, entrata))
-            if (r.pericolosita or "").strip() or "*" in codice:
+            if (r.pericolosita or "").strip() or "*" in r.codice:
                 a["pericoloso"] = True
             if r.data and (a["primo_carico"] is None or r.data < a["primo_carico"]):
                 a["primo_carico"] = r.data
-        elif r.tipo == "M":
+        elif r.tipo in ("O", "M"):
             a["n_scarichi"] += 1
-
         if r.data and (a["ultimo_movimento"] is None or r.data > a["ultimo_movimento"]):
             a["ultimo_movimento"] = r.data
 
     result: list[GiacenzaCER] = []
-    for codice, a in agg.items():
-        giac = round(float(a["entrate"] - a["uscite"]), 3)
-        aperta = giac > _EPS
-        carico_aperto = carico_aperto_fifo(a["carichi"], a["uscite"]) if aperta else None
-        giorni = (oggi - carico_aperto).days if carico_aperto else None
+    for k, a in agg.items():
+        carichi = an.carichi.get(k, [])
+        entrate = sum((Decimal(c.quantita or 0) for c in carichi), Decimal(0))
+        giac = sum((an.residuo[c.pk] for c in carichi), Decimal(0))
+        aperto = next((c.data for c in carichi if an.residuo[c.pk] > EPS), None)
         if len(a["unita"]) == 1:
             unita = next(iter(a["unita"]))
         else:
             unita = "misto" if a["unita"] else ""
-        result.append(
-            GiacenzaCER(
-                codice=codice,
-                entrate=round(float(a["entrate"]), 3),
-                uscite=round(float(a["uscite"]), 3),
-                giacenza=giac,
-                pericoloso=a["pericoloso"],
-                primo_carico=a["primo_carico"],
-                ultimo_movimento=a["ultimo_movimento"],
-                giorni_giacenza=giorni,
-                n_carichi=a["n_carichi"],
-                n_scarichi=a["n_scarichi"],
-                unita=unita,
-                carico_aperto=carico_aperto,
-            )
-        )
+        result.append(GiacenzaCER(
+            codice=a["testi"].most_common(1)[0][0],
+            entrate=round(float(entrate), 3),
+            uscite=round(float(a["uscite"]), 3),
+            giacenza=round(float(giac), 3),
+            pericoloso=a["pericoloso"],
+            primo_carico=a["primo_carico"],
+            ultimo_movimento=a["ultimo_movimento"],
+            giorni_giacenza=(oggi - aperto).days if aperto else None,
+            n_carichi=a["n_carichi"],
+            n_scarichi=a["n_scarichi"],
+            unita=unita,
+            carico_aperto=aperto,
+        ))
 
     result.sort(key=lambda g: (-g.giacenza, g.codice))
     return result

@@ -87,6 +87,16 @@
 .rn-state-aperta { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; }
 .rn-state-chiusa { background:#e2e8f0; color:#475569; border:1px solid #cbd5e1; }
 .rn-state-orfana { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; margin-left:8px; }
+.rn-state-deposito { background:#dbeafe; color:#1e40af; border:1px solid #bfdbfe; }
+.rn-state-attesa_m { background:#fef3c7; color:#92400e; border:1px solid #fde68a; }
+.rn-state-senza_carico { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
+.rn-state-scollegato { background:#fff7ed; color:#9a3412; border:1px solid #fed7aa; margin-left:8px; }
+.rn-annullato td { text-decoration:line-through; color:#94a3b8; }
+.rn-annullato td:last-child { text-decoration:none; }
+.rn-grp-head td { background:#f8fafc; padding:10px 16px; font-size:13px; font-weight:800; color:#0f172a; cursor:pointer; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; }
+.rn-grp-head:hover td { background:#eef4fb; }
+.rn-grp-meta { font-size:11px; font-weight:500; color:#64748b; margin-left:8px; }
+.rn-sezione td { padding:14px 16px 6px; font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
 /* Toggle vista */
 .rn-view-toggle { display:flex; gap:6px; }
 .rn-view-btn {
@@ -158,6 +168,13 @@ body.theme-dark .rn-fam-head:hover td { background:var(--border); }
 body.theme-dark .rn-fam-title { color:var(--text); }
 body.theme-dark .rn-fam-meta { color:var(--text-mid); }
 body.theme-dark .rn-state-chiusa { background:var(--surface-alt, #17222f); color:var(--text-mid); border-color:var(--border); }
+body.theme-dark .rn-state-deposito { background:rgba(59,130,246,.18); color:#93c5fd; border-color:rgba(59,130,246,.35); }
+body.theme-dark .rn-state-attesa_m { background:rgba(214,158,46,.16); color:#fcd34d; border-color:rgba(214,158,46,.35); }
+body.theme-dark .rn-state-senza_carico { background:rgba(229,62,62,.16); color:#fca5a5; border-color:rgba(229,62,62,.35); }
+body.theme-dark .rn-state-scollegato { background:rgba(234,88,12,.16); color:#fdba74; border-color:rgba(234,88,12,.4); }
+body.theme-dark .rn-grp-head td { background:var(--surface-alt, #17222f); color:var(--text); border-color:var(--border); }
+body.theme-dark .rn-grp-head:hover td { background:var(--border); }
+body.theme-dark .rn-grp-meta, body.theme-dark .rn-sezione td { color:var(--text-mid); }
 body.theme-dark .rn-view-btn { border-color:var(--border); background:var(--surface); color:var(--text-mid); }
 body.theme-dark .rn-view-btn:hover:not(.active) { background:var(--surface-alt, #17222f); }
 body.theme-dark .cp-btn-ghost { background:var(--surface-alt, #17222f); color:var(--text); border-color:var(--border); }
@@ -214,9 +231,21 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
     <form method="GET" class="cp-filter-row">
       <input type="hidden" name="sort" value="{{ q_sort }}">
       <input type="hidden" name="dir"  value="{{ q_dir }}">
+      {% if q_view != 'famiglie' %}<input type="hidden" name="view" value="{{ q_view }}">{% endif %}
       <div class="cp-field">
-        <label class="cp-label">Tipo</label>
-        <select name="tipo" class="cp-select">
+        <label class="cp-label" for="f-q">Cerca</label>
+        <input type="text" id="f-q" name="q" class="cp-input" style="min-width:260px;" placeholder="Numero, codice, rif. op, FIR, note" value="{{ f.q }}">
+      </div>
+      <div class="cp-field">
+        <label class="cp-label" for="f-cer">Codice CER</label>
+        <select id="f-cer" name="cer" class="cp-select" style="max-width:260px;">
+          <option value="">Tutti</option>
+          {% for c in codici_filtro %}<option value="{{ c.key }}" {% if f.cer == c.key %}selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="cp-field">
+        <label class="cp-label" for="f-tipo">Tipo</label>
+        <select id="f-tipo" name="tipo" class="cp-select">
           <option value="">Tutti</option>
           <option value="C" {% if q_tipo == 'C' %}selected{% endif %}>C - Carico</option>
           <option value="O" {% if q_tipo == 'O' %}selected{% endif %}>O - Scarico originale</option>
@@ -225,24 +254,44 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
         </select>
       </div>
       <div class="cp-field">
-        <label class="cp-label">Cerca (codice / rif.op)</label>
-        <input type="text" name="q" class="cp-input" placeholder="Ricerca..." value="{{ q_search }}">
-      </div>
-      <div class="cp-field">
-        <label class="cp-label">Anno</label>
-        <input type="number" name="anno" class="cp-input" placeholder="2025" style="width:90px;" value="{{ q_anno }}">
-      </div>
-      <div class="cp-field">
-        <label class="cp-label">Stato famiglia</label>
-        <select name="stato" class="cp-select">
-          <option value="">Tutte</option>
-          <option value="aperte" {% if q_stato == 'aperte' %}selected{% endif %}>Solo aperte</option>
-          <option value="chiuse" {% if q_stato == 'chiuse' %}selected{% endif %}>Solo chiuse</option>
+        <label class="cp-label" for="f-stato">Stato del filo</label>
+        <select id="f-stato" name="stato" class="cp-select">
+          <option value="">Tutti</option>
+          <option value="aperte" {% if q_stato == 'aperte' %}selected{% endif %}>Da completare</option>
+          <option value="deposito" {% if q_stato == 'deposito' %}selected{% endif %}>In deposito</option>
+          <option value="attesa_m" {% if q_stato == 'attesa_m' %}selected{% endif %}>Manca scarico effettivo</option>
+          <option value="chiuse" {% if q_stato == 'chiuse' %}selected{% endif %}>Chiuse</option>
+          <option value="senza_carico" {% if q_stato == 'senza_carico' %}selected{% endif %}>Senza carico</option>
+          <option value="scollegati" {% if q_stato == 'scollegati' %}selected{% endif %}>Collegati a un annullato</option>
         </select>
       </div>
       <div class="cp-field">
-        <label class="cp-label">Raggruppa per</label>
-        <select name="group" class="cp-select">
+        <label class="cp-label" for="f-dal">Dal</label>
+        <input type="date" id="f-dal" name="dal" class="cp-input" style="min-width:0;" value="{{ f.dal }}">
+      </div>
+      <div class="cp-field">
+        <label class="cp-label" for="f-al">Al</label>
+        <input type="date" id="f-al" name="al" class="cp-input" style="min-width:0;" value="{{ f.al }}">
+      </div>
+      <div class="cp-field">
+        <label class="cp-label" for="f-trasmesso">RENTRI</label>
+        <select id="f-trasmesso" name="trasmesso" class="cp-select">
+          <option value="">Tutti</option>
+          <option value="si" {% if f.trasmesso == 'si' %}selected{% endif %}>Trasmessi</option>
+          <option value="no" {% if f.trasmesso == 'no' %}selected{% endif %}>Da trasmettere</option>
+        </select>
+      </div>
+      <div class="cp-field">
+        <label class="cp-label" for="f-consolidato">Consolidamento</label>
+        <select id="f-consolidato" name="consolidato" class="cp-select">
+          <option value="">Tutti</option>
+          <option value="no" {% if f.consolidato == 'no' %}selected{% endif %}>Bozze</option>
+          <option value="si" {% if f.consolidato == 'si' %}selected{% endif %}>Consolidati</option>
+        </select>
+      </div>
+      <div class="cp-field">
+        <label class="cp-label" for="f-group">Raggruppa per</label>
+        <select id="f-group" name="group" class="cp-select">
           <option value="">— nessuno —</option>
           <option value="codice"      {% if q_group == 'codice'      %}selected{% endif %}>Codice EER</option>
           <option value="tipo"        {% if q_group == 'tipo'        %}selected{% endif %}>Tipo (C/O/M/R)</option>
@@ -251,11 +300,15 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
         </select>
       </div>
       <label class="cp-field" style="flex-direction:row;align-items:center;gap:6px;align-self:flex-end;padding-bottom:9px;">
+        <input type="checkbox" name="pericolosi" value="1" {% if f.pericolosi == '1' %}checked{% endif %}>
+        <span class="cp-label" style="margin:0;">Solo pericolosi</span>
+      </label>
+      <label class="cp-field" style="flex-direction:row;align-items:center;gap:6px;align-self:flex-end;padding-bottom:9px;">
         <input type="checkbox" name="annullati" value="1" {% if q_annullati %}checked{% endif %}>
         <span class="cp-label" style="margin:0;">Mostra annullati{% if n_annullati %} ({{ n_annullati }}){% endif %}</span>
       </label>
       <button type="submit" class="cp-btn cp-btn-primary" style="align-self:flex-end;">Filtra</button>
-      {% if q_tipo or q_search or q_anno or q_group or q_stato or q_annullati %}
+      {% if filtri_attivi %}
         <a href="{% url 'rentri_elenco' %}" class="cp-btn cp-btn-ghost" style="align-self:flex-end;">&#10005; Reset</a>
       {% endif %}
     </form>
@@ -272,7 +325,7 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
       <div class="cp-table-title">
         Registrazioni
         {% if families %}
-          <span style="font-size:12px;color:#64748b;font-weight:500;">({{ total }} record, {{ families|length }} famiglie — {{ n_aperte }} aperte, {{ n_chiuse }} chiuse)</span>
+          <span style="font-size:12px;color:#64748b;font-weight:500;">({{ total }} record, {{ families|length }} fili — {{ fam_aperte|length }} da completare, {{ n_chiuse_vis }} chiusi)</span>
         {% elif groups %}
           <span style="font-size:12px;color:#64748b;font-weight:500;">({{ total }} totali, {{ groups|length }} gruppi)</span>
         {% elif page_obj.paginator.count %}
@@ -285,18 +338,18 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
           <button type="button" class="rn-view-btn" onclick="espandiTutte(false)">&#9654; Comprimi</button>
         {% endif %}
         <a class="rn-view-btn {% if q_view == 'famiglie' and not q_group %}active{% endif %}"
-           href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&stato={{ q_stato }}&view=famiglie">
+           href="?{{ filtri_qs }}&stato={{ q_stato }}&view=famiglie">
           &#128279; Famiglie
         </a>
         <a class="rn-view-btn {% if q_view != 'famiglie' or q_group %}active{% endif %}"
-           href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&view=lista&sort={{ q_sort }}&dir={{ q_dir }}&group={{ q_group }}">
+           href="?{{ filtri_qs }}&view=lista&sort={{ q_sort }}&dir={{ q_dir }}&group={{ q_group }}">
           &#8801; Lista
         </a>
       </div>
     </div>
 
     {% comment %}Macro per un'intestazione ordinabile{% endcomment %}
-    {% with base_qs="tipo="|add:q_tipo|add:"&q="|add:q_search|add:"&anno="|add:q_anno|add:"&group="|add:q_group|add:"&stato="|add:q_stato %}
+    {% with base_qs=filtri_qs|add:"&view=lista&group="|add:q_group %}
 
     <div style="overflow-x:auto;">
     <table class="cp-table">
@@ -354,83 +407,26 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
       <tbody>
 
         {% if families %}
-          {% comment %}── Vista famiglie (default) ──{% endcomment %}
-          {% for fam in families %}
-
-            {% comment %}Intestazione famiglia: stato, CER, catena tipi, periodo{% endcomment %}
-            <tr class="rn-fam-head {% if fam.chiusa %}is-chiusa{% else %}is-open{% endif %}"
-                data-fam="{{ forloop.counter }}" onclick="toggleFam(this)">
-              <td colspan="11">
-                <span class="rn-fam-caret">{% if fam.chiusa %}&#9654;{% else %}&#9660;{% endif %}</span>
-                {% if fam.chiusa %}
-                  <span class="rn-state rn-state-chiusa">CHIUSA</span>
-                {% else %}
-                  <span class="rn-state rn-state-aperta">APERTA</span>
-                {% endif %}
-                <span class="rn-fam-title">{{ fam.codice|default:"— senza codice —" }}</span>
-                {% for t in fam.tipi %}<span class="rn-badge rn-badge-{{ t }}">{{ t }}</span>{% if not forloop.last %}<span class="rn-fam-arrow">&#8594;</span>{% endif %}{% endfor %}
-                <span class="rn-fam-meta">
-                  {{ fam.n_record }} record ·
-                  {{ fam.data_inizio|date:"d-m-Y"|default:"—" }}{% if fam.data_fine and fam.data_fine != fam.data_inizio %} &#8594; {{ fam.data_fine|date:"d-m-Y" }}{% endif %}
-                </span>
-                {% if not fam.carichi %}<span class="rn-state rn-state-orfana">SENZA CARICO</span>{% endif %}
-              </td>
-            </tr>
-
-            {% comment %}Righe C (carichi){% endcomment %}
-            {% for r in fam.carichi %}
-            <tr class="rn-fam-c" data-fam="{{ forloop.parentloop.counter }}"{% if fam.chiusa %} hidden{% endif %}>
-              <td><span class="rn-badge rn-badge-C">C</span></td>
-              <td>{{ r.data|date:"d-m-Y" }}</td>
-              <td style="font-family:monospace;font-size:12px;">{{ r.id_registrazione|default:"—" }}</td>
-              <td style="color:#94a3b8;font-size:11px;">{{ r.rif_op|default:"—" }}</td>
-              <td><strong>{{ r.codice|default:"—" }}</strong></td>
-              <td>{% if r.quantita is not None %}<strong>{{ r.quantita }}</strong>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-              <td>{{ r.carico_scarico|default:"—" }}</td>
-              <td>{% if r.rentri_si_no %}<span class="rn-bool-yes">SI</span>{% else %}<span class="rn-bool-no">NO</span>{% endif %}</td>
-              <td>{% if r.salva %}<span class="rn-bool-yes">&#10003;</span>{% else %}<span class="rn-bool-no">—</span>{% endif %}</td>
-              <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
-              <td>
-                <div class="cp-row-actions">
-                  {% if r.annullato %}<span class="rn-state rn-state-annullato" title="{{ r.motivo_annullamento }}">ANNULLATO</span>{% endif %}
-                  {% if r.sync_errore %}<span class="rn-state rn-state-sync" title="{{ r.sync_errore }}">SP</span>{% endif %}
-                  {% if can_manage and not r.bloccato %}<a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}" title="Modifica (bozza)">&#9998;</a>{% endif %}
-                  <a class="cp-act-btn cp-act-view" href="{% url 'rentri_dettaglio' r.pk %}" title="Scheda: storico, consolida, annulla">&#128269;</a>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-
-            {% comment %}Righe O/R/M (operazioni collegate, indentate){% endcomment %}
-            {% for r in fam.operazioni %}
-            <tr class="rn-fam-op" data-fam="{{ forloop.parentloop.counter }}"{% if fam.chiusa %} hidden{% endif %}>
-              <td><span class="rn-badge rn-badge-{{ r.tipo }}">{{ r.tipo }}</span></td>
-              <td>{{ r.data|date:"d-m-Y" }}</td>
-              <td style="font-family:monospace;font-size:11px;">{{ r.id_registrazione|default:"—" }}</td>
-              <td style="font-size:11px;color:#94a3b8;">{{ r.rif_op|default:"—" }}</td>
-              <td>{{ r.codice|default:"—" }}</td>
-              <td>{% if r.quantita is not None %}{{ r.quantita }}{% elif r.rettifica_scarico is not None %}<span style="color:#713f12;">{{ r.rettifica_scarico }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
-              <td>{{ r.carico_scarico|default:"—" }}</td>
-              <td>{% if r.rentri_si_no %}<span class="rn-bool-yes">SI</span>{% else %}<span class="rn-bool-no">NO</span>{% endif %}</td>
-              <td>{% if r.salva %}<span class="rn-bool-yes">&#10003;</span>{% else %}<span class="rn-bool-no">—</span>{% endif %}</td>
-              <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
-              <td>
-                <div class="cp-row-actions">
-                  {% if r.annullato %}<span class="rn-state rn-state-annullato" title="{{ r.motivo_annullamento }}">ANNULLATO</span>{% endif %}
-                  {% if r.sync_errore %}<span class="rn-state rn-state-sync" title="{{ r.sync_errore }}">SP</span>{% endif %}
-                  {% if can_manage and not r.bloccato %}<a class="cp-act-btn cp-act-edit" href="{% url 'rentri_modifica' r.pk %}" title="Modifica (bozza)">&#9998;</a>{% endif %}
-                  <a class="cp-act-btn cp-act-view" href="{% url 'rentri_dettaglio' r.pk %}" title="Scheda: storico, consolida, annulla">&#128269;</a>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-
-            {% comment %}Separatore tra famiglie{% endcomment %}
-            <tr class="rn-fam-sep"><td colspan="11"></td></tr>
-
-          {% empty %}
-            <tr><td colspan="11" class="cp-empty">Nessuna registrazione trovata{% if q_tipo or q_search or q_anno %} per i filtri selezionati{% endif %}.</td></tr>
+          {% comment %}── Vista famiglie (default): prima i fili da completare, poi i chiusi raggruppati per codice ──{% endcomment %}
+          {% for fam in fam_aperte %}
+            {% include "rentri/components/famiglia_righe.html" with fam=fam fid=fam.fid grp="" chiusa=False %}
           {% endfor %}
+          {% if gruppi_chiuse %}
+            <tr class="rn-sezione"><td colspan="11">Fili chiusi, per codice</td></tr>
+            {% for grp in gruppi_chiuse %}
+              <tr class="rn-grp-head" data-grp-head="{{ grp.gid }}" onclick="toggleGrp(this)">
+                <td colspan="11">
+                  <span class="rn-fam-caret">&#9654;</span>
+                  <span class="rn-state rn-state-chiusa">CHIUSE</span>
+                  {{ grp.label }}
+                  <span class="rn-grp-meta">{{ grp.families|length }} fil{{ grp.families|length|pluralize:"o,i" }} · {{ grp.n_record }} record</span>
+                </td>
+              </tr>
+              {% for fam in grp.families %}
+                {% include "rentri/components/famiglia_righe.html" with fam=fam fid=fam.fid grp=grp.gid chiusa=True %}
+              {% endfor %}
+            {% endfor %}
+          {% endif %}
 
         {% elif groups %}
           {% comment %}── Vista raggruppata per campo ──{% endcomment %}
@@ -492,7 +488,7 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
 
         {% else %}
           <tr><td colspan="11" class="cp-empty">
-            Nessuna registrazione trovata{% if q_tipo or q_search or q_anno %} per i filtri selezionati{% endif %}.
+            Nessuna registrazione trovata{% if filtri_attivi %} per i filtri selezionati{% endif %}.
           </td></tr>
         {% endif %}
 
@@ -506,19 +502,19 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
     {% if page_obj and page_obj.paginator.num_pages > 1 %}
     <div class="rn-pagination">
       {% if page_obj.has_previous %}
-        <a class="rn-page-btn" href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&sort={{ q_sort }}&dir={{ q_dir }}&page={{ page_obj.previous_page_number }}">&#8592;</a>
+        <a class="rn-page-btn" href="?{{ filtri_qs }}&view=lista&sort={{ q_sort }}&dir={{ q_dir }}&page={{ page_obj.previous_page_number }}">&#8592;</a>
       {% endif %}
       {% for num in page_obj.paginator.page_range %}
         {% if num == page_obj.number %}
           <span class="rn-page-btn active">{{ num }}</span>
         {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
-          <a class="rn-page-btn" href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&sort={{ q_sort }}&dir={{ q_dir }}&page={{ num }}">{{ num }}</a>
+          <a class="rn-page-btn" href="?{{ filtri_qs }}&view=lista&sort={{ q_sort }}&dir={{ q_dir }}&page={{ num }}">{{ num }}</a>
         {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
           <span class="rn-page-info">…</span>
         {% endif %}
       {% endfor %}
       {% if page_obj.has_next %}
-        <a class="rn-page-btn" href="?tipo={{ q_tipo }}&q={{ q_search }}&anno={{ q_anno }}&sort={{ q_sort }}&dir={{ q_dir }}&page={{ page_obj.next_page_number }}">&#8594;</a>
+        <a class="rn-page-btn" href="?{{ filtri_qs }}&view=lista&sort={{ q_sort }}&dir={{ q_dir }}&page={{ page_obj.next_page_number }}">&#8594;</a>
       {% endif %}
     </div>
     {% endif %}
@@ -544,7 +540,23 @@ function toggleFam(head) {
 }
 
 function espandiTutte(aperta) {
+  document.querySelectorAll('tr.rn-grp-head').forEach(function(g) { _applicaGrp(g, aperta); });
   document.querySelectorAll('tr.rn-fam-head').forEach(function(head) { _applicaStato(head, aperta); });
+}
+
+function _applicaGrp(head, aperta) {
+  var n = head.getAttribute('data-grp-head');
+  head.classList.toggle('is-open', aperta);
+  var caret = head.querySelector('.rn-fam-caret');
+  if (caret) caret.innerHTML = aperta ? '&#9660;' : '&#9654;';
+  document.querySelectorAll('tr[data-grp="' + n + '"], tr[data-grp-sep="' + n + '"]').forEach(function(tr) {
+    tr.hidden = !aperta;
+    if (!aperta && tr.classList.contains('rn-fam-head')) _applicaStato(tr, false);
+  });
+}
+
+function toggleGrp(head) {
+  _applicaGrp(head, !head.classList.contains('is-open'));
 }
 
 </script>
