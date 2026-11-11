@@ -6,7 +6,8 @@
   con la sala invitata come risorsa (come gli incontri KICK-OFF). Senza casella resta segnata
   solo nel portale.
 - ``libera``: alla cancellazione dell'invito l'evento Outlook si cancella e la sala torna libera.
-- ``blocchi_giorno``: le visite con sala di un giorno, per la disponibilità del KICK-OFF.
+- ``blocchi_giorno``: le visite con sala di un giorno, per la griglia della reception (il KICK-OFF
+  non le vede: per lui la sala risulta occupata da Outlook).
 """
 from __future__ import annotations
 
@@ -22,9 +23,12 @@ FUSO_OUTLOOK = "W. Europe Standard Time"
 
 
 def sale_attive():
+    """Le sale proposte negli inviti: attive e scelte in Reception → Configurazione → Sale."""
     from tasks.services.sale import sale_attive as attive
 
-    return attive()
+    from .models import SalaInviti
+
+    return attive().filter(pk__in=SalaInviti.objects.values("sala_id"))
 
 
 def finestra(giorno: date | None, inizio: time | None, fine: time | None) -> tuple[datetime, datetime] | None:

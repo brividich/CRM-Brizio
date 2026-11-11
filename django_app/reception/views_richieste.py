@@ -164,5 +164,6 @@ def sale_disponibilita(request):
         return JsonResponse({"ok": False, "reason": "Data non valida."}, status=400)
     from tasks.services.sale import disponibilita_giorno
 
-    dati = disponibilita_giorno(giorno, organizer_email=(request.user.email or "").strip())
+    dati = disponibilita_giorno(giorno, organizer_email=(request.user.email or "").strip(),
+                                sale=list(sale.sale_attive()), blocchi_extra=sale.blocchi_giorno(giorno))
     return JsonResponse({"ok": True, **dati})
