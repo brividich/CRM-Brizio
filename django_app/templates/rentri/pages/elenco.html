@@ -190,6 +190,19 @@ body.theme-dark .rn-page-info { color:var(--text-mid); }
   
 /* ── Tema scuro: gemello generato da tools/gen_dark_block.py (non modificare a mano) ── */
 body.theme-dark .cp-hero-btn{background:var(--surface);color:var(--text-mid)}
+.rn-export{position:fixed;inset:0;margin:auto;height:fit-content;max-height:calc(100vh - 32px);border:none;border-radius:14px;padding:0;width:min(420px,calc(100vw - 32px));box-shadow:0 20px 50px rgba(15,23,42,.3)}
+.rn-export::backdrop{background:rgba(15,23,42,.45)}
+.rn-export-box{padding:18px 20px 20px;background:#fff}
+.rn-export-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.rn-export-t{font-size:16px;font-weight:800;color:#1e3a5f}
+.rn-export-x{border:none;background:none;font-size:16px;cursor:pointer;color:#64748b}
+.rn-export-h{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin:14px 0 6px}
+.rn-export-row{display:flex;gap:8px}
+.rn-export-row .cp-btn{flex:1;justify-content:center}
+body.theme-dark .rn-export-box{background:var(--surface)}
+body.theme-dark .rn-export-t{color:var(--text)}
+body.theme-dark .rn-export-h,body.theme-dark .rn-export-x{color:var(--text-mid)}
+body.theme-dark .rn-export .cp-btn-ghost{background:var(--surface-alt,#17222f);color:var(--text);border-color:var(--border)}
 body.theme-dark .cp-hero-btn:hover{background:rgba(139,92,246,.2)}
 body.theme-dark .cp-table-head{border-color:var(--border)}
 body.theme-dark .cp-table th{border-color:var(--border)}
@@ -215,6 +228,24 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
 {% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
 
 {% block content %}
+<dialog id="rn-export" class="rn-export" aria-labelledby="rn-export-t" onclick="if (event.target === this) this.close()">
+  <div class="rn-export-box">
+    <div class="rn-export-top">
+      <div class="rn-export-t" id="rn-export-t">Esporta il registro</div>
+      <button type="button" class="rn-export-x" onclick="this.closest('dialog').close()" aria-label="Chiudi">&#10005;</button>
+    </div>
+    <div class="rn-export-h">{% if filtri_attivi %}Con i filtri attivi{% else %}Registrazioni valide{% endif %}</div>
+    <div class="rn-export-row">
+      <a class="cp-btn cp-btn-primary" href="{% url 'rentri_export_excel' %}?{{ filtri_qs }}{% if q_stato %}&stato={{ q_stato }}{% endif %}">Excel</a>
+      <a class="cp-btn cp-btn-primary" href="{% url 'rentri_export_pdf' %}?{{ filtri_qs }}{% if q_stato %}&stato={{ q_stato }}{% endif %}" target="_blank">PDF</a>
+    </div>
+    <div class="rn-export-h">Registro completo, annullati compresi</div>
+    <div class="rn-export-row">
+      <a class="cp-btn cp-btn-ghost" href="{% url 'rentri_export_excel' %}?scope=tutto">Excel</a>
+      <a class="cp-btn cp-btn-ghost" href="{% url 'rentri_export_pdf' %}?scope=tutto" target="_blank">PDF</a>
+    </div>
+  </div>
+</dialog>
 <div class="cp-wrap">
 
   <!-- Hero -->
@@ -223,7 +254,10 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
       <div class="cp-hero-title">Elenco Registrazioni RENTRI</div>
       <div class="cp-hero-sub">Tutte le registrazioni del registro rifiuti</div>
     </div>
-    <a class="cp-hero-btn" href="{% url 'rentri_menu' %}">&#8592; Menu</a>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button type="button" class="cp-hero-btn" onclick="document.getElementById('rn-export').showModal()">&#8681; Esporta</button>
+      <a class="cp-hero-btn" href="{% url 'rentri_menu' %}">&#8592; Menu</a>
+    </div>
   </div>
 
   <!-- Filtri -->

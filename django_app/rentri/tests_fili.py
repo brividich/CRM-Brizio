@@ -139,3 +139,35 @@ class FiloTests(TestCase):
         self.assertContains(r, o.id_registrazione)
         r = self.client.get(reverse("rentri_export_pdf"), {"cer": "150106"})
         self.assertEqual(r.status_code, 200)
+
+    def test_export_excel_filtrato_e_completo(self):
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        c = _mov("C", self.ieri - timedelta(days=10), quantita=10)
+        _mov("O", self.ieri - timedelta(days=9), quantita=-10, rif_op=c.id_registrazione)
+        aperto = _mov("C", self.ieri, codice="15 01 06", quantita=5)
+        tolto = _mov("C", self.ieri, codice="15 01 06", quantita=3, annullato=True)
+
+        def righe(params):
+            r = self.client.get(reverse("rentri_export_excel"), params)
+            self.assertEqual(r.status_code, 200)
+            ws = load_workbook(BytesIO(r.content)).active
+            valori = [[cl.value for cl in row] for row in ws.iter_rows()]
+            testata = next(i for i, v in enumerate(valori) if v[:2] == ["Data", "N. registrazione"])
+            return valori[testata], valori[testata + 1:]
+
+        testata, dati = righe({"cer": "150106"})
+        self.assertEqual([d[1] for d in dati], [aperto.id_registrazione])
+        self.assertEqual(dati[0][testata.index("Stato del filo")], "In deposito")
+        # Stato del filo come nell'elenco.
+        _t, dati = righe({"stato": "attesa_m"})
+        self.assertEqual({d[1] for d in dati}, {c.id_registrazione, RegistroRifiuti.objects.get(tipo="O").id_registrazione})
+        # Completo: tutto il registro, annullati compresi.
+        _t, dati = righe({"scope": "tutto", "cer": "150106"})
+        self.assertEqual(len(dati), 4)
+        self.assertIn(tolto.id_registrazione, [d[1] for d in dati])
+        r = self.client.get(reverse("rentri_export_pdf"), {"scope": "tutto"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(self.client.get(reverse("rentri_elenco")), "Esporta il registro")

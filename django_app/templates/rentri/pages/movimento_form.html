@@ -120,6 +120,12 @@ body.theme-dark .rnf .hub-btn-outline:hover, body.theme-dark .rnf .hub-btn-ghost
 body.theme-dark .rnf-cand-empty { border-color:var(--border); }
 body.theme-dark .rnf-cand-id, body.theme-dark .rnf-title { color:var(--text); }
 body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surface); }
+.rnf-cand-cercabar { display:flex; align-items:center; gap:10px; margin:10px 0 8px; }
+.rnf-cand-cerca { flex:1; min-width:0; padding:7px 10px; border:1px solid var(--hub-line); border-radius:8px; font-size:12.5px; background:var(--surface,#fff); color:inherit; }
+.rnf-cand-cerca:focus { outline:none; border-color:var(--rnf-accent); box-shadow:0 0 0 3px var(--rnf-soft); }
+.rnf-cand-conta { font-size:11.5px; color:var(--hub-muted); white-space:nowrap; }
+.rnf-cand-item.nascosto { display:none; }
+body.theme-dark .rnf-cand-cerca { background:var(--surface); border-color:var(--border); color:var(--text); }
 .rnf-cand-tutti { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid, #475569); margin-left:auto; }
 .rnf-cand-stato { display:block; font-size:11px; font-weight:700; color:#1e40af; margin-top:2px; }
 .rnf-cand-stato.gia { color:#92400e; }
@@ -200,8 +206,12 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
         <div class="rnf-cand-bar">
           <div class="hub-help">{{ cfg.rif_help }}</div>
           <label class="rnf-cand-tutti"><input type="checkbox" id="rifop-tutti"> Mostra anche i già collegati</label>
-          <button type="button" class="hub-btn hub-btn-ghost hub-btn-sm" id="btn-rifop-all">Seleziona tutti</button>
+          <button type="button" class="hub-btn hub-btn-ghost hub-btn-sm" id="btn-rifop-all">Seleziona i visibili</button>
           <button type="button" class="hub-btn hub-btn-ghost hub-btn-sm" id="btn-rifop-reload">Aggiorna elenco</button>
+        </div>
+        <div class="rnf-cand-cercabar">
+          <input type="search" id="rifop-cerca" class="rnf-cand-cerca" placeholder="Cerca per numero, data, FIR o quantità…" autocomplete="off" aria-label="Cerca tra i movimenti collegabili">
+          <span class="rnf-cand-conta" id="rifop-conta"></span>
         </div>
         <div class="hub-field" id="fld-rifop">
           <div class="rnf-cand" id="rifop-list"><div class="rnf-cand-empty">Scegli prima il codice CER: qui compaiono i movimenti collegabili.</div></div>
@@ -524,10 +534,12 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
     d.className = 'rnf-cand-empty';
     d.textContent = msg;
     listEl.appendChild(d);
+    if ($('rifop-conta')) $('rifop-conta').textContent = '';
   }
   function loadCandidati() {
     var listEl = $('rifop-list');
     var codice = cerInput.value.trim();
+    if (codice !== lastCodice && $('rifop-cerca')) $('rifop-cerca').value = '';
     lastCodice = codice;
     if (!codice) { emptyBox(listEl, 'Scegli prima il codice CER: qui compaiono i movimenti collegabili.'); return; }
     emptyBox(listEl, 'Caricamento…');
@@ -612,6 +624,8 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
         st.textContent = c.gia_collegato ? 'già collegato · ' + c.stato_label : c.stato_label;
         info.appendChild(st);
       }
+      row.dataset.cerca = norm([c.id_registrazione, info.textContent, c.data, c.carico_data, c.fir,
+        fmtQ(c.quantita), fmtQ(c.carico_quantita)].join(' '));
       row.appendChild(cb);
       row.appendChild(info);
       cb.addEventListener('change', function () {
@@ -622,13 +636,43 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
       });
       listEl.appendChild(row);
     });
+    filtraCandidati();
     refresh();
+  }
+  // Ricerca live: più parole = tutte presenti; i già spuntati restano sempre visibili.
+  function norm(t) { return String(t || '').toLowerCase().replace(/[.\-\/]/g, ' ').replace(/\s+/g, ' '); }
+  function filtraCandidati() {
+    var box = $('rifop-cerca'), conta = $('rifop-conta'), listEl = $('rifop-list');
+    if (!box) return;
+    var parole = norm(box.value).trim().split(' ').filter(Boolean);
+    var items = listEl.querySelectorAll('.rnf-cand-item');
+    var vis = 0;
+    items.forEach(function (row) {
+      var ok = row.classList.contains('sel') || parole.every(function (p) { return row.dataset.cerca.indexOf(p) !== -1; });
+      row.classList.toggle('nascosto', !ok);
+      if (ok) vis++;
+    });
+    var vuoto = listEl.querySelector('.rnf-cand-nessuno');
+    if (items.length && !vis) {
+      if (!vuoto) {
+        vuoto = document.createElement('div');
+        vuoto.className = 'rnf-cand-empty rnf-cand-nessuno';
+        vuoto.textContent = 'Nessun movimento corrisponde alla ricerca.';
+        listEl.appendChild(vuoto);
+      }
+    } else if (vuoto) vuoto.remove();
+    conta.textContent = items.length ? (parole.length ? vis + ' di ' + items.length : items.length + ' movimenti') : '';
   }
   if (RIF_TIPO) {
     $('btn-rifop-reload').addEventListener('click', loadCandidati);
     $('rifop-tutti').addEventListener('change', loadCandidati);
+    $('rifop-cerca').addEventListener('input', filtraCandidati);
+    $('rifop-cerca').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') e.preventDefault();
+      if (e.key === 'Escape') { this.value = ''; filtraCandidati(); }
+    });
     $('btn-rifop-all').addEventListener('click', function () {
-      $('rifop-list').querySelectorAll('.rnf-cand-item input').forEach(function (cb) {
+      $('rifop-list').querySelectorAll('.rnf-cand-item:not(.nascosto) input').forEach(function (cb) {
         if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
       });
     });
