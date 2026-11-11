@@ -246,6 +246,46 @@ def _sha256(dati: bytes) -> str:
     return hashlib.sha256(dati).hexdigest()
 
 
+def scrivi_esclusivo(path: str, dati: bytes) -> None:
+    """Crea ``path`` e ci scrive ``dati``; se il file esiste già solleva ``FileExistsError``.
+
+    Il controllo «esiste già?» del piano e la scrittura non sono atomici: nel frattempo
+    qualcuno può aver salvato un file con lo stesso nome dalla share. La creazione
+    esclusiva (O_EXCL) chiude la finestra: mai sovrascrivere in silenzio. Una scrittura
+    interrotta a metà rimuove il file parziale.
+    """
+    flag = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+    fd = os.open(path, flag, 0o666)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(dati)
+    except BaseException:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        raise
+
+
+def sostituisci_atomico(path: str, dati: bytes) -> None:
+    """Scrive ``dati`` in un file temporaneo nella stessa cartella e lo mette al posto di
+    ``path`` con ``os.replace``: chi legge vede il file vecchio o quello nuovo, mai un
+    file troncato a metà."""
+    import uuid
+
+    cartella = os.path.dirname(path) or "."
+    tmp = os.path.join(cartella, f"~$hub-{uuid.uuid4().hex[:12]}.tmp")
+    scrivi_esclusivo(tmp, dati)
+    try:
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def _sha256_file(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -373,10 +413,16 @@ def esegui(spec: Specifica, sorgente, *, cartella: str | None = None, nome: str 
             shutil.move(piano.collisione_da, dest)
             undo.append(lambda src=piano.collisione_da, dst=dest: shutil.move(dst, src))
 
-        # (b) scrivi il nuovo PDF al path canonico
+        # (b) scrivi il nuovo PDF al path canonico, in modo esclusivo: se nel frattempo
+        #     qualcuno ha creato un file con lo stesso nome, errore e rollback (mai
+        #     sovrascrivere in silenzio un file non pianificato).
         os.makedirs(os.path.dirname(piano.target), exist_ok=True)
-        with open(piano.target, "wb") as fh:
-            fh.write(dati)
+        try:
+            scrivi_esclusivo(piano.target, dati)
+        except FileExistsError:
+            raise RuntimeError(
+                "nel frattempo e' comparso un file con lo stesso nome al path del target"
+            ) from None
         undo.append(lambda p=piano.target: os.path.exists(p) and os.remove(p))
 
         # (c) archivia la revisione precedente

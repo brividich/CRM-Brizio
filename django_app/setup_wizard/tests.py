@@ -171,3 +171,60 @@ class SetupWizardFinalizeDatabaseTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"ok")
+
+
+class SetupWizardTestDbOdbcTests(SimpleTestCase):
+    """Stringa ODBC con valori tra {} e niente testo grezzo del driver al client."""
+
+    def setUp(self):
+        super().setUp()
+        self.factory = RequestFactory()
+
+    def _chiama(self, dati, connect):
+        import sys
+        from types import SimpleNamespace
+
+        finto = SimpleNamespace(connect=connect)
+        req = self.factory.post("/setup/api/test-db/", data=json.dumps(dati), content_type="application/json")
+        with patch("setup_wizard.views._setup_needed", return_value=True), \
+                patch.dict(sys.modules, {"pyodbc": finto}):
+            return json.loads(views.api_test_db(req).content)
+
+    def test_valori_tra_graffe_e_connessione_chiusa(self):
+        visti = {}
+
+        class _Cur:
+            def execute(self, _q):
+                return None
+
+            def fetchone(self):
+                return ["Microsoft SQL Server sintetico\nriga 2"]
+
+        class _Conn:
+            timeout = 0
+            chiusa = False
+
+            def cursor(self):
+                return _Cur()
+
+            def close(self):
+                _Conn.chiusa = True
+
+        def connect(conn_str, timeout=None):
+            visti["cs"] = conn_str
+            return _Conn()
+
+        esito = self._chiama({"host": "srv", "name": "db;x=1", "user": "u", "password": "p}w;Encrypt=no"}, connect)
+        self.assertTrue(esito["ok"])
+        self.assertIn("DATABASE={db;x=1}", visti["cs"])
+        self.assertIn("PWD={p}}w;Encrypt=no}", visti["cs"])
+        self.assertTrue(_Conn.chiusa)
+
+    def test_errore_senza_testo_grezzo(self):
+        def connect(conn_str, timeout=None):
+            raise RuntimeError("[28000] Login failed for user 'utente-segreto' su host-interno")
+
+        esito = self._chiama({"host": "srv", "name": "db", "user": "u", "password": "p"}, connect)
+        self.assertFalse(esito["ok"])
+        self.assertNotIn("utente-segreto", esito["error"])
+        self.assertIn("Accesso negato", esito["error"])

@@ -121,7 +121,10 @@ GUIDA = {
         },
         {
             "sintomo": "Il PDF su SharePoint non si aggiorna",
-            "fare": ["Apri Presenti › Impostazioni e leggi «Ultima pubblicazione».",
+            "fare": ["Apri Presenti › Impostazioni e leggi «Ultima pubblicazione» («Pubblica il PDF adesso» lavora in "
+                     "background: l'esito arriva dopo qualche secondo, ricaricando la pagina).",
+                     "«SharePoint non ha risposto entro il tempo massimo»: Graph lento o irraggiungibile, il file "
+                     "pubblicato prima resta com'è; riprova più tardi.",
                      "Verifica raccolta e nome file; l'app Graph del portale deve poter scrivere sul sito."],
         },
     ],

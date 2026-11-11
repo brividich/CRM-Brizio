@@ -631,6 +631,16 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Cartella scansioni delle verifiche periodiche: «Leggi la cartella ora» dice «Lettura avviata» ma l'esito non cambia subito",
+            "perche": "la lettura gira in background (stesso lock del giro automatico), non nella pagina.",
+            "fare": [
+                "Ricarica la pagina dopo qualche secondo: l'esito compare in «Esito».",
+                "«rimandati al prossimo giro»: il giro si ferma dopo un minuto e mezzo e riprende dalle pagine mancanti; "
+                "un foglio già letto non si rilegge.",
+                "Se l'esito non cambia mai, controlla che il servizio django-q (qcluster) sia attivo.",
+            ],
+        },
+        {
             "sintomo": "Nel nuovo intervento «Assegnato a» non elenca il manutentore che cerco, o non propone nessuno",
             "fare": [
                 "Con l'intervento «Interno» l'elenco è la squadra manutenzione: la persona deve stare nel ruolo scelto in "

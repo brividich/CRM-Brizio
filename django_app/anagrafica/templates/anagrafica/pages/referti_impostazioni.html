@@ -83,6 +83,7 @@ body.theme-dark .ri-campo input[type=text],body.theme-dark .ri-campo input[type=
       <div class="ri-tit">Cartella</div>
       <div class="ri-nota">
         Stato adesso: <span class="ri-stato {% if stato_cartella == 'raggiungibile' %}ri-ok{% else %}ri-ko{% endif %}">{{ stato_cartella }}</span>
+        · {% if config.ultima_esecuzione %}Ultimo passaggio {{ config.ultima_esecuzione|date:"d-m-Y H:i" }} — {{ config.ultimo_esito }}{% else %}Mai eseguito{% endif %}
       </div>
       {% for campo in form %}
         {% if campo.name in "attiva,cartella,sposta_elaborati,max_file_per_giro" %}
