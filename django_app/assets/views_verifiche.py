@@ -6,6 +6,7 @@ Dominio in ``services/periodic_checks.py``; vedi docs/ai/VERIFICHE_PERIODICHE.md
 """
 from __future__ import annotations
 
+import logging
 import mimetypes
 from decimal import Decimal, InvalidOperation
 import re
@@ -49,6 +50,8 @@ from .services import periodic_checks as checks
 from .services import periodic_intake, periodic_stats
 from .views import _assets_shell_context, _validate_workorder_attachment_uploads
 from .views_maintenance import can_execute_maintenance, can_manage_maintenance_plans
+
+logger = logging.getLogger(__name__)
 
 AUDIT_OGGETTO = "assets.periodic_check_session"
 
@@ -1237,9 +1240,26 @@ def periodic_check_intake(request: HttpRequest) -> HttpResponse:
         elif not can_register:
             return _deny(request, "Non hai il permesso di acquisire scansioni.", back)
         elif action == "run":
-            result = periodic_intake.process_folder(config, force=True)
-            log_action(request, "periodic_check_intake_run", "assets", {"riepilogo": result["riepilogo"]})
-            messages.info(request, f"Cartella letta: {result['riepilogo']}")
+            # La lettura gira nel worker, non nella richiesta; il lock per
+            # cartella e' lo stesso del lavoro periodico.
+            if not (config.cartella or "").strip():
+                messages.error(request, "Indica prima la cartella e salva.")
+                return redirect(back)
+            try:
+                from django_q.tasks import async_task
+
+                async_task("assets.tasks.run_periodic_check_intake", force=True,
+                           q_options={"timeout": 110})
+                avviata = True
+            except Exception:
+                logger.warning("Leggi ora (verifiche periodiche): accodamento fallito", exc_info=True)
+                avviata = False
+            log_action(request, "periodic_check_intake_run", "assets", {"accodata": avviata})
+            if avviata:
+                messages.info(request, "Lettura avviata, l'esito compare tra poco in «Esito»: "
+                                       "ricarica la pagina tra qualche secondo.")
+            else:
+                messages.error(request, "Non e' stato possibile avviare la lettura: riprova tra poco.")
             return redirect(back)
         elif action == "upload":
             uploads, errors = _validate_workorder_attachment_uploads(request, field_name="scan")

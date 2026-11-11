@@ -147,3 +147,91 @@ class CartellaTests(TestCase):
             self.client.post(url, {"action": "config", "cartella": "altro", "max_file_per_giro": 5})
         self.config.refresh_from_db()
         self.assertEqual(self.config.max_file_per_giro, 10)
+
+
+class _OrologioFinto:
+    """Sostituisce il modulo ``time`` di periodic_intake: istanti decisi dal test."""
+
+    def __init__(self, istanti):
+        self._istanti = list(istanti)
+
+    def monotonic(self):
+        return self._istanti.pop(0) if self._istanti else 10_000.0
+
+    def time(self):
+        import time as _t
+
+        return _t.time()
+
+    def sleep(self, _secondi):
+        return None
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False)
+class CartellaAffidabilitaTests(TestCase):
+    """Ripresa dopo interruzione, lock condiviso e pulsante in background."""
+
+    _scan_of = CartellaTests._scan_of
+
+    def setUp(self):
+        CartellaTests.setUp(self)
+        from django.core.cache import cache
+
+        cache.clear()
+        self.addCleanup(cache.clear)
+
+    def test_budget_a_meta_file_riprende_dalle_pagine_mancanti(self):
+        session = checks.issue_sheet(self.check_type)
+        (self.inbox / "doppio.pdf").write_bytes(join_pdfs(self._scan_of(session, highlight=("4",)), blank_page()))
+        # inizio=0 (scadenza 90), file a 1, pagina 1 a 2, pagina 2 a 1000: budget finito.
+        with mock.patch.object(periodic_intake, "time", _OrologioFinto([0.0, 1.0, 2.0, 1000.0])):
+            primo = periodic_intake.process_folder()
+        self.assertEqual(primo["rimandati"], 1)
+        self.assertEqual(PeriodicCheckIntakeLog.objects.count(), 1)
+        self.assertTrue((self.inbox / "doppio.pdf").exists(), "file non finito: resta nella cartella")
+
+        secondo = periodic_intake.process_folder()
+        self.assertEqual(secondo["pagine"], 1, "solo la pagina mancante")
+        self.assertEqual(PeriodicCheckIntakeLog.objects.count(), 2)
+        self.assertEqual(PeriodicCheckIntakeLog.objects.filter(page=1).count(), 1, "pagina 1 non riletta")
+        self.assertTrue((self.inbox / "errori" / "doppio.pdf").exists())
+
+    def test_passaggio_gia_in_corso_non_tocca_la_cartella(self):
+        session = checks.issue_sheet(self.check_type)
+        (self.inbox / "foglio.pdf").write_bytes(self._scan_of(session))
+        with periodic_intake.lock_cartella(self.config.cartella):
+            esito = periodic_intake.process_folder()
+        self.assertTrue(esito.get("in_corso"))
+        self.assertEqual(PeriodicCheckIntakeLog.objects.count(), 0)
+        self.assertTrue((self.inbox / "foglio.pdf").exists())
+
+    def test_una_sola_attesa_per_lotto(self):
+        for i in range(3):
+            (self.inbox / f"f{i}.png").write_bytes(b"x" * (5 + i))
+        with mock.patch.object(periodic_intake, "STABLE_WAIT_SECONDS", 2.0), \
+                mock.patch("assets.services.periodic_intake.time.sleep") as dorme, \
+                mock.patch.object(periodic_intake, "_process_file_ripresa", return_value=([], [], True)):
+            periodic_intake.process_folder()
+        dorme.assert_called_once_with(2.0)
+
+    def test_leggi_ora_accoda_nel_worker(self):
+        self.client.force_login(self.admin)
+        session = checks.issue_sheet(self.check_type)
+        (self.inbox / "foglio.pdf").write_bytes(self._scan_of(session))
+        with mock.patch("django_q.tasks.async_task") as accoda:
+            r = self.client.post(reverse("assets:periodic_check_intake"), {"action": "run"}, follow=True)
+        accoda.assert_called_once()
+        self.assertEqual(accoda.call_args[0][0], "assets.tasks.run_periodic_check_intake")
+        self.assertTrue(accoda.call_args[1]["force"])
+        self.assertContains(r, "Lettura avviata")
+        self.assertEqual(PeriodicCheckIntakeLog.objects.count(), 0)
+
+    def test_task_forzato_legge_anche_da_spenta(self):
+        from assets.tasks import run_periodic_check_intake
+
+        self.config.attiva = False
+        self.config.save()
+        session = checks.issue_sheet(self.check_type)
+        (self.inbox / "foglio.pdf").write_bytes(self._scan_of(session))
+        self.assertIn("spenta", run_periodic_check_intake()["riepilogo"])
+        self.assertEqual(run_periodic_check_intake(force=True)["letti"], 1)

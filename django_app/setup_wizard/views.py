@@ -10,6 +10,7 @@ Endpoints:
 """
 import base64
 import json
+import logging
 import secrets
 import smtplib
 import socket
@@ -24,6 +25,8 @@ from config.env_config import update_env_file_values
 # Percorsi assoluti calcolati relativamente a questo file
 # setup_wizard/views.py → django_app/ → progetto root
 from .state import runtime_env_path, setup_needed as _setup_needed
+
+logger = logging.getLogger(__name__)
 
 _APP_DIR = Path(__file__).resolve().parent.parent       # django_app/
 # Stesso .env del runtime (in TEST/PROD: ENV/config/.env), non la copia nella release.
@@ -160,26 +163,61 @@ def api_test_db(request):
     except ImportError:
         return _json({"ok": False, "error": "pyodbc non installato sul server"})
 
+    trust = "yes" if trust_cert else "no"
+    # Ogni valore tra {} con le } raddoppiate: un «;» nella password o nel nome del
+    # database non può più aggiungere parametri alla stringa di connessione.
+    parti = [
+        f"DRIVER={_odbc_valore(driver)}",
+        f"SERVER={_odbc_valore(host)}",
+        f"DATABASE={_odbc_valore(db_name)}",
+    ]
+    if user:
+        parti += [f"UID={_odbc_valore(user)}", f"PWD={_odbc_valore(password)}"]
+    else:
+        parti.append("Trusted_Connection=yes")
+    parti.append(f"TrustServerCertificate={trust}")
+    conn_str = ";".join(parti) + ";"
+
+    conn = None
     try:
-        trust = "yes" if trust_cert else "no"
-        if user:
-            conn_str = (
-                f"DRIVER={{{driver}}};SERVER={host};DATABASE={db_name};"
-                f"UID={user};PWD={password};TrustServerCertificate={trust};"
-            )
-        else:
-            conn_str = (
-                f"DRIVER={{{driver}}};SERVER={host};DATABASE={db_name};"
-                f"Trusted_Connection=yes;TrustServerCertificate={trust};"
-            )
         conn = pyodbc.connect(conn_str, timeout=6)
+        conn.timeout = 10
         cursor = conn.cursor()
         cursor.execute("SELECT @@VERSION")
         version = (cursor.fetchone()[0] or "").split("\n")[0][:80]
-        conn.close()
         return _json({"ok": True, "message": f"Connessione riuscita.\n{version}"})
     except Exception as exc:
-        return _json({"ok": False, "error": str(exc)})
+        # Il testo del driver può contenere dettagli del server: al client solo il
+        # tipo di problema, il dettaglio nel log.
+        logger.warning("Test connessione SQL Server fallito", exc_info=True)
+        return _json({"ok": False, "error": _errore_sql_leggibile(exc)})
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _odbc_valore(valore: str) -> str:
+    """Valore per una stringa di connessione ODBC: tra {} con le } raddoppiate."""
+    return "{" + str(valore or "").replace("}", "}}") + "}"
+
+
+def _errore_sql_leggibile(exc: Exception) -> str:
+    """Messaggio per chi installa, senza il testo grezzo del driver."""
+    testo = str(exc).lower()
+    if "login failed" in testo or "18456" in testo:
+        return "Accesso negato: controlla utente e password (o i permessi dell'account Windows)."
+    if "certificate" in testo or "ssl" in testo:
+        return "Certificato del server non attendibile: valuta «Trust server certificate»."
+    if "im002" in testo or "data source name not found" in testo or ("driver" in testo and "not found" in testo):
+        return "Driver ODBC non trovato sul server: controlla il nome del driver."
+    if "4060" in testo or "cannot open database" in testo:
+        return "Database non trovato o non accessibile con queste credenziali."
+    if "timeout" in testo or "hyt00" in testo or "08001" in testo:
+        return "Server non raggiungibile entro il tempo massimo: controlla host, porta e firewall."
+    return "Connessione non riuscita: controlla host, database e credenziali (dettaglio nel log del server)."
 
 
 # ── Test connessione LDAP ─────────────────────────────────────────────────────

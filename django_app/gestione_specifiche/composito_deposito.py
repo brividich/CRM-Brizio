@@ -28,10 +28,12 @@ from . import constants as C
 from .composito import componi_attesa_da_spec, componi_composito_da_spec
 from .models import EventoSpecifica, MOD133, Specifica
 from .share_write import (
+    _dest_superato,
     _in_cartella_esclusa,
     _stem_documento,
     nome_canonico,
     nome_nuova_revisione,
+    sostituisci_atomico,
     valida_cartella_destinazione,
 )
 from .share_link import risolvi_consentito
@@ -134,10 +136,12 @@ def _risolvi_target(spec, *, cartella: str | None) -> tuple[str | None, str]:
     # Nuova specifica senza file sulla share: prova la mappatura CONFERMATA cliente -> cartella.
     from .cartelle_cliente import risolvi as _risolvi_cliente
 
-    cartella_map, _fonte = _risolvi_cliente(getattr(spec, "cliente", "") or "")
+    cartella_map, fonte = _risolvi_cliente(getattr(spec, "cliente", "") or "")
     if cartella_map:
         fname = nome_canonico(getattr(spec, "codice", "") or "", getattr(spec, "revisione", "") or "")
         return os.path.join(cartella_map, fname), "ok"
+    if fonte == "share_non_raggiungibile":
+        return None, "share_non_raggiungibile"
     return None, "cartella_richiesta"
 
 
@@ -159,9 +163,11 @@ def deposita(spec, *, cartella: str | None = None, dry_run: bool = True, attore=
     forma = forma_corrente(spec)
     target, motivo = _risolvi_target(spec, cartella=cartella)
     if target is None:
-        return PianoComposito(esito=motivo, forma=forma,
-                              note="Specifica senza destinazione share: indicare una cartella esistente."
-                              if motivo == "cartella_richiesta" else "Destinazione non consentita.")
+        note = {
+            "cartella_richiesta": "Specifica senza destinazione share: indicare una cartella esistente.",
+            "share_non_raggiungibile": "Share non raggiungibile: il deposito si potra' rifare quando torna disponibile.",
+        }.get(motivo, "Destinazione non consentita.")
+        return PianoComposito(esito=motivo, forma=forma, note=note)
 
     target_reale = risolvi_consentito(target)
     if target_reale is None or _in_cartella_esclusa(target_reale):
@@ -184,11 +190,16 @@ def deposita(spec, *, cartella: str | None = None, dry_run: bool = True, attore=
     try:
         os.makedirs(os.path.dirname(target), exist_ok=True)
         if os.path.isfile(target):
+            # Backup per il rollback FUORI dalla cartella attiva, sotto _SUPERATO (stessa
+            # sottostruttura): se il processo muore a meta', nella cartella del cliente
+            # non resta un «.bak» che sembra un documento.
             stamp = timezone.now().strftime("%Y%m%d-%H%M%S")
-            backup = f"{target}.bak-{stamp}"
+            backup = f"{_dest_superato(target)}.bak-{stamp}"
+            os.makedirs(os.path.dirname(backup), exist_ok=True)
             shutil.copy2(target, backup)
-        with open(target, "wb") as fh:
-            fh.write(dati)
+        # Temporaneo + os.replace: chi apre il file dalla share vede la forma vecchia
+        # o quella nuova, mai un PDF troncato.
+        sostituisci_atomico(target, dati)
         if percorso_precedente != target:
             Specifica.objects.filter(pk=spec.pk).update(percorso_esterno=target)
             spec.percorso_esterno = target
@@ -208,12 +219,52 @@ def deposita(spec, *, cartella: str | None = None, dry_run: bool = True, attore=
     except Exception as exc:  # noqa: BLE001 - rollback e report, mai lasciare la share incoerente
         try:
             if backup and os.path.exists(backup):
-                shutil.move(backup, target)  # ripristina la forma precedente
+                os.replace(backup, target)  # ripristina la forma precedente
         except Exception:  # noqa: BLE001
             logger.exception("Rollback deposito_composito_share: ripristino backup fallito")
         logger.exception("deposito_composito_share fallito per spec %s: rollback eseguito", spec.pk)
         return PianoComposito(esito="errore", forma=piano.forma, target=target,
                               note="Operazione fallita e annullata (rollback): " + str(exc))
+
+
+def accoda_deposito_auto(spec, *, attore=None) -> bool:
+    """Accoda :func:`deposita_auto` nel worker, a transazione confermata.
+
+    Il deposito legge e scrive sulla share (SMB): nella POST di creazione o
+    approvazione terrebbe fermo un thread del server per tutto il tempo della share.
+    No-op (False) se il flag ``GESTIONE_SPECIFICHE_COMPOSITO_AUTO`` e' spento.
+    """
+    from django.conf import settings
+    from django.db import transaction
+
+    if not getattr(settings, "GESTIONE_SPECIFICHE_COMPOSITO_AUTO", False):
+        return False
+    spec_id = spec.pk
+    attore_id = getattr(attore, "pk", None) if getattr(attore, "is_authenticated", False) else None
+
+    def _accoda():
+        try:
+            from django_q.tasks import async_task
+
+            async_task("gestione_specifiche.composito_deposito.esegui_deposito_auto",
+                       spec_id, attore_id, q_options={"timeout": 110})
+        except Exception:  # noqa: BLE001
+            logger.exception("deposito_composito_share auto: accodamento fallito (spec %s)", spec_id)
+
+    transaction.on_commit(_accoda)
+    return True
+
+
+def esegui_deposito_auto(spec_id: int, attore_id: int | None = None) -> str:
+    """Task django-q: rilegge la specifica e fa il deposito automatico. Ritorna l'esito."""
+    from django.contrib.auth import get_user_model
+
+    spec = Specifica.objects.filter(pk=spec_id).first()
+    if spec is None:
+        return "specifica_inesistente"
+    attore = get_user_model().objects.filter(pk=attore_id).first() if attore_id else None
+    esito = deposita_auto(spec, attore=attore)
+    return esito.esito if esito is not None else "non_eseguito"
 
 
 def deposita_auto(spec, *, attore=None) -> PianoComposito | None:

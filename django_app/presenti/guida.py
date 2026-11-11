@@ -137,7 +137,8 @@ SEZIONI: list[dict] = [
                   "riavviato il portale."),
             ("p", "In «Impostazioni» si attiva la pubblicazione del PDF su SharePoint (ogni 30 minuti, stesso file "
                   "CN-PRESENZE.pdf della raccolta «CN Documentazione») e l'avviso mattutino delle uscite non timbrate. "
-                  "«Pubblica il PDF adesso» prova subito la pubblicazione e mostra l'esito."),
+                  "«Pubblica il PDF adesso» avvia subito la pubblicazione in background: l'esito compare dopo qualche "
+                  "secondo in «Ultima pubblicazione» (ricarica la pagina)."),
             ("p", "Gli incarichi del vecchio config.ini si importano una volta con il comando "
                   "«importa_incarichi_presenze» (prima senza --apply per vedere le differenze)."),
         ],

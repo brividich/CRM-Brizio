@@ -650,13 +650,30 @@ def referti_impostazioni(request):
         azione = (request.POST.get("azione") or "salva").strip()
 
         if azione == "prova":
-            from .services.referti_intake import elabora_cartella
+            # La lettura (OCR compreso) gira nel worker, non nella richiesta. Il
+            # lock per cartella è lo stesso del lavoro periodico.
+            if not config.attiva or not (config.cartella or "").strip():
+                messages.error(request, "Attiva l'acquisizione e indica la cartella, poi salva: "
+                                        "solo dopo «Prova adesso» può leggerla.")
+                return redirect("anagrafica:referti_impostazioni")
+            try:
+                from django_q.tasks import async_task
 
-            esito = elabora_cartella(config)
+                async_task("anagrafica.tasks.run_intake_referti_sanitari",
+                           q_options={"timeout": 110})
+                avviata = True
+            except Exception:
+                logger.warning("Prova acquisizione referti: accodamento fallito", exc_info=True)
+                avviata = False
             _audit(request, "referti_intake_prova", {
-                "cartella": config.cartella, "riepilogo": esito.get("riepilogo", ""),
+                "cartella": config.cartella, "accodata": avviata,
             })
-            messages.info(request, f"Passaggio eseguito: {esito.get('riepilogo', '')}")
+            if avviata:
+                messages.info(request, "Lettura avviata, l'esito compare tra poco in «Ultimo passaggio»: "
+                                       "ricarica la pagina tra qualche secondo.")
+            else:
+                messages.error(request, "Non è stato possibile avviare la lettura: la cartella verrà "
+                                        "letta comunque al prossimo giro automatico.")
             return redirect("anagrafica:referti_impostazioni")
 
         if azione == "alias_esame":
