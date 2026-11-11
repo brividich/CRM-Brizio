@@ -23,10 +23,28 @@ def _esegui_ingresso(funzione) -> tuple[int, dict]:
         return 422, {"success": False, "email_conflict": True}
 
 
+def foto_versioni(dipendenti_ids) -> dict[int, str]:
+    """Versione della foto dell'anagrafica per dipendente (``anagrafica_dipendenti.id``): solo chi ha una foto."""
+    ids = [i for i in dipendenti_ids if i]
+    if not ids:
+        return {}
+    from anagrafica.models import DipendenteAnagraficaCivile
+    from anagrafica.views.dipendenti import _foto_versione
+
+    return {lid: _foto_versione(nome) for lid, nome in DipendenteAnagraficaCivile.objects
+            .filter(legacy_anagrafica_id__in=ids).exclude(foto="").values_list("legacy_anagrafica_id", "foto")}
+
+
 def _employees(_dati, _ip):
+    referenti = list(Referente.objects.filter(attivo=True))
+    try:
+        foto = foto_versioni(r.dipendente_id for r in referenti)
+    except Exception:  # noqa: BLE001 - senza foto il chiosco mostra le iniziali
+        foto = {}
     return 200, {"success": True, "data": [
-        {"EmployeeID": r.pk, "FullName": r.nome_elenco, "Email": r.email, "Department": r.reparto}
-        for r in Referente.objects.filter(attivo=True)
+        {"EmployeeID": r.pk, "FullName": r.nome_elenco, "Email": r.email, "Department": r.reparto,
+         "Photo": foto.get(r.dipendente_id, "")}
+        for r in referenti
     ]}
 
 

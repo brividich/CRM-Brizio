@@ -131,7 +131,7 @@ def referenti() -> list[dict]:
         raise ChioscoNonDisponibile
     elenco = [
         {"id": int(r["EmployeeID"]), "nome": r.get("FullName") or "", "reparto": r.get("Department") or "",
-         "email": r.get("Email") or ""}
+         "email": r.get("Email") or "", "foto": r.get("Photo") or ""}
         for r in esito.get("data") or []
     ]
     cache.set(CACHE_REFERENTI, elenco, SECONDI_REFERENTI)
