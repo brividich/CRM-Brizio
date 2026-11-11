@@ -213,3 +213,28 @@ class RicercaCodiceTests(TestCase):
         self.assertContains(r, 'id="rn-cerca-fili"')
         self.assertContains(r, 'data-fm-table-skip="1"')
         self.assertContains(r, 'data-cer="120101"')
+
+
+class ScaricoPrimaDelCaricoTests(TestCase):
+    """Uno scarico non collegato non consuma carichi registrati dopo la sua data."""
+
+    def test_scarico_vecchio_non_consuma_carico_successivo(self):
+        from datetime import date
+
+        from .fili import analizza
+
+        carico = _mov("C", date(2026, 3, 1), quantita=1500)
+        storno = _mov("O", date(2025, 8, 8), quantita=2500)
+        a = analizza(list(RegistroRifiuti.objects.all()))
+        self.assertEqual(a.residuo[carico.pk], Decimal("1500"))
+        self.assertEqual([(m.pk, q) for m, q, _c in a.eccedenze], [(storno.pk, Decimal("2500"))])
+
+    def test_scarico_successivo_consuma_ancora(self):
+        from datetime import date
+
+        from .fili import analizza
+
+        carico = _mov("C", date(2026, 3, 1), quantita=1500)
+        _mov("O", date(2026, 3, 5), quantita=500)
+        a = analizza(list(RegistroRifiuti.objects.all()))
+        self.assertEqual(a.residuo[carico.pk], Decimal("1000"))

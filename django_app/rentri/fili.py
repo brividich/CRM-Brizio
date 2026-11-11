@@ -22,7 +22,8 @@ Regole del conto:
 - un'uscita **collegata** consuma i propri carichi, dal più vecchio; quello che
   avanza è un'eccedenza (scarico oltre il carico collegato) e non tocca gli altri
   carichi. Un'uscita **non collegata** consuma i carichi dello stesso codice dal
-  più vecchio (FIFO); quello che avanza è un'eccedenza del codice;
+  più vecchio (FIFO), solo quelli con data uguale o precedente alla sua; quello
+  che avanza è un'eccedenza del codice;
 - i movimenti annullati non contano: i figli di un movimento annullato restano
   con il loro Rif. Op (traccia) ma non risultano più collegati.
 
@@ -59,6 +60,11 @@ def chiave(codice: str) -> str:
 def valore(r) -> Decimal | None:
     """Quantità dichiarata dal movimento: ``quantita``, altrimenti ``rettifica_scarico``."""
     return r.quantita if r.quantita is not None else r.rettifica_scarico
+
+
+def gia_presente(carico, scarico) -> bool:
+    """Il carico c'era già alla data dello scarico (date mancanti: sì)."""
+    return not carico.data or not scarico.data or carico.data <= scarico.data
 
 
 def _ordine(r):
@@ -146,7 +152,9 @@ def analizza(records) -> Analisi:
     for r in uscite:
         if a.collegati[r.pk]:
             continue
-        resto = _consuma([c.pk for c in a.carichi.get(chiave(r.codice), [])], a.uscita[r.pk])
+        # Solo i carichi che esistevano già alla data dello scarico: uno scarico del
+        # 2025 non può consumare un carico del 2026.
+        resto = _consuma([c.pk for c in a.carichi.get(chiave(r.codice), []) if gia_presente(c, r)], a.uscita[r.pk])
         if resto > EPS:
             a.eccedenze.append((r, resto, False))
     return a
