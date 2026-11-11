@@ -321,3 +321,15 @@ body.theme-dark .cn-res-t .mono, body.theme-dark .cn-mono-col { filter: brightne
 .cn-mod-annulla summary { cursor: pointer; font-size: 12.5px; color: var(--text-light); }
 .cn-tbl tr.cn-mia td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 @media (max-width: 900px) { .cn-mod { grid-template-columns: 1fr; } .cn-passi { grid-template-columns: 1fr 1fr; } }
+/* Copertine personalizzate: icona e logo */
+.cn-vol-ico { position: absolute; right: -10px; bottom: 26px; width: 88px; height: 88px; color: #fff; opacity: .16; pointer-events: none; }
+.cn-vol-logo { position: absolute; top: 10px; right: 10px; max-width: 46%; max-height: 38px; object-fit: contain; background: #fff; border-radius: 6px; padding: 3px 5px; box-shadow: 0 2px 6px rgba(0, 0, 0, .18); }
+.cn-vol-cover > :not(.cn-vol-ico):not(.cn-vol-logo) { position: relative; }
+.cn-band-logo { height: 44px; max-width: 110px; object-fit: contain; background: #fff; border-radius: 8px; padding: 4px 6px; flex: none; }
+.cn-band-ico { flex: none; width: 40px; height: 40px; display: grid; place-items: center; }
+.cn-band-svg { width: 34px; height: 34px; color: #fff; }
+.cn-ico-scelta { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: var(--col); color: #fff; vertical-align: middle; margin-right: 4px; }
+.cn-ico-mini { width: 17px; height: 17px; }
+.cn-logo-mini { height: 26px; max-width: 70px; object-fit: contain; vertical-align: middle; border: 1px solid var(--border); border-radius: 4px; background: #fff; }
+.cn-ro.vecchio i { background: var(--cn-warn); }
+.cn-vol-cover.con-logo .cn-vol-k { padding-right: 50%; }

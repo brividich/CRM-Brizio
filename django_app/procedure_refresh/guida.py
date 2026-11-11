@@ -131,6 +131,9 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "In «Scaffali» cambi nome, sigla, norma, colore e ordine delle copertine, colleghi la certificazione "
                   "(scadenza e sorveglianza sulla copertina) e nascondi uno scaffale togliendo «Mostrato»."),
+            ("p", "«Icona» mette un pittogramma sulla copertina (aereo, scudo, ambiente…); «Logo» carica un'immagine JPG, PNG o WebP, "
+                  "per esempio il logo dell'ente di certificazione, che compare in alto a destra della copertina e nella testata dello scaffale. "
+                  "Il logo viene ridotto e ricodificato; «Togli» lo rimuove. Clicca «Salva gli scaffali»."),
             ("p", "«Allinea scaffali e sezioni» crea gli scaffali delle cartelle nuove e riallinea le sezioni dai percorsi già registrati, senza leggere la cartella."),
         ],
     },
@@ -228,10 +231,11 @@ SEZIONI: list[dict] = [
         "titolo": "Come resta aggiornata",
         "blocchi": [
             ("ul", [
-                "Ogni ora il portale guarda solo nomi, dimensioni e date dei file della cartella SGI: se qualcosa è cambiato sincronizza subito.",
+                "Ogni 15 minuti il portale guarda solo nomi, dimensioni e date dei file della cartella SGI: se qualcosa è cambiato importa documenti nuovi, revisioni nuove (anche dei documenti in presa visione) e file spostati o rinominati.",
+                "Entrano anche i file con nomi liberi (piani qualità, manuali, documenti senza codice SGI). Restano fuori solo i file con lo stesso codice in più punti della cartella e quelli con una revisione nel nome non più recente di quella in libreria.",
                 "Di notte (03:00) fa la lettura completa: testo dei PDF nuovi, collegamenti, indice.",
-                "In alto a destra «Controllata alle …» dice l'ora dell'ultimo controllo.",
-                "Le due sincronizzazioni sono attive solo con l'interruttore della sincronizzazione automatica acceso in «Impostazioni».",
+                "In alto a destra «Controllata alle …» dice l'ora dell'ultimo controllo; il pallino diventa giallo se il controllo non gira da più di 45 minuti.",
+                "In «Impostazioni», riquadro «Sincronizzazione con la cartella SGI», chi gestisce vede cosa va e cosa no (interruttore acceso, cartella raggiungibile, controllo programmato, qcluster in funzione, ultimo controllo) e l'elenco «File non sincronizzati» con il motivo.",
             ]),
             ("p", "«Richieste di presa visione» (prima «Refresh procedure») resta l'azione per chiedere la lettura di uno o più documenti a persone o reparti, con promemoria e report."),
         ],

@@ -70,7 +70,7 @@ GUIDA = {
                     "Clicca «Salva la regola». «Togli» la cancella.",
                 ]),
                 ("p", "Vince la regola più precisa (documento, sezione, scaffale); senza regole il documento è di tutti. I documenti riservati non compaiono in Bacheca e l'assistente AI non li cita. "
-                      "In «Scaffali» si cambiano nome, sigla, colore e ordine delle copertine e si collega la certificazione (scadenza e sorveglianza sulla copertina)."),
+                      "In «Scaffali» si cambiano nome, sigla, colore, icona, logo e ordine delle copertine e si collega la certificazione (scadenza e sorveglianza sulla copertina)."),
             ],
         },
         {
@@ -90,7 +90,7 @@ GUIDA = {
                 ("ul", [
                     "«Documenti»: «+ Nuovo documento» crea la procedura con codice e tipo (MT, MTSI, ALTRO); «+ Rev.» aggiunge una revisione.",
                     "«Marca PV» / «Smarca PV» segna se il documento richiede la presa visione.",
-                    "Ogni ora il portale controlla nomi, dimensioni e date dei file della cartella SGI e, se qualcosa è cambiato, sincronizza; "
+                    "Ogni 15 minuti il portale controlla nomi, dimensioni e date dei file della cartella SGI e, se qualcosa è cambiato, importa documenti nuovi, revisioni nuove e file spostati; di notte (ore 03:00) fa la lettura completa. Se qualcosa non si aggiorna, «Impostazioni» → «Sincronizzazione con la cartella SGI» dice quale controllo non va e quali file sono rimasti fuori, con il motivo."
                     "di notte (ore 03:00) fa la lettura completa. Le revisioni nuove hanno «NUOVA REV.». La cartella non viene mai modificata. "
                     "In «Impostazioni» c'è anche «Sincronizza ora». Ogni cambiamento finisce in «Log sync».",
                 ]),
@@ -124,6 +124,14 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Le procedure non si aggiornano quando cambia la cartella",
+            "fare": [
+                "Apri «Impostazioni» → «Sincronizzazione con la cartella SGI»: ogni riga con ✕ dice cosa fare (accendere l'interruttore, dare la lettura all'account del sito, lanciare «manage.py setup_q_schedules», riavviare il qcluster).",
+                "Apri «File non sincronizzati»: di solito basta correggere il nome del file (codice e «Rev.N») o togliere il doppione dalla cartella.",
+                "«Sincronizza ora» fa subito il giro senza aspettare i 15 minuti.",
+            ],
+        },
         {
             "sintomo": "Una modifica approvata non diventa «Emessa»",
             "fare": [

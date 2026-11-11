@@ -29,6 +29,8 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
+from core.copertine import CopertinaNonValida
+from core.copertine_librerie import ICONE, NOMI as ICONE_NOMI, risposta_logo, salva_logo, togli_logo
 
 from . import esperienza as esp
 from . import segnalazioni as _segn
@@ -82,12 +84,15 @@ def _modifiche_mie(request, gestore: bool) -> int:
 
 def _contesto_base(request, vis, docs, **extra):
     da_leggere = lib.letture_da_fare(request.user)
+    ultimo = _ultimo_controllo()
     ctx = {
         "is_manager": vis.gestore,
         "puo_audit": vis.gestore or vis.vede_tutto,
         "n_segnalazioni_aperte": _segn.aperte() if vis.gestore else 0,
         "n_modifiche_mie": _modifiche_mie(request, vis.gestore),
-        "ultimo_controllo": _ultimo_controllo(),
+        "ultimo_controllo": ultimo,
+        # Più di 45 minuti senza controllo (ogni 15 previsto): il pallino diventa giallo e chi gestisce trova il perché in «Impostazioni».
+        "controllo_vecchio": ultimo is None or timezone.now() - ultimo > timedelta(minutes=45),
         "oggi_str": timezone.localdate().strftime("%Y%m%d"),
         "n_da_leggere": sum(1 for d in docs if d.pk in da_leggere),
         "da_leggere_map": da_leggere,
@@ -655,6 +660,15 @@ def scaffali_gestione(request):
             cert = request.POST.get(p + "certificazione", "")
             s.certificazione_id = int(cert) if cert.isdigit() and int(cert) in cert_ids else None
             s.attivo = bool(request.POST.get(p + "attivo"))
+            icona = (request.POST.get(p + "icona") or "").strip()
+            s.icona = icona if icona in ICONE_NOMI else ""
+            if request.POST.get(p + "togli_logo"):
+                togli_logo(s)
+            elif request.FILES.get(p + "logo"):
+                try:
+                    salva_logo(s, request.FILES[p + "logo"])
+                except CopertinaNonValida as exc:
+                    messages.error(request, f"{s.nome}: {exc}")
             s.save()
         log_action(request, "modifica", "procedure_refresh", {"message": "Scaffali CN-SGI aggiornati"})
         messages.success(request, "Scaffali salvati.")
@@ -666,12 +680,22 @@ def scaffali_gestione(request):
     righe = list(SgiScaffale.objects.select_related("certificazione"))
     for r in righe:
         r.n_documenti = conteggi.get(r.cartella, 0)
+    for r in righe:
+        r.logo_url = lib._logo_url(r)
     return render(request, "procedure_refresh/libreria/scaffali.html", {
         "is_manager": True,
         "righe": righe,
+        "icone": ICONE,
         "certificazioni": list(Certificazione.objects.filter(attiva=True).order_by("norma", "ente")),
         "senza_cartella": conteggi.get("", 0),
     })
+
+
+@login_required
+def scaffale_logo(request, pk: int):
+    """Logo della copertina di uno scaffale (storage privato, solo utenti del portale)."""
+    s = get_object_or_404(SgiScaffale, pk=pk)
+    return risposta_logo(s.logo)
 
 
 # ---------------------------------------------------------------------------

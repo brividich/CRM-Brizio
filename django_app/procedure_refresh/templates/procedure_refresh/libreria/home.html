@@ -1,4 +1,5 @@
 {% extends "procedure_refresh/libreria/_base.html" %}
+{% load ui_icons %}
 {% block cn_body %}
 <section class="cn-hero">
   <div>
@@ -31,7 +32,9 @@
 <div class="cn-shelves cn-carosello">
   {% for s in scaffali %}
   <a class="cn-vol" href="{% url 'procedure_refresh:libreria_scaffale' s.slug %}">
-    <span class="cn-vol-cover" style="--col:{{ s.colore }}">
+    <span class="cn-vol-cover{% if s.logo_url %} con-logo{% endif %}" style="--col:{{ s.colore }}">
+      {% if s.logo_url %}<img class="cn-vol-logo" src="{{ s.logo_url }}" alt="" loading="lazy">{% endif %}
+      {% if s.icona %}{% icona_copertina s.icona "cn-vol-ico" %}{% endif %}
       <span class="cn-vol-k">{{ s.norma|default:"Sistema di gestione" }}</span>
       <span class="cn-vol-n">{{ s.sigla|default:s.nome|truncatechars:10 }}{% if s.sigla %}<small>{{ s.nome }}</small>{% endif %}</span>
       <span class="cn-vol-f"><span>{{ s.sezioni|length }} sezion{{ s.sezioni|length|pluralize:"e,i" }}{% if s.nuovi %}<br><span class="cn-vol-badge">{{ s.nuovi }} nuov{{ s.nuovi|pluralize:"a,e" }} rev.</span>{% endif %}</span><b>{{ s.totale }}</b></span>
