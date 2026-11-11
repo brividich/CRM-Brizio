@@ -62,8 +62,7 @@ def pagina(request):
     # Nella pagina solo id, nome e reparto: l'email del referente resta sul server.
     if disponibile:
         try:
-            referenti = [{"id": r["id"], "nome": r["nome"], "reparto": r["reparto"], "foto": r.get("foto") or ""}
-                         for r in chiosco.referenti()]
+            referenti = _per_la_pagina(chiosco.referenti_al_chiosco())
         except chiosco.ChioscoNonDisponibile:
             disponibile = False
     versione = chiosco.logo_versione() if chiosco.logo_percorso() else ""
@@ -73,6 +72,16 @@ def pagina(request):
         "categorie": chiosco.categorie(),
         "disponibile": disponibile,
     })
+
+
+def _per_la_pagina(elenco: list[dict]) -> list[dict]:
+    """Nella pagina solo id, nome, reparto e versione della foto: l'email del referente resta sul server."""
+    return [{"id": r["id"], "nome": r["nome"], "reparto": r["reparto"], "foto": r.get("foto") or ""} for r in elenco]
+
+
+def _referenti(_dati: dict) -> JsonResponse:
+    """Elenco aggiornato dei referenti presenti: il totem lo richiede a ogni «Chi vieni a trovare?»."""
+    return JsonResponse({"success": True, "referenti": _per_la_pagina(chiosco.referenti_al_chiosco())})
 
 
 @require_GET
@@ -337,6 +346,7 @@ def _nominativi(dati: dict) -> JsonResponse:
 
 
 AZIONI = {
+    "referenti": _referenti,
     "riconosci": _riconosci,
     "suggerisci": _suggerisci,
     "ingresso-ospite": _ingresso_ospite,

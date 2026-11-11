@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+{% load reception_pubblica %}{% pagina_pubblica as pp %}<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>{% block title %}Registra la tua visita{% endblock %} | Costruzioni Novicrom</title>
+<title>{% block title %}{{ pp.titolo }}{% endblock %} | Costruzioni Novicrom</title>
 <style nonce="{{ csp_nonce }}">
 :root { --bg:#f1f5f9; --card:#fff; --text:#0f172a; --muted:#64748b; --border:#dbe2ea; --accent:#1d4ed8; --accent-soft:#dbeafe; --err-bg:#fee2e2; --err:#991b1b; --field:#fff; --head:#0a1222; }
 @media (prefers-color-scheme: dark) { :root { --bg:#0a1222; --card:#111c33; --text:#e2e8f0; --muted:#94a3b8; --border:#334155; --accent:#38bdf8; --accent-soft:#0c4a6e; --err-bg:rgba(229,62,62,.18); --err:#fca5a5; --field:#0f1a2e; --head:#020817; } }
@@ -51,13 +51,15 @@ textarea { min-height:84px; resize:vertical; }
 .pb-errori { background:var(--err-bg); color:var(--err); border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:14px; }
 .pb-errori ul { margin:0; padding-left:18px; }
 .pb-trappola { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
+.pb-logo { display:block; max-height:44px; max-width:220px; }
+{% if pp.colore_personalizzato %}:root { --accent:{{ pp.colore }}; }{% endif %}
 @media (max-width:560px) { .pb-grid { grid-template-columns:minmax(0,1fr); } .pb-card { padding:20px; } .pb-head h1 { font-size:26px; } }
 </style>
 </head>
 <body>
 <header class="pb-head"><div class="pb-head-in">
-  <div class="pb-brand">Costruzioni Novicrom</div>
-  {% block testa %}<h1>Registra la tua visita</h1><p>Ti serve un minuto. Ricevi il codice per entrare appena la visita è confermata.</p>{% endblock %}
+  {% if pp.logo_versione %}<img class="pb-logo" src="{% url 'reception_pubblica:logo' %}?v={{ pp.logo_versione }}" alt="Costruzioni Novicrom">{% else %}<div class="pb-brand">Costruzioni Novicrom</div>{% endif %}
+  {% block testa %}<h1>{{ pp.titolo }}</h1><p>{{ pp.intro|linebreaksbr }}</p>{% endblock %}
 </div></header>
 <div class="pb-wrap"><div class="pb-card">{% block corpo %}{% endblock %}</div></div>
 </body>
