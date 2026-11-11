@@ -35,6 +35,10 @@ GUIDA = {
                     "anche i carichi scritti «12.01.01 Sfridi Ferro Kg».",
                     "Il collegamento è facoltativo: se non spunti niente lo scarico si salva «non collegato» e la «Verifica» lo "
                     "elenca. «Mostra anche i già collegati» fa vedere anche i fili già completi per quel passo.",
+                    "I movimenti sono divisi in «Da collegare» e «Già collegati» (questi solo con «Mostra anche i già "
+                    "collegati»), dal più recente; sui carichi il bollino verde «Da scaricare» dice quanto resta.",
+                    "Negli scarichi O e M, se la «Quantità» supera quanto resta dei carichi spuntati, sotto la quantità "
+                    "compare l'avviso giallo con i chili disponibili: il salvataggio verrebbe rifiutato.",
                     "Con molti movimenti usa la casella di ricerca sopra l'elenco: filtra mentre scrivi per numero, data, FIR "
                     "o quantità (più parole = tutte presenti, per esempio «/1850» o «03 2025»). Il numero accanto dice quanti "
                     "ne vedi; i movimenti già spuntati restano sempre visibili. Esc svuota la ricerca.",
@@ -143,6 +147,12 @@ GUIDA = {
                     "originale (O) la riduce, la coppia scarico effettivo/rettifica (M/R) corregge il peso a destino e non la "
                     "tocca. I «Giorni dep.» contano dal carico più vecchio non ancora scaricato.",
                     "«Verifica»: controllo di sola lettura del registro con export CSV (vedi sotto).",
+                    "«Riepilogo annuale»: scegli l'anno; per ogni codice CER «Giacenza 1/1», «Caricato», «Scaricato», "
+                    "«Giacenza 31/12», numero di carichi e scarichi e formulari. È la base per compilare il MUD; «Non torna» "
+                    "segnala i codici con scarichi oltre il carico (controllali nella Verifica). Export «Excel» e «PDF».",
+                    "«Registro cronologico» (dal Riepilogo annuale): il PDF dell'anno con tutte le registrazioni in ordine di "
+                    "data, le annullate in grigio con il motivo, l'intestazione con ragione sociale e codice di iscrizione "
+                    "RENTRI (dalle Impostazioni) e «Pagina N di M».",
                 ]),
             ],
         },

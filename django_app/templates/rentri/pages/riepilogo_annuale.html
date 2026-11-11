@@ -1,0 +1,77 @@
+{% extends "core/base.html" %}
+
+{% block title %}RENTRI | Riepilogo annuale {{ anno }}{% endblock %}
+
+{% block extra_head %}
+{% include "rentri/components/sc_styles.html" %}
+<style>
+.ra-anno { padding:7px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; font-weight:700; background:#fff; color:#1e3a5f; }
+.ra-num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.ra-warn { color:#b45309; font-weight:800; }
+.ra-cfg { margin:0 0 12px; padding:9px 12px; border-radius:9px; background:#fef3c7; color:#92400e; font-size:12.5px; }
+.ra-fir { max-width:260px; font-size:11.5px; color:#64748b; }
+body.theme-dark .ra-anno { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .ra-cfg { background:rgba(245,158,11,.15); color:#fcd34d; }
+body.theme-dark .ra-fir { color:var(--text-mid); }
+</style>
+{% endblock %}
+
+{% block subnav %}{% include "rentri/components/subnav.html" %}{% endblock %}
+
+{% block content %}
+<div class="sc-wrap">
+  <div class="sc-head">
+    <div>
+      <h1 class="sc-title">Riepilogo annuale {{ anno }}</h1>
+      <p class="sc-sub">{{ righe|length }} codic{{ righe|length|pluralize:"e,i" }} · base per il MUD · giacenze dal conto del filo, come la pagina Giacenze</p>
+    </div>
+    <div class="sc-actions">
+      <form method="get">
+        <select name="anno" class="ra-anno" aria-label="Anno" onchange="this.form.submit()">
+          {% for a in anni %}<option value="{{ a }}"{% if a == anno %} selected{% endif %}>{{ a }}</option>{% endfor %}
+        </select>
+      </form>
+      <a class="sc-btn" href="{% url 'rentri_registro_cronologico' %}?anno={{ anno }}" target="_blank">📄 Registro cronologico {{ anno }}</a>
+      <a class="sc-btn" href="?anno={{ anno }}&amp;export=xlsx">⬇ Excel</a>
+      <a class="sc-btn" href="?anno={{ anno }}&amp;export=pdf" target="_blank">⬇ PDF</a>
+    </div>
+  </div>
+
+  {% if not cfg.ragione_sociale or not cfg.codice_iscrizione_rentri %}
+    <div class="ra-cfg">Nelle stampe manca {% if not cfg.ragione_sociale %}la ragione sociale{% endif %}{% if not cfg.ragione_sociale and not cfg.codice_iscrizione_rentri %} e {% endif %}{% if not cfg.codice_iscrizione_rentri %}il codice di iscrizione RENTRI{% endif %}: si indica nelle Impostazioni del modulo.</div>
+  {% endif %}
+
+  <section class="sc-section">
+    {% if righe %}
+    <table class="sc-table">
+      <thead>
+        <tr>
+          <th>Codice EER</th><th>Descrizione</th><th class="ra-num">Giacenza 1/1</th><th class="ra-num">Caricato</th>
+          <th class="ra-num">Scaricato</th><th class="ra-num">Giacenza 31/12</th><th class="ra-num">Carichi / scarichi</th><th>Formulari</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rg in righe %}
+        <tr>
+          <td class="sc-id">{{ rg.codice }}</td>
+          <td>{{ rg.descrizione|truncatechars:70 }}{% if rg.unita_miste %} <span class="ra-warn" title="Lo stesso codice è registrato con unità diverse: i totali non sono omogenei.">· unità miste</span>{% endif %}</td>
+          <td class="ra-num">{{ rg.giacenza_inizio|floatformat:"3g" }} {{ rg.unita }}</td>
+          <td class="ra-num">{{ rg.caricato|floatformat:"3g" }} {{ rg.unita }}</td>
+          <td class="ra-num">{{ rg.scaricato|floatformat:"3g" }} {{ rg.unita }}</td>
+          <td class="ra-num"><strong>{{ rg.giacenza_fine|floatformat:"3g" }} {{ rg.unita }}</strong></td>
+          <td class="ra-num">{{ rg.n_carichi }} / {{ rg.n_scarichi }}</td>
+          <td class="ra-fir">{{ rg.fir|join:", "|truncatechars:90 }}</td>
+          <td>{% if rg.differenza > 0.0005 or rg.differenza < -0.0005 %}<a class="sc-link ra-warn" href="{% url 'rentri_verifica' %}#saldo" title="Inizio + caricato − scaricato non dà la giacenza finale: ci sono scarichi oltre il carico.">Non torna: {{ rg.differenza|floatformat:"3g" }}</a>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="sc-empty">Nessun codice movimentato o in giacenza nel {{ anno }}.</div>
+    {% endif %}
+  </section>
+  {% if n_non_torna %}
+    <p class="sc-sub">{{ n_non_torna }} codic{{ n_non_torna|pluralize:"e,i" }} con scarichi oltre il carico: controlla la <a class="sc-link" href="{% url 'rentri_verifica' %}#saldo">Verifica</a> prima di compilare il MUD.</p>
+  {% endif %}
+</div>
+{% endblock %}

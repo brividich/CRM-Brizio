@@ -125,6 +125,11 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
 .rnf-cand-cerca:focus { outline:none; border-color:var(--rnf-accent); box-shadow:0 0 0 3px var(--rnf-soft); }
 .rnf-cand-conta { font-size:11.5px; color:var(--hub-muted); white-space:nowrap; }
 .rnf-cand-item.nascosto { display:none; }
+.rnf-cand-gruppo { grid-column:1/-1; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--hub-muted); padding:6px 2px 0; }
+.rnf-cand-res { display:inline-block; margin-top:3px; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:800; background:#dcfce7; color:#166534; }
+.rnf-avviso { padding:9px 12px; border-radius:9px; background:#fef3c7; color:#92400e; font-size:12.5px; font-weight:600; border:1px solid #fcd34d; }
+body.theme-dark .rnf-cand-res { background:rgba(34,197,94,.18); color:#86efac; }
+body.theme-dark .rnf-avviso { background:rgba(245,158,11,.15); color:#fcd34d; border-color:rgba(245,158,11,.4); }
 body.theme-dark .rnf-cand-cerca { background:var(--surface); border-color:var(--border); color:var(--text); }
 .rnf-cand-tutti { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid, #475569); margin-left:auto; }
 .rnf-cand-stato { display:block; font-size:11px; font-weight:700; color:#1e40af; margin-top:2px; }
@@ -254,6 +259,7 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
               value="{{ v.rettifica }}">
           </div>
           {% endif %}
+          <div class="rnf-avviso hub-col-full" id="avviso-residuo" role="status" hidden></div>
           <div class="hub-help hub-col-full">Usa sempre la stessa unità per lo stesso codice CER: le giacenze sommano solo quantità omogenee. Con m³ o litri il portale controlla anche il limite in volume del deposito.</div>
         </div>
       </section>
@@ -585,8 +591,7 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
   function descriviCandidato(c) {
     if (c.attuale) return 'collegamento attuale';
     if (c.tipo === 'C') {
-      return 'Carico del ' + c.carico_data + ' · ' + fmtQ(c.carico_quantita, c.unita)
-        + (c.gia_collegato ? '' : ' · da scaricare ' + fmtQ(c.residuo, c.unita));
+      return 'Carico del ' + c.carico_data + ' · ' + fmtQ(c.carico_quantita, c.unita);
     }
     var nome = c.tipo === 'O' ? 'Scarico originale' : 'Scarico effettivo';
     var t = nome + ' del ' + c.data + ' · ' + fmtQ(c.quantita, c.unita)
@@ -603,8 +608,20 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
       return;
     }
     listEl.innerHTML = '';
+    var nGia = cand.filter(function (c) { return c.gia_collegato; }).length;
+    var gruppoAttuale = null;
     cand.forEach(function (c) {
+      var gruppo = c.gia_collegato ? 'gia' : 'liberi';
+      if (nGia && gruppo !== gruppoAttuale) {
+        gruppoAttuale = gruppo;
+        var h = document.createElement('div');
+        h.className = 'rnf-cand-gruppo';
+        h.dataset.gruppo = gruppo;
+        h.dataset.nome = gruppo === 'gia' ? 'Già collegati' : 'Da collegare';
+        listEl.appendChild(h);
+      }
       var row = document.createElement('label');
+      row.dataset.gruppo = gruppo;
       row.className = 'rnf-cand-item' + (selected.has(c.id_registrazione) ? ' sel' : '');
       var cb = document.createElement('input');
       cb.type = 'checkbox';
@@ -618,6 +635,12 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
       meta.textContent = descriviCandidato(c);
       info.appendChild(idEl);
       info.appendChild(meta);
+      if (c.tipo === 'C' && !c.gia_collegato && c.residuo !== null && c.residuo !== undefined) {
+        var res = document.createElement('span');
+        res.className = 'rnf-cand-res';
+        res.textContent = 'Da scaricare ' + fmtQ(c.residuo, c.unita);
+        info.appendChild(res);
+      }
       if (c.stato_label) {
         var st = document.createElement('span');
         st.className = 'rnf-cand-stato' + (c.gia_collegato ? ' gia' : '');
@@ -633,11 +656,13 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
         row.classList.toggle('sel', cb.checked);
         proponiQuantita();
         refresh();
+        controllaResiduo();
       });
       listEl.appendChild(row);
     });
     filtraCandidati();
     refresh();
+    if (typeof controllaResiduo === 'function') controllaResiduo();
   }
   // Ricerca live: più parole = tutte presenti; i già spuntati restano sempre visibili.
   function norm(t) { return String(t || '').toLowerCase().replace(/[.\-\/]/g, ' ').replace(/\s+/g, ' '); }
@@ -651,6 +676,12 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
       var ok = row.classList.contains('sel') || parole.every(function (p) { return row.dataset.cerca.indexOf(p) !== -1; });
       row.classList.toggle('nascosto', !ok);
       if (ok) vis++;
+    });
+    listEl.querySelectorAll('.rnf-cand-gruppo').forEach(function (h) {
+      var tot = listEl.querySelectorAll('.rnf-cand-item[data-gruppo="' + h.dataset.gruppo + '"]').length;
+      var n = listEl.querySelectorAll('.rnf-cand-item[data-gruppo="' + h.dataset.gruppo + '"]:not(.nascosto)').length;
+      h.hidden = !n;
+      h.textContent = h.dataset.nome + ' · ' + (n === tot ? tot : n + ' di ' + tot);
     });
     var vuoto = listEl.querySelector('.rnf-cand-nessuno');
     if (items.length && !vis) {
@@ -820,6 +851,33 @@ body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
   }
   form.addEventListener('input', refresh);
   form.addEventListener('change', refresh);
+
+  // Avviso mentre scrivi: uscita oltre il residuo dei carichi spuntati (stesso conto del salvataggio).
+  function controllaResiduo() {
+    var box = $('avviso-residuo');
+    if (!box) return;
+    var msg = '';
+    if ((TIPO === 'O' || TIPO === 'M') && selected.size) {
+      var carichi = [], ok = true, unita = '';
+      selected.forEach(function (id) {
+        var c = candById[id];
+        if (!c || c.tipo !== 'C' || c.residuo === null || c.residuo === undefined) { ok = false; return; }
+        carichi.push(c);
+        unita = unita || c.unita || '';
+      });
+      var testo = val('f-quantita') || (TIPO === 'M' ? val('f-rettifica') : '');
+      var uscita = Math.abs(Number(String(testo).replace(',', '.')));
+      if (ok && carichi.length) {
+        var disp = carichi.reduce(function (t, c) { return t + Number(c.residuo); }, 0);
+        if (disp <= 0.0005) msg = 'I carichi spuntati sono già scaricati per intero: scegline un altro o lascia lo scarico senza collegamento.';
+        else if (testo && uscita > disp + 0.0005) msg = 'Quantità oltre il residuo dei carichi spuntati: disponibili ' + fmtQ(disp, unita) + '. Il salvataggio verrà rifiutato.';
+      }
+    }
+    box.textContent = msg;
+    box.hidden = !msg;
+  }
+  form.addEventListener('input', controllaResiduo);
+  form.addEventListener('change', controllaResiduo);
 
   function validate() {
     var s = stato(), first = null;
