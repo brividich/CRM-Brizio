@@ -810,3 +810,40 @@ class SgiAperturaGiorno(models.Model):
 
     def __str__(self) -> str:
         return f"{self.documento_id} {self.giorno}: {self.conteggio}"
+
+
+class SgiDocumentoModulo(models.Model):
+    """Documento SGI applicato da un modulo dell'HUB (CN-SGI, fase 2).
+
+    Mostra la procedura sulle pagine del modulo (etichetta accanto al sotto-menu) e,
+    con ``compila``, il pulsante «Compila nell'HUB» sulla scheda dei modelli MOD.
+    ``modulo`` è una chiave di ``procedure_refresh.libreria.MODULI_HUB``.
+    """
+
+    ORIGINE_MANUALE = "manuale"
+    ORIGINE_PROPOSTA = "proposta"
+    ORIGINI = [(ORIGINE_MANUALE, "A mano"), (ORIGINE_PROPOSTA, "Proposta confermata")]
+
+    documento = models.ForeignKey(
+        ProcedureDocument, on_delete=models.CASCADE, related_name="moduli_hub", verbose_name="Documento"
+    )
+    modulo = models.CharField(max_length=40, db_index=True, verbose_name="Modulo dell'HUB")
+    compila = models.BooleanField(
+        default=False, verbose_name="Si compila nell'HUB",
+        help_text="Il modello cartaceo è stato digitalizzato da questo modulo: la scheda mostra «Compila nell'HUB».",
+    )
+    origine = models.CharField(max_length=10, choices=ORIGINI, default=ORIGINE_MANUALE, verbose_name="Origine")
+    creato_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        verbose_name="Creato da",
+    )
+    creato_il = models.DateTimeField(auto_now_add=True, verbose_name="Creato il")
+
+    class Meta:
+        unique_together = [("documento", "modulo")]
+        ordering = ["modulo", "documento__code"]
+        verbose_name = "Collegamento CN-SGI ↔ modulo"
+        verbose_name_plural = "Collegamenti CN-SGI ↔ moduli"
+
+    def __str__(self) -> str:
+        return f"{self.documento_id} → {self.modulo}"

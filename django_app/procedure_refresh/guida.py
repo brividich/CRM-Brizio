@@ -116,6 +116,37 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "collegamenti",
+        "titolo": "Collegamenti ai moduli (per chi gestisce)",
+        "blocchi": [
+            ("passi", [
+                "Apri «Collegamenti ai moduli».",
+                "In «Proposte da confermare» spunta i collegamenti giusti (trovati dalle parole del codice e del titolo) e clicca «Conferma le spuntate».",
+                "Per aggiungerne uno a mano scegli documento e modulo, spunta «Si compila nell'HUB» se il modello cartaceo è stato digitalizzato da quel modulo, e clicca «Collega».",
+                "«Togli» cancella un collegamento.",
+            ]),
+            ("ul", [
+                "Sulle pagine del modulo la procedura compare in alto a destra, sotto «Procedure», come etichetta «SGI · codice Rev.» (al massimo tre, poi «+N»).",
+                "Nella scheda del documento, scheda «Collegamenti», c'è l'elenco «Moduli dell'HUB che lo applicano».",
+                "Con «Si compila nell'HUB» la scheda del modello mostra il pulsante «Compila nell'HUB · nome del modulo».",
+                "Le etichette sulle pagine dei moduli mostrano solo i documenti aperti a tutti.",
+            ]),
+        ],
+    },
+    {
+        "id": "audit",
+        "titolo": "Pacchetto audit",
+        "blocchi": [
+            ("passi", [
+                "Apri uno scaffale e clicca «Pacchetto audit» in alto a destra.",
+                "Leggi l'elenco: sezione, codice, titolo, revisione e data, processi, prese visione confermate su quelle chieste.",
+                "Clicca «Scarica Excel» per avere le stesse colonne in un file.",
+            ]),
+            ("p", "In testa ci sono il numero di documenti in vigore, quanti sono stati revisionati negli ultimi 12 mesi e, se lo scaffale ha la certificazione collegata, scadenza, prossima sorveglianza ed ente. "
+                  "Il pacchetto lo vedono chi gestisce CN-SGI e i ruoli «vede tutto»."),
+        ],
+    },
+    {
         "id": "aggiornamento",
         "titolo": "Come resta aggiornata",
         "blocchi": [

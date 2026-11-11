@@ -17,6 +17,7 @@
   <div class="cn-dr-act">
     <a class="cn-btn pri" href="{{ pdf_url }}" target="_blank" rel="noopener">Apri il PDF ↗</a>
     {% if lettura %}<a class="cn-btn acc" href="{% url 'procedure_refresh:assignment_detail' lettura.pk %}">Conferma la lettura</a>{% endif %}
+    {% if compila %}<a class="cn-btn" href="{{ compila.modulo.href }}">Compila nell'HUB · {{ compila.modulo.nome }}</a>{% endif %}
     {% if request.htmx %}<a class="cn-btn" href="{% url 'procedure_refresh:libreria_documento' doc.pk %}">Pagina intera</a>{% endif %}
   </div>
   <div class="cn-dr-tabs" role="tablist">
@@ -66,6 +67,11 @@
           {% endfor %}
         </div>{% else %}<p class="cn-note">Nessun documento in vigore lo cita.</p>{% endif %}
       </div>
+      {% if moduli %}
+      <div class="cn-blk"><h4>Moduli dell'HUB che lo applicano</h4>
+        <div class="cn-links">{% for m in moduli %}<a href="{{ m.modulo.href }}"><span class="ic">HUB</span><span class="tx">{{ m.modulo.nome }}{% if m.compila %}<small>Il modello si compila qui</small>{% endif %}</span><span class="go">›</span></a>{% endfor %}</div>
+      </div>
+      {% endif %}
       {% if processi %}
       <div class="cn-blk"><h4>Processi del sistema di gestione</h4>
         <div class="cn-links">{% for p in processi %}<div><span class="ic">PR</span><span class="tx">{{ p.processo }}</span></div>{% endfor %}</div>
