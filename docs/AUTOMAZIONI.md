@@ -4,7 +4,7 @@
 > Fonte unica: `django_app/automazioni/schedules.py`. **Non modificare a mano**:
 > si rigenera identico a ogni aggiunta di un'automazione (e a ogni deploy via `setup_q_schedules`).
 
-**Totale automazioni disponibili:** 111
+**Totale automazioni disponibili:** 112
 
 Ogni automazione è un task periodico gestito da django-q2 e può essere **disattivata** dalla Centrale di comando (Monitoring → ScheduleControl) senza toccare il codice.
 
@@ -281,6 +281,12 @@ Ogni automazione è un task periodico gestito da django-q2 e può essere **disat
 - **Quando gira:** ogni giorno, alle 07:00
 - **Task eseguito:** `gestione_specifiche.tasks.run_specifiche_reminder`
 - **Cosa fa:** GESTIONE SPECIFICHE — reminder 7gg sui MOD.133 non presi in carico. Timer in pausa per le specifiche sospese/in errore (gestito nel job).
+
+### `gestione_specifiche_sync_cartelle`
+
+- **Quando gira:** ogni giorno, ogni 15 minuti
+- **Task eseguito:** `gestione_specifiche.tasks.run_sync_cartelle`
+- **Cosa fa:** GESTIONE SPECIFICHE — catalogo allineato alla cartella della share: ogni 15 minuti elenca i PDF (sola lettura, esclusa _SUPERATO) e, se qualcosa è cambiato, crea le specifiche nuove e le nuove revisioni (in bozza, con avviso a chi prende in carico) e ricollega i file spostati. Interruttore in Amministrazione (gs_sync_cartelle_attivo).
 
 ### `gestione_specifiche_verifica_periodica`
 

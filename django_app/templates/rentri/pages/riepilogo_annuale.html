@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load l10n %}
 
 {% block title %}RENTRI | Riepilogo annuale {{ anno }}{% endblock %}
 
@@ -13,6 +14,32 @@
 body.theme-dark .ra-anno { background:var(--surface); border-color:var(--border); color:var(--text); }
 body.theme-dark .ra-cfg { background:rgba(245,158,11,.15); color:#fcd34d; }
 body.theme-dark .ra-fir { color:var(--text-mid); }
+.ra-trend { padding:14px 18px; }
+.ra-trend-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.ra-legend { font-size:12px; color:#475569; display:flex; align-items:center; gap:6px; }
+.ra-key { display:inline-block; width:10px; height:10px; border-radius:3px; margin-left:8px; }
+.ra-key-car, .ra-car { background:#2a78d6; }
+.ra-key-sca, .ra-sca { background:#eb6834; }
+.ra-chart { display:flex; align-items:flex-end; gap:18px; padding:14px 4px 0; border-bottom:1px solid #e2e8f0; overflow-x:auto; }
+.ra-col { flex:1; min-width:64px; display:flex; flex-direction:column; align-items:center; }
+.ra-bars { height:130px; width:100%; display:flex; align-items:flex-end; justify-content:center; gap:2px; }
+.ra-bar { display:block; width:18px; min-height:2px; border-radius:4px 4px 0 0; transition:filter .15s; }
+.ra-bar:hover { filter:brightness(1.12); }
+.ra-val { font-size:10.5px; color:#64748b; margin-top:4px; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.ra-anno-lbl { font-size:12px; font-weight:700; color:#334155; padding:2px 0 6px; }
+.ra-col.is-sel .ra-anno-lbl { color:#0f172a; text-decoration:underline; text-underline-offset:3px; }
+.ra-nota { font-size:11px; color:#64748b; margin-top:6px; }
+.ra-var .su { color:#b45309; font-weight:700; }
+.ra-var .giu { color:#15803d; font-weight:700; }
+.ra-muted { color:#94a3b8; }
+body.theme-dark .ra-key-car, body.theme-dark .ra-car { background:#3987e5; }
+body.theme-dark .ra-key-sca, body.theme-dark .ra-sca { background:#d95926; }
+body.theme-dark .ra-chart { border-color:var(--border); }
+body.theme-dark .ra-legend, body.theme-dark .ra-val, body.theme-dark .ra-nota { color:var(--text-mid); }
+body.theme-dark .ra-anno-lbl { color:var(--text-mid); }
+body.theme-dark .ra-col.is-sel .ra-anno-lbl { color:var(--text); }
+body.theme-dark .ra-var .su { color:#fcd34d; }
+body.theme-dark .ra-var .giu { color:#86efac; }
 </style>
 {% endblock %}
 
@@ -41,12 +68,34 @@ body.theme-dark .ra-fir { color:var(--text-mid); }
     <div class="ra-cfg">Nelle stampe manca {% if not cfg.ragione_sociale %}la ragione sociale{% endif %}{% if not cfg.ragione_sociale and not cfg.codice_iscrizione_rentri %} e {% endif %}{% if not cfg.codice_iscrizione_rentri %}il codice di iscrizione RENTRI{% endif %}: si indica nelle Impostazioni del modulo.</div>
   {% endif %}
 
+  {% if andamento.con_dati %}
+  <section class="sc-section ra-trend">
+    <div class="ra-trend-head">
+      <div class="sc-sec-label">Andamento per anno (kg)</div>
+      <div class="ra-legend" aria-hidden="true"><span class="ra-key ra-key-car"></span>Caricato <span class="ra-key ra-key-sca"></span>Scaricato</div>
+    </div>
+    <div class="ra-chart" role="img" aria-label="Chili caricati e scaricati per anno; i valori sono anche nella tabella sotto">
+      {% for s in andamento.serie %}
+      <div class="ra-col{% if s.anno == anno %} is-sel{% endif %}">
+        <div class="ra-bars">
+          <a class="ra-bar ra-car" style="height:{{ s.h_car|unlocalize }}%" href="?anno={{ s.anno }}" title="{{ s.anno }} · caricato {{ s.caricato|floatformat:'0g' }} kg"></a>
+          <a class="ra-bar ra-sca" style="height:{{ s.h_sca|unlocalize }}%" href="?anno={{ s.anno }}" title="{{ s.anno }} · scaricato {{ s.scaricato|floatformat:'0g' }} kg"></a>
+        </div>
+        <div class="ra-val">{{ s.caricato|floatformat:"0g" }} / {{ s.scaricato|floatformat:"0g" }}</div>
+        <div class="ra-anno-lbl">{{ s.anno }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="ra-nota">Solo i codici registrati in kg. Clic su un anno per aprirlo.</div>
+  </section>
+  {% endif %}
+
   <section class="sc-section">
     {% if righe %}
     <table class="sc-table">
       <thead>
         <tr>
-          <th>Codice EER</th><th>Descrizione</th><th class="ra-num">Giacenza 1/1</th><th class="ra-num">Caricato</th>
+          <th>Codice EER</th><th>Descrizione</th><th class="ra-num">Giacenza 1/1</th><th class="ra-num">Caricato</th><th class="ra-num">vs {{ anno|add:"-1" }}</th>
           <th class="ra-num">Scaricato</th><th class="ra-num">Giacenza 31/12</th><th class="ra-num">Carichi / scarichi</th><th>Formulari</th><th></th>
         </tr>
       </thead>
@@ -57,6 +106,7 @@ body.theme-dark .ra-fir { color:var(--text-mid); }
           <td>{{ rg.descrizione|truncatechars:70 }}{% if rg.unita_miste %} <span class="ra-warn" title="Lo stesso codice è registrato con unità diverse: i totali non sono omogenei.">· unità miste</span>{% endif %}</td>
           <td class="ra-num">{{ rg.giacenza_inizio|floatformat:"3g" }} {{ rg.unita }}</td>
           <td class="ra-num">{{ rg.caricato|floatformat:"3g" }} {{ rg.unita }}</td>
+          <td class="ra-num ra-var">{% if rg.variazione is not None %}<span class="{% if rg.variazione > 0 %}su{% elif rg.variazione < 0 %}giu{% endif %}" title="Caricato nel {{ anno|add:'-1' }}: {{ rg.caricato_prima|floatformat:'3g' }} {{ rg.unita }}">{% if rg.variazione > 0 %}+{% endif %}{{ rg.variazione }}%</span>{% elif rg.caricato_prima is None %}<span class="ra-muted" title="Codice non movimentato nel {{ anno|add:'-1' }}">nuovo</span>{% else %}<span class="ra-muted">—</span>{% endif %}</td>
           <td class="ra-num">{{ rg.scaricato|floatformat:"3g" }} {{ rg.unita }}</td>
           <td class="ra-num"><strong>{{ rg.giacenza_fine|floatformat:"3g" }} {{ rg.unita }}</strong></td>
           <td class="ra-num">{{ rg.n_carichi }} / {{ rg.n_scarichi }}</td>

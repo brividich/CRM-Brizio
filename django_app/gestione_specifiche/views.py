@@ -128,9 +128,9 @@ def lista(request):
     if f_cliente:
         qs = qs.filter(cliente__icontains=f_cliente)
     if f_cartella:
-        from .scaffale_clienti import SENZA_CLIENTE
+        from .scaffale_clienti import q_della_cartella
 
-        qs = qs.filter(cliente="") if f_cartella == SENZA_CLIENTE else qs.filter(cliente__iexact=f_cartella)
+        qs = qs.filter(q_della_cartella(f_cartella))
     if f_tag:
         qs = qs.filter(tag__icontains=f_tag)
     if f_q:

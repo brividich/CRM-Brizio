@@ -20,6 +20,7 @@ from .models import (
     Specifica, TimbroCapocommessa,
 )
 from .notifiche_gs import pool_utenti
+from .sync_cartelle import attivo as sync_attivo
 
 
 def utente_puo_admin(request) -> bool:
@@ -51,6 +52,7 @@ def admin_home(request):
         "n_eventi": EventoSpecifica.objects.count(),
         "n_specifiche": Specifica.objects.count(),
         "n_timbri": TimbroCapocommessa.objects.count(),
+        "sync_attiva": sync_attivo(),
     })
 
 
@@ -247,3 +249,31 @@ def admin_auto_approva(request):
                     .select_related("specifica").order_by("-timestamp")[:20])
     return render(request, "gestione_specifiche/admin/auto_approva.html",
                   {"cfg": cfg, "utenti": utenti, "auto_recenti": auto_recenti})
+
+
+@login_required
+def admin_sincronizzazione(request):
+    """Sincronizzazione del catalogo con la cartella della share: interruttore, stato, «Sincronizza ora»."""
+    from core.audit import log_action
+    from core.models import SiteConfig
+
+    from . import sync_cartelle
+
+    if request.method == "POST":
+        if request.POST.get("azione") == "interruttore":
+            acceso = request.POST.get("attivo") == "1"
+            SiteConfig.set(sync_cartelle.FLAG, "1" if acceso else "0", "Specifiche: sincronizzazione con la cartella accesa.")
+            log_action(request, "modifica", "gestione_specifiche", {"message": "Sincronizzazione cartella " + ("accesa" if acceso else "spenta")})
+            messages.success(request, "Sincronizzazione " + ("accesa." if acceso else "spenta."))
+        elif request.POST.get("azione") == "ora":
+            try:
+                from django_q.tasks import async_task
+
+                async_task("gestione_specifiche.sync_cartelle.esegui", forza=True)
+                messages.info(request, "Sincronizzazione avviata: fra qualche minuto ricarica la pagina per l'esito.")
+            except Exception:
+                esito = sync_cartelle.esegui(forza=True)
+                messages.info(request, "Sincronizzazione eseguita." if esito.get("ok") else f"Sincronizzazione non riuscita: {esito.get('errore') or esito.get('motivo')}")
+            log_action(request, "esegui", "gestione_specifiche", {"message": "Sincronizzazione cartella avviata a mano"})
+        return redirect("gestione_specifiche:admin_sincronizzazione")
+    return render(request, "gestione_specifiche/admin/sincronizzazione.html", {"stato": sync_cartelle.stato()})
