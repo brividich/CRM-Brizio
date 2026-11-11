@@ -3,6 +3,7 @@
 {% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › {{ scaffale.nome }}{% endblock %}
 {% block cn_h1 %}{{ scaffale.nome }}{% if scaffale.norma %} <small>{{ scaffale.norma }}</small>{% endif %}{% endblock %}
 {% block cn_guida_anchor %}#scaffali{% endblock %}
+{% block cn_actions %}{% if puo_audit %}<a class="cn-btn sm" href="{% url 'procedure_refresh:libreria_audit' scaffale.slug %}">Pacchetto audit</a>{% endif %}{% endblock %}
 {% block cn_body %}
 <div class="cn-split" style="--col:{{ scaffale.colore }}">
   <aside class="cn-side" aria-label="Sezioni">

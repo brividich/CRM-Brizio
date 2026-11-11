@@ -291,3 +291,73 @@ class ControlloOrarioTests(TestCase):
         doc = ProcedureDocument.objects.get(code="MT CN 01")
         self.assertEqual(doc.sezione, "2_MT")
         self.assertTrue(SgiScaffale.objects.filter(cartella="9100_Qualità").exists())
+
+
+class Fase2Tests(TestCase):
+    def setUp(self):
+        from . import collegamenti as col
+
+        col.svuota_cache()
+        self.admin = User.objects.create_user(username="cnsgi_f2", password="pw", is_superuser=True)
+        self.client.force_login(self.admin)
+        self.dpi = _doc("MT CN 451", "Gestione DPI", cartella="45001_Sicurezza", sezione="")
+        self.mod = _doc("MOD.093", "Rapporto di non conformità", sezione="_Modelli")
+        lib.assicura_scaffali()
+
+    def test_proposte_da_parole_chiave(self):
+        from . import collegamenti as col
+
+        proposte = {(p["doc"].code, p["modulo"].chiave, p["compila"]) for p in col.proposte(lib.documenti_in_vigore())}
+        self.assertIn(("MT CN 451", "dpi", False), proposte)
+        self.assertIn(("MOD.093", "anomalie", True), proposte)
+
+    def test_conferma_etichette_e_compila(self):
+        from . import collegamenti as col
+        from .models import SgiDocumentoModulo
+
+        url = reverse("procedure_refresh:libreria_collegamenti")
+        self.assertEqual(self.client.get(url).status_code, 200)
+        r = self.client.post(url, {"azione": "conferma", "proposta": [f"{self.mod.pk}:anomalie:1", f"{self.dpi.pk}:dpi:0"]})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(SgiDocumentoModulo.objects.get(documento=self.mod, modulo="anomalie").compila)
+        modulo, procedure = col.procedure_della_pagina("/dpi/consegne/")
+        self.assertEqual(modulo.chiave, "dpi")
+        self.assertEqual([p["codice"] for p in procedure], ["MT CN 451"])
+        r = self.client.get(reverse("procedure_refresh:libreria_documento", args=[self.mod.pk]))
+        self.assertContains(r, "HUB · Gestione anomalie")
+        # Un documento riservato non compare tra le etichette del modulo.
+        SgiVisibilita.objects.create(scaffale="45001_Sicurezza", chi="nessuno")
+        col.svuota_cache()
+        self.assertEqual(col.procedure_della_pagina("/dpi/")[1], [])
+
+    def test_etichetta_nel_sottomenu(self):
+        from django.template import Context, Template
+        from django.test import RequestFactory
+
+        from . import collegamenti as col
+        from .models import SgiDocumentoModulo
+
+        SgiDocumentoModulo.objects.create(documento=self.dpi, modulo="dpi")
+        col.svuota_cache()
+        req = RequestFactory().get("/dpi/")
+        req.user = self.admin
+        html = Template("{% load cnsgi %}{% cnsgi_etichette %}").render(Context({"request": req}))
+        self.assertIn("MT CN 451", html)
+        req = RequestFactory().get("/tickets/")
+        req.user = self.admin
+        self.assertNotIn("MT CN 451", Template("{% load cnsgi %}{% cnsgi_etichette %}").render(Context({"request": req})))
+
+    def test_pacchetto_audit_e_excel(self):
+        slug = lib.slug_scaffale("9100_Qualità")
+        r = self.client.get(reverse("procedure_refresh:libreria_audit", args=[slug]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "MOD.093")
+        r = self.client.get(reverse("procedure_refresh:libreria_audit", args=[slug]) + "?formato=xlsx")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("spreadsheetml", r["Content-Type"])
+
+    def test_pacchetto_audit_negato_a_chi_non_gestisce(self):
+        senza = lib.Visibilita(None, gestore=False, gruppi=set(), vede_tutto=False)
+        with mock.patch("procedure_refresh.views_libreria.lib.Visibilita", return_value=senza):
+            r = self.client.get(reverse("procedure_refresh:libreria_audit", args=[lib.slug_scaffale("9100_Qualità")]))
+        self.assertEqual(r.status_code, 302)

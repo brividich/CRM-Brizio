@@ -1,0 +1,71 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}Collegamenti ai moduli · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › Collegamenti ai moduli{% endblock %}
+{% block cn_h1 %}Collegamenti ai moduli <small>{{ n_collegamenti }} attivi</small>{% endblock %}
+{% block cn_guida_anchor %}#collegamenti{% endblock %}
+{% block cn_body %}
+<div class="cn-panel" style="margin-bottom:18px">
+  <form method="post" class="cn-form" style="align-items:end">
+    {% csrf_token %}<input type="hidden" name="azione" value="aggiungi">
+    <label class="cn-fld" for="cn-c-doc">Documento
+      <select id="cn-c-doc" name="documento" required>
+        <option value="">Scegli…</option>
+        {% for d in documenti %}<option value="{{ d.pk }}">{{ d.code }} · {{ d.title|truncatechars:60 }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="cn-fld" for="cn-c-mod">Modulo dell'HUB
+      <select id="cn-c-mod" name="modulo" required>
+        <option value="">Scegli…</option>
+        {% for m in moduli %}<option value="{{ m.chiave }}">{{ m.nome }}</option>{% endfor %}
+      </select>
+    </label>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:0"><input type="checkbox" name="compila" value="1">Si compila nell'HUB (modelli MOD)</label>
+    <div><button class="cn-btn pri" type="submit">Collega</button></div>
+  </form>
+  <p class="cn-note" style="margin-top:12px">La procedura compare come etichetta «SGI» in alto a destra sulle pagine del modulo e nella scheda del documento. Con «Si compila nell'HUB» la scheda del modello mostra il pulsante che porta al modulo.</p>
+</div>
+
+{% if proposte %}
+<form method="post" class="cn-panel" style="margin-bottom:18px">
+  {% csrf_token %}<input type="hidden" name="azione" value="conferma">
+  <div class="cn-sec" style="margin-top:0"><h2>Proposte da confermare</h2><span>Trovate dalle parole del codice e del titolo: spunta quelle giuste</span></div>
+  <div class="cn-tbl"><table>
+    <thead><tr><th></th><th>Documento</th><th>Modulo</th><th>Perché</th><th>Compila</th></tr></thead>
+    <tbody>
+    {% for p in proposte %}
+    <tr>
+      <td><input type="checkbox" name="proposta" value="{{ p.doc.pk }}:{{ p.modulo.chiave }}:{% if p.compila %}1{% else %}0{% endif %}" aria-label="Conferma {{ p.doc.code }} con {{ p.modulo.nome }}"></td>
+      <td><b class="mono">{{ p.doc.code }}</b> {{ p.doc.title|truncatechars:60 }}</td>
+      <td>{{ p.modulo.nome }}</td>
+      <td style="color:var(--text-light)">«{{ p.parola }}»</td>
+      <td>{% if p.compila %}<span class="cn-pill ok">Sì</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <p style="margin:12px 0 0"><button class="cn-btn pri" type="submit">Conferma le spuntate</button></p>
+</form>
+{% endif %}
+
+<div class="cn-sec"><h2>Collegamenti attivi</h2><span>Per modulo</span></div>
+{% for g in gruppi %}
+<section class="cn-sub">
+  <h3>{{ g.modulo.nome }} <span>{{ g.righe|length }}</span> <a class="cn-btn sm" href="{{ g.modulo.href }}" style="margin-left:6px">Apri il modulo</a></h3>
+  <div class="cn-tbl"><table>
+    <thead><tr><th>Documento</th><th>Compila</th><th>Origine</th><th></th></tr></thead>
+    <tbody>
+    {% for r in g.righe %}
+    <tr>
+      <td><a href="{% url 'procedure_refresh:libreria_documento' r.documento.pk %}" data-cn-doc><b class="mono">{{ r.documento.code }}</b> {{ r.documento.title|truncatechars:70 }}</a></td>
+      <td>{% if r.compila %}<span class="cn-pill ok">Si compila nell'HUB</span>{% endif %}</td>
+      <td style="color:var(--text-light)">{{ r.get_origine_display }}</td>
+      <td style="text-align:right"><form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="azione" value="togli"><input type="hidden" name="riga" value="{{ r.pk }}"><button class="cn-btn sm" type="submit">Togli</button></form></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% empty %}
+<p class="cn-empty">Nessun collegamento: aggiungine uno sopra o conferma le proposte.</p>
+{% endfor %}
+{% endblock %}

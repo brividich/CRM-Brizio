@@ -57,6 +57,16 @@ GUIDA = {
             ],
         },
         {
+            "id": "collegamenti-audit",
+            "titolo": "Collegamenti ai moduli e pacchetto audit",
+            "blocchi": [
+                ("ul", [
+                    "«Collegamenti ai moduli»: conferma le proposte o collega a mano un documento a un modulo dell'HUB; la procedura compare come etichetta «SGI» in alto a destra sulle pagine del modulo. «Si compila nell'HUB» aggiunge il pulsante sulla scheda del modello MOD.",
+                    "«Pacchetto audit» (da uno scaffale): revisioni in vigore, processi e prese visione per certificazione, con «Scarica Excel».",
+                ]),
+            ],
+        },
+        {
             "id": "documenti",
             "titolo": "Documenti e revisioni",
             "blocchi": [
