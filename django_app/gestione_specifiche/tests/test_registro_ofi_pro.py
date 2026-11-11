@@ -103,7 +103,8 @@ class SollecitoTests(TestCase):
         with patch("core.email_utils.send_hub_mail") as invia:
             esito = R.invia_reminder_ofi()
         self.assertEqual(esito["inviati"], 1)
-        self.assertEqual(invia.call_args.kwargs["to"], ["resp@example.com", "qualita@example.com"])
+        # send_hub_mail(oggetto, testo, destinatari, ...): i destinatari sono il terzo argomento.
+        self.assertEqual(invia.call_args.args[2], ["resp@example.com", "qualita@example.com"])
         self.assertTrue(v.eventi.filter(tipo=RegistroOFIEvento.TIPO_SOLLECITO).exists())
 
 
