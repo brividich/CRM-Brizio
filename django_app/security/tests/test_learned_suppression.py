@@ -132,9 +132,10 @@ class LearningTests(_Base):
         self.assertIsNotNone(alert)
 
     def test_mixed_dismissal_kinds_count(self):
+        # Silenziato per ultimo: un alert silenziato resta attivo e le mail dopo dello stesso job lo aggiornano.
         self._dismiss(1, kind="fp")
-        self._dismiss(1, kind="mute")
         self._dismiss(1, kind="accepted_risk")
+        self._dismiss(1, kind="mute")
         self.assertTrue(SecurityAlertSuppressionRule.objects.filter(owner="system:learned").exists())
 
     def test_resolved_and_automatic_closures_do_not_count(self):

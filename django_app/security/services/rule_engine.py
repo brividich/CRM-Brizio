@@ -5,6 +5,7 @@ from django.db.models import Count
 from django.utils import timezone
 
 from security.models import SecurityAlert, SecurityAlertActionLog, SecurityAlertRuleConfig, SecurityAlertSuppressionRule, SecurityEventRecord, Severity
+from security.services import alert_doppioni
 from security.services.alert_lifecycle import ACTIVE_ALERT_STATUSES
 from security.services.auto_resolution import resolve_backup_recovered, resolve_vulnerability_cleared
 from security.services.evidence_builder import build_evidence_container
@@ -139,6 +140,15 @@ def _evaluate_vulnerability(event):
         return
 
     if is_critical and exposed:
+        inventario = alert_doppioni.alert_inventario_per_cve(payload.get("cve"))
+        if inventario and not _active_alert(event.source, event.dedup_hash):
+            event.decision_trace = {
+                "decision": "kpi_only",
+                "rule": "CVE già seguita PC per PC dall'inventario => niente alert doppio",
+                "alert_inventario": [a.pk for a in inventario[:20]],
+            }
+            event.save(update_fields=["decision_trace"])
+            return
         trace = {
             "decision": "alert",
             "rule": "CVE critica (CVSS ≥ 9) con dispositivi esposti => alert",
@@ -871,21 +881,25 @@ def _evaluate_backup(event):
         event.decision_trace = {"decision": "kpi_only", "reason": "Regola sui backup falliti disattivata"}
         event.save(update_fields=["decision_trace"])
         return
-    trace = {"decision": "alert", "rule": "Backup mancante o fallito => alert + evidenza", "backup_status": status}
+    trace = {"decision": "alert", "rule": "Backup mancante o fallito => alert + evidenza", "backup_status": status,
+             "event_id": event.pk}
+    # Un alert per job e dispositivo, non uno per notte: le mail successive aggiornano lo stesso.
+    chiave = alert_doppioni.chiave_alert(event) or event.dedup_hash
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
         title=f"Backup da controllare: {event.payload.get('job_name')}",
         severity=(failed_rule.severity if failed_rule else Severity.WARNING),
-        dedup_hash=event.dedup_hash,
+        dedup_hash=chiave,
         decision_trace=trace,
+        aggiorna_titolo=True,
     )
     trace["alert_created"] = alert_created
     _store_alert_decision_trace(alert, trace, alert_created)
     event.decision_trace = trace
     event.save(update_fields=["decision_trace"])
     evidence = build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
-    create_backup_ticket(event.source, alert, evidence, event.payload.get("job_name"), event.dedup_hash)
+    create_backup_ticket(event.source, alert, evidence, event.payload.get("job_name"), chiave)
     SecurityAlertActionLog.objects.create(
         alert=alert,
         action="alert_created" if alert_created else "alert_reused",
@@ -940,14 +954,17 @@ def _evaluate_watchguard_alert_candidate(event):
         "rule": "Candidato alert WatchGuard proposto dal parser (filtro anti-rumore)",
         "candidate_type": payload.get("type"),
         "reason": payload.get("reason"),
+        "event_id": event.pk,
     }
+    # Un alert per tipo e PC (es. «devices blocked su PC-X»), non uno per mail: le successive aggiornano lo stesso.
     alert, alert_created = _get_or_create_active_alert(
         source=event.source,
         event=event,
         title=payload.get("title") or "Alert WatchGuard da verificare",
         severity=(rule.severity if rule else payload.get("severity", Severity.WARNING)),
-        dedup_hash=event.dedup_hash,
+        dedup_hash=alert_doppioni.chiave_alert(event) or event.dedup_hash,
         decision_trace=trace,
+        aggiorna_titolo=True,
     )
     trace["alert_created"] = alert_created
     _store_alert_decision_trace(alert, trace, alert_created)
@@ -1030,7 +1047,11 @@ def _active_alert(source, dedup_hash):
     )
 
 
-def _get_or_create_active_alert(source, event, title, severity, dedup_hash, decision_trace):
+def _rango(severity):
+    return {Severity.CRITICAL: 4, Severity.HIGH: 3, Severity.MEDIUM: 2, Severity.WARNING: 1, Severity.LOW: 0}.get(severity, 1)
+
+
+def _get_or_create_active_alert(source, event, title, severity, dedup_hash, decision_trace, aggiorna_titolo=False):
     """Check-then-create is a race. Let the database settle it.
 
     Two workers evaluating the same finding concurrently both used to read "no alert yet"
@@ -1041,7 +1062,16 @@ def _get_or_create_active_alert(source, event, title, severity, dedup_hash, deci
     alert = _active_alert(source, dedup_hash)
     if alert:
         alert.event = event
-        alert.save(update_fields=["event", "updated_at"])
+        campi = ["event", "updated_at"]
+        if aggiorna_titolo:
+            # Alert per soggetto (PC, job): l'ultima mail dice il conteggio di adesso; la gravità non scende.
+            if title and alert.title != title[:255]:
+                alert.title = title[:255]
+                campi.append("title")
+            if _rango(severity) > _rango(alert.severity):
+                alert.severity = severity
+                campi.append("severity")
+        alert.save(update_fields=campi)
         return alert, False
 
     try:
