@@ -35,6 +35,9 @@ GUIDA = {
                     "anche i carichi scritti «12.01.01 Sfridi Ferro Kg».",
                     "Il collegamento è facoltativo: se non spunti niente lo scarico si salva «non collegato» e la «Verifica» lo "
                     "elenca. «Mostra anche i già collegati» fa vedere anche i fili già completi per quel passo.",
+                    "Con molti movimenti usa la casella di ricerca sopra l'elenco: filtra mentre scrivi per numero, data, FIR "
+                    "o quantità (più parole = tutte presenti, per esempio «/1850» o «03 2025»). Il numero accanto dice quanti "
+                    "ne vedi; i movimenti già spuntati restano sempre visibili. Esc svuota la ricerca.",
                     "Scrivi la «Quantità» (anche con la virgola, per esempio 12,5) e scegli l'«Unità di misura». "
                     "Il carico è sempre positivo; negli scarichi il segno meno è ammesso (lo scarico effettivo M "
                     "può avere il valore in «Rettifica scarico», la rettifica R lo stesso valore positivo).",
@@ -73,7 +76,8 @@ GUIDA = {
                     ("Duplica", "nella scheda apre un nuovo movimento dello stesso tipo con lo stesso codice e la stessa unità, "
                      "con la data di oggi."),
                     ("Dalle Giacenze", "«Scarica» sulla riga di un codice apre lo scarico originale con quel codice."),
-                    ("Seleziona tutti", "nella sezione «Collegato a» spunta tutti i movimenti collegabili; la «Quantità» "
+                    ("Seleziona i visibili", "nella sezione «Collegato a» spunta i movimenti che vedi (quelli rimasti dopo la "
+                     "ricerca); la «Quantità» "
                      "viene proposta come somma dei movimenti spuntati finché non la cambi a mano."),
                 ]),
             ],
@@ -129,7 +133,10 @@ GUIDA = {
                     "un gruppo per ogni codice CER, da aprire con un clic. «Espandi»/«Comprimi» apre o chiude tutto.",
                     "Filtri dell'elenco: «Cerca» (numero, codice, rif. op, FIR, note), «Codice CER», «Tipo», «Stato del filo», "
                     "«Dal»/«Al», «RENTRI» (trasmessi o da trasmettere), «Consolidamento» (bozze o consolidati), «Solo pericolosi» "
-                    "e «Mostra annullati». Il PDF usa gli stessi filtri.",
+                    "e «Mostra annullati».",
+                    "«Esporta» (in alto nell'elenco) apre la finestra con Excel e PDF: «Con i filtri attivi» scarica quello che "
+                    "vedi (stato del filo compreso), «Registro completo, annullati compresi» tutto il registro. L'Excel ha anche "
+                    "«Collegato a», «Stato del filo», «Annullato» con il motivo e «Collegamenti tolti».",
                     "«Scadenzario»: formulari mancanti sugli scarichi O e M, movimenti da comunicare, bozze da consolidare.",
                     "«Giacenze»: quanto rifiuto c'è per codice, con l'unità, il semaforo del deposito temporaneo e il totale in m³ "
                     "(limite 30 m³, di cui 10 pericolosi). La giacenza è la somma di quanto resta dei carichi: lo scarico "

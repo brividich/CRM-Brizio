@@ -1319,6 +1319,111 @@ def import_confirm(request):
     })
 
 
+_TIPO_EXPORT = {"C": "Carico", "O": "Scarico originale", "M": "Scarico effettivo", "R": "Rettifica"}
+_STATO_EXPORT = {
+    "aperte": "Da completare", "chiuse": "Chiuse", "deposito": "In deposito",
+    "attesa_m": "Manca scarico effettivo", "senza_carico": "Senza carico",
+    "scollegati": "Collegati a un annullato",
+}
+
+
+def _registro_da_esportare(get):
+    """Righe, filtri, stato del filo per riga ed etichetta filtri di un export.
+
+    `scope=tutto` = registro completo, annullati compresi (tracciabilità);
+    altrimenti gli stessi filtri dell'elenco, stato del filo incluso.
+    """
+    from .fili import analizza
+
+    tutto = get.get("scope") == "tutto"
+    if tutto:
+        qs, f = RegistroRifiuti.objects.all(), {k: "" for k in _CAMPI_FILTRO}
+        annullati_ok, stato = True, ""
+    else:
+        annullati_ok = get.get("annullati", "") == "1"
+        qs, f = _filtra_registro(get, annullati=annullati_ok)
+        stato = (get.get("stato", "") or "").strip()
+        if stato not in _FILTRI_STATO:
+            stato = ""
+    records = list(qs.order_by("data", "id_registrazione", "id"))
+    analisi = analizza(list(RegistroRifiuti.objects.attivi()))
+    nomi_annullati = dict(RegistroRifiuti.objects.filter(annullato=True).values_list("id_registrazione", "tipo"))
+    stati: dict[int, str] = {}
+    tenuti: set[int] = set()
+    for fam in _build_families(records, analisi, nomi_annullati):
+        pks = [r.pk for r in fam["carichi"] + fam["operazioni"]]
+        for pk in pks:
+            stati[pk] = fam["stato_label"].capitalize()
+        if not stato or _FILTRI_STATO[stato](fam):
+            tenuti.update(pks)
+    if stato:
+        records = [r for r in records if r.pk in tenuti]
+
+    parti = []
+    if f["tipo"]:
+        parti.append(f"Tipo: {_TIPO_EXPORT.get(f['tipo'], f['tipo'])}")
+    if f["cer"]:
+        parti.append(f"Codice: {f['cer']}")
+    if f["anno"]:
+        parti.append(f"Anno: {f['anno']}")
+    if f["dal"] or f["al"]:
+        parti.append(f"Periodo: {f['dal'] or '…'} → {f['al'] or '…'}")
+    if f["trasmesso"]:
+        parti.append("Trasmessi" if f["trasmesso"] == "si" else "Da trasmettere")
+    if f["consolidato"]:
+        parti.append("Consolidati" if f["consolidato"] == "si" else "Bozze")
+    if f["pericolosi"] == "1":
+        parti.append("Solo pericolosi")
+    if stato:
+        parti.append(f"Filo: {_STATO_EXPORT[stato]}")
+    if f["q"]:
+        parti.append(f"Ricerca: {f['q']}")
+    if parti and not annullati_ok:
+        parti.append("senza annullati")
+    etichetta = " | ".join(parti) if parti else (
+        "Registro completo" if annullati_ok else "Tutte le registrazioni valide"
+    )
+    return records, f, stati, etichetta
+
+
+def _numero(v):
+    return float(v) if v is not None else None
+
+
+@login_required
+def export_excel(request):
+    """GET: registro RENTRI in Excel, completo (`scope=tutto`) o con i filtri dell'elenco."""
+    from core.excel_export import make_xlsx_response
+
+    records, f, stati, etichetta = _registro_da_esportare(request.GET)
+    righe = [
+        [
+            r.data, r.id_registrazione, _TIPO_EXPORT.get(r.tipo, r.tipo), " ".join((r.codice or "").split()),
+            _numero(r.quantita), _numero(r.rettifica_scarico), r.unita, r.rif_op, r.arrivo_fir,
+            stati.get(r.pk, ""), "Sì" if r.salva else "No", "Sì" if r.rentri_si_no else "No",
+            (f"Sì — {r.motivo_annullamento}".strip(" —") if r.annullato else ""),
+            r.rif_op_storico, r.note_rentri, r.inserito_da,
+        ]
+        for r in records
+    ]
+    log_action(request, "rentri_export_excel", "rentri", {"righe": len(righe), "filtri": etichetta})
+    oggi = timezone.localdate()
+    nome = "completo" if request.GET.get("scope") == "tutto" else (f["anno"] or "filtrato")
+    return make_xlsx_response(
+        filename=f"rentri_{nome}_{oggi:%Y%m%d}.xlsx",
+        columns=[
+            "Data", "N. registrazione", "Tipo", "Codice EER", "Quantità", "Rettifica scarico", "Unità",
+            "Collegato a", "FIR", "Stato del filo", "Consolidato", "Trasmesso", "Annullato",
+            "Collegamenti tolti", "Note", "Inserito da",
+        ],
+        rows=righe,
+        sheet_title="Registro",
+        title="Registro RENTRI",
+        subtitle=f"{len(righe)} registrazioni",
+        filters_label=etichetta,
+    )
+
+
 @login_required
 def export_pdf(request):
     """GET: genera ed invia un PDF con le registrazioni RENTRI."""
@@ -1336,9 +1441,7 @@ def export_pdf(request):
     )
 
     # ── filtri (gli stessi dell'elenco) ───────────────────────────────────────
-    qs, _filtri = _filtra_registro(request.GET, annullati=True)
-
-    records = list(qs.order_by("data", "id"))
+    records, _filtri, _stati, filters_str = _registro_da_esportare(request.GET)
 
     # ── tema condiviso + palette dominio ──────────────────────────────────────
     theme = PdfTheme.from_branding()
@@ -1370,24 +1473,6 @@ def export_pdf(request):
     LEGEND_BAND = 1.4 * cm
 
     # ── filtri stringa per footer ─────────────────────────────────────────────
-    filter_parts = []
-    if _filtri["tipo"]:
-        filter_parts.append(f"Tipo: {TIPO_LABEL.get(_filtri['tipo'], _filtri['tipo'])}")
-    if _filtri["cer"]:
-        filter_parts.append(f"Codice: {_filtri['cer']}")
-    if _filtri["anno"]:
-        filter_parts.append(f"Anno: {_filtri['anno']}")
-    if _filtri["dal"] or _filtri["al"]:
-        filter_parts.append(f"Periodo: {_filtri['dal'] or '…'} → {_filtri['al'] or '…'}")
-    if _filtri["trasmesso"]:
-        filter_parts.append("Trasmessi" if _filtri["trasmesso"] == "si" else "Da trasmettere")
-    if _filtri["consolidato"]:
-        filter_parts.append("Consolidati" if _filtri["consolidato"] == "si" else "Bozze")
-    if _filtri["pericolosi"] == "1":
-        filter_parts.append("Solo pericolosi")
-    if _filtri["q"]:
-        filter_parts.append(f"Ricerca: {_filtri['q']}")
-    filters_str = " | ".join(filter_parts) if filter_parts else "Tutte le registrazioni"
     n_records = len(records)
 
     # ── callback: header/footer standard + legenda/filtri di dominio ──────────
@@ -1518,6 +1603,7 @@ def export_pdf(request):
     buffer.seek(0)
     anno_str = _filtri["anno"] or timezone.localdate().strftime("%Y")
     filename = f"rentri_{anno_str}_{timezone.localdate().strftime('%Y%m%d')}.pdf"
+    log_action(request, "rentri_export_pdf", "rentri", {"righe": n_records, "filtri": filters_str})
     response = HttpResponse(buffer.read(), content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response

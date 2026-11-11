@@ -16,6 +16,7 @@ urlpatterns = [
     path("rentri/import/preview/", views.import_preview, name="rentri_import_preview"),
     path("rentri/import/confirm/", views.import_confirm, name="rentri_import_confirm"),
     path("rentri/export/pdf/", views.export_pdf, name="rentri_export_pdf"),
+    path("rentri/export/excel/", views.export_excel, name="rentri_export_excel"),
     path("rentri/<int:pk>/", views.dettaglio, name="rentri_dettaglio"),
     path("rentri/<int:pk>/modifica/", views.modifica, name="rentri_modifica"),
     path("rentri/<int:pk>/consolida/", views.consolida_view, name="rentri_consolida"),

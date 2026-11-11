@@ -5,7 +5,7 @@ ETICHETTA = "RENTRI"
 
 VOCI = [
     voce("registro", "Registro carico/scarico rifiuti",
-         "PDF del registro cronologico di carico e scarico.",
-         "pdf", route="rentri_export_pdf", pagina="rentri_menu", layout=LAYOUT_CORE_PDF,
+         "Registro cronologico di carico e scarico: completo o con i filtri dell'elenco.",
+         ("pdf", "xlsx"), route=("rentri_export_pdf", "rentri_export_excel"), pagina="rentri_menu", layout=LAYOUT_CORE_PDF,
          norma="D.M. 59/2023"),
 ]
