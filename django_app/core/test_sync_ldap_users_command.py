@@ -24,6 +24,16 @@ from core.management.commands.sync_ldap_users import Command
     LDAP_GROUP_ALLOWLIST=["EMPLOYEES"],
 )
 class SyncLdapUsersCommandTests(SimpleTestCase):
+    def setUp(self):
+        super().setUp()
+        from core.ldap_conn import ldap_breaker_reset, reset_ldap_servers
+
+        # Server/pool condivisi e breaker vivono a livello di processo: ogni test parte pulito.
+        reset_ldap_servers()
+        ldap_breaker_reset()
+        self.addCleanup(reset_ldap_servers)
+        self.addCleanup(ldap_breaker_reset)
+
     def test_search_error_is_wrapped_and_auto_referrals_disabled(self):
         class FakeLDAPException(Exception):
             pass
@@ -33,7 +43,7 @@ class SyncLdapUsersCommandTests(SimpleTestCase):
 
         fake_conn = MagicMock()
         fake_conn.bind.return_value = True
-        fake_conn.search.side_effect = FakeLDAPSocketOpenError("invalid server address")
+        fake_conn.extend.standard.paged_search.side_effect = FakeLDAPSocketOpenError("invalid server address")
 
         fake_ldap3 = ModuleType("ldap3")
         fake_ldap3.AUTO_BIND_NO_TLS = "AUTO_BIND_NO_TLS"
@@ -77,7 +87,7 @@ class SyncLdapUsersCommandTests(SimpleTestCase):
         simple_conn.result = {"description": "invalidCredentials"}
         ntlm_conn = MagicMock()
         ntlm_conn.bind.return_value = True
-        ntlm_conn.search.side_effect = FakeLDAPSocketOpenError("stop after ntlm bind")
+        ntlm_conn.extend.standard.paged_search.side_effect = FakeLDAPSocketOpenError("stop after ntlm bind")
 
         fake_ldap3 = ModuleType("ldap3")
         fake_ldap3.NONE = "NONE"
@@ -175,7 +185,7 @@ class SyncLdapUsersCommandTests(SimpleTestCase):
 
         fake_conn = MagicMock()
         fake_conn.bind.return_value = True
-        fake_conn.search.side_effect = FakeLDAPSocketOpenError("invalid server address")
+        fake_conn.extend.standard.paged_search.side_effect = FakeLDAPSocketOpenError("invalid server address")
 
         fake_ldap3 = ModuleType("ldap3")
         fake_ldap3.AUTO_BIND_NO_TLS = "AUTO_BIND_NO_TLS"

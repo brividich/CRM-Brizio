@@ -197,7 +197,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_BASE_URL="http://10.0.0.34:3000",
             OLLAMA_CHAT_MODEL="llama3.1",
             OLLAMA_RAG_ENABLED=False,
-        ), patch("ai_assistant.services.urllib.request.urlopen") as mocked_urlopen:
+        ), patch("ai_assistant.http_client.lan_urlopen") as mocked_urlopen:
             mocked_urlopen.side_effect = urllib.error.HTTPError(
                 url="http://10.0.0.34:3000/api/chat",
                 code=405,
@@ -217,7 +217,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_CHAT_MODEL="nemotron-3-nano:30b",
             OLLAMA_REQUEST_TIMEOUT_SECONDS=60,
             OLLAMA_RAG_ENABLED=False,
-        ), patch("ai_assistant.services.urllib.request.urlopen") as mocked_urlopen:
+        ), patch("ai_assistant.http_client.lan_urlopen") as mocked_urlopen:
             mocked_urlopen.side_effect = TimeoutError("timed out")
             with self.assertRaises(OllamaChatError) as ctx:
                 chat_with_ollama("ciao")
@@ -231,7 +231,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_CHAT_MODEL="nemotron-3-nano:30b",
             OLLAMA_REQUEST_TIMEOUT_SECONDS=60,
             OLLAMA_RAG_ENABLED=False,
-        ), patch("ai_assistant.services.urllib.request.urlopen") as mocked_urlopen:
+        ), patch("ai_assistant.http_client.lan_urlopen") as mocked_urlopen:
             mocked_urlopen.side_effect = urllib.error.URLError(socket.timeout("timed out"))
             with self.assertRaises(OllamaChatError) as ctx:
                 chat_with_ollama("ciao")
@@ -256,7 +256,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_CHAT_MODEL="llama3.1",
             OLLAMA_KEEP_ALIVE="30m",
             OLLAMA_NUM_CTX=16384,
-        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked_urlopen:
+        ), patch("ai_assistant.http_client.lan_urlopen", return_value=FakeResponse()) as mocked_urlopen:
             result = warmup_ollama()
 
         request = mocked_urlopen.call_args.args[0]
@@ -278,7 +278,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_API_PROVIDER="openwebui",
             OLLAMA_BASE_URL="http://10.0.0.34:3000",
             OLLAMA_CHAT_MODEL="llama3.1",
-        ), patch("ai_assistant.services.urllib.request.urlopen") as mocked_urlopen:
+        ), patch("ai_assistant.http_client.lan_urlopen") as mocked_urlopen:
             result = warmup_ollama()
 
         mocked_urlopen.assert_not_called()
@@ -293,7 +293,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_BASE_URL="http://10.0.0.34:11434",
             OLLAMA_CHAT_MODEL="llama3.1",
             OLLAMA_REQUEST_TIMEOUT_SECONDS=180,
-        ), patch("ai_assistant.services.urllib.request.urlopen") as mocked_urlopen:
+        ), patch("ai_assistant.http_client.lan_urlopen") as mocked_urlopen:
             mocked_urlopen.side_effect = TimeoutError("timed out")
             result = warmup_ollama(timeout=300)
 
@@ -338,7 +338,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_CHAT_MODEL="llama3.1",
             OPENWEBUI_API_KEY="sk-test",
             OLLAMA_RAG_ENABLED=False,
-        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked_urlopen:
+        ), patch("ai_assistant.http_client.lan_urlopen", return_value=FakeResponse()) as mocked_urlopen:
             result = chat_with_ollama("ciao")
 
         request = mocked_urlopen.call_args.args[0]
@@ -363,7 +363,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_CHAT_MODEL="llama3.1",
             OLLAMA_RAG_ENABLED=True,
         ), patch("ai_assistant.services.build_knowledge_context") as mocked_knowledge, patch(
-            "ai_assistant.services.urllib.request.urlopen",
+            "ai_assistant.http_client.lan_urlopen",
             return_value=FakeResponse(),
         ) as mocked_urlopen:
             mocked_knowledge.return_value = SimpleNamespace(
@@ -689,7 +689,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_CHAT_MODEL="llama3.1",
             OLLAMA_REQUEST_TIMEOUT_SECONDS=180,
             OLLAMA_RAG_ENABLED=False,
-        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked_urlopen:
+        ), patch("ai_assistant.http_client.lan_urlopen", return_value=FakeResponse()) as mocked_urlopen:
             chat_with_ollama("ciao", timeout=12)
 
         self.assertEqual(mocked_urlopen.call_args.kwargs.get("timeout"), 12)
@@ -938,7 +938,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_NUM_CTX=4096,
             OLLAMA_NUM_PREDICT=512,
             OLLAMA_RAG_ENABLED=False,
-        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked_urlopen:
+        ), patch("ai_assistant.http_client.lan_urlopen", return_value=FakeResponse()) as mocked_urlopen:
             chat_with_ollama("ciao")
 
         payload = json.loads(mocked_urlopen.call_args.args[0].data.decode("utf-8"))
@@ -965,7 +965,7 @@ class AiAssistantTests(TestCase):
             OLLAMA_KEEP_ALIVE="30m",
             OLLAMA_NUM_CTX=4096,
             OLLAMA_RAG_ENABLED=False,
-        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked_urlopen:
+        ), patch("ai_assistant.http_client.lan_urlopen", return_value=FakeResponse()) as mocked_urlopen:
             chat_with_ollama("ciao")
 
         payload = json.loads(mocked_urlopen.call_args.args[0].data.decode("utf-8"))
@@ -3601,7 +3601,7 @@ class SgiRagFlagForwardingTests(TestCase):
             OLLAMA_CHAT_MODEL="m",
             OLLAMA_RAG_ENABLED=True,
         ), patch("ai_assistant.services.build_knowledge_context") as mk, patch(
-            "ai_assistant.services.urllib.request.urlopen", return_value=_FakeOllamaResponse()
+            "ai_assistant.http_client.lan_urlopen", return_value=_FakeOllamaResponse()
         ):
             mk.return_value = SimpleNamespace(text="", sources=())
             chat_with_ollama("domanda", allow_specifiche=True, allow_procedure=False)
@@ -3618,7 +3618,7 @@ class SgiRagFlagForwardingTests(TestCase):
             OLLAMA_CHAT_MODEL="m",
             OLLAMA_RAG_ENABLED=True,
         ), patch("ai_assistant.services.build_knowledge_context") as mk, patch(
-            "ai_assistant.services.urllib.request.urlopen", return_value=_FakeOllamaResponse()
+            "ai_assistant.http_client.lan_urlopen", return_value=_FakeOllamaResponse()
         ):
             mk.return_value = SimpleNamespace(text="", sources=())
             open_ollama_stream("domanda", allow_specifiche=False, allow_procedure=True)
@@ -3718,7 +3718,7 @@ class EmbedBackendTests(TestCase):
             RAG_EMBED_BACKEND="openai",
             RAG_EMBED_OPENAI_BASE_URL="http://10.0.0.34:8081",
             RAG_EMBED_OPENAI_MODEL="BAAI/bge-m3",
-        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()) as mocked:
+        ), patch("ai_assistant.http_client.lan_urlopen", return_value=FakeResponse()) as mocked:
             result = services._compute_embeddings(["a", "b"])
 
         self.assertEqual(result, [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
@@ -3742,7 +3742,7 @@ class EmbedBackendTests(TestCase):
             RAG_EMBED_BACKEND="openai",
             RAG_EMBED_OPENAI_BASE_URL="http://x:8081",
             RAG_EMBED_OPENAI_MODEL="m",
-        ), patch("ai_assistant.services.urllib.request.urlopen", return_value=FakeResponse()):
+        ), patch("ai_assistant.http_client.lan_urlopen", return_value=FakeResponse()):
             self.assertIsNone(services._compute_embeddings(["a", "b"]))
 
     def test_embed_texts_batches_large_input(self):
@@ -3868,7 +3868,7 @@ class EmbedTimeoutTests(TestCase):
             RAG_EMBED_OPENAI_BASE_URL="http://x:8081",
             RAG_EMBED_OPENAI_MODEL="m",
             OLLAMA_EMBED_TIMEOUT_SECONDS=60,
-        ), patch("ai_assistant.services.urllib.request.urlopen", side_effect=fake_urlopen):
+        ), patch("ai_assistant.http_client.lan_urlopen", side_effect=fake_urlopen):
             out = services._openai_embed_texts(["a"], timeout=6)
 
         self.assertEqual(captured["timeout"], 6)          # override applicato
@@ -3897,7 +3897,7 @@ class EmbedTimeoutTests(TestCase):
             RAG_EMBED_OPENAI_BASE_URL="http://x:8081",
             RAG_EMBED_OPENAI_MODEL="m",
             OLLAMA_EMBED_TIMEOUT_SECONDS=42,
-        ), patch("ai_assistant.services.urllib.request.urlopen", side_effect=fake_urlopen):
+        ), patch("ai_assistant.http_client.lan_urlopen", side_effect=fake_urlopen):
             services._openai_embed_texts(["a"])  # nessun override -> usa il setting
 
         self.assertEqual(captured["timeout"], 42)
@@ -4832,3 +4832,166 @@ class SkillMatrixPrivacySeedCommandTests(TestCase):
         self.assertEqual(
             AiToolPrivacyReview.objects.get(tool_key="skill_matrix").privacy_status, "pending"
         )
+
+
+class AffidabilitaCollegamentiTests(TestCase):
+    """Indice RAG in background senza fermare le chat, fallback embeddings mirato, proxy e scadenza."""
+
+    def setUp(self):
+        from ai_assistant import services
+
+        self.services = services
+        self._cache_prima = dict(services._KNOWLEDGE_CACHE)
+        services._OLLAMA_EMBED_BATCH_ASSENTE.clear()
+
+    def tearDown(self):
+        self.services._KNOWLEDGE_CACHE.clear()
+        self.services._KNOWLEDGE_CACHE.update(self._cache_prima)
+        self.services._OLLAMA_EMBED_BATCH_ASSENTE.clear()
+
+    @override_settings(OLLAMA_RAG_ENABLED=True, OLLAMA_RAG_CACHE_SECONDS=300, OLLAMA_RAG_BACKGROUND_REBUILD=True)
+    def test_chat_does_not_wait_for_background_rebuild(self):
+        import threading
+
+        services = self.services
+        vecchio = services.KnowledgeIndex(chunks=(), idf={}, avgdl=0.0)
+        services._KNOWLEDGE_CACHE.update(
+            {"loaded_at": 0.0, "signature": ("vecchia",), "index": vecchio, "complete": True, "rebuilding": False}
+        )
+        in_build = threading.Event()
+        sblocca = threading.Event()
+
+        def build_lenta(files, signature, *, max_compute):
+            in_build.set()
+            sblocca.wait(10)
+            return vecchio
+
+        risultati = []
+
+        def chat():
+            risultati.append(services._load_knowledge_index())
+
+        with patch.object(services, "_iter_knowledge_files", return_value=[]), \
+             patch.object(services, "_knowledge_signature", return_value=("nuova",)), \
+             patch.object(services, "_build_knowledge_index", side_effect=build_lenta), \
+             patch("django.db.connection.close"):
+            try:
+                prima = threading.Thread(target=chat)
+                prima.start()
+                prima.join(5)
+                self.assertTrue(in_build.wait(5), "la ricostruzione in background non e' partita")
+                # La build tiene il lock di build: una seconda chat deve rispondere subito con l'indice in memoria.
+                seconda = threading.Thread(target=chat)
+                seconda.start()
+                seconda.join(2)
+                self.assertFalse(seconda.is_alive(), "la chat aspetta la ricostruzione dell'indice")
+                self.assertEqual(len(risultati), 2)
+                self.assertTrue(all(r is vecchio for r in risultati))
+                self.assertFalse(services._start_background_rebuild())  # una sola ricostruzione alla volta
+            finally:
+                sblocca.set()
+                for t in threading.enumerate():
+                    if t.name == "ai-rag-rebuild":
+                        t.join(5)
+        self.assertFalse(services._KNOWLEDGE_CACHE["rebuilding"])
+
+    @override_settings(OLLAMA_API_PROVIDER="ollama", OLLAMA_BASE_URL="http://ollama.lan:11434", OLLAMA_EMBED_MODEL="demo-embed")
+    def test_embed_timeout_returns_none_without_legacy_fallback(self):
+        with patch("ai_assistant.http_client.lan_urlopen", side_effect=urllib.error.URLError(socket.timeout("timed out"))) as m, \
+             self.assertLogs("ai_assistant.services", level="WARNING") as logs:
+            out = self.services._ollama_embed_texts(["a", "b", "c"])
+        self.assertIsNone(out)
+        self.assertEqual(m.call_count, 1)  # niente /api/embeddings un testo per volta
+        self.assertIn("/api/embed", m.call_args.args[0].full_url)
+        self.assertTrue(any("timeout" in riga for riga in logs.output))
+
+    @override_settings(OLLAMA_API_PROVIDER="ollama", OLLAMA_BASE_URL="http://ollama.lan:11434", OLLAMA_EMBED_MODEL="demo-embed")
+    def test_embed_http_500_does_not_fall_back_to_legacy(self):
+        errore = urllib.error.HTTPError("http://ollama.lan:11434/api/embed", 500, "err", {}, None)
+        with patch("ai_assistant.http_client.lan_urlopen", side_effect=errore) as m:
+            self.assertIsNone(self.services._ollama_embed_texts(["a", "b"]))
+        self.assertEqual(m.call_count, 1)
+
+    @override_settings(OLLAMA_API_PROVIDER="ollama", OLLAMA_BASE_URL="http://ollama.lan:11434", OLLAMA_EMBED_MODEL="demo-embed")
+    def test_embed_404_uses_legacy_and_remembers_it(self):
+        class Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"embedding": [0.1, 0.2]}'
+
+        urls = []
+
+        def fake(request, timeout=None):
+            urls.append(request.full_url)
+            if request.full_url.endswith("/api/embed"):
+                raise urllib.error.HTTPError(request.full_url, 404, "not found", {}, None)
+            return Resp()
+
+        with patch("ai_assistant.http_client.lan_urlopen", side_effect=fake):
+            self.assertEqual(self.services._ollama_embed_texts(["a", "b"]), [[0.1, 0.2], [0.1, 0.2]])
+            self.assertEqual(self.services._ollama_embed_texts(["c"]), [[0.1, 0.2]])
+        self.assertEqual(urls.count("http://ollama.lan:11434/api/embed"), 1)  # memorizzato per il processo
+        self.assertEqual(urls.count("http://ollama.lan:11434/api/embeddings"), 3)
+
+    def test_lan_opener_ignores_environment_proxy(self):
+        import urllib.request
+
+        from ai_assistant import http_client
+
+        # ProxyHandler({}) sostituisce quello di default (che legge HTTP(S)_PROXY) e non registra proxy.
+        with patch.dict("os.environ", {"HTTP_PROXY": "http://proxy.example:3128", "HTTPS_PROXY": "http://proxy.example:3128"}):
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        self.assertFalse([h for h in opener.handlers if isinstance(h, urllib.request.ProxyHandler) and h.proxies])
+        self.assertFalse([h for h in http_client._LAN_OPENER.handlers if isinstance(h, urllib.request.ProxyHandler) and h.proxies])
+        self.assertFalse(http_client.lan_session().trust_env)
+
+    def test_error_kinds(self):
+        from ai_assistant import http_client
+
+        self.assertEqual(http_client.tipo_errore(urllib.error.URLError(socket.timeout("x"))), "timeout")
+        self.assertEqual(http_client.tipo_errore(TimeoutError()), "timeout")
+        self.assertEqual(http_client.tipo_errore(urllib.error.URLError(ConnectionRefusedError())), "connessione")
+        self.assertEqual(http_client.tipo_errore(urllib.error.HTTPError("u", 503, "x", {}, None)), "http")
+
+    def test_scadenza_caps_chat_timeout(self):
+        from ai_assistant import http_client
+
+        class Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"message": {"content": "ok"}, "model": "m", "done": true}'
+
+        with override_settings(OLLAMA_API_PROVIDER="ollama", OLLAMA_BASE_URL="http://ollama.lan:11434", OLLAMA_CHAT_MODEL="m",
+                               OLLAMA_RAG_ENABLED=False), \
+             patch("ai_assistant.http_client.lan_urlopen", return_value=Resp()) as m:
+            with http_client.scadenza(20):
+                self.services.chat_with_ollama("ciao", timeout=120)
+            self.assertLessEqual(m.call_args.kwargs["timeout"], 20)
+            self.services.chat_with_ollama("ciao", timeout=120)
+            self.assertEqual(m.call_args.kwargs["timeout"], 120)  # fuori dal giro: timeout configurato
+
+    def test_scadenza_esaurita_non_invia(self):
+        from ai_assistant import http_client
+
+        with override_settings(OLLAMA_API_PROVIDER="ollama", OLLAMA_BASE_URL="http://ollama.lan:11434", OLLAMA_CHAT_MODEL="m",
+                               OLLAMA_RAG_ENABLED=False), \
+             patch("ai_assistant.http_client.lan_urlopen") as m, http_client.scadenza(0):
+            with self.assertRaises(self.services.OllamaChatError):
+                self.services.chat_with_ollama("ciao", timeout=120)
+        m.assert_not_called()
+
+    @override_settings(RAG_EMBED_BACKEND="openai", RAG_EMBED_OPENAI_BASE_URL="http://tei.lan:8081")
+    def test_index_message_names_the_configured_backend(self):
+        testo = self.services._embed_backend_non_disponibile()
+        self.assertIn("tei.lan:8081", testo)
+        self.assertNotIn("Ollama", testo)

@@ -73,7 +73,10 @@ def token() -> str:
     cfg = credenziali()
     if not configurato():
         raise GraphError("Credenziali Graph non configurate (GRAPH_TENANT_ID/CLIENT_ID/CLIENT_SECRET).")
-    return acquire_graph_token(cfg["tenant_id"], cfg["client_id"], cfg["client_secret"])
+    try:
+        return acquire_graph_token(cfg["tenant_id"], cfg["client_id"], cfg["client_secret"])
+    except RuntimeError as exc:  # token non ottenuto: i chiamanti gestiscono solo GraphError
+        raise GraphError(str(exc)) from exc
 
 
 def token_defender() -> str:
@@ -96,7 +99,9 @@ def token_defender() -> str:
     risultato = app.acquire_token_for_client(scopes=[_SCOPE_DEFENDER])
     tok = risultato.get("access_token")
     if not tok:
-        raise GraphError(f"Token per Defender for Endpoint non ottenuto: {risultato.get('error') or 'errore'}.")
+        from core.graph_utils import descrivi_errore_token
+
+        raise GraphError(f"Token per Defender for Endpoint non ottenuto: {descrivi_errore_token(risultato)}.")
     _TOKEN_DEFENDER[chiave] = (tok, time.time() + int(risultato.get("expires_in", 3600)))
     return tok
 
@@ -118,39 +123,137 @@ def _invalida_token() -> None:
         pass
 
 
+class ElencoGraph(list):
+    """Elenco letto da Graph/Defender. ``troncata`` è vero se dopo ``max_pages`` restava un
+    ``@odata.nextLink``: l'elenco è parziale e chi cancella o segna gli assenti deve fermarsi."""
+
+    troncata: bool = False
+    prossimo_link: str = ""
+
+
+# Una sessione per processo: riusa le connessioni TLS verso Graph/Defender invece di aprirne
+# una a chiamata. Sono servizi internet: il proxy di sistema (HTTPS_PROXY) resta valido.
+_SESSION = None
+RETRY_STATI = (429, 503, 504)
+RETRY_MAX = 3
+RETRY_ATTESA_MAX = 10.0
+
+
+def _sessione():
+    global _SESSION
+    if _SESSION is None:
+        import requests
+
+        _SESSION = requests.Session()
+    return _SESSION
+
+
+def _servizio(url: str) -> str:
+    """Chi risponde, per i messaggi: Graph oppure l'API di Defender for Endpoint (che non è Graph)."""
+    return "Graph" if str(url).startswith("https://graph.microsoft.com/") else "L'API di Defender for Endpoint"
+
+
+def _host(url: str) -> str:
+    from urllib.parse import urlsplit
+
+    return urlsplit(str(url)).netloc or str(url)[:60]
+
+
+def _chi_risponde(resp, url: str) -> str:
+    """Se a rispondere non è il servizio Microsoft (proxy, pagina HTML), lo dice: Graph risponde in JSON."""
+    headers = getattr(resp, "headers", None)
+    if not hasattr(headers, "get"):
+        return ""
+    tipo = str(headers.get("Content-Type") or "")
+    server = str(headers.get("Server") or "")[:60]
+    if not tipo or "json" in tipo.lower():
+        return ""
+    return (f" La risposta non arriva da {_host(url)}"
+            + (f" (server «{server}»)" if server else "")
+            + ": risponde un proxy o un altro servizio.")
+
+
+def _codice_errore(resp) -> str:
+    try:
+        errore = resp.json().get("error")
+    except Exception:  # noqa: BLE001 - corpo non JSON
+        return ""
+    if isinstance(errore, dict):
+        return str(errore.get("code") or "")[:80]
+    return str(errore or "")[:80]
+
+
+def _attesa_retry(resp, tentativo: int) -> float:
+    headers = getattr(resp, "headers", None)
+    valore = str(headers.get("Retry-After") or "").strip() if hasattr(headers, "get") else ""
+    try:
+        attesa = float(valore) if valore else float(2 ** tentativo)
+    except ValueError:
+        attesa = float(2 ** tentativo)
+    return max(0.0, min(attesa, RETRY_ATTESA_MAX))
+
+
+def _dormi(secondi: float) -> None:
+    import time
+
+    time.sleep(secondi)
+
+
+def _errore_http(resp, url: str, permesso: str) -> GraphError:
+    """Messaggio per una risposta 4xx/5xx: 401 = token, 403 = permesso, gli altri con il codice di errore."""
+    servizio = _servizio(url)
+    codice = _codice_errore(resp)
+    dettaglio = f" (codice «{codice}»)" if codice else ""
+    stato = resp.status_code
+    if stato == 401:
+        testo = (f"{servizio} ha risposto 401{dettaglio}: token non accettato. Controlla il segreto dell'app "
+                 "(scaduto o sbagliato), l'ID tenant/app e l'orologio del server.")
+    elif stato == 403:
+        testo = (f"{servizio} ha risposto 403{dettaglio}: manca il permesso «{permesso}» (applicazione, con "
+                 "consenso amministratore) sull'app del portale.")
+    else:
+        testo = f"{servizio} ha risposto {stato}{dettaglio or ' (errore)'}."
+    return GraphError(testo + _chi_risponde(resp, url), stato)
+
+
 def get(url: str, *, permesso: str, params: dict | None = None, tok: str | None = None) -> dict:
     import requests
 
     if not url.startswith(_HOST_AMMESSI):
         raise GraphError("Indirizzo Graph non ammesso.")
-    resp = requests.get(
-        url, params=params, timeout=TIMEOUT,
-        headers={"Authorization": f"Bearer {tok or _token_per(url)}", "Accept": "application/json"},
-    )
+    headers = {"Authorization": f"Bearer {tok or _token_per(url)}", "Accept": "application/json"}
+    for tentativo in range(RETRY_MAX + 1):
+        try:
+            resp = _sessione().get(url, params=params, timeout=TIMEOUT, headers=headers)
+        except requests.RequestException as exc:
+            raise GraphError(f"{_host(url)} non raggiungibile ({type(exc).__name__}).") from exc
+        if resp.status_code in RETRY_STATI and tentativo < RETRY_MAX:
+            _dormi(_attesa_retry(resp, tentativo))
+            continue
+        break
     if resp.status_code in (401, 403):
         if url.startswith("https://graph.microsoft.com/"):
             _invalida_token()
         else:
             _TOKEN_DEFENDER.clear()
-        raise GraphError(
-            f"Graph ha risposto {resp.status_code}: manca il permesso «{permesso}» (applicazione, con consenso "
-            "amministratore) sull'app del portale, oppure le credenziali non sono valide.",
-            resp.status_code,
-        )
     if resp.status_code >= 400:
-        codice = ""
-        try:
-            codice = str((resp.json().get("error") or {}).get("code") or "")
-        except Exception:  # noqa: BLE001
-            pass
-        raise GraphError(f"Graph ha risposto {resp.status_code} ({codice or 'errore'}).", resp.status_code)
-    return resp.json()
+        raise _errore_http(resp, url, permesso)
+    try:
+        return resp.json()
+    except ValueError as exc:
+        raise GraphError(f"{_host(url)} ha risposto {resp.status_code} senza JSON leggibile."
+                         + _chi_risponde(resp, url), resp.status_code) from exc
 
 
-def get_all(url: str, *, permesso: str, params: dict | None = None, max_pages: int = MAX_PAGES) -> list[dict]:
-    """Tutte le pagine di una collezione (``value`` + ``@odata.nextLink``)."""
+def get_all(url: str, *, permesso: str, params: dict | None = None, max_pages: int = MAX_PAGES) -> ElencoGraph:
+    """Tutte le pagine di una collezione (``value`` + ``@odata.nextLink``).
+
+    Se dopo ``max_pages`` resta un ``@odata.nextLink`` l'elenco è parziale: ``troncata`` è vero e
+    ``prossimo_link`` dice da dove riprendere. Chi cancella o segna gli assenti deve controllarlo
+    (``troncata(elenco)``) e saltare la parte distruttiva.
+    """
     tok = _token_per(url)
-    out: list[dict] = []
+    out = ElencoGraph()
     for _ in range(max_pages):
         data = get(url, permesso=permesso, params=params, tok=tok)
         out.extend(v for v in data.get("value") or [] if isinstance(v, dict))
@@ -158,7 +261,16 @@ def get_all(url: str, *, permesso: str, params: dict | None = None, max_pages: i
         params = None  # il nextLink contiene già filtro e paginazione
         if not url:
             break
+    if url:
+        out.troncata = True
+        out.prossimo_link = url
+        logger.warning("Lettura troncata dopo %s pagine (%s righe) da %s", max_pages, len(out), _host(url))
     return out
+
+
+def troncata(elenco) -> bool:
+    """Vero se l'elenco viene da ``get_all`` ed è parziale (una lista qualunque vale come completa)."""
+    return bool(getattr(elenco, "troncata", False))
 
 
 def scrivi(metodo: str, url: str, *, permesso: str, json: dict | None = None) -> tuple[int, dict]:
@@ -168,21 +280,23 @@ def scrivi(metodo: str, url: str, *, permesso: str, json: dict | None = None) ->
 
     if not url.startswith("https://graph.microsoft.com/"):
         raise GraphError("Indirizzo Graph non ammesso.")
-    resp = requests.request(
-        metodo, url, json=json, timeout=TIMEOUT,
-        headers={"Authorization": f"Bearer {token()}", "Accept": "application/json"},
-    )
+    headers = {"Authorization": f"Bearer {token()}", "Accept": "application/json"}
+    for tentativo in range(RETRY_MAX + 1):
+        try:
+            resp = _sessione().request(metodo, url, json=json, timeout=TIMEOUT, headers=headers)
+        except requests.RequestException as exc:
+            raise GraphError(f"{_host(url)} non raggiungibile ({type(exc).__name__}).") from exc
+        # Solo 429 si ripete: la richiesta non è stata eseguita (con 503/504 una scrittura potrebbe esserlo).
+        if resp.status_code == 429 and tentativo < RETRY_MAX:
+            _dormi(_attesa_retry(resp, tentativo))
+            continue
+        break
     if resp.status_code in (401, 403):
         _invalida_token()
-        raise GraphError(
-            f"Graph ha risposto {resp.status_code}: manca il permesso «{permesso}» (applicazione, con consenso "
-            "amministratore) sull'app del portale, oppure le credenziali non sono valide.",
-            resp.status_code,
-        )
     if resp.status_code == 404:
         return 404, {}
     if resp.status_code >= 400:
-        raise GraphError(f"Graph ha risposto {resp.status_code}.", resp.status_code)
+        raise _errore_http(resp, url, permesso)
     try:
         return resp.status_code, (resp.json() if resp.content else {})
     except ValueError:

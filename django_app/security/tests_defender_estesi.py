@@ -135,8 +135,104 @@ class TokenDefenderTests(TestCase):
 
         with self.assertRaises(m365_graph.GraphError):
             m365_graph.get("https://esempio.it/api", permesso="x", tok="t")
-        with patch("requests.get") as get:
+        with patch.object(m365_graph._sessione(), "get") as get:
             get.return_value.status_code = 200
             get.return_value.json.return_value = {"value": []}
             m365_graph.get(defender_software.URL, permesso="x", tok="t")
         self.assertTrue(get.called)
+
+
+class LettureTroncateTests(TestCase):
+    """Lettura parziale (restava un @odata.nextLink): i passi distruttivi si saltano."""
+
+    def _parziale(self, righe):
+        from core.m365_graph import ElencoGraph
+
+        elenco = ElencoGraph(righe)
+        elenco.troncata = True
+        return elenco
+
+    def test_software_troncato_niente_import_niente_non_piu_rilevati(self):
+        with patch("security.services.defender_software._dopo_import"):
+            defender_software.sincronizza(righe=[_sw(), _sw(nome="chrome", vendor="google", versione="120.0")])
+            esito = defender_software.sincronizza(righe=self._parziale([_sw()]))
+        self.assertIn("troncata", esito["saltato"])
+        self.assertEqual(SoftwareInstallation.objects.filter(still_detected=True).count(), 2)
+        self.assertEqual(SoftwareInventoryImport.objects.count(), 1)
+
+    def test_vulnerabilita_troncate_dati_precedenti_invariati(self):
+        from security.models import DefenderVulnerabilita
+        from security.services import defender_vuln
+
+        pc = [{"id": "m1", "computerDnsName": "pc-sint-01.example.test"}]
+        righe = [{"machineId": "m1", "cveId": "CVE-2026-0001", "productName": "app", "productVersion": "1"},
+                 {"machineId": "m1", "cveId": "CVE-2026-0002", "productName": "app", "productVersion": "1"}]
+        defender_vuln.sincronizza(pc=pc, righe=righe)
+        esito = defender_vuln.sincronizza(pc=pc, righe=self._parziale(righe[:1]))
+        self.assertIn("troncata", esito["saltato"])
+        self.assertEqual(DefenderVulnerabilita.objects.count(), 2)
+        esito = defender_vuln.sincronizza(pc=self._parziale(pc), righe=righe[:1])
+        self.assertEqual(DefenderVulnerabilita.objects.count(), 2)
+
+
+class CursoreTroncatoTests(TestCase):
+    def setUp(self):
+        set_setting("defender.alert.attivo", True)
+        set_setting("defender.incidenti.attivo", True)
+
+    def _salvato(self, chiave):
+        from django.utils.dateparse import parse_datetime
+
+        from security.services.configuration import get_setting
+
+        return parse_datetime(str(get_setting(chiave, "")))
+
+    def test_alert_troncati_il_cursore_va_all_ultimo_letto_non_a_now(self):
+        from core.m365_graph import ElencoGraph
+
+        alerts = ElencoGraph([_alert("a1"), {**_alert("a2"), "lastUpdateDateTime": "2026-10-19T09:30:00Z"}])
+        alerts.troncata, alerts.ordinata = True, True
+        incidenti = ElencoGraph([_incidente(updated="2026-10-19T08:00:00Z")])
+        incidenti.troncata, incidenti.ordinata = True, True
+        with patch("security.services.defender_alerts.fetch_alerts", return_value=alerts), \
+             patch("security.services.defender_alerts.fetch_incidents", return_value=incidenti):
+            esito = defender_alerts.run(now=ORA)
+        self.assertIn("alert_troncati", esito)
+        self.assertEqual(self._salvato(defender_alerts.CURSOR_KEY), datetime(2026, 10, 19, 9, 30, tzinfo=dt_timezone.utc))
+        self.assertEqual(self._salvato(defender_alerts.CURSOR_INCIDENTS_KEY),
+                         datetime(2026, 10, 19, 8, 0, tzinfo=dt_timezone.utc))
+
+    def test_troncati_senza_ordinamento_il_cursore_non_avanza(self):
+        from core.m365_graph import ElencoGraph
+
+        alerts = ElencoGraph([_alert("a1")])
+        alerts.troncata, alerts.ordinata = True, False
+        set_setting("defender.incidenti.attivo", False)
+        defender_alerts._save_state(defender_alerts.CURSOR_KEY, "2026-10-18T10:00:00+00:00")
+        with patch("security.services.defender_alerts.fetch_alerts", return_value=alerts):
+            defender_alerts.run(now=ORA)
+        self.assertEqual(self._salvato(defender_alerts.CURSOR_KEY), datetime(2026, 10, 18, 10, 0, tzinfo=dt_timezone.utc))
+
+    def test_lettura_completa_cursore_a_now(self):
+        set_setting("defender.incidenti.attivo", False)
+        with patch("security.services.defender_alerts.fetch_alerts", return_value=[_alert("a1")]):
+            defender_alerts.run(now=ORA)
+        self.assertEqual(self._salvato(defender_alerts.CURSOR_KEY), ORA)
+
+    def test_fetch_alerts_ordina_e_ripiega_se_orderby_rifiutato(self):
+        class _R:
+            def __init__(self, status, payload=None):
+                self.status_code, self._p = status, payload or {}
+
+            def json(self):
+                return self._p
+
+        risposte = [_R(400), _R(200, {"value": [_alert("a1")], "@odata.nextLink":
+                                      "https://graph.microsoft.com/v1.0/security/alerts_v2?$skiptoken=x"})]
+        with patch("requests.get", side_effect=risposte + [risposte[1]] * 30) as get, \
+             patch.object(defender_alerts, "MAX_PAGES", 2):
+            elenco = defender_alerts.fetch_alerts(ORA, token="t")
+        self.assertIn("$orderby", get.call_args_list[0].kwargs["params"])
+        self.assertNotIn("$orderby", get.call_args_list[1].kwargs["params"])
+        self.assertTrue(elenco.troncata)
+        self.assertFalse(elenco.ordinata)

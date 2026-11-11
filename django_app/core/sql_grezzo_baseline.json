@@ -26,7 +26,7 @@
   "assenze/views/richieste.py": 9,
   "assenze/views/sharepoint.py": 1,
   "automazioni/package_importer.py": 4,
-  "automazioni/services.py": 26,
+  "automazioni/services.py": 27,
   "automazioni/tests.py": 1,
   "automazioni/views/coda.py": 1,
   "automazioni/views/regole.py": 4,

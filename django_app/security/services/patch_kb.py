@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from datetime import date, timedelta
 
 from django.utils import timezone
@@ -28,9 +29,15 @@ from security.models import MicrosoftCvrfMese, MicrosoftKbSostituzione
 logger = logging.getLogger(__name__)
 
 MSRC_BASE = "https://api.msrc.microsoft.com/cvrf/v3.0"
-MSRC_TIMEOUT = 180
+MSRC_TIMEOUT = (15, 60)  # connessione, lettura fra due blocchi
 MSRC_GIORNI = 400  # i documenti dell'ultimo anno (le catene di sostituzione dei cumulativi sono mensili)
 MSRC_RILETTURA = timedelta(hours=20)
+# CurrentReleaseDate non leggibile: non si sa se il documento è cambiato, si rilegge al massimo una volta a settimana
+MSRC_RILETTURA_SENZA_DATA = timedelta(days=7)
+MSRC_DOCUMENTI_PER_GIRO = 2  # ogni documento pesa decine di MB: gli altri mesi al giro dopo (lo stato è per mese)
+MSRC_TEMPO_MAX = 240  # secondi per tutti i documenti di un giro (timeout della coda del giro WatchGuard: 600 s)
+MSRC_MAX_BYTES = 200 * 1024 * 1024
+_BLOCCO = 1024 * 1024
 _MESE_RE = re.compile(r"^\d{4}-[A-Z][a-z]{2}$")
 _KB_RE = re.compile(r"(?<![a-z0-9])kb[\s-]?(\d{6,8})(?!\d)", re.IGNORECASE)
 _BUILD_RE = re.compile(r"OS Builds? ([^)]*)", re.IGNORECASE)
@@ -133,14 +140,32 @@ _PERCHE = {
 
 # --- Lettura dal Security Update Guide ---------------------------------------------------------
 
-def _scarica(url: str):
+class TempoEsaurito(RuntimeError):
+    """Il download non è finito nel tempo del giro: il documento si legge al giro dopo."""
+
+
+def _scarica(url: str, scadenza: float | None = None):
+    """JSON di un documento dell'API CVRF, scaricato a blocchi su file temporaneo (non tutto in memoria)."""
+    import json
+    import tempfile
+
     import requests
 
     if not url.startswith(MSRC_BASE + "/"):
         raise ValueError("solo l'API CVRF di Microsoft")
-    resp = requests.get(url, timeout=MSRC_TIMEOUT, headers={"Accept": "application/json"})
-    resp.raise_for_status()
-    return resp.json()
+    with requests.get(url, timeout=MSRC_TIMEOUT, headers={"Accept": "application/json"}, stream=True) as resp:
+        resp.raise_for_status()
+        with tempfile.TemporaryFile() as tmp:
+            letti = 0
+            for blocco in resp.iter_content(chunk_size=_BLOCCO):
+                letti += len(blocco)
+                if letti > MSRC_MAX_BYTES:
+                    raise ValueError(f"documento Microsoft oltre {MSRC_MAX_BYTES // (1024 * 1024)} MB")
+                if scadenza is not None and time.monotonic() > scadenza:
+                    raise TempoEsaurito("download interrotto: tempo del giro esaurito")
+                tmp.write(blocco)
+            tmp.seek(0)
+            return json.load(tmp)
 
 
 def sostituzioni_da_cvrf(doc: dict) -> set:
@@ -159,29 +184,66 @@ def sostituzioni_da_cvrf(doc: dict) -> set:
     return coppie
 
 
-def sincronizza_msrc(now=None, *, scarica=None) -> dict:
-    """Documenti CVRF dell'ultimo anno nuovi o aggiornati → ``MicrosoftKbSostituzione``."""
+def _da_leggere(stato, aggiornato, now) -> bool:
+    if not stato or not stato.letto_il:
+        return True
+    if aggiornato is None:
+        # data di Microsoft non leggibile: mai «uguale a quella salvata» per sempre, ma nemmeno ogni giorno
+        return now - stato.letto_il >= MSRC_RILETTURA_SENZA_DATA
+    return stato.aggiornato_il != aggiornato and now - stato.letto_il >= MSRC_RILETTURA
+
+
+def _data(valore):
+    try:
+        return parse_datetime(str(valore or ""))
+    except ValueError:  # data con forma giusta ma valori impossibili
+        return None
+
+
+def sincronizza_msrc(now=None, *, scarica=None, clock=time.monotonic) -> dict:
+    """Documenti CVRF dell'ultimo anno nuovi o aggiornati → ``MicrosoftKbSostituzione``.
+
+    Al massimo ``MSRC_DOCUMENTI_PER_GIRO`` documenti e ``MSRC_TEMPO_MAX`` secondi per giro, i più recenti
+    prima: i mesi rimasti si leggono ai giri successivi (lo stato di ogni mese è in ``MicrosoftCvrfMese``).
+    """
     now = now or timezone.now()
-    scarica = scarica or _scarica
+    scadenza = clock() + MSRC_TEMPO_MAX
+    if scarica is None:
+        def scarica(url):
+            return _scarica(url, scadenza=scadenza)
     elenco = (scarica(f"{MSRC_BASE}/updates") or {}).get("value") or []
-    letti, nuove = [], 0
+    candidati = []
     for voce in elenco:
         mese = str(voce.get("ID") or "")
-        inizio = parse_datetime(str(voce.get("InitialReleaseDate") or ""))
+        inizio = _data(voce.get("InitialReleaseDate"))
         if not _MESE_RE.match(mese) or not inizio or inizio < now - timedelta(days=MSRC_GIORNI):
             continue
-        aggiornato = parse_datetime(str(voce.get("CurrentReleaseDate") or ""))
-        stato = MicrosoftCvrfMese.objects.filter(mese=mese).first()
-        if stato and stato.letto_il and (stato.aggiornato_il == aggiornato or now - stato.letto_il < MSRC_RILETTURA):
+        aggiornato = _data(voce.get("CurrentReleaseDate"))
+        if _da_leggere(MicrosoftCvrfMese.objects.filter(mese=mese).first(), aggiornato, now):
+            candidati.append((inizio, mese, aggiornato))
+    candidati.sort(reverse=True)
+    letti, nuove, rimandati = [], 0, 0
+    for _inizio, mese, aggiornato in candidati:
+        if len(letti) >= MSRC_DOCUMENTI_PER_GIRO or clock() >= scadenza:
+            rimandati += 1
             continue
-        coppie = sostituzioni_da_cvrf(scarica(f"{MSRC_BASE}/cvrf/{mese}") or {})
-        esistenti = set(MicrosoftKbSostituzione.objects.filter(kb__in={k for k, _ in coppie})
-                        .values_list("kb", "sostituita")) if coppie else set()
+        try:
+            doc = scarica(f"{MSRC_BASE}/cvrf/{mese}") or {}
+        except TempoEsaurito:
+            rimandati += 1
+            continue
+        coppie = sostituzioni_da_cvrf(doc)
+        kbs, esistenti = sorted({k for k, _ in coppie}), set()
+        for i in range(0, len(kbs), 500):  # mai oltre i 2100 parametri di SQL Server
+            esistenti |= set(MicrosoftKbSostituzione.objects.filter(kb__in=kbs[i:i + 500]).values_list("kb", "sostituita"))
         mancanti = [MicrosoftKbSostituzione(kb=k, sostituita=s, mese=mese) for k, s in sorted(coppie - esistenti)]
         MicrosoftKbSostituzione.objects.bulk_create(mancanti, batch_size=500)
         nuove += len(mancanti)
         MicrosoftCvrfMese.objects.update_or_create(mese=mese, defaults={
             "aggiornato_il": aggiornato, "letto_il": now, "sostituzioni": len(coppie)})
         letti.append(mese)
-    return {"documenti_letti": letti, "sostituzioni_nuove": nuove,
-            "sostituzioni_totali": MicrosoftKbSostituzione.objects.count()}
+    out = {"documenti_letti": letti, "sostituzioni_nuove": nuove,
+           "sostituzioni_totali": MicrosoftKbSostituzione.objects.count()}
+    if rimandati:
+        out["documenti_rimandati"] = rimandati
+    return out

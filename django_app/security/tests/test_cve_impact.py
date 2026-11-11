@@ -543,7 +543,7 @@ class ViewTests(_Base):
         self.client.force_login(viewer)
         with patch("security.views_vuln.can_view_security_center", return_value=True), \
                 patch("core.middleware.ACLMiddleware.__call__", lambda self, r: self.get_response(r), create=True):
-            response = self.client.post(reverse("security:software_mapping"), {"action": "nvd_key", "nvd_key": "x"})
+            response = self.client.post(reverse("security:software_mapping"), {"action": "nvd_key", "nvd_key": "00000000-0000-4000-8000-000000000000"})
         self.assertEqual(response.status_code, 302)
         self.assertFalse(SecurityCenterSetting.objects.filter(key=cve_feeds.NVD_KEY_SETTING).exists())
 

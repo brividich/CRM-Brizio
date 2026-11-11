@@ -159,7 +159,7 @@ def run_maintenance_reminders() -> dict:
         raise
 
 
-def run_periodic_check_intake(limit: int | None = None) -> dict:
+def run_periodic_check_intake(limit: int | None = None, force: bool = False) -> dict:
     """Legge i fogli di verifica depositati dallo scanner nella cartella di pescaggio.
 
     **Opt-in / fail-safe**: no-op se l'acquisizione e' spenta
@@ -169,7 +169,7 @@ def run_periodic_check_intake(limit: int | None = None) -> dict:
     from assets.services.periodic_intake import process_folder
 
     try:
-        return {"ok": True, **process_folder(limit=limit)}
+        return {"ok": True, **process_folder(limit=limit, force=force)}
     except Exception:
         logger.exception("run_periodic_check_intake: passaggio fallito")
         return {"ok": False, "riepilogo": "Errore nel passaggio sulla cartella"}

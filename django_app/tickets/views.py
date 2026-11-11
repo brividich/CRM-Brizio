@@ -2762,10 +2762,18 @@ def api_impostazioni(request):
     if tipo not in (TipoTicket.IT, TipoTicket.MAN):
         return _json_err("Tipo non valido")
 
+    from .sharepoint_man import errore_list_id, errore_site_id
+
     cfg = TicketImpostazioni.get_or_create_for(tipo)
-    cfg.sharepoint_list_id = (payload.get("sharepoint_list_id") or "").strip()[:100]
+    list_id = (payload.get("sharepoint_list_id") or "").strip()
+    if errore_list_id(list_id) or len(list_id) > 100:
+        return _json_err(errore_list_id(list_id) or "List ID troppo lungo.")
+    cfg.sharepoint_list_id = list_id.strip("{}")
     if tipo == TipoTicket.MAN:
-        cfg.sharepoint_site_id = (payload.get("sharepoint_site_id") or "").strip()[:200]
+        site_id = (payload.get("sharepoint_site_id") or "").strip()
+        if errore_site_id(site_id) or len(site_id) > 200:
+            return _json_err(errore_site_id(site_id) or "Site ID troppo lungo.")
+        cfg.sharepoint_site_id = site_id
         cfg.sharepoint_sync_attivo = bool(payload.get("sharepoint_sync_attivo"))
         if cfg.sharepoint_sync_attivo and not (cfg.sharepoint_site_id and cfg.sharepoint_list_id):
             return _json_err("Per attivare la sincronizzazione servono Site ID e List ID.")

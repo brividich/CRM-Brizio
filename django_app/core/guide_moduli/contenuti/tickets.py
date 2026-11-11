@@ -186,6 +186,14 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "«List ID non valido» o «Site ID non valido» al salvataggio delle impostazioni",
+            "fare": [
+                "Il List ID è il GUID della lista (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx), non il nome né l'indirizzo della pagina.",
+                "Il Site ID ha la forma «tenant.sharepoint.com,guid-del-sito,guid-del-web»: lo si legge da Graph Explorer "
+                "(sites/tenant.sharepoint.com:/sites/NomeSito).",
+            ],
+        },
+        {
             "sintomo": 'I numeri in testa alla gestione ticket comprendono tipi che non gestisco',
             "fare": [
                 'Ora contano solo i tipi che gestisci (IT, manutenzione o entrambi), come le liste sotto.',

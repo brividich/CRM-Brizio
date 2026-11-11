@@ -7,12 +7,22 @@ con le credenziali Graph del portale (``GRAPH_*`` nel ``.env``; l'app deve avere
 """
 from __future__ import annotations
 
+import hashlib
 import logging
+import time
 from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+
+# Ogni chiamata Graph ha il suo timeout e la pubblicazione intera un budget: il
+# task gira ogni 30 minuti nel worker (timeout 120 s) e tre chiamate da 60 s
+# potevano farlo uccidere a metà.
+TIMEOUT_GRAPH_SECONDI = 20
+BUDGET_PUBBLICAZIONE_SECONDI = 75
+# ID di sito e raccolta cambiano solo se cambiano le impostazioni: si ricordano.
+_TTL_DRIVE = 24 * 3600
 
 # chiave SiteConfig: (predefinito, descrizione)
 CAMPI = {
@@ -63,9 +73,58 @@ def _intestazioni() -> dict[str, str]:
     return {"Authorization": f"Bearer {acquire_graph_token(tenant, client, segreto)}"}
 
 
-def pubblica_su_sharepoint(contenuto: bytes, timeout: int = 60) -> str:
-    """Carica il PDF nella raccolta configurata. Ritorna il ``webUrl`` del file."""
+def _chiave_drive(host: str, sito: str, raccolta: str) -> str:
+    impronta = hashlib.sha1(f"{host}|{sito}|{raccolta}".lower().encode("utf-8")).hexdigest()[:16]
+    return f"presenti:sp_drive:{impronta}"
+
+
+def _drive_id(h: dict, host: str, sito: str, raccolta: str, tempo) -> str:
+    """ID della raccolta: dalla cache, o da due chiamate Graph (sito, poi raccolte)."""
     import requests
+    from django.core.cache import cache
+
+    chiave = _chiave_drive(host, sito, raccolta)
+    try:
+        ricordato = cache.get(chiave)
+    except Exception:
+        ricordato = None
+    if ricordato:
+        return ricordato
+
+    url_sito = f"{GRAPH_BASE}/sites/{host}:/{quote(sito)}" if sito else f"{GRAPH_BASE}/sites/{host}"
+    r = requests.get(url_sito, headers=h, timeout=tempo())
+    r.raise_for_status()
+    sito_id = r.json()["id"]
+
+    r = requests.get(f"{GRAPH_BASE}/sites/{sito_id}/drives", headers=h, timeout=tempo())
+    r.raise_for_status()
+    drive_id = next((d["id"] for d in r.json().get("value", []) if d.get("name") == raccolta), None)
+    if not drive_id:
+        raise ValueError(f"Raccolta «{raccolta}» non trovata nel sito.")
+    try:
+        cache.set(chiave, drive_id, _TTL_DRIVE)
+    except Exception:
+        pass
+    return drive_id
+
+
+def pubblica_su_sharepoint(contenuto: bytes, timeout: int = TIMEOUT_GRAPH_SECONDI,
+                           budget: float = BUDGET_PUBBLICAZIONE_SECONDI) -> str:
+    """Carica il PDF nella raccolta configurata. Ritorna il ``webUrl`` del file.
+
+    Ogni chiamata ha al massimo ``timeout`` secondi e tutte insieme ``budget``:
+    oltre, ``TimeoutError`` (il file pubblicato prima resta com'è).
+    """
+    import requests
+    from django.core.cache import cache
+
+    scadenza = time.monotonic() + budget
+
+    def tempo() -> float:
+        resto = scadenza - time.monotonic()
+        if resto <= 1:
+            raise TimeoutError("SharePoint non ha risposto entro il tempo massimo della pubblicazione.")
+        return min(float(timeout), resto)
 
     host = leggi("presenti_sp_hostname")
     sito = leggi("presenti_sp_sito").strip("/")
@@ -75,22 +134,22 @@ def pubblica_su_sharepoint(contenuto: bytes, timeout: int = 60) -> str:
     if not host or not raccolta:
         raise ValueError("Hostname o raccolta SharePoint non impostati.")
     h = _intestazioni()
-
-    url_sito = f"{GRAPH_BASE}/sites/{host}:/{quote(sito)}" if sito else f"{GRAPH_BASE}/sites/{host}"
-    r = requests.get(url_sito, headers=h, timeout=timeout)
-    r.raise_for_status()
-    sito_id = r.json()["id"]
-
-    r = requests.get(f"{GRAPH_BASE}/sites/{sito_id}/drives", headers=h, timeout=timeout)
-    r.raise_for_status()
-    drive_id = next((d["id"] for d in r.json().get("value", []) if d.get("name") == raccolta), None)
-    if not drive_id:
-        raise ValueError(f"Raccolta «{raccolta}» non trovata nel sito.")
-
     percorso = f"{cartella}/{nome}" if cartella else nome
-    r = requests.put(
-        f"{GRAPH_BASE}/drives/{drive_id}/root:/{quote(percorso)}:/content",
-        headers={**h, "Content-Type": "application/pdf"}, data=contenuto, timeout=timeout,
-    )
+
+    for tentativo in (1, 2):
+        drive_id = _drive_id(h, host, sito, raccolta, tempo)
+        r = requests.put(
+            f"{GRAPH_BASE}/drives/{drive_id}/root:/{quote(percorso)}:/content",
+            headers={**h, "Content-Type": "application/pdf"}, data=contenuto, timeout=tempo(),
+        )
+        if r.status_code == 404 and tentativo == 1:
+            # ID ricordato non più valido (raccolta ricreata): si dimentica e si riprova.
+            try:
+                cache.delete(_chiave_drive(host, sito, raccolta))
+            except Exception:
+                pass
+            continue
+        r.raise_for_status()
+        return r.json().get("webUrl", "")
     r.raise_for_status()
-    return r.json().get("webUrl", "")
+    return ""

@@ -146,6 +146,32 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+# Impronta ricordata per percorso + dimensione + data di modifica: rileggere via
+# SMB ogni PDF della share a ogni sync costava minuti per niente.
+_CHIAVE_STAT = "procedure_refresh:sgi_stat:{}"
+_TTL_STAT = 60 * 24 * 3600
+
+
+def _sha256_con_cache(path: Path, stat) -> str:
+    """SHA-256 del file, riletto solo se percorso, dimensione o data di modifica cambiano."""
+    from django.core.cache import cache
+
+    chiave = _CHIAVE_STAT.format(hashlib.sha1(str(path).lower().encode("utf-8")).hexdigest())
+    firma = [int(stat.st_size), int(getattr(stat, "st_mtime_ns", 0) or int(stat.st_mtime * 1e9))]
+    try:
+        ricordo = cache.get(chiave)
+    except Exception:
+        ricordo = None
+    if isinstance(ricordo, dict) and ricordo.get("firma") == firma and ricordo.get("sha"):
+        return ricordo["sha"]
+    sha = _sha256(path)
+    try:
+        cache.set(chiave, {"firma": firma, "sha": sha}, _TTL_STAT)
+    except Exception:
+        pass
+    return sha
+
+
 def _title_key(title: str) -> str:
     """Chiave di confronto titoli: minuscolo, solo alfanumerici, spazi normalizzati.
 
@@ -241,16 +267,17 @@ def _pdf_rank(info: dict) -> int:
 
 
 def scan_share_candidates(
-    root: Path, *, solo_procedure: bool = False, limit: int = 0
+    root: Path, *, solo_procedure: bool = False, limit: int = 0, files: list[Path] | None = None
 ) -> tuple[list[dict], list[dict], list[dict]]:
     """Scansiona la share (esclusa ``SUPERATO``), parserizza i nomi e deduplica.
 
     Sola lettura del file system, nessuna scrittura DB. Ritorna
     ``(candidates, skipped, conflicts)``. Riusata dal comando e dal watchdog di drift.
+    ``files`` evita di rielencare la share via SMB quando l'elenco c'è già.
     """
     parsed: list[dict] = []
     skipped: list[dict] = []
-    for pdf in _scan_files(root):
+    for pdf in (files if files is not None else _scan_files(root)):
         full = str(pdf)
         if _SUPERATO_RE.search(full):
             continue
@@ -278,9 +305,13 @@ def scan_share_candidates(
 def upsert_candidate(info: dict) -> tuple[str, bool]:
     """Crea/aggiorna documento + revisione corrente da un candidato parserizzato.
 
-    Ritorna ``(stato_doc, rev_creata)`` con ``stato_doc`` in {"created","updated"}.
-    Funzione modulare riusata sia dal comando ``import_sgi_da_share`` sia dal task
-    di sincronizzazione automatica ``run_sgi_auto_sync``.
+    Ritorna ``(stato_doc, rev_creata)`` con ``stato_doc`` in
+    {"created", "updated", "unchanged"}: «unchanged» quando documento e revisione
+    corrente puntano già allo stesso file con la stessa impronta — nessuna
+    scrittura, così il contatore degli aggiornati non si gonfia e non scatena un
+    re-index completo. Funzione modulare riusata sia dal comando
+    ``import_sgi_da_share`` sia dal task di sincronizzazione automatica
+    ``run_sgi_auto_sync``.
     """
     doc, doc_created = ProcedureDocument.objects.get_or_create(
         code=info["code"],
@@ -295,17 +326,19 @@ def upsert_candidate(info: dict) -> tuple[str, bool]:
         },
     )
     doc_state = "created"
+    doc_riattivato = False
     if not doc_created:
         doc_state = "updated"
         if not doc.is_active:
             doc.is_active = True
             doc.save(update_fields=["is_active", "updated_at"])
+            doc_riattivato = True
 
     path = Path(info["path"])
     try:
         stat = path.stat()
         file_date = date.fromtimestamp(stat.st_mtime)
-        file_hash = _sha256(path)
+        file_hash = _sha256_con_cache(path, stat)
     except OSError:
         file_date = timezone.localdate()
         file_hash = ""
@@ -324,6 +357,17 @@ def upsert_candidate(info: dict) -> tuple[str, bool]:
         },
     )
     if not rev_created:
+        invariata = (
+            not doc_riattivato
+            and file_hash
+            and rev.is_current
+            and rev.source_type == SourceType.FILESERVER
+            and rev.source_path == info["path"]
+            and rev.file_name == info["file_name"]
+            and rev.file_hash == file_hash
+        )
+        if invariata:
+            return "unchanged", False
         rev.source_type = SourceType.FILESERVER
         rev.source_path = info["path"]
         rev.file_name = info["file_name"]
@@ -407,7 +451,7 @@ def filter_auto_safe(candidates: list[dict]) -> tuple[list[dict], list[dict]]:
             continue
         doc = existing.get(info["code"])
         if doc is None:
-            safe.append(info)
+            safe.append({**info, "nuovo": True})
         elif _doc_is_import_child(doc):
             safe.append(info)
         elif _candidate_is_newer_revision(info, doc):
@@ -426,7 +470,10 @@ def detect_share_drift(root: Path, *, solo_procedure: bool = False) -> dict:
     disattivazione restano azioni umane (--apply)."""
     from procedure_refresh.models import ProcedureDocument, SourceType
 
-    candidates, _skipped, _conflicts = scan_share_candidates(root, solo_procedure=solo_procedure)
+    elencati = _scan_files(root)
+    candidates, _skipped, _conflicts = scan_share_candidates(
+        root, solo_procedure=solo_procedure, files=elencati
+    )
     db_current: dict[str, str] = {}
     active_docs = list(
         ProcedureDocument.objects.filter(is_active=True).prefetch_related("revisions")
@@ -451,36 +498,97 @@ def detect_share_drift(root: Path, *, solo_procedure: bool = False) -> dict:
                 "file_name": info.get("file_name", ""),
             })
 
-    # Documenti "spariti": revisione corrente su file server il cui path non esiste
-    # più o è passato sotto SUPERATO. Solo notifica: la disattivazione resta umana
-    # (requisito ISO "prevenire l'uso di documenti obsoleti").
+    # Documenti "spariti": revisione corrente su file server il cui path non è fra
+    # i file appena elencati (nessun Path.exists() uno per uno via SMB) o è passato
+    # sotto SUPERATO. Solo notifica: la disattivazione resta umana (requisito ISO
+    # "prevenire l'uso di documenti obsoleti").
+    # Se l'elenco è crollato rispetto all'ultima scansione, è più probabile un
+    # problema di permessi dell'utente del servizio che una share svuotata: in quel
+    # caso gli «spariti» non si calcolano (sarebbero falsi allarmi a pioggia).
+    elenco_parziale, motivo_parziale = _elenco_sospetto(len(elencati))
     missing_docs: list[dict] = []
-    for doc in active_docs:
-        rev = doc.current_revision()
-        if rev is None or rev.source_type != SourceType.FILESERVER:
-            continue
-        path_str = rev.source_path or ""
-        if not path_str:
-            continue
-        gone = _SUPERATO_RE.search(path_str)
-        if not gone:
-            try:
-                gone = not Path(path_str).exists()
-            except OSError:
-                gone = True
-        if gone:
-            missing_docs.append({
-                "code": doc.code, "title": doc.title,
-                "revision": rev.revision_code, "source_path": path_str,
-            })
+    if not elenco_parziale:
+        presenti = {_chiave_percorso(str(p)) for p in elencati}
+        radice = _chiave_percorso(str(root)) + "\\"
+        for doc in active_docs:
+            rev = doc.current_revision()
+            if rev is None or rev.source_type != SourceType.FILESERVER:
+                continue
+            path_str = rev.source_path or ""
+            if not path_str:
+                continue
+            chiave = _chiave_percorso(path_str)
+            gone = bool(_SUPERATO_RE.search(path_str))
+            if not gone and chiave not in presenti:
+                if chiave.startswith(radice):
+                    gone = True  # sotto la radice elencata e non c'è: sparito
+                else:
+                    # Percorso scritto in un'altra forma (alias del server, vecchia
+                    # radice): qui sola, eccezionalmente, la verifica puntuale.
+                    try:
+                        gone = not Path(path_str).exists()
+                    except OSError:
+                        gone = True
+            if gone:
+                missing_docs.append({
+                    "code": doc.code, "title": doc.title,
+                    "revision": rev.revision_code, "source_path": path_str,
+                })
 
     return {
         "total_candidates": len(candidates),
         "in_db": len(db_current),
+        "file_elencati": len(elencati),
         "new": new_docs,
         "updated": updated_docs,
         "missing": missing_docs,
+        "missing_saltati": elenco_parziale,
+        "missing_motivo": motivo_parziale,
     }
+
+
+# Sotto questa frazione dell'ultima scansione registrata l'elenco si considera
+# parziale (permessi dell'utente del servizio, share montata a metà).
+SOGLIA_ELENCO_PARZIALE = 0.8
+
+
+def _chiave_percorso(percorso: str) -> str:
+    """Percorsi confrontabili su Windows: maiuscole/minuscole e separatori indifferenti."""
+    return percorso.replace("/", "\\").rstrip("\\").casefold()
+
+
+DRIFT_ULTIMO_ELENCO_KEY = "pr_sgi_drift_ultimo_elenco"
+
+
+def _elenco_sospetto(n_elencati: int) -> tuple[bool, str]:
+    """L'elenco di file è molto più corto dell'ultima scansione?
+
+    Riferimento: l'ultimo controllo di drift, o in mancanza l'ultima scansione con
+    ``--apply``. Il numero del controllo si registra sempre, così una riduzione
+    vera della share viene segnalata una volta e poi accettata.
+    """
+    from core.models import SiteConfig
+
+    def _numero(chiave: str) -> int:
+        try:
+            dato = json.loads(SiteConfig.get(chiave, "") or "null")
+            return int((dato or {}).get("file_elencati") or 0)
+        except (TypeError, ValueError, AttributeError):
+            return 0
+
+    precedenti = _numero(DRIFT_ULTIMO_ELENCO_KEY) or _numero(SCANSIONE_ULTIMA_KEY)
+    try:
+        SiteConfig.set(DRIFT_ULTIMO_ELENCO_KEY, json.dumps({"file_elencati": n_elencati}),
+                       "Controllo drift SGI: file elencati all'ultimo controllo.")
+    except Exception:
+        pass
+    if precedenti and n_elencati < precedenti * SOGLIA_ELENCO_PARZIALE:
+        return True, (
+            f"File elencati {n_elencati}, all'ultima scansione registrata {precedenti}: "
+            "elenco probabilmente parziale (permessi dell'utente del servizio), "
+            "documenti spariti non calcolati."
+        )
+    return False, ""
 
 
 SCANSIONE_ULTIMA_KEY = "pr_sgi_scan_ultima"
@@ -574,21 +682,23 @@ class Command(BaseCommand):
         # 0) Chi scandisce e quanti file vede: con l'enumerazione per permessi, utenti
         #    diversi vedono elenchi diversi (es. documenti riservati). Solo segnalazione.
         utente = utente_processo()
-        n_elencati = len(_scan_files(root))
+        elencati = _scan_files(root)
+        n_elencati = len(elencati)
         ultima_scansione, avviso_scansione = confronto_scansione(n_elencati, utente)
 
         # 1) Scansione + 2) dedup titolo-aware (logica riusabile, vedi scan_share_candidates).
         candidates, skipped, conflicts = scan_share_candidates(
-            root, solo_procedure=solo_procedure, limit=limit
+            root, solo_procedure=solo_procedure, limit=limit, files=elencati
         )
 
         # 3) Applica (o simula).
-        created_docs = updated_docs = created_revs = 0
+        created_docs = updated_docs = created_revs = unchanged_docs = 0
         if apply:
             for info in candidates:
                 c_doc, c_rev = self._upsert(info)
                 created_docs += int(c_doc == "created")
                 updated_docs += int(c_doc == "updated")
+                unchanged_docs += int(c_doc == "unchanged")
                 created_revs += int(c_rev)
 
             if not limit:
@@ -612,6 +722,7 @@ class Command(BaseCommand):
             "conflitti": len(conflicts),
             "documenti_creati": created_docs if apply else None,
             "documenti_aggiornati": updated_docs if apply else None,
+            "documenti_invariati": unchanged_docs if apply else None,
             "revisioni_create": created_revs if apply else None,
         }
 
@@ -669,7 +780,8 @@ class Command(BaseCommand):
         self.stdout.write("-" * 78)
         if apply:
             self.stdout.write(self.style.SUCCESS(
-                f"Scritti: {created_docs} documenti nuovi, {updated_docs} aggiornati, {created_revs} revisioni."
+                f"Scritti: {created_docs} documenti nuovi, {updated_docs} aggiornati, {created_revs} revisioni "
+                f"({unchanged_docs} invariati, non riscritti)."
             ))
             self.stdout.write("Ora: python manage.py index_sgi_documents per indicizzarli nel RAG.")
         else:

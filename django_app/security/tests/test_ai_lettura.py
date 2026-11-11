@@ -169,3 +169,22 @@ class PaginaParserTests(TestCase):
         response = self.client.get(self.url)
         self.assertContains(response, "Letture da verificare")
         self.assertContains(response, "Manca il conteggio")
+
+
+class LetturaScadenzaTests(TestCase):
+    setUp = GiroTests.setUp
+
+    def test_round_runs_within_a_deadline_under_the_worker_timeout(self):
+        from ai_assistant import http_client
+        from security.services.cpe_ai import TETTO_PIANIFICATO
+
+        residui = []
+
+        def _ask(*args, **kwargs):
+            residui.append(http_client.residuo())
+            return _answer({"spiegazione": "x"})
+
+        with mock.patch(ASK, side_effect=_ask):
+            ai_lettura.leggi_candidati(limit=10)
+        self.assertTrue(residui)
+        self.assertTrue(all(r is not None and 0 < r <= TETTO_PIANIFICATO for r in residui))

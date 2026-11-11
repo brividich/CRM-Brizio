@@ -27,6 +27,39 @@ _SYNC_PULL_LOCK_TTL = 120
 _SP_DELTA_LINK_KEY = "assenze:sp_delta_link"
 
 
+def _leggi_delta_link() -> str:
+    """Token delta salvato. Sta in ``SiteConfig`` (durevole: la cache può perderlo e allora si
+    rifà la lettura completa); la cache, dove stava prima, vale solo come ripiego finché il
+    primo giro riuscito non lo sposta."""
+    from core.models import SiteConfig
+
+    return SiteConfig.get(_SP_DELTA_LINK_KEY, "") or cache.get(_SP_DELTA_LINK_KEY) or ""
+
+
+def _salva_delta_link(link: str) -> None:
+    from core.models import SiteConfig
+
+    if SiteConfig.set(_SP_DELTA_LINK_KEY, link, "Token delta della sincronizzazione assenze con SharePoint"):
+        cache.delete(_SP_DELTA_LINK_KEY)
+    else:  # DB non scrivibile: almeno in cache, come prima
+        cache.set(_SP_DELTA_LINK_KEY, link, timeout=None)
+
+
+def _dettaglio_elemento(sp_id: str) -> dict | None:
+    """Elemento SharePoint con i campi. None se non c'è più (404: il prossimo delta lo darà
+    eliminato); solleva sugli altri errori, così il giro conta un fallito e il token non avanza."""
+    import requests
+    from urllib.parse import quote
+
+    r = requests.get(f"{_helpers._graph_base_url()}/{quote(str(sp_id), safe='')}?expand=fields",
+                     headers=_helpers._graph_headers(), timeout=20)
+    if r.status_code == 404:
+        return None
+    if r.status_code != 200:
+        raise RuntimeError(f"dettaglio dell'elemento SharePoint {sp_id} non letto (Graph {r.status_code})")
+    return r.json()
+
+
 def _sync_push(limit_rows: int = 30, include_updates: bool = False) -> dict:
     if not _helpers._table_exists("assenze"):
         return {"ok": False, "error": "Tabella assenze non disponibile"}
@@ -106,7 +139,7 @@ def _sync_pull_from_sharepoint() -> dict:
     if not _helpers._graph_configured():
         return {"ok": False, "error": "SharePoint non configurato"}
 
-    delta_link = cache.get(_SP_DELTA_LINK_KEY) or None
+    delta_link = _leggi_delta_link() or None
     items, new_link = _helpers._graph_delta_changes(delta_link)
 
     # Lo stesso elemento puo' comparire piu' volte nel feed: vale l'ultima occorrenza.
@@ -137,8 +170,9 @@ def _sync_pull_from_sharepoint() -> dict:
                         _helpers.logger.info("[assenze:sp_pull] assenza %s eliminata: rimossa su SharePoint (item %s)", row_id, sp_id)
                     continue
                 if not item.get("fields"):
-                    item = _helpers._graph_get_item(sp_id)
+                    item = _dettaglio_elemento(sp_id)
                     if not item:
+                        _helpers.logger.info("[assenze:sp_pull] item SharePoint %s non piu' presente (404)", sp_id)
                         continue
                 if row_id is None:
                     # Elemento SharePoint mai collegato: se il portale ha gia' la stessa
@@ -166,7 +200,7 @@ def _sync_pull_from_sharepoint() -> dict:
 
     # Con errori il token non avanza: il giro dopo rilegge le stesse modifiche.
     if new_link and totals["failed"] == 0:
-        cache.set(_SP_DELTA_LINK_KEY, new_link, timeout=None)
+        _salva_delta_link(new_link)
 
     return {
         "ok": totals["failed"] == 0,

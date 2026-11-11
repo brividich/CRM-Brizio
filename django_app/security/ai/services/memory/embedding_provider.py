@@ -11,7 +11,10 @@ from typing import Any
 
 import requests
 from django.conf import settings
+from requests.exceptions import ConnectionError as RequestsConnectionError
 from requests.exceptions import HTTPError, RequestException, Timeout
+
+from ai_assistant.http_client import lan_session
 
 from .query_normalizer import normalize_query
 
@@ -598,7 +601,9 @@ class LocalHttpEmbeddingProvider(BaseEmbeddingProvider):
                     f"Calling local HTTP embeddings API: model={self._settings['model']}, "
                     f"texts={len(texts)}, attempt={attempt + 1}/{retries + 1}"
                 )
-                response = requests.post(url, json=payload, headers=headers, timeout=timeout)
+                # Servizio in rete interna: niente HTTPS_PROXY/HTTP_PROXY d'ambiente (trust_env=False).
+                with lan_session() as session:
+                    response = session.post(url, json=payload, headers=headers, timeout=timeout)
                 response.raise_for_status()
 
                 data = response.json()
@@ -629,7 +634,7 @@ class LocalHttpEmbeddingProvider(BaseEmbeddingProvider):
                     )
                     raise RuntimeError("Embedding provider timeout")
 
-            except ConnectionError as e:
+            except RequestsConnectionError as e:
                 last_error = e
                 logger.warning(
                     f"Local HTTP embeddings API connection error: model={self._settings['model']}, "
@@ -724,13 +729,6 @@ class LocalHttpEmbeddingProvider(BaseEmbeddingProvider):
         raise RuntimeError("Embedding provider unavailable")
 
 
-        logger.error(
-            f"Local HTTP embeddings API failed after {retries + 1} attempts: "
-            f"model={self._settings['model']}"
-        )
-        raise RuntimeError("Embedding provider unavailable")
-
-
 def get_embedding_provider(provider_name: str | None = None) -> BaseEmbeddingProvider:
     """
     Factory function to get an embedding provider by name.
@@ -771,4 +769,27 @@ def get_embedding_provider(provider_name: str | None = None) -> BaseEmbeddingPro
             f"Please check your settings."
         )
 
+    return provider
+
+
+def provider_per_indice(provider_name: str, model_name: str, dimensions: int) -> BaseEmbeddingProvider | None:
+    """Il provider con cui interrogare un indice costruito da ``provider_name``/``model_name``/``dimensions``.
+
+    La query va calcolata con lo STESSO provider e modello dell'indice: vettori di provider diversi
+    con le stesse dimensioni non sono confrontabili. ``None`` se quel provider non è configurato qui o
+    se il modello/le dimensioni configurati oggi non coincidono con l'indice (si ricade sulle parole chiave).
+    """
+    try:
+        provider = get_embedding_provider(provider_name)
+    except ValueError:
+        logger.warning("Indice AI memory costruito con un provider sconosciuto: %s", provider_name)
+        return None
+    if not provider.is_configured():
+        return None
+    if (provider.model_name or "") != (model_name or "") or int(provider.dimensions) != int(dimensions):
+        logger.warning(
+            "Indice AI memory %s:%s/%s non coincide col provider configurato (%s/%s): ricerca per parole chiave.",
+            provider_name, model_name, dimensions, provider.model_name, provider.dimensions,
+        )
+        return None
     return provider

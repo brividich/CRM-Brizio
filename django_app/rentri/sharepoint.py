@@ -47,20 +47,29 @@ def _graph_base_url() -> str:
     )
 
 
+class GraphTokenError(RuntimeError):
+    """Token Graph non ottenuto: il messaggio porta l'errore di Entra (es. «invalid_client, AADSTS7000215»)."""
+
+
 def _acquire_graph_token(tenant_id: str, client_id: str, client_secret: str) -> str:
-    url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
-    resp = requests.post(
-        url,
-        data={
-            "grant_type": "client_credentials",
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "scope": "https://graph.microsoft.com/.default",
-        },
-        timeout=20,
-    )
-    resp.raise_for_status()
-    return resp.json()["access_token"]
+    """Token dalla cache condivisa del portale (``core.graph_utils``), non un POST a ogni chiamata."""
+    from core.graph_utils import acquire_graph_token
+
+    try:
+        return acquire_graph_token(tenant_id, client_id, client_secret)
+    except RuntimeError as exc:
+        raise GraphTokenError(str(exc)[:300]) from exc
+
+
+def _errore_risposta(r) -> str:
+    """«HTTP 403 (accessDenied)»: stato e codice d'errore di Graph, senza il corpo intero."""
+    codice = ""
+    try:
+        errore = (r.json() or {}).get("error")
+        codice = str((errore or {}).get("code") or "") if isinstance(errore, dict) else str(errore or "")
+    except Exception:  # noqa: BLE001 - corpo non JSON
+        pass
+    return f"HTTP {r.status_code}" + (f" ({codice[:80]})" if codice else "")
 
 
 def _graph_token() -> str:
@@ -80,7 +89,7 @@ def _graph_get_all() -> list[dict]:
     while url:
         r = requests.get(url, headers=_graph_headers(), timeout=25)
         if r.status_code != 200:
-            raise RuntimeError(f"Graph GET {r.status_code}: {r.text[:300]}")
+            raise RuntimeError(f"Graph GET {_errore_risposta(r)}: {r.text[:300]}")
         payload = r.json()
         rows.extend(payload.get("value", []) or [])
         url = payload.get("@odata.nextLink")
@@ -252,7 +261,10 @@ def sincronizza(registro: RegistroRifiuti) -> bool:
                     registro.sharepoint_item_id = sp_id
         if not ok:
             errore = f"SharePoint ha rifiutato l'invio: {str(result)[:300]}"
-    except Exception as exc:  # noqa: BLE001 - rete, token, risposta non JSON
+    except GraphTokenError as exc:
+        logger.warning("RENTRI: token Graph non ottenuto per il movimento %s: %s", registro.pk, exc)
+        errore = f"Accesso a Microsoft 365 non riuscito: {exc}"
+    except Exception as exc:  # noqa: BLE001 - rete, risposta non JSON
         logger.warning("RENTRI: invio a SharePoint fallito per il movimento %s", registro.pk, exc_info=True)
         errore = f"SharePoint non raggiungibile: {type(exc).__name__}"
     errore = errore[:500]

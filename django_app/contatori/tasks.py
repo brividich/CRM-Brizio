@@ -98,14 +98,77 @@ def poll_stampante_mfc(pk):
 
 _BLOCCO_PULIZIA = 500
 
+# Storico delle rilevazioni SNMP degli apparati non TVCC (stampanti, switch, server...).
+# Chiave SiteConfig, impostata da Contatori › Impostazioni. 0 = conserva tutto (di serie).
+CHIAVE_STORICO_SNMP = "contatori.snmp_retention_giorni"
+# Sotto i 60 giorni le stime dei toner (``stampanti.GIORNI_STIME``) perderebbero lo storico.
+STORICO_SNMP_MINIMO_GIORNI = 60
+# La pulizia notturna non supera questo tempo: quello che resta si cancella la notte dopo.
+_BUDGET_PULIZIA_SECONDI = 90.0
+
+
+def storico_snmp_giorni() -> int:
+    """Giorni di storico delle rilevazioni SNMP non TVCC; 0 = conserva tutto."""
+    from core.models import SiteConfig
+
+    try:
+        giorni = int(str(SiteConfig.get(CHIAVE_STORICO_SNMP, "0") or "0").strip())
+    except (TypeError, ValueError):
+        return 0
+    if giorni <= 0:
+        return 0
+    return max(giorni, STORICO_SNMP_MINIMO_GIORNI)
+
+
+def pulisci_rilevazioni_storico(adesso=None, budget=_BUDGET_PULIZIA_SECONDI):
+    """Cancella le rilevazioni SNMP non TVCC oltre lo storico impostato (spento di serie).
+
+    L'ultima rilevazione di ogni dispositivo resta sempre (scheda, KPI e monitoraggio la
+    leggono). A blocchi e con un tempo massimo: un primo giro su anni di storico prosegue
+    nelle notti successive.
+    """
+    from time import monotonic
+
+    from django.db.models import Max
+
+    giorni = storico_snmp_giorni()
+    if not giorni:
+        return {"attivo": False, "giorni": 0, "cancellate": 0}
+    limite = (adesso or timezone.now()) - timedelta(days=giorni)
+    fine = monotonic() + max(0.0, budget)
+    ultime = set(RilevazioneSNMP.objects.order_by().values("dispositivo_id").annotate(ultima=Max("pk"))
+                 .values_list("ultima", flat=True))
+    vecchie = RilevazioneSNMP.objects.exclude(
+        dispositivo__categoria__in=DispositivoSNMP.CATEGORIE_TVCC).filter(rilevata_il__lt=limite)
+    cancellate, ultimo_pk, completa = 0, 0, True
+    while True:
+        if monotonic() > fine:
+            completa = False
+            break
+        blocco = list(vecchie.filter(pk__gt=ultimo_pk).order_by("pk").values_list("pk", flat=True)[:_BLOCCO_PULIZIA])
+        if not blocco:
+            break
+        ultimo_pk = blocco[-1]
+        da_cancellare = [pk for pk in blocco if pk not in ultime]
+        if da_cancellare:
+            cancellate += RilevazioneSNMP.objects.filter(pk__in=da_cancellare).delete()[1].get(
+                RilevazioneSNMP._meta.label, 0)
+    esito = {"attivo": True, "giorni": giorni, "cancellate": cancellate}
+    if not completa:
+        esito["da_completare"] = "Tempo della pulizia esaurito: il resto si cancella la notte prossima."
+    return esito
+
 
 def pulisci_rilevazioni_tvcc():
     """Cancella le rilevazioni SNMP dei dispositivi TVCC oltre la retention impostata.
 
-    Solo NVR e telecamere: stampanti, server e gli altri apparati conservano lo
-    storico. Lo stato corrente resta sul dispositivo. A blocchi, per non tenere
+    Solo NVR e telecamere; per gli altri apparati c'è lo storico facoltativo
+    (``pulisci_rilevazioni_storico``, spento di serie). Lo stato corrente resta sul dispositivo. A blocchi, per non tenere
     una transazione enorme su SQL Server.
     """
+    from time import monotonic
+
+    inizio = monotonic()
     giorni = ImpostazioniSNMP.get_solo().tvcc_retention_giorni
     limite = timezone.now() - timedelta(days=giorni)
     vecchie = RilevazioneSNMP.objects.filter(
@@ -118,7 +181,16 @@ def pulisci_rilevazioni_tvcc():
             break
         cancellate += RilevazioneSNMP.objects.filter(pk__in=blocco).delete()[1].get(
             RilevazioneSNMP._meta.label, 0)
-    return {"giorni": giorni, "cancellate": cancellate}
+    esito = {"giorni": giorni, "cancellate": cancellate}
+    try:
+        # Lo stesso job (timeout 120 s) fa le due pulizie: la seconda usa il tempo che resta.
+        storico = pulisci_rilevazioni_storico(budget=_BUDGET_PULIZIA_SECONDI - (monotonic() - inizio))
+    except Exception:  # noqa: BLE001 - la pulizia TVCC resta valida anche se l'altra fallisce
+        logger.exception("contatori: pulizia storico rilevazioni SNMP non riuscita")
+        storico = {"errore": True}
+    if storico.get("attivo") or storico.get("errore"):
+        esito["storico_altri"] = storico
+    return esito
 
 
 def poll_dispositivo(pk):

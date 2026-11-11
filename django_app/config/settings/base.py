@@ -701,6 +701,17 @@ def build_sqlserver_database() -> dict:
     except ValueError:
         conn_max_age = 60
 
+    # Apertura connessione (mssql-django: OPTIONS connection_timeout/connection_retries/
+    # connection_retry_backoff_time). I default della libreria (timeout del driver, 5
+    # tentativi a 5 s su errori transitori) con SQL Server giù tenevano un thread di
+    # Waitress fermo per oltre mezzo minuto a richiesta: login entro 5 s, un solo
+    # nuovo tentativo dopo 2 s. Sovrascrivibili da .env.
+    def _int_env(nome: str, predefinito: int) -> int:
+        try:
+            return max(0, int(env(nome, str(predefinito)) or predefinito))
+        except ValueError:
+            return predefinito
+
     return {
         "ENGINE": "mssql",
         "NAME": env("DB_NAME", ""),
@@ -713,6 +724,9 @@ def build_sqlserver_database() -> dict:
             "driver": driver,
             "extra_params": extra_params,
             "query_timeout": query_timeout,
+            "connection_timeout": _int_env("DB_CONNECTION_TIMEOUT", 5),
+            "connection_retries": _int_env("DB_CONNECTION_RETRIES", 1),
+            "connection_retry_backoff_time": _int_env("DB_CONNECTION_RETRY_BACKOFF", 2),
         },
     }
 

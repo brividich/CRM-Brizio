@@ -120,7 +120,7 @@ class RaccoltaTests(_Base):
 
     def test_senza_identificativi_non_si_cerca(self):
         self.web(**{"ai.web.searxng_url": "http://searx.invalid"})
-        with mock.patch(HTTP) as http, mock.patch("requests.get") as get:
+        with mock.patch(HTTP) as http, mock.patch("requests.Session.get") as get:
             out = ai_risoluzione.raccolta_da_testi("Accessi VPN negati per mario.rossi da 198.51.100.7")
         http.assert_not_called()
         get.assert_not_called()
@@ -131,7 +131,7 @@ class RaccoltaTests(_Base):
         risposta = mock.Mock(status_code=200)
         risposta.json.return_value = {"results": [{"url": "https://forums.veeam.com/t/1", "title": "forum"},
                                                   {"url": "https://www.veeam.com/kb4321", "title": "KB4321"}]}
-        with mock.patch("requests.get", return_value=risposta) as get, mock.patch(HTTP, return_value=_pagina("KB4321")) as http:
+        with mock.patch("requests.Session.get", return_value=risposta) as get, mock.patch(HTTP, return_value=_pagina("KB4321")) as http:
             out = ai_risoluzione.raccolta_da_testi("Backup job di PC-ROSSI fallito con errore 0x80070005", "Veeam")
         self.assertIn("q=Veeam+0x80070005", get.call_args.args[0])
         self.assertNotIn("ROSSI", get.call_args.args[0])

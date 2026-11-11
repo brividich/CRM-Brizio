@@ -1131,6 +1131,18 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "«Prova adesso» (acquisizione scansioni o referti) dice «Lettura avviata» ma non si vede subito l'esito",
+            "perche": "la lettura della cartella gira in background, non nella pagina: con molti file o una cartella di rete lenta "
+                      "terrebbe ferma la pagina per minuti.",
+            "fare": [
+                "Ricarica la pagina dopo qualche secondo: l'esito compare in «Ultimo passaggio».",
+                "«Un passaggio sulla cartella è già in corso» vuol dire che il giro automatico stava già leggendo: aspetta il suo esito.",
+                "«rimandati al prossimo giro»: un giro dura al massimo un minuto e mezzo, i file restanti li legge il giro dopo. "
+                "Un file già letto non si rilegge; un PDF di referti letto a metà resta nella cartella finché non sono lette tutte le pagine.",
+                "Se l'esito non cambia mai, controlla che il servizio django-q (qcluster) sia attivo.",
+            ],
+        },
+        {
             "sintomo": 'Lo scadenzario o la dashboard mostrano meno persone a un capo',
             "fare": [
                 "Scadenzario, «Cose da gestire», badge della subnav e riquadri formazione contano solo le persone che il ruolo vede (propri, team o tutti), come l'elenco dipendenti.",

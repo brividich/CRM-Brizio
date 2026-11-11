@@ -431,6 +431,23 @@ def _salva(alert, proposta, schema, label, impronta):
     return SecurityAlertProposta.objects.create(alert=alert, **campi)
 
 
+def _salva_non_valida(alert, schema, label, impronta, contesto_hash, errore):
+    """Risposta dell'AI non utilizzabile: si ricorda col contesto, così l'alert non si richiede a ogni giro.
+
+    Stato «non_valida» (non è una decisione di una persona: non entra nella fiducia né nelle decisioni passate);
+    una sola riga per alert, aggiornata a ogni nuovo scarto.
+    """
+    campi = {"schema": schema, "schema_label": label, "impronta": impronta, "esito": "aperto", "motivo": str(errore or "")[:500],
+             "prove": [], "confidenza": 0, "contesto_hash": contesto_hash, "modello": "", "creata_il": timezone.now()}
+    esistente = SecurityAlertProposta.objects.filter(alert=alert, stato=SecurityAlertProposta.NON_VALIDA).first()
+    if esistente:
+        for k, v in campi.items():
+            setattr(esistente, k, v)
+        esistente.save()
+        return esistente
+    return SecurityAlertProposta.objects.create(alert=alert, stato=SecurityAlertProposta.NON_VALIDA, **campi)
+
+
 def aggiorna_superate():
     """Proposte aperte di alert non più aperti (chiusi da regole, posticipati, silenziati): superate."""
     return (SecurityAlertProposta.objects.filter(stato=SecurityAlertProposta.APERTA).exclude(alert__status__in=APERTI)
@@ -438,13 +455,23 @@ def aggiorna_superate():
 
 
 def giro(*, limit, time_budget_seconds=BUDGET_PIANIFICATO):
+    """Nessuna nuova richiesta dopo ``time_budget_seconds``; ogni richiesta ha come timeout il minimo fra
+    quello configurato e il tempo che resta al tetto del giro (``cpe_ai._tetto``: 100 s pianificato)."""
+    from ai_assistant.http_client import scadenza
+    from security.services.cpe_ai import _tetto
+
+    with scadenza(_tetto(time_budget_seconds)):
+        return _giro(limit=limit, time_budget_seconds=time_budget_seconds)
+
+
+def _giro(*, limit, time_budget_seconds):
     from security.services.cpe_ai import _ai_ferma, disponibile
 
+    started = time.monotonic()
     superate = aggiorna_superate()
     ok, motivo = disponibile()
     if not ok:
         return {"ok": False, "errore": motivo, "superate": superate}
-    started = time.monotonic()
     esito = {"superate": superate, "esaminati": 0, "proposte": 0, "chiusi_da_soli": 0, "scartate": 0}
     tempi, fermo = [], ""
     ultimi = {}
@@ -458,13 +485,16 @@ def giro(*, limit, time_budget_seconds=BUDGET_PIANIFICATO):
         contesto_hash = ctx[2]
         precedente = ultimi.get(alert.pk)
         if precedente is not None and precedente.contesto_hash == contesto_hash:
-            continue  # niente di nuovo dall'ultima proposta (anche se scartata)
+            continue  # niente di nuovo dall'ultima proposta (anche se scartata o non valida)
         esito["esaminati"] += 1
         proposta, errore = proponi(alert, ctx)
         if proposta is None:
             esito["scartate"] += 1
             if _ai_ferma(errore):
                 fermo = errore
+            else:
+                # Risposta non utilizzabile: si ricorda, e l'alert torna all'AI solo quando il contesto cambia.
+                ultimi[alert.pk] = _salva_non_valida(alert, schema, label, _impronta(alert), contesto_hash, errore)
             continue
         tempi.append(proposta["ms"])
         proposta["schema"] = schema

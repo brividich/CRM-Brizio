@@ -128,7 +128,9 @@ def sincronizza(*, skus: list[dict] | None = None, scadenze: dict | None = None)
         if scadenza:
             lic.expiry_date = scadenza
         lic.save()
-    dismessi = (SoftwareLicense.objects.filter(license_reference__startswith=PREFISSO, is_active=True)
-                .exclude(license_reference__in=visti).update(is_active=False))
+    dismessi = 0
+    if not m365_graph.troncata(skus):  # elenco parziale: i piani non letti non sono «non più presenti»
+        dismessi = (SoftwareLicense.objects.filter(license_reference__startswith=PREFISSO, is_active=True)
+                    .exclude(license_reference__in=visti).update(is_active=False))
     return {"abbonamenti": len(utili), "creati": creati, "aggiornati": aggiornati,
             "non_piu_presenti": dismessi, "con_scadenza": len(scadenze)}

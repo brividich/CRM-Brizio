@@ -385,6 +385,7 @@ class AIChatApiView(APIView):
                 user_message=message,
                 history=history,
                 runtime_context=context,
+                memory_context=memory_context,  # già calcolato qui sopra: una sola ricerca per richiesta
             )
 
             response = chat_completion(

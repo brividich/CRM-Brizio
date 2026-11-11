@@ -121,3 +121,53 @@ def run_cleanup_run_logs() -> dict:
     except Exception:
         logger.exception("run_cleanup_run_logs: eccezione inattesa")
         raise
+
+
+def run_approval_branch_task(approval_id: int) -> dict:
+    """Esegue il ramo di una decisione di approvazione presa dalla pagina web.
+
+    La pagina registra la decisione e accoda questo task: l'approvatore riceve
+    subito la risposta. Presa in carico condizionata come in
+    ``recover_approval_branches``: un ramo non viene eseguito due volte in parallelo.
+    """
+    from django.utils import timezone
+
+    from automazioni.models import AutomationApproval
+    from automazioni.services import run_approval_branch
+
+    approval = (
+        AutomationApproval.objects.select_related("run_log__rule", "action")
+        .filter(pk=int(approval_id))
+        .first()
+    )
+    if approval is None or approval.branch_status != AutomationApproval.BranchStatus.RUNNING:
+        return {"skipped": True, "approval_id": int(approval_id)}
+    claimed = AutomationApproval.objects.filter(
+        pk=approval.pk,
+        branch_status=AutomationApproval.BranchStatus.RUNNING,
+        branch_updated_at=approval.branch_updated_at,
+    ).update(branch_updated_at=timezone.now())
+    if not claimed:
+        return {"skipped": True, "approval_id": approval.pk}
+    result = run_approval_branch(approval)
+    logger.info(
+        "run_approval_branch_task: approvazione #%s azioni=%s errori=%s",
+        approval.pk,
+        result.get("actions_run"),
+        result.get("actions_errors"),
+    )
+    return {"approval_id": approval.pk, **result}
+
+
+def run_queue_event_task(queue_id: int) -> dict:
+    """«Riprova» dalla pagina della coda: elabora l'evento nel cluster, non nella richiesta web."""
+    from automazioni.services import process_single_queue_event_by_id
+
+    result = process_single_queue_event_by_id(int(queue_id))
+    logger.info(
+        "run_queue_event_task: evento %s stato=%s regole=%s",
+        queue_id,
+        result.get("status"),
+        result.get("rule_runs"),
+    )
+    return result

@@ -300,3 +300,50 @@ class SchedaMacchinaCollectorTests(_Macchina):
         self.coll.delete()
         resp = self.client.get(reverse("assets:work_machine_edit", args=[self.asset.pk]))
         self.assertContains(resp, f"?asset={self.asset.pk}#form")
+
+
+class AgentInReteInternaTests(TestCase):
+    """Niente proxy dell'ambiente verso l'agent; errori con l'host e chi ha risposto."""
+
+    def _sessione(self, **kw):
+        import requests
+
+        sessioni = []
+
+        class Sessione(requests.Session):
+            def __init__(self):
+                super().__init__()
+                sessioni.append(self)
+
+            def get(self, url, **k):
+                if "errore" in kw:
+                    raise kw["errore"]
+                return kw["risposta"]
+
+        return Sessione, sessioni
+
+    def test_sessione_senza_proxy(self):
+        from unittest.mock import MagicMock
+
+        risposta = MagicMock(status_code=200, headers={"Content-Type": "text/xml"})
+        risposta.raw.read.return_value = b"<x/>"
+        Sessione, sessioni = self._sessione(risposta=risposta)
+        with patch("requests.Session", Sessione), patch.object(svc, "valida_url", return_value="http://192.0.2.30:5000"):
+            self.assertEqual(svc.scarica("http://192.0.2.30:5000"), b"<x/>")
+        self.assertFalse(sessioni[0].trust_env)
+
+    def test_errori_con_host_e_chi_risponde(self):
+        import requests
+        from unittest.mock import MagicMock
+
+        Sessione, _ = self._sessione(errore=requests.exceptions.ConnectTimeout("t"))
+        with patch("requests.Session", Sessione), patch.object(svc, "valida_url", return_value="http://192.0.2.30:5000"):
+            with self.assertRaisesMessage(svc.MTConnectError, "192.0.2.30:5000"):
+                svc.scarica("http://192.0.2.30:5000")
+        risposta = MagicMock(status_code=502, headers={"Content-Type": "text/html", "Server": "Proxy-Sintetico"})
+        Sessione, _ = self._sessione(risposta=risposta)
+        with patch("requests.Session", Sessione), patch.object(svc, "valida_url", return_value="http://192.0.2.30:5000"):
+            with self.assertRaises(svc.MTConnectError) as ctx:
+                svc.scarica("http://192.0.2.30:5000")
+        self.assertIn("502", str(ctx.exception))
+        self.assertIn("Proxy-Sintetico", str(ctx.exception))

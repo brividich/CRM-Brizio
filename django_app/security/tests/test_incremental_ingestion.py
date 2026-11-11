@@ -296,3 +296,132 @@ def urllib_unquote(url: str) -> str:
     import urllib.parse
 
     return urllib.parse.unquote_plus(url)
+
+
+class WatermarkLetturaParzialeTests(TestCase):
+    """Il watermark non salta a «adesso» se la lettura non è esaurita o un messaggio fallisce."""
+
+    def setUp(self):
+        self.source = SecurityMailboxSource.objects.create(
+            name="S2", code="s2", source_type="graph", mailbox_address="soc@example.test",
+        )
+
+    def _batch(self, messages, *, exhausted, last_read_at=None):
+        from security.services.mailbox_providers import MessageBatch
+
+        batch = MessageBatch(messages)
+        batch.exhausted = exhausted
+        batch.last_read_at = last_read_at
+        return batch
+
+    def test_non_esaurita_e_tutto_filtrato_va_all_ultimo_letto(self):
+        letto = timezone.now() - timedelta(hours=6)
+        self.assertEqual(_watermark(self.source, self._batch([], exhausted=False, last_read_at=letto)), letto)
+
+    def test_non_esaurita_senza_date_resta_dov_era(self):
+        self.source.last_success_at = timezone.now() - timedelta(days=1)
+        self.assertEqual(_watermark(self.source, self._batch([], exhausted=False)), self.source.last_success_at)
+
+    def test_esaurita_e_vuota_va_a_adesso(self):
+        prima = timezone.now()
+        self.assertGreaterEqual(_watermark(self.source, self._batch([], exhausted=True)), prima)
+
+    def test_data_illeggibile_non_conta(self):
+        msg = _msg(1, timezone.now())
+        msg.received_at_valid = False
+        letto = timezone.now() - timedelta(hours=3)
+        self.assertEqual(_watermark(self.source, self._batch([msg], exhausted=False, last_read_at=letto)), letto)
+
+    def test_messaggio_in_errore_ferma_il_watermark(self):
+        base = timezone.now() - timedelta(hours=10)
+        messages = [_msg(i, base + timedelta(hours=i)) for i in range(3)]
+
+        class Provider:
+            def list_messages(self, source, limit=50):
+                return list(messages)
+
+        def ingest(source, raw, **kw):
+            if raw.provider_message_id == "id-1":
+                raise RuntimeError("parser rotto")
+            return {"status": "imported"}
+
+        with mock.patch("security.services.mailbox_ingestion.get_provider", return_value=Provider()), \
+                mock.patch("security.services.mailbox_ingestion.ingest_mailbox_message", side_effect=ingest):
+            run_mailbox_ingestion(self.source)
+        self.source.refresh_from_db()
+        self.assertEqual(self.source.last_success_at, messages[1].received_at)
+
+
+class GraphLetturaParzialeTests(TestCase):
+    def setUp(self):
+        self.source = SecurityMailboxSource.objects.create(
+            name="G2", code="g2", source_type="graph", mailbox_address="soc@example.test", max_messages_per_run=50,
+        )
+        self.provider = GraphMailboxProvider()
+
+    def test_pagine_finite_dice_non_esaurita_e_ultimo_letto_anche_se_filtrato(self):
+        item = _graph_item(1, datetime(2026, 7, 13, 1, tzinfo=dt_timezone.utc))
+        item["parentFolderId"] = "SENT"  # scartato dal filtro cartelle
+        endless = {"value": [item], "@odata.nextLink": "https://graph.example/next"}
+        with mock.patch.object(GraphMailboxProvider, "_folder_scope", return_value=(None, {"SENT"})), \
+                mock.patch("security.services.mailbox_providers._request_json", return_value=endless):
+            batch = self.provider._get_messages("tok", self.source, limit=50)
+        self.assertEqual(len(batch), 0)
+        self.assertFalse(batch.exhausted)
+        self.assertEqual(batch.last_read_at, datetime(2026, 7, 13, 1, tzinfo=dt_timezone.utc))
+
+    def test_taglio_al_massimo_per_giro_ultimo_letto_e_l_ultimo_restituito(self):
+        page = {"value": [_graph_item(i, datetime(2026, 7, 13, i, tzinfo=dt_timezone.utc)) for i in range(1, 4)]}
+        with mock.patch.object(GraphMailboxProvider, "_folder_scope", return_value=(None, set())), \
+                mock.patch("security.services.mailbox_providers._request_json", return_value=page):
+            batch = self.provider._get_messages("tok", self.source, limit=2)
+        self.assertEqual(len(batch), 2)
+        self.assertFalse(batch.exhausted)
+        self.assertEqual(batch.last_read_at, datetime(2026, 7, 13, 2, tzinfo=dt_timezone.utc))
+
+    def test_allegati_seguono_il_next_link(self):
+        import base64
+
+        def att(nome):
+            return {"@odata.type": "#microsoft.graph.fileAttachment", "name": nome,
+                    "contentBytes": base64.b64encode(b"x").decode(), "size": 1}
+
+        pagine = [{"value": [att("a.csv")], "@odata.nextLink": "https://graph.microsoft.com/v1.0/next"},
+                  {"value": [att("b.csv")]}]
+        with mock.patch("security.services.mailbox_providers._request_json", side_effect=pagine):
+            allegati = self.provider._get_attachments("tok", "soc@example.test", "m1")
+        self.assertEqual([a.filename for a in allegati], ["a.csv", "b.csv"])
+
+    def test_data_illeggibile_non_diventa_valida(self):
+        from security.services.mailbox_providers import _message_from_graph_item
+
+        item = _graph_item(1, datetime(2026, 7, 13, 1, tzinfo=dt_timezone.utc))
+        item["receivedDateTime"] = "non-una-data"
+        msg = _message_from_graph_item(item, "soc@example.test", [])
+        self.assertFalse(msg.received_at_valid)
+
+
+class ErroriGraphLeggibiliTests(TestCase):
+    def test_errore_oauth_riporta_aadsts(self):
+        import io
+        import json
+        import urllib.error
+
+        from security.services.mailbox_providers import _safe_graph_error
+
+        corpo = json.dumps({"error": "invalid_client", "error_description": "AADSTS7000215: Invalid client secret."})
+        exc = urllib.error.HTTPError("https://login.microsoftonline.com/x", 401, "Unauthorized", {}, io.BytesIO(corpo.encode()))
+        testo = _safe_graph_error(exc)
+        self.assertIn("invalid_client", testo)
+        self.assertIn("AADSTS7000215", testo)
+
+    def test_errore_di_rete_riporta_il_motivo(self):
+        import urllib.error
+
+        from security.services.mailbox_providers import MailboxProviderError, _request_json
+
+        with mock.patch("urllib.request.urlopen", side_effect=urllib.error.URLError("getaddrinfo failed")):
+            with self.assertRaises(MailboxProviderError) as ctx:
+                _request_json("https://graph.microsoft.com/v1.0/users")
+        self.assertIn("getaddrinfo failed", str(ctx.exception))
+        self.assertIn("graph.microsoft.com", str(ctx.exception))

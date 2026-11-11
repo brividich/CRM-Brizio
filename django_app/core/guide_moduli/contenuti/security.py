@@ -345,6 +345,21 @@ GUIDA = {
                 "Per queste serve il Security Update Guide di Microsoft: Impostazioni › «WatchGuard Endpoint Security (API)», interruttore «Cerca le patch comprese in una più recente (Microsoft)» acceso.",
                 "Il server deve poter uscire su HTTPS verso api.msrc.microsoft.com; l'esito è in «Letture automatiche» › WatchGuard (voce «msrc»).",
                 "La KB nel nome arriva alla lettura delle patch successiva (06:10 e 13:10). Gli aggiornamenti fuori ciclo non di sicurezza non sono nel Security Update Guide: per Windows vale il build nel nome.",
+                "Si leggono al massimo 2 documenti mensili per giro (pesano decine di MB): alla prima accensione servono alcuni giri per l'ultimo anno; l'esito dice «documenti_rimandati».",
+            ],
+        },
+        {
+            "sintomo": "Letture automatiche › WatchGuard: un passo è in errore «Lettura troncata» o «elenco … vuoto»",
+            "fare": [
+                "È voluto: se WatchGuard non restituisce tutte le pagine, o restituisce un elenco vuoto quando PC o patch sono già nel portale, il passo si salta e nessun PC viene segnato come sparito né alcuna patch chiusa. Al giro successivo (06:10 e 13:10) o con «Esegui ora» si riprova.",
+                "Se l'errore parla del proxy (407, «il proxy del server ha rifiutato», «certificato HTTPS non attendibile») o dice «La risposta non arriva dall'API di WatchGuard»: il proxy del server blocca o ispeziona *.cloud.watchguard.com; serve un'eccezione sul proxy, le credenziali API non c'entrano.",
+            ],
+        },
+        {
+            "sintomo": "CVE: le letture NVD dicono «NVD ha risposto 404 (o 403) con l'API key impostata»",
+            "fare": [
+                "La API key NVD salvata non è valida o è stata revocata: nella pagina «Software e CPE», riquadro «API key NVD», incolla quella della mail di NVD (è un codice come 1a2b3c4d-1a2b-1a2b-1a2b-1a2b3c4d5e6f) oppure «Rimuovi la key» per leggere senza chiave, più lentamente.",
+                "Una CVE la cui lettura va in errore si riprova dopo 24 ore, così non toglie posto alle altre a ogni giro.",
             ],
         },
         {
@@ -490,7 +505,12 @@ GUIDA = {
             "fare": [
                 "Impostazioni › «Alert di Microsoft Defender»: «Leggi gli alert di Defender» deve essere acceso.",
                 "Dal terminale: manage.py defender_alerts mostra l'esito dell'ultimo giro. «Graph ha risposto 403» = manca il permesso "
-                "SecurityAlert.Read.All (o il consenso amministratore) sull'app del portale in Entra ID.",
+                "SecurityAlert.Read.All (o il consenso amministratore) sull'app del portale in Entra ID; «ha risposto 401» = token "
+                "rifiutato: segreto dell'app scaduto o sbagliato, oppure l'orologio del server fuori sincronia.",
+                "«alert_troncati» nell'esito: in un giro sono arrivati più alert del limite; il giro dopo riparte dall'ultimo letto, "
+                "nessuno si perde.",
+                "Software o vulnerabilità di Defender con «lettura troncata» nell'esito: Defender ha più pagine del limite e il giro "
+                "non ha toccato i dati (niente «non più rilevato», niente CVE cancellate); succede solo con inventari molto grandi.",
                 "Arriva l'evento ma non l'alert: la severità è sotto la «Severità minima per l'alert» (l'evento resta nei KPI).",
             ],
         },

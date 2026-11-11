@@ -1,9 +1,8 @@
 """Discovery read-only Printer-MIB (RFC 3805), indipendente da marca e indici."""
 import asyncio
-import functools
 from datetime import timedelta
 
-from .snmp import SNMPError, _testo, costruisci_credenziali, descrivi_errore
+from .snmp import SNMPError, _testo, costruisci_credenziali, descrivi_errore, mittente_udp
 
 LIFE_COUNT = "1.3.6.1.2.1.43.10.2.1.4"
 COUNTER_UNIT = "1.3.6.1.2.1.43.10.2.1.3"
@@ -306,12 +305,16 @@ def interpreta_stampante(tabelle, errori):
     return dati
 
 
-def leggi_stampante(dispositivo, *, community, port, timeout, version):
+def leggi_stampante(dispositivo, *, community, port, timeout, version, max_duration=None):
     """Colonne Printer-MIB in parallelo (al massimo 8 insieme), massimo 128 righe e 20s per colonna.
 
     Un errore su toner non nasconde i contatori (e viceversa). Il limite totale
-    dei WALK concorrenti lascia tempo al job del polling (110s).
+    dei WALK concorrenti lascia tempo al job del polling (110s); ``max_duration``
+    (secondi) è la scadenza complessiva: le colonne che non partono in tempo vanno in errore.
     """
+    from time import monotonic
+
+    scadenza = monotonic() + max_duration if max_duration is not None else None
     try:
         from puresnmp import Client, PyWrapper
         from puresnmp.transport import send_udp
@@ -322,7 +325,7 @@ def leggi_stampante(dispositivo, *, community, port, timeout, version):
         cred = costruisci_credenziali(community, version)
         client = PyWrapper(Client(
             str(dispositivo.host), cred, port=port,
-            sender=functools.partial(send_udp, timeout=timeout),
+            sender=mittente_udp(send_udp, timeout),
         ))
         righe = {}
         async for vb in client.walk(base):
@@ -339,7 +342,12 @@ def leggi_stampante(dispositivo, *, community, port, timeout, version):
 
         async def una(base):
             async with limite:
-                return await asyncio.wait_for(colonna(base), timeout=20)
+                attesa = 20.0
+                if scadenza is not None:
+                    attesa = min(attesa, scadenza - monotonic())
+                    if attesa <= 0:
+                        raise SNMPError("Tempo complessivo di lettura SNMP superato")
+                return await asyncio.wait_for(colonna(base), timeout=attesa)
 
         return await asyncio.gather(*[una(base) for base in COLUMNS_TUTTE.values()], return_exceptions=True)
 

@@ -147,66 +147,174 @@ def cancella_credenziali(actor=None) -> None:
 _TOKEN: dict = {}
 
 
-def _token(cfg: dict) -> str:
+def _chi_risponde(resp) -> str:
+    """Se a rispondere non è WatchGuard (un proxy, una pagina di errore), lo dice: le risposte dell'API sono JSON."""
+    headers = getattr(resp, "headers", None)
+    if not hasattr(headers, "get"):
+        return ""
+    tipo = str(headers.get("Content-Type") or "")
+    server = str(headers.get("Server") or "")[:60]
+    if not tipo or "json" in tipo.lower():
+        return ""
+    return (" La risposta non arriva dall'API di WatchGuard"
+            + (f" (server «{server}»)" if server else "")
+            + ": risponde un proxy o un altro servizio.")
+
+
+def _errore_rete(exc, cosa: str) -> WatchGuardError:
+    """Errore di rete con la causa vera: proxy (ProxyError), certificato (SSLError), tempo o connessione."""
     import requests
 
-    chiave = (cfg["url_api"], cfg["access_id"])
-    salvato = _TOKEN.get(chiave)
-    if salvato and salvato[1] - 300 > time.time():
-        return salvato[0]
-    basic = base64.b64encode(f"{cfg['access_id']}:{cfg['password']}".encode()).decode()
-    resp = requests.post(
-        cfg["url_api"] + "/oauth/token", timeout=TIMEOUT,
-        data={"grant_type": "client_credentials", "scope": "api-access"},
-        headers={"Authorization": f"Basic {basic}", "Accept": "application/json",
-                 "Content-Type": "application/x-www-form-urlencoded"},
-    )
-    if resp.status_code in (400, 401, 403):
-        raise WatchGuardError("WatchGuard non ha dato il token: Access ID o password non validi.", resp.status_code)
-    if resp.status_code >= 400:
-        raise WatchGuardError(f"WatchGuard ha risposto {resp.status_code} alla richiesta del token.", resp.status_code)
-    dati = resp.json()
-    tok = dati.get("access_token")
-    if not tok:
-        raise WatchGuardError("WatchGuard non ha restituito il token.")
-    _TOKEN[chiave] = (tok, time.time() + int(dati.get("expires_in") or 3600))
-    return tok
+    if isinstance(exc, requests.exceptions.ProxyError):
+        return WatchGuardError(f"WatchGuard non raggiungibile ({cosa}): il proxy del server ha rifiutato o interrotto la "
+                               "connessione (controlla HTTPS_PROXY e le credenziali del proxy).")
+    if isinstance(exc, requests.exceptions.SSLError):
+        return WatchGuardError(f"WatchGuard non raggiungibile ({cosa}): certificato HTTPS non attendibile; di solito è il "
+                               "proxy che ispeziona il traffico HTTPS (serve un'eccezione per *.cloud.watchguard.com).")
+    if isinstance(exc, requests.exceptions.Timeout):
+        return WatchGuardError(f"WatchGuard non ha risposto in {TIMEOUT} s ({cosa}).")
+    return WatchGuardError(f"WatchGuard non raggiungibile ({cosa}, {type(exc).__name__}): controlla la connessione "
+                           "a internet del server e il proxy.")
 
 
-def get(percorso: str, params: dict | None = None, *, cfg: dict | None = None):
-    import requests
-
-    cfg = cfg or credenziali()
-    if not all(cfg.values()):
-        raise WatchGuardError("Credenziali API WatchGuard non configurate.")
-    if not URL_API_RE.match(cfg["url_api"]):
-        raise WatchGuardError("URL API WatchGuard non ammesso.")
-    url = cfg["url_api"] + BASE.format(account=cfg["account_id"]) + percorso
-    resp = requests.get(url, params=params, timeout=TIMEOUT, headers={
-        "Authorization": f"Bearer {_token(cfg)}", "WatchGuard-API-Key": cfg["api_key"],
-        "Accept": "application/json", "Content-Type": "application/json"})
-    if resp.status_code == 401:
-        _TOKEN.clear()
-        raise WatchGuardError("WatchGuard ha risposto 401: token o API Key non validi.", 401)
-    if resp.status_code == 403:
-        raise WatchGuardError("WatchGuard ha risposto 403: l'API Key o l'account non hanno accesso a Endpoint Security.", 403)
-    if resp.status_code == 404:
-        raise WatchGuardError("WatchGuard ha risposto 404: controlla l'ID account.", 404)
-    if resp.status_code >= 400:
-        raise WatchGuardError(f"WatchGuard ha risposto {resp.status_code}.", resp.status_code)
-    return resp.json()
+def _json(resp, cosa: str):
+    try:
+        return resp.json()
+    except ValueError as exc:
+        raise WatchGuardError(f"Risposta di WatchGuard non leggibile ({cosa}): non è JSON.{_chi_risponde(resp)}",
+                              resp.status_code) from exc
 
 
-def get_all(percorso: str, params: dict | None = None, *, cfg: dict | None = None) -> list[dict]:
-    """Tutte le pagine di una collezione ``{data, total_items}`` con ``$top``/``$skip``."""
+class Client:
+    """Una sessione HTTP per giro: credenziali lette una volta, un solo rinnovo del token su 401."""
+
+    def __init__(self, cfg: dict | None = None):
+        import requests
+
+        self.cfg = cfg or credenziali()
+        if not all(self.cfg.values()):
+            raise WatchGuardError("Credenziali API WatchGuard non configurate.")
+        if not URL_API_RE.match(self.cfg["url_api"]):
+            raise WatchGuardError("URL API WatchGuard non ammesso.")
+        # WatchGuard Cloud è su internet: il proxy di HTTPS_PROXY serve (trust_env resta acceso).
+        self.http = requests.Session()
+
+    def _token(self, rinnova: bool = False) -> str:
+        import requests
+
+        cfg = self.cfg
+        chiave = (cfg["url_api"], cfg["access_id"])
+        salvato = _TOKEN.get(chiave)
+        if not rinnova and salvato and salvato[1] - 300 > time.time():
+            return salvato[0]
+        _TOKEN.pop(chiave, None)
+        basic = base64.b64encode(f"{cfg['access_id']}:{cfg['password']}".encode()).decode()
+        try:
+            resp = self.http.post(
+                cfg["url_api"] + "/oauth/token", timeout=TIMEOUT,
+                data={"grant_type": "client_credentials", "scope": "api-access"},
+                headers={"Authorization": f"Basic {basic}", "Accept": "application/json",
+                         "Content-Type": "application/x-www-form-urlencoded"},
+            )
+        except requests.exceptions.RequestException as exc:
+            raise _errore_rete(exc, "richiesta del token") from exc
+        if resp.status_code == 407:
+            raise WatchGuardError("Il proxy del server chiede l'autenticazione (407) alla richiesta del token WatchGuard.", 407)
+        chi = _chi_risponde(resp)
+        if resp.status_code in (400, 401, 403) and not chi:
+            raise WatchGuardError("WatchGuard non ha dato il token: Access ID o password non validi.", resp.status_code)
+        if resp.status_code >= 400:
+            raise WatchGuardError(f"WatchGuard ha risposto {resp.status_code} alla richiesta del token.{chi}", resp.status_code)
+        dati = _json(resp, "token")
+        tok = dati.get("access_token") if isinstance(dati, dict) else None
+        if not tok:
+            raise WatchGuardError(f"WatchGuard non ha restituito il token.{chi}")
+        try:
+            durata = int(dati.get("expires_in") or 3600)
+        except (TypeError, ValueError):
+            durata = 3600
+        _TOKEN[chiave] = (tok, time.time() + durata)
+        return tok
+
+    def get(self, percorso: str, params: dict | None = None):
+        import requests
+
+        cfg = self.cfg
+        url = cfg["url_api"] + BASE.format(account=cfg["account_id"]) + percorso
+        rinnovato = False
+        while True:
+            try:
+                resp = self.http.get(url, params=params, timeout=TIMEOUT, headers={
+                    "Authorization": f"Bearer {self._token(rinnova=rinnovato)}", "WatchGuard-API-Key": cfg["api_key"],
+                    "Accept": "application/json", "Content-Type": "application/json"})
+            except requests.exceptions.RequestException as exc:
+                raise _errore_rete(exc, percorso) from exc
+            if resp.status_code == 401 and not rinnovato and not _chi_risponde(resp):
+                rinnovato = True  # token scaduto prima del previsto: un solo rinnovo e un solo nuovo tentativo
+                continue
+            break
+        chi = _chi_risponde(resp)
+        if resp.status_code == 407:
+            raise WatchGuardError(f"Il proxy del server chiede l'autenticazione (407) su {percorso}.", 407)
+        if chi and resp.status_code >= 400:
+            raise WatchGuardError(f"Risposta {resp.status_code} su {percorso}.{chi}", resp.status_code)
+        if resp.status_code == 401:
+            _TOKEN.pop((cfg["url_api"], cfg["access_id"]), None)
+            raise WatchGuardError("WatchGuard ha risposto 401 anche con un token nuovo: API Key non valida.", 401)
+        if resp.status_code == 403:
+            raise WatchGuardError("WatchGuard ha risposto 403: l'API Key o l'account non hanno accesso a Endpoint Security.", 403)
+        if resp.status_code == 404:
+            raise WatchGuardError("WatchGuard ha risposto 404: controlla l'ID account.", 404)
+        if resp.status_code >= 400:
+            raise WatchGuardError(f"WatchGuard ha risposto {resp.status_code} su {percorso}.", resp.status_code)
+        return _json(resp, percorso)
+
+    def close(self) -> None:
+        try:
+            self.http.close()
+        except Exception:  # noqa: BLE001 - chiusura best effort
+            logger.debug("WatchGuard: chiusura della sessione non riuscita")
+
+
+def get(percorso: str, params: dict | None = None, *, cfg: dict | None = None, client: Client | None = None):
+    if client is not None:
+        return client.get(percorso, params)
+    c = Client(cfg)
+    try:
+        return c.get(percorso, params)
+    finally:
+        c.close()
+
+
+def get_all(percorso: str, params: dict | None = None, *, cfg: dict | None = None,
+            client: Client | None = None) -> list[dict]:
+    """Tutte le pagine di una collezione ``{data, total_items}`` con ``$top``/``$skip``.
+
+    Una lettura incompleta (finite le ``MAX_PAGINE`` o meno righe di ``total_items``) è un errore: chi
+    chiama non deve segnare spariti o chiusi i record delle pagine non lette.
+    """
     out: list[dict] = []
+    totale = None
+    completa = False
     for pagina in range(MAX_PAGINE):
-        dati = get(percorso, {**(params or {}), "$top": PAGINA, "$skip": pagina * PAGINA, "$count": "true"}, cfg=cfg)
+        dati = get(percorso, {**(params or {}), "$top": PAGINA, "$skip": pagina * PAGINA, "$count": "true"},
+                   cfg=cfg, client=client)
         righe = [r for r in (dati.get("data") if isinstance(dati, dict) else dati) or [] if isinstance(r, dict)]
         out.extend(righe)
-        totale = dati.get("total_items") if isinstance(dati, dict) else None
-        if len(righe) < PAGINA or (totale is not None and len(out) >= int(totale)):
+        valore = dati.get("total_items") if isinstance(dati, dict) else None
+        try:
+            totale = int(valore) if valore is not None else totale
+        except (TypeError, ValueError):
+            pass
+        if len(righe) < PAGINA or (totale is not None and len(out) >= totale):
+            completa = True
             break
+    if not completa:
+        raise WatchGuardError(f"Lettura troncata di {percorso}: oltre {MAX_PAGINE} pagine da {PAGINA} righe; "
+                              "nessun record segnato come sparito o chiuso.")
+    if totale is not None and len(out) < totale:
+        raise WatchGuardError(f"Lettura troncata di {percorso}: lette {len(out)} righe su {totale}; "
+                              "nessun record segnato come sparito o chiuso.")
     return out
 
 
@@ -253,19 +361,21 @@ def _host(valore):
 
 # --- PC e protezione ---------------------------------------------------------------------------
 
-def sincronizza_dispositivi(now=None, *, dispositivi=None, protezione=None, non_gestiti=None) -> dict:
+def sincronizza_dispositivi(now=None, *, dispositivi=None, protezione=None, non_gestiti=None, client=None) -> dict:
     from assets.services.mac import normalizza_mac
 
     now = now or timezone.now()
     if dispositivi is None:
-        dispositivi = get_all("/devices")
+        dispositivi = get_all("/devices", client=client)
     if protezione is None:
-        protezione = get_all("/devicesprotectionstatus")
+        protezione = get_all("/devicesprotectionstatus", client=client)
     if non_gestiti is None:
-        non_gestiti = get_all("/unmanageddevices")
+        non_gestiti = get_all("/unmanageddevices", client=client)
+    if not dispositivi and WatchGuardDispositivo.objects.filter(gestito=True, presente=True).exists():
+        # Una risposta vuota con PC già letti è quasi sempre un errore dell'API: non si segna sparito nessuno.
+        raise WatchGuardError("WatchGuard ha restituito un elenco di PC vuoto: passo saltato, nessun PC segnato come sparito.")
     stato = {str(p.get("device_id")): p for p in protezione if p.get("device_id")}
     asset_di = _Asset()
-    visti = set()
     for d in dispositivi:
         device_id = str(d.get("device_id") or "")
         if not device_id:
@@ -285,7 +395,6 @@ def sincronizza_dispositivi(now=None, *, dispositivi=None, protezione=None, non_
             "ultima_connessione": _quando(d.get("last_connection") or p.get("last_connection_date")),
             "presente": True, "letto_il": now,
         })
-        visti.add(device_id)
     for u in non_gestiti:
         device_id = "unmanaged:" + str(u.get("device_id") or u.get("mac_address") or u.get("ip_address") or "")
         if device_id == "unmanaged:":
@@ -298,8 +407,8 @@ def sincronizza_dispositivi(now=None, *, dispositivi=None, protezione=None, non_
             "produttore_scheda": str(u.get("network_interface_controller_vendor") or "")[:255],
             "ultima_connessione": _quando(u.get("last_seen_datetime")), "presente": True, "letto_il": now,
         })
-        visti.add(device_id[:120])
-    spariti = WatchGuardDispositivo.objects.filter(presente=True).exclude(device_id__in=visti).update(presente=False)
+    # I PC visti in questo giro hanno letto_il = now: niente elenco di id nella query (limite di 2100 parametri).
+    spariti = WatchGuardDispositivo.objects.filter(presente=True, letto_il__lt=now).update(presente=False)
     return {"pc": len(dispositivi), "senza_agente": len(non_gestiti), "spariti": spariti}
 
 
@@ -331,12 +440,12 @@ def anteprima_software(righe: list[dict]):
     return preview
 
 
-def sincronizza_software(*, righe: list[dict] | None = None) -> dict:
+def sincronizza_software(*, righe: list[dict] | None = None, client=None) -> dict:
     from security.services.defender_software import _dopo_import
     from security.services.software_inventory import run_import
 
     if righe is None:
-        righe = get_all("/softwareinventory")
+        righe = get_all("/softwareinventory", client=client)
     preview = anteprima_software(righe)
     if not preview.valid:
         # Una lettura vuota non deve segnare «non più rilevato» tutto il software WatchGuard.
@@ -368,18 +477,24 @@ def _url_download(valore) -> str:
     return url[:1000] if url.lower().startswith("https://") else ""
 
 
-def sincronizza_patch(now=None, *, righe: list[dict] | None = None) -> dict:
+CAMPI_PATCH = ("host", "host_display", "hub_asset", "nome", "programma", "versione", "produttore", "rilasciata_il",
+               "criticita", "di_sistema", "disponibilita", "cve", "kb", "download_url", "nome_file",
+               "riavvio_automatico", "presente", "vista_il", "chiusa_il")
+BLOCCO = 500
+
+
+def sincronizza_patch(now=None, *, righe: list[dict] | None = None, client=None) -> dict:
     now = now or timezone.now()
     if righe is None:
-        righe = get_all("/patchavailability")
+        righe = get_all("/patchavailability", client=client)
     asset_di = _Asset()
-    visti = set()
+    lette: dict = {}
     for r in righe:
-        device_id, patch_id = str(r.get("device_id") or ""), str(r.get("patch_id") or "")
+        device_id, patch_id = str(r.get("device_id") or "")[:120], str(r.get("patch_id") or "")[:120]
         if not device_id or not patch_id:
             continue
         host = _host(r.get("host_name"))
-        obj, _ = WatchGuardPatch.objects.update_or_create(device_id=device_id[:120], patch_id=patch_id[:120], defaults={
+        lette[(device_id, patch_id)] = {
             "host": host, "host_display": str(r.get("host_name") or "")[:255], "hub_asset": asset_di(host),
             "nome": str(r.get("patch_name") or patch_id)[:500], "programma": str(r.get("program_name") or "")[:255],
             "versione": str(r.get("program_version") or "")[:120],
@@ -389,31 +504,52 @@ def sincronizza_patch(now=None, *, righe: list[dict] | None = None) -> dict:
             "kb": kb_da_testo(r.get("patch_name"), r.get("local_filename")),
             "download_url": _url_download(r.get("download_url")), "nome_file": str(r.get("local_filename") or "")[:255],
             "riavvio_automatico": r.get("automatic_reboot") if isinstance(r.get("automatic_reboot"), bool) else None,
+            # una patch rivista torna aperta: chiusa_il si azzera come prima con update_or_create
             "presente": True, "vista_il": now, "chiusa_il": None,
-        })
-        visti.add(obj.pk)
-    chiuse = WatchGuardPatch.objects.filter(presente=True).exclude(pk__in=visti).update(presente=False, chiusa_il=now)
+        }
+    if not lette and WatchGuardPatch.objects.filter(presente=True).exists():
+        # Una risposta vuota con patch già aperte è quasi sempre un errore dell'API: non si chiude niente.
+        raise WatchGuardError("WatchGuard ha restituito un elenco di patch vuoto: passo saltato, nessuna patch chiusa.")
+    # Righe già a DB, per blocchi di PC (mai migliaia di parametri in una query: limite SQL Server 2100).
+    esistenti: dict = {}
+    pc = sorted({d for d, _ in lette})
+    for i in range(0, len(pc), BLOCCO):
+        for pk, d, pid in WatchGuardPatch.objects.filter(device_id__in=pc[i:i + BLOCCO]).values_list("pk", "device_id", "patch_id"):
+            esistenti[(d, pid)] = pk
+    da_creare, da_aggiornare = [], []
+    for (device_id, patch_id), campi in lette.items():
+        pk = esistenti.get((device_id, patch_id))
+        if pk is None:
+            da_creare.append(WatchGuardPatch(device_id=device_id, patch_id=patch_id, **campi))
+        else:
+            da_aggiornare.append(WatchGuardPatch(pk=pk, device_id=device_id, patch_id=patch_id, **campi))
+    if da_creare:
+        WatchGuardPatch.objects.bulk_create(da_creare, batch_size=BLOCCO)
+    if da_aggiornare:
+        WatchGuardPatch.objects.bulk_update(da_aggiornare, CAMPI_PATCH, batch_size=BLOCCO)
+    # Le patch viste in questo giro hanno vista_il = now: chiuse le altre, senza elenco di id nella query.
+    chiuse = WatchGuardPatch.objects.filter(presente=True, vista_il__lt=now).update(presente=False, chiusa_il=now)
     try:
         from security.services.patch_sla import registra_giorno
 
         registra_giorno(now)
     except Exception:  # noqa: BLE001 - la fotografia dell'andamento non blocca la lettura
         logger.exception("WatchGuard patch: fotografia giornaliera non scritta")
-    return {"patch": len(visti), "chiuse": chiuse}
+    return {"patch": len(lette), "chiuse": chiuse}
 
 
-def sincronizza_task(now=None) -> dict:
+def sincronizza_task(now=None, *, client=None) -> dict:
     """Esito delle installazioni di patch (task di tipo 6) degli ultimi ``TASK_GIORNI`` giorni."""
     now = now or timezone.now()
     dal = now - timedelta(days=TASK_GIORNI)
-    tasks = get_all("/tasks", {"$filter": f"41003 Eq {TASK_PATCH}"})
+    tasks = get_all("/tasks", {"$filter": f"41003 Eq {TASK_PATCH}"}, client=client)
     recenti = [t for t in tasks if (_quando((t.get("status") or {}).get("last_job_date")) or dal) > dal][:TASK_MAX]
     aggiornate = 0
     for t in recenti:
-        jobs = get(f"/tasks/{TASK_PATCH}/{t.get('id')}/jobs") or []
+        jobs = get(f"/tasks/{TASK_PATCH}/{t.get('id')}/jobs", client=client) or []
         jobs = sorted((j for j in jobs if isinstance(j, dict)), key=lambda j: str(j.get("date") or ""), reverse=True)[:3]
         for job in reversed(jobs):  # dal più vecchio: l'ultimo esito vince
-            for r in get_all(f"/tasks/{TASK_PATCH}/{t.get('id')}/jobs/{job.get('id')}/results"):
+            for r in get_all(f"/tasks/{TASK_PATCH}/{t.get('id')}/jobs/{job.get('id')}/results", client=client):
                 info = r.get("patch_info") or {}
                 if not info.get("patch_name") or not info.get("result"):
                     continue
@@ -475,19 +611,29 @@ def run() -> dict:
     from security.services.patch_kb import sincronizza_msrc
 
     attivi["msrc"] = attivi["patch"] and soc_settings.value("watchguard.api.msrc")
-    passi = (("dispositivi", sincronizza_dispositivi), ("software", sincronizza_software),
-             ("patch", sincronizza_patch), ("task", sincronizza_task), ("msrc", sincronizza_msrc))
-    for nome, passo in passi:
-        if not attivi["patch" if nome == "task" else nome]:
-            continue
-        try:
-            out[nome] = passo(now) if nome != "software" else passo()
-        except WatchGuardError as exc:
-            logger.warning("WatchGuard API %s: %s", nome, exc)
-            out[nome] = {"errore": str(exc)[:300]}
-            out["ok"] = False
-        except Exception as exc:  # noqa: BLE001 - una parte fallita non blocca le altre
-            logger.exception("WatchGuard API %s non riuscita", nome)
-            out[nome] = {"errore": f"{type(exc).__name__}"}
-            out["ok"] = False
+    try:
+        client = Client()  # una sessione e un token per tutto il giro
+    except WatchGuardError as exc:
+        return {"ok": False, "motivo": str(exc)[:300]}
+    passi = (("dispositivi", lambda: sincronizza_dispositivi(now, client=client)),
+             ("software", lambda: sincronizza_software(client=client)),
+             ("patch", lambda: sincronizza_patch(now, client=client)),
+             ("task", lambda: sincronizza_task(now, client=client)),
+             ("msrc", lambda: sincronizza_msrc(now)))
+    try:
+        for nome, passo in passi:
+            if not attivi["patch" if nome == "task" else nome]:
+                continue
+            try:
+                out[nome] = passo()
+            except WatchGuardError as exc:
+                logger.warning("WatchGuard API %s: %s", nome, exc)
+                out[nome] = {"errore": str(exc)[:300]}
+                out["ok"] = False
+            except Exception as exc:  # noqa: BLE001 - una parte fallita non blocca le altre
+                logger.exception("WatchGuard API %s non riuscita", nome)
+                out[nome] = {"errore": f"{type(exc).__name__}: {exc}"[:300]}
+                out["ok"] = False
+    finally:
+        client.close()
     return out

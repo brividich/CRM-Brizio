@@ -25,7 +25,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
-from core.ldap_conn import build_ldap_server, ldap_receive_timeout
+from core.ldap_conn import ldap_service_bind
 from core.legacy_models import AnagraficaDipendente, Ruolo, UtenteLegacy
 from core.legacy_utils import _ldap_escape_filter, canonicalize_ldap_upn, is_legacy_admin, ldap_group_cns
 
@@ -178,29 +178,20 @@ def _configurazione() -> dict | None:
 
 
 def _connetti(conf: dict):
-    """Bind con l'utente di servizio (stessi tentativi di ``resolve_ldap_identity``). Solo lettura."""
-    from ldap3 import NTLM, SIMPLE, Connection
+    """Bind con l'utente di servizio (stessi tentativi di ``resolve_ldap_identity``). Solo lettura.
 
-    utente = conf["utente"]
-    if "\\" in utente:
-        tentativi = [(utente, NTLM)]
-    elif "@" in utente:
-        tentativi = [(utente, SIMPLE)]
-    else:
-        tentativi = ([(f"{utente}@{conf['suffisso']}", SIMPLE)] if conf["suffisso"] else []) + [(utente, SIMPLE)]
-        if conf["dominio"]:
-            tentativi.append((f"{conf['dominio']}\\{utente}", NTLM))
-    server = build_ldap_server(conf["server"], conf["timeout"])
-    for bind_user, metodo in tentativi:
-        conn = Connection(server, user=bind_user, password=conf["password"], authentication=metodo, auto_bind=False,
-                          auto_referrals=False, raise_exceptions=False, receive_timeout=ldap_receive_timeout())
-        if conn.bind():
-            return conn
-        try:
-            conn.unbind()
-        except Exception:
-            pass
-    return None
+    Con il DC irraggiungibile ``ldap_bind`` solleva ``LDAPUnreachable`` (un ``OSError``):
+    il chiamante lo mostra come «Active Directory non risponde».
+    """
+    conn, _ultimo = ldap_service_bind(
+        server_url=conf["server"],
+        timeout=conf["timeout"],
+        user=conf["utente"],
+        password=conf["password"],
+        domain=conf["dominio"],
+        upn_suffix=conf["suffisso"],
+    )
+    return conn
 
 
 def _valore(entry: dict, chiave: str) -> str:

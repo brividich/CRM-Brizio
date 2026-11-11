@@ -12,6 +12,7 @@ Due controlli indipendenti:
 from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation, Overflow
+import json
 import re
 from time import perf_counter
 
@@ -842,10 +843,38 @@ def interroga_macchina(macchina):
     return valori
 
 
+DATI_STAMPANTE_INVARIATI = {"invariati": True}
+
+
+def _normalizza_json(dati):
+    return json.loads(json.dumps(dati or {}, default=str))
+
+
+def _alleggerisci_precedente(dispositivo, rilevazione, dati_stampante):
+    """Dati stampante salvati una volta sola finché non cambiano.
+
+    La lettura nuova li tiene sempre (la scheda, le KPI e il monitoraggio leggono l'ultima);
+    la precedente dello stesso giorno, se identica, li perde e resta col segno
+    ``{"invariati": True}``. L'ultima lettura di ogni giorno non si tocca: servono le
+    serie giornaliere delle stime toner.
+    """
+    if not (dati_stampante or {}).get("contatori") and not (dati_stampante or {}).get("consumabili"):
+        return
+    precedente = (dispositivo.rilevazioni.filter(rilevata_il__lte=rilevazione.rilevata_il).exclude(pk=rilevazione.pk)
+                  .order_by("-rilevata_il", "-pk").only("pk", "rilevata_il", "dati_stampante").first())
+    if precedente is None or not precedente.dati_stampante or precedente.dati_stampante == DATI_STAMPANTE_INVARIATI:
+        return
+    if timezone.localtime(precedente.rilevata_il).date() != timezone.localtime(rilevazione.rilevata_il).date():
+        return
+    if _normalizza_json(precedente.dati_stampante) == _normalizza_json(dati_stampante):
+        RilevazioneSNMP.objects.filter(pk=precedente.pk).update(dati_stampante=DATI_STAMPANTE_INVARIATI)
+
+
 @transaction.atomic
 def interroga_dispositivo(dispositivo):
     """Interroga identita' e sonde di un dispositivo e storicizza l'esito."""
     from .snmp import (
+        POLL_BUDGET,
         SNMPError,
         PRT_SERIAL,
         SYS_DESCR,
@@ -876,11 +905,16 @@ def interroga_dispositivo(dispositivo):
     porta, timeout, versione = _parametri_snmp(dispositivo, cfg)
     inizio = perf_counter()
     adesso = timezone.now()
+    # Una sola scadenza per tutto il poll (sonde, sonde nuove, Printer-MIB).
+    scadenza = inizio + POLL_BUDGET
+
+    def restante():
+        return max(0.0, scadenza - perf_counter())
 
     try:
         valori, errori = leggi_specifiche(
             dispositivo.host, specifiche, community=_community_snmp(dispositivo, cfg), port=porta,
-            timeout=timeout, version=versione,
+            timeout=timeout, version=versione, max_duration=restante(),
         )
     except SNMPError as exc:
         durata = _tempo_ms(inizio)
@@ -941,7 +975,7 @@ def interroga_dispositivo(dispositivo):
                     "aggregazione": s.aggregazione,
                 } for s in nuove_sonde],
                 community=_community_snmp(dispositivo, cfg), port=porta,
-                timeout=timeout, version=versione,
+                timeout=timeout, version=versione, max_duration=restante(),
             )
             valori.update(nuovi_valori)
             errori.update(nuovi_errori)
@@ -965,7 +999,7 @@ def interroga_dispositivo(dispositivo):
         try:
             dati_stampante = leggi_stampante(
                 dispositivo, community=_community_snmp(dispositivo, cfg),
-                port=porta, timeout=timeout, version=versione,
+                port=porta, timeout=timeout, version=versione, max_duration=restante(),
             )
         except SNMPError as exc:
             dati_stampante = {"contatori": [], "consumabili": [],
@@ -1066,6 +1100,7 @@ def interroga_dispositivo(dispositivo):
             if precedente:
                 registra_sostituzioni(dispositivo, precedente.dati_stampante["consumabili"],
                                       dati_stampante["consumabili"], adesso, precedente.rilevata_il)
+        _alleggerisci_precedente(dispositivo, rilevazione, dati_stampante)
     ValoreSNMP.objects.bulk_create([
         ValoreSNMP(
             rilevazione=rilevazione, sonda=e["sonda"],
