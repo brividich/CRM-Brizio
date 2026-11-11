@@ -475,6 +475,15 @@ class CertificatoServerTests(TestCase):
         fidati.assert_called_once()
         self.assertContains(resp, "Identificazione personale (SHA-1)")
 
+    def test_pulsante_fidati_nel_riquadro_veeam(self):
+        svc.salva_credenziali({"url": "https://veeam-sintetico:9419", "username": "u", "password": "p"}, self.admin)
+        self.client.force_login(self.admin)
+        html = self.client.get(reverse("security:soc_settings")).content.decode()
+        inizio = html.index('id="veeam-api"')
+        fine = html.index("</section>", inizio)
+        self.assertEqual(html.count('value="fidati"'), 1)
+        self.assertIn('value="fidati"', html[inizio:fine])
+
     def test_motivi_del_certificato(self):
         cfg = self._cfg("https://veeam-sintetico:9419")
         self.assertIn("non è intestato a «veeam-sintetico»",
