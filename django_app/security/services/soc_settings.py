@@ -140,6 +140,31 @@ SECTIONS = [
         ],
     },
     {
+        "code": "rumore",
+        "title": "Meno rumore: segnalazioni ripetitive",
+        "intro": "Le segnalazioni che si ripetono senza dire niente di nuovo non aprono un alert ciascuna. Dispositivi bloccati "
+                 "dalla policy (chiavette USB): conteggio per PC in Dispositivi › «Dispositivi bloccati dalla policy», alert solo sopra la soglia. "
+                 "CVE oltre il termine: un alert per CVE (non per PC); se la CVE ha già l'alert «PC con versione vulnerabile» il "
+                 "termine scaduto va nella sua timeline. Modifiche di Entra fatte da amministratori fidati: restano negli eventi. "
+                 "Alert fermi: proposta di chiusura da confermare in «Proposte di chiusura». Tutto resta negli eventi e nell'audit. "
+                 "Gli alert già aperti si sistemano con manage.py security_unisci_doppioni --apply.",
+        "channels_optional": True,
+        "options": [
+            Option("rumore.attivo", True, "Riduci le segnalazioni ripetitive",
+                   "Spento: ogni notifica apre o aggiorna il suo alert come prima."),
+            Option("rumore.dispositivi_bloccati.soglia", 0, "Alert per i dispositivi bloccati da",
+                   "Dispositivi bloccati sullo stesso PC in 24 ore che aprono un alert. 0 = mai: solo il conteggio per PC.",
+                   "int", min_value=0, max_value=1000, unit="blocchi in 24 ore"),
+            Option("rumore.entra.amministratori_portale", True, "Gli amministratori del portale sono autori fidati in Entra",
+                   "Le loro modifiche in Entra (consensi alle app, metodi MFA, ruoli) non aprono un alert."),
+            Option("rumore.entra.autori_fidati", "", "Altri autori fidati in Entra",
+                   "Indirizzi (UPN) separati da virgole, es. admin@azienda.it.", "text"),
+            Option("rumore.fermi.giorni", 30, "Proponi la chiusura degli alert fermi da",
+                   "Alert senza nuove occorrenze da questi giorni: proposta «Risolto» da confermare (non per CVE, critici o "
+                   "malware). 0 = mai.", "int", min_value=0, max_value=365, unit="giorni"),
+        ],
+    },
+    {
         "code": "impatto_cve",
         "title": "Impatto CVE sugli asset",
         "intro": "Il job orario legge da NVD i range di versione vulnerabili, da CISA KEV le CVE sfruttate e (facoltativo) "
@@ -165,8 +190,9 @@ SECTIONS = [
         "title": "Vulnerabilità: tempi di correzione (ISO 27001 8.8)",
         "intro": "Ogni PC esposto a una CVE ha un termine di correzione che parte da «esposto dal» e dipende dalla classe della "
                  "CVE: sfruttata (CISA KEV: la data chiesta da CISA, altrimenti i giorni qui sotto), critica (CVSS 9 o più), alta "
-                 "(7 o più), media (4 o più), bassa. Passato il termine nasce un evento e un alert (uno per CVE, PC e termine), "
-                 "salvo accettazione del rischio attiva. Le accettazioni in scadenza e scadute aprono un alert di attenzione.",
+                 "(7 o più), media (4 o più), bassa. Passato il termine nasce un evento per PC e un alert per CVE (se la CVE "
+                 "ha già l'alert «PC con versione vulnerabile», il termine scaduto va nella sua timeline), salvo accettazione del "
+                 "rischio attiva; l'alert si chiude da solo quando tutti i PC sono corretti. Le accettazioni in scadenza e scadute aprono un alert di attenzione.",
         "channels_optional": True,
         "options": [
             Option("cve.sla.attivo", True, "Segnala le esposizioni oltre il termine di correzione"),

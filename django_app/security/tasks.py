@@ -75,6 +75,13 @@ def _termini_correzione_cve():
             "cve_doppie_chiuse": doppie}
 
 
+def _alert_fermi():
+    """Alert senza nuove occorrenze da «rumore.fermi.giorni» giorni: proposta di chiusura da confermare."""
+    from security.services import alert_fermi
+
+    return alert_fermi.proponi_chiusura()
+
+
 def _termini_patch():
     """Patch WatchGuard oltre il termine di installazione (``patch_sla``): eventi nuovi e alert rientrati."""
     from security.services import patch_sla
@@ -259,6 +266,7 @@ def run_security_cycle_task():
         ("rules_after_heartbeat", evaluate_security_rules),
         ("kpis", build_daily_kpi_snapshots),
         ("rientri", _periodic_recoveries),
+        ("alert_fermi", _alert_fermi),
         ("pulizia_inventario", _cleanup_inventory_previews),
         ("iso", _iso_incidenti),
         ("avvisi", _scheduled_notifications),

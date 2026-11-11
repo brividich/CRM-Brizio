@@ -44,6 +44,9 @@ Un clic sul nome apre la **scheda PC** (backup, alert, vulnerabilità e protezio
 
 Se un PC non compare, il report del job non lo elenca: controlla la configurazione del job sul NAS o su Veeam.
 
+- Un nuovo tentativo di Veeam («Job (Retry 2)») conta come lo stesso job: un alert solo, e il tentativo riuscito chiude il fallimento.
+- Le mail di Veeam sul **malware trovato nei backup** non sono esiti di job: non entrano nei conteggi dei backup e aprono un solo alert alto «Veeam: malware nei backup (…)».
+
 ### Lettura diretta da Veeam
 
 Con la lettura dall'API di Veeam accesa ([Impostazioni](/soc/docs/16-impostazioni-e-ai/#backup-letti-direttamente-da-veeam)) compare il riquadro **Lettura diretta da Veeam**: stato del collegamento («collegata», «errore» con il motivo), esito dell'ultimo giro e lo **spazio libero di ogni repository**, dal più pieno. Le righe sotto la soglia sono evidenziate e hanno un alert «Repository di backup quasi pieno».
@@ -112,6 +115,8 @@ I filtri **Senza asset**, **Backup ko**, **Con CVE**, **Problemi Intune**, **Non
 In cima ci sono i dispositivi con backup ko, poi quelli con problemi Intune, poi quelli con CVE gravi, poi quelli visti da meno fonti. Il dispositivo si riconosce dal nome, senza dominio e senza maiuscole: «PC-01.dominio.local» e «pc-01» sono lo stesso. Gli apparati di rete letti via SNMP non compaiono, e nemmeno i dispositivi non più presenti in Intune.
 
 Un clic sulla riga apre l'anteprima; il nome apre la scheda completa del dispositivo. Le pagine **Backup** e **Vulnerabilità** restano per il lavoro trasversale (job di backup e log, CVE per programma), e ogni dispositivo lì porta alla stessa scheda.
+
+**Dispositivi bloccati dalla policy.** In fondo alla pagina, il riquadro (chiuso, si apre col clic) elenca per PC le chiavette USB e gli altri dispositivi fermati da Endpoint Security negli ultimi 30 giorni: dispositivi bloccati, notifiche, giorni con blocchi, ultima. Non aprono alert, salvo la soglia di Impostazioni › «Meno rumore».
 
 Sotto il nome compare l'**indirizzo IP** letto dal DHCP o dal DNS di Windows Server (prima quello collegato all'asset, poi quello con lo stesso nome) e, se uno switch monitorato vede il suo MAC, **switch e porta**. Il clic sull'IP apre **Rete (IP)** filtrata su quel dispositivo; la ricerca dell'elenco trova anche IP e MAC. Lo stesso dato è in cima alla scheda del dispositivo.
 

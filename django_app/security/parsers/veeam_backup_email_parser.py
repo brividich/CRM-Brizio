@@ -53,7 +53,11 @@ class VeeamBackupEmailParser(BaseParser):
         return reasons
 
     def parse(self, item) -> ParsedReport:
+        from security.services.alert_doppioni import e_report_malware
+
         payload = parse_veeam_email(item.subject, item.body, getattr(item, "sender", None), getattr(item, "received_at", None))
+        if e_report_malware(payload):
+            return _report_malware(item, payload, self.name)
         metrics = _metrics(payload)
         record = ParsedRecord(
             record_type="backup_job",
@@ -70,9 +74,29 @@ class VeeamBackupEmailParser(BaseParser):
         )
 
 
+def _report_malware(item, payload, parser_name):
+    """Mail di Veeam sul malware trovato nei backup: un segnale di sicurezza, non l'esito di un job (non entra nei KPI)."""
+    titolo = payload.get("job_name_originale") or payload.get("job_name") or ""
+    record = {
+        "type": "veeam_malware", "vendor": "veeam", "title": titolo, "subject": payload.get("subject"),
+        "status": payload.get("status"), "received_at": payload.get("received_at"), "severity": "high",
+        "alert_candidate": True, "source_message_id": getattr(item, "pk", None),
+        "dedup_key": make_hash("veeam_malware", payload.get("subject"), payload.get("received_at"), payload.get("raw_body_hash")),
+    }
+    return ParsedReport(
+        report_type="veeam_malware_report", title=item.subject, parser_name=parser_name,
+        records=[ParsedRecord(record_type="veeam_malware", payload=record, metrics={})], metrics={}, payload=record,
+    )
+
+
 def parse_veeam_email(subject, body, sender=None, received_at=None):
+    from security.services.alert_doppioni import job_base
+
     subject, body = subject or "", body or ""
-    job = _search(r"job:\s*(.+)", body) or re.sub(r"^\s*\[[^\]]+\]\s*|\s*\(\d+\s+objects?\)\s*$", "", subject, flags=re.I).strip()
+    job_originale = _search(r"job:\s*(.+)", body) or re.sub(r"^\s*\[[^\]]+\]\s*|\s*\(\d+\s+objects?\)\s*$", "", subject, flags=re.I).strip()
+    # «Backup X (Retry 2)» è un nuovo tentativo dello stesso job: stesso nome, così il riuscito chiude il fallito.
+    job = job_base(job_originale)
+    tentativo = re.search(r"\((?:retry|tentativo)\s*(\d*)\)\s*$", job_originale or "", re.I)
     tag = _SUBJECT_STATUS.match(subject)
     status = _STATUS_MAP[tag.group(1).lower()] if tag else _status_from_body(body)
     processed = re.search(r"(\d+)\s+of\s+(\d+)\s+(?:VMs?|objects?|machines?|computers?)\s+processed", body, re.I)
@@ -116,6 +140,8 @@ def parse_veeam_email(subject, body, sender=None, received_at=None):
         "source": "veeam",
         "vendor": "veeam",
         "job_name": job or "unknown",
+        "job_name_originale": job_originale or "",
+        "tentativo": (int(tentativo.group(1)) if tentativo.group(1) else 1) if tentativo else None,
         "status": status,
         "start_time": _iso(start_time),
         "end_time": _iso(end_time),
