@@ -1,13 +1,17 @@
 """Impostazioni e amministrazione del modulo KICK-OFF."""
 from __future__ import annotations
 
+import json
+
 import logging
 from datetime import timedelta
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db import DatabaseError, transaction
 from django.db.models import Count, Max, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -53,6 +57,7 @@ from ..models import (
 )
 from ..services.agenda import (
     _parse_agenda_template_items,
+    _parse_optional_date,
 )
 from ._shared import (
     _coerce_positive_int,
@@ -293,10 +298,16 @@ def _build_tasks_settings_context(request, *, tab: str) -> dict:
         )
 
     if tab == "log":
-        context["audit_entries"] = AuditLog.objects.filter(modulo="tasks").order_by("-created_at")[:100]
+        context.update(_log_settings_context(request))
 
     if tab == "modelli":
-        context["agenda_templates"] = list(MeetingAgendaTemplate.objects.all())
+        modelli = list(MeetingAgendaTemplate.objects.all())
+        for m in modelli:
+            m.n_punti = len(m.items or [])
+            m.minuti = sum(int(i.get("durata_minuti") or 0) for i in (m.items or []) if isinstance(i, dict))
+        context["agenda_templates"] = modelli
+        context["modelli_attivi"] = sum(1 for m in modelli if m.is_active)
+        context["modello_aperto"] = _coerce_positive_int(request.GET.get("apri"), default=0)
 
     if tab == "catalogo":
         context.update(_catalogo_context(request))
@@ -691,7 +702,6 @@ def _handle_tasks_roles_post(request):
 
 def _handle_tasks_access_post(request):
     """POST tab accessi: regole ruolo operativo + override singolo utente."""
-    from urllib.parse import urlencode
 
     params = {"tab": "accessi"}
     q_user = request.POST.get("q_access_user", "").strip()
@@ -887,6 +897,184 @@ def _handle_tasks_reminders_post(request):
     return redirect(target_url)
 
 
+# ── Registro modifiche: livelli, etichette e filtri ──────────────────────────
+# Il registro era una lista piatta delle ultime 100 voci: per capire chi aveva
+# cancellato cosa bisognava scorrerla tutta. Ogni azione ha un livello fisso,
+# cosi' la vista «Critico» mostra solo eliminazioni, permessi e forzature.
+LOG_VISTE = (
+    ("essenziali", "Essenziali", "Senza le operazioni di routine"),
+    ("critico", "Critico", "Eliminazioni, permessi, forzature"),
+    ("tutto", "Tutto", "Ogni voce registrata"),
+)
+_LOG_CRITICO = ("delete", "elimin", "annull", "riaperto", "ruol", "access", "poteri", "forz", "skipped", "scavalc", "impersona")
+_LOG_ROUTINE = ("reminder", "promemoria", "sala_verifica", "esporta", "quick", "tooling", "attendance", "presenz",
+                "agenda_item", "spostamento", "sync", "letto", "visual", "cattura")
+_LOG_ETICHETTE = {
+    "modifica": "Impostazioni modificate",
+    "kickoff_project_delete": "Kickoff eliminato",
+    "kickoff_task_delete": "Attività eliminata",
+    "kickoff_riaperto": "Kickoff riaperto",
+    "kickoff_reused_on_create": "Kickoff esistente riutilizzato",
+    "kickoff_meeting_create": "Incontro convocato",
+    "kickoff_meeting_edit": "Incontro modificato",
+    "kickoff_meeting_agenda_item_add": "Punto ODG aggiunto in riunione",
+    "kickoff_meeting_agenda_item_delete": "Punto ODG tolto in riunione",
+    "kickoff_task_from_agenda_item": "Attività creata da un punto ODG",
+    "task_quick_create": "Attività creata al volo",
+    "modello_odg_creato": "Modello ODG creato",
+    "modello_odg_modificato": "Modello ODG modificato",
+    "modello_odg_eliminato": "Modello ODG eliminato",
+    "modello_odg_duplicato": "Modello ODG duplicato",
+    "kickoff_fai_soglie": "Scadenze FAI modificate",
+    "kickoff_fai_opzione_crea": "Opzione FAI creata",
+    "kickoff_fai_opzione_aggiorna": "Opzione FAI modificata",
+    "kickoff_fai_opzione_elimina": "Opzione FAI eliminata",
+    "kickoff_fai_esporta": "Registro FAI esportato",
+    "ruoli_aggiornati": "Ruoli aggiornati",
+    "ruolo_creato": "Ruolo creato",
+    "ruolo_eliminato": "Ruolo eliminato",
+    "ruoli_source_modificata": "Origine ruoli modificata",
+    "reminder_forzati": "Promemoria forzati",
+    "reminder_rimandati": "Promemoria rimandati",
+    "reminder_eliminati": "Promemoria eliminati",
+    "vrf_skipped_with_reminder": "VRF saltato con promemoria",
+    "vrf_compiled_inline": "VRF compilato nel portale",
+    "vrf_compiled_draft": "VRF salvato in bozza",
+    "kickoff_sala_salva": "Sala salvata",
+    "kickoff_sala_elimina": "Sala eliminata",
+    "kickoff_sala_verifica": "Sala verificata in Outlook",
+    "kickoff_tappa_assegna": "Tappa assegnata",
+    "kickoff_tappa_da_punto": "Tappa assegnata da un punto ODG",
+    "kickoff_spostamento_decidi": "Spostamento deciso",
+    "kickoff_spostamento_annulla": "Spostamento annullato",
+    "kickoff_programma_fase": "Fase del programma aggiornata",
+    "kickoff_tech_ref_salva": "Riga Programmi/FAI salvata",
+    "kickoff_tech_ref_attivita": "Attività da riga Programmi/FAI",
+    "tipo_creato": "Tipo attività creato",
+    "tipo_modificato": "Tipo attività modificato",
+    "tipo_eliminato": "Tipo attività eliminato",
+    "tipo_campo_creato": "Campo del tipo creato",
+    "tipo_campo_modificato": "Campo del tipo modificato",
+    "tipo_campo_eliminato": "Campo del tipo eliminato",
+}
+
+
+def livello_audit(azione: str) -> str:
+    """``critico`` | ``importante`` | ``routine`` per un codice azione del modulo."""
+    a = (azione or "").lower()
+    # Righe scritte dai segnali sui modelli (auto_insert/auto_update/auto_delete): tracciano
+    # ogni record, non una decisione di qualcuno. Stanno nella routine.
+    if a.startswith("auto_"):
+        return "routine"
+    if any(k in a for k in _LOG_CRITICO):
+        return "critico"
+    if any(k in a for k in _LOG_ROUTINE):
+        return "routine"
+    return "importante"
+
+
+_LOG_AUTO = {"auto_insert": "Riga creata (automatico)", "auto_update": "Riga modificata (automatico)", "auto_delete": "Riga eliminata (automatico)"}
+
+
+def etichetta_audit(azione: str) -> str:
+    return _LOG_ETICHETTE.get(azione) or _LOG_AUTO.get(azione) or (azione or "").replace("_", " ").capitalize()
+
+
+def _dettaglio_righe(dettaglio) -> list[tuple[str, str]]:
+    """Il JSON del dettaglio come coppie leggibili; una stringa resta una riga sola."""
+    if isinstance(dettaglio, dict):
+        righe = []
+        for k, v in dettaglio.items():
+            if v in (None, "", [], {}):
+                continue
+            if isinstance(v, (list, tuple)):
+                v = ", ".join(str(x) for x in v[:10]) + (" …" if len(v) > 10 else "")
+            elif isinstance(v, dict):
+                v = json.dumps(v, ensure_ascii=False)[:200]
+            righe.append((str(k).replace("_", " "), str(v)[:300]))
+        return righe
+    if dettaglio in (None, ""):
+        return []
+    return [("", str(dettaglio)[:300])]
+
+
+def _log_settings_context(request) -> dict:
+    from django.core.paginator import Paginator
+
+    g = request.GET
+    q = (g.get("q") or "").strip()
+    azione = (g.get("azione") or "").strip()
+    utente = (g.get("utente") or "").strip()
+    vista = (g.get("vista") or "essenziali").strip().lower()
+    if vista not in {v[0] for v in LOG_VISTE}:
+        vista = "essenziali"
+    da = _parse_optional_date(g.get("da"))
+    a = _parse_optional_date(g.get("a"))
+
+    base = AuditLog.objects.filter(modulo="tasks")
+    azioni_tutte = list(base.values("azione").annotate(n=Count("id")).order_by("-n"))
+    per_livello = {"critico": 0, "importante": 0, "routine": 0}
+    for riga in azioni_tutte:
+        per_livello[livello_audit(riga["azione"])] += riga["n"]
+    codici_vista = {
+        "critico": [r["azione"] for r in azioni_tutte if livello_audit(r["azione"]) == "critico"],
+        "essenziali": [r["azione"] for r in azioni_tutte if livello_audit(r["azione"]) != "routine"],
+    }
+
+    qs = base
+    if vista in codici_vista:
+        qs = qs.filter(azione__in=codici_vista[vista])
+    if azione:
+        qs = qs.filter(azione=azione)
+    if utente:
+        qs = qs.filter(utente_display__iexact=utente)
+    if da:
+        qs = qs.filter(created_at__date__gte=da)
+    if a:
+        qs = qs.filter(created_at__date__lte=a)
+    if q:
+        # Il dettaglio e' JSON: la ricerca testuale passa dal suo testo serializzato.
+        qs = qs.filter(Q(azione__icontains=q) | Q(utente_display__icontains=q) | Q(dettaglio__icontains=q))
+    qs = qs.order_by("-created_at")
+
+    page = Paginator(qs, 100).get_page(g.get("page"))
+    voci = []
+    for entry in page:
+        entry.livello = livello_audit(entry.azione)
+        entry.azione_label = etichetta_audit(entry.azione)
+        dettaglio = entry.dettaglio
+        if entry.livello == "routine" and isinstance(dettaglio, dict) and "valori" in dettaglio:
+            # Il JSON completo del record non si legge: restano modello, chiave e oggetto.
+            dettaglio = {k: v for k, v in dettaglio.items() if k != "valori"}
+        entry.dettaglio_righe = _dettaglio_righe(dettaglio)
+        voci.append(entry)
+
+    filtri = {"tab": "log", "vista": vista, "q": q, "azione": azione, "utente": utente,
+              "da": da.isoformat() if da else "", "a": a.isoformat() if a else ""}
+    conteggi = {
+        "critico": per_livello["critico"],
+        "essenziali": per_livello["critico"] + per_livello["importante"],
+        "tutto": sum(per_livello.values()),
+    }
+    return {
+        "audit_entries": voci,
+        "log_page": page,
+        "log_totale": conteggi["tutto"],
+        "log_filtrati": page.paginator.count,
+        "log_viste": [(codice, nome, aiuto, conteggi[codice]) for codice, nome, aiuto in LOG_VISTE],
+        "log_vista": vista,
+        "log_q": q,
+        "log_azione": azione,
+        "log_utente": utente,
+        "log_da": filtri["da"],
+        "log_a": filtri["a"],
+        "log_azioni": [(r["azione"], etichetta_audit(r["azione"]), r["n"], livello_audit(r["azione"])) for r in azioni_tutte],
+        "log_utenti": list(base.exclude(utente_display="").values_list("utente_display", flat=True).distinct().order_by("utente_display")),
+        "log_query": urlencode({k: v for k, v in filtri.items() if v}),
+        "log_filtri_attivi": bool(q or azione or utente or da or a),
+    }
+
+
 def _fai_settings_context() -> dict:
     testi = {
         FaiGruppo.CAUSALE: ("Perché serve il FAI", "I motivi della MT CN 15 §5.1. Ognuno propone il tipo; con «Motivo se Delta» chi sceglie il Delta deve spiegarlo."),
@@ -1046,6 +1234,34 @@ def _handle_tasks_agenda_templates_post(request):
         })
         messages.success(request, f"Modello «{template.nome}» aggiornato.")
         return redirect(base_url)
+
+    if action == "template_duplicate":
+        # Un modello nuovo nasce quasi sempre da uno esistente con due punti in piu':
+        # prima andava ricopiato a mano riga per riga.
+        try:
+            origine = MeetingAgendaTemplate.objects.get(pk=int(request.POST.get("template_id") or 0))
+        except (MeetingAgendaTemplate.DoesNotExist, TypeError, ValueError):
+            messages.error(request, "Modello non trovato.")
+            return redirect(base_url)
+        nome = f"{origine.nome} (copia)"[:120]
+        n = 2
+        while MeetingAgendaTemplate.objects.filter(nome=nome).exists():
+            nome = f"{origine.nome} (copia {n})"[:120]
+            n += 1
+        max_order = MeetingAgendaTemplate.objects.aggregate(m=Max("order_index")).get("m") or 0
+        copia = MeetingAgendaTemplate.objects.create(
+            nome=nome,
+            descrizione=origine.descrizione,
+            items=list(origine.items or []),
+            is_active=False,
+            order_index=max_order + 10,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+        log_action(request, "modello_odg_duplicato", "tasks", {
+            "template_id": copia.pk, "nome": copia.nome, "origine_id": origine.pk,
+        })
+        messages.success(request, f"Modello «{copia.nome}» creato, spento: attivalo quando è pronto.")
+        return redirect(f"{base_url}&apri={copia.pk}")
 
     if action == "template_delete":
         try:
@@ -1600,6 +1816,32 @@ def impostazioni(request):
     config_url = f"{reverse('tasks:impostazioni')}?tab=config"
 
     if request.method == "POST":
+        risposta = _impostazioni_post(request, cfg, config_url)
+        if request.headers.get("x-requested-with") != "XMLHttpRequest":
+            return risposta
+        # Salvataggio in pagina (form con data-salva-ajax): i messaggi flash
+        # diventano la risposta, cosi' la riga mostra «Salvato» o l'errore
+        # senza ricaricare la scheda.
+        elenco = [{"livello": m.level_tag, "testo": str(m)} for m in messages.get_messages(request)]
+        ok = not any(m["livello"] == "error" for m in elenco)
+        return JsonResponse({"ok": ok, "messaggi": elenco}, status=200 if ok else 400)
+
+    tab = _normalize_tasks_settings_tab(request.GET.get("tab"), default="config")
+    return render(
+        request,
+        "tasks/impostazioni.html",
+        {
+            **_tasks_shell_context(request, active="impostazioni"),
+            **_build_tasks_settings_context(request, tab=tab),
+            "cfg": cfg,
+            **get_module_branding_context("tasks", fallback_label="KICK-OFF"),
+        },
+    )
+
+
+def _impostazioni_post(request, cfg, config_url):
+    """Smista il POST alla scheda giusta; risponde sempre con un redirect."""
+    if True:
         posted_tab = (request.POST.get("tab") or "").strip().lower()
         if posted_tab == "ruoli":
             return _handle_tasks_roles_post(request)
@@ -1651,15 +1893,3 @@ def impostazioni(request):
         log_action(request, "modifica", "tasks", {"message": "Aggiornate impostazioni KICK-OFF"})
         messages.success(request, "Impostazioni salvate.")
         return redirect(config_url)
-
-    tab = _normalize_tasks_settings_tab(request.GET.get("tab"), default="config")
-    return render(
-        request,
-        "tasks/impostazioni.html",
-        {
-            **_tasks_shell_context(request, active="impostazioni"),
-            **_build_tasks_settings_context(request, tab=tab),
-            "cfg": cfg,
-            **get_module_branding_context("tasks", fallback_label="KICK-OFF"),
-        },
-    )

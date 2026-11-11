@@ -1,29 +1,85 @@
+{# Registro modifiche del modulo: viste per livello, ricerca e filtri lato server. #}
 <section class="ts-panel">
   <div class="ts-panel-head">
     <div class="ts-panel-title-wrap">
-      <h2 class="ts-panel-title">Log attivita KICK-OFF</h2>
-      <p class="ts-panel-subtitle">Ultime 100 voci di audit per il modulo.</p>
+      <h2 class="ts-panel-title">Registro modifiche KICK-OFF</h2>
+      <p class="ts-panel-subtitle">{{ log_filtrati }} voci{% if log_filtrati != log_totale %} su {{ log_totale }}{% endif %}. Ogni azione ha un livello: <span class="log-liv log-liv--critico">critico</span> eliminazioni, permessi e forzature; <span class="log-liv log-liv--importante">importante</span> creazioni e modifiche; <span class="log-liv log-liv--routine">routine</span> promemoria, verifiche, esportazioni.</p>
     </div>
   </div>
   <div class="ts-panel-body">
+    <div class="log-viste" role="tablist" aria-label="Vista del registro">
+      {% for codice, nome, aiuto, n in log_viste %}
+        <a class="log-vista{% if log_vista == codice %} is-attiva{% endif %}" role="tab" aria-selected="{% if log_vista == codice %}true{% else %}false{% endif %}"
+           href="?tab=log&vista={{ codice }}{% if log_q %}&q={{ log_q|urlencode }}{% endif %}{% if log_azione %}&azione={{ log_azione|urlencode }}{% endif %}{% if log_utente %}&utente={{ log_utente|urlencode }}{% endif %}{% if log_da %}&da={{ log_da }}{% endif %}{% if log_a %}&a={{ log_a }}{% endif %}" title="{{ aiuto }}">
+          {{ nome }} <strong>{{ n }}</strong>
+        </a>
+      {% endfor %}
+    </div>
+
+    <form method="get" class="log-filtri" data-log-filtri>
+      <input type="hidden" name="tab" value="log">
+      <input type="hidden" name="vista" value="{{ log_vista }}">
+      <label class="log-filtro log-filtro--cerca">
+        <span>Cerca</span>
+        <input class="input" type="search" name="q" value="{{ log_q }}" placeholder="Nome, titolo, numero, utente…" autocomplete="off">
+      </label>
+      <label class="log-filtro">
+        <span>Azione</span>
+        <select class="input" name="azione" data-invia-al-cambio>
+          <option value="">Tutte</option>
+          {% for codice, etichetta, n, livello in log_azioni %}
+            <option value="{{ codice }}"{% if log_azione == codice %} selected{% endif %}>{{ etichetta }} ({{ n }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="log-filtro">
+        <span>Utente</span>
+        <select class="input" name="utente" data-invia-al-cambio>
+          <option value="">Tutti</option>
+          {% for u in log_utenti %}<option value="{{ u }}"{% if log_utente == u %} selected{% endif %}>{{ u|upper }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="log-filtro"><span>Dal</span><input class="input" type="date" name="da" value="{{ log_da }}" data-invia-al-cambio></label>
+      <label class="log-filtro"><span>Al</span><input class="input" type="date" name="a" value="{{ log_a }}" data-invia-al-cambio></label>
+      <div class="log-filtro-azioni">
+        <button type="submit" class="md-btn">Filtra</button>
+        {% if log_filtri_attivi %}<a class="btn btn-secondary btn-sm" href="?tab=log&vista={{ log_vista }}">Azzera</a>{% endif %}
+      </div>
+    </form>
+
     {% if audit_entries %}
-      <div class="admin-log-grid">
-        <div class="admin-log-row admin-log-head">
-          <span>Data/ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
+      <div class="log-tabella" data-log-tabella>
+        <div class="log-riga log-testa" aria-hidden="true">
+          <span>Livello</span><span>Data e ora</span><span>Utente</span><span>Azione</span><span>Dettaglio</span>
         </div>
         {% for entry in audit_entries %}
-          <div class="admin-log-row">
-            <span>{{ entry.created_at|date:"d-m-Y H:i" }}</span>
-            <span>{{ entry.utente_display|upper|default:"-" }}</span>
-            <span>{{ entry.azione }}</span>
-            <span style="color:var(--text-light);">{{ entry.dettaglio }}</span>
+          <div class="log-riga log-riga--{{ entry.livello }}">
+            <span><span class="log-liv log-liv--{{ entry.livello }}">{{ entry.livello }}</span></span>
+            <span class="log-data">{{ entry.created_at|date:"d-m-Y H:i" }}</span>
+            <span class="log-utente">{{ entry.utente_display|upper|default:"-" }}</span>
+            <span class="log-azione">
+              <a href="?tab=log&vista={{ log_vista }}&azione={{ entry.azione|urlencode }}" title="Solo «{{ entry.azione }}»">{{ entry.azione_label }}</a>
+              <small>{{ entry.azione }}</small>
+            </span>
+            <span class="log-dettaglio">
+              {% for chiave, valore in entry.dettaglio_righe %}
+                <span class="log-kv">{% if chiave %}<em>{{ chiave }}</em> {% endif %}{{ valore }}</span>
+              {% empty %}<span class="log-kv log-kv--vuoto">—</span>{% endfor %}
+            </span>
           </div>
         {% endfor %}
       </div>
+      {% if log_page.paginator.num_pages > 1 %}
+        <nav class="log-pagine" aria-label="Pagine del registro">
+          {% if log_page.has_previous %}<a class="btn btn-secondary btn-sm" href="?{{ log_query }}&page={{ log_page.previous_page_number }}">← Più recenti</a>{% endif %}
+          <span>Pagina {{ log_page.number }} di {{ log_page.paginator.num_pages }}</span>
+          {% if log_page.has_next %}<a class="btn btn-secondary btn-sm" href="?{{ log_query }}&page={{ log_page.next_page_number }}">Più vecchie →</a>{% endif %}
+        </nav>
+      {% endif %}
     {% else %}
       <div class="ts-empty">
-        <strong>Nessuna voce di log disponibile.</strong>
-        <div>Il log si popola automaticamente quando vengono registrate azioni sul modulo.</div>
+        <strong>Nessuna voce{% if log_filtri_attivi or log_vista != "tutto" %} con questi filtri{% endif %}.</strong>
+        <div>{% if log_filtri_attivi or log_vista != "tutto" %}Prova la vista «Tutto» o azzera i filtri.{% else %}Il registro si popola da solo quando si fanno azioni sul modulo.{% endif %}</div>
       </div>
     {% endif %}
   </div>

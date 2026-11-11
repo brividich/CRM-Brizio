@@ -1488,6 +1488,10 @@ def project_meeting_run(request, project_id: int, meeting_id: int):
                 "tasks:project_meeting_agenda_item_task_create",
                 kwargs={"project_id": project_id, "meeting_id": meeting_id},
             ),
+            "item_delete_url": reverse(
+                "tasks:project_meeting_agenda_item_delete",
+                kwargs={"project_id": project_id, "meeting_id": meeting_id},
+            ),
             "project_tasks_json": _project_tasks_for_picker(project),
             **_run_tappe_context(items),
         },
@@ -1604,6 +1608,41 @@ def project_meeting_agenda_item_update(request, project_id: int, meeting_id: int
         "task_id": row.task_id,
         "task_label": row.task_label or "",
     })
+
+
+@require_POST
+@task_permissions_required("tasks_create")
+def project_meeting_agenda_item_delete(request, project_id: int, meeting_id: int):
+    """Toglie dall'ordine del giorno un punto «tappa da assegnare», dalla conduzione.
+
+    Le tappe del percorso entrano da sole nell'ODG; se in questa riunione una
+    non si discute, prima restava li' come punto non trattato fino alla minuta.
+    Solo tappe senza attivita' collegata: un punto con attivita', problema o
+    azione si chiude dal suo filo, non si cancella.
+    """
+    project = get_object_or_404(scoped_projects_queryset(request), pk=project_id)
+    meeting = get_object_or_404(KickoffMeeting, pk=meeting_id, project=project)
+    if not can_manage_project(request, project):
+        return JsonResponse({"ok": False, "reason": "forbidden"}, status=403)
+
+    item_id = (request.POST.get("item_id") or "").strip()
+    row = MeetingAgendaItem.objects.filter(meeting=meeting, item_id=item_id).first()
+    if row is None:
+        return JsonResponse({"ok": False, "reason": "item_not_found"}, status=404)
+    if not (row.source or "").startswith("tappa:") or row.task_id or row.issue_id or row.action_id or row.locked:
+        return JsonResponse({"ok": False, "reason": "not_removable"}, status=400)
+
+    items = [
+        entry for entry in (meeting.agenda_items or [])
+        if isinstance(entry, dict) and str(entry.get("id") or "") != item_id
+    ]
+    meeting.agenda_items = items
+    meeting.save(update_fields=["agenda_items", "updated_at"])
+    log_action(
+        request, "kickoff_meeting_agenda_item_delete", "tasks",
+        {"meeting_id": meeting.pk, "project_id": project_id, "item_id": item_id, "titolo": row.titolo},
+    )
+    return JsonResponse({"ok": True, "item_id": item_id, "count": len(items)})
 
 
 @require_POST

@@ -1974,3 +1974,61 @@ class GraphTokenCacheInvalidationTests(SimpleTestCase):
             with self.assertRaises(RuntimeError):
                 outlook_calendar._raise_graph_error(self._response(404))
         self.assertFalse(invalidate.called)
+
+
+@override_settings(LEGACY_AUTH_ENABLED=False, SECURE_SSL_REDIRECT=False)
+class MeetingAgendaTappaDeleteTests(TasksBaseTestCase):
+    """«Elimina» sui punti tappa da assegnare, dalla conduzione."""
+
+    def setUp(self):
+        super().setUp()
+        _ensure_role(2, "tasks")
+        _grant_role_actions(2, ["tasks_view", "tasks_create"])
+        self._refresh_acl_cache()
+        self.user = _create_user_with_legacy(
+            username="odg-del-pm", legacy_user_id=602, role_id=2, role_name="tasks"
+        )
+        self.project = make_project(name="", created_by=self.user, project_manager=self.user)
+        self.meeting = KickoffMeeting.objects.create(
+            project=self.project,
+            data="2026-09-10",
+            created_by=self.user,
+            agenda_items=[
+                {"id": "a1", "titolo": "Stato avanzamento", "nota": "", "done": False},
+                {"id": "tappa-macchina", "titolo": "Macchina: da assegnare", "source": "tappa:MACCHINA", "done": False},
+            ],
+        )
+        self.client.force_login(self.user)
+        self.url = reverse(
+            "tasks:project_meeting_agenda_item_delete", args=[self.project.id, self.meeting.id]
+        )
+
+    def test_la_tappa_da_assegnare_si_toglie_dall_odg(self):
+        response = self.client.post(self.url, {"item_id": "tappa-macchina"})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.meeting.refresh_from_db()
+        self.assertEqual([i["id"] for i in self.meeting.agenda_items], ["a1"])
+
+    def test_un_punto_normale_non_si_elimina_da_qui(self):
+        response = self.client.post(self.url, {"item_id": "a1"})
+        self.assertEqual(response.status_code, 400)
+        self.meeting.refresh_from_db()
+        self.assertEqual(len(self.meeting.agenda_items), 2)
+
+    def test_la_conduzione_mostra_elimina_solo_sulla_tappa(self):
+        response = self.client.get(
+            reverse("tasks:project_meeting_run", args=[self.project.id, self.meeting.id])
+        )
+        self.assertContains(response, 'data-role="item-delete"', count=1)
+        self.assertContains(response, 'data-item-delete-url=')
+
+    def test_form_completo_e_scheda_attivita_arrivano_senza_cornice_nel_pannello(self):
+        url = reverse("tasks:create") + f"?project={self.project.id}"
+        pagina = self.client.get(url)
+        self.assertContains(pagina, "<html")
+        pannello = self.client.get(url, HTTP_X_REQUESTED_WITH="XMLHttpRequest")
+        self.assertNotContains(pannello, "<html")
+        self.assertContains(pannello, "ts-shell--pannello")
+        self.assertContains(pannello, "data-drawer-form data-drawer-replace")
+        self.assertContains(pannello, f'action="{url}"')

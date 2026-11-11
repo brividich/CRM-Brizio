@@ -1,4 +1,5 @@
 {% extends "tasks/base_shell.html" %}
+{% load static %}
 {% block tasks_shell_guide_anchor %}#impostazioni{% endblock %}
 
 {% block tasks_shell_head %}
@@ -212,4 +213,8 @@
       {% if tab == "log" %}{% include "tasks/impostazioni/_tab_log.html" %}{% endif %}
     </div>
   </div>
+{% endblock %}
+
+{% block tasks_shell_scripts %}
+<script src="{% static 'tasks/js/impostazioni.js' %}?v=20261110a" defer></script>
 {% endblock %}
