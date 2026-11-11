@@ -207,6 +207,35 @@ def email_item_cards(items: Sequence[dict]) -> str:
     )
 
 
+class _MailConImmagini(EmailMultiAlternatives):
+    """Mail con immagini dentro il corpo (``<img src="cid:...">``), non come allegati.
+
+    Struttura: mixed[ related[ alternative[testo, html], immagini ], allegati ]. Le immagini ``data:``
+    non servono: Outlook e Gmail le bloccano, quelle ``cid:`` invece le mostrano.
+    """
+
+    def __init__(self, *args, immagini=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.immagini = list(immagini)
+
+    def _create_alternatives(self, msg):
+        msg = super()._create_alternatives(msg)
+        if not self.immagini:
+            return msg
+        from email.mime.image import MIMEImage
+
+        from django.core.mail.message import SafeMIMEMultipart
+
+        related = SafeMIMEMultipart(_subtype="related", encoding=self.encoding)
+        related.attach(msg)
+        for cid, contenuto, mimetype in self.immagini:
+            immagine = MIMEImage(contenuto, _subtype=mimetype.split("/", 1)[-1])
+            immagine.add_header("Content-ID", f"<{cid}>")
+            immagine.add_header("Content-Disposition", "inline", filename=f"{cid}.{mimetype.split('/', 1)[-1]}")
+            related.attach(immagine)
+        return related
+
+
 def send_hub_mail(
     subject: str,
     body_text: str,
@@ -225,6 +254,7 @@ def send_hub_mail(
     cc: list[str] | Sequence[str] | None = None,
     fail_silently: bool = False,
     footer_line: str = "",
+    inline_images: list | None = None,
 ) -> int:
     """
     Invia una email con layout grafico NOVICROM HUB.
@@ -234,6 +264,8 @@ def send_hub_mail(
     attachments: lista opzionale di tuple ``(filename, content, mimetype)`` allegate
                  al messaggio (es. un invito calendario .ics).
     cc: lista opzionale di indirizzi in copia conoscenza.
+    inline_images: tuple ``(cid, content, mimetype)`` mostrate nel corpo con ``<img src="cid:<cid>">``
+                   dentro ``body_html_fragment`` (es. il QR di un invito), non come allegati.
     """
     if not from_email:
         from_email = getattr(settings, "DEFAULT_FROM_EMAIL", "") or None
@@ -250,13 +282,14 @@ def send_hub_mail(
         preheader=preheader,
     )
 
-    msg = EmailMultiAlternatives(
+    msg = _MailConImmagini(
         subject=subject,
         body=body_text,
         from_email=from_email,
         to=list(recipients),
         cc=list(cc) if cc else None,
         connection=connection,
+        immagini=inline_images or (),
     )
     msg.attach_alternative(html_body, "text/html")
     for att in (attachments or []):
