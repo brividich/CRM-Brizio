@@ -1,0 +1,27 @@
+/* Disponibilità delle sale (portale + Outlook): form incontro KICK-OFF e moduli della reception. */
+.sl-box{display:grid;gap:8px;margin:4px 0 14px;padding:12px 14px;border:1px solid var(--border,#e2e8f0);border-radius:10px;background:var(--surface,#fff)}
+.sl-box.is-loading .sl-grid{opacity:.55}
+.sl-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:13px}
+.sl-legenda{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:11px;color:var(--text-mid,var(--text-light,#64748b))}
+.sl-k{display:inline-block;width:12px;height:8px;border-radius:2px;margin-right:3px;vertical-align:middle}
+.sl-grid{display:grid;gap:4px}
+.sl-r{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;align-items:center}
+.sl-r.is-scelta .sl-n{font-weight:700}
+.sl-n{font-size:12px;line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sl-n small{display:block;font-size:10px;color:var(--text-mid,var(--text-light,#64748b))}
+.sl-t{position:relative;height:26px;border-radius:6px;background:var(--bg,#f8fafc);border:1px solid var(--border,#e2e8f0);cursor:pointer;overflow:hidden;
+  background-image:repeating-linear-gradient(90deg,transparent 0,transparent calc(100%/11 - 1px),var(--border,#e2e8f0) calc(100%/11 - 1px),var(--border,#e2e8f0) calc(100%/11))}
+.sl-r--ore .sl-t{height:16px;border:0;background:none;cursor:default}
+.sl-r--persone .sl-t{cursor:default}
+.sl-ora{position:absolute;top:0;font-size:10px;color:var(--text-mid,var(--text-light,#64748b));padding-left:2px}
+.sl-b{position:absolute;top:3px;bottom:3px;border-radius:4px}
+.sl-b--portale,.sl-k--portale{background:#f59e0b}
+.sl-b--outlook,.sl-k--outlook{background:#ef4444}
+.sl-b--persona,.sl-k--persona{background:#94a3b8}
+.sl-b--scelta,.sl-k--scelta{background:transparent;border:2px solid var(--primary,#2563eb);box-shadow:0 0 0 1px var(--surface,#fff) inset}
+.sl-k--scelta{height:6px}
+.sl-b--scelta{top:1px;bottom:1px;z-index:2}
+.sl-msg{margin:0;font-size:12px;color:var(--text-mid,var(--text-light,#64748b))}
+.sl-msg.is-grave{color:var(--danger,#b91c1c);font-weight:600}
+.sl-msg.is-ok{color:var(--success,#15803d);font-weight:600}
+@media (max-width:640px){.sl-r{grid-template-columns:86px minmax(0,1fr)}}

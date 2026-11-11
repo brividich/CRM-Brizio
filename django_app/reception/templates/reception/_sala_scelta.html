@@ -1,0 +1,21 @@
+{% comment %}
+Scelta della sala riunioni per una visita (sale del KICK-OFF). Parametri: pfx (prefisso degli id),
+data_id, ora_id, fine_id (campi giorno/dalle/alle del modulo), riga (facoltativa: aggiunta in coda
+a ogni id, per i moduli ripetuti a ogni richiesta). La pagina carica
+tasks/css/sale_disponibilita.css e tasks/js/sale_disponibilita.js una volta sola.
+{% endcomment %}
+{% if sale_riunioni %}
+<details class="rc-altro rc-sala">
+  <summary>Prenota una sala</summary>
+  <div class="rc-field"><label for="{{ pfx }}{{ riga }}-sala">Sala</label>
+    <select class="rc-input" id="{{ pfx }}{{ riga }}-sala" name="sala"><option value="">Nessuna sala</option>{% for s in sale_riunioni %}<option value="{{ s.pk }}">{{ s.nome }}{% if s.capienza %} · {{ s.capienza }} posti{% endif %}</option>{% endfor %}</select></div>
+  <div class="sl-box" data-sl data-url="{% url 'reception:api_sale' %}"
+       data-data-id="{{ data_id }}{{ riga }}" data-ora-id="{{ ora_id }}{{ riga }}" data-fine-id="{{ fine_id }}{{ riga }}" data-sala-id="{{ pfx }}{{ riga }}-sala"
+       data-vuoto="Nessuna sala configurata.">
+    <div class="sl-head"><span class="sl-legenda"><i class="sl-k sl-k--portale"></i>Prenotata nel portale <i class="sl-k sl-k--outlook"></i>Occupata in Outlook <i class="sl-k sl-k--scelta"></i>La tua visita</span></div>
+    <div class="sl-grid" data-sl-grid aria-live="polite"><p class="rc-piccolo">Scegli il giorno per vedere le sale.</p></div>
+    <p class="sl-msg" data-sl-msg></p>
+    <p class="rc-piccolo">Tocca un orario libero: sceglie sala e ora. La sala si prenota in Outlook dal calendario del referente.</p>
+  </div>
+</details>
+{% endif %}

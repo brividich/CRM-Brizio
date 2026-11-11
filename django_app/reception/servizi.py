@@ -262,7 +262,7 @@ def pulizia_preregistrazioni(oggi=None) -> int:
 
 def crea_preregistrazione(*, ospite_nome: str, ospite_email: str, referente: Referente, creata_da: str,
                           ospite_azienda: str = "", motivo: str = "", data_visita=None, ora_inizio=None,
-                          ora_fine=None, scade_il=None) -> Preregistrazione:
+                          ora_fine=None, scade_il=None, sala=None) -> Preregistrazione:
     """Unico punto che crea le pre-registrazioni: pannello, «Annuncia una visita», richieste approvate.
 
     Senza scadenza vale fino a fine giornata della visita, o ``GIORNI_VALIDITA_CODICE`` giorni.
@@ -276,7 +276,7 @@ def crea_preregistrazione(*, ospite_nome: str, ospite_email: str, referente: Ref
         codice=nuovo_codice(), ospite_nome=ospite_nome.strip()[:200], ospite_email=ospite_email.strip().lower()[:255],
         ospite_azienda=(ospite_azienda or "").strip()[:200], referente_nome=referente.nome_elenco,
         referente_email=referente.email, motivo=(motivo or "")[:500], creata_da=(creata_da or "")[:100],
-        scade_il=scade_il, data_visita=data_visita, ora_inizio=ora_inizio, ora_fine=ora_fine,
+        scade_il=scade_il, data_visita=data_visita, ora_inizio=ora_inizio, ora_fine=ora_fine, sala=sala,
     )
 
 
@@ -349,7 +349,7 @@ def conferma_richiesta(token: str) -> RichiestaAppuntamento | None:
 
 
 def approva_richiesta(richiesta_id: int, *, autore: str, referente: Referente | None = None,
-                      ora_inizio=None, nota: str = "") -> RichiestaAppuntamento:
+                      ora_inizio=None, ora_fine=None, sala=None, nota: str = "") -> RichiestaAppuntamento:
     with transaction.atomic():
         richiesta = RichiestaAppuntamento.objects.select_for_update().get(pk=richiesta_id)
         if richiesta.stato != RichiestaAppuntamento.IN_ATTESA:
@@ -360,7 +360,7 @@ def approva_richiesta(richiesta_id: int, *, autore: str, referente: Referente | 
         richiesta.preregistrazione = crea_preregistrazione(
             ospite_nome=richiesta.nome_completo, ospite_email=richiesta.email, ospite_azienda=richiesta.azienda,
             referente=referente, creata_da=autore, motivo=richiesta.motivo, data_visita=richiesta.data_visita,
-            ora_inizio=ora_inizio or richiesta.ora_inizio,
+            ora_inizio=ora_inizio or richiesta.ora_inizio, ora_fine=ora_fine, sala=sala,
         )
         richiesta.referente, richiesta.stato = referente, RichiestaAppuntamento.APPROVATA
         richiesta.decisa_il, richiesta.decisa_da, richiesta.nota_decisione = timezone.now(), autore[:150], nota.strip()[:500]
