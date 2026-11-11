@@ -4,6 +4,7 @@
 
 {% block tasks_shell_head %}
 {% include "tasks/_percorso_assets.html" %}
+<link rel="stylesheet" href="{% static 'tasks/css/sale_disponibilita.css' %}?v=20261111">
 {% endblock %}
 
 {% block tasks_shell_content %}
@@ -374,6 +375,6 @@
 {{ previous_agenda_json|json_script:"previous-agenda-data" }}
 {{ agenda_suggestions_json|json_script:"agenda-suggestions-data" }}
 
-<script src="{% static 'tasks/js/sale_disponibilita.js' %}?v=20261110" defer></script>
+<script src="{% static 'tasks/js/sale_disponibilita.js' %}?v=20261111" defer></script>
 <script src="{% static 'tasks/js/meeting_form.js' %}?v=20261110" data-luogo-id="{{ form.luogo.id_for_label }}"></script>
 {% endblock %}

@@ -17,6 +17,11 @@ def _qr_png(codice: str) -> bytes:
     return buffer.getvalue()
 
 
+def _luogo(pre) -> str:
+    sala = getattr(pre, "sala", None)
+    return f"{ORGANIZZAZIONE} - {sala.nome}" if sala else ORGANIZZAZIONE
+
+
 def _ics(pre, metodo: str) -> str | None:
     if not pre.data_visita:
         return None
@@ -28,7 +33,7 @@ def _ics(pre, metodo: str) -> str | None:
         f"UID:prereg-{pre.codice}@novicrom-hub", f"DTSTAMP:{timezone.now():%Y%m%dT%H%M%SZ}",
         f"DTSTART;TZID=Europe/Rome:{inizio:%Y%m%dT%H%M%S}", f"DTEND;TZID=Europe/Rome:{fine:%Y%m%dT%H%M%S}",
         f"SUMMARY:{testo('Visita ' + ORGANIZZAZIONE if metodo == 'PUBLISH' else 'Visita di ' + pre.ospite_nome)}",
-        f"DESCRIPTION:{testo('Codice di accesso: ' + pre.codice)}", f"LOCATION:{testo(ORGANIZZAZIONE)}",
+        f"DESCRIPTION:{testo('Codice di accesso: ' + pre.codice)}", f"LOCATION:{testo(_luogo(pre))}",
         "END:VEVENT", "END:VCALENDAR", "",
     ])
 
@@ -41,6 +46,8 @@ def invia_invito(pre) -> None:
         quando = f"Visita prevista: {pre.data_visita:%d/%m/%Y}"
         if pre.ora_inizio:
             quando += f" alle {pre.ora_inizio:%H:%M}"
+        if getattr(pre, "sala", None):
+            quando += f", sala {pre.sala.nome}"
         quando += "\n"
     testo = (f"Gentile {pre.ospite_nome},\n{pre.referente_nome} la aspetta da {ORGANIZZAZIONE}.\n{quando}\n"
              f"Il suo codice di accesso è: {pre.codice}\nValido fino al {timezone.localtime(pre.scade_il):%d/%m/%Y}.\n\n"
@@ -54,9 +61,14 @@ def invia_invito(pre) -> None:
                   email_type="Reception", attachments=allegati)
     avviso = _ics(pre, "REQUEST")
     if avviso and "@" in pre.referente_email:
-        send_hub_mail(f"Visita ospite: {pre.ospite_nome}", f"{pre.ospite_nome} è atteso il {pre.data_visita:%d/%m/%Y}. Codice: {pre.codice}.",
+        sala = f" Sala {pre.sala.nome}." if pre.sala_id else ""
+        # Sala prenotata in Outlook: l'evento è già nel calendario del referente, niente secondo invito.
+        gia_in_calendario = bool(pre.outlook_event_id)
+        send_hub_mail(f"Visita ospite: {pre.ospite_nome}",
+                      f"{pre.ospite_nome} è atteso il {pre.data_visita:%d/%m/%Y}. Codice: {pre.codice}.{sala}"
+                      + (" L'appuntamento con la sala è già nel tuo calendario." if gia_in_calendario else ""),
                       [pre.referente_email], title="Visita in programma", email_type="Reception",
-                      attachments=[("visita.ics", avviso, "text/calendar")])
+                      attachments=[] if gia_in_calendario else [("visita.ics", avviso, "text/calendar")])
 
 
 # --- Richieste di appuntamento dal modulo pubblico ---------------------------------------------

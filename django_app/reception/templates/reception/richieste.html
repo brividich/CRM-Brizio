@@ -1,7 +1,10 @@
 {% extends "reception/_base.html" %}
+{% load static %}
 {% block title %}Richieste di appuntamento | Reception{% endblock %}
 {% block rc_titolo %}Richieste di appuntamento{% endblock %}
+{% block extra_scripts %}<script src="{% static 'tasks/js/sale_disponibilita.js' %}?v=20261111" defer></script>{% endblock %}
 {% block rc_contenuto %}
+<link rel="stylesheet" href="{% static 'tasks/css/sale_disponibilita.css' %}?v=20261111">
 <div class="rc-card">
   <div class="rc-body">
     <p class="rc-note">Modulo pubblico: <strong>{% if pubbliche %}acceso{% else %}spento{% endif %}</strong>{% if pubbliche %} all'indirizzo <code>{{ link_pubblico }}</code>{% else %} (RECEPTION_RICHIESTE_PUBBLICHE nel .env){% endif %}. In attesa di conferma dell'email: {{ da_confermare }}.</p>
@@ -23,7 +26,12 @@
             <form method="post" action="{% url 'reception:richiesta_azione' r.pk %}" class="rc-form">
               {% csrf_token %}
               <div class="rc-field"><label for="q-ref-{{ r.pk }}">Referente</label><select class="rc-input" id="q-ref-{{ r.pk }}" name="referente"><option value="">{% if r.referente %}{{ r.referente.nome_elenco }}{% else %}Scegli{% endif %}</option>{% for x in referenti %}<option value="{{ x.pk }}">{{ x.nome_elenco }}</option>{% endfor %}</select></div>
-              <div class="rc-field"><label for="q-ora-{{ r.pk }}">Ora</label><input class="rc-input" id="q-ora-{{ r.pk }}" type="time" name="ora_inizio" value="{{ r.ora_inizio|time:'H:i' }}"></div>
+              <input type="hidden" id="q-data-{{ r.pk }}" value="{{ r.data_visita|date:'Y-m-d' }}">
+              <div class="rc-riga rc-riga-2">
+                <div class="rc-field"><label for="q-ora-{{ r.pk }}">Dalle</label><input class="rc-input" id="q-ora-{{ r.pk }}" type="time" name="ora_inizio" value="{{ r.ora_inizio|time:'H:i' }}"></div>
+                <div class="rc-field"><label for="q-fine-{{ r.pk }}">Alle</label><input class="rc-input" id="q-fine-{{ r.pk }}" type="time" name="ora_fine"></div>
+              </div>
+              {% include "reception/_sala_scelta.html" with pfx="q-" data_id="q-data-" ora_id="q-ora-" fine_id="q-fine-" riga=r.pk %}
               <div class="rc-field"><label for="q-nota-{{ r.pk }}">Nota per l'esterno</label><input class="rc-input" id="q-nota-{{ r.pk }}" name="nota" maxlength="500"></div>
               <div class="rc-field"><span><button class="rc-btn rc-btn-p" name="azione" value="approva"{% if not nativa %} disabled{% endif %}>Accetta</button> <button class="rc-btn rc-btn-d" name="azione" value="rifiuta">Rifiuta</button></span></div>
             </form>

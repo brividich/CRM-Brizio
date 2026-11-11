@@ -178,6 +178,11 @@ class Preregistrazione(models.Model):
     data_visita = models.DateField(null=True, blank=True)
     ora_inizio = models.TimeField(null=True, blank=True)
     ora_fine = models.TimeField(null=True, blank=True)
+    # Sala riunioni prenotata per la visita (le stesse sale del KICK-OFF). Con la casella Microsoft 365
+    # della sala l'evento nasce nel calendario del referente con la sala invitata come risorsa.
+    sala = models.ForeignKey("tasks.MeetingRoom", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    outlook_event_id = models.CharField(max_length=255, blank=True)
+    outlook_organizer_email = models.CharField(max_length=255, blank=True)
 
     class Meta:
         ordering = ["-creata_il"]

@@ -18,6 +18,9 @@ API_ACL_GATE_PATHS = {
     "/api/anomalie/": "/gestione-anomalie",
     # Ricerche live del pannello Reception (ospiti già venuti, dipendenti dell'anagrafica):
     # stesso permesso del pannello (Presenti, binding copiato da Accessi esterni).
+    # Disponibilità delle sale: la usa chi annuncia un ospite (dotazione base), non solo la reception.
+    # Prima della voce generica: vince il primo prefisso che combacia.
+    "/reception/api/sale/": "/reception/annuncia/",
     "/reception/api/": "/reception/",
     # Copilota AI incidenti: gate come il modulo Rilevazione Incidenti (rilev_inc_lista);
     # il gate fine preposti/RSPP resta dentro la view (_can_create / _can_manage_rspp).
