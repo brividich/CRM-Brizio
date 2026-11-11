@@ -1,12 +1,24 @@
-# `procedure_refresh` — presa visione procedure
+# `procedure_refresh` — CN-SGI · libreria delle procedure
 
-Area **Sicurezza** · URL `/procedure-refresh/` · codice [`django_app/procedure_refresh/`](../../django_app/procedure_refresh/)
+Area **Qualità** · URL `/procedure-refresh/` · codice [`django_app/procedure_refresh/`](../../django_app/procedure_refresh/)
 
 [← Catalogo moduli nel README](../../README.md#-catalogo-moduli)
 
 ## Sintesi
 
-Presa visione procedure MT/MTSI (lista unica), campagne, motore scadenze/solleciti, sync SGI con log e segnalazione nuove revisioni, segnalazioni di modifica, consultazione in Bacheca, matrice formazione ISO
+**CN-SGI** (dal 11/11/2026, prima «Refresh procedure»): la libreria delle procedure del sistema di gestione integrato che stanno nella cartella di rete `\\novisrv\sistema gestione integrato` (sola lettura). Scaffali per certificazione, ricerca nel testo dei PDF in vigore, scheda documento con collegamenti, «chi vede cosa» per ruolo; la presa visione (campagne, scadenze, solleciti, matrice formazione ISO) resta come azione interna «Richieste di presa visione».
+
+## CN-SGI: la libreria (11/11/2026)
+
+- **Pagine** (`views_libreria.py`, servizi in `libreria.py`): `/procedure-refresh/` libreria (ricerca, scaffali, «Da leggere per te», «Nuove revisioni» 30 gg da `SgiSyncLog`, «Più consultati» 90 gg da `SgiAperturaGiorno`); `scaffale/<slug>/` (sezioni = sottocartelle, vista «Copertine» o «Elenco» ricordata in cookie, filtro); `cerca/` (codice, titolo e testo di `SgiTestoEstratto`, senza maiuscole e accenti, estratto con paragrafo § e pagina, filtri per scaffale; testi tenuti in memoria per processo e riletti quando cambia l'hash); `documento/<pk>/` (scheda: pannello laterale via HTMX, pagina intera senza; indice, «Cita» / «È citato da» da `SgiRiferimento`, processi confermati, storico revisioni, presa visione, «Segnala una modifica» → `ProcedureChangeRequest`); `documento/<pk>/apri/` (PDF in vigore inline, mai SUPERATO, audit + contatore aperture).
+- **Le mie letture** spostata a `/procedure-refresh/letture/` (`my_assignments`); i solleciti puntano lì.
+- **Scaffali** (`SgiScaffale`, uno per `ProcedureDocument.category` = cartella di primo livello): nome, sigla, norma, colore e ordine ricavati dal nome cartella e modificabili in `admin/scaffali/`, certificazione collegata (`sistema_gestione.Certificazione`: scadenza e sorveglianza sulla copertina), «Mostrato». Sezione = `ProcedureDocument.sezione` (seconda cartella), scritta dall'import/sync e riallineabile con «Allinea scaffali e sezioni» (solo DB).
+- **Chi vede cosa** (`SgiVisibilita`, `admin/visibilita/`): regola per scaffale, sezione o documento → «Solo i ruoli scelti» (`core.AccessGroup`) o «Solo chi gestisce CN-SGI». Vince la più specifica; senza regole tutti vedono. Gestori (`_can_manage`), superuser, admin legacy e ruoli `amministratore`/`vede_tutto` vedono tutto; i sensibili (`escludi_dal_rag`/deny-list) solo i gestori. I riservati non vanno in Bacheca, `document_open` e le pagine danno 404, l'assistente AI non li cita (`ai_assistant.services._sgi_proc_riservato`, cache 60 s, svuotata al salvataggio di una regola).
+- **Sempre aggiornata**: schedule `pr_sgi_controllo_orario` (ogni ora, minuto 10) calcola un'impronta di percorso/dimensione/data dei file (nessun file aperto) e, se cambia, lancia `run_sgi_auto_sync` (stesso perimetro sicuro e stesso flag `pr_sgi_auto_sync_attivo`). Ora dell'ultimo controllo in `SiteConfig pr_sgi_ultimo_controllo` («Controllata alle …»).
+- **Pagine del PDF**: l'estrazione salva `SgiTestoEstratto.offset_pagine` (inizio di ogni pagina nel testo); per i testi estratti prima vale una stima proporzionale. Dopo il deploy: `manage.py sgi_estrai_testi --forza`.
+- **Sapere**: CN-SGI è la prima copertina dei cataloghi (`/sapere/` e stanza Sapere in home) e la stanza ha il riquadro «CN-SGI · Procedure» con ricerca, nuove revisioni e letture da fare.
+- **Guida in-app**: `?guida=1` / `?guida=pdf` su ogni pagina della libreria (`procedure_refresh/guida.py`).
+- **Permessi**: pulsanti `pr_view` (libreria), `pr_letture`, `pr_visibilita`, `pr_scaffali`; dopo il deploy «Sincronizza i permessi delle pagine». Le pagine di gestione controllano comunque `_can_manage`.
 
 ## Dettaglio
 

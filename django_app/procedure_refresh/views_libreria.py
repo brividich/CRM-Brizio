@@ -1,0 +1,546 @@
+"""CN-SGI: pagine della libreria delle procedure (sola lettura della share).
+
+- ``libreria``: ricerca, scaffali, letture da fare, nuove revisioni, più consultati;
+- ``scaffale``: le sezioni di uno scaffale, a copertine o a elenco;
+- ``cerca``: codice, titolo e testo dei PDF in vigore, con estratto e pagina;
+- ``documento``: la scheda (pannello laterale via HTMX, pagina intera senza);
+- ``apri``: il PDF in vigore, nel visualizzatore del browser;
+- ``visibilita`` e ``scaffali``: gestione di chi vede cosa e dell'aspetto degli scaffali.
+
+Ogni pagina filtra i documenti con :class:`procedure_refresh.libreria.Visibilita`:
+un documento che l'utente non può vedere non compare e la sua scheda dà 404.
+"""
+from __future__ import annotations
+
+import json
+from collections import OrderedDict
+from datetime import datetime
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
+from django.db import transaction
+from django.http import FileResponse, Http404
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.views.decorators.http import require_POST
+
+from core.audit import log_action
+
+from . import libreria as lib
+from .guida import con_guida
+from .models import (
+    AssignmentStatus,
+    ProcedureAssignment,
+    ProcedureDocument,
+    SgiDocumentoProcesso,
+    SgiRiferimento,
+    SgiScaffale,
+    SgiVisibilita,
+    SgiVisibilitaChi,
+    SourceType,
+)
+from .views import _can_manage, _safe_sgi_pdf
+
+VISTE = ("copertine", "elenco")
+
+
+def _ultimo_controllo():
+    from core.models import SiteConfig
+
+    for chiave in ("pr_sgi_ultimo_controllo", "pr_sgi_last_sync"):
+        raw = str(SiteConfig.get(chiave, "") or "").strip()
+        if not raw:
+            continue
+        try:
+            if raw.startswith("{"):
+                raw = json.loads(raw).get("at", "")
+            quando = datetime.fromisoformat(raw)
+            if timezone.is_naive(quando):
+                quando = timezone.make_aware(quando)
+            return timezone.localtime(quando)
+        except (ValueError, TypeError, AttributeError):
+            continue
+    return None
+
+
+def _contesto_base(request, vis, docs, **extra):
+    da_leggere = lib.letture_da_fare(request.user)
+    ctx = {
+        "is_manager": vis.gestore,
+        "ultimo_controllo": _ultimo_controllo(),
+        "oggi_str": timezone.localdate().strftime("%Y%m%d"),
+        "n_da_leggere": sum(1 for d in docs if d.pk in da_leggere),
+        "da_leggere_map": da_leggere,
+        "nuove_map": lib.codici_nuove_revisioni(),
+    }
+    ctx.update(extra)
+    return ctx
+
+
+def _scaffali(docs, config, nuove) -> "OrderedDict[str, lib.Scaffale]":
+    """Scaffali che contengono almeno un documento visibile, nell'ordine scelto da chi gestisce."""
+    out: dict[str, lib.Scaffale] = {}
+    sezioni: dict[str, dict[str, int]] = {}
+    for d in docs:
+        cartella = d.category or ""
+        riga = config.get(cartella)
+        if riga is not None and not riga.attivo:
+            continue
+        s = out.get(cartella)
+        if s is None:
+            s = out[cartella] = lib.scaffale_da(cartella, config)
+            sezioni[cartella] = {}
+        s.totale += 1
+        if d.code in nuove:
+            s.nuovi += 1
+        sezioni[cartella][d.sezione or ""] = sezioni[cartella].get(d.sezione or "", 0) + 1
+    for cartella, s in out.items():
+        s.sezioni = sorted(
+            ((raw, lib.etichetta_sezione(raw), n) for raw, n in sezioni[cartella].items()),
+            key=lambda x: (x[0] == "", x[0].lower()),
+        )
+    ordinati = sorted(out.values(), key=lambda s: (s.cartella == "", s.ordine, s.nome.lower()))
+    return OrderedDict((s.cartella, s) for s in ordinati)
+
+
+def _decora(docs, scaffali, nuove, da_leggere):
+    """Aggiunge ai documenti scaffale, etichetta di sezione e stato (da leggere / nuova revisione)."""
+    for d in docs:
+        d.scaffale = scaffali.get(d.category or "")
+        d.sezione_label = lib.etichetta_sezione(d.sezione)
+        d.nuova = d.code in nuove
+        d.lettura = da_leggere.get(d.pk)
+    return docs
+
+
+def _visibili(request):
+    vis = lib.Visibilita(request)
+    config = lib.scaffali_configurati()
+    docs = [d for d in vis.filtra(lib.documenti_in_vigore())
+            if (config.get(d.category or "") is None or config[d.category or ""].attivo)]
+    return vis, config, docs
+
+
+@login_required
+@con_guida
+def libreria(request):
+    vis, config, docs = _visibili(request)
+    nuove = lib.codici_nuove_revisioni()
+    da_leggere = lib.letture_da_fare(request.user)
+    scaffali = _scaffali(docs, config, nuove)
+    _decora(docs, scaffali, nuove, da_leggere)
+
+    oggi = timezone.localdate()
+    for s in scaffali.values():
+        cert = s.certificazione
+        s.giorni_sorveglianza = (cert.prossima_sorveglianza - oggi).days if cert and cert.prossima_sorveglianza else None
+        s.giorni_scadenza = (cert.scade_il - oggi).days if cert and cert.scade_il else None
+
+    letture = sorted((d for d in docs if d.lettura), key=lambda d: (d.lettura.due_date or oggi))
+    novita = sorted((d for d in docs if d.nuova), key=lambda d: nuove[d.code], reverse=True)[:14]
+    aperture = lib.aperture_recenti()
+    consultati = sorted((d for d in docs if aperture.get(d.pk)), key=lambda d: -aperture[d.pk])[:12]
+
+    return render(request, "procedure_refresh/libreria/home.html", _contesto_base(
+        request, vis, docs,
+        scaffali=list(scaffali.values()),
+        totale=len(docs),
+        letture=letture,
+        novita=novita,
+        consultati=consultati,
+        oggi=oggi,
+    ))
+
+
+@login_required
+@con_guida
+def scaffale(request, slug: str):
+    vis, config, docs = _visibili(request)
+    nuove = lib.codici_nuove_revisioni()
+    da_leggere = lib.letture_da_fare(request.user)
+    scaffali = _scaffali(docs, config, nuove)
+    corrente = next((s for s in scaffali.values() if s.slug == slug), None)
+    if corrente is None:
+        raise Http404("Scaffale non disponibile.")
+    _decora(docs, scaffali, nuove, da_leggere)
+    miei = [d for d in docs if (d.category or "") == corrente.cartella]
+
+    sezione = request.GET.get("sezione")
+    sezioni_valide = {raw for raw, _l, _n in corrente.sezioni}
+    if sezione is not None and sezione not in sezioni_valide:
+        sezione = None
+    vista = request.GET.get("vista") or request.COOKIES.get("cnsgi_vista") or "copertine"
+    if vista not in VISTE:
+        vista = "copertine"
+    filtro = (request.GET.get("q") or "").strip()
+
+    gruppi = []
+    for raw, etichetta, _n in corrente.sezioni:
+        if sezione is not None and raw != sezione:
+            continue
+        elenco = [d for d in miei if (d.sezione or "") == raw]
+        if filtro:
+            fp = lib._piega(filtro)
+            elenco = [d for d in elenco if fp in lib._piega(f"{d.code} {d.title}")]
+        if elenco:
+            gruppi.append({"raw": raw, "etichetta": etichetta, "documenti": elenco})
+
+    cert = corrente.certificazione
+    oggi = timezone.localdate()
+    response = render(request, "procedure_refresh/libreria/scaffale.html", _contesto_base(
+        request, vis, docs,
+        scaffale=corrente,
+        scaffali=list(scaffali.values()),
+        gruppi=gruppi,
+        sezione=sezione,
+        vista=vista,
+        filtro=filtro,
+        n_scaffale=len(miei),
+        giorni_sorveglianza=(cert.prossima_sorveglianza - oggi).days if cert and cert.prossima_sorveglianza else None,
+    ))
+    if request.GET.get("vista") in VISTE:
+        response.set_cookie("cnsgi_vista", vista, max_age=3600 * 24 * 365, samesite="Lax")
+    return response
+
+
+@login_required
+@con_guida
+def cerca(request):
+    vis, config, docs = _visibili(request)
+    nuove = lib.codici_nuove_revisioni()
+    scaffali = _scaffali(docs, config, nuove)
+    _decora(docs, scaffali, nuove, lib.letture_da_fare(request.user))
+
+    q = (request.GET.get("q") or "").strip()[:120]
+    campo = request.GET.get("in") or "tutto"
+    if campo not in ("tutto", "titolo", "testo"):
+        campo = "tutto"
+    filtro_scaffali = [s for s in request.GET.getlist("s") if s in {x.slug for x in scaffali.values()}]
+    base = [d for d in docs if not filtro_scaffali or (d.scaffale and d.scaffale.slug in filtro_scaffali)]
+    risultati = lib.cerca(q, base, campo=campo) if q else []
+
+    conteggi = {}
+    if q:
+        for r in (lib.cerca(q, docs, campo=campo) if filtro_scaffali else risultati):
+            if r.doc.scaffale:
+                conteggi[r.doc.scaffale.slug] = conteggi.get(r.doc.scaffale.slug, 0) + 1
+    faccette = [{"s": s, "n": conteggi.get(s.slug, 0), "on": s.slug in filtro_scaffali} for s in scaffali.values()]
+    if q:
+        log_action(request, "cerca", "procedure_refresh", {"message": "Ricerca CN-SGI", "q": q, "risultati": len(risultati)})
+
+    return render(request, "procedure_refresh/libreria/cerca.html", _contesto_base(
+        request, vis, docs,
+        q=q, campo=campo, risultati=risultati, faccette=faccette, filtro_scaffali=filtro_scaffali,
+    ))
+
+
+def _documento_visibile(request, pk: int):
+    vis = lib.Visibilita(request)
+    doc = get_object_or_404(ProcedureDocument.objects.prefetch_related("revisions"), pk=pk)
+    config = lib.scaffali_configurati()
+    riga = config.get(doc.category or "")
+    if not vis.puo_vedere(doc) or (riga is not None and not riga.attivo and not vis.gestore):
+        raise Http404("Documento non disponibile.")
+    rev = next((r for r in doc.revisions.all() if r.is_current), None)
+    if rev is None:
+        raise Http404("Documento senza revisione in vigore.")
+    doc.rev = rev
+    return vis, config, doc, rev
+
+
+@login_required
+@con_guida
+def documento(request, pk: int):
+    vis, config, doc, rev = _documento_visibile(request, pk)
+    nuove = lib.codici_nuove_revisioni()
+    doc.scaffale = lib.scaffale_da(doc.category or "", config)
+    doc.sezione_label = lib.etichetta_sezione(doc.sezione)
+    doc.nuova = doc.code in nuove
+    try:
+        rev.testo_estratto  # noqa: B018 - carica la relazione se c'è
+    except Exception:
+        pass
+
+    # Cita / è citato da (solo documenti che chi guarda può vedere).
+    cita, visti = [], set()
+    for r in SgiRiferimento.objects.filter(da_revisione=rev).select_related("a_documento").order_by("codice_citato"):
+        d = r.a_documento
+        if d is not None:
+            if d.pk in visti or not vis.puo_vedere(d):
+                continue
+            visti.add(d.pk)
+            cita.append({"doc": d, "codice": d.code, "titolo": d.title, "sezione": r.sezione})
+        elif r.tipo_risoluzione != "famiglia":
+            cita.append({"doc": None, "codice": r.codice_citato, "titolo": "", "sezione": r.sezione})
+    citato_da, visti = [], set()
+    for r in (SgiRiferimento.objects.filter(a_documento=doc, da_revisione__is_current=True)
+              .select_related("da_revisione__document").order_by("da_revisione__document__code")):
+        d = r.da_revisione.document
+        if d.pk == doc.pk or d.pk in visti or not d.is_active or not vis.puo_vedere(d):
+            continue
+        visti.add(d.pk)
+        citato_da.append({"doc": d, "codice": d.code, "titolo": d.title, "sezione": r.sezione})
+    processi = list(
+        SgiDocumentoProcesso.objects.filter(documento=doc, confermato=True).select_related("processo")
+    )
+
+    revisioni = sorted(doc.revisions.all(), key=lambda r: (r.is_current, r.revision_date), reverse=True)
+    lettura = lib.letture_da_fare(request.user).get(doc.pk)
+    confermata = None
+    if lettura is None and request.user.is_authenticated:
+        confermata = (
+            ProcedureAssignment.objects.filter(user=request.user, revision=rev, status=AssignmentStatus.READ_CONFIRMED)
+            .order_by("-read_confirmed_at").first()
+        )
+    stato_gestore = None
+    if vis.gestore:
+        qs = ProcedureAssignment.objects.filter(revision=rev).exclude(status=AssignmentStatus.CANCELLED)
+        totale = qs.count()
+        lette = qs.filter(status=AssignmentStatus.READ_CONFIRMED).count()
+        stato_gestore = {
+            "totale": totale, "lette": lette, "pct": round(lette * 100 / totale) if totale else 0,
+            "regola": vis.regola(doc),
+        }
+
+    ctx = {
+        "doc": doc, "rev": rev, "is_manager": vis.gestore,
+        "indice": lib.indice_documento(rev),
+        "cita": cita, "citato_da": citato_da, "processi": processi,
+        "n_collegamenti": len(cita) + len(citato_da) + len(processi),
+        "revisioni": revisioni, "lettura": lettura, "confermata": confermata,
+        "stato_gestore": stato_gestore,
+        "scheda": request.GET.get("scheda") or "panoramica",
+        "pdf_url": reverse("procedure_refresh:libreria_apri", args=[doc.pk]),
+    }
+    if getattr(request, "htmx", False):
+        return render(request, "procedure_refresh/libreria/_scheda.html", ctx)
+    ctx.update(_contesto_base(request, vis, [doc]))
+    return render(request, "procedure_refresh/libreria/documento.html", ctx)
+
+
+@login_required
+def apri(request, pk: int):
+    """Il PDF in vigore del documento, nel browser (inline). Solo revisione corrente, mai SUPERATO."""
+    from procedure_refresh.management.commands.import_sgi_da_share import _SUPERATO_RE
+
+    _vis, _config, doc, rev = _documento_visibile(request, pk)
+    log_action(request, "apri", "procedure_refresh", {
+        "message": "Apertura documento CN-SGI", "document_id": doc.pk, "code": doc.code, "revision": rev.revision_code,
+    })
+    lib.conta_apertura(doc)
+    if rev.source_type == SourceType.SHAREPOINT and rev.source_url:
+        return redirect(rev.source_url)
+    if rev.source_type == SourceType.FILESERVER and rev.source_path and not _SUPERATO_RE.search(rev.source_path):
+        path = _safe_sgi_pdf(rev.source_path)
+        if path is not None:
+            response = FileResponse(open(path, "rb"), content_type="application/pdf", filename=(rev.file_name or path.name))
+            response["Content-Disposition"] = response["Content-Disposition"].replace("attachment", "inline")
+            response["X-Content-Type-Options"] = "nosniff"
+            return response
+    raise Http404("File non disponibile.")
+
+
+@login_required
+@require_POST
+def segnala(request, pk: int):
+    """Segnalazione di modifica dalla scheda: arriva a chi gestisce CN-SGI. La share non cambia."""
+    from .models import ProcedureChangeRequest
+
+    _vis, _config, doc, rev = _documento_visibile(request, pk)
+    testo = (request.POST.get("testo") or "").strip()[:4000]
+    sezione = (request.POST.get("sezione") or "").strip()[:40]
+    if not testo:
+        messages.error(request, "Scrivi cosa cambieresti nel documento.")
+        return redirect("procedure_refresh:libreria_documento", pk=doc.pk)
+    if sezione:
+        testo = f"[{sezione}] {testo}"
+    cr = ProcedureChangeRequest.objects.create(document=doc, revision=rev, created_by=request.user, testo=testo)
+    log_action(request, "segnalazione_modifica", "procedure_refresh", {
+        "message": "Segnalazione di modifica dalla libreria CN-SGI", "document_id": doc.pk, "code": doc.code, "segnalazione_id": cr.pk,
+    })
+    messages.success(request, f"Segnalazione su {doc.code} inviata a chi gestisce CN-SGI.")
+    return redirect("procedure_refresh:libreria_documento", pk=doc.pk)
+
+
+# ---------------------------------------------------------------------------
+# Gestione: chi vede cosa, scaffali
+# ---------------------------------------------------------------------------
+
+
+def _solo_gestori(request):
+    if not _can_manage(request):
+        messages.error(request, "Solo chi gestisce CN-SGI può aprire questa pagina.")
+        return redirect("procedure_refresh:libreria")
+    return None
+
+
+def _ruoli_attivi():
+    from core.models import AccessGroup
+
+    return list(AccessGroup.objects.filter(is_active=True).order_by("-priority", "label"))
+
+
+@login_required
+@con_guida
+def visibilita(request):
+    blocco = _solo_gestori(request)
+    if blocco:
+        return blocco
+    config = lib.scaffali_configurati()
+    docs = lib.documenti_in_vigore()
+    scaffali = _scaffali(docs, {k: v for k, v in config.items()}, {})
+    for d in docs:
+        d.sezione_label = lib.etichetta_sezione(d.sezione)
+
+    if request.method == "POST":
+        return _salva_regola(request, scaffali, docs)
+
+    regole = list(SgiVisibilita.objects.select_related("documento").prefetch_related("ruoli"))
+    tutti = lib.visibilita_di_tutti()
+    per_regola: dict[int, int] = {}
+    for d in docs:
+        r = tutti.regola(d)
+        if r is not None:
+            per_regola[r.pk] = per_regola.get(r.pk, 0) + 1
+    for r in regole:
+        s = scaffali.get(r.scaffale)
+        r.scaffale_nome = s.nome if s else (lib.identita_da_cartella(r.scaffale)["nome"])
+        r.sezione_label = lib.etichetta_sezione(r.sezione) if r.sezione else ""
+        r.n_documenti = per_regola.get(r.pk, 0)
+    riservati = sum(1 for d in docs if tutti.regola(d) is not None)
+
+    modifica = None
+    if request.GET.get("modifica", "").isdigit():
+        modifica = next((r for r in regole if r.pk == int(request.GET["modifica"])), None)
+    return render(request, "procedure_refresh/libreria/visibilita.html", {
+        "is_manager": True,
+        "regole": regole,
+        "scaffali": list(scaffali.values()),
+        "documenti": docs,
+        "ruoli": _ruoli_attivi(),
+        "riservati": riservati,
+        "totale": len(docs),
+        "modifica": modifica,
+        "modifica_ruoli": {g.pk for g in modifica.ruoli.all()} if modifica else set(),
+        "chi_choices": SgiVisibilitaChi.choices,
+    })
+
+
+def _salva_regola(request, scaffali, docs):
+    cartella = request.POST.get("scaffale", "")
+    sezione = request.POST.get("sezione", "")
+    doc_id = request.POST.get("documento", "")
+    chi = request.POST.get("chi", SgiVisibilitaChi.RUOLI)
+    ruoli_ids = [int(x) for x in request.POST.getlist("ruoli") if x.isdigit()]
+    note = (request.POST.get("note") or "").strip()[:300]
+    url = reverse("procedure_refresh:libreria_visibilita")
+
+    s = scaffali.get(cartella)
+    if s is None:
+        messages.error(request, "Scegli uno scaffale.")
+        return redirect(url)
+    documento = None
+    if doc_id.isdigit():
+        documento = next((d for d in docs if d.pk == int(doc_id) and (d.category or "") == cartella), None)
+        if documento is None:
+            messages.error(request, "Il documento scelto non è in questo scaffale.")
+            return redirect(url)
+        sezione = ""
+    elif sezione and sezione not in {raw for raw, _l, _n in s.sezioni}:
+        messages.error(request, "La sezione scelta non è in questo scaffale.")
+        return redirect(url)
+    if chi not in SgiVisibilitaChi.values:
+        chi = SgiVisibilitaChi.RUOLI
+    from core.models import AccessGroup
+
+    ruoli = list(AccessGroup.objects.filter(pk__in=ruoli_ids, is_active=True))
+    if chi == SgiVisibilitaChi.RUOLI and not ruoli:
+        messages.error(request, "Scegli almeno un ruolo, oppure «Solo chi gestisce CN-SGI».")
+        return redirect(url)
+
+    with transaction.atomic():
+        regola = SgiVisibilita.objects.filter(scaffale=cartella, sezione=sezione, documento=documento).first()
+        nuova = regola is None
+        if nuova:
+            regola = SgiVisibilita(scaffale=cartella, sezione=sezione, documento=documento)
+        regola.chi = chi
+        regola.note = note
+        regola.aggiornata_da = request.user
+        regola.save()
+        regola.ruoli.set(ruoli if chi == SgiVisibilitaChi.RUOLI else [])
+    cache.delete("cnsgi_codici_riservati")
+
+    dove = documento.code if documento else (f"{s.nome} › {lib.etichetta_sezione(sezione)}" if sezione else s.nome)
+    chi_txt = ", ".join(g.label for g in ruoli) if chi == SgiVisibilitaChi.RUOLI else "solo chi gestisce CN-SGI"
+    log_action(request, "visibilita", "procedure_refresh", {
+        "message": "Regola di visibilità CN-SGI " + ("creata" if nuova else "modificata"),
+        "dove": dove, "chi": chi_txt, "regola_id": regola.pk,
+    })
+    messages.success(request, f"Regola salvata: {dove} → {chi_txt}.")
+    return redirect(url)
+
+
+@login_required
+@require_POST
+def visibilita_elimina(request, pk: int):
+    blocco = _solo_gestori(request)
+    if blocco:
+        return blocco
+    regola = get_object_or_404(SgiVisibilita, pk=pk)
+    dettaglio = str(regola)
+    regola.delete()
+    cache.delete("cnsgi_codici_riservati")
+    log_action(request, "visibilita", "procedure_refresh", {"message": "Regola di visibilità CN-SGI tolta", "regola": dettaglio})
+    messages.success(request, "Regola tolta: quei documenti tornano visibili secondo le regole rimaste.")
+    return redirect("procedure_refresh:libreria_visibilita")
+
+
+@login_required
+@con_guida
+def scaffali_gestione(request):
+    blocco = _solo_gestori(request)
+    if blocco:
+        return blocco
+    from sistema_gestione.models import Certificazione
+
+    if request.method == "POST":
+        if request.POST.get("azione") == "allinea":
+            nuovi = lib.assicura_scaffali()
+            sezioni = lib.aggiorna_sezioni()
+            messages.success(request, f"Allineato dal database: {nuovi} scaffali nuovi, {sezioni} documenti con sezione aggiornata.")
+            return redirect("procedure_refresh:libreria_scaffali")
+        cert_ids = set(Certificazione.objects.values_list("pk", flat=True))
+        for s in SgiScaffale.objects.all():
+            p = f"s{s.pk}_"
+            if p + "nome" not in request.POST:
+                continue
+            s.nome = (request.POST.get(p + "nome") or s.nome).strip()[:120] or s.nome
+            s.sigla = (request.POST.get(p + "sigla") or "").strip()[:20]
+            s.norma = (request.POST.get(p + "norma") or "").strip()[:160]
+            colore = (request.POST.get(p + "colore") or "").strip()
+            if len(colore) == 7 and colore.startswith("#"):
+                s.colore = colore
+            ordine = request.POST.get(p + "ordine", "")
+            s.ordine = int(ordine) if ordine.isdigit() else s.ordine
+            cert = request.POST.get(p + "certificazione", "")
+            s.certificazione_id = int(cert) if cert.isdigit() and int(cert) in cert_ids else None
+            s.attivo = bool(request.POST.get(p + "attivo"))
+            s.save()
+        log_action(request, "modifica", "procedure_refresh", {"message": "Scaffali CN-SGI aggiornati"})
+        messages.success(request, "Scaffali salvati.")
+        return redirect("procedure_refresh:libreria_scaffali")
+
+    conteggi: dict[str, int] = {}
+    for d in lib.documenti_in_vigore():
+        conteggi[d.category or ""] = conteggi.get(d.category or "", 0) + 1
+    righe = list(SgiScaffale.objects.select_related("certificazione"))
+    for r in righe:
+        r.n_documenti = conteggi.get(r.cartella, 0)
+    return render(request, "procedure_refresh/libreria/scaffali.html", {
+        "is_manager": True,
+        "righe": righe,
+        "certificazioni": list(Certificazione.objects.filter(attiva=True).order_by("norma", "ente")),
+        "senza_cartella": conteggi.get("", 0),
+    })

@@ -67,7 +67,8 @@ CATEGORIE: tuple[Cat, ...] = (
 
 VOCI: tuple[Voce, ...] = (
     # Per me — pagine personali (lo scope sulla persona e' della view, verificato).
-    Voce("procedure_refresh", "procedure_refresh:my_assignments", "per-me", "Da fare", 11, label="Presa visione"),
+    Voce("per-me-letture-sgi", "procedure_refresh:my_assignments", "per-me", "Da fare", 11,
+         label="Letture da fare", icon="file-check", create=True),
     Voce("per-me-kickoff-da-gestire", "tasks:da_gestire", "per-me", "Da fare", 12,
          label="KICK-OFF da gestire", icon="list-todo", create=True),
     Voce("assenze", "assenze_gestione", "per-me", "Richieste", 13, label="Le mie assenze"),
@@ -100,6 +101,7 @@ VOCI: tuple[Voce, ...] = (
     Voce("schede-sicurezza", "schede_sicurezza:prodotto_list", "sicurezza-ambiente", "Prodotti e rifiuti", 54),
     Voce("rentri", "rentri_menu", "sicurezza-ambiente", "Prodotti e rifiuti", 55),
     # Qualità (le anomalie sono non conformita' legate agli ordini)
+    Voce("procedure_refresh", "procedure_refresh:libreria", "qualita", "", 60, label="CN-SGI"),
     Voce("gestione_anomalie", "anomalie_menu", "qualita", "", 61),
     Voce("gestione-specifiche", "gestione_specifiche:lista", "qualita", "", 62),
     Voce("ofi_registro", "registro_ofi:home", "qualita", "", 63),

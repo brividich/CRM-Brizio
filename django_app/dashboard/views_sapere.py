@@ -21,9 +21,17 @@ from core.models import Catalogo, CatalogoVoce, HubLink
 @require_GET
 def sapere_cataloghi(request):
     ident = sapere.identita(request)
+    cataloghi = sapere.schede_cataloghi(ident)
+    try:
+        from procedure_refresh.libreria import catalogo_sapere, puo_aprire_libreria
+
+        if puo_aprire_libreria(request):
+            cataloghi = [catalogo_sapere(), *cataloghi]
+    except Exception:
+        pass
     return render(request, "dashboard/pages/sapere_cataloghi.html", {
         "page_title": "Cataloghi",
-        "cataloghi": sapere.schede_cataloghi(ident),
+        "cataloghi": cataloghi,
         "is_admin": ident.is_admin,
     })
 

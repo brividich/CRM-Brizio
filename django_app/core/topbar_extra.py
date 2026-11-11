@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Una riga sotto l'etichetta, nei pannelli delle aree. Una voce senza descrizione mostra solo il nome.
 DESCRIZIONI = {
-    "procedure_refresh": "Procedure da leggere e confermare",
+    "procedure_refresh": "Libreria delle procedure SGI e letture da fare",
     "per-me-kickoff-da-gestire": "Le attività assegnate a te",
     "assenze": "Le tue richieste e i tuoi saldi",
     "per-me-richiedi-assenza": "Ferie, permessi, malattia",
