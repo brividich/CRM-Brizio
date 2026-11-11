@@ -1011,6 +1011,10 @@ def _software_mapping_post(request):
         key = request.POST.get("nvd_key", "").strip()[:200]
         if not key:
             messages.error(request, "Incolla la API key NVD (per toglierla usa «Rimuovi»).")
+        elif not re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", key):
+            # Le chiavi NVD sono UUID: una chiave incollata male farebbe rispondere 404 a ogni lettura.
+            messages.error(request, "API key NVD non valida: è un codice come 1a2b3c4d-1a2b-1a2b-1a2b-1a2b3c4d5e6f "
+                                    "(quello della mail di NVD). Non salvata.")
         else:
             set_nvd_api_key(key, actor=request.user)
             messages.success(request, "API key NVD salvata (cifrata).")

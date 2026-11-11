@@ -259,6 +259,19 @@ def url_kb(kb: str) -> str:
     return f"https://support.microsoft.com/help/{kb.upper().removeprefix('KB')}"
 
 
+def _chi_risponde(resp) -> str:
+    """Se la risposta non è JSON, chi ha risposto (header Server): un proxy o un'altra pagina, non SearXNG."""
+    headers = getattr(resp, "headers", None)
+    if not hasattr(headers, "get"):
+        return ""
+    tipo = str(headers.get("Content-Type") or "")
+    server = str(headers.get("Server") or "")[:60]
+    if not tipo or "json" in tipo.lower():
+        return ""
+    return (" La risposta non arriva da SearXNG" + (f" (server «{server}»)" if server else "")
+            + ": a quell'indirizzo risponde un altro servizio o un proxy.")
+
+
 def cerca(query, *, scadenza, user=None):
     """Risultati ammessi dal motore interno (SearXNG) configurato in Impostazioni: [{url, titolo, estratto}]."""
     base = str(soc_settings.value("ai.web.searxng_url") or "").strip().rstrip("/")
@@ -268,9 +281,19 @@ def cerca(query, *, scadenza, user=None):
     try:
         import requests
 
-        response = requests.get(f"{base}/search?" + urlencode({"q": query, "format": "json"}), headers={"User-Agent": USER_AGENT},
+        with requests.Session() as http:
+            # SearXNG è in rete interna: il proxy di HTTPS_PROXY (per i siti esterni) non va usato,
+            # altrimenti risponde il proxy al posto del motore.
+            http.trust_env = False
+            response = http.get(f"{base}/search?" + urlencode({"q": query, "format": "json"}), headers={"User-Agent": USER_AGENT},
                                 timeout=max(1, min(TIMEOUT, scadenza - time.monotonic())))
-        risultati = response.json().get("results") or [] if response.status_code == 200 else []
+        if response.status_code != 200:
+            raise ValueError(f"SearXNG ha risposto HTTP {response.status_code}.{_chi_risponde(response)}")
+        try:
+            risultati = (response.json() or {}).get("results") or []
+        except ValueError as exc:
+            raise ValueError(f"risposta di SearXNG non JSON (formato json acceso nelle impostazioni del motore?)."
+                             f"{_chi_risponde(response)}") from exc
     except Exception as exc:  # noqa: BLE001
         _log("web_ricerca", object_type="query", object_id=query, status="error", user=user, started=started, error=str(exc))
         return []

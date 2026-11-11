@@ -255,7 +255,17 @@ def _send_email(subject: str, body: str, recipients: list[str], attachment=None)
     )
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """The webhook URL is a secret: a redirect is never followed (the body would go to another host)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None  # urllib then raises HTTPError with the 3xx code
+
+
 def _post_teams_webhook(url: str, subject: str, body: str, severity: str) -> None:
+    if not str(url or "").lower().startswith("https://"):
+        # Never echo the URL: it is the secret.
+        raise RuntimeError("URL del webhook Teams non ammesso: deve iniziare con https://")
     colors = {
         Severity.CRITICAL: "D93025",
         Severity.HIGH: "E8710A",
@@ -276,12 +286,16 @@ def _post_teams_webhook(url: str, subject: str, body: str, severity: str) -> Non
         headers={"Content-Type": "application/json"},
         method="POST",
     )
+    opener = urllib.request.build_opener(_NoRedirect())
     try:
-        with urllib.request.urlopen(request, timeout=WEBHOOK_TIMEOUT_SECONDS) as response:
+        with opener.open(request, timeout=WEBHOOK_TIMEOUT_SECONDS) as response:
             if response.status >= 400:
                 raise RuntimeError(f"webhook returned HTTP {response.status}")
     except urllib.error.HTTPError as exc:
         # Never echo the URL: it is the secret.
+        if 300 <= exc.code < 400:
+            raise RuntimeError(f"il webhook Teams ha risposto con un reindirizzamento (HTTP {exc.code}), "
+                               "non seguito: controlla l'URL del webhook") from exc
         raise RuntimeError(f"webhook returned HTTP {exc.code}") from exc
     except urllib.error.URLError as exc:
         raise RuntimeError("webhook unreachable") from exc
