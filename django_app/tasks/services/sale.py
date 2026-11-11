@@ -63,6 +63,16 @@ def incontri_in_sala(giorno: date, *, escludi_id=None):
     return qs
 
 
+def _visite_reception(giorno: date) -> list[dict]:
+    try:
+        from reception.sale import blocchi_giorno
+
+        return blocchi_giorno(giorno)
+    except Exception as exc:  # noqa: BLE001 - la reception non toglie mai la vista degli incontri
+        logger.warning("Visite della reception non lette (%s): %s", giorno, exc)
+        return []
+
+
 def disponibilita_giorno(
     giorno: date, *, escludi_id=None, organizer_email: str = "", partecipanti: list[str] | None = None,
 ) -> dict:
@@ -77,6 +87,14 @@ def disponibilita_giorno(
         righe[m.sala_id]["blocchi"].append({
             "inizio": _hhmm(finestra[0]), "fine": _hhmm(finestra[1]), "fonte": "portale",
             "titolo": f"Incontro {m.numero} · {m.project.name}",
+        })
+    # Le visite della reception con sala prenotata occupano la sala come gli incontri.
+    for v in _visite_reception(giorno):
+        if v["sala_id"] not in righe:
+            continue
+        finestre_portale.setdefault(v["sala_id"], []).append((v["inizio"], v["fine"]))
+        righe[v["sala_id"]]["blocchi"].append({
+            "inizio": _hhmm(v["inizio"]), "fine": _hhmm(v["fine"]), "fonte": "portale", "titolo": v["titolo"],
         })
 
     esito = {
@@ -165,6 +183,12 @@ def conflitti_portale(meeting) -> list[str]:
             messaggi.append(
                 f"La sala {meeting.sala.nome} è già prenotata dalle {_hhmm(f[0])} alle {_hhmm(f[1])} "
                 f"per l'incontro {altro.numero} di {altro.project.name}."
+            )
+    for v in _visite_reception(meeting.data):
+        if v["sala_id"] == meeting.sala_id and _si_sovrappone(finestra, (v["inizio"], v["fine"])):
+            messaggi.append(
+                f"La sala {meeting.sala.nome} è già prenotata dalle {_hhmm(v['inizio'])} alle {_hhmm(v['fine'])} "
+                f"per una visita ({v['titolo']})."
             )
     return messaggi
 

@@ -18,6 +18,7 @@
     <div class="rc-field"><label for="p-ini">Dalle</label><input class="rc-input" id="p-ini" type="time" name="ora_inizio"></div>
     <div class="rc-field"><label for="p-fine">Alle</label><input class="rc-input" id="p-fine" type="time" name="ora_fine"></div>
   </div>
+  {% include "reception/_sala_scelta.html" with pfx="p" data_id="p-data" ora_id="p-ini" fine_id="p-fine" riga="" %}
   <div class="rc-field"><span class="rc-label">Motivo</span>
     <div class="rc-chips">{% for c in categorie %}<label class="rc-chip"><input type="radio" name="motivo" value="{{ c.nome }}"{% if forloop.first %} checked{% endif %}><span>{{ c.nome }}</span></label>{% endfor %}</div>
   </div>

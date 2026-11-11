@@ -23,7 +23,7 @@ from core.audit import log_action
 from core.models import SiteConfig
 from core.net import client_ip
 
-from . import mail, servizi
+from . import mail, sale, servizi
 from .models import (
     Cartellino, CategoriaVisita, ContattoDitta, DittaAccreditata, EventoVisita, Preregistrazione, Referente,
     RichiestaAppuntamento, Visita,
@@ -220,21 +220,27 @@ def preregistrazioni(request):
             messages.error(request, "Nome, email dell'ospite e referente sono obbligatori.")
         else:
             data_visita = _data_ora(dati.get("data_visita", ""), "00:00")
+            giorno = data_visita.date() if data_visita else None
+            inizio, fine = _ora(dati.get("ora_inizio")), _ora(dati.get("ora_fine"))
+            scelta, errore = sala_dal_post(request, giorno, inizio, fine)
+            if errore:
+                messages.error(request, errore)
+                return redirect(reverse("reception:preregistrazioni") + "?nuovo=1")
             scade = _data_ora(dati.get("scade", ""), "23:59") or timezone.now() + timedelta(days=servizi.GIORNI_VALIDITA_CODICE)
             pre = servizi.crea_preregistrazione(
                 ospite_nome=nome, ospite_email=email, ospite_azienda=dati.get("azienda", ""), referente=referente,
                 motivo=dati.get("motivo", ""), creata_da=_autore(request), scade_il=scade,
-                data_visita=data_visita.date() if data_visita else None,
-                ora_inizio=_ora(dati.get("ora_inizio")), ora_fine=_ora(dati.get("ora_fine")),
+                data_visita=giorno, ora_inizio=inizio, ora_fine=fine, sala=scelta,
             )
-            log_action(request, "reception_preregistrazione", "reception", {"preregistrazione": pre.pk})
+            log_action(request, "reception_preregistrazione", "reception", {"preregistrazione": pre.pk, "sala": pre.sala_id})
+            prenota_sala(request, pre)
             if _manda_invito(request, pre):
                 messages.success(request, f"Codice {pre.codice} creato e inviato a {pre.ospite_email}.")
             return redirect("reception:preregistrazioni")
     return render(request, "reception/preregistrazioni.html", _ctx(
         request, "preregistrazioni", referenti_json=_elenco_referenti(),
-        categorie=CategoriaVisita.objects.filter(attiva=True),
-        righe=Preregistrazione.objects.filter(Q(scade_il__gte=timezone.now()) | Q(usata_il__isnull=False))[:100],
+        categorie=CategoriaVisita.objects.filter(attiva=True), sale_riunioni=list(sale.sale_attive()),
+        righe=Preregistrazione.objects.select_related("sala").filter(Q(scade_il__gte=timezone.now()) | Q(usata_il__isnull=False))[:100],
         apri=request.GET.get("nuovo") == "1",
     ))
 
@@ -244,6 +250,24 @@ def _ora(valore):
         return datetime.strptime(valore or "", "%H:%M").time()
     except ValueError:
         return None
+
+
+def sala_dal_post(request, giorno, inizio, fine, *, escludi_pk=None):
+    """(sala scelta o None, errore). Nessuna sala scelta = nessun errore."""
+    pk = (request.POST.get("sala") or "").strip()
+    if not pk.isdigit():
+        return None, ""
+    scelta = sale.sale_attive().filter(pk=int(pk)).first()
+    if scelta is None:
+        return None, "La sala scelta non esiste più: scegline un'altra."
+    errore = sale.verifica(scelta, giorno, inizio, fine, escludi_pk=escludi_pk)
+    return (None, errore) if errore else (scelta, "")
+
+
+def prenota_sala(request, pre) -> None:
+    livello, testo = sale.prenota(pre)
+    if testo:
+        {"success": messages.success, "warning": messages.warning}.get(livello, messages.info)(request, testo)
 
 
 def _manda_invito(request, pre) -> bool:
@@ -260,6 +284,7 @@ def _manda_invito(request, pre) -> bool:
 def preregistrazione_azione(request, pk):
     pre = get_object_or_404(Preregistrazione, pk=pk)
     if request.POST.get("azione") == "elimina":
+        sale.libera(pre)
         pre.delete()
         log_action(request, "reception_preregistrazione_eliminata", "reception", {"preregistrazione": pk})
         messages.success(request, "Pre-registrazione eliminata.")

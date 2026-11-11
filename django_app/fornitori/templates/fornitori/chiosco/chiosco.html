@@ -60,8 +60,14 @@ button { font:inherit; color:inherit; }
 .ck-opt.on small { color:#bae6fd; }
 .ck-av { width:52px; height:52px; flex:none; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#1e3a5f; color:#7dd3fc; font-size:19px; font-weight:700; }
 .ck-tag { display:block; width:max-content; margin-top:6px; padding:3px 10px; border-radius:999px; background:#14532d; color:#86efac; font-size:14px; font-weight:700; }
-.ck-ref-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-top:18px; }
+.ck-ref-list { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:18px; max-height:calc(100vh - 430px); min-height:220px; align-content:start; overflow-y:auto; padding:2px 6px 2px 2px; overscroll-behavior:contain; }
 .ck-ref-list p { grid-column:1/-1; }
+.ck-ref-list .ck-opt { min-height:76px; padding:12px 16px; font-size:20px; }
+.ck-ref-list .ck-av { width:44px; height:44px; font-size:17px; }
+.ck-ref-list .ck-opt.ultima { grid-column:1/-1; }
+.ck-lettere { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+.ck-lettere button { min-width:54px; min-height:54px; padding:0 12px; border:2px solid var(--border2); border-radius:14px; background:var(--surface); font-size:21px; font-weight:700; cursor:pointer; }
+.ck-lettere button.on { border-color:var(--accent); background:var(--accent-soft); }
 .ck-err { display:none; margin:18px 0 0; padding:14px 18px; border-radius:16px; background:#3b1219; color:var(--danger); font-size:19px; }
 .ck-err.on { display:block; }
 
@@ -86,6 +92,8 @@ button { font:inherit; color:inherit; }
 .ck-card-n { font-size:30px; font-weight:700; line-height:1.1; min-height:66px; word-break:break-word; }
 .ck-card-r { border:0; border-top:1px solid #e2e8f0; background:none; padding:8px 0 0; text-align:left; cursor:pointer; color:#475569; font-size:15px; }
 .ck-card-r[hidden] { display:none; }
+.ck-card-rep { display:block; color:#64748b; font-size:15px; margin-top:1px; }
+.ck-card-rep[hidden] { display:none; }
 .ck-card-r strong { display:block; color:#0f172a; font-size:18px; margin-top:2px; }
 .ck-pass-n { margin-top:auto; font-size:16px; color:#64748b; line-height:1.5; }
 
@@ -147,10 +155,11 @@ button { font:inherit; color:inherit; }
 .ck-down { text-align:center; padding-top:80px; }
 .ck-mt { margin-top:22px; }
 
-@media (max-width:1100px) { .ck-pass { display:none !important; } }
+@media (max-width:1100px) { .ck-pass { display:none !important; } .ck-ref-list { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:760px) {
   .ck-head, .ck-main { padding-left:16px; padding-right:16px; }
   .ck-pair, .ck-opts, .ck-opts.tre, .ck-ref-list { grid-template-columns:minmax(0,1fr); }
+  .ck-ref-list { max-height:none; }
   .ck-pad.alfa { grid-template-columns:repeat(6,1fr); }
   .ck-kb-k { font-size:17px; min-height:50px; }
 }
@@ -226,8 +235,9 @@ button { font:inherit; color:inherit; }
 
     <section class="ck-step" id="s-chi">
       <h1 class="ck-title">Chi vieni a trovare?</h1>
-      <input class="ck-big" id="f-host-cerca" data-kb="text" readonly autocomplete="off" placeholder="Scrivi le prime lettere" aria-label="Cerca il referente">
+      <input class="ck-big" id="f-host-cerca" data-kb="text" readonly autocomplete="off" placeholder="Tocca il nome o scrivi qui" aria-label="Cerca il referente">
       <input type="hidden" id="f-host">
+      <div class="ck-lettere" id="f-host-lettere" aria-label="Iniziale del cognome"></div>
       <div class="ck-ref-list" id="f-host-lista"></div>
     </section>
 
@@ -314,7 +324,7 @@ button { font:inherit; color:inherit; }
       <div class="ck-card-top"><span>NOVICROM</span><span>VISITATORE</span></div>
       <div class="ck-card-n" id="p-nome">…</div>
       <button type="button" class="ck-card-r" data-torna="s-azienda">Azienda<strong id="p-azienda">—</strong></button>
-      <button type="button" class="ck-card-r" data-torna="s-chi">Referente<strong id="p-ref">—</strong></button>
+      <button type="button" class="ck-card-r" data-torna="s-chi">Referente<strong id="p-ref">—</strong><small class="ck-card-rep" id="p-ref-rep" hidden></small></button>
       <button type="button" class="ck-card-r" data-torna="s-motivo" id="p-motivo-r">Motivo<strong id="p-motivo">—</strong></button>
     </div>
     <div class="ck-pass-n">Tocca una riga del pass per correggerla. Il referente riceve una mail appena confermi.</div>
@@ -394,6 +404,7 @@ button { font:inherit; color:inherit; }
     chiudiTastiera();
     pass();
     if (id === 's-uscita') { caricaCartellini(); }
+    if (id === 's-chi') { disegnaReferenti(); }
   }
   function vai(id) { if (stato.corrente && stato.corrente !== id) { storia.push(stato.corrente); } mostra(id); }
   function avanti() { var p = percorso(), i = p.indexOf(stato.corrente); vai(p[i + 1] || 's-privacy'); }
@@ -405,6 +416,8 @@ button { font:inherit; color:inherit; }
     $('p-nome').textContent = nome || '…';
     $('p-azienda').textContent = stato.azienda || (dopoAzienda ? 'Privato' : '—');
     $('p-ref').textContent = $('f-host').dataset.nome || '—';
+    $('p-ref-rep').textContent = $('f-host').dataset.nome ? ($('f-host').dataset.reparto || '') : '';
+    $('p-ref-rep').hidden = !$('p-ref-rep').textContent;
     $('p-motivo').textContent = stato.motivo || '—';
     $('p-motivo-r').hidden = !!stato.fornitore;
   }
@@ -416,7 +429,7 @@ button { font:inherit; color:inherit; }
     document.querySelectorAll('input.ck-input, input.ck-big').forEach(function (i) { i.value = ''; });
     document.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = false; c.dispatchEvent(new Event('change')); });
     document.querySelectorAll('[data-motivo]').forEach(function (c) { c.classList.remove('on'); });
-    $('f-host').value = ''; $('f-host').dataset.nome = ''; disegnaReferenti();
+    $('f-host').value = ''; $('f-host').dataset.nome = ''; $('f-host').dataset.reparto = ''; $('f-host-cerca').value = ''; lettera = ''; disegnaReferenti();
     $('visite').innerHTML = ''; $('pad-box').hidden = true;
     $('f-cognome-sugg').innerHTML = ''; $('f-nome-sugg').innerHTML = '';
     badge = ''; codice = '';
@@ -530,14 +543,37 @@ button { font:inherit; color:inherit; }
   $('b-privato').addEventListener('click', function () { $('f-azienda').value = ''; stato.azienda = ''; avanti(); });
 
   // ─── 4. Referente: si scrive, si tocca, si va avanti ───
+  // Segnaposto del GuestPortal come «!! NESSUN REFERENTE !!» (simboli che un nome non ha):
+  // in fondo all'elenco e mai proposti come «Come l'ultima volta».
+  function segnaposto(r) { var n = normalizza(r.nome).trim(); return !n || /[^a-z' .-]/.test(n); }
+  function iniziale(r) { return normalizza(r.nome).trim().charAt(0).toUpperCase(); }
+  var ORDINATI = REFERENTI.slice().sort(function (a, b) {
+    return (segnaposto(a) - segnaposto(b)) || normalizza(a.nome).localeCompare(normalizza(b.nome));
+  });
+  var lettera = '';
   function trovaReferente(nome) {
     var n = chiaveNome(nome);
-    return n ? REFERENTI.find(function (r) { return chiaveNome(r.nome) === n; }) : null;
+    var r = n ? REFERENTI.find(function (x) { return chiaveNome(x.nome) === n; }) : null;
+    return r && !segnaposto(r) ? r : null;
+  }
+  function disegnaLettere() {
+    var box = $('f-host-lettere'), cerca = $('f-host-cerca').value.trim();
+    box.innerHTML = '';
+    var viste = {};
+    ORDINATI.forEach(function (r) { if (!segnaposto(r)) { viste[iniziale(r)] = true; } });
+    var tutte = Object.keys(viste).sort();
+    box.hidden = !!cerca || tutte.length < 2 || ORDINATI.length <= 12;
+    if (box.hidden) { return; }
+    ['Tutti'].concat(tutte).forEach(function (l) {
+      var b = el('button', (l === 'Tutti' ? !lettera : lettera === l) ? 'on' : '', l); b.type = 'button';
+      b.addEventListener('click', function () { lettera = l === 'Tutti' ? '' : l; disegnaReferenti(); });
+      box.appendChild(b);
+    });
   }
   function scegliReferente(r, comeUltima) {
-    $('f-host').value = r ? r.id : ''; $('f-host').dataset.nome = r ? r.nome : '';
+    $('f-host').value = r ? r.id : ''; $('f-host').dataset.nome = r ? r.nome : ''; $('f-host').dataset.reparto = r ? (r.reparto || '') : '';
     stato.comeUltima = !!(r && comeUltima);
-    $('f-host-cerca').value = '';
+    $('f-host-cerca').value = ''; lettera = '';
     disegnaReferenti(); pass();
   }
   function disegnaReferenti() {
@@ -545,24 +581,33 @@ button { font:inherit; color:inherit; }
     var cerca = normalizza($('f-host-cerca').value).trim();
     lista.innerHTML = '';
     var scelto = REFERENTI.find(function (r) { return String(r.id) === String($('f-host').value); });
-    var elenco = REFERENTI.filter(function (r) { return cerca && normalizza(r.nome + ' ' + r.reparto).indexOf(cerca) !== -1; })
-      .sort(function (a, b) {
-        var pa = normalizza(a.nome).split(' ').some(function (p) { return p.indexOf(cerca) === 0; }) ? 0 : 1;
-        var pb = normalizza(b.nome).split(' ').some(function (p) { return p.indexOf(cerca) === 0; }) ? 0 : 1;
-        return pa - pb;
-      }).slice(0, 9);
-    if (!cerca && scelto) { elenco = [scelto]; }
+    var elenco;
+    if (cerca) {
+      elenco = ORDINATI.filter(function (r) { return normalizza(r.nome + ' ' + r.reparto).indexOf(cerca) !== -1; })
+        .sort(function (a, b) {
+          var pa = normalizza(a.nome).split(' ').some(function (p) { return p.indexOf(cerca) === 0; }) ? 0 : 1;
+          var pb = normalizza(b.nome).split(' ').some(function (p) { return p.indexOf(cerca) === 0; }) ? 0 : 1;
+          return pa - pb;
+        });
+    } else {
+      // Senza ricerca: tutti i referenti a pulsanti (o quelli della lettera), quello dell'ultima volta in testa.
+      elenco = ORDINATI.filter(function (r) { return !lettera || (!segnaposto(r) && iniziale(r) === lettera); });
+      if (scelto && !lettera) { elenco = [scelto].concat(elenco.filter(function (r) { return r.id !== scelto.id; })); }
+    }
+    disegnaLettere();
     elenco.forEach(function (r) {
-      var b = el('button', 'ck-opt' + (scelto && scelto.id === r.id ? ' on' : '')); b.type = 'button';
+      var primo = !cerca && !lettera && scelto && scelto.id === r.id;
+      var b = el('button', 'ck-opt' + (scelto && scelto.id === r.id ? ' on' : '') + (primo ? ' ultima' : '')); b.type = 'button';
       b.appendChild(el('span', 'ck-av', iniziali(r.nome)));
       var t = el('span'); t.appendChild(document.createTextNode(r.nome));
-      var nota = scelto && scelto.id === r.id && stato.comeUltima && !cerca ? 'Come l\'ultima volta' : r.reparto;
+      var nota = scelto && scelto.id === r.id && stato.comeUltima && !cerca ? ['Come l\'ultima volta', r.reparto].filter(Boolean).join(' · ') : r.reparto;
       if (nota) { t.appendChild(el('small', '', nota)); }
       b.appendChild(t);
       b.addEventListener('click', function () { scegliReferente(r, false); chiudiTastiera(); avanti(); });
       lista.appendChild(b);
     });
     if (cerca && !elenco.length) { lista.appendChild(el('p', 'ck-sub', 'Nessun nome trovato. Rivolgiti alla reception.')); }
+    lista.scrollTop = 0;
   }
   $('f-host-cerca').addEventListener('input', disegnaReferenti);
 

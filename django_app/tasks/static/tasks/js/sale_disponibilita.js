@@ -1,11 +1,12 @@
-/* Form incontro: disponibilità del giorno delle sale (portale + Outlook) e dei partecipanti.
+/* Disponibilità del giorno delle sale (portale + Outlook) e dei partecipanti: form incontro KICK-OFF
+ * e moduli della reception (più riquadri nella stessa pagina, anche dentro <details> chiusi).
  * Clic su un orario libero di una sala: sceglie la sala e l'ora. Nessun salvataggio qui:
- * la prenotazione vera parte al salvataggio dell'incontro, con l'invito Outlook. */
+ * la prenotazione vera parte al salvataggio del modulo.
+ * data-fine-id (facoltativo): campo «Alle»; la durata è fine - inizio e il clic la conserva. */
 (function () {
   'use strict';
 
-  var box = document.querySelector('[data-sl]');
-  if (!box) { return; }
+  function avvia(box) {
   var grid = box.querySelector('[data-sl-grid]');
   var msg = box.querySelector('[data-sl-msg]');
   function el(id) { return id ? document.getElementById(id) : null; }
@@ -15,6 +16,7 @@
   var campoOrganizer = el(box.dataset.organizerId);
   var campoEsterni = el(box.dataset.esterniId);
   var campoDurata = el(box.dataset.durataId);
+  var campoFine = el(box.dataset.fineId);
   var dati = null;
   var giro = 0;
   var timer = null;
@@ -32,6 +34,10 @@
   }
 
   function durata() {
+    if (campoFine) {
+      var a = campoOra && minuti(campoOra.value), b = minuti(campoFine.value);
+      return a != null && b != null && !isNaN(a) && !isNaN(b) && b > a ? b - a : 60;
+    }
     var scelta = campoDurata && parseInt(campoDurata.value, 10);
     if (scelta > 0) { return scelta; }
     var raw = document.getElementById('id_agenda_items_raw');
@@ -92,7 +98,7 @@
         '<span class="sl-t">' + blocchiHtml(dati.partecipanti.blocchi, inizioGiorno, totale) + overlayP + '</span></div>';
     }
     grid.innerHTML = dati.sale.length ? testa + righe :
-      '<p class="mf-hint">Nessuna sala configurata: si aggiungono in Impostazioni KICK-OFF → Configurazione.</p>';
+      '<p class="mf-hint">' + esc(box.dataset.vuoto || 'Nessuna sala configurata: si aggiungono in Impostazioni KICK-OFF → Configurazione.') + '</p>';
     avvisi(sel, salaScelta);
   }
 
@@ -151,13 +157,15 @@
     var r = track.getBoundingClientRect();
     var quota = Math.min(Math.max((e.clientX - r.left) / r.width, 0), 1);
     var min = dati.ora_inizio * 60 + Math.floor(quota * (dati.ora_fine - dati.ora_inizio) * 2) * 30;
+    var d = durata();
+    if (campoFine) { campoFine.value = hhmm(Math.min(min + d, 23 * 60 + 59)); campoFine.dispatchEvent(new Event('change', { bubbles: true })); }
     if (campoOra) { campoOra.value = hhmm(min); campoOra.dispatchEvent(new Event('change', { bubbles: true })); }
     if (campoSala) { campoSala.value = riga.getAttribute('data-sl-sala'); campoSala.dispatchEvent(new Event('change', { bubbles: true })); }
     disegna();
   });
 
   if (campoData) { campoData.addEventListener('change', carica); }
-  [campoOra, campoSala, campoDurata].forEach(function (c) { if (c) { c.addEventListener('change', disegna); c.addEventListener('input', disegna); } });
+  [campoOra, campoSala, campoDurata, campoFine].forEach(function (c) { if (c) { c.addEventListener('change', disegna); c.addEventListener('input', disegna); } });
   if (campoOrganizer) { campoOrganizer.addEventListener('change', caricaPoi); }
   if (campoEsterni) { campoEsterni.addEventListener('change', caricaPoi); }
   document.addEventListener('change', function (e) {
@@ -169,5 +177,14 @@
     var d = durata();
     if (d !== ultimaDurata) { ultimaDurata = d; disegna(); }
   });
-  carica();
+  var chiuso = box.closest('details');
+  if (chiuso) {
+    chiuso.addEventListener('toggle', function () { if (chiuso.open && !dati) { carica(); } });
+    if (chiuso.open) { carica(); }
+  } else {
+    carica();
+  }
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-sl]'), avvia);
 })();

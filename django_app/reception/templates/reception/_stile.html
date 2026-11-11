@@ -91,6 +91,9 @@ body.rc-bloccato { overflow:hidden; }
 .rc-table td { padding:10px 16px; border-bottom:1px solid var(--border,#f1f5f9); color:var(--text-mid,#334155); vertical-align:middle; }
 .rc-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; align-items:end; }
 .rc-field { display:flex; flex-direction:column; gap:4px; }
+.rc-field-largo { grid-column:1/-1; }
+.rc-sala .sl-box { margin:8px 0 0; }
+.rc-table .rc-sala[open] { min-width:440px; }
 .rc-field label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-light,#64748b); }
 .rc-input { width:100%; box-sizing:border-box; border:1px solid var(--border,#e2e8f0); border-radius:8px; padding:8px 12px; font-size:13px; color:var(--text,#0f172a); background:var(--surface-alt,#f8fafc); }
 .rc-btn { display:inline-flex; align-items:center; justify-content:center; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:600; border:1px solid transparent; cursor:pointer; text-decoration:none; white-space:nowrap; }
