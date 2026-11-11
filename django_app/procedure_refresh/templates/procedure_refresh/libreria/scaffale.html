@@ -3,7 +3,7 @@
 {% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › {{ scaffale.nome }}{% endblock %}
 {% block cn_h1 %}{{ scaffale.nome }}{% if scaffale.norma %} <small>{{ scaffale.norma }}</small>{% endif %}{% endblock %}
 {% block cn_guida_anchor %}#scaffali{% endblock %}
-{% block cn_actions %}{% if puo_audit %}<a class="cn-btn sm" href="{% url 'procedure_refresh:libreria_audit' scaffale.slug %}">Pacchetto audit</a>{% endif %}{% endblock %}
+{% block cn_actions %}<a class="cn-btn sm" href="{% url 'procedure_refresh:libreria_etichette' scaffale.slug %}{% if sezione is not None %}?sezione={{ sezione|urlencode }}{% endif %}" target="_blank" rel="noopener" title="Etichette con QR da affiggere in reparto">Etichette QR</a>{% if puo_audit %}<a class="cn-btn sm" href="{% url 'procedure_refresh:libreria_audit' scaffale.slug %}">Pacchetto audit</a>{% endif %}{% endblock %}
 {% block cn_body %}
 <div class="cn-split" style="--col:{{ scaffale.colore }}">
   <aside class="cn-side" aria-label="Sezioni">
@@ -33,9 +33,11 @@
     <form class="cn-toolbar" method="get">
       {% if sezione is not None %}<input type="hidden" name="sezione" value="{{ sezione }}">{% endif %}
       {% if vista == 'elenco' %}<input type="hidden" name="vista" value="elenco">{% endif %}
-      <input class="cn-input" type="search" name="q" value="{{ filtro }}" placeholder="Filtra in questo scaffale" aria-label="Filtra in questo scaffale">
-      <button class="cn-btn sm" type="submit">Filtra</button>
-      {% if filtro %}<a class="cn-chip" href="?{% if sezione is not None %}sezione={{ sezione|urlencode }}{% endif %}">Togli filtro</a>{% endif %}
+      <input class="cn-input" type="search" name="q" value="{{ filtro }}" placeholder="Filtra in questo scaffale" aria-label="Filtra in questo scaffale" data-cn-autosubmit-ritardo{% if filtro %} autofocus{% endif %}>
+      {% if tipi|length > 1 %}<select class="cn-input" style="width:auto" name="tipo" aria-label="Tipo di documento" data-cn-autosubmit><option value="">Tutti i tipi</option>{% for k, l in tipi %}<option value="{{ k }}"{% if tipo == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>{% endif %}
+      <select class="cn-input" style="width:auto" name="cambiati" aria-label="Revisionati di recente" data-cn-autosubmit><option value="">Qualunque data</option><option value="30"{% if cambiati == '30' %} selected{% endif %}>Cambiati negli ultimi 30 giorni</option><option value="90"{% if cambiati == '90' %} selected{% endif %}>Ultimi 90 giorni</option><option value="365"{% if cambiati == '365' %} selected{% endif %}>Ultimo anno</option></select>
+      <select class="cn-input" style="width:auto" name="ordine" aria-label="Ordine" data-cn-autosubmit><option value="codice"{% if ordine == 'codice' %} selected{% endif %}>Per codice</option><option value="data"{% if ordine == 'data' %} selected{% endif %}>Più recenti</option><option value="consultati"{% if ordine == 'consultati' %} selected{% endif %}>Più consultati</option></select>
+      {% if filtro or tipo or cambiati or ordine != 'codice' %}<a class="cn-chip" href="?{% if sezione is not None %}sezione={{ sezione|urlencode }}{% endif %}">Togli i filtri</a>{% endif %}
       <span class="cn-seg" role="group" aria-label="Vista">
         <a class="{% if vista == 'copertine' %}on{% endif %}" href="?vista=copertine{% if sezione is not None %}&amp;sezione={{ sezione|urlencode }}{% endif %}{% if filtro %}&amp;q={{ filtro|urlencode }}{% endif %}">Copertine</a>
         <a class="{% if vista == 'elenco' %}on{% endif %}" href="?vista=elenco{% if sezione is not None %}&amp;sezione={{ sezione|urlencode }}{% endif %}{% if filtro %}&amp;q={{ filtro|urlencode }}{% endif %}">Elenco</a>

@@ -847,3 +847,24 @@ class SgiDocumentoModulo(models.Model):
 
     def __str__(self) -> str:
         return f"{self.documento_id} → {self.modulo}"
+
+
+class SgiPreferito(models.Model):
+    """Documento messo tra «I miei documenti» da un utente (stella nella scheda CN-SGI)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="preferiti_sgi", verbose_name="Utente"
+    )
+    documento = models.ForeignKey(
+        ProcedureDocument, on_delete=models.CASCADE, related_name="preferito_da", verbose_name="Documento"
+    )
+    creato_il = models.DateTimeField(auto_now_add=True, verbose_name="Aggiunto il")
+
+    class Meta:
+        unique_together = [("user", "documento")]
+        ordering = ["-creato_il"]
+        verbose_name = "Preferito CN-SGI"
+        verbose_name_plural = "Preferiti CN-SGI"
+
+    def __str__(self) -> str:
+        return f"{self.user_id} ★ {self.documento_id}"

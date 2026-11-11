@@ -232,3 +232,68 @@ body.theme-dark .cn-res-t .mono, body.theme-dark .cn-mono-col { filter: brightne
 @media (prefers-reduced-motion: reduce) { .cn * { transition: none !important; } }
 .cn-dr-h .cn-sheet .c-logo span:last-child { display: none; }
 .cn-panel fieldset label, .cn-ruoli label { margin: 0; }
+
+/* ── Secondo giro di UI ─────────────────────────────────────────────── */
+/* Ricerca live: indicatore e tendina dei suggerimenti */
+.cn-ind { color: var(--text-light); font-weight: 800; opacity: 0; transition: opacity .15s; }
+.htmx-request .cn-ind, .htmx-request.cn-ind { opacity: 1; }
+.cn-sugg-wrap { position: relative; }
+.cn-sugg { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 60; }
+.cn-sugg-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--cn-shadow); overflow: hidden; }
+.cn-sugg-h { font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--text-light); padding: 8px 12px 4px; }
+.cn-sugg-i { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; text-decoration: none; color: var(--text); font-size: 13px; border-top: 1px solid var(--border); }
+.cn-sugg-i:first-child, .cn-sugg-h + .cn-sugg-i { border-top: 0; }
+.cn-sugg-i:hover, .cn-sugg-i:focus { background: var(--bg); outline: none; }
+.cn-sugg-c { color: var(--col, var(--primary)); font-weight: 700; font-size: 12px; }
+.cn-sugg-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cn-sugg-s { font-size: 11px; color: var(--text-light); }
+.cn-sugg-all { grid-template-columns: 1fr; color: var(--primary-mid); font-weight: 700; }
+
+/* Stella «I miei documenti» */
+.cn-stella-f { margin: 0; }
+.cn-stella { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-light); font-size: 17px; line-height: 1; cursor: pointer; }
+.cn-stella:hover { border-color: #d69e2e; color: #d69e2e; }
+.cn-stella.on { color: #d69e2e; border-color: #d69e2e; background: var(--cn-warn-bg); }
+.cn-star-on { color: #d69e2e; font-size: 13px; }
+
+/* Anteprima nel pannello */
+.cn-tab-anteprima { gap: 8px; height: 100%; }
+.cn-anteprima { width: 100%; min-height: calc(calc(100 * var(--vh, 1vh)) - 290px); border: 1px solid var(--border); border-radius: 8px; background: #525a66; }
+
+/* Cosa cambia */
+.cn-cambio { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.cn-cambio-aggiunto { border-left: 4px solid var(--cn-ok); }
+.cn-cambio-tolto { border-left: 4px solid var(--cn-bad); }
+.cn-cambio-modificato { border-left: 4px solid var(--cn-warn); }
+.cn-cambio-h { font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cn-riga { margin: 0; font-size: 12.5px; line-height: 1.45; padding: 4px 8px; border-radius: 6px; }
+.cn-riga-aggiunto { background: var(--cn-ok-bg); }
+.cn-riga-tolto { background: var(--cn-bad-bg); text-decoration: line-through; text-decoration-color: rgba(197, 48, 48, .45); }
+
+/* Mappa dei collegamenti */
+.cn-mappa { width: 100%; height: auto; display: block; }
+.cn-mappa-l { stroke: var(--border); stroke-width: 1.5; }
+.cn-mappa-n { fill: var(--surface); stroke: var(--col, #1f4f86); stroke-width: 1.2; }
+.cn-mappa a:hover .cn-mappa-n { fill: var(--accent-light); stroke: var(--accent); }
+.cn-mappa-t { font-family: var(--cn-mono); font-size: 10.5px; font-weight: 700; fill: var(--text); }
+.cn-mappa-c { fill: var(--col, #1f4f86); }
+.cn-mappa-tc { font-family: var(--cn-mono); font-size: 11.5px; font-weight: 800; fill: #fff; }
+.cn-mappa-leg { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-light); margin: 4px 0 0; }
+
+/* Glossario negli estratti */
+.cn-gloss { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+
+/* Chiedi all'assistente */
+.cn-chiedi { border-top: 1px solid var(--border); padding-top: 12px; }
+
+/* Smartphone: ricerca sempre a portata, scaffali come carosello */
+@media (max-width: 640px) {
+  .cn-search-sticky { position: sticky; top: calc(var(--nav-h, 56px) + 6px); z-index: 40; }
+  .cn-carosello { display: flex; overflow-x: auto; gap: 14px; scroll-snap-type: x mandatory; padding-bottom: 8px; }
+  .cn-carosello > .cn-vol { flex: 0 0 62%; scroll-snap-align: start; }
+  .cn-stats { gap: 14px; }
+  .cn-stat b { font-size: 21px; }
+  .cn-dr-act .cn-btn { flex: 1 1 auto; justify-content: center; }
+  .pr-subnav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .pr-subnav-link { flex: none; }
+}

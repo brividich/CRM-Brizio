@@ -25,10 +25,12 @@ from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 
 from core.audit import log_action
 
+from . import esperienza as esp
 from . import libreria as lib
 from .guida import con_guida
 from .models import (
@@ -108,13 +110,18 @@ def _scaffali(docs, config, nuove) -> "OrderedDict[str, lib.Scaffale]":
     return OrderedDict((s.cartella, s) for s in ordinati)
 
 
-def _decora(docs, scaffali, nuove, da_leggere):
-    """Aggiunge ai documenti scaffale, etichetta di sezione e stato (da leggere / nuova revisione)."""
+def _decora(docs, scaffali, nuove, da_leggere, request=None):
+    """Aggiunge ai documenti scaffale, sezione, tipo e stato (da leggere, nuova revisione, letta, preferito)."""
+    preferiti = set(esp.preferiti_di(request.user)) if request is not None else set()
+    lette = esp.lette_da(request.user, docs) if request is not None else set()
     for d in docs:
         d.scaffale = scaffali.get(d.category or "")
         d.sezione_label = lib.etichetta_sezione(d.sezione)
         d.nuova = d.code in nuove
         d.lettura = da_leggere.get(d.pk)
+        d.letta = d.pk in lette
+        d.preferito = d.pk in preferiti
+        d.tipo = esp.tipo_documento(d)
     return docs
 
 
@@ -133,7 +140,7 @@ def libreria(request):
     nuove = lib.codici_nuove_revisioni()
     da_leggere = lib.letture_da_fare(request.user)
     scaffali = _scaffali(docs, config, nuove)
-    _decora(docs, scaffali, nuove, da_leggere)
+    _decora(docs, scaffali, nuove, da_leggere, request)
 
     oggi = timezone.localdate()
     for s in scaffali.values():
@@ -145,12 +152,15 @@ def libreria(request):
     novita = sorted((d for d in docs if d.nuova), key=lambda d: nuove[d.code], reverse=True)[:14]
     aperture = lib.aperture_recenti()
     consultati = sorted((d for d in docs if aperture.get(d.pk)), key=lambda d: -aperture[d.pk])[:12]
+    ordine_preferiti = {pk: i for i, pk in enumerate(esp.preferiti_di(request.user))}
+    preferiti = sorted((d for d in docs if d.preferito), key=lambda d: ordine_preferiti.get(d.pk, 0))
 
     return render(request, "procedure_refresh/libreria/home.html", _contesto_base(
         request, vis, docs,
         scaffali=list(scaffali.values()),
         totale=len(docs),
         letture=letture,
+        preferiti=preferiti,
         novita=novita,
         consultati=consultati,
         oggi=oggi,
@@ -167,8 +177,20 @@ def scaffale(request, slug: str):
     corrente = next((s for s in scaffali.values() if s.slug == slug), None)
     if corrente is None:
         raise Http404("Scaffale non disponibile.")
-    _decora(docs, scaffali, nuove, da_leggere)
+    _decora(docs, scaffali, nuove, da_leggere, request)
     miei = [d for d in docs if (d.category or "") == corrente.cartella]
+    tipi_presenti = [(k, lab) for k, lab in esp.TIPI if any(d.tipo == k for d in miei)]
+    tipo = request.GET.get("tipo") or ""
+    if tipo not in {k for k, _lab in tipi_presenti}:
+        tipo = ""
+    cambiati = request.GET.get("cambiati") or ""
+    if cambiati not in ("30", "90", "365"):
+        cambiati = ""
+    ordine = request.GET.get("ordine") or "codice"
+    if ordine not in ("codice", "data", "consultati"):
+        ordine = "codice"
+    aperture = lib.aperture_recenti() if ordine == "consultati" else {}
+    limite_data = timezone.localdate() - timedelta(days=int(cambiati)) if cambiati else None
 
     sezione = request.GET.get("sezione")
     sezioni_valide = {raw for raw, _l, _n in corrente.sezioni}
@@ -185,8 +207,16 @@ def scaffale(request, slug: str):
             continue
         elenco = [d for d in miei if (d.sezione or "") == raw]
         if filtro:
-            fp = lib._piega(filtro)
-            elenco = [d for d in elenco if fp in lib._piega(f"{d.code} {d.title}")]
+            trovati = {r.doc.pk for r in lib.cerca(filtro, elenco, campo="titolo")}
+            elenco = [d for d in elenco if d.pk in trovati]
+        if tipo:
+            elenco = [d for d in elenco if d.tipo == tipo]
+        if limite_data:
+            elenco = [d for d in elenco if d.rev.revision_date and d.rev.revision_date >= limite_data]
+        if ordine == "data":
+            elenco.sort(key=lambda d: d.rev.revision_date or timezone.localdate(), reverse=True)
+        elif ordine == "consultati":
+            elenco.sort(key=lambda d: -aperture.get(d.pk, 0))
         if elenco:
             gruppi.append({"raw": raw, "etichetta": etichetta, "documenti": elenco})
 
@@ -200,6 +230,7 @@ def scaffale(request, slug: str):
         sezione=sezione,
         vista=vista,
         filtro=filtro,
+        tipo=tipo, tipi=tipi_presenti, cambiati=cambiati, ordine=ordine,
         n_scaffale=len(miei),
         giorni_sorveglianza=(cert.prossima_sorveglianza - oggi).days if cert and cert.prossima_sorveglianza else None,
     ))
@@ -214,7 +245,7 @@ def cerca(request):
     vis, config, docs = _visibili(request)
     nuove = lib.codici_nuove_revisioni()
     scaffali = _scaffali(docs, config, nuove)
-    _decora(docs, scaffali, nuove, lib.letture_da_fare(request.user))
+    _decora(docs, scaffali, nuove, lib.letture_da_fare(request.user), request)
 
     q = (request.GET.get("q") or "").strip()[:120]
     campo = request.GET.get("in") or "tutto"
@@ -230,13 +261,36 @@ def cerca(request):
             if r.doc.scaffale:
                 conteggi[r.doc.scaffale.slug] = conteggi.get(r.doc.scaffale.slug, 0) + 1
     faccette = [{"s": s, "n": conteggi.get(s.slug, 0), "on": s.slug in filtro_scaffali} for s in scaffali.values()]
-    if q:
+    live = bool(getattr(request, "htmx", False))
+    if q and not live:
         log_action(request, "cerca", "procedure_refresh", {"message": "Ricerca CN-SGI", "q": q, "risultati": len(risultati)})
+    for r in risultati:
+        for e in r.estratti:
+            e["prima_html"] = esp.con_glossario(e["prima"])
+            e["dopo_html"] = esp.con_glossario(e["dopo"])
 
-    return render(request, "procedure_refresh/libreria/cerca.html", _contesto_base(
+    ctx = _contesto_base(
         request, vis, docs,
         q=q, campo=campo, risultati=risultati, faccette=faccette, filtro_scaffali=filtro_scaffali,
-    ))
+    )
+    if live:
+        return render(request, "procedure_refresh/libreria/_risultati.html", ctx)
+    return render(request, "procedure_refresh/libreria/cerca.html", ctx)
+
+
+@login_required
+def suggerimenti(request):
+    """Tendina live della ricerca: documenti per codice e titolo mentre si scrive (HTMX)."""
+    vis, config, docs = _visibili(request)
+    q = (request.GET.get("q") or "").strip()[:120]
+    trovati = []
+    if len(q) >= 2:
+        nuove = lib.codici_nuove_revisioni()
+        scaffali = _scaffali(docs, config, nuove)
+        _decora(docs, scaffali, nuove, {})
+        risultati = lib.cerca(q, docs, campo="titolo")
+        trovati = [] if risultati.approssimati else list(risultati[:8])
+    return render(request, "procedure_refresh/libreria/_suggerimenti.html", {"q": q, "trovati": trovati})
 
 
 def _documento_visibile(request, pk: int):
@@ -310,8 +364,24 @@ def documento(request, pk: int):
             "regola": vis.regola(doc),
         }
 
+    pagina_raw = request.GET.get("pagina") or ""
+    pagina = int(pagina_raw) if pagina_raw.isdigit() and 0 < int(pagina_raw) < 10000 else None
+    rev_prec = esp.revisione_precedente(doc, rev)
+    cambiamenti = None
+    if rev_prec is not None and getattr(rev, "testo_estratto", None) is not None:
+        try:
+            cambiamenti = esp.differenze(rev_prec.testo_estratto.testo, rev.testo_estratto.testo)
+        except Exception:
+            cambiamenti = None
+
     ctx = {
         "doc": doc, "rev": rev, "is_manager": vis.gestore,
+        "rev_prec": rev_prec, "cambiamenti": cambiamenti,
+        "preferito": doc.pk in set(esp.preferiti_di(request.user)),
+        "mappa": esp.mappa(doc.code, cita, citato_da),
+        "chiedi_url": reverse("ai_assistant:chat"),
+        "chiedi_prefisso": "Nel documento " + doc.code + " (" + doc.title + "): ",
+        "etichetta_url": reverse("procedure_refresh:libreria_etichetta", args=[doc.pk]),
         "indice": lib.indice_documento(rev),
         "cita": cita, "citato_da": citato_da, "processi": processi,
         "moduli": moduli,
@@ -319,7 +389,8 @@ def documento(request, pk: int):
         "n_collegamenti": len(cita) + len(citato_da) + len(processi) + len(moduli),
         "revisioni": revisioni, "lettura": lettura, "confermata": confermata,
         "stato_gestore": stato_gestore,
-        "scheda": request.GET.get("scheda") or "panoramica",
+        "pagina": pagina,
+        "scheda": request.GET.get("scheda") or ("anteprima" if pagina else "panoramica"),
         "pdf_url": reverse("procedure_refresh:libreria_apri", args=[doc.pk]),
     }
     if getattr(request, "htmx", False):
@@ -342,6 +413,7 @@ def documento_da_codice(request):
 
 
 @login_required
+@xframe_options_sameorigin
 def apri(request, pk: int):
     """Il PDF in vigore del documento, nel browser (inline). Solo revisione corrente, mai SUPERATO."""
     from procedure_refresh.management.commands.import_sgi_da_share import _SUPERATO_RE
@@ -716,4 +788,88 @@ def audit(request, slug: str):
         revisionati_anno=sum(1 for d in miei if d.rev.revision_date and d.rev.revision_date >= anno_fa),
         pct_lette=round(tot_lette * 100 / tot_assegnate) if tot_assegnate else None,
         giorni_sorveglianza=(cert.prossima_sorveglianza - oggi).days if cert and cert.prossima_sorveglianza else None,
+    ))
+
+
+# ---------------------------------------------------------------------------
+# Secondo giro di UI: preferiti, etichette QR, da rivedere
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@require_POST
+def preferito(request, pk: int):
+    """Mette o toglie il documento da «I miei documenti» (stella nella scheda)."""
+    from .models import SgiPreferito
+
+    _vis, _config, doc, _rev = _documento_visibile(request, pk)
+    riga = SgiPreferito.objects.filter(user=request.user, documento=doc).first()
+    if riga is not None:
+        riga.delete()
+        attivo = False
+    else:
+        SgiPreferito.objects.get_or_create(user=request.user, documento=doc)
+        attivo = True
+    if getattr(request, "htmx", False):
+        return render(request, "procedure_refresh/libreria/_stella.html", {"doc": doc, "preferito": attivo})
+    messages.success(request, f"{doc.code} {'aggiunto a' if attivo else 'tolto da'} «I miei documenti».")
+    return redirect("procedure_refresh:libreria_documento", pk=doc.pk)
+
+
+def _etichetta(request, d) -> dict:
+    url = request.build_absolute_uri(reverse("procedure_refresh:libreria_documento", args=[d.pk]))
+    return {"doc": d, "url": url, "qr": esp.qr_svg(url)}
+
+
+@login_required
+def etichetta(request, pk: int):
+    """Etichetta stampabile con QR e codice di un documento, da affiggere in reparto."""
+    _vis, config, doc, _rev = _documento_visibile(request, pk)
+    doc.scaffale = lib.scaffale_da(doc.category or "", config)
+    return render(request, "procedure_refresh/libreria/etichette.html", {
+        "etichette": [_etichetta(request, doc)], "titolo": f"Etichetta {doc.code}",
+        "torna": reverse("procedure_refresh:libreria_documento", args=[doc.pk]),
+    })
+
+
+@login_required
+def etichette_scaffale(request, slug: str):
+    """Etichette QR di tutto uno scaffale o di una sua sezione (``?sezione=``)."""
+    vis, config, docs = _visibili(request)
+    nuove = lib.codici_nuove_revisioni()
+    scaffali = _scaffali(docs, config, nuove)
+    corrente = next((s for s in scaffali.values() if s.slug == slug), None)
+    if corrente is None:
+        raise Http404("Scaffale non disponibile.")
+    _decora(docs, scaffali, nuove, {})
+    sezione = request.GET.get("sezione")
+    elenco = [d for d in docs if (d.category or "") == corrente.cartella and (sezione is None or (d.sezione or "") == sezione)]
+    elenco.sort(key=lambda d: ((d.sezione or "") == "", (d.sezione or "").lower(), d.code))
+    return render(request, "procedure_refresh/libreria/etichette.html", {
+        "etichette": [_etichetta(request, d) for d in elenco[:120]],
+        "titolo": f"Etichette · {corrente.nome}" + (f" · {lib.etichetta_sezione(sezione)}" if sezione is not None else ""),
+        "torna": reverse("procedure_refresh:libreria_scaffale", args=[corrente.slug]),
+    })
+
+
+@login_required
+@con_guida
+def da_rivedere(request):
+    """Per chi gestisce: documenti non revisionati da anni e codici citati che non esistono."""
+    blocco = _solo_gestori(request)
+    if blocco:
+        return blocco
+    vis, config, docs = _visibili(request)
+    nuove = lib.codici_nuove_revisioni()
+    scaffali = _scaffali(docs, config, nuove)
+    _decora(docs, scaffali, nuove, {})
+    oggi = timezone.localdate()
+    vecchi = esp.da_rivedere(docs)
+    for d in vecchi:
+        d.anni = round((oggi - d.rev.revision_date).days / 365, 1)
+    return render(request, "procedure_refresh/libreria/da_rivedere.html", _contesto_base(
+        request, vis, docs,
+        vecchi=vecchi,
+        anni=esp.ANNI_DA_RIVEDERE,
+        mancanti=esp.citati_mancanti(),
     ))

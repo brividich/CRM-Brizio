@@ -15,7 +15,8 @@ GUIDA = {
                     "Apri «CN-SGI» dal menu oppure da Sapere.",
                     "Scrivi nella ricerca un codice, un titolo o una frase (il tasto «/» ci porta il cursore), oppure clicca la copertina di uno scaffale.",
                     "Nello scaffale scegli la sezione a sinistra; «Copertine» o «Elenco» cambiano la vista.",
-                    "Clicca un documento: la scheda si apre a destra. «Apri il PDF ↗» apre la revisione in vigore.",
+                    "Clicca un documento: la scheda si apre a destra. «Leggi qui» mostra il PDF nel pannello, «Apri il PDF ↗» in una nuova scheda.",
+                    "La stella ☆ mette il documento tra «I miei documenti»; «Cosa cambia» mostra i paragrafi cambiati rispetto alla revisione precedente; «QR» stampa l'etichetta da affiggere in reparto.",
                 ]),
                 ("p", "La ricerca è flessibile: parole in qualunque ordine, singolare o plurale, con o senza accenti, codici con o senza zeri («MT 6» = MT CN 06); una parola scritta male si corregge da sola. "
                       "Nei risultati «§ … · pag. N ↗» apre il PDF alla pagina dove c'è la parola cercata. Si vede solo la revisione in vigore; l'archivio SUPERATO non è mostrato."),
