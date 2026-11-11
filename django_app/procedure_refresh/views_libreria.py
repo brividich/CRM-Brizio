@@ -70,12 +70,23 @@ def _ultimo_controllo():
     return None
 
 
+def _modifiche_mie(request, gestore: bool) -> int:
+    """Quante modifiche ai documenti aspettano un'azione dell'utente (numero accanto a «Modifiche»)."""
+    try:
+        from . import modifiche as _mod
+
+        return len(_mod.da_fare(request.user, gestore))
+    except Exception:
+        return 0
+
+
 def _contesto_base(request, vis, docs, **extra):
     da_leggere = lib.letture_da_fare(request.user)
     ctx = {
         "is_manager": vis.gestore,
         "puo_audit": vis.gestore or vis.vede_tutto,
         "n_segnalazioni_aperte": _segn.aperte() if vis.gestore else 0,
+        "n_modifiche_mie": _modifiche_mie(request, vis.gestore),
         "ultimo_controllo": _ultimo_controllo(),
         "oggi_str": timezone.localdate().strftime("%Y%m%d"),
         "n_da_leggere": sum(1 for d in docs if d.pk in da_leggere),
@@ -376,11 +387,17 @@ def documento(request, pk: int):
         except Exception:
             cambiamenti = None
 
+    from . import modifiche as _mod
+
+    in_lavorazione = _mod.in_lavorazione_per(doc)
+    if in_lavorazione is not None:
+        in_lavorazione.puo_aprire = vis.gestore or _mod.puo_vedere(in_lavorazione, request.user, False)
     recepite = _segn.recepite_in(rev)
     n_rilettura = len(_segn.da_rileggere(doc, rev)) if vis.gestore else 0
     ctx = {
         "doc": doc, "rev": rev, "is_manager": vis.gestore,
         "rev_prec": rev_prec, "cambiamenti": cambiamenti,
+        "in_lavorazione": in_lavorazione,
         "recepite": recepite, "n_rilettura": n_rilettura, "giorni_rilettura": _segn.GIORNI_RILETTURA,
         "mostra_cambia": cambiamenti is not None or bool(recepite) or bool(n_rilettura),
         "preferito": doc.pk in set(esp.preferiti_di(request.user)),

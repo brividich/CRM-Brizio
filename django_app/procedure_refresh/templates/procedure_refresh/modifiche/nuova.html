@@ -1,0 +1,75 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}Nuova modifica · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › <a href="{% url 'procedure_refresh:modifiche' %}">Modifiche</a> › Nuova{% endblock %}
+{% block cn_h1 %}{% if nuovo %}Documento nuovo{% else %}Nuova modifica{% endif %}{% if doc %} <small>{{ doc.code }}{% if rev.revision_code %} · in vigore Rev.{{ rev.revision_code }}{% endif %}</small>{% endif %}{% endblock %}
+{% block cn_guida_anchor %}#modifiche{% endblock %}
+{% block cn_body %}
+{% if aperta %}
+<p class="cn-note" style="border-color:var(--cn-warn);margin-bottom:14px">Su {{ doc.code }} c'è già una modifica {{ aperta.get_stato_display|lower }}: <a href="{% url 'procedure_refresh:modifica_dettaglio' aperta.pk %}">{{ aperta.oggetto }}</a>. Se la nuova richiesta riguarda la stessa revisione, aggiungila lì come commento.</p>
+{% endif %}
+<form method="post" class="cn-panel" style="display:flex;flex-direction:column;gap:16px">
+  {% csrf_token %}
+  <input type="hidden" name="tipo" value="{% if nuovo %}nuovo{% else %}revisione{% endif %}">
+  {% if nuovo %}
+  <div class="cn-form">
+    <label class="cn-fld">Codice
+      <input name="nuovo_codice" required maxlength="50" value="{{ post.nuovo_codice }}" placeholder="Come sarà scritto nel cartiglio" list="cn-prossimi">
+      <datalist id="cn-prossimi">{% for pref, prossimo in prossimi_codici %}<option value="{{ prossimo }}">{{ pref }}: prossimo libero</option>{% endfor %}</datalist>
+    </label>
+    <label class="cn-fld" style="grid-column:span 2">Titolo<input name="nuovo_titolo" required maxlength="300" value="{{ post.nuovo_titolo }}"></label>
+    <label class="cn-fld">Scaffale
+      <select name="scaffale"><option value="">—</option>{% for s in scaffali %}<option value="{{ s.pk }}"{% if post.scaffale == s.pk|stringformat:"s" %} selected{% endif %}>{{ s.nome }}</option>{% endfor %}</select>
+    </label>
+  </div>
+  {% if prossimi_codici %}<p class="cn-note">Prossimi codici liberi: {% for pref, prossimo in prossimi_codici %}<b class="mono">{{ prossimo }}</b>{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+  {% elif doc %}
+  <input type="hidden" name="documento" value="{{ doc.pk }}">
+  <div class="cn-note" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b class="mono">{{ doc.code }}</b> {{ doc.title }} <a class="cn-btn sm" href="{% url 'procedure_refresh:modifica_nuova' %}" style="margin-left:auto">Cambia documento</a></div>
+  {% else %}
+  <label class="cn-fld">Documento
+    <input name="codice" required list="cn-documenti" value="{{ post.codice }}" placeholder="Scrivi codice o titolo e scegli" autocomplete="off">
+    <datalist id="cn-documenti">{% for d in documenti %}<option value="{{ d.code }}">{{ d.title }}</option>{% endfor %}</datalist>
+  </label>
+  {% endif %}
+
+  <div class="cn-form">
+    <label class="cn-fld" style="grid-column:1/-1">Cosa si modifica<input name="oggetto" required maxlength="200" value="{{ post.oggetto }}" placeholder="Es. chi firma la chiusura dell'azione correttiva"></label>
+    <label class="cn-fld" style="grid-column:1/-1">Perché<textarea name="motivo" rows="3" required maxlength="4000">{{ post.motivo }}</textarea></label>
+    <label class="cn-fld">Origine
+      <select name="origine">{% for v, l in origini %}<option value="{{ v }}"{% if post.origine == v or not post and origine == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    </label>
+    <label class="cn-fld">Riferimento<input name="riferimento" maxlength="200" value="{{ post.riferimento }}" placeholder="NC 2026-014, audit di marzo, MOD.172…"></label>
+    {% if not nuovo %}<label class="cn-fld">Paragrafi coinvolti<input name="paragrafi" maxlength="200" value="{{ post.paragrafi }}" placeholder="§4.2, §5"></label>{% endif %}
+    {% if not nuovo %}<label class="cn-fld">Nuova revisione<input name="revisione_prevista" maxlength="20" value="{{ post.revisione_prevista|default:prossima }}"></label>{% endif %}
+    <label class="cn-fld">Da emettere entro<input type="date" name="entro" value="{{ post.entro }}"></label>
+  </div>
+
+  <fieldset style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:0">
+    <legend style="font-size:12px;font-weight:800;color:var(--text-mid);padding:0 6px">Chi firma</legend>
+    <div class="cn-form">
+      {% for r in ruoli_form %}
+      <label class="cn-fld">{{ r.etichetta }}
+        <select name="{{ r.campo }}"{% if r.campo == 'redattore' %} required{% endif %}>
+          <option value="">—</option>
+          {% for u in utenti %}<option value="{{ u.pk }}"{% if u.pk == r.scelto %} selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>{% endfor %}
+        </select>
+      </label>
+      {% endfor %}
+    </div>
+    <p class="cn-note" style="margin-top:10px">Le persone proposte vengono da «Chi firma cosa» per il tipo di documento. Chi redige riceve subito l'avviso.</p>
+  </fieldset>
+
+  {% if segnalazioni or altre_segnalazioni %}
+  <div class="cn-blk"><h4>Segnalazioni da recepire</h4>
+    <div class="cn-links">
+      {% for s in segnalazioni %}<label style="display:flex;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px"><input type="checkbox" name="segnalazioni" value="{{ s.pk }}" checked><span>{{ s.testo|truncatechars:160 }}<small style="display:block;color:var(--text-light)">{{ s.created_at|date:"d/m/Y" }} · {{ s.get_status_display }}</small></span></label>{% endfor %}
+      {% for s in altre_segnalazioni %}<label style="display:flex;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px"><input type="checkbox" name="segnalazioni" value="{{ s.pk }}"><span>{{ s.testo|truncatechars:160 }}<small style="display:block;color:var(--text-light)">{{ s.created_at|date:"d/m/Y" }} · {{ s.get_status_display }}</small></span></label>{% endfor %}
+    </div>
+    <p class="cn-note" style="margin-top:8px">Le segnalazioni spuntate passano a «Presa in carico» e, all'emissione, a «Recepita» nella nuova revisione: chi le ha scritte riceve l'avviso.</p>
+  </div>
+  {% endif %}
+
+  <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" name="rilettura_automatica" value="1"{% if not post or post.rilettura_automatica %} checked{% endif %}> All'emissione chiedi la rilettura a chi aveva letto le revisioni precedenti</label>
+  <p style="margin:0;display:flex;gap:10px;flex-wrap:wrap"><button class="cn-btn pri" type="submit">Apri la modifica</button><a class="cn-btn" href="{% url 'procedure_refresh:modifiche' %}">Annulla</a></p>
+</form>
+{% endblock %}

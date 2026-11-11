@@ -7,7 +7,7 @@
 <div class="cn-sec" style="margin-top:4px"><h2>Non revisionati da più di {{ anni }} anni</h2><span>Dalla data della revisione in vigore</span></div>
 {% if vecchi %}
 <div class="cn-tbl"><table>
-  <thead><tr><th>Codice</th><th>Titolo</th><th>Scaffale</th><th>Rev.</th><th>Data</th><th>Anni</th></tr></thead>
+  <thead><tr><th>Codice</th><th>Titolo</th><th>Scaffale</th><th>Rev.</th><th>Data</th><th>Anni</th><th></th></tr></thead>
   <tbody>
   {% for d in vecchi %}
   <tr>
@@ -17,6 +17,7 @@
     <td class="num">{{ d.rev.revision_code|default:"—" }}</td>
     <td class="num">{{ d.rev.revision_date|date:"d/m/Y" }}</td>
     <td class="num">{{ d.anni }}</td>
+    <td><a class="cn-btn sm" href="{% url 'procedure_refresh:modifica_nuova' %}?doc={{ d.pk }}&origine=riesame">Avvia una modifica</a></td>
   </tr>
   {% endfor %}
   </tbody>

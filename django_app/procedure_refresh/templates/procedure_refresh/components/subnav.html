@@ -4,6 +4,7 @@
   <a href="{% url 'procedure_refresh:libreria' %}" class="pr-subnav-link{% if un == 'libreria' or un == 'libreria_scaffale' or un == 'libreria_documento' %} active{% endif %}">Libreria</a>
   <a href="{% url 'procedure_refresh:libreria_cerca' %}" class="pr-subnav-link{% if un == 'libreria_cerca' %} active{% endif %}">Ricerca</a>
   <a href="{% url 'procedure_refresh:my_assignments' %}" class="pr-subnav-link{% if un == 'my_assignments' or un == 'assignment_detail' %} active{% endif %}">Le mie letture{% if n_da_leggere %} <span class="pr-subnav-badge">{{ n_da_leggere }}</span>{% endif %}</a>
+  {% if is_manager or n_modifiche_mie %}<a href="{% url 'procedure_refresh:modifiche' %}" class="pr-subnav-link{% if 'modifiche' in request.path %} active{% endif %}">Modifiche{% if n_modifiche_mie %} <span class="pr-subnav-badge">{{ n_modifiche_mie }}</span>{% endif %}</a>{% endif %}
   {% if is_manager %}
     <span class="pr-subnav-sep" aria-hidden="true"></span>
     <a href="{% url 'procedure_refresh:campaign_list' %}" class="pr-subnav-link{% if 'campagne' in request.path %} active{% endif %}">Richieste di presa visione</a>

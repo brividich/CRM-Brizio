@@ -166,6 +166,41 @@ SEZIONI: list[dict] = [
         ],
     },
     {
+        "id": "modifiche",
+        "titolo": "Modifiche ai documenti",
+        "blocchi": [
+            ("p", "«Modifiche» segue una nuova revisione (o un documento nuovo) dalla richiesta all'emissione: "
+                  "redazione → verifica → approvazione → emissione. Il testo si scrive in Word come sempre; nell'HUB restano bozze, firme e registro. "
+                  "La voce compare a chi gestisce CN-SGI e a chi ha una modifica in mano, con il numero di quelle che aspettano te. "
+                  "Le stesse modifiche sono in «Le mie letture», riquadro «Documenti da lavorare»."),
+            ("passi", [
+                "Chi redige apre la modifica, carica la bozza (Word .docx, Excel .xlsx o PDF, fino a 25 MB) con due righe su cosa cambia e clicca «Invia in verifica». Si possono caricare più bozze: vale l'ultima.",
+                "Chi verifica scarica la bozza e guarda «Cosa cambia»: i paragrafi cambiati rispetto alla revisione in vigore, dal testo dei due file. Poi «Verificata, passa in approvazione» oppure «Rimanda a chi redige» con una nota (obbligatoria).",
+                "Chi approva spunta «Approvo la bozza …» e clicca «Approva»: nome, ruolo, data, ora e impronta della bozza restano nel registro. Anche chi approva può rimandare a chi redige.",
+                "Chi gestisce salva il PDF nella cartella SGI e sposta la revisione precedente in SUPERATO. Al controllo orario l'HUB riconosce la nuova revisione e porta la modifica a «Emessa». Se la revisione è già arrivata, «Segna come emessa» la chiude subito.",
+            ]),
+            ("ul", [
+                "A ogni passaggio chi deve agire riceve una notifica nel portale. Una modifica ferma da 5 giorni o più riceve un sollecito ogni mattina, al massimo uno ogni 5 giorni.",
+                "All'emissione le segnalazioni collegate diventano «Recepita» nella nuova revisione (chi le ha scritte riceve l'avviso). Se l'opzione è spuntata, parte anche la rilettura per chi aveva letto le revisioni precedenti.",
+                "Il registro si può solo aggiungere: nessuna pagina modifica o cancella un passaggio. La modifica, le bozze e il registro li vedono solo chi ha un ruolo nella modifica e chi gestisce CN-SGI.",
+                "Nella scheda del documento, «Nuova revisione in preparazione» avvisa chi legge che è in arrivo una revisione.",
+            ]),
+        ],
+    },
+    {
+        "id": "modifiche-firme",
+        "titolo": "Aprire una modifica e chi firma cosa (per chi gestisce)",
+        "blocchi": [
+            ("ul", [
+                "Una modifica si apre da «Modifiche» → «Nuova modifica», dalla scheda del documento («Per chi gestisce» → «Avvia una modifica»), da una segnalazione («Avvia una modifica del documento») o da «Da rivedere». «Documento nuovo» propone i prossimi codici liberi.",
+                "Servono cosa si modifica, perché e chi redige. Origine e riferimento (NC, audit, RFC MOD.172, riesame, norma) restano come evidenza. Le segnalazioni spuntate passano a «Presa in carico».",
+                "«Chi firma cosa» fissa, per tipo di documento (Manuali, MT, MTSI, MOD, Piani qualità, Altri), chi redige, verifica e approva di solito: sono le persone proposte all'apertura. «Altri» vale anche per i campi lasciati vuoti negli altri tipi.",
+                "Nella modifica, «Chi firma» cambia le persone; chi entra nel passaggio in corso riceve l'avviso. Se chi redige verifica o approva anche, la pagina lo segnala: per la norma la verifica dovrebbe farla un'altra persona.",
+                "«Annulla la modifica» chiede il motivo e resta nel registro.",
+            ]),
+        ],
+    },
+    {
         "id": "da-rivedere",
         "titolo": "Da rivedere (per chi gestisce)",
         "blocchi": [

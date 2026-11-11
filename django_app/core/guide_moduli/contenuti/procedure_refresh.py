@@ -47,6 +47,19 @@ GUIDA = {
     ],
     "admin": [
         {
+            "id": "modifiche",
+            "titolo": "Modifiche ai documenti",
+            "blocchi": [
+                ("passi", [
+                    "Apri «Modifiche» → «Nuova modifica» (o «Avvia una modifica» dalla scheda, da una segnalazione o da «Da rivedere»).",
+                    "Scrivi cosa si modifica e perché, scegli chi redige, verifica e approva, spunta le segnalazioni da recepire e clicca «Apri la modifica».",
+                    "Chi redige carica la bozza Word e la invia in verifica; chi verifica la passa in approvazione o la rimanda; chi approva firma con «Approva».",
+                    "Salva il PDF nella cartella SGI e sposta la revisione vecchia in SUPERATO: al controllo orario la modifica diventa «Emessa», le segnalazioni «Recepita» e parte la rilettura.",
+                ]),
+                ("p", "«Chi firma cosa» fissa le persone proposte per tipo di documento. Il registro di ogni modifica (chi, ruolo, quando, impronta della bozza) è l'evidenza per gli audit e non si può modificare."),
+            ],
+        },
+        {
             "id": "visibilita",
             "titolo": "Chi vede cosa",
             "blocchi": [
@@ -111,6 +124,21 @@ GUIDA = {
         },
     ],
     "problemi": [
+        {
+            "sintomo": "Una modifica approvata non diventa «Emessa»",
+            "fare": [
+                "L'HUB la chiude quando la revisione in vigore del documento cambia: controlla che il nuovo PDF sia nella cartella SGI con il numero di revisione nel nome e che la vecchia sia in SUPERATO.",
+                "La sincronizzazione oraria deve essere accesa (flag pr_sgi_auto_sync_attivo); in «Impostazioni» c'è «Sincronizza ora».",
+                "Per un documento nuovo il codice nella cartella deve essere quello scritto nella modifica (spazi e punti non contano).",
+                "Se la revisione è già in libreria, nella modifica usa «Segna come emessa».",
+            ],
+        },
+        {
+            "sintomo": "In una modifica «Cosa cambia» non mostra il confronto",
+            "fare": [
+                "Il confronto usa il testo della bozza e quello estratto dalla revisione in vigore: un file protetto o scansionato non ha testo, e una revisione appena arrivata ha il testo dopo l'estrazione.",
+            ],
+        },
         {
             "sintomo": 'Una presa visione risulta «scaduta» prima che arrivi il sollecito',
             "fare": [
