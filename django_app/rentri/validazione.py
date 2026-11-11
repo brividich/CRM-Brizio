@@ -174,11 +174,16 @@ def _errori_deposito(registro, uscita: Decimal) -> list[str]:
         if uscita > disponibile + _EPS:
             return [f"Quantità oltre il residuo dei carichi collegati: disponibili {_fmt(disponibile)}."]
         return []
-    disponibile = an.giacenza(registro.codice)
+    from .fili import gia_presente
+
+    # Senza collegamento contano solo i carichi presenti alla data dello scarico.
+    disponibile = sum(
+        (an.residuo[c.pk] for c in carichi.values() if gia_presente(c, registro)), Decimal(0)
+    )
     if uscita > disponibile + _EPS:
         return [
-            f"Quantità oltre la giacenza del codice {registro.codice}: disponibili {_fmt(max(disponibile, Decimal(0)))}. "
-            "Controlla i carichi registrati."
+            f"Quantità oltre la giacenza del codice {registro.codice} al {registro.data:%d/%m/%Y}: "
+            f"disponibili {_fmt(max(disponibile, Decimal(0)))}. Controlla i carichi registrati e la data."
         ]
     return []
 
