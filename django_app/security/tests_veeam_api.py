@@ -348,3 +348,139 @@ class CredenzialiDalPortaleTests(TestCase):
         self.client.force_login(user)
         self.client.post(url, {"azione": "cancella"})
         self.assertTrue(svc.configured())
+
+
+def _certificato_autofirmato(nome="veeam-sintetico", cartella=None):
+    """Certificato autofirmato come quello di serie di Veeam: senza Authority Key Identifier (lo rifiuta il controllo
+    rigoroso di Python 3.13). Restituisce (pem, percorso_cert, percorso_chiave)."""
+    import ipaddress
+    import os
+    import tempfile
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    chiave = ec.generate_private_key(ec.SECP256R1())
+    soggetto = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, nome)])
+    adesso = timezone.now()
+    cert = (x509.CertificateBuilder().subject_name(soggetto).issuer_name(soggetto).public_key(chiave.public_key())
+            .serial_number(x509.random_serial_number()).not_valid_before(adesso - timedelta(days=1))
+            .not_valid_after(adesso + timedelta(days=365))
+            .add_extension(x509.SubjectAlternativeName([x509.DNSName("localhost"),
+                                                        x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]), critical=False)
+            .sign(chiave, hashes.SHA256()))
+    cartella = cartella or tempfile.mkdtemp(prefix="pn_veeam_test_")
+    pem = cert.public_bytes(serialization.Encoding.PEM).decode()
+    percorso_cert = os.path.join(cartella, "cert.pem")
+    percorso_chiave = os.path.join(cartella, "key.pem")
+    with open(percorso_cert, "w", encoding="ascii") as f:
+        f.write(pem)
+    with open(percorso_chiave, "wb") as f:
+        f.write(chiave.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                     serialization.NoEncryption()))
+    return pem, percorso_cert, percorso_chiave
+
+
+class _VeeamFinto:
+    """Un server HTTPS locale con certificato autofirmato che risponde come il login di Veeam."""
+
+    def __init__(self):
+        import json
+        import ssl
+        import threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        class Gestore(BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                corpo = json.dumps({"access_token": "tok-sintetico"}).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(corpo)))
+                self.end_headers()
+                self.wfile.write(corpo)
+
+            def log_message(self, *args):
+                pass
+
+        self.pem, cert, chiave = _certificato_autofirmato()
+        self.server = HTTPServer(("127.0.0.1", 0), Gestore)
+        contesto = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        contesto.load_cert_chain(cert, chiave)
+        self.server.socket = contesto.wrap_socket(self.server.socket, server_side=True)
+        self.url = f"https://127.0.0.1:{self.server.server_address[1]}"
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+class CertificatoServerTests(TestCase):
+    """Certificato autofirmato di Veeam: impronta salvata o CA incollata, contro un server TLS locale vero."""
+
+    def setUp(self):
+        self.admin = get_user_model().objects.create(username="soc_veeam_cert", is_staff=True, is_superuser=True)
+
+    def _cfg(self, url, **extra):
+        return {"url": url, "username": "lettura", "password": "x", "version": svc.DEFAULT_API_VERSION,
+                "verify": True, "impronta": "", "ca_incollato": False, **extra}
+
+    def test_senza_niente_il_certificato_autofirmato_e_rifiutato_con_spiegazione(self):
+        with _VeeamFinto() as veeam:
+            with self.assertRaisesMessage(svc.VeeamError, "Fidati del certificato del server"):
+                svc.VeeamClient(self._cfg(veeam.url))
+
+    def test_ca_incollata_autofirmata_senza_controllo_rigoroso(self):
+        with _VeeamFinto() as veeam:
+            client = svc.VeeamClient(self._cfg(veeam.url, verify=svc._ca_file(veeam.pem), ca_incollato=True))
+            self.assertEqual(client.http.headers["Authorization"], "Bearer tok-sintetico")
+
+    def test_impronta_giusta_entra_e_sbagliata_no(self):
+        with _VeeamFinto() as veeam:
+            info = svc.leggi_certificato(veeam.url)
+            self.assertTrue(info["autofirmato"])
+            self.assertEqual(info["intestato_a"], "veeam-sintetico")
+            self.assertIn("127.0.0.1", info["nomi"])
+            client = svc.VeeamClient(self._cfg(veeam.url, impronta=info["sha256"]))
+            self.assertEqual(client.http.headers["Authorization"], "Bearer tok-sintetico")
+            with self.assertRaisesMessage(svc.VeeamError, "è cambiato"):
+                svc.VeeamClient(self._cfg(veeam.url, impronta="0" * 64))
+
+    def test_fidati_salva_l_impronta_e_cambiare_server_la_toglie(self):
+        with _VeeamFinto() as veeam:
+            self.assertEqual(svc.salva_credenziali({"url": veeam.url, "username": "u", "password": "p"}, self.admin), [])
+            info = svc.fidati_del_certificato(self.admin)
+            self.assertEqual(svc.credenziali()["impronta"], info["sha256"])
+            self.assertTrue(svc.riepilogo()["impronta"])
+            self.assertEqual(svc._config()["impronta"], info["sha256"])
+            # Stesso server, password cambiata: l'impronta resta. Il form non può impostarla.
+            svc.salva_credenziali({"url": veeam.url, "username": "u", "password": "", "impronta": "f" * 64}, self.admin)
+            self.assertEqual(svc.credenziali()["impronta"], info["sha256"])
+            svc.salva_credenziali({"url": "https://altro-veeam:9419", "username": "u", "password": ""}, self.admin)
+            self.assertEqual(svc.credenziali()["impronta"], "")
+
+    def test_pulsante_fidati(self):
+        self.client.force_login(self.admin)
+        info = {"intestato_a": "veeam-sintetico", "emesso_da": "veeam-sintetico", "scadenza": timezone.now(),
+                "sha1": "AB" * 20, "scaduto": False}
+        with patch.object(svc, "fidati_del_certificato", return_value=info) as fidati:
+            resp = self.client.post(reverse("security:veeam_credenziali"), {"azione": "fidati"}, follow=True)
+        fidati.assert_called_once()
+        self.assertContains(resp, "Identificazione personale (SHA-1)")
+
+    def test_motivi_del_certificato(self):
+        cfg = self._cfg("https://veeam-sintetico:9419")
+        self.assertIn("non è intestato a «veeam-sintetico»",
+                      svc._motivo_certificato(Exception("hostname mismatch, certificate is not valid for 'x'"), cfg))
+        self.assertIn("scaduto", svc._motivo_certificato(Exception("certificate has expired"), cfg))
+        self.assertIn("Dettaglio: self-signed certificate.", svc._motivo_certificato(
+            Exception("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate (_ssl.c:1032)"), cfg))
+        self.assertIn("non è firmato dal certificato incollato",
+                      svc._motivo_certificato(Exception("unable to get local issuer certificate"), {**cfg, "ca_incollato": True}))

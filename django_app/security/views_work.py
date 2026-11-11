@@ -446,6 +446,18 @@ def veeam_credenziali(request):
     if azione == "cancella":
         veeam_api.cancella_credenziali(request.user)
         messages.success(request, "Credenziali API Veeam cancellate.")
+    elif azione == "fidati":
+        try:
+            info = veeam_api.fidati_del_certificato(request.user)
+            messages.success(
+                request,
+                f"Certificato del server salvato: intestato a «{info['intestato_a']}», emesso da «{info['emesso_da']}», "
+                f"scade il {info['scadenza']:%d/%m/%Y}. Identificazione personale (SHA-1) {info['sha1']}: "
+                "dev'essere uguale a quella del certificato sul server Veeam. Ora prova la connessione.")
+            if info["scaduto"]:
+                messages.warning(request, "Attenzione: il certificato del server Veeam è scaduto.")
+        except veeam_api.VeeamError as exc:
+            messages.error(request, str(exc))
     elif azione == "prova":
         try:
             esito = veeam_api.prova()
@@ -456,7 +468,7 @@ def veeam_credenziali(request):
         except Exception as exc:  # noqa: BLE001 - rete, DNS, certificati
             messages.error(request, f"Connessione a Veeam non riuscita ({type(exc).__name__}).")
     else:
-        errori = veeam_api.salva_credenziali({c: request.POST.get(c, "") for c in veeam_api.CAMPI}, request.user,
+        errori = veeam_api.salva_credenziali({c: request.POST.get(c, "") for c in veeam_api.CAMPI_FORM}, request.user,
                                              togli_ca=request.POST.get("togli_ca") == "on")
         if errori:
             messages.error(request, " ".join(errori))
