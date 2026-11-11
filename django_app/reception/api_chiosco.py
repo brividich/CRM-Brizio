@@ -43,7 +43,7 @@ def _employees(_dati, _ip):
         foto = {}
     return 200, {"success": True, "data": [
         {"EmployeeID": r.pk, "FullName": r.nome_elenco, "Email": r.email, "Department": r.reparto,
-         "Photo": foto.get(r.dipendente_id, "")}
+         "Photo": foto.get(r.dipendente_id, ""), "LegacyID": r.dipendente_id}
         for r in referenti
     ]}
 

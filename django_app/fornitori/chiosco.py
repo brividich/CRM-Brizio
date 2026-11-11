@@ -131,11 +131,35 @@ def referenti() -> list[dict]:
         raise ChioscoNonDisponibile
     elenco = [
         {"id": int(r["EmployeeID"]), "nome": r.get("FullName") or "", "reparto": r.get("Department") or "",
-         "email": r.get("Email") or "", "foto": r.get("Photo") or ""}
+         "email": r.get("Email") or "", "foto": r.get("Photo") or "", "dipendente": r.get("LegacyID")}
         for r in esito.get("data") or []
     ]
     cache.set(CACHE_REFERENTI, elenco, SECONDI_REFERENTI)
     return elenco
+
+
+def referenti_al_chiosco() -> list[dict]:
+    """I referenti da proporre al totem: solo quelli in azienda adesso, secondo le timbrature (Solari).
+
+    Stessa fotografia di «Presenti in azienda» (presenti.services, al massimo un minuto). Senza la
+    reception nell'HUB, senza Solari o se nessun referente risulta presente: tutti, come prima.
+    I referenti non collegati all'anagrafica non si possono verificare e restano fuori dal filtro.
+    Il controllo dell'ingresso (``referente``) accetta comunque ogni referente attivo.
+    """
+    elenco = referenti()
+    if not nativa():
+        return elenco
+    try:
+        from presenti.services import ids_presenti
+
+        dentro = ids_presenti()
+    except Exception:  # noqa: BLE001 - senza presenze il totem mostra tutti
+        logger.warning("Chiosco: presenze non lette, mostro tutti i referenti", exc_info=True)
+        dentro = None
+    if not dentro:
+        return elenco
+    presenti = [r for r in elenco if r.get("dipendente") in dentro]
+    return presenti or elenco
 
 
 def referente(pk) -> dict | None:

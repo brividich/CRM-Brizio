@@ -411,7 +411,7 @@ button { font:inherit; color:inherit; }
     chiudiTastiera();
     pass();
     if (id === 's-uscita') { caricaCartellini(); }
-    if (id === 's-chi') { disegnaReferenti(); }
+    if (id === 's-chi') { disegnaReferenti(); aggiornaReferenti(); }
   }
   function vai(id) { if (stato.corrente && stato.corrente !== id) { storia.push(stato.corrente); } mostra(id); }
   function avanti() { var p = percorso(), i = p.indexOf(stato.corrente); vai(p[i + 1] || 's-privacy'); }
@@ -568,9 +568,27 @@ button { font:inherit; color:inherit; }
     return a;
   }
   function iniziale(r) { return normalizza(r.nome).trim().charAt(0).toUpperCase(); }
-  var ORDINATI = REFERENTI.slice().sort(function (a, b) {
-    return (segnaposto(a) - segnaposto(b)) || normalizza(a.nome).localeCompare(normalizza(b.nome));
-  });
+  function ordina() {
+    return REFERENTI.slice().sort(function (a, b) {
+      return (segnaposto(a) - segnaposto(b)) || normalizza(a.nome).localeCompare(normalizza(b.nome));
+    });
+  }
+  var ORDINATI = ordina();
+  // Solo chi è in azienda adesso: l'elenco si richiede di nuovo a ogni «Chi vieni a trovare?»
+  // (la pagina del totem resta aperta per ore). Se la richiesta fallisce resta l'elenco di prima.
+  function aggiornaReferenti() {
+    fetch(API + 'referenti/', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }, body: '{}'
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.success || !Array.isArray(d.referenti)) { return; }
+      REFERENTI = d.referenti; ORDINATI = ordina();
+      if ($('f-host').value && !REFERENTI.some(function (r) { return String(r.id) === String($('f-host').value); })) {
+        $('f-host').value = ''; $('f-host').dataset.nome = ''; stato.comeUltima = false; pass();
+      }
+      if (stato.corrente === 's-chi') { disegnaReferenti(); }
+    }).catch(function () {});
+  }
   var lettera = '';
   function trovaReferente(nome) {
     var n = chiaveNome(nome);

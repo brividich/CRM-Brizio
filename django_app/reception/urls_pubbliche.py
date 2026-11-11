@@ -8,4 +8,5 @@ app_name = "reception_pubblica"
 urlpatterns = [
     path("", views_pubbliche.richiesta, name="richiesta"),
     path("conferma/<str:token>/", views_pubbliche.conferma, name="conferma"),
+    path("logo/", views_pubbliche.logo, name="logo"),
 ]
