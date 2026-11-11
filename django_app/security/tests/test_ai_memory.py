@@ -746,3 +746,145 @@ class AIMemorySecurityTests(TestCase):
         self.assertEqual(third_response.status_code, 429)
         self.assertIn("error", third_response.data)
         self.assertNotIn("raw_text", str(third_response.data))
+
+
+class EmbeddingProviderIndiceTests(TestCase):
+    """Query con lo stesso provider dell'indice, embedding a gruppi fuori transazione, local_http senza proxy."""
+
+    LOCAL = dict(
+        LOCAL_HTTP_EMBEDDING_BASE_URL="http://tei.lan:8080",
+        LOCAL_HTTP_EMBEDDING_MODEL="demo-embed",
+        LOCAL_HTTP_EMBEDDING_DIMENSIONS=16,
+        AI_MEMORY_RETRIEVAL_MODE="hybrid_pgvector",
+        AI_MEMORY_EMBEDDINGS_ENABLED=True,
+    )
+
+    def setUp(self):
+        for i in range(3):
+            index_document(
+                source_type="report",
+                source_object_type="SecurityReport",
+                source_object_id=str(100 + i),
+                title=f"Example Report {i}",
+                raw_text=f"Critical CVE-2026-1000{i} affects EXAMPLE-HOST-{i}.",
+            )
+
+    @staticmethod
+    def _fake_local_batch(texts):
+        return [DeterministicHashEmbeddingProvider(dimensions=16).embed_text(t) for t in texts]
+
+    def test_index_built_by_local_http_is_queried_with_local_http(self):
+        from security.ai.services.memory.embedding_provider import LocalHttpEmbeddingProvider
+
+        with self.settings(**self.LOCAL), \
+             patch.object(LocalHttpEmbeddingProvider, "_call_api", side_effect=self._fake_local_batch) as api:
+            rebuild_embeddings(provider_name="local_http")
+            self.assertEqual(set(AIKnowledgeEmbedding.objects.values_list("provider", flat=True)), {"local_http"})
+            api.reset_mock()
+            results = retrieve_chunks("CVE-2026-10001 EXAMPLE-HOST-1", limit=3)
+        self.assertTrue(results)
+        self.assertEqual(api.call_count, 1)  # la domanda è calcolata con local_http, non con deterministic_hash
+        self.assertTrue(any(r.vector_score > 0 for r in results))
+
+    def test_index_provider_not_available_falls_back_to_keywords(self):
+        from security.ai.services.memory.embedding_provider import LocalHttpEmbeddingProvider
+        from security.ai.services.memory.retriever import retrieve_chunks_with_diagnostics
+
+        with self.settings(**self.LOCAL), patch.object(LocalHttpEmbeddingProvider, "_call_api", side_effect=self._fake_local_batch):
+            rebuild_embeddings(provider_name="local_http")
+        # Oggi local_http non è configurato: niente confronto con vettori di un altro provider.
+        with self.settings(AI_MEMORY_RETRIEVAL_MODE="hybrid_pgvector", AI_MEMORY_EMBEDDINGS_ENABLED=True,
+                           LOCAL_HTTP_EMBEDDING_BASE_URL=None, LOCAL_HTTP_EMBEDDING_MODEL=None):
+            diag = retrieve_chunks_with_diagnostics("CVE-2026-10001 EXAMPLE-HOST-1", limit=3)
+        self.assertFalse(diag.embeddings_used)
+        self.assertEqual(diag.retrieval_backend, "keyword_fallback")
+        self.assertIn("embedding_provider_unavailable", diag.insufficient_evidence_flags)
+        self.assertTrue(diag.results)  # le parole chiave rispondono comunque
+
+    def test_query_embedding_error_falls_back_to_keywords(self):
+        from security.ai.services.memory.embedding_provider import LocalHttpEmbeddingProvider
+        from security.ai.services.memory.retriever import retrieve_chunks_with_diagnostics
+
+        with self.settings(**self.LOCAL):
+            with patch.object(LocalHttpEmbeddingProvider, "_call_api", side_effect=self._fake_local_batch):
+                rebuild_embeddings(provider_name="local_http")
+            with patch.object(LocalHttpEmbeddingProvider, "_call_api", side_effect=RuntimeError("Embedding provider timeout")):
+                diag = retrieve_chunks_with_diagnostics("CVE-2026-10001", limit=3)
+        self.assertFalse(diag.embeddings_used)
+        self.assertTrue(diag.results)
+
+    def test_indexer_embeds_in_batches_outside_transactions(self):
+        from django.db import connection
+
+        from security.ai.services.memory.embedding_provider import LocalHttpEmbeddingProvider
+
+        chiamate = []
+        base = len(connection.savepoint_ids)  # TestCase avvolge già il test in una transazione
+
+        def _batch(texts):
+            chiamate.append((len(texts), len(connection.savepoint_ids) - base))
+            return self._fake_local_batch(texts)
+
+        with self.settings(**self.LOCAL), patch.object(LocalHttpEmbeddingProvider, "_call_api", side_effect=_batch):
+            stats = rebuild_embeddings(provider_name="local_http", batch_size=2)
+        n = AIKnowledgeChunk.objects.count()
+        self.assertEqual(stats.embeddings_created, n)
+        self.assertEqual([c[0] for c in chiamate], [2] * (n // 2) + ([n % 2] if n % 2 else []))
+        self.assertTrue(all(c[1] == 0 for c in chiamate))  # nessuna transazione aperta durante l'HTTP
+
+    def test_indexer_limit_is_applied_to_the_query(self):
+        stats = rebuild_embeddings(provider_name="deterministic_hash", limit=1)
+        self.assertEqual(stats.chunks_seen, AIKnowledgeChunk.objects.count())
+        self.assertEqual(stats.embeddings_created, 1)
+        self.assertEqual(AIKnowledgeEmbedding.objects.count(), 1)
+
+    def test_indexer_provider_error_counts_and_continues(self):
+        from security.ai.services.memory.embedding_provider import LocalHttpEmbeddingProvider
+
+        with self.settings(**self.LOCAL), patch.object(LocalHttpEmbeddingProvider, "_call_api", side_effect=RuntimeError("giù")):
+            stats = rebuild_embeddings(provider_name="local_http")
+        self.assertEqual(stats.provider_errors, 1)
+        self.assertEqual(AIKnowledgeEmbedding.objects.count(), 0)
+
+    def test_local_http_ignores_environment_proxy(self):
+        from security.ai.services.memory.embedding_provider import LocalHttpEmbeddingProvider
+
+        sessioni = []
+
+        class _Resp:
+            status_code = 200
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"data": [{"embedding": [0.1] * 16}]}
+
+        def _post(session, url, **kwargs):
+            sessioni.append(session.trust_env)
+            return _Resp()
+
+        with self.settings(**self.LOCAL), patch("requests.Session.post", autospec=True, side_effect=_post):
+            vector = LocalHttpEmbeddingProvider().embed_text("testo sintetico")
+        self.assertEqual(len(vector), 16)
+        self.assertEqual(sessioni, [False])
+
+
+class AIChatMemoriaUnaVoltaTests(TestCase):
+    def test_memory_search_runs_once_per_chat_request(self):
+        from rest_framework.test import APIRequestFactory
+
+        from security.ai.services.memory import ai_memory_context_builder
+        from security.api_ai import AIChatApiView
+
+        user = User.objects.create_superuser(username="api-chat-su", password="testpass", email="su@example.com")
+        request = APIRequestFactory().post("/api/security/ai/chat/", {"message": "Che CVE critiche ci sono?"}, format="json")
+        force_authenticate(request, user=user)
+        originale = ai_memory_context_builder.build_ai_memory_context
+        with patch("security.api_ai.build_ai_memory_context", side_effect=originale) as dalla_view, \
+             patch.object(ai_memory_context_builder, "build_ai_memory_context", side_effect=originale) as dal_builder, \
+             patch("security.api_ai.chat_completion", return_value=AiResponse(content="ok", provider="mock", model="mock-model")):
+            response = AIChatApiView.as_view()(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(dalla_view.call_count, 1)
+        dal_builder.assert_not_called()

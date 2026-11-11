@@ -111,12 +111,16 @@ def ai_sintesi_giorno_task():
 
     Una richiesta all'AI solo se i punti «da guardare» sono cambiati; spegnibile da /soc/impostazioni/.
     """
+    from ai_assistant.http_client import scadenza
     from security.services import soc_settings
     from security.services.ai_explain import prepare_daily_brief
+    from security.services.cpe_ai import TETTO_PIANIFICATO
 
     if not soc_settings.value("ai.sintesi.attivo"):
         return {"skipped": "sintesi automatica spenta"}
-    return prepare_daily_brief()
+    # Timeout della richiesta = min(SECURITY_AI_TIMEOUT_SECONDS, tempo che resta): entro i 120 s del worker.
+    with scadenza(TETTO_PIANIFICATO):
+        return prepare_daily_brief()
 
 
 def ai_lettura_assistita_task():

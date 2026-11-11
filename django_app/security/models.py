@@ -1943,7 +1943,11 @@ class SecurityPropostaAi(models.Model):
     ACCETTATA = "accettata"
     RIFIUTATA = "rifiutata"
     SUPERATA = "superata"
-    STATI = [(APERTA, "Da decidere"), (ACCETTATA, "Accettata"), (RIFIUTATA, "Rifiutata"), (SUPERATA, "Superata")]
+    # Risposta dell'AI scartata dal controllo (CPE fuori elenco, versioni inventate, confidenza bassa):
+    # non si mostra e non si rifà finché i dati del caso (``contesto_hash``) non cambiano.
+    SCARTATA = "scartata"
+    STATI = [(APERTA, "Da decidere"), (ACCETTATA, "Accettata"), (RIFIUTATA, "Rifiutata"), (SUPERATA, "Superata"),
+             (SCARTATA, "Scartata dal controllo")]
 
     # Valori di ``proposta``: per ``cpe`` un «vendor:product» fra i candidati, NON_APPLICABILE o DA_VERIFICARE;
     # per ``esito`` IMPATTA, NON_IMPATTA o DA_VERIFICARE.
@@ -2007,10 +2011,13 @@ class SecurityAlertProposta(models.Model):
     CHIUSA_AUTO = "chiusa_auto"
     ANNULLATA = "annullata"
     SUPERATA = "superata"
+    # Risposta dell'AI non utilizzabile (non in JSON, esito non previsto): non è una decisione di una
+    # persona (non tocca la fiducia) e l'alert non si richiede finché il contesto non cambia.
+    NON_VALIDA = "non_valida"
     STATI = [
         (APERTA, "Da confermare"), (CONFERMATA, "Confermata"), (CORRETTA, "Chiusa con un altro esito"),
         (SCARTATA, "Scartata"), (CHIUSA_AUTO, "Chiusa in automatico"), (ANNULLATA, "Chiusura automatica annullata"),
-        (SUPERATA, "Superata"),
+        (SUPERATA, "Superata"), (NON_VALIDA, "Risposta dell'AI non valida"),
     ]
     # Esiti come in ``alert_lifecycle``; «aperto» = le prove non bastano per chiudere.
     ESITI = [

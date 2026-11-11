@@ -5,20 +5,26 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 
+import logging
+
 from django.conf import settings
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from ....models import AIKnowledgeChunk, AIKnowledgeEmbedding
 from ..redaction import redact_text
-from .embedding_provider import get_embedding_provider
+from .embedding_provider import provider_per_indice
 from .query_normalizer import NormalizedQuery, normalize_query
 from .vector_backend import (
+    VectorCandidate,
+    cosine_similarity,
     pgvector_backend_available,
     pgvector_package_installed,
     retrieve_pgvector_candidates,
-    retrieve_python_vector_candidates,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 RETRIEVAL_MODES = {"hybrid_keyword", "pgvector", "hybrid_pgvector"}
@@ -238,39 +244,53 @@ def _vector_retrieve(
     limit: int,
 ) -> tuple[list[RetrievalResult], str, list[str]]:
     flags: list[str] = []
-    provider = get_embedding_provider("deterministic_hash")
-    query_vector = provider.embed_text(normalized.original)
-    queryset = AIKnowledgeEmbedding.objects.filter(dimensions=provider.dimensions)
+    queryset = AIKnowledgeEmbedding.objects.all()
     if source_type:
         queryset = queryset.filter(chunk__document__source_type=source_type)
     if source_object_type:
         queryset = queryset.filter(chunk__document__source_object_type=source_object_type)
     if source_object_id:
         queryset = queryset.filter(chunk__document__source_object_id=str(source_object_id))
-    if not queryset.exists():
+
+    # La query va calcolata con lo stesso provider e modello che hanno costruito l'indice (prima era
+    # sempre «deterministic_hash», confrontato per sole dimensioni con vettori di local_http).
+    firma = (
+        queryset.values("provider", "model_name", "dimensions").annotate(n=Count("id")).order_by("-n").first()
+    )
+    if not firma:
         flags.append("missing_embeddings")
         return [], "keyword_fallback", flags
+    provider = provider_per_indice(firma["provider"], firma["model_name"], firma["dimensions"])
+    if provider is None:
+        flags.append("embedding_provider_unavailable")
+        return [], "keyword_fallback", flags
+    try:
+        query_vector = provider.embed_text(normalized.original)
+    except Exception as exc:  # noqa: BLE001 - servizio embeddings giù/lento: si resta sulle parole chiave
+        logger.warning("AI memory: embedding della domanda non riuscito (%s): %s", firma["provider"], exc)
+        flags.append("embedding_provider_unavailable")
+        return [], "keyword_fallback", flags
+    queryset = queryset.filter(
+        provider=firma["provider"], model_name=firma["model_name"], dimensions=firma["dimensions"],
+    )
 
     backend = "pgvector" if pgvector_backend_available() else "json_cosine"
     if backend != "pgvector":
         flags.append("pgvector_unavailable")
-        candidates = retrieve_python_vector_candidates(
-            query_vector,
-            dimensions=provider.dimensions,
-            source_type=source_type,
-            source_object_type=source_object_type,
-            source_object_id=str(source_object_id) if source_object_id else None,
-            limit=limit,
-        )
+        candidates = _python_vector_candidates(query_vector, queryset, limit=limit)
     else:
-        candidates = retrieve_pgvector_candidates(
-            query_vector,
-            dimensions=provider.dimensions,
-            source_type=source_type,
-            source_object_type=source_object_type,
-            source_object_id=str(source_object_id) if source_object_id else None,
-            limit=limit,
-        )
+        candidates = [
+            candidate
+            for candidate in retrieve_pgvector_candidates(
+                query_vector,
+                dimensions=firma["dimensions"],
+                source_type=source_type,
+                source_object_type=source_object_type,
+                source_object_id=str(source_object_id) if source_object_id else None,
+                limit=limit * 5,
+            )
+            if candidate.embedding.provider == firma["provider"] and candidate.embedding.model_name == firma["model_name"]
+        ][:limit]
 
     results = []
     for candidate in candidates:
@@ -295,6 +315,25 @@ def _vector_retrieve(
             )
         )
     return results, backend, flags
+
+
+def _python_vector_candidates(query_vector: list[float], queryset, *, limit: int) -> list[VectorCandidate]:
+    """Coseno in Python sugli embedding già filtrati per provider, modello e dimensioni."""
+    candidates = []
+    for embedding in queryset.select_related("chunk", "chunk__document")[:1000]:
+        vector_score = cosine_similarity(query_vector, embedding.embedding)
+        if vector_score <= 0:
+            continue
+        candidates.append(
+            VectorCandidate(
+                embedding=embedding,
+                vector_score=vector_score,
+                vector_distance=1.0 - vector_score,
+                backend="json_cosine",
+            )
+        )
+    candidates.sort(key=lambda item: (-item.vector_score, item.embedding.chunk.document_id, item.embedding.chunk.chunk_index))
+    return candidates[: max(1, int(limit or 10))]
 
 
 def _score_keyword_chunk(
