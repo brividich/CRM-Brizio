@@ -31,6 +31,7 @@ import logging
 import os
 import re
 import subprocess
+import time
 from datetime import timedelta
 from datetime import timezone as dt_timezone
 
@@ -42,7 +43,11 @@ from .mac import normalizza_mac
 
 logger = logging.getLogger(__name__)
 
-TIMEOUT_SECONDI = 180
+# Una chiamata PowerShell non supera i 45 s e il giro intero sta sotto i 100 s (timeout del
+# worker 120 s): i server che non entrano nel tempo si leggono al giro dopo.
+TIMEOUT_SECONDI = 45
+BUDGET_GIRO_SECONDI = 95
+MINIMO_PER_CHIAMATA_SECONDI = 10
 SOGLIA_AMBITO_PIENO = 90  # % di occupazione oltre cui l'ambito va guardato
 GIORNI_DNS_VECCHIO = 30   # record dinamico non aggiornato da più giorni e senza lease: rimasto lì
 MAX_SEGNALAZIONI_GIRO = 10  # eventi SOC «dispositivo nuovo in rete» al massimo per lettura
@@ -162,18 +167,19 @@ def _valida_nome(nome: str, cosa: str) -> str:
     return nome
 
 
-def esegui_powershell(script: str, ambiente: dict) -> dict:
-    """Esegue uno degli script fissi e ritorna il JSON prodotto."""
+def esegui_powershell(script: str, ambiente: dict, timeout: float | None = None) -> dict:
+    """Esegue uno degli script fissi e ritorna il JSON prodotto (al massimo ``TIMEOUT_SECONDI``)."""
     env = {**os.environ, **ambiente}
+    attesa = max(1, int(min(TIMEOUT_SECONDI, timeout if timeout is not None else TIMEOUT_SECONDI)))
     try:
         proc = subprocess.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
-            capture_output=True, timeout=TIMEOUT_SECONDI, env=env, check=False,
+            capture_output=True, timeout=attesa, env=env, check=False,
         )
     except FileNotFoundError as exc:
         raise ReteError("PowerShell non trovato: la lettura DHCP/DNS funziona solo sul server Windows del portale.") from exc
     except subprocess.TimeoutExpired as exc:
-        raise ReteError(f"PowerShell non ha risposto entro {TIMEOUT_SECONDI} secondi.") from exc
+        raise ReteError(f"PowerShell non ha risposto entro {attesa} secondi.") from exc
     out = proc.stdout.decode("utf-8", errors="replace").strip()
     if proc.returncode != 0:
         err = proc.stderr.decode("utf-8", errors="replace").strip()
@@ -197,15 +203,16 @@ def _spiega_errore(testo: str) -> str:
     return "Errore di PowerShell: " + " ".join(testo.split())[:300]
 
 
-def leggi_dhcp(server: str) -> dict:
-    data = esegui_powershell(SCRIPT_DHCP, {"PN_RETE_SERVER": _valida_nome(server, "Server DHCP")})
+def leggi_dhcp(server: str, timeout: float | None = None) -> dict:
+    data = esegui_powershell(SCRIPT_DHCP, {"PN_RETE_SERVER": _valida_nome(server, "Server DHCP")}, timeout=timeout)
     return {"scopes": _lista(data.get("scopes")), "leases": _lista(data.get("leases"))}
 
 
-def leggi_dns(server: str, zone: list[str]) -> list[dict]:
+def leggi_dns(server: str, zone: list[str], timeout: float | None = None) -> list[dict]:
     for z in zone:
         _valida_nome(z, "Zona DNS")
-    data = esegui_powershell(SCRIPT_DNS, {"PN_RETE_SERVER": _valida_nome(server, "Server DNS"), "PN_RETE_ZONE": ",".join(zone)})
+    data = esegui_powershell(SCRIPT_DNS, {"PN_RETE_SERVER": _valida_nome(server, "Server DNS"), "PN_RETE_ZONE": ",".join(zone)},
+                             timeout=timeout)
     return _lista(data.get("records"))
 
 
@@ -267,14 +274,23 @@ def salva_dhcp(server: str, dati: dict, ora=None) -> dict:
         ambiti[scope_id] = ambito
     AmbitoDhcp.objects.filter(server=server).exclude(scope_id__in=list(ambiti)).update(presente=False)
 
-    visti = set()
+    per_ip = {}
     for lease in dati["leases"]:
         ip = _ip(lease.get("ip"))
-        if not ip or ip in visti:
-            continue
-        visti.add(ip)
+        if ip and ip not in per_ip:
+            per_ip[ip] = lease
+    visti = set(per_ip)
+    esistenti = _righe_per_ip(visti)
+    adesso = timezone.now()
+    nuove, cambiate = [], []
+    for ip, lease in per_ip.items():
         stato = str(lease.get("state") or "")[:40]
-        riga = IndirizzoRete.objects.filter(ip=ip).first() or IndirizzoRete(ip=ip, prima_vista=ora)
+        riga = esistenti.get(ip)
+        if riga is None:
+            riga = IndirizzoRete(ip=ip, prima_vista=ora)
+            nuove.append(riga)
+        else:
+            cambiate.append(riga)
         riga.mac = normalizza_mac(lease.get("mac")) or riga.mac
         riga.nome_dhcp = str(lease.get("host") or "").strip()[:255]
         riga.stato_dhcp = stato
@@ -284,10 +300,30 @@ def salva_dhcp(server: str, dati: dict, ora=None) -> dict:
         riga.ambito = ambiti.get(_ip(lease.get("scope_id")))
         riga.nel_dhcp = True
         riga.ultima_vista = ora
-        riga.save()
-    spariti = IndirizzoRete.objects.filter(server_dhcp=server, nel_dhcp=True).exclude(ip__in=visti).update(nel_dhcp=False)
+        riga.aggiornato_il = adesso
+    IndirizzoRete.objects.bulk_create(nuove, batch_size=200)
+    IndirizzoRete.objects.bulk_update(cambiate, CAMPI_DHCP, batch_size=200)
+    # Spariti calcolati qui, sulle chiavi: un NOT IN con migliaia di IP supera i 2100 parametri di SQL Server.
+    spariti_pk = [pk for pk, ip in IndirizzoRete.objects.filter(server_dhcp=server, nel_dhcp=True)
+                  .values_list("pk", "ip") if ip not in visti]
+    spariti = sum(IndirizzoRete.objects.filter(pk__in=blocco).update(nel_dhcp=False) for blocco in _a_blocchi(spariti_pk))
     nuovi = ricorda_mac(dati["leases"], ora)
     return {"ambiti": len(ambiti), "indirizzi": len(visti), "spariti": spariti, "mac_nuovi": nuovi}
+
+
+CAMPI_DHCP = ["mac", "nome_dhcp", "stato_dhcp", "tipo", "scadenza_lease", "server_dhcp", "ambito", "nel_dhcp",
+              "ultima_vista", "aggiornato_il"]
+CAMPI_DNS = ["nomi_dns", "dns_statico", "dns_aggiornato_il", "nel_dns", "tipo", "ultima_vista", "aggiornato_il"]
+
+
+def _righe_per_ip(ips) -> dict:
+    """Righe ``IndirizzoRete`` già presenti, lette a blocchi (SQL Server: massimo 2100 parametri)."""
+    from assets.models import IndirizzoRete
+
+    out = {}
+    for blocco in _a_blocchi(ips):
+        out.update({r.ip: r for r in IndirizzoRete.objects.filter(ip__in=blocco)})
+    return out
 
 
 def ricorda_mac(leases: list[dict], ora=None) -> list[str]:
@@ -304,15 +340,17 @@ def ricorda_mac(leases: list[dict], ora=None) -> list[str]:
     elenco = list(per_mac)
     for i in range(0, len(elenco), 500):  # SQL Server: massimo 2100 parametri per query
         noti.update({m.mac: m for m in MacRete.objects.filter(mac__in=elenco[i:i + 500])})
-    nuovi = []
+    nuovi, da_creare, da_aggiornare = [], [], []
     for mac, (ip, nome) in per_mac.items():
         voce = noti.get(mac)
         if voce is None:
-            MacRete.objects.create(mac=mac, prima_vista=ora, ultima_vista=ora, ultimo_ip=ip, ultimo_nome=nome)
+            da_creare.append(MacRete(mac=mac, prima_vista=ora, ultima_vista=ora, ultimo_ip=ip, ultimo_nome=nome))
             nuovi.append(mac)
         else:
             voce.ultima_vista, voce.ultimo_ip, voce.ultimo_nome = ora, ip or voce.ultimo_ip, nome or voce.ultimo_nome
-            voce.save(update_fields=["ultima_vista", "ultimo_ip", "ultimo_nome"])
+            da_aggiornare.append(voce)
+    MacRete.objects.bulk_create(da_creare, batch_size=200)
+    MacRete.objects.bulk_update(da_aggiornare, ["ultima_vista", "ultimo_ip", "ultimo_nome"], batch_size=200)
     return nuovi
 
 
@@ -388,8 +426,16 @@ def salva_dns(record: list[dict], ora=None) -> dict:
             voce["statico"] = True
         elif voce["stamp"] is None or stamp > voce["stamp"]:
             voce["stamp"] = stamp
+    esistenti = _righe_per_ip(per_ip)
+    adesso = timezone.now()
+    nuove, cambiate = [], []
     for ip, voce in per_ip.items():
-        riga = IndirizzoRete.objects.filter(ip=ip).first() or IndirizzoRete(ip=ip, prima_vista=ora, tipo=IndirizzoRete.TIPO_DNS)
+        riga = esistenti.get(ip)
+        if riga is None:
+            riga = IndirizzoRete(ip=ip, prima_vista=ora, tipo=IndirizzoRete.TIPO_DNS)
+            nuove.append(riga)
+        else:
+            cambiate.append(riga)
         riga.nomi_dns = sorted(voce["nomi"], key=str.lower)[:20]
         riga.dns_statico = voce["statico"]
         riga.dns_aggiornato_il = voce["stamp"]
@@ -397,8 +443,12 @@ def salva_dns(record: list[dict], ora=None) -> dict:
         if not riga.nel_dhcp:
             riga.tipo = IndirizzoRete.TIPO_DNS
         riga.ultima_vista = ora
-        riga.save()
-    spariti = IndirizzoRete.objects.filter(nel_dns=True).exclude(ip__in=list(per_ip)).update(nel_dns=False)
+        riga.aggiornato_il = adesso
+    IndirizzoRete.objects.bulk_create(nuove, batch_size=200)
+    IndirizzoRete.objects.bulk_update(cambiate, CAMPI_DNS, batch_size=200)
+    # Spariti sulle chiavi, in Python: niente NOT IN oltre i 2100 parametri di SQL Server.
+    spariti_pk = [pk for pk, ip in IndirizzoRete.objects.filter(nel_dns=True).values_list("pk", "ip") if ip not in per_ip]
+    spariti = sum(IndirizzoRete.objects.filter(pk__in=blocco).update(nel_dns=False) for blocco in _a_blocchi(spariti_pk))
     return {"indirizzi": len(per_ip), "spariti": spariti}
 
 
@@ -419,13 +469,18 @@ def proponi(riga):
     return asset, motivo
 
 
-def aggiorna_proposte() -> int:
-    """Proposta di asset per gli indirizzi presenti e non ancora collegati."""
+def aggiorna_proposte(scadenza: float | None = None) -> int:
+    """Proposta di asset per gli indirizzi presenti e non ancora collegati.
+
+    ``scadenza`` (``time.monotonic()``): oltre quell'istante si ferma; il resto al giro dopo.
+    """
     from assets.models import IndirizzoRete
 
     cambiate = 0
     qs = IndirizzoRete.objects.filter(asset__isnull=True).exclude(nel_dhcp=False, nel_dns=False)
     for riga in qs.iterator():
+        if scadenza is not None and time.monotonic() > scadenza:
+            break
         asset, motivo = proponi(riga)
         nuovo = (asset.pk if asset else None, motivo)
         if (riga.asset_proposto_id, riga.motivo_proposta) != nuovo:
@@ -445,18 +500,32 @@ def sincronizza(ora=None) -> dict:
     # Prima lettura in assoluto: tutti i MAC sono «nuovi», nessuno va segnalato al SOC.
     prima_volta = not MacRete.objects.exists()
     nuovi = []
+    fine_giro = time.monotonic() + BUDGET_GIRO_SECONDI
+
+    def tempo():
+        return fine_giro - time.monotonic()
+
+    rimandati = []
     for server in cfg["dhcp"]:
+        if tempo() < MINIMO_PER_CHIAMATA_SECONDI:
+            rimandati.append(f"DHCP {server}")
+            continue
         try:
-            esito["dhcp"][server] = salva_dhcp(server, leggi_dhcp(server), ora)
+            esito["dhcp"][server] = salva_dhcp(server, leggi_dhcp(server, timeout=tempo()), ora)
             nuovi += esito["dhcp"][server].pop("mac_nuovi", [])
         except ReteError as exc:
             esito["errori"].append(f"DHCP {server}: {exc}")
     if cfg["dns"] and cfg["zone"]:
-        try:
-            esito["dns"] = salva_dns(leggi_dns(cfg["dns"], cfg["zone"]), ora)
-        except ReteError as exc:
-            esito["errori"].append(f"DNS {cfg['dns']}: {exc}")
-    esito["proposte_cambiate"] = aggiorna_proposte()
+        if tempo() < MINIMO_PER_CHIAMATA_SECONDI:
+            rimandati.append(f"DNS {cfg['dns']}")
+        else:
+            try:
+                esito["dns"] = salva_dns(leggi_dns(cfg["dns"], cfg["zone"], timeout=tempo()), ora)
+            except ReteError as exc:
+                esito["errori"].append(f"DNS {cfg['dns']}: {exc}")
+    if rimandati:
+        esito["rimandati"] = [f"{r}: lettura rimandata al prossimo giro (tempo del giro esaurito)." for r in rimandati]
+    esito["proposte_cambiate"] = aggiorna_proposte(scadenza=fine_giro)
     esito["mac_nuovi"] = len(nuovi)
     esito["segnalati_soc"] = 0 if prima_volta else segnala_nuovi(nuovi, ora)
     esito["ok"] = not esito["errori"]

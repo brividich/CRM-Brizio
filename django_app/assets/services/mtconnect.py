@@ -104,18 +104,50 @@ def _percorso(dispositivo: str, risorsa: str) -> str:
     return f"/{quote(dispositivo)}/{risorsa}"
 
 
+def _chi_risponde(resp) -> str:
+    """Se a rispondere non è l'agent MTConnect (un proxy, IIS, un altro servizio), lo dice: l'agent risponde in XML."""
+    headers = getattr(resp, "headers", None)
+    if not hasattr(headers, "get"):
+        return ""
+    tipo = str(headers.get("Content-Type") or "")
+    server = str(headers.get("Server") or "")[:60]
+    if not tipo or "xml" in tipo.lower():
+        return ""
+    return (" La risposta non arriva dall'agent MTConnect"
+            + (f" (server «{server}»)" if server else "")
+            + ": a quell'indirizzo risponde un altro servizio o un proxy.")
+
+
 def scarica(url: str, dispositivo: str = "", risorsa: str = "current") -> bytes:
     import requests
 
     base = valida_url(url)
+    host = urlparse(base).netloc
+    # L'agent è in rete interna: niente HTTPS_PROXY/HTTP_PROXY dell'ambiente del server.
+    sess = requests.Session()
+    sess.trust_env = False
     try:
-        resp = requests.get(base + _percorso(dispositivo, risorsa), timeout=TIMEOUT, allow_redirects=False, stream=True,
+        try:
+            resp = sess.get(base + _percorso(dispositivo, risorsa), timeout=TIMEOUT, allow_redirects=False, stream=True,
                             headers={"Accept": "application/xml, text/xml"})
-    except requests.exceptions.RequestException as exc:
-        raise MTConnectError(f"Agent non raggiungibile ({type(exc).__name__}).") from exc
+        except requests.exceptions.ProxyError as exc:
+            raise MTConnectError(f"Agent {host}: la richiesta è passata da un proxy che l'ha rifiutata.") from exc
+        except requests.exceptions.ConnectTimeout as exc:
+            raise MTConnectError(f"Agent {host} non raggiungibile: nessuna risposta alla connessione "
+                                 "(macchina spenta, indirizzo o porta errati, firewall).") from exc
+        except requests.exceptions.ReadTimeout as exc:
+            raise MTConnectError(f"Agent {host}: connessione accettata ma nessuna risposta in tempo.") from exc
+        except requests.exceptions.RequestException as exc:
+            raise MTConnectError(f"Agent {host} non raggiungibile ({type(exc).__name__}).") from exc
+        return _leggi_risposta(resp, host)
+    finally:
+        sess.close()
+
+
+def _leggi_risposta(resp, host: str) -> bytes:
     try:
         if resp.status_code != 200:
-            raise MTConnectError(f"L'agent ha risposto {resp.status_code}.")
+            raise MTConnectError(f"L'agent {host} ha risposto {resp.status_code}.{_chi_risponde(resp)}")
         data = resp.raw.read(MAX_BYTES + 1, decode_content=True)
     finally:
         resp.close()

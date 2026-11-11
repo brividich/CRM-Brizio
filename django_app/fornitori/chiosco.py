@@ -55,20 +55,48 @@ def configurato() -> bool:
     return nativa() or bool(getattr(settings, "GUESTPORTAL_CHIOSCO_API_URL", "").strip())
 
 
-def _richiesta(url: str, dati: dict | None = None) -> tuple[int, bytes]:
+# Il GuestPortal è in rete interna: nessun proxy dell'ambiente (HTTPS_PROXY/HTTP_PROXY) in mezzo.
+_OPENER_LAN = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def _host(url: str) -> str:
+    from urllib.parse import urlparse
+
+    return urlparse(url).netloc or url
+
+
+def _chi_risponde(intestazioni) -> str:
+    """Chi ha risposto, se non è il GuestPortal (le sue API rispondono in JSON): proxy, IIS, un altro servizio."""
+    if not hasattr(intestazioni, "get"):
+        return ""
+    tipo = str(intestazioni.get("Content-Type") or "")
+    server = str(intestazioni.get("Server") or "")[:60]
+    if not tipo or "json" in tipo.lower():
+        return ""
+    return (f"tipo «{tipo[:60]}»" + (f", server «{server}»" if server else "")
+            + ": risponde un altro servizio o un proxy")
+
+
+def _richiesta_completa(url: str, dati: dict | None = None) -> tuple[int, bytes, str]:
+    """Stato HTTP, corpo e, se a rispondere non è il GuestPortal, chi ha risposto."""
     corpo = json.dumps(dati).encode("utf-8") if dati is not None else None
     richiesta = urllib.request.Request(url, data=corpo, method="POST" if dati is not None else "GET")
     if corpo is not None:
         richiesta.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(richiesta, timeout=TIMEOUT_SECONDI) as risposta:  # noqa: S310 - URL da settings
-            return risposta.status, risposta.read()
+        with _OPENER_LAN.open(richiesta, timeout=TIMEOUT_SECONDI) as risposta:  # noqa: S310 - URL da settings
+            return risposta.status, risposta.read(), _chi_risponde(risposta.headers)
     except urllib.error.HTTPError as exc:
         # 409, 422 e 503 sono esiti del chiosco (già dentro, dati mancanti, cartellini finiti).
-        return exc.code, exc.read()
+        return exc.code, exc.read(), _chi_risponde(exc.headers)
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        logger.warning("Chiosco: GuestPortal non raggiungibile: %s", exc)
+        logger.warning("Chiosco: GuestPortal %s non raggiungibile: %s", _host(url), getattr(exc, "reason", exc))
         raise ChioscoNonDisponibile from exc
+
+
+def _richiesta(url: str, dati: dict | None = None) -> tuple[int, bytes]:
+    stato, corpo, _chi = _richiesta_completa(url, dati)
+    return stato, corpo
 
 
 def chiama(nome_api: str, dati: dict | None = None, ip: str = "") -> tuple[int, dict]:
@@ -81,11 +109,12 @@ def chiama(nome_api: str, dati: dict | None = None, ip: str = "") -> tuple[int, 
     if not configurato():
         raise ChioscoNonDisponibile
     url = settings.GUESTPORTAL_CHIOSCO_API_URL.rstrip("/") + f"/{nome_api}.php"
-    stato, corpo = _richiesta(url, dati)
+    stato, corpo, chi = _richiesta_completa(url, dati)
     try:
         esito = json.loads(corpo.decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as exc:
-        logger.warning("Chiosco: risposta non JSON da %s (HTTP %s)", nome_api, stato)
+        logger.warning("Chiosco: risposta non JSON da %s (%s, HTTP %s%s)", _host(url), nome_api, stato,
+                       f"; {chi}" if chi else "")
         raise ChioscoNonDisponibile from exc
     if not isinstance(esito, dict):
         raise ChioscoNonDisponibile
