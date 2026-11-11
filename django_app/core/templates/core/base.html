@@ -68,6 +68,7 @@
   {% block notify_banner %}{% include "core/components/notifications_banner.html" %}{% endblock %}
 
   <div class="content">
+    {% block cnsgi_etichette %}{% load cnsgi %}{% cnsgi_etichette %}{% endblock %}
     {% block content %}{% endblock %}
   </div>
 </div>

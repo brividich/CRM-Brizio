@@ -18,7 +18,8 @@ Area **Qualità** · URL `/procedure-refresh/` · codice [`django_app/procedure_
 - **Pagine del PDF**: l'estrazione salva `SgiTestoEstratto.offset_pagine` (inizio di ogni pagina nel testo); per i testi estratti prima vale una stima proporzionale. Dopo il deploy: `manage.py sgi_estrai_testi --forza`.
 - **Sapere**: CN-SGI è la prima copertina dei cataloghi (`/sapere/` e stanza Sapere in home) e la stanza ha il riquadro «CN-SGI · Procedure» con ricerca, nuove revisioni e letture da fare.
 - **Guida in-app**: `?guida=1` / `?guida=pdf` su ogni pagina della libreria (`procedure_refresh/guida.py`).
-- **Permessi**: pulsanti `pr_view` (libreria), `pr_letture`, `pr_visibilita`, `pr_scaffali`; dopo il deploy «Sincronizza i permessi delle pagine». Le pagine di gestione controllano comunque `_can_manage`.
+- **Fase 2 (11/11/2026)**: `SgiDocumentoModulo` (migrazione 0013) collega un documento a un modulo di `collegamenti.MODULI_HUB` (chiave, nome, indirizzo, prefissi delle pagine). `admin/collegamenti/` conferma le proposte da parole chiave (`collegamenti.REGOLE`, deterministiche) o aggiunge a mano; `compila` = il modello si compila nel modulo. Il tag `{% cnsgi_etichette %}` in `core/base.html` mostra sopra il contenuto delle pagine del modulo fino a tre etichette «SGI · codice Rev.» (solo documenti aperti a tutti; mappa in cache 5 minuti, svuotata a ogni modifica). `audit/<slug>/` = pacchetto audit dello scaffale (gestori e ruoli «vede tutto»): revisioni in vigore, processi confermati, prese visione confermate/chieste per la revisione, certificazione; `?formato=xlsx` con `core.excel_export`.
+- **Permessi**: pulsanti `pr_collegamenti`, `pr_audit`, `pr_view` (libreria), `pr_letture`, `pr_visibilita`, `pr_scaffali`; dopo il deploy «Sincronizza i permessi delle pagine». Le pagine di gestione controllano comunque `_can_manage`.
 
 ## Dettaglio
 

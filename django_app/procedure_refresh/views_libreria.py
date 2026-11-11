@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 from collections import OrderedDict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -69,6 +69,7 @@ def _contesto_base(request, vis, docs, **extra):
     da_leggere = lib.letture_da_fare(request.user)
     ctx = {
         "is_manager": vis.gestore,
+        "puo_audit": vis.gestore or vis.vede_tutto,
         "ultimo_controllo": _ultimo_controllo(),
         "oggi_str": timezone.localdate().strftime("%Y%m%d"),
         "n_da_leggere": sum(1 for d in docs if d.pk in da_leggere),
@@ -286,6 +287,9 @@ def documento(request, pk: int):
         SgiDocumentoProcesso.objects.filter(documento=doc, confermato=True).select_related("processo")
     )
 
+    from .collegamenti import moduli_del_documento
+
+    moduli = moduli_del_documento(doc)
     revisioni = sorted(doc.revisions.all(), key=lambda r: (r.is_current, r.revision_date), reverse=True)
     lettura = lib.letture_da_fare(request.user).get(doc.pk)
     confermata = None
@@ -308,7 +312,9 @@ def documento(request, pk: int):
         "doc": doc, "rev": rev, "is_manager": vis.gestore,
         "indice": lib.indice_documento(rev),
         "cita": cita, "citato_da": citato_da, "processi": processi,
-        "n_collegamenti": len(cita) + len(citato_da) + len(processi),
+        "moduli": moduli,
+        "compila": next((m for m in moduli if m["compila"]), None),
+        "n_collegamenti": len(cita) + len(citato_da) + len(processi) + len(moduli),
         "revisioni": revisioni, "lettura": lettura, "confermata": confermata,
         "stato_gestore": stato_gestore,
         "scheda": request.GET.get("scheda") or "panoramica",
@@ -544,3 +550,146 @@ def scaffali_gestione(request):
         "certificazioni": list(Certificazione.objects.filter(attiva=True).order_by("norma", "ente")),
         "senza_cartella": conteggi.get("", 0),
     })
+
+
+# ---------------------------------------------------------------------------
+# Fase 2: collegamenti ai moduli dell'HUB, pacchetto audit
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@con_guida
+def collegamenti_moduli(request):
+    """Gestione dei collegamenti procedura ↔ modulo dell'HUB, con le proposte da confermare."""
+    blocco = _solo_gestori(request)
+    if blocco:
+        return blocco
+    from . import collegamenti as col
+    from .models import SgiDocumentoModulo
+
+    docs = lib.documenti_in_vigore()
+    per_id = {d.pk: d for d in docs}
+    url = reverse("procedure_refresh:libreria_collegamenti")
+
+    if request.method == "POST":
+        azione = request.POST.get("azione")
+        if azione == "conferma":
+            n = 0
+            for valore in request.POST.getlist("proposta"):
+                doc_id, _sep, resto = valore.partition(":")
+                modulo, _sep, compila = resto.partition(":")
+                if not doc_id.isdigit() or int(doc_id) not in per_id or modulo not in col.PER_CHIAVE:
+                    continue
+                _riga, creato = SgiDocumentoModulo.objects.get_or_create(
+                    documento=per_id[int(doc_id)], modulo=modulo,
+                    defaults={"compila": compila == "1", "origine": SgiDocumentoModulo.ORIGINE_PROPOSTA, "creato_da": request.user},
+                )
+                n += int(creato)
+            col.svuota_cache()
+            log_action(request, "modifica", "procedure_refresh", {"message": "Collegamenti CN-SGI confermati", "n": n})
+            messages.success(request, f"Collegamenti confermati: {n}.")
+        elif azione == "aggiungi":
+            doc_id = request.POST.get("documento", "")
+            modulo = request.POST.get("modulo", "")
+            if not doc_id.isdigit() or int(doc_id) not in per_id or modulo not in col.PER_CHIAVE:
+                messages.error(request, "Scegli un documento e un modulo.")
+                return redirect(url)
+            riga, creato = SgiDocumentoModulo.objects.get_or_create(
+                documento=per_id[int(doc_id)], modulo=modulo, defaults={"creato_da": request.user},
+            )
+            riga.compila = bool(request.POST.get("compila"))
+            riga.save(update_fields=["compila"])
+            col.svuota_cache()
+            log_action(request, "modifica", "procedure_refresh", {
+                "message": "Collegamento CN-SGI " + ("creato" if creato else "aggiornato"),
+                "documento": riga.documento.code, "modulo": modulo,
+            })
+            messages.success(request, f"{riga.documento.code} collegato a {col.PER_CHIAVE[modulo].nome}.")
+        elif azione == "togli":
+            riga = SgiDocumentoModulo.objects.filter(pk=request.POST.get("riga") or 0).select_related("documento").first()
+            if riga is not None:
+                dettaglio = f"{riga.documento.code} → {riga.modulo}"
+                riga.delete()
+                col.svuota_cache()
+                log_action(request, "modifica", "procedure_refresh", {"message": "Collegamento CN-SGI tolto", "collegamento": dettaglio})
+                messages.success(request, "Collegamento tolto.")
+        return redirect(url)
+
+    righe = list(SgiDocumentoModulo.objects.select_related("documento").order_by("modulo", "documento__code"))
+    gruppi = []
+    for m in col.MODULI_HUB:
+        mie = [r for r in righe if r.modulo == m.chiave]
+        if mie:
+            gruppi.append({"modulo": m, "righe": mie})
+    return render(request, "procedure_refresh/libreria/collegamenti.html", {
+        "is_manager": True,
+        "gruppi": gruppi,
+        "n_collegamenti": len(righe),
+        "proposte": col.proposte(docs),
+        "documenti": docs,
+        "moduli": col.MODULI_HUB,
+    })
+
+
+@login_required
+@con_guida
+def audit(request, slug: str):
+    """Pacchetto per l'audit di uno scaffale: revisioni in vigore, processi, presa visione. Esporta in Excel."""
+    from django.db.models import Count, Q
+
+    vis, config, docs = _visibili(request)
+    if not (vis.gestore or vis.vede_tutto):
+        messages.error(request, "Il pacchetto audit è per chi gestisce CN-SGI e per i ruoli che vedono tutto.")
+        return redirect("procedure_refresh:libreria")
+    nuove = lib.codici_nuove_revisioni()
+    scaffali = _scaffali(docs, config, nuove)
+    corrente = next((s for s in scaffali.values() if s.slug == slug), None)
+    if corrente is None:
+        raise Http404("Scaffale non disponibile.")
+    _decora(docs, scaffali, nuove, {})
+    miei = sorted((d for d in docs if (d.category or "") == corrente.cartella), key=lambda d: ((d.sezione or "") == "", (d.sezione or "").lower(), d.code))
+
+    stato = {
+        r["revision_id"]: r
+        for r in ProcedureAssignment.objects.filter(revision_id__in=[d.rev.pk for d in miei])
+        .exclude(status=AssignmentStatus.CANCELLED)
+        .values("revision_id")
+        .annotate(totale=Count("id"), lette=Count("id", filter=Q(status=AssignmentStatus.READ_CONFIRMED)))
+    }
+    processi: dict[int, list[str]] = {}
+    for p in SgiDocumentoProcesso.objects.filter(documento__in=miei, confermato=True).select_related("processo"):
+        processi.setdefault(p.documento_id, []).append(str(p.processo))
+    oggi = timezone.localdate()
+    anno_fa = oggi - timedelta(days=365)
+    tot_assegnate = tot_lette = 0
+    for d in miei:
+        s = stato.get(d.rev.pk) or {"totale": 0, "lette": 0}
+        d.pv_totale, d.pv_lette = s["totale"], s["lette"]
+        d.pv_pct = round(d.pv_lette * 100 / d.pv_totale) if d.pv_totale else None
+        d.processi = processi.get(d.pk, [])
+        tot_assegnate += d.pv_totale
+        tot_lette += d.pv_lette
+
+    if request.GET.get("formato") == "xlsx":
+        from core.excel_export import make_xlsx_response
+
+        log_action(request, "esporta", "procedure_refresh", {"message": "Pacchetto audit CN-SGI in Excel", "scaffale": corrente.cartella})
+        return make_xlsx_response(
+            filename=f"pacchetto-audit-{corrente.slug}-{oggi:%Y%m%d}.xlsx",
+            columns=["Sezione", "Codice", "Titolo", "Revisione", "Data revisione", "Processi", "Prese visione confermate", "Prese visione chieste"],
+            rows=[[d.sezione_label, d.code, d.title, d.rev.revision_code,
+                   d.rev.revision_date.strftime("%d/%m/%Y") if d.rev.revision_date else "",
+                   ", ".join(d.processi), d.pv_lette, d.pv_totale] for d in miei],
+            title=f"Pacchetto audit · {corrente.nome}" + (f" · {corrente.norma}" if corrente.norma else ""),
+        )
+
+    cert = corrente.certificazione
+    return render(request, "procedure_refresh/libreria/audit.html", _contesto_base(
+        request, vis, docs,
+        scaffale=corrente,
+        scaffali_audit=list(scaffali.values()),
+        documenti=miei,
+        revisionati_anno=sum(1 for d in miei if d.rev.revision_date and d.rev.revision_date >= anno_fa),
+        pct_lette=round(tot_lette * 100 / tot_assegnate) if tot_assegnate else None,
+        giorni_sorveglianza=(cert.prossima_sorveglianza - oggi).days if cert and cert.prossima_sorveglianza else None,
+    ))
