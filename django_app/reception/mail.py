@@ -28,6 +28,26 @@ def _luogo(pre) -> str:
     return f"{ORGANIZZAZIONE} - {sala.nome}" if sala else ORGANIZZAZIONE
 
 
+CID_QR = "qr-codice-accesso"
+
+
+def _riquadro_qr(codice: str) -> str:
+    """Il QR e il codice in un riquadro centrato, nei colori NOVICROM HUB (tabella: regge Outlook)."""
+    from django.utils.html import escape
+
+    return (
+        '<table role="presentation" cellpadding="0" cellspacing="0" align="center" '
+        'style="margin:18px auto 6px;border-collapse:separate;border:1px solid #d8e1ec;border-radius:14px;background:#f8fafc;">'
+        '<tr><td align="center" style="padding:18px 26px 16px;text-align:center;">'
+        '<div style="font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#64748b;">Codice di accesso</div>'
+        f'<img src="cid:{CID_QR}" width="180" height="180" alt="QR del codice {escape(codice)}" '
+        'style="display:block;width:180px;height:180px;margin:12px auto 10px;border:0;">'
+        f'<div style="font-family:Consolas,Menlo,monospace;font-size:24px;font-weight:700;letter-spacing:.18em;color:#002b5c;">{escape(codice)}</div>'
+        '<div style="font-size:12px;color:#64748b;margin-top:6px;">Lo mostri alla telecamera del chiosco o scriva il codice</div>'
+        '</td></tr></table>'
+    )
+
+
 def _ics(pre, metodo: str) -> str | None:
     if not pre.data_visita:
         return None
@@ -68,15 +88,20 @@ def invia_invito(pre, *, solo_a: str = "") -> None:
 
     from . import personalizza
 
+    from core.email_utils import text_to_html
+
     valori = valori_invito(pre)
     testo = personalizza.componi(personalizza.leggi("invito_testo"), valori)
     oggetto = personalizza.componi(personalizza.leggi("invito_oggetto"), valori)[:200]
-    allegati = [("codice-accesso.png", _qr_png(pre.codice), "image/png")]
+    allegati = []
     invito = _ics(pre, "PUBLISH")
     if invito:
         allegati.append(("invito.ics", invito, "text/calendar"))
+    # Il QR sta dentro la mail, sotto il testo (immagine inline «cid:»), non come allegato.
     send_hub_mail(oggetto, testo, [solo_a or pre.ospite_email], title="Invito in azienda",
-                  email_type="Reception", badge="Visita", attachments=allegati, **PIEDE_ESTERNI)
+                  email_type="Reception", badge="Visita", attachments=allegati,
+                  body_html_fragment=text_to_html(testo) + _riquadro_qr(pre.codice),
+                  inline_images=[(CID_QR, _qr_png(pre.codice), "image/png")], **PIEDE_ESTERNI)
     if solo_a:
         return
     avviso = _ics(pre, "REQUEST")

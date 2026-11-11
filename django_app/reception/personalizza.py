@@ -36,7 +36,7 @@ TESTI: dict[str, Testo] = {
         "Testo",
         "Gentile {nome},\n{referente} la aspetta da Costruzioni Novicrom Srl.\n{quando}\n\n"
         "Il suo codice di accesso è: {codice}\nValido fino al {scadenza}.\n\n"
-        "All'arrivo, al chiosco della reception scelga «Ho un codice» e inserisca il codice o mostri il QR allegato, "
+        "All'arrivo, al chiosco della reception scelga «Ho un codice» e inserisca il codice o mostri il QR qui sotto, "
         "poi ritiri il cartellino.",
         ("nome", "referente", "quando", "data", "ora", "sala", "codice", "scadenza", "azienda"), ("codice",), righe=9, massimo=3000),
     "conferma_oggetto": Testo("Oggetto", "Confermi la richiesta di visita a Costruzioni Novicrom Srl"),
@@ -56,7 +56,7 @@ TESTI: dict[str, Testo] = {
 
 # Gruppi mostrati in Impostazioni: (chiave, titolo, nota, campi)
 MAIL = (
-    ("invito", "Mail con il codice d'invito", "All'ospite annunciato o con la richiesta accettata. QR e invito in calendario sono allegati in automatico.",
+    ("invito", "Mail con il codice d'invito", "All'ospite annunciato o con la richiesta accettata. Il QR con il codice compare in automatico sotto il testo; l'invito in calendario è allegato.",
      ("invito_oggetto", "invito_testo")),
     ("conferma", "Mail di conferma della richiesta", "All'esterno appena compila il modulo: senza il link non può confermare.",
      ("conferma_oggetto", "conferma_testo")),

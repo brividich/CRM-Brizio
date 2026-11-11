@@ -158,9 +158,30 @@ class MailTests(Base):
         with patch("core.email_utils.send_hub_mail") as invia:
             mail.invia_invito(p)
         self.assertEqual(invia.call_count, 2)
-        allegati = invia.call_args_list[0].kwargs["attachments"]
-        self.assertEqual([a[0] for a in allegati], ["codice-accesso.png", "invito.ics"])
-        self.assertIn("DTSTART;TZID=Europe/Rome:20261201T090000", allegati[1][1])
+        kw = invia.call_args_list[0].kwargs
+        self.assertEqual([a[0] for a in kw["attachments"]], ["invito.ics"])
+        self.assertIn("DTSTART;TZID=Europe/Rome:20261201T090000", kw["attachments"][0][1])
+        # Il QR è dentro la mail (immagine inline cid:), non allegato
+        cid, png, mime = kw["inline_images"][0]
+        self.assertEqual((mime, png[:4]), ("image/png", b"\x89PNG"))
+        self.assertIn(f'src="cid:{cid}"', kw["body_html_fragment"])
+        self.assertIn("ABCD2345", kw["body_html_fragment"])
+
+    def test_struttura_della_mail_con_qr_nel_corpo(self):
+        from django.core import mail as posta
+
+        from core.email_utils import send_hub_mail
+
+        send_hub_mail("Prova", "Testo", ["a@example.local"], body_html_fragment='<img src="cid:qr">',
+                      inline_images=[("qr", b"\x89PNG\r\n\x1a\nfinto", "image/png")],
+                      attachments=[("invito.ics", "BEGIN:VCALENDAR", "text/calendar")])
+        grezzo = posta.outbox[-1].message()
+        self.assertEqual(grezzo.get_content_type(), "multipart/mixed")
+        correlato = grezzo.get_payload()[0]
+        self.assertEqual(correlato.get_content_type(), "multipart/related")
+        immagine = correlato.get_payload()[1]
+        self.assertEqual((immagine["Content-ID"], immagine.get_content_disposition()), ("<qr>", "inline"))
+        self.assertEqual(grezzo.get_payload()[1].get_filename(), "invito.ics")
 
 
 @override_settings(RECEPTION_NATIVA=True)
