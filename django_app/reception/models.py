@@ -59,6 +59,22 @@ class Referente(models.Model):
         return f"{self.cognome} {self.nome}".strip()
 
 
+class SalaInviti(models.Model):
+    """Sala riunioni (le stesse del KICK-OFF, ``tasks.MeetingRoom``) proposta negli inviti e nelle visite.
+
+    Una riga = la sala compare in «Prenota una sala». Si sceglie in Reception → Configurazione → Sale.
+    """
+
+    sala = models.OneToOneField("tasks.MeetingRoom", on_delete=models.CASCADE, related_name="+")
+
+    class Meta:
+        verbose_name = "Sala per gli inviti"
+        verbose_name_plural = "Sale per gli inviti"
+
+    def __str__(self) -> str:
+        return str(self.sala)
+
+
 class CategoriaVisita(models.Model):
     nome = models.CharField(max_length=100)
     icona = models.CharField(max_length=10, blank=True)

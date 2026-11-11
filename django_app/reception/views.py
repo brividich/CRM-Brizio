@@ -43,7 +43,7 @@ GRUPPI_MENU = (
     ("inviti", "Inviti", (("preregistrazioni", "Inviti"), ("richieste", "Richieste"))),
     ("storico", "Storico", (("storico", "Storico"),)),
     ("config", "Configurazione", (("referenti", "Referenti"), ("ditte", "Ditte accreditate"), ("cartellini", "Cartellini"),
-                                  ("impostazioni", "Impostazioni"))),
+                                  ("sale", "Sale"), ("impostazioni", "Impostazioni"))),
 )
 SCHEDE_VISIBILI = {"inviti", "config"}
 
@@ -433,6 +433,65 @@ def cartellini(request):
         c.occupato = c.numero in occupati
     etichette = [{"numero": c.numero, "qr": _qr_data_uri(c.numero)} for c in righe] if request.GET.get("stampa") else []
     return render(request, "reception/cartellini.html", _ctx(request, "cartellini", righe=righe, etichette=etichette))
+
+
+@login_required
+def sale_config(request):
+    """Reception → Configurazione → Sale: quali sale riunioni compaiono negli inviti.
+
+    Le sale sono le stesse del KICK-OFF (una casella Microsoft 365 per sala): da qui si aggiungono e si
+    correggono, e si sceglie quali proporre in «Prenota una sala». Le visite non compaiono nel KICK-OFF.
+    """
+    import re
+
+    from tasks.models import MeetingRoom
+
+    from .models import SalaInviti
+
+    if request.method == "POST":
+        dati = request.POST
+        nome = " ".join((dati.get("nome") or "").split())[:120]
+        email = (dati.get("email") or "").strip().lower()[:254]
+        capienza = dati.get("capienza") or ""
+        capienza = int(capienza) if capienza.isdigit() and 0 < int(capienza) < 1000 else None
+        negli_inviti = dati.get("negli_inviti") == "1"
+        pk = dati.get("pk") or ""
+        sala = MeetingRoom.objects.filter(pk=int(pk)).first() if pk.isdigit() else None
+        if dati.get("azione") == "inviti" and sala is not None:
+            # Interruttore rapido dall'elenco
+            if negli_inviti:
+                SalaInviti.objects.get_or_create(sala=sala)
+            else:
+                SalaInviti.objects.filter(sala=sala).delete()
+            log_action(request, "reception_sala_inviti", "reception", {"sala": sala.pk, "negli_inviti": negli_inviti})
+            return redirect("reception:sale")
+        if not nome:
+            messages.error(request, "Scrivi il nome della sala.")
+        elif email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+            messages.error(request, "La casella della sala non è un indirizzo email valido.")
+        elif MeetingRoom.objects.filter(nome__iexact=nome).exclude(pk=getattr(sala, "pk", None)).exists():
+            messages.error(request, f"Esiste già una sala «{nome}».")
+        else:
+            nuova = sala is None
+            if nuova:
+                sala = MeetingRoom.objects.create(nome=nome, email=email, capienza=capienza)
+            else:
+                sala.nome, sala.email, sala.capienza = nome, email, capienza
+                sala.save(update_fields=["nome", "email", "capienza"])
+            if negli_inviti:
+                SalaInviti.objects.get_or_create(sala=sala)
+            else:
+                SalaInviti.objects.filter(sala=sala).delete()
+            log_action(request, "reception_sala_aggiunta" if nuova else "reception_sala_modificata", "reception", {"sala": sala.pk})
+            messages.success(request, f"Sala «{sala.nome}» {'aggiunta' if nuova else 'salvata'}.")
+            return redirect("reception:sale")
+    scelte = set(SalaInviti.objects.values_list("sala_id", flat=True))
+    righe = list(MeetingRoom.objects.order_by("ordine", "nome"))
+    for s in righe:
+        s.negli_inviti = s.pk in scelte
+    voluta = request.GET.get("modifica") or ""
+    modifica = next((s for s in righe if voluta.isdigit() and s.pk == int(voluta)), None)
+    return render(request, "reception/sale.html", _ctx(request, "sale", righe=righe, modifica=modifica))
 
 
 def _logo_percorso() -> str:

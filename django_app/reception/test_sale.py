@@ -15,7 +15,7 @@ from tasks.models import MeetingRoom
 from tasks.services.sale import disponibilita_giorno
 
 from . import sale, servizi
-from .models import CategoriaVisita, Preregistrazione, Referente, RichiestaAppuntamento
+from .models import CategoriaVisita, Preregistrazione, Referente, RichiestaAppuntamento, SalaInviti
 
 MAIL = "core.email_utils.send_hub_mail"
 GRAPH_PRONTO = "core.outlook_calendar.graph_ready"
@@ -26,6 +26,7 @@ class Base(TestCase):
     def setUp(self):
         cache.clear()
         self.sala = MeetingRoom.objects.create(nome="Sala Prova", email="sala.prova@example.local", capienza=8)
+        SalaInviti.objects.create(sala=self.sala)
         self.ref = Referente.objects.create(nome="Prova", cognome="Referente", email="referente@example.local")
         CategoriaVisita.objects.create(nome="Riunione")
         self.domani = timezone.localdate() + timedelta(days=1)
@@ -48,12 +49,16 @@ class VerificaTests(Base):
     def test_senza_ora_non_si_prenota(self):
         self.assertIn("ora", sale.verifica(self.sala, self.domani, None, None))
 
-    def test_la_disponibilita_kickoff_vede_le_visite_senza_nome_ospite(self):
+    def test_il_kickoff_non_vede_le_visite(self):
         self.visita()
         dati = disponibilita_giorno(self.domani)
-        blocchi = next(s for s in dati["sale"] if s["id"] == self.sala.pk)["blocchi"]
-        self.assertEqual([(b["inizio"], b["fine"]) for b in blocchi], [("10:00", "11:00")])
-        self.assertNotIn("Ospite Uno", blocchi[0]["titolo"])
+        self.assertEqual(next(s for s in dati["sale"] if s["id"] == self.sala.pk)["blocchi"], [])
+
+    def test_negli_inviti_solo_le_sale_scelte(self):
+        altra = MeetingRoom.objects.create(nome="Sala Non Scelta")
+        self.assertEqual(list(sale.sale_attive()), [self.sala])
+        SalaInviti.objects.create(sala=altra)
+        self.assertEqual(set(sale.sale_attive()), {self.sala, altra})
 
 
 @override_settings(RECEPTION_NATIVA=True)
@@ -118,7 +123,9 @@ class ApiEliminaTests(Base):
         self.visita()
         r = self.client.get(reverse("reception:api_sale"), {"data": self.domani.isoformat()})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()["sale"][0]["blocchi"][0]["inizio"], "10:00")
+        blocchi = r.json()["sale"][0]["blocchi"]
+        self.assertEqual(blocchi[0]["inizio"], "10:00")
+        self.assertNotIn("Ospite Uno", blocchi[0]["titolo"])
         self.assertEqual(self.client.get(reverse("reception:api_sale"), {"data": "x"}).status_code, 400)
 
     def test_api_anonimo_json_401(self):
@@ -166,3 +173,28 @@ class FotoReferenteChioscoTests(TestCase):
         dati = {r["id"]: r for r in chiosco.referenti()}
         self.assertTrue(dati[self.ref.pk]["foto"])
         self.assertNotIn("/", dati[self.ref.pk]["foto"])
+
+
+class ConfigurazioneSaleTests(Base):
+    url = property(lambda self: reverse("reception:sale"))
+
+    def test_pagina_e_voce_di_menu(self):
+        r = self.client.get(self.url)
+        self.assertContains(r, "Sala Prova")
+        self.assertContains(r, "Proponi negli inviti")
+
+    def test_aggiungi_modifica_e_togli_dagli_inviti(self):
+        self.client.post(self.url, {"nome": "Sala Nuova", "email": "nuova@example.local", "capienza": "12", "negli_inviti": "1"})
+        nuova = MeetingRoom.objects.get(nome="Sala Nuova")
+        self.assertTrue(SalaInviti.objects.filter(sala=nuova).exists())
+        self.client.post(self.url, {"pk": str(nuova.pk), "nome": "Sala Nuova 2", "email": "", "capienza": ""})
+        nuova.refresh_from_db()
+        self.assertEqual((nuova.nome, nuova.email, nuova.capienza), ("Sala Nuova 2", "", None))
+        self.assertFalse(SalaInviti.objects.filter(sala=nuova).exists())
+        self.client.post(self.url, {"pk": str(self.sala.pk), "azione": "inviti", "negli_inviti": "0"})
+        self.assertFalse(SalaInviti.objects.filter(sala=self.sala).exists())
+
+    def test_nome_doppio_ed_email_non_valida(self):
+        self.client.post(self.url, {"nome": "sala prova"})
+        self.client.post(self.url, {"nome": "Altra", "email": "non-valida"})
+        self.assertEqual(MeetingRoom.objects.count(), 1)

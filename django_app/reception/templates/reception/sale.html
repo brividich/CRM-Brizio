@@ -1,0 +1,46 @@
+{% extends "reception/_base.html" %}
+{% block title %}Sale | Reception{% endblock %}
+{% block rc_titolo %}Sale{% endblock %}
+{% block rc_contenuto %}
+<form method="post" class="rc-card rc-scheda">
+  {% csrf_token %}
+  {% if modifica %}<input type="hidden" name="pk" value="{{ modifica.pk }}">{% endif %}
+  <div class="rc-sez">
+    <div class="rc-sez-titolo">{% if modifica %}Modifica {{ modifica.nome }}{% else %}Nuova sala{% endif %}</div>
+    <p class="rc-sez-nota">Le sale sono le stesse degli incontri KICK-OFF. Con la casella Microsoft 365 la sala si prenota in Outlook; senza, resta segnata solo nel portale.</p>
+    <div class="rc-griglia">
+      <div class="rc-field"><label for="s-nome">Nome *</label><input class="rc-input" id="s-nome" name="nome" value="{{ modifica.nome|default:'' }}" maxlength="120" required></div>
+      <div class="rc-field"><label for="s-email">Casella Microsoft 365</label><input class="rc-input" id="s-email" type="email" name="email" value="{{ modifica.email|default:'' }}" maxlength="254" placeholder="sala@…"></div>
+      <div class="rc-field"><label for="s-posti">Posti</label><input class="rc-input" id="s-posti" type="number" name="capienza" min="1" max="999" value="{{ modifica.capienza|default:'' }}"></div>
+      <label class="rc-field rc-check"><span><input type="checkbox" name="negli_inviti" value="1"{% if not modifica or modifica.negli_inviti %} checked{% endif %}> Proponi negli inviti</span></label>
+    </div>
+  </div>
+  <div class="rc-azioni">{% if modifica %}<a class="rc-btn rc-btn-g" href="{% url 'reception:sale' %}">Annulla</a>{% endif %}<button class="rc-btn rc-btn-p" type="submit">{% if modifica %}Salva le modifiche{% else %}Aggiungi la sala{% endif %}</button></div>
+</form>
+<div class="rc-card">
+  <div class="rc-card-head">Elenco ({{ righe|length }})</div>
+  <div class="rc-wrap">
+    <table class="rc-table">
+      <thead><tr><th>Sala</th><th>Casella Microsoft 365</th><th>Posti</th><th>Negli inviti</th><th></th></tr></thead>
+      <tbody>
+      {% for s in righe %}
+        <tr>
+          <td><strong>{{ s.nome }}</strong>{% if not s.attiva %} <span class="rc-pill">Disattivata nel KICK-OFF</span>{% endif %}</td>
+          <td>{{ s.email|default:"—" }}{% if not s.email %} <span class="rc-muted">solo portale</span>{% endif %}</td>
+          <td>{{ s.capienza|default:"—" }}</td>
+          <td>
+            <form class="rc-inline" method="post">{% csrf_token %}<input type="hidden" name="pk" value="{{ s.pk }}"><input type="hidden" name="azione" value="inviti">
+              {% if s.negli_inviti %}<span class="rc-pill rc-pill-ok">Sì</span> <button class="rc-btn rc-btn-g" name="negli_inviti" value="0">Togli</button>
+              {% else %}<span class="rc-pill">No</span> <button class="rc-btn rc-btn-g" name="negli_inviti" value="1">Proponi</button>{% endif %}
+            </form>
+          </td>
+          <td><a class="rc-btn rc-btn-g" href="?modifica={{ s.pk }}">Modifica</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="rc-empty">Nessuna sala: aggiungila qui sopra.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

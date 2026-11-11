@@ -15,6 +15,7 @@ urlpatterns = [
     path("referenti/", views.referenti, name="referenti"),
     path("ditte/", views.ditte, name="ditte"),
     path("cartellini/", views.cartellini, name="cartellini"),
+    path("sale/", views.sale_config, name="sale"),
     path("impostazioni/", views.impostazioni, name="impostazioni"),
     path("richieste/", views_richieste.richieste, name="richieste"),
     # Ricerche live (JSON): gate in core/middleware.py API_ACL_GATE_PATHS

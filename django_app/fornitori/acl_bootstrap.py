@@ -218,6 +218,13 @@ _PULSANTI_DEFINITIONS = [
     },
     {
         "modulo": "fornitori",
+        "codice": "reception_sale",
+        "label": "Reception - Sale per gli inviti",
+        "url": "route:reception:sale",
+        "visible_topbar": False,
+    },
+    {
+        "modulo": "fornitori",
         "codice": "reception_impostazioni",
         "label": "Reception - Impostazioni",
         "url": "route:reception:impostazioni",
