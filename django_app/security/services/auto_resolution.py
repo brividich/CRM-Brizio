@@ -224,15 +224,18 @@ def _alerts_open_at(source, event_type, moment):
 # --- backup_job ------------------------------------------------------------------------------
 
 def _backup_candidates(event, alerts):
+    from security.services.alert_doppioni import job_base
+
     payload = event.payload or {}
-    job, device = _norm(payload.get("job_name")), _norm(payload.get("device_name"))
+    # «Backup X (Retry 2)» riuscito chiude il fallimento di «Backup X»: è lo stesso job.
+    job, device = _norm(job_base(payload.get("job_name"))), _norm(payload.get("device_name"))
     if not job:
         return []
     out = []
     for alert in alerts:
         failure = alert.event
         failure_payload = failure.payload or {}
-        if _norm(failure_payload.get("job_name")) != job or _norm(failure_payload.get("device_name")) != device:
+        if _norm(job_base(failure_payload.get("job_name"))) != job or _norm(failure_payload.get("device_name")) != device:
             continue
         # Solo un'esecuzione riuscita DOPO il fallimento prova il rientro: i report
         # possono arrivare fuori ordine.

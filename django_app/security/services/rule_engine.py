@@ -83,7 +83,7 @@ def _evaluate_event(event):
     else:
         event.decision_trace = {"decision": "kpi_only", "reason": "Nessuna regola di alert corrisponde"}
         event.save(update_fields=["decision_trace"])
-    if (event.decision_trace or {}).get("decision") != "alert":
+    if (event.decision_trace or {}).get("decision") not in ("alert", "merged"):
         _apply_learned_escalation(event)
 
 
@@ -529,11 +529,13 @@ def _evaluate_backup_repository_space(event):
 
 
 def _evaluate_cve_sla_scaduta(event):
-    """PC esposto a una CVE oltre il termine di correzione (ISO 27001 8.8, ``cve_sla``): un alert per CVE, PC e termine.
+    """PC esposto a una CVE oltre il termine di correzione (ISO 27001 8.8, ``cve_sla``).
 
-    Severità alta per CVE sfruttate (KEV) o critiche, media per le altre (dall'evento, o dalla
-    regola facoltativa ``cve_sla_scaduta`` se definita). Si chiude da solo quando l'esposizione
-    rientra o viene accettata (``cve_sla.chiudi_rientrate``).
+    L'evento resta uno per CVE, PC e termine (audit). L'alert, con «Meno rumore» acceso, è uno per CVE: se la
+    CVE ha già l'alert «PC con versione vulnerabile» il termine scaduto va nella sua timeline, senza un alert
+    nuovo; altrimenti un alert per CVE con i PC nella timeline. Spento: un alert per CVE, PC e termine, come prima.
+    Severità alta per CVE sfruttate (KEV) o critiche, media per le altre. Si chiude da solo quando tutti i PC
+    rientrano o il rischio viene accettato (``cve_sla.chiudi_rientrate``).
     """
     from security.services import cve_sla
 
@@ -548,8 +550,35 @@ def _evaluate_cve_sla_scaduta(event):
         "rule": "Esposizione a una CVE oltre il termine di correzione della sua classe => alert",
         "cve": payload.get("cve"), "host": payload.get("host"), "classe": payload.get("classe"),
         "scadenza": payload.get("scadenza"), "giorni_ritardo": payload.get("giorni_ritardo"), "aperta_dal": payload.get("aperta_dal"),
+        "event_id": event.pk,
     }
-    _alert_da_evento(event, cve_sla.titolo_evento(payload), rule.severity if rule else event.severity, trace)
+    severity = rule.severity if rule else event.severity
+    if not alert_doppioni.rumore_attivo():
+        _alert_da_evento(event, cve_sla.titolo_evento(payload), severity, trace)
+        _mark_rule_triggered(rule)
+        return
+    impatto = alert_doppioni.alert_impatto_per_cve(payload.get("cve"))
+    if impatto:
+        alert = impatto[0]
+        alert_doppioni.registra_termine_su_impatto(alert, payload, event.pk)
+        event.decision_trace = {**trace, "decision": "merged", "alert_id": alert.pk,
+                                "reason": "La CVE ha già l'alert «PC con versione vulnerabile»: termine scaduto scritto nella sua timeline"}
+        event.save(update_fields=["decision_trace"])
+        _mark_rule_triggered(rule)
+        return
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source, event=event, title=cve_sla.titolo_cve(payload), severity=severity,
+        dedup_hash=alert_doppioni.chiave_alert(event), decision_trace=trace, aggiorna_titolo=True,
+    )
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(alert=alert, action="alert_created" if alert_created else "cve_termine_scaduto",
+                                          details=trace)
+    if alert_created:
+        notify_alert_created(alert)
     _mark_rule_triggered(rule)
 
 
@@ -711,6 +740,11 @@ def _evaluate_m365_account_cessato(event):
 def _evaluate_entra_audit(event):
     """Modifica amministrativa sorvegliata in Entra ID (``entra_signals``): un alert per riga di audit."""
     payload = event.payload or {}
+    if alert_doppioni.rumore_attivo() and alert_doppioni.autore_fidato(payload.get("autore")):
+        event.decision_trace = {"decision": "kpi_only", "autore": payload.get("autore"),
+                                "reason": "Modifica fatta da un amministratore fidato: resta negli eventi, senza alert"}
+        event.save(update_fields=["decision_trace"])
+        return
     trace = {
         "decision": "alert",
         "rule": "Entra ID: attività amministrativa sorvegliata => alert",
@@ -863,7 +897,43 @@ def _alert_unreadable_vulnerability(event, payload, exposed_unknown=False):
         notify_alert_created(alert)
 
 
+def _evaluate_veeam_malware(event):
+    """Mail di Veeam sul malware trovato nei backup: un alert solo (alto), aggiornato dalla mail più recente.
+
+    Arriva come ``veeam_malware`` dal parser, o come ``backup_job`` dalle mail lette prima che il parser le distinguesse.
+    Non si chiude da solo: un backup riuscito non dice che il malware non c'è più.
+    """
+    import re
+
+    payload = event.payload or {}
+    testo = " ".join(str(payload.get(k) or "") for k in ("title", "job_name", "subject"))
+    numero = re.search(r"(\d+)\s+malware", testo, re.I)
+    quanti = int(numero.group(1)) if numero else None
+    if quanti == 0:
+        event.decision_trace = {"decision": "kpi_only", "reason": "Report malware di Veeam senza eventi"}
+        event.save(update_fields=["decision_trace"])
+        return
+    descrizione = (payload.get("title") or payload.get("job_name") or "attività sospetta").strip()
+    trace = {"decision": "alert", "rule": "Veeam: malware rilevato nei backup => alert alto (non si chiude da solo)",
+             "malware_eventi": quanti, "descrizione": descrizione, "event_id": event.pk}
+    alert, alert_created = _get_or_create_active_alert(
+        source=event.source, event=event, title=f"Veeam: malware nei backup ({descrizione})"[:255],
+        severity=Severity.HIGH, dedup_hash=alert_doppioni.chiave_alert(event), decision_trace=trace, aggiorna_titolo=True,
+    )
+    trace["alert_created"] = alert_created
+    _store_alert_decision_trace(alert, trace, alert_created)
+    event.decision_trace = trace
+    event.save(update_fields=["decision_trace"])
+    build_evidence_container(event.source, alert.title, alert=alert, event=event, decision_trace=trace)
+    SecurityAlertActionLog.objects.create(alert=alert, action="alert_created" if alert_created else "alert_reused", details=trace)
+    if alert_created:
+        notify_alert_created(alert)
+
+
 def _evaluate_backup(event):
+    if alert_doppioni.e_report_malware(event.payload):
+        _evaluate_veeam_malware(event)
+        return
     status = event.payload.get("status", "").lower()
     if status == "completed":
         event.decision_trace = {"decision": "kpi_only", "rule": "Backup completato => solo KPI"}
@@ -949,6 +1019,18 @@ def _evaluate_watchguard_alert_candidate(event):
         event.decision_trace = {"decision": "kpi_only", "reason": "Regola sugli alert WatchGuard disattivata", "rule": rule.code}
         event.save(update_fields=["decision_trace"])
         return
+    if alert_doppioni.rumore_attivo() and alert_doppioni.solo_dispositivi_bloccati(payload):
+        # Chiavette USB fermate dalla policy: la protezione ha funzionato. Conteggio per PC, alert solo sopra la soglia.
+        soglia = soc_settings_value("rumore.dispositivi_bloccati.soglia")
+        blocchi = alert_doppioni.blocchi_ultime_24h(event)
+        if not soglia or blocchi < soglia:
+            event.decision_trace = {
+                "decision": "kpi_only",
+                "reason": "Dispositivi bloccati dalla policy (es. chiavette USB): conteggio per PC, alert solo sopra la soglia",
+                "blocchi_24h": blocchi, "soglia": soglia,
+            }
+            event.save(update_fields=["decision_trace"])
+            return
     trace = {
         "decision": "alert",
         "rule": "Candidato alert WatchGuard proposto dal parser (filtro anti-rumore)",
@@ -1138,6 +1220,7 @@ _HANDLERS = {
     "apparato_raggiungibile": _evaluate_apparato_raggiungibile,
     "backup_repository_space": _evaluate_backup_repository_space,
     "cve_sla_scaduta": _evaluate_cve_sla_scaduta,
+    "veeam_malware": _evaluate_veeam_malware,
     "patch_sla_scaduta": _evaluate_patch_sla_scaduta,
     "dipendenza_vulnerabile": _evaluate_dipendenza_vulnerabile,
     "accettazione_rischio": _evaluate_accettazione_rischio,

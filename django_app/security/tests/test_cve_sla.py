@@ -166,6 +166,25 @@ class ScaduteERiepilogoTests(_Base):
 
 
 class AutomatismoTerminiTests(_Base):
+    """Comportamento con «Meno rumore» spento: un alert per CVE, PC e termine (quello acceso: test_meno_rumore)."""
+
+    def setUp(self):
+        super().setUp()
+        soc_settings.save({"rumore.attivo": False}, None)
+
+    def test_meno_rumore_termine_nella_timeline_dell_alert_impatto(self):
+        from security.models import SecurityAlertActionLog
+
+        soc_settings.save({"rumore.attivo": True}, None)
+        evaluate_security_rules()  # l'alert «PC con versione vulnerabile» della CVE critica
+        impatto = SecurityAlert.objects.get(event__event_type="cve_impact_confirmed")
+        self._retrodata(20)
+        cve_sla.segnala_scadute()
+        evaluate_security_rules()
+        self.assertFalse(self._sla_alerts().exists())
+        self.assertEqual(set(SecurityAlertActionLog.objects.filter(alert=impatto, action="cve_termine_scaduto")
+                             .values_list("details__host", flat=True)), {"pc-sla-01", "pc-sla-02"})
+
     def test_evento_e_alert_per_esposizione_oltre_il_termine(self):
         self._retrodata(20, "pc-sla-01")
         creati, chiusi = cve_sla.segnala_scadute()
@@ -239,6 +258,7 @@ class AccettazioneRischioTests(_Base):
         self.assertTrue(AuditLog.objects.filter(modulo="security", azione=traccia.RISCHIO_ACCETTATO).exists())
 
     def test_accettazione_evita_alert_e_chiude_quello_aperto(self):
+        soc_settings.save({"rumore.attivo": False}, None)  # un alert per PC, come prima di «Meno rumore»
         self._retrodata(20)
         cve_sla.segnala_scadute()
         evaluate_security_rules()
