@@ -2,7 +2,7 @@
   fid = identificativo unico della famiglia, grp = gruppo per codice (solo chiuse), chiusa = parte compressa.{% endcomment %}
 <tr class="rn-fam-head {% if chiusa %}is-chiusa{% else %}is-open{% endif %}"
     data-fam="{{ fid }}" data-cerca="{{ fam.cerca }}" data-cer="{{ fam.cer_keys }}"{% if grp %} data-grp="{{ grp }}" hidden{% endif %} onclick="toggleFam(this)">
-  <td colspan="11">
+  <td colspan="10">
     <span class="rn-fam-caret">{% if chiusa %}&#9654;{% else %}&#9660;{% endif %}</span>
     <span class="rn-state rn-state-{{ fam.stato }}">{{ fam.stato_label }}</span>
     <span class="rn-fam-title">{{ fam.codice|default:"— senza codice —" }}</span>
@@ -24,8 +24,7 @@
   <td><strong>{{ r.codice|default:"—" }}</strong></td>
   <td>{% if r.quantita is not None %}<strong>{{ r.quantita }}</strong>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
   <td>{{ r.carico_scarico|default:"—" }}</td>
-  <td>{% if r.rentri_si_no %}<span class="rn-bool-yes">SI</span>{% else %}<span class="rn-bool-no">NO</span>{% endif %}</td>
-  <td>{% if r.salva %}<span class="rn-bool-yes">&#10003;</span>{% else %}<span class="rn-bool-no">—</span>{% endif %}</td>
+  {% include "rentri/components/hp_cella.html" with r=r fam_hp=fam.hp %}
   <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
   <td>
     <div class="cp-row-actions">
@@ -46,8 +45,7 @@
   <td>{{ r.codice|default:"—" }}</td>
   <td>{% if r.quantita is not None %}{{ r.quantita }}{% elif r.rettifica_scarico is not None %}<span style="color:#713f12;">{{ r.rettifica_scarico }}</span>{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
   <td>{{ r.carico_scarico|default:"—" }}</td>
-  <td>{% if r.rentri_si_no %}<span class="rn-bool-yes">SI</span>{% else %}<span class="rn-bool-no">NO</span>{% endif %}</td>
-  <td>{% if r.salva %}<span class="rn-bool-yes">&#10003;</span>{% else %}<span class="rn-bool-no">—</span>{% endif %}</td>
+  {% include "rentri/components/hp_cella.html" with r=r fam_hp=fam.hp %}
   <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
   <td>
     <div class="cp-row-actions">
@@ -59,4 +57,4 @@
   </td>
 </tr>
 {% endfor %}
-<tr class="rn-fam-sep" data-fam-sep="{{ fid }}"{% if grp %} data-grp-sep="{{ grp }}" hidden{% endif %}><td colspan="11"></td></tr>
+<tr class="rn-fam-sep" data-fam-sep="{{ fid }}"{% if grp %} data-grp-sep="{{ grp }}" hidden{% endif %}><td colspan="10"></td></tr>
