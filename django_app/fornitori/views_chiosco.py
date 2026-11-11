@@ -62,7 +62,8 @@ def pagina(request):
     # Nella pagina solo id, nome e reparto: l'email del referente resta sul server.
     if disponibile:
         try:
-            referenti = [{"id": r["id"], "nome": r["nome"], "reparto": r["reparto"]} for r in chiosco.referenti()]
+            referenti = [{"id": r["id"], "nome": r["nome"], "reparto": r["reparto"], "foto": r.get("foto") or ""}
+                         for r in chiosco.referenti()]
         except chiosco.ChioscoNonDisponibile:
             disponibile = False
     versione = chiosco.logo_versione() if chiosco.logo_percorso() else ""
@@ -87,6 +88,32 @@ def logo(request):
     if not percorso or estensione not in chiosco.LOGO_ESTENSIONI or not default_storage.exists(percorso):
         raise Http404
     risposta = FileResponse(default_storage.open(percorso, "rb"), content_type=chiosco.LOGO_ESTENSIONI[estensione])
+    risposta["Cache-Control"] = "private, max-age=86400"
+    risposta["X-Content-Type-Options"] = "nosniff"
+    return risposta
+
+
+@require_GET
+def foto_referente(request, pk: int):
+    """Miniatura della foto dell'anagrafica di un referente attivo, solo per le postazioni ammesse.
+
+    Solo con la reception nell'HUB (il referente è collegato al dipendente). Nessun altro dato:
+    la pagina conosce già nome e reparto.
+    """
+    from django.http import Http404, HttpResponse
+
+    if not postazione_ammessa(request) or not chiosco.nativa():
+        raise Http404
+    from anagrafica.models import DipendenteAnagraficaCivile
+    from anagrafica.views.dipendenti import _miniatura_foto
+    from reception.models import Referente
+
+    ref = Referente.objects.filter(pk=pk, attivo=True, dipendente_id__isnull=False).first()
+    civile = ref and DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=ref.dipendente_id).exclude(foto="").first()
+    dati = _miniatura_foto(civile.foto) if civile else None
+    if not dati:
+        raise Http404
+    risposta = HttpResponse(dati, content_type="image/jpeg")
     risposta["Cache-Control"] = "private, max-age=86400"
     risposta["X-Content-Type-Options"] = "nosniff"
     return risposta
