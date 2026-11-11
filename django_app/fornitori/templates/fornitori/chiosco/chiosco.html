@@ -64,6 +64,12 @@ button { font:inherit; color:inherit; }
 .ck-ref-list p { grid-column:1/-1; }
 .ck-ref-list .ck-opt { min-height:76px; padding:12px 16px; font-size:20px; }
 .ck-ref-list .ck-av { width:44px; height:44px; font-size:17px; }
+.ck-av.foto { padding:0; overflow:hidden; background:#1e3a5f; }
+.ck-av.foto img { width:100%; height:100%; object-fit:cover; display:block; }
+.ck-ref-list .ck-av.foto { width:58px; height:58px; }
+.ck-card-ref { display:flex; align-items:center; gap:12px; }
+.ck-card-ref img { width:48px; height:48px; border-radius:50%; object-fit:cover; flex:none; }
+.ck-card-ref img[hidden] { display:none; }
 .ck-ref-list .ck-opt.ultima { grid-column:1/-1; }
 .ck-lettere { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
 .ck-lettere button { min-width:54px; min-height:54px; padding:0 12px; border:2px solid var(--border2); border-radius:14px; background:var(--surface); font-size:21px; font-weight:700; cursor:pointer; }
@@ -324,7 +330,7 @@ button { font:inherit; color:inherit; }
       <div class="ck-card-top"><span>NOVICROM</span><span>VISITATORE</span></div>
       <div class="ck-card-n" id="p-nome">…</div>
       <button type="button" class="ck-card-r" data-torna="s-azienda">Azienda<strong id="p-azienda">—</strong></button>
-      <button type="button" class="ck-card-r" data-torna="s-chi">Referente<strong id="p-ref">—</strong><small class="ck-card-rep" id="p-ref-rep" hidden></small></button>
+      <button type="button" class="ck-card-r" data-torna="s-chi">Referente<span class="ck-card-ref"><img id="p-ref-foto" alt="" hidden><span><strong id="p-ref">—</strong><small class="ck-card-rep" id="p-ref-rep" hidden></small></span></span></button>
       <button type="button" class="ck-card-r" data-torna="s-motivo" id="p-motivo-r">Motivo<strong id="p-motivo">—</strong></button>
     </div>
     <div class="ck-pass-n">Tocca una riga del pass per correggerla. Il referente riceve una mail appena confermi.</div>
@@ -350,6 +356,7 @@ button { font:inherit; color:inherit; }
   var REFERENTI = JSON.parse(document.getElementById('dati-referenti').textContent);
   var MOTIVI = Array.prototype.map.call(document.querySelectorAll('[data-motivo]'), function (b) { return b.dataset.motivo; });
   var API = '{% url "chiosco:pagina" %}api/';
+  var FOTO = '{% url "chiosco:pagina" %}foto/';
   var CSRF = document.querySelector('meta[name=csrf-token]').content;
   var IDLE_SEC = 120;
   var PASSI = ['s-nome', 's-conferma', 's-azienda', 's-chi', 's-motivo', 's-privacy'];
@@ -418,6 +425,9 @@ button { font:inherit; color:inherit; }
     $('p-ref').textContent = $('f-host').dataset.nome || '—';
     $('p-ref-rep').textContent = $('f-host').dataset.nome ? ($('f-host').dataset.reparto || '') : '';
     $('p-ref-rep').hidden = !$('p-ref-rep').textContent;
+    var fotoRef = $('f-host').dataset.nome && $('f-host').dataset.foto;
+    if (fotoRef) { $('p-ref-foto').src = fotoRef; } else { $('p-ref-foto').removeAttribute('src'); }
+    $('p-ref-foto').hidden = !fotoRef;
     $('p-motivo').textContent = stato.motivo || '—';
     $('p-motivo-r').hidden = !!stato.fornitore;
   }
@@ -429,7 +439,7 @@ button { font:inherit; color:inherit; }
     document.querySelectorAll('input.ck-input, input.ck-big').forEach(function (i) { i.value = ''; });
     document.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = false; c.dispatchEvent(new Event('change')); });
     document.querySelectorAll('[data-motivo]').forEach(function (c) { c.classList.remove('on'); });
-    $('f-host').value = ''; $('f-host').dataset.nome = ''; $('f-host').dataset.reparto = ''; $('f-host-cerca').value = ''; lettera = ''; disegnaReferenti();
+    $('f-host').value = ''; $('f-host').dataset.nome = ''; $('f-host').dataset.reparto = ''; $('f-host').dataset.foto = ''; $('f-host-cerca').value = ''; lettera = ''; disegnaReferenti();
     $('visite').innerHTML = ''; $('pad-box').hidden = true;
     $('f-cognome-sugg').innerHTML = ''; $('f-nome-sugg').innerHTML = '';
     badge = ''; codice = '';
@@ -546,6 +556,17 @@ button { font:inherit; color:inherit; }
   // Segnaposto del GuestPortal come «!! NESSUN REFERENTE !!» (simboli che un nome non ha):
   // in fondo all'elenco e mai proposti come «Come l'ultima volta».
   function segnaposto(r) { var n = normalizza(r.nome).trim(); return !n || /[^a-z' .-]/.test(n); }
+  // Foto dell'anagrafica (miniatura) se c'è; altrimenti le iniziali. Se l'immagine non arriva, tornano le iniziali.
+  function fotoUrl(r) { return r.foto ? FOTO + r.id + '/?v=' + encodeURIComponent(r.foto) : ''; }
+  function avatar(r) {
+    var url = fotoUrl(r);
+    if (!url) { return el('span', 'ck-av', iniziali(r.nome)); }
+    var a = el('span', 'ck-av foto'), img = el('img');
+    img.alt = ''; img.loading = 'lazy'; img.src = url;
+    img.addEventListener('error', function () { a.className = 'ck-av'; a.textContent = iniziali(r.nome); });
+    a.appendChild(img);
+    return a;
+  }
   function iniziale(r) { return normalizza(r.nome).trim().charAt(0).toUpperCase(); }
   var ORDINATI = REFERENTI.slice().sort(function (a, b) {
     return (segnaposto(a) - segnaposto(b)) || normalizza(a.nome).localeCompare(normalizza(b.nome));
@@ -571,7 +592,7 @@ button { font:inherit; color:inherit; }
     });
   }
   function scegliReferente(r, comeUltima) {
-    $('f-host').value = r ? r.id : ''; $('f-host').dataset.nome = r ? r.nome : ''; $('f-host').dataset.reparto = r ? (r.reparto || '') : '';
+    $('f-host').value = r ? r.id : ''; $('f-host').dataset.nome = r ? r.nome : ''; $('f-host').dataset.reparto = r ? (r.reparto || '') : ''; $('f-host').dataset.foto = r ? fotoUrl(r) : '';
     stato.comeUltima = !!(r && comeUltima);
     $('f-host-cerca').value = ''; lettera = '';
     disegnaReferenti(); pass();
@@ -598,7 +619,7 @@ button { font:inherit; color:inherit; }
     elenco.forEach(function (r) {
       var primo = !cerca && !lettera && scelto && scelto.id === r.id;
       var b = el('button', 'ck-opt' + (scelto && scelto.id === r.id ? ' on' : '') + (primo ? ' ultima' : '')); b.type = 'button';
-      b.appendChild(el('span', 'ck-av', iniziali(r.nome)));
+      b.appendChild(avatar(r));
       var t = el('span'); t.appendChild(document.createTextNode(r.nome));
       var nota = scelto && scelto.id === r.id && stato.comeUltima && !cerca ? ['Come l\'ultima volta', r.reparto].filter(Boolean).join(' · ') : r.reparto;
       if (nota) { t.appendChild(el('small', '', nota)); }

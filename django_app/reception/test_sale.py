@@ -134,3 +134,35 @@ class ApiEliminaTests(Base):
             self.client.post(reverse("reception:preregistrazione_azione", args=[pre.pk]), {"azione": "elimina"})
         cancella.assert_called_once_with(target_email="referente@example.local", event_id="ev-3")
         self.assertFalse(Preregistrazione.objects.exists())
+
+
+@override_settings(CHIOSCO_ALLOWED_IPS=["127.0.0.1"], RECEPTION_NATIVA=True)
+class FotoReferenteChioscoTests(TestCase):
+    def setUp(self):
+        from anagrafica.models import DipendenteAnagraficaCivile
+
+        self.ref = Referente.objects.create(nome="Prova", cognome="Foto", email="foto@example.local", dipendente_id=990001)
+        DipendenteAnagraficaCivile.objects.create(legacy_anagrafica_id=990001)
+        DipendenteAnagraficaCivile.objects.filter(legacy_anagrafica_id=990001).update(foto="dipendenti/990001/foto_prova.jpg")
+        self.url = reverse("chiosco:foto_referente", args=[self.ref.pk])
+
+    def test_miniatura_solo_alle_postazioni_ammesse(self):
+        with patch("anagrafica.views.dipendenti._miniatura_foto", return_value=b"jpeg-finto"):
+            r = self.client.get(self.url)
+            self.assertEqual((r.status_code, r["Content-Type"], r.content), (200, "image/jpeg", b"jpeg-finto"))
+            self.assertEqual(self.client.get(self.url, REMOTE_ADDR="10.9.9.9").status_code, 404)
+            with override_settings(RECEPTION_NATIVA=False):
+                self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_referente_senza_foto_o_disattivo(self):
+        altro = Referente.objects.create(nome="Senza", cognome="Foto", email="senza@example.local")
+        self.assertEqual(self.client.get(reverse("chiosco:foto_referente", args=[altro.pk])).status_code, 404)
+        Referente.objects.filter(pk=self.ref.pk).update(attivo=False)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_la_pagina_del_chiosco_porta_solo_la_versione_della_foto(self):
+        from fornitori import chiosco
+
+        dati = {r["id"]: r for r in chiosco.referenti()}
+        self.assertTrue(dati[self.ref.pk]["foto"])
+        self.assertNotIn("/", dati[self.ref.pk]["foto"])
