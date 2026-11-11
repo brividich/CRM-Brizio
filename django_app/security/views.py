@@ -235,7 +235,9 @@ def alert_detail(request, pk, ai=None, ai_risoluzione=None):
     alert.short_dedup_hash = alert.dedup_hash[:12] if alert.dedup_hash else ""
     ticket = _alert_case(alert)
     evidence = alert.evidence_containers.prefetch_related("items").order_by("-created_at")
-    occurrences = SecurityEventRecord.objects.filter(dedup_hash=alert.dedup_hash).select_related("report").order_by("-occurred_at")[:25]
+    from security.services.alert_doppioni import occorrenze
+
+    occurrences = occorrenze(alert).select_related("report").order_by("-occurred_at")[:25]
     action_logs = alert.action_logs.select_related("ticket").order_by("-created_at")[:25]
     payload = alert.event.payload if alert.event_id else {}
     context = {

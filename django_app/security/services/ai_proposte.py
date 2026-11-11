@@ -165,7 +165,9 @@ def prove_alert(alert, *, now=None):
     prove = []
     aperto_il = alert.created_at or now
     if alert.dedup_hash:
-        stessi = SecurityEventRecord.objects.filter(dedup_hash=alert.dedup_hash)
+        from security.services.alert_doppioni import occorrenze
+
+        stessi = occorrenze(alert)
         dopo = stessi.filter(occurred_at__gt=aperto_il)
         n_dopo = dopo.count()
         ultima = stessi.order_by("-occurred_at").values_list("occurred_at", flat=True).first()

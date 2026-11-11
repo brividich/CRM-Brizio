@@ -64,12 +64,15 @@ def _termini_correzione_cve():
 
     Gira prima della valutazione delle regole dopo l'heartbeat, così gli eventi diventano alert nello stesso giro.
     """
-    from security.services import accettazione_rischio, cve_sla, soppressioni_scadenza
+    from security.services import accettazione_rischio, alert_doppioni, cve_sla, soppressioni_scadenza
 
     accettazioni = accettazione_rischio.controlla_scadenze()
     eventi, chiusi = cve_sla.segnala_scadute()
     soppressioni = soppressioni_scadenza.controlla_scadenze()
-    return {**accettazioni, "oltre_termine": eventi, "rientrati": chiusi, "soppressioni_in_scadenza": soppressioni}
+    # CVE della mail di Defender già seguita PC per PC dall'inventario: l'alert della mail è un doppione.
+    doppie = len(alert_doppioni.chiudi_cve_doppie())
+    return {**accettazioni, "oltre_termine": eventi, "rientrati": chiusi, "soppressioni_in_scadenza": soppressioni,
+            "cve_doppie_chiuse": doppie}
 
 
 def _termini_patch():
