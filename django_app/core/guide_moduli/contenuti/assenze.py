@@ -175,6 +175,9 @@ GUIDA = {
                     "Compila data e orari e clicca «Salva certificazione».",
                     "Per correggerla usa «Modifica» nella tabella «Certificazioni registrate».",
                 ]),
+                ("p", "La certificazione salvata da questa pagina è già approvata: parte subito la mail "
+                      "«Certificazione presenza approvata» al dipendente e a chi l'ha inserita, con assenza@ in copia. "
+                      "Se il nome corrisponde a più persone con indirizzi diversi, al dipendente non scrive."),
             ],
         },
     ],
@@ -394,6 +397,16 @@ GUIDA = {
                 "del caporeparto del dipendente.",
                 "Le richieste importate da SharePoint o dalla Certificazione presenze non hanno l'autore: "
                 "vengono trattate come inserite dall'ufficio (caporeparto in copia).",
+            ],
+        },
+        {
+            "sintomo": "La certificazione presenza inserita dalla pagina dedicata non avvisa nessuno",
+            "perche": "nasce già approvata e le regole delle automazioni non scattano: la mail parte dalla pagina "
+                      "stessa al salvataggio (dal 11/11/2026).",
+            "fare": [
+                "Cerca l'oggetto «Certificazione presenza approvata» in Automazioni → Mail inviate.",
+                "Se manca il dipendente fra i destinatari, controlla in Anagrafica l'email di notifica e che "
+                "il nominativo non abbia omonimi.",
             ],
         },
         {

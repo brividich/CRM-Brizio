@@ -2087,6 +2087,16 @@ def certificazione_presenza(request):
                         except Exception as exc:
                             _helpers.logger.warning("certifica_presenza: errore auto-push assenze: %s", exc)
 
+                    # Nata già approvata: nessuna regola delle automazioni scatta,
+                    # la conferma al dipendente, a chi inserisce e ad assenza@ parte da qui.
+                    from ..mail_certificazione_presenza import send_certificazione_confermata
+
+                    send_certificazione_confermata(
+                        obj,
+                        inserito_da_email=str(getattr(request.user, "email", "") or ""),
+                        inserito_da_nome=inserito_da,
+                    )
+
                     form_success = True
 
                 # Aggiorna lista dopo salvataggio
