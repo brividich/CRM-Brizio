@@ -413,3 +413,43 @@ class Fase3Tests(TestCase):
         self.assertEqual(codici, ["PDQ CLI-A", "MT CN 06"])
         codici = [d["codice"] for d in col.documenti_per_kickoff(req, "Altro cliente")]
         self.assertEqual(codici, ["MT CN 06"])
+
+
+class ApriFileTests(TestCase):
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+
+        self.tmp = tempfile.mkdtemp()
+        self.root = Path(self.tmp)
+        (self.root / "9100_Qualità" / "2_MT").mkdir(parents=True)
+        self.pdf = self.root / "9100_Qualità" / "2_MT" / "MT CN 01 Rev.2_Ordini.pdf"
+        self.pdf.write_bytes(b"%PDF-1.4 test")
+        self.admin = User.objects.create_user(username="cnsgi_apri", password="pw", is_superuser=True)
+        self.client.force_login(self.admin)
+        self.doc = ProcedureDocument.objects.create(code="MT CN 01", title="Ordini", category="9100_Qualità", sezione="2_MT")
+        self.rev = ProcedureRevision.objects.create(
+            document=self.doc, revision_code="2", revision_date=date(2026, 10, 1), effective_date=date(2026, 10, 1),
+            source_type=SourceType.FILESERVER, source_path=str(self.pdf), file_name=self.pdf.name, is_current=True,
+        )
+
+    def test_apre_il_pdf_inline(self):
+        with override_settings(PROCEDURE_REFRESH_SGI_SHARE_ROOT=str(self.root)):
+            r = self.client.get(reverse("procedure_refresh:libreria_apri", args=[self.doc.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("inline", r["Content-Disposition"])
+
+    def test_file_sparito_spiega_invece_di_not_found(self):
+        self.pdf.unlink()
+        with override_settings(PROCEDURE_REFRESH_SGI_SHARE_ROOT=str(self.root)):
+            r = self.client.get(reverse("procedure_refresh:libreria_apri", args=[self.doc.pk]))
+        self.assertEqual(r.status_code, 404)
+        self.assertContains(r, "più nella cartella SGI", status_code=404)
+
+    def test_senza_permesso_sulla_cartella(self):
+        with override_settings(PROCEDURE_REFRESH_SGI_SHARE_ROOT=str(self.root)), \
+                mock.patch("procedure_refresh.views_libreria._safe_sgi_pdf", return_value=None), \
+                mock.patch("procedure_refresh.libreria.Path.stat", side_effect=PermissionError):
+            r = self.client.get(reverse("procedure_refresh:libreria_apri", args=[self.doc.pk]))
+        self.assertEqual(r.status_code, 503)
+        self.assertContains(r, "non riesce a leggere la cartella SGI", status_code=503)

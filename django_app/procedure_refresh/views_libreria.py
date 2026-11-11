@@ -13,6 +13,7 @@ un documento che l'utente non può vedere non compare e la sua scheda dà 404.
 from __future__ import annotations
 
 import json
+import logging
 from collections import OrderedDict
 from datetime import datetime, timedelta
 
@@ -44,6 +45,7 @@ from .models import (
 from .views import _can_manage, _safe_sgi_pdf
 
 VISTE = ("copertine", "elenco")
+logger = logging.getLogger(__name__)
 
 
 def _ultimo_controllo():
@@ -354,10 +356,19 @@ def apri(request, pk: int):
     if rev.source_type == SourceType.FILESERVER and rev.source_path and not _SUPERATO_RE.search(rev.source_path):
         path = _safe_sgi_pdf(rev.source_path)
         if path is not None:
-            response = FileResponse(open(path, "rb"), content_type="application/pdf", filename=(rev.file_name or path.name))
-            response["Content-Disposition"] = response["Content-Disposition"].replace("attachment", "inline")
-            response["X-Content-Type-Options"] = "nosniff"
-            return response
+            try:
+                response = FileResponse(open(path, "rb"), content_type="application/pdf", filename=(rev.file_name or path.name))
+            except OSError:
+                path = None
+            else:
+                response["Content-Disposition"] = response["Content-Disposition"].replace("attachment", "inline")
+                response["X-Content-Type-Options"] = "nosniff"
+                return response
+        motivo = lib.perche_file_non_apribile(rev.source_path)
+        logger.warning("CN-SGI: %s non apribile (%s): %s", doc.code, motivo, rev.source_path)
+        return render(request, "procedure_refresh/libreria/file_non_disponibile.html", {
+            "doc": doc, "rev": rev, "motivo": motivo, "is_manager": _vis.gestore,
+        }, status=503 if motivo == "permesso" else 404)
     raise Http404("File non disponibile.")
 
 

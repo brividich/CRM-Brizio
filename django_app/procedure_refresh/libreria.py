@@ -609,6 +609,35 @@ def radice_share() -> Path | None:
     return Path(raw) if raw else None
 
 
+def perche_file_non_apribile(percorso: str) -> str:
+    """Perché il portale non riesce ad aprire il PDF: «permesso», «non_trovato» o «fuori_cartella».
+
+    «permesso» = l'utente con cui gira il sito non può leggere la cartella SGI (la
+    sincronizzazione può riuscirci lo stesso se gira con un altro utente).
+    """
+    radice = radice_share()
+    try:
+        if radice is not None:
+            radice.stat()
+            next(iter(radice.iterdir()), None)
+    except PermissionError:
+        return "permesso"
+    except OSError:
+        return "permesso"
+    try:
+        Path(percorso).stat()
+    except PermissionError:
+        return "permesso"
+    except OSError:
+        return "non_trovato"
+    if radice is not None:
+        try:
+            Path(percorso).resolve().relative_to(radice.resolve())
+        except (OSError, ValueError):
+            return "fuori_cartella"
+    return "non_trovato"
+
+
 # ---------------------------------------------------------------------------
 # Sapere: CN-SGI come catalogo della stanza e riquadro in home
 # ---------------------------------------------------------------------------
