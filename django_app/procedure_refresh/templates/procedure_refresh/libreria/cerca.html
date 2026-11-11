@@ -27,6 +27,8 @@
     <div style="min-width:0">
       {% if q %}
         <p style="margin:0 0 4px;color:var(--text-mid);font-size:13px"><b>{{ risultati|length }}</b> document{{ risultati|length|pluralize:"o,i" }} per «{{ q }}»</p>
+        {% if risultati.corrette %}<p class="cn-note" style="margin:6px 0">Cercato anche {% for scritta, trovata in risultati.corrette %}«{{ trovata }}» al posto di «{{ scritta }}»{% if not forloop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
+        {% if risultati.approssimati and risultati %}<p class="cn-note" style="margin:6px 0">Nessun documento contiene tutte le parole: ecco quelli a cui ne manca una.</p>{% endif %}
         {% for r in risultati %}
         <div class="cn-res" style="--col:{{ r.doc.scaffale.colore|default:'#1f4f86' }}">
           <span class="mini" aria-hidden="true"></span>

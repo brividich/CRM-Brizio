@@ -489,33 +489,179 @@ class Risultato:
     occorrenze: int = 0
 
 
-def cerca(q: str, docs: list, *, campo: str = "tutto") -> list[Risultato]:
-    """Cerca ``q`` nei documenti dati (già filtrati per visibilità).
+class Risultati(list):
+    """Elenco dei risultati con due note per la pagina: corrispondenze parziali e parole corrette."""
 
-    ``campo``: «tutto», «titolo» (codice e titolo) o «testo». Senza accenti e senza
-    maiuscole; il testo viene letto da ``SgiTestoEstratto`` solo per la revisione in vigore.
-    """
-    q = re.sub(r"\s+", " ", (q or "").strip())
-    if len(q) < 2:
-        return []
-    qp = _piega(q)
-    per_rev = {d.rev.pk: d for d in docs}
-    risultati: dict[int, Risultato] = {}
+    approssimati: bool = False
+    corrette: list = []  # [(parola scritta, parola trovata)]
 
-    if campo in ("tutto", "titolo"):
+
+# Parole che non aiutano a trovare un documento: si ignorano (se la ricerca è fatta solo
+# di queste, si tengono).
+PAROLE_VUOTE = frozenset(
+    "a ad al alla alle allo agli ai all con col da dal dalla dalle dallo dagli dai dei del della delle "
+    "dello degli di e ed i il in la le lo gli nel nella nelle nello negli nei per su sul sulla sulle "
+    "tra fra un una uno o od che come cosa chi quando dove non piu".split()
+)
+RAGGIO_VICINANZA = 160
+
+
+@dataclass
+class _Gruppo:
+    parola: str
+    radici: tuple
+    simile: str = ""  # parola del corpus usata al posto di una scritta male
+
+
+def _radice(parola: str) -> str:
+    """Radice per trovare singolare, plurale e forme vicine: «procedure» → «procedu», «06» → «6»."""
+    if parola.isdigit():
+        return parola.lstrip("0") or "0"
+    if len(parola) <= 4:
+        return parola
+    return parola[: max(4, len(parola) - 2)]
+
+
+def _parole_query(q: str) -> list[str]:
+    pezzi = re.findall(r"[a-z]+|[0-9]+", _piega(q))
+    utili = [p for p in pezzi if p not in PAROLE_VUOTE]
+    visti, out = set(), []
+    for p in utili or pezzi:
+        if p not in visti:
+            visti.add(p)
+            out.append(p)
+    return out[:8]
+
+
+def _regex(radici) -> re.Pattern:
+    alternative = []
+    for r in radici:
+        if r.isdigit():
+            alternative.append(r"(?<![0-9])0*" + r + r"(?![0-9])")
+        else:
+            alternative.append(r"(?<![a-z0-9])" + re.escape(r))
+    return re.compile("|".join(alternative))
+
+
+_VOCABOLARIO: dict = {"chiave": None, "parole": []}
+
+
+def _vocabolario(testi: dict, docs: list) -> list[str]:
+    """Parole del corpus (titoli e testi in vigore) per correggere quelle scritte male."""
+    chiave = (len(testi), sum(len(t.piegato) for t in testi.values()), len(docs))
+    if _VOCABOLARIO["chiave"] != chiave:
+        parole = set()
+        for t in testi.values():
+            parole.update(re.findall(r"[a-z]{5,}", t.piegato))
         for d in docs:
-            in_codice = qp in _piega(d.code)
-            in_titolo = qp in _piega(d.title)
-            if in_codice or in_titolo:
-                risultati[d.pk] = Risultato(doc=d, punteggio=(60 if in_codice else 0) + (25 if in_titolo else 0), nel_titolo=True)
+            parole.update(re.findall(r"[a-z]{5,}", _piega(f"{d.code} {d.title}")))
+        _VOCABOLARIO.update(chiave=chiave, parole=sorted(parole))
+    return _VOCABOLARIO["parole"]
 
-    if campo in ("tutto", "testo") and per_rev:
-        for rev_id, t in _testi_piegati(list(per_rev)).items():
-            if qp in t.piegato:
-                _aggiungi_estratti(risultati, per_rev[rev_id], t, qp, len(q))
 
-    ordinati = sorted(risultati.values(), key=lambda r: (-r.punteggio, r.doc.code))
-    return ordinati[:MAX_RISULTATI]
+def _fine_parola(testo: str, pos: int) -> int:
+    fine = pos
+    while fine < len(testo) and (testo[fine].isalnum()):
+        fine += 1
+    return max(fine, pos + 1)
+
+
+def cerca(q: str, docs: list, *, campo: str = "tutto") -> Risultati:
+    """Ricerca flessibile nei documenti dati (già filtrati per visibilità).
+
+    - le parole valgono in qualunque ordine, anche lontane fra loro; le parole vuote
+      («di», «della», «per»…) non contano;
+    - ogni parola si cerca per radice: «procedura» trova anche «procedure», «conformita»
+      trova «conformità» (niente maiuscole né accenti);
+    - i numeri valgono con o senza zeri: «MT 6» trova «MT CN 06», «mod93» trova «MOD.093»;
+    - una parola che non c'è da nessuna parte si sostituisce con la più simile del corpus
+      («confromità» → «conformità»);
+    - se nessun documento ha tutte le parole, si mostrano quelli a cui ne manca una.
+
+    ``campo``: «tutto», «titolo» (codice e titolo) o «testo».
+    """
+    import difflib
+
+    risultati = Risultati()
+    risultati.corrette = []
+    q = re.sub(r"\s+", " ", (q or "").strip())
+    parole = _parole_query(q)
+    if len(q) < 2 or not parole:
+        return risultati
+    frase = _piega(q)
+    gruppi = [_Gruppo(parola=p, radici=(_radice(p),)) for p in parole]
+
+    usa_titolo = campo in ("tutto", "titolo")
+    usa_testo = campo in ("tutto", "testo")
+    per_rev = {d.rev.pk: d for d in docs}
+    testi = _testi_piegati(list(per_rev)) if (usa_testo and per_rev) else {}
+    intestazioni = {d.pk: _piega(f"{d.code} {d.title}") for d in docs}
+    testo_di = {per_rev[r].pk: t for r, t in testi.items()}
+
+    def trova(g):
+        rx = _regex(g.radici)
+        esiti = {}
+        for d in docs:
+            in_titolo = bool(usa_titolo and rx.search(intestazioni[d.pk]))
+            pos = []
+            t = testo_di.get(d.pk)
+            if t is not None:
+                for m in rx.finditer(t.piegato):
+                    pos.append(m.start())
+                    if len(pos) >= 60:
+                        break
+            if in_titolo or pos:
+                esiti[d.pk] = (in_titolo, pos)
+        return esiti
+
+    esiti = [trova(g) for g in gruppi]
+    for i, g in enumerate(gruppi):
+        if esiti[i] or g.parola.isdigit() or len(g.parola) < 4:
+            continue
+        simili = difflib.get_close_matches(g.parola, _vocabolario(testi, docs), n=3, cutoff=0.78)
+        if simili:
+            g.radici = tuple(dict.fromkeys(_radice(s) for s in simili))
+            g.simile = simili[0]
+            esiti[i] = trova(g)
+            risultati.corrette.append((g.parola, simili[0]))
+
+    n = len(gruppi)
+    trovati = {}
+    for d in docs:
+        presi = [i for i in range(n) if d.pk in esiti[i]]
+        if presi:
+            trovati[d.pk] = presi
+    soglia = n
+    if not any(len(v) == n for v in trovati.values()) and n > 1:
+        soglia = n - 1
+        risultati.approssimati = True
+    per_pk = {d.pk: d for d in docs}
+    elenco = []
+    for pk, presi in trovati.items():
+        if len(presi) < soglia:
+            continue
+        d = per_pk[pk]
+        nel_titolo = all(esiti[i][pk][0] for i in presi)
+        r = Risultato(doc=d, punteggio=0, nel_titolo=nel_titolo)
+        r.punteggio += 25 * sum(1 for i in presi if esiti[i][pk][0])
+        r.punteggio += 10 * len(presi)
+        if usa_titolo and frase in intestazioni[pk]:
+            r.punteggio += 40
+        if usa_titolo and re.sub(r"[^a-z0-9]", "", frase) == re.sub(r"[^a-z0-9]", "", _piega(d.code)):
+            r.punteggio += 80
+        t = testo_di.get(pk)
+        if t is not None:
+            posizioni = [esiti[i][pk][1] for i in presi if esiti[i][pk][1]]
+            if posizioni:
+                r.occorrenze = min(len(p) for p in posizioni)
+                r.punteggio += min(30, 3 * sum(len(p) for p in posizioni))
+                if frase in t.piegato:
+                    r.punteggio += 20
+                _aggiungi_estratti(r, t, posizioni)
+        elenco.append(r)
+    elenco.sort(key=lambda r: (-r.punteggio, r.doc.code))
+    risultati.extend(elenco[:MAX_RISULTATI])
+    return risultati
 
 
 @dataclass
@@ -553,29 +699,24 @@ def _testi_piegati(rev_ids: list[int]) -> dict[int, _Testo]:
     return {r: _MEMO_TESTI[r] for r in hash_attuali if r in _MEMO_TESTI}
 
 
-def _aggiungi_estratti(risultati: dict, d, t, qp: str, lunghezza: int) -> None:
-    piegato = t.piegato
-    posizioni = []
-    i = piegato.find(qp)
-    while i >= 0 and len(posizioni) < 50:
-        posizioni.append(i)
-        i = piegato.find(qp, i + lunghezza)
-    if not posizioni:
-        return
-    r = risultati.get(d.pk) or Risultato(doc=d, punteggio=0, nel_titolo=False)
-    r.occorrenze = len(posizioni)
-    r.punteggio += min(30, 5 * len(posizioni))
+def _aggiungi_estratti(r: Risultato, t, posizioni: list[list[int]]) -> None:
+    """Estratti del testo: dove la parola più rara è vicina alle altre, al massimo uno per pagina."""
+    rara = min(posizioni, key=len)
+    altre = [p for p in posizioni if p is not rara]
+
+    def vicine(pos):
+        return sum(1 for p in altre if any(abs(x - pos) <= RAGGIO_VICINANZA for x in p))
+
     viste_pagine = set()
-    for pos in posizioni:
+    for pos in sorted(rara, key=lambda x: (-vicine(x), x)):
         pagina = _pagina(t.offset_pagine or [], pos, t.n_pagine, t.n_caratteri or len(t.testo))
         if pagina in viste_pagine:
             continue
         viste_pagine.add(pagina)
-        prima, trovato, dopo = _estratto(t.testo, pos, lunghezza)
+        prima, trovato, dopo = _estratto(t.testo, pos, _fine_parola(t.testo, pos) - pos)
         r.estratti.append({"prima": prima, "trovato": trovato, "dopo": dopo, "sezione": _sezione(t.testo, pos), "pagina": pagina})
         if len(r.estratti) >= MAX_ESTRATTI:
             break
-    risultati[d.pk] = r
 
 
 def indice_documento(rev, limite: int = 12) -> list[dict]:

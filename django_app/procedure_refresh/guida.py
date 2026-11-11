@@ -62,6 +62,13 @@ SEZIONI: list[dict] = [
                 "Spunta uno o più scaffali per restringere i risultati.",
                 "Ogni risultato mostra il paragrafo e la pagina: clicca «§ … · pag. N ↗» per aprire il PDF a quella pagina.",
             ]),
+            ("ul", [
+                "Le parole valgono in qualunque ordine e anche lontane fra loro; «di», «della», «per» e simili non contano.",
+                "Ogni parola si cerca per radice: «procedura» trova anche «procedure», «conformita» trova «conformità».",
+                "I codici valgono con o senza zeri e separatori: «MT 6» trova MT CN 06, «mod93» trova MOD.093.",
+                "Una parola scritta male si corregge con la più simile che c'è nei documenti: la pagina scrive «Cercato anche …».",
+                "Se nessun documento ha tutte le parole, la pagina mostra quelli a cui ne manca una e lo dice.",
+            ]),
             ("nota", "La ricerca non bada a maiuscole e accenti. I PDF scansionati senza testo si trovano solo per codice e titolo."),
             ("p", "Le procedure si trovano anche dalla ricerca in alto nel portale («Cerca o vai a…», Ctrl+K), gruppo «CN-SGI · Procedure». "
                   "Quando l'assistente AI cita una procedura, l'etichetta della fonte apre la sua scheda nella libreria."),
