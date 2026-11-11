@@ -263,8 +263,9 @@ def fili_del_codice(codice: str, tipo: str, *, tutti: bool = False, escludi_pk=N
             unici[voce["id_registrazione"]] = voce
         elif voce["carico"] not in prima["carichi"]:
             prima["carichi"].append(voce["carico"])
-    voci = list(unici.values())
-    voci.sort(key=lambda v: (v["gia_collegato"], v["_ord"]))
+    # Prima i collegabili, poi i già collegati; dentro ogni gruppo il più recente in alto.
+    voci = sorted(unici.values(), key=lambda v: v["_ord"], reverse=True)
+    voci.sort(key=lambda v: v["gia_collegato"])
     for v in voci:
         del v["_ord"]
     return voci

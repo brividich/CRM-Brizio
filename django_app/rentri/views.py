@@ -1707,3 +1707,72 @@ def _carica_catalogo_eer(request):
     log_action(request, "modifica", "rentri", f"Catalogo EER caricato: {n} voci da {f.name}")
     messages.success(request, f"Catalogo EER aggiornato: {n} codici.")
     return redirect("rentri_impostazioni")
+
+
+def _anno_richiesto(request) -> int:
+    testo = (request.GET.get("anno") or "").strip()
+    return int(testo) if testo.isdigit() and 2000 <= int(testo) <= 2100 else timezone.localdate().year
+
+
+@login_required
+def registro_cronologico(request):
+    """GET: PDF del registro cronologico dell'anno (annullate comprese, «Pagina N di M»)."""
+    from django.http import HttpResponse
+
+    from .registro_annuale import _catalogo
+    from .registro_annuale import registro_cronologico as righe_anno
+    from .stampe import pdf_registro_cronologico
+
+    anno = _anno_richiesto(request)
+    righe = righe_anno(anno)
+    pdf = pdf_registro_cronologico(anno, righe, RentriImpostazioni.get_singleton(), _catalogo())
+    log_action(request, "rentri_registro_cronologico", "rentri", {"anno": anno, "righe": len(righe)})
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="registro_cronologico_{anno}.pdf"'
+    return response
+
+
+@login_required
+def riepilogo_annuale(request):
+    """Riepilogo per codice CER dell'anno (base per il MUD), con export Excel e PDF."""
+    from .registro_annuale import anni_disponibili, riepilogo_anno
+
+    anno = _anno_richiesto(request)
+    righe = riepilogo_anno(anno)
+    formato = request.GET.get("export", "")
+    if formato == "xlsx":
+        from core.excel_export import make_xlsx_response
+
+        log_action(request, "rentri_riepilogo_excel", "rentri", {"anno": anno, "righe": len(righe)})
+        return make_xlsx_response(
+            filename=f"rentri_riepilogo_{anno}.xlsx",
+            columns=["Codice EER", "Descrizione", "Pericoloso", "Unità", "Giacenza al 1/1", "Caricato", "Scaricato",
+                     "Giacenza al 31/12", "N. carichi", "N. scarichi", "Formulari", "Non torna"],
+            rows=[
+                [rg.codice, rg.descrizione, "Sì" if rg.pericoloso else "No",
+                 rg.unita + (" (miste)" if rg.unita_miste else ""), _numero(rg.giacenza_inizio),
+                 _numero(rg.caricato), _numero(rg.scaricato), _numero(rg.giacenza_fine), rg.n_carichi,
+                 rg.n_scarichi, ", ".join(rg.fir), _numero(rg.differenza) if abs(rg.differenza) > 0.0005 else None]
+                for rg in righe
+            ],
+            sheet_title=f"Riepilogo {anno}",
+            title=f"RENTRI — riepilogo annuale {anno}",
+            subtitle=f"{len(righe)} codici",
+            filters_label="Base per il MUD: giacenze dal conto del filo",
+        )
+    if formato == "pdf":
+        from django.http import HttpResponse
+
+        from .stampe import pdf_riepilogo
+
+        log_action(request, "rentri_riepilogo_pdf", "rentri", {"anno": anno, "righe": len(righe)})
+        response = HttpResponse(pdf_riepilogo(anno, righe, RentriImpostazioni.get_singleton()), content_type="application/pdf")
+        response["Content-Disposition"] = f'inline; filename="rentri_riepilogo_{anno}.pdf"'
+        return response
+    return render(request, "rentri/pages/riepilogo_annuale.html", {
+        "anno": anno,
+        "anni": anni_disponibili(),
+        "righe": righe,
+        "n_non_torna": sum(1 for rg in righe if abs(rg.differenza) > 0.0005),
+        "cfg": RentriImpostazioni.get_singleton(),
+    })
