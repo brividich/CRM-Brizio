@@ -95,6 +95,14 @@
 .rn-annullato td:last-child { text-decoration:none; }
 .rn-grp-head td { background:#f8fafc; padding:10px 16px; font-size:13px; font-weight:800; color:#0f172a; cursor:pointer; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; }
 .rn-grp-head:hover td { background:#eef4fb; }
+.rn-cerca-bar { display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid #e2e8f0; }
+.rn-cerca-input { flex:1; min-width:0; padding:9px 12px; border:1px solid #cbd5e1; border-radius:9px; font-size:13px; background:#fff; color:#0f172a; }
+.rn-cerca-input:focus { outline:none; border-color:#1e3a5f; box-shadow:0 0 0 3px rgba(30,58,95,.12); }
+.rn-cerca-conta { font-size:12px; color:#64748b; white-space:nowrap; }
+.rn-cerca-vuoto td { padding:22px; text-align:center; color:#64748b; font-size:13px; }
+body.theme-dark .rn-cerca-bar { border-color:var(--border); }
+body.theme-dark .rn-cerca-input { background:var(--surface); border-color:var(--border); color:var(--text); }
+body.theme-dark .rn-cerca-conta, body.theme-dark .rn-cerca-vuoto td { color:var(--text-mid); }
 .rn-grp-meta { font-size:11px; font-weight:500; color:#64748b; margin-left:8px; }
 .rn-sezione td { padding:14px 16px 6px; font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:.06em; }
 /* Toggle vista */
@@ -385,8 +393,17 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
     {% comment %}Macro per un'intestazione ordinabile{% endcomment %}
     {% with base_qs=filtri_qs|add:"&view=lista&group="|add:q_group %}
 
+    {% if families %}
+    <div class="rn-cerca-bar">
+      <input type="search" id="rn-cerca-fili" class="rn-cerca-input" autocomplete="off"
+             placeholder="Cerca nei fili: codice CER (12.01.01, 120101, 12 01), numero, FIR, data, chi ha inserito…"
+             aria-label="Cerca nei fili">
+      <span class="rn-cerca-conta" id="rn-cerca-conta">{{ families|length }} fili</span>
+    </div>
+    {% endif %}
     <div style="overflow-x:auto;">
-    <table class="cp-table">
+    {% comment %}La vista a fili è un albero (intestazione + righe): la ricerca generica delle tabelle lavora riga per riga e la rompe, quindi qui è spenta e c'è la ricerca per filo.{% endcomment %}
+    <table class="cp-table"{% if families %} data-fm-table-skip="1"{% endif %}>
       <thead>
         <tr>
           <th class="{% if q_sort == 'tipo' %}sort-active{% endif %}">
@@ -441,6 +458,7 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
       <tbody>
 
         {% if families %}
+          <tr class="rn-cerca-vuoto" id="rn-cerca-vuoto" hidden><td colspan="11">Nessun filo corrisponde alla ricerca.</td></tr>
           {% comment %}── Vista famiglie (default): prima i fili da completare, poi i chiusi raggruppati per codice ──{% endcomment %}
           {% for fam in fam_aperte %}
             {% include "rentri/components/famiglia_righe.html" with fam=fam fid=fam.fid grp="" chiusa=False %}
@@ -592,6 +610,85 @@ function _applicaGrp(head, aperta) {
 function toggleGrp(head) {
   _applicaGrp(head, !head.classList.contains('is-open'));
 }
+
+/* Ricerca live per filo: un filo resta visibile se una sua riga corrisponde.
+   Un codice CER (anche parziale, con punti o spazi) si confronta per le cifre,
+   così «12.01.01» trova «12 01 01» e non «12.01.09». Più parole = tutte presenti. */
+(function () {
+  var box = document.getElementById('rn-cerca-fili');
+  if (!box) return;
+  var conta = document.getElementById('rn-cerca-conta');
+  var vuoto = document.getElementById('rn-cerca-vuoto');
+  var heads = Array.prototype.slice.call(document.querySelectorAll('tr.rn-fam-head'));
+  var tutte = Array.prototype.slice.call(document.querySelectorAll('tbody tr'));
+  var iniziale = tutte.map(function (tr) { return [tr, tr.hidden, tr.className]; });
+  var CER = /^\d{2}(?:[\s.\-]?\d{2}){0,2}\*?$/;
+
+  function norm(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+  function compatto(t) { return t.replace(/[\s.\-\/_]+/g, ''); }
+
+  function corrisponde(head, q) {
+    var testo = head.dataset.cerca || '';
+    if (CER.test(q)) {
+      // Codice CER: per le cifre (prefisso). Un numero di 4+ cifre vale anche come testo («1862» = 2025/1862).
+      var cifre = q.replace(/\D/g, '');
+      return (head.dataset.cer || '').split(' ').some(function (k) { return k.indexOf(cifre) === 0; })
+        || (/^\d{4,}$/.test(q) && testo.indexOf(q) !== -1);
+    }
+    if (!head._parole) head._parole = testo.split(' ').map(compatto);
+    var parole = head._parole;
+    return q.split(/[\s,;]+/).filter(Boolean).every(function (p) {
+      if (testo.indexOf(p) !== -1) return true;
+      var pc = compatto(p);
+      return pc.length >= 3 && parole.some(function (w) { return w.indexOf(pc) !== -1; });
+    });
+  }
+
+  function ripristina() {
+    iniziale.forEach(function (x) { x[0].hidden = x[1]; x[0].className = x[2]; });
+    document.querySelectorAll('tr.rn-fam-head .rn-fam-caret, tr.rn-grp-head .rn-fam-caret').forEach(function (c) {
+      c.innerHTML = c.closest('tr').classList.contains('is-open') ? '&#9660;' : '&#9654;';
+    });
+    if (vuoto) vuoto.hidden = true;
+    conta.textContent = heads.length + ' fili';
+  }
+
+  function filtra() {
+    var q = norm(box.value).trim();
+    if (!q) { ripristina(); return; }
+    var visibili = 0, gruppi = {};
+    heads.forEach(function (head) {
+      var ok = corrisponde(head, q);
+      var fid = head.getAttribute('data-fam');
+      head.hidden = !ok;
+      head.classList.toggle('is-open', ok);
+      var caret = head.querySelector('.rn-fam-caret');
+      if (caret) caret.innerHTML = ok ? '&#9660;' : '&#9654;';
+      document.querySelectorAll('tr[data-fam="' + fid + '"]:not(.rn-fam-head), tr[data-fam-sep="' + fid + '"]').forEach(function (tr) { tr.hidden = !ok; });
+      if (ok) {
+        visibili++;
+        if (head.dataset.grp) gruppi[head.dataset.grp] = (gruppi[head.dataset.grp] || 0) + 1;
+      }
+    });
+    document.querySelectorAll('tr.rn-grp-head').forEach(function (g) {
+      var n = gruppi[g.getAttribute('data-grp-head')] || 0;
+      g.hidden = !n;
+      g.classList.toggle('is-open', !!n);
+      var caret = g.querySelector('.rn-fam-caret');
+      if (caret) caret.innerHTML = n ? '&#9660;' : '&#9654;';
+    });
+    document.querySelectorAll('tr.rn-sezione').forEach(function (s) { s.hidden = !Object.keys(gruppi).length; });
+    if (vuoto) vuoto.hidden = visibili > 0;
+    conta.textContent = visibili + ' di ' + heads.length + ' fili';
+  }
+
+  var t = null;
+  box.addEventListener('input', function () { clearTimeout(t); t = setTimeout(filtra, 120); });
+  box.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { box.value = ''; filtra(); }
+    if (e.key === 'Enter') e.preventDefault();
+  });
+})();
 
 </script>
 {% endblock %}
