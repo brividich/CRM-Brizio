@@ -232,6 +232,28 @@ Guida in-app: dashboard/guida.py (pulsante «? Guida»).
 
     {# ── SAPERE ── #}
     <section class="hs-room" id="hs-room-sapere" role="tabpanel" aria-labelledby="hs-tab-sapere" hidden>
+      {% if sapere_sgi %}
+      <div class="hp-card">
+        <header class="hp-card-h">
+          <div>
+            <h3 class="hp-card-t">CN-SGI · Procedure</h3>
+            <p class="hp-card-s">{% if sapere_sgi.da_leggere %}<a href="{{ sapere_sgi.url_letture }}">{{ sapere_sgi.da_leggere }} da leggere per te</a> · {% endif %}Nuove revisioni degli ultimi 30 giorni</p>
+          </div>
+          <a href="{{ sapere_sgi.url }}" class="hp-card-link">Apri la libreria →</a>
+        </header>
+        <div class="hs-pad">
+          <form action="{{ sapere_sgi.url_cerca }}" method="get" role="search" style="display:flex;gap:8px;margin-bottom:10px">
+            <input type="search" name="q" class="hp-search-input" placeholder="Cerca nelle procedure: codice, titolo o frase" aria-label="Cerca nelle procedure" style="flex:1;min-width:0;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text)">
+            <button class="btn btn-secondary btn-sm" type="submit">Cerca</button>
+          </form>
+          {% if sapere_sgi.nuove %}
+          <ul class="hp-list">
+            {% for r in sapere_sgi.nuove %}<li><a href="{{ r.href }}"><span class="hp-list-t"><b style="font-family:ui-monospace,Menlo,monospace">{{ r.doc.code }}</b> {{ r.doc.title }}</span>{% if r.rev.revision_code %}<span class="hp-list-m">Rev.{{ r.rev.revision_code }}</span>{% endif %}</a></li>{% endfor %}
+          </ul>
+          {% else %}<p class="hp-empty">Nessuna nuova revisione negli ultimi 30 giorni.</p>{% endif %}
+        </div>
+      </div>
+      {% endif %}
       {% if sapere_cataloghi %}
       <div class="hp-card">
         <header class="hp-card-h">

@@ -1,0 +1,71 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}{{ scaffale.nome }} · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › {{ scaffale.nome }}{% endblock %}
+{% block cn_h1 %}{{ scaffale.nome }}{% if scaffale.norma %} <small>{{ scaffale.norma }}</small>{% endif %}{% endblock %}
+{% block cn_guida_anchor %}#scaffali{% endblock %}
+{% block cn_body %}
+<div class="cn-split" style="--col:{{ scaffale.colore }}">
+  <aside class="cn-side" aria-label="Sezioni">
+    <a class="{% if sezione is None %}on{% endif %}" href="?{% if vista == 'elenco' %}vista=elenco{% endif %}">Tutte <span>{{ n_scaffale }}</span></a>
+    {% for raw, etichetta, n in scaffale.sezioni %}
+      <a class="{% if sezione == raw %}on{% endif %}" href="?sezione={{ raw|urlencode }}{% if vista == 'elenco' %}&amp;vista=elenco{% endif %}">{{ etichetta }} <span>{{ n }}</span></a>
+    {% endfor %}
+    {% if scaffali|length > 1 %}
+    <div class="cn-side-box"><h4>Altri scaffali</h4>
+      {% for s in scaffali %}{% if s.slug != scaffale.slug %}<a href="{% url 'procedure_refresh:libreria_scaffale' s.slug %}"><span class="cn-swatch" style="--col:{{ s.colore }}"></span>{{ s.nome }}</a>{% endif %}{% endfor %}
+    </div>
+    {% endif %}
+  </aside>
+  <div style="min-width:0">
+    <div class="cn-band" style="--col:{{ scaffale.colore }}">
+      <div class="n">{{ scaffale.sigla|default:"SGI"|truncatechars:10 }}</div>
+      <div class="t"><h2>{{ scaffale.nome }}</h2><p>{{ n_scaffale }} document{{ n_scaffale|pluralize:"o,i" }} in vigore{% if scaffale.cartella %} · cartella <span class="mono">{{ scaffale.cartella }}</span>{% endif %}</p></div>
+      {% if scaffale.certificazione %}
+      <div class="c">
+        <div>Certificato fino al<b>{{ scaffale.certificazione.scade_il|date:"d/m/Y" }}</b></div>
+        {% if scaffale.certificazione.prossima_sorveglianza %}<div>Prossima sorveglianza<b>{{ scaffale.certificazione.prossima_sorveglianza|date:"d/m/Y" }}{% if giorni_sorveglianza is not None and giorni_sorveglianza >= 0 %} · {{ giorni_sorveglianza }} gg{% endif %}</b></div>{% endif %}
+        <div>Ente<b>{{ scaffale.certificazione.ente }}</b></div>
+      </div>
+      {% endif %}
+    </div>
+
+    <form class="cn-toolbar" method="get">
+      {% if sezione is not None %}<input type="hidden" name="sezione" value="{{ sezione }}">{% endif %}
+      {% if vista == 'elenco' %}<input type="hidden" name="vista" value="elenco">{% endif %}
+      <input class="cn-input" type="search" name="q" value="{{ filtro }}" placeholder="Filtra in questo scaffale" aria-label="Filtra in questo scaffale">
+      <button class="cn-btn sm" type="submit">Filtra</button>
+      {% if filtro %}<a class="cn-chip" href="?{% if sezione is not None %}sezione={{ sezione|urlencode }}{% endif %}">Togli filtro</a>{% endif %}
+      <span class="cn-seg" role="group" aria-label="Vista">
+        <a class="{% if vista == 'copertine' %}on{% endif %}" href="?vista=copertine{% if sezione is not None %}&amp;sezione={{ sezione|urlencode }}{% endif %}{% if filtro %}&amp;q={{ filtro|urlencode }}{% endif %}">Copertine</a>
+        <a class="{% if vista == 'elenco' %}on{% endif %}" href="?vista=elenco{% if sezione is not None %}&amp;sezione={{ sezione|urlencode }}{% endif %}{% if filtro %}&amp;q={{ filtro|urlencode }}{% endif %}">Elenco</a>
+      </span>
+    </form>
+
+    {% for g in gruppi %}
+    <section class="cn-sub">
+      <h3>{{ g.etichetta }} <span>{{ g.documenti|length }}</span></h3>
+      {% if vista == 'elenco' %}
+      <div class="cn-tbl"><table>
+        <thead><tr><th>Codice</th><th>Titolo</th><th>Rev.</th><th>Data</th><th>Stato</th></tr></thead>
+        <tbody>
+        {% for d in g.documenti %}
+          <tr class="click">
+            <td class="num"><a href="{% url 'procedure_refresh:libreria_documento' d.pk %}" data-cn-doc class="cn-mono-col" style="color:{{ scaffale.colore }};font-weight:700">{{ d.code }}</a></td>
+            <td><a href="{% url 'procedure_refresh:libreria_documento' d.pk %}" data-cn-doc>{{ d.title }}</a></td>
+            <td class="num">{{ d.rev.revision_code|default:"—" }}</td>
+            <td class="num">{{ d.rev.revision_date|date:"d/m/Y" }}</td>
+            <td>{% if d.lettura %}<span class="cn-pill warn">Da leggere</span>{% elif d.nuova %}<span class="cn-pill nuova">Nuova rev.</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% else %}
+      <div class="cn-grid">{% for d in g.documenti %}{% include "procedure_refresh/libreria/_doc.html" %}{% endfor %}</div>
+      {% endif %}
+    </section>
+    {% empty %}
+    <p class="cn-empty">{% if filtro %}Nessun documento con «{{ filtro }}» qui. <a href="{% url 'procedure_refresh:libreria_cerca' %}?q={{ filtro|urlencode }}">Cerca in tutta la libreria</a>{% else %}Nessun documento in questa sezione.{% endif %}</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

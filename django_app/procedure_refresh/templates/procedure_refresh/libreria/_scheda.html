@@ -1,0 +1,129 @@
+{# Scheda documento: contenuto del pannello laterale (HTMX) e della pagina intera. #}
+<div class="cn" data-cn-scheda style="--col:{{ doc.scaffale.colore }};height:100%;display:flex;flex-direction:column;gap:0;max-width:none">
+  <div class="cn-dr-h">
+    {% include "procedure_refresh/libreria/_foglio.html" with d=doc senza_fascia=True %}
+    <div style="min-width:0">
+      <span class="code-l">{{ doc.code }}</span>
+      <h2>{{ doc.title }}</h2>
+      <div class="meta">
+        {% if rev.revision_code %}<span class="cn-pill">Rev.{{ rev.revision_code }}</span>{% endif %}
+        <span>{{ rev.revision_date|date:"d/m/Y" }}</span><span>· {{ doc.scaffale.nome }} › {{ doc.sezione_label }}</span>
+        {% if doc.nuova %}<span class="cn-pill nuova">Nuova revisione</span>{% endif %}
+        {% if stato_gestore.regola %}<span class="cn-pill warn" title="Visibile solo ad alcuni ruoli">Riservato</span>{% endif %}
+      </div>
+    </div>
+    {% if request.htmx %}<button class="cn-x" type="button" data-cn-close aria-label="Chiudi">✕</button>{% else %}<span></span>{% endif %}
+  </div>
+  <div class="cn-dr-act">
+    <a class="cn-btn pri" href="{{ pdf_url }}" target="_blank" rel="noopener">Apri il PDF ↗</a>
+    {% if lettura %}<a class="cn-btn acc" href="{% url 'procedure_refresh:assignment_detail' lettura.pk %}">Conferma la lettura</a>{% endif %}
+    {% if request.htmx %}<a class="cn-btn" href="{% url 'procedure_refresh:libreria_documento' doc.pk %}">Pagina intera</a>{% endif %}
+  </div>
+  <div class="cn-dr-tabs" role="tablist">
+    <button type="button" role="tab" data-cn-tab="panoramica" aria-selected="{% if scheda == 'panoramica' %}true{% else %}false{% endif %}">Panoramica</button>
+    <button type="button" role="tab" data-cn-tab="collegamenti" aria-selected="{% if scheda == 'collegamenti' %}true{% else %}false{% endif %}">Collegamenti · {{ n_collegamenti }}</button>
+    <button type="button" role="tab" data-cn-tab="revisioni" aria-selected="{% if scheda == 'revisioni' %}true{% else %}false{% endif %}">Revisioni</button>
+    <button type="button" role="tab" data-cn-tab="lettura" aria-selected="{% if scheda == 'lettura' %}true{% else %}false{% endif %}">Presa visione</button>
+    <button type="button" role="tab" data-cn-tab="segnala" aria-selected="{% if scheda == 'segnala' %}true{% else %}false{% endif %}">Segnala</button>
+  </div>
+  <div class="cn-dr-b">
+    <div class="cn-tab" data-cn-pane="panoramica"{% if scheda != 'panoramica' %} hidden{% endif %}>
+      <div class="cn-blk"><h4>In breve</h4>
+        <dl class="cn-kv">
+          <dt>Scaffale</dt><dd>{{ doc.scaffale.nome }} › {{ doc.sezione_label }}</dd>
+          <dt>Revisione</dt><dd><b class="mono">{% if rev.revision_code %}Rev.{{ rev.revision_code }}{% else %}—{% endif %}</b> del {{ rev.revision_date|date:"d/m/Y" }}</dd>
+          {% if rev.testo_estratto.n_pagine %}<dt>Pagine</dt><dd>{{ rev.testo_estratto.n_pagine }}</dd>{% endif %}
+          {% if processi %}<dt>Processi</dt><dd>{% for p in processi %}{{ p.processo }}{% if not forloop.last %}, {% endif %}{% endfor %}</dd>{% endif %}
+          <dt>La mia lettura</dt><dd>{% if lettura %}<span class="cn-pill warn">Da leggere{% if lettura.due_date %} entro {{ lettura.due_date|date:"d/m/Y" }}{% endif %}</span>{% elif confermata %}<span class="cn-pill ok">Letta il {{ confermata.read_confirmed_at|date:"d/m/Y" }}</span>{% else %}<span class="cn-pill">Nessuna lettura richiesta</span>{% endif %}</dd>
+        </dl>
+      </div>
+      {% if indice %}
+      <div class="cn-blk"><h4>Indice</h4>
+        <div class="cn-links">
+          {% for v in indice %}
+          <a href="{{ pdf_url }}{% if v.pagina %}#page={{ v.pagina }}{% endif %}" target="_blank" rel="noopener"><span class="ic">{{ v.sezione|cut:"§" }}</span><span class="tx">{{ v.titolo }}{% if v.pagina %}<small>pag. {{ v.pagina }}</small>{% endif %}</span><span class="go">↗</span></a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if doc.description %}<div class="cn-blk"><h4>Descrizione</h4><p style="margin:0;font-size:13px">{{ doc.description }}</p></div>{% endif %}
+    </div>
+
+    <div class="cn-tab" data-cn-pane="collegamenti"{% if scheda != 'collegamenti' %} hidden{% endif %}>
+      <div class="cn-blk"><h4>Cita</h4>
+        {% if cita %}<div class="cn-links">
+          {% for c in cita %}{% if c.doc %}
+          <a href="{% url 'procedure_refresh:libreria_documento' c.doc.pk %}" data-cn-doc><span class="ic">{{ c.codice|truncatechars:8 }}</span><span class="tx"><span class="mono">{{ c.codice }}</span> {{ c.titolo }}{% if c.sezione %}<small>citato in {{ c.sezione }}</small>{% endif %}</span><span class="go">›</span></a>
+          {% else %}
+          <div><span class="ic">?</span><span class="tx"><span class="mono">{{ c.codice }}</span><small>Citato ma non trovato nella cartella SGI</small></span></div>
+          {% endif %}{% endfor %}
+        </div>{% else %}<p class="cn-note">Il testo non cita altri documenti SGI.</p>{% endif %}
+      </div>
+      <div class="cn-blk"><h4>È citato da</h4>
+        {% if citato_da %}<div class="cn-links">
+          {% for c in citato_da %}
+          <a href="{% url 'procedure_refresh:libreria_documento' c.doc.pk %}" data-cn-doc><span class="ic">{{ c.codice|truncatechars:8 }}</span><span class="tx"><span class="mono">{{ c.codice }}</span> {{ c.titolo }}{% if c.sezione %}<small>in {{ c.sezione }}</small>{% endif %}</span><span class="go">›</span></a>
+          {% endfor %}
+        </div>{% else %}<p class="cn-note">Nessun documento in vigore lo cita.</p>{% endif %}
+      </div>
+      {% if processi %}
+      <div class="cn-blk"><h4>Processi del sistema di gestione</h4>
+        <div class="cn-links">{% for p in processi %}<div><span class="ic">PR</span><span class="tx">{{ p.processo }}</span></div>{% endfor %}</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="cn-tab" data-cn-pane="revisioni"{% if scheda != 'revisioni' %} hidden{% endif %}>
+      <div class="cn-blk"><h4>Storico</h4>
+        <div class="cn-tl">
+          {% for r in revisioni %}
+          <div class="{% if r.is_current %}cur{% endif %}"><b class="mono">{% if r.revision_code %}Rev.{{ r.revision_code }}{% else %}—{% endif %}</b> {% if r.is_current %}<span class="cn-pill nuova">In vigore</span>{% endif %}<small>{{ r.revision_date|date:"d/m/Y" }}{% if not r.is_current %} · superata, non consultabile{% endif %}</small></div>
+          {% endfor %}
+        </div>
+      </div>
+      <p class="cn-note">Si apre sempre la revisione in vigore. Delle revisioni precedenti resta solo la traccia.</p>
+    </div>
+
+    <div class="cn-tab" data-cn-pane="lettura"{% if scheda != 'lettura' %} hidden{% endif %}>
+      <div class="cn-blk"><h4>La mia lettura</h4>
+        {% if lettura %}
+          <p style="margin:0 0 8px"><span class="cn-pill warn">Da leggere{% if lettura.due_date %} entro {{ lettura.due_date|date:"d/m/Y" }}{% endif %}</span> · {{ lettura.campaign.name }}</p>
+          <a class="cn-btn acc" href="{% url 'procedure_refresh:assignment_detail' lettura.pk %}">Apri la lettura e conferma</a>
+        {% elif confermata %}
+          <p class="cn-note">Hai confermato la lettura della Rev.{{ rev.revision_code }} il {{ confermata.read_confirmed_at|date:"d/m/Y H:i" }}.</p>
+        {% else %}
+          <p class="cn-note">Per questo documento non ti è stata chiesta la presa visione.</p>
+        {% endif %}
+      </div>
+      {% if is_manager and stato_gestore %}
+      <div class="cn-blk"><h4>Per chi gestisce</h4>
+        {% if stato_gestore.totale %}
+        <div class="cn-note">Letta da <b>{{ stato_gestore.lette }} su {{ stato_gestore.totale }}</b> persone a cui è stata chiesta.<div class="cn-bar" style="margin-top:6px"><i style="width:{{ stato_gestore.pct }}%"></i></div></div>
+        {% else %}<p class="cn-note">La presa visione di questa revisione non è ancora stata chiesta a nessuno.</p>{% endif %}
+        <p style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 0">
+          <a class="cn-btn sm" href="{% url 'procedure_refresh:campaign_create' %}">Richiedi presa visione</a>
+          <a class="cn-btn sm" href="{% url 'procedure_refresh:report_document' %}?doc_id={{ doc.pk }}">Report del documento</a>
+          <a class="cn-btn sm" href="{% url 'procedure_refresh:libreria_visibilita' %}">Chi vede cosa</a>
+        </p>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="cn-tab" data-cn-pane="segnala"{% if scheda != 'segnala' %} hidden{% endif %}>
+      <form class="cn-blk" method="post" action="{% url 'procedure_refresh:libreria_segnala' doc.pk %}" style="display:flex;flex-direction:column;gap:10px">
+        {% csrf_token %}
+        <h4>Segnala una modifica</h4>
+        {% if indice %}
+        <label class="cn-fld" for="cn-seg-sez">Paragrafo (facoltativo)
+          <select id="cn-seg-sez" name="sezione"><option value="">Tutto il documento</option>{% for v in indice %}<option value="{{ v.sezione }}">{{ v.sezione }} {{ v.titolo|truncatechars:50 }}</option>{% endfor %}</select>
+        </label>
+        {% endif %}
+        <label class="cn-fld" for="cn-seg-t">Cosa cambieresti e perché
+          <textarea id="cn-seg-t" name="testo" rows="4" required maxlength="4000" placeholder="Es. il §5.1 non dice chi firma la chiusura dell'azione correttiva"></textarea>
+        </label>
+        <p class="cn-note">La proposta arriva a chi gestisce CN-SGI. Il documento nella cartella SGI non cambia: lo aggiorna la qualità con una nuova revisione.</p>
+        <p style="margin:0"><button class="cn-btn pri" type="submit">Invia la segnalazione</button></p>
+      </form>
+    </div>
+  </div>
+</div>

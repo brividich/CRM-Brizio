@@ -63,7 +63,7 @@ class ProcedureGroupInBachecaTests(TestCase):
         self._proc_doc("MT CN 30")
         self._proc_doc("MT CN 31", sensibile=True)
         groups = hp._documenti_collegamenti(self._admin_request(), preview=False)
-        proc = [g for g in groups if g["name"] == "Procedure SGI"]
+        proc = [g for g in groups if g["name"] == "CN-SGI · Procedure"]
         self.assertEqual(len(proc), 1)
         titles = " ".join(i["title"] for i in proc[0]["items"])
         self.assertIn("MT CN 30", titles)

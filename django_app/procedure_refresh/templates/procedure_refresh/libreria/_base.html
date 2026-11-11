@@ -1,0 +1,29 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}{% block cn_title %}CN-SGI{% endblock %} · NOVICROM HUB{% endblock %}
+{% block body_class %}{{ block.super }} cn-page{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'procedure_refresh/css/libreria.css' %}?v=1">
+{% endblock %}
+{% block content %}
+<div class="cn">
+  <div class="cn-head">
+    <div>
+      <p class="cn-crumb"><a href="{% url 'sapere_cataloghi' %}">Sapere</a> › {% block cn_crumb %}CN-SGI{% endblock %}</p>
+      <h1 class="cn-title">{% block cn_h1 %}CN-SGI <small>Sistema di gestione integrato</small>{% endblock %}</h1>
+    </div>
+    <div class="cn-actions">
+      <span class="cn-ro" title="I documenti si leggono dalla cartella di rete: il portale non la modifica mai"><i></i>{% if ultimo_controllo %}Controllata alle {{ ultimo_controllo|date:"H:i" }}{% if ultimo_controllo|date:"Ymd" != oggi_str %} del {{ ultimo_controllo|date:"d/m" }}{% endif %} · {% endif %}sola lettura</span>
+      {% block cn_actions %}{% endblock %}
+      <a class="cn-btn sm" href="?guida=1{% block cn_guida_anchor %}{% endblock %}">? Guida</a>
+    </div>
+  </div>
+  {% include "procedure_refresh/components/subnav.html" with is_manager=is_manager n_da_leggere=n_da_leggere %}
+  {% block cn_body %}{% endblock %}
+</div>
+<div class="cn-scrim" id="cn-scrim" data-cn-close hidden></div>
+<aside class="cn-drawer" id="cn-drawer" role="dialog" aria-modal="true" aria-label="Scheda documento" hidden></aside>
+{% endblock %}
+{% block extra_scripts %}
+<script src="{% static 'procedure_refresh/js/libreria.js' %}?v=1" defer></script>
+{% endblock %}

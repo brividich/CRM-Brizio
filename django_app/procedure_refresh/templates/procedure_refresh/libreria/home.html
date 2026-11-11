@@ -1,0 +1,63 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_body %}
+<section class="cn-hero">
+  <div>
+    <form class="cn-search" role="search" action="{% url 'procedure_refresh:libreria_cerca' %}" method="get">
+      <span aria-hidden="true">⌕</span>
+      <input id="cn-q" name="q" type="search" aria-label="Cerca nelle procedure" placeholder="Cerca un codice, un titolo o una frase dentro le procedure…" autocomplete="off">
+      <kbd>/</kbd><button class="cn-btn pri" type="submit">Cerca</button>
+    </form>
+    <div class="cn-hints">Prova:
+      <a href="{% url 'procedure_refresh:libreria_cerca' %}?q=non+conformit%C3%A0">non conformità</a>
+      <a href="{% url 'procedure_refresh:libreria_cerca' %}?q=tracciabilit%C3%A0">tracciabilità</a>
+      <a href="{% url 'procedure_refresh:libreria_cerca' %}?q=DPI">DPI</a>
+      <a href="{% url 'procedure_refresh:libreria_cerca' %}?q=audit">audit</a>
+    </div>
+  </div>
+  <div class="cn-stats">
+    <div class="cn-stat"><b>{{ totale }}</b><span>documenti in vigore</span></div>
+    <div class="cn-stat"><b>{{ novita|length }}</b><span>novità negli ultimi 30 giorni</span></div>
+    <div class="cn-stat"><b>{{ scaffali|length }}</b><span>scaffali</span></div>
+  </div>
+</section>
+
+<div class="cn-sec"><h2>Scaffali</h2><span>Uno per certificazione, come le cartelle del sistema di gestione</span></div>
+{% if scaffali %}
+<div class="cn-shelves">
+  {% for s in scaffali %}
+  <a class="cn-vol" href="{% url 'procedure_refresh:libreria_scaffale' s.slug %}">
+    <span class="cn-vol-cover" style="--col:{{ s.colore }}">
+      <span class="cn-vol-k">{{ s.norma|default:"Sistema di gestione" }}</span>
+      <span class="cn-vol-n">{{ s.sigla|default:s.nome|truncatechars:10 }}{% if s.sigla %}<small>{{ s.nome }}</small>{% endif %}</span>
+      <span class="cn-vol-f"><span>{{ s.sezioni|length }} sezion{{ s.sezioni|length|pluralize:"e,i" }}{% if s.nuovi %}<br><span class="cn-vol-badge">{{ s.nuovi }} nuov{{ s.nuovi|pluralize:"a,e" }} rev.</span>{% endif %}</span><b>{{ s.totale }}</b></span>
+    </span>
+    <span class="cn-vol-meta">
+      {% if s.giorni_sorveglianza is not None %}
+        <span class="cn-dot{% if s.giorni_sorveglianza < 0 %} bad{% elif s.giorni_sorveglianza < 30 %} warn{% endif %}"></span>
+        {% if s.giorni_sorveglianza < 0 %}Sorveglianza del {{ s.certificazione.prossima_sorveglianza|date:"d/m/Y" }}{% else %}Sorveglianza tra {{ s.giorni_sorveglianza }} gg · {{ s.certificazione.prossima_sorveglianza|date:"d/m/Y" }}{% endif %}
+      {% elif s.giorni_scadenza is not None %}
+        <span class="cn-dot{% if s.giorni_scadenza < 30 %} warn{% endif %}"></span>Certificato fino al {{ s.certificazione.scade_il|date:"d/m/Y" }}
+      {% else %}<span class="cn-dot"></span>{{ s.totale }} document{{ s.totale|pluralize:"o,i" }} in vigore{% endif %}
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="cn-empty">Nessun documento disponibile per il tuo profilo.{% if is_manager %} Controlla «Impostazioni» → sincronizzazione con la cartella SGI.{% endif %}</p>
+{% endif %}
+
+{% if letture %}
+<div class="cn-sec"><h2>Da leggere per te</h2><a href="{% url 'procedure_refresh:my_assignments' %}">Le mie letture →</a></div>
+<div class="cn-row">{% for d in letture %}{% include "procedure_refresh/libreria/_doc.html" %}{% endfor %}</div>
+{% endif %}
+
+{% if novita %}
+<div class="cn-sec"><h2>Nuove revisioni</h2><span>Ultimi 30 giorni, prese dalla cartella SGI in automatico</span></div>
+<div class="cn-row">{% for d in novita %}{% include "procedure_refresh/libreria/_doc.html" %}{% endfor %}</div>
+{% endif %}
+
+{% if consultati %}
+<div class="cn-sec"><h2>Più consultati</h2><span>Aperture degli ultimi 90 giorni</span></div>
+<div class="cn-row">{% for d in consultati %}{% include "procedure_refresh/libreria/_doc.html" %}{% endfor %}</div>
+{% endif %}
+{% endblock %}

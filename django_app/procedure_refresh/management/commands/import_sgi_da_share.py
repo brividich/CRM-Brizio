@@ -138,6 +138,15 @@ def _category_from_path(path: Path, root: Path) -> str:
         return ""
 
 
+def _sezione_from_path(path: Path, root: Path) -> str:
+    """Seconda cartella sotto la root (sezione dello scaffale CN-SGI: 2_MT, _Modelli, ...)."""
+    try:
+        parts = path.resolve().relative_to(root.resolve()).parts
+    except (ValueError, OSError):
+        return ""
+    return parts[1][:255] if len(parts) > 2 else ""
+
+
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as fh:
@@ -294,6 +303,7 @@ def scan_share_candidates(
         info["path"] = full
         info["file_name"] = pdf.name
         info["category"] = _category_from_path(pdf, root)
+        info["sezione"] = _sezione_from_path(pdf, root)
         parsed.append(info)
         if limit and len(parsed) >= limit:
             break
@@ -318,6 +328,7 @@ def upsert_candidate(info: dict) -> tuple[str, bool]:
         defaults={
             "title": info["title"],
             "category": info["category"],
+            "sezione": info.get("sezione", ""),
             "document_type": info["document_type"],
             "is_active": True,
             # Import per il RAG: non li marchiamo come "richiede presa visione"
@@ -329,10 +340,16 @@ def upsert_candidate(info: dict) -> tuple[str, bool]:
     doc_riattivato = False
     if not doc_created:
         doc_state = "updated"
+        campi = []
         if not doc.is_active:
             doc.is_active = True
-            doc.save(update_fields=["is_active", "updated_at"])
+            campi.append("is_active")
             doc_riattivato = True
+        if "sezione" in info and doc.sezione != info["sezione"]:
+            doc.sezione = info["sezione"]
+            campi.append("sezione")
+        if campi:
+            doc.save(update_fields=[*campi, "updated_at"])
 
     path = Path(info["path"])
     try:

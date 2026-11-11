@@ -1,0 +1,10 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}{{ doc.code }} · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › <a href="{% url 'procedure_refresh:libreria_scaffale' doc.scaffale.slug %}">{{ doc.scaffale.nome }}</a> › {{ doc.code }}{% endblock %}
+{% block cn_h1 %}{{ doc.code }} <small>{{ doc.sezione_label }}</small>{% endblock %}
+{% block cn_guida_anchor %}#scheda{% endblock %}
+{% block cn_body %}
+<div class="cn-panel" style="padding:0;max-width:760px">
+  {% include "procedure_refresh/libreria/_scheda.html" %}
+</div>
+{% endblock %}

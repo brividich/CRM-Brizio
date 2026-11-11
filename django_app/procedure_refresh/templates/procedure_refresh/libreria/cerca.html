@@ -1,0 +1,50 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}Ricerca · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › Ricerca{% endblock %}
+{% block cn_h1 %}Ricerca{% endblock %}
+{% block cn_guida_anchor %}#ricerca{% endblock %}
+{% block cn_body %}
+<form method="get" id="cn-form-cerca">
+  <div class="cn-search" role="search" style="margin-bottom:18px">
+    <span aria-hidden="true">⌕</span>
+    <input id="cn-q" name="q" type="search" value="{{ q }}" aria-label="Codice, titolo o frase" placeholder="Codice, titolo o frase" autocomplete="off"{% if not q %} autofocus{% endif %}>
+    <button class="cn-btn pri" type="submit">Cerca</button>
+  </div>
+  <div class="cn-split">
+    <aside class="cn-facets">
+      <div class="cn-facet"><h4>Cerca in</h4>
+        <label><input type="radio" name="in" value="tutto" data-cn-autosubmit{% if campo == 'tutto' %} checked{% endif %}>Codice, titolo e testo</label>
+        <label><input type="radio" name="in" value="titolo" data-cn-autosubmit{% if campo == 'titolo' %} checked{% endif %}>Solo codice e titolo</label>
+        <label><input type="radio" name="in" value="testo" data-cn-autosubmit{% if campo == 'testo' %} checked{% endif %}>Solo testo dei documenti</label>
+      </div>
+      <div class="cn-facet"><h4>Scaffale</h4>
+        {% for f in faccette %}
+        <label><input type="checkbox" name="s" value="{{ f.s.slug }}" data-cn-autosubmit{% if f.on %} checked{% endif %}><span class="cn-swatch" style="--col:{{ f.s.colore }}"></span>{{ f.s.nome }}{% if q %}<span class="n">{{ f.n }}</span>{% endif %}</label>
+        {% endfor %}
+      </div>
+      <p class="cn-note">La ricerca legge il testo dei PDF in vigore, senza badare a maiuscole e accenti. Le revisioni superate non compaiono.</p>
+    </aside>
+    <div style="min-width:0">
+      {% if q %}
+        <p style="margin:0 0 4px;color:var(--text-mid);font-size:13px"><b>{{ risultati|length }}</b> document{{ risultati|length|pluralize:"o,i" }} per «{{ q }}»</p>
+        {% for r in risultati %}
+        <div class="cn-res" style="--col:{{ r.doc.scaffale.colore|default:'#1f4f86' }}">
+          <span class="mini" aria-hidden="true"></span>
+          <div style="min-width:0">
+            <p class="cn-res-t"><a href="{% url 'procedure_refresh:libreria_documento' r.doc.pk %}" data-cn-doc><span class="mono">{{ r.doc.code }}</span> · {{ r.doc.title }}</a></p>
+            <p class="cn-res-m"><span class="cn-swatch" style="--col:{{ r.doc.scaffale.colore|default:'#1f4f86' }}"></span>{{ r.doc.scaffale.nome }} › {{ r.doc.sezione_label }}{% if r.doc.rev.revision_code %} <span class="cn-pill">Rev.{{ r.doc.rev.revision_code }}</span>{% endif %} {{ r.doc.rev.revision_date|date:"d/m/Y" }}{% if r.doc.nuova %} <span class="cn-pill nuova">Nuova rev.</span>{% endif %}{% if r.occorrenze > 1 %} · {{ r.occorrenze }} volte nel testo{% endif %}</p>
+            {% for e in r.estratti %}
+            <p class="cn-snip"><a href="{% url 'procedure_refresh:libreria_apri' r.doc.pk %}{% if e.pagina %}#page={{ e.pagina }}{% endif %}" target="_blank" rel="noopener">{% if e.sezione %}{{ e.sezione }} · {% endif %}{% if e.pagina %}pag. {{ e.pagina }}{% else %}apri{% endif %} ↗</a>{{ e.prima }}<mark>{{ e.trovato }}</mark>{{ e.dopo }}</p>
+            {% endfor %}
+          </div>
+        </div>
+        {% empty %}
+        <p class="cn-empty">Nessun documento contiene «{{ q }}». Controlla la grafia o togli i filtri a sinistra.</p>
+        {% endfor %}
+      {% else %}
+        <p class="cn-note">Scrivi un codice (es. MOD.093), un titolo o una frase. Ogni risultato mostra il paragrafo e apre il PDF alla pagina giusta.</p>
+      {% endif %}
+    </div>
+  </div>
+</form>
+{% endblock %}

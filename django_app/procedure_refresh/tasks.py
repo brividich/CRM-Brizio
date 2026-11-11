@@ -139,7 +139,7 @@ def _send_reminder_mail(user, email: str, assignments: list, *, subject: str, in
         due = a.due_date.strftime("%d/%m/%Y") if a.due_date else "-"
         lines.append(f"- {doc.code} — {doc.title} (rev. {a.revision.revision_code}, scadenza {due})")
     lines += ["", "Accedi al portale per confermare la presa visione:",
-              portal_link("/procedure-refresh/") or "/procedure-refresh/"]
+              portal_link("/procedure-refresh/letture/") or "/procedure-refresh/letture/"]
     try:
         send_hub_mail(
             subject,
@@ -231,7 +231,7 @@ def run_assignment_lifecycle(**kwargs) -> dict:
                 invia_notifica(
                     legacy_map.get(uid), "presa_visione",
                     f"{len(items)} documenti in presa visione scadono tra {soglia} giorni.",
-                    url_azione="/procedure-refresh/",
+                    url_azione="/procedure-refresh/letture/",
                 )
                 for a in items:
                     _log_reminder_event(a, f"pre{soglia}")
@@ -527,6 +527,14 @@ def _sgi_auto_sync(result: dict, *, force: bool, reindex: bool, origine: str | N
         }
         SiteConfig.set(_LAST_SYNC_KEY, json.dumps(payload), "Presa visione: esito ultima sync SGI automatica.")
 
+        # CN-SGI: sezioni e scaffali seguono la share (solo righe nel DB, mai sulla share).
+        try:
+            from procedure_refresh.libreria import assicura_scaffali
+
+            assicura_scaffali()
+        except Exception:
+            logger.exception("run_sgi_auto_sync: allineamento scaffali CN-SGI fallito")
+
         changed = result["created"] + result["updated"] + result["revisions"]
         if result.get("troncato"):
             # Estrazione e re-index una volta sola, all'ultimo pezzo della catena.
@@ -733,5 +741,77 @@ def run_sgi_share_check(**kwargs) -> dict:
         return result
     except Exception as exc:  # fail-safe: un watchdog non deve mai far rumore in cluster
         logger.warning("run_sgi_share_check fallito: %s", exc)
+        result.update(ok=False, error=str(exc))
+        return result
+
+
+_IMPRONTA_KEY = "pr_sgi_impronta_share"
+_ULTIMO_CONTROLLO_KEY = "pr_sgi_ultimo_controllo"
+
+
+def impronta_share(root: Path) -> tuple[str, int]:
+    """Impronta leggera della share: percorso, dimensione e data di modifica dei file.
+
+    Nessun file viene aperto né letto: solo l'elenco e gli attributi. Esclude
+    ``SUPERATO`` e i lock di Office come l'import. Ritorna ``(impronta, n_file)``.
+    """
+    import hashlib
+
+    from procedure_refresh.management.commands.import_sgi_da_share import _SUPERATO_RE, _scan_files
+
+    h = hashlib.sha1(usedforsecurity=False)
+    n = 0
+    for f in _scan_files(root):
+        full = str(f)
+        if _SUPERATO_RE.search(full):
+            continue
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        h.update(f"{full}|{st.st_size}|{int(st.st_mtime)};".encode("utf-8", "replace"))
+        n += 1
+    return h.hexdigest(), n
+
+
+def run_sgi_controllo_orario(**kwargs) -> dict:
+    """Controllo orario della share per CN-SGI: se qualcosa è cambiato, sincronizza.
+
+    Confronta l'impronta leggera (:func:`impronta_share`) con quella salvata; solo se
+    è diversa lancia :func:`run_sgi_auto_sync` (stesso perimetro sicuro e stesso flag
+    ``pr_sgi_auto_sync_attivo``). La share è solo letta. Fail-safe: non solleva mai.
+    """
+    result: dict = {"ok": True, "skipped": False, "cambiato": False}
+    try:
+        from django.utils import timezone
+
+        from core.models import SiteConfig
+
+        flag = str(SiteConfig.get(_AUTO_SYNC_FLAG, "") or "").strip().lower()
+        if flag not in {"1", "true", "on", "yes"}:
+            result.update(skipped=True, reason="pr_sgi_auto_sync_attivo non attivo")
+            return result
+        raw_root = str(getattr(settings, "PROCEDURE_REFRESH_SGI_SHARE_ROOT", "") or "").strip()
+        if not raw_root or not Path(raw_root).exists():
+            result.update(skipped=True, reason="share non raggiungibile o non impostata")
+            return result
+
+        impronta, n_file = impronta_share(Path(raw_root))
+        result["file"] = n_file
+        precedente = str(SiteConfig.get(_IMPRONTA_KEY, "") or "")
+        if impronta != precedente:
+            result["cambiato"] = True
+            esito = run_sgi_auto_sync(origine="auto")
+            result["sync"] = esito
+            if esito.get("ok") and not esito.get("skipped"):
+                SiteConfig.set(_IMPRONTA_KEY, impronta, "CN-SGI: impronta della share all'ultimo controllo orario.")
+        SiteConfig.set(
+            _ULTIMO_CONTROLLO_KEY,
+            timezone.now().isoformat(timespec="seconds"),
+            "CN-SGI: ora dell'ultimo controllo della share.",
+        )
+        return result
+    except Exception as exc:  # fail-safe
+        logger.warning("run_sgi_controllo_orario fallito: %s", exc)
         result.update(ok=False, error=str(exc))
         return result

@@ -1,13 +1,24 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views
+from . import views, views_libreria
 
 app_name = "procedure_refresh"
 
 urlpatterns = [
+    # ── CN-SGI: libreria delle procedure (sola lettura della share) ─────────
+    path("", views_libreria.libreria, name="libreria"),
+    path("scaffale/<slug:slug>/", views_libreria.scaffale, name="libreria_scaffale"),
+    path("cerca/", views_libreria.cerca, name="libreria_cerca"),
+    path("documento/<int:pk>/", views_libreria.documento, name="libreria_documento"),
+    path("documento/<int:pk>/apri/", views_libreria.apri, name="libreria_apri"),
+    path("documento/<int:pk>/segnala/", views_libreria.segnala, name="libreria_segnala"),
+    path("admin/visibilita/", views_libreria.visibilita, name="libreria_visibilita"),
+    path("admin/visibilita/<int:pk>/elimina/", views_libreria.visibilita_elimina, name="libreria_visibilita_elimina"),
+    path("admin/scaffali/", views_libreria.scaffali_gestione, name="libreria_scaffali"),
+
     # ── User views ──────────────────────────────────────────────────────────
-    path("", views.my_assignments, name="my_assignments"),
+    path("letture/", views.my_assignments, name="my_assignments"),
     path("<int:pk>/", views.assignment_detail, name="assignment_detail"),
 
     # ── Admin — dashboard ───────────────────────────────────────────────────

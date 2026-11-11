@@ -1,0 +1,6 @@
+{# Un documento in una fila o in una griglia: apre la scheda nel pannello laterale. Variabile: d. #}
+<a class="cn-doc" href="{% url 'procedure_refresh:libreria_documento' d.pk %}" data-cn-doc title="{{ d.code }} · {{ d.title }}">
+  {% include "procedure_refresh/libreria/_foglio.html" with d=d %}
+  <span class="cn-doc-t">{{ d.title }}</span>
+  <span class="cn-doc-s">{% if d.rev.revision_code %}<span class="cn-pill">Rev.{{ d.rev.revision_code }}</span>{% endif %}{{ d.rev.revision_date|date:"d/m/Y" }}{% if d.lettura %} <span class="cn-pill warn">entro {{ d.lettura.due_date|date:"d/m" }}</span>{% endif %}</span>
+</a>

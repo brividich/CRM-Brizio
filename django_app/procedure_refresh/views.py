@@ -1376,7 +1376,7 @@ def assign_users(request, pk: int):
                     f"{doc_count} documenti della sessione «{campaign.name}» "
                     f"da prendere in visione (scadenza {scad_str})."
                 ),
-                url_azione="/procedure-refresh/",
+                url_azione="/procedure-refresh/letture/",
             )
 
     log_action(
@@ -1552,6 +1552,10 @@ def document_open(request, rev_pk: int):
     )
     doc = rev.document
     if not doc.is_active or documento_e_sensibile(doc):
+        raise Http404("Documento non disponibile.")
+    from .libreria import Visibilita
+
+    if not Visibilita(request).puo_vedere(doc):
         raise Http404("Documento non disponibile.")
 
     log_action(
