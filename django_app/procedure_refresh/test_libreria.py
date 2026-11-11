@@ -453,3 +453,46 @@ class ApriFileTests(TestCase):
             r = self.client.get(reverse("procedure_refresh:libreria_apri", args=[self.doc.pk]))
         self.assertEqual(r.status_code, 503)
         self.assertContains(r, "non riesce a leggere la cartella SGI", status_code=503)
+
+
+class RicercaFlessibileTests(TestCase):
+    def setUp(self):
+        lib._MEMO_TESTI.clear()
+        lib._VOCABOLARIO.update(chiave=None, parole=[])
+        self.dpi = _doc("MT CN 451", "Gestione DPI", cartella="45001_Sicurezza", sezione="",
+                        testo="4.3 Consegna\nLa consegna dei dispositivi di protezione è registrata con la firma del lavoratore.", n_pagine=2)
+        self.nc = _doc("MT CN 06", "Gestione delle non conformità e azioni correttive",
+                       testo="4.2 Registrazione\nOgni non conformità rilevata in accettazione viene registrata sul MOD.093.", n_pagine=3)
+        self.mod = _doc("MOD.093", "Rapporto di non conformità", sezione="_Modelli")
+        self.proc = _doc("MT CN 14", "Procedure di formazione del personale", testo="Le procedure di addestramento.", n_pagine=1)
+
+    def _codici(self, q, **kw):
+        return [r.doc.code for r in lib.cerca(q, lib.documenti_in_vigore(), **kw)]
+
+    def test_parole_in_qualunque_ordine_e_parole_vuote(self):
+        self.assertIn("MT CN 06", self._codici("correttive azioni della gestione"))
+        self.assertEqual(self._codici("dpi gestione")[0], "MT CN 451")
+
+    def test_radici_singolare_plurale(self):
+        self.assertIn("MT CN 14", self._codici("procedura formazione"))
+        self.assertIn("MT CN 451", self._codici("dispositivo protezione firma"))
+
+    def test_codici_con_e_senza_zeri_e_separatori(self):
+        self.assertEqual(self._codici("mt 6")[0], "MT CN 06")
+        self.assertEqual(self._codici("mod93")[0], "MOD.093")
+        self.assertEqual(self._codici("MT-CN-451")[0], "MT CN 451")
+
+    def test_parola_scritta_male(self):
+        risultati = lib.cerca("confromita", lib.documenti_in_vigore())
+        self.assertIn("MT CN 06", [r.doc.code for r in risultati])
+        self.assertEqual(risultati.corrette[0][1], "conformita")
+
+    def test_manca_una_parola(self):
+        risultati = lib.cerca("non conformita zebra", lib.documenti_in_vigore())
+        self.assertTrue(risultati.approssimati)
+        self.assertIn("MT CN 06", [r.doc.code for r in risultati])
+
+    def test_estratto_evidenzia_la_parola_intera(self):
+        r = next(x for x in lib.cerca("registrata accettazione", lib.documenti_in_vigore()) if x.doc.code == "MT CN 06")
+        self.assertTrue(r.estratti)
+        self.assertIn(r.estratti[0]["trovato"].lower(), ("accettazione", "registrata"))

@@ -17,7 +17,8 @@ GUIDA = {
                     "Nello scaffale scegli la sezione a sinistra; «Copertine» o «Elenco» cambiano la vista.",
                     "Clicca un documento: la scheda si apre a destra. «Apri il PDF ↗» apre la revisione in vigore.",
                 ]),
-                ("p", "Nei risultati della ricerca «§ … · pag. N ↗» apre il PDF alla pagina dove c'è la parola cercata. Si vede solo la revisione in vigore; l'archivio SUPERATO non è mostrato."),
+                ("p", "La ricerca è flessibile: parole in qualunque ordine, singolare o plurale, con o senza accenti, codici con o senza zeri («MT 6» = MT CN 06); una parola scritta male si corregge da sola. "
+                      "Nei risultati «§ … · pag. N ↗» apre il PDF alla pagina dove c'è la parola cercata. Si vede solo la revisione in vigore; l'archivio SUPERATO non è mostrato."),
             ],
         },
         {

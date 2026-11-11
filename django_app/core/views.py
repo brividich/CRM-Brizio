@@ -1774,19 +1774,16 @@ def api_global_search(request):
         # CN-SGI: la scheda nella libreria, solo i documenti che l'utente può vedere.
         if not _global_search_module_allowed(request, "/procedure-refresh/"):
             raise _ModuleHidden
-        from procedure_refresh.libreria import Visibilita, etichetta_sezione, identita_da_cartella
-        from procedure_refresh.models import ProcedureDocument
-        docs_qs = ProcedureDocument.objects.filter(
-            Q(code__icontains=q)
-            | Q(title__icontains=q)
-            | Q(description__icontains=q)
-            | Q(owner_department__icontains=q)
-        ).filter(is_active=True, revisions__is_current=True).distinct().order_by("code")[:25]
-        vis = Visibilita(request)
+        # Stessa ricerca flessibile della libreria (parole in qualunque ordine, radici,
+        # numeri senza zeri), qui solo su codice e titolo.
+        from procedure_refresh import libreria as cnsgi
+        from procedure_refresh.libreria import etichetta_sezione, identita_da_cartella
+        vis = cnsgi.Visibilita(request)
+        visibili = vis.filtra(cnsgi.documenti_in_vigore())
         trovati = 0
-        for d in docs_qs:
-            if not vis.puo_vedere(d):
-                continue
+        trovate = cnsgi.cerca(q, visibili, campo="titolo")
+        for r in ([] if trovate.approssimati else trovate):
+            d = r.doc
             results.append({
                 "tipo": "procedura",
                 "label": f"{d.code} · {d.title}",
