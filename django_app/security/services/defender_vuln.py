@@ -44,8 +44,15 @@ def leggi() -> tuple[list[dict], list[dict]]:
 def sincronizza(*, pc: list[dict] | None = None, righe: list[dict] | None = None) -> dict:
     from security.services.software_inventory import normalize_host
 
+    from core import m365_graph
+
     if pc is None or righe is None:
         pc, righe = leggi()
+    if m365_graph.troncata(pc) or m365_graph.troncata(righe):
+        # Elenco parziale: cancellare e reinserire farebbe sparire CVE e PC non letti.
+        logger.warning("Defender vulnerabilità: lettura troncata, dati precedenti lasciati invariati")
+        return {"righe": len(righe), "salvate": 0,
+                "saltato": "lettura troncata: Defender ha più pagine del limite, dati precedenti lasciati invariati"}
     nomi = {str(m.get("id")): str(m.get("computerDnsName") or "") for m in pc if m.get("id")}
     now = timezone.now()
     nuove = {}

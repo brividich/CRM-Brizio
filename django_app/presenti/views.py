@@ -12,6 +12,7 @@ Permessi in ``presenti.acl_bootstrap``; le viste ripetono solo il controllo fine
 """
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
 from django.contrib.auth.decorators import login_required
@@ -28,6 +29,8 @@ from . import guida as guida_mod
 from . import impostazioni, pdf, services, solari, uscite
 from .acl_bootstrap import PERM_APPELLO, PERM_IMPOSTAZIONI, PERM_USCITE, PERM_USCITE_TUTTE
 from .models import Appello, AppelloSpunta
+
+logger = logging.getLogger(__name__)
 
 AGGIORNA_LISTA = 30  # secondi
 AGGIORNA_APPELLO = 3  # secondi
@@ -422,10 +425,16 @@ def impostazioni_view(request):
             log_action(request, "impostazioni_salvate", "presenti", {})
             messages.success(request, "Impostazioni salvate.")
         elif azione == "pubblica":
-            from .tasks import pubblica_pdf
+            # Solari + generazione PDF + Graph: nel worker, non nella richiesta.
+            try:
+                from django_q.tasks import async_task
 
-            esito = pubblica_pdf(forza=True)
-            (messages.success if esito.get("ok") else messages.error)(request, esito.get("messaggio", ""))
+                async_task("presenti.tasks.pubblica_pdf", forza=True, q_options={"timeout": 110})
+                messages.info(request, "Pubblicazione avviata, l'esito compare tra poco in «Ultima pubblicazione»: "
+                                       "ricarica la pagina tra qualche secondo.")
+            except Exception:
+                logger.warning("Pubblicazione PDF presenti: accodamento fallito", exc_info=True)
+                messages.error(request, "Non è stato possibile avviare la pubblicazione: riprova tra poco.")
         return redirect("presenti:impostazioni")
     return render(request, "presenti/impostazioni.html", _ctx(
         request, "impostazioni", valori=impostazioni.tutte(), solari_ok=solari.configurato(),

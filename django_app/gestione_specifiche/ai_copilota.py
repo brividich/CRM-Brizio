@@ -261,45 +261,86 @@ def _tokenizza(testo: str) -> list[str]:
     return [t for t in re.split(r"\W+", (testo or "").lower()) if len(t) > 2]
 
 
-def _embedding(testo: str):
-    """Embedding locale via Ollama; None se non disponibile (→ fallback lessicale)."""
-    if not getattr(settings, "OLLAMA_EMBED_ENABLED", False):
-        return None
-    try:
-        import requests
+# Timeout breve per la ricerca dalla pagina: un servizio embeddings lento degrada subito al lessicale.
+_EMBED_TIMEOUT_RICERCA = 5
 
-        base = getattr(settings, "OLLAMA_BASE_URL", "http://localhost:11434")
-        model = getattr(settings, "OLLAMA_EMBED_MODEL", "nomic-embed-text")
-        r = requests.post(f"{base}/api/embeddings", json={"model": model, "prompt": testo}, timeout=5)
-        r.raise_for_status()
-        return r.json().get("embedding")
-    except Exception as exc:
-        logger.debug("gs copilota embedding non disponibile: %s", exc)
+
+def _embeddings_attivi() -> bool:
+    try:
+        from ai_assistant.services import embeddings_enabled
+
+        return embeddings_enabled()
+    except Exception:  # noqa: BLE001 - assistente non configurato
+        return False
+
+
+def _embed_many(testi: list[str]):
+    """Vettori per più testi in UNA richiesta a batch col backend configurato (RAG_EMBED_BACKEND:
+    Ollama, TEI/OpenAI-compatibile o fastembed). None se non disponibile (→ fallback lessicale)."""
+    if not testi:
+        return []
+    try:
+        from ai_assistant.services import embed_texts
+
+        vettori = embed_texts(list(testi), timeout=_EMBED_TIMEOUT_RICERCA)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("gs copilota: embeddings non disponibili: %s", exc)
         return None
+    if not vettori or len(vettori) != len(testi):
+        return None
+    return vettori
+
+
+def _embedding(testo: str):
+    """Embedding di un testo; None se non disponibile (→ fallback lessicale)."""
+    if not _embeddings_attivi():
+        return None
+    vettori = _embed_many([testo])
+    return vettori[0] if vettori else None
+
+
+def _embed_cache_key(testo: str) -> str:
+    from ai_assistant.services import _embed_backend, _effective_embed_model
+
+    model = f"{_embed_backend()}:{_effective_embed_model()}"
+    return "gs:emb:" + model + ":" + hashlib.sha256((testo or "").encode("utf-8")).hexdigest()[:24]
+
+
+def _embeddings_cached(testi: list[str]) -> list:
+    """Embedding per più testi con cache per (backend, modello, content-hash): i testi non in cache
+    si calcolano tutti insieme in una richiesta a batch (prima: una chiamata per testo, fino a ~31 × 5 s
+    nella richiesta web). Un elemento None = embedding non disponibile per quel testo."""
+    if not testi or not _embeddings_attivi():
+        return [None] * len(testi)
+    from django.core.cache import cache
+
+    chiavi = [_embed_cache_key(t) for t in testi]
+    try:
+        trovati = cache.get_many(list(set(chiavi))) or {}
+    except Exception:  # noqa: BLE001 - cache giù: si ricalcola
+        trovati = {}
+    mancanti = list(dict.fromkeys(t for t, k in zip(testi, chiavi, strict=True) if trovati.get(k) is None))
+    if mancanti:
+        vettori = _embed_many(mancanti)
+        if vettori:
+            nuovi = {_embed_cache_key(t): v for t, v in zip(mancanti, vettori, strict=True)}
+            trovati.update(nuovi)
+            try:
+                cache.set_many(nuovi, getattr(settings, "OLLAMA_EMBED_CACHE_TTL", 86400))
+            except Exception:  # noqa: BLE001
+                pass
+    return [trovati.get(k) for k in chiavi]
 
 
 def _embedding_cached(testo: str):
-    """Embedding con cache per (modello, content-hash): evita di ricalcolare lo stesso testo
-    a ogni ricerca (mitiga A3, il costo N+1 HTTP). None se embeddings non disponibili."""
-    if not getattr(settings, "OLLAMA_EMBED_ENABLED", False):
-        return None
-    from django.core.cache import cache
-
-    model = getattr(settings, "OLLAMA_EMBED_MODEL", "nomic-embed-text")
-    key = "gs:emb:" + model + ":" + hashlib.sha256((testo or "").encode("utf-8")).hexdigest()[:24]
-    cached = cache.get(key)
-    if cached is not None:
-        return cached
-    e = _embedding(testo)
-    if e is not None:
-        cache.set(key, e, getattr(settings, "OLLAMA_EMBED_CACHE_TTL", 86400))
-    return e
+    """Embedding di un testo con cache (vedi ``_embeddings_cached``)."""
+    return _embeddings_cached([testo])[0]
 
 
 def _cosine(a, b) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
-    num = sum(x * y for x, y in zip(a, b))
+    num = sum(x * y for x, y in zip(a, b, strict=True))
     na = math.sqrt(sum(x * x for x in a))
     nb = math.sqrt(sum(y * y for y in b))
     return num / (na * nb) if na and nb else 0.0
@@ -347,9 +388,9 @@ def ricerca_semantica(query: str, *, limit: int = 10) -> list[dict]:
     if emb_q is None:
         return [_riga_ricerca(s, lex) for lex, s, _ in lessicali[:limit]]
     shortlist = lessicali[: max(limit * 3, 30)]
+    vettori = _embeddings_cached([testo for _lex, _s, testo in shortlist])
     ranked = []
-    for lex, s, testo in shortlist:
-        e = _embedding_cached(testo)
+    for (lex, s, _testo), e in zip(shortlist, vettori, strict=True):
         ranked.append((_cosine(emb_q, e) if e else lex, s))
     ranked.sort(key=lambda t: t[0], reverse=True)
     return [_riga_ricerca(s, score) for score, s in ranked[:limit]]

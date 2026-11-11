@@ -5,9 +5,11 @@ from decimal import Decimal, InvalidOperation
 import json
 import logging
 import re
+import time
 import traceback
 from types import SimpleNamespace
 from typing import Any
+from urllib.parse import urlsplit
 
 import requests
 from django.conf import settings
@@ -56,6 +58,14 @@ _SENSITIVE_KEY_PARTS = ("password", "passwd", "secret", "token", "api_key", "api
 
 class AutomationSafetyError(ValueError):
     """Errore bloccante generato dai guardrail runtime delle automazioni."""
+
+
+class AutomationHostUnresolvedError(ValueError):
+    """Host di un'azione HTTP non risolvibile dal DNS: problema di rete, non un blocco di policy."""
+
+
+class AutomationHttpError(ValueError):
+    """Errore di rete di un'azione HTTP descritto con tipo + host, senza URL (può contenere segreti)."""
 
 
 class QueueEventStatus:
@@ -1034,6 +1044,31 @@ def purge_processed_queue_events(days: int, *, batch_size: int = 5000, apply: bo
         if deleted < size:
             break
     return total
+
+
+# Budget di un giro della coda: sotto il timeout di 120 s del worker django-q.
+QUEUE_BATCH_TIME_BUDGET_SECONDS = 90
+
+
+def release_queue_events(queue_ids: list[int]) -> int:
+    """Rimette in coda eventi presi ma non lavorati, senza consumare tentativi."""
+    ids = [int(queue_id) for queue_id in queue_ids or []]
+    if not ids:
+        return 0
+    placeholders = ", ".join(["%s"] * len(ids))
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+UPDATE dbo.automation_event_queue
+SET
+    status = %s,
+    picked_at = NULL
+WHERE status = %s
+  AND id IN ({placeholders})
+""",
+            [QueueEventStatus.PENDING, QueueEventStatus.PROCESSING, *ids],
+        )
+        return int(cursor.rowcount or 0)
 
 
 def fetch_pending_queue_events(limit: int = 50, source_code: str | None = None) -> list[dict[str, Any]]:
@@ -2189,6 +2224,91 @@ def _coerce_timeout_seconds(raw_value: Any, *, default: int = 20) -> int:
     return max(timeout, 1)
 
 
+# Gli URL dei trigger Power Automate / Logic Apps portano la firma in query
+# (``sig=``) e quelli dei webhook Teams sono il segreto stesso: in run log, log
+# applicativi e traceback va solo schema://host.
+_URL_IN_TEXT_PATTERN = re.compile(r"(?i)\b(https?)://([^/\s'\"<>?#]+)[^\s'\"<>]*")
+_SECRET_QUERY_PATTERN = re.compile(
+    r"(?i)([?&](?:sig|signature|code|key|token|access_token|sv|sp|se|api-key|apikey)=)[^&\s'\"<>]+"
+)
+_REQUESTS_URL_PATTERN = re.compile(r"(?i)(with url: )\S+")
+
+
+def _redact_url(url: Any) -> str:
+    """Solo ``schema://host[:porta]`` di un URL: niente percorso né query."""
+    raw = str(url or "").strip()
+    try:
+        parts = urlsplit(raw)
+        host = parts.hostname or ""
+        port = parts.port
+    except ValueError:
+        return "<url non valido>"
+    if not parts.scheme or not host:
+        return "<url>"
+    return f"{parts.scheme}://{host}{f':{port}' if port else ''}"
+
+
+def _redact_secrets(text: Any) -> str:
+    """Toglie da un testo (messaggio, traceback) percorsi e query degli URL."""
+    if not text:
+        return str(text or "")
+
+    def _host_only(match: re.Match[str]) -> str:
+        netloc = match.group(2).rsplit("@", 1)[-1]
+        return f"{match.group(1)}://{netloc}"
+
+    cleaned = _URL_IN_TEXT_PATTERN.sub(_host_only, str(text))
+    cleaned = _REQUESTS_URL_PATTERN.sub(r"\1<percorso omesso>", cleaned)
+    return _SECRET_QUERY_PATTERN.sub(r"\1***", cleaned)
+
+
+def _describe_request_error(exc: Exception, url: str) -> str:
+    """Errore di rete come «tipo + host»: il messaggio di requests contiene l'URL completo."""
+    try:
+        host = urlsplit(str(url or "")).hostname or "?"
+    except ValueError:
+        host = "?"
+    if isinstance(exc, requests.Timeout):
+        detail = "nessuna risposta nel tempo previsto"
+    elif isinstance(exc, requests.exceptions.SSLError):
+        detail = "errore TLS/certificato"
+    elif isinstance(exc, requests.exceptions.ProxyError):
+        detail = "errore del proxy"
+    elif isinstance(exc, requests.ConnectionError):
+        detail = "connessione non riuscita"
+    else:
+        detail = "richiesta non riuscita"
+    return f"{type(exc).__name__} verso {host}: {detail}."
+
+
+def _http_response_error(response: Any, url: str, *, label: str, expected_statuses: list[int] | None = None) -> str:
+    """Messaggio d'errore per una risposta non riuscita, '' se riuscita.
+
+    Riuscita = 2xx (o uno degli ``expected_statuses``). Con ``allow_redirects=False``
+    un 3xx non e' un successo: la richiesta non e' arrivata a destinazione.
+    """
+    try:
+        status = int(getattr(response, "status_code", 0) or 0)
+    except (TypeError, ValueError):
+        status = 0
+    if expected_statuses:
+        if status in expected_statuses:
+            return ""
+    elif 200 <= status < 300:
+        return ""
+    if 300 <= status < 400:
+        from collections.abc import Mapping
+
+        headers = getattr(response, "headers", None)
+        location = str(headers.get("Location") or "") if isinstance(headers, Mapping) else ""
+        try:
+            target_host = urlsplit(location).hostname or urlsplit(str(url or "")).hostname or "?"
+        except ValueError:
+            target_host = "?"
+        return f"{label}: redirect verso {target_host} non seguito (HTTP {status})."
+    return f"{label} ha risposto con HTTP {status}."
+
+
 def _render_delay_until(raw_value: Any, payload_context: Any) -> datetime:
     rendered = str(_render_action_value(raw_value, payload_context) or "").strip()
     if not rendered:
@@ -2276,17 +2396,19 @@ def http_external_hosts() -> list[str]:
     return hosts
 
 
-def validate_http_action_target(url: str) -> None:
+def validate_http_action_target(url: str) -> bool:
     """SEC (audit M7): niente SSRF dalle azioni http_request.
 
     Loopback, link-local (metadati cloud), indirizzi riservati e multicast sono
     sempre vietati. Le reti private (LAN) solo per gli host elencati in
     ``AUTOMATION_HTTP_ALLOWED_HOSTS`` (es. un servizio interno noto). Gli host
     pubblici solo se in :func:`http_external_hosts` (GDPR: elenco chiuso).
+
+    Ritorna True se l'host risolve su una rete interna: la richiesta va fatta
+    senza proxy di sistema, altrimenti il controllo sull'IP non vale niente.
     """
     import ipaddress
     import socket
-    from urllib.parse import urlsplit
 
     from django.conf import settings as dj_settings
 
@@ -2304,17 +2426,25 @@ def validate_http_action_target(url: str) -> None:
         )
     try:
         infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == "https" else 80), proto=socket.IPPROTO_TCP)
-    except socket.gaierror as exc:
-        raise AutomationSafetyError(f"http_request: host non risolvibile ({host}).") from exc
+    except socket.gaierror:
+        # Non e' un blocco di policy: il server non trova l'host (DNS o rete).
+        raise AutomationHostUnresolvedError(
+            f"http_request: il server non riesce a risolvere {host} (DNS). "
+            "Verificare il nome dell'host e la rete del server: non è un blocco delle regole di sicurezza."
+        ) from None
+    private_target = False
     for info in infos:
         addr = ipaddress.ip_address(info[4][0].split("%", 1)[0])
         if addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_unspecified or addr.is_reserved:
             raise AutomationSafetyError(f"http_request: destinazione non ammessa ({host} -> {addr}).")
-        if addr.is_private and not allow_private:
-            raise AutomationSafetyError(
-                f"http_request: {host} risolve su una rete interna ({addr}). "
-                "Aggiungerlo ad AUTOMATION_HTTP_ALLOWED_HOSTS se è un servizio interno previsto."
-            )
+        if addr.is_private:
+            if not allow_private:
+                raise AutomationSafetyError(
+                    f"http_request: {host} risolve su una rete interna ({addr}). "
+                    "Aggiungerlo ad AUTOMATION_HTTP_ALLOWED_HOSTS se è un servizio interno previsto."
+                )
+            private_target = True
+    return private_target
 
 
 def _perform_http_request(
@@ -2325,7 +2455,7 @@ def _perform_http_request(
     body: Any,
     timeout_seconds: int,
 ) -> requests.Response:
-    validate_http_action_target(url)
+    private_target = bool(validate_http_action_target(url))
     request_kwargs: dict[str, Any] = {
         "method": method,
         "url": url,
@@ -2347,7 +2477,17 @@ def _perform_http_request(
         else:
             request_kwargs["data"] = str(body)
 
-    return requests.request(**request_kwargs)
+    try:
+        if private_target:
+            # Servizio in LAN: il server ha HTTPS_PROXY per Internet; passando dal
+            # proxy l'IP verificato sopra non sarebbe quello davvero contattato.
+            with requests.Session() as session:
+                session.trust_env = False
+                return session.request(**request_kwargs)
+        return requests.request(**request_kwargs)
+    except requests.RequestException as exc:
+        # Il messaggio di requests contiene l'URL completo (firma sig=, webhook).
+        raise AutomationHttpError(_describe_request_error(exc, url)) from None
 
 
 def _normalize_teams_theme_color(raw_value: Any) -> str:
@@ -2542,6 +2682,31 @@ def _build_approval_links(approval: Any) -> tuple[str, str]:
     return approve_url, reject_url
 
 
+def _find_previous_approval(action: Any, run_log: AutomationRunLog | None) -> Any | None:
+    """Richiesta creata dalla stessa azione in un tentativo precedente dello stesso evento di coda."""
+    queue_event_id = getattr(run_log, "queue_event_id", None)
+    if (
+        run_log is None
+        or not queue_event_id
+        or getattr(run_log, "is_test", False)
+        or not isinstance(action, AutomationAction)
+        or action.pk is None
+    ):
+        return None
+    from .models import AutomationApproval
+
+    return (
+        AutomationApproval.objects.filter(
+            action=action,
+            run_log__queue_event_id=queue_event_id,
+            run_log__is_test=False,
+        )
+        .exclude(run_log=run_log)
+        .order_by("-pk")
+        .first()
+    )
+
+
 def _send_approval_email(
     *,
     approver_emails: list[str],
@@ -2556,9 +2721,11 @@ def _send_approval_email(
     text_body_override: str | None = None,
     calendar_event: dict | None = None,
     calendar_opt_in: bool = False,
+    connection: Any = None,
 ) -> str:
     """
     Invia l'email di approvazione.
+    ``connection``: connessione SMTP gia' aperta da riusare per tutti i destinatari.
     Con ``calendar_event`` (richieste di assenza) aggiunge «Aggiungi al calendario
     Outlook»; con ``calendar_opt_in`` «Approva e metti in calendario» (vedi ``calendario_outlook``).
     Se html_body_override / text_body_override sono valorizzati (rendering da ApprovalEmailTemplate),
@@ -2637,6 +2804,7 @@ def _send_approval_email(
             body=text_body,
             from_email=from_email,
             to=[approver_email],
+            connection=connection,
         )
         message.attach_alternative(html_body, "text/html")
         message.send(fail_silently=False)
@@ -2816,8 +2984,9 @@ def _send_approval_teams_webhook_legacy(
         body=card_payload,
         timeout_seconds=10,
     )
-    if not response.ok:
-        raise ValueError(f"Teams webhook legacy ha risposto con HTTP {response.status_code}.")
+    response_error = _http_response_error(response, teams_webhook_url, label="Teams webhook legacy")
+    if response_error:
+        raise ValueError(response_error)
     return f"Teams webhook legacy inviato (HTTP {response.status_code})."
 
 
@@ -2886,9 +3055,16 @@ def _send_approval_teams_chat_flow(
         "expires_at": _format_approval_expires_at(approval.expires_at),
         "facts": _parse_approval_facts(config, payload_context),
     }
-    response = requests.post(endpoint_url, json=payload, timeout=10)
-    if not response.ok:
-        raise ValueError(f"Teams chat flow ha risposto con HTTP {response.status_code}.")
+    response = _perform_http_request(
+        method="POST",
+        url=endpoint_url,
+        headers={"Content-Type": "application/json"},
+        body=payload,
+        timeout_seconds=10,
+    )
+    response_error = _http_response_error(response, endpoint_url, label="Teams chat flow")
+    if response_error:
+        raise ValueError(response_error)
     return {
         "recipient_email": recipient_email,
         "payload": payload,
@@ -3382,12 +3558,27 @@ def find_matching_rules(queue_event: dict[str, Any]) -> list[AutomationRule]:
     if not source_code or operation_type not in {"insert", "update"}:
         return []
 
+    from django.db.models import Prefetch
+
+    # Condizioni e azioni abilitate caricate in blocco: run_rule le legge da qui
+    # invece di fare due query per regola.
     base_queryset = AutomationRule.objects.filter(
         source_code=source_code,
         operation_type=operation_type,
         is_active=True,
         is_draft=False,
-    ).order_by("id")
+    ).order_by("id").prefetch_related(
+        Prefetch(
+            "conditions",
+            queryset=AutomationCondition.objects.filter(is_enabled=True).order_by("order", "id"),
+            to_attr="prefetched_enabled_conditions",
+        ),
+        Prefetch(
+            "actions",
+            queryset=AutomationAction.objects.filter(is_enabled=True).order_by("order", "id"),
+            to_attr="prefetched_enabled_actions",
+        ),
+    )
 
     if operation_type == "insert":
         return list(base_queryset.filter(trigger_scope="all_inserts"))
@@ -3504,6 +3695,7 @@ def process_queue_event(queue_event: dict[str, Any]) -> dict[str, Any]:
                 initiated_by=None,
                 is_test=False,
                 queue_event=queue_event,
+                payload_enriched=True,
             )
             return getattr(run_log, "status", None), None
         except Exception as exc:
@@ -3901,33 +4093,56 @@ def process_pending_queue_events(
     except Exception:
         logger.exception("automation queue: recupero eventi in processing non riuscito")
         summary["recovered"] = 0
-    queue_events = fetch_pending_queue_events(summary["limit"], source_code=summary["source_code"])
-    summary["fetched"] = len(queue_events)
-    for queue_event in queue_events:
-        try:
-            event_result = process_queue_event(queue_event)
-        except Exception as exc:
-            queue_id = int(queue_event["id"])
-            logger.exception("Errore batch processing queue event %s", queue_id)
-            try:
-                mark_queue_error(queue_id, exc)
-            except Exception:
-                logger.exception("Errore durante mark_queue_error per queue event %s", queue_id)
-            event_result = {
-                "queue_id": queue_id,
-                "status": QueueEventStatus.ERROR,
-                "rule_runs": 0,
-                "message": _normalize_queue_error_message(exc),
-            }
-
-        summary["events"].append(event_result)
-        summary["rule_runs"] += int(event_result.get("rule_runs") or 0)
-        if event_result.get("status") == QueueEventStatus.DONE:
-            summary["done"] += 1
-        elif event_result.get("status") == QueueEventStatus.ERROR:
-            summary["error"] += 1
+    # Un evento alla volta, entro un budget di tempo: prendere 50 eventi insieme
+    # (tutti in «processing») con eventi lenti superava il timeout del worker
+    # django-q, che veniva ucciso lasciandoli bloccati. Quelli presi e non
+    # lavorati tornano in coda senza consumare tentativi.
+    started = time.monotonic()
+    while summary["fetched"] < summary["limit"]:
+        if time.monotonic() - started >= QUEUE_BATCH_TIME_BUDGET_SECONDS:
+            summary["budget_exhausted"] = True
+            break
+        queue_events = fetch_pending_queue_events(1, source_code=summary["source_code"])
+        if not queue_events:
+            break
+        for position, queue_event in enumerate(queue_events):
+            if summary["fetched"] >= summary["limit"] or (
+                position and time.monotonic() - started >= QUEUE_BATCH_TIME_BUDGET_SECONDS
+            ):
+                release_queue_events([int(ev["id"]) for ev in queue_events[position:]])
+                summary["budget_exhausted"] = True
+                break
+            summary["fetched"] += 1
+            _process_one_pending_event(queue_event, summary)
+        if summary.get("budget_exhausted"):
+            break
 
     return summary
+
+
+def _process_one_pending_event(queue_event: dict[str, Any], summary: dict[str, Any]) -> None:
+    try:
+        event_result = process_queue_event(queue_event)
+    except Exception as exc:
+        queue_id = int(queue_event["id"])
+        logger.exception("Errore batch processing queue event %s", queue_id)
+        try:
+            mark_queue_error(queue_id, exc)
+        except Exception:
+            logger.exception("Errore durante mark_queue_error per queue event %s", queue_id)
+        event_result = {
+            "queue_id": queue_id,
+            "status": QueueEventStatus.ERROR,
+            "rule_runs": 0,
+            "message": _normalize_queue_error_message(exc),
+        }
+
+    summary["events"].append(event_result)
+    summary["rule_runs"] += int(event_result.get("rule_runs") or 0)
+    if event_result.get("status") == QueueEventStatus.DONE:
+        summary["done"] += 1
+    elif event_result.get("status") == QueueEventStatus.ERROR:
+        summary["error"] += 1
 
 
 def _schedule_queue_event(
@@ -4060,7 +4275,7 @@ def _query_source_for_each(
     valid_fields = {f["name"] for f in get_source_fields(source_code)}
 
     if filter_field and filter_field not in valid_fields:
-        raise ValueError(f"Il campo filtro '{filter_field}' non Ã¨ esposto dalla sorgente '{source_code}'.")
+        raise ValueError(f"Il campo filtro '{filter_field}' non è esposto dalla sorgente '{source_code}'.")
 
     max_items = max(1, min(int(max_items or 50), 500))
 
@@ -4381,11 +4596,11 @@ def execute_action(
                 if isinstance(smtp_exc, smtplib.SMTPServerDisconnected):
                     from django.conf import settings as _s
                     raise ValueError(
-                        f"SMTP: il server ha chiuso la connessione prima del completamento "
-                        f"({exc_type}: {smtp_exc}). "
-                        f"Verificare che SMTP AUTH sia abilitato per la casella '{getattr(_s, 'EMAIL_HOST_USER', '?')}' "
-                        f"su {getattr(_s, 'EMAIL_HOST', '?')}:{getattr(_s, 'EMAIL_PORT', '?')}, "
-                        f"che la porta sia raggiungibile dal server e che le credenziali siano corrette."
+                        f"SMTP: il server {getattr(_s, 'EMAIL_HOST', '?')}:{getattr(_s, 'EMAIL_PORT', '?')} "
+                        f"ha chiuso la connessione prima del completamento ({exc_type}: {smtp_exc}). "
+                        "Cause possibili: server momentaneamente non disponibile o sovraccarico, "
+                        "porta non raggiungibile dal server, SMTP AUTH non abilitato per la casella "
+                        f"'{getattr(_s, 'EMAIL_HOST_USER', '?')}' o credenziali errate."
                     ) from smtp_exc
                 elif isinstance(smtp_exc, smtplib.SMTPAuthenticationError):
                     raise ValueError(
@@ -4474,24 +4689,55 @@ def execute_action(
             if cert_text:
                 message_body = f"{cert_text}{message_body}"
 
-            approval = _create_approval_record(
-                action=action,
-                run_log=run_log,
-                approver_emails=approver_emails,
-                subject=subject,
-                message_body=message_body,
-                expiry_days=expiry_days,
-                payload_context=payload_context,
-                old_payload=old_payload,
-                approved_actions=approved_actions,
-                rejected_actions=rejected_actions,
-            )
+            # Ripresa: un tentativo precedente sullo stesso evento di coda ha gia'
+            # creato la richiesta e recapitato almeno un link. Quei link restano
+            # validi: si riusa la richiesta e si invia solo ai destinatari mancanti.
+            approval = _find_previous_approval(action, run_log)
+            reused_approval = approval is not None
+            if reused_approval and approval.status != approval.Status.PENDING:
+                result_message = (
+                    f"Richiesta #{approval.pk} creata in un tentativo precedente e già chiusa "
+                    f"(stato: {approval.status}): nessun nuovo invio."
+                )
+                action_log = _create_action_log(
+                    run_log=run_log,
+                    action=action,
+                    status=AutomationActionLogStatus.SUCCESS,
+                    result_message=result_message,
+                )
+                return {"status": AutomationActionLogStatus.SUCCESS, "result_message": result_message, "action_log": action_log}
+            if reused_approval:
+                if run_log is not None and approval.run_log_id != run_log.pk:
+                    approval.run_log = run_log
+                    approval.save(update_fields=["run_log"])
+                already_delivered = {
+                    str(email or "").strip().lower()
+                    for email in approval.links.values_list("recipient_email", flat=True)
+                }
+            else:
+                already_delivered = set()
+                approval = _create_approval_record(
+                    action=action,
+                    run_log=run_log,
+                    approver_emails=approver_emails,
+                    subject=subject,
+                    message_body=message_body,
+                    expiry_days=expiry_days,
+                    payload_context=payload_context,
+                    old_payload=old_payload,
+                    approved_actions=approved_actions,
+                    rejected_actions=rejected_actions,
+                )
             # Link personali: ogni destinatario riceve il proprio segreto, cosi' la
             # decisione e' attribuita a lui senza login (vedi approval_links.py).
-            from .approval_links import build_link_urls, create_link
+            # Un link il cui invio fallisce viene tolto: l'elenco dei link e' anche
+            # l'elenco dei recapiti riusciti (serve alla ripresa qui sopra).
+            from .approval_links import build_link_urls, create_link, delete_link
 
-            def _personal_links(email: str) -> tuple[str, str]:
-                return build_link_urls(create_link(approval, email))
+            def _personal_links(email: str) -> tuple[str, str, str]:
+                raw_token = create_link(approval, email)
+                approve_link, reject_link = build_link_urls(raw_token)
+                return approve_link, reject_link, raw_token
 
             def _render_with_template(approve_url: str, reject_url: str) -> tuple[str | None, str | None, str | None]:
                 """(subject, html, text) dal template email, oppure (None, None, None)."""
@@ -4550,20 +4796,42 @@ def execute_action(
                     )
                     return None, None, None
 
-            result_message_parts = [
-                f"Richiesta approvazione creata per {', '.join(approver_emails)}.",
-                f"Richiesta #{approval.pk}.",
-                f"Scadenza: {expiry_days} giorni.",
-            ]
+            if reused_approval:
+                result_message_parts = [
+                    f"Ripresa della richiesta #{approval.pk} creata in un tentativo precedente: "
+                    "invio solo ai destinatari non ancora raggiunti.",
+                ]
+            else:
+                result_message_parts = [
+                    f"Richiesta approvazione creata per {', '.join(approver_emails)}.",
+                    f"Richiesta #{approval.pk}.",
+                    f"Scadenza: {expiry_days} giorni.",
+                ]
             if email_template is not None:
                 result_message_parts.append(f"Template email: {email_template.name}.")
-            delivery_success = False
             strict_teams_flow = bool(config.get("strict_teams_flow"))
+            delivered_now: list[str] = []
+            delivery_failures: list[str] = []
+            pending_email_recipients = [
+                email for email in email_approver_emails if email.strip().lower() not in already_delivered
+            ]
+
+            mail_connection = None
+            if delivery_mode in email_delivery_modes and pending_email_recipients:
+                # Una sola connessione SMTP per tutta la richiesta, non una per mail.
+                try:
+                    from django.core.mail import get_connection
+
+                    mail_connection = get_connection(fail_silently=False)
+                    mail_connection.open()
+                except Exception:
+                    logger.warning("send_approval: connessione SMTP condivisa non aperta, invio mail per mail", exc_info=True)
+                    mail_connection = None
 
             try:
                 if delivery_mode in email_delivery_modes:
-                    for approver_email in email_approver_emails:
-                        approve_url, reject_url = _personal_links(approver_email)
+                    for approver_email in pending_email_recipients:
+                        approve_url, reject_url, raw_link = _personal_links(approver_email)
                         tpl_subject, html_override, text_override = _render_with_template(approve_url, reject_url)
                         try:
                             _send_approval_email(
@@ -4579,20 +4847,25 @@ def execute_action(
                                 text_body_override=text_override,
                                 calendar_event=calendar_event,
                                 calendar_opt_in=calendar_opt_in,
+                                connection=mail_connection,
                             )
                         except Exception as send_exc:
+                            delete_link(raw_link)
                             _registra_mail(action, run_log, payload_context, origine="approvazione",
                                            to=[approver_email], subject=tpl_subject or subject,
                                            errore=f"{type(send_exc).__name__}: {send_exc}")
-                            raise
+                            logger.warning("send_approval: email a %s non inviata: %s", approver_email, send_exc)
+                            delivery_failures.append(f"email a {approver_email} ({type(send_exc).__name__}: {send_exc})")
+                            continue
                         _registra_mail(action, run_log, payload_context, origine="approvazione",
                                        to=[approver_email], subject=tpl_subject or subject)
-                    result_message_parts.append(
-                        f"Email approvazione inviata a {', '.join(email_approver_emails)}."
-                    )
-                    delivery_success = True
+                        delivered_now.append(approver_email)
+                    if delivered_now:
+                        result_message_parts.append(
+                            f"Email approvazione inviata a {', '.join(delivered_now)}."
+                        )
 
-                if delivery_mode == ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY:
+                if delivery_mode == ApprovalDeliveryMode.TEAMS_WEBHOOK_LEGACY and not reused_approval:
                     # Canale Teams condiviso: nessun destinatario individuale, quindi
                     # nessun link personale. I pulsanti aprono la pagina portale, dove
                     # si decide solo dopo il login come approvatore autorizzato.
@@ -4611,12 +4884,14 @@ def execute_action(
                             )
                         )
                     except Exception as teams_legacy_exc:
-                        logger.warning("send_approval: Teams webhook legacy error: %s", teams_legacy_exc)
-                        result_message_parts.append(f"Teams webhook legacy non inviato ({teams_legacy_exc}).")
+                        legacy_error = _redact_secrets(str(teams_legacy_exc))
+                        logger.warning("send_approval: Teams webhook legacy error: %s", legacy_error)
+                        result_message_parts.append(f"Teams webhook legacy non inviato ({legacy_error}).")
 
-                if delivery_mode in flow_delivery_modes:
+                if delivery_mode in flow_delivery_modes and flow_recipient_email.strip().lower() not in already_delivered:
+                    raw_flow_link = ""
                     try:
-                        flow_approve_url, flow_reject_url = _personal_links(flow_recipient_email)
+                        flow_approve_url, flow_reject_url, raw_flow_link = _personal_links(flow_recipient_email)
                         flow_result = _send_approval_teams_chat_flow(
                             config=config,
                             approval=approval,
@@ -4627,20 +4902,45 @@ def execute_action(
                             reject_url=flow_reject_url,
                         )
                         result_message_parts.append(flow_result["result_message"])
-                        delivery_success = True
+                        delivered_now.append(flow_recipient_email)
                     except Exception as teams_flow_exc:
-                        logger.warning("send_approval: Teams chat flow error: %s", teams_flow_exc)
+                        if raw_flow_link:
+                            delete_link(raw_flow_link)
+                        flow_error = _redact_secrets(str(teams_flow_exc))
+                        logger.warning("send_approval: Teams chat flow error: %s", flow_error)
                         if delivery_mode == ApprovalDeliveryMode.TEAMS_CHAT_FLOW or strict_teams_flow:
-                            raise
-                        result_message_parts.append(f"Teams chat flow non inviato ({teams_flow_exc}).")
+                            delivery_failures.append(f"Teams chat flow a {flow_recipient_email} ({flow_error})")
+                        else:
+                            result_message_parts.append(f"Teams chat flow non inviato ({flow_error}).")
             except Exception:
-                if not delivery_success:
+                if not delivered_now and not reused_approval:
                     approval.delete()
                 raise
+            finally:
+                if mail_connection is not None:
+                    try:
+                        mail_connection.close()
+                    except Exception:
+                        logger.debug("send_approval: chiusura connessione SMTP non riuscita", exc_info=True)
 
-            if not delivery_success:
-                approval.delete()
+            if not delivered_now and not already_delivered:
+                # Nessun link e' arrivato a nessuno: la richiesta non serve.
+                if not reused_approval:
+                    approval.delete()
+                if delivery_failures:
+                    raise ValueError("Nessun recapito approvazione riuscito: " + "; ".join(delivery_failures) + ".")
                 raise ValueError("Nessun recapito approvazione riuscito.")
+
+            if delivery_failures:
+                # Recapito parziale: i link gia' inviati restano validi (la richiesta
+                # NON si cancella). L'azione va in errore cosi' l'evento si ritenta,
+                # e il tentativo successivo invia solo ai destinatari mancanti.
+                raggiunti = sorted(already_delivered | {email.strip().lower() for email in delivered_now})
+                raise ValueError(
+                    f"Recapito parziale della richiesta #{approval.pk}: raggiunti {', '.join(raggiunti)}; "
+                    f"non recapitata: {'; '.join(delivery_failures)}. I link già inviati restano validi; "
+                    "al prossimo tentativo si invia solo ai destinatari mancanti."
+                )
 
             result_message = " ".join(part for part in result_message_parts if part)
             if run_log is not None:
@@ -4874,7 +5174,10 @@ def execute_action(
                 raise ValueError("http_request richiede url_template.")
             if _PLACEHOLDER_PATTERN.search(url):
                 unresolved = _PLACEHOLDER_PATTERN.findall(url)
-                raise ValueError(f"url_template non produce un URL valido. Placeholder non risolti: {unresolved}. URL parziale: {url!r}")
+                raise ValueError(
+                    f"url_template non produce un URL valido. Placeholder non risolti: {unresolved}. "
+                    f"Host: {_redact_url(url)}"
+                )
 
             response = _perform_http_request(
                 method=method,
@@ -4883,16 +5186,15 @@ def execute_action(
                 body=body,
                 timeout_seconds=timeout_seconds,
             )
-            if expected_statuses:
-                ok = response.status_code in expected_statuses
-            else:
-                ok = bool(response.ok)
-            if not ok:
-                raise ValueError(f"HTTP {response.status_code} ricevuto da {url}.")
+            response_error = _http_response_error(
+                response, url, label=f"HTTP {method} {_redact_url(url)}", expected_statuses=expected_statuses
+            )
+            if response_error:
+                raise ValueError(response_error)
 
             # Il corpo della risposta non finisce nel run log (audit M7): può contenere
-            # dati di un servizio interno.
-            result_message = f"HTTP {method} {url} -> {response.status_code}."
+            # dati di un servizio interno. Dell'URL solo schema://host (firma sig=).
+            result_message = f"HTTP {method} {_redact_url(url)} -> {response.status_code}."
             action_log = _create_action_log(
                 run_log=run_log,
                 action=action,
@@ -5225,8 +5527,9 @@ def execute_action(
                 body=card_payload,
                 timeout_seconds=20,
             )
-            if not response.ok:
-                raise ValueError(f"Teams webhook ha risposto con HTTP {response.status_code}.")
+            response_error = _http_response_error(response, webhook_url, label="Teams webhook")
+            if response_error:
+                raise ValueError(response_error)
 
             result_message = f"Teams webhook inviato -> {response.status_code} ({title or summary or 'card'})."
             action_log = _create_action_log(
@@ -5460,9 +5763,9 @@ def execute_action(
         raise NotImplementedError(f"Action type '{action.action_type}' non ancora implementato in fase 4B.")
     except AutomationSafetyError as exc:
         action_identity = _format_action_identity(action, run_log)
-        logger.warning("automation safety guardrail blocked %s: %s", action_identity, exc)
-        error_trace = traceback.format_exc()
-        result_message = f"Safety guardrail: {exc}"
+        logger.warning("automation safety guardrail blocked %s: %s", action_identity, _redact_secrets(str(exc)))
+        error_trace = _redact_secrets(traceback.format_exc())
+        result_message = f"Safety guardrail: {_redact_secrets(str(exc))}"
         action_log = _create_action_log(
             run_log=run_log,
             action=action,
@@ -5472,17 +5775,18 @@ def execute_action(
         )
         return {"status": AutomationActionLogStatus.ERROR, "result_message": result_message, "action_log": action_log}
     except Exception as exc:
+        # Messaggio e traceback ripuliti: possono contenere URL con firma (sig=) o webhook.
+        error_trace = _redact_secrets(traceback.format_exc())
         logger.warning(
-            "execute_action: errore nel tipo=%s run_log=%s rule_id=%s action_id=%s: %s",
+            "execute_action: errore nel tipo=%s run_log=%s rule_id=%s action_id=%s: %s\n%s",
             getattr(action, "action_type", "?"),
             getattr(run_log, "pk", None),
             getattr(getattr(action, "rule", None), "pk", None) or getattr(run_log, "rule_id", None),
             getattr(action, "pk", None),
-            exc,
-            exc_info=True,
+            _redact_secrets(str(exc)),
+            error_trace,
         )
-        error_trace = traceback.format_exc()
-        result_message = str(exc) or "Errore durante esecuzione action."
+        result_message = _redact_secrets(str(exc)) or "Errore durante esecuzione action."
         action_log = _create_action_log(
             run_log=run_log,
             action=action,
@@ -5491,6 +5795,28 @@ def execute_action(
             error_trace=error_trace,
         )
         return {"status": AutomationActionLogStatus.ERROR, "result_message": result_message, "action_log": action_log}
+
+
+def _actions_already_done_for_event(
+    rule: AutomationRule,
+    queue_event_id: int | None,
+    run_log: AutomationRunLog | None,
+    *,
+    is_test: bool = False,
+) -> set[int]:
+    """Id delle azioni della regola gia' riuscite in un tentativo precedente dello stesso evento."""
+    if not queue_event_id or is_test:
+        return set()
+    queryset = AutomationActionLog.objects.filter(
+        run_log__queue_event_id=queue_event_id,
+        run_log__rule=rule,
+        run_log__is_test=False,
+        status=AutomationActionLogStatus.SUCCESS,
+        action__isnull=False,
+    )
+    if run_log is not None and run_log.pk:
+        queryset = queryset.exclude(run_log=run_log)
+    return set(queryset.values_list("action_id", flat=True))
 
 
 def run_rule(
@@ -5501,10 +5827,12 @@ def run_rule(
     initiated_by: Any = None,
     is_test: bool = False,
     queue_event: dict[str, Any] | None = None,
+    payload_enriched: bool = False,
 ) -> AutomationRunLog:
     started_at = timezone.now()
-    payload = _enrich_payload_for_source(rule.source_code, payload)
-    old_payload = _enrich_payload_for_source(rule.source_code, old_payload)
+    if not payload_enriched:
+        payload = _enrich_payload_for_source(rule.source_code, payload)
+        old_payload = _enrich_payload_for_source(rule.source_code, old_payload)
     run_log = AutomationRunLog.objects.create(
         rule=rule,
         queue_event_id=queue_event_id,
@@ -5521,7 +5849,9 @@ def run_rule(
     )
 
     try:
-        enabled_conditions = rule.conditions.filter(is_enabled=True).order_by("order", "id")
+        enabled_conditions = getattr(rule, "prefetched_enabled_conditions", None)
+        if enabled_conditions is None:
+            enabled_conditions = rule.conditions.filter(is_enabled=True).order_by("order", "id")
         for condition in enabled_conditions:
             if not evaluate_condition(condition, payload, old_payload=old_payload):
                 run_log.status = AutomationRunLogStatus.SKIPPED
@@ -5533,9 +5863,26 @@ def run_rule(
             action_errors = 0
             action_count = 0
             action_skips = 0
-            enabled_actions = rule.actions.filter(is_enabled=True).order_by("order", "id")
+            enabled_actions = getattr(rule, "prefetched_enabled_actions", None)
+            if enabled_actions is None:
+                enabled_actions = rule.actions.filter(is_enabled=True).order_by("order", "id")
+            # Retry dello stesso evento di coda («Riprova», reset, recupero da
+            # processing): le azioni gia' riuscite in un tentativo precedente non si
+            # ripetono (niente mail o insert doppi), si riprende dalle altre.
+            already_done_action_ids = _actions_already_done_for_event(rule, queue_event_id, run_log, is_test=is_test)
             for action in enabled_actions:
                 action_count += 1
+                if action.pk in already_done_action_ids:
+                    skip_message = (
+                        "Già eseguita con successo in un tentativo precedente di questo evento: non ripetuta."
+                    )
+                    _create_action_log(
+                        run_log=run_log,
+                        action=action,
+                        status=AutomationActionLogStatus.SUCCESS,
+                        result_message=skip_message,
+                    )
+                    continue
                 result = execute_action(action, payload, old_payload=old_payload, run_log=run_log, queue_event=queue_event)
                 if result["status"] == AutomationActionLogStatus.SKIPPED:
                     action_skips += 1
@@ -5588,7 +5935,13 @@ def run_rule(
     return run_log
 
 
-def process_approval_decision(token: str, decision: str, decided_by_email: str = "") -> dict[str, Any]:
+def process_approval_decision(
+    token: str,
+    decision: str,
+    decided_by_email: str = "",
+    *,
+    defer_branch: bool = False,
+) -> dict[str, Any]:
     """
     Processa una decisione di approvazione (approved/rejected).
     Esegue le azioni del ramo corrispondente e aggiorna il run_log originale.
@@ -5597,6 +5950,10 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
         token: UUID del token di approvazione.
         decision: "approved" o "rejected".
         decided_by_email: email di chi ha preso la decisione.
+        defer_branch: True dalle pagine web: la decisione si registra subito e le
+            azioni del ramo (mail, scritture) partono in un task django-q, cosi'
+            la risposta all'approvatore non aspetta SMTP o servizi esterni. Se
+            l'accodamento fallisce il ramo gira subito come prima.
 
     Returns:
         dict con: ok, approval_id, decision, actions_run, message
@@ -5619,14 +5976,14 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
         if approval.status != AutomationApproval.Status.PENDING:
             return {
                 "ok": False,
-                "message": f"La richiesta Ã¨ giÃ  in stato '{approval.status}'. Non Ã¨ possibile decidere nuovamente.",
+                "message": f"La richiesta è già in stato '{approval.status}'. Non è possibile decidere nuovamente.",
                 "current_status": approval.status,
             }
 
         if approval.is_expired():
             approval.status = AutomationApproval.Status.EXPIRED
             approval.save(update_fields=["status"])
-            return {"ok": False, "message": "La richiesta di approvazione Ã¨ scaduta."}
+            return {"ok": False, "message": "La richiesta di approvazione è scaduta."}
 
         # Aggiorna approval in transazione: il token diventa monouso prima delle azioni ramo.
         approval.status = decision
@@ -5647,6 +6004,21 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
         )
         run_log.save(update_fields=["status", "result_message"])
 
+    if defer_branch and _enqueue_approval_branch(approval.pk):
+        esito = "approvata" if decision == "approved" else "rifiutata"
+        return {
+            "ok": True,
+            "approval_id": approval.pk,
+            "decision": decision,
+            "actions_run": None,
+            "actions_errors": 0,
+            "branch_deferred": True,
+            "message": (
+                f"Decisione registrata: richiesta {esito}. "
+                "Le azioni successive vengono eseguite in background nei prossimi secondi."
+            ),
+        }
+
     branch = run_approval_branch(approval)
     return {
         "ok": True,
@@ -5659,6 +6031,26 @@ def process_approval_decision(token: str, decision: str, decided_by_email: str =
             f"Azioni eseguite: {branch['actions_run']} (errori: {branch['actions_errors']})."
         ),
     }
+
+
+def _enqueue_approval_branch(approval_id: int) -> bool:
+    """Accoda il ramo di una decisione al cluster django-q. False se non e' stato possibile.
+
+    Se il task si perde (cluster fermo, riavvio) il ramo resta ``running`` e lo
+    riprende ``recover_approval_branches`` da ``branch_progress``.
+    """
+    try:
+        from django_q.tasks import async_task
+
+        async_task(
+            "automazioni.tasks.run_approval_branch_task",
+            int(approval_id),
+            task_name=f"approval_branch_{int(approval_id)}",
+        )
+        return True
+    except Exception:
+        logger.warning("approvazione #%s: ramo non accodato, eseguito subito", approval_id, exc_info=True)
+        return False
 
 
 def chiudi_approvazioni_pendenti(source_code: str, record_id, decision: str, decided_by: str = "") -> int:

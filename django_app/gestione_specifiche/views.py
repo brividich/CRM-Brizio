@@ -266,11 +266,12 @@ def nuova_specifica(request):
             notifica_nuova_specifica(spec)
             messages.success(request, "Specifica creata.")
             # F6b-2: se abilitato e con destinazione share risolvibile, deposita la forma "in attesa".
-            from .composito_deposito import deposita_auto
+            # Il deposito scrive sulla share: gira nel worker, non nella richiesta.
+            from .composito_deposito import accoda_deposito_auto
 
-            dep = deposita_auto(spec, attore=request.user)
-            if dep is not None and dep.esito == "ok":
-                messages.info(request, "Composito 'in attesa MOD.133' depositato sulla share.")
+            if accoda_deposito_auto(spec, attore=request.user):
+                messages.info(request, "Deposito del composito 'in attesa MOD.133' sulla share avviato in background: "
+                                       "a deposito riuscito compare nello storico della specifica.")
             return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
     else:
         initial = {}
@@ -440,8 +441,8 @@ def _auto_approva_se_configurata(request, spec, mod) -> bool:
         return False
     # #3 + F6b-2: se il deposito automatico è attivo, deposita la forma "approvato" (best-effort).
     try:
-        from .composito_deposito import deposita_auto
-        deposita_auto(spec, attore=cfg.approvatore)
+        from .composito_deposito import accoda_deposito_auto
+        accoda_deposito_auto(spec, attore=cfg.approvatore)
     except Exception:  # noqa: BLE001
         pass
     messages.success(request, f"MOD.133 approvato automaticamente per conto di {nome}.")
@@ -524,11 +525,11 @@ def mod133_approva(request, pk: int):
         # F6b-2: se abilitato, deposita la forma "approvato" (MOD.133 + originale) sulla share.
         # Best-effort e gated dal flag: un problema di deposito non tocca l'approvazione (gia' committata).
         if esito == C.ESITO_APPROVATO:
-            from .composito_deposito import deposita_auto
+            from .composito_deposito import accoda_deposito_auto
 
-            dep = deposita_auto(spec, attore=request.user)
-            if dep is not None and dep.esito == "ok":
-                messages.info(request, "Composito ufficiale (MOD.133) depositato sulla share.")
+            if accoda_deposito_auto(spec, attore=request.user):
+                messages.info(request, "Deposito del composito ufficiale (MOD.133) sulla share avviato in background: "
+                                       "a deposito riuscito compare nello storico della specifica.")
     except (TransitionNotAllowed, ValidationError) as exc:
         messages.error(request, f"Operazione non consentita: {exc}")
     return redirect("gestione_specifiche:dettaglio", pk=spec.pk)
@@ -891,20 +892,27 @@ def cartella_suggerita(request):
     from .cartelle_cliente import cartelle_disponibili, risolvi, suggerisci
     from .models import ClienteCartellaShare
 
+    from .cartelle_cliente import share_raggiungibile
+
     cliente = (request.GET.get("cliente") or "").strip()
     mappata = ""
     suggerite: list[str] = []
     altre: list[str] = []
+    share_giu = False
     if cliente:
+        share_giu = not share_raggiungibile()
         _path, fonte = risolvi(cliente)
         m = ClienteCartellaShare.objects.filter(cliente__iexact=cliente, attivo=True).first()
-        mappata = m.cartella if (m and fonte == "mappatura") else ""
+        # Share giù: la mappatura confermata resta valida, non si sa solo se la
+        # cartella esiste ancora. Meglio tenerla che proporre di sceglierne un'altra.
+        mappata = m.cartella if (m and fonte in ("mappatura", "share_non_raggiungibile")) else ""
         if not mappata:
             suggerite = suggerisci(cliente)
         disponibili = cartelle_disponibili()
         altre = [c for c in disponibili if c not in suggerite]
     return render(request, "gestione_specifiche/partials/_cartella_suggerita.html",
-                  {"cliente": cliente, "mappata": mappata, "suggerite": suggerite, "altre": altre})
+                  {"cliente": cliente, "mappata": mappata, "suggerite": suggerite, "altre": altre,
+                   "share_giu": share_giu})
 
 
 def _salva_mappatura_cartella(request, spec):

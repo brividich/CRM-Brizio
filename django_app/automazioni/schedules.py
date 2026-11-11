@@ -357,7 +357,9 @@ SCHEDULES: list[dict] = [
         "schedule_type": "I",   # Schedule.MINUTES (django-q2 non supporta SECONDS)
         "minutes": 25,          # ogni 25 min (< keep_alive 30m)
         "repeats": -1,
-        "kwargs": {},
+        # Il warmup aspetta Ollama fino a 300 s: oltre il timeout di 120 s del
+        # cluster il worker veniva ucciso a metà.
+        "kwargs": {"q_options": {"timeout": 330}},
     },
     {
         # Warm dell'indice RAG + cache embeddings del corpus documentale SGI

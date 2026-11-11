@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 from django.conf import settings
 from django.core.cache import cache
 
-from . import glossario_rag, guide_portale
+from . import glossario_rag, guide_portale, http_client
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +101,10 @@ _KNOWLEDGE_CACHE: dict[str, Any] = {
     "loaded_at": 0.0, "signature": (), "index": None, "complete": True, "rebuilding": False,
 }
 _KNOWLEDGE_BUILD_LOCK = threading.Lock()
+# Lock BREVE solo per il flag «rebuilding»: la chat a cache scaduta lo legge e riparte subito.
+# Il lock di build lo tiene solo il thread che costruisce (prima lo stesso lock fermava le chat
+# per tutta la ricostruzione dell'indice).
+_KNOWLEDGE_REBUILD_FLAG_LOCK = threading.Lock()
 # Testo PDF SGI gia' estratto, per content-hash (stesso hash = stesso testo): evita di
 # rileggere ~250 documenti dalla cache DB a ogni rebuild dell'indice.
 _SGI_TEXT_MEMO: dict[str, str] = {}
@@ -1155,7 +1159,22 @@ def _build_index(chunks: list[KnowledgeChunk]) -> KnowledgeIndex:
 # fa ripiegare il retrieval su BM25, senza mai bloccare una risposta in chat.
 
 
-def _post_ollama_json(url: str, payload: dict[str, Any], timeout: int) -> dict[str, Any] | None:
+class _OllamaPostError(Exception):
+    """Errore di una POST a Ollama: ``kind`` = 'timeout' | 'connessione' | 'http' | 'risposta'."""
+
+    def __init__(self, kind: str, detail: str, status: int | None = None):
+        super().__init__(detail)
+        self.kind = kind
+        self.status = status
+
+
+# Base URL di Ollama senza ``/api/embed`` (HTTP 404/405, Ollama vecchio): per il resto del processo
+# si va diretti all'API legacy ``/api/embeddings`` senza riprovare ogni volta il batch.
+_OLLAMA_EMBED_BATCH_ASSENTE: set[str] = set()
+
+
+def _post_ollama_json(url: str, payload: dict[str, Any], timeout: int) -> dict[str, Any]:
+    """POST JSON verso Ollama (in rete interna, senza proxy). Solleva ``_OllamaPostError`` su errore."""
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
@@ -1163,20 +1182,30 @@ def _post_ollama_json(url: str, payload: dict[str, Any], timeout: int) -> dict[s
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with http_client.lan_urlopen(request, timeout=timeout) as response:
             raw = response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        raise _OllamaPostError("http", f"HTTP {exc.code}", status=exc.code) from exc
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        kind = http_client.tipo_errore(exc)
+        raise _OllamaPostError(kind, str(getattr(exc, "reason", exc))[:200]) from exc
+    try:
         data = json.loads(raw)
-    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
-        return None
-    return data if isinstance(data, dict) else None
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise _OllamaPostError("risposta", "JSON non valido") from exc
+    if not isinstance(data, dict):
+        raise _OllamaPostError("risposta", "JSON non è un oggetto")
+    return data
 
 
 def _ollama_embed_texts(texts: list[str], *, timeout: int | None = None) -> list[list[float]] | None:
     """Embeddings per una lista di testi via Ollama nativo.
 
-    Prova prima ``/api/embed`` (batch, Ollama recente), poi ripiega su
-    ``/api/embeddings`` per singolo item (API legacy). Ritorna ``None`` su
-    qualunque errore o disallineamento (il chiamante usa solo BM25).
+    Usa ``/api/embed`` (batch, Ollama recente). Ripiega su ``/api/embeddings`` (un testo per
+    chiamata, API legacy) SOLO se ``/api/embed`` non esiste (HTTP 404/405), e lo ricorda per il
+    processo. Su timeout, errore di connessione o altro HTTP ritorna subito ``None`` (il chiamante
+    usa solo BM25): prima ogni errore scatenava N chiamate legacy, moltiplicando il carico proprio
+    quando Ollama era lento. L'errore effettivo va nel log (warning).
     Supportato solo per il provider ``ollama`` (Open WebUI -> solo BM25).
 
     ``timeout`` (secondi) sovrascrive ``OLLAMA_EMBED_TIMEOUT_SECONDS`` per i
@@ -1194,27 +1223,50 @@ def _ollama_embed_texts(texts: list[str], *, timeout: int | None = None) -> list
     timeout = int(timeout) if timeout else int(getattr(settings, "OLLAMA_EMBED_TIMEOUT_SECONDS", 30) or 30)
     keep_alive = str(getattr(settings, "OLLAMA_KEEP_ALIVE", "") or "").strip()
 
-    batch_payload: dict[str, Any] = {"model": model, "input": texts}
-    if keep_alive:
-        batch_payload["keep_alive"] = keep_alive
-    data = _post_ollama_json(f"{base_url}/api/embed", batch_payload, timeout)
-    if isinstance(data, dict):
-        vectors = data.get("embeddings")
-        if isinstance(vectors, list) and len(vectors) == len(texts):
+    if base_url not in _OLLAMA_EMBED_BATCH_ASSENTE:
+        batch_payload: dict[str, Any] = {"model": model, "input": texts}
+        if keep_alive:
+            batch_payload["keep_alive"] = keep_alive
+        try:
+            data = _post_ollama_json(f"{base_url}/api/embed", batch_payload, timeout)
+        except _OllamaPostError as exc:
+            if exc.kind == "http" and exc.status in (404, 405):
+                logger.warning(
+                    "ai_assistant: Ollama senza /api/embed (HTTP %s): uso l'API legacy /api/embeddings.", exc.status,
+                )
+                _OLLAMA_EMBED_BATCH_ASSENTE.add(base_url)
+            else:
+                logger.warning(
+                    "ai_assistant: embeddings Ollama non riusciti (%s: %s, %d testi, timeout %ss).",
+                    exc.kind, exc, len(texts), timeout,
+                )
+                return None
+        else:
+            vectors = data.get("embeddings")
+            if not isinstance(vectors, list) or len(vectors) != len(texts):
+                logger.warning("ai_assistant: /api/embed ha restituito %s vettori per %d testi.",
+                               len(vectors) if isinstance(vectors, list) else "nessun", len(texts))
+                return None
             try:
                 return [[float(x) for x in vec] for vec in vectors]
             except (TypeError, ValueError):
+                logger.warning("ai_assistant: /api/embed ha restituito vettori non numerici.")
                 return None
 
-    # Fallback API legacy /api/embeddings (un item per chiamata).
+    # API legacy /api/embeddings (un item per chiamata): solo per Ollama senza /api/embed.
     out: list[list[float]] = []
     for text in texts:
         legacy_payload: dict[str, Any] = {"model": model, "prompt": text}
         if keep_alive:
             legacy_payload["keep_alive"] = keep_alive
-        legacy = _post_ollama_json(f"{base_url}/api/embeddings", legacy_payload, timeout)
-        vector = legacy.get("embedding") if isinstance(legacy, dict) else None
+        try:
+            legacy = _post_ollama_json(f"{base_url}/api/embeddings", legacy_payload, timeout)
+        except _OllamaPostError as exc:
+            logger.warning("ai_assistant: embeddings Ollama (API legacy) non riusciti (%s: %s).", exc.kind, exc)
+            return None
+        vector = legacy.get("embedding")
         if not isinstance(vector, list) or not vector:
+            logger.warning("ai_assistant: /api/embeddings senza vettore nella risposta.")
             return None
         try:
             out.append([float(x) for x in vector])
@@ -1497,16 +1549,29 @@ def _openai_embed_texts(texts: list[str], *, timeout: int | None = None) -> list
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with http_client.lan_urlopen(request, timeout=timeout) as response:
             data = json.loads(response.read().decode("utf-8", errors="replace"))
-    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
+    except urllib.error.HTTPError as exc:
+        logger.warning("ai_assistant: embeddings %s non riusciti (http: HTTP %s).", base, exc.code)
+        return None
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        logger.warning(
+            "ai_assistant: embeddings %s non riusciti (%s: %s, timeout %ss).",
+            base, http_client.tipo_errore(exc), str(getattr(exc, "reason", exc))[:200], timeout,
+        )
+        return None
+    except (json.JSONDecodeError, ValueError):
+        logger.warning("ai_assistant: embeddings %s: risposta non in JSON.", base)
         return None
     items = data.get("data") if isinstance(data, dict) else None
     if not isinstance(items, list) or len(items) != len(texts):
+        logger.warning("ai_assistant: embeddings %s: %s vettori per %d testi.", base,
+                       len(items) if isinstance(items, list) else "nessun", len(texts))
         return None
     try:
         return [[float(x) for x in item["embedding"]] for item in items]
     except (KeyError, TypeError, ValueError):
+        logger.warning("ai_assistant: embeddings %s: vettori non validi nella risposta.", base)
         return None
 
 
@@ -1674,8 +1739,8 @@ def _background_rebuild_enabled() -> bool:
 
 
 def _start_background_rebuild() -> bool:
-    """Avvia (una sola alla volta) la ricostruzione dell'indice in un thread."""
-    with _KNOWLEDGE_BUILD_LOCK:
+    """Avvia (una sola alla volta) la ricostruzione dell'indice in un thread, senza aspettare la build."""
+    with _KNOWLEDGE_REBUILD_FLAG_LOCK:
         if _KNOWLEDGE_CACHE.get("rebuilding"):
             return False
         _KNOWLEDGE_CACHE["rebuilding"] = True
@@ -1694,7 +1759,8 @@ def _background_rebuild() -> None:
     except Exception:
         logger.exception("ai_assistant: ricostruzione in background dell'indice RAG fallita")
     finally:
-        _KNOWLEDGE_CACHE["rebuilding"] = False
+        with _KNOWLEDGE_REBUILD_FLAG_LOCK:
+            _KNOWLEDGE_CACHE["rebuilding"] = False
         connection.close()
 
 
@@ -2652,9 +2718,13 @@ def chat_with_ollama(
         method="POST",
     )
 
+    # Dentro un giro pianificato (http_client.scadenza) la chiamata non supera il tempo che resta.
+    if http_client.scadenza_vicina():
+        raise OllamaChatError("Timeout: tempo del giro esaurito, richiesta all'AI non inviata.")
+    timeout = http_client.timeout_entro_scadenza(timeout)
     slots = _acquire_ai_slot()
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with http_client.lan_urlopen(request, timeout=timeout) as response:
             raw = response.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
@@ -2771,7 +2841,7 @@ def index_sgi_documents() -> dict[str, Any]:
     elif not result["embeddings_ready"]:
         result["message"] = (
             f"Indice ricostruito: {total} chunk ({spec + proc} SGI), ma gli embeddings non sono "
-            "disponibili (Ollama offline o modello assente): retrieval BM25-only."
+            f"disponibili ({_embed_backend_non_disponibile()}): retrieval BM25-only."
         )
     else:
         result["message"] = (
@@ -2779,6 +2849,18 @@ def index_sgi_documents() -> dict[str, Any]:
             f"({spec + proc} SGI: {spec} specifiche, {proc} procedure), modello {result['embed_model']}."
         )
     return result
+
+
+def _embed_backend_non_disponibile() -> str:
+    """Cosa non ha risposto, secondo il backend embeddings configurato (per il messaggio dell'indice)."""
+    backend = _embed_backend()
+    if backend == "openai":
+        base = str(getattr(settings, "RAG_EMBED_OPENAI_BASE_URL", "") or "").strip() or "non configurato"
+        return (f"servizio embeddings {base} (RAG_EMBED_BACKEND=openai, es. TEI) non raggiungibile, lento "
+                "o modello assente: dettaglio nel log")
+    if backend == "fastembed":
+        return "fastembed non installato o modello non supportato (RAG_EMBED_BACKEND=fastembed)"
+    return "Ollama non raggiungibile, lento o modello embeddings assente: dettaglio nel log"
 
 
 def _resolve_ollama_target() -> tuple[str, str, str, int]:
@@ -2855,7 +2937,7 @@ def open_ollama_stream(
 
     slots = _acquire_ai_slot()
     try:
-        response = urllib.request.urlopen(request, timeout=timeout)
+        response = http_client.lan_urlopen(request, timeout=timeout)
     except urllib.error.HTTPError as exc:
         slots.release()
         detail = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
@@ -3012,7 +3094,7 @@ def warmup_ollama(*, timeout: int | None = None) -> dict[str, Any]:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=effective_timeout) as response:
+        with http_client.lan_urlopen(request, timeout=effective_timeout) as response:
             raw = response.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace") if exc.fp else ""

@@ -1456,8 +1456,9 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Connessione Ollama riuscita")
-        json_get.assert_any_call("http://ollama.test.local:11434/api/version", 30)
-        json_get.assert_any_call("http://ollama.test.local:11434/api/tags", 30)
+        # Timeout configurato 30 s, ma il test connessione ha un tetto di 10 s (thread web).
+        json_get.assert_any_call("http://ollama.test.local:11434/api/version", 10)
+        json_get.assert_any_call("http://ollama.test.local:11434/api/tags", 10)
 
     def test_config_srv_ollama_connection_handles_invalid_tags_json(self):
         self.client.force_login(self.admin_user)
@@ -1524,7 +1525,7 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
         self.assertContains(response, "Open WebUI raggiunto")
         json_get.assert_any_call(
             "http://openwebui.test.local:3000/api/models",
-            30,
+            10,
             headers={"Authorization": "Bearer sk-test"},
         )
 
@@ -1992,8 +1993,9 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
 
         fake_conn = MagicMock()
         fake_conn.bind.return_value = True
-        fake_conn.search.side_effect = FakeLDAPSocketOpenError("invalid server address")
+        fake_conn.extend.standard.paged_search.side_effect = FakeLDAPSocketOpenError("invalid server address")
         fake_conn.entries = []
+        import ldap3.utils.conv as real_ldap3_conv
 
         fake_ldap3 = ModuleType("ldap3")
         fake_ldap3.AUTO_BIND_NO_TLS = "AUTO_BIND_NO_TLS"
@@ -2058,6 +2060,8 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                     "ldap3": fake_ldap3,
                     "ldap3.core": fake_ldap3_core,
                     "ldap3.core.exceptions": fake_ldap3_exceptions,
+                    # escape_filter_chars resta quello vero di ldap3 (filtro di ricerca escapato).
+                    "ldap3.utils.conv": real_ldap3_conv,
                 },
                 clear=False,
             ):
@@ -4465,3 +4469,56 @@ class AdminPortaleLegacyWriteGuardTests(TestCase):
         self.assertIsNotNone(grant)
         self.assertTrue(grant.enabled)
 
+
+
+class OllamaTestConnessioneLimitiTests(SimpleTestCase):
+    """Test connessione Ollama/Open WebUI dal thread web: tetto di tempo, niente redirect, niente proxy in LAN."""
+
+    def _config(self, **extra):
+        return {
+            "enabled": True,
+            "provider": "ollama",
+            "base_url": "http://10.0.0.5:11434",
+            "model": "modello-sintetico",
+            "timeout": "300",
+            "temperature": "0.2",
+            "max_prompt_chars": "4000",
+            "max_history_messages": "10",
+            **extra,
+        }
+
+    def test_timeout_del_test_limitato_a_dieci_secondi(self):
+        from admin_portale.views import _helpers
+
+        with patch.object(_helpers, "_ollama_json_get", side_effect=[{"version": "1"}, {"models": []}]) as json_get:
+            _helpers._ollama_test_connect(self._config())
+        for call in json_get.call_args_list:
+            self.assertEqual(call.args[1], _helpers.OLLAMA_TEST_TIMEOUT_MAX_SECONDS)
+        self.assertEqual(_helpers.OLLAMA_TEST_TIMEOUT_MAX_SECONDS, 10)
+
+    def test_opener_lan_senza_proxy_e_senza_redirect(self):
+        import urllib.request
+
+        from admin_portale.views import _helpers
+
+        opener = _helpers._ollama_opener("http://10.0.0.5:11434/api/version")
+        # ProxyHandler({}) sostituisce quello di default (che leggerebbe HTTP(S)_PROXY):
+        # nessun handler con proxy configurati resta nell'opener.
+        with patch.dict("os.environ", {"HTTP_PROXY": "http://proxy.example.org:3128"}):
+            opener = _helpers._ollama_opener("http://10.0.0.5:11434/api/version")
+        proxy_handlers = [h for h in opener.handlers if isinstance(h, urllib.request.ProxyHandler)]
+        self.assertTrue(all(not getattr(h, "proxies", {}) for h in proxy_handlers))
+        self.assertTrue(any(isinstance(h, _helpers._NoRedirectHandler) for h in opener.handlers))
+
+    def test_redirect_non_seguito(self):
+        from admin_portale.views import _helpers
+
+        handler = _helpers._NoRedirectHandler()
+        self.assertIsNone(handler.redirect_request(None, None, 302, "Found", {}, "http://altro.example.org/"))
+
+    def test_host_pubblico_non_considerato_interno(self):
+        from admin_portale.views import _helpers
+
+        self.assertFalse(_helpers._host_is_internal("93.184.216.34"))
+        self.assertTrue(_helpers._host_is_internal("127.0.0.1"))
+        self.assertTrue(_helpers._host_is_internal("ollama"))

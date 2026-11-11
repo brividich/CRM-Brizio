@@ -330,9 +330,32 @@ def run_assignment_lifecycle(**kwargs) -> dict:
 
 _AUTO_SYNC_FLAG = "pr_sgi_auto_sync_attivo"
 _LAST_SYNC_KEY = "pr_sgi_last_sync"
+# Da dove riprendere la sync troncata dal budget (codice documento).
+_RIPRENDI_DA_KEY = "pr_sgi_sync_riprendi_da"
+# Il worker django-q chiude il task a 120 s: si resta sotto, il resto al giro dopo.
+SGI_SYNC_BUDGET_SECONDI = 90.0
+_SGI_SYNC_LOCK = "procedure_refresh:sgi_auto_sync:lock"
+_SGI_SYNC_LOCK_TTL = 600
 
 
-def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str | None = None, **kwargs) -> dict:
+def _ordina_per_priorita(safe: list[dict], riprendi_da: str) -> list[dict]:
+    """Prima documenti nuovi e revisioni più recenti; poi gli altri a partire da
+    ``riprendi_da`` (giro precedente troncato), ricominciando dall'inizio in coda."""
+    prioritari = [i for i in safe if i.get("nuovo") or i.get("aggiornamento_revisione")]
+    altri = sorted((i for i in safe if not (i.get("nuovo") or i.get("aggiornamento_revisione"))),
+                   key=lambda i: i["code"])
+    if riprendi_da:
+        altri = [i for i in altri if i["code"] >= riprendi_da] + [i for i in altri if i["code"] < riprendi_da]
+    return prioritari + altri
+
+
+# Quante volte una sync troncata si riaccoda da sola prima di lasciare il resto
+# alla notte dopo.
+SGI_SYNC_MAX_CATENA = 20
+
+
+def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str | None = None,
+                      catena: int = 0, reindex_pendente: bool = False, **kwargs) -> dict:
     """Sincronizzazione automatica del corpus SGI dalla share (perimetro sicuro).
 
     Applica soltanto i candidati "safe" (:func:`filter_auto_safe`): documenti nuovi
@@ -348,9 +371,12 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
         "skipped": False,
         "created": 0,
         "updated": 0,
+        "unchanged": 0,
         "revisions": 0,
         "excluded": 0,
     }
+    from django.core.cache import cache
+
     try:
         from core.models import SiteConfig
 
@@ -359,6 +385,55 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
             if flag not in {"1", "true", "on", "yes"}:
                 result.update(skipped=True, reason="pr_sgi_auto_sync_attivo non attivo")
                 return result
+    except Exception as exc:  # fail-safe assoluto
+        logger.exception("run_sgi_auto_sync fallito: %s", exc)
+        result.update(ok=False, error=str(exc))
+        return result
+
+    # Pulsante e cron non si sovrappongono: due sync in parallelo scriverebbero
+    # le stesse revisioni e raddoppierebbero le letture dalla share.
+    try:
+        preso = bool(cache.add(_SGI_SYNC_LOCK, 1, _SGI_SYNC_LOCK_TTL))
+    except Exception:
+        logger.warning("run_sgi_auto_sync: lock non disponibile, procedo senza", exc_info=True)
+        preso = None
+    if preso is False:
+        result.update(skipped=True, reason="sincronizzazione già in corso")
+        return result
+    try:
+        result = _sgi_auto_sync(result, force=force, reindex=reindex, origine=origine,
+                                reindex_pendente=reindex_pendente)
+    finally:
+        if preso:
+            try:
+                cache.delete(_SGI_SYNC_LOCK)
+            except Exception:
+                logger.warning("run_sgi_auto_sync: rilascio del lock fallito", exc_info=True)
+
+    # Giro troncato dal budget: il seguito si riaccoda subito (lock già rilasciato),
+    # con un tetto alla catena; oltre, riprende la notte dopo da `riprendi_da`.
+    if result.get("troncato") and catena < SGI_SYNC_MAX_CATENA:
+        try:
+            from django_q.tasks import async_task
+
+            async_task(
+                "procedure_refresh.tasks.run_sgi_auto_sync",
+                force=force, reindex=reindex, origine=origine, catena=catena + 1,
+                reindex_pendente=bool(result.get("reindex_pendente")),
+            )
+            result["seguito_accodato"] = True
+        except Exception:
+            logger.warning("run_sgi_auto_sync: seguito non accodato, riprende al prossimo giro", exc_info=True)
+    return result
+
+
+def _sgi_auto_sync(result: dict, *, force: bool, reindex: bool, origine: str | None,
+                   reindex_pendente: bool = False) -> dict:
+    import time
+
+    inizio = time.monotonic()
+    try:
+        from core.models import SiteConfig
 
         raw_root = str(getattr(settings, "PROCEDURE_REFRESH_SGI_SHARE_ROOT", "") or "").strip()
         if not raw_root:
@@ -385,7 +460,19 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
         run_id = now.strftime("%Y%m%d%H%M%S")
         origine_log = origine or ("manuale" if force else "auto")
 
-        for info in safe:
+        riprendi_da = str(SiteConfig.get(_RIPRENDI_DA_KEY, "") or "").strip()
+        ordinati = _ordina_per_priorita(safe, riprendi_da)
+        prossimo = ""
+        for indice, info in enumerate(ordinati):
+            if time.monotonic() - inizio > SGI_SYNC_BUDGET_SECONDI:
+                # Budget finito: il giro dopo riparte da qui (i prioritari si
+                # rifanno comunque, sono pochi e costano poco se invariati).
+                restanti = ordinati[indice:]
+                prossimo = next((i["code"] for i in restanti
+                                 if not (i.get("nuovo") or i.get("aggiornamento_revisione"))), "")
+                result["troncato"] = True
+                result["rimanenti"] = len(restanti)
+                break
             try:
                 # Revisione corrente PRIMA dell'upsert (per il log NUOVA_REVISIONE).
                 old_rev = ""
@@ -399,6 +486,8 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
                     result["created"] += 1
                 elif doc_state == "updated":
                     result["updated"] += 1
+                elif doc_state == "unchanged":
+                    result["unchanged"] += 1
                 if rev_created:
                     result["revisions"] += 1
 
@@ -418,18 +507,32 @@ def run_sgi_auto_sync(force: bool = False, reindex: bool = False, origine: str |
             except Exception:
                 logger.exception("run_sgi_auto_sync: upsert fallito per %s", info.get("code"))
 
+        try:
+            SiteConfig.set(_RIPRENDI_DA_KEY, prossimo,
+                           "Presa visione: documento da cui riprendere la sync SGI troncata dal budget.")
+        except Exception:
+            logger.warning("run_sgi_auto_sync: punto di ripresa non salvato", exc_info=True)
+
         # Persisti l'esito per la card dashboard.
         payload = {
             "at": now.isoformat(timespec="seconds"),
             "created": result["created"],
             "updated": result["updated"],
+            "unchanged": result["unchanged"],
             "revisions": result["revisions"],
             "excluded": result["excluded"],
+            "troncato": bool(result.get("troncato")),
+            "rimanenti": int(result.get("rimanenti") or 0),
             "forced": bool(force),
         }
         SiteConfig.set(_LAST_SYNC_KEY, json.dumps(payload), "Presa visione: esito ultima sync SGI automatica.")
 
         changed = result["created"] + result["updated"] + result["revisions"]
+        if result.get("troncato"):
+            # Estrazione e re-index una volta sola, all'ultimo pezzo della catena.
+            result["reindex_pendente"] = bool(reindex_pendente or changed)
+            return result
+        changed = changed or int(reindex_pendente)
         # Testo persistito (A1): accoda l'estrazione delle revisioni nuove/cambiate,
         # un documento per task; il re-index (se richiesto) parte a fine catena.
         if accoda_estrazione_sgi(reindex=bool(reindex and changed)):
@@ -535,6 +638,9 @@ def run_sgi_share_check(**kwargs) -> dict:
         missing = drift.get("missing", [])
         n_missing = len(missing)
         result.update(new=n_new, updated=n_upd, missing=n_missing, in_db=drift.get("in_db", 0))
+        if drift.get("missing_saltati"):
+            result["missing_saltati"] = True
+            logger.warning("run_sgi_share_check: %s", drift.get("missing_motivo", ""))
 
         # Cataloga a log i documenti spariti (evidenza ISO "prevenire uso di obsoleti"),
         # con dedup: non riscrivere lo stesso codice se già loggato negli ultimi 30 gg.
@@ -618,7 +724,8 @@ def run_sgi_share_check(**kwargs) -> dict:
                 },
                 notify=False,  # informativo: compare in "Stato sistema", niente email
             )
-        else:
+        elif not drift.get("missing_saltati"):
+            # Con un elenco parziale «nessuna anomalia» non è dimostrato: la Issue resta.
             resolve_health_check_issue(
                 check_name=_CHECK_NAME,
                 summary="Nessuna anomalia sul corpus SGI (share allineata al DB).",

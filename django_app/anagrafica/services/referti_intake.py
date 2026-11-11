@@ -21,8 +21,14 @@ REGOLE DI PRUDENZA
 
 Il file si archivia **sempre**, prima ancora di provare a leggerlo: su una lettura
 fallita è l'unica cosa che permetta di capire perché. Un file ancora in arrivo non
-si tocca. Un file già visto — stessa impronta — non si rielabora. E un guasto su
-un file non ferma gli altri: la cartella si svuota comunque.
+si tocca. Un file già visto — stessa impronta — non si rielabora, ma il controllo
+è **per pagina**: se un passaggio si interrompe a metà file, al giro dopo si
+completano le pagine mancanti senza duplicare quelle già in coda, e il file si
+sposta in «elaborati» solo quando è stato letto per intero. Due passaggi sulla
+stessa cartella non si sovrappongono (lock condiviso col pulsante «Prova adesso»)
+e un giro si ferma dopo ``BUDGET_SECONDI``: i file restanti li prende il giro
+dopo. Nei log non compaiono nomi o percorsi dei file (sono dati sanitari): solo
+l'impronta abbreviata e la pagina. E un guasto su un file non ferma gli altri.
 
 PIÙ CERTIFICATI IN UN PDF SOLO
 
@@ -58,6 +64,14 @@ ESTENSIONI_ACCETTATE = {".pdf"}
 # scrive a pezzi e leggerlo a metà darebbe un errore inventato.
 ATTESA_STABILITA_SECONDI = 2.0
 
+# Un giro deve stare sotto il timeout del worker (120 s): il controllo è fra un
+# file e l'altro, perché un PDF si legge per intero (al massimo MAX_PAGINE_PER_FILE).
+BUDGET_SECONDI = 90.0
+
+# File letto per intero: tutte le pagine hanno la loro riga in coda.
+_CHIAVE_COMPLETO = "anagrafica:referti_intake:completo:{}"
+_TTL_COMPLETO = 90 * 24 * 3600
+
 # Oltre questo numero di pagine si smette di cercare altri certificati: una
 # scansione con centinaia di pagine è un errore di chi l'ha prodotta, e leggerle
 # tutte bloccherebbe il giro per tutti gli altri.
@@ -83,6 +97,7 @@ class _Esito:
         self.duplicati = 0
         self.rifiutati = 0
         self.errori = 0
+        self.rimandati = 0
         self.dettagli: list[str] = []
 
     def come_dizionario(self) -> dict:
@@ -90,12 +105,14 @@ class _Esito:
             "esaminati": self.esaminati, "letti": self.letti,
             "registrati": self.registrati, "in_coda": self.in_coda,
             "duplicati": self.duplicati, "rifiutati": self.rifiutati,
-            "errori": self.errori, "dettagli": self.dettagli,
+            "errori": self.errori, "rimandati": self.rimandati,
+            "dettagli": self.dettagli,
         }
 
     def riepilogo(self) -> str:
+        coda = [f"{self.rimandati} rimandati al prossimo giro"] if self.rimandati else []
         if not self.esaminati:
-            return "Nessun file da elaborare."
+            return " · ".join(["Nessun file da elaborare.", *coda])
         parti = [f"{self.esaminati} file esaminati"]
         if self.registrati:
             parti.append(f"{self.registrati} registrati")
@@ -107,11 +124,47 @@ class _Esito:
             parti.append(f"{self.rifiutati} non riconosciuti")
         if self.errori:
             parti.append(f"{self.errori} in errore")
-        return " · ".join(parti)
+        return " · ".join(parti + coda)
 
 
 def _impronta(contenuto: bytes) -> str:
     return hashlib.sha256(contenuto or b"").hexdigest()
+
+
+def _breve(sha: str) -> str:
+    """Impronta abbreviata per i log: identifica il file senza nominarlo."""
+    return (sha or "")[:12] or "-"
+
+
+def _file_completo(sha: str) -> bool:
+    """Il file è stato letto fino in fondo?
+
+    La cache dice «completo», la coda lo conferma: senza nemmeno una riga con
+    questa impronta il file non è completo, qualunque cosa ricordi la cache. Se
+    la cache si svuota, il file si rilegge e la dedup per pagina evita i doppioni.
+    """
+    from django.core.cache import cache
+
+    from ..models_sorveglianza import RefertoIntakeRiga
+
+    if not sha:
+        return False
+    try:
+        segnato = bool(cache.get(_CHIAVE_COMPLETO.format(sha)))
+    except Exception:
+        segnato = False
+    return segnato and RefertoIntakeRiga.objects.filter(sha256=sha).exists()
+
+
+def _segna_completo(sha: str) -> None:
+    from django.core.cache import cache
+
+    if not sha:
+        return
+    try:
+        cache.set(_CHIAVE_COMPLETO.format(sha), 1, _TTL_COMPLETO)
+    except Exception:
+        logger.warning("Referti: stato di file completo non salvato (%s)", _breve(sha), exc_info=True)
 
 
 def _gia_visto(sha: str, pagina: int) -> bool:
@@ -181,9 +234,10 @@ def combina_pdf_pagine(documenti: list[tuple[str, bytes]]) -> list[tuple[str, by
                 (num, nome, contenuto) for _, num, _, nome, contenuto in ordinati
             ])
         except Exception:
-            logger.exception(
-                "Referti: impossibile unire le pagine nominate %s",
-                ", ".join(e[3] for e in ordinati),
+            # Niente nomi dei file nei log: sono dati sanitari.
+            logger.warning(
+                "Referti: impossibile unire %s pagine nominate (%s)",
+                len(ordinati), _breve(_impronta(ordinati[0][4])), exc_info=True,
             )
             risultati.extend((p, n, c, [n]) for p, _num, _base, n, c in elementi)
             continue
@@ -197,17 +251,7 @@ def combina_pdf_pagine(documenti: list[tuple[str, bytes]]) -> list[tuple[str, by
     return [(nome, contenuto, sorgenti) for _, nome, contenuto, sorgenti in sorted(risultati)]
 
 
-def _file_stabile(percorso: Path) -> bool:
-    """Il file ha finito di arrivare?"""
-    try:
-        prima = percorso.stat().st_size
-        time.sleep(ATTESA_STABILITA_SECONDI)
-        return percorso.stat().st_size == prima
-    except OSError:
-        return False
-
-
-def _sposta(percorso: Path, radice: Path, sottocartella: str) -> str:
+def _sposta(percorso: Path, radice: Path, sottocartella: str, sha: str = "") -> str:
     """Sposta il file elaborato. Un fallimento qui non è fatale."""
     try:
         destinazione = radice / sottocartella
@@ -218,8 +262,9 @@ def _sposta(percorso: Path, radice: Path, sottocartella: str) -> str:
             finale = destinazione / f"{gambo}-{int(time.time())}{estensione}"
         shutil.move(str(percorso), str(finale))
         return str(finale)
-    except Exception:
-        logger.exception("Spostamento del referto fallito (%s)", percorso)
+    except Exception as exc:
+        # Il messaggio dell'eccezione conterrebbe il percorso: solo il tipo.
+        logger.warning("Spostamento del referto fallito (%s): %s", _breve(sha), type(exc).__name__)
         return ""
 
 
@@ -238,8 +283,9 @@ def _archivia(contenuto: bytes, nome_file: str) -> tuple[str, int]:
     )
     try:
         salvato = PrivateAnagraficaStorage().save(percorso, ContentFile(contenuto))
-    except Exception:
-        logger.exception("Archiviazione referto fallita (%s)", nome_file)
+    except Exception as exc:
+        logger.error("Archiviazione referto fallita (%s): %s",
+                     _breve(_impronta(contenuto)), type(exc).__name__)
         return "", len(contenuto or b"")
     return salvato, len(contenuto or b"")
 
@@ -480,16 +526,31 @@ def elabora_contenuto(contenuto: bytes, nome_file: str, *, config=None,
 
     config = config or RefertoIntakeConfig.load()
     sha = _impronta(contenuto)
-    if sha and RefertoIntakeRiga.objects.filter(sha256=sha).exists():
+    if _file_completo(sha):
         return []
-    percorso, dimensione = _archivia(contenuto, nome_file)
+    # Dedup per pagina: un passaggio interrotto a metà ha lasciato in coda solo
+    # una parte dei certificati. Si rilegge il file e si aggiungono quelli che
+    # mancano, senza duplicare né riarchiviare.
+    precedente = (
+        RefertoIntakeRiga.objects.filter(sha256=sha).exclude(percorso="")
+        .order_by("id").values("percorso", "dimensione").first()
+        if sha else None
+    )
+    if precedente:
+        percorso, dimensione = precedente["percorso"], precedente["dimensione"]
+    else:
+        percorso, dimensione = _archivia(contenuto, nome_file)
 
     pagine = conta_pagine(contenuto)
     if not pagine:
+        if _gia_visto(sha, 1):
+            _segna_completo(sha)
+            return []
         riga = _riga_base(nome_file, percorso, dimensione, sha, 1, origine, utente)
         riga.esito = RefertoIntakeRiga.ESITO_ERRORE
         riga.messaggio = "Il file non è un PDF leggibile."
         riga.save()
+        _segna_completo(sha)
         return [riga]
 
     testi = []
@@ -499,21 +560,24 @@ def elabora_contenuto(contenuto: bytes, nome_file: str, *, config=None,
             testi.append((pagina, testo_pagina(contenuto, pagina, config)))
         except ErroreLettura as exc:
             errori.append((pagina, str(exc)))
-        except Exception:
-            logger.exception("Referto: OCR pagina %s fallito (%s)", pagina + 1, nome_file)
+        except Exception as exc:
+            logger.error("Referto: OCR pagina %s fallito (%s): %s",
+                         pagina + 1, _breve(sha), type(exc).__name__)
             errori.append((pagina, "Errore imprevisto nella lettura di questa pagina."))
 
     righe_raggruppate = []
     for pagina, testo in _raggruppa_pagine(testi):
+        if _gia_visto(sha, pagina + 1):
+            continue  # certificato già in coda da un passaggio precedente
         try:
             riga = _elabora_testo(
                 testo, nome_file, pagina, config=config, origine=origine,
                 utente=utente, percorso=percorso, dimensione=dimensione, sha=sha,
             )
-        except Exception:
-            logger.exception(
-                "Referto: elaborazione certificato da pagina %s fallita (%s)",
-                pagina + 1, nome_file,
+        except Exception as exc:
+            logger.error(
+                "Referto: elaborazione certificato da pagina %s fallita (%s): %s",
+                pagina + 1, _breve(sha), type(exc).__name__,
             )
             riga = _riga_base(nome_file, percorso, dimensione, sha, pagina + 1, origine, utente)
             riga.esito = RefertoIntakeRiga.ESITO_ERRORE
@@ -522,12 +586,17 @@ def elabora_contenuto(contenuto: bytes, nome_file: str, *, config=None,
         righe_raggruppate.append(riga)
 
     for pagina, messaggio in errori:
+        if _gia_visto(sha, pagina + 1):
+            continue
         riga = _riga_base(nome_file, percorso, dimensione, sha, pagina + 1, origine, utente)
         riga.esito = RefertoIntakeRiga.ESITO_ERRORE
         riga.messaggio = messaggio
         riga.save()
         righe_raggruppate.append(riga)
 
+    # Arrivati qui ogni pagina ha la sua riga (o è il seguito di un certificato
+    # che ce l'ha): il file è letto per intero e può lasciare la cartella.
+    _segna_completo(sha)
     return sorted(righe_raggruppate, key=lambda r: r.pagina)
 
 
@@ -560,10 +629,11 @@ def elabora_cartella(config=None, *, limite: int | None = None) -> dict:
 
     Non solleva mai: è pensata per girare da un lavoro periodico, dove
     un'eccezione si tradurrebbe in un meccanismo fermo che nessuno nota.
+    Se un altro passaggio sulla stessa cartella è in corso ritorna subito con
+    ``in_corso=True`` senza toccare l'ultimo esito annotato.
     """
-    from django.utils import timezone
-
-    from ..models_sorveglianza import RefertoIntakeConfig, RefertoIntakeRiga
+    from ..models_sorveglianza import RefertoIntakeConfig
+    from .intake_scansioni import MESSAGGIO_IN_CORSO, lock_cartella
 
     config = config or RefertoIntakeConfig.load()
     esito = _Esito()
@@ -575,6 +645,19 @@ def elabora_cartella(config=None, *, limite: int | None = None) -> dict:
     if not cartella:
         return {**esito.come_dizionario(), "riepilogo": "Nessuna cartella configurata."}
 
+    with lock_cartella("referti_sanitari", cartella) as preso:
+        if not preso:
+            return {**esito.come_dizionario(), "riepilogo": MESSAGGIO_IN_CORSO, "in_corso": True}
+        return _elabora_radice(config, cartella, esito, limite)
+
+
+def _elabora_radice(config, cartella: str, esito: _Esito, limite: int | None) -> dict:
+    from django.utils import timezone
+
+    from ..models_sorveglianza import RefertoIntakeRiga
+    from .intake_scansioni import file_stabili
+
+    inizio = time.monotonic()
     radice = Path(cartella)
     try:
         esiste = radice.is_dir()
@@ -594,28 +677,32 @@ def elabora_cartella(config=None, *, limite: int | None = None) -> dict:
         )
     except OSError:
         messaggio = f"Cartella non leggibile: {cartella}"
-        logger.exception("Acquisizione referti: %s", messaggio)
+        logger.warning("Acquisizione referti: %s", messaggio)
         _annota(config, timezone.now(), messaggio)
         return {**esito.come_dizionario(), "riepilogo": messaggio}
 
     massimo = limite if limite is not None else (config.max_file_per_giro or 25)
     contenuti = []
     percorsi_per_nome = {}
-    for percorso in candidati[:massimo]:
-        if not _file_stabile(percorso):
-            continue  # sta ancora arrivando: al prossimo giro
+    # I file che stanno ancora arrivando restano lì per il prossimo giro.
+    for percorso in file_stabili(candidati[:massimo], ATTESA_STABILITA_SECONDI):
         esito.esaminati += 1
         try:
             contenuti.append((percorso.name, percorso.read_bytes()))
             percorsi_per_nome[percorso.name] = percorso
-        except OSError:
-            logger.exception("Referto non leggibile dalla cartella (%s)", percorso)
+        except OSError as exc:
+            logger.warning("Referto non leggibile dalla cartella: %s", type(exc).__name__)
             esito.errori += 1
             esito.dettagli.append(f"{percorso.name}: file non leggibile dalla cartella")
 
-    for nomi_sorgente, righe in elabora_documenti(
-        contenuti, config=config, origine="CARTELLA"
-    ):
+    documenti = combina_pdf_pagine(contenuti)
+    for indice, (nome, contenuto, nomi_sorgente) in enumerate(documenti):
+        if time.monotonic() - inizio > BUDGET_SECONDI:
+            # Budget esaurito: i file restano nella cartella per il giro dopo.
+            esito.rimandati += sum(len(d[2]) for d in documenti[indice:])
+            break
+        sha = _impronta(contenuto)
+        righe = elabora_contenuto(contenuto, nome, config=config, origine="CARTELLA")
         etichetta = " + ".join(nomi_sorgente)
         andata_bene = False
         for riga in righe:
@@ -640,11 +727,17 @@ def elabora_cartella(config=None, *, limite: int | None = None) -> dict:
             esito.dettagli.append(f"{etichetta}: già acquisito in precedenza")
             andata_bene = True
 
+        if not _file_completo(sha):
+            # Lettura non arrivata in fondo: il file resta dov'è e il giro dopo
+            # completa le pagine mancanti.
+            esito.dettagli.append(f"{etichetta}: lettura incompleta, ripresa al prossimo giro")
+            continue
+
         if config.sposta_elaborati:
             for nome_sorgente in nomi_sorgente:
                 percorso = percorsi_per_nome.get(nome_sorgente)
                 if percorso is not None:
-                    _sposta(percorso, radice, "elaborati" if andata_bene else "errori")
+                    _sposta(percorso, radice, "elaborati" if andata_bene else "errori", sha)
 
     _annota(config, timezone.now(), esito.riepilogo())
     return {**esito.come_dizionario(), "riepilogo": esito.riepilogo()}

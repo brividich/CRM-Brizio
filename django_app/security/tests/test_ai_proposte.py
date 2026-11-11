@@ -207,3 +207,48 @@ class PaginaTests(_Base):
         reopen_alert(alert, actor="soc_demo", reason="Non è rientrato")
         p.refresh_from_db()
         self.assertEqual((p.stato, p.nota), (SecurityAlertProposta.ANNULLATA, "Non è rientrato"))
+
+
+class ScartiEBudgetTests(_Base):
+    def test_risposta_non_valida_ricordata_e_non_richiesta_finche_il_contesto_non_cambia(self):
+        alert = self.alert()
+        out, ask = self.giro({"esito": "cancella tutto"})
+        self.assertEqual(ask.call_count, 1)
+        self.assertEqual(out["scartate"], 1)
+        riga = SecurityAlertProposta.objects.get(alert=alert)
+        self.assertEqual(riga.stato, SecurityAlertProposta.NON_VALIDA)
+        self.assertTrue(riga.contesto_hash)
+        self.assertIsNone(ai_proposte.proposta_aperta(alert))
+        self.assertEqual(ai_proposte.fiducia(riga.schema, "aperto")["errori"], 0)  # non è una decisione di una persona
+        out, ask = self.giro({"esito": "cancella tutto"})
+        ask.assert_not_called()
+        # Nuovo report sullo stesso job: il contesto cambia e l'alert torna all'AI.
+        BackupJobRecord.objects.create(source=self.source, job_name="JOB-DEMO-01", status="failed",
+                                       started_at=timezone.now() - timedelta(minutes=10), dedup_hash="run-nuovo")
+        out, ask = self.giro()
+        self.assertEqual(ask.call_count, 1)
+        self.assertEqual(SecurityAlertProposta.objects.filter(alert=alert, stato=SecurityAlertProposta.NON_VALIDA).count(), 1)
+        self.assertIsNotNone(ai_proposte.proposta_aperta(alert))
+
+    def test_errore_di_collegamento_non_salvato(self):
+        self.alert()
+        errore = {"ok": False, "data": None, "error": "Ollama non raggiungibile: rete giù", "model": "m", "ms": 1}
+        with mock.patch(CHIEDI, return_value=errore), mock.patch(DISPONIBILE, return_value=(True, "")):
+            ai_proposte.giro(limit=10)
+        self.assertFalse(SecurityAlertProposta.objects.exists())
+
+    def test_giro_con_scadenza_sotto_il_worker(self):
+        from ai_assistant import http_client
+        from security.services.cpe_ai import TETTO_PIANIFICATO
+
+        self.alert()
+        residui = []
+
+        def _chiedi(*args, **kwargs):
+            residui.append(http_client.residuo())
+            return _risposta(RISOLTO)
+
+        with mock.patch(CHIEDI, side_effect=_chiedi), mock.patch(DISPONIBILE, return_value=(True, "")):
+            ai_proposte.giro(limit=10)
+        self.assertTrue(residui)
+        self.assertTrue(all(r is not None and 0 < r <= TETTO_PIANIFICATO for r in residui))

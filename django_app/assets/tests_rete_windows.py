@@ -143,7 +143,7 @@ class PowerShellTests(TestCase):
 @override_settings(RETE_DHCP_SERVERS="dhcp-a, dhcp-b", RETE_DNS_SERVER="dns-sint", RETE_DNS_ZONES="dominio.local")
 class GiroTests(TestCase):
     def test_un_server_in_errore_non_ferma_gli_altri(self):
-        def leggi(server):
+        def leggi(server, timeout=None):
             if server == "dhcp-a":
                 raise svc.ReteError("Accesso negato")
             return _dhcp()
@@ -387,3 +387,49 @@ class AzioniRigaTests(TestCase):
         self.assertEqual(self.riga.asset, self.asset)
         DispositivoIntune.objects.create(intune_id="i-az", nome="pc-sint-01", asset=self.asset, presente=True)
         self.assertContains(self.client.get(reverse("security:pc_copertura")), "192.168.10.21")
+
+
+class AffidabilitaGiroTests(TestCase):
+    """Timeout per chiamata, budget del giro, spariti senza NOT IN, scrittura a blocchi."""
+
+    def test_timeout_per_chiamata_al_massimo_45_secondi(self):
+        proc = MagicMock(returncode=0, stdout=b"{}", stderr=b"")
+        with patch("assets.services.rete_windows.subprocess.run", return_value=proc) as run:
+            svc.esegui_powershell("x", {}, timeout=500)
+            self.assertEqual(run.call_args.kwargs["timeout"], svc.TIMEOUT_SECONDI)
+            svc.esegui_powershell("x", {}, timeout=12.5)
+            self.assertEqual(run.call_args.kwargs["timeout"], 12)
+        self.assertLessEqual(svc.TIMEOUT_SECONDI, 45)
+        self.assertLess(svc.BUDGET_GIRO_SECONDI, 100)
+
+    @override_settings(RETE_DHCP_SERVERS="dhcp-a, dhcp-b", RETE_DNS_SERVER="dns-sint", RETE_DNS_ZONES="dominio.local")
+    def test_server_oltre_il_budget_rimandati(self):
+        orologio = iter([0.0, 0.0, 0.0, 90.0])
+        with patch.object(svc.time, "monotonic", side_effect=lambda: next(orologio, 90.0)),                 patch.object(svc, "leggi_dhcp", return_value=_dhcp()) as dhcp,                 patch.object(svc, "leggi_dns", return_value=[]) as dns:
+            esito = svc.sincronizza(ORA)
+        self.assertEqual(dhcp.call_count, 1)
+        dns.assert_not_called()
+        self.assertEqual(len(esito["rimandati"]), 2)
+        self.assertIn("DHCP dhcp-b: lettura rimandata al prossimo giro", esito["rimandati"][0])
+
+    def test_molti_indirizzi_spariti_senza_superare_i_parametri(self):
+        leases = [_lease(f"10.1.{i // 250}.{i % 250 + 1}", f"02:00:00:00:{i // 256:02x}:{i % 256:02x}", f"h{i}")
+                  for i in range(2300)]
+        esito = svc.salva_dhcp("dhcp-sint", _dhcp(leases), ORA)
+        self.assertEqual(esito["indirizzi"], 2300)
+        esito = svc.salva_dhcp("dhcp-sint", _dhcp(leases[:10]), ORA + timedelta(hours=1))
+        self.assertEqual(esito["spariti"], 2290)
+        self.assertEqual(IndirizzoRete.objects.filter(nel_dhcp=True).count(), 10)
+        record = [{"name": f"h{i}", "zone": "dominio.local", "ip": f"10.1.{i // 250}.{i % 250 + 1}", "stamp": None}
+                  for i in range(2200)]
+        self.assertEqual(svc.salva_dns(record, ORA)["indirizzi"], 2200)
+        self.assertEqual(svc.salva_dns(record[:5], ORA)["spariti"], 2195)
+
+    def test_aggiornamento_a_blocchi_senza_query_per_riga(self):
+        leases = [_lease(f"10.2.0.{i}", f"02:00:00:00:01:{i:02x}", f"pc{i}") for i in range(1, 60)]
+        svc.salva_dhcp("dhcp-sint", _dhcp(leases), ORA)
+        with self.assertNumQueries(12):
+            svc.salva_dhcp("dhcp-sint", _dhcp(leases), ORA + timedelta(hours=1))
+        riga = IndirizzoRete.objects.get(ip="10.2.0.5")
+        self.assertEqual(riga.ultima_vista, ORA + timedelta(hours=1))
+        self.assertEqual(riga.mac, "02:00:00:00:01:05")

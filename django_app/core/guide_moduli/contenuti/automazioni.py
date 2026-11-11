@@ -18,6 +18,8 @@ GUIDA = {
                 ("p", "Dopo «Conferma Approvazione» o «Conferma Rifiuto» compare «Richiesta Approvata» o «Richiesta "
                       "Rifiutata»: la decisione è registrata. Se riapri il link più tardi rivedi la tua decisione. "
                       "«Richiesta già Elaborata» compare solo se ha deciso un altro approvatore, indicato nel messaggio."),
+                ("p", "La pagina registra la decisione subito; le azioni che seguono (mail al dipendente, aggiornamento "
+                      "della richiesta) partono in background nei secondi successivi."),
             ],
         },
     ],
@@ -137,7 +139,37 @@ GUIDA = {
             "fare": [
                 "Gli eventi rimasti «in lavorazione» oltre 15 minuti tornano in coda da soli; dopo 5 tentativi vanno in errore.",
                 "Dalla pagina della coda puoi «Stoppa» o «Elimina» un evento bloccato.",
+                "«Riprova» accoda l'evento al qcluster: ricarica la pagina dopo qualche secondo per vedere l'esito.",
                 "Controlla che il qcluster stia girando.",
+            ],
+        },
+        {
+            "sintomo": "Dopo «Riprova» temevo mail doppie",
+            "fare": [
+                "Riprovare un evento non ripete le azioni già riuscite: nel run log compaiono come "
+                "«Già eseguita con successo in un tentativo precedente di questo evento: non ripetuta».",
+                "Richiesta di approvazione arrivata solo ad alcuni approvatori: l'azione va in errore con "
+                "«Recapito parziale della richiesta #…»; i link già inviati restano validi e il tentativo successivo "
+                "manda la mail solo a chi mancava.",
+            ],
+        },
+        {
+            "sintomo": "Un'azione HTTP o Teams è in errore con «redirect verso … non seguito» o «non riesce a risolvere»",
+            "fare": [
+                "«redirect verso <host> non seguito (HTTP 3xx)»: l'indirizzo configurato rimanda altrove; per sicurezza il "
+                "portale non segue i redirect. Correggi l'URL con quello finale.",
+                "«il server non riesce a risolvere <host> (DNS)»: problema di nome o di rete del server, non un blocco "
+                "delle regole di sicurezza.",
+                "Nei messaggi e nel run log degli URL compare solo l'indirizzo del server (schema e host): la firma "
+                "«sig=» dei flussi Power Automate e i webhook Teams non vengono più scritti.",
+            ],
+        },
+        {
+            "sintomo": "Una risposta alla casella approvazioni resta «Errore» nel log mailbox",
+            "fare": [
+                "Se la richiesta non esiste più o è scaduta il messaggio diventa «ignorato» e viene segnato come letto.",
+                "Gli altri errori si ritentano al massimo 3 volte, poi il messaggio diventa «ignorato» con "
+                "«Abbandonato dopo 3 tentativi non riusciti».",
             ],
         },
     ],

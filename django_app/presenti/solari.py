@@ -98,10 +98,17 @@ def configurato() -> bool:
     return True
 
 
+QUERY_TIMEOUT_SECONDI = 15
+
+
 def _connetti(cfg: Configurazione):
     import pyodbc
 
-    return pyodbc.connect(cfg.connection_string(), timeout=10, readonly=True)
+    conn = pyodbc.connect(cfg.connection_string(), timeout=10, readonly=True)
+    # Il `timeout` di connect vale solo per il login: senza questo una query su un
+    # SQL Server bloccato terrebbe fermo il thread (pagina o worker) a tempo indefinito.
+    conn.timeout = QUERY_TIMEOUT_SECONDI
+    return conn
 
 
 def _pulisci(valore) -> str:

@@ -43,6 +43,8 @@ CATEGORIA = "NOVICROM HUB"
 GIORNI_INDIETRO = 7
 GIORNI_AVANTI = 365
 MAX_SCRITTURE = 300  # per giro: il resto al giro dopo
+# Budget di tempo del giro (il worker django-q chiude il task a 120 s): oltre, il resto al giro dopo.
+BUDGET_SECONDI = 90
 
 
 def attivo() -> bool:
@@ -161,6 +163,11 @@ def _evento(row: dict) -> dict | None:
     }
 
 
+def transaction_id(assenza_id: int, email: str, imp: str) -> str:
+    """Chiave di idempotenza Graph per il POST: un retry dopo un timeout non crea un evento doppio."""
+    return hashlib.sha256(f"assenze|{assenza_id}|{str(email).lower()}|{imp}".encode("utf-8")).hexdigest()[:40]
+
+
 def impronta(payload: dict) -> str:
     base = "|".join(str(payload.get(k)) for k in ("subject", "start", "end", "isAllDay"))
     return hashlib.sha256(base.encode("utf-8")).hexdigest()
@@ -196,6 +203,8 @@ def _email_capo(row: dict, scelti: dict) -> str:
 
 def sincronizza(now=None) -> dict:
     """Un giro di allineamento. Ritorna i contatori per il Run-log."""
+    import time
+
     from core import m365_graph
 
     from .models import AssenzaCapoScelto, AssenzaOutlook
@@ -218,6 +227,14 @@ def sincronizza(now=None) -> dict:
         mappa[m.assenza_id].append(m)
     cache_cal: dict[str, str] = {}
     creati = aggiornati = tolti = saltati = errori = scritture = 0
+    scadenza = time.monotonic() + BUDGET_SECONDI
+    interrotto = False
+
+    def finito() -> bool:
+        nonlocal interrotto
+        if scritture >= MAX_SCRITTURE or time.monotonic() > scadenza:
+            interrotto = True
+        return interrotto
 
     def errore(rec, testo):
         nonlocal errori
@@ -242,7 +259,7 @@ def sincronizza(now=None) -> dict:
             return False
 
     for row in righe:
-        if scritture >= MAX_SCRITTURE:
+        if finito():
             break
         rid = int(row["id"])
         recs = mappa.pop(rid, [])
@@ -255,7 +272,7 @@ def sincronizza(now=None) -> dict:
             continue
         imp = impronta(payload)
         for rec in recs:
-            if scritture >= MAX_SCRITTURE:
+            if finito():
                 break
             if rec.rimosso_da_utente:
                 if rec.impronta == imp:
@@ -281,7 +298,8 @@ def sincronizza(now=None) -> dict:
                         continue
                     aggiornati += 1
                 else:
-                    _, evento = m365_graph.scrivi("POST", base, permesso=PERMESSO, json=payload)
+                    _, evento = m365_graph.scrivi("POST", base, permesso=PERMESSO, json={
+                        **payload, "transactionId": transaction_id(rid, rec.email, imp)})
                     rec.event_id = str(evento.get("id") or "")
                     creati += 1
                 rec.impronta, rec.ultimo_errore = imp, ""
@@ -307,7 +325,7 @@ def sincronizza(now=None) -> dict:
         if stato_richiesta in (0, 4):
             rec.delete()  # ancora approvata ma passata: l'evento resta, la riga no
             continue
-        if scritture >= MAX_SCRITTURE:
+        if finito():
             break
         in_attesa = stato_richiesta is not None and stato_richiesta not in (1,)
         if not togli_evento(rec):
@@ -323,7 +341,10 @@ def sincronizza(now=None) -> dict:
             rec.delete()
         tolti += int(bool(rec.event_id))
 
-    return {"creati": creati, "aggiornati": aggiornati, "tolti": tolti, "lasciati_fuori": saltati, "errori": errori}
+    esito = {"creati": creati, "aggiornati": aggiornati, "tolti": tolti, "lasciati_fuori": saltati, "errori": errori}
+    if interrotto:
+        esito["interrotto"] = "limite di scritture o di tempo del giro: il resto al prossimo giro"
+    return esito
 
 
 def stato() -> dict:

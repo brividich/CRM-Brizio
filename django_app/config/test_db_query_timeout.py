@@ -28,3 +28,20 @@ class DbQueryTimeoutTests(SimpleTestCase):
 
     def test_valore_non_numerico_torna_a_zero(self):
         self.assertEqual(_timeout(HUB_PROCESS_ROLE="web", DB_QUERY_TIMEOUT="abc"), 0)
+
+
+class DbConnessioneTests(SimpleTestCase):
+    def _opzioni(self, **env: str) -> dict:
+        keys = ("DB_CONNECTION_TIMEOUT", "DB_CONNECTION_RETRIES", "DB_CONNECTION_RETRY_BACKOFF")
+        clean = {k: v for k, v in os.environ.items() if k not in keys}
+        with patch.dict(os.environ, {**clean, **env}, clear=True):
+            return build_sqlserver_database()["OPTIONS"]
+
+    def test_default_brevi(self):
+        o = self._opzioni()
+        self.assertEqual((o["connection_timeout"], o["connection_retries"], o["connection_retry_backoff_time"]),
+                         (5, 1, 2))
+
+    def test_sovrascrivibili_e_valori_non_validi(self):
+        o = self._opzioni(DB_CONNECTION_TIMEOUT="12", DB_CONNECTION_RETRIES="abc")
+        self.assertEqual((o["connection_timeout"], o["connection_retries"]), (12, 1))

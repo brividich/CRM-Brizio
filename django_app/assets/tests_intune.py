@@ -47,6 +47,17 @@ class SincronizzazioneTests(TestCase):
         self.assertEqual((esito["aggiornati"], esito["usciti"]), (1, 1))
         self.assertFalse(DispositivoIntune.objects.get(intune_id="d-2").presente)
 
+    def test_lettura_troncata_nessun_dispositivo_uscito(self):
+        from core.m365_graph import ElencoGraph
+
+        intune.sincronizza(ORA, devices=[_device(), _device("d-2", "PC-02", "SN-2")])
+        parziale = ElencoGraph([_device()])
+        parziale.troncata = True
+        esito = intune.sincronizza(ORA, devices=parziale)
+        self.assertEqual(esito["usciti"], 0)
+        self.assertIn("troncata", esito["saltato"])
+        self.assertTrue(DispositivoIntune.objects.get(intune_id="d-2").presente)
+
     def test_problemi_dal_cambia_solo_se_cambiano_i_problemi(self):
         intune.sincronizza(ORA, devices=[_device(cifrato=False)])
         primo = DispositivoIntune.objects.get().problemi_dal

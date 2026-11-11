@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone as dt_timezone
 from email.utils import parseaddr
 from typing import Any
+from urllib.parse import quote
 
 import os
 
@@ -321,13 +322,14 @@ def fetch_messages(
     only_unread: bool = True,
     limit: int = 25,
     since_hours: int | None = None,
+    token: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     Legge i messaggi dalla mailbox tramite Graph.
     Ritorna lista di messaggi raw Graph (dict) pronti per il parsing.
     Gestisce paginazione via @odata.nextLink.
     """
-    token = _get_token()
+    token = token or _get_token()
 
     # Costruiamo i parametri query
     select_fields = ",".join([
@@ -361,8 +363,8 @@ def fetch_messages(
 
     # Percorso cartella: supporta nomi semplici (Inbox) e percorsi (Inbox/Approvazioni)
     # Graph accetta mailFolders/{folder_name}/messages per nomi wellknown e path
-    folder_segment = folder.strip("/")
-    url = f"{GRAPH_BASE}/users/{mailbox}/mailFolders/{folder_segment}/messages"
+    folder_segment = quote(folder.strip("/"), safe="/")
+    url = f"{GRAPH_BASE}/users/{_mailbox_segment(mailbox)}/mailFolders/{folder_segment}/messages"
 
     messages: list[dict[str, Any]] = []
     collected = 0
@@ -452,11 +454,20 @@ def normalize_message(raw: dict[str, Any]) -> GraphMailboxMessage:
     )
 
 
-def mark_message_as_read(*, mailbox: str, graph_message_id: str) -> bool:
-    """Marca un messaggio come letto via Graph PATCH. Ritorna True se ok."""
+def _mailbox_segment(mailbox: str) -> str:
+    """Casella codificata per il percorso Graph (``/users/{casella}``)."""
+    return quote(str(mailbox or "").strip(), safe="@")
+
+
+def mark_message_as_read(*, mailbox: str, graph_message_id: str, token: str | None = None) -> bool:
+    """Marca un messaggio come letto via Graph PATCH. Ritorna True se ok.
+
+    ``token``: token Graph gia' acquisito nel giro di polling, da riusare.
+    """
     try:
-        token = _get_token()
-        url = f"{GRAPH_BASE}/users/{mailbox}/messages/{graph_message_id}"
+        token = token or _get_token()
+        # L'id Graph puo' contenere «/», «+», «=»: va codificato nel percorso.
+        url = f"{GRAPH_BASE}/users/{_mailbox_segment(mailbox)}/messages/{quote(str(graph_message_id or ''), safe='')}"
         _graph_request("PATCH", url, token=token, json_body={"isRead": True})
         return True
     except RuntimeError as exc:
@@ -572,6 +583,18 @@ def poll_graph_mailbox(
 
     result = GraphPollResult()
 
+    # Un solo token per tutti i «segna come letto» del giro (acquisito al primo uso).
+    token_holder: dict[str, str | None] = {}
+
+    def _mark_read(graph_message_id: str) -> None:
+        if "token" not in token_holder:
+            try:
+                token_holder["token"] = _get_token()
+            except RuntimeError as exc:
+                logger.warning("poll_graph_mailbox: token Graph per segna-come-letto non acquisito: %s", exc)
+                token_holder["token"] = None
+        mark_message_as_read(mailbox=mailbox, graph_message_id=graph_message_id, token=token_holder["token"])
+
     raw_messages = fetch_messages(
         mailbox=mailbox,
         folder=effective_folder,
@@ -603,7 +626,7 @@ def poll_graph_mailbox(
                 "outcome": "ignored_already_processed",
             })
             if effective_mark_read and msg.graph_id:
-                mark_message_as_read(mailbox=mailbox, graph_message_id=msg.graph_id)
+                _mark_read(msg.graph_id)
             continue
 
         msg_log: dict[str, Any] = {
@@ -627,7 +650,7 @@ def poll_graph_mailbox(
             if not dry_run:
                 save_message_record(msg, status="ignored", error="Nessun comando riconosciuto")
                 if effective_mark_read and msg.graph_id:
-                    mark_message_as_read(mailbox=mailbox, graph_message_id=msg.graph_id)
+                    _mark_read(msg.graph_id)
             continue
 
         # ── Dry run: non applicare ───────────────────────────────────────────
@@ -676,7 +699,7 @@ def poll_graph_mailbox(
                 msg_log["error"] = sender_error
                 result.messages.append(msg_log)
                 if mark_read_allowed and effective_mark_read and msg.graph_id:
-                    mark_message_as_read(mailbox=mailbox, graph_message_id=msg.graph_id)
+                    _mark_read(msg.graph_id)
                 continue
 
             decision_str = "approved" if msg.command == "approvo" else "rejected"
@@ -705,11 +728,16 @@ def poll_graph_mailbox(
                     msg_log["outcome"] = "ignored_already_decided"
                     msg_log["error"] = err
                     mark_read_allowed = True
-                else:
-                    save_message_record(msg, status="error", error=err)
-                    result.error += 1
-                    msg_log["outcome"] = "error_process"
+                elif _is_final_request_error(err):
+                    # Richiesta inesistente o scaduta: riprovare non cambia niente,
+                    # prima veniva rielaborata a ogni giro (ogni 2 minuti).
+                    save_message_record(msg, status="ignored", error=err)
+                    result.ignored += 1
+                    msg_log["outcome"] = "ignored_request_closed"
                     msg_log["error"] = err
+                    mark_read_allowed = True
+                else:
+                    mark_read_allowed = _record_error_attempt(msg, err, result, msg_log, outcome="error_process")
                     logger.error(
                         "process_approval_decision ko: token=%s from=%s error=%s",
                         msg.token,
@@ -719,17 +747,65 @@ def poll_graph_mailbox(
 
         except Exception as exc:
             logger.exception("poll_graph_mailbox: eccezione su msg %s", msg.internet_message_id)
-            save_message_record(msg, status="error", error=str(exc))
-            result.error += 1
-            msg_log["outcome"] = "error_exception"
-            msg_log["error"] = str(exc)
+            mark_read_allowed = _record_error_attempt(msg, str(exc), result, msg_log, outcome="error_exception")
 
         result.messages.append(msg_log)
 
         if mark_read_allowed and effective_mark_read and msg.graph_id:
-            mark_message_as_read(mailbox=mailbox, graph_message_id=msg.graph_id)
+            _mark_read(msg.graph_id)
 
     return result
+
+
+# Messaggi in errore: oltre questo numero di giri falliti si smette di rielaborarli.
+MAILBOX_MAX_ERROR_ATTEMPTS = 3
+_ATTEMPT_PREFIX_RE = re.compile(r"^Tentativo (\d+)/\d+: ")
+
+
+def _is_final_request_error(message: str) -> bool:
+    """Errore definitivo della richiesta (inesistente o scaduta): inutile riprovare."""
+    normalized = str(message or "").casefold()
+    return "non trovata" in normalized or "scaduta" in normalized or "scaduto" in normalized
+
+
+def _previous_error_attempts(internet_message_id: str) -> int:
+    try:
+        from .models import ApprovalMailboxMessage, ApprovalMailboxMessageStatus
+
+        previous = (
+            ApprovalMailboxMessage.objects.filter(
+                internet_message_id=internet_message_id,
+                processing_status=ApprovalMailboxMessageStatus.ERROR,
+            )
+            .values_list("processing_error", flat=True)
+            .first()
+        )
+    except Exception:
+        return 0
+    if previous is None:
+        return 0
+    match = _ATTEMPT_PREFIX_RE.match(str(previous or ""))
+    return int(match.group(1)) if match else 1
+
+
+def _record_error_attempt(msg: GraphMailboxMessage, error: str, result: GraphPollResult, msg_log: dict, *, outcome: str) -> bool:
+    """Registra un giro fallito; dopo ``MAILBOX_MAX_ERROR_ATTEMPTS`` il messaggio diventa ignorato.
+
+    Ritorna True se il messaggio va segnato come letto (tentativi esauriti).
+    """
+    attempt = _previous_error_attempts(msg.internet_message_id) + 1
+    if attempt >= MAILBOX_MAX_ERROR_ATTEMPTS:
+        final_error = f"Abbandonato dopo {attempt} tentativi non riusciti: {error}"
+        save_message_record(msg, status="ignored", error=final_error)
+        result.ignored += 1
+        msg_log["outcome"] = "ignored_too_many_errors"
+        msg_log["error"] = final_error
+        return True
+    save_message_record(msg, status="error", error=f"Tentativo {attempt}/{MAILBOX_MAX_ERROR_ATTEMPTS}: {error}")
+    result.error += 1
+    msg_log["outcome"] = outcome
+    msg_log["error"] = error
+    return False
 
 
 def _validate_sender(token_str: str, from_email: str) -> str | None:

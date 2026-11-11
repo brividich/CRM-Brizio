@@ -215,6 +215,14 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Avviso «Accesso a Microsoft 365 non riuscito» sulla copia SharePoint",
+            "fare": [
+                "Il codice tra parentesi viene da Entra ID: AADSTS7000215 = segreto dell'app sbagliato o scaduto, "
+                "AADSTS700016 = ID applicazione non trovato, AADSTS90002 = tenant sbagliato.",
+                "Corretto il .env, il comando rentri_sync_riprova reinvia i movimenti rimasti indietro.",
+            ],
+        },
+        {
             "sintomo": "Uno scarico non trova il carico da collegare",
             "fare": [
                 "Controlla che il carico abbia lo stesso codice CER.",

@@ -242,7 +242,7 @@ class ChiediTests(TestCase):
         fake = mock.MagicMock()
         fake.__enter__.return_value.read.return_value = risposta
         with self.settings(OLLAMA_BASE_URL="http://ollama.lan:11434", OLLAMA_CHAT_MODEL="qwen-demo", OLLAMA_API_PROVIDER="ollama"), \
-             mock.patch("security.services.cpe_ai.urllib.request.urlopen", return_value=fake) as urlopen:
+             mock.patch("ai_assistant.http_client.lan_urlopen", return_value=fake) as urlopen:
             out = cpe_ai._chiedi(cpe_ai._messaggi(cpe_ai.SISTEMA_CPE, cpe_ai.ESEMPI_CPE, "Programma: x"), action="cpe_proposta")
         self.assertTrue(out["ok"])
         self.assertEqual(out["data"]["scelta"], "da_verificare")
@@ -256,7 +256,7 @@ class ChiediTests(TestCase):
 
     def test_network_error_is_logged_not_raised(self):
         with self.settings(OLLAMA_BASE_URL="http://ollama.lan:11434", OLLAMA_CHAT_MODEL="qwen-demo"), \
-             mock.patch("security.services.cpe_ai.urllib.request.urlopen", side_effect=OSError("rete giù")):
+             mock.patch("ai_assistant.http_client.lan_urlopen", side_effect=OSError("rete giù")):
             out = cpe_ai._chiedi([{"role": "user", "content": "x"}], action="cpe_proposta")
         self.assertFalse(out["ok"])
         self.assertIn("non raggiungibile", out["error"])
@@ -339,3 +339,117 @@ class PagineTests(_Base):
         accoda.assert_called_once()
         self.assertEqual(accoda.call_args.args[0], "cpe_ai")
         self.assertEqual(response.status_code, 302)
+
+
+class ScartiEBudgetTests(_Base):
+    """Scarti ricordati col contesto, casi aperti fuori dalla query, timeout entro il tetto del giro."""
+
+    def setUp(self):
+        super().setUp()
+        _cve("CVE-2099-0001", "7-zip", "7-zip", end_excluding="24.07")
+        _cve("CVE-2099-0002", "demo", "demosuite")
+        self._install("pc-01", "igor pavlov", "7-zip", "23.01")
+        self._install("pc-09", "demo corp", "demosuite", "1.0")
+
+    def test_discarded_answer_is_saved_and_not_asked_again_until_data_change(self):
+        fuori = _risposta({"scelta": "cpe", "cpe": "zzz:fuori_elenco", "confidenza": 90, "motivazione": "?"})
+        with mock.patch(CHIEDI, return_value=fuori) as ask, mock.patch(DISPONIBILE, return_value=(True, "")):
+            esito = cpe_ai.giro(limit=5)
+        self.assertEqual(ask.call_count, 2)
+        self.assertEqual(esito["cpe"]["scartate"], 2)
+        scarti = SecurityPropostaAi.objects.filter(stato=SecurityPropostaAi.SCARTATA)
+        self.assertEqual(scarti.count(), 2)
+        self.assertTrue(all(p.contesto_hash for p in scarti))
+        self.assertEqual(cpe_ai.conteggio_aperte(), 0)
+        self.assertEqual(cpe_ai.proposte_cpe_aperte(), {})
+        with mock.patch(CHIEDI, return_value=fuori) as ask, mock.patch(DISPONIBILE, return_value=(True, "")):
+            cpe_ai.giro(limit=5)
+        ask.assert_not_called()  # stessi dati: lo scarto non si ripropone
+        _cve("CVE-2099-0003", "7-zip", "p7zip")  # nuovo candidato per 7-zip: il contesto cambia
+        valida = _risposta({"scelta": "cpe", "cpe": "7-zip:7-zip", "confidenza": 90, "motivazione": "ok"})
+        with mock.patch(CHIEDI, return_value=valida) as ask, mock.patch(DISPONIBILE, return_value=(True, "")):
+            cpe_ai.giro(limit=5, confidenza_minima=60)
+        self.assertEqual(ask.call_count, 1)
+        self.assertEqual(SecurityPropostaAi.objects.get(product="7-zip").stato, SecurityPropostaAi.APERTA)
+
+    def test_connection_error_is_not_saved_as_discard(self):
+        with mock.patch(CHIEDI, return_value=_risposta(None, ok=False, error="Timeout: Ollama non ha risposto entro 40 s")), \
+             mock.patch(DISPONIBILE, return_value=(True, "")):
+            cpe_ai.giro(limit=5)
+        self.assertFalse(SecurityPropostaAi.objects.exists())  # al giro dopo si riprova
+
+    def test_human_decision_is_kept_when_new_answer_is_discarded(self):
+        valida = _risposta({"scelta": "non_applicabile", "cpe": None, "confidenza": 80, "motivazione": "driver"})
+        with mock.patch(CHIEDI, return_value=valida), mock.patch(DISPONIBILE, return_value=(True, "")):
+            cpe_ai.giro(limit=5)
+        proposta = SecurityPropostaAi.objects.get(product="7-zip")
+        cpe_ai.segna_decisa(proposta, self.user, accettata=False)
+        _cve("CVE-2099-0003", "7-zip", "p7zip")
+        fuori = _risposta({"scelta": "boh"})
+        with mock.patch(CHIEDI, return_value=fuori), mock.patch(DISPONIBILE, return_value=(True, "")):
+            cpe_ai.giro(limit=5)
+        proposta.refresh_from_db()
+        self.assertEqual(proposta.stato, SecurityPropostaAi.RIFIUTATA)
+        with mock.patch(CHIEDI, return_value=fuori) as ask, mock.patch(DISPONIBILE, return_value=(True, "")):
+            cpe_ai.giro(limit=5)
+        ask.assert_not_called()
+
+    def test_open_proposals_are_excluded_from_candidates(self):
+        valida = _risposta({"scelta": "cpe", "cpe": "7-zip:7-zip", "confidenza": 90, "motivazione": "ok"})
+        with mock.patch(CHIEDI, return_value=valida), mock.patch(DISPONIBILE, return_value=(True, "")):
+            cpe_ai.giro(limit=1, confidenza_minima=60)
+        aperta = SecurityPropostaAi.objects.get()
+        esistenti = {p.chiave: p for p in SecurityPropostaAi.objects.all()}
+        prodotti = [c["product"] for c in cpe_ai.casi_cpe(limit=1, esistenti=esistenti)]
+        altro = ({"7-zip", "demosuite"} - {aperta.product}).pop()
+        self.assertEqual(prodotti, [altro])  # il posto non lo occupa il caso già aperto
+
+    def test_round_sets_a_deadline_under_the_worker_timeout(self):
+        from ai_assistant import http_client
+
+        residui = []
+
+        def _chiedi(*args, **kwargs):
+            residui.append(http_client.residuo())
+            return _risposta({"scelta": "da_verificare", "cpe": None, "confidenza": 10, "motivazione": "?"})
+
+        with mock.patch(CHIEDI, side_effect=_chiedi), mock.patch(DISPONIBILE, return_value=(True, "")):
+            cpe_ai.giro(limit=5)
+        self.assertTrue(residui)
+        self.assertTrue(all(r is not None and 0 < r <= cpe_ai.TETTO_PIANIFICATO for r in residui))
+        self.assertLess(cpe_ai.TETTO_PIANIFICATO, 110)
+        self.assertIsNone(http_client.residuo())  # fuori dal giro nessuna scadenza
+
+
+class ChiediTimeoutTests(TestCase):
+    def test_single_call_timeout_is_capped_by_remaining_budget(self):
+        from ai_assistant import http_client
+
+        risposta = json.dumps({"message": {"content": "{}"}}).encode()
+        fake = mock.MagicMock()
+        fake.__enter__.return_value.read.return_value = risposta
+        with self.settings(OLLAMA_BASE_URL="http://ollama.lan:11434", OLLAMA_CHAT_MODEL="qwen-demo", SECURITY_AI_TIMEOUT_SECONDS=120), \
+             mock.patch("ai_assistant.http_client.lan_urlopen", return_value=fake) as urlopen, http_client.scadenza(30):
+            cpe_ai._chiedi([{"role": "user", "content": "x"}], action="cpe_proposta")
+        self.assertLessEqual(urlopen.call_args.kwargs["timeout"], 30)
+
+    def test_timeout_is_reported_as_timeout_not_unreachable(self):
+        import socket
+        import urllib.error
+
+        with self.settings(OLLAMA_BASE_URL="http://ollama.lan:11434", OLLAMA_CHAT_MODEL="qwen-demo"), \
+             mock.patch("ai_assistant.http_client.lan_urlopen", side_effect=urllib.error.URLError(socket.timeout("timed out"))):
+            out = cpe_ai._chiedi([{"role": "user", "content": "x"}], action="cpe_proposta")
+        self.assertIn("Timeout", out["error"])
+        self.assertNotIn("non raggiungibile", out["error"])
+        self.assertTrue(cpe_ai._ai_ferma(out["error"]))
+
+    def test_no_request_when_deadline_is_exhausted(self):
+        from ai_assistant import http_client
+
+        with self.settings(OLLAMA_BASE_URL="http://ollama.lan:11434", OLLAMA_CHAT_MODEL="qwen-demo"), \
+             mock.patch("ai_assistant.http_client.lan_urlopen") as urlopen, http_client.scadenza(0):
+            out = cpe_ai._chiedi([{"role": "user", "content": "x"}], action="cpe_proposta")
+        urlopen.assert_not_called()
+        self.assertFalse(out["ok"])
+        self.assertTrue(cpe_ai._ai_ferma(out["error"]))

@@ -194,9 +194,17 @@ def sincronizza(now=None, *, devices: list[dict] | None = None, dettaglio=None) 
         disp.save()
         if completa_asset(disp):
             completati += 1
-    usciti = DispositivoIntune.objects.filter(presente=True).exclude(intune_id__in=visti).update(presente=False)
-    return {"letti": len(devices), "creati": creati, "aggiornati": aggiornati,
-            "usciti": usciti, "asset_completati": completati, "ram_lette": ram_lette}
+    from core import m365_graph
+
+    esito = {"letti": len(devices), "creati": creati, "aggiornati": aggiornati,
+             "usciti": 0, "asset_completati": completati, "ram_lette": ram_lette}
+    if m365_graph.troncata(devices):
+        # Elenco parziale: i dispositivi non letti non sono «usciti» da Intune.
+        logger.warning("Intune: lettura troncata (%s dispositivi), nessuno segnato come uscito", len(devices))
+        esito["saltato"] = "lettura troncata: nessun dispositivo segnato come uscito da Intune"
+        return esito
+    esito["usciti"] = DispositivoIntune.objects.filter(presente=True).exclude(intune_id__in=visti).update(presente=False)
+    return esito
 
 
 def problemi_aperti(now=None) -> list[dict]:

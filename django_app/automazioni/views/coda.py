@@ -400,6 +400,32 @@ def queue_reset_view(request, queue_id: int):
 @legacy_admin_or_acl_required("automazioni", "queue_retry_view")
 @require_POST
 def queue_retry_view(request, queue_id: int):
+    # L'elaborazione (mail, servizi esterni) gira nel cluster django-q, non nel
+    # thread web: la pagina risponde subito. Se l'accodamento non riesce si
+    # elabora qui come prima.
+    detail = get_queue_event_detail(queue_id)
+    if detail is not None and detail.get("status") in {"error", "pending"}:
+        try:
+            from django_q.tasks import async_task
+
+            async_task(
+                "automazioni.tasks.run_queue_event_task",
+                int(queue_id),
+                task_name=f"automazioni_queue_retry_{int(queue_id)}",
+            )
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Riprova evento %s: accodamento non riuscito, elaboro subito", queue_id, exc_info=True
+            )
+        else:
+            messages.success(
+                request,
+                f"Riprova accodata per l'evento queue {queue_id}: viene elaborato in background, "
+                "ricarica la pagina tra qualche secondo per vedere l'esito.",
+            )
+            return redirect("admin_portale:automazioni_queue_detail", queue_id=queue_id)
     result = process_single_queue_event_by_id(queue_id)
     if result["status"] == "done":
         messages.success(

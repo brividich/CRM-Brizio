@@ -660,3 +660,80 @@ class ImportaBadgeSolariTests(TestCase):
     def test_sovrascrivi_aggiorna_i_diversi(self):
         self._lancia(apply=True, sovrascrivi=True)
         self.assertEqual(self._badge(3), "99")
+
+
+class AffidabilitaCollegamentiTests(TestCase):
+    """Timeout di query Solari, pubblicazione Graph con budget e cache, pulsante in background."""
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+
+    def test_connessione_solari_ha_timeout_di_query(self):
+        import sys
+        from types import SimpleNamespace
+
+        class _Conn:
+            timeout = 0
+
+        finto = SimpleNamespace(connect=lambda *a, **k: _Conn())
+        cfg = SimpleNamespace(connection_string=lambda: "DRIVER={x};")
+        with patch.dict(sys.modules, {"pyodbc": finto}):
+            conn = solari._connetti(cfg)
+        self.assertEqual(conn.timeout, solari.QUERY_TIMEOUT_SECONDI)
+        self.assertLessEqual(conn.timeout, 20)
+
+    def _risposte(self):
+        from types import SimpleNamespace
+
+        def risposta(dati, status=200):
+            return SimpleNamespace(status_code=status, json=lambda: dati, raise_for_status=lambda: None)
+
+        return risposta
+
+    def test_pubblicazione_ricorda_sito_e_raccolta_e_usa_timeout_brevi(self):
+        from . import impostazioni
+
+        r = self._risposte()
+        get_calls, put_calls = [], []
+
+        def get(url, headers=None, timeout=None):
+            get_calls.append(timeout)
+            if url.endswith("/drives"):
+                return r({"value": [{"name": "CN Documentazione", "id": "drv1"}]})
+            return r({"id": "site1"})
+
+        def put(url, headers=None, data=None, timeout=None):
+            put_calls.append((url, timeout))
+            return r({"webUrl": "https://example.invalid/f.pdf"})
+
+        with patch.object(impostazioni, "_intestazioni", return_value={"Authorization": "Bearer x"}), \
+                patch("requests.get", side_effect=get), patch("requests.put", side_effect=put):
+            self.assertEqual(impostazioni.pubblica_su_sharepoint(b"%PDF"), "https://example.invalid/f.pdf")
+            impostazioni.pubblica_su_sharepoint(b"%PDF")
+        self.assertEqual(len(get_calls), 2, "sito e raccolta letti una volta sola, poi dalla cache")
+        self.assertEqual(len(put_calls), 2)
+        self.assertTrue(all(t <= impostazioni.TIMEOUT_GRAPH_SECONDI for t in get_calls + [p[1] for p in put_calls]))
+        self.assertIn("/drives/drv1/", put_calls[0][0])
+
+    def test_budget_esaurito_ferma_la_pubblicazione(self):
+        from . import impostazioni
+
+        with patch.object(impostazioni, "_intestazioni", return_value={}), \
+                patch("requests.get") as get, patch("requests.put") as put:
+            with self.assertRaises(TimeoutError):
+                impostazioni.pubblica_su_sharepoint(b"%PDF", budget=0)
+        get.assert_not_called()
+        put.assert_not_called()
+
+    def test_pulsante_pubblica_accoda(self):
+        U = get_user_model()
+        self.client.force_login(U.objects.create_superuser("pres_aff", password="x"))
+        with patch("django_q.tasks.async_task") as accoda, \
+                patch("presenti.tasks.pubblica_pdf") as diretta:
+            r = self.client.post(reverse("presenti:impostazioni"), {"azione": "pubblica"}, follow=True)
+        diretta.assert_not_called()
+        accoda.assert_called_once()
+        self.assertEqual(accoda.call_args[0][0], "presenti.tasks.pubblica_pdf")
+        self.assertTrue(accoda.call_args[1]["forza"])
+        self.assertContains(r, "Pubblicazione avviata")

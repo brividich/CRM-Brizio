@@ -37,6 +37,17 @@ def create_link(approval, recipient_email: str) -> str:
     return raw
 
 
+def delete_link(raw_token: str) -> int:
+    """Toglie il link di un invio non riuscito: chi non l'ha ricevuto non deve risultare raggiunto."""
+    from .models import AutomationApprovalLink
+
+    raw = str(raw_token or "").strip()
+    if not raw:
+        return 0
+    deleted, _ = AutomationApprovalLink.objects.filter(token_hash=hash_token(raw), used_at__isnull=True).delete()
+    return deleted
+
+
 def build_link_urls(raw_token: str) -> tuple[str, str]:
     site_url = str(getattr(settings, "SITE_URL", "") or "").rstrip("/")
     base = f"{site_url}/approval-actions/r/{raw_token}"
@@ -64,8 +75,12 @@ def recover_stuck_branches() -> None:
     call_command("recover_approval_branches")
 
 
-def decide_with_link(raw_token: str, decision: str) -> dict:
-    """Consuma il link (monouso, atomico) e processa la decisione come il suo destinatario."""
+def decide_with_link(raw_token: str, decision: str, *, defer_branch: bool = False) -> dict:
+    """Consuma il link (monouso, atomico) e processa la decisione come il suo destinatario.
+
+    ``defer_branch``: dalla pagina web le azioni del ramo partono in background
+    (vedi ``process_approval_decision``) e la risposta e' immediata.
+    """
     from .models import AutomationApproval, AutomationApprovalLink
     from .services import process_approval_decision
 
@@ -88,7 +103,9 @@ def decide_with_link(raw_token: str, decision: str) -> dict:
     if not claimed:
         return {"ok": False, "code": "already_used", "message": "Questo link e' gia' stato usato.", "link": link}
 
-    result = process_approval_decision(str(approval.token), decision, decided_by_email=link.recipient_email)
+    result = process_approval_decision(
+        str(approval.token), decision, decided_by_email=link.recipient_email, defer_branch=defer_branch
+    )
     result = dict(result or {})
     result.setdefault("code", "ok" if result.get("ok") else "failed")
     result["link"] = link
