@@ -1,3 +1,5 @@
+import re
+
 from django.db import models
 from django.utils import timezone
 
@@ -98,6 +100,13 @@ class RegistroRifiuti(models.Model):
             anno = self.data.year if self.data else timezone.now().year
             self.id_registrazione = alloca_id_registrazione(anno)
         super().save(*args, **kwargs)
+
+    @property
+    def classi_hp(self) -> list[str]:
+        """Classi di pericolo (HP4, HP14…) del campo «pericolosità», in ordine e senza doppioni."""
+        testo = self.pericolosita or ""
+        codici = list(dict.fromkeys(f"HP{int(n)}" for n in re.findall(r"HP\s*0*(\d+)", testo, re.I)))
+        return codici or ([testo.strip()] if testo.strip() else [])
 
     @property
     def bloccato(self) -> bool:

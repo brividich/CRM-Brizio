@@ -238,3 +238,27 @@ class ScaricoPrimaDelCaricoTests(TestCase):
         _mov("O", date(2026, 3, 5), quantita=500)
         a = analizza(list(RegistroRifiuti.objects.all()))
         self.assertEqual(a.residuo[carico.pk], Decimal("1000"))
+
+
+class ColonnaPericolositaTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(username="rentri-hp", email="hp@example.com", password="x")
+        self.client.force_login(self.admin)
+
+    def test_classi_hp(self):
+        r = RegistroRifiuti(pericolosita="HP04, HP14, hp 4")
+        self.assertEqual(r.classi_hp, ["HP4", "HP14"])
+        self.assertEqual(RegistroRifiuti(pericolosita="").classi_hp, [])
+
+    def test_elenco_colonna_pericolosita_senza_rentri_e_salva(self):
+        giorno = timezone.localdate() - timedelta(days=2)
+        c = _mov("C", giorno, codice="16 06 02*", quantita=5, pericolosita="HP6, HP14")
+        _mov("O", giorno, codice="16 06 02*", quantita=-5, rif_op=c.id_registrazione)
+        for params in ({}, {"view": "lista"}):
+            r = self.client.get(reverse("rentri_elenco"), params)
+            self.assertContains(r, "<th>Pericolosità</th>", html=False)
+            self.assertNotContains(r, "<th>Salva</th>")
+            self.assertNotContains(r, "<th>RENTRI</th>")
+            self.assertContains(r, '<span class="rn-hp">HP14</span>', html=False)
+        r = self.client.get(reverse("rentri_elenco"))
+        self.assertContains(r, 'rn-hp-eredita', html=False)

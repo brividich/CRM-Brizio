@@ -135,6 +135,10 @@ GUIDA = {
                     "«Elenco registrazioni»: ogni carico con i suoi scarichi (il filo). Lo stato è IN DEPOSITO (con il residuo), "
                     "MANCA SCARICO EFFETTIVO, CHIUSA o SENZA CARICO. In alto i fili da completare; sotto «Fili chiusi, per codice» "
                     "un gruppo per ogni codice CER, da aprire con un clic. «Espandi»/«Comprimi» apre o chiude tutto.",
+                    "La colonna «Pericolosità» mostra le classi HP del movimento (bollino rosso); sugli scarichi senza classi "
+                    "propria quelle del carico del filo, in grigio. «HP da indicare» = carico con codice pericoloso (*) senza "
+                    "classe. Trasmissione e consolidamento si vedono nella scheda del movimento e si filtrano con «RENTRI» e "
+                    "«Consolidamento».",
                     "Filtri dell'elenco: «Cerca» (numero, codice, rif. op, FIR, note), «Codice CER», «Tipo», «Stato del filo», "
                     "«Dal»/«Al», «RENTRI» (trasmessi o da trasmettere), «Consolidamento» (bozze o consolidati), «Solo pericolosi» "
                     "e «Mostra annullati». Nella casella «Cerca» un codice CER vale per le cifre: «12.01.01», «12 01 01» e "
