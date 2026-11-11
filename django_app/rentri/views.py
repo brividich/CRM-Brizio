@@ -625,6 +625,7 @@ def _family_payload(carichi: list, operazioni: list, analisi=None, annullati: di
     return {
         "cerca": " ".join(" ".join(str(x).split()) for x in cerca if x).lower(),
         "cer_keys": " ".join(sorted({chiave(r.codice) for r in righe if chiave(r.codice)})),
+        "hp": list(dict.fromkeys(h for c in carichi for h in c.classi_hp)),
         "carichi": carichi,
         "operazioni": operazioni,
         "tipi": [t for t in ("C", "O", "R", "M") if t in tipi],

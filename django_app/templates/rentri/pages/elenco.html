@@ -125,6 +125,13 @@ body.theme-dark .rn-cerca-conta, body.theme-dark .rn-cerca-vuoto td { color:var(
 /* ── Boolean icons ── */
 .rn-bool-yes { color:#16a34a; font-weight:800; }
 .rn-bool-no  { color:#94a3b8; }
+.rn-hp-cell { white-space:nowrap; }
+.rn-hp { display:inline-block; margin:1px 3px 1px 0; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:800; background:#fee2e2; color:#991b1b; }
+.rn-hp-eredita { background:#f1f5f9; color:#64748b; font-weight:700; }
+.rn-hp-manca { background:#fef3c7; color:#92400e; }
+body.theme-dark .rn-hp { background:rgba(239,68,68,.18); color:#fca5a5; }
+body.theme-dark .rn-hp-eredita { background:var(--surface-alt,#17222f); color:var(--text-mid); }
+body.theme-dark .rn-hp-manca { background:rgba(245,158,11,.15); color:#fcd34d; }
 
 /* ── Row actions ── */
 .cp-row-actions { display:flex; gap:5px; }
@@ -443,8 +450,7 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
             </a>
           </th>
           <th>C/S</th>
-          <th>RENTRI</th>
-          <th>Salva</th>
+          <th>Pericolosità</th>
           <th class="{% if q_sort == 'inserito_da' %}sort-active{% endif %}">
             <a href="?{{ base_qs }}&sort=inserito_da&dir={% if q_sort == 'inserito_da' and q_dir == 'asc' %}desc{% else %}asc{% endif %}">
               Inserito da
@@ -458,16 +464,16 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
       <tbody>
 
         {% if families %}
-          <tr class="rn-cerca-vuoto" id="rn-cerca-vuoto" hidden><td colspan="11">Nessun filo corrisponde alla ricerca.</td></tr>
+          <tr class="rn-cerca-vuoto" id="rn-cerca-vuoto" hidden><td colspan="10">Nessun filo corrisponde alla ricerca.</td></tr>
           {% comment %}── Vista famiglie (default): prima i fili da completare, poi i chiusi raggruppati per codice ──{% endcomment %}
           {% for fam in fam_aperte %}
             {% include "rentri/components/famiglia_righe.html" with fam=fam fid=fam.fid grp="" chiusa=False %}
           {% endfor %}
           {% if gruppi_chiuse %}
-            <tr class="rn-sezione"><td colspan="11">Fili chiusi, per codice</td></tr>
+            <tr class="rn-sezione"><td colspan="10">Fili chiusi, per codice</td></tr>
             {% for grp in gruppi_chiuse %}
               <tr class="rn-grp-head" data-grp-head="{{ grp.gid }}" onclick="toggleGrp(this)">
-                <td colspan="11">
+                <td colspan="10">
                   <span class="rn-fam-caret">&#9654;</span>
                   <span class="rn-state rn-state-chiusa">CHIUSE</span>
                   {{ grp.label }}
@@ -484,7 +490,7 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
           {% comment %}── Vista raggruppata per campo ──{% endcomment %}
           {% for grp in groups %}
           <tr class="cp-group-header">
-            <td colspan="11">
+            <td colspan="10">
               {{ grp.key }}
               <span style="font-size:11px;font-weight:500;color:#64748b;margin-left:8px;">{{ grp.rows|length }} record</span>
             </td>
@@ -498,8 +504,7 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
             <td><strong>{{ r.codice|default:"—" }}</strong></td>
             <td>{% if r.quantita is not None %}{{ r.quantita }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
             <td>{{ r.carico_scarico|default:"—" }}</td>
-            <td>{% if r.rentri_si_no %}<span class="rn-bool-yes">SI</span>{% else %}<span class="rn-bool-no">NO</span>{% endif %}</td>
-            <td>{% if r.salva %}<span class="rn-bool-yes">&#10003;</span>{% else %}<span class="rn-bool-no">—</span>{% endif %}</td>
+            {% include "rentri/components/hp_cella.html" with r=r %}
             <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
             <td>
               <div class="cp-row-actions">
@@ -524,8 +529,7 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
             <td><strong>{{ r.codice|default:"—" }}</strong></td>
             <td>{% if r.quantita is not None %}{{ r.quantita }}{% else %}<span style="color:#94a3b8;">—</span>{% endif %}</td>
             <td>{{ r.carico_scarico|default:"—" }}</td>
-            <td>{% if r.rentri_si_no %}<span class="rn-bool-yes">SI</span>{% else %}<span class="rn-bool-no">NO</span>{% endif %}</td>
-            <td>{% if r.salva %}<span class="rn-bool-yes">&#10003;</span>{% else %}<span class="rn-bool-no">—</span>{% endif %}</td>
+            {% include "rentri/components/hp_cella.html" with r=r %}
             <td style="font-size:11px;color:#94a3b8;">{{ r.inserito_da|default:"—" }}</td>
             <td>
               <div class="cp-row-actions">
@@ -539,7 +543,7 @@ body.theme-dark .cp-act-del:hover{background:rgba(229,62,62,.16)}
           {% endfor %}
 
         {% else %}
-          <tr><td colspan="11" class="cp-empty">
+          <tr><td colspan="10" class="cp-empty">
             Nessuna registrazione trovata{% if filtri_attivi %} per i filtri selezionati{% endif %}.
           </td></tr>
         {% endif %}
