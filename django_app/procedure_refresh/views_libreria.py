@@ -327,6 +327,19 @@ def documento(request, pk: int):
 
 
 @login_required
+def documento_da_codice(request):
+    """``?c=<codice>``: porta alla scheda del documento (link dalle fonti dell'assistente AI)."""
+    codice = (request.GET.get("c") or "").strip()[:60]
+    doc = ProcedureDocument.objects.filter(code=codice, is_active=True).only("pk").first() if codice else None
+    if doc is None:
+        messages.info(request, f"Nessun documento in vigore con il codice «{codice}»." if codice else "Codice mancante.")
+        from urllib.parse import urlencode
+
+        return redirect(f"{reverse('procedure_refresh:libreria_cerca')}?{urlencode({'q': codice})}")
+    return redirect("procedure_refresh:libreria_documento", pk=doc.pk)
+
+
+@login_required
 def apri(request, pk: int):
     """Il PDF in vigore del documento, nel browser (inline). Solo revisione corrente, mai SUPERATO."""
     from procedure_refresh.management.commands.import_sgi_da_share import _SUPERATO_RE

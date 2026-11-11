@@ -1771,26 +1771,31 @@ def api_global_search(request):
 
     # ── Procedure / Documenti ────────────────────────────────────────────────
     try:
-        if not _global_search_module_allowed(request, "/procedure-refresh/admin/documenti/"):
+        # CN-SGI: la scheda nella libreria, solo i documenti che l'utente può vedere.
+        if not _global_search_module_allowed(request, "/procedure-refresh/"):
             raise _ModuleHidden
+        from procedure_refresh.libreria import Visibilita, etichetta_sezione, identita_da_cartella
         from procedure_refresh.models import ProcedureDocument
         docs_qs = ProcedureDocument.objects.filter(
             Q(code__icontains=q)
             | Q(title__icontains=q)
             | Q(description__icontains=q)
             | Q(owner_department__icontains=q)
-        ).filter(is_active=True).order_by("code")[:5]
+        ).filter(is_active=True, revisions__is_current=True).distinct().order_by("code")[:25]
+        vis = Visibilita(request)
+        trovati = 0
         for d in docs_qs:
-            try:
-                url = reverse("procedure_refresh:document_edit", args=[d.pk])
-            except Exception:
-                url = "/procedure-refresh/admin/documenti/"
+            if not vis.puo_vedere(d):
+                continue
             results.append({
                 "tipo": "procedura",
-                "label": d.title,
-                "sub": d.code or "",
-                "url": url,
+                "label": f"{d.code} · {d.title}",
+                "sub": " › ".join(x for x in (identita_da_cartella(d.category)["nome"], etichetta_sezione(d.sezione)) if x),
+                "url": reverse("procedure_refresh:libreria_documento", args=[d.pk]),
             })
+            trovati += 1
+            if trovati >= 5:
+                break
     except Exception:
         pass
 
@@ -1871,7 +1876,7 @@ def api_global_search(request):
         "task": "KICK-OFF",
         "op": "Ordini di produzione",
         "fai": "Registro FAI",
-        "procedura": "Procedure",
+        "procedura": "CN-SGI · Procedure",
         "dpi": "DPI",
     }
     module_filter = (request.GET.get("module") or "").strip().lower()

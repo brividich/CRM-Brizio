@@ -37,7 +37,9 @@ GUIDA = {
             "id": "bacheca",
             "titolo": "Le procedure in Bacheca e in Sapere",
             "blocchi": [
-                ("p", "Le procedure aperte a tutti sono anche nella Bacheca della home, categoria «CN-SGI · Procedure». Nella stanza Sapere ci sono la copertina di CN-SGI, le nuove revisioni e la ricerca."),
+                ("p", "Le procedure aperte a tutti sono anche nella Bacheca della home, categoria «CN-SGI · Procedure». Nella stanza Sapere ci sono la copertina di CN-SGI, le nuove revisioni e la ricerca. "
+                      "Le procedure si trovano anche con «Cerca o vai a…» (Ctrl+K), e le fonti dell'assistente AI aprono la scheda nella libreria. "
+                      "Nella panoramica di un KICK-OFF c'è il piano qualità del cliente."),
             ],
         },
     ],
