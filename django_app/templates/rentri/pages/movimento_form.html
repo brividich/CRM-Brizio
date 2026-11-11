@@ -120,6 +120,11 @@ body.theme-dark .rnf .hub-btn-outline:hover, body.theme-dark .rnf .hub-btn-ghost
 body.theme-dark .rnf-cand-empty { border-color:var(--border); }
 body.theme-dark .rnf-cand-id, body.theme-dark .rnf-title { color:var(--text); }
 body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surface); }
+.rnf-cand-tutti { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-mid, #475569); margin-left:auto; }
+.rnf-cand-stato { display:block; font-size:11px; font-weight:700; color:#1e40af; margin-top:2px; }
+.rnf-cand-stato.gia { color:#92400e; }
+body.theme-dark .rnf-cand-stato { color:#93c5fd; }
+body.theme-dark .rnf-cand-stato.gia { color:#fcd34d; }
 </style>
 {% endblock %}
 
@@ -194,6 +199,7 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
         <div class="hub-fsec-h"><span class="rnf-num"></span> Collegato a</div>
         <div class="rnf-cand-bar">
           <div class="hub-help">{{ cfg.rif_help }}</div>
+          <label class="rnf-cand-tutti"><input type="checkbox" id="rifop-tutti"> Mostra anche i già collegati</label>
           <button type="button" class="hub-btn hub-btn-ghost hub-btn-sm" id="btn-rifop-all">Seleziona tutti</button>
           <button type="button" class="hub-btn hub-btn-ghost hub-btn-sm" id="btn-rifop-reload">Aggiorna elenco</button>
         </div>
@@ -301,7 +307,6 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
         <ul class="rnf-todo" aria-label="Campi obbligatori">
           <li data-todo="data">Data</li>
           <li data-todo="codice">Codice CER</li>
-          {% if cfg.rif_tipo %}<li data-todo="rifop">Movimento collegato</li>{% endif %}
           <li data-todo="unita">Unità di misura</li>
         </ul>
         <div class="rnf-actions">
@@ -526,13 +531,14 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
     lastCodice = codice;
     if (!codice) { emptyBox(listEl, 'Scegli prima il codice CER: qui compaiono i movimenti collegabili.'); return; }
     emptyBox(listEl, 'Caricamento…');
-    fetch(URL_CANDIDATI + '?tipo=' + encodeURIComponent(TIPO) + '&codice=' + encodeURIComponent(codice), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    var extra = ($('rifop-tutti') && $('rifop-tutti').checked ? '&tutti=1' : '') + (savedPk ? '&escludi=' + savedPk : '');
+    fetch(URL_CANDIDATI + '?tipo=' + encodeURIComponent(TIPO) + '&codice=' + encodeURIComponent(codice) + extra, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.json(); })
       .then(function (res) {
         var cand = (res && res.candidati) || [];
         // In modifica restano visibili i collegamenti già scelti anche se non più «liberi».
         selected.forEach(function (id) {
-          if (!cand.some(function (c) { return c.id_registrazione === id; })) cand.push({ id_registrazione: id, data: '', quantita: null });
+          if (!cand.some(function (c) { return c.id_registrazione === id; })) cand.push({ id_registrazione: id, data: '', quantita: null, attuale: true });
         });
         renderCandidati(listEl, cand);
       })
@@ -559,10 +565,31 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
     lastAutoQta = q.value;
     if (unita && !$('f-unita').value) $('f-unita').value = unita;
   }
+  function fmtQ(q, unita) {
+    if (q === null || q === undefined) return '—';
+    return String(Math.round(Number(q) * 1000) / 1000).replace('.', ',') + (unita ? ' ' + unita : '');
+  }
+  // Ogni voce mostra il carico da cui parte il filo, anche quando si collega la O o la M.
+  function descriviCandidato(c) {
+    if (c.attuale) return 'collegamento attuale';
+    if (c.tipo === 'C') {
+      return 'Carico del ' + c.carico_data + ' · ' + fmtQ(c.carico_quantita, c.unita)
+        + (c.gia_collegato ? '' : ' · da scaricare ' + fmtQ(c.residuo, c.unita));
+    }
+    var nome = c.tipo === 'O' ? 'Scarico originale' : 'Scarico effettivo';
+    var t = nome + ' del ' + c.data + ' · ' + fmtQ(c.quantita, c.unita)
+      + ' · carico ' + (c.carichi || [c.carico]).join(', ') + ' del ' + c.carico_data;
+    if (c.fir) t += ' · ' + c.fir;
+    return t;
+  }
   function renderCandidati(listEl, cand) {
     candById = {};
     cand.forEach(function (c) { candById[c.id_registrazione] = c; });
-    if (!cand.length) { emptyBox(listEl, 'Nessun movimento collegabile per questo codice CER.'); refresh(); return; }
+    if (!cand.length) {
+      emptyBox(listEl, 'Nessun movimento da collegare per questo codice CER. Puoi salvare senza collegamento, oppure spunta «Mostra anche i già collegati».');
+      refresh();
+      return;
+    }
     listEl.innerHTML = '';
     cand.forEach(function (c) {
       var row = document.createElement('label');
@@ -576,10 +603,15 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
       idEl.textContent = c.id_registrazione;
       var meta = document.createElement('span');
       meta.className = 'rnf-cand-meta';
-      var qta = (c.quantita !== null && c.quantita !== undefined) ? c.quantita + (c.unita ? ' ' + c.unita : '') : '—';
-      meta.textContent = (c.data || 'già collegato') + ' · quantità ' + qta;
+      meta.textContent = descriviCandidato(c);
       info.appendChild(idEl);
       info.appendChild(meta);
+      if (c.stato_label) {
+        var st = document.createElement('span');
+        st.className = 'rnf-cand-stato' + (c.gia_collegato ? ' gia' : '');
+        st.textContent = c.gia_collegato ? 'già collegato · ' + c.stato_label : c.stato_label;
+        info.appendChild(st);
+      }
       row.appendChild(cb);
       row.appendChild(info);
       cb.addEventListener('change', function () {
@@ -594,6 +626,7 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
   }
   if (RIF_TIPO) {
     $('btn-rifop-reload').addEventListener('click', loadCandidati);
+    $('rifop-tutti').addEventListener('change', loadCandidati);
     $('btn-rifop-all').addEventListener('click', function () {
       $('rifop-list').querySelectorAll('.rnf-cand-item input').forEach(function (cb) {
         if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
@@ -722,7 +755,6 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
     return {
       data: !!val('f-data'),
       codice: !!cerInput.value.trim(),
-      rifop: !RIF_TIPO || selected.size > 0,
       unita: !!val('f-unita'),
     };
   }
@@ -731,7 +763,10 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
     document.querySelectorAll('.rnf-todo li').forEach(function (li) { li.classList.toggle('ok', !!s[li.dataset.todo]); });
     setSum('sum-data', fmtData(val('f-data')));
     setSum('sum-codice', cerInput.value.trim());
-    if (RIF_TIPO) setSum('sum-rifop', selected.size ? Array.from(selected).join(', ') : '');
+    if (RIF_TIPO) {
+      setSum('sum-rifop', selected.size ? Array.from(selected).join(', ') : 'non collegato');
+      $('sum-rifop').classList.remove('vuoto');
+    }
     var q = TIPO === 'R' ? val('f-rettifica') : val('f-quantita');
     var u = $('f-unita');
     setSum('sum-qta', q ? q.replace('.', ',') + (u.value ? ' ' + u.options[u.selectedIndex].text : '') : '');
@@ -747,7 +782,6 @@ body.theme-dark .rnf-todo li.ok::before { box-shadow:inset 0 0 0 2px var(--surfa
     var msgs = {
       data: 'Indica la data del movimento.',
       codice: 'Indica il codice CER.',
-      rifop: 'Scegli almeno un movimento collegato.',
       unita: 'Scegli l’unità di misura.',
     };
     Object.keys(msgs).forEach(function (k) {
