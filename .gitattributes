@@ -1,0 +1,3 @@
+# Il CHANGELOG si unisce in continuazione fra branch paralleli: sempre LF nel repository,
+# altrimenti un CRLF trasforma ogni merge in un conflitto sull'intero file.
+CHANGELOG.md text eol=lf
