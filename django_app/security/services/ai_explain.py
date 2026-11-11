@@ -17,7 +17,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils.timezone import localtime
 
-from security.models import SecurityAiInteractionLog, SecurityEventRecord
+from security.models import SecurityAiInteractionLog
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,7 @@ def alert_context(alert):
         f"Sorgente: {getattr(alert.source, 'name', '')}",
         f"Creato il: {alert.created_at:%d/%m/%Y %H:%M}" if alert.created_at else "",
         f"Ultimo aggiornamento: {alert.updated_at:%d/%m/%Y %H:%M}" if alert.updated_at else "",
-        f"Occorrenze: {SecurityEventRecord.objects.filter(dedup_hash=alert.dedup_hash).count()}" if alert.dedup_hash else "",
+        f"Occorrenze: {_occorrenze(alert).count()}" if alert.dedup_hash else "",
     ]
     if event:
         lines.append(f"Tipo di evento: {event.event_type}")
@@ -371,3 +371,9 @@ def pc_context(pc):
 def check_pc(pc, *, user=None, refresh=False):
     return _cached_ask("pc-check", PC_CHECK_INSTRUCTIONS, pc_context(pc), action="pc_check", user=user,
                        object_type="device", object_id=pc["name"][:80], seconds=1800, refresh=refresh)
+
+
+def _occorrenze(alert):
+    from security.services.alert_doppioni import occorrenze
+
+    return occorrenze(alert)

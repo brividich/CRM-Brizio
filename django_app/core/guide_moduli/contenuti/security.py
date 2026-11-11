@@ -311,6 +311,15 @@ GUIDA = {
     ],
     "problemi": [
         {
+            "sintomo": "Tanti alert uguali: stesso PC (Endpoint Security «devices blocked»), stesso backup, stessa CVE",
+            "fare": [
+                "Ora i report via mail aprono un alert solo per PC (Endpoint Security) o per job di backup: le mail successive aggiornano lo stesso alert, con il conteggio dell'ultima mail; nel dettaglio, «Occorrenze» elenca tutte le mail.",
+                "Un backup completato dopo i fallimenti chiude l'alert del suo job da solo.",
+                "«Vulnerabilità critica esposta CVE-…» (mail di Defender) non si apre se la CVE è già seguita PC per PC dall'inventario («Oltre il termine di correzione», «PC con versione vulnerabile»); se era già aperta, il ciclo del SOC la chiude come doppione, con il rimando all'alert dell'inventario.",
+                "Per i doppioni aperti prima di questa regola: python manage.py security_unisci_doppioni (prova, mostra cosa farebbe), poi con --apply. Tiene l'alert più recente di ogni PC o job e chiude gli altri come «Unito all'alert #…». Con --rinomina-fonte \"VECCHIO\" \"NUOVO\" rinomina anche una fonte mail (es. una casella che si chiama come una persona).",
+            ],
+        },
+        {
             "sintomo": "Accessi VPN: lo stesso accesso compare due volte, a un'ora di distanza",
             "fare": [
                 "Succede quando WatchGuard Cloud manda due report programmati dello stesso giorno, uno in ora italiana e uno in UTC. Il portale ricava il fuso di ogni report dal periodo scritto nella mail («Reports for Fireboxes … from … to …») e salva l'accesso una volta sola, all'ora vera.",
