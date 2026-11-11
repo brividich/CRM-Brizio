@@ -198,6 +198,19 @@ def run_assignment_lifecycle(**kwargs) -> dict:
             )
             result["overdue_marked"] += 1
 
+        # ── 1b) CN-SGI: sollecito a chi ha in mano una modifica ferma ────────
+        try:
+            from procedure_refresh.modifiche import solleciti
+            from procedure_refresh.segnalazioni import destinatari_gestori
+
+            from core.models import Profile
+
+            legacy = destinatari_gestori()
+            gestori = list(Profile.objects.filter(legacy_user_id__in=legacy).values_list("user_id", flat=True)) if legacy else []
+            result["modifiche_sollecitate"] = solleciti(gestori)
+        except Exception:
+            logger.exception("run_assignment_lifecycle: solleciti delle modifiche CN-SGI falliti")
+
         cfg = get_reminder_config()
         if not cfg["attivo"]:
             return result
@@ -534,6 +547,13 @@ def _sgi_auto_sync(result: dict, *, force: bool, reindex: bool, origine: str | N
             assicura_scaffali()
         except Exception:
             logger.exception("run_sgi_auto_sync: allineamento scaffali CN-SGI fallito")
+        # CN-SGI: le modifiche approvate la cui nuova revisione è arrivata nella cartella diventano «Emessa».
+        try:
+            from procedure_refresh.modifiche import riconosci_emissioni
+
+            result["modifiche_emesse"] = riconosci_emissioni()
+        except Exception:
+            logger.exception("run_sgi_auto_sync: riconoscimento delle modifiche emesse fallito")
 
         changed = result["created"] + result["updated"] + result["revisions"]
         if result.get("troncato"):

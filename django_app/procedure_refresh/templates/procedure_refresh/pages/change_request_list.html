@@ -94,6 +94,9 @@ body.theme-dark .pr-empty{color:var(--text-light)}
           <span class="pr-badge pr-badge-{{ cr.status }}">{{ cr.get_status_display }}</span>
         </div>
         <div class="pr-cr-text">{{ cr.testo }}</div>
+        <div class="pr-cr-meta" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          {% for m in cr.modifiche.all %}<a href="{% url 'procedure_refresh:modifica_dettaglio' m.pk %}">Modifica di {{ m.codice }} · {{ m.get_stato_display|lower }}</a>{% empty %}{% if cr.is_open %}<a href="{% url 'procedure_refresh:modifica_nuova' %}?segnalazione={{ cr.pk }}" style="font-weight:700">Avvia una modifica del documento</a>{% endif %}{% endfor %}
+        </div>
         {% if cr.risposta_gestore %}
           <div class="pr-cr-meta">
             <strong>Risposta:</strong> {{ cr.risposta_gestore }}

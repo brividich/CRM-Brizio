@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views, views_libreria
+from . import views, views_libreria, views_modifiche
 
 app_name = "procedure_refresh"
 
@@ -25,6 +25,15 @@ urlpatterns = [
     path("admin/scaffali/", views_libreria.scaffali_gestione, name="libreria_scaffali"),
     path("admin/collegamenti/", views_libreria.collegamenti_moduli, name="libreria_collegamenti"),
     path("audit/<slug:slug>/", views_libreria.audit, name="libreria_audit"),
+    # ── CN-SGI: modifiche ai documenti (redazione → verifica → approvazione → emissione) ──
+    path("modifiche/", views_modifiche.elenco, name="modifiche"),
+    path("modifiche/nuova/", views_modifiche.nuova, name="modifica_nuova"),
+    path("modifiche/firme/", views_modifiche.firme, name="modifiche_firme"),
+    path("modifiche/bozza/<int:pk>/", views_modifiche.bozza, name="modifica_bozza"),
+    path("modifiche/<int:pk>/", views_modifiche.dettaglio, name="modifica_dettaglio"),
+    path("modifiche/<int:pk>/azione/", views_modifiche.azione, name="modifica_azione"),
+    path("modifiche/<int:pk>/carica/", views_modifiche.carica, name="modifica_carica"),
+    path("modifiche/<int:pk>/persone/", views_modifiche.persone, name="modifica_persone"),
 
     # ── User views ──────────────────────────────────────────────────────────
     path("letture/", views.my_assignments, name="my_assignments"),
