@@ -202,15 +202,33 @@ def suggest_cpe_task(vendor, product):
     return len(mapping.suggestions)
 
 
+# Tempo del giro oltre il quale le letture esterne del ciclo passano al giro dopo: i passi
+# interni (regole, battito, KPI, notifiche) girano comunque, entro i 120 s del worker.
+CICLO_BUDGET_LETTURE_SECONDI = 50
+LETTURE_DEL_CICLO = ("defender", "entra", "veeam", "secure_score")
+
+
+def run_security_caselle_task():
+    """Lettura delle caselle mail dei report (schedule `security_caselle`, ogni 15 minuti).
+
+    Sta in un lavoro suo, con un timeout più lungo, perché è il passo più pesante: con un
+    arretrato di mail non deve più far fermare il ciclo prima di regole, battito e KPI.
+    Ogni mail importata passa già da parser e regole.
+    """
+    from security.services import letture
+
+    return letture.esegui("caselle")
+
+
 def run_security_cycle_task():
     """Ciclo periodico del Security Center (schedule `security_cycle`, ogni 15 minuti).
 
-    Prima nessun task del modulo era pianificato: anche con una casella configurata,
-    nessuno andava a leggere le mail e dashboard/alert restavano vuoti.
-    1. legge le caselle attive (ogni mail importata passa già da parser e regole);
+    1. letture esterne (Defender, Entra, Veeam, Secure Score), saltate al giro dopo se il
+       giro ha già usato ``CICLO_BUDGET_LETTURE_SECONDI``;
     2. recupera eventuali elementi rimasti in coda e valuta le regole;
     3. controlla le sorgenti silenziose (heartbeat) e le rivaluta;
-    4. aggiorna gli snapshot KPI di oggi.
+    4. aggiorna gli snapshot KPI di oggi, rientri e notifiche.
+    Le caselle mail hanno il loro lavoro (``run_security_caselle_task``).
     Ogni passo è isolato: un errore (es. credenziali Graph) non ferma gli altri.
     """
     import logging
@@ -226,7 +244,6 @@ def run_security_cycle_task():
 
     steps = (
         # Le letture passano dal registro (Impostazioni › Letture automatiche): storico ed «Esegui ora».
-        ("mailboxes", lambda: letture.esegui("caselle", rilancia=True)),
         ("defender", lambda: letture.esegui("defender_alert", rilancia=True)),
         ("entra", lambda: letture.esegui("entra", rilancia=True)),
         ("veeam", lambda: letture.esegui("veeam", rilancia=True)),
@@ -243,7 +260,14 @@ def run_security_cycle_task():
         ("iso", _iso_incidenti),
         ("avvisi", _scheduled_notifications),
     )
+    import time
+
+    inizio = time.monotonic()
     for name, step in steps:
+        if name in LETTURE_DEL_CICLO and time.monotonic() - inizio > CICLO_BUDGET_LETTURE_SECONDI:
+            result[name] = "rimandata al prossimo giro (tempo del giro esaurito)"
+            logger.warning("security_cycle: lettura %s rimandata, giro oltre %s s", name, CICLO_BUDGET_LETTURE_SECONDI)
+            continue
         try:
             result[name] = step()
         except Exception as exc:  # noqa: BLE001 - un passo fallito non blocca il ciclo
