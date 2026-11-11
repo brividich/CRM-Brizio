@@ -18,17 +18,19 @@
   .gs-back svg{ transform:rotate(180deg); }
 
   /* ---- hero -------------------------------------------------------------- */
-  .gs-hero{ position:relative; overflow:hidden; color:#fff; padding:26px 28px 24px; border-radius:14px; animation:gsUp .3s ease both;
+  .gs-hero{ position:relative; overflow:hidden; color:#fff; padding:12px 18px; border-radius:12px; animation:gsUp .3s ease both;
     box-shadow:0 12px 30px rgba(0,43,92,.18);
     background:radial-gradient(circle at 85% -10%, rgba(255,107,0,.30), transparent 38%), radial-gradient(circle at 0% 100%, rgba(31,135,205,.30), transparent 50%), linear-gradient(135deg,#001b3a 0%,#002b5c 50%,#0a3266 100%);
     clip-path:polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 22px 100%, 0 calc(100% - 22px)); }
   .gs-hero::before{ content:""; position:absolute; inset:0; opacity:.5; pointer-events:none; background-image:radial-gradient(rgba(255,255,255,.10) 1px, transparent 1.4px); background-size:18px 18px; }
-  .gs-hero__row{ position:relative; display:flex; align-items:flex-start; justify-content:space-between; gap:22px; flex-wrap:wrap; }
+  .gs-hero__row{ position:relative; display:flex; align-items:center; justify-content:space-between; gap:12px 18px; flex-wrap:wrap; }
   .gs-hero__eyebrow{ display:inline-flex; align-items:center; gap:9px; font-family:ui-monospace,Menlo,monospace; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#ff8a1f; margin-bottom:8px; }
   .gs-hero__eyebrow i{ width:7px; height:7px; border-radius:50%; background:#ff8a1f; box-shadow:0 0 0 4px rgba(255,138,31,.18); }
-  .gs-hero h1{ margin:0; font-size:30px; font-weight:800; line-height:1.1; letter-spacing:-.01em; color:#fff; }
+  .gs-hero h1{ margin:0; font-size:20px; font-weight:800; line-height:1.1; letter-spacing:-.01em; color:#fff; }
   .gs-hero__sub{ margin:6px 0 0; font-size:14px; font-weight:500; color:rgba(255,255,255,.78); max-width:560px; line-height:1.45; }
-  .gs-hero__side{ display:flex; flex-direction:column; align-items:flex-end; gap:10px; }
+  .gs-hero__side{ display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:6px; }
+  .gs-hero .gs-btn{ height:32px !important; min-height:32px; padding:0 11px; font-size:12px; }
+  .gs-hero__eyebrow{ font-size:10px !important; margin-bottom:2px !important; }
   .gs-hero__chip{ display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border-radius:999px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.16); font-size:11.5px; font-weight:600; color:#fff; }
   .gs-hero__chip i{ display:inline-flex; color:#ffb066; }
   .gs-seg{ display:flex; gap:6px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.14); padding:4px; border-radius:10px; }
@@ -43,8 +45,8 @@
      pagina prende la larghezza della tabella (920px). Testata compatta, comandi a capo. */
   @media(max-width:720px){
     .gs-wrap{ width:100%; }
-    .gs-hero{ padding:20px 18px 18px; }
-    .gs-hero h1{ font-size:24px; }
+    .gs-hero{ padding:10px 14px; }
+    .gs-hero h1{ font-size:18px; }
     .gs-hero__side{ flex-direction:row; flex-wrap:wrap; align-items:center; width:100%; gap:8px; }
   }
   .gs-kpi{ background:#fff; border:1px solid #e6ecf4; border-radius:16px; padding:18px; text-decoration:none; display:block;
