@@ -103,6 +103,8 @@ SEZIONI: list[dict] = [
         "blocchi": [
             ("p", "«Le mie letture» elenca i documenti per cui ti è stata chiesta la presa visione, con la scadenza. "
                   "Il numero accanto alla voce dice quanti ne restano. In «Libreria» gli stessi documenti sono nella fila «Da leggere per te»."),
+            ("p", "Nella stessa pagina, «Le mie segnalazioni» mostra le modifiche che hai proposto e il loro stato (aperta, presa in carico, recepita nella revisione, respinta) con la risposta. "
+                  "Quando lo stato cambia ricevi una notifica nel portale."),
         ],
     },
     {
@@ -148,6 +150,18 @@ SEZIONI: list[dict] = [
                 "Con «Si compila nell'HUB» la scheda del modello mostra il pulsante «Compila nell'HUB · nome del modulo».",
                 "Le etichette sulle pagine dei moduli mostrano solo i documenti aperti a tutti.",
                 "Nella panoramica di un KICK-OFF il riquadro «Piano qualità e procedure» mostra il piano qualità del cliente della commessa (cartella del cliente nello scaffale Piani Qualità) e le procedure collegate al KICK-OFF.",
+            ]),
+        ],
+    },
+    {
+        "id": "segnalazioni-riletture",
+        "titolo": "Segnalazioni e riletture (per chi gestisce)",
+        "blocchi": [
+            ("ul", [
+                "Ogni nuova segnalazione arriva come notifica nel portale a chi gestisce CN-SGI (i destinatari del riepilogo settimanale in «Impostazioni» e chi ha già gestito segnalazioni). Il numero accanto a «Segnalazioni» dice quante sono aperte o prese in carico.",
+                "In «Segnalazioni» porti ogni proposta a «Presa in carico», «Recepita» (indicando la revisione) o «Respinta», con una risposta: chi l'ha scritta riceve una notifica.",
+                "Le segnalazioni recepite compaiono nella scheda del documento, in «Cosa cambia» della revisione che le ha accolte.",
+                "Quando esce una nuova revisione, in «Cosa cambia» c'è «Chiedi la rilettura»: crea e pubblica la richiesta di presa visione della revisione in vigore per chi aveva quella delle revisioni precedenti, con la scadenza scelta (14 giorni di partenza), e avvisa le persone.",
             ]),
         ],
     },

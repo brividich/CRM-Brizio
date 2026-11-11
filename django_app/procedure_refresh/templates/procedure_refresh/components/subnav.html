@@ -12,7 +12,7 @@
     <a href="{% url 'procedure_refresh:libreria_collegamenti' %}" class="pr-subnav-link{% if un == 'libreria_collegamenti' %} active{% endif %}">Collegamenti ai moduli</a>
     <a href="{% url 'procedure_refresh:libreria_da_rivedere' %}" class="pr-subnav-link{% if un == 'libreria_da_rivedere' %} active{% endif %}">Da rivedere</a>
     <a href="{% url 'procedure_refresh:document_list' %}" class="pr-subnav-link{% if 'documenti' in request.path %} active{% endif %}">Documenti</a>
-    <a href="{% url 'procedure_refresh:change_request_list' %}" class="pr-subnav-link{% if 'segnalazioni' in request.path %} active{% endif %}">Segnalazioni</a>
+    <a href="{% url 'procedure_refresh:change_request_list' %}" class="pr-subnav-link{% if 'segnalazioni' in request.path %} active{% endif %}">Segnalazioni{% if n_segnalazioni_aperte %} <span class="pr-subnav-badge">{{ n_segnalazioni_aperte }}</span>{% endif %}</a>
     <a href="{% url 'procedure_refresh:sync_log_list' %}" class="pr-subnav-link{% if 'sync-log' in request.path %} active{% endif %}">Log sync</a>
     <a href="{% url 'procedure_refresh:report_user' %}" class="pr-subnav-link{% if 'report' in request.path %} active{% endif %}">Report</a>
     <a href="{% url 'procedure_refresh:admin_dashboard' %}" class="pr-subnav-link{% if un == 'admin_dashboard' %} active{% endif %}">Impostazioni</a>
