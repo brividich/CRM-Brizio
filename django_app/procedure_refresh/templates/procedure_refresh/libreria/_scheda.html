@@ -29,7 +29,7 @@
   <div class="cn-dr-tabs" role="tablist">
     <button type="button" role="tab" data-cn-tab="panoramica" aria-selected="{% if scheda == 'panoramica' %}true{% else %}false{% endif %}">Panoramica</button>
     <button type="button" role="tab" data-cn-tab="anteprima" aria-selected="{% if scheda == 'anteprima' %}true{% else %}false{% endif %}">Anteprima</button>
-    {% if cambiamenti is not None %}<button type="button" role="tab" data-cn-tab="cambia" aria-selected="{% if scheda == 'cambia' %}true{% else %}false{% endif %}">Cosa cambia{% if cambiamenti %} · {{ cambiamenti|length }}{% endif %}</button>{% endif %}
+    {% if mostra_cambia %}<button type="button" role="tab" data-cn-tab="cambia" aria-selected="{% if scheda == 'cambia' %}true{% else %}false{% endif %}">Cosa cambia{% if cambiamenti %} · {{ cambiamenti|length }}{% endif %}</button>{% endif %}
     <button type="button" role="tab" data-cn-tab="collegamenti" aria-selected="{% if scheda == 'collegamenti' %}true{% else %}false{% endif %}">Collegamenti · {{ n_collegamenti }}</button>
     <button type="button" role="tab" data-cn-tab="revisioni" aria-selected="{% if scheda == 'revisioni' %}true{% else %}false{% endif %}">Revisioni</button>
     <button type="button" role="tab" data-cn-tab="lettura" aria-selected="{% if scheda == 'lettura' %}true{% else %}false{% endif %}">Presa visione</button>
@@ -71,8 +71,22 @@
       <p class="cn-note" style="margin:0">Se l'anteprima resta vuota, usa «Apri il PDF ↗».</p>
     </div>
 
-    {% if cambiamenti is not None %}
+    {% if mostra_cambia %}
     <div class="cn-tab" data-cn-pane="cambia"{% if scheda != 'cambia' %} hidden{% endif %}>
+      {% if is_manager and n_rilettura %}
+      <form class="cn-rilettura" method="post" action="{% url 'procedure_refresh:libreria_rilettura' doc.pk %}">
+        {% csrf_token %}
+        <div><b>{{ n_rilettura }} person{{ n_rilettura|pluralize:"a,e" }}</b> avevano la presa visione di una revisione precedente e non ancora di questa.</div>
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;margin:0">Entro <input class="cn-input" style="width:64px" type="number" name="giorni" min="1" max="120" value="{{ giorni_rilettura }}" aria-label="Giorni per la rilettura"> giorni</label>
+        <button class="cn-btn acc" type="submit">Chiedi la rilettura</button>
+      </form>
+      {% endif %}
+      {% if recepite %}
+      <div class="cn-blk"><h4>Segnalazioni accolte in questa revisione</h4>
+        <div class="cn-links">{% for s in recepite %}<div><span class="ic">✓</span><span class="tx">{{ s.testo|truncatechars:140 }}<small>{{ s.created_at|date:"d/m/Y" }}{% if s.risposta_gestore %} · {{ s.risposta_gestore|truncatechars:90 }}{% endif %}</small></span></div>{% endfor %}</div>
+      </div>
+      {% endif %}
+      {% if cambiamenti is not None %}
       <p class="cn-note" style="margin:0">Confronto fra la <b>Rev.{{ rev_prec.revision_code }}</b> del {{ rev_prec.revision_date|date:"d/m/Y" }} e la <b>Rev.{{ rev.revision_code }}</b> in vigore, paragrafo per paragrafo, dal testo del PDF.</p>
       {% for c in cambiamenti %}
       <div class="cn-cambio cn-cambio-{{ c.tipo }}">
@@ -82,6 +96,7 @@
       {% empty %}
       <p class="cn-empty">Il testo dei paragrafi è uguale alla revisione precedente: sono cambiati solo aspetto, cartiglio o dati della revisione.</p>
       {% endfor %}
+      {% endif %}
     </div>
     {% endif %}
 

@@ -31,6 +31,7 @@ from django.views.decorators.http import require_POST
 from core.audit import log_action
 
 from . import esperienza as esp
+from . import segnalazioni as _segn
 from . import libreria as lib
 from .guida import con_guida
 from .models import (
@@ -74,6 +75,7 @@ def _contesto_base(request, vis, docs, **extra):
     ctx = {
         "is_manager": vis.gestore,
         "puo_audit": vis.gestore or vis.vede_tutto,
+        "n_segnalazioni_aperte": _segn.aperte() if vis.gestore else 0,
         "ultimo_controllo": _ultimo_controllo(),
         "oggi_str": timezone.localdate().strftime("%Y%m%d"),
         "n_da_leggere": sum(1 for d in docs if d.pk in da_leggere),
@@ -374,9 +376,13 @@ def documento(request, pk: int):
         except Exception:
             cambiamenti = None
 
+    recepite = _segn.recepite_in(rev)
+    n_rilettura = len(_segn.da_rileggere(doc, rev)) if vis.gestore else 0
     ctx = {
         "doc": doc, "rev": rev, "is_manager": vis.gestore,
         "rev_prec": rev_prec, "cambiamenti": cambiamenti,
+        "recepite": recepite, "n_rilettura": n_rilettura, "giorni_rilettura": _segn.GIORNI_RILETTURA,
+        "mostra_cambia": cambiamenti is not None or bool(recepite) or bool(n_rilettura),
         "preferito": doc.pk in set(esp.preferiti_di(request.user)),
         "mappa": esp.mappa(doc.code, cita, citato_da),
         "chiedi_url": reverse("ai_assistant:chat"),
@@ -459,6 +465,9 @@ def segnala(request, pk: int):
     if sezione:
         testo = f"[{sezione}] {testo}"
     cr = ProcedureChangeRequest.objects.create(document=doc, revision=rev, created_by=request.user, testo=testo)
+    from .segnalazioni import avvisa_nuova
+
+    avvisa_nuova(cr, escludi_user_id=request.user.pk)
     log_action(request, "segnalazione_modifica", "procedure_refresh", {
         "message": "Segnalazione di modifica dalla libreria CN-SGI", "document_id": doc.pk, "code": doc.code, "segnalazione_id": cr.pk,
     })
@@ -794,6 +803,28 @@ def audit(request, slug: str):
 # ---------------------------------------------------------------------------
 # Secondo giro di UI: preferiti, etichette QR, da rivedere
 # ---------------------------------------------------------------------------
+
+
+@login_required
+@require_POST
+def rilettura(request, pk: int):
+    """«Chiedi la rilettura»: presa visione della revisione in vigore per chi aveva letto le precedenti."""
+    blocco = _solo_gestori(request)
+    if blocco:
+        return blocco
+    _vis, _config, doc, rev = _documento_visibile(request, pk)
+    giorni = request.POST.get("giorni", "")
+    campagna, n = _segn.crea_rilettura(
+        doc, rev, da_utente=request.user, giorni=int(giorni) if giorni.isdigit() else _segn.GIORNI_RILETTURA,
+    )
+    if campagna is None:
+        messages.info(request, f"Nessuno da avvisare: chi aveva letto {doc.code} ha già la nuova revisione da leggere.")
+        return redirect("procedure_refresh:libreria_documento", pk=doc.pk)
+    log_action(request, "assegna", "procedure_refresh", {
+        "message": "Rilettura CN-SGI creata", "document_id": doc.pk, "code": doc.code, "campaign_id": campagna.pk, "persone": n,
+    })
+    messages.success(request, f"Rilettura di {doc.code} chiesta a {n} person{'a' if n == 1 else 'e'}, entro il {campagna.due_date:%d/%m/%Y}.")
+    return redirect("procedure_refresh:campaign_detail", pk=campagna.pk)
 
 
 @login_required
