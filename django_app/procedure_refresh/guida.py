@@ -63,6 +63,8 @@ SEZIONI: list[dict] = [
                 "Ogni risultato mostra il paragrafo e la pagina: clicca «§ … · pag. N ↗» per aprire il PDF a quella pagina.",
             ]),
             ("nota", "La ricerca non bada a maiuscole e accenti. I PDF scansionati senza testo si trovano solo per codice e titolo."),
+            ("p", "Le procedure si trovano anche dalla ricerca in alto nel portale («Cerca o vai a…», Ctrl+K), gruppo «CN-SGI · Procedure». "
+                  "Quando l'assistente AI cita una procedura, l'etichetta della fonte apre la sua scheda nella libreria."),
         ],
     },
     {
@@ -130,6 +132,7 @@ SEZIONI: list[dict] = [
                 "Nella scheda del documento, scheda «Collegamenti», c'è l'elenco «Moduli dell'HUB che lo applicano».",
                 "Con «Si compila nell'HUB» la scheda del modello mostra il pulsante «Compila nell'HUB · nome del modulo».",
                 "Le etichette sulle pagine dei moduli mostrano solo i documenti aperti a tutti.",
+                "Nella panoramica di un KICK-OFF il riquadro «Piano qualità e procedure» mostra il piano qualità del cliente della commessa (cartella del cliente nello scaffale Piani Qualità) e le procedure collegate al KICK-OFF.",
             ]),
         ],
     },

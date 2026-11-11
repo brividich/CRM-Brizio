@@ -11,6 +11,7 @@ urlpatterns = [
     path("scaffale/<slug:slug>/", views_libreria.scaffale, name="libreria_scaffale"),
     path("cerca/", views_libreria.cerca, name="libreria_cerca"),
     path("documento/<int:pk>/", views_libreria.documento, name="libreria_documento"),
+    path("documento/codice/", views_libreria.documento_da_codice, name="libreria_documento_codice"),
     path("documento/<int:pk>/apri/", views_libreria.apri, name="libreria_apri"),
     path("documento/<int:pk>/segnala/", views_libreria.segnala, name="libreria_segnala"),
     path("admin/visibilita/", views_libreria.visibilita, name="libreria_visibilita"),

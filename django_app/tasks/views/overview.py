@@ -163,6 +163,13 @@ def project_overview(request, project_id: int):
     _filo["consegna"] = stato_consegna(project)
     _filo["puo_chiudere"] = ha_pieni_poteri(request, project)
     _filo["attivita_aperte"] = project.tasks.exclude(status__in=[TaskStatus.DONE, TaskStatus.CANCELED]).count()
+    # CN-SGI: piani qualità del cliente e procedure collegate al KICK-OFF (fail-safe).
+    try:
+        from procedure_refresh.collegamenti import documenti_per_kickoff
+
+        _filo["documenti_sgi"] = documenti_per_kickoff(request, project.client_name)
+    except Exception:
+        _filo["documenti_sgi"] = []
     if next_meeting is not None:
         from .meetings import _sala_stato
 

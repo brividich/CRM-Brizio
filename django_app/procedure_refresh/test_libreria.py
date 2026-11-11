@@ -361,3 +361,55 @@ class Fase2Tests(TestCase):
         with mock.patch("procedure_refresh.views_libreria.lib.Visibilita", return_value=senza):
             r = self.client.get(reverse("procedure_refresh:libreria_audit", args=[lib.slug_scaffale("9100_Qualità")]))
         self.assertEqual(r.status_code, 302)
+
+
+class Fase3Tests(TestCase):
+    def setUp(self):
+        from . import collegamenti as col
+
+        col.svuota_cache()
+        self.admin = User.objects.create_user(username="cnsgi_f3", password="pw", is_superuser=True)
+        self.client.force_login(self.admin)
+        self.mt = _doc("MT CN 06", "Gestione delle non conformità")
+        self.pdq = _doc("PDQ CLI-A", "Piano della qualità", cartella="_Piani Qualitá", sezione="Avio Aero")
+        self.altro = _doc("PDQ CLI-B", "Piano della qualità", cartella="_Piani Qualitá", sezione="Cliente B")
+
+    def test_ricerca_globale_porta_alla_libreria(self):
+        r = self.client.get(reverse("api_global_search") + "?q=MT CN 06")
+        dati = r.json()["results"]
+        proc = [x for x in dati if x.get("tipo") == "procedura"]
+        self.assertTrue(proc)
+        self.assertEqual(proc[0]["url"], reverse("procedure_refresh:libreria_documento", args=[self.mt.pk]))
+
+    def test_ricerca_globale_nasconde_i_riservati(self):
+        SgiVisibilita.objects.create(scaffale="9100_Qualità", chi="nessuno")
+        senza = lib.Visibilita(None, gestore=False, gruppi=set(), vede_tutto=False)
+        with mock.patch("procedure_refresh.libreria.Visibilita", return_value=senza):
+            dati = self.client.get(reverse("api_global_search") + "?q=MT CN 06").json()["results"]
+        self.assertFalse([x for x in dati if x.get("tipo") == "procedura"])
+
+    def test_scheda_da_codice_e_fonte_assistente(self):
+        from ai_assistant.services import url_scheda_procedura
+
+        url = url_scheda_procedura("proc:MT CN 06#rev2")
+        self.assertEqual(url, reverse("procedure_refresh:libreria_documento_codice") + "?c=MT%20CN%2006")
+        r = self.client.get(url)
+        self.assertRedirects(r, reverse("procedure_refresh:libreria_documento", args=[self.mt.pk]), fetch_redirect_response=False)
+        r = self.client.get(reverse("procedure_refresh:libreria_documento_codice") + "?c=NON ESISTE")
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("cerca", r["Location"])
+
+    def test_piano_qualita_del_cliente_nel_kickoff(self):
+        from django.test import RequestFactory
+
+        from . import collegamenti as col
+        from .models import SgiDocumentoModulo
+
+        SgiDocumentoModulo.objects.create(documento=self.mt, modulo="kickoff")
+        col.svuota_cache()
+        req = RequestFactory().get("/tasks/")
+        req.user = self.admin
+        codici = [d["codice"] for d in col.documenti_per_kickoff(req, "AVIO AERO S.r.l.")]
+        self.assertEqual(codici, ["PDQ CLI-A", "MT CN 06"])
+        codici = [d["codice"] for d in col.documenti_per_kickoff(req, "Altro cliente")]
+        self.assertEqual(codici, ["MT CN 06"])

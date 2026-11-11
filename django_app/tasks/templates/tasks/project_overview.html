@@ -148,6 +148,28 @@
     </section>
   </div>
 
+  {% if documenti_sgi %}
+  <section class="ko-panel" aria-label="Requisiti e procedure CN-SGI">
+    <div class="ko-panel-head">
+      <div>
+        <h2>Piano qualità e procedure</h2>
+        <p>Dalla libreria CN-SGI{% if project.client_name %} per {{ project.client_name }}{% endif %}.</p>
+      </div>
+      <a class="ko-panel-link" href="{% url 'procedure_refresh:libreria' %}">Apri CN-SGI</a>
+    </div>
+    <div class="ko-panel-body ko-panel-body--flush">
+      <ul class="ko-action-list">
+        {% for d in documenti_sgi %}
+        <li class="ko-action-item">
+          <div class="ko-action-main"><a href="{{ d.href }}"><b style="font-family:ui-monospace,Menlo,monospace">{{ d.codice }}</b> {{ d.titolo }}</a><span>{{ d.dove }}</span></div>
+          <div class="ko-action-meta">{% if d.rev %}Rev.{{ d.rev }}{% endif %}</div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+
   <section class="ko-panel ko-panel--meetings">
     <div class="ko-panel-head">
       <div>
