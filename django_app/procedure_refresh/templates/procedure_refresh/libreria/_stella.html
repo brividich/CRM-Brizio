@@ -1,0 +1,5 @@
+{# Stella «I miei documenti» nella scheda: si aggiorna sul posto (HTMX). #}
+<form method="post" action="{% url 'procedure_refresh:libreria_preferito' doc.pk %}" hx-post="{% url 'procedure_refresh:libreria_preferito' doc.pk %}" hx-swap="outerHTML" class="cn-stella-f">
+  {% csrf_token %}
+  <button type="submit" class="cn-stella{% if preferito %} on{% endif %}" aria-pressed="{% if preferito %}true{% else %}false{% endif %}" title="{% if preferito %}Togli da «I miei documenti»{% else %}Aggiungi a «I miei documenti»{% endif %}">{% if preferito %}★{% else %}☆{% endif %}</button>
+</form>

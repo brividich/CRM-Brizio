@@ -1,0 +1,11 @@
+{# Tendina live della ricerca nella home della libreria. #}
+{% if q|length >= 2 %}
+<div class="cn-sugg-box" role="listbox" aria-label="Suggerimenti">
+  {% for r in trovati %}
+  <a class="cn-sugg-i" role="option" href="{% url 'procedure_refresh:libreria_documento' r.doc.pk %}" data-cn-doc style="--col:{{ r.doc.scaffale.colore|default:'#1f4f86' }}">
+    <span class="mono cn-sugg-c">{{ r.doc.code }}</span><span class="cn-sugg-t">{{ r.doc.title }}</span><span class="cn-sugg-s">{{ r.doc.scaffale.nome }}</span>
+  </a>
+  {% endfor %}
+  <a class="cn-sugg-i cn-sugg-all" role="option" href="{% url 'procedure_refresh:libreria_cerca' %}?q={{ q|urlencode }}" data-cn-ricorda-q="{{ q }}">Cerca «{{ q }}» anche nel testo dei documenti →</a>
+</div>
+{% endif %}

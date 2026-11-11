@@ -496,3 +496,93 @@ class RicercaFlessibileTests(TestCase):
         r = next(x for x in lib.cerca("registrata accettazione", lib.documenti_in_vigore()) if x.doc.code == "MT CN 06")
         self.assertTrue(r.estratti)
         self.assertIn(r.estratti[0]["trovato"].lower(), ("accettazione", "registrata"))
+
+
+class SecondoGiroUITests(TestCase):
+    def setUp(self):
+        from . import esperienza as esp
+
+        cache.delete("cnsgi_glossario_v1")
+        lib._MEMO_TESTI.clear()
+        self.esp = esp
+        self.admin = User.objects.create_user(username="cnsgi_ui2", password="pw", is_superuser=True)
+        self.client.force_login(self.admin)
+        self.doc = _doc("MT CN 06", "Gestione delle non conformità",
+                        testo="1. Scopo\nGestire le NC.\n\n4.2 Registrazione\nLa NC va registrata sul MOD.093 entro 2 giorni.\n\n5. Chiusura\nVerifica.",
+                        n_pagine=3)
+        vecchia = ProcedureRevision.objects.create(
+            document=self.doc, revision_code="1", revision_date=date(2025, 1, 1), effective_date=date(2025, 1, 1),
+            source_type=SourceType.SHAREPOINT, source_url="https://example.invalid/old.pdf", file_name="old.pdf", is_current=False,
+        )
+        SgiTestoEstratto.objects.create(
+            revision=vecchia, file_hash="v", formato="pdf", metodo="test",
+            testo="1. Scopo\nGestire le NC.\n\n4.2 Registrazione\nLa NC va registrata sul MOD.093 entro 5 giorni.\n\n6. Archivio\nTre anni.",
+            n_pagine=3, n_caratteri=100,
+        )
+        self.vecchio = _doc("MT CN 99", "Procedura antica", testo="Testo.", n_pagine=1)
+        ProcedureRevision.objects.filter(document=self.vecchio).update(revision_date=date(2019, 5, 1))
+        lib.assicura_scaffali()
+
+    def test_differenze_per_paragrafo(self):
+        rev = self.doc.revisions.get(is_current=True)
+        vecchia = self.doc.revisions.get(is_current=False)
+        cambi = {(c.tipo, c.numero) for c in self.esp.differenze(vecchia.testo_estratto.testo, rev.testo_estratto.testo)}
+        self.assertEqual(cambi, {("modificato", "4.2"), ("aggiunto", "5"), ("tolto", "6")})
+
+    def test_scheda_cosa_cambia_anteprima_mappa(self):
+        r = self.client.get(reverse("procedure_refresh:libreria_documento", args=[self.doc.pk]) + "?pagina=2", HTTP_HX_REQUEST="true")
+        self.assertContains(r, "Cosa cambia · 3")
+        self.assertContains(r, "#page=2")
+        self.assertContains(r, "assistente su questo documento")
+
+    def test_pdf_si_puo_mostrare_nel_pannello(self):
+        r = self.client.get(reverse("procedure_refresh:libreria_apri", args=[self.doc.pk]))
+        self.assertEqual(r.status_code, 302)  # SharePoint: reindirizza
+        self.assertNotEqual(r.get("X-Frame-Options"), "DENY")
+
+    def test_stella_e_i_miei_documenti(self):
+        from .models import SgiPreferito
+
+        url = reverse("procedure_refresh:libreria_preferito", args=[self.doc.pk])
+        r = self.client.post(url, HTTP_HX_REQUEST="true")
+        self.assertContains(r, "★")
+        self.assertTrue(SgiPreferito.objects.filter(user=self.admin, documento=self.doc).exists())
+        r = self.client.get(reverse("procedure_refresh:libreria"))
+        self.assertContains(r, "I miei documenti")
+        self.client.post(url, HTTP_HX_REQUEST="true")
+        self.assertFalse(SgiPreferito.objects.exists())
+
+    def test_ricerca_live_e_suggerimenti(self):
+        r = self.client.get(reverse("procedure_refresh:libreria_cerca") + "?q=registrata", HTTP_HX_REQUEST="true")
+        self.assertContains(r, "MT CN 06")
+        self.assertNotContains(r, "<html")
+        r = self.client.get(reverse("procedure_refresh:libreria_suggerimenti") + "?q=mt 6")
+        self.assertContains(r, "MT CN 06")
+        self.assertContains(r, "anche nel testo")
+        self.assertEqual(self.client.get(reverse("procedure_refresh:libreria_suggerimenti") + "?q=m").content.strip(), b"")
+
+    def test_etichette_qr(self):
+        r = self.client.get(reverse("procedure_refresh:libreria_etichetta", args=[self.doc.pk]))
+        self.assertContains(r, "<svg")
+        self.assertContains(r, "MT CN 06")
+        r = self.client.get(reverse("procedure_refresh:libreria_etichette", args=[lib.slug_scaffale("9100_Qualità")]))
+        self.assertContains(r, "2 etichette")
+
+    def test_da_rivedere_e_filtri_scaffale(self):
+        r = self.client.get(reverse("procedure_refresh:libreria_da_rivedere"))
+        self.assertContains(r, "MT CN 99")
+        self.assertNotContains(r, ">MT CN 06<")
+        slug = lib.slug_scaffale("9100_Qualità")
+        r = self.client.get(reverse("procedure_refresh:libreria_scaffale", args=[slug]) + "?cambiati=365")
+        self.assertContains(r, "MT CN 06")
+        self.assertNotContains(r, "MT CN 99")
+
+    def test_glossario_negli_estratti(self):
+        from glossario_tecnico.models import Termine
+
+        Termine.objects.create(termine="Registrazione", categoria=Termine._meta.get_field("categoria").choices[0][0],
+                               definizione="Annotazione su un modulo", stato=Termine.VALIDATO)
+        cache.delete("cnsgi_glossario_v1")
+        html = str(self.esp.con_glossario("La registrazione <b> va fatta"))
+        self.assertIn('<abbr class="cn-gloss" title="Annotazione su un modulo">registrazione</abbr>', html)
+        self.assertIn("&lt;b&gt;", html)
