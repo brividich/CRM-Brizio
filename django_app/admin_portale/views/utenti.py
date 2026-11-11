@@ -1196,46 +1196,55 @@ def ldap_import_utenti(request):
         )
 
     try:
-        from ldap3 import NTLM, SIMPLE, SUBTREE, Connection
-        from ldap3.core.exceptions import LDAPException, LDAPSocketOpenError
+        from ldap3 import SUBTREE
+        from ldap3.core.exceptions import LDAPException
+        from ldap3.utils.conv import escape_filter_chars
     except Exception as exc:
         return JsonResponse({"ok": False, "error": f"ldap3 non disponibile: {exc}"}, status=500)
 
-    def _ldap_connect():
-        srv = build_ldap_server(server_url, timeout)
-        if "\\" in service_user:
-            attempts = [(service_user, NTLM)]
-        elif "@" in service_user:
-            attempts = [(service_user, SIMPLE)]
-        else:
-            attempts = []
-            suffix = (upn_suffix or "").strip().lstrip("@")
-            if suffix:
-                attempts.append((f"{service_user}@{suffix}", SIMPLE))
-            attempts.append((service_user, SIMPLE))
-            if domain:
-                attempts.append((f"{domain}\\{service_user}", NTLM))
+    from core.ldap_conn import (
+        LDAPIncompleteRead,
+        LDAPUnreachable,
+        describe_bind_failure,
+        ldap_paged_search,
+        ldap_service_bind,
+    )
 
-        last_result = None
-        for bind_user, authentication in attempts:
-            conn = Connection(
-                srv,
-                user=bind_user,
-                password=service_password,
-                authentication=authentication,
-                auto_bind=False,
-                auto_referrals=False,
-                raise_exceptions=False,
-                receive_timeout=ldap_receive_timeout(),
-            )
-            if conn.bind():
-                return conn, None
-            last_result = conn.result
+    page_size = int(getattr(settings, "LDAP_SYNC_PAGE_SIZE", 500) or 500)
+
+    def _ldap_connect():
+        conn, last_result = ldap_service_bind(
+            server_url=server_url,
+            timeout=timeout,
+            user=service_user,
+            password=service_password,
+            domain=domain,
+            upn_suffix=upn_suffix or "",
+        )
+        if conn is None:
+            return None, describe_bind_failure(last_result)
+        return conn, None
+
+    def _ldap_search(conn, ldap_filter, attrs):
+        """Tutte le pagine della ricerca; (righe, errore)."""
+        try:
+            return ldap_paged_search(
+                conn,
+                search_base=base_dn,
+                search_filter=ldap_filter,
+                search_scope=SUBTREE,
+                attributes=attrs,
+                paged_size=page_size,
+            ), None
+        except LDAPIncompleteRead as exc:
+            return None, f"Ricerca LDAP fallita o incompleta: {exc.args[0] if exc.args else exc}"
+        except (LDAPException, OSError) as exc:
+            return None, f"Ricerca LDAP fallita: {exc}"
+        finally:
             try:
                 conn.unbind()
             except Exception:
                 pass
-        return None, f"Bind LDAP fallito: {last_result}"
 
     def _first(data, key):
         raw = data.get(key)
@@ -1268,7 +1277,9 @@ def ldap_import_utenti(request):
     if action == "search":
         name_q = (request.POST.get("q") or "").strip()
         if name_q:
-            ldap_filter = f"(&{user_filter_tmpl}(|(displayName=*{name_q}*)(sAMAccountName=*{name_q}*)(mail=*{name_q}*)))"
+            # Termine escapato (RFC 4515): i caratteri * ( ) \ dell'utente non alterano il filtro.
+            term = escape_filter_chars(name_q)
+            ldap_filter = f"(&{user_filter_tmpl}(|(displayName=*{term}*)(sAMAccountName=*{term}*)(mail=*{term}*)))"
         else:
             ldap_filter = user_filter_tmpl
 
@@ -1276,31 +1287,21 @@ def ldap_import_utenti(request):
             conn, err = _ldap_connect()
             if not conn:
                 return JsonResponse({"ok": False, "error": err}, status=400)
-        except (LDAPSocketOpenError, LDAPException, OSError) as exc:
+        except LDAPUnreachable as exc:
+            return JsonResponse({"ok": False, "error": f"Active Directory non raggiungibile: {exc}"}, status=400)
+        except (LDAPException, OSError, ValueError) as exc:
             return JsonResponse({"ok": False, "error": f"Connessione LDAP fallita: {exc}"}, status=400)
 
         attrs = ["displayName", "givenName", "sn", "mail", "userPrincipalName", "sAMAccountName", "memberOf"]
-        try:
-            ok = conn.search(
-                search_base=base_dn,
-                search_filter=ldap_filter,
-                search_scope=SUBTREE,
-                attributes=attrs,
-                paged_size=500,
-            )
-        except (LDAPSocketOpenError, LDAPException, OSError) as exc:
-            conn.unbind()
-            return JsonResponse({"ok": False, "error": f"Ricerca LDAP fallita: {exc}"}, status=400)
-        if not ok:
-            conn.unbind()
-            return JsonResponse({"ok": False, "error": f"Ricerca LDAP fallita: {conn.result}"}, status=400)
+        rows, err = _ldap_search(conn, ldap_filter, attrs)
+        if err:
+            return JsonResponse({"ok": False, "error": err}, status=400)
 
         existing_emails = {(e or "").strip().lower() for e in UtenteLegacy.objects.values_list("email", flat=True) if e}
 
         users = []
-        for entry in conn.entries:
-            data = entry.entry_attributes_as_dict if hasattr(entry, "entry_attributes_as_dict") else {}
-            ident, sam, display, groups = _entry_to_user(data)
+        for entry in rows:
+            ident, sam, display, groups = _entry_to_user(entry["attributes"])
             if not ident:
                 continue
             users.append({
@@ -1311,7 +1312,6 @@ def ldap_import_utenti(request):
                 "already_imported": ident.lower() in existing_emails,
             })
 
-        conn.unbind()
         users.sort(key=lambda u: (u["already_imported"], (u["display_name"] or "").lower()))
         return JsonResponse({"ok": True, "users": users, "total": len(users)})
 
@@ -1347,8 +1347,8 @@ def ldap_import_utenti(request):
 
         # Costruisce filtro LDAP mirato se pochi utenti, altrimenti cerca tutti e filtra
         if len(target_set) <= 30:
-            upn_clauses = "".join(f"(userPrincipalName={e})" for e in target_set)
-            mail_clauses = "".join(f"(mail={e})" for e in target_set)
+            upn_clauses = "".join(f"(userPrincipalName={escape_filter_chars(e)})" for e in target_set)
+            mail_clauses = "".join(f"(mail={escape_filter_chars(e)})" for e in target_set)
             ldap_filter = f"(&{user_filter_tmpl}(|{upn_clauses}{mail_clauses}))"
         else:
             ldap_filter = user_filter_tmpl
@@ -1357,32 +1357,22 @@ def ldap_import_utenti(request):
             conn, err = _ldap_connect()
             if not conn:
                 return JsonResponse({"ok": False, "error": err}, status=400)
-        except (LDAPSocketOpenError, LDAPException, OSError) as exc:
+        except LDAPUnreachable as exc:
+            return JsonResponse({"ok": False, "error": f"Active Directory non raggiungibile: {exc}"}, status=400)
+        except (LDAPException, OSError, ValueError) as exc:
             return JsonResponse({"ok": False, "error": f"Connessione LDAP fallita: {exc}"}, status=400)
 
         attrs = ["displayName", "givenName", "sn", "mail", "userPrincipalName", "sAMAccountName"]
-        try:
-            ok = conn.search(
-                search_base=base_dn,
-                search_filter=ldap_filter,
-                search_scope=SUBTREE,
-                attributes=attrs,
-                paged_size=500,
-            )
-        except (LDAPSocketOpenError, LDAPException, OSError) as exc:
-            conn.unbind()
-            return JsonResponse({"ok": False, "error": f"Ricerca LDAP fallita: {exc}"}, status=400)
-        if not ok:
-            conn.unbind()
-            return JsonResponse({"ok": False, "error": f"Ricerca LDAP fallita: {conn.result}"}, status=400)
+        rows, err = _ldap_search(conn, ldap_filter, attrs)
+        if err:
+            return JsonResponse({"ok": False, "error": err}, status=400)
 
         results = {"created": [], "updated": [], "errors": []}
 
         try:
             with transaction.atomic():
-                for entry in conn.entries:
-                    data = entry.entry_attributes_as_dict if hasattr(entry, "entry_attributes_as_dict") else {}
-                    ident, sam, display, _groups = _entry_to_user(data)
+                for entry in rows:
+                    ident, sam, display, _groups = _entry_to_user(entry["attributes"])
                     if not ident:
                         continue
                     if len(target_set) > 30 and ident.lower() not in target_set:
@@ -1427,10 +1417,8 @@ def ldap_import_utenti(request):
                     except DatabaseError as exc:
                         results["errors"].append({"email": ident, "error": str(exc)})
         except Exception as exc:
-            conn.unbind()
             return JsonResponse({"ok": False, "error": f"Errore durante l'importazione: {exc}"}, status=500)
 
-        conn.unbind()
         return JsonResponse({"ok": True, "results": results})
 
     return JsonResponse({"ok": False, "error": "Azione non valida."}, status=400)

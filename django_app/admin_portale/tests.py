@@ -1993,8 +1993,9 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
 
         fake_conn = MagicMock()
         fake_conn.bind.return_value = True
-        fake_conn.search.side_effect = FakeLDAPSocketOpenError("invalid server address")
+        fake_conn.extend.standard.paged_search.side_effect = FakeLDAPSocketOpenError("invalid server address")
         fake_conn.entries = []
+        import ldap3.utils.conv as real_ldap3_conv
 
         fake_ldap3 = ModuleType("ldap3")
         fake_ldap3.AUTO_BIND_NO_TLS = "AUTO_BIND_NO_TLS"
@@ -2059,6 +2060,8 @@ class AdminPortaleConfigSrvLdapTests(TestCase):
                     "ldap3": fake_ldap3,
                     "ldap3.core": fake_ldap3_core,
                     "ldap3.core.exceptions": fake_ldap3_exceptions,
+                    # escape_filter_chars resta quello vero di ldap3 (filtro di ricerca escapato).
+                    "ldap3.utils.conv": real_ldap3_conv,
                 },
                 clear=False,
             ):

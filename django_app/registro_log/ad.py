@@ -41,37 +41,39 @@ def configurato() -> bool:
 
 
 def _connessione():
-    from ldap3 import NTLM, SIMPLE, Connection
+    from ldap3 import NTLM, SIMPLE
 
-    from core.ldap_conn import build_ldap_server, ldap_receive_timeout
+    from core.ldap_conn import ldap_bind
 
     utente = settings.LDAP_SERVICE_USER
     tentativi = [(utente, NTLM)] if "\\" in utente else [(utente, SIMPLE)]
     if "\\" not in utente and "@" not in utente:
         tentativi = []
         if settings.LDAP_UPN_SUFFIX:
-            tentativi.append((f"{utente}@{settings.LDAP_UPN_SUFFIX}", SIMPLE))
+            tentativi.append((f"{utente}@{str(settings.LDAP_UPN_SUFFIX).lstrip('@')}", SIMPLE))
         if settings.LDAP_DOMAIN:
             tentativi.append((f"{settings.LDAP_DOMAIN}\\{utente}", NTLM))
         tentativi.append((utente, SIMPLE))
-    server = build_ldap_server(settings.LDAP_SERVER, int(getattr(settings, "LDAP_TIMEOUT", 5) or 5))
-    ultimo = None
-    for nome, metodo in tentativi:
-        conn = Connection(server, user=nome, password=settings.LDAP_SERVICE_PASSWORD, authentication=metodo,
-                          auto_bind=False, auto_referrals=False, raise_exceptions=False,
-                          receive_timeout=ldap_receive_timeout(), read_only=True)
-        if conn.bind():
-            return conn
-        ultimo = conn.result
-    raise RuntimeError(f"Accesso LDAP non riuscito con l'account di servizio del portale: {ultimo}")
+    # ldap_bind chiude (unbind) anche le connessioni dei bind falliti e si ferma se il DC non risponde.
+    conn, ultimo = ldap_bind(
+        tentativi, settings.LDAP_SERVICE_PASSWORD, server_url=settings.LDAP_SERVER,
+        timeout=int(getattr(settings, "LDAP_TIMEOUT", 5) or 5), read_only=True,
+    )
+    if conn is None:
+        raise RuntimeError(f"Accesso LDAP non riuscito con l'account di servizio del portale: {ultimo}")
+    return conn
 
 
 def _cerca(conn, filtro: str, attributi: list[str], base: str = "") -> list[dict]:
-    righe = conn.extend.standard.paged_search(
-        search_base=base or settings.LDAP_BASE_DN, search_filter=filtro, attributes=attributi,
-        paged_size=int(getattr(settings, "LDAP_SYNC_PAGE_SIZE", 500) or 500), generator=True,
+    """Tutte le pagine; una lettura incompleta solleva un errore invece di dare un elenco parziale
+    (con un elenco parziale ``applica`` segnerebbe come spariti gli account non letti)."""
+    from core.ldap_conn import ldap_paged_search
+
+    righe = ldap_paged_search(
+        conn, search_base=base or settings.LDAP_BASE_DN, search_filter=filtro, attributes=attributi,
+        paged_size=int(getattr(settings, "LDAP_SYNC_PAGE_SIZE", 500) or 500),
     )
-    return [dict(r.get("attributes") or {}) for r in righe if r.get("type") == "searchResEntry"]
+    return [r["attributes"] for r in righe]
 
 
 def _valore(v):

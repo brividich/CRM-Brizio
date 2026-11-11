@@ -37,6 +37,12 @@ class LDAPBackendContractTests(TestCase):
 
     def setUp(self):
         super().setUp()
+        from core.ldap_conn import ldap_breaker_reset, reset_ldap_servers
+
+        # Il breaker «AD non raggiungibile» è in cache: un test che lo arma non deve influire sugli altri.
+        reset_ldap_servers()
+        ldap_breaker_reset()
+        self.addCleanup(ldap_breaker_reset)
         self.backend = LDAPBackend()
 
     @override_settings(LDAP_ENABLED=False)
