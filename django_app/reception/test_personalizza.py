@@ -56,6 +56,8 @@ class MailPersonalizzataTests(Collegato):
             mail.invia_invito(pre)
         oggetto, testo, dest = invia.call_args_list[0].args
         self.assertEqual((oggetto, dest), ("Benvenuto Ospite Uno", ["uno@example.local"]))
+        # Modello NOVICROM HUB con il piè di pagina per gli esterni (non «portale interno»)
+        self.assertIn("Costruzioni Novicrom Srl", invia.call_args_list[0].kwargs["footer_line"])
         self.assertIn(f"il codice è {pre.codice}. Visita prevista:", testo)
 
     def test_impostazioni_salva_rifiuta_e_prova(self):
@@ -82,7 +84,7 @@ class MailPersonalizzataTests(Collegato):
         r = self.client.get(reverse("reception_pubblica:richiesta"))
         self.assertContains(r, "<h1>Prenota la visita</h1>", html=False)
         self.assertContains(r, "--accent:#aa3300")
-        self.assertEqual(self.client.get(reverse("reception_pubblica:logo")).status_code, 404)
+        self.assertContains(r, "core/img/novicrom_hub.png")
 
 
 @override_settings(RECEPTION_NATIVA=True)
@@ -116,3 +118,13 @@ class ReferentiPresentiTests(TestCase):
             r = self.client.post(reverse("chiosco:api", args=["referenti"]), "{}", content_type="application/json")
         self.assertEqual([x["nome"] for x in r.json()["referenti"]], ["Fuori Bruno"])
         self.assertNotIn("email", r.json()["referenti"][0])
+
+
+class ModelloMailTests(TestCase):
+    def test_riga_finale_personalizzabile_e_predefinita(self):
+        from core.email_utils import render_hub_email_html
+
+        self.assertIn("Portale interno", render_hub_email_html("<p>x</p>"))
+        html = render_hub_email_html("<p>x</p>", footer_line="Costruzioni Novicrom Srl · NOVICROM HUB")
+        self.assertNotIn("Portale interno", html)
+        self.assertIn("Costruzioni Novicrom Srl · NOVICROM HUB", html)

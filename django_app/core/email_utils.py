@@ -30,8 +30,12 @@ def render_hub_email_html(
     cta_buttons: str = "",
     footer_note: str = "",
     preheader: str = "",
+    footer_line: str = "",
 ) -> str:
-    """Renderizza il layout grafico base attorno a un frammento HTML."""
+    """Renderizza il layout grafico base attorno a un frammento HTML.
+
+    ``footer_line``: riga sotto la scheda (vuota = «NOVICROM HUB · Portale interno · Email automatica»).
+    """
     return render_to_string("core/email/base_email.html", {
         "email_type": email_type,
         "badge": badge,
@@ -42,6 +46,7 @@ def render_hub_email_html(
         "cta_buttons": mark_safe(cta_buttons),
         "footer_note": footer_note,
         "preheader": preheader,
+        "footer_line": footer_line,
     })
 
 
@@ -219,6 +224,7 @@ def send_hub_mail(
     attachments: list | None = None,
     cc: list[str] | Sequence[str] | None = None,
     fail_silently: bool = False,
+    footer_line: str = "",
 ) -> int:
     """
     Invia una email con layout grafico NOVICROM HUB.
@@ -240,6 +246,7 @@ def send_hub_mail(
         badge=badge,
         section_label=section_label,
         footer_note=footer_note,
+        footer_line=footer_line,
         preheader=preheader,
     )
 

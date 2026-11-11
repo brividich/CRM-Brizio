@@ -5,7 +5,7 @@
 <div class="rc-card" id="pagina">
   <div class="rc-card-head">Pagina pubblica «Richiesta di visita»</div>
   <div class="rc-body">
-    <p class="rc-note">Indirizzo: <a href="{{ link_pubblico }}" target="_blank" rel="noopener">{{ link_pubblico }}</a> · <strong>{% if pagina_accesa %}accesa{% else %}spenta{% endif %}</strong>{% if not pagina_accesa %} (si accende con RECEPTION_NATIVA=1 e RECEPTION_RICHIESTE_PUBBLICHE=1 nel .env){% endif %}. In testa compare il logo caricato qui sotto. Campo vuoto = testo predefinito.</p>
+    <p class="rc-note">Indirizzo: <a href="{{ link_pubblico }}" target="_blank" rel="noopener">{{ link_pubblico }}</a> · <strong>{% if pagina_accesa %}accesa{% else %}spenta{% endif %}</strong>{% if not pagina_accesa %} (si accende con RECEPTION_NATIVA=1 e RECEPTION_RICHIESTE_PUBBLICHE=1 nel .env){% endif %}. Grafica NOVICROM HUB (logo e colori delle mail); il colore principale si può cambiare. Campo vuoto = testo predefinito.</p>
     <form method="post" class="rc-form">{% csrf_token %}<input type="hidden" name="azione" value="pagina">
       <div class="rc-field"><label for="t-titolo">Titolo</label><input class="rc-input" id="t-titolo" name="pagina_titolo" maxlength="80" value="{{ testi.pagina_titolo }}"></div>
       <div class="rc-field"><label for="t-colore">Colore principale</label><input class="rc-input rc-colore" id="t-colore" type="color" name="pagina_colore" value="{{ testi.pagina_colore }}"></div>
@@ -17,7 +17,7 @@
 <div class="rc-card" id="mail">
   <div class="rc-card-head">Testi delle mail agli esterni</div>
   <div class="rc-body">
-    <p class="rc-note">Le parole tra graffe si sostituiscono con i dati veri: lasciale scritte così. Logo, colori e piè di pagina sono quelli comuni a tutte le mail dell'HUB. «Mandami una prova» usa dati d'esempio e i testi salvati.</p>
+    <p class="rc-note">Le parole tra graffe si sostituiscono con i dati veri: lasciale scritte così. Grafica NOVICROM HUB, con il piè di pagina per chi non è dipendente. «Mandami una prova» usa dati d'esempio e i testi salvati.</p>
     {% for g in gruppi_mail %}
     <details class="rc-altro rc-mail" id="mail-{{ g.chiave }}">
       <summary>{{ g.titolo }}{% if g.personalizzato %} · personalizzato{% endif %}</summary>
@@ -36,9 +36,9 @@
   </div>
 </div>
 <div class="rc-card">
-  <div class="rc-card-head">Logo del chiosco e della pagina pubblica</div>
+  <div class="rc-card-head">Logo del chiosco</div>
   <div class="rc-body">
-    <p class="rc-note">Compare in alto a sinistra sul totem al posto della scritta, e in testa alla pagina pubblica. PNG, JPG o WEBP fino a 1 MB; meglio chiaro o con sfondo trasparente, perché il totem è scuro. Stato: <strong>{% if logo_presente %}caricato{% else %}nessun logo{% endif %}</strong>.</p>
+    <p class="rc-note">Compare in alto a sinistra sul totem al posto della scritta. PNG, JPG o WEBP fino a 1 MB; meglio chiaro o con sfondo trasparente, perché il totem è scuro. Stato: <strong>{% if logo_presente %}caricato{% else %}nessun logo{% endif %}</strong>.</p>
     <form method="post" enctype="multipart/form-data" class="rc-azioni">{% csrf_token %}<input type="hidden" name="azione" value="logo">
       <input type="file" name="logo" accept=".png,.jpg,.jpeg,.webp" required>
       <button class="rc-btn" type="submit">Carica</button>

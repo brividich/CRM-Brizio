@@ -1,4 +1,4 @@
-{% load reception_pubblica %}{% pagina_pubblica as pp %}<!DOCTYPE html>
+{% load static reception_pubblica %}{% pagina_pubblica as pp %}<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
@@ -6,17 +6,22 @@
 <meta name="robots" content="noindex, nofollow">
 <title>{% block title %}{{ pp.titolo }}{% endblock %} | Costruzioni Novicrom</title>
 <style nonce="{{ csp_nonce }}">
-:root { --bg:#f1f5f9; --card:#fff; --text:#0f172a; --muted:#64748b; --border:#dbe2ea; --accent:#1d4ed8; --accent-soft:#dbeafe; --err-bg:#fee2e2; --err:#991b1b; --field:#fff; --head:#0a1222; }
-@media (prefers-color-scheme: dark) { :root { --bg:#0a1222; --card:#111c33; --text:#e2e8f0; --muted:#94a3b8; --border:#334155; --accent:#38bdf8; --accent-soft:#0c4a6e; --err-bg:rgba(229,62,62,.18); --err:#fca5a5; --field:#0f1a2e; --head:#020817; } }
+/* Modello grafico NOVICROM HUB, lo stesso delle mail (core/email/base_email.html). */
+:root { --bg:#eef3f8; --card:#fff; --text:#182232; --muted:#64748b; --border:#d8e1ec; --accent:#002b5c; --accent-soft:#e1ebf6; --err-bg:#fee2e2; --err:#991b1b; --field:#fff; --head:#002b5c; --hub-arancio:#ff6b00; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0a1222; --card:#111c33; --text:#e2e8f0; --muted:#94a3b8; --border:#334155; --accent:#7cb3ec; --accent-soft:#12345c; --err-bg:rgba(229,62,62,.18); --err:#fca5a5; --field:#0f1a2e; --head:#002b5c; } }
 * { box-sizing:border-box; }
 body { margin:0; overflow-x:hidden; min-height:100vh; background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; }
-.pb-head { background:var(--head); color:#f8fafc; padding:18px 16px 70px; }
+.pb-barra { background:#fff; border-bottom:5px solid var(--hub-arancio); padding:12px 16px; }
+.pb-barra-in { max-width:640px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.pb-barra img { display:block; height:44px; width:auto; }
+.pb-barra span { color:#64748b; font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; }
+.pb-head { background:var(--head); color:#f8fafc; padding:22px 16px 70px; }
 .pb-head-in { max-width:640px; margin:0 auto; }
 .pb-brand { font-size:13px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#7dd3fc; }
-.pb-head h1 { margin:18px 0 6px; font-size:30px; letter-spacing:-.02em; color:#f8fafc; }
-.pb-head p { margin:0; color:#cbd5e1; font-size:15px; line-height:1.5; }
+.pb-head h1 { margin:0 0 6px; font-size:30px; letter-spacing:-.02em; color:#fff; }
+.pb-head p { margin:0; color:#c7d6e8; font-size:15px; line-height:1.5; }
 .pb-wrap { max-width:640px; margin:-48px auto 32px; padding:0 16px; }
-.pb-card { background:var(--card); border:1px solid var(--border); border-radius:18px; padding:26px; box-shadow:0 18px 40px rgba(15,23,42,.08); }
+.pb-card { background:var(--card); border:1px solid var(--border); border-radius:18px; padding:26px; box-shadow:0 18px 45px rgba(15,23,42,.16); }
 .pb-card h2 { font-size:22px; margin:0 0 8px; }
 .pb-sub { color:var(--muted); font-size:15px; margin:0 0 4px; line-height:1.55; }
 .pb-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
@@ -25,14 +30,14 @@ body { margin:0; overflow-x:hidden; min-height:100vh; background:var(--bg); colo
 label, .pb-label { font-size:13px; font-weight:600; }
 .pb-opz { font-weight:400; color:var(--muted); }
 input, select, textarea { width:100%; font:inherit; font-size:16px; color:var(--text); background:var(--field); border:1px solid var(--border); border-radius:10px; padding:11px 12px; }
-input:focus, textarea:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(29,78,216,.15); }
+input:focus, textarea:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,43,92,.15); }
 textarea { min-height:84px; resize:vertical; }
 .pb-chips { display:flex; flex-wrap:wrap; gap:8px; }
 .pb-chip { position:relative; }
 .pb-chip input { position:absolute; inset:0; width:1px; height:1px; opacity:0; pointer-events:none; }
 .pb-chip span { display:inline-flex; padding:9px 14px; border:1px solid var(--border); border-radius:999px; font-size:14px; font-weight:600; cursor:pointer; background:var(--field); }
 .pb-chip input:checked + span { background:var(--accent); border-color:var(--accent); color:#fff; }
-.pb-chip input:focus-visible + span { box-shadow:0 0 0 3px rgba(29,78,216,.3); }
+.pb-chip input:focus-visible + span { box-shadow:0 0 0 3px rgba(0,43,92,.3); }
 .pb-altro { margin-top:14px; }
 .pb-altro summary { cursor:pointer; font-size:14px; font-weight:600; color:var(--accent); list-style:none; }
 .pb-altro summary::before { content:"+ "; }
@@ -50,17 +55,18 @@ textarea { min-height:84px; resize:vertical; }
 .pb-passi b { display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--accent-soft); color:var(--accent); align-items:center; justify-content:center; font-size:12px; }
 .pb-errori { background:var(--err-bg); color:var(--err); border-radius:12px; padding:12px 16px; margin-bottom:16px; font-size:14px; }
 .pb-errori ul { margin:0; padding-left:18px; }
+.pb-piede { margin:14px 0 0; text-align:center; color:#94a3b8; font-size:11px; }
 .pb-trappola { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
-.pb-logo { display:block; max-height:44px; max-width:220px; }
 {% if pp.colore_personalizzato %}:root { --accent:{{ pp.colore }}; }{% endif %}
 @media (max-width:560px) { .pb-grid { grid-template-columns:minmax(0,1fr); } .pb-card { padding:20px; } .pb-head h1 { font-size:26px; } }
 </style>
 </head>
 <body>
+<div class="pb-barra"><div class="pb-barra-in"><img src="{% static 'core/img/novicrom_hub.png' %}" alt="NOVICROM HUB · Costruzioni Novicrom" width="176" height="44"><span>Visite</span></div></div>
 <header class="pb-head"><div class="pb-head-in">
-  {% if pp.logo_versione %}<img class="pb-logo" src="{% url 'reception_pubblica:logo' %}?v={{ pp.logo_versione }}" alt="Costruzioni Novicrom">{% else %}<div class="pb-brand">Costruzioni Novicrom</div>{% endif %}
   {% block testa %}<h1>{{ pp.titolo }}</h1><p>{{ pp.intro|linebreaksbr }}</p>{% endblock %}
 </div></header>
-<div class="pb-wrap"><div class="pb-card">{% block corpo %}{% endblock %}</div></div>
+<div class="pb-wrap"><div class="pb-card">{% block corpo %}{% endblock %}</div>
+<p class="pb-piede">Costruzioni Novicrom Srl · NOVICROM HUB</p></div>
 </body>
 </html>
