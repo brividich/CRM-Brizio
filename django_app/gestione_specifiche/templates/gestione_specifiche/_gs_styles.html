@@ -293,6 +293,34 @@
   .gs-evt{ font-size:.84rem; color:#51607a; border-left:2px solid #d9e2ef; padding:4px 0 4px 12px; margin-left:6px; }
   .gs-evt b{ color:#24395e; }
 
+  /* ── Catalogo a copertine per cliente (stesso stile della libreria CN-SGI) ── */
+  .gs-vista{ display:inline-flex; border:1px solid var(--border,#e6ecf4); border-radius:10px; overflow:hidden; }
+  .gs-vista a{ padding:7px 12px; font-size:12.5px; font-weight:700; color:var(--text-mid,#5b6b82); text-decoration:none; background:var(--surface,#fff); }
+  .gs-vista a.is-on{ background:var(--primary,#0c2545); color:#fff; }
+  .gs-shelf-find{ padding:14px 18px 0; }
+  .gs-shelf-find input{ width:260px; max-width:100%; height:36px; border:1px solid var(--border,#e6ecf4); border-radius:10px; padding:0 12px; font:inherit; font-size:13px; background:var(--surface,#fff); color:var(--text,#0c2545); }
+  .gs-shelf{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:20px 16px; padding:18px; }
+  .gs-vol{ display:flex; flex-direction:column; gap:8px; text-decoration:none; color:var(--text,#0c2545); min-width:0; }
+  .gs-vol[hidden]{ display:none; }
+  .gs-vol__cover{ position:relative; aspect-ratio:3/4; border-radius:4px 10px 10px 4px; background:var(--col,#1f4f86); color:#fff; padding:14px 14px 12px 22px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 10px 22px -14px rgba(0,30,70,.45); overflow:hidden; transition:transform .15s; }
+  .gs-vol__cover::before{ content:""; position:absolute; left:0; top:0; bottom:0; width:9px; background:rgba(0,0,0,.22); box-shadow:inset -1px 0 0 rgba(255,255,255,.18); }
+  .gs-vol:hover .gs-vol__cover, .gs-vol:focus-visible .gs-vol__cover{ transform:translateY(-3px); }
+  .gs-vol__k{ font-family:ui-monospace,Consolas,monospace; font-size:10px; letter-spacing:.12em; text-transform:uppercase; opacity:.85; }
+  .gs-vol__n{ font-size:30px; font-weight:800; line-height:1; letter-spacing:-.02em; overflow-wrap:anywhere; }
+  .gs-vol__n small{ display:block; font-size:13.5px; font-weight:700; letter-spacing:0; margin-top:6px; opacity:.92; }
+  .gs-vol__f{ display:flex; justify-content:space-between; align-items:flex-end; gap:6px; font-size:11px; }
+  .gs-vol__f b{ font-family:ui-monospace,Consolas,monospace; font-size:20px; }
+  .gs-vol__badge{ display:inline-block; margin-top:4px; background:#f97316; color:#fff; font-family:ui-monospace,Consolas,monospace; font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; }
+  .gs-vol__meta{ font-size:12px; color:var(--text-mid,#5b6b82); display:flex; align-items:center; gap:6px; }
+  .gs-dot{ width:7px; height:7px; border-radius:50%; background:#2f855a; flex:none; display:inline-block; }
+  .gs-dot.is-warn{ background:#d97706; }
+  .gs-cliente{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:16px 18px; border-bottom:1px solid var(--border,#e6ecf4); }
+  .gs-cliente__dorso{ width:54px; height:72px; border-radius:3px 8px 8px 3px; background:var(--col); color:#fff; display:grid; place-items:center; font-weight:800; font-size:11px; letter-spacing:.04em; text-align:center; padding:4px; overflow:hidden; overflow-wrap:anywhere; box-shadow:inset 6px 0 0 rgba(0,0,0,.22); flex:none; }
+  .gs-cliente h2{ margin:2px 0 6px; font-size:20px; font-weight:800; }
+  .gs-cliente__crumb{ font-size:12px; } .gs-cliente__crumb a{ color:#1f87cd; font-weight:700; text-decoration:none; }
+  .gs-cliente__meta{ display:flex; gap:8px 12px; flex-wrap:wrap; align-items:center; font-size:12.5px; color:var(--text-mid,#5b6b82); }
+  @media (max-width:640px){ .gs-shelf{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 12px; padding:14px; } .gs-vol__n{ font-size:24px; } }
+
   /* ── DARK MODE — additivo: hex chiari → token del tema. Hero e pill/bottoni
      colorati (gs-seg attivo, gs-btn--primary/--cyan) restano invariati perché il
      loro testo sta su una superficie chiara propria. Rifinitura a schermo. ── */

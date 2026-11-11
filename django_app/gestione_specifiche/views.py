@@ -104,6 +104,11 @@ def lista(request):
     f_cliente = request.GET.get("cliente", "").strip()
     f_tag = request.GET.get("tag", "").strip()
     f_q = request.GET.get("q", "").strip()
+    # Catalogo a copertine (una per cliente, come la libreria CN-SGI) o elenco; la scelta resta in un cookie.
+    f_cartella = request.GET.get("cartella", "").strip()[:200]
+    vista = request.GET.get("vista") or request.COOKIES.get("gs_vista") or "copertine"
+    if vista not in ("copertine", "elenco"):
+        vista = "copertine"
     # M12: date parse-ate in modo sicuro (None se vuote/invalide) -> niente 500 su input errato.
     f_dal = parse_date(request.GET.get("dal", "").strip())
     f_al = parse_date(request.GET.get("al", "").strip())
@@ -120,6 +125,10 @@ def lista(request):
         qs = qs.filter(tipo=f_tipo)
     if f_cliente:
         qs = qs.filter(cliente__icontains=f_cliente)
+    if f_cartella:
+        from .scaffale_clienti import SENZA_CLIENTE
+
+        qs = qs.filter(cliente="") if f_cartella == SENZA_CLIENTE else qs.filter(cliente__iexact=f_cartella)
     if f_tag:
         qs = qs.filter(tag__icontains=f_tag)
     if f_q:
@@ -130,7 +139,9 @@ def lista(request):
         qs = qs.filter(data_inserimento__date__lte=f_al)
     qs = qs.order_by("-data_inserimento", "codice")
 
-    specifiche = list(qs[:500])
+    filtri = any([f_stato, f_tipo, f_cliente, f_tag, f_q, f_dal, f_al, f_cartella])
+    mostra_copertine = vista == "copertine" and not filtri
+    specifiche = [] if mostra_copertine else list(qs[:500])
     for s in specifiche:
         s.mod_label, s.mod_kind = _stato_mod133(s)
 
@@ -151,7 +162,15 @@ def lista(request):
         "verifica_scad": n_verifica_scad,
     }
 
+    from . import scaffale_clienti
+
     context = {
+        "vista": vista,
+        "mostra_copertine": mostra_copertine,
+        "copertine": scaffale_clienti.copertine(storico=mostra_storico, scadenza_giorni=_scadenza_verifica_giorni()) if mostra_copertine else [],
+        "cartella": (scaffale_clienti.copertina_di(f_cartella, storico=True, scadenza_giorni=_scadenza_verifica_giorni())
+                     if f_cartella else None),
+        "f_cartella": f_cartella,
         "specifiche": specifiche,
         "tot": qs.count(),
         "mostra_storico": mostra_storico,
@@ -163,7 +182,10 @@ def lista(request):
         "C": C,
         "puo_admin": utente_puo_admin(request),
     }
-    return render(request, "gestione_specifiche/lista.html", context)
+    response = render(request, "gestione_specifiche/lista.html", context)
+    if request.GET.get("vista") in ("copertine", "elenco"):
+        response.set_cookie("gs_vista", vista, max_age=365 * 24 * 3600, samesite="Lax", httponly=True)
+    return response
 
 
 @login_required
@@ -278,6 +300,9 @@ def nuova_specifica(request):
         if prev is not None:
             initial = {f: getattr(prev, f) for f in _INHERIT_FIELDS}
             initial["revisione"] = _incrementa_revisione(prev.revisione)
+        elif request.GET.get("cliente"):
+            # Dalla copertina di un cliente: il cliente è già scritto.
+            initial = {"cliente": request.GET["cliente"].strip()[:200], "fonte": C.FONTE_CLIENTE}
         form = SpecificaForm(initial=initial)
 
     return render(request, "gestione_specifiche/specifica_form.html",

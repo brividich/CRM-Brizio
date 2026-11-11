@@ -11,6 +11,10 @@ Area **Operations** · URL `/gestione-specifiche/` · codice [`django_app/gestio
 
 > **Dal 26/10/2026 il Registro OFI è un modulo a sé**: viste, URL, permessi, dashboard e guida sono in [`registro_ofi`](registro_ofi.md) (`django_app/registro_ofi/`). Qui restano i modelli (`RegistroOFI`, `RegistroOFIEvento`, `RegistroOFIAllegato`), il servizio `gestione_specifiche/registro_ofi.py` e il permesso di inserimento `registroofi.add`. Le sezioni sotto sono lo storico: dove citano `specifica.view` per il registro o il cruscotto, oggi valgono i permessi e la dashboard del modulo.
 
+## Catalogo a copertine per cliente (11/11/2026)
+
+`lista` (`/gestione-specifiche/`) mostra di default **una copertina per cliente** (stile libreria CN-SGI): `scaffale_clienti.copertine()` fa una query aggregata per `Specifica.cliente` (raggruppato senza maiuscole; solo stati attivi, tutti con «Mostra storico») con totale, bozze, flow-down, in validità, sospese, nuove 30 gg e verifiche in scadenza (`SCADENZA_VERIFICA_GIORNI`); sigla = prima parola senza forma societaria, colore stabile dal nome, «Cartella collegata» se c'è `ClienteCartellaShare`. `?cartella=<cliente>` (`_` = senza cliente) filtra con `cliente__iexact` e mostra l'intestazione del cliente sopra la tabella, con «Nuova per …» (`nuova/?cliente=` precompila cliente e fonte). Ricerca o filtri attivi → tabella su tutti i clienti. `?vista=copertine|elenco` ricordata nel cookie `gs_vista`. «Trova un cliente…» (oltre 8 copertine) filtra lato browser. Nessuna migrazione.
+
 ## Registro OFI — allineamento SGI e guida (12/10/2026)
 
 - **Fonte del rilievo** (colonna «27001» del MOD.174 compilato: DEKRA, INTERNO, cliente; «Audit interno» per i rilievi degli audit) e norme **ISO 14001** e **UNI/PdR 125** oltre a 9100/45001/27001. L'import `import_mod174` porta la colonna D nella fonte e ricava la norma anche dal REF NORMA.

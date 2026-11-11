@@ -82,9 +82,10 @@
     <form method="get" class="gs-bar">
       <div class="gs-bar__search">
         {% include "gestione_specifiche/partials/_icon.html" with name="search" size=16 %}
-        <input type="text" name="q" value="{{ f.q }}" placeholder="Codice, titolo o TAG di processo…">
+        <input type="text" name="q" value="{{ f.q }}" placeholder="{% if cartella %}Cerca in {{ cartella.nome }}: codice, titolo o TAG…{% else %}Codice, titolo o TAG di processo…{% endif %}">
       </div>
       {% if mostra_storico %}<input type="hidden" name="storico" value="1">{% endif %}
+      {% if f_cartella %}<input type="hidden" name="cartella" value="{{ f_cartella }}">{% endif %}
       <label class="gs-bar__sel">Cliente
         <input type="text" name="cliente" value="{{ f.cliente }}" placeholder="—" style="width:110px; border:none; outline:none; background:transparent; font-family:inherit; font-weight:600; color:#5b6b82;">
       </label>
@@ -102,13 +103,75 @@
       </label>
       <button type="submit" class="gs-btn" style="min-height:38px;">Filtra</button>
       <div class="gs-bar__div"></div>
+      {% if not f_cartella %}
+      <span class="gs-vista" role="group" aria-label="Vista">
+        <a href="?vista=copertine{% if mostra_storico %}&storico=1{% endif %}" class="{% if vista == 'copertine' %}is-on{% endif %}">Copertine</a>
+        <a href="?vista=elenco{% if mostra_storico %}&storico=1{% endif %}{% if f.stato %}&stato={{ f.stato }}{% endif %}{% if f.tipo %}&tipo={{ f.tipo }}{% endif %}{% if f.q %}&q={{ f.q|urlencode }}{% endif %}" class="{% if vista == 'elenco' %}is-on{% endif %}">Elenco</a>
+      </span>
+      {% endif %}
       <a class="gs-switch {% if mostra_storico %}is-on{% endif %}"
-         href="?{% if mostra_storico %}{% else %}storico=1{% endif %}{% if f.stato %}&stato={{ f.stato }}{% endif %}{% if f.tipo %}&tipo={{ f.tipo }}{% endif %}{% if f.cliente %}&cliente={{ f.cliente }}{% endif %}{% if f.q %}&q={{ f.q }}{% endif %}">
+         href="?{% if mostra_storico %}{% else %}storico=1{% endif %}{% if f.stato %}&stato={{ f.stato }}{% endif %}{% if f.tipo %}&tipo={{ f.tipo }}{% endif %}{% if f.cliente %}&cliente={{ f.cliente }}{% endif %}{% if f.q %}&q={{ f.q }}{% endif %}{% if f_cartella %}&cartella={{ f_cartella|urlencode }}{% endif %}">
         <span class="gs-switch__track"><span class="gs-switch__knob"></span></span>
         <span>Mostra storico</span>
       </a>
     </form>
 
+    {% if cartella or f_cartella %}
+    <div class="gs-cliente" style="--col:{{ cartella.colore|default:'#64748b' }}">
+      <span class="gs-cliente__dorso" aria-hidden="true">{{ cartella.sigla|default:"—" }}</span>
+      <div style="flex:1;min-width:0">
+        <div class="gs-cliente__crumb"><a href="?vista=copertine{% if mostra_storico %}&storico=1{% endif %}">Tutti i clienti</a> ›</div>
+        <h2>{{ cartella.nome|default:f_cartella }}</h2>
+        <div class="gs-cliente__meta">
+          {% if cartella %}<span>{{ cartella.totale }} specific{{ cartella.totale|pluralize:"a,he" }}</span>
+          {% if cartella.flow_down %}<span class="gs-tag is-blue">{{ cartella.flow_down }} in flow-down</span>{% endif %}
+          {% if cartella.in_validita %}<span>{{ cartella.in_validita }} in validità</span>{% endif %}
+          {% if cartella.sospese %}<span class="gs-tag is-orange">{{ cartella.sospese }} sospes{{ cartella.sospese|pluralize:"a,e" }}</span>{% endif %}
+          {% if cartella.verifica_scad %}<span class="gs-tag is-orange">{{ cartella.verifica_scad }} verific{{ cartella.verifica_scad|pluralize:"a,he" }} in scadenza</span>{% endif %}
+          {% if cartella.cartella_share %}<span title="Cartella della share collegata al cliente">📁 {{ cartella.cartella_share }}</span>{% endif %}{% endif %}
+        </div>
+      </div>
+      {% if cartella.cliente %}<a href="{% url 'gestione_specifiche:nuova' %}?cliente={{ cartella.cliente|urlencode }}" class="gs-btn gs-btn--orange" style="height:38px;">{% include "gestione_specifiche/partials/_icon.html" with name="plus" size=15 %} Nuova per {{ cartella.sigla }}</a>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if mostra_copertine %}
+    {% if copertine|length > 8 %}
+    <div class="gs-shelf-find"><input type="search" id="gs-trova-cliente" placeholder="Trova un cliente…" aria-label="Trova un cliente" autocomplete="off"></div>
+    {% endif %}
+    <div class="gs-shelf" id="gs-shelf">
+      {% for c in copertine %}
+      <a class="gs-vol" href="?cartella={{ c.chiave|urlencode }}{% if mostra_storico %}&storico=1{% endif %}" data-nome="{{ c.nome|lower }}">
+        <span class="gs-vol__cover" style="--col:{{ c.colore }}">
+          <span class="gs-vol__k">{% if c.cartella_share %}Cartella collegata{% else %}Cliente{% endif %}</span>
+          <span class="gs-vol__n">{{ c.sigla }}{% if not c.cliente %}<small>Senza cliente</small>{% elif c.nome|upper != c.sigla %}<small>{{ c.nome|truncatechars:40 }}</small>{% endif %}</span>
+          <span class="gs-vol__f">
+            <span>{% if c.flow_down %}{{ c.flow_down }} in flow-down<br>{% endif %}{% if c.nuove %}<span class="gs-vol__badge">{{ c.nuove }} nuov{{ c.nuove|pluralize:"a,e" }}</span>{% endif %}</span>
+            <b>{{ c.totale }}</b>
+          </span>
+        </span>
+        <span class="gs-vol__meta">
+          <i class="gs-dot{% if c.verifica_scad or c.sospese %} is-warn{% endif %}"></i>
+          {% if c.verifica_scad %}{{ c.verifica_scad }} verific{{ c.verifica_scad|pluralize:"a,he" }} in scadenza{% elif c.sospese %}{{ c.sospese }} sospes{{ c.sospese|pluralize:"a,e" }}{% elif c.in_validita %}{{ c.in_validita }} in validità{% elif c.bozze %}{{ c.bozze }} in bozza{% else %}{{ c.totale }} specific{{ c.totale|pluralize:"a,he" }}{% endif %}
+        </span>
+      </a>
+      {% empty %}
+      <p style="grid-column:1/-1;text-align:center;color:#92a0b5;padding:28px;">Nessuna specifica{% if not mostra_storico %} attiva: prova «Mostra storico»{% endif %}.</p>
+      {% endfor %}
+    </div>
+    {% if copertine|length > 8 %}
+    <script nonce="{{ csp_nonce }}">
+      (function () {
+        var input = document.getElementById("gs-trova-cliente");
+        var voci = document.querySelectorAll("#gs-shelf .gs-vol");
+        input.addEventListener("input", function () {
+          var q = input.value.trim().toLowerCase();
+          voci.forEach(function (v) { v.hidden = q && v.getAttribute("data-nome").indexOf(q) === -1; });
+        });
+      })();
+    </script>
+    {% endif %}
+    {% else %}
     <div class="gs-scroll">
       <table class="gs-table" style="min-width:920px;">
         <thead>
@@ -169,7 +232,8 @@
         </tbody>
       </table>
     </div>
-    <div style="padding:12px 18px; font-size:12px; color:#92a0b5;">{{ tot }} element{{ tot|pluralize:"o,i" }}{% if specifiche|length < tot %} · primi {{ specifiche|length }} mostrati{% endif %} · <a href="{% url 'gestione_specifiche:kpi' %}" style="color:#1f87cd; font-weight:700; text-decoration:none;">Dashboard KPI →</a></div>
+    {% endif %}
+    <div style="padding:12px 18px; font-size:12px; color:#92a0b5;">{% if mostra_copertine %}{{ copertine|length }} client{{ copertine|length|pluralize:"e,i" }} · {{ tot }} specific{{ tot|pluralize:"a,he" }}{% if not mostra_storico %} attive{% endif %}{% else %}{{ tot }} element{{ tot|pluralize:"o,i" }}{% if specifiche|length < tot %} · primi {{ specifiche|length }} mostrati{% endif %}{% endif %} · <a href="{% url 'gestione_specifiche:kpi' %}" style="color:#1f87cd; font-weight:700; text-decoration:none;">Dashboard KPI →</a></div>
   </div>
 
   {# ---- Ciclo di vita ------------------------------------------------- #}
