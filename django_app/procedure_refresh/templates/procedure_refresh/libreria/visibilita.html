@@ -1,0 +1,67 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}Chi vede cosa · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › Chi vede cosa{% endblock %}
+{% block cn_h1 %}Chi vede cosa <small>{{ riservati }} di {{ totale }} documenti riservati</small>{% endblock %}
+{% block cn_guida_anchor %}#visibilita{% endblock %}
+{% block cn_body %}
+<div class="cn-panel" style="margin-bottom:18px">
+  <form method="post" style="display:flex;flex-direction:column;gap:14px">
+    {% csrf_token %}
+    <h3 style="margin:0;font-size:15px">{% if modifica %}Modifica la regola{% else %}Nuova regola{% endif %}</h3>
+    <div class="cn-form">
+      <label class="cn-fld" for="cn-v-scaffale">Scaffale
+        <select id="cn-v-scaffale" name="scaffale" required>
+          {% for s in scaffali %}<option value="{{ s.cartella }}"{% if modifica and modifica.scaffale == s.cartella %} selected{% endif %}>{{ s.nome }} ({{ s.totale }})</option>{% endfor %}
+        </select>
+      </label>
+      <label class="cn-fld" for="cn-v-sezione">Sezione (facoltativa)
+        <select id="cn-v-sezione" name="sezione">
+          <option value="">Tutto lo scaffale</option>
+          {% for s in scaffali %}{% for raw, etichetta, n in s.sezioni %}{% if raw %}<option value="{{ raw }}" data-scaffale="{{ s.cartella }}"{% if modifica and modifica.scaffale == s.cartella and modifica.sezione == raw %} selected{% endif %}>{{ etichetta }} ({{ n }})</option>{% endif %}{% endfor %}{% endfor %}
+        </select>
+      </label>
+      <label class="cn-fld" for="cn-v-documento">Documento (facoltativo)
+        <select id="cn-v-documento" name="documento">
+          <option value="">Nessun documento in particolare</option>
+          {% for d in documenti %}<option value="{{ d.pk }}" data-scaffale="{{ d.category }}"{% if modifica and modifica.documento_id == d.pk %} selected{% endif %}>{{ d.code }} · {{ d.title|truncatechars:60 }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <fieldset style="border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:8px">
+      <legend class="cn-fld" style="margin-bottom:6px">Chi vede</legend>
+      {% for val, label in chi_choices %}
+      <label style="display:flex;gap:8px;align-items:center;font-size:13.5px"><input type="radio" name="chi" value="{{ val }}"{% if modifica and modifica.chi == val or not modifica and forloop.first %} checked{% endif %}>{{ label }}</label>
+      {% endfor %}
+      <div class="cn-ruoli" id="cn-v-ruoli">
+        {% for g in ruoli %}<label><input type="checkbox" name="ruoli" value="{{ g.pk }}"{% if g.pk in modifica_ruoli %} checked{% endif %}>{{ g.label }}</label>{% empty %}<span class="cn-note">Non ci sono ruoli attivi: creali in Admin portale → Ruoli e permessi.</span>{% endfor %}
+      </div>
+    </fieldset>
+    <label class="cn-fld" for="cn-v-note">Note (facoltative)<input id="cn-v-note" name="note" maxlength="300" value="{{ modifica.note|default:'' }}" placeholder="Es. piani riservati alla qualità fino all'emissione"></label>
+    <p class="cn-note">Vince la regola più precisa: documento, poi sezione, poi scaffale. Senza regole un documento lo vedono tutti. Chi gestisce CN-SGI, gli amministratori e i ruoli «vede tutto» vedono sempre tutto. I documenti riservati non compaiono in Bacheca e l'assistente AI non li cita.</p>
+    <p style="margin:0;display:flex;gap:8px"><button class="cn-btn pri" type="submit">Salva la regola</button>{% if modifica %}<a class="cn-btn" href="{% url 'procedure_refresh:libreria_visibilita' %}">Annulla</a>{% endif %}</p>
+  </form>
+</div>
+
+<div class="cn-sec"><h2>Regole attive</h2><span>{{ regole|length }} regol{{ regole|length|pluralize:"a,e" }}</span></div>
+{% if regole %}
+<div class="cn-tbl"><table>
+  <thead><tr><th>Vale per</th><th>Chi vede</th><th>Documenti</th><th>Aggiornata</th><th></th></tr></thead>
+  <tbody>
+  {% for r in regole %}
+  <tr>
+    <td>{% if r.documento %}<span class="cn-pill">Documento</span> <b class="mono">{{ r.documento.code }}</b> {{ r.documento.title|truncatechars:50 }}{% elif r.sezione %}<span class="cn-pill">Sezione</span> {{ r.scaffale_nome }} › {{ r.sezione_label }}{% else %}<span class="cn-pill">Scaffale</span> {{ r.scaffale_nome }}{% endif %}{% if r.note %}<br><small style="color:var(--text-light)">{{ r.note }}</small>{% endif %}</td>
+    <td>{% if r.chi == "nessuno" %}Solo chi gestisce CN-SGI{% else %}{% for g in r.ruoli.all %}{{ g.label }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="cn-pill bad">Nessun ruolo</span>{% endfor %}{% endif %}</td>
+    <td class="num">{{ r.n_documenti }}</td>
+    <td class="num">{{ r.aggiornata_il|date:"d/m/Y H:i" }}</td>
+    <td style="white-space:nowrap">
+      <a class="cn-btn sm" href="?modifica={{ r.pk }}">Modifica</a>
+      <form method="post" action="{% url 'procedure_refresh:libreria_visibilita_elimina' r.pk %}" style="display:inline">{% csrf_token %}<button class="cn-btn sm" type="submit">Togli</button></form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<p class="cn-empty">Nessuna regola: ogni documento della libreria è visibile a tutti i dipendenti.</p>
+{% endif %}
+{% endblock %}

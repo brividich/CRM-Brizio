@@ -1,0 +1,40 @@
+{% extends "procedure_refresh/libreria/_base.html" %}
+{% block cn_title %}Scaffali · CN-SGI{% endblock %}
+{% block cn_crumb %}<a href="{% url 'procedure_refresh:libreria' %}">CN-SGI</a> › Scaffali{% endblock %}
+{% block cn_h1 %}Scaffali <small>uno per cartella della share</small>{% endblock %}
+{% block cn_guida_anchor %}#gestione-scaffali{% endblock %}
+{% block cn_actions %}
+<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="azione" value="allinea"><button class="cn-btn sm" type="submit" title="Crea gli scaffali mancanti e riallinea le sezioni dai percorsi già registrati, senza leggere la share">Allinea scaffali e sezioni</button></form>
+{% endblock %}
+{% block cn_body %}
+<form method="post">
+  {% csrf_token %}
+  <div class="cn-tbl"><table>
+    <thead><tr><th>Cartella</th><th>Nome</th><th>Sigla</th><th>Norma o riferimento</th><th>Colore</th><th>Ordine</th><th>Certificazione</th><th>Mostrato</th><th>Doc.</th></tr></thead>
+    <tbody>
+    {% for s in righe %}
+    <tr>
+      <td class="num">{{ s.cartella }}</td>
+      <td><input class="cn-input" style="width:170px" name="s{{ s.pk }}_nome" value="{{ s.nome }}" maxlength="120" aria-label="Nome di {{ s.cartella }}"></td>
+      <td><input class="cn-input" style="width:90px" name="s{{ s.pk }}_sigla" value="{{ s.sigla }}" maxlength="20" aria-label="Sigla di {{ s.cartella }}"></td>
+      <td><input class="cn-input" style="width:190px" name="s{{ s.pk }}_norma" value="{{ s.norma }}" maxlength="160" aria-label="Norma di {{ s.cartella }}"></td>
+      <td><input type="color" name="s{{ s.pk }}_colore" value="{{ s.colore }}" aria-label="Colore di {{ s.cartella }}"></td>
+      <td><input class="cn-input" style="width:70px" type="number" min="0" name="s{{ s.pk }}_ordine" value="{{ s.ordine }}" aria-label="Ordine di {{ s.cartella }}"></td>
+      <td><select class="cn-input" style="width:200px" name="s{{ s.pk }}_certificazione" aria-label="Certificazione di {{ s.cartella }}">
+        <option value="">Nessuna</option>
+        {% for c in certificazioni %}<option value="{{ c.pk }}"{% if s.certificazione_id == c.pk %} selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select></td>
+      <td><input type="checkbox" name="s{{ s.pk }}_attivo" value="1"{% if s.attivo %} checked{% endif %} aria-label="Mostra {{ s.cartella }}"></td>
+      <td class="num">{{ s.n_documenti }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="9">Nessuno scaffale: lancia la sincronizzazione con la cartella SGI da «Impostazioni», poi «Allinea scaffali e sezioni».</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <p style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
+    <button class="cn-btn pri" type="submit">Salva gli scaffali</button>
+    <span class="cn-note">La certificazione collegata mostra scadenza e prossima sorveglianza sulla copertina. Le cartelle e i file della share non cambiano.{% if senza_cartella %} {{ senza_cartella }} documenti senza cartella stanno in «Altri documenti».{% endif %}</span>
+  </p>
+</form>
+{% endblock %}

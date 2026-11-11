@@ -609,7 +609,7 @@ MODULE_DEFS = [
     {"key": "timbri",       "name": "Timbri",     "icon": "ðŸ•", "desc": "Registro di timbri, firme e sigle del personale", "core": False, "home_url": "/timbri/"},
     {"key": "planimetria",  "name": "Planimetria",           "icon": "ðŸ—ºï¸", "desc": "Mappe interattive stabilimento e posizionamento asset", "core": False, "home_url": "/planimetria/"},
     {"key": "dpi",          "name": "Gestione DPI",          "icon": "ðŸ¦º", "desc": "Dispositivi di Protezione Individuale: richieste, approvazione, consegna, storico", "core": False, "home_url": "/dpi/"},
-    {"key": "procedure_refresh", "name": "Presa Visione Procedure", "icon": "ðŸ“„", "desc": "Presa visione MT/MTSI: anagrafica documenti, revisioni, campagne, tracking lettura, report audit", "core": False, "home_url": "/procedure-refresh/"},
+    {"key": "procedure_refresh", "name": "CN-SGI · Libreria procedure", "icon": "ðŸ“„", "desc": "Libreria delle procedure della share SGI: scaffali, ricerca nel testo, chi vede cosa, presa visione, report audit", "core": False, "home_url": "/procedure-refresh/"},
 ]
 
 OPTIONAL_KEYS = [m["key"] for m in MODULE_DEFS if not m["core"]]

@@ -122,6 +122,13 @@ class ProcedureDocument(models.Model):
     requires_acknowledgement = models.BooleanField(
         default=True, verbose_name="Richiede presa visione"
     )
+    sezione = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="Sezione",
+        help_text="Sottocartella della share sotto lo scaffale (es. «2_MT»). La scrive la sincronizzazione.",
+    )
     escludi_dal_rag = models.BooleanField(
         default=False,
         db_index=True,
@@ -240,6 +247,12 @@ class SgiTestoEstratto(models.Model):
     ha_testo_nativo = models.BooleanField(default=True, verbose_name="Testo nativo")
     ocr_usato = models.BooleanField(default=False, verbose_name="OCR usato")
     avvisi = models.TextField(blank=True, default="", verbose_name="Avvisi")
+    offset_pagine = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Inizio delle pagine",
+        help_text="Posizione nel testo in cui comincia ogni pagina: serve ad aprire il PDF alla pagina trovata dalla ricerca.",
+    )
     estratto_il = models.DateTimeField(auto_now=True, verbose_name="Estratto il")
 
     class Meta:
@@ -677,3 +690,123 @@ class SgiDocumentoProcesso(models.Model):
 
     def __str__(self) -> str:
         return f"{self.processo_id} <-> {self.documento_id}"
+
+
+# ---------------------------------------------------------------------------
+# CN-SGI: libreria delle procedure (scaffali, visibilità, consultazioni)
+# ---------------------------------------------------------------------------
+
+
+class SgiScaffale(models.Model):
+    """Uno scaffale della libreria CN-SGI = una cartella di primo livello della share.
+
+    La riga nasce dalla sincronizzazione (o dalla pagina «Scaffali») con nome e colore
+    ricavati dal nome della cartella; chi gestisce CN-SGI può cambiarli. Il campo
+    ``cartella`` coincide con ``ProcedureDocument.category``.
+    """
+
+    cartella = models.CharField(max_length=100, unique=True, verbose_name="Cartella sulla share")
+    nome = models.CharField(max_length=120, verbose_name="Nome")
+    sigla = models.CharField(max_length=20, blank=True, default="", verbose_name="Sigla sulla copertina")
+    norma = models.CharField(max_length=160, blank=True, default="", verbose_name="Norma o riferimento")
+    colore = models.CharField(max_length=7, default="#1f4f86", verbose_name="Colore")
+    ordine = models.PositiveIntegerField(default=100, verbose_name="Ordine")
+    certificazione = models.ForeignKey(
+        "sistema_gestione.Certificazione",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="scaffali_sgi",
+        verbose_name="Certificazione collegata",
+    )
+    attivo = models.BooleanField(default=True, verbose_name="Mostrato nella libreria")
+    aggiornato_il = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ordine", "nome"]
+        verbose_name = "Scaffale CN-SGI"
+        verbose_name_plural = "Scaffali CN-SGI"
+
+    def __str__(self) -> str:
+        return self.nome or self.cartella
+
+
+class SgiVisibilitaChi(models.TextChoices):
+    RUOLI = "ruoli", "Solo i ruoli scelti"
+    NESSUNO = "nessuno", "Solo chi gestisce CN-SGI"
+
+
+class SgiVisibilita(models.Model):
+    """Regola «chi vede cosa» dentro CN-SGI.
+
+    Vale per uno scaffale (``sezione`` vuota, nessun documento), per una sezione
+    dello scaffale o per un singolo documento. Vince la regola più specifica
+    (documento > sezione > scaffale); senza regole il documento è visibile a tutti.
+    Chi gestisce CN-SGI, gli amministratori e i ruoli «vede tutto» vedono sempre tutto.
+    L'unicità della terna è controllata dal form (niente vincolo DB: con SQL Server
+    un vincolo con colonne NULL ammette un solo NULL).
+    """
+
+    scaffale = models.CharField(max_length=100, db_index=True, verbose_name="Scaffale (cartella)")
+    sezione = models.CharField(max_length=255, blank=True, default="", verbose_name="Sezione")
+    documento = models.ForeignKey(
+        ProcedureDocument,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="regole_visibilita",
+        verbose_name="Documento",
+    )
+    chi = models.CharField(
+        max_length=10, choices=SgiVisibilitaChi.choices, default=SgiVisibilitaChi.RUOLI, verbose_name="Chi vede"
+    )
+    ruoli = models.ManyToManyField(
+        "core.AccessGroup", blank=True, related_name="regole_visibilita_sgi", verbose_name="Ruoli"
+    )
+    note = models.CharField(max_length=300, blank=True, default="", verbose_name="Note")
+    aggiornata_da = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Aggiornata da",
+    )
+    aggiornata_il = models.DateTimeField(auto_now=True, verbose_name="Aggiornata il")
+
+    class Meta:
+        ordering = ["scaffale", "sezione", "documento_id"]
+        verbose_name = "Regola di visibilità CN-SGI"
+        verbose_name_plural = "Regole di visibilità CN-SGI"
+
+    @property
+    def livello(self) -> str:
+        if self.documento_id:
+            return "documento"
+        if self.sezione:
+            return "sezione"
+        return "scaffale"
+
+    def __str__(self) -> str:
+        return f"{self.livello}: {self.scaffale} / {self.sezione} / {self.documento_id or ''}"
+
+
+class SgiAperturaGiorno(models.Model):
+    """Aperture di un documento dalla libreria, contate per giorno («Più consultati»).
+
+    Solo un contatore: chi ha aperto cosa resta nell'audit (``log_action``).
+    """
+
+    documento = models.ForeignKey(
+        ProcedureDocument, on_delete=models.CASCADE, related_name="aperture_giorno", verbose_name="Documento"
+    )
+    giorno = models.DateField(db_index=True, verbose_name="Giorno")
+    conteggio = models.PositiveIntegerField(default=0, verbose_name="Aperture")
+
+    class Meta:
+        unique_together = [("documento", "giorno")]
+        verbose_name = "Aperture giornaliere CN-SGI"
+        verbose_name_plural = "Aperture giornaliere CN-SGI"
+
+    def __str__(self) -> str:
+        return f"{self.documento_id} {self.giorno}: {self.conteggio}"

@@ -86,7 +86,7 @@ _MODULE_CATALOG: list[dict] = [
     {"id": "task",        "cat": "ops",   "label": "Task / Kick-off",       "sub": "Attività di reparto",        "tone": "info",    "kpi_unit": "in corso",    "url_name": "tasks:list",                      "pulsante_aliases": ("task", "tasks", "vrf-kickoff", "kickoff")},
     {"id": "diario",      "cat": "ops",   "label": "Diario preposto",       "sub": "Giornale di sicurezza",      "tone": "warning", "kpi_unit": "da firmare",  "url_name": "diario_preposto:lista",           "pulsante_aliases": ("diario-preposto",)},
     {"id": "incidenti",   "cat": "ops",   "label": "Rilevazione incidenti", "sub": "Near miss e infortuni",      "tone": "danger",  "kpi_unit": "in analisi",  "url_name": "rilevazione_incidenti:lista",     "pulsante_aliases": ("rilevazione-incidenti", "incidenti")},
-    {"id": "procedure",   "cat": "ops",   "label": "Procedure refresh",     "sub": "Procedure aggiornate",       "tone": "info",    "kpi_unit": "da rivedere", "url_name": "procedure_refresh:my_assignments","pulsante_aliases": ("procedure-refresh", "refresh-procedure", "procedure")},
+    {"id": "procedure",   "cat": "ops",   "label": "CN-SGI",                "sub": "Letture da fare",       "tone": "info",    "kpi_unit": "da rivedere", "url_name": "procedure_refresh:my_assignments","pulsante_aliases": ("procedure-refresh", "refresh-procedure", "procedure")},
     # HR
     {"id": "anagrafica",  "cat": "hr",    "label": "Anagrafica HR",         "sub": "Dipendenti attivi",          "tone": "info",    "kpi_unit": "dipendenti",  "url_name": "anagrafica:index",                "pulsante_aliases": ("anagrafica", "dipendenti")},
     {"id": "assenze",     "cat": "hr",    "label": "Assenze",               "sub": "Ferie, malattia, permessi",  "tone": "warning", "kpi_unit": "oggi assenti","url_name": "assenze_menu",                    "pulsante_aliases": ("assenze", "assenza")},
@@ -1117,6 +1117,16 @@ def home_portale(request: HttpRequest) -> HttpResponse:
     except Exception:
         logger.exception("home: cataloghi Sapere non disponibili")
         sapere_cataloghi = []
+    # CN-SGI nella stanza Sapere: copertina tra i cataloghi e riquadro con novità e letture.
+    sapere_sgi = None
+    try:
+        from procedure_refresh.libreria import catalogo_sapere, riquadro_sapere
+
+        sapere_sgi = riquadro_sapere(request)
+        if sapere_sgi is not None:
+            sapere_cataloghi = [catalogo_sapere(), *sapere_cataloghi]
+    except Exception:
+        logger.exception("home: riquadro CN-SGI non disponibile")
     sicurezza = _sicurezza(legacy_user)
     home_prefs = _home_prefs(request.user)
     riquadri = _riquadri_offerti(request)
@@ -1169,6 +1179,7 @@ def home_portale(request: HttpRequest) -> HttpResponse:
         "self_help_groups":   self_help,
         "self_help_total":    sum(len(g["items"]) for g in self_help) + len(sapere_cataloghi),
         "sapere_cataloghi":   sapere_cataloghi[:SAPERE_CATALOGHI_HOME],
+        "sapere_sgi":         sapere_sgi,
         "sapere_cataloghi_altri": max(0, len(sapere_cataloghi) - SAPERE_CATALOGHI_HOME),
         "sicurezza":          sicurezza,
         "module_launcher":    _module_launcher(groups),

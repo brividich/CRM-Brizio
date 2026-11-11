@@ -1,0 +1,9 @@
+{# Copertina di un documento: foglio con il cartiglio (codice, revisione, data). Variabili: d, senza_fascia. #}
+<span class="cn-sheet" style="--col:{{ d.scaffale.colore|default:'#1f4f86' }}" aria-hidden="true">
+  <span class="c-cart"><span class="c-logo"><span>NOVICROM</span><span>{{ d.scaffale.sigla|default:"SGI" }}</span></span><span>{{ d.code }}</span><span>{% if d.rev.revision_code %}Rev.{{ d.rev.revision_code }}{% else %}—{% endif %}</span></span>
+  <span class="c-code" style="display:block">{{ d.code }}</span>
+  <span class="c-tit">{{ d.title }}</span>
+  <span class="c-lines"><i></i><i></i><i></i></span>
+  <span class="c-foot"><span>{{ d.rev.revision_date|date:"d/m/Y" }}</span><span>{{ d.sezione_label }}</span></span>
+  {% if not senza_fascia %}{% if d.lettura %}<span class="c-flag">DA LEGGERE</span>{% elif d.nuova %}<span class="c-flag nuova">NUOVA REV.</span>{% endif %}{% endif %}
+</span>

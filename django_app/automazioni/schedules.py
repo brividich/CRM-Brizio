@@ -439,6 +439,18 @@ SCHEDULES: list[dict] = [
         "kwargs": {},
     },
     {
+        # CN-SGI «sempre aggiornata»: ogni ora confronta un'impronta leggera della share
+        # (percorso, dimensione, data dei file: nessun file aperto) e, solo se cambia,
+        # lancia la sincronizzazione a perimetro sicuro. Stesso flag pr_sgi_auto_sync_attivo.
+        # La share è solo letta. Fail-safe / no-op se flag spento o share giù.
+        "name": "pr_sgi_controllo_orario",
+        "func": "procedure_refresh.tasks.run_sgi_controllo_orario",
+        "schedule_type": "C",   # Schedule.CRON
+        "cron": "10 * * * *",   # ogni ora al minuto 10
+        "repeats": -1,
+        "kwargs": {},
+    },
+    {
         # Motore scadenze presa visione (ISO 9001/EN 9100): marca SEMPRE "Scaduta"
         # le assegnazioni oltre due_date (stato dei dati, evidenza audit); con
         # pr_reminder_attivo=1 invia anche promemoria pre-scadenza, solleciti agli

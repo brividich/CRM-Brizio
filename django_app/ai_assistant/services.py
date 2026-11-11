@@ -1947,8 +1947,31 @@ def _sgi_chunk_allowed(chunk: KnowledgeChunk, *, allow_specifiche: bool, allow_p
     if kind == "spec":
         return allow_specifiche
     if kind == "proc":
-        return allow_procedure
+        return allow_procedure and not _sgi_proc_riservato(chunk.source)
     return True
+
+
+def _sgi_proc_riservato(source: str) -> bool:
+    """True se il documento della fonte ``proc:<codice>#...`` ha una regola «chi vede cosa» in CN-SGI.
+
+    I documenti riservati ad alcuni ruoli non vengono citati dall'assistente a nessuno:
+    si consultano nella libreria, dove la visibilità è decisa per persona.
+    """
+    codice = source[5:].split("#", 1)[0].strip()
+    if not codice:
+        return False
+    from django.core.cache import cache
+
+    riservati = cache.get("cnsgi_codici_riservati")
+    if riservati is None:
+        try:
+            from procedure_refresh.libreria import codici_riservati
+
+            riservati = sorted(codici_riservati())
+        except Exception:
+            riservati = []
+        cache.set("cnsgi_codici_riservati", riservati, 60)
+    return codice in riservati
 
 
 def _index_document_codes(
@@ -1965,7 +1988,7 @@ def _index_document_codes(
             continue
         if chunk_kind == "spec" and not allow_specifiche:
             continue
-        if chunk_kind == "proc" and not allow_procedure:
+        if chunk_kind == "proc" and (not allow_procedure or _sgi_proc_riservato(chunk.source)):
             continue
         code = chunk.source.split(":", 1)[1].split("#", 1)[0].strip()
         if code:
