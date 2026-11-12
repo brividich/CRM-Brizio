@@ -166,6 +166,29 @@ class StatoFlottaTests(_AuthedClientMixin, TestCase):
             DispositivoSNMP.objects.create(nome=f"D{i}", host=f"192.0.2.{140 + i}", snmp_stato=StatoSNMP.ERROR)
         self.assertEqual(conta(), prima)
 
+    def test_mappa_della_flotta_coincide_coi_riquadri(self):
+        mappa = services.mappa_flotta()
+        per_stato = {}
+        for r in mappa["riquadri"]:
+            per_stato.setdefault(r["stato"], set()).add(r["nome"])
+        self.assertEqual(per_stato, {"ok": {"Ok"}, "attenzione": {"Ups"}, "errore": {"Err", "Sw"}, "non_interrogati": {"Vecchia", "Mai"}})
+        self.assertEqual(mappa["riquadri"][0]["stato"], "errore")  # in cima chi è in errore
+        self.assertEqual(sum(f["totale"] for f in mappa["famiglie"]), services.stato_flotta()["totale"])
+
+    def test_centrale_flusso_e_mappa(self):
+        html = self.client.get(reverse("contatori:dashboard")).content.decode()
+        for testo in ("Dagli apparati ai risultati", "Mappa della flotta", 'data-cc-stato="errore"', "contatori-cyber.css",
+                      'data-cc-famiglia="Stampanti MFC"', 'class="cc-tile is-danger"'):
+            self.assertIn(testo, html)
+
+    def test_schede_di_dettaglio_con_testata_scura(self):
+        from .models import DispositivoSNMP
+
+        m = Macchina.objects.get(reparto="Ok")
+        d = DispositivoSNMP.objects.get(nome="Ups")
+        for url in (reverse("contatori:macchina", args=[m.pk]), reverse("contatori:snmp_dispositivo", args=[d.pk])):
+            self.assertContains(self.client.get(url), '<section class="hero cc-hero">')
+
     def test_centrale_mostra_riquadri_con_link_filtrati(self):
         r = self.client.get(reverse("contatori:dashboard"))
         self.assertContains(r, "Stato flotta")
