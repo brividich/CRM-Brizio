@@ -1,4 +1,5 @@
 {% load static %}
+{% load anomalie_extra %}
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -33,7 +34,7 @@
       {% csrf_token %}
       {% for v in voci %}
       <section class="card">
-        <div class="meta">#{{ v.a.id }} · S/N {{ v.a.seriale|default:"—" }}</div>
+        <div class="meta">{{ v.a.id|codice_anomalia }} · S/N {{ v.a.seriale|default:"—" }}</div>
         <div class="desc">{{ v.a.descrizione|default:"(nessuna descrizione)" }}</div>
         {% for r in v.richieste %}
         <div class="richiesta"><div class="meta">{{ r.da }} · {{ r.il }}</div>{{ r.messaggio }}</div>

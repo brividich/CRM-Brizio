@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from anomalie.codice import codice_anomalia
 from anomalie.guida import con_guida
 from anomalie.segnalato_service import AVANZAMENTO_RISPOSTA_CLIENTE, AVANZAMENTO_RISPOSTA_TERZISTA, STATI_RISPOSTA
 import json
@@ -3004,7 +3005,7 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
                 Notifica.objects.create(
                     legacy_user_id=capo_user.id,
                     tipo="anomalia_da_gestire",
-                    messaggio=(f"Anomalia S/N {sn or '—'} (OP {op_id}): servono ulteriori informazioni, "
+                    messaggio=(f"Anomalia {codice_anomalia(local_id)} S/N {sn or '—'} (OP {op_id}): servono ulteriori informazioni, "
                                "l'anomalia torna in carico a te."),
                     url_azione="/gestione-anomalie",
                 )
@@ -3012,7 +3013,7 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
                 Notifica.objects.create(
                     legacy_user_id=capo_user.id,
                     tipo="anomalia_segnalata",
-                    messaggio=f"Anomalia S/N {sn or '—'} (OP {op_id}) segnalata al cliente.",
+                    messaggio=f"Anomalia {codice_anomalia(local_id)} S/N {sn or '—'} (OP {op_id}) segnalata al cliente.",
                     url_azione="/gestione-anomalie",
                 )
 
@@ -3039,7 +3040,7 @@ def _notify_anomalia_event(request, event: str, local_id: int | None, op_id: str
             Notifica.objects.create(
                 legacy_user_id=int(creator_id),
                 tipo="anomalia_chiusa",
-                messaggio=f"Anomalia S/N {sn or '—'} (OP {op_id}) è stata chiusa.",
+                messaggio=f"Anomalia {codice_anomalia(local_id)} S/N {sn or '—'} (OP {op_id}) è stata chiusa.",
                 url_azione="/gestione-anomalie",
             )
     except Exception:

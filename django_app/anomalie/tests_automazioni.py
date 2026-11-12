@@ -198,8 +198,8 @@ class DecisioniOperatoreTests(TestCase):
         piano = auto.prepara_decisioni_operatore("OP/A", updates, deciso_da_legacy_id=99)
         per_uid = {g["legacy_uid"]: g for g in piano}
         self.assertEqual(sorted(per_uid), [11, 12])
-        self.assertEqual(per_uid[11]["righe"], [["LCN00001", "difetto 1", "Rilavorare · Aprire RDC n° RDC-7", "sostituire"]])
-        self.assertEqual(per_uid[12]["righe"][0][2], "In attesa · Segnalare al cliente")
+        self.assertEqual(per_uid[11]["righe"], [["AN-00001", "LCN00001", "difetto 1", "Rilavorare · Aprire RDC n° RDC-7", "sostituire"]])
+        self.assertEqual(per_uid[12]["righe"][0][3], "In attesa · Segnalare al cliente")
 
     def test_mail_e_notifica_all_operatore(self):
         self.add(1, 11, avanzamento="Rilavorare", note="sostituire")

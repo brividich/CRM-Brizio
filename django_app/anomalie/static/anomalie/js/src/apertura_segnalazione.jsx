@@ -4,6 +4,8 @@
    e transpilato offline (solo JSX) con tools/build_anomalie_ui.ps1 in
    anomalie/static/anomalie/js/apertura_segnalazione.bundle.js. Modificare QUI, poi ricompilare. */
   const { useState, useEffect, useRef } = React;
+  // Codice dell'anomalia («AN-00123»), stesso di mail e link (anomalie/codice.py).
+  const codiceAnomalia = (id) => { const n = parseInt(String(id || "").split(":").pop(), 10); return n > 0 ? `AN-${String(n).padStart(5, "0")}` : ""; };
   const API = window._AP_API || {
     db_ordini: '/api/anomalie/db/ordini',
     db_ordini_crea: '/api/anomalie/db/ordini/crea',
@@ -1234,7 +1236,7 @@
     };
     return (
       <div className="anom-taglia">
-        <div className="dett-panel__head">✂ Taglia: sposta l’anomalia #{anomalia.localId} su un altro S/N</div>
+        <div className="dett-panel__head">✂ Taglia: sposta l’anomalia {codiceAnomalia(anomalia.localId)} su un altro S/N</div>
         <div className="anom-taglia__row">
           <label>OP
             <input className="text-input" list="taglia-op" value={opId} disabled={busy}
@@ -1531,7 +1533,7 @@
                   <span className="riep-list__txt">{a.testo}</span>
                   <span className="riep-list__side">
                     {a.tutti === false && <span className="pill pill-parz" title={`Solo sui S/N: ${a.seriale_label}`}>Solo {a.seriale_label}</span>}
-                    <span className="blk-meta">#{a.local_id}</span>
+                    <span className="blk-meta">{codiceAnomalia(a.local_id)}</span>
                     {(a.allegati || []).length > 0 && <span className="blk-item__att">📎 {a.allegati.length}</span>}
                     <StatoPill a={a} />
                   </span>
@@ -1903,12 +1905,12 @@
       setAzAnom({ key: a.key, tipo: 'elimina', busy: true, err: '' });
       try {
         await postJson(API.elimina, { local_id: a.localId }, 'Elimina anomalia');
-        await dopoAzioneAnom(a, `Anomalia #${a.localId} eliminata.`);
+        await dopoAzioneAnom(a, `Anomalia ${codiceAnomalia(a.localId)} eliminata.`);
       } catch (e) { setAzAnom({ key: a.key, tipo: 'elimina', busy: false, err: e.message }); }
     };
     const tagliaFatta = async (a, j) => {
       try {
-        await dopoAzioneAnom(a, `Anomalia #${a.localId}: ${j.nota || 'spostata'}.`);
+        await dopoAzioneAnom(a, `Anomalia ${codiceAnomalia(a.localId)}: ${j.nota || 'spostata'}.`);
       } catch (e) { setAzAnom(null); setError(e.message); }
     };
 
@@ -2387,7 +2389,7 @@
                 <div key={a.key} className={`anom-card is-active${a.gestita ? ' is-gestita' : ''}`}>
                   <div className="anom-card__head">
                     <span className="anom-card__n">{i + 1}</span>
-                    <span className="anom-card__title">Anomalia {i + 1}{a.localId ? ` · #${a.localId}` : ''}</span>
+                    <span className="anom-card__title">Anomalia {i + 1}{a.localId ? ` · ${codiceAnomalia(a.localId)}` : ''}</span>
                     {a.gestita && <span className="pill pill-info">Gestita dal capocommessa: {a.avanzamento || 'decisione presa'}</span>}
                     {a.origineId && <span className="pill pill-info">Copiata da #{a.origineId}</span>}
                     {!a.localId && editor.anomalie.length > 1 && (
@@ -2403,7 +2405,7 @@
                   </div>
                   {azAnom && azAnom.key === a.key && azAnom.tipo === 'elimina' && (
                     <div className="error-msg" role="alert">
-                      <div><strong>Eliminare l’anomalia #{a.localId}?</strong> Sparisce dall’OP con i suoi dati; gli allegati restano recuperabili dall’amministratore. Non si può annullare.</div>
+                      <div><strong>Eliminare l’anomalia {codiceAnomalia(a.localId)}?</strong> Sparisce dall’OP con i suoi dati; gli allegati restano recuperabili dall’amministratore. Non si può annullare.</div>
                       {azAnom.err && <div style={{ marginTop: 6 }}>{azAnom.err}</div>}
                       <div className="anom-taglia__foot" style={{ marginTop: 8 }}>
                         <button type="button" className="btn-secondary" disabled={azAnom.busy} onClick={() => setAzAnom(null)}>Annulla</button>

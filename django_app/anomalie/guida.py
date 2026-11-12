@@ -278,6 +278,8 @@ SEZIONI: list[dict] = [
                 "lo scarta, «Carica ora» nell'elenco «Da copiare ancora» ne anticipa uno. Gli allegati dell'anomalia di "
                 "origine si copiano solo spuntando «Copia anche … allegati». Con i testi si copiano anche misure, difetto, "
                 "documenti e riferimento scritti dal controllore; «Dove sono i pezzi?» no (i pezzi del nuovo OP sono altri).",
+                "Ogni anomalia ha un codice, per esempio «AN-00123»: lo stesso nell'elenco, nel dettaglio, nel link e "
+                "in tutte le mail. La ricerca della colonna Anomalie lo trova anche scritto «an123» o «#123».",
                 "Dettaglio: in alto OP, fase e se è un «Collaudo di benestare»; le frecce (o Alt+↑ / Alt+↓) "
                 "passano all'anomalia precedente o successiva.",
                 "Sotto il titolo, la fascia «Pezzi interessati» mostra i seriali dell'anomalia uno per chip (un "

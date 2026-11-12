@@ -9,6 +9,11 @@ const {
   useMemo,
   useRef
 } = React;
+// Codice dell'anomalia («AN-00123»), stesso di mail e link (anomalie/codice.py).
+const codiceAnomalia = id => {
+  const n = parseInt(String(id || "").split(":").pop(), 10);
+  return n > 0 ? `AN-${String(n).padStart(5, "0")}` : "";
+};
 const IS_ADMIN = window.IS_ADMIN;
 const ADMIN_URL = window.ADMIN_URL || "";
 const CONFIG_LISTS = window.ANOMALIE_CONFIG_LISTS || {};
@@ -754,7 +759,7 @@ const TimelineOp = ({
       color: "#94a3b8",
       marginTop: 2
     }
-  }, it.user, it.source_label ? ` · ${it.source_label}` : "", it.anomalia_id ? ` · #${it.anomalia_id}` : ""), it.note && /*#__PURE__*/React.createElement("div", {
+  }, it.user, it.source_label ? ` · ${it.source_label}` : "", it.anomalia_id ? ` · ${codiceAnomalia(it.anomalia_id)}` : ""), it.note && /*#__PURE__*/React.createElement("div", {
     className: "text-2xs",
     style: {
       color: "var(--text-mid)",
@@ -2013,7 +2018,10 @@ function GestioneAnomalie() {
       // «Per stato» ha già il gruppo «Da decidere»: il filtro vale solo «Per S/N».
       if (raggruppa === "sn" && snFilter === "da_decidere" && !isDaDecidere(a)) return false;
       if (!q) return true;
-      return [a.sn, a.blocco_label, a.testo, a.desc, a.fase, a.avanzamento, a.local_id && `#${a.local_id}`].some(v => String(v || "").toLowerCase().includes(q));
+      // Codice «AN-00123», «an123», «#123» o «123»: cerca per numero dell'anomalia.
+      const m = /^(?:an-?|#)\s*0*(\d+)$/i.exec(q);
+      if (m && String(a.local_id) === m[1]) return true;
+      return [a.sn, a.blocco_label, a.testo, a.desc, a.fase, a.avanzamento, a.local_id && codiceAnomalia(a.local_id).toLowerCase()].some(v => String(v || "").toLowerCase().includes(q));
     });
   }, [anomalie, searchSn, snFilter, raggruppa, pageFilter, mostraTutte]);
   const nInCarico = useMemo(() => anomalie.filter(a => a.in_carico_a_me).length, [anomalie]);
@@ -2533,7 +2541,7 @@ function GestioneAnomalie() {
               ...segnalatiSalvati(a)
             } : a));
           } catch (err) {
-            errori.push(`#${f.local_id}: ${err.message}`);
+            errori.push(`${codiceAnomalia(f.local_id)}: ${err.message}`);
           }
         }
         resetAmbito();
@@ -2830,7 +2838,7 @@ function GestioneAnomalie() {
       setAvanzamento("In attesa");
       flash({
         ok: true,
-        text: `Anomalia #${sn.local_id} riaperta · in attesa di decisione`
+        text: `Anomalia ${codiceAnomalia(sn.local_id)} riaperta · in attesa di decisione`
       });
       loadOrdini();
     } catch (e) {
@@ -2928,7 +2936,7 @@ function GestioneAnomalie() {
         }, "Elimina anomalia");
         flash({
           ok: true,
-          text: `Anomalia #${id} eliminata`
+          text: `Anomalia ${codiceAnomalia(id)} eliminata`
         });
       } else {
         const dest = ordini.find(o => String(o.id || "").toLowerCase() === String(azAnom.op).trim().toLowerCase());
@@ -2941,7 +2949,7 @@ function GestioneAnomalie() {
         }, "Taglia");
         flash({
           ok: true,
-          text: `Anomalia #${id}: ${data.nota || "spostata"}`
+          text: `Anomalia ${codiceAnomalia(id)}: ${data.nota || "spostata"}`
         }, 6000);
       }
       setAzAnom(null);
@@ -3152,7 +3160,7 @@ function GestioneAnomalie() {
       className: "ga-an__sub"
     }, a.testo || a.desc), /*#__PURE__*/React.createElement("span", {
       className: "ga-an__id"
-    }, "#", a.local_id))));
+    }, codiceAnomalia(a.local_id)))));
   };
   // Un gruppo: intestazione cliccabile (apre/chiude, scelta ricordata) e righe.
   // Chiuso, mostra comunque l'anomalia aperta a destra se è sua. Durante «Clona»
@@ -3434,7 +3442,7 @@ function GestioneAnomalie() {
   }, Ico.search, /*#__PURE__*/React.createElement("input", {
     value: searchSn,
     onChange: e => setSearchSn(e.target.value),
-    placeholder: "Cerca S/N, testo, #numero\u2026"
+    placeholder: "Cerca S/N, testo, codice AN-\u2026"
   }))), /*#__PURE__*/React.createElement("div", {
     className: "ga-col__body"
   }, loadingAnom ? /*#__PURE__*/React.createElement("div", {
@@ -3517,7 +3525,7 @@ function GestioneAnomalie() {
     className: "ga-det__titlerow"
   }, /*#__PURE__*/React.createElement("h2", {
     className: "ga-det__title"
-  }, "Anomalia #", sn.local_id), /*#__PURE__*/React.createElement("span", {
+  }, "Anomalia ", codiceAnomalia(sn.local_id)), /*#__PURE__*/React.createElement("span", {
     className: `ga-pill ga-pill--${statoSel.variant} ga-pill--lg`
   }, statoSel.text), /*#__PURE__*/React.createElement("div", {
     className: "ga-det__nav"
@@ -3897,7 +3905,7 @@ function GestioneAnomalie() {
     className: "ga-apply__txt"
   }, x.testo || x.desc || "—"), /*#__PURE__*/React.createElement("span", {
     className: "ga-hint"
-  }, "#", x.local_id, isDaDecidere(x) ? "" : ` · ${x.avanzamento || "decisa"}`)))))), giaDecise > 0 && ambito !== "solo" && /*#__PURE__*/React.createElement("label", {
+  }, codiceAnomalia(x.local_id), isDaDecidere(x) ? "" : ` · ${x.avanzamento || "decisa"}`)))))), giaDecise > 0 && ambito !== "solo" && /*#__PURE__*/React.createElement("label", {
     className: "ga-apply__decise"
   }, /*#__PURE__*/React.createElement("input", {
     type: "checkbox",
@@ -4112,7 +4120,7 @@ function GestioneAnomalie() {
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-modal__title",
     id: "ga-az-t"
-  }, azAnom.tipo === "elimina" ? `Eliminare l'anomalia #${sn.local_id}?` : `✂ Taglia l'anomalia #${sn.local_id}`), /*#__PURE__*/React.createElement("div", {
+  }, azAnom.tipo === "elimina" ? `Eliminare l'anomalia ${codiceAnomalia(sn.local_id)}?` : `✂ Taglia l'anomalia ${codiceAnomalia(sn.local_id)}`), /*#__PURE__*/React.createElement("div", {
     className: "ga-hint ga-az__ctx"
   }, "S/N ", sn.sn || "—", " \xB7 ", sn.testo || sn.desc || "(nessuna descrizione)"), azAnom.tipo === "elimina" ? /*#__PURE__*/React.createElement("div", {
     className: "ga-note ga-note--warn"
@@ -4184,7 +4192,7 @@ function GestioneAnomalie() {
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-modal__title",
     id: "ga-info-t"
-  }, "Richiedi info aggiuntive \xB7 #", sn.local_id), /*#__PURE__*/React.createElement("div", {
+  }, "Richiedi info aggiuntive \xB7 ", codiceAnomalia(sn.local_id)), /*#__PURE__*/React.createElement("div", {
     className: "ga-hint"
   }, "Arriva una notifica e una mail con il link per rispondere; finch\xE9 non rispondono l'anomalia \xE8 in carico a loro (\xAB", AVANZAMENTO_CHIARIMENTI, "\xBB)."), /*#__PURE__*/React.createElement("div", {
     className: "ga-flags"
@@ -4354,7 +4362,7 @@ function GestioneAnomalie() {
       className: "ga-riep__row"
     }, /*#__PURE__*/React.createElement("span", {
       className: "ga-apply__txt"
-    }, "#", x.local_id, " ", x.testo || x.desc || "—", x.item_id === sn.item_id ? " (questa)" : ""), /*#__PURE__*/React.createElement("span", {
+    }, codiceAnomalia(x.local_id), " ", x.testo || x.desc || "—", x.item_id === sn.item_id ? " (questa)" : ""), /*#__PURE__*/React.createElement("span", {
       className: "ga-riep__stato"
     }, x.avanzamento || "In attesa", " \u2192 ", avanzamento), chiude ? /*#__PURE__*/React.createElement("span", {
       className: "ga-pill ga-pill--chiuso"
@@ -4388,7 +4396,7 @@ function GestioneAnomalie() {
     className: "ga-modal__box"
   }, /*#__PURE__*/React.createElement("div", {
     className: "ga-modal__title"
-  }, "Modifiche non salvate"), /*#__PURE__*/React.createElement("p", null, "Hai cambiato la decisione sull'anomalia #", sn.local_id, " senza salvarla."), /*#__PURE__*/React.createElement("div", {
+  }, "Modifiche non salvate"), /*#__PURE__*/React.createElement("p", null, "Hai cambiato la decisione sull'anomalia ", codiceAnomalia(sn.local_id), " senza salvarla."), /*#__PURE__*/React.createElement("div", {
     className: "ga-modal__acts"
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
