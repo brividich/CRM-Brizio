@@ -211,7 +211,7 @@
                     <label for="date_start">Data inizio</label>
                     <input id="date_start" type="date" name="date_start" class="abs-input" value="{{ form_data.date_start|default:'' }}">
                   </div>
-                  <div class="abs-field">
+                  <div class="abs-field" id="abs-campo-data-fine">
                     <label for="date_end">Data fine</label>
                     <input id="date_end" type="date" name="date_end" class="abs-input" value="{{ form_data.date_end|default:'' }}">
                   </div>
@@ -232,7 +232,8 @@
                 </div>
 
                 <div class="abs-stack">
-                  <div class="abs-fields-2">
+                  {# Con Flessibilità si nascondono: gli orari li danno Entrata/Uscita (valori copiati qui da richiesta.js). #}
+                  <div class="abs-fields-2" id="abs-orari-liberi">
                     <div class="abs-field">
                       <label for="time_start">Ora inizio</label>
                       <input id="time_start" type="time" name="time_start" class="abs-input" value="{{ form_data.time_start|default:'06:00' }}">

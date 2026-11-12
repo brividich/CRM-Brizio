@@ -128,6 +128,9 @@ class PaginaRichiestaTests(TestCase):
         self.assertIn('hx-get="%s"' % reverse("assenze_richiesta_controlli"), html)
         self.assertIn('id="abs-campo-capo"', html)
         self.assertIn('type="submit" form="richiestaForm"', html)
+        # Flessibilità: richiesta.js nasconde orari liberi e data fine (orari fissi, un solo giorno).
+        self.assertIn('id="abs-orari-liberi"', html)
+        self.assertIn('id="abs-campo-data-fine"', html)
         # Niente doppioni: barra dei passi, card durata, «Torna al menu», JS inline.
         for assente in ("abs-flow-strip", "abs-duration-card", "Torna al menu", "window.alert", "onclick=", "onchange="):
             self.assertNotIn(assente, html)
