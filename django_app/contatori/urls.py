@@ -58,6 +58,8 @@ urlpatterns = [
     path("snmp/wizard/<slug:tipo>/<uuid:wid>/", views_wizard.wizard, name="wizard"),
     path("snmp/dispositivi/<int:pk>/", views.dispositivo_snmp_detail,
          name="snmp_dispositivo"),
+    path("snmp/dispositivi/<int:pk>/porte/", views.dispositivo_porte, name="dispositivo_porte"),
+    path("topologia/", views.topologia, name="topologia"),
     path("snmp/dispositivi/<int:pk>/modifica/", views.dispositivo_snmp_edit,
          name="snmp_dispositivo_edit"),
     path("snmp/dispositivi/<int:pk>/interroga/", views.dispositivo_snmp_interroga,

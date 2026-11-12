@@ -1,0 +1,26 @@
+{% extends "contatori/_base_modulo.html" %}
+{% block title %}Topologia · Contatori IT{% endblock %}
+{% block modulo %}{% load contatori_acl %}{% puo_gestire as g %}
+<section class="hero cc-hero"><div class="row"><div><div class="eyebrow">Rete degli apparati</div><h1>Topologia</h1>
+  <p class="sub">Chi è collegato a chi, dalle porte descritte su firewall e switch: {{ t.collegamenti }} collegament{{ t.collegamenti|pluralize:"o,i" }}. Clic su un apparato per il pannello, sulla freccia per aprire o chiudere un ramo.</p></div>
+  <div class="spacer"></div><div class="actions"><button type="button" class="btn ghost" data-cc-tree-tutti="1">Apri tutto</button><button type="button" class="btn ghost" data-cc-tree-tutti="0">Chiudi tutto</button></div></div></section>
+
+{% if t.radici %}
+<section class="panel cc-topo" data-preview-scope>
+  <ul class="cc-tree">
+    {% for nodo in t.radici %}{% include "contatori/_topo_nodo.html" with nodo=nodo porta="" %}{% endfor %}
+  </ul>
+</section>
+{% else %}
+<div class="banner warn">Nessun collegamento ancora. Apri la scheda di un firewall o di uno switch nel Monitor SNMP{% if g %} e usa «Modifica porte»{% endif %}: per ogni porta indica cosa c'è collegato (un altro apparato, una MFC o «Internet»). Le porte collegate diventano i rami dell'albero.</div>
+{% endif %}
+
+{% if t.scollegati %}
+<section class="panel">
+  <div class="panel-head"><div><span class="cc-kicker">{{ t.scollegati|length }} apparati</span><h2>Non ancora collegati</h2><p>Non compaiono su nessuna porta descritta: aggiungili dalla scheda dello switch o del firewall a cui sono collegati.</p></div></div>
+  <div class="cc-topo-sciolti" data-preview-scope>
+    {% for n in t.scollegati %}<a class="cc-tnode is-{{ n.tono }}" id="nodo-{{ n.chiave }}" href="{{ n.url }}"{% if n.anteprima %} data-preview="{{ n.anteprima }}"{% endif %}><span class="cc-tnode-ico">{{ n.sigla }}</span><span class="cc-tnode-txt"><strong>{{ n.nome }}</strong><small class="cc-mono">{{ n.host }}</small></span></a>{% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
